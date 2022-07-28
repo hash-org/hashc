@@ -190,7 +190,8 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 })?;
                 match result {
                     Some(result) => Ok(Some(
-                        self.discoverer().apply_set_bound_to_term(set_bound.scope, result)?,
+                        self.discoverer()
+                            .potentially_apply_set_bound_to_term(set_bound.scope, result)?,
                     )),
                     None => Ok(None),
                 }
@@ -493,7 +494,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     [single_result] => Ok(Some(*single_result)),
                     // Got multiple results, which is ambiguous:
                     results => Err(TcError::AmbiguousAccess {
-                        access: access_term.clone(),
+                        access: *access_term,
                         results: results.to_vec(),
                     }),
                 }
@@ -505,7 +506,8 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 })?;
                 match result {
                     Some(result) => Ok(Some(
-                        self.discoverer().apply_set_bound_to_term(set_bound.scope, result)?,
+                        self.discoverer()
+                            .potentially_apply_set_bound_to_term(set_bound.scope, result)?,
                     )),
                     None => Ok(None),
                 }
@@ -590,8 +592,10 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                                 simplified_subject_id,
                             );
                             results.push(
-                                self.discoverer()
-                                    .apply_set_bound_to_term(scope, case.return_value)?,
+                                self.discoverer().potentially_apply_set_bound_to_term(
+                                    scope,
+                                    case.return_value,
+                                )?,
                             );
                         }
                         Err(err) => {
@@ -749,9 +753,10 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     members: self
                         .discoverer()
                         .apply_set_bound_to_args(set_bound.scope, constructed_result.members)?,
-                    subject: self
-                        .discoverer()
-                        .apply_set_bound_to_term(set_bound.scope, constructed_result.subject)?,
+                    subject: self.discoverer().potentially_apply_set_bound_to_term(
+                        set_bound.scope,
+                        constructed_result.subject,
+                    )?,
                 })
             }
             Term::Level1(Level1Term::NominalDef(nominal_def_id)) => {
@@ -859,7 +864,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                         .apply_set_bound_to_params(set_bound.scope, result.params)?,
                     return_ty: self
                         .discoverer()
-                        .apply_set_bound_to_term(set_bound.scope, result.return_ty)?,
+                        .potentially_apply_set_bound_to_term(set_bound.scope, result.return_ty)?,
                 })
             }
             Term::Unresolved(_) => {
@@ -1269,7 +1274,8 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     })?;
                 match simplified_inner {
                     Some(simplified) => Ok(Some(
-                        self.discoverer().apply_set_bound_to_term(set_bound.scope, simplified)?,
+                        self.discoverer()
+                            .potentially_apply_set_bound_to_term(set_bound.scope, simplified)?,
                     )),
                     None => Ok(None),
                 }

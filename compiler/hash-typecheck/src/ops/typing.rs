@@ -138,7 +138,9 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                         );
 
                         // Apply the substitution to the return type and use it as the result:
-                        Ok(self.discoverer().apply_set_bound_to_term(scope, ty_fn_ty.return_ty)?)
+                        Ok(self
+                            .discoverer()
+                            .potentially_apply_set_bound_to_term(scope, ty_fn_ty.return_ty)?)
                     }
                     _ => Err(TcError::UnsupportedTyFnApplication { subject_id: app_ty_fn.subject }),
                 }
@@ -178,7 +180,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                 let result = self.scope_manager().enter_scope(set_bound.scope, |this| {
                     this.typer().infer_ty_of_simplified_term(set_bound.term)
                 })?;
-                self.discoverer().apply_set_bound_to_term(set_bound.scope, result)
+                self.discoverer().potentially_apply_set_bound_to_term(set_bound.scope, result)
             }
             Term::Unresolved(_) => {
                 // The type of an unresolved variable X is typeof(X):
@@ -506,8 +508,10 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                             .into_iter()
                             .map(|(term, params)| {
                                 Ok((
-                                    self.discoverer()
-                                        .apply_set_bound_to_term(set_bound.scope, term)?,
+                                    self.discoverer().potentially_apply_set_bound_to_term(
+                                        set_bound.scope,
+                                        term,
+                                    )?,
                                     self.discoverer()
                                         .apply_set_bound_to_params(set_bound.scope, params)?,
                                 ))

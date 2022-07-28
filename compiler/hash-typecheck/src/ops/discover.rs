@@ -1,10 +1,10 @@
 //! Functionality related to discovering variables in terms.
 use crate::{
-    diagnostics::error::TcResult,
+    diagnostics::{error::TcResult, macros::tc_panic},
     storage::{
         primitives::{
-            ArgsId, BoundVar, Level0Term, Level1Term, Level2Term, Level3Term, ParamsId, ScopeId,
-            Sub, SubVar, Term, TermId,
+            AccessTerm, Arg, ArgsId, BoundVar, Level0Term, Level1Term, Level2Term, Level3Term,
+            Param, ParamsId, ScopeId, Sub, SubVar, Term, TermId, TyFn, TyFnCase,
         },
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
@@ -30,13 +30,13 @@ impl<'gs, 'ls, 'cd, 's> AccessToStorageMut for Discoverer<'gs, 'ls, 'cd, 's> {
 }
 
 impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
-    pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd, 's>) -> Self {
+    pub(crate) fn new(storage: StorageRefMut<'gs, 'ls, 'cd, 's>) -> Self {
         Self { storage }
     }
 
     /// Add the free variables in the parameter default values and types to the
     /// given [HashSet].
-    pub fn add_free_sub_vars_in_params_to_set(
+    pub(crate) fn add_free_sub_vars_in_params_to_set(
         &self,
         params_id: ParamsId,
         result: &mut HashSet<SubVar>,
@@ -54,7 +54,11 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
 
     /// Add the free variables that exist in the given args, to the given
     /// [HashSet].
-    pub fn add_free_sub_vars_in_args_to_set(&self, args_id: ArgsId, result: &mut HashSet<SubVar>) {
+    pub(crate) fn add_free_sub_vars_in_args_to_set(
+        &self,
+        args_id: ArgsId,
+        result: &mut HashSet<SubVar>,
+    ) {
         let args = self.args_store().get(args_id);
 
         for arg in args.positional() {
@@ -64,7 +68,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
 
     /// Add the free variables that exist in the given [Level0Term], to the
     /// given [HashSet].
-    pub fn add_free_sub_vars_in_level0_term_to_set(
+    pub(crate) fn add_free_sub_vars_in_level0_term_to_set(
         &self,
         term: &Level0Term,
         result: &mut HashSet<SubVar>,
@@ -96,7 +100,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
 
     /// Add the free variables that exist in the given [Level1Term], to the
     /// given [HashSet].
-    pub fn add_free_sub_vars_in_level1_term_to_set(
+    pub(crate) fn add_free_sub_vars_in_level1_term_to_set(
         &self,
         term: &Level1Term,
         result: &mut HashSet<SubVar>,
@@ -117,7 +121,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
 
     /// Add the free variables that exist in the given [Level2Term], to the
     /// given [HashSet].
-    pub fn add_free_sub_vars_in_level2_term_to_set(
+    pub(crate) fn add_free_sub_vars_in_level2_term_to_set(
         &self,
         term: &Level2Term,
         _result: &mut HashSet<SubVar>,
@@ -129,7 +133,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
 
     /// Add the free variables that exist in the given [Level3Term], to the
     /// given [HashSet].
-    pub fn add_free_sub_vars_in_level3_term_to_set(
+    pub(crate) fn add_free_sub_vars_in_level3_term_to_set(
         &self,
         term: &Level3Term,
         _: &mut HashSet<SubVar>,
@@ -144,7 +148,11 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
     ///
     /// Free variables are either `Var` or `Unresolved`, and this function
     /// collects both.
-    pub fn add_free_sub_vars_in_term_to_set(&self, term_id: TermId, result: &mut HashSet<SubVar>) {
+    pub(crate) fn add_free_sub_vars_in_term_to_set(
+        &self,
+        term_id: TermId,
+        result: &mut HashSet<SubVar>,
+    ) {
         let reader = self.reader();
         let term = reader.get_term(term_id);
         match term {
@@ -216,7 +224,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
 
     /// Add the free variables that exist in the given [Sub], to the
     /// given [HashSet] (minus the ones that will be substituted)..
-    pub fn add_free_sub_vars_in_sub_to_set(&self, sub: &Sub, result: &mut HashSet<SubVar>) {
+    pub(crate) fn add_free_sub_vars_in_sub_to_set(&self, sub: &Sub, result: &mut HashSet<SubVar>) {
         let mut intermediate_result = HashSet::new();
 
         // Add all the variables in the range, minus the variables in the domain:
@@ -237,7 +245,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
 
     /// Get the free variables that exist in the given [Sub] (minus the ones
     /// that will be substituted).
-    pub fn get_free_sub_vars_in_sub(&self, sub: &Sub) -> HashSet<SubVar> {
+    pub(crate) fn get_free_sub_vars_in_sub(&self, sub: &Sub) -> HashSet<SubVar> {
         let mut result = HashSet::new();
         self.add_free_sub_vars_in_sub_to_set(sub, &mut result);
         result
@@ -247,7 +255,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
     ///
     /// Free variables are either `Var` or `Unresolved`, and this function
     /// collects both.
-    pub fn get_free_sub_vars_in_term(&self, term_id: TermId) -> HashSet<SubVar> {
+    pub(crate) fn get_free_sub_vars_in_term(&self, term_id: TermId) -> HashSet<SubVar> {
         let mut result = HashSet::new();
         self.add_free_sub_vars_in_term_to_set(term_id, &mut result);
         result
@@ -255,7 +263,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
 
     /// Add the free variables in the parameter default values and types to the
     /// given [HashSet].
-    pub fn add_free_bound_vars_in_params_to_set(
+    pub(crate) fn add_free_bound_vars_in_params_to_set(
         &self,
         params_id: ParamsId,
         result: &mut HashSet<BoundVar>,
@@ -273,7 +281,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
 
     /// Add the parameter variables in the parameters to the given [HashSet] as
     /// [BoundVar]s.
-    pub fn add_param_vars_as_bound_vars_to_set(
+    pub(crate) fn add_param_vars_as_bound_vars_to_set(
         &self,
         params_id: ParamsId,
         result: &mut HashSet<BoundVar>,
@@ -290,7 +298,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
 
     /// Add the free variables that exist in the given args, to the given
     /// [HashSet].
-    pub fn add_free_bound_vars_in_args_to_set(
+    pub(crate) fn add_free_bound_vars_in_args_to_set(
         &self,
         args_id: ArgsId,
         result: &mut HashSet<BoundVar>,
@@ -304,7 +312,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
 
     /// Add the free variables that exist in the given [Level0Term], to the
     /// given [HashSet].
-    pub fn add_free_bound_vars_in_level0_term_to_set(
+    pub(crate) fn add_free_bound_vars_in_level0_term_to_set(
         &self,
         term: &Level0Term,
         result: &mut HashSet<BoundVar>,
@@ -336,7 +344,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
 
     /// Add the free variables that exist in the given [Level1Term], to the
     /// given [HashSet].
-    pub fn add_free_bound_vars_in_level1_term_to_set(
+    pub(crate) fn add_free_bound_vars_in_level1_term_to_set(
         &self,
         term: &Level1Term,
         result: &mut HashSet<BoundVar>,
@@ -357,7 +365,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
 
     /// Add the free variables that exist in the given [Level2Term], to the
     /// given [HashSet].
-    pub fn add_free_bound_vars_in_level2_term_to_set(
+    pub(crate) fn add_free_bound_vars_in_level2_term_to_set(
         &self,
         term: &Level2Term,
         _result: &mut HashSet<BoundVar>,
@@ -369,7 +377,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
 
     /// Add the free variables that exist in the given [Level3Term], to the
     /// given [HashSet].
-    pub fn add_free_bound_vars_in_level3_term_to_set(
+    pub(crate) fn add_free_bound_vars_in_level3_term_to_set(
         &self,
         term: &Level3Term,
         _: &mut HashSet<BoundVar>,
@@ -383,7 +391,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
     /// given [HashSet].
     ///
     /// This adds the free (bound) variables in the member types and values.
-    pub fn add_free_bound_vars_in_scope_to_set(
+    pub(crate) fn add_free_bound_vars_in_scope_to_set(
         &self,
         scope: ScopeId,
         result: &mut HashSet<BoundVar>,
@@ -405,7 +413,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
     ///
     /// Free variables are either `Var` or `Unresolved`, and this function
     /// collects both.
-    pub fn add_free_bound_vars_in_term_to_set(
+    pub(crate) fn add_free_bound_vars_in_term_to_set(
         &self,
         term_id: TermId,
         result: &mut HashSet<BoundVar>,
@@ -533,42 +541,532 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
         result
     }
 
-    pub fn apply_set_bound_to_params(
+    pub(crate) fn apply_set_bound_to_params_with_flag(
         &mut self,
-        _set_bound_scope_id: ScopeId,
-        _params_id: ParamsId,
+        set_bound_scope_id: ScopeId,
+        params_id: ParamsId,
+        ignore_bound_vars: &HashSet<BoundVar>,
+        applied_once: &mut bool,
     ) -> TcResult<ParamsId> {
-        todo!()
+        let params = self.params_store().get(params_id).clone();
+
+        let result = params
+            .positional()
+            .iter()
+            .map(|param| {
+                Ok(Param {
+                    name: param.name,
+                    ty: self.apply_set_bound_to_term_with_flag(
+                        set_bound_scope_id,
+                        param.ty,
+                        ignore_bound_vars,
+                        applied_once,
+                    )?,
+                    default_value: param
+                        .default_value
+                        .map(|value| {
+                            self.apply_set_bound_to_term_with_flag(
+                                set_bound_scope_id,
+                                value,
+                                ignore_bound_vars,
+                                applied_once,
+                            )
+                        })
+                        .transpose()?,
+                })
+            })
+            .collect::<TcResult<Vec<_>>>()?;
+
+        let new_params = self.builder().create_params(result, params.origin());
+        self.location_store_mut().copy_locations(params_id, new_params);
+        Ok(new_params)
     }
 
-    pub fn apply_set_bound_to_args(
+    /// Apply the given [Scope] of kind [Scope::SetBound] to the given params,
+    /// at the lowest level possible.
+    pub(crate) fn apply_set_bound_to_params(
         &mut self,
-        _set_bound_scope_id: ScopeId,
-        _args_id: ArgsId,
+        set_bound_scope_id: ScopeId,
+        params_id: ParamsId,
+    ) -> TcResult<ParamsId> {
+        self.apply_set_bound_to_params_with_flag(
+            set_bound_scope_id,
+            params_id,
+            &HashSet::new(),
+            &mut false,
+        )
+    }
+
+    pub(crate) fn apply_set_bound_to_args_with_flag(
+        &mut self,
+        set_bound_scope_id: ScopeId,
+        args_id: ArgsId,
+        ignore_bound_vars: &HashSet<BoundVar>,
+        applied_once: &mut bool,
     ) -> TcResult<ArgsId> {
-        todo!()
+        let args = self.args_store().get(args_id).clone();
+
+        let result = args
+            .positional()
+            .iter()
+            .map(|arg| {
+                Ok(Arg {
+                    name: arg.name,
+                    value: self.apply_set_bound_to_term_with_flag(
+                        set_bound_scope_id,
+                        arg.value,
+                        ignore_bound_vars,
+                        applied_once,
+                    )?,
+                })
+            })
+            .collect::<TcResult<Vec<_>>>()?;
+
+        let new_args = self.builder().create_args(result, args.origin());
+        self.location_store_mut().copy_locations(args_id, new_args);
+        Ok(new_args)
+    }
+
+    /// Apply the given [Scope] of kind [Scope::SetBound] to the given args, at
+    /// the lowest level possible.
+    pub(crate) fn apply_set_bound_to_args(
+        &mut self,
+        set_bound_scope_id: ScopeId,
+        args_id: ArgsId,
+    ) -> TcResult<ArgsId> {
+        self.apply_set_bound_to_args_with_flag(
+            set_bound_scope_id,
+            args_id,
+            &HashSet::new(),
+            &mut false,
+        )
     }
 
     /// Apply the given [Scope] of kind [Scope::SetBound] to the given term, at
     /// the lowest level possible.
-    ///
-    /// This checks each child of the term, and only wraps it in a set bound if
-    /// the free variables are present.
-    pub fn apply_set_bound_to_term(
+    pub(crate) fn potentially_apply_set_bound_to_term(
         &mut self,
         set_bound_scope_id: ScopeId,
         term_id: TermId,
     ) -> TcResult<TermId> {
+        Ok(self
+            .apply_set_bound_to_term(set_bound_scope_id, term_id, &HashSet::new())?
+            .unwrap_or(term_id))
+    }
+
+    // Same as [Self::apply_set_bound_to_term] but if it returns None, the original
+    // term is returned, with a flag to indicate if the term is the original or
+    // the modified.
+    pub(crate) fn apply_set_bound_to_term_with_flag(
+        &mut self,
+        set_bound_scope_id: ScopeId,
+        term_id: TermId,
+        ignore_bound_vars: &HashSet<BoundVar>,
+        applied_once: &mut bool,
+    ) -> TcResult<TermId> {
+        Ok(self
+            .apply_set_bound_to_term(set_bound_scope_id, term_id, ignore_bound_vars)?
+            .map(|applied| {
+                *applied_once = true;
+                applied
+            })
+            .unwrap_or(term_id))
+    }
+
+    /// Apply the given [Scope] of kind [Scope::SetBound] to the given term, at
+    /// the lowest level possible. Returns None if no application occurred.
+    ///
+    /// This checks each child of the term, and only wraps it in a set bound if
+    /// the free variables are present.
+    ///
+    /// Takes a list of bound vars to ignore, because they are bound in some
+    /// child scope (like a type function bound).
+    pub(crate) fn apply_set_bound_to_term(
+        &mut self,
+        set_bound_scope_id: ScopeId,
+        term_id: TermId,
+        ignore_bound_vars: &HashSet<BoundVar>,
+    ) -> TcResult<Option<TermId>> {
         let reader = self.reader();
-        let set_bound_scope = reader.get_scope(set_bound_scope_id);
-        let free_bound_vars_in_term = self.get_free_bound_vars_in_term(term_id);
-        if !free_bound_vars_in_term.iter().any(|var| set_bound_scope.contains(var.name)) {
-            return Ok(term_id);
+        let term = reader.get_term(term_id);
+        let result = match term {
+            Term::BoundVar(var) => {
+                if ignore_bound_vars.contains(var) {
+                    Ok(None)
+                } else {
+                    // Try to resolve the bound var
+                    match self.reader().get_scope(set_bound_scope_id).get(var.name) {
+                        Some(member) => {
+                            let value = member.0.data.value().unwrap_or_else(|| {
+                                tc_panic!(
+                                    term_id,
+                                    self,
+                                    "Found bound var in set bound scope, but it has no value"
+                                )
+                            });
+                            // @@Correctness: do we need to recurse here?
+                            self.apply_set_bound_to_term(
+                                set_bound_scope_id,
+                                value,
+                                ignore_bound_vars,
+                            )
+                        }
+                        None => {
+                            // Not part of the given scope:
+                            Ok(None)
+                        }
+                    }
+                }
+            }
+            Term::Access(term) => {
+                // Apply to subject
+                let term = *term;
+                let subject_applied = self.apply_set_bound_to_term(
+                    set_bound_scope_id,
+                    term.subject,
+                    ignore_bound_vars,
+                )?;
+                match subject_applied {
+                    Some(subject_applied) => {
+                        Ok(Some(self.builder().create_term(Term::Access(AccessTerm {
+                            subject: subject_applied,
+                            ..term
+                        }))))
+                    }
+                    None => Ok(None),
+                }
+            }
+            Term::Merge(terms) => {
+                // Apply each term:
+                let terms = terms.clone();
+                let mut applied_once = false;
+                let merge_applied = terms
+                    .iter()
+                    .map(|term| {
+                        self.apply_set_bound_to_term_with_flag(
+                            set_bound_scope_id,
+                            *term,
+                            ignore_bound_vars,
+                            &mut applied_once,
+                        )
+                    })
+                    .collect::<TcResult<Vec<_>>>()?;
+                if !applied_once {
+                    Ok(None)
+                } else {
+                    Ok(Some(self.builder().create_merge_term(merge_applied)))
+                }
+            }
+            Term::Union(terms) => {
+                // Apply each term:
+                let terms = terms.clone();
+                let mut applied_once = false;
+                let union_applied = terms
+                    .iter()
+                    .map(|term| {
+                        self.apply_set_bound_to_term_with_flag(
+                            set_bound_scope_id,
+                            *term,
+                            ignore_bound_vars,
+                            &mut applied_once,
+                        )
+                    })
+                    .collect::<TcResult<Vec<_>>>()?;
+                if !applied_once {
+                    Ok(None)
+                } else {
+                    Ok(Some(self.builder().create_union_term(union_applied)))
+                }
+            }
+            Term::TyFn(ty_fn) => {
+                // Keep track of the param variables here cause we have to subtract the ones in
+                // the params before traversing.
+                let ty_fn = ty_fn.clone();
+                let mut applied_once = false;
+                let mut ty_fn_bound_vars_due_to_params = HashSet::new();
+                self.add_param_vars_as_bound_vars_to_set(
+                    ty_fn.general_params,
+                    &mut ty_fn_bound_vars_due_to_params,
+                );
+                let new_ignore_bound_vars = ignore_bound_vars
+                    .union(&ty_fn_bound_vars_due_to_params)
+                    .copied()
+                    .collect::<HashSet<_>>();
+
+                let general_params = self.apply_set_bound_to_params_with_flag(
+                    set_bound_scope_id,
+                    ty_fn.general_params,
+                    ignore_bound_vars,
+                    &mut applied_once,
+                )?;
+                let general_return_ty = self.apply_set_bound_to_term_with_flag(
+                    set_bound_scope_id,
+                    ty_fn.general_return_ty,
+                    &new_ignore_bound_vars,
+                    &mut applied_once,
+                )?;
+
+                let cases = ty_fn
+                    .cases
+                    .iter()
+                    .map(|case| {
+                        // Keep track of the param variables for cases too
+                        let mut ty_fn_bound_vars_due_to_params = HashSet::new();
+                        self.add_param_vars_as_bound_vars_to_set(
+                            ty_fn.general_params,
+                            &mut ty_fn_bound_vars_due_to_params,
+                        );
+                        let new_ignore_bound_vars = ignore_bound_vars
+                            .union(&ty_fn_bound_vars_due_to_params)
+                            .copied()
+                            .collect::<HashSet<_>>();
+                        let params = self.apply_set_bound_to_params_with_flag(
+                            set_bound_scope_id,
+                            case.params,
+                            ignore_bound_vars,
+                            &mut applied_once,
+                        )?;
+                        let return_ty = self.apply_set_bound_to_term_with_flag(
+                            set_bound_scope_id,
+                            case.return_ty,
+                            &new_ignore_bound_vars,
+                            &mut applied_once,
+                        )?;
+                        let return_value = self.apply_set_bound_to_term_with_flag(
+                            set_bound_scope_id,
+                            case.return_value,
+                            &new_ignore_bound_vars,
+                            &mut applied_once,
+                        )?;
+                        Ok(TyFnCase { params, return_ty, return_value })
+                    })
+                    .collect::<TcResult<Vec<_>>>()?;
+
+                if !applied_once {
+                    Ok(None)
+                } else {
+                    Ok(Some(self.builder().create_term(Term::TyFn(TyFn {
+                        general_params,
+                        general_return_ty,
+                        cases,
+                        name: ty_fn.name,
+                    }))))
+                }
+            }
+            Term::TyFnTy(ty_fn_ty) => {
+                // Same basic procedure as for TyFn.
+                let ty_fn_ty = ty_fn_ty.clone();
+                let mut applied_once = false;
+                let mut ty_fn_bound_vars_due_to_params = HashSet::new();
+                self.add_param_vars_as_bound_vars_to_set(
+                    ty_fn_ty.params,
+                    &mut ty_fn_bound_vars_due_to_params,
+                );
+                let new_ignore_bound_vars = ignore_bound_vars
+                    .union(&ty_fn_bound_vars_due_to_params)
+                    .copied()
+                    .collect::<HashSet<_>>();
+                let params = self.apply_set_bound_to_params_with_flag(
+                    set_bound_scope_id,
+                    ty_fn_ty.params,
+                    ignore_bound_vars,
+                    &mut applied_once,
+                )?;
+                let return_ty = self.apply_set_bound_to_term_with_flag(
+                    set_bound_scope_id,
+                    ty_fn_ty.return_ty,
+                    &new_ignore_bound_vars,
+                    &mut applied_once,
+                )?;
+                if !applied_once {
+                    Ok(None)
+                } else {
+                    Ok(Some(self.builder().create_ty_fn_ty_term(params, return_ty)))
+                }
+            }
+            Term::TyFnCall(app_ty_fn) => {
+                let app_ty_fn = app_ty_fn.clone();
+                let mut applied_once = false;
+                let subject = self.apply_set_bound_to_term_with_flag(
+                    set_bound_scope_id,
+                    app_ty_fn.subject,
+                    ignore_bound_vars,
+                    &mut applied_once,
+                )?;
+                let args = self.apply_set_bound_to_args_with_flag(
+                    set_bound_scope_id,
+                    app_ty_fn.args,
+                    ignore_bound_vars,
+                    &mut applied_once,
+                )?;
+                if !applied_once {
+                    Ok(None)
+                } else {
+                    Ok(Some(self.builder().create_app_ty_fn_term(subject, args)))
+                }
+            }
+            Term::TyOf(term) => {
+                let term = *term;
+                let mut applied_once = false;
+                let inner = self.apply_set_bound_to_term_with_flag(
+                    set_bound_scope_id,
+                    term,
+                    ignore_bound_vars,
+                    &mut applied_once,
+                )?;
+                if !applied_once {
+                    Ok(None)
+                } else {
+                    Ok(Some(self.builder().create_ty_of_term(inner)))
+                }
+            }
+            // Definite-level terms:
+            Term::Level1(Level1Term::Tuple(tuple_ty)) => {
+                let tuple_ty = *tuple_ty;
+                let mut applied_once = false;
+                let members = self.apply_set_bound_to_params_with_flag(
+                    set_bound_scope_id,
+                    tuple_ty.members,
+                    ignore_bound_vars,
+                    &mut applied_once,
+                )?;
+                if !applied_once {
+                    Ok(None)
+                } else {
+                    Ok(Some(self.builder().create_tuple_ty_term(members)))
+                }
+            }
+            Term::Level1(Level1Term::Fn(fn_ty)) => {
+                let fn_ty = *fn_ty;
+                let mut applied_once = false;
+                let params = self.apply_set_bound_to_params_with_flag(
+                    set_bound_scope_id,
+                    fn_ty.params,
+                    ignore_bound_vars,
+                    &mut applied_once,
+                )?;
+                let return_ty = self.apply_set_bound_to_term_with_flag(
+                    set_bound_scope_id,
+                    fn_ty.return_ty,
+                    ignore_bound_vars,
+                    &mut applied_once,
+                )?;
+                if !applied_once {
+                    Ok(None)
+                } else {
+                    Ok(Some(self.builder().create_fn_ty_term(params, return_ty)))
+                }
+            }
+            Term::Level0(term) => match term {
+                Level0Term::Rt(inner) => Ok(self
+                    .apply_set_bound_to_term(set_bound_scope_id, *inner, ignore_bound_vars)?
+                    .map(|result| self.builder().create_rt_term(result))),
+                Level0Term::FnCall(fn_call) => {
+                    let fn_call = *fn_call;
+                    let mut applied_once = false;
+                    let subject = self.apply_set_bound_to_term_with_flag(
+                        set_bound_scope_id,
+                        fn_call.subject,
+                        ignore_bound_vars,
+                        &mut applied_once,
+                    )?;
+                    let args = self.apply_set_bound_to_args_with_flag(
+                        set_bound_scope_id,
+                        fn_call.args,
+                        ignore_bound_vars,
+                        &mut applied_once,
+                    )?;
+                    if !applied_once {
+                        Ok(None)
+                    } else {
+                        Ok(Some(self.builder().create_fn_call_term(subject, args)))
+                    }
+                }
+                Level0Term::FnLit(fn_lit) => {
+                    let fn_lit = *fn_lit;
+                    let mut applied_once = false;
+                    let fn_ty = self.apply_set_bound_to_term_with_flag(
+                        set_bound_scope_id,
+                        fn_lit.fn_ty,
+                        ignore_bound_vars,
+                        &mut applied_once,
+                    )?;
+                    let return_value = self.apply_set_bound_to_term_with_flag(
+                        set_bound_scope_id,
+                        fn_lit.return_value,
+                        ignore_bound_vars,
+                        &mut applied_once,
+                    )?;
+                    if !applied_once {
+                        Ok(None)
+                    } else {
+                        Ok(Some(self.builder().create_fn_lit_term(fn_ty, return_value)))
+                    }
+                }
+                Level0Term::EnumVariant(_) => {
+                    // @@Remove: enum variants will be removed
+                    Ok(None)
+                }
+                Level0Term::Tuple(tuple_lit) => {
+                    let tuple_lit = *tuple_lit;
+                    let mut applied_once = false;
+                    let members = self.apply_set_bound_to_args_with_flag(
+                        set_bound_scope_id,
+                        tuple_lit.members,
+                        ignore_bound_vars,
+                        &mut applied_once,
+                    )?;
+                    if !applied_once {
+                        Ok(None)
+                    } else {
+                        Ok(Some(self.builder().create_tuple_lit_term(members)))
+                    }
+                }
+                Level0Term::Lit(_) => Ok(None),
+                Level0Term::Constructed(constructed) => {
+                    let constructed = *constructed;
+                    let mut applied_once = false;
+                    let subject = self.apply_set_bound_to_term_with_flag(
+                        set_bound_scope_id,
+                        constructed.subject,
+                        ignore_bound_vars,
+                        &mut applied_once,
+                    )?;
+                    let members = self.apply_set_bound_to_args_with_flag(
+                        set_bound_scope_id,
+                        constructed.members,
+                        ignore_bound_vars,
+                        &mut applied_once,
+                    )?;
+                    if !applied_once {
+                        Ok(None)
+                    } else {
+                        Ok(Some(self.builder().create_constructed_term(subject, members)))
+                    }
+                }
+            },
+            Term::Level1(Level1Term::ModDef(_))
+            | Term::Level1(Level1Term::NominalDef(_))
+            | Term::Level2(Level2Term::Trt(_))
+            | Term::SetBound(_) => {
+                // Wrap in set scope, these are the application leaves
+                Ok(Some(self.builder().create_set_bound_term(term_id, set_bound_scope_id)))
+            }
+            Term::Level3(Level3Term::TrtKind)
+            | Term::Level2(Level2Term::AnyTy)
+            | Term::Var(_)
+            | Term::Root
+            | Term::ScopeVar(_)
+            | Term::Unresolved(_) => {
+                // Nothing to do:
+                Ok(None)
+            }
+        }?;
+
+        if let Some(result) = result {
+            self.location_store_mut().copy_location(term_id, result);
         }
 
-        let _term = reader.get_term(term_id);
-
-        // @@Todo: implement this properly:
-        Ok(self.builder().create_set_bound_term(term_id, set_bound_scope_id))
+        Ok(result)
     }
 }

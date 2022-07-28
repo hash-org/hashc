@@ -646,7 +646,7 @@ impl Display for AccessOp {
 /// identifier.
 ///
 /// Has level N where N is the level of the Y property of X.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct AccessTerm {
     pub subject: TermId,
     pub name: Identifier,
