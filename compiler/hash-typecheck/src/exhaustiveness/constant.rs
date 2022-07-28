@@ -12,6 +12,7 @@ use crate::storage::primitives::TermId;
 use num_bigint::BigInt;
 use std::num::NonZeroU8;
 
+#[derive(Debug, Clone)]
 pub struct Constant {
     /// The scalar data that is stored from the constant
     data: u128,

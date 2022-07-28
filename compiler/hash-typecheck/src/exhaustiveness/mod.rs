@@ -43,6 +43,8 @@
 //! inspired by the Rust Compiler implementation:
 //! <https://github.com/rust-lang/rust/tree/master/compiler/rustc_mir_build/src/thir/pattern/usefulness.rs>
 #![allow(dead_code)]
+use std::fmt::Display;
+
 use crate::{
     diagnostics::{error::TcResult, macros::tc_panic},
     ops::AccessToOps,
@@ -63,127 +65,24 @@ mod constant;
 mod deconstruct;
 mod usefulness;
 
-// pub enum RangeEnd {
-//     Included,
-//     Excluded,
-// }
-
-pub struct FieldPat {
-    /// Relative to the associated definition
-    field: usize,
-    /// Pattern associated with this field
-    pat: Pat,
-}
-
-/// [PatKind] represents a lowered form of patterns from [primitives::Pat]. This
-/// removes unnecessary information about the actual pattern which doesn't
-/// affect exhaustiveness and usefulness checking.
-///
-/// @@Future: we might need to introduce a new variant `Binding` if we introduce
-/// patterns that can bind a name to a sub-pattern (as in rust `p @ ...PAT...`)
-
-pub enum PatKind {
-    /// Wildcard match `_`
-    Wild,
-
-    /// Used to represent a spread pattern. It is used to temporarily build
-    /// a [PatKind::List], later is thrown away and converted into a
-    /// [PatKind::Wild] to simplify exhaustiveness checking.
-    Spread,
-
-    // Used to represent a constant pattern range, for integers and floats.
-    //
-    // **Note** currently only used to represent groupings of constants, as
-    // range patterns aren't implemented yet!
-    // Range {
-    //     lo: Constant,
-    //     hi: Constant,
-    //     end: RangeEnd,
-    // },
-    ///
-
-    /// Some constant value like a `char`, `u32`, etc. Booleans don't appear
-    /// here because they are internally represented as enumerations.
-    Constant {
-        value: Constant,
-    },
-
-    /// Interned string pattern
-    Str {
-        value: Str,
-    },
-
-    /// A variant within an enumeration, e.g. `Some(3)`
-    Variant {
-        /// The id of the nominal definition that represents the enumeration.
-        ///
-        /// @@TODO: Replace this with id of union of structs, when `enum`s are
-        /// no longer represented within `NominalDefId`
-        def: NominalDefId,
-        /// The inner patterns of the variant
-        pats: Vec<FieldPat>,
-        /// Which variant this variant represents within the parent definition.
-        index: usize,
-    },
-
-    /// Essentially [PatKind::Variant], but for nominal definitions that only
-    /// have one possible definition such as a struct `Dog(name = "..", ..)
-    /// or tuple `(..)`.
-    Leaf {
-        pats: Vec<FieldPat>,
-    },
-
-    /// List pattern, holds the patterns that go before and after an
-    /// optional `spread` pattern that is represented as a `wildcard`
-    /// pattern.
-    ///
-    /// If the spread appears at the start of the list, then `prefix`
-    /// pats will be empty, and the same applies if it appears at the
-    /// end for `suffix`.
-    List {
-        // Patterns that precede an optional `...` spread selection
-        prefix: Vec<Pat>,
-        // The optional `...` spread
-        spread: Option<Pat>,
-        // Patterns that succeed an optional `...` spread selection
-        suffix: Vec<Pat>,
-    },
-
-    // An `or` pattern, containing inner patterns that the `or` is applied onto.
-    Or {
-        pats: Vec<Pat>,
-    },
-}
-
-/// General representation of a lowered pattern ready for exhaustiveness
-/// analysis.
-pub struct Pat {
-    /// Associated pattern span
-    pub span: Span,
-    /// The kind of the pattern
-    pub kind: Box<PatKind>,
-    /// If the pattern has an associated if-guard condition.
-    pub has_guard: bool,
-}
-
 /// Contains functionality for converting patterns to a representation that
 /// is suitable for performing usefulness and exhaustiveness analysis.
-pub struct PatCtx<'gs, 'ls, 'cd, 's> {
+pub struct PatLowerCtx<'gs, 'ls, 'cd, 's> {
     storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorage for PatCtx<'gs, 'ls, 'cd, 's> {
+impl<'gs, 'ls, 'cd, 's> AccessToStorage for PatLowerCtx<'gs, 'ls, 'cd, 's> {
     fn storages(&self) -> StorageRef {
         self.storage.storages()
     }
 }
-impl<'gs, 'ls, 'cd, 's> crate::storage::AccessToStorageMut for PatCtx<'gs, 'ls, 'cd, 's> {
+impl<'gs, 'ls, 'cd, 's> crate::storage::AccessToStorageMut for PatLowerCtx<'gs, 'ls, 'cd, 's> {
     fn storages_mut(&mut self) -> StorageRefMut {
         self.storage.storages_mut()
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> PatCtx<'gs, 'ls, 'cd, 's> {
+impl<'gs, 'ls, 'cd, 's> PatLowerCtx<'gs, 'ls, 'cd, 's> {
     /// Create a new [PatCtx].
     pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd, 's>) -> Self {
         Self { storage }
@@ -361,4 +260,118 @@ impl<'gs, 'ls, 'cd, 's> PatCtx<'gs, 'ls, 'cd, 's> {
 
         Ok(Pat { kind: Box::new(kind), span, has_guard: false })
     }
+}
+
+pub enum RangeEnd {
+    Included,
+    Excluded,
+}
+
+impl Display for RangeEnd {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RangeEnd::Included => write!(f, "..="),
+            RangeEnd::Excluded => write!(f, ".."),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct FieldPat {
+    /// Relative to the associated definition
+    field: usize,
+    /// Pattern associated with this field
+    pat: Pat,
+}
+
+/// [PatKind] represents a lowered form of patterns from [primitives::Pat]. This
+/// removes unnecessary information about the actual pattern which doesn't
+/// affect exhaustiveness and usefulness checking.
+///
+/// @@Future: we might need to introduce a new variant `Binding` if we introduce
+/// patterns that can bind a name to a sub-pattern (as in rust `p @ ...PAT...`)
+#[derive(Debug, Clone)]
+pub enum PatKind {
+    /// Wildcard match `_`
+    Wild,
+
+    /// Used to represent a spread pattern. It is used to temporarily build
+    /// a [PatKind::List], later is thrown away and converted into a
+    /// [PatKind::Wild] to simplify exhaustiveness checking.
+    Spread,
+
+    // Used to represent a constant pattern range, for integers and floats.
+    //
+    // **Note** currently only used to represent groupings of constants, as
+    // range patterns aren't implemented yet!
+    // Range {
+    //     lo: Constant,
+    //     hi: Constant,
+    //     end: RangeEnd,
+    // },
+    ///
+
+    /// Some constant value like a `char`, `u32`, etc. Booleans don't appear
+    /// here because they are internally represented as enumerations.
+    Constant {
+        value: Constant,
+    },
+
+    /// Interned string pattern
+    Str {
+        value: Str,
+    },
+
+    /// A variant within an enumeration, e.g. `Some(3)`
+    Variant {
+        /// The id of the nominal definition that represents the enumeration.
+        ///
+        /// @@TODO: Replace this with id of union of structs, when `enum`s are
+        /// no longer represented within `NominalDefId`
+        def: NominalDefId,
+        /// The inner patterns of the variant
+        pats: Vec<FieldPat>,
+        /// Which variant this variant represents within the parent definition.
+        index: usize,
+    },
+
+    /// Essentially [PatKind::Variant], but for nominal definitions that only
+    /// have one possible definition such as a struct `Dog(name = "..", ..)
+    /// or tuple `(..)`.
+    Leaf {
+        pats: Vec<FieldPat>,
+    },
+
+    /// List pattern, holds the patterns that go before and after an
+    /// optional `spread` pattern that is represented as a `wildcard`
+    /// pattern.
+    ///
+    /// If the spread appears at the start of the list, then `prefix`
+    /// pats will be empty, and the same applies if it appears at the
+    /// end for `suffix`.
+    List {
+        // Patterns that precede an optional `...` spread selection
+        prefix: Vec<Pat>,
+        // The optional `...` spread
+        spread: Option<Pat>,
+        // Patterns that succeed an optional `...` spread selection
+        suffix: Vec<Pat>,
+    },
+
+    // An `or` pattern, containing inner patterns that the `or` is applied onto.
+    Or {
+        pats: Vec<Pat>,
+    },
+}
+
+/// General representation of a lowered pattern ready for exhaustiveness
+/// analysis.
+#[derive(Debug, Clone)]
+pub struct Pat {
+    /// Associated pattern span
+    pub span: Span,
+    /// The kind of the pattern
+    pub kind: Box<PatKind>,
+    /// If the pattern has an associated if-guard condition.
+    pub has_guard: bool,
 }
