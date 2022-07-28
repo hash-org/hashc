@@ -2,7 +2,7 @@
 #![feature(path_file_prefix)]
 
 use bimap::BiMap;
-use slotmap::{new_key_type, SlotMap};
+use slotmap::{new_key_type, Key, SlotMap};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -26,6 +26,13 @@ pub enum SourceId {
     Interactive(InteractiveId),
     /// An Id pointing to a specific module entry.
     Module(ModuleId),
+}
+
+impl Default for SourceId {
+    /// Creates a [SourceId::Module] with a null key
+    fn default() -> Self {
+        Self::Module(ModuleId::null())
+    }
 }
 
 impl SourceId {

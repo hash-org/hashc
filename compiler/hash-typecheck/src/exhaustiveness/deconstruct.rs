@@ -10,12 +10,14 @@
 use std::{
     cell::Cell,
     cmp::{max, min},
-    fmt, iter,
+    fmt,
+    iter::{self, once},
     ops::RangeInclusive,
 };
 
+use hash_reporting::macros::panic_on_span;
 use hash_source::{
-    location::{Span, DUMMY_SPAN},
+    location::{SourceLocation, Span, DUMMY_SPAN},
     string::Str,
 };
 use smallvec::{smallvec, SmallVec};
@@ -38,6 +40,16 @@ pub struct PatCtx<'gs, 'ls, 'cd, 's> {
     /// Whether the current pattern is the whole pattern as found in a match
     /// arm, or if it's a sub-pattern.
     pub(super) is_top_level: bool,
+}
+
+impl<'gs, 'ls, 'cd, 's> PatCtx<'gs, 'ls, 'cd, 's> {
+    /// Get a [SourceLocation] from the current [PatCtx]
+    fn location(&self) -> SourceLocation {
+        SourceLocation {
+            span: self.span,
+            source_id: self.storage.checked_sources().current_source(),
+        }
+    }
 }
 
 impl<'gs, 'ls, 'cd, 's> AccessToStorage for PatCtx<'gs, 'ls, 'cd, 's> {
@@ -80,6 +92,12 @@ impl IntRange {
         } else {
             None
         }
+    }
+
+    /// Check whether the [IntRange] is a singleton, or in other words if there
+    /// is only one step within the range
+    fn is_singleton(&self) -> bool {
+        self.range.start() == self.range.end()
     }
 
     /// See [`Constructor::is_covered_by`] //@@Todo:docs!
@@ -143,9 +161,79 @@ struct SplitIntRange {
     borders: Vec<IntBorder>,
 }
 
+impl SplitIntRange {
+    /// Create a new [SplitIntRange]
+    fn new(range: IntRange) -> Self {
+        SplitIntRange { range, borders: Vec::new() }
+    }
+
+    /// Convert the [SplitIntRange] into its respective borders.
+    fn to_borders(r: IntRange) -> (IntBorder, IntBorder) {
+        let (lo, hi) = r.boundaries();
+        let lo = IntBorder::JustBefore(lo);
+
+        let hi = match hi.checked_add(1) {
+            Some(m) => IntBorder::JustBefore(m),
+            None => IntBorder::AfterMax,
+        };
+
+        (lo, hi)
+    }
+
+    /// Add ranges relative to which we split.
+    fn split(&mut self, ranges: impl Iterator<Item = IntRange>) {
+        let this_range = &self.range;
+        let included_ranges = ranges.filter_map(|r| this_range.intersection(&r));
+        let included_borders = included_ranges.flat_map(|r| {
+            let (lo, hi) = Self::to_borders(r);
+            iter::once(lo).chain(iter::once(hi))
+        });
+
+        self.borders.extend(included_borders);
+        self.borders.sort_unstable();
+    }
+
+    /// Iterate over the contained ranges.
+    fn iter<'a>(&'a self) -> impl Iterator<Item = IntRange> + 'a {
+        let (lo, hi) = Self::to_borders(self.range.clone());
+        // Start with the start of the range.
+        let mut prev_border = lo;
+
+        self.borders
+            .iter()
+            .copied()
+            // End with the end of the range.
+            .chain(once(hi))
+            // List pairs of adjacent borders.
+            .map(move |border| {
+                let ret = (prev_border, border);
+                prev_border = border;
+                ret
+            })
+            // Skip duplicates.
+            .filter(|(prev_border, border)| prev_border != border)
+            // Finally, convert to ranges.
+            .map(move |(prev_border, border)| {
+                let range = match (prev_border, border) {
+                    (IntBorder::JustBefore(n), IntBorder::JustBefore(m)) if n < m => n..=(m - 1),
+                    (IntBorder::JustBefore(n), IntBorder::AfterMax) => n..=u128::MAX,
+                    _ => unreachable!(), // Ruled out by the sorting and filtering we did
+                };
+                IntRange { range, bias: self.range.bias }
+            })
+    }
+}
+
+/// Represents the kind of [List], whether it is
+/// of a fixed length or of a variable length.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ListKind {
+    /// When the size of the list pattern is known.
     Fixed(usize),
+    /// When the list pattern features a spread pattern, the
+    /// first number is the length of the prefix elements, and
+    /// the succeeding number is the length of the suffix
+    /// elements.
     Var(usize, usize),
 }
 
@@ -171,75 +259,86 @@ impl ListKind {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub(super) struct List {
-    /// `None` if the matched value is a slice, `Some(n)` if it is an array of
-    /// size `n`.
-    array_len: Option<usize>,
-    /// The kind of pattern it is: fixed-length `[x, y]` or variable length `[x,
-    /// ..., y]`.
+    /// The kind of pattern it is: fixed-length `[x, y]` or
+    /// variable length `[x, ..., y]`.
     kind: ListKind,
 }
 
 impl List {
-    fn new(array_len: Option<usize>, kind: ListKind) -> Self {
-        let kind = match (array_len, kind) {
-            // If the middle `...` is empty, we effectively have a fixed-length pattern.
-            (Some(len), ListKind::Var(prefix, suffix)) if prefix + suffix >= len => {
-                ListKind::Fixed(len)
-            }
-            _ => kind,
-        };
-        List { array_len, kind }
+    /// Construct a new [List] with a provided kind.
+    fn new(kind: ListKind) -> Self {
+        Self { kind }
     }
 
+    /// Compute the arity of the [List]
     fn arity(self) -> usize {
         self.kind.arity()
     }
 
+    /// Whether another [List] would cover this [List].
     fn is_covered_by(self, other: Self) -> bool {
         other.kind.covers_length(self.arity())
     }
 }
 
 #[derive(Debug)]
-struct SplitVarLenSlice {
-    /// If the type is an array, this is its size.
-    array_len: Option<usize>,
+struct SplitVarList {
     /// The arity of the input slice.
     arity: usize,
-    /// The smallest slice bigger than any slice seen. `max_slice.arity()` is
+    /// The smallest list bigger than any list seen. `max_list.arity()` is
     /// the length `L` described above.
-    max_slice: ListKind,
+    max_list: ListKind,
 }
 
-impl SplitVarLenSlice {
-    fn new(prefix: usize, suffix: usize, array_len: Option<usize>) -> Self {
-        SplitVarLenSlice {
-            array_len,
-            arity: prefix + suffix,
-            max_slice: ListKind::Var(prefix, suffix),
-        }
+impl SplitVarList {
+    fn new(prefix: usize, suffix: usize) -> Self {
+        SplitVarList { arity: prefix + suffix, max_list: ListKind::Var(prefix, suffix) }
     }
 
     /// Pass a set of slices relative to which to split this one.
-    fn split(&mut self, slices: impl Iterator<Item = ListKind>) {}
+    ///
+    /// We don't need to split the [List] if the kind is [ListKind::Fixed].
+    fn split(&mut self, slices: impl Iterator<Item = ListKind>) {
+        let ListKind::Var(max_prefix_len, max_suffix_len) = &mut self.max_list else {
+            return;
+        };
+
+        // We grow `self.max_list` to be larger than all slices encountered, as
+        // described above. For diagnostics, we keep the prefix and suffix
+        // lengths separate, but grow them so that `L = max_prefix_len +
+        // max_suffix_len`.
+        let mut max_fixed_len = 0;
+
+        for slice in slices {
+            match slice {
+                ListKind::Fixed(len) => {
+                    max_fixed_len = max(max_fixed_len, len);
+                }
+                ListKind::Var(prefix, suffix) => {
+                    *max_prefix_len = max(*max_prefix_len, prefix);
+                    *max_suffix_len = max(*max_suffix_len, suffix);
+                }
+            }
+        }
+
+        // We want `L = max(L, max_fixed_len + 1)`, modulo the fact that we keep prefix
+        // and suffix separate.
+        //
+        // This ensures that the size adjustment of `max_prefix_len` can't overflow
+        if max_fixed_len + 1 >= *max_prefix_len + *max_suffix_len {
+            *max_prefix_len = max_fixed_len + 1 - *max_suffix_len;
+        }
+    }
 
     /// Iterate over the partition of this slice.
     fn iter<'a>(&'a self) -> impl Iterator<Item = List> + 'a {
-        let smaller_lengths = match self.array_len {
-            // The only admissible fixed-length slice is one of the array size. Whether `max_slice`
-            // is fixed-length or variable-length, it will be the only relevant slice to output
-            // here.
-            Some(_) => (0..0), // empty range
-            // We cover all arities in the range `(self.arity..infinity)`. We split that range into
-            // two: lengths smaller than `max_slice.arity()` are treated independently as
-            // fixed-lengths slices, and lengths above are captured by `max_slice`.
-            None => self.arity..self.max_slice.arity(),
-        };
+        // We cover all arities in the range `(self.arity..infinity)`. We split that
+        // range into two: lengths smaller than `max_slice.arity()` are treated
+        // independently as fixed-lengths slices, and lengths above are captured
+        // by `max_slice`.
+        let smaller_lengths = self.arity..self.max_list.arity();
 
-        smaller_lengths
-            .map(ListKind::Fixed)
-            .chain(iter::once(self.max_slice))
-            .map(move |kind| List::new(self.array_len, kind))
+        smaller_lengths.map(ListKind::Fixed).chain(iter::once(self.max_list)).map(List::new)
     }
 }
 
@@ -262,6 +361,21 @@ impl<'gs, 'ls, 'cd, 's> SplitWildcard {
         };
 
         SplitWildcard { matrix_ctors: Vec::new(), all_ctors }
+    }
+
+    pub(super) fn split<'a>(
+        &mut self,
+        ctx: PatCtx<'gs, 'ls, 'cd, 's>,
+        ctors: impl Iterator<Item = &'a Constructor> + Clone,
+    ) {
+        // Since `all_ctors` never contains wildcards, this won't recurse further.
+        self.all_ctors =
+            self.all_ctors.iter().flat_map(|ctor| ctor.split(ctx, ctors.clone())).collect();
+        self.matrix_ctors = ctors.filter(|c| !c.is_wildcard()).cloned().collect();
+    }
+
+    fn into_ctors(self, ctx: PatCtx<'gs, 'ls, 'cd, 's>) -> SmallVec<[Constructor; 1]> {
+        todo!()
     }
 }
 
@@ -291,7 +405,7 @@ pub(super) enum Constructor {
     Missing,
 }
 
-impl Constructor {
+impl<'gs, 'ls, 'cd, 's> Constructor {
     /// Compute the `arity` of this [Constructor].
     pub fn arity(&self) -> usize {
         match self {
@@ -313,6 +427,11 @@ impl Constructor {
         }
     }
 
+    /// Check if the [Constructor] is a wildcard.
+    pub(super) fn is_wildcard(&self) -> bool {
+        matches!(self, Constructor::Wildcard)
+    }
+
     /// Try and convert the [Constructor] into a [IntRange].
     fn as_int_range(&self) -> Option<&IntRange> {
         match self {
@@ -329,18 +448,66 @@ impl Constructor {
         }
     }
 
+    /// # Split a [Constructor]
+    ///
+    /// Some constructors (namely `Wildcard`, `IntRange` and `List`) actually
+    /// stand for a set of actual constructors (like variants, integers or
+    /// fixed-sized list patterns).
+    ///
+    /// ## General
+    ///
+    /// When specialising for these constructors, we
+    /// want to be specialising for the actual underlying constructors.
+    /// Naively, we would simply return the list of constructors they correspond
+    /// to. We instead are more clever: if there are constructors that we
+    /// know will behave the same wrt the current matrix, we keep them
+    /// grouped. For example, all lists of a sufficiently large length will
+    /// either be all useful or all non-useful with a given matrix.
+    ///
+    /// See the branches for details on how the splitting is done.
+    ///
+    /// ## Discarding constructors
+    ///
+    /// This function may discard some irrelevant constructors if this preserves
+    /// behaviour and diagnostics. For example, for the `_` case, we ignore the
+    /// constructors already present in the matrix, unless all of them are.
     pub(super) fn split<'a>(
         &self,
+        ctx: PatCtx<'gs, 'ls, 'cd, 's>,
         ctors: impl Iterator<Item = &'a Constructor> + Clone,
     ) -> SmallVec<[Self; 1]> {
-        todo!()
+        match self {
+            Constructor::Wildcard => {
+                let mut split_wildcard = SplitWildcard::new(ctx);
+                split_wildcard.split(ctx, ctors);
+                split_wildcard.into_ctors(ctx)
+            }
+            // Fast track to just the single constructor if this range is trivial
+            Constructor::IntRange(range) if !range.is_singleton() => {
+                let mut split_range = SplitIntRange::new(range.clone());
+                let int_ranges = ctors.filter_map(|ctor| ctor.as_int_range());
+
+                split_range.split(int_ranges.cloned());
+                split_range.iter().map(Constructor::IntRange).collect()
+            }
+            &Constructor::List(List { kind: ListKind::Var(prefix_len, suffix_len) }) => {
+                let mut split_self = SplitVarList::new(prefix_len, suffix_len);
+
+                let slices = ctors.filter_map(|c| c.as_list()).map(|s| s.kind);
+                split_self.split(slices);
+                split_self.iter().map(Constructor::List).collect()
+            }
+            // In any other case, the split just puts this constructor
+            // into the
+            _ => smallvec![self.clone()],
+        }
     }
 
     /// Returns whether `self` is covered by `other`, i.e. whether `self` is a
     /// subset of `other`. For the simple cases, this is simply checking for
     /// equality. For the "grouped" constructors, this checks for inclusion.
     #[inline]
-    pub(super) fn is_covered_by<'p>(&self, other: &Self) -> bool {
+    pub(super) fn is_covered_by(&self, ctx: PatCtx<'gs, 'ls, 'cd, 's>, other: &Self) -> bool {
         match (self, other) {
             // Wildcards cover anything
             (_, Constructor::Wildcard) => true,
@@ -362,8 +529,13 @@ impl Constructor {
                 self_slice.is_covered_by(*other_slice)
             }
 
-            // @@Todo: use `panic_on_span`
-            _ => panic!("trying to compare incompatible constructors {:?} and {:?}", self, other),
+            _ => panic_on_span!(
+                ctx.location(),
+                ctx.source_map(),
+                "trying to compare incompatible constructors {:?} and {:?}",
+                self,
+                other
+            ),
         }
     }
 
@@ -371,7 +543,11 @@ impl Constructor {
     /// `used_ctors` is assumed to be built from `matrix.head_ctors()` with
     /// wildcards filtered out, and `self` is assumed to have been split
     /// from a wildcard.
-    fn is_covered_by_any(&self, used_ctors: &[Constructor]) -> bool {
+    fn is_covered_by_any(
+        &self,
+        ctx: PatCtx<'gs, 'ls, 'cd, 's>,
+        used_ctors: &[Constructor],
+    ) -> bool {
         if used_ctors.is_empty() {
             return false;
         }
@@ -394,8 +570,7 @@ impl Constructor {
             | Constructor::Missing
             | Constructor::Wildcard
             | Constructor::Or => {
-                // @@TODO: integrate `PatCtx` here...
-                panic!("Unexpected ctor in all_ctors")
+                panic_on_span!(ctx.location(), ctx.source_map(), "Unexpected ctor in all_ctors")
             }
         }
     }
@@ -417,7 +592,7 @@ impl<'p> Fields<'p> {
     }
 
     pub(super) fn from_iter(
-        // cx: &MatchCheckCtxt<'p, 'tcx>,
+        // cx: &MatchCheckCtx<'p, 'tcx>,
         fields: impl IntoIterator<Item = DeconstructedPat<'p>>,
     ) -> Self {
         // let fields: &[_] = cx.pattern_arena.alloc_from_iter(fields);
@@ -428,7 +603,7 @@ impl<'p> Fields<'p> {
     /// Creates a new list of wildcard fields for a given constructor. The
     /// result must have a length of `ctor.arity()`.
     pub(super) fn wildcards(
-        // cx: &MatchCheckCtxt<'p, 'tcx>,
+        // cx: &MatchCheckCtx<'p, 'tcx>,
         ctor: &Constructor,
     ) -> Self {
         todo!()
@@ -437,7 +612,7 @@ impl<'p> Fields<'p> {
 
 /// A [DeconstructedPat] is a representation of a [Constructor] that is split
 /// between the constructor subject `ctor` and the `fields` that the constructor
-/// hilds.
+/// holds.
 ///
 /// @@Todo: Implement `fmt` for the deconstructed pat as this is what will be
 /// used         for displaying these patterns.
@@ -466,7 +641,7 @@ impl<'p, 'gs, 'ls, 'cd, 's> DeconstructedPat<'p> {
     }
 
     pub(super) fn wild_from_ctor(
-        // pcx: PatCtxt<'_, 'p, 'tcx>,
+        // pcx: PatCtx<'_, 'p, 'tcx>,
         ctor: Constructor,
     ) -> Self {
         let fields = Fields::wildcards(&ctor);

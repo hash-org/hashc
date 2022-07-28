@@ -161,7 +161,7 @@ impl<'p, 'gs, 'ls, 'cd, 's> Matrix<'p> {
         let mut matrix = Matrix::empty();
 
         for row in &self.patterns {
-            if ctor.is_covered_by(row.head().ctor()) {
+            if ctor.is_covered_by(ctx, row.head().ctor()) {
                 let new_row = row.pop_head_constructor(ctx, ctor);
                 matrix.push(new_row);
             }
