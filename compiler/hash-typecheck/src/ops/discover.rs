@@ -704,12 +704,18 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
                                     "Found bound var in set bound scope, but it has no value"
                                 )
                             });
+                            println!(
+                                "HERE with {} -> {}",
+                                self.for_fmt(term_id),
+                                self.for_fmt(value)
+                            );
                             // @@Correctness: do we need to recurse here?
-                            self.apply_set_bound_to_term(
+                            Ok(Some(self.apply_set_bound_to_term_with_flag(
                                 set_bound_scope_id,
                                 value,
                                 ignore_bound_vars,
-                            )
+                                &mut false,
+                            )?))
                         }
                         None => {
                             // Not part of the given scope:
