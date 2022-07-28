@@ -408,6 +408,8 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                 Ok(self.builder().create_constructed_term(constructor_pat.subject, args_id))
             }
             Pat::List(ListPat { term, .. }) => {
+                // @@Future: use a list literal term instead
+                //
                 // We want to create a `List<T = term>` as the type of the pattern
                 let list_inner_ty = self.core_defs().list_ty_fn;
                 let builder = self.builder();

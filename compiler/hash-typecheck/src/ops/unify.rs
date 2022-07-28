@@ -705,7 +705,7 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
     }
 
     /// Function used to verify a variadic sequence of terms. This ensures that
-    /// the terms can all be unified.
+    /// the types of all the terms can be unified.
     pub(crate) fn unify_rt_term_sequence(
         &mut self,
         sequence: impl IntoIterator<Item = TermId>,
