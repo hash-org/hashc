@@ -187,6 +187,7 @@ impl<'gs, 'ls, 'cd, 's> PatLowerCtx<'gs, 'ls, 'cd, 's> {
 
                 match nominal_def {
                     NominalDef::Struct(_) => PatKind::Leaf { pats },
+                    // @@Todo: get the variant index here
                     NominalDef::Enum(_) => PatKind::Variant { def: *id, pats, index: 0 },
                 }
             }
@@ -226,7 +227,7 @@ impl<'gs, 'ls, 'cd, 's> PatLowerCtx<'gs, 'ls, 'cd, 's> {
                     }
                 };
 
-                Ok(FieldPat { field, pat: self.lower_pat(arg.pat)? })
+                Ok(FieldPat { index: field, pat: self.lower_pat(arg.pat)? })
             })
             .collect_vec();
 
@@ -279,7 +280,7 @@ impl Display for RangeEnd {
 #[derive(Debug, Clone)]
 pub struct FieldPat {
     /// Relative to the associated definition
-    field: usize,
+    index: usize,
     /// Pattern associated with this field
     pat: Pat,
 }

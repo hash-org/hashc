@@ -10,7 +10,7 @@ use super::deconstruct::{Constructor, DeconstructedPat, Fields, PatCtx};
 #[derive(Debug)]
 pub(crate) struct Witness<'p>(Vec<DeconstructedPat<'p>>);
 
-impl<'p> Witness<'p> {
+impl<'p, 'gs, 'ls, 'cd, 's> Witness<'p> {
     /// Asserts that the witness contains a single pattern, and returns it.
     fn single_pattern(self) -> DeconstructedPat<'p> {
         assert_eq!(self.0.len(), 1);
@@ -31,15 +31,15 @@ impl<'p> Witness<'p> {
     ///
     /// left_ty: struct X { a: (bool, &'static str), b: usize}
     /// pats: [(false, "foo"), 42]  => X { a: (false, "foo"), b: 42 }
-    fn apply_constructor(mut self, ctor: &Constructor) -> Self {
+    fn apply_constructor(mut self, ctx: PatCtx<'gs, 'ls, 'cd, 's>, ctor: &Constructor) -> Self {
         let pat = {
             let len = self.0.len();
-            let arity = ctor.arity();
+            let arity = ctor.arity(ctx);
 
             let pats = self.0.drain((len - arity)..).rev();
-            let fields = Fields::from_iter(pats);
+            let fields = Fields::from_iter(ctx, pats);
 
-            DeconstructedPat::new(ctor.clone(), fields, DUMMY_SPAN)
+            DeconstructedPat::new(ctor.clone(), fields, ctx.ty, DUMMY_SPAN)
         };
 
         self.0.push(pat);

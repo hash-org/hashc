@@ -54,7 +54,7 @@ pub macro tc_panic {
         }
     },
     ($term: expr, $storage:expr, $fmt: expr, $($arg:tt)*) => {
-        tc_panic!($term, $storage, format!($fmt, $($arg)*));
+        tc_panic!($term, $storage, format!($fmt, $($arg)*))
     },
 }
 

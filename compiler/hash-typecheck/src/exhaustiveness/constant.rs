@@ -9,10 +9,10 @@
 //! an ABI for Hash, it is subject to change and is incomplete.
 
 use crate::storage::primitives::TermId;
-use num_bigint::BigInt;
+use num_bigint::{BigInt, Sign};
 use std::num::NonZeroU8;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Constant {
     /// The scalar data that is stored from the constant
     data: u128,
@@ -20,16 +20,29 @@ pub struct Constant {
     size: NonZeroU8,
     /// The type of the constant. This should always be a primitive type
     /// that the size of the type can be computed.
-    ty: TermId,
+    pub ty: TermId,
+    /// Whether the stored data is signed or not.
+    ///
+    /// @@Hack: this is a hack because we currently can't get information about
+    /// the signage and trying to get this field for non-int types is UB.
+    pub signed: bool,
 }
 
 impl Constant {
     /// Convert a character into a constant.
     pub fn from_char(c: char, ty: TermId) -> Self {
-        let char_size = std::mem::size_of::<char>();
-        let size = NonZeroU8::new(char_size.try_into().unwrap()).unwrap();
+        let size = std::mem::size_of::<char>();
+        let size = NonZeroU8::new(size.try_into().unwrap()).unwrap();
 
-        Constant { data: c.into(), size, ty }
+        Constant { data: c.into(), size, ty, signed: false }
+    }
+
+    /// Convert a 128bit integer into a constant.
+    pub fn from_u128(num: u128, ty: TermId, signed: bool) -> Self {
+        let size = std::mem::size_of::<u128>();
+        let size = NonZeroU8::new(size.try_into().unwrap()).unwrap();
+
+        Constant { data: num, size, ty, signed }
     }
 
     /// Function to convert a [BigInt] into a [Constant]. The only
@@ -39,11 +52,24 @@ impl Constant {
         let size = int.bits();
         assert!(size < 128);
 
-        let (.., data) = int.into_parts();
+        let (sign, data) = int.into_parts();
         Constant {
             data: data.try_into().unwrap(),
             size: NonZeroU8::new(size.try_into().unwrap()).unwrap(),
             ty,
+            signed: sign == Sign::Minus,
         }
+    }
+
+    /// Get the data stored within the [Constant].
+    pub fn data(&self) -> u128 {
+        self.data
+    }
+
+    /// Get the size of the stored [Constant] in bytes.
+    ///
+    /// N.B. the size is never zero.
+    pub fn size(&self) -> u8 {
+        self.size.into()
     }
 }

@@ -20,14 +20,25 @@ use hash_source::{
     location::{SourceLocation, Span, DUMMY_SPAN},
     string::Str,
 };
+use itertools::Itertools;
 use smallvec::{smallvec, SmallVec};
 
 use crate::{
+    diagnostics::macros::tc_panic,
+    exhaustiveness::PatKind,
     ops::AccessToOps,
-    storage::{primitives::TermId, AccessToStorage, StorageRef},
+    storage::{
+        primitives::{
+            ConstructedTerm, Level0Term, Level1Term, LitTerm, NominalDef, Term, TermId, TupleLit,
+        },
+        AccessToStorage, StorageRef,
+    },
 };
 
-use super::{Pat, RangeEnd};
+use super::{
+    constant::{self, Constant},
+    FieldPat, Pat, RangeEnd,
+};
 
 #[derive(Clone, Copy)]
 pub struct PatCtx<'gs, 'ls, 'cd, 's> {
@@ -70,10 +81,65 @@ pub struct IntRange {
     bias: u128,
 }
 
-impl IntRange {
+impl<'gs, 'ls, 'cd, 's> IntRange {
     /// Get the boundaries of the current [IntRange]
     pub fn boundaries(&self) -> (u128, u128) {
         (*self.range.start(), *self.range.end())
+    }
+
+    /// Attempt to build a [IntRange] from a provided constant.
+    #[inline]
+    pub fn from_constant(ctx: PatCtx<'gs, 'ls, 'cd, 's>, constant: Constant) -> Self {
+        let reader = ctx.reader();
+
+        // @@TODO: refine this to work with actual size of types, rather
+        // than assuming that the size of all `int` literals will be
+        // always the size of 128bits.
+        let bias: u128 = match reader.get_term(constant.ty) {
+            Term::Level0(Level0Term::Lit(lit)) => match lit {
+                LitTerm::Int(_) if constant.signed => {
+                    let size = constant.size() as u64;
+                    let size_bits = (size * 8) as u128;
+
+                    1u128 << (size_bits - 1)
+                }
+                LitTerm::Int(_) => 0,
+                LitTerm::Char(_) => 0,
+                LitTerm::Str(_) => panic!("got `str` in const!"),
+            },
+            _ => tc_panic!(
+                constant.ty,
+                ctx,
+                "got unexpected ty `{}` when reading Constant.",
+                ctx.for_fmt(constant.ty)
+            ),
+        };
+
+        // read from the constant the actual bits and apply bias
+        let val = constant.data() ^ bias;
+        IntRange { range: val..=val, bias }
+    }
+
+    /// Convert this range into a [PatKind] by judging the given
+    /// type within the [PatCtx]
+    #[inline]
+    pub fn to_pat(&self, ctx: PatCtx<'gs, 'ls, 'cd, 's>) -> PatKind {
+        let (lo, hi) = self.boundaries();
+
+        let bias = self.bias;
+        let (lo, hi) = (lo ^ bias, hi ^ bias);
+
+        // @@Broken: we need to know whether it is signed/unsigned from the type!
+        let lo_const = Constant::from_u128(lo, ctx.ty, false);
+        let hi_const = Constant::from_u128(lo, ctx.ty, false);
+
+        
+
+        if lo == hi {
+            PatKind::Constant { value: lo_const }
+        } else {
+            panic!("Ranges are not supported yet")
+        }
     }
 
     /// Check whether `self` is covered by the other range, in other words
@@ -407,7 +473,7 @@ pub(super) enum Constructor {
 
 impl<'gs, 'ls, 'cd, 's> Constructor {
     /// Compute the `arity` of this [Constructor].
-    pub fn arity(&self) -> usize {
+    pub fn arity(&self, ctx: PatCtx<'gs, 'ls, 'cd, 's>) -> usize {
         match self {
             Constructor::Single | Constructor::Variant(_) => {
                 // we need to get term from the context here...
@@ -581,7 +647,7 @@ pub(super) struct Fields<'p> {
     fields: &'p [DeconstructedPat<'p>],
 }
 
-impl<'p> Fields<'p> {
+impl<'p, 'gs, 'ls, 'cd, 's> Fields<'p> {
     fn empty() -> Self {
         Fields { fields: &[] }
     }
@@ -592,7 +658,7 @@ impl<'p> Fields<'p> {
     }
 
     pub(super) fn from_iter(
-        // cx: &MatchCheckCtx<'p, 'tcx>,
+        ctx: PatCtx<'gs, 'ls, 'cd, 's>,
         fields: impl IntoIterator<Item = DeconstructedPat<'p>>,
     ) -> Self {
         // let fields: &[_] = cx.pattern_arena.alloc_from_iter(fields);
@@ -602,10 +668,7 @@ impl<'p> Fields<'p> {
 
     /// Creates a new list of wildcard fields for a given constructor. The
     /// result must have a length of `ctor.arity()`.
-    pub(super) fn wildcards(
-        // cx: &MatchCheckCtx<'p, 'tcx>,
-        ctor: &Constructor,
-    ) -> Self {
+    pub(super) fn wildcards(ctx: PatCtx<'gs, 'ls, 'cd, 's>, ctor: &Constructor) -> Self {
         todo!()
     }
 }
@@ -623,6 +686,8 @@ pub(crate) struct DeconstructedPat<'p> {
     /// Any fields that are applying to the subject of the
     /// [DeconstructedPat]
     fields: Fields<'p>,
+    /// The type of the current deconstructed pattern
+    ty: TermId,
     /// The [Span] of the current pattern.
     span: Span,
     /// Whether the current pattern is reachable.
@@ -630,36 +695,217 @@ pub(crate) struct DeconstructedPat<'p> {
 }
 
 impl<'p, 'gs, 'ls, 'cd, 's> DeconstructedPat<'p> {
-    pub(super) fn new(ctor: Constructor, fields: Fields<'p>, span: Span) -> Self {
-        DeconstructedPat { ctor, fields, span, reachable: Cell::new(false) }
+    pub(super) fn new(ctor: Constructor, fields: Fields<'p>, ty: TermId, span: Span) -> Self {
+        DeconstructedPat { ctor, fields, span, ty, reachable: Cell::new(false) }
     }
 
     /// Create a new wildcard [DeconstructedPat], primarily used when
     /// performing specialisations.
-    pub(super) fn wildcard() -> Self {
-        Self::new(Constructor::Wildcard, Fields::empty(), DUMMY_SPAN)
+    pub(super) fn wildcard(ty: TermId) -> Self {
+        Self::new(Constructor::Wildcard, Fields::empty(), ty, DUMMY_SPAN)
     }
 
-    pub(super) fn wild_from_ctor(
-        // pcx: PatCtx<'_, 'p, 'tcx>,
-        ctor: Constructor,
-    ) -> Self {
-        let fields = Fields::wildcards(&ctor);
+    pub(super) fn wild_from_ctor(ctx: PatCtx<'gs, 'ls, 'cd, 's>, ctor: Constructor) -> Self {
+        let fields = Fields::wildcards(ctx, &ctor);
 
-        DeconstructedPat::new(ctor, fields, DUMMY_SPAN)
+        DeconstructedPat::new(ctor, fields, ctx.ty, DUMMY_SPAN)
     }
 
     /// Clone this [DeconstructedPat] whilst also forgetting the reachability.
     pub(super) fn clone_and_forget_reachability(&self) -> Self {
-        DeconstructedPat::new(self.ctor.clone(), self.fields, self.span)
+        DeconstructedPat::new(self.ctor.clone(), self.fields, self.ty, self.span)
     }
 
-    pub(crate) fn from_pat(pat: &Pat) -> Self {
-        todo!()
+    /// Expand an `or` pattern into a passed [Vec], whilst also
+    /// applying the same operation on children patterns.
+    fn expand(pat: &'p Pat, vec: &mut Vec<&'p Pat>) {
+        if let PatKind::Or { pats } = pat.kind.as_ref() {
+            for pat in pats {
+                Self::expand(pat, vec);
+            }
+        } else {
+            vec.push(pat)
+        }
     }
 
-    pub(crate) fn to_pat(&self) -> Pat {
-        todo!()
+    /// Internal use for expanding an [PatKind::Or] into children
+    /// patterns. This will also expand any children that are `or`
+    /// patterns.
+    fn flatten_or_pat(pat: &'p Pat) -> Vec<&'p Pat> {
+        let mut pats = Vec::new();
+        Self::expand(pat, &mut pats);
+        pats
+    }
+
+    /// Convert a [Pat] into a [DeconstructedPat].
+    pub(crate) fn from_pat(ctx: PatCtx<'gs, 'ls, 'cd, 's>, pat: &'p Pat) -> Self {
+        let make_pat = |pat| DeconstructedPat::from_pat(ctx, pat);
+
+        // @@Todo: support int, and float ranges
+        let (ctor, fields) = match pat.kind.as_ref() {
+            PatKind::Spread | PatKind::Wild => (Constructor::Wildcard, Fields::empty()),
+            PatKind::Constant { value } => {
+                // This deals with `char` and `integer` types...
+                let range = IntRange::from_constant(ctx, *value);
+                (Constructor::IntRange(range), Fields::empty())
+            }
+            PatKind::Str { value } => (Constructor::Str(*value), Fields::empty()),
+            PatKind::Variant { pats, .. } | PatKind::Leaf { pats } => {
+                let reader = ctx.reader();
+
+                match reader.get_term(ctx.ty) {
+                    Term::Level0(Level0Term::Tuple(TupleLit { members })) => {
+                        let members = reader.get_args(*members);
+
+                        // Create wild-cards for all of the tuple inner members
+                        let mut wilds: SmallVec<[_; 2]> = members
+                            .positional()
+                            .iter()
+                            .map(|member| DeconstructedPat::wildcard(member.value))
+                            .collect();
+
+                        for field in pats {
+                            wilds[field.index] = make_pat(&field.pat);
+                        }
+
+                        let fields = Fields::from_iter(ctx, wilds);
+                        (Constructor::Single, fields)
+                    }
+                    Term::Level0(Level0Term::Constructed(ConstructedTerm { subject, members })) => {
+                        let ctor = match pat.kind.as_ref() {
+                            PatKind::Variant { index, .. } => Constructor::Variant(*index),
+                            PatKind::Leaf { .. } => Constructor::Single,
+                            _ => unreachable!(),
+                        };
+
+                        let args = reader.get_args(*members);
+                        let tys = args.positional().iter().map(|arg| arg.value);
+
+                        let mut wilds: SmallVec<[_; 2]> =
+                            tys.map(DeconstructedPat::wildcard).collect();
+
+                        for field in pats {
+                            wilds[field.index] = make_pat(&field.pat);
+                        }
+
+                        let fields = Fields::from_iter(ctx, wilds);
+                        (ctor, fields)
+                    }
+                    _ => tc_panic!(
+                        ctx.ty,
+                        ctx,
+                        "Unexpected ty `{}` when deconstructing pattern {:?}",
+                        ctx.for_fmt(ctx.ty),
+                        pat
+                    ),
+                }
+            }
+            PatKind::List { prefix, spread, suffix } => {
+                // If the list has a spread pattern, then it becomes variable length, otherwise
+                // it remains as fixed-length.
+                let kind = if spread.is_some() {
+                    ListKind::Var(prefix.len(), suffix.len())
+                } else {
+                    ListKind::Fixed(prefix.len() + suffix.len())
+                };
+
+                let ctor = Constructor::List(List::new(kind));
+                let fields = Fields::from_iter(ctx, prefix.iter().chain(suffix).map(make_pat));
+
+                (ctor, fields)
+            }
+            PatKind::Or { .. } => {
+                // here, we need to expand the or pattern, so that all of the
+                // children patterns of the `or` become fields of the deconstructed
+                // pat.
+                let pats = Self::flatten_or_pat(pat);
+
+                (Constructor::Or, Fields::from_iter(ctx, pats.into_iter().map(make_pat)))
+            }
+        };
+
+        Self::new(ctor, fields, ctx.ty, pat.span)
+    }
+
+    pub(crate) fn to_pat(&self, ctx: PatCtx<'gs, 'ls, 'cd, 's>) -> Pat {
+        let mut children = self.iter_fields().map(|p| p.to_pat(ctx));
+
+        let kind = match &self.ctor {
+            ctor @ (Constructor::Single | Constructor::Variant(_)) => {
+                let reader = ctx.reader();
+
+                match reader.get_term(self.ty) {
+                    Term::Level0(Level0Term::Tuple(TupleLit { members })) => PatKind::Leaf {
+                        pats: children
+                            .enumerate()
+                            .map(|(index, pat)| FieldPat { index, pat })
+                            .collect(),
+                    },
+                    Term::Level0(Level0Term::Constructed(ConstructedTerm { subject, members })) => {
+                        match reader.get_term(*subject) {
+                            Term::Level1(Level1Term::NominalDef(id)) => {
+                                let nominal_def = reader.get_nominal_def(*id);
+
+                                let pats = children
+                                    .enumerate()
+                                    .map(|(index, pat)| FieldPat { index, pat })
+                                    .collect_vec();
+
+                                match nominal_def {
+                                    NominalDef::Struct(_) => PatKind::Leaf { pats },
+                                    NominalDef::Enum(_) => {
+                                        let Constructor::Variant(index) = ctor else {
+                                            unreachable!()
+                                        };
+
+                                        PatKind::Variant { def: *id, pats, index: *index }
+                                    }
+                                }
+                            }
+                            _ => tc_panic!(
+                                subject,
+                                ctx,
+                                "Malformed constructed subject during pattern conversion"
+                            ),
+                        }
+                    }
+                    _ => tc_panic!(
+                        ctx.ty,
+                        ctx,
+                        "Unexpected ty `{}` when converting to pattern",
+                        ctx.for_fmt(ctx.ty),
+                    ),
+                }
+            }
+            Constructor::IntRange(range) => range.to_pat(ctx),
+            Constructor::Str(value) => PatKind::Str { value: *value },
+            Constructor::List(List { kind }) => match kind {
+                ListKind::Fixed(size) => {
+                    PatKind::List { prefix: children.collect_vec(), spread: None, suffix: vec![] }
+                }
+                ListKind::Var(prefix, suffix) => {
+                    let mut children = children.peekable();
+
+                    // build the prefix and suffix components
+                    let prefix: Vec<_> = children.by_ref().take(*prefix).collect();
+                    let suffix: Vec<_> = children.collect();
+
+                    // Create the `spread` dummy pattern
+                    let spread =
+                        Pat { span: DUMMY_SPAN, kind: Box::new(PatKind::Spread), has_guard: false };
+
+                    PatKind::List { prefix, spread: Some(spread), suffix }
+                }
+            },
+            Constructor::Wildcard => PatKind::Wild,
+            Constructor::Or => panic!("cannot convert an `or` deconstructed pat back into pat"),
+            Constructor::Missing => panic!(
+                "trying to convert a `Missing` constructor into a `Pat`; this is probably a bug,
+                `Missing` should have been processed in `apply_constructors`"
+            ),
+        };
+
+        Pat { span: self.span, kind: Box::new(kind), has_guard: false }
     }
 
     pub(super) fn is_or_pat(&self) -> bool {
@@ -686,7 +932,7 @@ impl<'p, 'gs, 'ls, 'cd, 's> DeconstructedPat<'p> {
         match (&self.ctor, other_ctor) {
             (Constructor::Wildcard, _) => {
                 // We return a wildcard for each field of `other_ctor`.
-                Fields::wildcards(other_ctor).iter_patterns().collect()
+                Fields::wildcards(ctx, other_ctor).iter_patterns().collect()
             }
             (Constructor::List(self_list), Constructor::List(other_list))
                 if self_list.arity() != other_list.arity() =>
