@@ -35,7 +35,7 @@ impl<'gs, 'ls, 'cd, 's> AccessToStorageMut for ScopeManager<'gs, 'ls, 'cd, 's> {
 }
 
 impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
-    /// Create a new [ScopeResolver].
+    /// Create a new [ScopeManager].
     pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd, 's>) -> Self {
         Self { storage }
     }
@@ -143,17 +143,24 @@ impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
     ) -> ScopeId {
         let args = self.args_store().get(args_id).clone();
         let params = self.params_store().get(params_id).clone();
-        let paired =
-            pair_args_with_params(&params, &args, params_id, args_id, params_subject, args_subject)
-                .unwrap_or_else(|err| {
-                    let report: Report = TcErrorWithStorage::new(err, self.storages()).into();
-                    eprintln!("{}", writer::ReportWriter::new(report, self.source_map()));
-                    tc_panic_on_many!(
-                        [params_subject, args_subject],
-                        self,
-                        "Could not pair arguments with parameters"
-                    )
-                });
+        let paired = pair_args_with_params(
+            &params,
+            &args,
+            params_id,
+            args_id,
+            |p| self.typer().infer_arg_from_param(p),
+            params_subject,
+            args_subject,
+        )
+        .unwrap_or_else(|err| {
+            let report: Report = TcErrorWithStorage::new(err, self.storages()).into();
+            eprintln!("{}", writer::ReportWriter::new(report, self.source_map()));
+            tc_panic_on_many!(
+                [params_subject, args_subject],
+                self,
+                "Could not pair arguments with parameters"
+            )
+        });
 
         let builder = self.builder();
         let members = paired.iter().filter_map(|(param, arg)| {

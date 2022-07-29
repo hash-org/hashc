@@ -290,7 +290,7 @@ impl<ParamType: GetNameOpt + Clone> ParamList<ParamType> {
     }
 }
 
-/// Build a [ParamList] from an iterator of [ParamType].
+/// Build a [ParamList] from an iterator of `ParamType`.
 impl<ParamType: GetNameOpt + Clone> FromIterator<ParamType> for ParamList<ParamType> {
     fn from_iter<T: IntoIterator<Item = ParamType>>(iter: T) -> Self {
         Self::new(iter.into_iter().collect(), ParamOrigin::Unknown)
@@ -1019,19 +1019,19 @@ pub struct ConstPat {
 
 /// A pattern of a parameter, used for tuple patterns and constructor patterns.
 #[derive(Clone, Debug, Copy)]
-pub struct PatParam {
+pub struct PatArg {
     pub name: Option<Identifier>,
     pub pat: PatId,
 }
 
-impl GetNameOpt for PatParam {
+impl GetNameOpt for PatArg {
     fn get_name_opt(&self) -> Option<Identifier> {
         self.name
     }
 }
 
 /// A pattern of parameters.
-pub type PatParams = ParamList<PatParam>;
+pub type PatArgs = ParamList<PatArg>;
 
 /// A constructor pattern, used for enum variants and structs.
 #[derive(Clone, Debug, Copy)]
@@ -1039,7 +1039,7 @@ pub struct ConstructorPat {
     pub subject: TermId,
     /// If `params` is `None`, it means that the constructor has no parameters;
     /// it is a unit.
-    pub params: PatParamsId,
+    pub args: PatArgsId,
 }
 
 /// A list pattern
@@ -1048,7 +1048,7 @@ pub struct ListPat {
     /// The inner term of the list.
     pub term: TermId,
     /// Inner list of patterns
-    pub inner: PatParamsId,
+    pub inner: PatArgsId,
 }
 
 /// Spread pattern
@@ -1069,7 +1069,7 @@ pub struct IfPat {
 /// members.
 #[derive(Clone, Debug, Copy)]
 pub struct ModPat {
-    pub members: PatParamsId,
+    pub members: PatArgsId,
 }
 
 /// Represents a pattern in the language.
@@ -1086,7 +1086,7 @@ pub enum Pat {
     /// The inner term must be `Term::Level0(Level0Term::Lit)`.
     Lit(TermId),
     /// Tuple pattern.
-    Tuple(PatParamsId),
+    Tuple(PatArgsId),
     /// Module pattern.
     Mod(ModPat),
     /// Constructor pattern.
@@ -1149,7 +1149,7 @@ new_key_type! {
 
 new_key_type! {
     /// The ID of a [ParamsPat]
-    pub struct PatParamsId;
+    pub struct PatArgsId;
 }
 
 /// The ID of a [UnresolvedTerm], separate from its [TermId], stored in

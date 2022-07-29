@@ -1057,16 +1057,6 @@ impl AstVisitor for AstTreeGenerator {
         Ok(TreeNode::branch("constructor", children))
     }
 
-    type ModulePatRet = TreeNode;
-    fn visit_module_pat(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::ModulePat>,
-    ) -> Result<Self::ModulePatRet, Self::Error> {
-        let walk::ModulePat { fields: patterns } = walk::walk_module_pat(self, ctx, node)?;
-        Ok(TreeNode::branch("module", vec![TreeNode::branch("members", patterns)]))
-    }
-
     type TuplePatEntryRet = TreeNode;
     fn visit_tuple_pat_entry(
         &mut self,
@@ -1103,6 +1093,21 @@ impl AstVisitor for AstTreeGenerator {
     ) -> Result<Self::TuplePatRet, Self::Error> {
         let walk::ListPat { elements } = walk::walk_list_pat(self, ctx, node)?;
         Ok(TreeNode::branch("list", elements))
+    }
+
+    type SpreadPatRet = TreeNode;
+    fn visit_spread_pat(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::SpreadPat>,
+    ) -> Result<Self::SpreadPatRet, Self::Error> {
+        let walk::SpreadPat { name } = walk::walk_spread_pat(self, ctx, node)?;
+
+        if let Some(name) = name {
+            Ok(TreeNode::leaf(labelled("spread", name.label, "\"")))
+        } else {
+            Ok(TreeNode::leaf("spread"))
+        }
     }
 
     type StrLitPatRet = TreeNode;
@@ -1210,22 +1215,6 @@ impl AstVisitor for AstTreeGenerator {
         ))
     }
 
-    type SpreadPatRet = TreeNode;
-
-    fn visit_spread_pat(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::SpreadPat>,
-    ) -> Result<Self::SpreadPatRet, Self::Error> {
-        let walk::SpreadPat { name } = walk::walk_spread_pat(self, ctx, node)?;
-
-        if let Some(name) = name {
-            Ok(TreeNode::leaf(labelled("spread", name.label, "\"")))
-        } else {
-            Ok(TreeNode::leaf("spread"))
-        }
-    }
-
     type IgnorePatRet = TreeNode;
 
     fn visit_ignore_pat(
@@ -1245,7 +1234,18 @@ impl AstVisitor for AstTreeGenerator {
     ) -> Result<Self::ModulePatEntryRet, Self::Error> {
         let walk::ModulePatEntry { name, pat: pattern } =
             walk::walk_module_pat_entry(self, ctx, node)?;
-        Ok(TreeNode::branch(labelled("binding", name.label, "\""), vec![pattern]))
+        Ok(TreeNode::branch(labelled("assign", name.label, "\""), vec![pattern]))
+    }
+
+    type ModulePatRet = TreeNode;
+
+    fn visit_module_pat(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::ModulePat>,
+    ) -> Result<Self::ModulePatRet, Self::Error> {
+        let walk::ModulePat { fields: patterns } = walk::walk_module_pat(self, ctx, node)?;
+        Ok(TreeNode::branch("module", vec![TreeNode::branch("members", patterns)]))
     }
 
     type ModuleRet = TreeNode;

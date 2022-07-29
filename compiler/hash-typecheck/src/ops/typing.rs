@@ -2,7 +2,7 @@
 use hash_ast::ast::ParamOrigin;
 use itertools::Itertools;
 
-use super::{AccessToOps, AccessToOpsMut};
+use super::{params::pair_args_with_params, AccessToOps, AccessToOpsMut};
 use crate::{
     diagnostics::{
         error::{TcError, TcResult},
@@ -12,12 +12,11 @@ use crate::{
         primitives::{
             AccessOp, AccessPat, Arg, ArgsId, ConstPat, ConstructedTerm, Level0Term, Level1Term,
             Level2Term, Level3Term, ListPat, LitTerm, MemberData, ModDefOrigin, NominalDef, Param,
-            ParamsId, Pat, PatId, PatParamsId, StructFields, Term, TermId,
+            ParamsId, Pat, PatArgsId, PatId, StructFields, Term, TermId,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
 };
-
 /// Can resolve the type of a given term, as another term.
 pub struct Typer<'gs, 'ls, 'cd, 's> {
     storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
@@ -310,10 +309,54 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
         Ok(params_id)
     }
 
-    /// From the given [PatParamsId], infer a [ArgsId] describing the the
+    /// Create an argument from a parameter. This will copy the name
+    /// from the parameter and set the value of the argument to the
+    /// default value from the parameter.
+    ///
+    /// *Note*: This expects that the parameter has a default value.
+    pub(crate) fn infer_arg_from_param(&self, param: &Param) -> Arg {
+        Arg { name: param.name, value: param.default_value.unwrap() }
+    }
+
+    /// From the given [ParamsId], infer an [ArgsId] by populating any field
+    /// that is present within the parameters and has a default value, into
+    /// the args is by being careful not to overwrite the specified
+    /// arguments with default values of the parameters.
+    pub(crate) fn infer_args_from_params(
+        &mut self,
+        args_id: ArgsId,
+        params_id: ParamsId,
+        params_subject: TermId,
+        args_subject: TermId,
+    ) -> TcResult<ArgsId> {
+        let params = self.params_store().get(params_id).clone();
+        let args = self.args_store().get(args_id).clone();
+
+        // Pair parameters and arguments, then extract the resultant arguments...
+        let pairs = pair_args_with_params(
+            &params,
+            &args,
+            params_id,
+            args_id,
+            |p| self.infer_arg_from_param(p),
+            params_subject,
+            args_subject,
+        )?;
+
+        let arg_pairs: Vec<_> = pairs.iter().map(|(_, arg)| *arg).collect();
+        let params_sub = self.unifier().unify_param_arg_pairs(pairs)?;
+
+        // Copy over the origin from the initial args
+        let new_args = self.builder().create_args(arg_pairs, args.origin());
+
+        // Apply substitution to arguments
+        Ok(self.substituter().apply_sub_to_args(&params_sub, new_args))
+    }
+
+    /// From the given [PatArgsId], infer a [ArgsId] describing the the
     /// arguments.
-    pub(crate) fn infer_args_of_pat_params(&mut self, id: PatParamsId) -> TcResult<ArgsId> {
-        let pat_args = self.reader().get_pat_params(id).clone();
+    pub(crate) fn infer_args_of_pat_args(&mut self, id: PatArgsId) -> TcResult<ArgsId> {
+        let pat_args = self.reader().get_pat_args(id).clone();
         let origin = pat_args.origin();
 
         let arg_tys: Vec<_> = pat_args
@@ -361,15 +404,17 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
             Pat::Tuple(tuple_pat) => {
                 // For each parameter, get its type, and then create a tuple
                 // type:
-                let params_id = self.infer_args_of_pat_params(tuple_pat)?;
+                let params_id = self.infer_args_of_pat_args(tuple_pat)?;
                 Ok(self.builder().create_tuple_lit_term(params_id))
             }
             Pat::Constructor(constructor_pat) => {
                 // We have params to apply, so we need to create an FnCall
-                let args_id = self.infer_args_of_pat_params(constructor_pat.params)?;
+                let args_id = self.infer_args_of_pat_args(constructor_pat.args)?;
                 Ok(self.builder().create_constructed_term(constructor_pat.subject, args_id))
             }
             Pat::List(ListPat { term, .. }) => {
+                // @@Future: use a list literal term instead
+                //
                 // We want to create a `List<T = term>` as the type of the pattern
                 let list_inner_ty = self.core_defs().list_ty_fn;
                 let builder = self.builder();

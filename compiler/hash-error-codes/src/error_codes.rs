@@ -35,7 +35,7 @@ error_codes! {
     ParameterNameMismatch = 36,
     ParameterInUse = 37,
     AmbiguousFieldOrder = 38,
-    InvalidFnCallSubject = 39,
+    InvalidCallSubject = 39,
 
     // traits
     InvalidMergeElement = 50,
@@ -45,4 +45,8 @@ error_codes! {
     InvalidPropertyAccessOfNonMethod = 54,
     TraitImplMissingMember = 55,
     InvalidUnionElement = 56,
+
+    // Pattern errors
+    IdentifierBoundMultipleTimes = 80,
+    MissingPatternBounds = 81,
 }

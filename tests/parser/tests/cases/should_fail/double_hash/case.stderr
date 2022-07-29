@@ -2,4 +2,4 @@ error: Failed to parse
  --> $DIR/case.hash:1:7
 1 |   k := ##naughty_intrinsic();
   |         ^ here
-  = note: Expected an identifier.
+  = note: Expected a name here.

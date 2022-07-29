@@ -7,7 +7,7 @@ use crate::storage::{
         ConstructedTerm, ConstructorPat, EnumDef, EnumVariant, EnumVariantValue, FnCall, FnLit,
         FnTy, IfPat, Level0Term, Level1Term, Level2Term, Level3Term, ListPat, LitTerm, Member,
         MemberData, ModDef, ModDefId, ModDefOrigin, ModPat, Mutability, NominalDef, NominalDefId,
-        Param, ParamList, ParamsId, Pat, PatId, PatParam, PatParamsId, Scope, ScopeId, ScopeKind,
+        Param, ParamList, ParamsId, Pat, PatArg, PatArgsId, PatId, Scope, ScopeId, ScopeKind,
         ScopeVar, SetBound, StructDef, StructFields, Term, TermId, TrtDef, TrtDefId, TupleLit,
         TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy, UnresolvedTerm, Var, Visibility,
     },
@@ -235,7 +235,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
         def_id
     }
 
-    /// Create a [Term::TypeOf].
+    /// Create a [Term::TyOf].
     pub fn create_ty_of_term(&self, inner: TermId) -> TermId {
         self.create_term(Term::TyOf(inner))
     }
@@ -510,8 +510,8 @@ impl<'gs> PrimitiveBuilder<'gs> {
     }
 
     /// Create a [ParamsId] from an iterator of [Param]. This function wil
-    /// create a [Params], append it to the store and return  the created
-    /// id.
+    /// create a [Params](crate::storage::primitives::Params), append it to the
+    /// store and return  the created id.
     pub fn create_params(
         &self,
         params: impl IntoIterator<Item = Param>,
@@ -522,7 +522,8 @@ impl<'gs> PrimitiveBuilder<'gs> {
     }
 
     /// Create a [ArgsId] from an iterator of [Arg]. This function wil create a
-    /// [Args], append it to the store and return  the created id.
+    /// [Args](crate::storage::primitives::Args), append it to the store and
+    /// return  the created id.
     pub fn create_args(&self, args: impl IntoIterator<Item = Arg>, origin: ParamOrigin) -> ArgsId {
         let params = ParamList::new(args.into_iter().collect(), origin);
         self.gs.borrow_mut().args_store.create(params)
@@ -629,24 +630,24 @@ impl<'gs> PrimitiveBuilder<'gs> {
         self.create_term(Term::TyFnCall(app_ty_fn))
     }
 
-    /// Create pattern parameters from the given pattern parameter iterator.
-    pub fn create_pat_params(
+    /// Create pattern arguments from the given pattern argument iterator.
+    pub fn create_pat_args(
         &self,
-        params: impl IntoIterator<Item = PatParam>,
+        args: impl IntoIterator<Item = PatArg>,
         origin: ParamOrigin,
-    ) -> PatParamsId {
-        let params = ParamList::new(params.into_iter().collect(), origin);
-        self.gs.borrow_mut().pat_params_store.create(params)
+    ) -> PatArgsId {
+        let args = ParamList::new(args.into_iter().collect(), origin);
+        self.gs.borrow_mut().pat_args_store.create(args)
     }
 
     /// Create a pattern parameter
-    pub fn create_pat_param(&self, name: impl Into<Identifier>, pat: PatId) -> PatParam {
-        PatParam { name: Some(name.into()), pat }
+    pub fn create_pat_arg(&self, name: impl Into<Identifier>, pat: PatId) -> PatArg {
+        PatArg { name: Some(name.into()), pat }
     }
 
     /// Create a constructor pattern.
-    pub fn create_constructor_pat(&self, subject: TermId, params: PatParamsId) -> PatId {
-        self.create_pat(Pat::Constructor(ConstructorPat { subject, params }))
+    pub fn create_constructor_pat(&self, subject: TermId, params: PatArgsId) -> PatId {
+        self.create_pat(Pat::Constructor(ConstructorPat { subject, args: params }))
     }
 
     /// Create a constructor pattern without parameters.
@@ -655,7 +656,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
     }
 
     /// Create a list pattern with parameters.
-    pub fn create_list_pat(&self, term: TermId, inner: PatParamsId) -> PatId {
+    pub fn create_list_pat(&self, term: TermId, inner: PatArgsId) -> PatId {
         self.create_pat(Pat::List(ListPat { term, inner }))
     }
 
@@ -670,12 +671,12 @@ impl<'gs> PrimitiveBuilder<'gs> {
     }
 
     /// Create a module pattern.
-    pub fn create_mod_pat(&self, members: PatParamsId) -> PatId {
+    pub fn create_mod_pat(&self, members: PatArgsId) -> PatId {
         self.create_pat(Pat::Mod(ModPat { members }))
     }
 
     /// Create a tuple pattern.
-    pub fn create_tuple_pat(&self, members: PatParamsId) -> PatId {
+    pub fn create_tuple_pat(&self, members: PatArgsId) -> PatId {
         self.create_pat(Pat::Tuple(members))
     }
 

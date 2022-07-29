@@ -8,7 +8,7 @@ use super::{
 use crate::{
     fmt::PrepareForFormatting,
     storage::{
-        primitives::{Arg, Param},
+        primitives::{AccessOp, Arg, Param},
         AccessToStorage, StorageRef,
     },
 };
@@ -557,9 +557,12 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                 }
             }
             TcError::UnresolvedNameInValue { name, op, value } => {
+                // @@ErrorReporting: Add the span of `name` to show where the access occurs
+                let op_member_kind = if *op == AccessOp::Namespace { "member" } else { "field" };
+
                 builder.with_error_code(HashErrorCode::UnresolvedNameInValue).with_message(
                     format!(
-                        "the field `{}` is not present within `{}`",
+                        "the {op_member_kind} `{}` is not present within `{}`",
                         name,
                         value.for_formatting(err.global_storage())
                     ),
@@ -569,7 +572,7 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!(
-                            "{} does not contain the {} `{}`",
+                            "`{}` does not contain the {} `{}`",
                             value.for_formatting(err.global_storage()),
                             op,
                             name
@@ -1075,6 +1078,29 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                 if let Some(location) = err.location_store().get_location(subject) {
                     builder
                         .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(location, "")));
+                }
+            }
+            TcError::IdentifierBoundMultipleTimes { name, pat } => {
+                builder.with_error_code(HashErrorCode::IdentifierBoundMultipleTimes).with_message(
+                    format!("identifier `{}` is bound multiple times in the same pattern", name),
+                );
+
+                if let Some(location) = err.location_store().get_location(pat) {
+                    builder
+                        .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(location, "")));
+                }
+            }
+            TcError::MissingPatternBounds { pat, bounds } => {
+                builder.with_error_code(HashErrorCode::MissingPatternBounds).with_message(format!(
+                    "variables {} are not declared in all patterns",
+                    SequenceDisplay::all(bounds.as_slice())
+                ));
+
+                if let Some(location) = err.location_store().get_location(pat) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        format!("pattern doesn't bind {}", SequenceDisplay::all(bounds.as_slice())),
+                    )));
                 }
             }
         };

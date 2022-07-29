@@ -54,7 +54,7 @@ pub enum ModuleKind {
 }
 
 /// This data structure is used to store and organise the sources of the
-/// [Module]s and [InteractiveBlock]s. It separates the contents of the sources
+/// modules and interactive blocks. It separates the contents of the sources
 /// from the other data structures due to the need to sometimes only read the
 /// sources and not care about other metadata that might be owned in some other
 /// way.

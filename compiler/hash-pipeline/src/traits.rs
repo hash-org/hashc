@@ -83,7 +83,7 @@ pub trait Tc<'c> {
 
     /// Given a [InteractiveId], check the interactive statement with the
     /// specific rules that are applied in interactive rules. The function
-    /// accepts the previous [Tc] state and previous [Tc::InteractiveState].
+    /// accepts the previous [Tc::State].
     fn check_interactive<'pool>(
         &'pool mut self,
         interactive_id: InteractiveId,
@@ -93,7 +93,7 @@ pub trait Tc<'c> {
     ) -> CompilerResult<()>;
 
     /// Given a [ModuleId], check the module. The function accepts the previous
-    /// [Tc] state and [Tc::ModuleState]
+    /// [Tc::State].
     fn check_module(
         &mut self,
         module_id: ModuleId,

@@ -11,3 +11,6 @@ syn = { version = "1.0", features = ["extra-traits", "full"] }
 quote = "1.0"
 convert_case = "0.4"
 regex = "1.5"
+
+# For documentation purposes
+hash-utils = {path = ".." }

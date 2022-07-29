@@ -10,8 +10,8 @@ use crate::{
         location::{IndexedLocationTarget, LocationTarget},
         primitives::{
             AccessOp, Arg, ArgsId, BindingPat, ConstPat, EnumVariant, Member, MemberData,
-            ModDefOrigin, Mutability, Param, Pat, PatId, PatParam, ScopeKind, SpreadPat, Sub,
-            TermId, Visibility,
+            ModDefOrigin, Mutability, Param, Pat, PatArg, PatId, ScopeKind, SpreadPat, Sub, TermId,
+            Visibility,
         },
         AccessToStorage, AccessToStorageMut, LocalStorage, StorageRef, StorageRefMut,
     },
@@ -33,7 +33,6 @@ use self::scopes::VisitConstantScope;
 
 pub mod params;
 pub mod scopes;
-pub mod sequence;
 
 /// Internal state that the [TcVisitor] uses when traversing the
 /// given sources.
@@ -81,7 +80,7 @@ impl<'gs, 'ls, 'cd, 'src> AccessToStorageMut for TcVisitor<'gs, 'ls, 'cd, 'src> 
 
 impl<'gs, 'ls, 'cd, 'src> TcVisitor<'gs, 'ls, 'cd, 'src> {
     /// Create a new [TcVisitor] with the given state, traversing the given
-    /// source from [Sources].
+    /// source from [SourceId].
     pub fn new_in_source(
         storage: StorageRefMut<'gs, 'ls, 'cd, 'src>,
         source_id: SourceId,
@@ -90,8 +89,8 @@ impl<'gs, 'ls, 'cd, 'src> TcVisitor<'gs, 'ls, 'cd, 'src> {
         TcVisitor { storage, source_id, node_map, state: TcVisitorState::new() }
     }
 
-    /// Visits the source passed in as an argument to [Self::new], and returns
-    /// the term of the module that corresponds to the source.
+    /// Visits the source passed in as an argument to [Self::new_in_source], and
+    /// returns the term of the module that corresponds to the source.
     pub fn visit_source(&mut self) -> TcResult<TermId> {
         let source_id = self.source_id;
         let source = self.node_map.get_source(source_id);
@@ -209,8 +208,8 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let map_inner_ty = self.core_defs().map_ty_fn;
 
         // Unify the key and value types...
-        let key_ty = self.unify_term_sequence(entries.iter().map(|(k, _)| *k))?;
-        let val_ty = self.unify_term_sequence(entries.iter().map(|(v, _)| *v))?;
+        let key_ty = self.unifier().unify_rt_term_sequence(entries.iter().map(|(k, _)| *k))?;
+        let val_ty = self.unifier().unify_rt_term_sequence(entries.iter().map(|(v, _)| *v))?;
 
         let builder = self.builder();
         let map_ty = builder.create_app_ty_fn_term(
@@ -251,7 +250,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let walk::ListLit { elements } = walk::walk_list_lit(self, ctx, node)?;
 
         let list_inner_ty = self.core_defs().list_ty_fn;
-        let element_ty = self.unify_term_sequence(elements)?;
+        let element_ty = self.unifier().unify_rt_term_sequence(elements)?;
 
         let builder = self.builder();
         let list_ty = builder.create_app_ty_fn_term(
@@ -277,7 +276,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let walk::SetLit { elements } = walk::walk_set_lit(self, ctx, node)?;
 
         let set_inner_ty = self.core_defs().set_ty_fn;
-        let element_ty = self.unify_term_sequence(elements)?;
+        let element_ty = self.unifier().unify_rt_term_sequence(elements)?;
 
         let builder = self.builder();
         let set_ty = builder.create_app_ty_fn_term(
@@ -798,12 +797,9 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let walk::TupleTy { entries } = walk::walk_tuple_ty(self, ctx, node)?;
 
         let members = self.builder().create_params(entries, ParamOrigin::Tuple);
-
         self.copy_location_from_nodes_to_targets(node.entries.ast_ref_iter(), members);
 
-        let builder = self.builder();
-        let term = builder.create_tuple_ty_term(members);
-
+        let term = self.builder().create_tuple_ty_term(members);
         self.copy_location_from_node_to_target(node, term);
 
         Ok(term)
@@ -842,15 +838,12 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let inner_ty = self.core_defs().set_ty_fn;
         let builder = self.builder();
 
-        let set_ty = builder.create_app_ty_fn_term(
+        let term = builder.create_app_ty_fn_term(
             inner_ty,
             builder.create_args([builder.create_arg("T", inner)], ParamOrigin::TyFn),
         );
 
-        let term = builder.create_rt_term(set_ty);
-
         self.copy_location_from_node_to_target(node, term);
-
         Ok(term)
     }
 
@@ -866,7 +859,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let inner_ty = self.core_defs().map_ty_fn;
         let builder = self.builder();
 
-        let map_ty = builder.create_app_ty_fn_term(
+        let term = builder.create_app_ty_fn_term(
             inner_ty,
             builder.create_args(
                 [builder.create_arg("K", key), builder.create_arg("V", value)],
@@ -874,10 +867,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             ),
         );
 
-        let term = builder.create_rt_term(map_ty);
-
         self.copy_location_from_node_to_target(node, term);
-
         Ok(term)
     }
 
@@ -999,10 +989,15 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_access_ty(
         &mut self,
-        _: &Self::Ctx,
-        _: ast::AstNodeRef<ast::AccessTy>,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::AccessTy>,
     ) -> Result<Self::AccessTyRet, Self::Error> {
-        todo!()
+        let walk::AccessTy { subject, property } = walk::walk_access_ty(self, ctx, node)?;
+
+        let term = self.builder().create_access(subject, property, AccessOp::Namespace);
+        self.copy_location_from_node_to_target(node, term);
+
+        Ok(term)
     }
 
     type RefTyRet = TermId;
@@ -1970,7 +1965,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     ) -> Result<Self::ConstructorPatRet, Self::Error> {
         let walk::ConstructorPat { args, subject } = walk::walk_constructor_pat(self, ctx, node)?;
 
-        let constructor_params = self.builder().create_pat_params(args, ParamOrigin::Unknown);
+        let constructor_params = self.builder().create_pat_args(args, ParamOrigin::Unknown);
 
         let subject = self.typer().get_term_of_pat(subject)?;
         let constructor_pat = self.builder().create_constructor_pat(subject, constructor_params);
@@ -1981,24 +1976,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(constructor_pat)
     }
 
-    type ModulePatRet = PatId;
-
-    fn visit_module_pat(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ModulePat>,
-    ) -> Result<Self::ModulePatRet, Self::Error> {
-        let walk::ModulePat { fields } = walk::walk_module_pat(self, ctx, node)?;
-        let members = self.builder().create_pat_params(fields, ParamOrigin::Unknown);
-        let module_pat = self.builder().create_mod_pat(members);
-
-        self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), members);
-        self.copy_location_from_node_to_target(node, module_pat);
-
-        Ok(module_pat)
-    }
-
-    type TuplePatEntryRet = PatParam;
+    type TuplePatEntryRet = PatArg;
 
     fn visit_tuple_pat_entry(
         &mut self,
@@ -2006,7 +1984,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TuplePatEntry>,
     ) -> Result<Self::TuplePatEntryRet, Self::Error> {
         let walk::TuplePatEntry { name, pat } = walk::walk_tuple_pat_entry(self, ctx, node)?;
-        Ok(PatParam { name, pat })
+        Ok(PatArg { name, pat })
     }
 
     type TuplePatRet = PatId;
@@ -2017,7 +1995,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TuplePat>,
     ) -> Result<Self::TuplePatRet, Self::Error> {
         let walk::TuplePat { elements } = walk::walk_tuple_pat(self, ctx, node)?;
-        let members = self.builder().create_pat_params(elements, ParamOrigin::Tuple);
+        let members = self.builder().create_pat_args(elements, ParamOrigin::Tuple);
         let tuple_pat = self.builder().create_tuple_pat(members);
 
         self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), members);
@@ -2045,10 +2023,10 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             .map(|(element, _)| -> TcResult<TermId> { self.typer().get_term_of_pat(*element) })
             .collect::<TcResult<Vec<_>>>()?;
 
-        let list_term = self.unify_term_sequence(inner_terms)?;
+        let list_term = self.unifier().unify_rt_term_sequence(inner_terms)?;
 
-        let members = self.builder().create_pat_params(
-            elements.into_iter().map(|pat| PatParam { name: None, pat }),
+        let members = self.builder().create_pat_args(
+            elements.into_iter().map(|pat| PatArg { name: None, pat }),
             ParamOrigin::ListPat,
         );
 
@@ -2232,7 +2210,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(pat)
     }
 
-    type ModulePatEntryRet = PatParam;
+    type ModulePatEntryRet = PatArg;
 
     fn visit_module_pat_entry(
         &mut self,
@@ -2240,7 +2218,24 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ModulePatEntry>,
     ) -> Result<Self::ModulePatEntryRet, Self::Error> {
         let walk::ModulePatEntry { name, pat } = walk::walk_module_pat_entry(self, ctx, node)?;
-        Ok(self.builder().create_pat_param(name, pat))
+        Ok(self.builder().create_pat_arg(name, pat))
+    }
+
+    type ModulePatRet = PatId;
+
+    fn visit_module_pat(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ModulePat>,
+    ) -> Result<Self::ModulePatRet, Self::Error> {
+        let walk::ModulePat { fields } = walk::walk_module_pat(self, ctx, node)?;
+        let members = self.builder().create_pat_args(fields, ParamOrigin::ModulePat);
+        let module_pat = self.builder().create_mod_pat(members);
+
+        self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), members);
+        self.copy_location_from_node_to_target(node, module_pat);
+
+        Ok(module_pat)
     }
 
     type ModuleRet = TermId;

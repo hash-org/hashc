@@ -24,7 +24,7 @@ pub enum ParamUnificationErrorReason {
 }
 
 /// This type is used to represent a `source` of where
-/// a [super::TcError::ParamGivenTwice] occurs. It can either occur
+/// a [super::error::TcError::ParamGivenTwice] occurs. It can either occur
 /// in an argument list, or it can occur within a parameter list.
 /// The reporting logic is the same, with the minor wording difference.
 #[derive(Debug, Clone)]
