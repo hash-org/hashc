@@ -289,7 +289,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
         ty: TermId,
         value: TermId,
     ) -> Member {
-        Member::bound(
+        Member::closed_stack(
             name.into(),
             Visibility::Private,
             Mutability::Immutable,
@@ -305,7 +305,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
         value: TermId,
         visibility: Visibility,
     ) -> Member {
-        Member::bound(
+        Member::closed_stack(
             name.into(),
             visibility,
             Mutability::Immutable,
@@ -321,7 +321,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
         value: TermId,
         visibility: Visibility,
     ) -> Member {
-        Member::bound(
+        Member::closed_stack(
             name.into(),
             visibility,
             Mutability::Immutable,
@@ -336,7 +336,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
         ty: TermId,
         visibility: Visibility,
     ) -> Member {
-        Member::bound(
+        Member::closed_stack(
             name.into(),
             visibility,
             Mutability::Immutable,

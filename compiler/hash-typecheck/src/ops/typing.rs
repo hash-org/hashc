@@ -265,7 +265,17 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                 let inferred_data = self.infer_member_ty(member.member.data)?;
                 Ok(inferred_data.ty)
             }
-            Term::ScopeVar(_) | Term::Root | Term::TyOf(_) => {
+            Term::ScopeVar(scope_var) => {
+                let scope_member = self.scope_manager().get_scope_var_member(scope_var);
+                match scope_member.member.data.value() {
+                    // @@Redundancy: the second check should imply the first?
+                    Some(value) if scope_member.member.is_closed_and_non_bound() => {
+                        self.infer_ty_of_term(value)
+                    }
+                    _ => Ok(self.builder().create_ty_of_term(term_id)),
+                }
+            }
+            Term::Root | Term::TyOf(_) => {
                 // Since these are simplified already, all we can do is wrap it again..
                 Ok(self.builder().create_ty_of_term(term_id))
             }
