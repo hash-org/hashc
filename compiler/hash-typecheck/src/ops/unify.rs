@@ -1,5 +1,7 @@
 //! Utilities related to type unification and substitution.
-use super::{params::pair_args_with_params, AccessToOps, AccessToOpsMut};
+use super::{
+    params::pair_args_with_params, typing::InferredMemberData, AccessToOps, AccessToOpsMut,
+};
 use crate::{
     diagnostics::{
         error::{TcError, TcResult},
@@ -10,7 +12,7 @@ use crate::{
         location::LocationTarget,
         primitives::{
             Arg, ArgsId, Level0Term, Level1Term, Level2Term, Level3Term, Param, ParamsId, PatId,
-            Sub, Term, TermId,
+            ScopeId, ScopeKind, Sub, Term, TermId,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -37,18 +39,6 @@ impl<'gs, 'ls, 'cd, 's> AccessToStorageMut for Unifier<'gs, 'ls, 'cd, 's> {
     }
 }
 
-/// Whether to substitute parameter names for argument values, or just unify the
-/// types of the parameters with the types of the arguments.
-///
-/// The former is to be used for type function calls, while the latter is to be
-/// used for runtime runtime calls.
-pub enum UnifyParamsWithArgsMode {
-    /// Substitute parameter names for argument values.
-    SubstituteParamNamesForArgValues,
-    /// Unify the types of the parameters with the types of the arguments.
-    UnifyParamTypesWithArgTypes,
-}
-
 impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
     pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd, 's>) -> Self {
         Self { storage }
@@ -58,7 +48,7 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
     ///
     /// Equivalent to first unifying `U(s0, s1)` and then applying `s1` or `s0`.
     pub(crate) fn get_super_sub(&mut self, s0: &Sub, s1: &Sub) -> TcResult<Sub> {
-        let fv_s1 = self.substituter().get_free_vars_in_sub(s1);
+        let fv_s1 = self.discoverer().get_free_sub_vars_in_sub(s1);
         let dom_s0: HashSet<_> = s0.domain().collect();
         if fv_s1.intersection(&dom_s0).next().is_some() {
             panic!("Super-sub is not well formed!");
@@ -92,8 +82,9 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
         let mut result = t0;
         for (a, t) in t1.pairs() {
             // Remove elements of dom(result) from t, and remove a from result.
-            let subbed_t = substituter.apply_sub_to_term(&result, t);
-            if substituter.get_free_vars_in_term(subbed_t).contains(&a) {
+            let subbed_t = self.substituter().apply_sub_to_term(&result, t);
+            let discoverer = self.discoverer();
+            if discoverer.get_free_sub_vars_in_term(subbed_t).contains(&a) {
                 tc_panic!(subbed_t, self.storage, "Unexpected free variable in one of the substitutions being unified (occurs error)");
             }
 
@@ -109,8 +100,9 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
             let x0 = substituter.apply_sub_to_term(&result, subbed0_b);
             let x1 = substituter.apply_sub_to_term(&result, subbed1_b);
 
-            if substituter.get_free_vars_in_term(x0).contains(&b)
-                || substituter.get_free_vars_in_term(x1).contains(&b)
+            let discoverer = self.discoverer();
+            if discoverer.get_free_sub_vars_in_term(x0).contains(&b)
+                || discoverer.get_free_sub_vars_in_term(x1).contains(&b)
             {
                 tc_panic_on_many!([x0, x1], self, "Unexpected free variable in intersection of substitutions being unified (occurs error)");
             }
@@ -134,7 +126,6 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
         args_id: ArgsId,
         params_subject: TermId,
         args_subject: TermId,
-        mode: UnifyParamsWithArgsMode,
     ) -> TcResult<Sub> {
         let params = self.params_store().get(params_id).clone();
         let args = self.args_store().get(args_id).clone();
@@ -149,7 +140,7 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
             args_subject,
         )?;
 
-        self.unify_param_arg_pairs(pairs, mode)
+        self.unify_param_arg_pairs(pairs)
     }
 
     /// Unify paired arguments and parameters.
@@ -157,11 +148,7 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
     /// This is done by first getting the type of each argument, and unifying
     /// with the type of each parameter. Then, a substitution is created
     /// from each parameter to each argument value.
-    pub(crate) fn unify_param_arg_pairs(
-        &mut self,
-        pairs: Vec<(&Param, Arg)>,
-        mode: UnifyParamsWithArgsMode,
-    ) -> TcResult<Sub> {
+    pub(crate) fn unify_param_arg_pairs(&mut self, pairs: Vec<(&Param, Arg)>) -> TcResult<Sub> {
         let mut sub = Sub::empty();
 
         for (param, arg) in pairs.into_iter() {
@@ -169,21 +156,8 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
             let ty_of_arg = self.typer().infer_ty_of_term(arg.value)?;
             let ty_sub = self.unify_terms(ty_of_arg, param.ty)?;
 
-            match mode {
-                UnifyParamsWithArgsMode::SubstituteParamNamesForArgValues => {
-                    // Add the parameter substituted for the argument to the substitution, if a
-                    // parameter name is given:
-                    if let Some(name) = param.name {
-                        sub.add_pair(self.builder().create_var(name).into(), arg.value);
-                    }
-                    // @@Correctness: should we also perform the lower branch
-                    // here?
-                }
-                UnifyParamsWithArgsMode::UnifyParamTypesWithArgTypes => {
-                    // Add the ty sub to the sub
-                    sub = self.get_super_sub(&sub, &ty_sub)?;
-                }
-            }
+            // Add the ty sub to the sub
+            sub = self.get_super_sub(&sub, &ty_sub)?;
         }
         Ok(sub)
     }
@@ -289,10 +263,80 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
             && self.unify_terms(b, a).contains(&Sub::empty())
     }
 
+    /// The two given set bound scopes are equivalent if they have the same
+    /// distinct members.
+    ///
+    /// This panics if either scope is not [ScopeKind::SetBound], or if a type
+    /// error occurs.
+    pub(crate) fn set_bound_scopes_are_equivalent(
+        &mut self,
+        a: ScopeId,
+        b: ScopeId,
+        a_originating_term: TermId,
+        b_originating_term: TermId,
+    ) -> bool {
+        // Short-circuit: same scope IDs:
+        if a == b {
+            return true;
+        }
+
+        let reader = self.reader();
+        let scope_a = reader.get_scope(a).clone();
+        let scope_b = reader.get_scope(b).clone();
+
+        // Ensure kinds are both [Scope::SetBound]
+        if scope_a.kind != ScopeKind::SetBound || scope_b.kind != ScopeKind::SetBound {
+            tc_panic_on_many!(
+                [a_originating_term, b_originating_term],
+                self,
+                "set_bound_scopes_are_equal called with non-set-bound scopes"
+            );
+        }
+
+        // Ensure names are the same:
+        let a_names: HashSet<_> = HashSet::from_iter(scope_a.iter_names());
+        let b_names: HashSet<_> = HashSet::from_iter(scope_b.iter_names());
+        if a_names != b_names {
+            return false;
+        }
+
+        // Ensure same members
+        for name in a_names {
+            let (a_member, _) = scope_a.get(name).unwrap();
+            let (b_member, _) = scope_b.get(name).unwrap();
+            let a_data = self.typer().infer_member_ty(a_member.data).unwrap();
+            let b_data = self.typer().infer_member_ty(b_member.data).unwrap();
+            match (a_data, b_data) {
+                (
+                    InferredMemberData { ty: a_ty, value: Some(a_value) },
+                    InferredMemberData { ty: b_ty, value: Some(b_value) },
+                ) => {
+                    if !self.terms_are_equal(a_ty, b_ty) || !self.terms_are_equal(a_value, b_value)
+                    {
+                        return false;
+                    }
+                }
+                (
+                    InferredMemberData { ty: a_ty, value: None },
+                    InferredMemberData { ty: b_ty, value: None },
+                ) => {
+                    if !self.terms_are_equal(a_ty, b_ty) {
+                        return false;
+                    }
+                }
+                _ => return false,
+            }
+        }
+
+        true
+    }
+
     /// Unify the two given terms, producing a substitution.
     ///
     /// The relation between src and target is that src must be a subtype (or
     /// eq) of target.
+    ///
+    /// Note: Assumes that both terms have been validated.
     pub(crate) fn unify_terms(&mut self, src_id: TermId, target_id: TermId) -> TcResult<Sub> {
         // Shortcut: terms have the same ID:
         if src_id == target_id {
@@ -444,16 +488,54 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
                 // Different variables do not unify (since they cannot be simplified)
                 cannot_unify()
             }
+            (Term::BoundVar(src_var), Term::BoundVar(target_var))
+                if src_var.name == target_var.name =>
+            {
+                // Same bound variables unify
+                Ok(Sub::empty())
+            }
+            (Term::BoundVar(_), _) | (_, Term::BoundVar(_)) => {
+                // Different bound variables do not unify (since they cannot be simplified)
+                cannot_unify()
+            }
+            (Term::ScopeVar(src_var), Term::ScopeVar(target_var))
+                if (src_var.scope, src_var.index) == (target_var.scope, target_var.index) =>
+            {
+                // Same scope variables unify (i.e. same member, not necessarily same name)
+                Ok(Sub::empty())
+            }
+            (Term::ScopeVar(_), _) | (_, Term::ScopeVar(_)) => {
+                // Different scope variables do not unify
+                cannot_unify()
+            }
 
             // Apply substitution:
-            (Term::AppSub(src_app_sub), Term::AppSub(target_app_sub))
-                if self.validator().subs_are_equivalent(&src_app_sub.sub, &target_app_sub.sub) =>
+            (Term::SetBound(src_set_bound), Term::SetBound(target_set_bound))
+                if self.set_bound_scopes_are_equivalent(
+                    src_set_bound.scope,
+                    target_set_bound.scope,
+                    src_id,
+                    target_id,
+                ) =>
             {
-                // Unify inner, then unify the resultant substitution with the ones given here:
-                let inner_sub = self.unify_terms(src_app_sub.term, target_app_sub.term)?;
-                self.unify_subs(&src_app_sub.sub, &inner_sub)
+                // Unify inner, then unify the resultant substitution with the ones given
+                //  here:
+                //
+                // Notice: this should never produce a substitution since we start with
+                // simplified terms.
+                let sub = self.scope_manager().enter_scope(src_set_bound.scope, |this| {
+                    this.unifier().unify_terms(src_set_bound.term, target_set_bound.term)
+                })?;
+                if sub != Sub::empty() {
+                    tc_panic_on_many!(
+                        [src_set_bound.term, target_set_bound.term],
+                        self,
+                        "got non-empty substitution when unifying terms inside SetBound"
+                    );
+                }
+                Ok(sub)
             }
-            (Term::AppSub(_), _) | (_, Term::AppSub(_)) => {
+            (Term::SetBound(_), _) | (_, Term::SetBound(_)) => {
                 // Otherwise they don't unify (since we start with simplified terms)
                 cannot_unify()
             }
@@ -484,28 +566,16 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
                 let reader = self.reader();
                 let subject_ty = reader.get_term(subject_ty_id);
                 match subject_ty {
-                    Term::TyFnTy(ty_fn_ty) => {
-                        let ty_fn_ty = ty_fn_ty.clone();
-
-                        // Match the type function params with each (src,target)-arguments.
-                        let args_src_sub = self.unify_params_with_args(
-                            ty_fn_ty.params,
+                    Term::TyFnTy(_) => {
+                        // Match the two args:
+                        let sub = self.unify_args(
                             src_app_ty_fn.args,
-                            src_id,
-                            target_id,
-                            UnifyParamsWithArgsMode::SubstituteParamNamesForArgValues,
-                        )?;
-                        let args_target_sub = self.unify_params_with_args(
-                            ty_fn_ty.params,
                             target_app_ty_fn.args,
-                            target_id,
                             src_id,
-                            UnifyParamsWithArgsMode::SubstituteParamNamesForArgValues,
+                            target_id,
                         )?;
 
-                        // Unify all the created substitutions
-                        let args_unified_sub = self.unify_subs(&args_src_sub, &args_target_sub)?;
-                        Ok(self.get_super_sub(&args_unified_sub, &subject_sub)?)
+                        Ok(sub)
                     }
                     // If the subject is not a function type then application is invalid:
                     _ => Err(TcError::UnsupportedTyFnApplication { subject_id: subject }),
@@ -694,9 +764,6 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
             // Root unifies with root and nothing else:
             (Term::Root, Term::Root) => Ok(Sub::empty()),
             (_, Term::Root) | (Term::Root, _) => cannot_unify(),
-
-            // @@Todo: vars
-            _ => todo!(),
         }?;
 
         self.cacher().add_unification_entry((src_id, target_id), &sub);

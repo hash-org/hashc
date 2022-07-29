@@ -5,7 +5,10 @@ use super::TcVisitor;
 use crate::{
     diagnostics::error::TcResult,
     ops::AccessToOpsMut,
-    storage::{primitives::ScopeId, AccessToStorageMut},
+    storage::{
+        primitives::{ScopeId, ScopeKind},
+        AccessToStorageMut,
+    },
 };
 use hash_ast::{ast, visitor::AstVisitor};
 use hash_source::identifier::Identifier;
@@ -29,7 +32,8 @@ impl<'gs, 'ls, 'cd, 'src> TcVisitor<'gs, 'ls, 'cd, 'src> {
         scope_to_use: Option<ScopeId>,
     ) -> TcResult<VisitConstantScope> {
         // Create a scope and enter it, for adding all the members:
-        let scope_id = scope_to_use.unwrap_or_else(|| self.builder().create_constant_scope([]));
+        let scope_id =
+            scope_to_use.unwrap_or_else(|| self.builder().create_scope(ScopeKind::Constant, []));
         self.scopes_mut().append(scope_id);
 
         // @@Todo: deal with recursive declarations

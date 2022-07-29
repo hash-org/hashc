@@ -53,7 +53,7 @@ pub struct GlobalStorage {
     pub mod_def_store: ModDefStore,
     pub nominal_def_store: NominalDefStore,
     pub pat_store: PatStore,
-    pub pat_params_store: PatArgsStore,
+    pub pat_args_store: PatArgsStore,
     pub checked_sources: CheckedSources,
 
     /// The typechecking cache, contains cached simplification, validation
@@ -81,7 +81,7 @@ impl GlobalStorage {
             mod_def_store: ModDefStore::new(),
             nominal_def_store: NominalDefStore::new(),
             pat_store: PatStore::new(),
-            pat_params_store: PatArgsStore::new(),
+            pat_args_store: PatArgsStore::new(),
             checked_sources: CheckedSources::new(),
             root_scope,
             params_store: ParamsStore::new(),
@@ -196,7 +196,7 @@ pub trait AccessToStorage {
     }
 
     fn pat_params_store(&self) -> &PatArgsStore {
-        &self.global_storage().pat_params_store
+        &self.global_storage().pat_args_store
     }
 
     fn checked_sources(&self) -> &CheckedSources {
@@ -280,7 +280,7 @@ pub trait AccessToStorageMut: AccessToStorage {
     }
 
     fn pat_params_store_mut(&mut self) -> &mut PatArgsStore {
-        &mut self.global_storage_mut().pat_params_store
+        &mut self.global_storage_mut().pat_args_store
     }
 
     fn checked_sources_mut(&mut self) -> &mut CheckedSources {

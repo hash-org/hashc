@@ -63,7 +63,7 @@ impl<'gs> PrimitiveReader<'gs> {
 
     /// Get the [PatArgs] with the given [PatArgsId].
     pub fn get_pat_args(&self, id: PatArgsId) -> &PatArgs {
-        self.gs.pat_params_store.get(id)
+        self.gs.pat_args_store.get(id)
     }
 
     /// Get the trait definition with the given [TrtDefId].

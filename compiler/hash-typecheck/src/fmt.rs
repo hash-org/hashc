@@ -3,10 +3,11 @@
 
 use crate::storage::{
     primitives::{
-        AccessOp, AccessPat, ArgsId, ConstPat, ConstructedTerm, EnumDef, Level0Term, Level1Term,
-        Level2Term, Level3Term, ListPat, LitTerm, MemberData, ModDefId, ModDefOrigin, ModPat,
-        Mutability, NominalDef, NominalDefId, ParamsId, Pat, PatArgsId, PatId, ScopeId, SpreadPat,
-        StructDef, Sub, SubSubject, Term, TermId, TrtDefId, UnresolvedTerm, Visibility,
+        AccessOp, AccessPat, ArgsId, BoundVar, ConstPat, ConstructedTerm, EnumDef, Level0Term,
+        Level1Term, Level2Term, Level3Term, ListPat, LitTerm, MemberData, ModDefId, ModDefOrigin,
+        ModPat, Mutability, NominalDef, NominalDefId, ParamsId, Pat, PatArgsId, PatId, ScopeId,
+        ScopeVar, SpreadPat, StructDef, Sub, SubVar, Term, TermId, TrtDefId, UnresolvedTerm, Var,
+        Visibility,
     },
     GlobalStorage,
 };
@@ -52,16 +53,17 @@ impl<'gs> TcFormatter<'gs> {
 
     /// Format the given substitution with the given formatter.
     pub fn fmt_sub(&self, f: &mut fmt::Formatter, sub: &Sub) -> fmt::Result {
-        for (subject, target) in sub.pairs() {
+        for (i, (subject, target)) in sub.pairs().enumerate() {
+            self.fmt_term_as_single(f, target, TcFormatOpts::default())?;
+            write!(f, "/")?;
             match subject {
-                SubSubject::Var(var) => {
-                    write!(f, "{}", var.name)?;
-                }
-                SubSubject::Unresolved(unresolved) => {
+                SubVar::Unresolved(unresolved) => {
                     self.fmt_unresolved(f, &unresolved)?;
                 }
             };
-            write!(f, " -> {}", target.for_formatting(self.global_storage))?;
+            if i != sub.map().len() - 1 {
+                write!(f, ", ")?;
+            }
         }
         Ok(())
     }
@@ -351,9 +353,11 @@ impl<'gs> TcFormatter<'gs> {
                 write!(f, "{}{}", op, access_term.name)?;
                 Ok(())
             }
-            Term::Var(var) => {
+            Term::Var(Var { name })
+            | Term::BoundVar(BoundVar { name })
+            | Term::ScopeVar(ScopeVar { name, .. }) => {
                 opts.is_atomic.set(true);
-                write!(f, "{}", var.name)
+                write!(f, "{}", name)
             }
             Term::Merge(terms) => {
                 opts.is_atomic.set(false);
@@ -423,24 +427,19 @@ impl<'gs> TcFormatter<'gs> {
                 Ok(())
             }
             Term::Unresolved(unresolved_term) => self.fmt_unresolved(f, unresolved_term),
-            Term::AppSub(app_sub) => {
-                opts.is_atomic.set(true);
-                write!(f, "[")?;
-                let pairs = app_sub.sub.pairs().collect::<Vec<_>>();
-                for (i, (from, to)) in pairs.iter().enumerate() {
-                    self.fmt_term_as_single(f, *to, opts.clone())?;
-                    write!(f, "/")?;
-                    match from {
-                        SubSubject::Var(var) => write!(f, "{}", var.name)?,
-                        SubSubject::Unresolved(unresolved) => self.fmt_unresolved(f, unresolved)?,
-                    }
+            Term::SetBound(set_bound) => {
+                opts.is_atomic.set(false);
+                self.fmt_term_as_single(f, set_bound.term, opts.clone())?;
 
-                    if i != pairs.len() - 1 {
+                let members = &self.global_storage.scope_store.get(set_bound.scope).members;
+                write!(f, " where ")?;
+                for (i, member) in members.iter().enumerate() {
+                    write!(f, "{} = ", member.name)?;
+                    self.fmt_term_as_single(f, member.data.value().unwrap(), opts.clone())?;
+                    if i != members.len() - 1 {
                         write!(f, ", ")?;
                     }
                 }
-                write!(f, "]")?;
-                self.fmt_term_as_single(f, app_sub.term, opts)?;
                 Ok(())
             }
             Term::Level3(term) => self.fmt_level3_term(f, term, opts),
@@ -460,14 +459,6 @@ impl<'gs> TcFormatter<'gs> {
                         TcFormatOpts { expand: opts.expand, ..TcFormatOpts::default() }
                     )
                 )
-            }
-            Term::ScopeVar(var) => {
-                opts.is_atomic.set(true);
-                write!(f, "{}", var.name)
-            }
-            Term::BoundVar(var) => {
-                opts.is_atomic.set(true);
-                write!(f, "{}", var.name)
             }
         }
     }
@@ -547,7 +538,7 @@ impl<'gs> TcFormatter<'gs> {
     /// Format the given [PatArgs](crate::storage::primitives::PatArgs) with the
     /// given formatter.
     pub fn fmt_pat_params(&self, f: &mut fmt::Formatter, id: PatArgsId) -> fmt::Result {
-        let pat_params = self.global_storage.pat_params_store.get(id);
+        let pat_params = self.global_storage.pat_args_store.get(id);
 
         for (i, param) in pat_params.positional().iter().enumerate() {
             match param.name {
@@ -650,7 +641,7 @@ impl<'gs> TcFormatter<'gs> {
             }
             Pat::Mod(ModPat { members }) => {
                 opts.is_atomic.set(true);
-                let pat_params = self.global_storage.pat_params_store.get(*members);
+                let pat_params = self.global_storage.pat_args_store.get(*members);
 
                 write!(f, "{{ ")?;
                 for (i, param) in pat_params.positional().iter().enumerate() {

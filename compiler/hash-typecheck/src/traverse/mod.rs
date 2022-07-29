@@ -9,9 +9,9 @@ use crate::{
     storage::{
         location::{IndexedLocationTarget, LocationTarget},
         primitives::{
-            AccessOp, Arg, ArgsId, BindingPat, BoundVars, ConstPat, EnumVariant, Member,
-            MemberData, ModDefOrigin, Mutability, Param, Pat, PatArg, PatId, SpreadPat, Sub,
-            TermId, Visibility,
+            AccessOp, Arg, ArgsId, BindingPat, ConstPat, EnumVariant, Member, MemberData,
+            ModDefOrigin, Mutability, Param, Pat, PatArg, PatId, ScopeKind, SpreadPat, Sub, TermId,
+            Visibility,
         },
         AccessToStorage, AccessToStorageMut, LocalStorage, StorageRef, StorageRefMut,
     },
@@ -28,7 +28,6 @@ use hash_source::{
     ModuleKind, SourceId,
 };
 use itertools::Itertools;
-use std::collections::HashSet;
 
 use self::scopes::VisitConstantScope;
 
@@ -919,7 +918,8 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         )?;
         let params = self.builder().create_params(params, ParamOrigin::TyFn);
 
-        let param_scope = self.scope_manager().enter_ty_param_scope(params);
+        let param_scope = self.scope_manager().make_bound_scope(params);
+        self.scopes_mut().append(param_scope);
         let return_value = self.visit_ty(ctx, node.return_ty.ast_ref())?;
         self.scopes_mut().pop_the_scope(param_scope);
 
@@ -1087,7 +1087,8 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         self.copy_location_from_nodes_to_targets(node.params.ast_ref_iter(), params);
 
         // Enter parameter scope:
-        let param_scope = self.scope_manager().enter_ty_param_scope(params);
+        let param_scope = self.scope_manager().make_bound_scope(params);
+        self.scopes_mut().append(param_scope);
 
         // Traverse return type and return value:
         let return_ty =
@@ -1142,7 +1143,8 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         }
 
         let params_potentially_unresolved = self.builder().create_params(params, ParamOrigin::Fn);
-        let param_scope = self.scope_manager().enter_rt_param_scope(params_potentially_unresolved);
+        let param_scope = self.scope_manager().make_rt_param_scope(params_potentially_unresolved);
+        self.scopes_mut().append(param_scope);
 
         let fn_body = self.visit_expr(ctx, node.fn_body.ast_ref())?;
 
@@ -1249,7 +1251,8 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
                 match case_match {
                     Some(members_to_add) => {
                         // Enter a new scope and add the members
-                        let match_case_scope = self.builder().create_variable_scope(members_to_add);
+                        let match_case_scope =
+                            self.builder().create_scope(ScopeKind::Variable, members_to_add);
                         self.scopes_mut().append(match_case_scope);
 
                         // Traverse the body with the bound variables:
@@ -1341,8 +1344,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             self.visit_constant_scope(ctx, node.0.members(), None)?;
 
         // @@Todo: bound variables
-        let mod_def =
-            self.builder().create_mod_def(scope_name, ModDefOrigin::Mod, scope_id, vec![]);
+        let mod_def = self.builder().create_mod_def(scope_name, ModDefOrigin::Mod, scope_id);
         let term = self.builder().create_mod_def_term(mod_def);
 
         // Validate the definition
@@ -1367,8 +1369,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             self.visit_constant_scope(ctx, node.0.members(), None)?;
 
         // @@Todo: bound variables
-        let mod_def =
-            self.builder().create_mod_def(scope_name, ModDefOrigin::AnonImpl, scope_id, vec![]);
+        let mod_def = self.builder().create_mod_def(scope_name, ModDefOrigin::AnonImpl, scope_id);
         let term = self.builder().create_mod_def_term(mod_def);
 
         // Validate the definition
@@ -1591,7 +1592,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             None => {
                 if let Pat::Binding(BindingPat { name, mutability, visibility }) = pat {
                     // Add the member without a value:
-                    vec![Member::closed(
+                    vec![Member::bound(
                         name,
                         visibility,
                         mutability,
@@ -1651,7 +1652,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             ast::ExprKind::Variable(name) => name.name.ident,
             _ => {
                 return Err(TcError::InvalidAssignSubject {
-                    location: self.source_location_at_node(node),
+                    location: self.source_location_at_node(node).into(),
                 });
             }
         };
@@ -1813,13 +1814,6 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     ) -> Result<Self::StructDefRet, Self::Error> {
         let walk::StructDef { entries } = walk::walk_struct_def(self, ctx, node)?;
 
-        // we need to figure out the bounds for the current definition
-        let mut bounds = HashSet::new();
-
-        for entry in entries.iter() {
-            bounds.extend(self.substituter().get_vars_in_term(entry.ty)?);
-        }
-
         // create the params
         let fields = self.builder().create_params(entries, ParamOrigin::Struct);
 
@@ -1830,7 +1824,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let name = self.state.declaration_name_hint.take();
 
         let builder = self.builder();
-        let nominal_id = builder.create_struct_def(name, fields, bounds);
+        let nominal_id = builder.create_struct_def(name, fields);
         let term = builder.create_nominal_def_term(nominal_id);
 
         // validate the constructed nominal def
@@ -1842,7 +1836,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(term)
     }
 
-    type EnumDefEntryRet = (EnumVariant, BoundVars);
+    type EnumDefEntryRet = EnumVariant;
 
     fn visit_enum_def_entry(
         &mut self,
@@ -1850,21 +1844,16 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::EnumDefEntry>,
     ) -> Result<Self::EnumDefEntryRet, Self::Error> {
         let walk::EnumDefEntry { name, args } = walk::walk_enum_def_entry(self, ctx, node)?;
-        let mut vars = HashSet::new();
 
         // Create the enum variant parameters
         let params = args
             .iter()
-            .map(|arg| -> TcResult<_> {
-                vars.extend(self.substituter().get_vars_in_term(*arg)?);
-
-                Ok(Param { name: None, ty: *arg, default_value: None })
-            })
+            .map(|arg| -> TcResult<_> { Ok(Param { name: None, ty: *arg, default_value: None }) })
             .collect::<TcResult<Vec<_>>>()?;
 
         let fields = self.builder().create_params(params, ParamOrigin::EnumVariant);
 
-        Ok((EnumVariant { name, fields }, vars))
+        Ok(EnumVariant { name, fields })
     }
 
     type EnumDefRet = TermId;
@@ -1880,15 +1869,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let name = self.state.declaration_name_hint.take();
 
         let builder = self.builder();
-
-        // We need to collect all of the bound variables that are within the members
-        let bound_vars = entries
-            .iter()
-            .map(|(_, vars)| vars)
-            .fold(HashSet::new(), |acc, vars| acc.union(vars).cloned().collect());
-        let variants = entries.into_iter().map(|(variants, _)| variants);
-
-        let nominal_id = builder.create_enum_def(name, variants, bound_vars);
+        let nominal_id = builder.create_enum_def(name, entries);
         let term = builder.create_nominal_def_term(nominal_id);
 
         // validate the constructed nominal def
@@ -1912,7 +1893,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             self.visit_constant_scope(ctx, node.members.ast_ref_iter(), None)?;
 
         // @@Todo: bound variables
-        let trt_def = self.builder().create_trt_def(scope_name, scope_id, vec![]);
+        let trt_def = self.builder().create_trt_def(scope_name, scope_id);
         let term = self.builder().create_trt_term(trt_def);
 
         // Validate the definition
@@ -1938,12 +1919,8 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             self.visit_constant_scope(ctx, node.implementation.ast_ref_iter(), None)?;
 
         // @@Todo: bound variables
-        let mod_def = self.builder().create_mod_def(
-            scope_name,
-            ModDefOrigin::TrtImpl(trait_term),
-            scope_id,
-            vec![],
-        );
+        let mod_def =
+            self.builder().create_mod_def(scope_name, ModDefOrigin::TrtImpl(trait_term), scope_id);
         let term = self.builder().create_mod_def_term(mod_def);
 
         // Validate the definition
@@ -2276,7 +2253,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         {
             self.global_storage().root_scope
         } else {
-            self.builder().create_constant_scope(vec![])
+            self.builder().create_scope(ScopeKind::Constant, vec![])
         };
 
         // Get the end of the filename for the module and use this as the name of the
@@ -2286,12 +2263,8 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             self.visit_constant_scope(ctx, node.contents.ast_ref_iter(), Some(members))?;
 
         let source_id = self.source_id;
-        let mod_def = self.builder().create_named_mod_def(
-            name,
-            ModDefOrigin::Source(source_id),
-            scope_id,
-            vec![],
-        );
+        let mod_def =
+            self.builder().create_named_mod_def(name, ModDefOrigin::Source(source_id), scope_id);
 
         let term = self.builder().create_mod_def_term(mod_def);
         self.validator().validate_mod_def(mod_def, term, false)?;

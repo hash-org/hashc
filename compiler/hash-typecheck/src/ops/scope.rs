@@ -1,15 +1,21 @@
 //! Functionality related to resolving variables in scopes.
 
-use super::{AccessToOps, AccessToOpsMut};
+use super::{params::pair_args_with_params, AccessToOps, AccessToOpsMut};
 use crate::{
-    diagnostics::error::{TcError, TcResult},
+    diagnostics::{
+        error::{TcError, TcResult},
+        macros::{tc_panic, tc_panic_on_many},
+        reporting::TcErrorWithStorage,
+    },
     storage::{
         primitives::{
-            MemberData, ParamsId, ScopeId, ScopeMember, Sub, SubSubject, TermId, Visibility,
+            ArgsId, BoundVar, Member, MemberData, MemberKind, Mutability, ParamsId, ScopeId,
+            ScopeKind, ScopeMember, ScopeVar, TermId, Visibility,
         },
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
 };
+use hash_reporting::{report::Report, writer};
 use hash_source::identifier::Identifier;
 
 /// Contains actions related to variable resolution.
@@ -59,67 +65,146 @@ impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
         Err(TcError::UnresolvedVariable { name, value: term })
     }
 
-    /// Enter a parameter scope, which is a scope that contains all the given
+    /// Get a [ScopeMember] from a [ScopeVar].
+    pub(crate) fn get_scope_var_member(&mut self, scope_var: ScopeVar) -> ScopeMember {
+        let reader = self.reader();
+        let member = reader.get_scope(scope_var.scope).get_by_index(scope_var.index);
+        ScopeMember { member, scope_id: scope_var.scope, index: scope_var.index }
+    }
+
+    /// Get a [ScopeMember] from a [BoundVar].
+    ///
+    /// The returned member is derived from the parameter list that the variable
+    /// is bound to. Furthermore, the originating scope must be either
+    /// [ScopeKind::Bound] or [ScopeKind::SetBound]. Otherwise it panics.
+    pub(crate) fn get_bound_var_member(
+        &mut self,
+        bound_var: BoundVar,
+        originating_term: TermId,
+    ) -> ScopeMember {
+        match self.resolve_name_in_scopes(bound_var.name, originating_term) {
+            Ok(scope_member) => {
+                let reader = self.reader();
+                let scope = reader.get_scope(scope_member.scope_id);
+                if scope.kind != ScopeKind::Bound && scope.kind != ScopeKind::SetBound {
+                    tc_panic!(
+                        originating_term,
+                        self,
+                        "Cannot get bound variable member from non-bound scope: {:?}",
+                        scope.kind
+                    );
+                }
+                scope_member
+            }
+            Err(_) => {
+                tc_panic!(
+                    originating_term,
+                    self,
+                    "Bound var {} not found in current context",
+                    bound_var.name
+                );
+            }
+        }
+    }
+
+    /// Create a parameter scope, which is a scope that contains all the given
     /// parameters.
     ///
     /// This function is meant to be used for runtime functions, and not type
     /// functions. This is because it creates a variable scope, and assigns each
     /// argument to its type wrapped by `Rt(..)`.
-    pub(crate) fn enter_rt_param_scope(&mut self, params_id: ParamsId) -> ScopeId {
+    pub(crate) fn make_rt_param_scope(&mut self, params_id: ParamsId) -> ScopeId {
         let params = self.reader().get_params(params_id).clone();
         let builder = self.builder();
-        let param_scope =
-            builder.create_variable_scope(params.positional().iter().filter_map(|param| {
+        let param_scope = builder.create_scope(
+            ScopeKind::Variable,
+            params.positional().iter().filter_map(|param| {
                 Some(builder.create_variable_member(
                     param.name?,
                     param.ty,
                     builder.create_rt_term(param.ty),
                 ))
-            }));
-        self.scopes_mut().append(param_scope);
+            }),
+        );
         param_scope
     }
 
-    /// Enter a substitution, which is a scope that contains all the mappings in
-    /// the given substitution.
+    /// Create a set bound scope, which is a scope that contains all the
+    /// mappings in the given arguments, originating from the given
+    /// parameters.
     ///
-    /// This is creates a constant scope, and assigns each domain element of
-    /// type [SubSubject::Var] to its corresponding range element.
-    pub(crate) fn enter_sub_param_scope(&mut self, sub: &Sub) -> ScopeId {
+    /// This assigns each parameter name to its corresponding argument value.
+    pub(crate) fn make_set_bound_scope(
+        &mut self,
+        params_id: ParamsId,
+        args_id: ArgsId,
+        params_subject: TermId,
+        args_subject: TermId,
+    ) -> ScopeId {
+        let args = self.args_store().get(args_id).clone();
+        let params = self.params_store().get(params_id).clone();
+        let paired = pair_args_with_params(
+            &params,
+            &args,
+            params_id,
+            args_id,
+            |p| self.typer().infer_arg_from_param(p),
+            params_subject,
+            args_subject,
+        )
+        .unwrap_or_else(|err| {
+            // This panics because this unification should have occurred in simplifying type
+            // function call, so it should have error-ed there.
+            let report: Report = TcErrorWithStorage::new(err, self.storages()).into();
+            eprintln!("{}", writer::ReportWriter::new(report, self.source_map()));
+            tc_panic_on_many!(
+                [params_subject, args_subject],
+                self,
+                "Could not pair arguments with parameters"
+            )
+        });
+
         let builder = self.builder();
-        let sub_scope =
-            builder.create_constant_scope(sub.pairs().filter_map(|(domain_el, range_el)| {
-                match domain_el {
-                    SubSubject::Var(var) => Some(builder.create_constant_member_infer_ty(
-                        var.name,
-                        range_el,
-                        Visibility::Private,
-                    )),
-                    SubSubject::Unresolved(_) => None,
-                }
-            }));
+        let members = paired.iter().filter_map(|(param, arg)| {
+            Some(Member::bound(
+                param.name?,
+                Visibility::Private,
+                Mutability::Immutable,
+                MemberData::from_ty_and_value(None, Some(arg.value)),
+            ))
+        });
+        let sub_scope = builder.create_scope(ScopeKind::SetBound, members);
         self.scopes_mut().append(sub_scope);
         sub_scope
     }
 
-    /// Enter a parameter scope, which is a scope that contains all the given
+    /// Create a bound scope, which is a scope that contains all the given
     /// parameters.
     ///
     /// This function is meant to be used for type functions, because it creates
     /// a constant scope and does not assign parameters to any values.
-    pub(crate) fn enter_ty_param_scope(&mut self, params_id: ParamsId) -> ScopeId {
+    pub(crate) fn make_bound_scope(&mut self, params_id: ParamsId) -> ScopeId {
         let params = self.reader().get_params(params_id).clone();
         let builder = self.builder();
-        let param_scope =
-            builder.create_constant_scope(params.positional().iter().filter_map(|param| {
+        let param_scope = builder.create_scope(
+            ScopeKind::Bound,
+            params.positional().iter().filter_map(|param| {
                 Some(builder.create_uninitialised_constant_member(
                     param.name?,
                     param.ty,
                     Visibility::Private,
                 ))
-            }));
-        self.scopes_mut().append(param_scope);
+            }),
+        );
         param_scope
+    }
+
+    /// Enter the given scope, and run the given callback inside it.
+    pub fn enter_scope<T>(&mut self, scope: ScopeId, f: impl FnOnce(&mut Self) -> T) -> T {
+        self.scopes_mut().append(scope);
+        let result = f(self);
+        self.scopes_mut().pop_the_scope(scope);
+        result
     }
 
     /// Assign the given value to the given member as a `(ScopeId, usize)` pair.
@@ -146,19 +231,26 @@ impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
         //     tc_panic!(value, self, "Cannot assign to closed member");
         // }
 
-        member.assignments_until_closed -= 1;
-        match member.data {
-            MemberData::Uninitialised { .. } => {
-                member.data = MemberData::InitialisedWithInferredTy { value }
+        match &mut member.kind {
+            MemberKind::Bound => {
+                // @@Todo: refine this error
+                Err(TcError::InvalidAssignSubject { location: (scope_id, index).into() })
             }
-            MemberData::InitialisedWithTy { ty, .. } => {
-                member.data = MemberData::InitialisedWithTy { value, ty }
-            }
-            MemberData::InitialisedWithInferredTy { .. } => {
-                member.data = MemberData::InitialisedWithInferredTy { value }
+            MemberKind::Stack { assignments_until_closed } => {
+                *assignments_until_closed -= 1;
+                match member.data {
+                    MemberData::Uninitialised { .. } => {
+                        member.data = MemberData::InitialisedWithInferredTy { value }
+                    }
+                    MemberData::InitialisedWithTy { ty, .. } => {
+                        member.data = MemberData::InitialisedWithTy { value, ty }
+                    }
+                    MemberData::InitialisedWithInferredTy { .. } => {
+                        member.data = MemberData::InitialisedWithInferredTy { value }
+                    }
+                }
+                Ok(())
             }
         }
-
-        Ok(())
     }
 }

@@ -28,6 +28,62 @@ pub enum LocationTarget {
     PatArg(PatArgsId, usize),
     /// A pattern.
     Pat(PatId),
+    /// A location (no-op).
+    Location(SourceLocation),
+}
+
+impl From<TermId> for LocationTarget {
+    fn from(id: TermId) -> Self {
+        Self::Term(id)
+    }
+}
+
+impl From<&TermId> for LocationTarget {
+    fn from(id: &TermId) -> Self {
+        Self::Term(*id)
+    }
+}
+
+impl From<PatId> for LocationTarget {
+    fn from(id: PatId) -> Self {
+        Self::Pat(id)
+    }
+}
+
+impl From<&PatId> for LocationTarget {
+    fn from(id: &PatId) -> Self {
+        Self::Pat(*id)
+    }
+}
+
+impl From<(ParamsId, usize)> for LocationTarget {
+    fn from((id, index): (ParamsId, usize)) -> Self {
+        Self::Param(id, index)
+    }
+}
+
+impl From<(ArgsId, usize)> for LocationTarget {
+    fn from((id, index): (ArgsId, usize)) -> Self {
+        Self::Arg(id, index)
+    }
+}
+
+impl From<(ScopeId, usize)> for LocationTarget {
+    fn from((id, index): (ScopeId, usize)) -> Self {
+        Self::Declaration(id, index)
+    }
+}
+
+impl From<(PatArgsId, usize)> for LocationTarget {
+    fn from((id, index): (PatArgsId, usize)) -> Self {
+        Self::PatArg(id, index)
+    }
+}
+
+impl From<SourceLocation> for LocationTarget {
+    fn from(loc: SourceLocation) -> Self {
+        Self::Location(loc)
+    }
 }
 
 /// Types that paired with an index, create a [LocationTarget].
@@ -153,6 +209,10 @@ impl LocationStore {
             LocationTarget::Pat(pat) => {
                 self.pat_map.insert(pat, location);
             }
+            _ => {
+                // no-op
+                log::warn!("Tried to set location on a LocationTarget::Location")
+            }
         };
     }
 
@@ -171,6 +231,7 @@ impl LocationStore {
             LocationTarget::PatArg(param_pat, index) => {
                 Some(*self.param_pat_map.get(&param_pat)?.borrow().get(&index)?)
             }
+            LocationTarget::Location(location) => Some(location),
         }
     }
 
@@ -239,53 +300,5 @@ impl LocationStore {
         if let Some(origin) = self.get_location(src.into()) {
             self.add_location_to_target(dest.into(), origin);
         }
-    }
-}
-
-impl From<TermId> for LocationTarget {
-    fn from(id: TermId) -> Self {
-        Self::Term(id)
-    }
-}
-
-impl From<&TermId> for LocationTarget {
-    fn from(id: &TermId) -> Self {
-        Self::Term(*id)
-    }
-}
-
-impl From<PatId> for LocationTarget {
-    fn from(id: PatId) -> Self {
-        Self::Pat(id)
-    }
-}
-
-impl From<&PatId> for LocationTarget {
-    fn from(id: &PatId) -> Self {
-        Self::Pat(*id)
-    }
-}
-
-impl From<(ParamsId, usize)> for LocationTarget {
-    fn from((id, index): (ParamsId, usize)) -> Self {
-        Self::Param(id, index)
-    }
-}
-
-impl From<(ArgsId, usize)> for LocationTarget {
-    fn from((id, index): (ArgsId, usize)) -> Self {
-        Self::Arg(id, index)
-    }
-}
-
-impl From<(ScopeId, usize)> for LocationTarget {
-    fn from((id, index): (ScopeId, usize)) -> Self {
-        Self::Declaration(id, index)
-    }
-}
-
-impl From<(PatArgsId, usize)> for LocationTarget {
-    fn from((id, index): (PatArgsId, usize)) -> Self {
-        Self::PatArg(id, index)
     }
 }
