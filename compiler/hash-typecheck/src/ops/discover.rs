@@ -363,30 +363,6 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
         }
     }
 
-    /// Add the free variables that exist in the given [Level2Term], to the
-    /// given [HashSet].
-    pub(crate) fn add_free_bound_vars_in_level2_term_to_set(
-        &self,
-        term: &Level2Term,
-        _result: &mut HashSet<BoundVar>,
-    ) {
-        match term {
-            Level2Term::Trt(_) | Level2Term::AnyTy => {}
-        }
-    }
-
-    /// Add the free variables that exist in the given [Level3Term], to the
-    /// given [HashSet].
-    pub(crate) fn add_free_bound_vars_in_level3_term_to_set(
-        &self,
-        term: &Level3Term,
-        _: &mut HashSet<BoundVar>,
-    ) {
-        match term {
-            Level3Term::TrtKind => {}
-        }
-    }
-
     /// Add the free variables that exist in the given [ScopeId], to the
     /// given [HashSet].
     ///
@@ -513,13 +489,6 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
             Term::TyOf(term) => {
                 self.add_free_bound_vars_in_term_to_set(*term, result);
             }
-            // Definite-level terms:
-            Term::Level3(term) => {
-                self.add_free_bound_vars_in_level3_term_to_set(term, result);
-            }
-            Term::Level2(term) => {
-                self.add_free_bound_vars_in_level2_term_to_set(term, result);
-            }
             Term::Level1(term) => {
                 self.add_free_bound_vars_in_level1_term_to_set(term, result);
             }
@@ -527,7 +496,12 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
                 self.add_free_bound_vars_in_level0_term_to_set(term, result);
             }
             // No bound vars:
-            Term::Var(_) | Term::Root | Term::ScopeVar(_) | Term::Unresolved(_) => {}
+            Term::Var(_)
+            | Term::Root
+            | Term::ScopeVar(_)
+            | Term::Unresolved(_)
+            | Term::Level3(_)
+            | Term::Level2(_) => {}
         }
     }
 

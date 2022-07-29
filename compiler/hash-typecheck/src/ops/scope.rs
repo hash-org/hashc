@@ -153,6 +153,8 @@ impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
             args_subject,
         )
         .unwrap_or_else(|err| {
+            // This panics because this unification should have occurred in simplifying type
+            // function call, so it should have error-ed there.
             let report: Report = TcErrorWithStorage::new(err, self.storages()).into();
             eprintln!("{}", writer::ReportWriter::new(report, self.source_map()));
             tc_panic_on_many!(

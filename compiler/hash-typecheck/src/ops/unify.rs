@@ -566,9 +566,7 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
                 let reader = self.reader();
                 let subject_ty = reader.get_term(subject_ty_id);
                 match subject_ty {
-                    Term::TyFnTy(ty_fn_ty) => {
-                        let _ = ty_fn_ty.clone();
-
+                    Term::TyFnTy(_) => {
                         // Match the two args:
                         let sub = self.unify_args(
                             src_app_ty_fn.args,
