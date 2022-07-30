@@ -1,5 +1,5 @@
 //! Contains utilities to validate terms.
-use super::{AccessToOps, AccessToOpsMut};
+use super::{scope::ScopeManager, AccessToOps, AccessToOpsMut};
 use crate::{
     diagnostics::{
         error::{TcError, TcResult},
@@ -142,54 +142,51 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
         // Enter the progressive scope:
         let progressive_scope = Scope::new(ScopeKind::Constant, []);
         let progressive_scope_id = self.scope_store_mut().create(progressive_scope);
-        self.scopes_mut().append(progressive_scope_id);
+        ScopeManager::enter_scope_with(self, progressive_scope_id, |this| {
+            // @@Performance: sad that we have to clone here:
+            let scope = this.reader().get_scope(scope_id).clone();
+            for member in scope.iter() {
+                // This should have been checked in semantic analysis:
+                assert!(
+                    member.mutability != Mutability::Mutable,
+                    "Found mutable member in constant scope!"
+                );
 
-        // @@Performance: sad that we have to clone here:
-        let scope = self.reader().get_scope(scope_id).clone();
-        for member in scope.iter() {
-            // This should have been checked in semantic analysis:
-            assert!(
-                member.mutability != Mutability::Mutable,
-                "Found mutable member in constant scope!"
-            );
+                // Add the member to the progressive scope so that this and next members can
+                // access it.
+                this.scope_store_mut().get_mut(progressive_scope_id).add(member);
 
-            // Add the member to the progressive scope so that this and next members can
-            // access it.
-            self.scope_store_mut().get_mut(progressive_scope_id).add(member);
+                // Validate the member:
+                match member.data {
+                    MemberData::Uninitialised { ty } if !allow_uninitialised => {
+                        return Err(TcError::UninitialisedMemberNotAllowed { member_ty: ty });
+                    }
+                    MemberData::Uninitialised { ty } => {
+                        // Validate only the type
+                        this.validate_term(ty)?;
+                    }
+                    MemberData::InitialisedWithTy { ty, value } => {
+                        // Validate the term, the type, and unify them.
+                        let TermValidation { term_ty_id, .. } = this.validate_term(value)?;
+                        let TermValidation { simplified_term_id: simplified_ty_id, .. } =
+                            this.validate_term(ty)?;
+                        let _ = this.unifier().unify_terms(term_ty_id, simplified_ty_id)?;
+                    }
+                    MemberData::InitialisedWithInferredTy { value } => {
+                        // Validate the term, and the type
+                        let TermValidation { term_ty_id, .. } = this.validate_term(value)?;
+                        // @@PotentiallyRedundant: is this necessary? shouldn't this be an invariant
+                        // already?
+                        this.validate_term(term_ty_id)?;
+                    }
+                }
 
-            // Validate the member:
-            match member.data {
-                MemberData::Uninitialised { ty } if !allow_uninitialised => {
-                    return Err(TcError::UninitialisedMemberNotAllowed { member_ty: ty });
-                }
-                MemberData::Uninitialised { ty } => {
-                    // Validate only the type
-                    self.validate_term(ty)?;
-                }
-                MemberData::InitialisedWithTy { ty, value } => {
-                    // Validate the term, the type, and unify them.
-                    let TermValidation { term_ty_id, .. } = self.validate_term(value)?;
-                    let TermValidation { simplified_term_id: simplified_ty_id, .. } =
-                        self.validate_term(ty)?;
-                    let _ = self.unifier().unify_terms(term_ty_id, simplified_ty_id)?;
-                }
-                MemberData::InitialisedWithInferredTy { value } => {
-                    // Validate the term, and the type
-                    let TermValidation { term_ty_id, .. } = self.validate_term(value)?;
-                    // @@PotentiallyRedundant: is this necessary? shouldn't this be an invariant
-                    // already?
-                    self.validate_term(term_ty_id)?;
-                }
+                // @@Incomplete: here we also need to ensure that the member
+                // does not directly access itself (i.e. `a := a`).
             }
 
-            // @@Incomplete: here we also need to ensure that the member does
-            // not directly access itself (i.e. `a := a`).
-        }
-
-        // Leave the progressive scope:
-        self.scopes_mut().pop_the_scope(progressive_scope_id);
-
-        Ok(())
+            Ok(())
+        })
     }
 
     /// Ensure that the given `scope` implements the trait at the given
@@ -241,7 +238,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
 
                         // Unify the types of the scope member and the substituted trait member:
                         let _ =
-                            self.unifier().unify_terms(scope_member_data.ty, trt_member_data.ty);
+                            self.unifier().unify_terms(scope_member_data.ty, trt_member_data.ty)?;
                     } else {
                         return Err(TcError::TraitImplMissingMember {
                             trt_def_term_id,
@@ -771,7 +768,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                             let _ = self.unifier().unify_terms(
                                 fn_return_value_validation.term_ty_id,
                                 fn_return_ty_validation.simplified_term_id,
-                            );
+                            )?;
 
                             // @@Correctness: should we not apply the above substitution somewhere?
                             Ok(result)
@@ -840,9 +837,10 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
             // Set bound, just validate inner
             Term::SetBound(set_bound) => {
                 let set_bound = *set_bound;
-                self.scope_manager().enter_scope(set_bound.scope, |this| {
+                let _ = self.scope_manager().enter_scope(set_bound.scope, |this| {
                     this.validator().validate_term(set_bound.term)
-                })
+                })?;
+                Ok(result)
             }
 
             // Type function type:
@@ -853,7 +851,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
 
                 let param_scope = self.scope_manager().make_bound_scope(ty_fn_ty.params);
                 self.scope_manager().enter_scope(param_scope, |this| {
-                    let _ = this.validator().validate_term(ty_fn_ty.return_ty);
+                    let _ = this.validator().validate_term(ty_fn_ty.return_ty)?;
                     let params = this.validator().params_store().get(ty_fn_ty.params).clone();
 
                     // Ensure each parameter's type can be used as a type function parameter type:

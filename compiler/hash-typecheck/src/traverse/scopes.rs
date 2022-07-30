@@ -4,11 +4,8 @@
 use super::TcVisitor;
 use crate::{
     diagnostics::error::TcResult,
-    ops::AccessToOpsMut,
-    storage::{
-        primitives::{ScopeId, ScopeKind},
-        AccessToStorageMut,
-    },
+    ops::{scope::ScopeManager, AccessToOpsMut},
+    storage::primitives::{ScopeId, ScopeKind},
 };
 use hash_ast::{ast, visitor::AstVisitor};
 use hash_source::identifier::Identifier;
@@ -34,20 +31,20 @@ impl<'gs, 'ls, 'cd, 'src> TcVisitor<'gs, 'ls, 'cd, 'src> {
         // Create a scope and enter it, for adding all the members:
         let scope_id =
             scope_to_use.unwrap_or_else(|| self.builder().create_scope(ScopeKind::Constant, []));
-        self.scopes_mut().append(scope_id);
 
-        // @@Todo: deal with recursive declarations
+        ScopeManager::enter_scope_with(self, scope_id, |this| {
+            // @@Todo: deal with recursive declarations
 
-        // Invariant: It is already checked during semantics that only declarations are
-        // present in constant scopes.
-        for (i, member) in members.enumerate() {
-            self.visit_expr(ctx, member)?;
+            // Invariant: It is already checked during semantics that only declarations are
+            // present in constant scopes.
+            for (i, member) in members.enumerate() {
+                this.visit_expr(ctx, member)?;
 
-            // Add location to the declaration
-            self.copy_location_from_node_to_target(member, (scope_id, i));
-        }
-
-        self.scopes_mut().pop_the_scope(scope_id);
+                // Add location to the declaration
+                this.copy_location_from_node_to_target(member, (scope_id, i));
+            }
+            Ok(())
+        })?;
 
         // Get the name of the scope from the surrounding declaration hint, if any.
         // This is only useful for mod/impl/trait blocks

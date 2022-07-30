@@ -129,6 +129,23 @@ impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
         param_scope
     }
 
+    /// From a given scope, create a new scope that contains only members
+    /// passing the test given by `include_member`.
+    ///
+    /// Retains scope kind.
+    pub(crate) fn filter_scope(
+        &mut self,
+        scope: ScopeId,
+        mut include_member: impl FnMut(&Member) -> bool,
+    ) -> ScopeId {
+        let original_scope = self.reader().get_scope(scope).clone();
+        let new_scope = self.builder().create_scope(
+            original_scope.kind,
+            original_scope.members.iter().filter(|member| include_member(member)).copied(),
+        );
+        new_scope
+    }
+
     /// Create a set bound scope, which is a scope that contains all the
     /// mappings in the given arguments, originating from the given
     /// parameters.
@@ -173,9 +190,8 @@ impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
                 MemberData::from_ty_and_value(None, Some(arg.value)),
             ))
         });
-        let sub_scope = builder.create_scope(ScopeKind::SetBound, members);
-        self.scopes_mut().append(sub_scope);
-        sub_scope
+
+        builder.create_scope(ScopeKind::SetBound, members)
     }
 
     /// Create a bound scope, which is a scope that contains all the given
@@ -201,9 +217,19 @@ impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
 
     /// Enter the given scope, and run the given callback inside it.
     pub fn enter_scope<T>(&mut self, scope: ScopeId, f: impl FnOnce(&mut Self) -> T) -> T {
-        self.scopes_mut().append(scope);
-        let result = f(self);
-        self.scopes_mut().pop_the_scope(scope);
+        Self::enter_scope_with(self, scope, f)
+    }
+
+    /// Enter the given scope, and run the given callback inside it, with the
+    /// given struct to access storage.
+    pub fn enter_scope_with<S: AccessToStorageMut, T>(
+        storage: &mut S,
+        scope: ScopeId,
+        f: impl FnOnce(&mut S) -> T,
+    ) -> T {
+        storage.scopes_mut().append(scope);
+        let result = f(storage);
+        storage.scopes_mut().pop_the_scope(scope);
         result
     }
 

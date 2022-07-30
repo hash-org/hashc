@@ -4,7 +4,8 @@ use crate::{
     storage::{
         primitives::{
             AccessTerm, Arg, ArgsId, BoundVar, Level0Term, Level1Term, Level2Term, Level3Term,
-            Param, ParamsId, ScopeId, Sub, SubVar, Term, TermId, TyFn, TyFnCase,
+            NominalDef, Param, ParamsId, ScopeId, StructDef, StructFields, Sub, SubVar, Term,
+            TermId, TyFn, TyFnCase,
         },
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
@@ -342,6 +343,23 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
         }
     }
 
+    /// Add the free variables that exist in the given [Level2Term], to the
+    /// given [HashSet].
+    pub(crate) fn add_free_bound_vars_in_level2_term_to_set(
+        &self,
+        term: &Level2Term,
+        result: &mut HashSet<BoundVar>,
+    ) {
+        match term {
+            Level2Term::Trt(trt_def_id) => {
+                // Look at the scope of the trait def
+                let trt_def_scope = self.reader().get_trt_def(*trt_def_id).members;
+                self.add_free_bound_vars_in_scope_to_set(trt_def_scope, result)
+            }
+            Level2Term::AnyTy => {}
+        }
+    }
+
     /// Add the free variables that exist in the given [Level1Term], to the
     /// given [HashSet].
     pub(crate) fn add_free_bound_vars_in_level1_term_to_set(
@@ -350,7 +368,27 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
         result: &mut HashSet<BoundVar>,
     ) {
         match term {
-            Level1Term::ModDef(_) | Level1Term::NominalDef(_) => {}
+            Level1Term::ModDef(mod_def_id) => {
+                // Look at the scope of the mod def
+                let mod_def_scope = self.reader().get_mod_def(*mod_def_id).members;
+                self.add_free_bound_vars_in_scope_to_set(mod_def_scope, result)
+            }
+            Level1Term::NominalDef(nominal_def_id) => {
+                // Look at the scope of the nominal def
+                let reader = self.reader();
+                let nominal_def = reader.get_nominal_def(*nominal_def_id);
+                match nominal_def {
+                    NominalDef::Struct(StructDef {
+                        fields: StructFields::Explicit(fields),
+                        ..
+                    }) => self.add_free_bound_vars_in_params_to_set(*fields, result),
+                    // @@Todo: add bound vars to opaque structs
+                    NominalDef::Struct(_) => {}
+                    NominalDef::Enum(_) => {
+                        // @@Remove: enums will be removed anyway.
+                    }
+                }
+            }
             Level1Term::Tuple(tuple_ty) => {
                 // Add the free variables in the parameters (don't remove the parameter names)
                 self.add_free_bound_vars_in_params_to_set(tuple_ty.members, result);
@@ -489,6 +527,9 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
             Term::TyOf(term) => {
                 self.add_free_bound_vars_in_term_to_set(*term, result);
             }
+            Term::Level2(term) => {
+                self.add_free_bound_vars_in_level2_term_to_set(term, result);
+            }
             Term::Level1(term) => {
                 self.add_free_bound_vars_in_level1_term_to_set(term, result);
             }
@@ -500,8 +541,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
             | Term::Root
             | Term::ScopeVar(_)
             | Term::Unresolved(_)
-            | Term::Level3(_)
-            | Term::Level2(_) => {}
+            | Term::Level3(_) => {}
         }
     }
 
@@ -624,8 +664,18 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
         term_id: TermId,
     ) -> TcResult<TermId> {
         Ok(self
-            .apply_set_bound_to_term(set_bound_scope_id, term_id, &HashSet::new())?
+            .apply_set_bound_to_term_rec(set_bound_scope_id, term_id, &HashSet::new())?
             .unwrap_or(term_id))
+    }
+
+    /// Apply the given [Scope] of kind [Scope::SetBound] to the given term, at
+    /// the lowest level possible. Returns None if no application occurred.
+    pub(crate) fn apply_set_bound_to_term(
+        &mut self,
+        set_bound_scope_id: ScopeId,
+        term_id: TermId,
+    ) -> TcResult<Option<TermId>> {
+        self.apply_set_bound_to_term_rec(set_bound_scope_id, term_id, &HashSet::new())
     }
 
     // Same as [Self::apply_set_bound_to_term] but if it returns None, the original
@@ -639,7 +689,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
         applied_once: &mut bool,
     ) -> TcResult<TermId> {
         Ok(self
-            .apply_set_bound_to_term(set_bound_scope_id, term_id, ignore_bound_vars)?
+            .apply_set_bound_to_term_rec(set_bound_scope_id, term_id, ignore_bound_vars)?
             .map(|applied| {
                 *applied_once = true;
                 applied
@@ -655,7 +705,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
     ///
     /// Takes a list of bound vars to ignore, because they are bound in some
     /// child scope (like a type function bound).
-    pub(crate) fn apply_set_bound_to_term(
+    pub(crate) fn apply_set_bound_to_term_rec(
         &mut self,
         set_bound_scope_id: ScopeId,
         term_id: TermId,
@@ -678,11 +728,6 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
                                     "Found bound var in set bound scope, but it has no value"
                                 )
                             });
-                            println!(
-                                "HERE with {} -> {}",
-                                self.for_fmt(term_id),
-                                self.for_fmt(value)
-                            );
                             // @@Correctness: do we need to recurse here?
                             Ok(Some(self.apply_set_bound_to_term_with_flag(
                                 set_bound_scope_id,
@@ -701,7 +746,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
             Term::Access(term) => {
                 // Apply to subject
                 let term = *term;
-                let subject_applied = self.apply_set_bound_to_term(
+                let subject_applied = self.apply_set_bound_to_term_rec(
                     set_bound_scope_id,
                     term.subject,
                     ignore_bound_vars,
@@ -939,7 +984,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
             }
             Term::Level0(term) => match term {
                 Level0Term::Rt(inner) => Ok(self
-                    .apply_set_bound_to_term(set_bound_scope_id, *inner, ignore_bound_vars)?
+                    .apply_set_bound_to_term_rec(set_bound_scope_id, *inner, ignore_bound_vars)?
                     .map(|result| self.builder().create_rt_term(result))),
                 Level0Term::FnCall(fn_call) => {
                     let fn_call = *fn_call;
@@ -1029,8 +1074,25 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
             | Term::Level1(Level1Term::NominalDef(_))
             | Term::Level2(Level2Term::Trt(_))
             | Term::SetBound(_) => {
-                // Wrap in set scope, these are the application leaves
-                Ok(Some(self.builder().create_set_bound_term(term_id, set_bound_scope_id)))
+                let vars = self.get_free_bound_vars_in_term(term_id);
+                if !self
+                    .reader()
+                    .get_scope(set_bound_scope_id)
+                    .iter_names()
+                    .any(|name| vars.contains(&BoundVar { name }))
+                {
+                    // No vars in mod:
+                    Ok(None)
+                } else {
+                    // Wrap in set scope, filtered by having only the vars that appear in the term.
+                    let filtered_set_bound_scope_id =
+                        self.scope_manager().filter_scope(set_bound_scope_id, |member| {
+                            vars.contains(&BoundVar { name: member.name })
+                        });
+                    Ok(Some(
+                        self.builder().create_set_bound_term(term_id, filtered_set_bound_scope_id),
+                    ))
+                }
             }
             Term::Level3(Level3Term::TrtKind)
             | Term::Level2(Level2Term::AnyTy)

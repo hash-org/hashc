@@ -5,7 +5,7 @@ use crate::{
         error::{TcError, TcResult},
         macros::tc_panic,
     },
-    ops::{AccessToOps, AccessToOpsMut},
+    ops::{scope::ScopeManager, AccessToOps, AccessToOpsMut},
     storage::{
         location::{IndexedLocationTarget, LocationTarget},
         primitives::{
@@ -919,9 +919,9 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let params = self.builder().create_params(params, ParamOrigin::TyFn);
 
         let param_scope = self.scope_manager().make_bound_scope(params);
-        self.scopes_mut().append(param_scope);
-        let return_value = self.visit_ty(ctx, node.return_ty.ast_ref())?;
-        self.scopes_mut().pop_the_scope(param_scope);
+        let return_value = ScopeManager::enter_scope_with(self, param_scope, |this| {
+            this.visit_ty(ctx, node.return_ty.ast_ref())
+        })?;
 
         // Add all the locations to the parameters:
         self.copy_location_from_nodes_to_targets(node.params.ast_ref_iter(), params);
@@ -959,7 +959,8 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         // Add the location of the term to the location storage
         self.copy_location_from_node_to_target(node, app_ty_fn_term);
 
-        Ok(self.validator().validate_term(app_ty_fn_term)?.simplified_term_id)
+        let simplified = self.validator().validate_term(app_ty_fn_term)?.simplified_term_id;
+        Ok(simplified)
     }
 
     type NamedTyRet = TermId;
@@ -1088,37 +1089,36 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
         // Enter parameter scope:
         let param_scope = self.scope_manager().make_bound_scope(params);
-        self.scopes_mut().append(param_scope);
+        ScopeManager::enter_scope_with(self, param_scope, |this| {
+            // Traverse return type and return value:
+            let return_ty =
+                node.return_ty.as_ref().map(|t| this.visit_ty(ctx, t.ast_ref())).transpose()?;
+            let body = this.visit_expr(ctx, node.body.ast_ref())?;
 
-        // Traverse return type and return value:
-        let return_ty =
-            node.return_ty.as_ref().map(|t| self.visit_ty(ctx, t.ast_ref())).transpose()?;
-        let body = self.visit_expr(ctx, node.body.ast_ref())?;
+            // Create the type function type term:
+            let ty_fn_return_ty = this.builder().or_unresolved_term(return_ty);
+            let ty_of_ty_fn_return_value = this.typer().infer_ty_of_term(body)?;
+            let return_ty_sub =
+                this.unifier().unify_terms(ty_of_ty_fn_return_value, ty_fn_return_ty)?;
+            let ty_fn_return_ty =
+                this.substituter().apply_sub_to_term(&return_ty_sub, ty_fn_return_ty);
+            let ty_fn_return_value = this.substituter().apply_sub_to_term(&return_ty_sub, body);
 
-        // Create the type function type term:
-        let ty_fn_return_ty = self.builder().or_unresolved_term(return_ty);
-        let ty_of_ty_fn_return_value = self.typer().infer_ty_of_term(body)?;
-        let return_ty_sub =
-            self.unifier().unify_terms(ty_of_ty_fn_return_value, ty_fn_return_ty)?;
-        let ty_fn_return_ty = self.substituter().apply_sub_to_term(&return_ty_sub, ty_fn_return_ty);
-        let ty_fn_return_value = self.substituter().apply_sub_to_term(&return_ty_sub, body);
+            let ty_fn_term = this.builder().create_ty_fn_term(
+                declaration_hint,
+                params,
+                ty_fn_return_ty,
+                ty_fn_return_value,
+            );
 
-        let ty_fn_term = self.builder().create_ty_fn_term(
-            declaration_hint,
-            params,
-            ty_fn_return_ty,
-            ty_fn_return_value,
-        );
+            // Add location to the type function:
+            this.copy_location_from_node_to_target(node, ty_fn_term);
 
-        // Add location to the type function:
-        self.copy_location_from_node_to_target(node, ty_fn_term);
+            let simplified_ty_fn_term =
+                this.validator().validate_term(ty_fn_term)?.simplified_term_id;
 
-        let simplified_ty_fn_term = self.validator().validate_term(ty_fn_term)?.simplified_term_id;
-
-        // Exit scope:
-        self.scopes_mut().pop_the_scope(param_scope);
-
-        Ok(simplified_ty_fn_term)
+            Ok(simplified_ty_fn_term)
+        })
     }
 
     type FnDefRet = TermId;
@@ -1144,42 +1144,46 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
         let params_potentially_unresolved = self.builder().create_params(params, ParamOrigin::Fn);
         let param_scope = self.scope_manager().make_rt_param_scope(params_potentially_unresolved);
-        self.scopes_mut().append(param_scope);
 
-        let fn_body = self.visit_expr(ctx, node.fn_body.ast_ref())?;
+        let (params, return_ty, return_value) =
+            ScopeManager::enter_scope_with(self, param_scope, |this| {
+                let fn_body = this.visit_expr(ctx, node.fn_body.ast_ref())?;
 
-        let hint_return_ty = self.state.fn_def_return_ty;
-        let return_ty_or_unresolved = self.builder().or_unresolved_term(hint_return_ty);
+                let hint_return_ty = this.state.fn_def_return_ty;
+                let return_ty_or_unresolved = this.builder().or_unresolved_term(hint_return_ty);
 
-        let body_sub = {
-            let ty_of_body = self.typer().infer_ty_of_term(fn_body)?;
-            match hint_return_ty {
-                Some(_) => {
-                    // Try to unify ty_of_body with void, and if so, then ty of
-                    // body should be unresolved:
-                    let void = self.builder().create_void_ty_term();
-                    match self.unifier().unify_terms(ty_of_body, void) {
-                        Ok(_) => Sub::empty(),
-                        Err(_) => {
-                            // Must be returning the same type:
-                            self.unifier().unify_terms(ty_of_body, return_ty_or_unresolved)?
+                let body_sub = {
+                    let ty_of_body = this.typer().infer_ty_of_term(fn_body)?;
+                    match hint_return_ty {
+                        Some(_) => {
+                            // Try to unify ty_of_body with void, and if so, then ty of
+                            // body should be unresolved:
+                            let void = this.builder().create_void_ty_term();
+                            match this.unifier().unify_terms(ty_of_body, void) {
+                                Ok(_) => Sub::empty(),
+                                Err(_) => {
+                                    // Must be returning the same type:
+                                    this.unifier()
+                                        .unify_terms(ty_of_body, return_ty_or_unresolved)?
+                                }
+                            }
                         }
+                        None => this.unifier().unify_terms(ty_of_body, return_ty_or_unresolved)?,
                     }
-                }
-                None => self.unifier().unify_terms(ty_of_body, return_ty_or_unresolved)?,
-            }
-        };
+                };
 
-        let return_value = self.substituter().apply_sub_to_term(&body_sub, fn_body);
-        let return_ty = self.substituter().apply_sub_to_term(&body_sub, return_ty_or_unresolved);
-        let params =
-            self.substituter().apply_sub_to_params(&body_sub, params_potentially_unresolved);
+                let return_value = this.substituter().apply_sub_to_term(&body_sub, fn_body);
+                let return_ty =
+                    this.substituter().apply_sub_to_term(&body_sub, return_ty_or_unresolved);
+                let params = this
+                    .substituter()
+                    .apply_sub_to_params(&body_sub, params_potentially_unresolved);
 
-        // Add all the locations to the parameters
-        self.copy_location_from_nodes_to_targets(node.params.ast_ref_iter(), params);
+                // Add all the locations to the parameters
+                this.copy_location_from_nodes_to_targets(node.params.ast_ref_iter(), params);
 
-        // Remove the scope of the params after the body has been checked.
-        self.scopes_mut().pop_the_scope(param_scope);
+                Ok((params, return_ty, return_value))
+            })?;
 
         let builder = self.builder();
 
@@ -1253,14 +1257,11 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
                         // Enter a new scope and add the members
                         let match_case_scope =
                             self.builder().create_scope(ScopeKind::Variable, members_to_add);
-                        self.scopes_mut().append(match_case_scope);
-
-                        // Traverse the body with the bound variables:
-                        let case_body = self.visit_expr(ctx, case.expr.ast_ref())?;
-
-                        // Remove the scope:
-                        self.scopes_mut().pop_the_scope(match_case_scope);
-                        Ok(Some(case_body))
+                        ScopeManager::enter_scope_with(self, match_case_scope, |this| {
+                            // Traverse the body with the bound variables:
+                            let case_body = this.visit_expr(ctx, case.expr.ast_ref())?;
+                            Ok(Some(case_body))
+                        })
                     }
                     None => {
                         // Does not match, indicate that the case is useless!
