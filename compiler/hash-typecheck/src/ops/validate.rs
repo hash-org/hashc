@@ -238,7 +238,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
 
                         // Unify the types of the scope member and the substituted trait member:
                         let _ =
-                            self.unifier().unify_terms(scope_member_data.ty, trt_member_data.ty);
+                            self.unifier().unify_terms(scope_member_data.ty, trt_member_data.ty)?;
                     } else {
                         return Err(TcError::TraitImplMissingMember {
                             trt_def_term_id,
@@ -768,7 +768,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                             let _ = self.unifier().unify_terms(
                                 fn_return_value_validation.term_ty_id,
                                 fn_return_ty_validation.simplified_term_id,
-                            );
+                            )?;
 
                             // @@Correctness: should we not apply the above substitution somewhere?
                             Ok(result)
@@ -839,7 +839,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                 let set_bound = *set_bound;
                 let _ = self.scope_manager().enter_scope(set_bound.scope, |this| {
                     this.validator().validate_term(set_bound.term)
-                });
+                })?;
                 Ok(result)
             }
 
@@ -851,7 +851,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
 
                 let param_scope = self.scope_manager().make_bound_scope(ty_fn_ty.params);
                 self.scope_manager().enter_scope(param_scope, |this| {
-                    let _ = this.validator().validate_term(ty_fn_ty.return_ty);
+                    let _ = this.validator().validate_term(ty_fn_ty.return_ty)?;
                     let params = this.validator().params_store().get(ty_fn_ty.params).clone();
 
                     // Ensure each parameter's type can be used as a type function parameter type:
