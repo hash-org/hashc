@@ -350,27 +350,23 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
 
                 // Get the scope of the module.
                 let mod_def_scope = self.reader().get_mod_def(*mod_def_id).members;
+                self.scope_manager().enter_scope(mod_def_scope, |this| {
+                    // Resolve the name:
+                    let name_var = this.builder().create_var_term(access_term.name);
+                    let result = this.simplifier().simplify_term(name_var).map_err(
+                        turn_unresolved_var_err_into_unresolved_in_value_err(access_term),
+                    )?;
 
-                // Add it to the local storage scope
-                self.scopes_mut().append(mod_def_scope);
-
-                // Resolve the name:
-                let name_var = self.builder().create_var_term(access_term.name);
-                let result = self
-                    .simplifier()
-                    .simplify_term(name_var)
-                    .map_err(turn_unresolved_var_err_into_unresolved_in_value_err(access_term))?;
-
-                if let Some(member) = self.scope_store().get(mod_def_scope).get(access_term.name) {
-                    if let Some(inner_term) = result {
-                        self.location_store_mut()
-                            .copy_location((mod_def_scope, member.1), inner_term)
+                    if let Some(member) =
+                        this.scope_store().get(mod_def_scope).get(access_term.name)
+                    {
+                        if let Some(inner_term) = result {
+                            this.location_store_mut()
+                                .copy_location((mod_def_scope, member.1), inner_term)
+                        }
                     }
-                }
-
-                // Pop back the scope
-                self.scopes_mut().pop_the_scope(mod_def_scope);
-                Ok(result)
+                    Ok(result)
+                })
             }
             // Nominals:
             Level1Term::NominalDef(nominal_def_id) => {
@@ -419,19 +415,13 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
 
                 // Get the scope of the trait.
                 let trt_def_scope = self.reader().get_trt_def(*trt_def_id).members;
-
-                // Add it to the local storage scope
-                self.scopes_mut().append(trt_def_scope);
-
-                // Resolve the type of the name:
-                let name_var = self.builder().create_var_term(access_term.name);
-                let result = self
-                    .typer()
-                    .infer_ty_of_term(name_var)
-                    .map_err(turn_unresolved_var_err_into_unresolved_in_value_err(access_term))?;
-
-                // Pop back the scope
-                self.scopes_mut().pop_scope();
+                let result = self.scope_manager().enter_scope(trt_def_scope, |this| {
+                    // Resolve the type of the name:
+                    let name_var = this.builder().create_var_term(access_term.name);
+                    this.typer()
+                        .infer_ty_of_term(name_var)
+                        .map_err(turn_unresolved_var_err_into_unresolved_in_value_err(access_term))
+                })?;
 
                 Ok(Some(result))
             }

@@ -190,9 +190,8 @@ impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
                 MemberData::from_ty_and_value(None, Some(arg.value)),
             ))
         });
-        let sub_scope = builder.create_scope(ScopeKind::SetBound, members);
-        self.scopes_mut().append(sub_scope);
-        sub_scope
+
+        builder.create_scope(ScopeKind::SetBound, members)
     }
 
     /// Create a bound scope, which is a scope that contains all the given
@@ -218,9 +217,19 @@ impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
 
     /// Enter the given scope, and run the given callback inside it.
     pub fn enter_scope<T>(&mut self, scope: ScopeId, f: impl FnOnce(&mut Self) -> T) -> T {
-        self.scopes_mut().append(scope);
-        let result = f(self);
-        self.scopes_mut().pop_the_scope(scope);
+        Self::enter_scope_with(self, scope, f)
+    }
+
+    /// Enter the given scope, and run the given callback inside it, with the
+    /// given struct to access storage.
+    pub fn enter_scope_with<S: AccessToStorageMut, T>(
+        storage: &mut S,
+        scope: ScopeId,
+        f: impl FnOnce(&mut S) -> T,
+    ) -> T {
+        storage.scopes_mut().append(scope);
+        let result = f(storage);
+        storage.scopes_mut().pop_the_scope(scope);
         result
     }
 
