@@ -230,8 +230,8 @@ impl<'gs> TcFormatter<'gs> {
                     LitTerm::Str(str) => {
                         write!(f, "\"{}\"", str)
                     }
-                    LitTerm::Int(int) => {
-                        write!(f, "{}", int)
+                    LitTerm::Int { value, kind } => {
+                        write!(f, "{}{}", value, kind.to_name())
                     }
                     LitTerm::Char(char) => {
                         write!(f, "\'{}\'", char)
