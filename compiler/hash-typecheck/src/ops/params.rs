@@ -143,7 +143,6 @@ pub(crate) fn pair_args_with_params<'p, T: Clone + GetNameOpt>(
         });
     }
 
-    // println!("{result:?}");
     Ok(result)
 }
 

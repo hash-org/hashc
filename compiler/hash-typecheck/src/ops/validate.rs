@@ -840,9 +840,10 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
             // Set bound, just validate inner
             Term::SetBound(set_bound) => {
                 let set_bound = *set_bound;
-                self.scope_manager().enter_scope(set_bound.scope, |this| {
+                let _ = self.scope_manager().enter_scope(set_bound.scope, |this| {
                     this.validator().validate_term(set_bound.term)
-                })
+                });
+                Ok(result)
             }
 
             // Type function type:

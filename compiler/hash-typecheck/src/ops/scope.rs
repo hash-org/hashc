@@ -129,6 +129,23 @@ impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
         param_scope
     }
 
+    /// From a given scope, create a new scope that contains only members
+    /// passing the test given by `include_member`.
+    ///
+    /// Retains scope kind.
+    pub(crate) fn filter_scope(
+        &mut self,
+        scope: ScopeId,
+        mut include_member: impl FnMut(&Member) -> bool,
+    ) -> ScopeId {
+        let original_scope = self.reader().get_scope(scope).clone();
+        let new_scope = self.builder().create_scope(
+            original_scope.kind,
+            original_scope.members.iter().filter(|member| include_member(member)).copied(),
+        );
+        new_scope
+    }
+
     /// Create a set bound scope, which is a scope that contains all the
     /// mappings in the given arguments, originating from the given
     /// parameters.

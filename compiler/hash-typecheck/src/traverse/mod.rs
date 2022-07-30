@@ -959,7 +959,8 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         // Add the location of the term to the location storage
         self.copy_location_from_node_to_target(node, app_ty_fn_term);
 
-        Ok(self.validator().validate_term(app_ty_fn_term)?.simplified_term_id)
+        let simplified = self.validator().validate_term(app_ty_fn_term)?.simplified_term_id;
+        Ok(simplified)
     }
 
     type NamedTyRet = TermId;
