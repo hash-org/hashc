@@ -21,6 +21,7 @@ use hash_source::{
     string::Str,
 };
 use itertools::Itertools;
+use num_bigint::Sign;
 use smallvec::{smallvec, SmallVec};
 
 use crate::{
@@ -92,19 +93,14 @@ impl<'gs, 'ls, 'cd, 's> IntRange {
     pub fn from_constant(ctx: PatCtx<'gs, 'ls, 'cd, 's>, constant: Constant) -> Self {
         let reader = ctx.reader();
 
-        // @@TODO: refine this to work with actual size of types, rather
-        // than assuming that the size of all `int` literals will be
-        // always the size of 128bits.
         let bias: u128 = match reader.get_term(constant.ty) {
             Term::Level0(Level0Term::Lit(lit)) => match lit {
-                LitTerm::Int(_) if constant.signed => {
-                    let size = constant.size() as u64;
-                    let size_bits = (size * 8) as u128;
-
-                    1u128 << (size_bits - 1)
+                LitTerm::Int { kind, .. } if kind.is_signed() => {
+                    // @@Todo: support `ibig` type here
+                    let size = kind.size().unwrap();
+                    1u128 << (size * 8 - 1)
                 }
-                LitTerm::Int(_) => 0,
-                LitTerm::Char(_) => 0,
+                LitTerm::Char(_) | LitTerm::Int { .. } => 0,
                 LitTerm::Str(_) => panic!("got `str` in const!"),
             },
             _ => tc_panic!(
@@ -120,6 +116,54 @@ impl<'gs, 'ls, 'cd, 's> IntRange {
         IntRange { range: val..=val, bias }
     }
 
+    /// Create an [IntRange] from two specified bounds, and assuming that the
+    /// type is an integer (of the column)
+    fn from_range(
+        ctx: PatCtx<'gs, 'ls, 'cd, 's>,
+        lo: u128,
+        hi: u128,
+        end: &RangeEnd,
+    ) -> IntRange {
+        let bias = Self::signed_bias(ctx);
+
+        let (lo, hi) = (lo ^ bias, hi ^ bias);
+        let offset = (*end == RangeEnd::Excluded) as u128;
+        if lo > hi || (lo == hi && *end == RangeEnd::Excluded) {
+            // This should have been caught earlier by E0030.
+            panic!("malformed range pattern: {}..={}", lo, (hi - offset));
+        }
+
+        IntRange { range: lo..=(hi - offset), bias }
+    }
+
+    /// Get the bias based on the type, if it is a signed, integer then
+    /// the bias is set to be just at the end of the signed boundary
+    /// of the integer size, in other words at the position where the
+    /// last byte is that identifies the sign.
+    fn signed_bias(ctx: PatCtx<'gs, 'ls, 'cd, 's>) -> u128 {
+        let reader = ctx.reader();
+
+        match reader.get_term(ctx.ty) {
+            Term::Level0(Level0Term::Lit(LitTerm::Int { kind, .. })) if kind.is_signed() => {
+                // @@Future: support `ibig` here
+                let size = kind.size().unwrap();
+                1u128 << (size * 8 - 1)
+            }
+            _ => 0,
+        }
+    }
+
+    /// Whether the type of the column is an integral
+    fn is_integral(ctx: PatCtx<'gs, 'ls, 'cd, 's>) -> bool {
+        let reader = ctx.reader();
+
+        // @@Incomplete: what about types, not just literal terms
+        match reader.get_term(ctx.ty) {
+            Term::Level0(Level0Term::Lit(_)) => true,
+            _ => false,
+        }
+    }
+
     /// Convert this range into a [PatKind] by judging the given
     /// type within the [PatCtx]
     #[inline]
@@ -129,11 +173,8 @@ impl<'gs, 'ls, 'cd, 's> IntRange {
         let bias = self.bias;
         let (lo, hi) = (lo ^ bias, hi ^ bias);
 
-        // @@Broken: we need to know whether it is signed/unsigned from the type!
-        let lo_const = Constant::from_u128(lo, ctx.ty, false);
-        let hi_const = Constant::from_u128(lo, ctx.ty, false);
-
-        
+        let lo_const = Constant::from_u128(lo, ctx.ty);
+        let hi_const = Constant::from_u128(hi, ctx.ty);
 
         if lo == hi {
             PatKind::Constant { value: lo_const }
@@ -260,7 +301,7 @@ impl SplitIntRange {
     }
 
     /// Iterate over the contained ranges.
-    fn iter<'a>(&'a self) -> impl Iterator<Item = IntRange> + 'a {
+    fn iter(&self) -> impl Iterator<Item = IntRange> + '_ {
         let (lo, hi) = Self::to_borders(self.range.clone());
         // Start with the start of the range.
         let mut prev_border = lo;
@@ -397,7 +438,7 @@ impl SplitVarList {
     }
 
     /// Iterate over the partition of this slice.
-    fn iter<'a>(&'a self) -> impl Iterator<Item = List> + 'a {
+    fn iter(&self) -> impl Iterator<Item = List> + '_ {
         // We cover all arities in the range `(self.arity..infinity)`. We split that
         // range into two: lengths smaller than `max_slice.arity()` are treated
         // independently as fixed-lengths slices, and lengths above are captured
@@ -420,10 +461,50 @@ impl<'gs, 'ls, 'cd, 's> SplitWildcard {
     pub(super) fn new(ctx: PatCtx<'gs, 'ls, 'cd, 's>) -> Self {
         let reader = ctx.reader();
 
+        let make_range = |start, end| {
+            Constructor::IntRange(IntRange::from_range(ctx, start, end, &RangeEnd::Included))
+        };
+
+        // This determines the set of all possible constructors for the type `ctx.ty`.
+        // For numbers, lists we use ranges and variable-length lists when appropriate.
+        //
+        //
+        // @@Future:
+        // we need make sure to omit constructors that are statically impossible. E.g.,
+        // for `Option<!>`, we do not include `Some(_)` in the returned list of
+        // constructors.
         let all_ctors = match reader.get_term(ctx.ty) {
-            // @@Todo: we should just default to having a `non-exhaustive` variant within the
-            // constructors
-            _ => smallvec![],
+            // term if ctx.typer().term_is_char() => ...,
+            // term if ctx.typer().term_is_uint() => ...,
+            // term if ctx.typer().term_is_int() => ...,
+            // term if ctx.typer().term_is_list() => ...,
+            Term::Level1(Level1Term::NominalDef(def)) => {
+                match reader.get_nominal_def(*def) {
+                    NominalDef::Struct(_) => smallvec![Constructor::Single],
+                    NominalDef::Enum(enum_def) => {
+                        // The exception is if the pattern is at the top level, because we
+                        // want empty matches to be
+                        // considered exhaustive.
+                        let is_secretly_empty = enum_def.variants.is_empty() && !ctx.is_top_level;
+
+                        let mut ctors: SmallVec<[_; 1]> = enum_def
+                            .variants
+                            .iter()
+                            .enumerate()
+                            .map(|(index, _)| Constructor::Variant(index))
+                            .collect();
+
+                        if is_secretly_empty {
+                            ctors.push(Constructor::NonExhaustive);
+                        }
+
+                        ctors
+                    }
+                    _ => smallvec![Constructor::NonExhaustive],
+                }
+            }
+            Term::Level1(Level1Term::Tuple(_)) => smallvec![Constructor::Single],
+            _ => smallvec![Constructor::NonExhaustive],
         };
 
         SplitWildcard { matrix_ctors: Vec::new(), all_ctors }
@@ -440,15 +521,79 @@ impl<'gs, 'ls, 'cd, 's> SplitWildcard {
         self.matrix_ctors = ctors.filter(|c| !c.is_wildcard()).cloned().collect();
     }
 
+    /// Whether there are any value constructors for this type that are not
+    /// present in the matrix.
+    fn any_missing(&self, ctx: PatCtx<'gs, 'ls, 'cd, 's>) -> bool {
+        self.iter_missing(ctx).next().is_some()
+    }
+
+    /// Iterate over the constructors for this type that are not present in the
+    /// matrix.
+    pub(super) fn iter_missing<'a, 'p>(
+        &'a self,
+        ctx: PatCtx<'gs, 'ls, 'cd, 's>,
+    ) -> impl Iterator<Item = &'a Constructor> + 'p
+    where
+        'gs: 'p,
+        'ls: 'p,
+        'cd: 'p,
+        's: 'p,
+        'a: 'p,
+    {
+        self.all_ctors.iter().filter(move |ctor| !ctor.is_covered_by_any(ctx, &self.matrix_ctors))
+    }
+
     fn into_ctors(self, ctx: PatCtx<'gs, 'ls, 'cd, 's>) -> SmallVec<[Constructor; 1]> {
-        todo!()
+        // If Some constructors are missing, thus we can specialize with the special
+        // `Missing` constructor, which stands for those constructors that are
+        // not seen in the matrix, and matches the same rows as any of them
+        // (namely the wildcard rows). See the top of the file for details.
+        if self.any_missing(ctx) {
+            // If some constructors are missing, we typically want to report those
+            // constructors, e.g.:
+            // ```ignore
+            //     Direction := enum(N, S, E, W);
+            //
+            //     dir := Direction::N;
+            //     match dir {
+            //         Direction::N => ...;
+            //     }
+            // ```
+            // we can report 3 witnesses: `S`, `E`, and `W`.
+            //
+            // However, if the user didn't actually specify a constructor
+            // in this arm, e.g., in
+            // ```
+            //     x: (Direction, Direction, bool) = ...;
+            //     (_, _, false) := x;
+            // ```
+            // we don't want to show all 16 possible witnesses `(<direction-1>,
+            // <direction-2>, true)` - we are satisfied with `(_, _, true)`. So
+            // if all constructors are missing we prefer to report just a
+            // wildcard `_`.
+            //
+            // The exception is: if we are at the top-level, for example in an empty match,
+            // we sometimes prefer reporting the list of constructors instead of
+            // just `_`.
+            let ctor = if !self.matrix_ctors.is_empty()
+                || (ctx.is_top_level && !IntRange::is_integral(ctx))
+            {
+                Constructor::Missing
+            } else {
+                Constructor::Wildcard
+            };
+
+            return smallvec![ctor];
+        }
+
+        self.all_ctors
     }
 }
 
 /// The [Constructor] represents the type of constructor that a pattern
 /// is.
 ///
-/// @@Todo: float and integer ranges
+/// @@Todo: float ranges
 #[derive(Debug, Clone)]
 pub(super) enum Constructor {
     /// The constructor for patterns that have a single constructor, like
@@ -469,6 +614,8 @@ pub(super) enum Constructor {
     /// Stands for constructors that are not seen in the matrix, as explained in
     /// the documentation for [`SplitWildcard`].
     Missing,
+    /// Declared as non-exhaustive
+    NonExhaustive,
 }
 
 impl<'gs, 'ls, 'cd, 's> Constructor {
@@ -488,9 +635,15 @@ impl<'gs, 'ls, 'cd, 's> Constructor {
             Constructor::IntRange(_)
             | Constructor::Str(_)
             | Constructor::Wildcard
+            | Constructor::NonExhaustive
             | Constructor::Missing => 0,
             Constructor::Or => panic!("`Or` constructor doesn't have a fixed arity"),
         }
+    }
+
+    /// Check if the [Constructor] is non-exhaustive.
+    pub(super) fn is_non_exhaustive(&self) -> bool {
+        matches!(self, Constructor::NonExhaustive)
     }
 
     /// Check if the [Constructor] is a wildcard.
@@ -594,6 +747,7 @@ impl<'gs, 'ls, 'cd, 's> Constructor {
             (Constructor::List(self_slice), Constructor::List(other_slice)) => {
                 self_slice.is_covered_by(*other_slice)
             }
+            (Constructor::NonExhaustive, _) => false,
 
             _ => panic_on_span!(
                 ctx.location(),
@@ -632,6 +786,8 @@ impl<'gs, 'ls, 'cd, 's> Constructor {
                 .iter()
                 .filter_map(|c| c.as_list())
                 .any(|other| list.is_covered_by(*other)),
+            // This constructor is never covered by anything else
+            Constructor::NonExhaustive => false,
             Constructor::Str(_)
             | Constructor::Missing
             | Constructor::Wildcard
@@ -669,7 +825,19 @@ impl<'p, 'gs, 'ls, 'cd, 's> Fields<'p> {
     /// Creates a new list of wildcard fields for a given constructor. The
     /// result must have a length of `ctor.arity()`.
     pub(super) fn wildcards(ctx: PatCtx<'gs, 'ls, 'cd, 's>, ctor: &Constructor) -> Self {
-        todo!()
+        match ctor {
+            Constructor::Single => todo!(),
+            Constructor::Variant(_) => todo!(),
+            Constructor::List(_) => todo!(),
+            Constructor::Str(..)
+            | Constructor::IntRange(..)
+            | Constructor::NonExhaustive
+            | Constructor::Missing { .. }
+            | Constructor::Wildcard => Fields::empty(),
+            Constructor::Or => {
+                panic!("called `Fields::wildcards` on an `Or` ctor")
+            }
+        }
     }
 }
 
@@ -897,7 +1065,7 @@ impl<'p, 'gs, 'ls, 'cd, 's> DeconstructedPat<'p> {
                     PatKind::List { prefix, spread: Some(spread), suffix }
                 }
             },
-            Constructor::Wildcard => PatKind::Wild,
+            Constructor::Wildcard | Constructor::NonExhaustive => PatKind::Wild,
             Constructor::Or => panic!("cannot convert an `or` deconstructed pat back into pat"),
             Constructor::Missing => panic!(
                 "trying to convert a `Missing` constructor into a `Pat`; this is probably a bug,

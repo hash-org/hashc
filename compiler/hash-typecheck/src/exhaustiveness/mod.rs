@@ -249,8 +249,8 @@ impl<'gs, 'ls, 'cd, 's> PatLowerCtx<'gs, 'ls, 'cd, 's> {
         let kind = match value {
             primitives::Term::Level0(Level0Term::Lit(lit)) => match lit {
                 primitives::LitTerm::Str(value) => PatKind::Str { value: *value },
-                primitives::LitTerm::Int(value) => {
-                    PatKind::Constant { value: Constant::from_int(value.clone(), ty) }
+                primitives::LitTerm::Int { value, kind } => {
+                    PatKind::Constant { value: Constant::from_int(value.clone(), *kind, ty) }
                 }
                 primitives::LitTerm::Char(value) => {
                     PatKind::Constant { value: Constant::from_char(*value, ty) }
@@ -263,6 +263,7 @@ impl<'gs, 'ls, 'cd, 's> PatLowerCtx<'gs, 'ls, 'cd, 's> {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum RangeEnd {
     Included,
     Excluded,
