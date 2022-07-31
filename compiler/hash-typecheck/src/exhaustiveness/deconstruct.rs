@@ -162,13 +162,7 @@ impl<'gs, 'ls, 'cd, 's> IntRange {
 
     /// Whether the type of the column is an integral
     fn is_integral(ctx: PatCtx<'gs, 'ls, 'cd, 's>) -> bool {
-        let reader = ctx.reader();
-
-        // @@Incomplete: what about types, not just literal terms
-        match reader.get_term(ctx.ty) {
-            Term::Level0(Level0Term::Lit(_)) => true,
-            _ => false,
-        }
+        todo!()
     }
 
     /// Convert this range into a [PatKind] by judging the given
@@ -541,7 +535,7 @@ impl<'gs, 'ls, 'cd, 's> SplitWildcard {
     /// matrix.
     pub(super) fn iter_missing<'a, 'p>(
         &'a self,
-        ctx: PatCtx<'gs, 'ls, 'cd, 's>,
+        mut ctx: PatCtx<'gs, 'ls, 'cd, 's>,
     ) -> impl Iterator<Item = &'a Constructor> + 'p
     where
         'gs: 'p,
@@ -550,9 +544,9 @@ impl<'gs, 'ls, 'cd, 's> SplitWildcard {
         's: 'p,
         'a: 'p,
     {
-        self.all_ctors.iter()
-        // self.all_ctors.iter().filter(move |ctor| !ctor.is_covered_by_any(ctx,
-        // &self.matrix_ctors))
+        self.all_ctors
+            .iter()
+            .filter(move |ctor| !ctor.is_covered_by_any(ctx.new_from(), &self.matrix_ctors))
     }
 
     fn into_ctors(self, mut ctx: PatCtx<'gs, 'ls, 'cd, 's>) -> SmallVec<[Constructor; 1]> {

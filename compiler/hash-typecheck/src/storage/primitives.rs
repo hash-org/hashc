@@ -61,6 +61,20 @@ impl MemberData {
     }
 }
 
+/// The kind of a member: either a bound member or a stack member.
+/// @@Todo: distinction between actual stack and "constant stack"
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MemberKind {
+    /// A bound member, basically type function parameters.
+    Bound,
+    /// A stack member (basically all declared variables).
+    Stack {
+        /// The amount of assignments are left until the member has finished
+        /// initialising (== closed).
+        assignments_until_closed: usize,
+    },
+}
+
 /// A member of a scope, i.e. a variable or a type definition.
 #[derive(Debug, Clone, Copy)]
 pub struct Member {
@@ -68,25 +82,40 @@ pub struct Member {
     pub data: MemberData,
     pub visibility: Visibility,
     pub mutability: Mutability,
-    /// The amount of assignments are left until the member has finished
-    /// initialising (== closed).
-    pub assignments_until_closed: usize,
+    pub kind: MemberKind,
 }
 
 impl Member {
-    /// Create a closed member with the given data.
-    pub fn closed(
+    /// Create a closed stack member with the given data.
+    pub fn closed_stack(
         name: Identifier,
         visibility: Visibility,
         mutability: Mutability,
         data: MemberData,
     ) -> Self {
-        Member { name, data, visibility, mutability, assignments_until_closed: 0 }
+        Member {
+            name,
+            data,
+            visibility,
+            mutability,
+            kind: MemberKind::Stack { assignments_until_closed: 0 },
+        }
     }
 
-    /// Whether the member is closed (no assignments remaining).
-    pub fn is_closed(&self) -> bool {
-        self.assignments_until_closed == 0
+    /// Create a bound member with the given data.
+    pub fn bound(
+        name: Identifier,
+        visibility: Visibility,
+        mutability: Mutability,
+        data: MemberData,
+    ) -> Self {
+        Member { name, data, visibility, mutability, kind: MemberKind::Bound }
+    }
+
+    /// Whether the member is closed (no assignments remaining) and not a bound
+    /// member.
+    pub fn is_closed_and_non_bound(&self) -> bool {
+        matches!(self.kind, MemberKind::Stack { assignments_until_closed: 0 })
     }
 }
 
@@ -98,21 +127,35 @@ pub struct ScopeMember {
     pub scope_id: ScopeId,
 }
 
-/// A scope is either a variable scope or a constant scope.
+/// The kind of a scope.
 ///
 /// Examples of variable scopes are:
-/// - Block expression scope
-/// - Function parameter scope
-///
-/// Examples of const scopes are:
-/// - The root scope
-/// - Module block scope
-/// - Trait block scope
-/// - Impl block scope
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScopeKind {
+    /// A variable scope.
+    ///
+    /// Can be:
+    /// - Block expression scope
+    /// - Function parameter scope
     Variable,
+    /// A constant scope.
+    ///
+    /// Can be:
+    /// - The root scope
+    /// - Module block scope
+    /// - Trait block scope
+    /// - Impl block scope
     Constant,
+    /// A bound scope.
+    ///
+    /// Can be:
+    /// - Type function parameter scope.
+    Bound,
+    /// A scope that sets some bounds.
+    ///
+    /// Can be:
+    /// - Type function "argument" scope.
+    SetBound,
 }
 
 /// Stores a list of members, indexed by the members' names.
@@ -155,8 +198,13 @@ impl Scope {
         Some((self.members[index], index))
     }
 
+    /// Whether the scope contains a member with the given name.
+    pub fn contains(&self, member_name: Identifier) -> bool {
+        self.member_names.contains_key(&member_name)
+    }
+
     /// Get a member by index, asserting that it exists.
-    pub fn get_by_index(&mut self, index: usize) -> Member {
+    pub fn get_by_index(&self, index: usize) -> Member {
         self.members[index]
     }
 
@@ -168,6 +216,11 @@ impl Scope {
     /// Iterate through all the members in insertion order (oldest first).
     pub fn iter(&self) -> impl Iterator<Item = Member> + '_ {
         self.members.iter().copied()
+    }
+
+    /// Iterate through all the distinct names in the scope.
+    pub fn iter_names(&self) -> impl Iterator<Item = Identifier> + '_ {
+        self.member_names.keys().copied()
     }
 }
 
@@ -304,7 +357,6 @@ pub enum ModDefOrigin {
 pub struct ModDef {
     pub name: Option<Identifier>,
     pub origin: ModDefOrigin,
-    pub bound_vars: BoundVars,
     pub members: ScopeId,
 }
 
@@ -324,7 +376,6 @@ pub enum StructFields {
 #[derive(Debug, Clone)]
 pub struct StructDef {
     pub name: Option<Identifier>,
-    pub bound_vars: BoundVars,
     pub fields: StructFields,
 }
 
@@ -342,8 +393,6 @@ pub struct EnumVariant {
 pub struct EnumDef {
     /// The name of the `EnumDef`, useful for error reporting
     pub name: Option<Identifier>,
-    /// Any free variables that occur within the `variants` of the [EnumDef].
-    pub bound_vars: BoundVars,
     /// All of the defined variants that occur within the [EnumDef].
     pub variants: HashMap<Identifier, EnumVariant>,
 }
@@ -352,7 +401,6 @@ pub struct EnumDef {
 #[derive(Debug, Clone)]
 pub struct TrtDef {
     pub name: Option<Identifier>,
-    pub bound_vars: BoundVars,
     pub members: ScopeId,
 }
 
@@ -369,14 +417,6 @@ impl NominalDef {
         match self {
             NominalDef::Struct(def) => def.name,
             NominalDef::Enum(def) => def.name,
-        }
-    }
-
-    /// Get the bound variables of the [NominalDef].
-    pub fn bound_vars(&self) -> &BoundVars {
-        match self {
-            NominalDef::Struct(def) => &def.bound_vars,
-            NominalDef::Enum(def) => &def.bound_vars,
         }
     }
 }
@@ -513,6 +553,12 @@ pub struct Var {
     pub name: Identifier,
 }
 
+/// A bound variable, originating from some bound.
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, PartialOrd, Ord)]
+pub struct BoundVar {
+    pub name: Identifier,
+}
+
 /// A scope variable, identified by a `ScopeId` and `usize` index.
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, PartialOrd, Ord)]
 pub struct ScopeVar {
@@ -521,12 +567,13 @@ pub struct ScopeVar {
     pub index: usize,
 }
 
-/// A bound variable, identified by a `ParamsId` and `usize` index.
+/// A term with a set of bounds being assigned to specific values. The bound
+/// variables should be present in the inner term
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, PartialOrd, Ord)]
-pub struct BoundVar {
-    pub name: Identifier,
-    pub params: ParamsId,
-    pub index: usize,
+pub struct SetBound {
+    pub term: TermId,
+    /// Must be [ScopeKind::SetBound]
+    pub scope: ScopeId,
 }
 
 /// The action of applying a set of arguments to a type function.
@@ -599,7 +646,7 @@ impl Display for AccessOp {
 /// identifier.
 ///
 /// Has level N where N is the level of the Y property of X.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct AccessTerm {
     pub subject: TermId,
     pub name: Identifier,
@@ -839,30 +886,22 @@ pub enum Level0Term {
     Constructed(ConstructedTerm),
 }
 
-/// The subject of a substitution, either a variable or an unresolved term.
+/// The subject of a substitution: an unresolved term.
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, PartialOrd, Ord)]
-pub enum SubSubject {
-    Var(Var),
+pub enum SubVar {
     Unresolved(UnresolvedTerm),
 }
 
-impl From<Var> for SubSubject {
-    fn from(var: Var) -> Self {
-        SubSubject::Var(var)
-    }
-}
-
-impl From<UnresolvedTerm> for SubSubject {
+impl From<UnresolvedTerm> for SubVar {
     fn from(unresolved: UnresolvedTerm) -> Self {
-        SubSubject::Unresolved(unresolved)
+        SubVar::Unresolved(unresolved)
     }
 }
 
-impl From<SubSubject> for Term {
-    fn from(subject: SubSubject) -> Self {
+impl From<SubVar> for Term {
+    fn from(subject: SubVar) -> Self {
         match subject {
-            SubSubject::Var(var) => Term::Var(var),
-            SubSubject::Unresolved(unresolved) => Term::Unresolved(unresolved),
+            SubVar::Unresolved(unresolved) => Term::Unresolved(unresolved),
         }
     }
 }
@@ -871,7 +910,7 @@ impl From<SubSubject> for Term {
 /// term.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Sub {
-    data: HashMap<SubSubject, TermId>,
+    data: HashMap<SubVar, TermId>,
 }
 
 impl Sub {
@@ -881,23 +920,23 @@ impl Sub {
     }
 
     /// Create a substitution from a [HashMap<SubSubject, TermId>].
-    pub fn from_map(map: HashMap<SubSubject, TermId>) -> Self {
+    pub fn from_map(map: HashMap<SubVar, TermId>) -> Self {
         Self { data: map }
     }
 
     /// Create a substitution from pairs of `(SubSubject, TermId)`.
-    pub fn from_pairs(pairs: impl IntoIterator<Item = (impl Into<SubSubject>, TermId)>) -> Self {
+    pub fn from_pairs(pairs: impl IntoIterator<Item = (impl Into<SubVar>, TermId)>) -> Self {
         Self { data: pairs.into_iter().map(|(from, to)| (from.into(), to)).collect() }
     }
 
     /// Get the substitution for the given [SubSubject], if any.
-    pub fn get_sub_for(&self, subject: SubSubject) -> Option<TermId> {
+    pub fn get_sub_for(&self, subject: SubVar) -> Option<TermId> {
         self.data.get(&subject).copied()
     }
 
     /// Get all the subjects (i.e. the domain) of the substitution as an
     /// iterator.
-    pub fn domain(&self) -> impl Iterator<Item = SubSubject> + '_ {
+    pub fn domain(&self) -> impl Iterator<Item = SubVar> + '_ {
         self.data.keys().copied()
     }
 
@@ -907,17 +946,17 @@ impl Sub {
     }
 
     /// Get the pairs `(SubSubject, TermId)` of the substitution as an iterator.
-    pub fn pairs(&self) -> impl Iterator<Item = (SubSubject, TermId)> + '_ {
+    pub fn pairs(&self) -> impl Iterator<Item = (SubVar, TermId)> + '_ {
         self.data.iter().map(|(&subject, &term)| (subject, term))
     }
 
     /// Get the pairs `(SubSubject, TermId)` of the substitution as a map.
-    pub fn map(&self) -> &HashMap<SubSubject, TermId> {
+    pub fn map(&self) -> &HashMap<SubVar, TermId> {
         &self.data
     }
 
     /// Add the given pair `subject -> term` to the substitution.
-    pub fn add_pair(&mut self, subject: SubSubject, term: TermId) {
+    pub fn add_pair(&mut self, subject: SubVar, term: TermId) {
         self.data.insert(subject, term);
     }
 
@@ -933,48 +972,6 @@ impl Sub {
     /// For substitution unification, see the `crate::ops::unify` module.
     pub fn extend(&mut self, other: &Sub) {
         self.data.extend(other.pairs());
-    }
-
-    /// Create a new substitution equivalent to this one but selecting only the
-    /// pairs which are not shadowed by the given [Params].
-    pub fn filter(&self, params: Params) -> Self {
-        Self {
-            data: self
-                .data
-                .iter()
-                .filter_map(|(from, to)| match from {
-                    SubSubject::Var(var) => {
-                        if params.get_by_name(var.name).is_some() {
-                            None
-                        } else {
-                            Some((*from, *to))
-                        }
-                    }
-                    SubSubject::Unresolved(_) => Some((*from, *to)),
-                })
-                .collect(),
-        }
-    }
-
-    /// Create a new substitution equivalent to this one but selecting only the
-    /// given [BoundVars] as subjects.
-    pub fn select(&self, bound_vars: &BoundVars) -> Self {
-        Self {
-            data: self
-                .data
-                .iter()
-                .filter_map(|(from, to)| match from {
-                    SubSubject::Var(var) => {
-                        if bound_vars.contains(var) {
-                            Some((*from, *to))
-                        } else {
-                            None
-                        }
-                    }
-                    SubSubject::Unresolved(_) => None,
-                })
-                .collect(),
-        }
     }
 }
 
@@ -1006,7 +1003,7 @@ pub enum Term {
     /// context
     ScopeVar(ScopeVar),
 
-    /// A variable that is bound by some params.
+    /// A bound variable.
     ///
     /// Is level N-1, where N is the level of the type of the variable in the
     /// context
@@ -1043,11 +1040,11 @@ pub enum Term {
     /// Is level N, where N is the level of the resultant application.
     TyFnCall(TyFnCall),
 
-    /// Substitution application.
+    /// Setting some bounds of an inner term.
     ///
     /// Is level N, where N is the level of the inner term after the
     /// substitution has been applied.
-    AppSub(AppSub),
+    SetBound(SetBound),
 
     /// Type of a term
     ///

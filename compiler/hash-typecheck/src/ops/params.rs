@@ -17,12 +17,16 @@ use std::collections::HashSet;
 ///
 /// This does not perform any typechecking, it simply matches parameters by
 /// position or name.
+///
+/// The `infer_arg_from_default_param` closure is used to create a `T` arg type
+/// from a parameter that has a default value but was not provided in the
+/// argument list.
 pub(crate) fn pair_args_with_params<'p, T: Clone + GetNameOpt>(
     params: &'p Params,
     args: &ParamList<T>,
     params_id: ParamsId,
     args_id: ArgsId,
-    mut infer_arg_from_param: impl FnMut(&Param) -> T,
+    mut infer_arg_from_default_param: impl FnMut(&Param) -> T,
     params_subject: impl Into<LocationTarget>,
     args_subject: impl Into<LocationTarget>,
 ) -> TcResult<Vec<(&'p Param, T)>> {
@@ -123,7 +127,7 @@ pub(crate) fn pair_args_with_params<'p, T: Clone + GetNameOpt>(
     for default_param in &default_params {
         let (_, param) = params.get_by_name(*default_param).unwrap();
 
-        result.push((param, infer_arg_from_param(param)));
+        result.push((param, infer_arg_from_default_param(param)));
     }
 
     // Compare the parameter list subtracted from the `default_params` that weren't
@@ -139,7 +143,6 @@ pub(crate) fn pair_args_with_params<'p, T: Clone + GetNameOpt>(
         });
     }
 
-    // println!("{result:?}");
     Ok(result)
 }
 

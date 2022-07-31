@@ -11,7 +11,7 @@ use crate::{
         error::{TcError, TcResult},
         macros::tc_panic,
     },
-    ops::{unify::UnifyParamsWithArgsMode, validate::TermValidation, AccessToOpsMut},
+    ops::{validate::TermValidation, AccessToOpsMut},
     storage::{
         primitives::{
             AccessOp, AccessPat, ConstPat, ConstructorPat, IfPat, ListPat, Member, MemberData,
@@ -165,7 +165,7 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
         let bound_members = match pat {
             // Binding: Add the binding as a member
             Pat::Binding(binding) => Ok(Some(vec![(
-                Member::closed(
+                Member::closed_stack(
                     binding.name,
                     binding.visibility,
                     binding.mutability,
@@ -288,7 +288,6 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
                         pat_args,
                         constructor_term,
                         simplified_term_id,
-                        UnifyParamsWithArgsMode::UnifyParamTypesWithArgTypes,
                     ) {
                         Ok(_) => {
                             let subject_params = self.reader().get_params(params).clone();
@@ -374,7 +373,7 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
                         self.validator().validate_term(rt_term)?;
 
                     Ok(Some(vec![(
-                        Member::closed(
+                        Member::closed_stack(
                             name,
                             Visibility::Private,
                             Mutability::Immutable,

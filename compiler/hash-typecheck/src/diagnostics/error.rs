@@ -5,7 +5,7 @@ use crate::storage::{
     location::LocationTarget,
     primitives::{AccessOp, AccessTerm, ArgsId, ParamsId, PatId, TermId, TyFnCase},
 };
-use hash_source::{identifier::Identifier, location::SourceLocation};
+use hash_source::identifier::Identifier;
 
 /// Convenient type alias for a result with a [TcError] as the error type.
 pub type TcResult<T> = Result<T, TcError>;
@@ -143,7 +143,7 @@ pub enum TcError {
     /// Cannot use pattern matching in a declaration without an assignment
     CannotPatMatchWithoutAssignment { pat: PatId },
     /// Cannot use a non-name as an assign subject.
-    InvalidAssignSubject { location: SourceLocation },
+    InvalidAssignSubject { location: LocationTarget },
 
     /// Cannot find a constructor for the given type
     NoConstructorOnType { subject: TermId },

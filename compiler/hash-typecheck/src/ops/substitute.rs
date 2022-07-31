@@ -1,20 +1,13 @@
 //! Functionality related to variable substitution inside terms/types.
-use hash_source::identifier::CORE_IDENTIFIERS;
-
-use crate::{
-    diagnostics::error::{TcError, TcResult},
-    storage::{
-        primitives::{
-            AppSub, Arg, ArgsId, ConstructedTerm, FnCall, FnTy, Level0Term, Level1Term, Level2Term,
-            Level3Term, Param, ParamsId, Sub, SubSubject, Term, TermId, TupleTy, TyFn, TyFnCall,
-            TyFnCase, TyFnTy, Var,
-        },
-        AccessToStorage, AccessToStorageMut, StorageRefMut,
-    },
-};
-use std::collections::{HashMap, HashSet};
-
 use super::{AccessToOps, AccessToOpsMut};
+use crate::storage::{
+    primitives::{
+        Arg, ArgsId, ConstructedTerm, FnTy, Level0Term, Level1Term, Level2Term, Level3Term, Member,
+        MemberData, Param, ParamsId, ScopeId, Sub, SubVar, Term, TermId, TupleTy, TyFn, TyFnCall,
+        TyFnCase, TyFnTy,
+    },
+    AccessToStorage, AccessToStorageMut, StorageRefMut,
+};
 
 /// Can perform substitutions (see [Sub]) on terms.
 pub struct Substituter<'gs, 'ls, 'cd, 's> {
@@ -94,51 +87,40 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
 
     /// Apply the given substitution to the given [Level3Term], producing a new
     /// [Level3Term] with the substituted variables.
-    pub fn apply_sub_to_level3_term(&mut self, _: &Sub, term: Level3Term) -> TermId {
+    pub fn apply_sub_to_level3_term(
+        &mut self,
+        _: &Sub,
+        term: Level3Term,
+        original_term: TermId,
+    ) -> TermId {
         match term {
-            Level3Term::TrtKind => self.builder().create_term(Term::Level3(Level3Term::TrtKind)),
+            Level3Term::TrtKind => original_term,
         }
     }
 
     /// Apply the given substitution to the given [Level2Term], producing a new
     /// [Level2Term] with the substituted variables.
-    pub fn apply_sub_to_level2_term(&mut self, sub: &Sub, term: Level2Term) -> TermId {
+    pub fn apply_sub_to_level2_term(
+        &mut self,
+        _sub: &Sub,
+        term: Level2Term,
+        original_term: TermId,
+    ) -> TermId {
         match term {
-            Level2Term::Trt(trt_def_id) => {
-                // Here we add the substitution to the term using only vars in the trait
-                // definition.
-                let reader = self.reader();
-                let trt_def_vars = &reader.get_trt_def(trt_def_id).bound_vars;
-                let selected_sub = sub.select(trt_def_vars);
-                let builder = self.builder();
-                builder.create_app_sub_term(selected_sub, builder.create_term(Term::Level2(term)))
-            }
-            Level2Term::AnyTy => (self.builder().create_term(Term::Level2(Level2Term::AnyTy))),
+            Level2Term::Trt(_) | Level2Term::AnyTy => original_term,
         }
     }
 
     /// Apply the given substitution to the given [Level1Term], producing a new
     /// [Level1Term] with the substituted variables.
-    pub fn apply_sub_to_level1_term(&mut self, sub: &Sub, term: Level1Term) -> TermId {
+    pub fn apply_sub_to_level1_term(
+        &mut self,
+        sub: &Sub,
+        term: Level1Term,
+        original_term: TermId,
+    ) -> TermId {
         match term {
-            Level1Term::ModDef(mod_def_id) => {
-                // Here we add the substitution to the term using only vars in the mod
-                // definition.
-                let reader = self.reader();
-                let mod_def_vars = &reader.get_mod_def(mod_def_id).bound_vars;
-                let selected_sub = sub.select(mod_def_vars);
-                let builder = self.builder();
-                builder.create_app_sub_term(selected_sub, builder.create_term(Term::Level1(term)))
-            }
-            Level1Term::NominalDef(nominal_def_id) => {
-                // Here we add the substitution to the term using only vars in the nominal
-                // definition.
-                let reader = self.reader();
-                let nominal_def_vars = reader.get_nominal_def(nominal_def_id).bound_vars();
-                let selected_sub = sub.select(nominal_def_vars);
-                let builder = self.builder();
-                builder.create_app_sub_term(selected_sub, builder.create_term(Term::Level1(term)))
-            }
+            Level1Term::ModDef(_) | Level1Term::NominalDef(_) => original_term,
             Level1Term::Tuple(tuple_ty) => {
                 // Apply to all members
                 let subbed_members = self.apply_sub_to_params(sub, tuple_ty.members);
@@ -168,18 +150,6 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
                 let subbed_ty_term_id = self.apply_sub_to_term(sub, ty_term_id);
                 self.builder().create_rt_term(subbed_ty_term_id)
             }
-            Level0Term::EnumVariant(enum_variant) => {
-                // Here we add the substitution to the term using only vars in the enum
-                // definition.
-                let reader = self.reader();
-                let enum_def_vars = reader.get_nominal_def(enum_variant.enum_def_id).bound_vars();
-                let selected_sub = sub.select(enum_def_vars);
-                let builder = self.builder();
-                builder.create_app_sub_term(
-                    selected_sub,
-                    builder.create_term(Term::Level0(Level0Term::EnumVariant(enum_variant))),
-                )
-            }
             Level0Term::FnLit(fn_lit) => {
                 // Apply to the function type and return value
                 let subbed_fn_ty = self.apply_sub_to_term(sub, fn_lit.fn_ty);
@@ -196,19 +166,36 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
                 let subbed_args = self.apply_sub_to_args(sub, tuple_lit.members);
                 self.builder().create_tuple_lit_term(subbed_args)
             }
-            Level0Term::Lit(_) => original_term,
             Level0Term::Constructed(ConstructedTerm { subject, members }) => {
                 let subbed_subject = self.apply_sub_to_term(sub, subject);
                 let subbed_args = self.apply_sub_to_args(sub, members);
 
                 self.builder().create_constructed_term(subbed_subject, subbed_args)
             }
+            Level0Term::Lit(_) | Level0Term::EnumVariant(_) => original_term,
         }
     }
 
-    /// Apply the given substitution to the given [SubSubject], producing a new
+    /// Apply the given substitution to the given scope, creating a new scope
+    /// with the applied substitution.
+    ///
+    /// This is only ever applied for [ScopeKind::SetBound].
+    pub fn apply_sub_to_scope(&mut self, sub: &Sub, scope_id: ScopeId) -> ScopeId {
+        let reader = self.reader();
+        let old_scope = reader.get_scope(scope_id).clone();
+        let mut new_members = vec![];
+        for old_member in old_scope.iter() {
+            let new_value = old_member.data.value().map(|value| self.apply_sub_to_term(sub, value));
+            let new_ty = old_member.data.ty().map(|ty| self.apply_sub_to_term(sub, ty));
+            let data = { MemberData::from_ty_and_value(new_ty, new_value) };
+            new_members.push(Member { data, ..old_member });
+        }
+        self.builder().create_scope(old_scope.kind, new_members)
+    }
+
+    /// Apply the given substitution to the given [SubVar], producing a new
     /// term with the substituted result.
-    pub fn apply_sub_to_subject(&mut self, sub: &Sub, subject: SubSubject) -> TermId {
+    pub fn apply_sub_to_subject(&mut self, sub: &Sub, subject: SubVar) -> TermId {
         match sub.get_sub_for(subject) {
             Some(subbed_term_id) => subbed_term_id,
             None => self.builder().create_term(subject.into()),
@@ -217,24 +204,19 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
 
     /// Apply the given substitution to the term indexed by the given [TermId],
     /// producing a new term with the substituted variables.
-    ///
-    /// Sometimes, this will actually create a [Term::AppSub] somewhere inside
-    /// the term tree, and those are the leaf nodes of the substitution
-    /// application. This will happen with `ModDef`, `TrtDef`, `NominalDef`,
-    /// and `EnumVariant`. This is so that when `AccessTerm` is resolved for
-    /// those types, the substitution is carried forward into the member term.
     pub fn apply_sub_to_term(&mut self, sub: &Sub, term_id: TermId) -> TermId {
-        // @@Performance: here we copy a lot, maybe there is a way to avoid all this
-        // copying by first checking that the variables to be substituted
-        // actually exist in the term.
+        // Short circuit: no vars in the sub and in the term match:
+        let vars_in_term = self.discoverer().get_free_sub_vars_in_term(term_id);
+        if !sub.domain().any(|var| vars_in_term.contains(&var)) {
+            return term_id;
+        }
 
         let term = self.reader().get_term(term_id).clone();
 
         let new_term = match term {
             // Leaves:
-            Term::Var(var) => self.apply_sub_to_subject(sub, var.into()),
+            Term::ScopeVar(_) | Term::Var(_) | Term::BoundVar(_) | Term::Root => term_id,
             Term::Unresolved(unresolved) => self.apply_sub_to_subject(sub, unresolved.into()),
-            Term::Root => term_id,
 
             // Recursive cases:
             Term::Access(access) => {
@@ -260,47 +242,31 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
             }
             Term::TyFn(ty_fn) => {
                 // Apply the substitution to the general parameters, return type, and each case.
-                //
-                // However, we first have to remove all the shadowed variables from the
-                // substitution: If we have T -> str, and <T> => List<T>, we
-                // don't wanna get <T> => List<str> because T is bound in the
-                // term, not free.
-                let params = self.params_store().get(ty_fn.general_params).clone();
+                let general_params = self.apply_sub_to_params(sub, ty_fn.general_params);
+                let general_return_ty = self.apply_sub_to_term(sub, ty_fn.general_return_ty);
 
-                let shadowed_sub = sub.filter(params);
-                let subbed_general_params =
-                    self.apply_sub_to_params(&shadowed_sub, ty_fn.general_params);
-                let subbed_general_return_ty =
-                    self.apply_sub_to_term(&shadowed_sub, ty_fn.general_return_ty);
-
-                let subbed_cases = ty_fn
+                let cases = ty_fn
                     .cases
                     .into_iter()
                     .map(|case| TyFnCase {
-                        params: self.apply_sub_to_params(&shadowed_sub, case.params),
-                        return_ty: self.apply_sub_to_term(&shadowed_sub, case.return_ty),
-                        return_value: self.apply_sub_to_term(&shadowed_sub, case.return_value),
+                        params: self.apply_sub_to_params(sub, case.params),
+                        return_ty: self.apply_sub_to_term(sub, case.return_ty),
+                        return_value: self.apply_sub_to_term(sub, case.return_value),
                     })
                     .collect::<Vec<_>>();
+
                 self.builder().create_term(Term::TyFn(TyFn {
                     name: ty_fn.name,
-                    general_params: subbed_general_params,
-                    general_return_ty: subbed_general_return_ty,
-                    cases: subbed_cases,
+                    general_params,
+                    general_return_ty,
+                    cases,
                 }))
             }
             Term::TyFnTy(ty_fn_ty) => {
                 // Apply the substitution to the parameters and return type.
-                // Same rule applies about binding as above.
-                let params = self.params_store().get(ty_fn_ty.params).clone();
-
-                let shadowed_sub = sub.filter(params);
-                let subbed_params = self.apply_sub_to_params(&shadowed_sub, ty_fn_ty.params);
-                let subbed_return_ty = self.apply_sub_to_term(&shadowed_sub, ty_fn_ty.return_ty);
-                self.builder().create_term(Term::TyFnTy(TyFnTy {
-                    params: subbed_params,
-                    return_ty: subbed_return_ty,
-                }))
+                let params = self.apply_sub_to_params(sub, ty_fn_ty.params);
+                let return_ty = self.apply_sub_to_term(sub, ty_fn_ty.return_ty);
+                self.builder().create_term(Term::TyFnTy(TyFnTy { params, return_ty }))
             }
             Term::TyFnCall(app_ty_fn) => {
                 // Apply the substitution to the subject and arguments.
@@ -311,21 +277,11 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
                     args: subbed_args,
                 }))
             }
-            Term::AppSub(app_sub) => {
-                // @@Correctness: do we not want to unify substitutions here?
-                //
-                // Here, we have to substitute all X in * -> X pairs of the substitution, as
-                // well as the subject term itself.
-                let subbed_sub = app_sub
-                    .sub
-                    .pairs()
-                    .map(|(from, to)| (from, self.apply_sub_to_term(sub, to)))
-                    .collect::<HashMap<_, _>>();
-                let subbed_term = self.apply_sub_to_term(sub, app_sub.term);
-                self.builder().create_term(Term::AppSub(AppSub {
-                    sub: Sub::from_map(subbed_sub),
-                    term: subbed_term,
-                }))
+            Term::SetBound(set_bound) => {
+                // Apply to the scope and the term:
+                let scope = self.apply_sub_to_scope(sub, set_bound.scope);
+                let term = self.apply_sub_to_term(sub, set_bound.term);
+                self.builder().create_set_bound_term(term, scope)
             }
             Term::TyOf(term) => {
                 // Apply sub to inner:
@@ -333,466 +289,13 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
                 self.builder().create_ty_of_term(subbed_term)
             }
             // Definite-level terms:
-            Term::Level3(term) => self.apply_sub_to_level3_term(sub, term),
-            Term::Level2(term) => self.apply_sub_to_level2_term(sub, term),
-            Term::Level1(term) => self.apply_sub_to_level1_term(sub, term),
+            Term::Level3(term) => self.apply_sub_to_level3_term(sub, term, term_id),
+            Term::Level2(term) => self.apply_sub_to_level2_term(sub, term, term_id),
+            Term::Level1(term) => self.apply_sub_to_level1_term(sub, term, term_id),
             Term::Level0(term) => self.apply_sub_to_level0_term(sub, term, term_id),
-            Term::ScopeVar(_) => todo!(),
-            Term::BoundVar(_) => todo!(),
         };
 
         self.location_store_mut().copy_location(term_id, new_term);
         new_term
-    }
-
-    /// Add the free variables in the parameter default values and types to the
-    /// given [HashSet].
-    pub fn add_free_vars_in_params_to_set(
-        &self,
-        params_id: ParamsId,
-        result: &mut HashSet<SubSubject>,
-    ) {
-        let params = self.params_store().get(params_id);
-
-        // Add default value and type free vars
-        for param in params.positional() {
-            self.add_free_vars_in_term_to_set(param.ty, result);
-            if let Some(default_value_id) = param.default_value {
-                self.add_free_vars_in_term_to_set(default_value_id, result);
-            }
-        }
-    }
-
-    /// Remove the free variables that exist in the given params as names, from
-    /// the given [HashSet], and add the free variables in the default
-    /// values and types.
-    ///
-    /// This is to be used for type functions.
-    pub fn add_and_remove_free_vars_in_params_from_set(
-        &self,
-        params_id: ParamsId,
-        result: &mut HashSet<SubSubject>,
-    ) {
-        self.add_free_vars_in_params_to_set(params_id, result);
-
-        let params = self.params_store().get(params_id);
-        // Remove param names
-        for param in params.positional() {
-            if let Some(name) = param.name {
-                let subject = Var { name };
-                result.remove(&subject.into());
-            }
-        }
-    }
-
-    /// Add the free variables that exist in the given args, to the given
-    /// [HashSet].
-    pub fn add_free_vars_in_args_to_set(&self, args_id: ArgsId, result: &mut HashSet<SubSubject>) {
-        let args = self.args_store().get(args_id);
-
-        for arg in args.positional() {
-            self.add_free_vars_in_term_to_set(arg.value, result);
-        }
-    }
-
-    /// Add the free variables that exist in the given [Level0Term], to the
-    /// given [HashSet].
-    pub fn add_free_vars_in_level0_term_to_set(
-        &self,
-        term: &Level0Term,
-        result: &mut HashSet<SubSubject>,
-    ) {
-        match term {
-            Level0Term::Rt(ty_term_id) => self.add_free_vars_in_term_to_set(*ty_term_id, result),
-            Level0Term::EnumVariant(enum_variant) => {
-                // Forward to the nominal enum definition
-                let enum_def = Level1Term::NominalDef(enum_variant.enum_def_id);
-                self.add_free_vars_in_level1_term_to_set(&enum_def, result);
-            }
-            Level0Term::FnLit(fn_lit) => {
-                // Forward to fn type and return value
-                self.add_free_vars_in_term_to_set(fn_lit.fn_ty, result);
-                self.add_free_vars_in_term_to_set(fn_lit.return_value, result);
-            }
-            Level0Term::Constructed(ConstructedTerm { subject, members: args })
-            | Level0Term::FnCall(FnCall { subject, args }) => {
-                // Forward to subject and args:
-                self.add_free_vars_in_term_to_set(*subject, result);
-                self.add_free_vars_in_args_to_set(*args, result);
-            }
-            Level0Term::Tuple(tuple_lit) => {
-                self.add_free_vars_in_args_to_set(tuple_lit.members, result);
-            }
-            Level0Term::Lit(_) => {}
-        }
-    }
-
-    /// Add the free variables that exist in the given [Level1Term], to the
-    /// given [HashSet].
-    pub fn add_free_vars_in_level1_term_to_set(
-        &self,
-        term: &Level1Term,
-        result: &mut HashSet<SubSubject>,
-    ) {
-        match term {
-            Level1Term::ModDef(mod_def_id) => {
-                // Add the bound vars of the module (they are not bound because they are not
-                // behind a type function anymore).
-                result.extend(
-                    self.reader()
-                        .get_mod_def(*mod_def_id)
-                        .bound_vars
-                        .iter()
-                        .copied()
-                        .map(SubSubject::from),
-                )
-            }
-            Level1Term::NominalDef(nominal_def_id) => {
-                // Add the bound vars of the nominal definition (they are not bound because they
-                // are not behind a type function anymore).
-                result.extend(
-                    self.reader()
-                        .get_nominal_def(*nominal_def_id)
-                        .bound_vars()
-                        .iter()
-                        .copied()
-                        .map(SubSubject::from),
-                )
-            }
-            Level1Term::Tuple(tuple_ty) => {
-                // Add the free variables in the parameters (don't remove the parameter names)
-                self.add_free_vars_in_params_to_set(tuple_ty.members, result);
-            }
-            Level1Term::Fn(fn_ty) => {
-                // Add the free variables in the parameters and return type.
-                self.add_free_vars_in_params_to_set(fn_ty.params, result);
-                self.add_free_vars_in_term_to_set(fn_ty.return_ty, result);
-            }
-        }
-    }
-
-    /// Add the free variables that exist in the given [Level2Term], to the
-    /// given [HashSet].
-    pub fn add_free_vars_in_level2_term_to_set(
-        &self,
-        term: &Level2Term,
-        result: &mut HashSet<SubSubject>,
-    ) {
-        match term {
-            Level2Term::Trt(trt_def_id) => {
-                // Add the bound vars of the trait definition (they are not bound because they
-                // are not behind a type function anymore).
-                result.extend(
-                    self.reader()
-                        .get_trt_def(*trt_def_id)
-                        .bound_vars
-                        .iter()
-                        .copied()
-                        .map(SubSubject::from),
-                )
-            }
-            Level2Term::AnyTy => {}
-        }
-    }
-
-    /// Add the free variables that exist in the given [Level3Term], to the
-    /// given [HashSet].
-    pub fn add_free_vars_in_level3_term_to_set(
-        &self,
-        term: &Level3Term,
-        _: &mut HashSet<SubSubject>,
-    ) {
-        match term {
-            Level3Term::TrtKind => {}
-        }
-    }
-
-    /// Add the free variables that exist in the given term, to the given
-    /// [HashSet].
-    ///
-    /// Free variables are either `Var` or `Unresolved`, and this function
-    /// collects both.
-    pub fn add_free_vars_in_term_to_set(&self, term_id: TermId, result: &mut HashSet<SubSubject>) {
-        let reader = self.reader();
-        let term = reader.get_term(term_id);
-        match term {
-            Term::Var(var) => {
-                // Found a free variable:
-                // @@Correctness: what if this is bound in the scope?
-                result.insert((*var).into());
-            }
-            Term::Unresolved(unresolved) => {
-                // Found an unresolved free variable:
-                result.insert((*unresolved).into());
-            }
-            Term::Access(term) => {
-                // Just the free vars in the subject:
-                self.add_free_vars_in_term_to_set(term.subject, result);
-            }
-            Term::Merge(terms) => {
-                // Free vars in each term:
-                for inner_term_id in terms {
-                    self.add_free_vars_in_term_to_set(*inner_term_id, result);
-                }
-            }
-            Term::Union(terms) => {
-                // Free vars in each term:
-                for inner_term_id in terms {
-                    self.add_free_vars_in_term_to_set(*inner_term_id, result);
-                }
-            }
-            Term::TyFn(ty_fn) => {
-                // Add the vars in the subjects and return:
-                self.add_free_vars_in_term_to_set(ty_fn.general_return_ty, result);
-                for case in &ty_fn.cases {
-                    self.add_free_vars_in_term_to_set(case.return_ty, result);
-                    self.add_free_vars_in_term_to_set(case.return_value, result);
-                }
-
-                // Remove the ones which are bound:
-                self.add_and_remove_free_vars_in_params_from_set(ty_fn.general_params, result);
-                // And from the cases:
-                for case in &ty_fn.cases {
-                    // @@Correctness: is this right? is it necessary?
-                    self.add_and_remove_free_vars_in_params_from_set(case.params, result);
-                }
-            }
-            Term::TyFnTy(ty_fn_ty) => {
-                // Add the vars in the subjects and return:
-                self.add_free_vars_in_term_to_set(ty_fn_ty.return_ty, result);
-
-                // Remove the ones which are bound:
-                self.add_and_remove_free_vars_in_params_from_set(ty_fn_ty.params, result);
-            }
-            Term::TyFnCall(app_ty_fn) => {
-                // Free vars in subject and args
-                self.add_free_vars_in_term_to_set(app_ty_fn.subject, result);
-                self.add_free_vars_in_args_to_set(app_ty_fn.args, result);
-            }
-            Term::AppSub(app_sub) => {
-                // Add free vars in the subject term
-                self.add_free_vars_in_term_to_set(app_sub.term, result);
-
-                // Remove free vars in the domain of the substitution
-                for var in app_sub.sub.domain() {
-                    result.remove(&var);
-                }
-
-                // Add free vars in the range of the substitution
-                for range_el in app_sub.sub.range() {
-                    self.add_free_vars_in_term_to_set(range_el, result);
-                }
-            }
-            Term::TyOf(term) => {
-                // Add free vars in the inner term
-                self.add_free_vars_in_term_to_set(*term, result);
-            }
-            // Definite-level terms:
-            Term::Level3(term) => {
-                self.add_free_vars_in_level3_term_to_set(term, result);
-            }
-            Term::Level2(term) => {
-                self.add_free_vars_in_level2_term_to_set(term, result);
-            }
-            Term::Level1(term) => {
-                self.add_free_vars_in_level1_term_to_set(term, result);
-            }
-            Term::Level0(term) => {
-                self.add_free_vars_in_level0_term_to_set(term, result);
-            }
-            // No vars:
-            Term::Root => {}
-            Term::ScopeVar(_) => todo!(),
-            Term::BoundVar(_) => todo!(),
-        }
-    }
-
-    /// Add the free variables that exist in the given [Sub], to the
-    /// given [HashSet].
-    pub fn add_free_vars_in_sub_to_set(&self, sub: &Sub, result: &mut HashSet<SubSubject>) {
-        // Add all the variables in the range, minus the variables in the domain:
-        for r in sub.range() {
-            self.add_free_vars_in_term_to_set(r, result);
-        }
-        let mut domain_vars = HashSet::new();
-        for d in sub.range() {
-            self.add_free_vars_in_term_to_set(d, &mut domain_vars);
-        }
-        // Remove all the variables in domain_vars:
-        for d in domain_vars {
-            result.remove(&d);
-        }
-    }
-
-    /// Get the free variables that exist in the given [Sub].
-    pub fn get_free_vars_in_sub(&self, sub: &Sub) -> HashSet<SubSubject> {
-        let mut result = HashSet::new();
-        self.add_free_vars_in_sub_to_set(sub, &mut result);
-        result
-    }
-
-    /// Get the set of free variables that exist in the given term.
-    ///
-    /// Free variables are either `Var` or `Unresolved`, and this function
-    /// collects both.
-    pub fn get_free_vars_in_term(&self, term_id: TermId) -> HashSet<SubSubject> {
-        let mut result = HashSet::new();
-        self.add_free_vars_in_term_to_set(term_id, &mut result);
-        result
-    }
-
-    /// Get the set of variables that exist in the given term. This function
-    /// will proceed an error if it hits an un-resolved free variable since this
-    /// cannot appear within certain contexts, e.g. nominal definitions.
-    pub fn get_vars_in_term(&self, term_id: TermId) -> TcResult<HashSet<Var>> {
-        let mut result = HashSet::new();
-        self.add_free_vars_in_term_to_set(term_id, &mut result);
-
-        result
-            .into_iter()
-            .map(|var| match var {
-                SubSubject::Var(var) => Ok(var),
-                SubSubject::Unresolved(_) => Err(TcError::UnresolvedVariable {
-                    // @@Correctness: it's unclear if we can even get an identifier here? Or if we
-                    // should make an identifier from the provided `ResolutionId`
-                    name: CORE_IDENTIFIERS.underscore,
-                    value: term_id,
-                }),
-            })
-            .collect::<TcResult<_>>()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use hash_ast::ast::ParamOrigin;
-    use hash_source::SourceMap;
-
-    use super::Substituter;
-    use crate::{
-        fmt::PrepareForFormatting,
-        ops::AccessToOpsMut,
-        storage::{
-            core::CoreDefs,
-            primitives::{ModDefOrigin, Sub},
-            AccessToStorage, AccessToStorageMut, GlobalStorage, LocalStorage, StorageRefMut,
-        },
-    };
-
-    fn get_storages() -> (GlobalStorage, LocalStorage, CoreDefs, SourceMap) {
-        let mut global_storage = GlobalStorage::new();
-        let local_storage = LocalStorage::new(&mut global_storage);
-        let core_defs = CoreDefs::new(&mut global_storage);
-        let source_map = SourceMap::new();
-
-        (global_storage, local_storage, core_defs, source_map)
-    }
-
-    #[test]
-    fn test_substitutions() {
-        let (mut global_storage, mut local_storage, core_defs, source_map) = get_storages();
-        let mut storage_ref = StorageRefMut {
-            global_storage: &mut global_storage,
-            local_storage: &mut local_storage,
-            core_defs: &core_defs,
-            source_map: &source_map,
-        };
-
-        let builder = storage_ref.builder();
-
-        // Visual testing for now, until term unification is implemented and we can
-        // actually write proper tests here:
-        let hash_impl = builder.create_nameless_mod_def(
-            ModDefOrigin::TrtImpl(builder.create_trt_term(core_defs.hash_trt)),
-            builder.create_constant_scope([]),
-            [],
-        );
-
-        let inner = builder.create_nameless_ty_fn_term(
-            builder.create_params(
-                [builder.create_param("T", builder.create_any_ty_term())],
-                ParamOrigin::TyFn,
-            ),
-            builder.create_any_ty_term(),
-            builder.create_app_ty_fn_term(
-                core_defs.set_ty_fn,
-                builder.create_args(
-                    [
-                        builder.create_arg("T", builder.create_var_term("T")),
-                        builder.create_arg("X", builder.create_mod_def_term(hash_impl)),
-                    ],
-                    ParamOrigin::TyFn,
-                ),
-            ),
-        );
-        let target = builder.create_ty_fn_ty_term(
-            builder.create_params(
-                [builder.create_param("U", builder.create_any_ty_term())],
-                ParamOrigin::TyFn,
-            ),
-            builder.create_fn_ty_term(
-                builder.create_params(
-                    [
-                        builder.create_param("foo", builder.create_unresolved_term()),
-                        builder.create_param(
-                            "bar",
-                            builder.create_app_ty_fn_term(
-                                core_defs.list_ty_fn,
-                                builder.create_args(
-                                    [builder.create_arg("T", inner)],
-                                    ParamOrigin::TyFn,
-                                ),
-                            ),
-                        ),
-                    ],
-                    ParamOrigin::Fn,
-                ),
-                builder.create_var_term("T"),
-            ),
-        );
-
-        println!("\n{}", target.for_formatting(storage_ref.global_storage()));
-
-        let builder = storage_ref.builder();
-        let sub = Sub::from_pairs([(
-            builder.create_var("T"),
-            builder.create_app_ty_fn_term(
-                core_defs.map_ty_fn,
-                builder.create_args(
-                    [
-                        builder.create_arg("K", builder.create_nominal_def_term(core_defs.str_ty)),
-                        builder.create_arg("V", builder.create_nominal_def_term(core_defs.u64_ty)),
-                    ],
-                    ParamOrigin::TyFn,
-                ),
-            ),
-        )]);
-
-        let mut substituter = Substituter::new(storage_ref.storages_mut());
-        let subbed_target = substituter.apply_sub_to_term(&sub, target);
-
-        let target_free_vars = substituter.get_free_vars_in_term(target);
-        let inner_free_vars = substituter.get_free_vars_in_term(inner);
-
-        let target_free_vars_list: Vec<_> = target_free_vars
-            .into_iter()
-            .map(|x| storage_ref.builder().create_term(x.into()))
-            .collect();
-
-        let inner_free_vars_list: Vec<_> = inner_free_vars
-            .into_iter()
-            .map(|x| storage_ref.builder().create_term(x.into()))
-            .collect();
-
-        println!("{}", subbed_target.for_formatting(storage_ref.global_storage()));
-
-        print!("\nTarget free vars:\n");
-        for target_free_var in &target_free_vars_list {
-            println!("{}", target_free_var.for_formatting(storage_ref.global_storage()));
-        }
-        print!("\nInner free vars:\n");
-        for inner_free_var in &inner_free_vars_list {
-            println!("{}", inner_free_var.for_formatting(storage_ref.global_storage()));
-        }
     }
 }

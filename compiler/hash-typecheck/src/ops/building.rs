@@ -3,13 +3,13 @@
 use crate::storage::{
     location::LocationTarget,
     primitives::{
-        AccessOp, AccessPat, AccessTerm, AppSub, Arg, ArgsId, BindingPat, BoundVar, ConstPat,
+        AccessOp, AccessPat, AccessTerm, Arg, ArgsId, BindingPat, BoundVar, ConstPat,
         ConstructedTerm, ConstructorPat, EnumDef, EnumVariant, EnumVariantValue, FnCall, FnLit,
         FnTy, IfPat, Level0Term, Level1Term, Level2Term, Level3Term, ListPat, LitTerm, Member,
         MemberData, ModDef, ModDefId, ModDefOrigin, ModPat, Mutability, NominalDef, NominalDefId,
         Param, ParamList, ParamsId, Pat, PatArg, PatArgsId, PatId, Scope, ScopeId, ScopeKind,
-        ScopeVar, StructDef, StructFields, Sub, Term, TermId, TrtDef, TrtDefId, TupleLit, TupleTy,
-        TyFn, TyFnCall, TyFnCase, TyFnTy, UnresolvedTerm, Var, Visibility,
+        ScopeVar, SetBound, StructDef, StructFields, Term, TermId, TrtDef, TrtDefId, TupleLit,
+        TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy, UnresolvedTerm, Var, Visibility,
     },
     GlobalStorage,
 };
@@ -61,6 +61,11 @@ impl<'gs> PrimitiveBuilder<'gs> {
         self.create_term(Term::Var(var))
     }
 
+    /// Create a bound variable with the given name.
+    pub fn create_bound_var_term(&self, name: impl Into<Identifier>) -> TermId {
+        self.create_term(Term::BoundVar(BoundVar { name: name.into() }))
+    }
+
     /// Create a scope variable with the given name, scope and index.
     pub fn create_scope_var_term(
         &self,
@@ -69,16 +74,6 @@ impl<'gs> PrimitiveBuilder<'gs> {
         index: usize,
     ) -> TermId {
         self.create_term(Term::ScopeVar(ScopeVar { name: name.into(), scope, index }))
-    }
-
-    /// Create a bound variable with the given name, parameters and index.
-    pub fn create_bound_var_term(
-        &self,
-        name: impl Into<Identifier>,
-        params: ParamsId,
-        index: usize,
-    ) -> TermId {
-        self.create_term(Term::BoundVar(BoundVar { name: name.into(), params, index }))
     }
 
     /// Add the given nominal definition to the scope.
@@ -107,19 +102,13 @@ impl<'gs> PrimitiveBuilder<'gs> {
         name: impl Into<Identifier>,
         origin: ModDefOrigin,
         members: ScopeId,
-        bound_vars: impl IntoIterator<Item = Var>,
     ) -> ModDefId {
-        self.create_mod_def(Some(name), origin, members, bound_vars)
+        self.create_mod_def(Some(name), origin, members)
     }
 
     /// Create a nameless module definition with the given members, and origin.
-    pub fn create_nameless_mod_def(
-        &self,
-        origin: ModDefOrigin,
-        members: ScopeId,
-        bound_vars: impl IntoIterator<Item = Var>,
-    ) -> ModDefId {
-        self.create_mod_def(Option::<Identifier>::None, origin, members, bound_vars)
+    pub fn create_nameless_mod_def(&self, origin: ModDefOrigin, members: ScopeId) -> ModDefId {
+        self.create_mod_def(Option::<Identifier>::None, origin, members)
     }
 
     /// Create a module definition with the given optional name, members, and
@@ -129,15 +118,9 @@ impl<'gs> PrimitiveBuilder<'gs> {
         name: Option<impl Into<Identifier>>,
         origin: ModDefOrigin,
         members: ScopeId,
-        bound_vars: impl IntoIterator<Item = Var>,
     ) -> ModDefId {
         let name = name.map(Into::into);
-        let def_id = self.gs.borrow_mut().mod_def_store.create(ModDef {
-            name,
-            members,
-            origin,
-            bound_vars: bound_vars.into_iter().collect(),
-        });
+        let def_id = self.gs.borrow_mut().mod_def_store.create(ModDef { name, members, origin });
         if let Some(name) = name {
             self.add_mod_def_to_scope(name, def_id, origin);
         }
@@ -145,31 +128,23 @@ impl<'gs> PrimitiveBuilder<'gs> {
     }
 
     /// Create a nameless struct with opaque fields.
-    pub fn create_nameless_opaque_struct_def(
-        &self,
-        bound_vars: impl IntoIterator<Item = Var>,
-    ) -> NominalDefId {
-        let def_id = self.gs.borrow_mut().nominal_def_store.create(NominalDef::Struct(StructDef {
-            name: None,
-            fields: StructFields::Opaque,
-            bound_vars: bound_vars.into_iter().collect(),
-        }));
+    pub fn create_nameless_opaque_struct_def(&self) -> NominalDefId {
+        let def_id = self
+            .gs
+            .borrow_mut()
+            .nominal_def_store
+            .create(NominalDef::Struct(StructDef { name: None, fields: StructFields::Opaque }));
         def_id
     }
 
     /// Create a struct with the given name and opaque fields.
     ///
     /// This adds the name to the scope.
-    pub fn create_opaque_struct_def(
-        &self,
-        struct_name: impl Into<Identifier>,
-        bound_vars: impl IntoIterator<Item = Var>,
-    ) -> NominalDefId {
+    pub fn create_opaque_struct_def(&self, struct_name: impl Into<Identifier>) -> NominalDefId {
         let name = struct_name.into();
         let def_id = self.gs.borrow_mut().nominal_def_store.create(NominalDef::Struct(StructDef {
             name: Some(name),
             fields: StructFields::Opaque,
-            bound_vars: bound_vars.into_iter().collect(),
         }));
         self.add_nominal_def_to_scope(name, def_id);
         def_id
@@ -182,11 +157,10 @@ impl<'gs> PrimitiveBuilder<'gs> {
         &self,
         struct_name: Option<impl Into<Identifier>>,
         fields: ParamsId,
-        bound_vars: impl IntoIterator<Item = Var>,
     ) -> NominalDefId {
         match struct_name {
-            Some(name) => self.create_named_struct_def(name, fields, bound_vars),
-            None => self.create_nameless_struct_def(fields, bound_vars),
+            Some(name) => self.create_named_struct_def(name, fields),
+            None => self.create_nameless_struct_def(fields),
         }
     }
 
@@ -194,28 +168,21 @@ impl<'gs> PrimitiveBuilder<'gs> {
         &self,
         struct_name: impl Into<Identifier>,
         fields: ParamsId,
-        bound_vars: impl IntoIterator<Item = Var>,
     ) -> NominalDefId {
         let name = struct_name.into();
         let def_id = self.gs.borrow_mut().nominal_def_store.create(NominalDef::Struct(StructDef {
             name: Some(name),
             fields: StructFields::Explicit(fields),
-            bound_vars: bound_vars.into_iter().collect(),
         }));
 
         self.add_nominal_def_to_scope(name, def_id);
         def_id
     }
 
-    pub fn create_nameless_struct_def(
-        &self,
-        fields: ParamsId,
-        bound_vars: impl IntoIterator<Item = Var>,
-    ) -> NominalDefId {
+    pub fn create_nameless_struct_def(&self, fields: ParamsId) -> NominalDefId {
         let def_id = self.gs.borrow_mut().nominal_def_store.create(NominalDef::Struct(StructDef {
             name: None,
             fields: StructFields::Explicit(fields),
-            bound_vars: bound_vars.into_iter().collect(),
         }));
 
         def_id
@@ -249,16 +216,16 @@ impl<'gs> PrimitiveBuilder<'gs> {
         &self,
         enum_name: Option<impl Into<Identifier>>,
         variants: impl IntoIterator<Item = EnumVariant>,
-        bound_vars: impl IntoIterator<Item = Var>,
     ) -> NominalDefId {
         let name = enum_name.map(|name| name.into());
+        let variants = variants.into_iter().map(|variant| (variant.name, variant)).collect();
 
         // let name = enum_name.into();
-        let def_id = self.gs.borrow_mut().nominal_def_store.create(NominalDef::Enum(EnumDef {
-            name,
-            variants: variants.into_iter().map(|variant| (variant.name, variant)).collect(),
-            bound_vars: bound_vars.into_iter().collect(),
-        }));
+        let def_id = self
+            .gs
+            .borrow_mut()
+            .nominal_def_store
+            .create(NominalDef::Enum(EnumDef { name, variants }));
 
         // Only add the enum def to the scope if it has a name...
         if let Some(name) = name {
@@ -322,7 +289,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
         ty: TermId,
         value: TermId,
     ) -> Member {
-        Member::closed(
+        Member::closed_stack(
             name.into(),
             Visibility::Private,
             Mutability::Immutable,
@@ -338,7 +305,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
         value: TermId,
         visibility: Visibility,
     ) -> Member {
-        Member::closed(
+        Member::closed_stack(
             name.into(),
             visibility,
             Mutability::Immutable,
@@ -354,7 +321,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
         value: TermId,
         visibility: Visibility,
     ) -> Member {
-        Member::closed(
+        Member::closed_stack(
             name.into(),
             visibility,
             Mutability::Immutable,
@@ -369,7 +336,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
         ty: TermId,
         visibility: Visibility,
     ) -> Member {
-        Member::closed(
+        Member::closed_stack(
             name.into(),
             visibility,
             Mutability::Immutable,
@@ -399,12 +366,14 @@ impl<'gs> PrimitiveBuilder<'gs> {
 
     /// Create a term [Term::Merge] with the given inner terms.
     pub fn create_merge_term(&self, terms: impl IntoIterator<Item = TermId>) -> TermId {
-        self.create_term(Term::Merge(terms.into_iter().collect()))
+        let terms = terms.into_iter().collect();
+        self.create_term(Term::Merge(terms))
     }
 
     /// Create a term [Term::Union] with the given inner terms.
     pub fn create_union_term(&self, terms: impl IntoIterator<Item = TermId>) -> TermId {
-        self.create_term(Term::Union(terms.into_iter().collect()))
+        let terms = terms.into_iter().collect();
+        self.create_term(Term::Union(terms))
     }
 
     /// Create the void type term: [Level1Term::Tuple] with no members.
@@ -492,20 +461,13 @@ impl<'gs> PrimitiveBuilder<'gs> {
     }
 
     /// Create a [Scope], returning a [ScopeId].
-    pub fn create_scope(&self, scope: Scope) -> ScopeId {
+    pub fn create_scope(
+        &self,
+        kind: ScopeKind,
+        members: impl IntoIterator<Item = Member>,
+    ) -> ScopeId {
+        let scope = Scope::new(kind, members);
         self.gs.borrow_mut().scope_store.create(scope)
-    }
-
-    /// Create a [Scope] of kind [ScopeKind::Variable] from the given members,
-    /// returning a [ScopeId].
-    pub fn create_variable_scope(&self, members: impl IntoIterator<Item = Member>) -> ScopeId {
-        self.create_scope(Scope::new(ScopeKind::Variable, members))
-    }
-
-    /// Create a [Scope] of kind [ScopeKind::Constant] from the given members,
-    /// returning a [ScopeId].
-    pub fn create_constant_scope(&self, members: impl IntoIterator<Item = Member>) -> ScopeId {
-        self.create_scope(Scope::new(ScopeKind::Constant, members))
     }
 
     /// Create a trait definition either being named or nameless.
@@ -513,15 +475,10 @@ impl<'gs> PrimitiveBuilder<'gs> {
         &self,
         trait_name: Option<impl Into<Identifier>>,
         members: ScopeId,
-        bound_vars: impl IntoIterator<Item = Var>,
     ) -> TrtDefId {
         let name = trait_name.map(|t| t.into());
 
-        let trt_def_id = self.gs.borrow_mut().trt_def_store.create(TrtDef {
-            name,
-            members,
-            bound_vars: bound_vars.into_iter().collect(),
-        });
+        let trt_def_id = self.gs.borrow_mut().trt_def_store.create(TrtDef { name, members });
         let trt_def_ty = self.create_trt_kind_term();
         let trt_def_value = self.create_trt_term(trt_def_id);
 
@@ -533,18 +490,10 @@ impl<'gs> PrimitiveBuilder<'gs> {
     }
 
     /// Create a trait definition with no name, and the given members.
-    pub fn create_nameless_trt_def(
-        &self,
-        members: impl Iterator<Item = Member>,
-        bound_vars: impl IntoIterator<Item = Var>,
-    ) -> TrtDefId {
-        let members = self.create_constant_scope(members);
+    pub fn create_nameless_trt_def(&self, members: impl Iterator<Item = Member>) -> TrtDefId {
+        let members = self.create_scope(ScopeKind::Constant, members);
 
-        let trt_def_id = self.gs.borrow_mut().trt_def_store.create(TrtDef {
-            name: None,
-            members,
-            bound_vars: bound_vars.into_iter().collect(),
-        });
+        let trt_def_id = self.gs.borrow_mut().trt_def_store.create(TrtDef { name: None, members });
         trt_def_id
     }
 
@@ -568,17 +517,16 @@ impl<'gs> PrimitiveBuilder<'gs> {
         params: impl IntoIterator<Item = Param>,
         origin: ParamOrigin,
     ) -> ParamsId {
-        self.gs
-            .borrow_mut()
-            .params_store
-            .create(ParamList::new(params.into_iter().collect(), origin))
+        let params = ParamList::new(params.into_iter().collect(), origin);
+        self.gs.borrow_mut().params_store.create(params)
     }
 
     /// Create a [ArgsId] from an iterator of [Arg]. This function wil create a
     /// [Args](crate::storage::primitives::Args), append it to the store and
     /// return  the created id.
     pub fn create_args(&self, args: impl IntoIterator<Item = Arg>, origin: ParamOrigin) -> ArgsId {
-        self.gs.borrow_mut().args_store.create(ParamList::new(args.into_iter().collect(), origin))
+        let params = ParamList::new(args.into_iter().collect(), origin);
+        self.gs.borrow_mut().args_store.create(params)
     }
 
     /// Create a nameless type function term with parameters, return type and
@@ -657,17 +605,10 @@ impl<'gs> PrimitiveBuilder<'gs> {
         existing.unwrap_or_else(|| self.create_unresolved_term())
     }
 
-    /// Create a substitution application term, given a substitution and inner
-    /// term.
-    ///
-    /// If no elements exist in the substitution, returns the term itself
-    /// without wrapping it.
-    pub fn create_app_sub_term(&self, sub: Sub, term: TermId) -> TermId {
-        if sub.map().is_empty() {
-            term
-        } else {
-            self.create_term(Term::AppSub(AppSub { sub, term }))
-        }
+    /// Create a set bound term, given a term and scope which is of kind
+    /// [ScopeKind::SetBound].
+    pub fn create_set_bound_term(&self, term: TermId, set_bound_scope: ScopeId) -> TermId {
+        self.create_term(Term::SetBound(SetBound { term, scope: set_bound_scope }))
     }
 
     /// Create an argument with the given name and value.
@@ -689,16 +630,14 @@ impl<'gs> PrimitiveBuilder<'gs> {
         self.create_term(Term::TyFnCall(app_ty_fn))
     }
 
-    /// Create pattern parameters from the given pattern parameter iterator.
+    /// Create pattern arguments from the given pattern argument iterator.
     pub fn create_pat_args(
         &self,
         args: impl IntoIterator<Item = PatArg>,
         origin: ParamOrigin,
     ) -> PatArgsId {
-        self.gs
-            .borrow_mut()
-            .pat_params_store
-            .create(ParamList::new(args.into_iter().collect(), origin))
+        let args = ParamList::new(args.into_iter().collect(), origin);
+        self.gs.borrow_mut().pat_args_store.create(args)
     }
 
     /// Create a pattern parameter
@@ -748,7 +687,8 @@ impl<'gs> PrimitiveBuilder<'gs> {
 
     /// Create an OR-pattern.
     pub fn create_or_pat(&self, pats: impl IntoIterator<Item = PatId>) -> PatId {
-        self.create_pat(Pat::Or(pats.into_iter().collect()))
+        let pats = pats.into_iter().collect();
+        self.create_pat(Pat::Or(pats))
     }
 
     /// Create a conditional pattern.

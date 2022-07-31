@@ -2,6 +2,7 @@
 use hash_ast::ast::ParamOrigin;
 use itertools::Itertools;
 
+use super::{params::pair_args_with_params, AccessToOps, AccessToOpsMut};
 use crate::{
     diagnostics::{
         error::{TcError, TcResult},
@@ -9,18 +10,13 @@ use crate::{
     },
     storage::{
         primitives::{
-            AccessOp, AccessPat, AppSub, Arg, ArgsId, ConstPat, ConstructedTerm, Level0Term,
-            Level1Term, Level2Term, Level3Term, ListPat, LitTerm, MemberData, ModDefOrigin,
-            NominalDef, Param, ParamsId, Pat, PatArgsId, PatId, StructFields, Term, TermId,
+            AccessOp, AccessPat, Arg, ArgsId, ConstPat, ConstructedTerm, Level0Term, Level1Term,
+            Level2Term, Level3Term, ListPat, LitTerm, MemberData, ModDefOrigin, NominalDef, Param,
+            ParamsId, Pat, PatArgsId, PatId, StructFields, Term, TermId,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
 };
-
-use super::{
-    params::pair_args_with_params, unify::UnifyParamsWithArgsMode, AccessToOps, AccessToOpsMut,
-};
-
 /// Can resolve the type of a given term, as another term.
 pub struct Typer<'gs, 'ls, 'cd, 's> {
     storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
@@ -125,17 +121,25 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                 let ty_of_subject = reader.get_term(ty_id_of_subject);
                 match ty_of_subject {
                     Term::TyFnTy(ty_fn_ty) => {
-                        let ty_fn_ty = ty_fn_ty.clone();
                         // Unify the type function type params with the given args:
-                        let sub = self.unifier().unify_params_with_args(
+                        let ty_fn_ty = ty_fn_ty.clone();
+                        let _ = self.unifier().unify_params_with_args(
                             ty_fn_ty.params,
                             app_ty_fn.args,
                             term_id,
                             ty_id_of_subject,
-                            UnifyParamsWithArgsMode::SubstituteParamNamesForArgValues,
                         )?;
+                        let scope = self.scope_manager().make_set_bound_scope(
+                            ty_fn_ty.params,
+                            app_ty_fn.args,
+                            term_id,
+                            ty_id_of_subject,
+                        );
+
                         // Apply the substitution to the return type and use it as the result:
-                        Ok(self.substituter().apply_sub_to_term(&sub, ty_fn_ty.return_ty))
+                        Ok(self
+                            .discoverer()
+                            .potentially_apply_set_bound_to_term(scope, ty_fn_ty.return_ty)?)
                     }
                     _ => Err(TcError::UnsupportedTyFnApplication { subject_id: app_ty_fn.subject }),
                 }
@@ -170,11 +174,12 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                 let rt_instantiable_def = self.core_defs().runtime_instantiable_trt;
                 Ok(self.builder().create_trt_term(rt_instantiable_def))
             }
-            Term::AppSub(app_sub) => {
-                // The type of an AppSub is the type of the subject, with the substitution
-                // applied:
-                let ty_of_subject = self.infer_ty_of_term(app_sub.term)?;
-                Ok(self.substituter().apply_sub_to_term(&app_sub.sub, ty_of_subject))
+            Term::SetBound(set_bound) => {
+                // Get the type inside the scope, and then apply it again if necessary
+                let result = self.scope_manager().enter_scope(set_bound.scope, |this| {
+                    this.typer().infer_ty_of_simplified_term(set_bound.term)
+                })?;
+                self.discoverer().potentially_apply_set_bound_to_term(set_bound.scope, result)
             }
             Term::Unresolved(_) => {
                 // The type of an unresolved variable X is typeof(X):
@@ -250,17 +255,28 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                     }
                 }
             }
-            Term::TyOf(_) => {
-                // Since this is simplified already, all we can do is wrap it again..
+            Term::BoundVar(bound_var) => {
+                // Get its type from the surrounding context:
+                // @@Correctness: is there a point here when we should default to typeof()
+                // wrapping instead?
+                let member = self.scope_manager().get_bound_var_member(bound_var, term_id);
+                let inferred_data = self.infer_member_ty(member.member.data)?;
+                Ok(inferred_data.ty)
+            }
+            Term::ScopeVar(scope_var) => {
+                let scope_member = self.scope_manager().get_scope_var_member(scope_var);
+                match scope_member.member.data.value() {
+                    // @@Redundancy: the second check should imply the first?
+                    Some(value) if scope_member.member.is_closed_and_non_bound() => {
+                        self.infer_ty_of_term(value)
+                    }
+                    _ => Ok(self.builder().create_ty_of_term(term_id)),
+                }
+            }
+            Term::Root | Term::TyOf(_) => {
+                // Since these are simplified already, all we can do is wrap it again..
                 Ok(self.builder().create_ty_of_term(term_id))
             }
-            // The type of root is typeof(root)
-            Term::Root => {
-                let builder = self.builder();
-                Ok(builder.create_ty_of_term(builder.create_root_term()))
-            }
-            Term::ScopeVar(_) => todo!(),
-            Term::BoundVar(_) => todo!(),
         }?;
 
         self.location_store_mut().copy_location(term_id, new_term);
@@ -320,7 +336,6 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
         params_id: ParamsId,
         params_subject: TermId,
         args_subject: TermId,
-        mode: UnifyParamsWithArgsMode,
     ) -> TcResult<ArgsId> {
         let params = self.params_store().get(params_id).clone();
         let args = self.args_store().get(args_id).clone();
@@ -337,7 +352,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
         )?;
 
         let arg_pairs: Vec<_> = pairs.iter().map(|(_, arg)| *arg).collect();
-        let params_sub = self.unifier().unify_param_arg_pairs(pairs, mode)?;
+        let params_sub = self.unifier().unify_param_arg_pairs(pairs)?;
 
         // Copy over the origin from the initial args
         let new_args = self.builder().create_args(arg_pairs, args.origin());
@@ -406,6 +421,8 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                 Ok(self.builder().create_constructed_term(constructor_pat.subject, args_id))
             }
             Pat::List(ListPat { term, .. }) => {
+                // @@Future: use a list literal term instead
+                //
                 // We want to create a `List<T = term>` as the type of the pattern
                 let list_inner_ty = self.core_defs().list_ty_fn;
                 let builder = self.builder();
@@ -507,6 +524,8 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
     ///
     /// This function will populate default values in the params if it can (if
     /// the term is a constructed literal).
+    ///
+    /// Note: Assumes the term is simplified.
     pub(crate) fn infer_constructors_of_nominal_term(
         &mut self,
         term_id: TermId,
@@ -533,19 +552,24 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                             .flatten_ok()
                             .collect()
                     }
-                    Term::AppSub(AppSub { term, sub }) => {
-                        // Recurse and apply sub
-                        let result = self.infer_constructors_of_nominal_term(term)?;
-                        Ok(result
+                    Term::SetBound(set_bound) => {
+                        // Recurse to inner and then apply the set bound on the results
+                        let result = self.scope_manager().enter_scope(set_bound.scope, |this| {
+                            this.typer().infer_constructors_of_nominal_term(set_bound.term)
+                        })?;
+                        result
                             .into_iter()
-                            .map(|(subject, params)| {
-                                let mut substituter = self.substituter();
-                                (
-                                    substituter.apply_sub_to_term(&sub, subject),
-                                    substituter.apply_sub_to_params(&sub, params),
-                                )
+                            .map(|(term, params)| {
+                                Ok((
+                                    self.discoverer().potentially_apply_set_bound_to_term(
+                                        set_bound.scope,
+                                        term,
+                                    )?,
+                                    self.discoverer()
+                                        .apply_set_bound_to_params(set_bound.scope, params)?,
+                                ))
                             })
-                            .collect())
+                            .collect()
                     }
                     Term::Merge(terms) => {
                         // Try each term:
