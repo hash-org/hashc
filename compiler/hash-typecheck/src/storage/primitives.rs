@@ -684,6 +684,12 @@ impl IntKind {
     }
 }
 
+impl Display for IntKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_name())
+    }
+}
+
 /// A literal term, which is level 0.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LitTerm {

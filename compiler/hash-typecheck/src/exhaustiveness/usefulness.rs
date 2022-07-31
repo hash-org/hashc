@@ -31,13 +31,13 @@ impl<'p, 'gs, 'ls, 'cd, 's> Witness<'p> {
     ///
     /// left_ty: struct X { a: (bool, &'static str), b: usize}
     /// pats: [(false, "foo"), 42]  => X { a: (false, "foo"), b: 42 }
-    fn apply_constructor(mut self, ctx: PatCtx<'gs, 'ls, 'cd, 's>, ctor: &Constructor) -> Self {
+    fn apply_constructor(mut self, mut ctx: PatCtx<'gs, 'ls, 'cd, 's>, ctor: &Constructor) -> Self {
         let pat = {
             let len = self.0.len();
-            let arity = ctor.arity(ctx);
+            let arity = ctor.arity(ctx.new_from());
 
             let pats = self.0.drain((len - arity)..).rev();
-            let fields = Fields::from_iter(ctx, pats);
+            let fields = Fields::from_iter(ctx.new_from(), pats);
 
             DeconstructedPat::new(ctor.clone(), fields, ctx.ty, DUMMY_SPAN)
         };
@@ -155,14 +155,14 @@ impl<'p, 'gs, 'ls, 'cd, 's> Matrix<'p> {
     /// explanations.
     fn specialize_constructor(
         &self,
-        ctx: PatCtx<'gs, 'ls, 'cd, 's>,
+        mut ctx: PatCtx<'gs, 'ls, 'cd, 's>,
         ctor: &Constructor,
     ) -> Matrix<'p> {
         let mut matrix = Matrix::empty();
 
         for row in &self.patterns {
-            if ctor.is_covered_by(ctx, row.head().ctor()) {
-                let new_row = row.pop_head_constructor(ctx, ctor);
+            if ctor.is_covered_by(ctx.new_from(), row.head().ctor()) {
+                let new_row = row.pop_head_constructor(ctx.new_from(), ctor);
                 matrix.push(new_row);
             }
         }

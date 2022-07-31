@@ -32,7 +32,7 @@ use crate::{
         primitives::{
             ConstructedTerm, Level0Term, Level1Term, LitTerm, NominalDef, Term, TermId, TupleLit,
         },
-        AccessToStorage, StorageRef,
+        AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
 };
 
@@ -41,10 +41,9 @@ use super::{
     FieldPat, Pat, RangeEnd,
 };
 
-#[derive(Clone, Copy)]
 pub struct PatCtx<'gs, 'ls, 'cd, 's> {
     /// Reference to the typechecker storage
-    storage: StorageRef<'gs, 'ls, 'cd, 's>,
+    storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
     /// The term of the current column that is under investigation
     pub ty: TermId,
     /// Span of the current pattern under investigation.
@@ -62,11 +61,24 @@ impl<'gs, 'ls, 'cd, 's> PatCtx<'gs, 'ls, 'cd, 's> {
             source_id: self.storage.checked_sources().current_source(),
         }
     }
+
+    #[inline(always)]
+    pub(super) fn new_from(&mut self) -> PatCtx {
+        let PatCtx { ty, span, is_top_level, .. } = *self;
+
+        PatCtx { storage: self.storages_mut(), span, ty, is_top_level }
+    }
 }
 
 impl<'gs, 'ls, 'cd, 's> AccessToStorage for PatCtx<'gs, 'ls, 'cd, 's> {
     fn storages(&self) -> StorageRef {
         self.storage.storages()
+    }
+}
+
+impl<'gs, 'ls, 'cd, 's> AccessToStorageMut for PatCtx<'gs, 'ls, 'cd, 's> {
+    fn storages_mut(&mut self) -> StorageRefMut {
+        self.storage.storages_mut()
     }
 }
 
@@ -118,12 +130,7 @@ impl<'gs, 'ls, 'cd, 's> IntRange {
 
     /// Create an [IntRange] from two specified bounds, and assuming that the
     /// type is an integer (of the column)
-    fn from_range(
-        ctx: PatCtx<'gs, 'ls, 'cd, 's>,
-        lo: u128,
-        hi: u128,
-        end: &RangeEnd,
-    ) -> IntRange {
+    fn from_range(ctx: PatCtx<'gs, 'ls, 'cd, 's>, lo: u128, hi: u128, end: &RangeEnd) -> IntRange {
         let bias = Self::signed_bias(ctx);
 
         let (lo, hi) = (lo ^ bias, hi ^ bias);
@@ -461,7 +468,7 @@ impl<'gs, 'ls, 'cd, 's> SplitWildcard {
     pub(super) fn new(ctx: PatCtx<'gs, 'ls, 'cd, 's>) -> Self {
         let reader = ctx.reader();
 
-        let make_range = |start, end| {
+        let make_range = |ctx, start, end| {
             Constructor::IntRange(IntRange::from_range(ctx, start, end, &RangeEnd::Included))
         };
 
@@ -512,12 +519,15 @@ impl<'gs, 'ls, 'cd, 's> SplitWildcard {
 
     pub(super) fn split<'a>(
         &mut self,
-        ctx: PatCtx<'gs, 'ls, 'cd, 's>,
+        mut ctx: PatCtx<'gs, 'ls, 'cd, 's>,
         ctors: impl Iterator<Item = &'a Constructor> + Clone,
     ) {
         // Since `all_ctors` never contains wildcards, this won't recurse further.
-        self.all_ctors =
-            self.all_ctors.iter().flat_map(|ctor| ctor.split(ctx, ctors.clone())).collect();
+        self.all_ctors = self
+            .all_ctors
+            .iter()
+            .flat_map(|ctor| ctor.split(ctx.new_from(), ctors.clone()))
+            .collect();
         self.matrix_ctors = ctors.filter(|c| !c.is_wildcard()).cloned().collect();
     }
 
@@ -540,15 +550,17 @@ impl<'gs, 'ls, 'cd, 's> SplitWildcard {
         's: 'p,
         'a: 'p,
     {
-        self.all_ctors.iter().filter(move |ctor| !ctor.is_covered_by_any(ctx, &self.matrix_ctors))
+        self.all_ctors.iter()
+        // self.all_ctors.iter().filter(move |ctor| !ctor.is_covered_by_any(ctx,
+        // &self.matrix_ctors))
     }
 
-    fn into_ctors(self, ctx: PatCtx<'gs, 'ls, 'cd, 's>) -> SmallVec<[Constructor; 1]> {
+    fn into_ctors(self, mut ctx: PatCtx<'gs, 'ls, 'cd, 's>) -> SmallVec<[Constructor; 1]> {
         // If Some constructors are missing, thus we can specialize with the special
         // `Missing` constructor, which stands for those constructors that are
         // not seen in the matrix, and matches the same rows as any of them
         // (namely the wildcard rows). See the top of the file for details.
-        if self.any_missing(ctx) {
+        if self.any_missing(ctx.new_from()) {
             // If some constructors are missing, we typically want to report those
             // constructors, e.g.:
             // ```ignore
@@ -692,14 +704,14 @@ impl<'gs, 'ls, 'cd, 's> Constructor {
     /// constructors already present in the matrix, unless all of them are.
     pub(super) fn split<'a>(
         &self,
-        ctx: PatCtx<'gs, 'ls, 'cd, 's>,
+        mut ctx: PatCtx<'gs, 'ls, 'cd, 's>,
         ctors: impl Iterator<Item = &'a Constructor> + Clone,
     ) -> SmallVec<[Self; 1]> {
         match self {
             Constructor::Wildcard => {
-                let mut split_wildcard = SplitWildcard::new(ctx);
-                split_wildcard.split(ctx, ctors);
-                split_wildcard.into_ctors(ctx)
+                let mut split_wildcard = SplitWildcard::new(ctx.new_from());
+                split_wildcard.split(ctx.new_from(), ctors);
+                split_wildcard.into_ctors(ctx.new_from())
             }
             // Fast track to just the single constructor if this range is trivial
             Constructor::IntRange(range) if !range.is_singleton() => {
@@ -873,8 +885,8 @@ impl<'p, 'gs, 'ls, 'cd, 's> DeconstructedPat<'p> {
         Self::new(Constructor::Wildcard, Fields::empty(), ty, DUMMY_SPAN)
     }
 
-    pub(super) fn wild_from_ctor(ctx: PatCtx<'gs, 'ls, 'cd, 's>, ctor: Constructor) -> Self {
-        let fields = Fields::wildcards(ctx, &ctor);
+    pub(super) fn wild_from_ctor(mut ctx: PatCtx<'gs, 'ls, 'cd, 's>, ctor: Constructor) -> Self {
+        let fields = Fields::wildcards(ctx.new_from(), &ctor);
 
         DeconstructedPat::new(ctor, fields, ctx.ty, DUMMY_SPAN)
     }
@@ -906,15 +918,15 @@ impl<'p, 'gs, 'ls, 'cd, 's> DeconstructedPat<'p> {
     }
 
     /// Convert a [Pat] into a [DeconstructedPat].
-    pub(crate) fn from_pat(ctx: PatCtx<'gs, 'ls, 'cd, 's>, pat: &'p Pat) -> Self {
-        let make_pat = |pat| DeconstructedPat::from_pat(ctx, pat);
+    pub(crate) fn from_pat(mut ctx: PatCtx<'gs, 'ls, 'cd, 's>, pat: &'p Pat) -> Self {
+        // let make_pat = |ctx, pat| DeconstructedPat::from_pat(ctx, pat);
 
         // @@Todo: support int, and float ranges
         let (ctor, fields) = match pat.kind.as_ref() {
             PatKind::Spread | PatKind::Wild => (Constructor::Wildcard, Fields::empty()),
             PatKind::Constant { value } => {
                 // This deals with `char` and `integer` types...
-                let range = IntRange::from_constant(ctx, *value);
+                let range = IntRange::from_constant(ctx.new_from(), *value);
                 (Constructor::IntRange(range), Fields::empty())
             }
             PatKind::Str { value } => (Constructor::Str(*value), Fields::empty()),
@@ -923,7 +935,7 @@ impl<'p, 'gs, 'ls, 'cd, 's> DeconstructedPat<'p> {
 
                 match reader.get_term(ctx.ty) {
                     Term::Level0(Level0Term::Tuple(TupleLit { members })) => {
-                        let members = reader.get_args(*members);
+                        let members = reader.get_args(*members).clone();
 
                         // Create wild-cards for all of the tuple inner members
                         let mut wilds: SmallVec<[_; 2]> = members
@@ -933,10 +945,11 @@ impl<'p, 'gs, 'ls, 'cd, 's> DeconstructedPat<'p> {
                             .collect();
 
                         for field in pats {
-                            wilds[field.index] = make_pat(&field.pat);
+                            wilds[field.index] =
+                                DeconstructedPat::from_pat(ctx.new_from(), &field.pat);
                         }
 
-                        let fields = Fields::from_iter(ctx, wilds);
+                        let fields = Fields::from_iter(ctx.new_from(), wilds);
                         (Constructor::Single, fields)
                     }
                     Term::Level0(Level0Term::Constructed(ConstructedTerm { subject, members })) => {
@@ -953,10 +966,11 @@ impl<'p, 'gs, 'ls, 'cd, 's> DeconstructedPat<'p> {
                             tys.map(DeconstructedPat::wildcard).collect();
 
                         for field in pats {
-                            wilds[field.index] = make_pat(&field.pat);
+                            wilds[field.index] =
+                                DeconstructedPat::from_pat(ctx.new_from(), &field.pat);
                         }
 
-                        let fields = Fields::from_iter(ctx, wilds);
+                        let fields = Fields::from_iter(ctx.new_from(), wilds);
                         (ctor, fields)
                     }
                     _ => tc_panic!(
@@ -978,7 +992,13 @@ impl<'p, 'gs, 'ls, 'cd, 's> DeconstructedPat<'p> {
                 };
 
                 let ctor = Constructor::List(List::new(kind));
-                let fields = Fields::from_iter(ctx, prefix.iter().chain(suffix).map(make_pat));
+                let fields = prefix
+                    .iter()
+                    .chain(suffix)
+                    .map(|pat| DeconstructedPat::from_pat(ctx.new_from(), pat))
+                    .collect_vec();
+
+                let fields = Fields::from_iter(ctx.new_from(), fields);
 
                 (ctor, fields)
             }
@@ -988,15 +1008,20 @@ impl<'p, 'gs, 'ls, 'cd, 's> DeconstructedPat<'p> {
                 // pat.
                 let pats = Self::flatten_or_pat(pat);
 
-                (Constructor::Or, Fields::from_iter(ctx, pats.into_iter().map(make_pat)))
+                let fields = pats
+                    .iter()
+                    .map(|pat| DeconstructedPat::from_pat(ctx.new_from(), pat))
+                    .collect_vec();
+
+                (Constructor::Or, Fields::from_iter(ctx.new_from(), fields))
             }
         };
 
         Self::new(ctor, fields, ctx.ty, pat.span)
     }
 
-    pub(crate) fn to_pat(&self, ctx: PatCtx<'gs, 'ls, 'cd, 's>) -> Pat {
-        let mut children = self.iter_fields().map(|p| p.to_pat(ctx));
+    pub(crate) fn to_pat(&self, mut ctx: PatCtx<'gs, 'ls, 'cd, 's>) -> Pat {
+        let mut children = self.iter_fields().map(|p| p.to_pat(ctx.new_from())).collect_vec();
 
         let kind = match &self.ctor {
             ctor @ (Constructor::Single | Constructor::Variant(_)) => {
@@ -1005,6 +1030,7 @@ impl<'p, 'gs, 'ls, 'cd, 's> DeconstructedPat<'p> {
                 match reader.get_term(self.ty) {
                     Term::Level0(Level0Term::Tuple(TupleLit { members })) => PatKind::Leaf {
                         pats: children
+                            .into_iter()
                             .enumerate()
                             .map(|(index, pat)| FieldPat { index, pat })
                             .collect(),
@@ -1015,6 +1041,7 @@ impl<'p, 'gs, 'ls, 'cd, 's> DeconstructedPat<'p> {
                                 let nominal_def = reader.get_nominal_def(*id);
 
                                 let pats = children
+                                    .into_iter()
                                     .enumerate()
                                     .map(|(index, pat)| FieldPat { index, pat })
                                     .collect_vec();
@@ -1049,10 +1076,10 @@ impl<'p, 'gs, 'ls, 'cd, 's> DeconstructedPat<'p> {
             Constructor::Str(value) => PatKind::Str { value: *value },
             Constructor::List(List { kind }) => match kind {
                 ListKind::Fixed(size) => {
-                    PatKind::List { prefix: children.collect_vec(), spread: None, suffix: vec![] }
+                    PatKind::List { prefix: children, spread: None, suffix: vec![] }
                 }
                 ListKind::Var(prefix, suffix) => {
-                    let mut children = children.peekable();
+                    let mut children = children.into_iter().peekable();
 
                     // build the prefix and suffix components
                     let prefix: Vec<_> = children.by_ref().take(*prefix).collect();

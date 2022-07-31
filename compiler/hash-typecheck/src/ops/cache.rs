@@ -23,6 +23,7 @@ impl<'gs, 'ls, 'cd, 's> AccessToStorage for CacheManager<'gs, 'ls, 'cd, 's> {
         self.storage.storages()
     }
 }
+
 impl<'gs, 'ls, 'cd, 's> AccessToStorageMut for CacheManager<'gs, 'ls, 'cd, 's> {
     fn storages_mut(&mut self) -> StorageRefMut {
         self.storage.storages_mut()
