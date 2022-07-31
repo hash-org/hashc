@@ -5,7 +5,7 @@
 
 use std::{cell::RefCell, collections::HashMap, hash::Hash, rc::Rc};
 
-use hash_source::location::SourceLocation;
+use hash_source::location::{SourceLocation, Span};
 
 use super::primitives::{ArgsId, ParamsId, PatArgsId, PatId, ScopeId, TermId};
 
@@ -233,6 +233,11 @@ impl LocationStore {
             }
             LocationTarget::Location(location) => Some(location),
         }
+    }
+
+    /// Get the associated [Span] with from the specified [LocationTarget]
+    pub fn get_span(&self, target: impl Into<LocationTarget>) -> Option<Span> {
+        self.get_location(target).map(|loc| loc.span)
     }
 
     /// Copy a set of locations from the first [IndexedLocationTarget] to the

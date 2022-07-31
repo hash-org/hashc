@@ -94,6 +94,7 @@ impl<'gs, 'ls, 'cd, 'src> TcVisitor<'gs, 'ls, 'cd, 'src> {
     pub fn visit_source(&mut self) -> TcResult<TermId> {
         let source_id = self.source_id;
         let source = self.node_map.get_source(source_id);
+
         let result = match source {
             SourceRef::Interactive(interactive_source) => {
                 self.visit_body_block(&(), interactive_source.node_ref())
@@ -724,8 +725,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         match import_module_id {
             Some(import_module_id) => {
                 // Resolve the ModDef corresponding to the SourceId if it exists:
-                match self.checked_sources().get_source_mod_def(SourceId::Module(import_module_id))
-                {
+                match self.checked_sources().source_mod_def(SourceId::Module(import_module_id)) {
                     Some(already_checked_mod_term) => {
                         // Already exists, meaning this module has been checked before:
                         Ok(already_checked_mod_term)

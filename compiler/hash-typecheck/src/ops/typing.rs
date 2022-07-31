@@ -246,10 +246,8 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
 
                         let var_to_resolve = match lit_term {
                             LitTerm::Str(_) => "str",
-                            LitTerm::Int(_) => {
-                                // @@Todo: do some more sophisticated inferring here
-                                "i32"
-                            }
+                            // @@Todo: do some more sophisticated inferring here
+                            LitTerm::Int { kind, .. } => kind.to_name(),
                             LitTerm::Char(_) => "char",
                         };
                         let term = self.builder().create_var_term(var_to_resolve);

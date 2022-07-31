@@ -5,7 +5,7 @@
 //!
 //! @@Docs(kontheocharis): write docs about the stages of the typechecker.
 
-#![feature(generic_associated_types, decl_macro, slice_pattern, option_result_contains)]
+#![feature(generic_associated_types, decl_macro, slice_pattern, option_result_contains, let_else)]
 
 use diagnostics::reporting::TcErrorWithStorage;
 use hash_pipeline::{traits::Tc, CompilerResult};
@@ -17,6 +17,7 @@ use traverse::TcVisitor;
 use crate::fmt::PrepareForFormatting;
 
 pub mod diagnostics;
+pub mod exhaustiveness;
 pub mod fmt;
 pub mod ops;
 pub mod storage;
