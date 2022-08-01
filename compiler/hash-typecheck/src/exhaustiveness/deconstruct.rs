@@ -17,11 +17,10 @@ use std::{
 
 use hash_reporting::macros::panic_on_span;
 use hash_source::{
-    location::{SourceLocation, Span, DUMMY_SPAN},
+    location::{SourceLocation, Span},
     string::Str,
 };
 use itertools::Itertools;
-use num_bigint::Sign;
 use smallvec::{smallvec, SmallVec};
 
 use crate::{
@@ -30,16 +29,14 @@ use crate::{
     ops::AccessToOps,
     storage::{
         primitives::{
-            ConstructedTerm, Level0Term, Level1Term, LitTerm, NominalDef, Term, TermId, TupleLit,
+            ConstructedTerm, Level0Term, Level1Term, LitTerm, NominalDef, StructFields, Term,
+            TermId, TupleLit, TupleTy,
         },
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
 };
 
-use super::{
-    constant::{self, Constant},
-    FieldPat, Pat, RangeEnd,
-};
+use super::{constant::Constant, FieldPat, Pat, RangeEnd};
 
 pub struct PatCtx<'gs, 'ls, 'cd, 's> {
     /// Reference to the typechecker storage
@@ -54,6 +51,16 @@ pub struct PatCtx<'gs, 'ls, 'cd, 's> {
 }
 
 impl<'gs, 'ls, 'cd, 's> PatCtx<'gs, 'ls, 'cd, 's> {
+    /// Create a new [PatCtx]
+    pub fn new(
+        storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
+        ty: TermId,
+        span: Span,
+        is_top_level: bool,
+    ) -> Self {
+        PatCtx { storage, ty, span, is_top_level }
+    }
+
     /// Get a [SourceLocation] from the current [PatCtx]
     fn location(&self) -> SourceLocation {
         SourceLocation {
@@ -136,7 +143,6 @@ impl<'gs, 'ls, 'cd, 's> IntRange {
         let (lo, hi) = (lo ^ bias, hi ^ bias);
         let offset = (*end == RangeEnd::Excluded) as u128;
         if lo > hi || (lo == hi && *end == RangeEnd::Excluded) {
-            // This should have been caught earlier by E0030.
             panic!("malformed range pattern: {}..={}", lo, (hi - offset));
         }
 
@@ -161,7 +167,7 @@ impl<'gs, 'ls, 'cd, 's> IntRange {
     }
 
     /// Whether the type of the column is an integral
-    fn is_integral(ctx: PatCtx<'gs, 'ls, 'cd, 's>) -> bool {
+    fn is_integral(_ctx: PatCtx<'gs, 'ls, 'cd, 's>) -> bool {
         todo!()
     }
 
@@ -175,7 +181,7 @@ impl<'gs, 'ls, 'cd, 's> IntRange {
         let (lo, hi) = (lo ^ bias, hi ^ bias);
 
         let lo_const = Constant::from_u128(lo, ctx.ty);
-        let hi_const = Constant::from_u128(hi, ctx.ty);
+        // let hi_const = Constant::from_u128(hi, ctx.ty);
 
         if lo == hi {
             PatKind::Constant { value: lo_const }
@@ -462,9 +468,9 @@ impl<'gs, 'ls, 'cd, 's> SplitWildcard {
     pub(super) fn new(ctx: PatCtx<'gs, 'ls, 'cd, 's>) -> Self {
         let reader = ctx.reader();
 
-        let make_range = |ctx, start, end| {
-            Constructor::IntRange(IntRange::from_range(ctx, start, end, &RangeEnd::Included))
-        };
+        // let make_range = |ctx, start, end| {
+        //     Constructor::IntRange(IntRange::from_range(ctx, start, end,
+        // &RangeEnd::Included)) };
 
         // This determines the set of all possible constructors for the type `ctx.ty`.
         // For numbers, lists we use ranges and variable-length lists when appropriate.
@@ -501,7 +507,6 @@ impl<'gs, 'ls, 'cd, 's> SplitWildcard {
 
                         ctors
                     }
-                    _ => smallvec![Constructor::NonExhaustive],
                 }
             }
             Term::Level1(Level1Term::Tuple(_)) => smallvec![Constructor::Single],
@@ -634,8 +639,28 @@ impl<'gs, 'ls, 'cd, 's> Constructor {
                 // if it a tuple, get the length and that is the arity
                 // if it is a struct or enum, then we get that variant and
                 // we can count the fields from that variant or struct.
-
-                todo!()
+                let reader = ctx.reader();
+                match reader.get_term(ctx.ty) {
+                    Term::Level1(Level1Term::Tuple(TupleTy { members })) => {
+                        reader.get_params(*members).len()
+                    }
+                    Term::Level1(Level1Term::NominalDef(def)) => {
+                        match reader.get_nominal_def(*def) {
+                            NominalDef::Struct(struct_def) => match struct_def.fields {
+                                StructFields::Explicit(params) => reader.get_params(params).len(),
+                                StructFields::Opaque => 0,
+                            },
+                            // @@Remove: when enums are no longer represented as thi
+                            NominalDef::Enum(_) => todo!(),
+                        }
+                    }
+                    _ => tc_panic!(
+                        ctx.ty,
+                        ctx,
+                        "Unexpected ty `{}` when computing arity",
+                        ctx.for_fmt(ctx.ty),
+                    ),
+                }
             }
             Constructor::List(list) => list.arity(),
             Constructor::IntRange(_)
@@ -820,7 +845,7 @@ impl<'p, 'gs, 'ls, 'cd, 's> Fields<'p> {
     }
 
     pub(super) fn from_iter(
-        ctx: PatCtx<'gs, 'ls, 'cd, 's>,
+        mut ctx: PatCtx<'gs, 'ls, 'cd, 's>,
         fields: impl IntoIterator<Item = DeconstructedPat<'p>>,
     ) -> Self {
         // let fields: &[_] = cx.pattern_arena.alloc_from_iter(fields);
@@ -828,13 +853,63 @@ impl<'p, 'gs, 'ls, 'cd, 's> Fields<'p> {
         todo!()
     }
 
+    fn wildcards_from_tys(
+        mut ctx: PatCtx<'gs, 'ls, 'cd, 's>,
+        tys: impl IntoIterator<Item = TermId>,
+    ) -> Self {
+        Fields::from_iter(ctx, tys.into_iter().map(DeconstructedPat::wildcard))
+    }
+
     /// Creates a new list of wildcard fields for a given constructor. The
     /// result must have a length of `ctor.arity()`.
-    pub(super) fn wildcards(ctx: PatCtx<'gs, 'ls, 'cd, 's>, ctor: &Constructor) -> Self {
+    pub(super) fn wildcards(mut ctx: PatCtx<'gs, 'ls, 'cd, 's>, ctor: &Constructor) -> Self {
         match ctor {
-            Constructor::Single => todo!(),
-            Constructor::Variant(_) => todo!(),
-            Constructor::List(_) => todo!(),
+            Constructor::Single | Constructor::Variant(_) => {
+                let reader = ctx.reader();
+
+                match reader.get_term(ctx.ty) {
+                    Term::Level1(Level1Term::Tuple(TupleTy { members })) => {
+                        let members = reader.get_params(*members);
+                        let tys = members.positional().iter().map(|member| member.ty).collect_vec();
+
+                        Fields::wildcards_from_tys(ctx.new_from(), tys)
+                    }
+                    Term::Level1(Level1Term::NominalDef(def)) => {
+                        match reader.get_nominal_def(*def) {
+                            NominalDef::Struct(struct_def) => match struct_def.fields {
+                                StructFields::Explicit(params) => {
+                                    let members = reader.get_params(params);
+                                    let tys = members.positional().iter().map(|member| member.ty).collect_vec();
+
+                                    Fields::wildcards_from_tys(ctx.new_from(), tys)
+                                }
+                                StructFields::Opaque => tc_panic!(
+                                    ctx.ty,
+                                    ctx,
+                                    "Unexpected ty `{}` when getting wildcards in Fields::wildcards",
+                                    ctx.for_fmt(ctx.ty),
+                                ),
+                            },
+                            // @@Remove: when enums aren't represented as this anymore
+                            NominalDef::Enum(_) => todo!(),
+                        }
+                    }
+                    _ => tc_panic!(
+                        ctx.ty,
+                        ctx,
+                        "Unexpected ty `{}` when getting wildcards in Fields::wildcards",
+                        ctx.for_fmt(ctx.ty),
+                    ),
+                }
+            }
+            Constructor::List(list) => {
+                let arity = list.arity();
+
+                // Use the oracle to get the inner term `T` for the type...
+                let ty = todo!();
+
+                Fields::wildcards_from_tys(ctx.new_from(), (0..arity).map(|_| ty))
+            }
             Constructor::Str(..)
             | Constructor::IntRange(..)
             | Constructor::NonExhaustive
@@ -876,13 +951,13 @@ impl<'p, 'gs, 'ls, 'cd, 's> DeconstructedPat<'p> {
     /// Create a new wildcard [DeconstructedPat], primarily used when
     /// performing specialisations.
     pub(super) fn wildcard(ty: TermId) -> Self {
-        Self::new(Constructor::Wildcard, Fields::empty(), ty, DUMMY_SPAN)
+        Self::new(Constructor::Wildcard, Fields::empty(), ty, Span::dummy())
     }
 
     pub(super) fn wild_from_ctor(mut ctx: PatCtx<'gs, 'ls, 'cd, 's>, ctor: Constructor) -> Self {
         let fields = Fields::wildcards(ctx.new_from(), &ctor);
 
-        DeconstructedPat::new(ctor, fields, ctx.ty, DUMMY_SPAN)
+        DeconstructedPat::new(ctor, fields, ctx.ty, Span::dummy())
     }
 
     /// Clone this [DeconstructedPat] whilst also forgetting the reachability.
@@ -946,7 +1021,7 @@ impl<'p, 'gs, 'ls, 'cd, 's> DeconstructedPat<'p> {
                         let fields = Fields::from_iter(ctx.new_from(), wilds);
                         (Constructor::Single, fields)
                     }
-                    Term::Level0(Level0Term::Constructed(ConstructedTerm { subject, members })) => {
+                    Term::Level0(Level0Term::Constructed(ConstructedTerm { members, .. })) => {
                         let ctor = match pat.kind.as_ref() {
                             PatKind::Variant { index, .. } => Constructor::Variant(*index),
                             PatKind::Leaf { .. } => Constructor::Single,
@@ -1015,21 +1090,21 @@ impl<'p, 'gs, 'ls, 'cd, 's> DeconstructedPat<'p> {
     }
 
     pub(crate) fn to_pat(&self, mut ctx: PatCtx<'gs, 'ls, 'cd, 's>) -> Pat {
-        let mut children = self.iter_fields().map(|p| p.to_pat(ctx.new_from())).collect_vec();
+        let children = self.iter_fields().map(|p| p.to_pat(ctx.new_from())).collect_vec();
 
         let kind = match &self.ctor {
             ctor @ (Constructor::Single | Constructor::Variant(_)) => {
                 let reader = ctx.reader();
 
                 match reader.get_term(self.ty) {
-                    Term::Level0(Level0Term::Tuple(TupleLit { members })) => PatKind::Leaf {
+                    Term::Level0(Level0Term::Tuple(_)) => PatKind::Leaf {
                         pats: children
                             .into_iter()
                             .enumerate()
                             .map(|(index, pat)| FieldPat { index, pat })
                             .collect(),
                     },
-                    Term::Level0(Level0Term::Constructed(ConstructedTerm { subject, members })) => {
+                    Term::Level0(Level0Term::Constructed(ConstructedTerm { subject, .. })) => {
                         match reader.get_term(*subject) {
                             Term::Level1(Level1Term::NominalDef(id)) => {
                                 let nominal_def = reader.get_nominal_def(*id);
@@ -1069,10 +1144,10 @@ impl<'p, 'gs, 'ls, 'cd, 's> DeconstructedPat<'p> {
             Constructor::IntRange(range) => range.to_pat(ctx),
             Constructor::Str(value) => PatKind::Str { value: *value },
             Constructor::List(List { kind }) => match kind {
-                ListKind::Fixed(size) => {
+                ListKind::Fixed(_) => {
                     PatKind::List { prefix: children, spread: None, suffix: vec![] }
                 }
-                ListKind::Var(prefix, suffix) => {
+                ListKind::Var(prefix, _) => {
                     let mut children = children.into_iter().peekable();
 
                     // build the prefix and suffix components
@@ -1080,8 +1155,11 @@ impl<'p, 'gs, 'ls, 'cd, 's> DeconstructedPat<'p> {
                     let suffix: Vec<_> = children.collect();
 
                     // Create the `spread` dummy pattern
-                    let spread =
-                        Pat { span: DUMMY_SPAN, kind: Box::new(PatKind::Spread), has_guard: false };
+                    let spread = Pat {
+                        span: Span::dummy(),
+                        kind: Box::new(PatKind::Spread),
+                        has_guard: false,
+                    };
 
                     PatKind::List { prefix, spread: Some(spread), suffix }
                 }
@@ -1101,18 +1179,30 @@ impl<'p, 'gs, 'ls, 'cd, 's> DeconstructedPat<'p> {
         matches!(self.ctor, Constructor::Or)
     }
 
+    /// Function to get the constructor of the [DeconstructedPat]
     pub(super) fn ctor(&self) -> &Constructor {
         &self.ctor
     }
 
+    /// Function to get the `span` of the [DeconstructedPat]
     pub(super) fn span(&self) -> Span {
         self.span
     }
 
+    /// Function to get the `ty` of the [DeconstructedPat]
+    pub(super) fn ty(&self) -> TermId {
+        self.ty
+    }
+
+    /// Iterate the `fields` of [DeconstructedPat]
     pub(super) fn iter_fields<'a>(&'a self) -> impl Iterator<Item = &'p DeconstructedPat<'p>> {
         self.fields.iter_patterns()
     }
 
+    /// Perform a `specialisation` on the current [DeconstructedPat]. This means
+    /// that for a particular other constructor, this [DeconstructedPat]
+    /// will be turned into multiple `specialised` variants of the
+    /// constructor,
     pub(super) fn specialise<'a>(
         &'a self,
         ctx: PatCtx<'gs, 'ls, 'cd, 's>,

@@ -3,16 +3,12 @@ use crate::SourceId;
 use derive_more::Constructor;
 use std::{convert::TryInto, fmt};
 
-/// This is used as a filler span when generating constructors that
-/// fill in patterns.
-pub const DUMMY_SPAN: Span = Span(0, 0);
-
 /// Enum representing a location of a token within the source.
 ///
 /// The first element of the tuple represents the starting byte offset and the
 /// second element represents the ending byte offset.
 #[derive(Debug, Eq, Hash, Clone, Copy, PartialEq)]
-pub struct Span(pub u32, pub u32);
+pub struct Span(u32, u32);
 
 /// General functions to create [Span] variants
 impl Span {
@@ -63,6 +59,12 @@ impl Span {
     /// Compute the actual size of the span by subtracting the end from start
     pub fn size(&self) -> usize {
         self.end() - self.start()
+    }
+
+    /// Get a dummy [Span] that is used as a default value
+    #[inline]
+    pub fn dummy() -> Span {
+        Span(0, 0)
     }
 }
 

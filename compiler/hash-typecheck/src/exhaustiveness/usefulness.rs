@@ -1,11 +1,13 @@
-use std::fmt;
+use std::{fmt, iter::once};
 
-use hash_source::location::{Span, DUMMY_SPAN};
+use hash_source::location::Span;
+use hash_utils::stack::ensure_sufficient_stack;
+use itertools::Itertools;
 use smallvec::{smallvec, SmallVec};
 
-use crate::storage::primitives::TermId;
+use crate::storage::{primitives::TermId, AccessToStorageMut, StorageRefMut};
 
-use super::deconstruct::{Constructor, DeconstructedPat, Fields, PatCtx};
+use super::deconstruct::{Constructor, DeconstructedPat, Fields, PatCtx, SplitWildcard};
 
 #[derive(Debug)]
 pub(crate) struct Witness<'p>(Vec<DeconstructedPat<'p>>);
@@ -39,7 +41,7 @@ impl<'p, 'gs, 'ls, 'cd, 's> Witness<'p> {
             let pats = self.0.drain((len - arity)..).rev();
             let fields = Fields::from_iter(ctx.new_from(), pats);
 
-            DeconstructedPat::new(ctor.clone(), fields, ctx.ty, DUMMY_SPAN)
+            DeconstructedPat::new(ctor.clone(), fields, ctx.ty, Span::dummy())
         };
 
         self.0.push(pat);
@@ -216,7 +218,7 @@ enum Usefulness<'p> {
     WithWitnesses(Vec<Witness<'p>>),
 }
 
-impl<'p> Usefulness<'p> {
+impl<'p, 'gs, 'ls, 'cd, 's> Usefulness<'p> {
     /// Create a `useful` [Usefulness] report.
     fn new_useful(preference: MatchArmKind) -> Self {
         match preference {
@@ -265,11 +267,58 @@ impl<'p> Usefulness<'p> {
     /// with the results of specializing with the other constructors.
     fn apply_constructor(
         self,
-        // pcx: PatCtxt<'_, 'p, 'tcx>,
-        _matrix: &Matrix<'p>, // used to compute missing ctors
-        _ctor: &Constructor,
+        mut ctx: PatCtx<'gs, 'ls, 'cd, 's>,
+        matrix: &Matrix<'p>, // used to compute missing ctors
+        ctor: &Constructor,
     ) -> Self {
-        todo!()
+        match self {
+            Usefulness::NoWitnesses { .. } => self,
+            Usefulness::WithWitnesses(ref witnesses) if witnesses.is_empty() => self,
+            Usefulness::WithWitnesses(witnesses) => {
+                let new_witnesses = if let Constructor::Missing = ctor {
+                    // We got the special `Missing` constructor, so each of the
+                    // missing constructors gives a new
+                    // pattern that is not caught by the match. We list those
+                    // patterns.
+                    let mut split_wildcard = SplitWildcard::new(ctx.new_from());
+                    split_wildcard
+                        .split(ctx.new_from(), matrix.heads().map(DeconstructedPat::ctor));
+
+                    // Get all the missing constructors for the current type
+                    let missing_ctors = split_wildcard.iter_missing(ctx.new_from()).collect_vec();
+
+                    let new_pats = missing_ctors
+                        .into_iter()
+                        .map(|missing_ctor| {
+                            DeconstructedPat::wild_from_ctor(ctx.new_from(), missing_ctor.clone())
+                        })
+                        .collect_vec();
+
+                    witnesses
+                        .into_iter()
+                        .flat_map(|witness| {
+                            new_pats.iter().map(move |pat| {
+                                Witness(
+                                    witness
+                                        .0
+                                        .iter()
+                                        .chain(once(pat))
+                                        .map(DeconstructedPat::clone_and_forget_reachability)
+                                        .collect(),
+                                )
+                            })
+                        })
+                        .collect()
+                } else {
+                    witnesses
+                        .into_iter()
+                        .map(|witness| witness.apply_constructor(ctx.new_from(), ctor))
+                        .collect()
+                };
+
+                Usefulness::WithWitnesses(new_witnesses)
+            }
+        }
     }
 }
 
@@ -296,21 +345,105 @@ impl<'p> Usefulness<'p> {
 /// `is_under_guard` is used to inform if the pattern has a guard. If it
 /// has one it must not be inserted into the matrix. This shouldn't be
 /// relied on for soundness.
-fn is_useful<'p>(
-    // cx: &MatchCheckCtxt<'p, 'tcx>,
-    _matrix: &Matrix<'p>,
-    _v: &PatStack<'p>,
-    _arm_kind: MatchArmKind,
-    _is_under_guard: bool,
-    _is_top_level: bool,
+fn is_useful<'p, 'gs, 'ls, 'cd, 's>(
+    mut storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
+    matrix: &Matrix<'p>,
+    v: &PatStack<'p>,
+    arm_kind: MatchArmKind,
+    is_under_guard: bool,
+    is_top_level: bool,
 ) -> Usefulness<'p> {
-    todo!()
+    let Matrix { patterns: rows, .. } = matrix;
+
+    // The base case. We are pattern-matching on () and the return value is
+    // based on whether our matrix has a row or not.
+    if v.is_empty() {
+        let ret = if rows.is_empty() {
+            Usefulness::new_useful(arm_kind)
+        } else {
+            Usefulness::new_not_useful(arm_kind)
+        };
+
+        return ret;
+    }
+
+    let ty = v.head().ty();
+    let span = v.head().span();
+
+    // Create a new `PatCtx`, based on on the provided parameters
+    let mut ctx = PatCtx::new(storage.storages_mut(), ty, span, is_top_level);
+    let mut report = Usefulness::new_not_useful(arm_kind);
+
+    // If the first pattern is an or-pattern, expand it.
+    if v.head().is_or_pat() {
+        // We try each or-pattern branch in turn.
+        let mut matrix = matrix.clone();
+
+        for v in v.expand_or_pat() {
+            let usefulness = ensure_sufficient_stack(|| {
+                is_useful(storage.storages_mut(), &matrix, &v, arm_kind, is_under_guard, false)
+            });
+
+            report.extend(usefulness);
+
+            // @@Todo: deal with `if-guards` on the patterns themselves.
+            //
+            // If the pattern has a guard don't add it to the matrix, but otherwise
+            // just push it into the matrix, it doesn't matter if it has already
+            // been seen in the current `or` pattern since we want to detect
+            // redundant members within the or pattern as well... for example:
+            //
+            // ``` Ok(_) | Ok(3) => ...; ```
+            //
+            if !is_under_guard {
+                matrix.push(v);
+            }
+        }
+    } else {
+        let v_ctor = v.head().ctor();
+
+        // @@Todo: we should check that int ranges don't overlap here, in case
+        // they're partially covered by other ranges.
+
+        // We split the head constructor of `v`.
+        let split_ctors = v_ctor.split(ctx.new_from(), matrix.heads().map(DeconstructedPat::ctor));
+        let start_matrix = &matrix;
+
+        // For each constructor, we compute whether there's a value that starts with it
+        // that would witness the usefulness of `v`.
+        for ctor in split_ctors {
+            // cache the result of `Fields::wildcards` because it is used a lot.
+            let spec_matrix = start_matrix.specialize_constructor(ctx.new_from(), &ctor);
+            let v = v.pop_head_constructor(ctx.new_from(), &ctor);
+
+            let usefulness = ensure_sufficient_stack(|| {
+                is_useful(
+                    ctx.new_from().storages_mut(),
+                    &spec_matrix,
+                    &v,
+                    arm_kind,
+                    is_under_guard,
+                    false,
+                )
+            });
+
+            let usefulness = usefulness.apply_constructor(ctx.new_from(), start_matrix, &ctor);
+            report.extend(usefulness);
+        }
+    }
+
+    if report.is_useful() {
+        v.head().set_reachable();
+    }
+
+    report
 }
 
 /// Enum used to represent the kind of match arm that is being
 /// checked for usefulness. This exists in order to be able to
 /// inject a `dummy` match-arm to collect witnesses of patterns
 /// that the branch will capture.
+#[derive(Debug, Clone, Copy)]
 pub enum MatchArmKind {
     /// This is used as a `dummy` kind of arm in order to
     /// detect any witnesses that haven't been picked up when
@@ -352,7 +485,8 @@ pub(crate) struct UsefulnessReport<'p> {
     pub(crate) non_exhaustiveness_witnesses: Vec<DeconstructedPat<'p>>,
 }
 
-pub(crate) fn compute_match_usefulness<'p>(
+pub(crate) fn compute_match_usefulness<'p, 'gs, 'ls, 'cd, 's>(
+    mut storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
     _subject: TermId,
     arms: &[MatchArm<'p>],
 ) -> UsefulnessReport<'p> {
@@ -364,7 +498,7 @@ pub(crate) fn compute_match_usefulness<'p>(
         .copied()
         .map(|arm| {
             let v = PatStack::singleton(arm.pat);
-            is_useful(&matrix, &v, MatchArmKind::Real, arm.has_guard, true);
+            is_useful(storage.storages_mut(), &matrix, &v, MatchArmKind::Real, arm.has_guard, true);
 
             // We still compute the usefulness of if-guard patterns, but we don't
             // add them into the matrix since we can't guarantee that they
@@ -386,7 +520,7 @@ pub(crate) fn compute_match_usefulness<'p>(
     // let wildcard = ...;
     // let v = PatStack::singleton(v);
     let v = PatStack::from_vec(smallvec![]);
-    let usefulness = is_useful(&matrix, &v, MatchArmKind::ExhaustiveWildcard, false, true);
+    let usefulness = is_useful(storage, &matrix, &v, MatchArmKind::ExhaustiveWildcard, false, true);
 
     // It should not be possible to not get any witnesses since we're matching
     // on a wildcard, the base case is that `pats` is empty and thus the
