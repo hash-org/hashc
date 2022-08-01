@@ -45,7 +45,6 @@
 #![allow(dead_code)]
 mod constant;
 pub(crate) mod deconstruct;
-pub(crate) mod pat_arena;
 pub(crate) mod usefulness;
 
 use std::fmt::Display;

@@ -1232,8 +1232,12 @@ new_key_type! {
 }
 
 new_key_type! {
-    /// The ID of a [ParamsPat]
+    /// The ID of a [PatArgs]
     pub struct PatArgsId;
+}
+
+new_key_type! {
+    pub struct DeconstructedPatFieldsId;
 }
 
 /// The ID of a [UnresolvedTerm], separate from its [TermId], stored in

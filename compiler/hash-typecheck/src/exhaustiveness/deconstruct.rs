@@ -30,7 +30,7 @@ use crate::{
     storage::{
         primitives::{
             ConstructedTerm, Level0Term, Level1Term, LitTerm, NominalDef, StructFields, Term,
-            TermId, TupleLit, TupleTy,
+            TermId, TupleLit, TupleTy, DeconstructedPatFieldsId,
         },
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
@@ -40,7 +40,7 @@ use super::{constant::Constant, FieldPat, Pat, RangeEnd};
 
 pub struct PatCtx<'gs, 'ls, 'cd, 's> {
     /// Reference to the typechecker storage
-    storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
+    pub storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
     /// The term of the current column that is under investigation
     pub ty: TermId,
     /// Span of the current pattern under investigation.
@@ -535,20 +535,14 @@ impl<'gs, 'ls, 'cd, 's> SplitWildcard {
 
     /// Iterate over the constructors for this type that are not present in the
     /// matrix.
-    pub(super) fn iter_missing<'a, 'p>(
+    pub(super) fn iter_missing<'a>(
         &'a self,
         mut ctx: PatCtx<'gs, 'ls, 'cd, 's>,
-    ) -> impl Iterator<Item = &'a Constructor> + 'p
-    where
-        'gs: 'p,
-        'ls: 'p,
-        'cd: 'p,
-        's: 'p,
-        'a: 'p,
+    ) -> impl Iterator<Item = &'a Constructor>
     {
         self.all_ctors
             .iter()
-            .filter(move |ctor| !ctor.is_covered_by_any(ctx.new_from(), &self.matrix_ctors))
+            // .filter(move |ctor| !ctor.is_covered_by_any(ctx.new_from(), &self.matrix_ctors))
     }
 
     fn into_ctors(self, mut ctx: PatCtx<'gs, 'ls, 'cd, 's>) -> SmallVec<[Constructor; 1]> {
@@ -827,23 +821,31 @@ impl<'gs, 'ls, 'cd, 's> Constructor {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(super) struct Fields<'p> {
-    fields: &'p [DeconstructedPat<'p>],
+pub(super) struct Fields {
+    fields: DeconstructedPatFieldsId
 }
 
-impl<'p, 'gs, 'ls, 'cd, 's> Fields<'p> {
+impl<'gs, 'ls, 'cd, 's> Fields {
     fn empty() -> Self {
-        Fields { fields: &[] }
+        // Fields { fields: &[] }
+        todo!()
     }
 
     /// Returns the list of patterns.
-    pub(super) fn iter_patterns<'a>(&'a self) -> impl Iterator<Item = &'p DeconstructedPat<'p>> {
-        self.fields.iter()
+    pub(super) fn iter_patterns(&self, ctx: StorageRefMut<'gs, 'ls, 'cd, 's>) -> impl Iterator<Item = &'gs DeconstructedPat> {
+        self.pats(ctx).iter()
+    }
+
+    /// Get a reference to the stored [DeconstructedPat]s within the [fields].
+    pub fn pats(&self, ctx: StorageRefMut<'gs, 'ls, 'cd, 's>) -> &'gs [DeconstructedPat] {
+        let reader = ctx.reader();
+
+        reader.get_deconstructed_pat_fields(self.fields).as_slice()
     }
 
     pub(super) fn from_iter(
         mut ctx: PatCtx<'gs, 'ls, 'cd, 's>,
-        fields: impl IntoIterator<Item = DeconstructedPat<'p>>,
+        fields: impl IntoIterator<Item = DeconstructedPat>,
     ) -> Self {
         // let fields: &[_] = cx.pattern_arena.alloc_from_iter(fields);
         // Fields { fields }
@@ -926,12 +928,12 @@ impl<'p, 'gs, 'ls, 'cd, 's> Fields<'p> {
 /// @@Todo: Implement `fmt` for the deconstructed pat as this is what will be
 /// used         for displaying these patterns.
 #[derive(Debug)]
-pub(crate) struct DeconstructedPat<'p> {
+pub(crate) struct DeconstructedPat {
     /// The subject of the [DeconstructedPat].
     ctor: Constructor,
     /// Any fields that are applying to the subject of the
     /// [DeconstructedPat]
-    fields: Fields<'p>,
+    fields: Fields,
     /// The type of the current deconstructed pattern
     ty: TermId,
     /// The [Span] of the current pattern.
@@ -940,8 +942,8 @@ pub(crate) struct DeconstructedPat<'p> {
     reachable: Cell<bool>,
 }
 
-impl<'p, 'gs, 'ls, 'cd, 's> DeconstructedPat<'p> {
-    pub(super) fn new(ctor: Constructor, fields: Fields<'p>, ty: TermId, span: Span) -> Self {
+impl<'gs, 'ls, 'cd, 's> DeconstructedPat {
+    pub(super) fn new(ctor: Constructor, fields: Fields, ty: TermId, span: Span) -> Self {
         DeconstructedPat { ctor, fields, span, ty, reachable: Cell::new(false) }
     }
 
@@ -964,7 +966,7 @@ impl<'p, 'gs, 'ls, 'cd, 's> DeconstructedPat<'p> {
 
     /// Expand an `or` pattern into a passed [Vec], whilst also
     /// applying the same operation on children patterns.
-    fn expand(pat: &'p Pat, vec: &mut Vec<&'p Pat>) {
+    fn expand<'p>(pat: &'p Pat, vec: &mut Vec<&'p Pat>) {
         if let PatKind::Or { pats } = pat.kind.as_ref() {
             for pat in pats {
                 Self::expand(pat, vec);
@@ -977,15 +979,14 @@ impl<'p, 'gs, 'ls, 'cd, 's> DeconstructedPat<'p> {
     /// Internal use for expanding an [PatKind::Or] into children
     /// patterns. This will also expand any children that are `or`
     /// patterns.
-    fn flatten_or_pat(pat: &'p Pat) -> Vec<&'p Pat> {
+    fn flatten_or_pat<'p>(pat: &'p Pat) -> Vec<&'p Pat> {
         let mut pats = Vec::new();
         Self::expand(pat, &mut pats);
         pats
     }
 
     /// Convert a [Pat] into a [DeconstructedPat].
-    pub(crate) fn from_pat(mut ctx: PatCtx<'gs, 'ls, 'cd, 's>, pat: &'p Pat) -> Self {
-        // let make_pat = |ctx, pat| DeconstructedPat::from_pat(ctx, pat);
+    pub(crate) fn from_pat<'p>(mut ctx: PatCtx<'gs, 'ls, 'cd, 's>, pat: &'p Pat) -> Self {
 
         // @@Todo: support int, and float ranges
         let (ctor, fields) = match pat.kind.as_ref() {
@@ -1087,7 +1088,7 @@ impl<'p, 'gs, 'ls, 'cd, 's> DeconstructedPat<'p> {
     }
 
     pub(crate) fn to_pat(&self, mut ctx: PatCtx<'gs, 'ls, 'cd, 's>) -> Pat {
-        let children = self.iter_fields().map(|p| p.to_pat(ctx.new_from())).collect_vec();
+        let children = self.iter_fields(ctx.storages_mut()).map(|p| p.to_pat(ctx.new_from())).collect_vec();
 
         let kind = match &self.ctor {
             ctor @ (Constructor::Single | Constructor::Variant(_)) => {
@@ -1192,8 +1193,8 @@ impl<'p, 'gs, 'ls, 'cd, 's> DeconstructedPat<'p> {
     }
 
     /// Iterate the `fields` of [DeconstructedPat]
-    pub(super) fn iter_fields<'a>(&'a self) -> impl Iterator<Item = &'p DeconstructedPat<'p>> {
-        self.fields.iter_patterns()
+    pub(super) fn iter_fields(&self, ctx: StorageRefMut<'gs, 'ls, 'cd, 's>) -> impl Iterator<Item = &'gs DeconstructedPat> {
+        self.fields.iter_patterns(ctx)
     }
 
     /// Perform a `specialisation` on the current [DeconstructedPat]. This means
@@ -1202,13 +1203,13 @@ impl<'p, 'gs, 'ls, 'cd, 's> DeconstructedPat<'p> {
     /// constructor,
     pub(super) fn specialise<'a>(
         &'a self,
-        ctx: PatCtx<'gs, 'ls, 'cd, 's>,
+        mut ctx: PatCtx<'gs, 'ls, 'cd, 's>,
         other_ctor: &Constructor,
-    ) -> SmallVec<[&'p DeconstructedPat<'p>; 2]> {
+    ) -> SmallVec<[&'gs DeconstructedPat; 2]> {
         match (&self.ctor, other_ctor) {
             (Constructor::Wildcard, _) => {
                 // We return a wildcard for each field of `other_ctor`.
-                Fields::wildcards(ctx, other_ctor).iter_patterns().collect()
+                Fields::wildcards(ctx.new_from(), other_ctor).iter_patterns(ctx.storages_mut()).collect()
             }
             (Constructor::List(self_list), Constructor::List(other_list))
                 if self_list.arity() != other_list.arity() =>
@@ -1224,8 +1225,8 @@ impl<'p, 'gs, 'ls, 'cd, 's> DeconstructedPat<'p> {
                     ListKind::Var(prefix, suffix) => {
                         // @@Todo: we will need to get the inner `ty` of the list
 
-                        let prefix = &self.fields.fields[..prefix];
-                        let suffix = &self.fields.fields[self_list.arity() - suffix..];
+                        let prefix = &self.fields.pats(ctx.storages_mut())[..prefix];
+                        let suffix = &self.fields.pats(ctx.storages_mut())[self_list.arity() - suffix..];
 
                         todo!()
                         // let wildcard: &_ = &DeconstructedPat::wildcard();
@@ -1238,7 +1239,7 @@ impl<'p, 'gs, 'ls, 'cd, 's> DeconstructedPat<'p> {
                     }
                 }
             }
-            _ => self.fields.iter_patterns().collect(),
+            _ => self.fields.iter_patterns(ctx.storages_mut()).collect(),
         }
     }
 
@@ -1253,20 +1254,20 @@ impl<'p, 'gs, 'ls, 'cd, 's> DeconstructedPat<'p> {
     }
 
     /// Report the spans of sub-patterns that were not reachable, if any.
-    pub(super) fn unreachable_spans(&self) -> Vec<Span> {
+    pub(super) fn unreachable_spans(&self, ctx: StorageRefMut<'gs, 'ls, 'cd, 's>) -> Vec<Span> {
         let mut spans = Vec::new();
-        self.collect_unreachable_spans(&mut spans);
+        self.collect_unreachable_spans(ctx, &mut spans);
         spans
     }
 
-    fn collect_unreachable_spans(&self, spans: &mut Vec<Span>) {
+    fn collect_unreachable_spans(&self, mut ctx: StorageRefMut<'gs, 'ls, 'cd, 's>, spans: &mut Vec<Span>) {
         // We don't look at sub-patterns if we already reported the whole pattern as
         // unreachable.
         if !self.is_reachable() {
             spans.push(self.span);
         } else {
-            for p in self.iter_fields() {
-                p.collect_unreachable_spans(spans);
+            for p in self.iter_fields(ctx.storages_mut()) {
+                p.collect_unreachable_spans(ctx.storages_mut(), spans);
             }
         }
     }

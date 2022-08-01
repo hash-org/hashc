@@ -1,13 +1,13 @@
 //! Contains helpers to read various things stored in [crate::storage] with
 //! ease.
 
-use crate::storage::{
+use crate::{storage::{
     primitives::{
         Args, ArgsId, ModDef, ModDefId, NominalDef, NominalDefId, Params, ParamsId, Pat, PatArgs,
-        PatArgsId, PatId, Scope, ScopeId, Term, TermId, TrtDef, TrtDefId,
+        PatArgsId, PatId, Scope, ScopeId, Term, TermId, TrtDef, TrtDefId, DeconstructedPatFieldsId,
     },
     GlobalStorage,
-};
+}, exhaustiveness::deconstruct::DeconstructedPat};
 
 /// Helper to read various primitive constructions (from
 /// [crate::storage::primitives]).
@@ -64,6 +64,11 @@ impl<'gs> PrimitiveReader<'gs> {
     /// Get the [PatArgs] with the given [PatArgsId].
     pub fn get_pat_args(&self, id: PatArgsId) -> &PatArgs {
         self.gs.pat_args_store.get(id)
+    }
+
+    /// Get the [Fields] with the given [DeconstructedPatFieldsId].
+    pub fn get_deconstructed_pat_fields(&self, id: DeconstructedPatFieldsId) -> &Vec<DeconstructedPat> {
+        self.gs.pat_fields_store.get(id)
     }
 
     /// Get the trait definition with the given [TrtDefId].

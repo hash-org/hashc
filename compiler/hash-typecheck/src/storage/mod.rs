@@ -7,27 +7,6 @@
 //! because it is only accessible from one file, whereas a type definition will
 //! be in [GlobalStorage] because it can be accessed from any file (with the
 //! appropriate import).
-use std::cell::Cell;
-
-use hash_source::{SourceId, SourceMap};
-
-use crate::fmt::{ForFormatting, PrepareForFormatting};
-
-use self::{
-    arguments::ArgsStore,
-    cache::Cache,
-    core::CoreDefs,
-    location::LocationStore,
-    mods::ModDefStore,
-    nominals::NominalDefStore,
-    params::ParamsStore,
-    pats::{PatArgsStore, PatStore},
-    primitives::{Scope, ScopeId, ScopeKind},
-    scope::{ScopeStack, ScopeStore},
-    sources::CheckedSources,
-    terms::TermStore,
-    trts::TrtDefStore,
-};
 
 pub mod arguments;
 pub mod cache;
@@ -42,6 +21,26 @@ pub mod scope;
 pub mod sources;
 pub mod terms;
 pub mod trts;
+pub mod deconstructed_pat;
+
+use std::cell::Cell;
+use hash_source::{SourceId, SourceMap};
+use crate::fmt::{ForFormatting, PrepareForFormatting};
+use self::{
+    arguments::ArgsStore,
+    cache::Cache,
+    core::CoreDefs,
+    location::LocationStore,
+    mods::ModDefStore,
+    nominals::NominalDefStore,
+    params::ParamsStore,
+    pats::{PatArgsStore, PatStore},
+    primitives::{Scope, ScopeId, ScopeKind},
+    scope::{ScopeStack, ScopeStore},
+    sources::CheckedSources,
+    terms::TermStore,
+    trts::TrtDefStore, deconstructed_pat::DeconstructedPatStore,
+};
 
 /// Keeps track of typechecking information across all source files.
 #[derive(Debug)]
@@ -57,6 +56,9 @@ pub struct GlobalStorage {
     pub pat_store: PatStore,
     pub pat_args_store: PatArgsStore,
     pub checked_sources: CheckedSources,
+    
+    /// Pattern fields from [DeconstructedPat]
+    pub pat_fields_store: DeconstructedPatStore,
 
     /// The typechecking cache, contains cached simplification, validation
     /// and unification results
@@ -84,6 +86,7 @@ impl GlobalStorage {
             nominal_def_store: NominalDefStore::new(),
             pat_store: PatStore::new(),
             pat_args_store: PatArgsStore::new(),
+            pat_fields_store: DeconstructedPatStore::new(),
             checked_sources: CheckedSources::new(),
             root_scope,
             params_store: ParamsStore::new(),

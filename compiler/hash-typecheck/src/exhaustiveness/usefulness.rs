@@ -10,11 +10,11 @@ use crate::storage::{primitives::TermId, AccessToStorageMut, StorageRefMut};
 use super::deconstruct::{Constructor, DeconstructedPat, Fields, PatCtx, SplitWildcard};
 
 #[derive(Debug)]
-pub(crate) struct Witness<'p>(Vec<DeconstructedPat<'p>>);
+pub(crate) struct Witness(Vec<DeconstructedPat>);
 
-impl<'p, 'gs, 'ls, 'cd, 's> Witness<'p> {
+impl<'gs, 'ls, 'cd, 's> Witness {
     /// Asserts that the witness contains a single pattern, and returns it.
-    fn single_pattern(self) -> DeconstructedPat<'p> {
+    fn single_pattern(self) -> DeconstructedPat {
         assert_eq!(self.0.len(), 1);
         self.0.into_iter().next().unwrap()
     }
@@ -53,17 +53,17 @@ impl<'p, 'gs, 'ls, 'cd, 's> Witness<'p> {
 /// 2]` works well.
 #[derive(Clone)]
 struct PatStack<'p> {
-    pats: SmallVec<[&'p DeconstructedPat<'p>; 2]>,
+    pats: SmallVec<[&'p DeconstructedPat; 2]>,
 }
 
-impl<'p, 'gs, 'ls, 'cd, 's> PatStack<'p> {
+impl<'gs> PatStack<'gs> {
     /// Construct a [PatStack] with a single pattern.
-    fn singleton(pat: &'p DeconstructedPat<'p>) -> Self {
+    fn singleton(pat: &'gs DeconstructedPat) -> Self {
         Self::from_vec(smallvec![pat])
     }
 
     /// Construct a [PatStack] from a [SmallVec].
-    fn from_vec(vec: SmallVec<[&'p DeconstructedPat<'p>; 2]>) -> Self {
+    fn from_vec(vec: SmallVec<[&'gs DeconstructedPat; 2]>) -> Self {
         PatStack { pats: vec }
     }
 
@@ -78,12 +78,12 @@ impl<'p, 'gs, 'ls, 'cd, 's> PatStack<'p> {
     }
 
     /// Get the head of the current [PatStack]
-    fn head(&self) -> &'p DeconstructedPat<'p> {
+    fn head(&self) -> &'gs DeconstructedPat {
         self.pats[0]
     }
 
     /// Iterate over the items within the [PatStack].
-    fn iter(&self) -> impl Iterator<Item = &DeconstructedPat<'p>> {
+    fn iter(&self) -> impl Iterator<Item = &DeconstructedPat> {
         self.pats.iter().copied()
     }
 
@@ -91,8 +91,8 @@ impl<'p, 'gs, 'ls, 'cd, 's> PatStack<'p> {
     /// if the pattern is an or-pattern.
     ///
     /// Panics if `self` is empty.
-    fn expand_or_pat<'a>(&'a self) -> impl Iterator<Item = PatStack<'p>> + 'a {
-        self.head().iter_fields().map(move |pat| {
+    fn expand_or_pat<'a>(&'a self, ctx: StorageRefMut<'gs, '_, '_, '_>) -> impl Iterator<Item = PatStack<'gs>> + 'a {
+        self.head().iter_fields(ctx).map(move |pat| {
             let mut new_stack = PatStack::singleton(pat);
             new_stack.pats.extend_from_slice(&self.pats[1..]);
             new_stack
@@ -109,12 +109,12 @@ impl<'p, 'gs, 'ls, 'cd, 's> PatStack<'p> {
     /// This is roughly the inverse of `Constructor::apply`.
     fn pop_head_constructor(
         &self,
-        ctx: PatCtx<'gs, 'ls, 'cd, 's>,
+        mut ctx: PatCtx<'gs, '_, '_, '_>,
         ctor: &Constructor,
-    ) -> PatStack<'p> {
+    ) -> PatStack<'gs> {
         // We pop the head pattern and push the new fields extracted from the arguments
         // of `self.head()`.
-        let mut new_fields: SmallVec<[_; 2]> = self.head().specialise(ctx, ctor);
+        let mut new_fields: SmallVec<[_; 2]> = self.head().specialise(ctx.new_from(), ctor);
         new_fields.extend_from_slice(&self.pats[1..]);
 
         PatStack::from_vec(new_fields)
@@ -127,7 +127,7 @@ pub(super) struct Matrix<'p> {
     patterns: Vec<PatStack<'p>>,
 }
 
-impl<'p, 'gs, 'ls, 'cd, 's> Matrix<'p> {
+impl<'gs> Matrix<'gs> {
     /// Create a new [Matrix] with zero rows and columns.
     fn empty() -> Self {
         Matrix { patterns: vec![] }
@@ -140,16 +140,16 @@ impl<'p, 'gs, 'ls, 'cd, 's> Matrix<'p> {
 
     /// Pushes a new row to the matrix. If the row starts with an or-pattern,
     /// this recursively expands it.
-    fn push(&mut self, row: PatStack<'p>) {
+    fn push(&mut self, ctx: StorageRefMut<'gs, '_, '_, '_>, row: PatStack<'gs>) {
         if !row.is_empty() && row.head().is_or_pat() {
-            self.patterns.extend(row.expand_or_pat());
+            self.patterns.extend(row.expand_or_pat(ctx));
         } else {
             self.patterns.push(row);
         }
     }
 
     /// Iterate over the first component of each row
-    fn heads<'a>(&'a self) -> impl Iterator<Item = &'p DeconstructedPat<'p>> + Clone + 'a {
+    fn heads<'a>(&'a self) -> impl Iterator<Item = &'gs DeconstructedPat> + Clone + 'a {
         self.patterns.iter().map(|r| r.head())
     }
 
@@ -157,15 +157,15 @@ impl<'p, 'gs, 'ls, 'cd, 's> Matrix<'p> {
     /// explanations.
     fn specialize_constructor(
         &self,
-        mut ctx: PatCtx<'gs, 'ls, 'cd, 's>,
+        mut ctx: PatCtx<'gs, '_, '_, '_>,
         ctor: &Constructor,
-    ) -> Matrix<'p> {
+    ) -> Matrix<'gs> {
         let mut matrix = Matrix::empty();
 
         for row in &self.patterns {
             if ctor.is_covered_by(ctx.new_from(), row.head().ctor()) {
                 let new_row = row.pop_head_constructor(ctx.new_from(), ctor);
-                matrix.push(new_row);
+                matrix.push(ctx.storages_mut(), new_row);
             }
         }
         matrix
@@ -209,16 +209,16 @@ impl<'p> fmt::Debug for Matrix<'p> {
 }
 
 #[derive(Debug)]
-enum Usefulness<'p> {
+enum Usefulness {
     /// If we don't care about witnesses, simply remember if the pattern was
     /// useful.
     NoWitnesses { useful: bool },
     /// Carries a list of witnesses of non-exhaustiveness. If empty, indicates
     /// that the whole pattern is unreachable.
-    WithWitnesses(Vec<Witness<'p>>),
+    WithWitnesses(Vec<Witness>),
 }
 
-impl<'p, 'gs, 'ls, 'cd, 's> Usefulness<'p> {
+impl<'gs, 'ls, 'cd, 's> Usefulness {
     /// Create a `useful` [Usefulness] report.
     fn new_useful(preference: MatchArmKind) -> Self {
         match preference {
@@ -268,7 +268,7 @@ impl<'p, 'gs, 'ls, 'cd, 's> Usefulness<'p> {
     fn apply_constructor(
         self,
         mut ctx: PatCtx<'gs, 'ls, 'cd, 's>,
-        matrix: &Matrix<'p>, // used to compute missing ctors
+        matrix: &Matrix<'gs>, // used to compute missing ctors
         ctor: &Constructor,
     ) -> Self {
         match self {
@@ -345,14 +345,14 @@ impl<'p, 'gs, 'ls, 'cd, 's> Usefulness<'p> {
 /// `is_under_guard` is used to inform if the pattern has a guard. If it
 /// has one it must not be inserted into the matrix. This shouldn't be
 /// relied on for soundness.
-fn is_useful<'p, 'gs, 'ls, 'cd, 's>(
+fn is_useful<'gs, 'ls, 'cd, 's>(
     mut storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
-    matrix: &Matrix<'p>,
-    v: &PatStack<'p>,
+    matrix: &Matrix<'gs>,
+    v: &PatStack<'gs>,
     arm_kind: MatchArmKind,
     is_under_guard: bool,
     is_top_level: bool,
-) -> Usefulness<'p> {
+) -> Usefulness {
     let Matrix { patterns: rows, .. } = matrix;
 
     // The base case. We are pattern-matching on () and the return value is
@@ -379,7 +379,7 @@ fn is_useful<'p, 'gs, 'ls, 'cd, 's>(
         // We try each or-pattern branch in turn.
         let mut matrix = matrix.clone();
 
-        for v in v.expand_or_pat() {
+        for v in v.expand_or_pat(storage.storages_mut()) {
             let usefulness = ensure_sufficient_stack(|| {
                 is_useful(storage.storages_mut(), &matrix, &v, arm_kind, is_under_guard, false)
             });
@@ -396,7 +396,7 @@ fn is_useful<'p, 'gs, 'ls, 'cd, 's>(
             // ``` Ok(_) | Ok(3) => ...; ```
             //
             if !is_under_guard {
-                matrix.push(v);
+                matrix.push(storage.storages_mut(), v);
             }
         }
     } else {
@@ -459,7 +459,7 @@ pub enum MatchArmKind {
 pub(crate) struct MatchArm<'p> {
     /// The pattern must have been lowered through
     /// `check_match::MatchVisitor::lower_pattern`.
-    pub(crate) pat: &'p DeconstructedPat<'p>,
+    pub(crate) pat: &'p DeconstructedPat,
     pub(crate) has_guard: bool,
 }
 
@@ -482,14 +482,14 @@ pub(crate) struct UsefulnessReport<'p> {
     pub(crate) arm_usefulness: Vec<(MatchArm<'p>, Reachability)>,
     /// If the match is exhaustive, this is empty. If not, this contains
     /// witnesses for the lack of exhaustiveness.
-    pub(crate) non_exhaustiveness_witnesses: Vec<DeconstructedPat<'p>>,
+    pub(crate) non_exhaustiveness_witnesses: Vec<DeconstructedPat>,
 }
 
-pub(crate) fn compute_match_usefulness<'p, 'gs, 'ls, 'cd, 's>(
+pub(crate) fn compute_match_usefulness<'gs, 'ls, 'cd, 's>(
     mut storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
     _subject: TermId,
-    arms: &[MatchArm<'p>],
-) -> UsefulnessReport<'p> {
+    arms: &[MatchArm<'gs>],
+) -> UsefulnessReport<'gs> {
     let mut matrix = Matrix::empty();
 
     // Compute usefulness for each arm in the match
@@ -504,11 +504,11 @@ pub(crate) fn compute_match_usefulness<'p, 'gs, 'ls, 'cd, 's>(
             // add them into the matrix since we can't guarantee that they
             // yield all possible conditions
             if !arm.has_guard {
-                matrix.push(v);
+                matrix.push(storage.storages_mut(), v);
             }
 
             let reachability = if arm.pat.is_reachable() {
-                Reachability::Reachable(arm.pat.unreachable_spans())
+                Reachability::Reachable(arm.pat.unreachable_spans(storage.storages_mut()))
             } else {
                 Reachability::Unreachable
             };
@@ -520,7 +520,7 @@ pub(crate) fn compute_match_usefulness<'p, 'gs, 'ls, 'cd, 's>(
     // let wildcard = ...;
     // let v = PatStack::singleton(v);
     let v = PatStack::from_vec(smallvec![]);
-    let usefulness = is_useful(storage, &matrix, &v, MatchArmKind::ExhaustiveWildcard, false, true);
+    let usefulness = is_useful(storage.storages_mut(), &matrix, &v, MatchArmKind::ExhaustiveWildcard, false, true);
 
     // It should not be possible to not get any witnesses since we're matching
     // on a wildcard, the base case is that `pats` is empty and thus the
