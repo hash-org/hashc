@@ -14,8 +14,8 @@ use crate::{
     ops::{validate::TermValidation, AccessToOpsMut},
     storage::{
         primitives::{
-            AccessOp, AccessPat, ConstPat, ConstructorPat, IfPat, ListPat, Member, MemberData,
-            ModPat, Mutability, Param, Pat, PatArg, PatId, SpreadPat, TermId,
+            AccessOp, AccessPat, ConstPat, ConstructorPat, IfPat, ListPat, Member, ModPat,
+            Mutability, Param, Pat, PatArg, PatId, SpreadPat, TermId,
         },
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
@@ -59,10 +59,13 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
         let mut names: HashSet<Identifier> = HashSet::new();
 
         for (member, pat) in members.iter() {
-            if names.contains(&member.name) {
-                return Err(TcError::IdentifierBoundMultipleTimes { name: member.name, pat: *pat });
+            if names.contains(&member.name()) {
+                return Err(TcError::IdentifierBoundMultipleTimes {
+                    name: member.name(),
+                    pat: *pat,
+                });
             } else {
-                names.insert(member.name);
+                names.insert(member.name());
             }
         }
 
@@ -79,10 +82,7 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
         &self,
         members: &[(Member, PatId)],
     ) -> HashMap<Identifier, (TermId, PatId)> {
-        members
-            .iter()
-            .map(|(member, pat)| (member.name, (member.data.ty().unwrap(), *pat)))
-            .collect()
+        members.iter().map(|(member, pat)| (member.name(), (member.ty(), *pat))).collect()
     }
 
     /// Function to check that the inner patterns of a [Pat::Or] adhere to the
@@ -165,11 +165,7 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
         let bound_members = match pat {
             // Binding: Add the binding as a member
             Pat::Binding(binding) => Ok(Some(vec![(
-                Member::variable(
-                    binding.name,
-                    MemberData::from_ty_and_value(Some(term_ty_id), Some(simplified_term_id)),
-                    binding.mutability,
-                ),
+                Member::variable(binding.name, binding.mutability, term_ty_id, simplified_term_id),
                 pat_id,
             )])),
             Pat::Access(AccessPat { subject, property }) => {
@@ -374,11 +370,9 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
                     Ok(Some(vec![(
                         Member::variable(
                             name,
-                            MemberData::from_ty_and_value(
-                                Some(term_ty_id),
-                                Some(simplified_term_id),
-                            ),
                             Mutability::Immutable,
+                            term_ty_id,
+                            simplified_term_id,
                         ),
                         pat_id,
                     )]))

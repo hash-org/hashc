@@ -8,7 +8,7 @@
 use hash_ast::ast::ParamOrigin;
 
 use super::{
-    primitives::{ModDefOrigin, NominalDefId, ScopeKind, TermId, TrtDefId, Visibility},
+    primitives::{ScopeKind, TermId},
     GlobalStorage,
 };
 use crate::ops::building::PrimitiveBuilder;
@@ -46,6 +46,9 @@ pub struct CoreDefs {
 impl CoreDefs {
     /// Create the core language type and trait definitions in the given
     /// [GlobalStorage], and add their symbols to the root scope.
+
+    //@@Temp
+    #[allow(unused)]
     pub fn new(global_storage: &mut GlobalStorage) -> Self {
         // @@Safety: core defs have not been filled in global_storage, don't access
         // global_storage.core_defs()!
@@ -153,238 +156,246 @@ impl CoreDefs {
             builder.create_nominal_def_term(builder.create_nameless_opaque_struct_def()),
         );
 
-        // @@Incomplete: these traits should take ref self, not self.
+        // @@Todo
+        todo!()
 
-        // Hash and Eq traits
-        let hash_trt = builder.create_trt_def(
-            Some("Hash"),
-            builder.create_scope(
-                ScopeKind::Constant,
-                [
-                    builder.create_uninitialised_constant_member(
-                        "Self",
-                        ty_term,
-                        Visibility::Public,
-                    ),
-                    builder.create_uninitialised_constant_member(
-                        "hash",
-                        builder.create_fn_ty_term(
-                            builder.create_params(
-                                [builder.create_param("value", builder.create_var_term("Self"))],
-                                ParamOrigin::Fn,
-                            ),
-                            builder.create_nominal_def_term(u64_ty),
-                        ),
-                        Visibility::Public,
-                    ),
-                ],
-            ),
-        );
-        let eq_trt = builder.create_trt_def(
-            Some("Eq"),
-            builder.create_scope(
-                ScopeKind::Constant,
-                [
-                    builder.create_uninitialised_constant_member(
-                        "Self",
-                        ty_term,
-                        Visibility::Public,
-                    ),
-                    builder.create_uninitialised_constant_member(
-                        "eq",
-                        builder.create_fn_ty_term(
-                            builder.create_params(
-                                [
-                                    builder.create_param("a", builder.create_var_term("Self")),
-                                    builder.create_param("b", builder.create_var_term("Self")),
-                                ],
-                                ParamOrigin::Fn,
-                            ),
-                            builder.create_nominal_def_term(u64_ty),
-                        ),
-                        Visibility::Public,
-                    ),
-                ],
-            ),
-        );
+        // // @@Incomplete: these traits should take ref self, not self.
 
-        // Index trait
-        let index_trt = builder.create_trt_def(
-            Some("Index"),
-            builder.create_scope(
-                ScopeKind::Constant,
-                [
-                    builder.create_uninitialised_constant_member(
-                        "Self",
-                        ty_term,
-                        Visibility::Public,
-                    ),
-                    builder.create_uninitialised_constant_member(
-                        "Index",
-                        ty_term,
-                        Visibility::Public,
-                    ),
-                    builder.create_uninitialised_constant_member(
-                        "Output",
-                        ty_term,
-                        Visibility::Public,
-                    ),
-                    builder.create_uninitialised_constant_member(
-                        "index",
-                        builder.create_fn_ty_term(
-                            builder.create_params(
-                                [
-                                    builder.create_param("self", builder.create_var_term("Self")),
-                                    builder.create_param("index", builder.create_var_term("Index")),
-                                ],
-                                ParamOrigin::Fn,
-                            ),
-                            builder.create_var_term("Output"),
-                        ),
-                        Visibility::Public,
-                    ),
-                ],
-            ),
-        );
+        // // Hash and Eq traits
+        // let hash_trt = builder.create_trt_def(
+        //     Some("Hash"),
+        //     builder.create_scope(
+        //         ScopeKind::Constant,
+        //         [
+        //             builder.create_uninitialised_constant_member(
+        //                 "Self",
+        //                 ty_term,
+        //                 Visibility::Public,
+        //             ),
+        //             builder.create_uninitialised_constant_member(
+        //                 "hash",
+        //                 builder.create_fn_ty_term(
+        //                     builder.create_params(
+        //                         [builder.create_param("value",
+        // builder.create_var_term("Self"))],
+        // ParamOrigin::Fn,                     ),
+        //                     builder.create_nominal_def_term(u64_ty),
+        //                 ),
+        //                 Visibility::Public,
+        //             ),
+        //         ],
+        //     ),
+        // );
+        // let eq_trt = builder.create_trt_def(
+        //     Some("Eq"),
+        //     builder.create_scope(
+        //         ScopeKind::Constant,
+        //         [
+        //             builder.create_uninitialised_constant_member(
+        //                 "Self",
+        //                 ty_term,
+        //                 Visibility::Public,
+        //             ),
+        //             builder.create_uninitialised_constant_member(
+        //                 "eq",
+        //                 builder.create_fn_ty_term(
+        //                     builder.create_params(
+        //                         [
+        //                             builder.create_param("a",
+        // builder.create_var_term("Self")),
+        // builder.create_param("b", builder.create_var_term("Self")),
+        //                         ],
+        //                         ParamOrigin::Fn,
+        //                     ),
+        //                     builder.create_nominal_def_term(u64_ty),
+        //                 ),
+        //                 Visibility::Public,
+        //             ),
+        //         ],
+        //     ),
+        // );
 
-        // Collection types
-        let index_trt_term = builder.create_trt_term(index_trt);
-        let list_index_impl = builder.create_nameless_mod_def(
-            ModDefOrigin::TrtImpl(index_trt_term),
-            builder.create_scope(
-                ScopeKind::Constant,
-                [
-                    builder.create_constant_member(
-                        "Self",
-                        ty_term,
-                        builder.create_app_ty_fn_term(
-                            builder.create_var_term("List"),
-                            builder.create_args(
-                                [builder.create_nameless_arg(builder.create_var_term("T"))],
-                                ParamOrigin::TyFn,
-                            ),
-                        ),
-                        Visibility::Public,
-                    ),
-                    builder.create_constant_member(
-                        "Index",
-                        ty_term,
-                        // @@Todo: change this to use usize once we have a better way of inferring
-                        // numerics.
-                        builder.create_nominal_def_term(i32_ty),
-                        Visibility::Public,
-                    ),
-                    builder.create_constant_member(
-                        "Output",
-                        ty_term,
-                        builder.create_var_term("T"),
-                        Visibility::Public,
-                    ),
-                    builder.create_constant_member(
-                        "index",
-                        builder.create_fn_ty_term(
-                            builder.create_params(
-                                [
-                                    builder.create_param("self", builder.create_var_term("Self")),
-                                    builder.create_param("index", builder.create_var_term("Index")),
-                                ],
-                                ParamOrigin::Fn,
-                            ),
-                            builder.create_var_term("Output"),
-                        ),
-                        builder.create_fn_lit_term(
-                            builder.create_fn_ty_term(
-                                builder.create_params(
-                                    [
-                                        builder
-                                            .create_param("self", builder.create_var_term("Self")),
-                                        builder.create_param(
-                                            "index",
-                                            builder.create_var_term("Index"),
-                                        ),
-                                    ],
-                                    ParamOrigin::Fn,
-                                ),
-                                builder.create_var_term("Output"),
-                            ),
-                            builder.create_rt_term(builder.create_var_term("Output")),
-                        ),
-                        Visibility::Public,
-                    ),
-                ],
-            ),
-        );
-        let list_ty_fn = builder.create_ty_fn_term(
-            Some("List"),
-            builder.create_params([builder.create_param("T", ty_term)], ParamOrigin::TyFn),
-            ty_term,
-            builder.create_merge_term([
-                builder.create_nominal_def_term(builder.create_nameless_opaque_struct_def()),
-                builder.create_mod_def_term(list_index_impl),
-            ]),
-        );
+        // // Index trait
+        // let index_trt = builder.create_trt_def(
+        //     Some("Index"),
+        //     builder.create_scope(
+        //         ScopeKind::Constant,
+        //         [
+        //             builder.create_uninitialised_constant_member(
+        //                 "Self",
+        //                 ty_term,
+        //                 Visibility::Public,
+        //             ),
+        //             builder.create_uninitialised_constant_member(
+        //                 "Index",
+        //                 ty_term,
+        //                 Visibility::Public,
+        //             ),
+        //             builder.create_uninitialised_constant_member(
+        //                 "Output",
+        //                 ty_term,
+        //                 Visibility::Public,
+        //             ),
+        //             builder.create_uninitialised_constant_member(
+        //                 "index",
+        //                 builder.create_fn_ty_term(
+        //                     builder.create_params(
+        //                         [
+        //                             builder.create_param("self",
+        // builder.create_var_term("Self")),
+        // builder.create_param("index", builder.create_var_term("Index")),
+        //                         ],
+        //                         ParamOrigin::Fn,
+        //                     ),
+        //                     builder.create_var_term("Output"),
+        //                 ),
+        //                 Visibility::Public,
+        //             ),
+        //         ],
+        //     ),
+        // );
 
-        let set_ty_fn = builder.create_ty_fn_term(
-            Some("Set"),
-            builder.create_params(
-                [builder.create_param(
-                    "T",
-                    builder.create_merge_term([
-                        builder.create_trt_term(hash_trt),
-                        builder.create_trt_term(eq_trt),
-                    ]),
-                )],
-                ParamOrigin::TyFn,
-            ),
-            ty_term,
-            builder.create_nominal_def_term(builder.create_nameless_opaque_struct_def()),
-        );
+        // // Collection types
+        // let index_trt_term = builder.create_trt_term(index_trt);
+        // let list_index_impl = builder.create_nameless_mod_def(
+        //     ModDefOrigin::TrtImpl(index_trt_term),
+        //     builder.create_scope(
+        //         ScopeKind::Constant,
+        //         [
+        //             builder.create_constant_member(
+        //                 "Self",
+        //                 ty_term,
+        //                 builder.create_app_ty_fn_term(
+        //                     builder.create_var_term("List"),
+        //                     builder.create_args(
+        //
+        // [builder.create_nameless_arg(builder.create_var_term("T"))],
+        //                         ParamOrigin::TyFn,
+        //                     ),
+        //                 ),
+        //                 Visibility::Public,
+        //             ),
+        //             builder.create_constant_member(
+        //                 "Index",
+        //                 ty_term,
+        //                 // @@Todo: change this to use usize once we have a
+        // better way of inferring                 // numerics.
+        //                 builder.create_nominal_def_term(i32_ty),
+        //                 Visibility::Public,
+        //             ),
+        //             builder.create_constant_member(
+        //                 "Output",
+        //                 ty_term,
+        //                 builder.create_var_term("T"),
+        //                 Visibility::Public,
+        //             ),
+        //             builder.create_constant_member(
+        //                 "index",
+        //                 builder.create_fn_ty_term(
+        //                     builder.create_params(
+        //                         [
+        //                             builder.create_param("self",
+        // builder.create_var_term("Self")),
+        // builder.create_param("index", builder.create_var_term("Index")),
+        //                         ],
+        //                         ParamOrigin::Fn,
+        //                     ),
+        //                     builder.create_var_term("Output"),
+        //                 ),
+        //                 builder.create_fn_lit_term(
+        //                     builder.create_fn_ty_term(
+        //                         builder.create_params(
+        //                             [
+        //                                 builder
+        //                                     .create_param("self",
+        // builder.create_var_term("Self")),
+        // builder.create_param(
+        // "index",
+        // builder.create_var_term("Index"),
+        // ),                             ],
+        //                             ParamOrigin::Fn,
+        //                         ),
+        //                         builder.create_var_term("Output"),
+        //                     ),
+        //
+        // builder.create_rt_term(builder.create_var_term("Output")),
+        //                 ),
+        //                 Visibility::Public,
+        //             ),
+        //         ],
+        //     ),
+        // );
+        // let list_ty_fn = builder.create_ty_fn_term(
+        //     Some("List"),
+        //     builder.create_params([builder.create_param("T", ty_term)],
+        // ParamOrigin::TyFn),     ty_term,
+        //     builder.create_merge_term([
+        //         builder.create_nominal_def_term(builder.
+        // create_nameless_opaque_struct_def()),         builder.
+        // create_mod_def_term(list_index_impl),     ]),
+        // );
 
-        let map_ty_fn = builder.create_ty_fn_term(
-            Some("Map"),
-            builder.create_params(
-                [
-                    builder.create_param(
-                        "K",
-                        builder.create_merge_term([
-                            builder.create_trt_term(hash_trt),
-                            builder.create_trt_term(eq_trt),
-                        ]),
-                    ),
-                    builder.create_param("V", ty_term),
-                ],
-                ParamOrigin::TyFn,
-            ),
-            ty_term,
-            builder.create_nominal_def_term(builder.create_nameless_opaque_struct_def()),
-        );
+        // let set_ty_fn = builder.create_ty_fn_term(
+        //     Some("Set"),
+        //     builder.create_params(
+        //         [builder.create_param(
+        //             "T",
+        //             builder.create_merge_term([
+        //                 builder.create_trt_term(hash_trt),
+        //                 builder.create_trt_term(eq_trt),
+        //             ]),
+        //         )],
+        //         ParamOrigin::TyFn,
+        //     ),
+        //     ty_term,
+        //     builder.create_nominal_def_term(builder.
+        // create_nameless_opaque_struct_def()), );
 
-        Self {
-            str_ty,
-            list_ty_fn,
-            map_ty_fn,
-            set_ty_fn,
-            i8_ty,
-            i16_ty,
-            i32_ty,
-            i64_ty,
-            u8_ty,
-            u16_ty,
-            u32_ty,
-            u64_ty,
-            f32_ty,
-            f64_ty,
-            char_ty,
-            bool_ty,
-            any_ty,
-            reference_ty_fn,
-            raw_reference_mut_ty_fn,
-            raw_reference_ty_fn,
-            reference_mut_ty_fn,
-            hash_trt,
-            eq_trt,
-            index_trt,
-            runtime_instantiable_trt,
-        }
+        // let map_ty_fn = builder.create_ty_fn_term(
+        //     Some("Map"),
+        //     builder.create_params(
+        //         [
+        //             builder.create_param(
+        //                 "K",
+        //                 builder.create_merge_term([
+        //                     builder.create_trt_term(hash_trt),
+        //                     builder.create_trt_term(eq_trt),
+        //                 ]),
+        //             ),
+        //             builder.create_param("V", ty_term),
+        //         ],
+        //         ParamOrigin::TyFn,
+        //     ),
+        //     ty_term,
+        //     builder.create_nominal_def_term(builder.
+        // create_nameless_opaque_struct_def()), );
+
+        // Self {
+        //     str_ty,
+        //     list_ty_fn,
+        //     map_ty_fn,
+        //     set_ty_fn,
+        //     i8_ty,
+        //     i16_ty,
+        //     i32_ty,
+        //     i64_ty,
+        //     u8_ty,
+        //     u16_ty,
+        //     u32_ty,
+        //     u64_ty,
+        //     f32_ty,
+        //     f64_ty,
+        //     char_ty,
+        //     bool_ty,
+        //     any_ty,
+        //     reference_ty_fn,
+        //     raw_reference_mut_ty_fn,
+        //     raw_reference_ty_fn,
+        //     reference_mut_ty_fn,
+        //     hash_trt,
+        //     eq_trt,
+        //     index_trt,
+        //     runtime_instantiable_trt,
+        // }
     }
 }

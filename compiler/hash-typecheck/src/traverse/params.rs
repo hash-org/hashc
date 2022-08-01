@@ -87,7 +87,7 @@ impl<'gs, 'ls, 'cd, 'src> TcVisitor<'gs, 'ls, 'cd, 'src> {
         // The type of the param is the given bound, or Type if no bound was
         // given.
         let runtime_instantiable_trt = self.core_defs().runtime_instantiable_trt;
-        let ty = ty.unwrap_or_else(|| self.builder().create_trt_term(runtime_instantiable_trt));
+        let ty = ty.unwrap_or(runtime_instantiable_trt);
 
         self.location_store_mut().add_location_to_target(ty, location);
 

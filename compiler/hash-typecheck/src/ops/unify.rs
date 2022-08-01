@@ -1,7 +1,5 @@
 //! Utilities related to type unification and substitution.
-use super::{
-    params::pair_args_with_params, typing::InferredMemberData, AccessToOps, AccessToOpsMut,
-};
+use super::{params::pair_args_with_params, AccessToOps, AccessToOpsMut};
 use crate::{
     diagnostics::{
         error::{TcError, TcResult},
@@ -304,23 +302,16 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
         for name in a_names {
             let (a_member, _) = scope_a.get(name).unwrap();
             let (b_member, _) = scope_b.get(name).unwrap();
-            let a_data = self.typer().infer_member_ty(a_member.data).unwrap();
-            let b_data = self.typer().infer_member_ty(b_member.data).unwrap();
-            match (a_data, b_data) {
-                (
-                    InferredMemberData { ty: a_ty, value: Some(a_value) },
-                    InferredMemberData { ty: b_ty, value: Some(b_value) },
-                ) => {
-                    if !self.terms_are_equal(a_ty, b_ty) || !self.terms_are_equal(a_value, b_value)
+            match (a_member.value(), b_member.value()) {
+                (Some(a_value), Some(b_value)) => {
+                    if !self.terms_are_equal(a_member.ty(), b_member.ty())
+                        || !self.terms_are_equal(a_value, b_value)
                     {
                         return false;
                     }
                 }
-                (
-                    InferredMemberData { ty: a_ty, value: None },
-                    InferredMemberData { ty: b_ty, value: None },
-                ) => {
-                    if !self.terms_are_equal(a_ty, b_ty) {
+                (None, None) => {
+                    if !self.terms_are_equal(a_member.ty(), b_member.ty()) {
                         return false;
                     }
                 }

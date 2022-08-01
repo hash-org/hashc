@@ -9,9 +9,8 @@ use crate::{
     storage::{
         location::{IndexedLocationTarget, LocationTarget},
         primitives::{
-            AccessOp, Arg, ArgsId, BindingPat, ConstPat, EnumVariant, Member, MemberData,
-            ModDefOrigin, Mutability, Param, Pat, PatArg, PatId, ScopeKind, SpreadPat, Sub, TermId,
-            Visibility,
+            AccessOp, Arg, ArgsId, BindingPat, ConstPat, EnumVariant, Member, ModDefOrigin,
+            Mutability, Param, Pat, PatArg, PatId, ScopeKind, SpreadPat, Sub, TermId, Visibility,
         },
         AccessToStorage, AccessToStorageMut, LocalStorage, StorageRef, StorageRefMut,
     },
@@ -374,8 +373,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::FloatLit>,
     ) -> Result<Self::FloatLitRet, Self::Error> {
         let f32_def = self.core_defs().f32_ty;
-        let ty = self.builder().create_nominal_def_term(f32_def);
-        let term = self.builder().create_rt_term(ty);
+        let term = self.builder().create_rt_term(f32_def);
 
         // add the location of the term to the location storage
         self.copy_location_from_node_to_target(node, term);
@@ -1591,13 +1589,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
                 }
             }
             None => {
-                if let Pat::Binding(BindingPat { name, mutability, visibility }) = pat {
+                if let Pat::Binding(BindingPat { name, mutability: _, visibility }) = pat {
                     // Add the member without a value:
-                    vec![Member::bound(
-                        name,
-                        visibility,
-                        mutability,
-                        MemberData::from_ty_and_value(Some(ty), None),
+
+                    // @@Todo: differentiate between different kinds of members more appropriately:
+                    vec![Member::open_constant(
+                        name, visibility, // mutability,
+                        ty, None,
                     )]
                 } else {
                     // If there is no value, one cannot use pattern matching!

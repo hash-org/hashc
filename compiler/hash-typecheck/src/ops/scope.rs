@@ -9,8 +9,8 @@ use crate::{
     },
     storage::{
         primitives::{
-            ArgsId, BoundVar, Member, MemberData, MemberKind, Mutability, ParamsId, ScopeId,
-            ScopeKind, ScopeMember, ScopeVar, TermId, Visibility,
+            ArgsId, BoundVar, Member, Mutability, ParamsId, ScopeId, ScopeKind, ScopeMember,
+            ScopeVar, TermId,
         },
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
@@ -239,9 +239,8 @@ impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
         let member = self.scope_store_mut().get_mut(scope_id).get_by_index(index);
 
         // Unify types:
-        let member_data = self.typer().infer_member_ty(member.data)?;
         let rhs_ty = self.typer().infer_ty_of_term(value)?;
-        let _ = self.unifier().unify_terms(rhs_ty, member_data.ty)?;
+        let _ = self.unifier().unify_terms(rhs_ty, member.ty())?;
 
         let member = self.scope_store_mut().get_mut(scope_id).get_mut_by_index(index);
         // @@Todo: add back once this is property implemented
@@ -249,28 +248,21 @@ impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
         //     tc_panic!(value, self, "Cannot assign to closed member");
         // }
 
-        match &mut member.kind {
-            MemberKind::Bound(_) => {
+        match member {
+            Member::Bound(_) | Member::SetBound(_) => {
                 // @@Todo: refine this error
                 Err(TcError::InvalidAssignSubject { location: (scope_id, index).into() })
             }
-            MemberKind::Variable(_) => {
-                match member.data {
-                    MemberData::Uninitialised { .. } => {
-                        member.data = MemberData::InitialisedWithInferredTy { value }
-                    }
-                    MemberData::InitialisedWithTy { ty, .. } => {
-                        member.data = MemberData::InitialisedWithTy { value, ty }
-                    }
-                    MemberData::InitialisedWithInferredTy { .. } => {
-                        member.data = MemberData::InitialisedWithInferredTy { value }
-                    }
-                }
+            Member::Variable(variable) => {
+                // Assign
+                // @@Todo: check if mutable
+                variable.value = value;
                 Ok(())
             }
-            MemberKind::Constant(_) => {
-                // @@Todo
-                todo!()
+            Member::Constant(constant) => {
+                // @@Todo implement this properly
+                constant.set_value(value);
+                Ok(())
             }
         }
     }

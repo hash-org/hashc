@@ -6,10 +6,10 @@ use crate::storage::{
         AccessOp, AccessPat, AccessTerm, Arg, ArgsId, BindingPat, BoundVar, ConstPat,
         ConstructedTerm, ConstructorPat, EnumDef, EnumVariant, EnumVariantValue, FnCall, FnLit,
         FnTy, IfPat, Level0Term, Level1Term, Level2Term, Level3Term, ListPat, LitTerm, Member,
-        MemberData, ModDef, ModDefId, ModDefOrigin, ModPat, Mutability, NominalDef, NominalDefId,
-        Param, ParamList, ParamsId, Pat, PatArg, PatArgsId, PatId, Scope, ScopeId, ScopeKind,
-        ScopeVar, SetBound, StructDef, StructFields, Term, TermId, TrtDef, TrtDefId, TupleLit,
-        TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy, UnresolvedTerm, Var, Visibility,
+        ModDef, ModDefId, ModDefOrigin, ModPat, Mutability, NominalDef, NominalDefId, Param,
+        ParamList, ParamsId, Pat, PatArg, PatArgsId, PatId, Scope, ScopeId, ScopeKind, ScopeVar,
+        SetBound, StructDef, StructFields, Term, TermId, TrtDef, TrtDefId, TupleLit, TupleTy, TyFn,
+        TyFnCall, TyFnCase, TyFnTy, UnresolvedTerm, Var, Visibility,
     },
     GlobalStorage,
 };
@@ -244,11 +244,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
     ///
     /// All other methods call this one to actually add members to the scope.
     pub fn add_pub_member_to_scope(&self, name: impl Into<Identifier>, ty: TermId, value: TermId) {
-        let member = Member::open_constant(
-            name.into(),
-            MemberData::InitialisedWithTy { ty, value },
-            Visibility::Public,
-        );
+        let member = Member::open_constant(name.into(), Visibility::Public, ty, Some(value));
         if let Some(scope) = self.scope.get() {
             self.gs.borrow_mut().scope_store.get_mut(scope).add(member);
         }

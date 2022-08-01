@@ -11,8 +11,8 @@ use crate::{
     storage::{
         primitives::{
             AccessOp, AccessPat, Arg, ArgsId, ConstPat, ConstructedTerm, Level0Term, Level1Term,
-            Level2Term, Level3Term, ListPat, LitTerm, Member, MemberData, ModDefOrigin, NominalDef,
-            Param, ParamsId, Pat, PatArgsId, PatId, StructFields, Term, TermId,
+            Level2Term, Level3Term, ListPat, LitTerm, Member, ModDefOrigin, NominalDef, Param,
+            ParamsId, Pat, PatArgsId, PatId, StructFields, Term, TermId,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -64,13 +64,6 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
         // Record an entry in the cache about the inferred term
         self.cacher().add_inference_entry(term, new_term);
         Ok(new_term)
-    }
-
-    /// Infer the type of the given member, if it does not already exist.
-    ///
-    /// *Note*: Assumes the term is validated.
-    pub(crate) fn infer_member_ty(&mut self, member: Member) -> TcResult<TermId> {
-        todo!()
     }
 
     /// Get the type of the given term, given that it is simplified, as another
@@ -140,7 +133,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                 // The type of a variable can be found by looking at the scopes to its
                 // declaration:
                 let var_member = self.scope_manager().resolve_name_in_scopes(var.name, term_id)?;
-                Ok(self.infer_member_ty(var_member.member)?)
+                Ok(var_member.member.ty())
             }
             Term::TyFn(ty_fn) => {
                 // The type of a type function is a type function type:
@@ -203,7 +196,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                     // The type of any nominal def, function type, or tuple type, is
                     // "RuntimeInstantiable":
                     let rt_instantiable_def = self.core_defs().runtime_instantiable_trt;
-                    Ok(self.builder().create_trt_term(rt_instantiable_def))
+                    Ok(rt_instantiable_def)
                 }
             },
             Term::Level0(level0_term) => {
@@ -248,17 +241,17 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                 // @@Correctness: is there a point here when we should default to typeof()
                 // wrapping instead?
                 let member = self.scope_manager().get_bound_var_member(bound_var, term_id);
-                let inferred_data = self.infer_member_ty(member.member.data)?;
-                Ok(inferred_data.ty)
+                Ok(member.member.ty())
             }
             Term::ScopeVar(scope_var) => {
                 let scope_member = self.scope_manager().get_scope_var_member(scope_var);
-                match scope_member.member.data.value() {
-                    // @@Redundancy: the second check should imply the first?
-                    Some(value) if scope_member.member.is_closed_and_non_bound() => {
-                        self.infer_ty_of_term(value)
-                    }
-                    _ => Ok(self.builder().create_ty_of_term(term_id)),
+                match scope_member.member {
+                    Member::Bound(_) => Ok(self.builder().create_ty_of_term(term_id)),
+                    Member::Constant(constant) => Ok(constant
+                        .if_closed(|_| Some(constant.ty))
+                        .unwrap_or_else(|| self.builder().create_ty_of_term(term_id))),
+                    Member::SetBound(set_bound) => Ok(set_bound.ty),
+                    Member::Variable(variable) => Ok(variable.ty),
                 }
             }
             Term::Root | Term::TyOf(_) => {

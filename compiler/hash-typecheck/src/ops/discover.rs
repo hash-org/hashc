@@ -4,8 +4,8 @@ use crate::{
     storage::{
         primitives::{
             AccessTerm, Arg, ArgsId, BoundVar, Level0Term, Level1Term, Level2Term, Level3Term,
-            NominalDef, Param, ParamsId, ScopeId, StructDef, StructFields, Sub, SubVar, Term,
-            TermId, TyFn, TyFnCase,
+            Member, NominalDef, Param, ParamsId, ScopeId, StructDef, StructFields, Sub, SubVar,
+            Term, TermId, TyFn, TyFnCase,
         },
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
@@ -413,10 +413,8 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
         let reader = self.reader();
         let scope = reader.get_scope(scope);
         for member in scope.iter() {
-            if let Some(ty) = member.data.ty() {
-                self.add_free_bound_vars_in_term_to_set(ty, result)
-            }
-            if let Some(value) = member.data.value() {
+            self.add_free_bound_vars_in_term_to_set(member.ty(), result);
+            if let Some(value) = member.value() {
                 self.add_free_bound_vars_in_term_to_set(value, result)
             }
         }
@@ -720,14 +718,17 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
                 } else {
                     // Try to resolve the bound var
                     match self.reader().get_scope(set_bound_scope_id).get(var.name) {
-                        Some(member) => {
-                            let value = member.0.data.value().unwrap_or_else(|| {
-                                tc_panic!(
-                                    term_id,
-                                    self,
-                                    "Found bound var in set bound scope, but it has no value"
-                                )
-                            });
+                        Some((member, _)) => {
+                            let value = match member {
+                                Member::SetBound(set_bound) => set_bound.value,
+                                _ => {
+                                    tc_panic!(
+                                        term_id,
+                                        self,
+                                        "Found non set bound member in set bound scope"
+                                    )
+                                }
+                            };
                             // @@Correctness: do we need to recurse here?
                             Ok(Some(self.apply_set_bound_to_term_with_flag(
                                 set_bound_scope_id,
@@ -1087,7 +1088,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
                     // Wrap in set scope, filtered by having only the vars that appear in the term.
                     let filtered_set_bound_scope_id =
                         self.scope_manager().filter_scope(set_bound_scope_id, |member| {
-                            vars.contains(&BoundVar { name: member.name })
+                            vars.contains(&BoundVar { name: member.name() })
                         });
                     Ok(Some(
                         self.builder().create_set_bound_term(term_id, filtered_set_bound_scope_id),

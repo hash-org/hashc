@@ -58,7 +58,7 @@ pub struct VariableMember {
 
 /// A constant scope member.
 ///
-/// Should be part of a [ScopeKind::Constant].
+/// Should be part of a [ScopeKind::Constant] or [ScopeKind::Variable].
 ///
 /// Has a flag as to whether the member is closed (can be substituted by its
 /// value -- think referential transparency).
@@ -76,6 +76,19 @@ impl ConstantMember {
     /// Get the value of the constant member
     pub(crate) fn value(&self) -> Option<TermId> {
         self.value_and_is_closed.map(|(value, _)| value)
+    }
+
+    /// Get the given property of the constant member if it is closed
+    pub(crate) fn if_closed<T>(&self, f: impl FnOnce(TermId) -> Option<T>) -> Option<T> {
+        match self.value_and_is_closed {
+            Some((value, true)) => f(value),
+            _ => None,
+        }
+    }
+
+    /// Set the value of the constant member
+    pub(crate) fn set_value(&mut self, new_value: TermId) {
+        let _ = self.value_and_is_closed.insert((new_value, false));
     }
 
     /// Whether the constant member is closed.
@@ -97,20 +110,32 @@ impl Member {
     /// Get the name of the member
     pub fn name(&self) -> Identifier {
         match self {
-            Member::Bound(BoundMember { name, .. }) => *name,
-            Member::SetBound(SetBoundMember { name, .. }) => *name,
-            Member::Variable(VariableMember { name, .. }) => *name,
-            Member::Constant(ConstantMember { name, .. }) => *name,
+            Member::Bound(BoundMember { name, .. })
+            | Member::SetBound(SetBoundMember { name, .. })
+            | Member::Variable(VariableMember { name, .. })
+            | Member::Constant(ConstantMember { name, .. }) => *name,
         }
     }
 
     /// Get the type of the member
-    pub fn ty(&self) -> Option<TermId> {
+    pub fn ty(&self) -> TermId {
         match self {
-            Member::Bound(BoundMember { ty, .. }) => Some(*ty),
-            Member::SetBound(SetBoundMember { ty, .. }) => Some(*ty),
-            Member::Variable(VariableMember { ty, .. }) => Some(*ty),
-            Member::Constant(ConstantMember { ty, .. }) => Some(*ty),
+            Member::Bound(BoundMember { ty, .. })
+            | Member::SetBound(SetBoundMember { ty, .. })
+            | Member::Variable(VariableMember { ty, .. })
+            | Member::Constant(ConstantMember { ty, .. }) => *ty,
+        }
+    }
+
+    /// Get the value of the member
+    pub fn value(&self) -> Option<TermId> {
+        match self {
+            Member::Bound(_) => None,
+            Member::SetBound(SetBoundMember { value, .. })
+            | Member::Variable(VariableMember { value, .. }) => Some(*value),
+            Member::Constant(ConstantMember { value_and_is_closed, .. }) => {
+                value_and_is_closed.map(|(value, _)| value)
+            }
         }
     }
 
@@ -145,18 +170,47 @@ impl Member {
     }
 
     /// Create a variable member with the given data and mutability.
-    pub fn variable(name: Identifier, mutability: Mutability, ty: TermId, value: TermId) -> Self {
+    pub fn variable(
+        _name: Identifier,
+        _mutability: Mutability,
+        _ty: TermId,
+        _value: TermId,
+    ) -> Self {
         todo!()
     }
 
     /// Create a bound member with the given data.
-    pub fn bound(name: Identifier, ty: TermId) -> Self {
+    pub fn bound(_name: Identifier, _ty: TermId) -> Self {
         todo!()
     }
 
     /// Create a set bound member with the given data.
-    pub fn set_bound(name: Identifier, value: TermId) -> Self {
+    pub fn set_bound(_name: Identifier, _value: TermId) -> Self {
         todo!()
+    }
+
+    /// Create a new member with the given `ty` and `value`, but of the same
+    /// kind as `self`.
+    ///
+    /// This assumes that `ty` and `value` were acquired from a member of the
+    /// same kind as self, and thus value is appropriately set to `Some(_)` or
+    /// `None`. Might panic otherwise.
+    #[must_use]
+    pub fn with_ty_and_value(&self, ty: TermId, value: Option<TermId>) -> Self {
+        match *self {
+            Member::Bound(bound_member) => Member::Bound(BoundMember { ty, ..bound_member }),
+            Member::SetBound(set_bound) => {
+                Member::SetBound(SetBoundMember { ty, value: value.unwrap(), ..set_bound })
+            }
+            Member::Variable(variable) => {
+                Member::Variable(VariableMember { ty, value: value.unwrap(), ..variable })
+            }
+            Member::Constant(constant) => Member::Constant(ConstantMember {
+                ty,
+                value_and_is_closed: value.map(|value| (value, constant.is_closed())),
+                ..constant
+            }),
+        }
     }
 }
 
@@ -219,7 +273,8 @@ impl Scope {
     /// Create a new [Scope] from the given members.
     pub fn new(kind: ScopeKind, members: impl IntoIterator<Item = Member>) -> Self {
         let members: Vec<_> = members.into_iter().collect();
-        let member_names = members.iter().enumerate().map(|(i, member)| (member.name, i)).collect();
+        let member_names =
+            members.iter().enumerate().map(|(i, member)| (member.name(), i)).collect();
         Self { kind, members, member_names }
     }
 
@@ -229,7 +284,7 @@ impl Scope {
         self.members.push(member);
         let index = self.members.len() - 1;
 
-        self.member_names.insert(member.name, index);
+        self.member_names.insert(member.name(), index);
         index
     }
 
