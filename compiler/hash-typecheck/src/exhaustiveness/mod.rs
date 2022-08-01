@@ -43,8 +43,14 @@
 //! inspired by the Rust Compiler implementation:
 //! <https://github.com/rust-lang/rust/tree/master/compiler/rustc_mir_build/src/thir/pattern/usefulness.rs>
 #![allow(dead_code)]
+mod constant;
+pub(crate) mod deconstruct;
+pub(crate) mod pat_arena;
+pub(crate) mod usefulness;
+
 use std::fmt::Display;
 
+use self::constant::Constant;
 use crate::{
     diagnostics::{error::TcResult, macros::tc_panic},
     ops::AccessToOps,
@@ -59,11 +65,6 @@ use crate::{
 use hash_source::{location::Span, string::Str};
 use if_chain::if_chain;
 use itertools::Itertools;
-
-use self::constant::Constant;
-mod constant;
-mod deconstruct;
-mod usefulness;
 
 /// Contains functionality for converting patterns to a representation that
 /// is suitable for performing usefulness and exhaustiveness analysis.

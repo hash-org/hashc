@@ -9,6 +9,7 @@
 
 use diagnostics::reporting::TcErrorWithStorage;
 use hash_pipeline::{traits::Tc, CompilerResult};
+use hash_source::SourceId;
 use storage::{
     core::CoreDefs, AccessToStorage, AccessToStorageMut, GlobalStorage, LocalStorage, StorageRefMut,
 };
@@ -39,7 +40,7 @@ impl TcState {
     pub fn new() -> Self {
         let mut global_storage = GlobalStorage::new();
         let core_defs = CoreDefs::new(&mut global_storage);
-        let local_storage = LocalStorage::new(&mut global_storage);
+        let local_storage = LocalStorage::new(&mut global_storage, SourceId::default());
         Self { global_storage, core_defs, prev_local_storage: local_storage }
     }
 }
@@ -59,11 +60,15 @@ impl Tc<'_> for TcImpl {
 
     fn check_interactive(
         &mut self,
-        interactive_id: hash_source::InteractiveId,
+        id: hash_source::InteractiveId,
         workspace: &hash_pipeline::sources::Workspace,
         state: &mut Self::State,
         _job_params: &hash_pipeline::settings::CompilerJobParams,
     ) -> CompilerResult<()> {
+        // We need to set the interactive-id to update the current local-storage `id`
+        // value
+        state.prev_local_storage.set_current_source(SourceId::Interactive(id));
+
         // Instantiate a visitor with the source and visit the source, using the
         // previous local storage.
         let mut storage = StorageRefMut {
@@ -72,11 +77,7 @@ impl Tc<'_> for TcImpl {
             local_storage: &mut state.prev_local_storage,
             source_map: &workspace.source_map,
         };
-        let mut tc_visitor = TcVisitor::new_in_source(
-            storage.storages_mut(),
-            hash_source::SourceId::Interactive(interactive_id),
-            workspace.node_map(),
-        );
+        let mut tc_visitor = TcVisitor::new_in_source(storage.storages_mut(), workspace.node_map());
         match tc_visitor.visit_source() {
             Ok(source_term) => {
                 println!("{}", source_term.for_formatting(storage.global_storage()));
@@ -93,25 +94,23 @@ impl Tc<'_> for TcImpl {
 
     fn check_module(
         &mut self,
-        module_id: hash_source::ModuleId,
+        id: hash_source::ModuleId,
         sources: &hash_pipeline::sources::Workspace,
         state: &mut Self::State,
         _job_params: &hash_pipeline::settings::CompilerJobParams,
     ) -> CompilerResult<()> {
         // Instantiate a visitor with the source and visit the source, using a new local
         // storage.
-        let mut local_storage = LocalStorage::new(&mut state.global_storage);
+        let mut local_storage = LocalStorage::new(&mut state.global_storage, SourceId::Module(id));
+
         let mut storage = StorageRefMut {
             global_storage: &mut state.global_storage,
             local_storage: &mut local_storage,
             core_defs: &state.core_defs,
             source_map: &sources.source_map,
         };
-        let mut tc_visitor = TcVisitor::new_in_source(
-            storage.storages_mut(),
-            hash_source::SourceId::Module(module_id),
-            sources.node_map(),
-        );
+
+        let mut tc_visitor = TcVisitor::new_in_source(storage.storages_mut(), sources.node_map());
 
         match tc_visitor.visit_source() {
             Ok(_) => Ok(()),

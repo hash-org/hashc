@@ -61,7 +61,6 @@ impl TcVisitorState {
 /// Contains typechecker state that is accessed while traversing.
 pub struct TcVisitor<'gs, 'ls, 'cd, 'src> {
     pub storage: StorageRefMut<'gs, 'ls, 'cd, 'src>,
-    pub source_id: SourceId,
     pub node_map: &'src NodeMap,
     pub state: TcVisitorState,
 }
@@ -83,16 +82,15 @@ impl<'gs, 'ls, 'cd, 'src> TcVisitor<'gs, 'ls, 'cd, 'src> {
     /// source from [SourceId].
     pub fn new_in_source(
         storage: StorageRefMut<'gs, 'ls, 'cd, 'src>,
-        source_id: SourceId,
         node_map: &'src NodeMap,
     ) -> Self {
-        TcVisitor { storage, source_id, node_map, state: TcVisitorState::new() }
+        TcVisitor { storage, node_map, state: TcVisitorState::new() }
     }
 
     /// Visits the source passed in as an argument to [Self::new_in_source], and
     /// returns the term of the module that corresponds to the source.
     pub fn visit_source(&mut self) -> TcResult<TermId> {
-        let source_id = self.source_id;
+        let source_id = self.local_storage().current_source();
         let source = self.node_map.get_source(source_id);
 
         let result = match source {
@@ -124,7 +122,7 @@ impl<'gs, 'ls, 'cd, 'src> TcVisitor<'gs, 'ls, 'cd, 'src> {
 
     /// Create a [SourceLocation] from a [Span].
     pub(crate) fn source_location(&self, span: Span) -> SourceLocation {
-        SourceLocation { span, source_id: self.source_id }
+        SourceLocation { span, source_id: self.local_storage().current_source() }
     }
 
     /// Create a [SourceLocation] at the given [hash_ast::ast::AstNode].
@@ -724,8 +722,10 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let import_module_id = self.source_map().get_module_id_by_path(&node.resolved_path);
         match import_module_id {
             Some(import_module_id) => {
+                let id = SourceId::Module(import_module_id);
+
                 // Resolve the ModDef corresponding to the SourceId if it exists:
-                match self.checked_sources().source_mod_def(SourceId::Module(import_module_id)) {
+                match self.checked_sources().source_mod_def(id) {
                     Some(already_checked_mod_term) => {
                         // Already exists, meaning this module has been checked before:
                         Ok(already_checked_mod_term)
@@ -737,18 +737,14 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
                         let node_map = self.node_map;
                         let storage_ref_mut = self.storages_mut();
                         let mut child_local_storage =
-                            LocalStorage::new(storage_ref_mut.global_storage);
+                            LocalStorage::new(storage_ref_mut.global_storage, id);
                         let storage_ref_mut = StorageRefMut {
                             local_storage: &mut child_local_storage,
                             ..storage_ref_mut
                         };
 
                         // Visit the child module
-                        let mut child_visitor = TcVisitor::new_in_source(
-                            storage_ref_mut,
-                            SourceId::Module(import_module_id),
-                            node_map,
-                        );
+                        let mut child_visitor = TcVisitor::new_in_source(storage_ref_mut, node_map);
                         let module_term = child_visitor.visit_source()?;
                         Ok(module_term)
                     }
@@ -2246,12 +2242,12 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::Module>,
     ) -> Result<Self::ModuleRet, Self::Error> {
+        let id = self.local_storage().current_source();
+
         // Decide on whether we are creating a new scope, or if we are going to use the
         // global scope. If we're within the `prelude` module, we need to append
         // all members into the global scope rather than creating a new scope
-        let members = if let Some(ModuleKind::Prelude) =
-            self.source_map().module_kind_by_id(self.source_id)
-        {
+        let members = if let Some(ModuleKind::Prelude) = self.source_map().module_kind_by_id(id) {
             self.global_storage().root_scope
         } else {
             self.builder().create_scope(ScopeKind::Constant, vec![])
@@ -2259,13 +2255,11 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
         // Get the end of the filename for the module and use this as the name of the
         // module
-        let name = self.source_map().source_name(self.source_id).to_owned();
+        let name = self.source_map().source_name(id).to_owned();
         let VisitConstantScope { scope_id, .. } =
             self.visit_constant_scope(ctx, node.contents.ast_ref_iter(), Some(members))?;
 
-        let source_id = self.source_id;
-        let mod_def =
-            self.builder().create_named_mod_def(name, ModDefOrigin::Source(source_id), scope_id);
+        let mod_def = self.builder().create_named_mod_def(name, ModDefOrigin::Source(id), scope_id);
 
         let term = self.builder().create_mod_def_term(mod_def);
         self.validator().validate_mod_def(mod_def, term, false)?;

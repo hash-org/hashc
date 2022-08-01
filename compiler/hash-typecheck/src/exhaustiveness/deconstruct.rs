@@ -63,10 +63,7 @@ impl<'gs, 'ls, 'cd, 's> PatCtx<'gs, 'ls, 'cd, 's> {
 
     /// Get a [SourceLocation] from the current [PatCtx]
     fn location(&self) -> SourceLocation {
-        SourceLocation {
-            span: self.span,
-            source_id: self.storage.checked_sources().current_source(),
-        }
+        SourceLocation { span: self.span, source_id: self.storage.local_storage().current_source() }
     }
 
     #[inline(always)]

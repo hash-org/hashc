@@ -7,7 +7,9 @@
 //! because it is only accessible from one file, whereas a type definition will
 //! be in [GlobalStorage] because it can be accessed from any file (with the
 //! appropriate import).
-use hash_source::SourceMap;
+use std::cell::Cell;
+
+use hash_source::{SourceId, SourceMap};
 
 use crate::fmt::{ForFormatting, PrepareForFormatting};
 
@@ -102,11 +104,13 @@ impl Default for GlobalStorage {
 pub struct LocalStorage {
     /// All the scopes in a given source.
     pub scopes: ScopeStack,
+    /// The current [SourceId]
+    pub id: Cell<SourceId>,
 }
 
 impl LocalStorage {
     /// Create a new, empty [LocalStorage] for the given source.
-    pub fn new(gs: &mut GlobalStorage) -> Self {
+    pub fn new(gs: &mut GlobalStorage, id: SourceId) -> Self {
         Self {
             scopes: ScopeStack::many([
                 // First the root scope
@@ -114,7 +118,19 @@ impl LocalStorage {
                 // Then the scope for the source
                 gs.scope_store.create(Scope::empty(ScopeKind::Constant)),
             ]),
+            id: Cell::new(id),
         }
+    }
+
+    /// Get the current [SourceId]
+    pub fn current_source(&self) -> SourceId {
+        self.id.get()
+    }
+
+    /// Set the current [SourceId], it does not matter whether
+    /// this is a [SourceId::Module] or [SourceId::Interactive]
+    pub fn set_current_source(&mut self, id: SourceId) {
+        self.id.set(id);
     }
 }
 
