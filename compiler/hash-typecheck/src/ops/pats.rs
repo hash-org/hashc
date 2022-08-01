@@ -15,7 +15,7 @@ use crate::{
     storage::{
         primitives::{
             AccessOp, AccessPat, ConstPat, ConstructorPat, IfPat, ListPat, Member, MemberData,
-            ModPat, Mutability, Param, Pat, PatArg, PatId, SpreadPat, TermId, Visibility,
+            ModPat, Mutability, Param, Pat, PatArg, PatId, SpreadPat, TermId,
         },
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
@@ -165,11 +165,10 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
         let bound_members = match pat {
             // Binding: Add the binding as a member
             Pat::Binding(binding) => Ok(Some(vec![(
-                Member::closed_stack(
+                Member::variable(
                     binding.name,
-                    binding.visibility,
-                    binding.mutability,
                     MemberData::from_ty_and_value(Some(term_ty_id), Some(simplified_term_id)),
+                    binding.mutability,
                 ),
                 pat_id,
             )])),
@@ -373,14 +372,13 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
                         self.validator().validate_term(rt_term)?;
 
                     Ok(Some(vec![(
-                        Member::closed_stack(
+                        Member::variable(
                             name,
-                            Visibility::Private,
-                            Mutability::Immutable,
                             MemberData::from_ty_and_value(
                                 Some(term_ty_id),
                                 Some(simplified_term_id),
                             ),
+                            Mutability::Immutable,
                         ),
                         pat_id,
                     )]))

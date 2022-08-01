@@ -240,11 +240,15 @@ impl<'gs> PrimitiveBuilder<'gs> {
         self.create_term(Term::TyOf(inner))
     }
 
-    /// Add a member to the scope, marking it as public.
+    /// Add an open member to the scope, marking it as public.
     ///
     /// All other methods call this one to actually add members to the scope.
     pub fn add_pub_member_to_scope(&self, name: impl Into<Identifier>, ty: TermId, value: TermId) {
-        let member = self.create_constant_member(name, ty, value, Visibility::Public);
+        let member = Member::open_constant(
+            name.into(),
+            MemberData::InitialisedWithTy { ty, value },
+            Visibility::Public,
+        );
         if let Some(scope) = self.scope.get() {
             self.gs.borrow_mut().scope_store.get_mut(scope).add(member);
         }
@@ -279,69 +283,6 @@ impl<'gs> PrimitiveBuilder<'gs> {
             name: name.into(),
             op: AccessOp::Property,
         }))
-    }
-
-    /// Create a member of a variable scope (private and immutable), with the
-    /// given name, type and value.
-    pub fn create_variable_member(
-        &self,
-        name: impl Into<Identifier>,
-        ty: TermId,
-        value: TermId,
-    ) -> Member {
-        Member::closed_stack(
-            name.into(),
-            Visibility::Private,
-            Mutability::Immutable,
-            MemberData::InitialisedWithTy { ty, value },
-        )
-    }
-
-    /// Create a public member with the given name and value, with inferred
-    /// type.
-    pub fn create_constant_member_infer_ty(
-        &self,
-        name: impl Into<Identifier>,
-        value: TermId,
-        visibility: Visibility,
-    ) -> Member {
-        Member::closed_stack(
-            name.into(),
-            visibility,
-            Mutability::Immutable,
-            MemberData::InitialisedWithInferredTy { value },
-        )
-    }
-
-    /// Create a public member with the given name, type and value.
-    pub fn create_constant_member(
-        &self,
-        name: impl Into<Identifier>,
-        ty: TermId,
-        value: TermId,
-        visibility: Visibility,
-    ) -> Member {
-        Member::closed_stack(
-            name.into(),
-            visibility,
-            Mutability::Immutable,
-            MemberData::InitialisedWithTy { ty, value },
-        )
-    }
-
-    /// Create a public member with the given name, type and unset value.
-    pub fn create_uninitialised_constant_member(
-        &self,
-        name: impl Into<Identifier>,
-        ty: TermId,
-        visibility: Visibility,
-    ) -> Member {
-        Member::closed_stack(
-            name.into(),
-            visibility,
-            Mutability::Immutable,
-            MemberData::Uninitialised { ty },
-        )
     }
 
     /// Create a [Term::Root].

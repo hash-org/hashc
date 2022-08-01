@@ -119,8 +119,9 @@ impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
         let param_scope = builder.create_scope(
             ScopeKind::Variable,
             params.positional().iter().filter_map(|param| {
-                Some(builder.create_variable_member(
+                Some(Member::variable(
                     param.name?,
+                    Mutability::Immutable,
                     param.ty,
                     builder.create_rt_term(param.ty),
                 ))
@@ -182,14 +183,8 @@ impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
         });
 
         let builder = self.builder();
-        let members = paired.iter().filter_map(|(param, arg)| {
-            Some(Member::bound(
-                param.name?,
-                Visibility::Private,
-                Mutability::Immutable,
-                MemberData::from_ty_and_value(None, Some(arg.value)),
-            ))
-        });
+        let members =
+            paired.iter().filter_map(|(param, arg)| Some(Member::bound(param.name?, arg.value)));
 
         builder.create_scope(ScopeKind::SetBound, members)
     }
@@ -204,13 +199,10 @@ impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
         let builder = self.builder();
         let param_scope = builder.create_scope(
             ScopeKind::Bound,
-            params.positional().iter().filter_map(|param| {
-                Some(builder.create_uninitialised_constant_member(
-                    param.name?,
-                    param.ty,
-                    Visibility::Private,
-                ))
-            }),
+            params
+                .positional()
+                .iter()
+                .filter_map(|param| Some(Member::bound(param.name?, param.ty))),
         );
         param_scope
     }
@@ -258,12 +250,11 @@ impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
         // }
 
         match &mut member.kind {
-            MemberKind::Bound => {
+            MemberKind::Bound(_) => {
                 // @@Todo: refine this error
                 Err(TcError::InvalidAssignSubject { location: (scope_id, index).into() })
             }
-            MemberKind::Stack { assignments_until_closed } => {
-                *assignments_until_closed -= 1;
+            MemberKind::Variable(_) => {
                 match member.data {
                     MemberData::Uninitialised { .. } => {
                         member.data = MemberData::InitialisedWithInferredTy { value }
@@ -276,6 +267,10 @@ impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
                     }
                 }
                 Ok(())
+            }
+            MemberKind::Constant(_) => {
+                // @@Todo
+                todo!()
             }
         }
     }

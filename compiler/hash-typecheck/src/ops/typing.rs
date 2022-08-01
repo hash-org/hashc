@@ -11,8 +11,8 @@ use crate::{
     storage::{
         primitives::{
             AccessOp, AccessPat, Arg, ArgsId, ConstPat, ConstructedTerm, Level0Term, Level1Term,
-            Level2Term, Level3Term, ListPat, LitTerm, MemberData, ModDefOrigin, NominalDef, Param,
-            ParamsId, Pat, PatArgsId, PatId, StructFields, Term, TermId,
+            Level2Term, Level3Term, ListPat, LitTerm, Member, MemberData, ModDefOrigin, NominalDef,
+            Param, ParamsId, Pat, PatArgsId, PatId, StructFields, Term, TermId,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -69,20 +69,8 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
     /// Infer the type of the given member, if it does not already exist.
     ///
     /// *Note*: Assumes the term is validated.
-    pub(crate) fn infer_member_ty(
-        &mut self,
-        member_data: MemberData,
-    ) -> TcResult<InferredMemberData> {
-        match member_data {
-            MemberData::Uninitialised { ty } => Ok(InferredMemberData { ty, value: None }),
-            MemberData::InitialisedWithTy { ty, value } => {
-                Ok(InferredMemberData { ty, value: Some(value) })
-            }
-            MemberData::InitialisedWithInferredTy { value } => {
-                let ty = self.infer_ty_of_term(value)?;
-                Ok(InferredMemberData { ty, value: Some(value) })
-            }
-        }
+    pub(crate) fn infer_member_ty(&mut self, member: Member) -> TcResult<TermId> {
+        todo!()
     }
 
     /// Get the type of the given term, given that it is simplified, as another
@@ -152,7 +140,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                 // The type of a variable can be found by looking at the scopes to its
                 // declaration:
                 let var_member = self.scope_manager().resolve_name_in_scopes(var.name, term_id)?;
-                Ok(self.infer_member_ty(var_member.member.data)?.ty)
+                Ok(self.infer_member_ty(var_member.member)?)
             }
             Term::TyFn(ty_fn) => {
                 // The type of a type function is a type function type:
@@ -172,7 +160,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                 // The type of a union is "RuntimeInstantiable":
                 // @@Future: relax this
                 let rt_instantiable_def = self.core_defs().runtime_instantiable_trt;
-                Ok(self.builder().create_trt_term(rt_instantiable_def))
+                Ok(rt_instantiable_def)
             }
             Term::SetBound(set_bound) => {
                 // Get the type inside the scope, and then apply it again if necessary
