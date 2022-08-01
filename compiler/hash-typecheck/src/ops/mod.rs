@@ -13,6 +13,7 @@ use crate::storage::{primitives::ScopeId, AccessToStorage, AccessToStorageMut};
 pub mod building;
 pub mod cache;
 pub mod discover;
+pub mod oracle;
 pub mod params;
 pub mod pats;
 pub mod reader;
