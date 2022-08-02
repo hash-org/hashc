@@ -11,6 +11,7 @@
 pub mod arguments;
 pub mod cache;
 pub mod core;
+pub mod deconstructed_pat;
 pub mod location;
 pub mod mods;
 pub mod nominals;
@@ -21,15 +22,12 @@ pub mod scope;
 pub mod sources;
 pub mod terms;
 pub mod trts;
-pub mod deconstructed_pat;
 
-use std::cell::Cell;
-use hash_source::{SourceId, SourceMap};
-use crate::fmt::{ForFormatting, PrepareForFormatting};
 use self::{
     arguments::ArgsStore,
     cache::Cache,
     core::CoreDefs,
+    deconstructed_pat::DeconstructedPatStore,
     location::LocationStore,
     mods::ModDefStore,
     nominals::NominalDefStore,
@@ -39,8 +37,11 @@ use self::{
     scope::{ScopeStack, ScopeStore},
     sources::CheckedSources,
     terms::TermStore,
-    trts::TrtDefStore, deconstructed_pat::DeconstructedPatStore,
+    trts::TrtDefStore,
 };
+use crate::fmt::{ForFormatting, PrepareForFormatting};
+use hash_source::{SourceId, SourceMap};
+use std::cell::Cell;
 
 /// Keeps track of typechecking information across all source files.
 #[derive(Debug)]
@@ -56,9 +57,9 @@ pub struct GlobalStorage {
     pub pat_store: PatStore,
     pub pat_args_store: PatArgsStore,
     pub checked_sources: CheckedSources,
-    
+
     /// Pattern fields from [DeconstructedPat]
-    pub pat_fields_store: DeconstructedPatStore,
+    pub deconstructed_pat_store: DeconstructedPatStore,
 
     /// The typechecking cache, contains cached simplification, validation
     /// and unification results
@@ -86,7 +87,7 @@ impl GlobalStorage {
             nominal_def_store: NominalDefStore::new(),
             pat_store: PatStore::new(),
             pat_args_store: PatArgsStore::new(),
-            pat_fields_store: DeconstructedPatStore::new(),
+            deconstructed_pat_store: DeconstructedPatStore::new(),
             checked_sources: CheckedSources::new(),
             root_scope,
             params_store: ParamsStore::new(),
@@ -214,6 +215,10 @@ pub trait AccessToStorage {
         &self.global_storage().pat_store
     }
 
+    fn deconstructed_pat_store(&self) -> &DeconstructedPatStore {
+        &self.global_storage().deconstructed_pat_store
+    }
+
     fn pat_params_store(&self) -> &PatArgsStore {
         &self.global_storage().pat_args_store
     }
@@ -296,6 +301,10 @@ pub trait AccessToStorageMut: AccessToStorage {
 
     fn pat_store_mut(&mut self) -> &mut PatStore {
         &mut self.global_storage_mut().pat_store
+    }
+
+    fn deconstructed_pat_store_mut(&mut self) -> &mut DeconstructedPatStore {
+        &mut self.global_storage_mut().deconstructed_pat_store
     }
 
     fn pat_params_store_mut(&mut self) -> &mut PatArgsStore {

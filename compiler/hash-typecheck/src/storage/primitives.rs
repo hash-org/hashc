@@ -1237,7 +1237,7 @@ new_key_type! {
 }
 
 new_key_type! {
-    pub struct DeconstructedPatFieldsId;
+    pub struct DeconstructedPatId;
 }
 
 /// The ID of a [UnresolvedTerm], separate from its [TermId], stored in

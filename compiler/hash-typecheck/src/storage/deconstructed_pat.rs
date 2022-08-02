@@ -2,16 +2,15 @@
 //! [crate::exhaustiveness::deconstruct::DeconstructedPat] objects when
 //! performing exhaustiveness checks.
 
-use crate::exhaustiveness::deconstruct::DeconstructedPat;
+use crate::exhaustiveness::structures::DeconstructedPat;
 use slotmap::SlotMap;
 
-
-use super::primitives::{DeconstructedPatFieldsId};
+use super::primitives::DeconstructedPatId;
 
 /// Stores nominal type definitions, indexed by [NominalDefId]s.
 #[derive(Debug, Default)]
 pub struct DeconstructedPatStore {
-    data: SlotMap<DeconstructedPatFieldsId, Vec<DeconstructedPat>>,
+    data: SlotMap<DeconstructedPatId, DeconstructedPat>,
 }
 
 impl DeconstructedPatStore {
@@ -19,18 +18,15 @@ impl DeconstructedPatStore {
         Self::default()
     }
 
-    pub fn create(&mut self, id: Vec<DeconstructedPat>) -> DeconstructedPatFieldsId {
-        self.data.insert(id)
+    pub fn create(&mut self, object: DeconstructedPat) -> DeconstructedPatId {
+        self.data.insert(object)
     }
 
-    pub fn get(&self, id: DeconstructedPatFieldsId) -> &Vec<DeconstructedPat> {
+    pub fn get(&self, id: DeconstructedPatId) -> &DeconstructedPat {
         self.data.get(id).unwrap()
     }
 
-    /// Get a nominal type definition by [NominalDefId], mutably.
-    ///
-    /// If the nominal type definition is not found, this function will panic.
-    pub fn get_mut(&mut self, id: DeconstructedPatFieldsId) -> &mut Vec<DeconstructedPat> {
+    pub fn get_mut(&mut self, id: DeconstructedPatId) -> &mut DeconstructedPat {
         self.data.get_mut(id).unwrap()
     }
 }
