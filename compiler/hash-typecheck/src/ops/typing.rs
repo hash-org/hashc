@@ -226,14 +226,14 @@ impl<'tc> Typer<'tc> {
                     Level0Term::Constructed(ConstructedTerm { subject, .. }) => Ok(subject),
                     Level0Term::Lit(lit_term) => {
                         // This gets the type of the literal
-
-                        let var_to_resolve = match lit_term {
-                            LitTerm::Str(_) => "str",
+                        let term = match lit_term {
+                            LitTerm::Str(_) => self.core_defs().str_ty(),
                             // @@Todo: do some more sophisticated inferring here
-                            LitTerm::Int { kind, .. } => kind.to_name(),
-                            LitTerm::Char(_) => "char",
+                            LitTerm::Int { kind, .. } => {
+                                self.core_defs().resolve_core_def(kind.to_name().into())
+                            }
+                            LitTerm::Char(_) => self.core_defs().char_ty(),
                         };
-                        let term = self.builder().create_var_term(var_to_resolve);
                         Ok(self.simplifier().potentially_simplify_term(term)?)
                     }
                 }

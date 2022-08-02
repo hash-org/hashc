@@ -186,22 +186,22 @@ impl Member {
 
     /// Create a variable member with the given data and mutability.
     pub fn variable(
-        _name: impl Into<Identifier>,
-        _mutability: Mutability,
-        _ty: TermId,
-        _value: TermId,
+        name: impl Into<Identifier>,
+        mutability: Mutability,
+        ty: TermId,
+        value: TermId,
     ) -> Self {
-        todo!()
+        Member::Variable(VariableMember { name: name.into(), ty, mutability, value })
     }
 
     /// Create a bound member with the given data.
-    pub fn bound(_name: impl Into<Identifier>, _ty: TermId) -> Self {
-        todo!()
+    pub fn bound(name: impl Into<Identifier>, ty: TermId) -> Self {
+        Member::Bound(BoundMember { name: name.into(), ty })
     }
 
     /// Create a set bound member with the given data.
-    pub fn set_bound(_name: impl Into<Identifier>, _value: TermId) -> Self {
-        todo!()
+    pub fn set_bound(name: impl Into<Identifier>, ty: TermId, value: TermId) -> Self {
+        Member::SetBound(SetBoundMember { name: name.into(), value, ty })
     }
 
     /// Create a new member with the given `ty` and `value`, but of the same

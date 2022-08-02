@@ -183,8 +183,9 @@ impl<'tc> ScopeManager<'tc> {
         });
 
         let builder = self.builder();
-        let members =
-            paired.iter().filter_map(|(param, arg)| Some(Member::bound(param.name?, arg.value)));
+        let members = paired
+            .iter()
+            .filter_map(|(param, arg)| Some(Member::set_bound(param.name?, param.ty, arg.value)));
 
         builder.create_scope(ScopeKind::SetBound, members)
     }

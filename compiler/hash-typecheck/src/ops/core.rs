@@ -30,7 +30,10 @@ impl<'tc> CoreDefReader<'tc> {
         Self { storage }
     }
 
-    fn resolve_core_def(&mut self, var_name: Identifier) -> TermId {
+    /// Resolve the given core definition by name.
+    ///
+    /// Panics if the core definition doesn't exist.
+    pub fn resolve_core_def(&mut self, var_name: Identifier) -> TermId {
         let root_scope = self.global_storage().root_scope;
         let (resolved, index) = self
             .scope_store()
