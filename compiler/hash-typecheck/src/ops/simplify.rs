@@ -426,8 +426,7 @@ impl<'tc> Simplifier<'tc> {
 
                 Ok(Some(result))
             }
-            // Cannot access members of the `Type` trait:
-            Level2Term::AnyTy => does_not_support_access(access_term),
+            Level2Term::SizedTy | Level2Term::AnyTy => does_not_support_access(access_term),
         }
     }
 
@@ -1076,7 +1075,7 @@ impl<'tc> Simplifier<'tc> {
     /// Simplify the given [Level2Term], if possible.
     pub(crate) fn simplify_level2_term(&mut self, term: &Level2Term) -> TcResult<Option<TermId>> {
         match term {
-            Level2Term::Trt(_) | Level2Term::AnyTy => Ok(None),
+            Level2Term::Trt(_) | Level2Term::AnyTy | Level2Term::SizedTy => Ok(None),
         }
     }
 

@@ -296,6 +296,9 @@ impl<'gs> TcFormatter<'gs> {
             Level2Term::AnyTy => {
                 write!(f, "AnyType")
             }
+            Level2Term::SizedTy => {
+                write!(f, "Type")
+            }
         }
     }
 

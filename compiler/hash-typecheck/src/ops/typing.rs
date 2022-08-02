@@ -150,9 +150,9 @@ impl<'tc> Typer<'tc> {
                 Ok(self.builder().create_merge_term(tys_of_terms))
             }
             Term::Union(_) => {
-                // The type of a union is "RuntimeInstantiable":
+                // The type of a union is "SizedTy":
                 // @@Future: relax this
-                let rt_instantiable_def = self.core_defs().runtime_instantiable_trt();
+                let rt_instantiable_def = self.builder().create_sized_ty_term();
                 Ok(rt_instantiable_def)
             }
             Term::SetBound(set_bound) => {
@@ -174,7 +174,9 @@ impl<'tc> Typer<'tc> {
             },
             Term::Level2(level2_term) => match level2_term {
                 // The type of any trait, or the "Type" trait, is just TraitKind:
-                Level2Term::Trt(_) | Level2Term::AnyTy => Ok(self.builder().create_trt_kind_term()),
+                Level2Term::Trt(_) | Level2Term::AnyTy | Level2Term::SizedTy => {
+                    Ok(self.builder().create_trt_kind_term())
+                }
             },
             Term::Level1(level1_term) => match level1_term {
                 Level1Term::ModDef(mod_def_id) => {
@@ -194,8 +196,8 @@ impl<'tc> Typer<'tc> {
                 }
                 Level1Term::NominalDef(_) | Level1Term::Tuple(_) | Level1Term::Fn(_) => {
                     // The type of any nominal def, function type, or tuple type, is
-                    // "RuntimeInstantiable":
-                    let rt_instantiable_def = self.core_defs().runtime_instantiable_trt();
+                    // "SizedTy":
+                    let rt_instantiable_def = self.builder().create_sized_ty_term();
                     Ok(rt_instantiable_def)
                 }
             },

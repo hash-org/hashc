@@ -14,7 +14,10 @@ use crate::storage::{
     GlobalStorage,
 };
 use hash_ast::ast::ParamOrigin;
-use hash_source::{identifier::Identifier, location::SourceLocation};
+use hash_source::{
+    identifier::{Identifier, CORE_IDENTIFIERS},
+    location::SourceLocation,
+};
 use std::cell::{Cell, RefCell};
 
 /// Helper to create various primitive constructions (from
@@ -78,7 +81,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
 
     /// Add the given nominal definition to the scope.
     fn add_nominal_def_to_scope(&self, name: Identifier, def_id: NominalDefId) {
-        let def_ty = self.create_any_ty_term();
+        let def_ty = self.create_var_term(CORE_IDENTIFIERS.Type);
         let def_value = self.create_term(Term::Level1(Level1Term::NominalDef(def_id)));
         self.add_pub_member_to_scope(name, def_ty, def_value);
     }
@@ -294,6 +297,11 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// Create a term [Level2Term::AnyTy].
     pub fn create_any_ty_term(&self) -> TermId {
         self.create_term(Term::Level2(Level2Term::AnyTy))
+    }
+
+    /// Create a term [Level2Term::AnyTy].
+    pub fn create_sized_ty_term(&self) -> TermId {
+        self.create_term(Term::Level2(Level2Term::SizedTy))
     }
 
     /// Create a term [Level2Term::Trt] with the given [TrtDefId].

@@ -106,7 +106,7 @@ impl<'tc> Substituter<'tc> {
         original_term: TermId,
     ) -> TermId {
         match term {
-            Level2Term::Trt(_) | Level2Term::AnyTy => original_term,
+            Level2Term::Trt(_) | Level2Term::AnyTy | Level2Term::SizedTy => original_term,
         }
     }
 

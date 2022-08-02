@@ -138,8 +138,4 @@ impl<'tc> CoreDefReader<'tc> {
     pub fn index_trt(&mut self) -> TermId {
         self.resolve_core_def(CORE_IDENTIFIERS.Index)
     }
-
-    pub fn runtime_instantiable_trt(&mut self) -> TermId {
-        self.resolve_core_def(CORE_IDENTIFIERS.Type)
-    }
 }

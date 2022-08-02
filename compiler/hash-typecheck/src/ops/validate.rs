@@ -295,8 +295,8 @@ impl<'tc> Validator<'tc> {
                     // are specified, although the ordering shouldn't matter
                     validate_param_list_ordering(&fields, ParamListKind::Params(fields_id))?;
 
-                    // Validate all fields of an struct def implement `RtInstantiable`
-                    let rti_trt = self.core_defs().runtime_instantiable_trt();
+                    // Validate all fields of an struct def implement `SizedTy`
+                    let rti_trt = self.builder().create_sized_ty_term();
                     for field in fields.positional().iter() {
                         let field_ty = self.typer().infer_ty_of_term(field.ty)?;
                         self.unifier().unify_terms(field_ty, rti_trt)?;
@@ -318,12 +318,12 @@ impl<'tc> Validator<'tc> {
                         ParamListKind::Params(variant.fields),
                     )?;
 
-                    // Validate all fields of an struct def implement `RtInstantiable`
-                    let rti_trt = self.core_defs().runtime_instantiable_trt();
+                    // Validate all fields of an struct def implement `SizedTy`
+                    let sized_ty = self.builder().create_sized_ty_term();
 
                     for field in variant_fields.positional().iter() {
                         let field_ty = self.typer().infer_ty_of_term(field.ty)?;
-                        self.unifier().unify_terms(field_ty, rti_trt)?;
+                        self.unifier().unify_terms(field_ty, sized_ty)?;
                     }
                 }
 
@@ -536,7 +536,7 @@ impl<'tc> Validator<'tc> {
             Term::Level3(_) => invalid_merge_element(),
             // Level 2 terms are allowed:
             Term::Level2(level2_term) => match level2_term {
-                Level2Term::Trt(_) | Level2Term::AnyTy => {
+                Level2Term::Trt(_) | Level2Term::AnyTy | Level2Term::SizedTy => {
                     *merge_kind = ensure_merge_is_level2()?;
                     Ok(())
                 }
@@ -986,9 +986,9 @@ impl<'tc> Validator<'tc> {
     ///
     /// *Note*: assumes the term has been simplified and validated.
     pub(crate) fn term_is_runtime_instantiable(&mut self, term_id: TermId) -> TcResult<bool> {
-        // Ensure that the type of the term unifies with "RuntimeInstantiable":
+        // Ensure that the type of the term unifies with "SizedTy":
         let ty_id_of_term = self.typer().infer_ty_of_simplified_term(term_id)?;
-        let rt_instantiable_trt = self.core_defs().runtime_instantiable_trt();
+        let rt_instantiable_trt = self.builder().create_sized_ty_term();
         match self.unifier().unify_terms(ty_id_of_term, rt_instantiable_trt) {
             Ok(_) => Ok(true),
             // We only return Ok(false) if the error is that the terms do not unify:

@@ -906,6 +906,8 @@ pub enum Level2Term {
     // ---- Level 2 ---- the term that is a return term of trait(..)
     /// A trait term.
     Trt(TrtDefId),
+    /// A type that is runtime instantiable, i.e. sized.
+    SizedTy,
     /// Basically a trait term that all types implement, i.e. the trait that is
     /// a supertrait to all other traits.
     AnyTy,

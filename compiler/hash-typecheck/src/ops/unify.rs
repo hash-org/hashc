@@ -621,12 +621,14 @@ impl<'tc> Unifier<'tc> {
                             cannot_unify()
                         }
                     }
-                    // If a trait tries to be unified with "Type", it is always successful:
-                    (Level2Term::Trt(_), Level2Term::AnyTy) => Ok(Sub::empty()),
-                    // The other way around doesn't hold however:
-                    (Level2Term::AnyTy, Level2Term::Trt(_)) => cannot_unify(),
-                    // "Type" unifies with "Type":
-                    (Level2Term::AnyTy, Level2Term::AnyTy) => Ok(Sub::empty()),
+                    (Level2Term::Trt(_), Level2Term::AnyTy)
+                    | (Level2Term::AnyTy, Level2Term::AnyTy)
+                    | (Level2Term::SizedTy, Level2Term::SizedTy)
+                    | (Level2Term::SizedTy, Level2Term::AnyTy) => Ok(Sub::empty()),
+                    (Level2Term::AnyTy, Level2Term::Trt(_))
+                    | (Level2Term::AnyTy, Level2Term::SizedTy)
+                    | (Level2Term::Trt(_), Level2Term::SizedTy)
+                    | (Level2Term::SizedTy, Level2Term::Trt(_)) => cannot_unify(),
                 }
             }
             (Term::Level2(_), _) | (_, Term::Level2(_)) => {

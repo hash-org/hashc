@@ -14,6 +14,7 @@ use crate::fmt::{ForFormatting, PrepareForFormatting};
 use self::{
     arguments::ArgsStore,
     cache::Cache,
+    core::create_core_defs_in,
     location::LocationStore,
     mods::ModDefStore,
     nominals::NominalDefStore,
@@ -72,7 +73,7 @@ impl GlobalStorage {
     pub fn new() -> Self {
         let mut scope_store = ScopeStore::new();
         let root_scope = scope_store.create(Scope::empty(ScopeKind::Constant));
-        Self {
+        let mut gs = Self {
             location_store: LocationStore::new(),
             term_store: TermStore::new(),
             scope_store,
@@ -86,7 +87,9 @@ impl GlobalStorage {
             params_store: ParamsStore::new(),
             args_store: ArgsStore::new(),
             cache: Cache::new(),
-        }
+        };
+        create_core_defs_in(&mut gs);
+        gs
     }
 }
 

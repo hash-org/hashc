@@ -120,30 +120,6 @@ impl<'tc> Discoverer<'tc> {
         }
     }
 
-    /// Add the free variables that exist in the given [Level2Term], to the
-    /// given [HashSet].
-    pub(crate) fn add_free_sub_vars_in_level2_term_to_set(
-        &self,
-        term: &Level2Term,
-        _result: &mut HashSet<SubVar>,
-    ) {
-        match term {
-            Level2Term::Trt(_) | Level2Term::AnyTy => {}
-        }
-    }
-
-    /// Add the free variables that exist in the given [Level3Term], to the
-    /// given [HashSet].
-    pub(crate) fn add_free_sub_vars_in_level3_term_to_set(
-        &self,
-        term: &Level3Term,
-        _: &mut HashSet<SubVar>,
-    ) {
-        match term {
-            Level3Term::TrtKind => {}
-        }
-    }
-
     /// Add the free variables that exist in the given term, to the given
     /// [HashSet].
     ///
@@ -206,12 +182,7 @@ impl<'tc> Discoverer<'tc> {
                 self.add_free_sub_vars_in_term_to_set(*term, result);
             }
             // Definite-level terms:
-            Term::Level3(term) => {
-                self.add_free_sub_vars_in_level3_term_to_set(term, result);
-            }
-            Term::Level2(term) => {
-                self.add_free_sub_vars_in_level2_term_to_set(term, result);
-            }
+            Term::Level3(_) | Term::Level2(_) => {}
             Term::Level1(term) => {
                 self.add_free_sub_vars_in_level1_term_to_set(term, result);
             }
@@ -356,7 +327,7 @@ impl<'tc> Discoverer<'tc> {
                 let trt_def_scope = self.reader().get_trt_def(*trt_def_id).members;
                 self.add_free_bound_vars_in_scope_to_set(trt_def_scope, result)
             }
-            Level2Term::AnyTy => {}
+            Level2Term::AnyTy | Level2Term::SizedTy => todo!(),
         }
     }
 
@@ -1097,6 +1068,7 @@ impl<'tc> Discoverer<'tc> {
             }
             Term::Level3(Level3Term::TrtKind)
             | Term::Level2(Level2Term::AnyTy)
+            | Term::Level2(Level2Term::SizedTy)
             | Term::Var(_)
             | Term::Root
             | Term::ScopeVar(_)

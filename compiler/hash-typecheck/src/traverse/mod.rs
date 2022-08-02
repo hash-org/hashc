@@ -388,7 +388,11 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         _ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::BoolLit>,
     ) -> Result<Self::BoolLitRet, Self::Error> {
-        let term = self.builder().create_var_term(if node.0 { "true" } else { "false" });
+        let term = self.builder().create_var_term(if node.0 {
+            CORE_IDENTIFIERS.r#true
+        } else {
+            CORE_IDENTIFIERS.r#false
+        });
 
         // add the location of the term to the location storage
         self.copy_location_from_node_to_target(node, term);
@@ -2121,7 +2125,11 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         _ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::BoolLitPat>,
     ) -> Result<Self::BoolLitPatRet, Self::Error> {
-        let bool_term = self.builder().create_var_term(if node.0 { "true" } else { "false" });
+        let bool_term = self.builder().create_var_term(if node.0 {
+            CORE_IDENTIFIERS.r#true
+        } else {
+            CORE_IDENTIFIERS.r#false
+        });
         self.copy_location_from_node_to_target(node, bool_term);
         let bool_term_simplified = self.validator().validate_term(bool_term)?.simplified_term_id;
 
