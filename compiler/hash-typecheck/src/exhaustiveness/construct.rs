@@ -7,7 +7,10 @@ use smallvec::{smallvec, SmallVec};
 
 use crate::{
     diagnostics::macros::tc_panic,
-    exhaustiveness::structures::{List, ListKind, PatCtx, SplitVarList},
+    exhaustiveness::{
+        list::{List, ListKind, SplitVarList},
+        PatCtx,
+    },
     ops::AccessToOps,
     storage::{
         primitives::{ConstructorId, Level1Term, NominalDef, StructFields, Term, TupleTy},
@@ -42,7 +45,7 @@ pub enum Constructor {
     /// Or-pattern.
     Or,
     /// Stands for constructors that are not seen in the matrix, as explained in
-    /// the documentation for [`SplitWildcard`].
+    /// the documentation for [super::wildcard::SplitWildcard].
     Missing,
     /// Declared as non-exhaustive
     NonExhaustive,
@@ -87,10 +90,12 @@ impl<'gs, 'ls, 'cd, 's> AccessToStorage for ConstructorOps<'gs, 'ls, 'cd, 's> {
 }
 
 impl<'gs, 'ls, 'cd, 's> ConstructorOps<'gs, 'ls, 'cd, 's> {
+    /// Create a new [ConstructorOps].
     pub fn new(storage: StorageRef<'gs, 'ls, 'cd, 's>) -> Self {
         Self { storage }
     }
 
+    /// Create a [SourceLocation] from a provided [Span].
     pub fn location(&self, span: Span) -> SourceLocation {
         SourceLocation { span, source_id: self.local_storage().current_source() }
     }
@@ -152,9 +157,9 @@ impl<'gs, 'ls, 'cd, 's> ConstructorOps<'gs, 'ls, 'cd, 's> {
     /// want to be specialising for the actual underlying constructors.
     /// Naively, we would simply return the list of constructors they correspond
     /// to. We instead are more clever: if there are constructors that we
-    /// know will behave the same wrt the current matrix, we keep them
-    /// grouped. For example, all lists of a sufficiently large length will
-    /// either be all useful or all non-useful with a given matrix.
+    /// know will behave the same with reference to the current matrix, we keep
+    /// them grouped. For example, all lists of a sufficiently large length
+    /// will either be all useful or all non-useful with a given matrix.
     ///
     /// See the branches for details on how the splitting is done.
     ///
@@ -218,12 +223,7 @@ impl<'gs, 'ls, 'cd, 's> ConstructorOps<'gs, 'ls, 'cd, 's> {
     /// subset of `other`. For the simple cases, this is simply checking for
     /// equality. For the "grouped" constructors, this checks for inclusion.
     #[inline]
-    pub(super) fn is_covered_by(
-        &self,
-        ctx: PatCtx,
-        ctor: &Constructor,
-        other: &Constructor,
-    ) -> bool {
+    pub fn is_covered_by(&self, ctx: PatCtx, ctor: &Constructor, other: &Constructor) -> bool {
         match (ctor, other) {
             // Wildcards cover anything
             (_, Constructor::Wildcard) => true,

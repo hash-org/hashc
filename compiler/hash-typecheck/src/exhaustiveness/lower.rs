@@ -125,6 +125,7 @@ impl<'gs, 'ls, 'cd, 's> AccessToStorage for PatLowerOps<'gs, 'ls, 'cd, 's> {
 }
 
 impl<'gs, 'ls, 'cd, 's> PatLowerOps<'gs, 'ls, 'cd, 's> {
+    /// Create a new [PatLowerOps].
     pub fn new(storage: StorageRef<'gs, 'ls, 'cd, 's>) -> Self {
         Self { storage }
     }

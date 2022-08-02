@@ -929,7 +929,7 @@ impl Sub {
         Self { data: pairs.into_iter().map(|(from, to)| (from.into(), to)).collect() }
     }
 
-    /// Get the substitution for the given [SubSubject], if any.
+    /// Get the substitution for the given [SubVar], if any.
     pub fn get_sub_for(&self, subject: SubVar) -> Option<TermId> {
         self.data.get(&subject).copied()
     }
@@ -1237,10 +1237,12 @@ new_key_type! {
 }
 
 new_key_type! {
+    /// The ID of a [Constructor]
     pub struct ConstructorId;
 }
 
 new_key_type! {
+    /// The ID of a [DeconstructedPat]
     pub struct DeconstructedPatId;
 }
 

@@ -1,3 +1,34 @@
+//! Exhaustiveness representation of ranges, which also include
+//! integer, and character literals.
+//!
+//! # Constructor splitting
+//!
+//! The idea is as follows: given a constructor `c` and a matrix, we want to
+//! specialise in turn with all the value constructors that are covered by `c`,
+//! and compute usefulness for each. Instead of listing all those constructors
+//! (which is intractable), we group those value constructors together as much
+//! as possible. Example:
+//!
+//! ```ignore
+//! match (0, false) {
+//!     (0 ..=100, true) => {} // `p_1`
+//!     (50..=150, false) => {} // `p_2`
+//!     (0 ..=200, _) => {} // `q`
+//! }
+//! ```
+//!
+//! The naive approach would try all numbers in the range `0..=200`. But we can
+//! be a lot more clever: `0` and `1` for example will match the exact same
+//! rows, and return equivalent witnesses. In fact all of `0..50` would. We can
+//! thus restrict our exploration to 4 constructors: `0..50`, `50..=100`,
+//! `101..=150` and `151..=200`. That is enough and infinitely more tractable.
+//!
+//! We capture this idea in a function `split(p_1 ... p_n, c)` which returns a
+//! list of constructors `c'` covered by `c`. Given such a `c'`, we require that
+//! all value ctors `c''` covered by `c'` return an equivalent set of witnesses
+//! after specializing and computing usefulness. In the example above, witnesses
+//! for specializing by `c''` covered by `0..50` will only differ in their first
+//! element.
 use std::{
     cmp::{max, min},
     fmt,
@@ -7,7 +38,7 @@ use std::{
 
 use crate::{
     diagnostics::macros::tc_panic,
-    exhaustiveness::{constant::Constant, structures::PatCtx},
+    exhaustiveness::{constant::Constant, PatCtx},
     ops::AccessToOps,
     storage::{
         primitives::{Level0Term, LitTerm, Term},
@@ -17,9 +48,15 @@ use crate::{
 
 use super::lower::PatKind;
 
+/// Represents what kind of [IntRange] is being
+/// boundaries are specified when creating it.
+///
+/// @@TODO: once we support ranges in the parser, move this there.
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum RangeEnd {
+    /// The end element is included in the range, i.e. closed interval range.
     Included,
+    /// The end element is excluded in the range, i.e. open interval range.
     Excluded,
 }
 
@@ -74,7 +111,9 @@ impl IntRange {
         self.range.start() == self.range.end()
     }
 
-    /// See [`Constructor::is_covered_by`] //@@Todo:docs!
+    /// If the `other` range covers all possible values of this [IntRange], then
+    /// we conclude that the the `other` range covers the range. This function
+    /// is used by [`super::construct::ConstructorOps::is_covered_by`].
     pub fn is_covered_by(&self, other: &Self) -> bool {
         if self.intersection(other).is_some() {
             // Constructor splitting should ensure that all intersections we encounter are
@@ -274,9 +313,9 @@ impl<'gs, 'ls, 'cd, 's> IntRangeOps<'gs, 'ls, 'cd, 's> {
     }
 
     /// Convert this range into a [PatKind] by judging the given
-    /// type within the [PatCtx]
+    /// type within the [PatCtx].
     #[inline]
-    pub fn to_pat_kind(&self, range: &IntRange, ctx: PatCtx) -> PatKind {
+    pub fn to_pat_kind(&self, ctx: PatCtx, range: &IntRange) -> PatKind {
         let (lo, hi) = range.boundaries();
 
         let bias = range.bias;

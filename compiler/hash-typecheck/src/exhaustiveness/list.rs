@@ -1,24 +1,8 @@
+//! Data structures used within the exhaustiveness implementation to represent
+//! list patterns.
 use crate::storage::primitives::TermId;
 use hash_source::location::Span;
 use std::{cmp::max, iter::once};
-
-#[derive(Copy, Clone)]
-pub struct PatCtx {
-    /// The term of the current column that is under investigation
-    pub ty: TermId,
-    /// Span of the current pattern under investigation.
-    pub(super) span: Span,
-    /// Whether the current pattern is the whole pattern as found in a match
-    /// arm, or if it's a sub-pattern.
-    pub(super) is_top_level: bool,
-}
-
-impl PatCtx {
-    /// Create a new [PatCtx]
-    pub fn new(ty: TermId, span: Span, is_top_level: bool) -> Self {
-        PatCtx { ty, span, is_top_level }
-    }
-}
 
 /// Represents the kind of [List], whether it is
 /// of a fixed length or of a variable length.

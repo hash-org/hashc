@@ -1,7 +1,7 @@
 use smallvec::{smallvec, SmallVec};
 
 use crate::{
-    exhaustiveness::structures::PatCtx,
+    exhaustiveness::PatCtx,
     ops::AccessToOps,
     storage::{
         primitives::{ConstructorId, DeconstructedPatId},

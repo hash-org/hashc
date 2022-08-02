@@ -60,7 +60,8 @@ pub struct GlobalStorage {
     pub pat_args_store: PatArgsStore,
     pub checked_sources: CheckedSources,
 
-    /// Pattern fields from [DeconstructedPat]
+    /// Pattern fields from
+    /// [super::exhaustiveness::deconstruct::DeconstructedPat]
     pub deconstructed_pat_store: DeconstructedPatStore,
 
     pub constructor_store: ConstructorStore,

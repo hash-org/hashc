@@ -1,6 +1,25 @@
+//! Hash Typechecker exhaustiveness and usefulness checking
+//! implementation. This module contains the needed data
+//! structures and logic to implement pattern exhaustiveness and usefulness
+//! checking.
+
 #![allow(unused)] // @@Todo: remove when integrated with tc-visitor
 
-use crate::storage::AccessToStorage;
+pub mod constant;
+pub mod construct;
+pub mod deconstruct;
+pub mod fields;
+pub mod list;
+pub mod lower;
+pub mod matrix;
+pub mod range;
+pub mod stack;
+pub mod usefulness;
+pub mod wildcard;
+
+use hash_source::location::Span;
+
+use crate::storage::{primitives::TermId, AccessToStorage};
 
 use self::{
     construct::ConstructorOps, deconstruct::DeconstructPatOps, fields::FieldOps,
@@ -8,25 +27,30 @@ use self::{
     usefulness::UsefulnessOps, wildcard::SplitWildcardOps,
 };
 
-mod constant;
-pub mod structures;
+/// General exhaustiveness context that's used when performing
+/// splitting and specialisation operations.
+#[derive(Copy, Clone)]
+pub struct PatCtx {
+    /// The term of the current column that is under investigation
+    pub ty: TermId,
+    /// Span of the current pattern under investigation.
+    pub(super) span: Span,
+    /// Whether the current pattern is the whole pattern as found in a match
+    /// arm, or if it's a sub-pattern.
+    pub(super) is_top_level: bool,
+}
 
-mod fields;
-mod lower;
-mod matrix;
-mod range;
-mod stack;
-mod wildcard;
-
-// Needs to be public since we expose `DeconstructPat`
-pub mod construct;
-pub mod deconstruct;
-pub mod usefulness;
+impl PatCtx {
+    /// Create a new [PatCtx]
+    pub fn new(ty: TermId, span: Span, is_top_level: bool) -> Self {
+        PatCtx { ty, span, is_top_level }
+    }
+}
 
 /// Trait to access various structures that can perform usefulness queries,
 /// by a reference to a [StorageRef](crate::storage::StorageRef).
 pub(crate) trait AccessToUsefulnessOps: AccessToStorage {
-    // Create an instance of [DeconstructPatOps].
+    /// Create an instance of [DeconstructPatOps].
     fn deconstruct_pat_ops(&self) -> DeconstructPatOps {
         DeconstructPatOps::new(self.storages())
     }

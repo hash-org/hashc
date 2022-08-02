@@ -39,7 +39,7 @@
 //! that the provided pattern vector is not exhaustive and misses some cases.
 //!
 //! The implementation of this algorithm is based on the research paper:
-//! http://moscova.inria.fr/~maranget/papers/warn/warn.pdf, and is heavily
+//! <http://moscova.inria.fr/~maranget/papers/warn/warn.pdf>, and is heavily
 //! inspired by the Rust Compiler implementation:
 //! <https://github.com/rust-lang/rust/tree/master/compiler/rustc_mir_build/src/thir/pattern/usefulness.rs>
 use std::iter::once;
@@ -49,7 +49,7 @@ use super::{
     stack::PatStack, AccessToUsefulnessOps,
 };
 use crate::{
-    exhaustiveness::structures::PatCtx,
+    exhaustiveness::PatCtx,
     ops::AccessToOps,
     storage::{
         primitives::{ConstructorId, DeconstructedPatId, TermId},

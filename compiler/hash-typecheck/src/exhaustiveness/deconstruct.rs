@@ -6,7 +6,10 @@ use smallvec::SmallVec;
 
 use crate::{
     diagnostics::macros::tc_panic,
-    exhaustiveness::structures::{List, ListKind, PatCtx},
+    exhaustiveness::{
+        list::{List, ListKind},
+        PatCtx,
+    },
     ops::AccessToOps,
     storage::{
         primitives::{
@@ -113,10 +116,14 @@ impl<'gs, 'ls, 'cd, 's> AccessToStorage for DeconstructPatOps<'gs, 'ls, 'cd, 's>
 }
 
 impl<'gs, 'ls, 'cd, 's> DeconstructPatOps<'gs, 'ls, 'cd, 's> {
+    /// Create a new [DeconstructPatOps].
     pub fn new(storage: StorageRef<'gs, 'ls, 'cd, 's>) -> Self {
         Self { storage }
     }
 
+    /// Create a `match-all` [DeconstructedPat] and infer [Fields] as
+    /// from the provided type in the context, this is only to be used
+    /// when creating `match-all` wildcard patterns.
     pub(super) fn wild_from_ctor(&self, ctx: PatCtx, ctor_id: ConstructorId) -> DeconstructedPat {
         let fields = self.fields_ops().wildcards(ctx, ctor_id);
 
@@ -224,7 +231,7 @@ impl<'gs, 'ls, 'cd, 's> DeconstructPatOps<'gs, 'ls, 'cd, 's> {
 
         let ctor = self.constructor_store().create(ctor);
 
-        // Now we need to put them in the slotmap...
+        // Now we need to put them in the store...
         let fields = Fields::from_iter(
             fields.into_iter().map(|field| self.deconstructed_pat_store().create(field)),
         );
@@ -232,6 +239,7 @@ impl<'gs, 'ls, 'cd, 's> DeconstructPatOps<'gs, 'ls, 'cd, 's> {
         DeconstructedPat::new(ctor, fields, ctx.ty, pat.span)
     }
 
+    /// Convert a [DeconstructedPat] into a [Pat].
     pub(crate) fn to_pat(&self, ctx: PatCtx, pat: DeconstructedPatId) -> Pat {
         let reader = self.reader();
         let pat = reader.get_deconstructed_pat(pat);
@@ -288,7 +296,7 @@ impl<'gs, 'ls, 'cd, 's> DeconstructPatOps<'gs, 'ls, 'cd, 's> {
                     ),
                 }
             }
-            Constructor::IntRange(range) => self.int_range_ops().to_pat_kind(&range, ctx),
+            Constructor::IntRange(range) => self.int_range_ops().to_pat_kind(ctx, &range),
             Constructor::Str(value) => PatKind::Str { value },
             Constructor::List(List { kind }) => match kind {
                 ListKind::Fixed(_) => {

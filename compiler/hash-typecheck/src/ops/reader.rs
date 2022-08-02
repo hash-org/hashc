@@ -70,10 +70,12 @@ impl<'gs> PrimitiveReader<'gs> {
         self.gs.pat_args_store.get(id)
     }
 
+    /// Get the associated [DeconstructedPat] from [DeconstructedPatId].
     pub fn get_deconstructed_pat(&self, id: DeconstructedPatId) -> DeconstructedPat {
         self.gs.deconstructed_pat_store.get(id)
     }
 
+    /// Get the associated [Constructor] from [ConstructorId].
     pub fn get_ctor(&self, id: ConstructorId) -> Constructor {
         self.gs.constructor_store.get(id)
     }

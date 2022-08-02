@@ -1,7 +1,7 @@
 use smallvec::{smallvec, SmallVec};
 
 use crate::{
-    exhaustiveness::structures::PatCtx,
+    exhaustiveness::PatCtx,
     ops::AccessToOps,
     storage::{
         primitives::{ConstructorId, Level1Term, NominalDef, Term},
@@ -9,6 +9,22 @@ use crate::{
     },
 };
 
+/// A wildcard constructor that we split relative to the constructors in the
+/// matrix.
+///
+/// A constructor that is not present in the matrix rows will only be covered by
+/// the rows that have wildcards. Thus we can group all of those constructors
+/// together; we call them "missing constructors". Splitting a wildcard would
+/// therefore list all present constructors individually (or grouped if they are
+/// integers or slices), and then all missing constructors together as a group.
+///
+/// However we can go further: since any constructor will match the wildcard
+/// rows, and having more rows can only reduce the amount of usefulness
+/// witnesses, we can skip the present constructors and only try the missing
+/// ones. This will not preserve the whole list of witnesses, but will preserve
+/// whether the list is empty or not. In fact this is quite natural from the
+/// point of view of diagnostics too. This is done in `convert_into_ctors`:
+/// in some cases we only return `Missing`.
 #[derive(Debug)]
 pub struct SplitWildcard {
     /// Constructors seen in the matrix.
@@ -16,8 +32,6 @@ pub struct SplitWildcard {
     /// All the constructors for this type
     pub all_ctors: SmallVec<[ConstructorId; 1]>,
 }
-
-impl SplitWildcard {}
 
 use super::{construct::Constructor, AccessToUsefulnessOps};
 
@@ -32,10 +46,12 @@ impl<'gs, 'ls, 'cd, 's> AccessToStorage for SplitWildcardOps<'gs, 'ls, 'cd, 's> 
 }
 
 impl<'gs, 'ls, 'cd, 's> SplitWildcardOps<'gs, 'ls, 'cd, 's> {
+    /// Create a new [SplitWildcardOps].
     pub fn new(storage: StorageRef<'gs, 'ls, 'cd, 's>) -> Self {
         Self { storage }
     }
 
+    /// Create a [SplitWildcard] from the current context.
     pub(super) fn from(&mut self, ctx: PatCtx) -> SplitWildcard {
         let reader = self.reader();
 
@@ -124,12 +140,19 @@ impl<'gs, 'ls, 'cd, 's> SplitWildcardOps<'gs, 'ls, 'cd, 's> {
         })
     }
 
+    /// Convert the current [SplitWildcard] into it's respective constructors.
+    ///
+    /// In the case that the wildcard has missing constructors, it is at the
+    /// top level, and the row type is not of an integral kind then we will
+    /// use the [Constructor::Missing] variant, otherwise falling back to
+    /// [Constructor::Wildcard] in the situations where it is nonsensical
+    /// to show all missing constructors.
     pub(super) fn convert_into_ctors(
         &self,
         ctx: PatCtx,
         wildcard: SplitWildcard,
     ) -> SmallVec<[ConstructorId; 1]> {
-        // If Some constructors are missing, thus we can specialize with the special
+        // If Some constructors are missing, thus we can specialise with the special
         // `Missing` constructor, which stands for those constructors that are
         // not seen in the matrix, and matches the same rows as any of them
         // (namely the wildcard rows). See the top of the file for details.

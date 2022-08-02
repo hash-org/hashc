@@ -2,7 +2,7 @@ use itertools::Itertools;
 
 use crate::{
     diagnostics::macros::tc_panic,
-    exhaustiveness::structures::PatCtx,
+    exhaustiveness::PatCtx,
     ops::AccessToOps,
     storage::{
         primitives::{
@@ -21,6 +21,7 @@ pub struct Fields {
 }
 
 impl Fields {
+    /// Create a [Fields] with no inner elements.
     pub fn empty() -> Self {
         Fields { fields: vec![] }
     }
@@ -29,9 +30,11 @@ impl Fields {
     pub fn iter_patterns(&self) -> impl Iterator<Item = &DeconstructedPatId> {
         self.fields.iter()
     }
+}
 
-    pub fn from_iter(fields: impl IntoIterator<Item = DeconstructedPatId>) -> Self {
-        Fields { fields: fields.into_iter().collect() }
+impl FromIterator<DeconstructedPatId> for Fields {
+    fn from_iter<T: IntoIterator<Item = DeconstructedPatId>>(iter: T) -> Self {
+        Fields { fields: iter.into_iter().collect() }
     }
 }
 
