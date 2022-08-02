@@ -32,11 +32,6 @@ pub trait AccessToOps: AccessToStorage {
     fn reader(&self) -> PrimitiveReader {
         PrimitiveReader::new(self.global_storage())
     }
-
-    /// Create an instance of [CoreDefReader].
-    fn core_defs(&self) -> CoreDefReader {
-        CoreDefReader::new(self.storages())
-    }
 }
 
 impl<T: AccessToStorage> AccessToOps for T {}
@@ -100,6 +95,11 @@ pub trait AccessToOpsMut: AccessToStorageMut {
     /// Create an instance of [Discoverer].
     fn discoverer(&mut self) -> Discoverer {
         Discoverer::new(self.storages_mut())
+    }
+
+    /// Create an instance of [CoreDefReader].
+    fn core_defs(&mut self) -> CoreDefReader {
+        CoreDefReader::new(self.storages_mut())
     }
 }
 

@@ -2,12 +2,13 @@
 //!
 //! These are accessed during the AST traversal in order to type certain
 //! language primitives (for example `if`-block subjects). This is because a lot
-//! of the "primitive" Hash types aren't actually primitives as far as the
-//! typechecker is concerned. This includes: integers, floats, characters,
-//! strings, lists, maps, references, etc.
+//! of the CORE_IDENTIFIERS.primitive Hash types aren't actually primitives as
+//! far as the typechecker is concerned. This includes: integers, floats,
+//! characters, strings, lists, maps, references, etc.
 //!
 //! This accessing is done through [crate::ops::core::CoreDefReader].
 use hash_ast::ast::ParamOrigin;
+use hash_source::identifier::CORE_IDENTIFIERS;
 
 use super::{
     primitives::{Member, ModDefOrigin, ScopeKind, Visibility},
@@ -26,55 +27,63 @@ pub fn create_core_defs_in(global_storage: &mut GlobalStorage) {
     let builder = PrimitiveBuilder::new_with_scope(global_storage, global_storage.root_scope);
 
     // Primitive integers
-    let _i8_ty = builder.create_opaque_struct_def("i8");
+    let _i8_ty = builder.create_opaque_struct_def(CORE_IDENTIFIERS.i8);
 
-    let _i16_ty = builder.create_opaque_struct_def("i16");
-    let i32_ty = builder.create_opaque_struct_def("i32");
-    let _i64_ty = builder.create_opaque_struct_def("i64");
+    let _i16_ty = builder.create_opaque_struct_def(CORE_IDENTIFIERS.i16);
+    let i32_ty = builder.create_opaque_struct_def(CORE_IDENTIFIERS.i32);
+    let _i64_ty = builder.create_opaque_struct_def(CORE_IDENTIFIERS.i64);
 
-    let _u8_ty = builder.create_opaque_struct_def("u8");
-    let _u16_ty = builder.create_opaque_struct_def("u16");
-    let _u32_ty = builder.create_opaque_struct_def("u32");
-    let u64_ty = builder.create_opaque_struct_def("u64");
+    let _u8_ty = builder.create_opaque_struct_def(CORE_IDENTIFIERS.u8);
+    let _u16_ty = builder.create_opaque_struct_def(CORE_IDENTIFIERS.u16);
+    let _u32_ty = builder.create_opaque_struct_def(CORE_IDENTIFIERS.u32);
+    let u64_ty = builder.create_opaque_struct_def(CORE_IDENTIFIERS.u64);
 
-    let _f32_ty = builder.create_opaque_struct_def("f32");
-    let _f64_ty = builder.create_opaque_struct_def("f64");
+    let _f32_ty = builder.create_opaque_struct_def(CORE_IDENTIFIERS.f32);
+    let _f64_ty = builder.create_opaque_struct_def(CORE_IDENTIFIERS.f64);
 
     // Char and bool
-    let _char_ty = builder.create_opaque_struct_def("char");
+    let _char_ty = builder.create_opaque_struct_def(CORE_IDENTIFIERS.char);
     let bool_ty = builder.create_enum_def(
-        Some("bool"),
+        Some(CORE_IDENTIFIERS.bool),
         [
-            builder
-                .create_enum_variant("true", builder.create_params([], ParamOrigin::EnumVariant)),
-            builder
-                .create_enum_variant("false", builder.create_params([], ParamOrigin::EnumVariant)),
+            builder.create_enum_variant(
+                CORE_IDENTIFIERS.r#true,
+                builder.create_params([], ParamOrigin::EnumVariant),
+            ),
+            builder.create_enum_variant(
+                CORE_IDENTIFIERS.r#false,
+                builder.create_params([], ParamOrigin::EnumVariant),
+            ),
         ],
     );
     let bool_ty_term = builder.create_nominal_def_term(bool_ty);
     builder.add_pub_member_to_scope(
-        "true",
+        CORE_IDENTIFIERS.r#true,
         bool_ty_term,
-        builder.create_enum_variant_value_term("true", bool_ty),
+        builder.create_enum_variant_value_term(CORE_IDENTIFIERS.r#true, bool_ty),
     );
     builder.add_pub_member_to_scope(
-        "false",
+        CORE_IDENTIFIERS.r#false,
         bool_ty_term,
-        builder.create_enum_variant_value_term("false", bool_ty),
+        builder.create_enum_variant_value_term(CORE_IDENTIFIERS.r#false, bool_ty),
     );
 
     // String
-    let _str_ty = builder.create_opaque_struct_def("str");
+    let _str_ty = builder.create_opaque_struct_def(CORE_IDENTIFIERS.str);
 
     // Any type
     let any_ty = builder.create_any_ty_term();
-    builder.add_pub_member_to_scope("AnyType", builder.create_trt_kind_term(), any_ty);
+    builder.add_pub_member_to_scope(
+        CORE_IDENTIFIERS.AnyType,
+        builder.create_trt_kind_term(),
+        any_ty,
+    );
 
     // Marker trait for types that are runtime instantiable
-    // We call this "Type" because that's what people usually mean when they say
-    // "type".
-    let runtime_instantiable_trt =
-        builder.create_trt_def(Some("Type"), builder.create_scope(ScopeKind::Constant, []));
+    // We call this CORE_IDENTIFIERS.Type because that's what people usually mean
+    // when they say CORE_IDENTIFIERS.type.
+    let runtime_instantiable_trt = builder
+        .create_trt_def(Some(CORE_IDENTIFIERS.Type), builder.create_scope(ScopeKind::Constant, []));
 
     // Helper for general type bound
     let ty_term = builder.create_trt_term(runtime_instantiable_trt);
@@ -82,7 +91,7 @@ pub fn create_core_defs_in(global_storage: &mut GlobalStorage) {
     // Never type
     let never_ty = builder.create_never_term();
     builder.add_pub_member_to_scope(
-        "never",
+        CORE_IDENTIFIERS.never,
         builder.create_trt_term(runtime_instantiable_trt),
         never_ty,
     );
@@ -90,33 +99,37 @@ pub fn create_core_defs_in(global_storage: &mut GlobalStorage) {
     // Void type
     let void_ty = builder.create_void_ty_term();
     builder.add_pub_member_to_scope(
-        "void",
+        CORE_IDENTIFIERS.void,
         builder.create_trt_term(runtime_instantiable_trt),
         void_ty,
     );
 
     // Reference types
     let _reference_ty_fn = builder.create_ty_fn_term(
-        Some("Ref"),
-        builder.create_params([builder.create_param("T", ty_term)], ParamOrigin::TyFn),
+        Some(CORE_IDENTIFIERS.Ref),
+        builder
+            .create_params([builder.create_param(CORE_IDENTIFIERS.T, ty_term)], ParamOrigin::TyFn),
         ty_term,
         builder.create_nominal_def_term(builder.create_nameless_opaque_struct_def()),
     );
     let _reference_mut_ty_fn = builder.create_ty_fn_term(
-        Some("RefMut"),
-        builder.create_params([builder.create_param("T", ty_term)], ParamOrigin::TyFn),
+        Some(CORE_IDENTIFIERS.RefMut),
+        builder
+            .create_params([builder.create_param(CORE_IDENTIFIERS.T, ty_term)], ParamOrigin::TyFn),
         ty_term,
         builder.create_nominal_def_term(builder.create_nameless_opaque_struct_def()),
     );
     let _raw_reference_ty_fn = builder.create_ty_fn_term(
-        Some("RawRef"),
-        builder.create_params([builder.create_param("T", ty_term)], ParamOrigin::TyFn),
+        Some(CORE_IDENTIFIERS.RawRef),
+        builder
+            .create_params([builder.create_param(CORE_IDENTIFIERS.T, ty_term)], ParamOrigin::TyFn),
         ty_term,
         builder.create_nominal_def_term(builder.create_nameless_opaque_struct_def()),
     );
     let _raw_reference_mut_ty_fn = builder.create_ty_fn_term(
-        Some("RawRefMut"),
-        builder.create_params([builder.create_param("T", ty_term)], ParamOrigin::TyFn),
+        Some(CORE_IDENTIFIERS.RawRefMut),
+        builder
+            .create_params([builder.create_param(CORE_IDENTIFIERS.T, ty_term)], ParamOrigin::TyFn),
         ty_term,
         builder.create_nominal_def_term(builder.create_nameless_opaque_struct_def()),
     );
@@ -125,17 +138,24 @@ pub fn create_core_defs_in(global_storage: &mut GlobalStorage) {
 
     // Hash and Eq traits
     let hash_trt = builder.create_trt_def(
-        Some("Hash"),
+        Some(CORE_IDENTIFIERS.Hash),
         builder.create_scope(
             ScopeKind::Constant,
             [
-                Member::uninitialised_constant("Self", Visibility::Public, ty_term),
                 Member::uninitialised_constant(
-                    "hash",
+                    CORE_IDENTIFIERS.Self_i,
+                    Visibility::Public,
+                    ty_term,
+                ),
+                Member::uninitialised_constant(
+                    CORE_IDENTIFIERS.hash,
                     Visibility::Public,
                     builder.create_fn_ty_term(
                         builder.create_params(
-                            [builder.create_param("value", builder.create_var_term("Self"))],
+                            [builder.create_param(
+                                CORE_IDENTIFIERS.value,
+                                builder.create_var_term(CORE_IDENTIFIERS.Self_i),
+                            )],
                             ParamOrigin::Fn,
                         ),
                         builder.create_nominal_def_term(u64_ty),
@@ -145,19 +165,29 @@ pub fn create_core_defs_in(global_storage: &mut GlobalStorage) {
         ),
     );
     let eq_trt = builder.create_trt_def(
-        Some("Eq"),
+        Some(CORE_IDENTIFIERS.Eq),
         builder.create_scope(
             ScopeKind::Constant,
             [
-                Member::uninitialised_constant("Self", Visibility::Public, ty_term),
                 Member::uninitialised_constant(
-                    "eq",
+                    CORE_IDENTIFIERS.Self_i,
+                    Visibility::Public,
+                    ty_term,
+                ),
+                Member::uninitialised_constant(
+                    CORE_IDENTIFIERS.eq,
                     Visibility::Public,
                     builder.create_fn_ty_term(
                         builder.create_params(
                             [
-                                builder.create_param("a", builder.create_var_term("Self")),
-                                builder.create_param("b", builder.create_var_term("Self")),
+                                builder.create_param(
+                                    CORE_IDENTIFIERS.a,
+                                    builder.create_var_term(CORE_IDENTIFIERS.Self_i),
+                                ),
+                                builder.create_param(
+                                    CORE_IDENTIFIERS.b,
+                                    builder.create_var_term(CORE_IDENTIFIERS.Self_i),
+                                ),
                             ],
                             ParamOrigin::Fn,
                         ),
@@ -170,25 +200,39 @@ pub fn create_core_defs_in(global_storage: &mut GlobalStorage) {
 
     // Index trait
     let index_trt = builder.create_trt_def(
-        Some("Index"),
+        Some(CORE_IDENTIFIERS.Index),
         builder.create_scope(
             ScopeKind::Constant,
             [
-                Member::uninitialised_constant("Self", Visibility::Public, ty_term),
-                Member::uninitialised_constant("Index", Visibility::Public, ty_term),
-                Member::uninitialised_constant("Output", Visibility::Public, ty_term),
                 Member::uninitialised_constant(
-                    "index",
+                    CORE_IDENTIFIERS.Self_i,
+                    Visibility::Public,
+                    ty_term,
+                ),
+                Member::uninitialised_constant(CORE_IDENTIFIERS.Index, Visibility::Public, ty_term),
+                Member::uninitialised_constant(
+                    CORE_IDENTIFIERS.Output,
+                    Visibility::Public,
+                    ty_term,
+                ),
+                Member::uninitialised_constant(
+                    CORE_IDENTIFIERS.index,
                     Visibility::Public,
                     builder.create_fn_ty_term(
                         builder.create_params(
                             [
-                                builder.create_param("self", builder.create_var_term("Self")),
-                                builder.create_param("index", builder.create_var_term("Index")),
+                                builder.create_param(
+                                    CORE_IDENTIFIERS.self_i,
+                                    builder.create_var_term(CORE_IDENTIFIERS.Self_i),
+                                ),
+                                builder.create_param(
+                                    CORE_IDENTIFIERS.index,
+                                    builder.create_var_term(CORE_IDENTIFIERS.Index),
+                                ),
                             ],
                             ParamOrigin::Fn,
                         ),
-                        builder.create_var_term("Output"),
+                        builder.create_var_term(CORE_IDENTIFIERS.Output),
                     ),
                 ),
             ],
@@ -203,19 +247,20 @@ pub fn create_core_defs_in(global_storage: &mut GlobalStorage) {
             ScopeKind::Constant,
             [
                 Member::open_constant(
-                    "Self",
+                    CORE_IDENTIFIERS.Self_i,
                     Visibility::Public,
                     ty_term,
                     builder.create_app_ty_fn_term(
-                        builder.create_var_term("List"),
+                        builder.create_var_term(CORE_IDENTIFIERS.List),
                         builder.create_args(
-                            [builder.create_nameless_arg(builder.create_var_term("T"))],
+                            [builder
+                                .create_nameless_arg(builder.create_var_term(CORE_IDENTIFIERS.T))],
                             ParamOrigin::TyFn,
                         ),
                     ),
                 ),
                 Member::open_constant(
-                    "Index",
+                    CORE_IDENTIFIERS.Index,
                     Visibility::Public,
                     ty_term,
                     // @@Todo: change this to use usize once we have a better way of inferring
@@ -223,44 +268,57 @@ pub fn create_core_defs_in(global_storage: &mut GlobalStorage) {
                     builder.create_nominal_def_term(i32_ty),
                 ),
                 Member::open_constant(
-                    "Output",
+                    CORE_IDENTIFIERS.Output,
                     Visibility::Public,
                     ty_term,
-                    builder.create_var_term("T"),
+                    builder.create_var_term(CORE_IDENTIFIERS.T),
                 ),
                 Member::open_constant(
-                    "index",
+                    CORE_IDENTIFIERS.index,
                     Visibility::Public,
                     builder.create_fn_ty_term(
                         builder.create_params(
                             [
-                                builder.create_param("self", builder.create_var_term("Self")),
-                                builder.create_param("index", builder.create_var_term("Index")),
+                                builder.create_param(
+                                    CORE_IDENTIFIERS.self_i,
+                                    builder.create_var_term(CORE_IDENTIFIERS.Self_i),
+                                ),
+                                builder.create_param(
+                                    CORE_IDENTIFIERS.index,
+                                    builder.create_var_term(CORE_IDENTIFIERS.Index),
+                                ),
                             ],
                             ParamOrigin::Fn,
                         ),
-                        builder.create_var_term("Output"),
+                        builder.create_var_term(CORE_IDENTIFIERS.Output),
                     ),
                     builder.create_fn_lit_term(
                         builder.create_fn_ty_term(
                             builder.create_params(
                                 [
-                                    builder.create_param("self", builder.create_var_term("Self")),
-                                    builder.create_param("index", builder.create_var_term("Index")),
+                                    builder.create_param(
+                                        CORE_IDENTIFIERS.self_i,
+                                        builder.create_var_term(CORE_IDENTIFIERS.Self_i),
+                                    ),
+                                    builder.create_param(
+                                        CORE_IDENTIFIERS.index,
+                                        builder.create_var_term(CORE_IDENTIFIERS.Index),
+                                    ),
                                 ],
                                 ParamOrigin::Fn,
                             ),
-                            builder.create_var_term("Output"),
+                            builder.create_var_term(CORE_IDENTIFIERS.Output),
                         ),
-                        builder.create_rt_term(builder.create_var_term("Output")),
+                        builder.create_rt_term(builder.create_var_term(CORE_IDENTIFIERS.Output)),
                     ),
                 ),
             ],
         ),
     );
     let _list_ty_fn = builder.create_ty_fn_term(
-        Some("List"),
-        builder.create_params([builder.create_param("T", ty_term)], ParamOrigin::TyFn),
+        Some(CORE_IDENTIFIERS.List),
+        builder
+            .create_params([builder.create_param(CORE_IDENTIFIERS.T, ty_term)], ParamOrigin::TyFn),
         ty_term,
         builder.create_merge_term([
             builder.create_nominal_def_term(builder.create_nameless_opaque_struct_def()),
@@ -269,10 +327,10 @@ pub fn create_core_defs_in(global_storage: &mut GlobalStorage) {
     );
 
     let _set_ty_fn = builder.create_ty_fn_term(
-        Some("Set"),
+        Some(CORE_IDENTIFIERS.Set),
         builder.create_params(
             [builder.create_param(
-                "T",
+                CORE_IDENTIFIERS.T,
                 builder.create_merge_term([
                     builder.create_trt_term(hash_trt),
                     builder.create_trt_term(eq_trt),
@@ -285,17 +343,17 @@ pub fn create_core_defs_in(global_storage: &mut GlobalStorage) {
     );
 
     let _map_ty_fn = builder.create_ty_fn_term(
-        Some("Map"),
+        Some(CORE_IDENTIFIERS.Map),
         builder.create_params(
             [
                 builder.create_param(
-                    "K",
+                    CORE_IDENTIFIERS.K,
                     builder.create_merge_term([
                         builder.create_trt_term(hash_trt),
                         builder.create_trt_term(eq_trt),
                     ]),
                 ),
-                builder.create_param("V", ty_term),
+                builder.create_param(CORE_IDENTIFIERS.V, ty_term),
             ],
             ParamOrigin::TyFn,
         ),

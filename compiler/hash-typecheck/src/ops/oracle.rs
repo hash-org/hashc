@@ -29,13 +29,13 @@ impl<'tc> Oracle<'tc> {
 
     /// If the term is a string type.
     pub fn term_is_str(&mut self, term: TermId) -> bool {
-        let str_ty = self.builder().create_var_term("str");
+        let str_ty = self.core_defs().str_ty();
         self.unifier().terms_are_equal(term, str_ty)
     }
 
     /// If the term is a char type.
     pub fn term_is_char(&mut self, term: TermId) -> bool {
-        let char_ty = self.builder().create_var_term("char");
+        let char_ty = self.core_defs().char_ty();
         self.unifier().terms_are_equal(term, char_ty)
     }
 

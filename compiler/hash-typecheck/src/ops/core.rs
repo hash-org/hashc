@@ -1,9 +1,16 @@
 //! Functionality related to determining properties about terms and other
 //! constructs.
-use crate::storage::{primitives::TermId, AccessToStorage, StorageRef};
+use hash_source::identifier::{Identifier, CORE_IDENTIFIERS};
+
+use crate::storage::{
+    primitives::{Member, TermId},
+    AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
+};
+
+use super::AccessToOpsMut;
 
 pub struct CoreDefReader<'tc> {
-    storage: StorageRef<'tc>,
+    storage: StorageRefMut<'tc>,
 }
 
 impl<'tc> AccessToStorage for CoreDefReader<'tc> {
@@ -12,84 +19,127 @@ impl<'tc> AccessToStorage for CoreDefReader<'tc> {
     }
 }
 
+impl<'tc> AccessToStorageMut for CoreDefReader<'tc> {
+    fn storages_mut(&mut self) -> StorageRefMut {
+        self.storage.storages_mut()
+    }
+}
+
 impl<'tc> CoreDefReader<'tc> {
-    pub fn new(storage: StorageRef<'tc>) -> Self {
+    pub fn new(storage: StorageRefMut<'tc>) -> Self {
         Self { storage }
     }
 
-    pub fn str_ty(&self) -> TermId {
-        todo!()
+    fn resolve_core_def(&mut self, var_name: Identifier) -> TermId {
+        let root_scope = self.global_storage().root_scope;
+        let (resolved, index) = self
+            .scope_store()
+            .get(root_scope)
+            .get(var_name)
+            .unwrap_or_else(|| panic!("Failed to find core def: {}", var_name));
+        match resolved {
+            Member::Constant(_) | Member::Variable(_) => {
+                self.builder().create_scope_var_term(var_name, root_scope, index)
+            }
+            Member::Bound(_) | Member::SetBound(_) => {
+                panic!("Core def {} found to be invalid member: {:?}", var_name, resolved)
+            }
+        }
     }
-    pub fn list_ty_fn(&self) -> TermId {
-        todo!()
+
+    pub fn str_ty(&mut self) -> TermId {
+        self.resolve_core_def(CORE_IDENTIFIERS.str)
     }
-    pub fn map_ty_fn(&self) -> TermId {
-        todo!()
+
+    pub fn list_ty_fn(&mut self) -> TermId {
+        self.resolve_core_def(CORE_IDENTIFIERS.List)
     }
-    pub fn set_ty_fn(&self) -> TermId {
-        todo!()
+
+    pub fn map_ty_fn(&mut self) -> TermId {
+        self.resolve_core_def(CORE_IDENTIFIERS.Map)
     }
-    pub fn i8_ty(&self) -> TermId {
-        todo!()
+
+    pub fn set_ty_fn(&mut self) -> TermId {
+        self.resolve_core_def(CORE_IDENTIFIERS.Set)
     }
-    pub fn i16_ty(&self) -> TermId {
-        todo!()
+
+    pub fn i8_ty(&mut self) -> TermId {
+        self.resolve_core_def(CORE_IDENTIFIERS.i8)
     }
-    pub fn i32_ty(&self) -> TermId {
-        todo!()
+
+    pub fn i16_ty(&mut self) -> TermId {
+        self.resolve_core_def(CORE_IDENTIFIERS.i16)
     }
-    pub fn i64_ty(&self) -> TermId {
-        todo!()
+
+    pub fn i32_ty(&mut self) -> TermId {
+        self.resolve_core_def(CORE_IDENTIFIERS.i32)
     }
-    pub fn u8_ty(&self) -> TermId {
-        todo!()
+
+    pub fn i64_ty(&mut self) -> TermId {
+        self.resolve_core_def(CORE_IDENTIFIERS.i64)
     }
-    pub fn u16_ty(&self) -> TermId {
-        todo!()
+
+    pub fn u8_ty(&mut self) -> TermId {
+        self.resolve_core_def(CORE_IDENTIFIERS.u8)
     }
-    pub fn u32_ty(&self) -> TermId {
-        todo!()
+
+    pub fn u16_ty(&mut self) -> TermId {
+        self.resolve_core_def(CORE_IDENTIFIERS.u16)
     }
-    pub fn u64_ty(&self) -> TermId {
-        todo!()
+
+    pub fn u32_ty(&mut self) -> TermId {
+        self.resolve_core_def(CORE_IDENTIFIERS.u32)
     }
-    pub fn f32_ty(&self) -> TermId {
-        todo!()
+
+    pub fn u64_ty(&mut self) -> TermId {
+        self.resolve_core_def(CORE_IDENTIFIERS.u64)
     }
-    pub fn f64_ty(&self) -> TermId {
-        todo!()
+
+    pub fn f32_ty(&mut self) -> TermId {
+        self.resolve_core_def(CORE_IDENTIFIERS.f32)
     }
-    pub fn char_ty(&self) -> TermId {
-        todo!()
+
+    pub fn f64_ty(&mut self) -> TermId {
+        self.resolve_core_def(CORE_IDENTIFIERS.f64)
     }
-    pub fn bool_ty(&self) -> TermId {
-        todo!()
+
+    pub fn char_ty(&mut self) -> TermId {
+        self.resolve_core_def(CORE_IDENTIFIERS.char)
     }
-    pub fn any_ty(&self) -> TermId {
-        todo!()
+
+    pub fn bool_ty(&mut self) -> TermId {
+        self.resolve_core_def(CORE_IDENTIFIERS.bool)
     }
-    pub fn reference_ty_fn(&self) -> TermId {
-        todo!()
+
+    pub fn reference_ty_fn(&mut self) -> TermId {
+        self.resolve_core_def(CORE_IDENTIFIERS.Ref)
     }
-    pub fn reference_mut_ty_fn(&self) -> TermId {
-        todo!()
+
+    pub fn reference_mut_ty_fn(&mut self) -> TermId {
+        self.resolve_core_def(CORE_IDENTIFIERS.RefMut)
     }
-    pub fn raw_reference_ty_fn(&self) -> TermId {
-        todo!()
+
+    pub fn raw_reference_ty_fn(&mut self) -> TermId {
+        self.resolve_core_def(CORE_IDENTIFIERS.RawRefMut)
     }
-    pub fn raw_reference_mut_ty_fn(&self) -> TermId {
-        todo!()
+
+    pub fn raw_reference_mut_ty_fn(&mut self) -> TermId {
+        self.resolve_core_def(CORE_IDENTIFIERS.RawRefMut)
     }
-    pub fn hash_trt(&self) -> TermId {
-        todo!()
+
+    pub fn hash_trt(&mut self) -> TermId {
+        self.resolve_core_def(CORE_IDENTIFIERS.Hash)
     }
-    pub fn eq_trt(&self) -> TermId {
-        todo!()
+
+    pub fn eq_trt(&mut self) -> TermId {
+        self.resolve_core_def(CORE_IDENTIFIERS.Eq)
     }
-    pub fn index_trt(&self) -> TermId {
-        todo!()
+
+    pub fn index_trt(&mut self) -> TermId {
+        self.resolve_core_def(CORE_IDENTIFIERS.Index)
     }
-    pub fn runtime_instantiable_trt(&self) -> TermId {
-        todo!()
+
+    pub fn runtime_instantiable_trt(&mut self) -> TermId {
+        self.resolve_core_def(CORE_IDENTIFIERS.Type)
     }
 }
