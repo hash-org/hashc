@@ -1,0 +1,294 @@
+use std::{
+    cmp::{max, min},
+    fmt,
+    iter::once,
+    ops::RangeInclusive,
+};
+
+use crate::{
+    diagnostics::macros::tc_panic,
+    exhaustiveness::{constant::Constant, structures::PatCtx},
+    ops::AccessToOps,
+    storage::{
+        primitives::{Level0Term, LitTerm, Term},
+        AccessToStorage, StorageRef,
+    },
+};
+
+use super::lower::PatKind;
+
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+pub enum RangeEnd {
+    Included,
+    Excluded,
+}
+
+impl fmt::Display for RangeEnd {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RangeEnd::Included => write!(f, "..="),
+            RangeEnd::Excluded => write!(f, ".."),
+        }
+    }
+}
+
+#[derive(Clone)]
+
+pub struct IntRange {
+    pub range: RangeInclusive<u128>,
+
+    /// Keeps the bias used for encoding the range. It depends on the type of
+    /// the range and possibly the pointer size of the current architecture.
+    /// The algorithm ensures we never compare `IntRange`s with different
+    /// types/architectures.
+    pub bias: u128,
+}
+
+impl IntRange {
+    /// Get the boundaries of the current [IntRange]
+    pub fn boundaries(&self) -> (u128, u128) {
+        (*self.range.start(), *self.range.end())
+    }
+
+    /// Check whether `self` is covered by the other range, in other words
+    /// if other is a super-range of `self`.
+    pub fn is_subrange(&self, other: &Self) -> bool {
+        other.range.start() <= self.range.start() && self.range.end() <= other.range.end()
+    }
+
+    /// Get the intersection between `self` and `other` [IntRange]s.
+    pub fn intersection(&self, other: &Self) -> Option<Self> {
+        let (lo, hi) = self.boundaries();
+        let (other_lo, other_hi) = other.boundaries();
+
+        if lo <= other_hi && other_lo <= hi {
+            Some(IntRange { range: max(lo, other_lo)..=min(hi, other_hi), bias: self.bias })
+        } else {
+            None
+        }
+    }
+
+    /// Check whether the [IntRange] is a singleton, or in other words if there
+    /// is only one step within the range
+    pub fn is_singleton(&self) -> bool {
+        self.range.start() == self.range.end()
+    }
+
+    /// See [`Constructor::is_covered_by`] //@@Todo:docs!
+    pub fn is_covered_by(&self, other: &Self) -> bool {
+        if self.intersection(other).is_some() {
+            // Constructor splitting should ensure that all intersections we encounter are
+            // actually inclusions.
+            assert!(self.is_subrange(other));
+            true
+        } else {
+            false
+        }
+    }
+}
+
+impl fmt::Debug for IntRange {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let (lo, hi) = self.boundaries();
+        let bias = self.bias;
+        let (lo, hi) = (lo ^ bias, hi ^ bias);
+
+        write!(f, "{}", lo)?;
+        write!(f, "{}", RangeEnd::Included)?;
+        write!(f, "{}", hi)
+    }
+}
+
+/// Represents a border between 2 integers. Because the intervals spanning
+/// borders must be able to cover every integer, we need to be able to represent
+/// 2^128 + 1 such borders.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum IntBorder {
+    JustBefore(u128),
+    AfterMax,
+}
+
+/// A range of integers that is partitioned into disjoint subranges. This does
+/// constructor splitting for integer ranges as explained at the top of the
+/// file.
+///
+/// This is fed multiple ranges, and returns an output that covers the input,
+/// but is split so that the only intersections between an output range and a
+/// seen range are inclusions. No output range straddles the boundary of one of
+/// the inputs.
+///
+/// The following input:
+/// ```text
+///   |-------------------------| // `self`
+/// |------|  |----------|   |----|
+///    |-------| |-------|
+/// ```
+/// would be iterated over as follows:
+/// ```text
+///   ||---|--||-|---|---|---|--|
+/// ```
+#[derive(Debug, Clone)]
+pub struct SplitIntRange {
+    /// The range we are splitting
+    range: IntRange,
+    /// The borders of ranges we have seen. They are all contained within
+    /// `range`. This is kept sorted.
+    borders: Vec<IntBorder>,
+}
+
+impl SplitIntRange {
+    /// Create a new [SplitIntRange]
+    pub fn new(range: IntRange) -> Self {
+        SplitIntRange { range, borders: Vec::new() }
+    }
+
+    /// Convert the [SplitIntRange] into its respective borders.
+    pub fn to_borders(r: IntRange) -> (IntBorder, IntBorder) {
+        let (lo, hi) = r.boundaries();
+        let lo = IntBorder::JustBefore(lo);
+
+        let hi = match hi.checked_add(1) {
+            Some(m) => IntBorder::JustBefore(m),
+            None => IntBorder::AfterMax,
+        };
+
+        (lo, hi)
+    }
+
+    /// Add ranges relative to which we split.
+    pub fn split(&mut self, ranges: impl Iterator<Item = IntRange>) {
+        let this_range = &self.range;
+        let included_ranges = ranges.filter_map(|r| this_range.intersection(&r));
+        let included_borders = included_ranges.flat_map(|r| {
+            let (lo, hi) = Self::to_borders(r);
+            once(lo).chain(once(hi))
+        });
+
+        self.borders.extend(included_borders);
+        self.borders.sort_unstable();
+    }
+
+    /// Iterate over the contained ranges.
+    pub fn iter(&self) -> impl Iterator<Item = IntRange> + '_ {
+        let (lo, hi) = Self::to_borders(self.range.clone());
+        // Start with the start of the range.
+        let mut prev_border = lo;
+
+        self.borders
+            .iter()
+            .copied()
+            // End with the end of the range.
+            .chain(once(hi))
+            // List pairs of adjacent borders.
+            .map(move |border| {
+                let ret = (prev_border, border);
+                prev_border = border;
+                ret
+            })
+            // Skip duplicates.
+            .filter(|(prev_border, border)| prev_border != border)
+            // Finally, convert to ranges.
+            .map(move |(prev_border, border)| {
+                let range = match (prev_border, border) {
+                    (IntBorder::JustBefore(n), IntBorder::JustBefore(m)) if n < m => n..=(m - 1),
+                    (IntBorder::JustBefore(n), IntBorder::AfterMax) => n..=u128::MAX,
+                    _ => unreachable!(), // Ruled out by the sorting and filtering we did
+                };
+                IntRange { range, bias: self.range.bias }
+            })
+    }
+}
+
+pub struct IntRangeOps<'gs, 'ls, 'cd, 's> {
+    storage: StorageRef<'gs, 'ls, 'cd, 's>,
+}
+
+impl<'gs, 'ls, 'cd, 's> AccessToStorage for IntRangeOps<'gs, 'ls, 'cd, 's> {
+    fn storages(&self) -> StorageRef {
+        self.storage.storages()
+    }
+}
+
+impl<'gs, 'ls, 'cd, 's> IntRangeOps<'gs, 'ls, 'cd, 's> {
+    pub fn new(storage: StorageRef<'gs, 'ls, 'cd, 's>) -> Self {
+        Self { storage }
+    }
+
+    /// Attempt to build a [IntRange] from a provided constant.
+    #[inline]
+    pub fn range_from_constant(&self, constant: Constant) -> IntRange {
+        let reader = self.reader();
+
+        let bias: u128 = match reader.get_term(constant.ty) {
+            Term::Level0(Level0Term::Lit(lit)) => match lit {
+                LitTerm::Int { kind, .. } if kind.is_signed() => {
+                    // @@Todo: support `ibig` type here
+                    let size = kind.size().unwrap();
+                    1u128 << (size * 8 - 1)
+                }
+                LitTerm::Char(_) | LitTerm::Int { .. } => 0,
+                LitTerm::Str(_) => panic!("got `str` in const!"),
+            },
+            _ => tc_panic!(
+                constant.ty,
+                self,
+                "got unexpected ty `{}` when reading Constant.",
+                self.for_fmt(constant.ty)
+            ),
+        };
+
+        // read from the constant the actual bits and apply bias
+        let val = constant.data() ^ bias;
+        IntRange { range: val..=val, bias }
+    }
+
+    /// Create an [IntRange] from two specified bounds, and assuming that the
+    /// type is an integer (of the column)
+    fn make_range(&self, ctx: PatCtx, lo: u128, hi: u128, end: &RangeEnd) -> IntRange {
+        let bias = self.signed_bias(ctx);
+
+        let (lo, hi) = (lo ^ bias, hi ^ bias);
+        let offset = (*end == RangeEnd::Excluded) as u128;
+        if lo > hi || (lo == hi && *end == RangeEnd::Excluded) {
+            panic!("malformed range pattern: {}..={}", lo, (hi - offset));
+        }
+
+        IntRange { range: lo..=(hi - offset), bias }
+    }
+
+    /// Get the bias based on the type, if it is a signed, integer then
+    /// the bias is set to be just at the end of the signed boundary
+    /// of the integer size, in other words at the position where the
+    /// last byte is that identifies the sign.
+    fn signed_bias(&self, ctx: PatCtx) -> u128 {
+        let reader = self.reader();
+
+        match reader.get_term(ctx.ty) {
+            Term::Level0(Level0Term::Lit(LitTerm::Int { kind, .. })) if kind.is_signed() => {
+                // @@Future: support `ibig` here
+                let size = kind.size().unwrap();
+                1u128 << (size * 8 - 1)
+            }
+            _ => 0,
+        }
+    }
+
+    /// Convert this range into a [PatKind] by judging the given
+    /// type within the [PatCtx]
+    #[inline]
+    pub fn to_pat_kind(&self, range: &IntRange, ctx: PatCtx) -> PatKind {
+        let (lo, hi) = range.boundaries();
+
+        let bias = range.bias;
+        let (lo, hi) = (lo ^ bias, hi ^ bias);
+
+        let lo_const = Constant::from_u128(lo, ctx.ty);
+        // let hi_const = Constant::from_u128(hi, ctx.ty);
+
+        if lo == hi {
+            PatKind::Constant { value: lo_const }
+        } else {
+            panic!("Ranges are not supported yet")
+        }
+    }
+}
