@@ -1237,6 +1237,10 @@ new_key_type! {
 }
 
 new_key_type! {
+    pub struct ConstructorId;
+}
+
+new_key_type! {
     pub struct DeconstructedPatId;
 }
 

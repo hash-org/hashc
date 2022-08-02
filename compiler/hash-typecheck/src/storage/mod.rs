@@ -10,6 +10,7 @@
 
 pub mod arguments;
 pub mod cache;
+pub mod constructors;
 pub mod core;
 pub mod deconstructed_pat;
 pub mod location;
@@ -26,6 +27,7 @@ pub mod trts;
 use self::{
     arguments::ArgsStore,
     cache::Cache,
+    constructors::ConstructorStore,
     core::CoreDefs,
     deconstructed_pat::DeconstructedPatStore,
     location::LocationStore,
@@ -61,6 +63,8 @@ pub struct GlobalStorage {
     /// Pattern fields from [DeconstructedPat]
     pub deconstructed_pat_store: DeconstructedPatStore,
 
+    pub constructor_store: ConstructorStore,
+
     /// The typechecking cache, contains cached simplification, validation
     /// and unification results
     pub cache: Cache,
@@ -88,6 +92,7 @@ impl GlobalStorage {
             pat_store: PatStore::new(),
             pat_args_store: PatArgsStore::new(),
             deconstructed_pat_store: DeconstructedPatStore::new(),
+            constructor_store: ConstructorStore::new(),
             checked_sources: CheckedSources::new(),
             root_scope,
             params_store: ParamsStore::new(),
@@ -213,6 +218,10 @@ pub trait AccessToStorage {
 
     fn pat_store(&self) -> &PatStore {
         &self.global_storage().pat_store
+    }
+
+    fn constructor_store(&self) -> &ConstructorStore {
+        &self.global_storage().constructor_store
     }
 
     fn deconstructed_pat_store(&self) -> &DeconstructedPatStore {

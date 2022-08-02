@@ -2,12 +2,12 @@
 //! ease.
 
 use crate::{
-    exhaustiveness::structures::DeconstructedPat,
+    exhaustiveness::{construct::Constructor, deconstruct::DeconstructedPat},
     storage::{
         primitives::{
-            Args, ArgsId, DeconstructedPatId, ModDef, ModDefId, NominalDef, NominalDefId, Params,
-            ParamsId, Pat, PatArgs, PatArgsId, PatId, Scope, ScopeId, Term, TermId, TrtDef,
-            TrtDefId,
+            Args, ArgsId, ConstructorId, DeconstructedPatId, ModDef, ModDefId, NominalDef,
+            NominalDefId, Params, ParamsId, Pat, PatArgs, PatArgsId, PatId, Scope, ScopeId, Term,
+            TermId, TrtDef, TrtDefId,
         },
         GlobalStorage,
     },
@@ -70,9 +70,12 @@ impl<'gs> PrimitiveReader<'gs> {
         self.gs.pat_args_store.get(id)
     }
 
-    /// Get the [Fields] with the given [DeconstructedPatFieldsId].
-    pub fn get_deconstructed_pat_fields(&self, id: DeconstructedPatId) -> &DeconstructedPat {
+    pub fn get_deconstructed_pat(&self, id: DeconstructedPatId) -> DeconstructedPat {
         self.gs.deconstructed_pat_store.get(id)
+    }
+
+    pub fn get_ctor(&self, id: ConstructorId) -> Constructor {
+        self.gs.constructor_store.get(id)
     }
 
     /// Get the trait definition with the given [TrtDefId].
