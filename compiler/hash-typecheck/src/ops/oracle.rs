@@ -7,23 +7,23 @@ use crate::storage::{
 
 use super::AccessToOpsMut;
 
-pub struct Oracle<'gs, 'ls, 'cd, 's> {
-    storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
+pub struct Oracle<'tc> {
+    storage: StorageRefMut<'tc>,
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorage for Oracle<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorage for Oracle<'tc> {
     fn storages(&self) -> StorageRef {
         self.storage.storages()
     }
 }
-impl<'gs, 'ls, 'cd, 's> AccessToStorageMut for Oracle<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorageMut for Oracle<'tc> {
     fn storages_mut(&mut self) -> StorageRefMut {
         self.storage.storages_mut()
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> Oracle<'gs, 'ls, 'cd, 's> {
-    pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd, 's>) -> Self {
+impl<'tc> Oracle<'tc> {
+    pub fn new(storage: StorageRefMut<'tc>) -> Self {
         Self { storage }
     }
 

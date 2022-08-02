@@ -21,24 +21,24 @@ use std::collections::HashSet;
 pub struct UnifyTysOpts {}
 
 /// Performs type unification and other related operations.
-pub struct Unifier<'gs, 'ls, 'cd, 's> {
-    storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
+pub struct Unifier<'tc> {
+    storage: StorageRefMut<'tc>,
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorage for Unifier<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorage for Unifier<'tc> {
     fn storages(&self) -> crate::storage::StorageRef {
         self.storage.storages()
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorageMut for Unifier<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorageMut for Unifier<'tc> {
     fn storages_mut(&mut self) -> StorageRefMut {
         self.storage.storages_mut()
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
-    pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd, 's>) -> Self {
+impl<'tc> Unifier<'tc> {
+    pub fn new(storage: StorageRefMut<'tc>) -> Self {
         Self { storage }
     }
 

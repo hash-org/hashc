@@ -22,17 +22,17 @@ use hash_source::identifier::Identifier;
 use itertools::Itertools;
 
 /// Can perform simplification on terms.
-pub struct Simplifier<'gs, 'ls, 'cd, 's> {
-    storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
+pub struct Simplifier<'tc> {
+    storage: StorageRefMut<'tc>,
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorage for Simplifier<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorage for Simplifier<'tc> {
     fn storages(&self) -> crate::storage::StorageRef {
         self.storage.storages()
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorageMut for Simplifier<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorageMut for Simplifier<'tc> {
     fn storages_mut(&mut self) -> StorageRefMut {
         self.storage.storages_mut()
     }
@@ -95,8 +95,8 @@ fn turn_unresolved_var_err_into_unresolved_in_value_err(
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
-    pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd, 's>) -> Self {
+impl<'tc> Simplifier<'tc> {
+    pub fn new(storage: StorageRefMut<'tc>) -> Self {
         Self { storage }
     }
 

@@ -141,13 +141,13 @@ impl Member {
 
     /// Create a closed constant member with the given data and visibility.
     pub fn closed_constant(
-        name: Identifier,
+        name: impl Into<Identifier>,
         visibility: Visibility,
         ty: TermId,
         value: TermId,
     ) -> Self {
         Member::Constant(ConstantMember {
-            name,
+            name: name.into(),
             ty,
             value_and_is_closed: Some((value, true)),
             visibility,
@@ -156,22 +156,37 @@ impl Member {
 
     /// Create an open constant member with the given data and visibility.
     pub fn open_constant(
-        name: Identifier,
+        name: impl Into<Identifier>,
         visibility: Visibility,
         ty: TermId,
-        value: Option<TermId>,
+        value: TermId,
     ) -> Self {
         Member::Constant(ConstantMember {
-            name,
+            name: name.into(),
             ty,
-            value_and_is_closed: value.map(|value| (value, false)),
+            value_and_is_closed: Some((value, false)),
+            visibility,
+        })
+    }
+
+    /// Create an uninitialised (open) constant member with the given data and
+    /// visibility.
+    pub fn uninitialised_constant(
+        name: impl Into<Identifier>,
+        visibility: Visibility,
+        ty: TermId,
+    ) -> Self {
+        Member::Constant(ConstantMember {
+            name: name.into(),
+            ty,
+            value_and_is_closed: None,
             visibility,
         })
     }
 
     /// Create a variable member with the given data and mutability.
     pub fn variable(
-        _name: Identifier,
+        _name: impl Into<Identifier>,
         _mutability: Mutability,
         _ty: TermId,
         _value: TermId,
@@ -180,12 +195,12 @@ impl Member {
     }
 
     /// Create a bound member with the given data.
-    pub fn bound(_name: Identifier, _ty: TermId) -> Self {
+    pub fn bound(_name: impl Into<Identifier>, _ty: TermId) -> Self {
         todo!()
     }
 
     /// Create a set bound member with the given data.
-    pub fn set_bound(_name: Identifier, _value: TermId) -> Self {
+    pub fn set_bound(_name: impl Into<Identifier>, _value: TermId) -> Self {
         todo!()
     }
 

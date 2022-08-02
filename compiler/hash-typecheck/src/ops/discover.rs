@@ -15,23 +15,23 @@ use std::collections::HashSet;
 use super::{AccessToOps, AccessToOpsMut};
 
 /// Contains actions related to variable discovery.
-pub struct Discoverer<'gs, 'ls, 'cd, 's> {
-    storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
+pub struct Discoverer<'tc> {
+    storage: StorageRefMut<'tc>,
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorage for Discoverer<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorage for Discoverer<'tc> {
     fn storages(&self) -> StorageRef {
         self.storage.storages()
     }
 }
-impl<'gs, 'ls, 'cd, 's> AccessToStorageMut for Discoverer<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorageMut for Discoverer<'tc> {
     fn storages_mut(&mut self) -> StorageRefMut {
         self.storage.storages_mut()
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
-    pub(crate) fn new(storage: StorageRefMut<'gs, 'ls, 'cd, 's>) -> Self {
+impl<'tc> Discoverer<'tc> {
+    pub(crate) fn new(storage: StorageRefMut<'tc>) -> Self {
         Self { storage }
     }
 

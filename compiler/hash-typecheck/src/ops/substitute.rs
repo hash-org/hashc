@@ -9,24 +9,24 @@ use crate::storage::{
 };
 
 /// Can perform substitutions (see [Sub]) on terms.
-pub struct Substituter<'gs, 'ls, 'cd, 's> {
-    storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
+pub struct Substituter<'tc> {
+    storage: StorageRefMut<'tc>,
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorage for Substituter<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorage for Substituter<'tc> {
     fn storages(&self) -> crate::storage::StorageRef {
         self.storage.storages()
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorageMut for Substituter<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorageMut for Substituter<'tc> {
     fn storages_mut(&mut self) -> StorageRefMut {
         self.storage.storages_mut()
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
-    pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd, 's>) -> Self {
+impl<'tc> Substituter<'tc> {
+    pub fn new(storage: StorageRefMut<'tc>) -> Self {
         Self { storage }
     }
 

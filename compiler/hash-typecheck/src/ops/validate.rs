@@ -80,17 +80,17 @@ impl Term {
 }
 
 /// Can resolve the type of a given term, as another term.
-pub struct Validator<'gs, 'ls, 'cd, 's> {
-    storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
+pub struct Validator<'tc> {
+    storage: StorageRefMut<'tc>,
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorage for Validator<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorage for Validator<'tc> {
     fn storages(&self) -> crate::storage::StorageRef {
         self.storage.storages()
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorageMut for Validator<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorageMut for Validator<'tc> {
     fn storages_mut(&mut self) -> StorageRefMut {
         self.storage.storages_mut()
     }
@@ -122,8 +122,8 @@ enum SelfMode {
     Required,
 }
 
-impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
-    pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd, 's>) -> Self {
+impl<'tc> Validator<'tc> {
+    pub fn new(storage: StorageRefMut<'tc>) -> Self {
         Self { storage }
     }
 
@@ -296,7 +296,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                     validate_param_list_ordering(&fields, ParamListKind::Params(fields_id))?;
 
                     // Validate all fields of an struct def implement `RtInstantiable`
-                    let rti_trt = self.core_defs().runtime_instantiable_trt;
+                    let rti_trt = self.core_defs().runtime_instantiable_trt();
                     for field in fields.positional().iter() {
                         let field_ty = self.typer().infer_ty_of_term(field.ty)?;
                         self.unifier().unify_terms(field_ty, rti_trt)?;
@@ -319,7 +319,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                     )?;
 
                     // Validate all fields of an struct def implement `RtInstantiable`
-                    let rti_trt = self.core_defs().runtime_instantiable_trt;
+                    let rti_trt = self.core_defs().runtime_instantiable_trt();
 
                     for field in variant_fields.positional().iter() {
                         let field_ty = self.typer().infer_ty_of_term(field.ty)?;
@@ -988,7 +988,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
     pub(crate) fn term_is_runtime_instantiable(&mut self, term_id: TermId) -> TcResult<bool> {
         // Ensure that the type of the term unifies with "RuntimeInstantiable":
         let ty_id_of_term = self.typer().infer_ty_of_simplified_term(term_id)?;
-        let rt_instantiable_trt = self.core_defs().runtime_instantiable_trt;
+        let rt_instantiable_trt = self.core_defs().runtime_instantiable_trt();
         match self.unifier().unify_terms(ty_id_of_term, rt_instantiable_trt) {
             Ok(_) => Ok(true),
             // We only return Ok(false) if the error is that the terms do not unify:

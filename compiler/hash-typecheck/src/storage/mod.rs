@@ -14,7 +14,6 @@ use crate::fmt::{ForFormatting, PrepareForFormatting};
 use self::{
     arguments::ArgsStore,
     cache::Cache,
-    core::CoreDefs,
     location::LocationStore,
     mods::ModDefStore,
     nominals::NominalDefStore,
@@ -121,21 +120,19 @@ impl LocalStorage {
 /// A reference to the storage, which includes both local and global storage, as
 /// well as core definitions.
 #[derive(Debug, Clone, Copy)]
-pub struct StorageRef<'gs, 'ls, 'cd, 's> {
-    pub local_storage: &'ls LocalStorage,
-    pub global_storage: &'gs GlobalStorage,
-    pub core_defs: &'cd CoreDefs,
-    source_map: &'s SourceMap,
+pub struct StorageRef<'tc> {
+    pub local_storage: &'tc LocalStorage,
+    pub global_storage: &'tc GlobalStorage,
+    source_map: &'tc SourceMap,
 }
 
 /// A mutable reference to the storage, which includes both local and global
 /// storage, as well as core definitions.
 #[derive(Debug)]
-pub struct StorageRefMut<'gs, 'ls, 'cd, 's> {
-    pub local_storage: &'ls mut LocalStorage,
-    pub global_storage: &'gs mut GlobalStorage,
-    pub core_defs: &'cd CoreDefs,
-    pub source_map: &'s SourceMap,
+pub struct StorageRefMut<'tc> {
+    pub local_storage: &'tc mut LocalStorage,
+    pub global_storage: &'tc mut GlobalStorage,
+    pub source_map: &'tc SourceMap,
 }
 
 /// Trait that provides convenient accessor methods to various parts of the
@@ -149,10 +146,6 @@ pub trait AccessToStorage {
 
     fn local_storage(&self) -> &LocalStorage {
         self.storages().local_storage
-    }
-
-    fn core_defs(&mut self) -> &CoreDefs {
-        self.storages().core_defs
     }
 
     fn scope_store(&self) -> &ScopeStore {
@@ -292,29 +285,27 @@ pub trait AccessToStorageMut: AccessToStorage {
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorage for StorageRef<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorage for StorageRef<'tc> {
     fn storages(&self) -> StorageRef {
         StorageRef { ..*self }
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorage for StorageRefMut<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorage for StorageRefMut<'tc> {
     fn storages(&self) -> StorageRef {
         StorageRef {
             global_storage: self.global_storage,
             local_storage: self.local_storage,
-            core_defs: self.core_defs,
             source_map: self.source_map,
         }
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorageMut for StorageRefMut<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorageMut for StorageRefMut<'tc> {
     fn storages_mut(&mut self) -> StorageRefMut {
         StorageRefMut {
             global_storage: self.global_storage,
             local_storage: self.local_storage,
-            core_defs: self.core_defs,
             source_map: self.source_map,
         }
     }

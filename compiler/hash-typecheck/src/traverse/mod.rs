@@ -58,32 +58,32 @@ impl TcVisitorState {
 /// Traverses the AST and adds types to it, while checking it for correctness.
 ///
 /// Contains typechecker state that is accessed while traversing.
-pub struct TcVisitor<'gs, 'ls, 'cd, 'src> {
-    pub storage: StorageRefMut<'gs, 'ls, 'cd, 'src>,
+pub struct TcVisitor<'tc> {
+    pub storage: StorageRefMut<'tc>,
     pub source_id: SourceId,
-    pub node_map: &'src NodeMap,
+    pub node_map: &'tc NodeMap,
     pub state: TcVisitorState,
 }
 
-impl<'gs, 'ls, 'cd, 'src> AccessToStorage for TcVisitor<'gs, 'ls, 'cd, 'src> {
+impl<'tc> AccessToStorage for TcVisitor<'tc> {
     fn storages(&self) -> StorageRef {
         self.storage.storages()
     }
 }
 
-impl<'gs, 'ls, 'cd, 'src> AccessToStorageMut for TcVisitor<'gs, 'ls, 'cd, 'src> {
+impl<'tc> AccessToStorageMut for TcVisitor<'tc> {
     fn storages_mut(&mut self) -> StorageRefMut {
         self.storage.storages_mut()
     }
 }
 
-impl<'gs, 'ls, 'cd, 'src> TcVisitor<'gs, 'ls, 'cd, 'src> {
+impl<'tc> TcVisitor<'tc> {
     /// Create a new [TcVisitor] with the given state, traversing the given
     /// source from [SourceId].
     pub fn new_in_source(
-        storage: StorageRefMut<'gs, 'ls, 'cd, 'src>,
+        storage: StorageRefMut<'tc>,
         source_id: SourceId,
-        node_map: &'src NodeMap,
+        node_map: &'tc NodeMap,
     ) -> Self {
         TcVisitor { storage, source_id, node_map, state: TcVisitorState::new() }
     }
@@ -164,7 +164,7 @@ impl<'gs, 'ls, 'cd, 'src> TcVisitor<'gs, 'ls, 'cd, 'src> {
 /// Notes:
 /// - Terms derived from expressions are always validated, in order to ensure
 ///   they are correct. The same goes for types.
-impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src> {
+impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type Ctx = ();
     type CollectionContainer<T> = Vec<T>;
 
@@ -205,7 +205,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::MapLit>,
     ) -> Result<Self::MapLitRet, Self::Error> {
         let walk::MapLit { entries } = walk::walk_map_lit(self, ctx, node)?;
-        let map_inner_ty = self.core_defs().map_ty_fn;
+        let map_inner_ty = self.core_defs().map_ty_fn();
 
         // Unify the key and value types...
         let key_ty = self.unifier().unify_rt_term_sequence(entries.iter().map(|(k, _)| *k))?;
@@ -249,7 +249,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     ) -> Result<Self::ListLitRet, Self::Error> {
         let walk::ListLit { elements } = walk::walk_list_lit(self, ctx, node)?;
 
-        let list_inner_ty = self.core_defs().list_ty_fn;
+        let list_inner_ty = self.core_defs().list_ty_fn();
         let element_ty = self.unifier().unify_rt_term_sequence(elements)?;
 
         let builder = self.builder();
@@ -275,7 +275,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     ) -> Result<Self::SetLitRet, Self::Error> {
         let walk::SetLit { elements } = walk::walk_set_lit(self, ctx, node)?;
 
-        let set_inner_ty = self.core_defs().set_ty_fn;
+        let set_inner_ty = self.core_defs().set_ty_fn();
         let element_ty = self.unifier().unify_rt_term_sequence(elements)?;
 
         let builder = self.builder();
@@ -372,7 +372,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         _ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::FloatLit>,
     ) -> Result<Self::FloatLitRet, Self::Error> {
-        let f32_def = self.core_defs().f32_ty;
+        let f32_def = self.core_defs().f32_ty();
         let term = self.builder().create_rt_term(f32_def);
 
         // add the location of the term to the location storage
@@ -570,9 +570,9 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         // Depending on the `mutability` of the reference, create the relevant type
         // function application
         let ref_def = if mutability.is_some() {
-            self.core_defs().reference_mut_ty_fn
+            self.core_defs().reference_mut_ty_fn()
         } else {
-            self.core_defs().reference_ty_fn
+            self.core_defs().reference_ty_fn()
         };
 
         let builder = self.builder();
@@ -602,7 +602,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
         // Create a `Ref<T>` dummy type for unification...
         let ap_ref_ty = {
-            let ref_ty = self.core_defs().reference_ty_fn;
+            let ref_ty = self.core_defs().reference_ty_fn();
             let builder = self.builder();
 
             builder.create_app_ty_fn_term(
@@ -616,7 +616,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
         // Create a `RefMut<T>` dummy type for unification...
         let ap_ref_mut_ty = {
-            let ref_mut_ty = self.core_defs().reference_mut_ty_fn;
+            let ref_mut_ty = self.core_defs().reference_mut_ty_fn();
             let builder = self.builder();
 
             builder.create_app_ty_fn_term(
@@ -812,7 +812,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     ) -> Result<Self::ListTyRet, Self::Error> {
         let walk::ListTy { inner } = walk::walk_list_ty(self, ctx, node)?;
 
-        let inner_ty = self.core_defs().list_ty_fn;
+        let inner_ty = self.core_defs().list_ty_fn();
         let builder = self.builder();
 
         let term = builder.create_app_ty_fn_term(
@@ -833,7 +833,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     ) -> Result<Self::SetTyRet, Self::Error> {
         let walk::SetTy { inner } = walk::walk_set_ty(self, ctx, node)?;
 
-        let inner_ty = self.core_defs().set_ty_fn;
+        let inner_ty = self.core_defs().set_ty_fn();
         let builder = self.builder();
 
         let term = builder.create_app_ty_fn_term(
@@ -854,7 +854,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     ) -> Result<Self::MapTyRet, Self::Error> {
         let walk::MapTy { key, value } = walk::walk_map_ty(self, ctx, node)?;
 
-        let inner_ty = self.core_defs().map_ty_fn;
+        let inner_ty = self.core_defs().map_ty_fn();
         let builder = self.builder();
 
         let term = builder.create_app_ty_fn_term(
@@ -1012,16 +1012,16 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let ref_def = match (kind, mutability) {
             // Immutable, normal, by default:
             (Some(RefKind::Normal) | None, None | Some(Mutability::Immutable)) => {
-                self.core_defs().reference_ty_fn
+                self.core_defs().reference_ty_fn()
             }
             (Some(RefKind::Raw), None | Some(Mutability::Immutable)) => {
-                self.core_defs().raw_reference_ty_fn
+                self.core_defs().raw_reference_ty_fn()
             }
             (Some(RefKind::Normal) | None, Some(Mutability::Mutable)) => {
-                self.core_defs().reference_mut_ty_fn
+                self.core_defs().reference_mut_ty_fn()
             }
             (Some(RefKind::Raw), Some(Mutability::Mutable)) => {
-                self.core_defs().raw_reference_mut_ty_fn
+                self.core_defs().raw_reference_mut_ty_fn()
             }
         };
         let builder = self.builder();
@@ -1593,9 +1593,9 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
                     // Add the member without a value:
 
                     // @@Todo: differentiate between different kinds of members more appropriately:
-                    vec![Member::open_constant(
+                    vec![Member::uninitialised_constant(
                         name, visibility, // mutability,
-                        ty, None,
+                        ty,
                     )]
                 } else {
                     // If there is no value, one cannot use pattern matching!

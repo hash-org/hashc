@@ -244,7 +244,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
     ///
     /// All other methods call this one to actually add members to the scope.
     pub fn add_pub_member_to_scope(&self, name: impl Into<Identifier>, ty: TermId, value: TermId) {
-        let member = Member::open_constant(name.into(), Visibility::Public, ty, Some(value));
+        let member = Member::open_constant(name.into(), Visibility::Public, ty, value);
         if let Some(scope) = self.scope.get() {
             self.gs.borrow_mut().scope_store.get_mut(scope).add(member);
         }

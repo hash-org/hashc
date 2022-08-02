@@ -24,24 +24,24 @@ use crate::{
 use super::{params::pair_args_with_params, AccessToOps};
 
 /// Contains functions related to pattern matching.
-pub struct PatMatcher<'gs, 'ls, 'cd, 's> {
-    storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
+pub struct PatMatcher<'tc> {
+    storage: StorageRefMut<'tc>,
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorage for PatMatcher<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorage for PatMatcher<'tc> {
     fn storages(&self) -> StorageRef {
         self.storage.storages()
     }
 }
-impl<'gs, 'ls, 'cd, 's> AccessToStorageMut for PatMatcher<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorageMut for PatMatcher<'tc> {
     fn storages_mut(&mut self) -> StorageRefMut {
         self.storage.storages_mut()
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
+impl<'tc> PatMatcher<'tc> {
     /// Create a new [PatMatcher].
-    pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd, 's>) -> Self {
+    pub fn new(storage: StorageRefMut<'tc>) -> Self {
         Self { storage }
     }
 
@@ -351,7 +351,7 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
                 Some(name) => {
                     // Since `pat_ty` will be `List<T = Unresolved>`, we need to create a new
                     // `List<T = term_ty_id>` and perform a unification...
-                    let list_inner_ty = self.core_defs().list_ty_fn;
+                    let list_inner_ty = self.core_defs().list_ty_fn();
                     let builder = self.builder();
 
                     let pat_ty = builder.create_app_ty_fn_term(

@@ -19,24 +19,24 @@ use hash_reporting::{report::Report, writer};
 use hash_source::identifier::Identifier;
 
 /// Contains actions related to variable resolution.
-pub struct ScopeManager<'gs, 'ls, 'cd, 's> {
-    storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
+pub struct ScopeManager<'tc> {
+    storage: StorageRefMut<'tc>,
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorage for ScopeManager<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorage for ScopeManager<'tc> {
     fn storages(&self) -> StorageRef {
         self.storage.storages()
     }
 }
-impl<'gs, 'ls, 'cd, 's> AccessToStorageMut for ScopeManager<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorageMut for ScopeManager<'tc> {
     fn storages_mut(&mut self) -> StorageRefMut {
         self.storage.storages_mut()
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
+impl<'tc> ScopeManager<'tc> {
     /// Create a new [ScopeManager].
-    pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd, 's>) -> Self {
+    pub fn new(storage: StorageRefMut<'tc>) -> Self {
         Self { storage }
     }
 

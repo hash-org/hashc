@@ -18,17 +18,17 @@ use crate::{
     },
 };
 /// Can resolve the type of a given term, as another term.
-pub struct Typer<'gs, 'ls, 'cd, 's> {
-    storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
+pub struct Typer<'tc> {
+    storage: StorageRefMut<'tc>,
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorage for Typer<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorage for Typer<'tc> {
     fn storages(&self) -> crate::storage::StorageRef {
         self.storage.storages()
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorageMut for Typer<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorageMut for Typer<'tc> {
     fn storages_mut(&mut self) -> StorageRefMut {
         self.storage.storages_mut()
     }
@@ -42,8 +42,8 @@ pub struct InferredMemberData {
     pub value: Option<TermId>,
 }
 
-impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
-    pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd, 's>) -> Self {
+impl<'tc> Typer<'tc> {
+    pub fn new(storage: StorageRefMut<'tc>) -> Self {
         Self { storage }
     }
 
@@ -152,7 +152,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
             Term::Union(_) => {
                 // The type of a union is "RuntimeInstantiable":
                 // @@Future: relax this
-                let rt_instantiable_def = self.core_defs().runtime_instantiable_trt;
+                let rt_instantiable_def = self.core_defs().runtime_instantiable_trt();
                 Ok(rt_instantiable_def)
             }
             Term::SetBound(set_bound) => {
@@ -195,7 +195,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                 Level1Term::NominalDef(_) | Level1Term::Tuple(_) | Level1Term::Fn(_) => {
                     // The type of any nominal def, function type, or tuple type, is
                     // "RuntimeInstantiable":
-                    let rt_instantiable_def = self.core_defs().runtime_instantiable_trt;
+                    let rt_instantiable_def = self.core_defs().runtime_instantiable_trt();
                     Ok(rt_instantiable_def)
                 }
             },
@@ -405,7 +405,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                 // @@Future: use a list literal term instead
                 //
                 // We want to create a `List<T = term>` as the type of the pattern
-                let list_inner_ty = self.core_defs().list_ty_fn;
+                let list_inner_ty = self.core_defs().list_ty_fn();
                 let builder = self.builder();
 
                 let list_ty = builder.create_app_ty_fn_term(
@@ -416,7 +416,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                 Ok(builder.create_rt_term(list_ty))
             }
             Pat::Spread(_) => {
-                let list_inner_ty = self.core_defs().list_ty_fn;
+                let list_inner_ty = self.core_defs().list_ty_fn();
                 let builder = self.builder();
 
                 // Since we don't know what the type of the inner term... we leave it as
