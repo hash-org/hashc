@@ -46,24 +46,24 @@ use crate::{
 };
 
 /// Contains actions related to pattern exhaustiveness and usefulness checking.
-pub struct ExhaustivenessChecker<'gs, 'ls, 'cd, 's> {
-    storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
+pub struct ExhaustivenessChecker<'tc> {
+    storage: StorageRefMut<'tc>,
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorage for ExhaustivenessChecker<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorage for ExhaustivenessChecker<'tc> {
     fn storages(&self) -> StorageRef {
         self.storage.storages()
     }
 }
-impl<'gs, 'ls, 'cd, 's> AccessToStorageMut for ExhaustivenessChecker<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorageMut for ExhaustivenessChecker<'tc> {
     fn storages_mut(&mut self) -> StorageRefMut {
         self.storage.storages_mut()
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> ExhaustivenessChecker<'gs, 'ls, 'cd, 's> {
+impl<'tc> ExhaustivenessChecker<'tc> {
     /// Create a new [ExhaustivenessChecker].
-    pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd, 's>) -> Self {
+    pub fn new(storage: StorageRefMut<'tc>) -> Self {
         Self { storage }
     }
 

@@ -10,9 +10,7 @@
 use diagnostics::reporting::TcErrorWithStorage;
 use hash_pipeline::{traits::Tc, CompilerResult};
 use hash_source::SourceId;
-use storage::{
-    core::CoreDefs, AccessToStorage, AccessToStorageMut, GlobalStorage, LocalStorage, StorageRefMut,
-};
+use storage::{AccessToStorage, AccessToStorageMut, GlobalStorage, LocalStorage, StorageRefMut};
 use traverse::TcVisitor;
 
 use crate::fmt::PrepareForFormatting;
@@ -31,17 +29,17 @@ pub struct TcImpl;
 #[derive(Debug)]
 pub struct TcState {
     pub global_storage: GlobalStorage,
-    pub core_defs: CoreDefs,
     pub prev_local_storage: LocalStorage,
 }
 
 impl TcState {
     /// Create a new [TcState].
     pub fn new() -> Self {
+        let source_id = SourceId::default();
+
         let mut global_storage = GlobalStorage::new();
-        let core_defs = CoreDefs::new(&mut global_storage);
-        let local_storage = LocalStorage::new(&mut global_storage, SourceId::default());
-        Self { global_storage, core_defs, prev_local_storage: local_storage }
+        let local_storage = LocalStorage::new(&mut global_storage, source_id);
+        Self { global_storage, prev_local_storage: local_storage }
     }
 }
 
@@ -54,6 +52,11 @@ impl Default for TcState {
 impl Tc<'_> for TcImpl {
     type State = TcState;
 
+    /// Make a [State] for [TcImpl]. Internally, this creates
+    /// a new [GlobalStorage] and [LocalStorage] with a default
+    /// [SourceId]. This is safe because both methods that are used
+    /// to visit any source kind, will overwrite the stored [SourceId]
+    /// to the `entry_point`.
     fn make_state(&mut self) -> CompilerResult<Self::State> {
         Ok(TcState::new())
     }
@@ -73,7 +76,6 @@ impl Tc<'_> for TcImpl {
         // previous local storage.
         let mut storage = StorageRefMut {
             global_storage: &mut state.global_storage,
-            core_defs: &state.core_defs,
             local_storage: &mut state.prev_local_storage,
             source_map: &workspace.source_map,
         };
@@ -106,7 +108,6 @@ impl Tc<'_> for TcImpl {
         let mut storage = StorageRefMut {
             global_storage: &mut state.global_storage,
             local_storage: &mut local_storage,
-            core_defs: &state.core_defs,
             source_map: &sources.source_map,
         };
 

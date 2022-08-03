@@ -14,25 +14,25 @@ use super::validate::TermValidation;
 /// [Cache](crate::storage::cache::Cache), the manager itself does not contain
 /// any logic that governs how the cache evicts its entries.
 #[derive(Debug)]
-pub struct CacheManager<'gs, 'ls, 'cd, 's> {
-    storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
+pub struct CacheManager<'tc> {
+    storage: StorageRefMut<'tc>,
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorage for CacheManager<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorage for CacheManager<'tc> {
     fn storages(&self) -> StorageRef {
         self.storage.storages()
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorageMut for CacheManager<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorageMut for CacheManager<'tc> {
     fn storages_mut(&mut self) -> StorageRefMut {
         self.storage.storages_mut()
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> CacheManager<'gs, 'ls, 'cd, 's> {
+impl<'tc> CacheManager<'tc> {
     /// Create a new [CacheManager].
-    pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd, 's>) -> Self {
+    pub fn new(storage: StorageRefMut<'tc>) -> Self {
         Self { storage }
     }
 

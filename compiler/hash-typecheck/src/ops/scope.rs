@@ -9,8 +9,8 @@ use crate::{
     },
     storage::{
         primitives::{
-            ArgsId, BoundVar, Member, MemberData, MemberKind, Mutability, ParamsId, ScopeId,
-            ScopeKind, ScopeMember, ScopeVar, TermId, Visibility,
+            ArgsId, BoundVar, Member, Mutability, ParamsId, ScopeId, ScopeKind, ScopeMember,
+            ScopeVar, TermId,
         },
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
@@ -19,24 +19,24 @@ use hash_reporting::{report::Report, writer};
 use hash_source::identifier::Identifier;
 
 /// Contains actions related to variable resolution.
-pub struct ScopeManager<'gs, 'ls, 'cd, 's> {
-    storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
+pub struct ScopeManager<'tc> {
+    storage: StorageRefMut<'tc>,
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorage for ScopeManager<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorage for ScopeManager<'tc> {
     fn storages(&self) -> StorageRef {
         self.storage.storages()
     }
 }
-impl<'gs, 'ls, 'cd, 's> AccessToStorageMut for ScopeManager<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorageMut for ScopeManager<'tc> {
     fn storages_mut(&mut self) -> StorageRefMut {
         self.storage.storages_mut()
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
+impl<'tc> ScopeManager<'tc> {
     /// Create a new [ScopeManager].
-    pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd, 's>) -> Self {
+    pub fn new(storage: StorageRefMut<'tc>) -> Self {
         Self { storage }
     }
 
@@ -119,8 +119,9 @@ impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
         let param_scope = builder.create_scope(
             ScopeKind::Variable,
             params.positional().iter().filter_map(|param| {
-                Some(builder.create_variable_member(
+                Some(Member::variable(
                     param.name?,
+                    Mutability::Immutable,
                     param.ty,
                     builder.create_rt_term(param.ty),
                 ))
@@ -182,14 +183,9 @@ impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
         });
 
         let builder = self.builder();
-        let members = paired.iter().filter_map(|(param, arg)| {
-            Some(Member::bound(
-                param.name?,
-                Visibility::Private,
-                Mutability::Immutable,
-                MemberData::from_ty_and_value(None, Some(arg.value)),
-            ))
-        });
+        let members = paired
+            .iter()
+            .filter_map(|(param, arg)| Some(Member::set_bound(param.name?, param.ty, arg.value)));
 
         builder.create_scope(ScopeKind::SetBound, members)
     }
@@ -204,13 +200,10 @@ impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
         let builder = self.builder();
         let param_scope = builder.create_scope(
             ScopeKind::Bound,
-            params.positional().iter().filter_map(|param| {
-                Some(builder.create_uninitialised_constant_member(
-                    param.name?,
-                    param.ty,
-                    Visibility::Private,
-                ))
-            }),
+            params
+                .positional()
+                .iter()
+                .filter_map(|param| Some(Member::bound(param.name?, param.ty))),
         );
         param_scope
     }
@@ -247,9 +240,8 @@ impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
         let member = self.scope_store_mut().get_mut(scope_id).get_by_index(index);
 
         // Unify types:
-        let member_data = self.typer().infer_member_ty(member.data)?;
         let rhs_ty = self.typer().infer_ty_of_term(value)?;
-        let _ = self.unifier().unify_terms(rhs_ty, member_data.ty)?;
+        let _ = self.unifier().unify_terms(rhs_ty, member.ty())?;
 
         let member = self.scope_store_mut().get_mut(scope_id).get_mut_by_index(index);
         // @@Todo: add back once this is property implemented
@@ -257,24 +249,20 @@ impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
         //     tc_panic!(value, self, "Cannot assign to closed member");
         // }
 
-        match &mut member.kind {
-            MemberKind::Bound => {
+        match member {
+            Member::Bound(_) | Member::SetBound(_) => {
                 // @@Todo: refine this error
                 Err(TcError::InvalidAssignSubject { location: (scope_id, index).into() })
             }
-            MemberKind::Stack { assignments_until_closed } => {
-                *assignments_until_closed -= 1;
-                match member.data {
-                    MemberData::Uninitialised { .. } => {
-                        member.data = MemberData::InitialisedWithInferredTy { value }
-                    }
-                    MemberData::InitialisedWithTy { ty, .. } => {
-                        member.data = MemberData::InitialisedWithTy { value, ty }
-                    }
-                    MemberData::InitialisedWithInferredTy { .. } => {
-                        member.data = MemberData::InitialisedWithInferredTy { value }
-                    }
-                }
+            Member::Variable(variable) => {
+                // Assign
+                // @@Todo: check if mutable
+                variable.value = value;
+                Ok(())
+            }
+            Member::Constant(constant) => {
+                // @@Todo implement this properly
+                constant.set_value(value);
                 Ok(())
             }
         }

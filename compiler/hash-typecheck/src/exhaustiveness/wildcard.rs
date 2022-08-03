@@ -40,19 +40,19 @@ pub struct SplitWildcard {
 
 use super::{construct::Constructor, AccessToUsefulnessOps};
 
-pub struct SplitWildcardOps<'gs, 'ls, 'cd, 's> {
-    storage: StorageRef<'gs, 'ls, 'cd, 's>,
+pub struct SplitWildcardOps<'tc> {
+    storage: StorageRef<'tc>,
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorage for SplitWildcardOps<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorage for SplitWildcardOps<'tc> {
     fn storages(&self) -> StorageRef {
         self.storage.storages()
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> SplitWildcardOps<'gs, 'ls, 'cd, 's> {
+impl<'tc> SplitWildcardOps<'tc> {
     /// Create a new [SplitWildcardOps].
-    pub fn new(storage: StorageRef<'gs, 'ls, 'cd, 's>) -> Self {
+    pub fn new(storage: StorageRef<'tc>) -> Self {
         Self { storage }
     }
 

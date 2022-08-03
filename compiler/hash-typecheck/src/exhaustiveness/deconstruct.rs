@@ -112,19 +112,19 @@ impl DeconstructedPat {
     }
 }
 
-pub struct DeconstructPatOps<'gs, 'ls, 'cd, 's> {
-    storage: StorageRef<'gs, 'ls, 'cd, 's>,
+pub struct DeconstructPatOps<'tc> {
+    storage: StorageRef<'tc>,
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorage for DeconstructPatOps<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorage for DeconstructPatOps<'tc> {
     fn storages(&self) -> StorageRef {
         self.storage.storages()
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> DeconstructPatOps<'gs, 'ls, 'cd, 's> {
+impl<'tc> DeconstructPatOps<'tc> {
     /// Create a new [DeconstructPatOps].
-    pub fn new(storage: StorageRef<'gs, 'ls, 'cd, 's>) -> Self {
+    pub fn new(storage: StorageRef<'tc>) -> Self {
         Self { storage }
     }
 

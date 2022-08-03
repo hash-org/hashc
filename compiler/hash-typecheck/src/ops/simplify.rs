@@ -10,8 +10,9 @@ use crate::{
     storage::{
         primitives::{
             AccessOp, AccessTerm, Arg, ArgsId, ConstructedTerm, FnLit, FnTy, Level0Term,
-            Level1Term, Level2Term, Level3Term, NominalDef, Param, ParamsId, ScopeKind,
-            StructFields, Term, TermId, TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
+            Level1Term, Level2Term, Level3Term, Member, Mutability, NominalDef, Param, ParamsId,
+            ScopeKind, StructFields, Term, TermId, TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase,
+            TyFnTy,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -21,17 +22,17 @@ use hash_source::identifier::Identifier;
 use itertools::Itertools;
 
 /// Can perform simplification on terms.
-pub struct Simplifier<'gs, 'ls, 'cd, 's> {
-    storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
+pub struct Simplifier<'tc> {
+    storage: StorageRefMut<'tc>,
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorage for Simplifier<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorage for Simplifier<'tc> {
     fn storages(&self) -> crate::storage::StorageRef {
         self.storage.storages()
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorageMut for Simplifier<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorageMut for Simplifier<'tc> {
     fn storages_mut(&mut self) -> StorageRefMut {
         self.storage.storages_mut()
     }
@@ -94,8 +95,8 @@ fn turn_unresolved_var_err_into_unresolved_in_value_err(
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
-    pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd, 's>) -> Self {
+impl<'tc> Simplifier<'tc> {
+    pub fn new(storage: StorageRefMut<'tc>) -> Self {
         Self { storage }
     }
 
@@ -425,8 +426,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
 
                 Ok(Some(result))
             }
-            // Cannot access members of the `Type` trait:
-            Level2Term::AnyTy => does_not_support_access(access_term),
+            Level2Term::SizedTy | Level2Term::AnyTy => does_not_support_access(access_term),
         }
     }
 
@@ -1075,7 +1075,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
     /// Simplify the given [Level2Term], if possible.
     pub(crate) fn simplify_level2_term(&mut self, term: &Level2Term) -> TcResult<Option<TermId>> {
         match term {
-            Level2Term::Trt(_) | Level2Term::AnyTy => Ok(None),
+            Level2Term::Trt(_) | Level2Term::AnyTy | Level2Term::SizedTy => Ok(None),
         }
     }
 
@@ -1317,16 +1317,20 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
             // Resolve the variable to its value if it is set and closed.
             Term::ScopeVar(var) => {
                 let scope_member = self.scope_manager().get_scope_var_member(var);
-                if scope_member.member.is_closed_and_non_bound() {
-                    let maybe_resolved_term_id = scope_member.member.data.value();
-                    // Try to simplify it
-                    if let Some(resolved_term_id) = maybe_resolved_term_id {
-                        Ok(Some(self.potentially_simplify_term(resolved_term_id)?))
-                    } else {
-                        Ok(None)
+                match scope_member.member {
+                    Member::Bound(_) => Ok(None),
+                    Member::Constant(constant) => constant
+                        .if_closed(|value| Some(self.potentially_simplify_term(value)))
+                        .transpose(),
+                    Member::SetBound(set_bound) => {
+                        Ok(Some(self.potentially_simplify_term(set_bound.value)?))
                     }
-                } else {
-                    Ok(None)
+                    // @@Correctness: is this always valid? What's the difference between constant
+                    // and runtime immutable?
+                    Member::Variable(variable) if variable.mutability == Mutability::Immutable => {
+                        Ok(Some(self.potentially_simplify_term(variable.value)?))
+                    }
+                    Member::Variable(_variable) => Ok(None),
                 }
             }
             // Nothing can be done for bound vars

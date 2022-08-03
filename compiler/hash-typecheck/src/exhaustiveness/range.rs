@@ -238,18 +238,18 @@ impl SplitIntRange {
     }
 }
 
-pub struct IntRangeOps<'gs, 'ls, 'cd, 's> {
-    storage: StorageRef<'gs, 'ls, 'cd, 's>,
+pub struct IntRangeOps<'tc> {
+    storage: StorageRef<'tc>,
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorage for IntRangeOps<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorage for IntRangeOps<'tc> {
     fn storages(&self) -> StorageRef {
         self.storage.storages()
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> IntRangeOps<'gs, 'ls, 'cd, 's> {
-    pub fn new(storage: StorageRef<'gs, 'ls, 'cd, 's>) -> Self {
+impl<'tc> IntRangeOps<'tc> {
+    pub fn new(storage: StorageRef<'tc>) -> Self {
         Self { storage }
     }
 

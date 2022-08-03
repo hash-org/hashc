@@ -4,7 +4,7 @@
 use crate::storage::{
     primitives::{
         AccessOp, AccessPat, ArgsId, BoundVar, ConstPat, ConstructedTerm, EnumDef, Level0Term,
-        Level1Term, Level2Term, Level3Term, ListPat, LitTerm, MemberData, ModDefId, ModDefOrigin,
+        Level1Term, Level2Term, Level3Term, ListPat, LitTerm, Member, ModDefId, ModDefOrigin,
         ModPat, Mutability, NominalDef, NominalDefId, ParamsId, Pat, PatArgsId, PatId, ScopeId,
         ScopeVar, SpreadPat, StructDef, Sub, SubVar, Term, TermId, TrtDefId, UnresolvedTerm, Var,
         Visibility,
@@ -75,18 +75,27 @@ impl<'gs> TcFormatter<'gs> {
         let scope_value_fmt_opts = TcFormatOpts { expand: true, ..TcFormatOpts::default() };
 
         for member in scope.iter() {
-            let mutability = match member.mutability {
-                Mutability::Mutable => "mut ",
-                Mutability::Immutable => "",
+            let mutability = match member {
+                Member::Variable(var) if var.mutability == Mutability::Mutable => "mut ",
+                _ => "",
             };
-            let visibility = match member.visibility {
-                Visibility::Public => "pub ",
-                Visibility::Private => "priv ",
+            let visibility = match member {
+                Member::Constant(constant_member)
+                    if constant_member.visibility == Visibility::Public =>
+                {
+                    "pub "
+                }
+                Member::Constant(constant_member)
+                    if constant_member.visibility == Visibility::Private =>
+                {
+                    "priv "
+                }
+                _ => "",
             };
-            let name = member.name;
+            let name = member.name();
 
-            match member.data {
-                MemberData::Uninitialised { ty } => {
+            match (member.ty(), member.value()) {
+                (ty, None) => {
                     writeln!(
                         f,
                         "{}{}{}: {};",
@@ -96,7 +105,7 @@ impl<'gs> TcFormatter<'gs> {
                         ty.for_formatting(self.global_storage)
                     )?;
                 }
-                MemberData::InitialisedWithTy { ty, value } => {
+                (ty, Some(value)) => {
                     writeln!(
                         f,
                         "{}{}{}: {} = {};",
@@ -104,19 +113,6 @@ impl<'gs> TcFormatter<'gs> {
                         visibility,
                         name,
                         ty.for_formatting(self.global_storage),
-                        value.for_formatting_with_opts(
-                            self.global_storage,
-                            scope_value_fmt_opts.clone()
-                        ),
-                    )?;
-                }
-                MemberData::InitialisedWithInferredTy { value } => {
-                    writeln!(
-                        f,
-                        "{}{}{} := {};",
-                        mutability,
-                        visibility,
-                        name,
                         value.for_formatting_with_opts(
                             self.global_storage,
                             scope_value_fmt_opts.clone()
@@ -300,6 +296,9 @@ impl<'gs> TcFormatter<'gs> {
             Level2Term::AnyTy => {
                 write!(f, "AnyType")
             }
+            Level2Term::SizedTy => {
+                write!(f, "Type")
+            }
         }
     }
 
@@ -434,8 +433,8 @@ impl<'gs> TcFormatter<'gs> {
                 let members = &self.global_storage.scope_store.get(set_bound.scope).members;
                 write!(f, " where ")?;
                 for (i, member) in members.iter().enumerate() {
-                    write!(f, "{} = ", member.name)?;
-                    self.fmt_term_as_single(f, member.data.value().unwrap(), opts.clone())?;
+                    write!(f, "{} = ", member.name())?;
+                    self.fmt_term_as_single(f, member.value().unwrap(), opts.clone())?;
                     if i != members.len() - 1 {
                         write!(f, ", ")?;
                     }

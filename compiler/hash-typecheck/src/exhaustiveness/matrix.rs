@@ -49,18 +49,18 @@ impl Matrix {
 }
 
 /// Contains functions related to operations on [Matrix]
-pub struct MatrixOps<'gs, 'ls, 'cd, 's> {
-    storage: StorageRef<'gs, 'ls, 'cd, 's>,
+pub struct MatrixOps<'tc> {
+    storage: StorageRef<'tc>,
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorage for MatrixOps<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorage for MatrixOps<'tc> {
     fn storages(&self) -> StorageRef {
         self.storage.storages()
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> MatrixOps<'gs, 'ls, 'cd, 's> {
-    pub fn new(storage: StorageRef<'gs, 'ls, 'cd, 's>) -> Self {
+impl<'tc> MatrixOps<'tc> {
+    pub fn new(storage: StorageRef<'tc>) -> Self {
         Self { storage }
     }
 

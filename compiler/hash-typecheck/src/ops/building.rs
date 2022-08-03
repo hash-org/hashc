@@ -6,10 +6,10 @@ use crate::storage::{
         AccessOp, AccessPat, AccessTerm, Arg, ArgsId, BindingPat, BoundVar, ConstPat,
         ConstructedTerm, ConstructorPat, EnumDef, EnumVariant, EnumVariantValue, FnCall, FnLit,
         FnTy, IfPat, Level0Term, Level1Term, Level2Term, Level3Term, ListPat, LitTerm, Member,
-        MemberData, ModDef, ModDefId, ModDefOrigin, ModPat, Mutability, NominalDef, NominalDefId,
-        Param, ParamList, ParamsId, Pat, PatArg, PatArgsId, PatId, Scope, ScopeId, ScopeKind,
-        ScopeVar, SetBound, StructDef, StructFields, Term, TermId, TrtDef, TrtDefId, TupleLit,
-        TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy, UnresolvedTerm, Var, Visibility,
+        ModDef, ModDefId, ModDefOrigin, ModPat, Mutability, NominalDef, NominalDefId, Param,
+        ParamList, ParamsId, Pat, PatArg, PatArgsId, PatId, Scope, ScopeId, ScopeKind, ScopeVar,
+        SetBound, StructDef, StructFields, Term, TermId, TrtDef, TrtDefId, TupleLit, TupleTy, TyFn,
+        TyFnCall, TyFnCase, TyFnTy, UnresolvedTerm, Var, Visibility,
     },
     GlobalStorage,
 };
@@ -78,7 +78,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
 
     /// Add the given nominal definition to the scope.
     fn add_nominal_def_to_scope(&self, name: Identifier, def_id: NominalDefId) {
-        let def_ty = self.create_any_ty_term();
+        let def_ty = self.create_sized_ty_term();
         let def_value = self.create_term(Term::Level1(Level1Term::NominalDef(def_id)));
         self.add_pub_member_to_scope(name, def_ty, def_value);
     }
@@ -240,11 +240,11 @@ impl<'gs> PrimitiveBuilder<'gs> {
         self.create_term(Term::TyOf(inner))
     }
 
-    /// Add a member to the scope, marking it as public.
+    /// Add an open member to the scope, marking it as public.
     ///
     /// All other methods call this one to actually add members to the scope.
     pub fn add_pub_member_to_scope(&self, name: impl Into<Identifier>, ty: TermId, value: TermId) {
-        let member = self.create_constant_member(name, ty, value, Visibility::Public);
+        let member = Member::open_constant(name.into(), Visibility::Public, ty, value);
         if let Some(scope) = self.scope.get() {
             self.gs.borrow_mut().scope_store.get_mut(scope).add(member);
         }
@@ -281,69 +281,6 @@ impl<'gs> PrimitiveBuilder<'gs> {
         }))
     }
 
-    /// Create a member of a variable scope (private and immutable), with the
-    /// given name, type and value.
-    pub fn create_variable_member(
-        &self,
-        name: impl Into<Identifier>,
-        ty: TermId,
-        value: TermId,
-    ) -> Member {
-        Member::closed_stack(
-            name.into(),
-            Visibility::Private,
-            Mutability::Immutable,
-            MemberData::InitialisedWithTy { ty, value },
-        )
-    }
-
-    /// Create a public member with the given name and value, with inferred
-    /// type.
-    pub fn create_constant_member_infer_ty(
-        &self,
-        name: impl Into<Identifier>,
-        value: TermId,
-        visibility: Visibility,
-    ) -> Member {
-        Member::closed_stack(
-            name.into(),
-            visibility,
-            Mutability::Immutable,
-            MemberData::InitialisedWithInferredTy { value },
-        )
-    }
-
-    /// Create a public member with the given name, type and value.
-    pub fn create_constant_member(
-        &self,
-        name: impl Into<Identifier>,
-        ty: TermId,
-        value: TermId,
-        visibility: Visibility,
-    ) -> Member {
-        Member::closed_stack(
-            name.into(),
-            visibility,
-            Mutability::Immutable,
-            MemberData::InitialisedWithTy { ty, value },
-        )
-    }
-
-    /// Create a public member with the given name, type and unset value.
-    pub fn create_uninitialised_constant_member(
-        &self,
-        name: impl Into<Identifier>,
-        ty: TermId,
-        visibility: Visibility,
-    ) -> Member {
-        Member::closed_stack(
-            name.into(),
-            visibility,
-            Mutability::Immutable,
-            MemberData::Uninitialised { ty },
-        )
-    }
-
     /// Create a [Term::Root].
     pub fn create_root_term(&self) -> TermId {
         self.create_term(Term::Root)
@@ -357,6 +294,11 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// Create a term [Level2Term::AnyTy].
     pub fn create_any_ty_term(&self) -> TermId {
         self.create_term(Term::Level2(Level2Term::AnyTy))
+    }
+
+    /// Create a term [Level2Term::AnyTy].
+    pub fn create_sized_ty_term(&self) -> TermId {
+        self.create_term(Term::Level2(Level2Term::SizedTy))
     }
 
     /// Create a term [Level2Term::Trt] with the given [TrtDefId].

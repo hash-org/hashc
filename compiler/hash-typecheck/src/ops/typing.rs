@@ -11,24 +11,24 @@ use crate::{
     storage::{
         primitives::{
             AccessOp, AccessPat, Arg, ArgsId, ConstPat, ConstructedTerm, Level0Term, Level1Term,
-            Level2Term, Level3Term, ListPat, LitTerm, MemberData, ModDefOrigin, NominalDef, Param,
+            Level2Term, Level3Term, ListPat, LitTerm, Member, ModDefOrigin, NominalDef, Param,
             ParamsId, Pat, PatArgsId, PatId, StructFields, Term, TermId,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
 };
 /// Can resolve the type of a given term, as another term.
-pub struct Typer<'gs, 'ls, 'cd, 's> {
-    storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
+pub struct Typer<'tc> {
+    storage: StorageRefMut<'tc>,
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorage for Typer<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorage for Typer<'tc> {
     fn storages(&self) -> crate::storage::StorageRef {
         self.storage.storages()
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorageMut for Typer<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorageMut for Typer<'tc> {
     fn storages_mut(&mut self) -> StorageRefMut {
         self.storage.storages_mut()
     }
@@ -42,8 +42,8 @@ pub struct InferredMemberData {
     pub value: Option<TermId>,
 }
 
-impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
-    pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd, 's>) -> Self {
+impl<'tc> Typer<'tc> {
+    pub fn new(storage: StorageRefMut<'tc>) -> Self {
         Self { storage }
     }
 
@@ -64,25 +64,6 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
         // Record an entry in the cache about the inferred term
         self.cacher().add_inference_entry(term, new_term);
         Ok(new_term)
-    }
-
-    /// Infer the type of the given member, if it does not already exist.
-    ///
-    /// *Note*: Assumes the term is validated.
-    pub(crate) fn infer_member_ty(
-        &mut self,
-        member_data: MemberData,
-    ) -> TcResult<InferredMemberData> {
-        match member_data {
-            MemberData::Uninitialised { ty } => Ok(InferredMemberData { ty, value: None }),
-            MemberData::InitialisedWithTy { ty, value } => {
-                Ok(InferredMemberData { ty, value: Some(value) })
-            }
-            MemberData::InitialisedWithInferredTy { value } => {
-                let ty = self.infer_ty_of_term(value)?;
-                Ok(InferredMemberData { ty, value: Some(value) })
-            }
-        }
     }
 
     /// Get the type of the given term, given that it is simplified, as another
@@ -152,7 +133,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                 // The type of a variable can be found by looking at the scopes to its
                 // declaration:
                 let var_member = self.scope_manager().resolve_name_in_scopes(var.name, term_id)?;
-                Ok(self.infer_member_ty(var_member.member.data)?.ty)
+                Ok(var_member.member.ty())
             }
             Term::TyFn(ty_fn) => {
                 // The type of a type function is a type function type:
@@ -169,10 +150,10 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                 Ok(self.builder().create_merge_term(tys_of_terms))
             }
             Term::Union(_) => {
-                // The type of a union is "RuntimeInstantiable":
+                // The type of a union is "SizedTy":
                 // @@Future: relax this
-                let rt_instantiable_def = self.core_defs().runtime_instantiable_trt;
-                Ok(self.builder().create_trt_term(rt_instantiable_def))
+                let rt_instantiable_def = self.builder().create_sized_ty_term();
+                Ok(rt_instantiable_def)
             }
             Term::SetBound(set_bound) => {
                 // Get the type inside the scope, and then apply it again if necessary
@@ -193,7 +174,9 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
             },
             Term::Level2(level2_term) => match level2_term {
                 // The type of any trait, or the "Type" trait, is just TraitKind:
-                Level2Term::Trt(_) | Level2Term::AnyTy => Ok(self.builder().create_trt_kind_term()),
+                Level2Term::Trt(_) | Level2Term::AnyTy | Level2Term::SizedTy => {
+                    Ok(self.builder().create_trt_kind_term())
+                }
             },
             Term::Level1(level1_term) => match level1_term {
                 Level1Term::ModDef(mod_def_id) => {
@@ -213,9 +196,9 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                 }
                 Level1Term::NominalDef(_) | Level1Term::Tuple(_) | Level1Term::Fn(_) => {
                     // The type of any nominal def, function type, or tuple type, is
-                    // "RuntimeInstantiable":
-                    let rt_instantiable_def = self.core_defs().runtime_instantiable_trt;
-                    Ok(self.builder().create_trt_term(rt_instantiable_def))
+                    // "SizedTy":
+                    let rt_instantiable_def = self.builder().create_sized_ty_term();
+                    Ok(rt_instantiable_def)
                 }
             },
             Term::Level0(level0_term) => {
@@ -243,14 +226,14 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                     Level0Term::Constructed(ConstructedTerm { subject, .. }) => Ok(subject),
                     Level0Term::Lit(lit_term) => {
                         // This gets the type of the literal
-
-                        let var_to_resolve = match lit_term {
-                            LitTerm::Str(_) => "str",
+                        let term = match lit_term {
+                            LitTerm::Str(_) => self.core_defs().str_ty(),
                             // @@Todo: do some more sophisticated inferring here
-                            LitTerm::Int { kind, .. } => kind.to_name(),
-                            LitTerm::Char(_) => "char",
+                            LitTerm::Int { kind, .. } => {
+                                self.core_defs().resolve_core_def(kind.to_name().into())
+                            }
+                            LitTerm::Char(_) => self.core_defs().char_ty(),
                         };
-                        let term = self.builder().create_var_term(var_to_resolve);
                         Ok(self.simplifier().potentially_simplify_term(term)?)
                     }
                 }
@@ -260,17 +243,17 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                 // @@Correctness: is there a point here when we should default to typeof()
                 // wrapping instead?
                 let member = self.scope_manager().get_bound_var_member(bound_var, term_id);
-                let inferred_data = self.infer_member_ty(member.member.data)?;
-                Ok(inferred_data.ty)
+                Ok(member.member.ty())
             }
             Term::ScopeVar(scope_var) => {
                 let scope_member = self.scope_manager().get_scope_var_member(scope_var);
-                match scope_member.member.data.value() {
-                    // @@Redundancy: the second check should imply the first?
-                    Some(value) if scope_member.member.is_closed_and_non_bound() => {
-                        self.infer_ty_of_term(value)
-                    }
-                    _ => Ok(self.builder().create_ty_of_term(term_id)),
+                match scope_member.member {
+                    Member::Bound(_) => Ok(self.builder().create_ty_of_term(term_id)),
+                    Member::Constant(constant) => Ok(constant
+                        .if_closed(|_| Some(constant.ty))
+                        .unwrap_or_else(|| self.builder().create_ty_of_term(term_id))),
+                    Member::SetBound(set_bound) => Ok(set_bound.ty),
+                    Member::Variable(variable) => Ok(variable.ty),
                 }
             }
             Term::Root | Term::TyOf(_) => {
@@ -424,7 +407,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                 // @@Future: use a list literal term instead
                 //
                 // We want to create a `List<T = term>` as the type of the pattern
-                let list_inner_ty = self.core_defs().list_ty_fn;
+                let list_inner_ty = self.core_defs().list_ty_fn();
                 let builder = self.builder();
 
                 let list_ty = builder.create_app_ty_fn_term(
@@ -435,7 +418,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                 Ok(builder.create_rt_term(list_ty))
             }
             Pat::Spread(_) => {
-                let list_inner_ty = self.core_defs().list_ty_fn;
+                let list_inner_ty = self.core_defs().list_ty_fn();
                 let builder = self.builder();
 
                 // Since we don't know what the type of the inner term... we leave it as

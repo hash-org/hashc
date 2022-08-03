@@ -105,19 +105,19 @@ impl Constructor {
     }
 }
 
-pub struct ConstructorOps<'gs, 'ls, 'cd, 's> {
-    storage: StorageRef<'gs, 'ls, 'cd, 's>,
+pub struct ConstructorOps<'tc> {
+    storage: StorageRef<'tc>,
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorage for ConstructorOps<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorage for ConstructorOps<'tc> {
     fn storages(&self) -> StorageRef {
         self.storage.storages()
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> ConstructorOps<'gs, 'ls, 'cd, 's> {
+impl<'tc> ConstructorOps<'tc> {
     /// Create a new [ConstructorOps].
-    pub fn new(storage: StorageRef<'gs, 'ls, 'cd, 's>) -> Self {
+    pub fn new(storage: StorageRef<'tc>) -> Self {
         Self { storage }
     }
 

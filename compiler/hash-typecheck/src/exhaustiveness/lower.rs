@@ -119,19 +119,19 @@ pub struct Pat {
     pub has_guard: bool,
 }
 
-pub struct LowerPatOps<'gs, 'ls, 'cd, 's> {
-    storage: StorageRef<'gs, 'ls, 'cd, 's>,
+pub struct LowerPatOps<'tc> {
+    storage: StorageRef<'tc>,
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorage for LowerPatOps<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorage for LowerPatOps<'tc> {
     fn storages(&self) -> StorageRef {
         self.storage.storages()
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> LowerPatOps<'gs, 'ls, 'cd, 's> {
+impl<'tc> LowerPatOps<'tc> {
     /// Create a new [LowerPatOps].
-    pub fn new(storage: StorageRef<'gs, 'ls, 'cd, 's>) -> Self {
+    pub fn new(storage: StorageRef<'tc>) -> Self {
         Self { storage }
     }
 

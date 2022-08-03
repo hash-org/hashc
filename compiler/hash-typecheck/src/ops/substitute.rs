@@ -2,32 +2,31 @@
 use super::{AccessToOps, AccessToOpsMut};
 use crate::storage::{
     primitives::{
-        Arg, ArgsId, ConstructedTerm, FnTy, Level0Term, Level1Term, Level2Term, Level3Term, Member,
-        MemberData, Param, ParamsId, ScopeId, Sub, SubVar, Term, TermId, TupleTy, TyFn, TyFnCall,
-        TyFnCase, TyFnTy,
+        Arg, ArgsId, ConstructedTerm, FnTy, Level0Term, Level1Term, Level2Term, Level3Term, Param,
+        ParamsId, ScopeId, Sub, SubVar, Term, TermId, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
     },
     AccessToStorage, AccessToStorageMut, StorageRefMut,
 };
 
 /// Can perform substitutions (see [Sub]) on terms.
-pub struct Substituter<'gs, 'ls, 'cd, 's> {
-    storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
+pub struct Substituter<'tc> {
+    storage: StorageRefMut<'tc>,
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorage for Substituter<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorage for Substituter<'tc> {
     fn storages(&self) -> crate::storage::StorageRef {
         self.storage.storages()
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorageMut for Substituter<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorageMut for Substituter<'tc> {
     fn storages_mut(&mut self) -> StorageRefMut {
         self.storage.storages_mut()
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
-    pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd, 's>) -> Self {
+impl<'tc> Substituter<'tc> {
+    pub fn new(storage: StorageRefMut<'tc>) -> Self {
         Self { storage }
     }
 
@@ -107,7 +106,7 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
         original_term: TermId,
     ) -> TermId {
         match term {
-            Level2Term::Trt(_) | Level2Term::AnyTy => original_term,
+            Level2Term::Trt(_) | Level2Term::AnyTy | Level2Term::SizedTy => original_term,
         }
     }
 
@@ -186,10 +185,9 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
         let old_scope = reader.get_scope(scope_id).clone();
         let mut new_members = vec![];
         for old_member in old_scope.iter() {
-            let new_value = old_member.data.value().map(|value| self.apply_sub_to_term(sub, value));
-            let new_ty = old_member.data.ty().map(|ty| self.apply_sub_to_term(sub, ty));
-            let data = { MemberData::from_ty_and_value(new_ty, new_value) };
-            new_members.push(Member { data, ..old_member });
+            let new_value = old_member.value().map(|value| self.apply_sub_to_term(sub, value));
+            let new_ty = self.apply_sub_to_term(sub, old_member.ty());
+            new_members.push(old_member.with_ty_and_value(new_ty, new_value));
         }
         self.builder().create_scope(old_scope.kind, new_members)
     }

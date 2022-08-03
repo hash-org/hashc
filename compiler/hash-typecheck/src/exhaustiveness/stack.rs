@@ -57,19 +57,19 @@ impl PatStack {
     }
 }
 
-pub struct StackOps<'gs, 'ls, 'cd, 's> {
-    storage: StorageRef<'gs, 'ls, 'cd, 's>,
+pub struct StackOps<'tc> {
+    storage: StorageRef<'tc>,
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorage for StackOps<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorage for StackOps<'tc> {
     fn storages(&self) -> StorageRef {
         self.storage.storages()
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> StackOps<'gs, 'ls, 'cd, 's> {
+impl<'tc> StackOps<'tc> {
     /// Create an instance of [StackOps]
-    pub fn new(storage: StorageRef<'gs, 'ls, 'cd, 's>) -> Self {
+    pub fn new(storage: StorageRef<'tc>) -> Self {
         Self { storage }
     }
 

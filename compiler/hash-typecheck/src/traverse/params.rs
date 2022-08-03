@@ -15,7 +15,7 @@ use crate::{
 
 use super::TcVisitor;
 
-impl<'gs, 'ls, 'cd, 'src> TcVisitor<'gs, 'ls, 'cd, 'src> {
+impl<'tc> TcVisitor<'tc> {
     /// Function that combines the logic between visiting struct
     /// and function definition parameters/fields. The function
     /// will perform the correct operations based on if there
@@ -86,8 +86,8 @@ impl<'gs, 'ls, 'cd, 'src> TcVisitor<'gs, 'ls, 'cd, 'src> {
 
         // The type of the param is the given bound, or Type if no bound was
         // given.
-        let runtime_instantiable_trt = self.core_defs().runtime_instantiable_trt;
-        let ty = ty.unwrap_or_else(|| self.builder().create_trt_term(runtime_instantiable_trt));
+        let runtime_instantiable_trt = self.builder().create_sized_ty_term();
+        let ty = ty.unwrap_or(runtime_instantiable_trt);
 
         self.location_store_mut().add_location_to_target(ty, location);
 

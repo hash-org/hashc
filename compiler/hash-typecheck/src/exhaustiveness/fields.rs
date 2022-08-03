@@ -47,19 +47,19 @@ impl FromIterator<DeconstructedPatId> for Fields {
     }
 }
 
-pub struct FieldOps<'gs, 'ls, 'cd, 's> {
-    storage: StorageRef<'gs, 'ls, 'cd, 's>,
+pub struct FieldOps<'tc> {
+    storage: StorageRef<'tc>,
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorage for FieldOps<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorage for FieldOps<'tc> {
     fn storages(&self) -> StorageRef {
         self.storage.storages()
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> FieldOps<'gs, 'ls, 'cd, 's> {
+impl<'tc> FieldOps<'tc> {
     /// Create a new [FieldOps].
-    pub fn new(storage: StorageRef<'gs, 'ls, 'cd, 's>) -> Self {
+    pub fn new(storage: StorageRef<'tc>) -> Self {
         Self { storage }
     }
 

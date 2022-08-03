@@ -139,19 +139,19 @@ pub(crate) struct UsefulnessReport {
     pub(crate) non_exhaustiveness_witnesses: Vec<DeconstructedPatId>,
 }
 
-pub struct UsefulnessOps<'gs, 'ls, 'cd, 's> {
-    storage: StorageRef<'gs, 'ls, 'cd, 's>,
+pub struct UsefulnessOps<'tc> {
+    storage: StorageRef<'tc>,
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorage for UsefulnessOps<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorage for UsefulnessOps<'tc> {
     fn storages(&self) -> StorageRef {
         self.storage.storages()
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> UsefulnessOps<'gs, 'ls, 'cd, 's> {
+impl<'tc> UsefulnessOps<'tc> {
     /// Create a new instance of [UsefulnessOps].
-    pub fn new(storage: StorageRef<'gs, 'ls, 'cd, 's>) -> Self {
+    pub fn new(storage: StorageRef<'tc>) -> Self {
         Self { storage }
     }
 
