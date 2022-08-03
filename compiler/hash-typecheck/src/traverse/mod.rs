@@ -1269,6 +1269,8 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             .flatten_ok()
             .collect::<TcResult<_>>()?;
 
+        // @@Todo: is_match_exhaustive()?
+
         if !redundant_errors.is_empty() {
             // @@Todo: return all errors, and make them warnings instead of hard errors
             return Err(redundant_errors[0].clone());
@@ -1549,6 +1551,8 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         if let Pat::Binding(BindingPat { name, .. }) = pat {
             self.state.declaration_name_hint = Some(name);
         };
+
+        // @@Todo: is pattern irrefutable?
 
         let ty = node.ty.as_ref().map(|t| self.visit_ty(ctx, t.ast_ref())).transpose()?;
         let value = node.value.as_ref().map(|t| self.visit_expr(ctx, t.ast_ref())).transpose()?;

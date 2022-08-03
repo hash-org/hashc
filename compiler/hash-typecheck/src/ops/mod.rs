@@ -3,16 +3,10 @@
 //!
 //! Code from this module is to be used while traversing and typing the AST, in
 //! order to unify types and ensure correctness.
-use self::{
-    building::PrimitiveBuilder, cache::CacheManager, discover::Discoverer, pats::PatMatcher,
-    reader::PrimitiveReader, scope::ScopeManager, simplify::Simplifier, substitute::Substituter,
-    typing::Typer, unify::Unifier, validate::Validator,
-};
-use crate::storage::{primitives::ScopeId, AccessToStorage, AccessToStorageMut};
-
 pub mod building;
 pub mod cache;
 pub mod discover;
+pub mod exhaustiveness;
 pub mod params;
 pub mod pats;
 pub mod reader;
@@ -22,6 +16,13 @@ pub mod substitute;
 pub mod typing;
 pub mod unify;
 pub mod validate;
+
+use self::{
+    building::PrimitiveBuilder, cache::CacheManager, discover::Discoverer, pats::PatMatcher,
+    reader::PrimitiveReader, scope::ScopeManager, simplify::Simplifier, substitute::Substituter,
+    typing::Typer, unify::Unifier, validate::Validator,
+};
+use crate::storage::{primitives::ScopeId, AccessToStorage, AccessToStorageMut};
 
 /// Trait to access various structures that can perform typechecking queries,
 /// by a reference to a [StorageRef](crate::storage::StorageRef).

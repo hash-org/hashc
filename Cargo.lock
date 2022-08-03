@@ -535,6 +535,7 @@ dependencies = [
  "dashmap",
  "hash-alloc",
  "hash-ast",
+ "hash-ast-desugaring",
  "hash-error-codes",
  "hash-pipeline",
  "hash-reporting",

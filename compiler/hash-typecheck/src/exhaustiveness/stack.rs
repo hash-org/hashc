@@ -1,7 +1,7 @@
 //! Exhaustiveness stack data structure, which is used
 //! to represent [super::matrix::Matrix] rows. This file
 //! contains some utilities on the [PatStack] to perform
-//! transformations, and [PatStackOps] contains functions
+//! transformations, and [StackOps] contains functions
 //! that are relevant to the usefulness and exhaustiveness
 //! algorithm.
 use smallvec::{smallvec, SmallVec};
