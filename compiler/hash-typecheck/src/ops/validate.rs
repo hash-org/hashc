@@ -9,9 +9,9 @@ use crate::{
     ops::params::validate_param_list_ordering,
     storage::{
         primitives::{
-            ArgsId, ConstructedTerm, FnTy, Level0Term, Level1Term, Level2Term, MemberData,
-            ModDefId, ModDefOrigin, Mutability, NominalDef, NominalDefId, ParamsId, Scope, ScopeId,
-            ScopeKind, StructFields, Term, TermId, TrtDefId,
+            ArgsId, ConstructedTerm, FnTy, Level0Term, Level1Term, Level2Term, Member, ModDefId,
+            ModDefOrigin, NominalDef, NominalDefId, ParamsId, Scope, ScopeId, ScopeKind,
+            StructFields, Term, TermId, TrtDefId,
         },
         terms::TermStore,
         AccessToStorage, AccessToStorageMut, StorageRefMut,
@@ -80,17 +80,17 @@ impl Term {
 }
 
 /// Can resolve the type of a given term, as another term.
-pub struct Validator<'gs, 'ls, 'cd, 's> {
-    storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
+pub struct Validator<'tc> {
+    storage: StorageRefMut<'tc>,
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorage for Validator<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorage for Validator<'tc> {
     fn storages(&self) -> crate::storage::StorageRef {
         self.storage.storages()
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorageMut for Validator<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorageMut for Validator<'tc> {
     fn storages_mut(&mut self) -> StorageRefMut {
         self.storage.storages_mut()
     }
@@ -122,8 +122,8 @@ enum SelfMode {
     Required,
 }
 
-impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
-    pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd, 's>) -> Self {
+impl<'tc> Validator<'tc> {
+    pub fn new(storage: StorageRefMut<'tc>) -> Self {
         Self { storage }
     }
 
@@ -146,38 +146,34 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
             // @@Performance: sad that we have to clone here:
             let scope = this.reader().get_scope(scope_id).clone();
             for member in scope.iter() {
-                // This should have been checked in semantic analysis:
-                assert!(
-                    member.mutability != Mutability::Mutable,
-                    "Found mutable member in constant scope!"
-                );
-
                 // Add the member to the progressive scope so that this and next members can
                 // access it.
                 this.scope_store_mut().get_mut(progressive_scope_id).add(member);
 
+                // Initialisation check
+                if !allow_uninitialised {
+                    match member {
+                        Member::Constant(constant_member) if constant_member.value().is_none() => {
+                            return Err(TcError::UninitialisedMemberNotAllowed {
+                                member_ty: member.ty(),
+                            });
+                        }
+                        _ => {}
+                    }
+                }
+
                 // Validate the member:
-                match member.data {
-                    MemberData::Uninitialised { ty } if !allow_uninitialised => {
-                        return Err(TcError::UninitialisedMemberNotAllowed { member_ty: ty });
-                    }
-                    MemberData::Uninitialised { ty } => {
+                match member.value() {
+                    None => {
                         // Validate only the type
-                        this.validate_term(ty)?;
+                        this.validate_term(member.ty())?;
                     }
-                    MemberData::InitialisedWithTy { ty, value } => {
+                    Some(value) => {
                         // Validate the term, the type, and unify them.
                         let TermValidation { term_ty_id, .. } = this.validate_term(value)?;
                         let TermValidation { simplified_term_id: simplified_ty_id, .. } =
-                            this.validate_term(ty)?;
+                            this.validate_term(member.ty())?;
                         let _ = this.unifier().unify_terms(term_ty_id, simplified_ty_id)?;
-                    }
-                    MemberData::InitialisedWithInferredTy { value } => {
-                        // Validate the term, and the type
-                        let TermValidation { term_ty_id, .. } = this.validate_term(value)?;
-                        // @@PotentiallyRedundant: is this necessary? shouldn't this be an invariant
-                        // already?
-                        this.validate_term(term_ty_id)?;
                     }
                 }
 
@@ -229,21 +225,13 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
 
                 // Ensure all members have been implemented:
                 for trt_member in trt_def_members.iter() {
-                    let trt_member_data = self.typer().infer_member_ty(trt_member.data)?;
-
-                    if let Some(scope_member) = scope.get(trt_member.name) {
-                        // Infer the type of the scope member:
-                        let scope_member_data =
-                            self.typer().infer_member_ty(scope_member.0.data)?;
-
-                        // Unify the types of the scope member and the substituted trait member:
-                        let _ =
-                            self.unifier().unify_terms(scope_member_data.ty, trt_member_data.ty)?;
+                    if let Some((scope_member, _)) = scope.get(trt_member.name()) {
+                        let _ = self.unifier().unify_terms(scope_member.ty(), trt_member.ty())?;
                     } else {
                         return Err(TcError::TraitImplMissingMember {
                             trt_def_term_id,
                             trt_impl_term_id: scope_originating_term_id,
-                            trt_def_missing_member_term_id: trt_member_data.ty,
+                            trt_def_missing_member_term_id: trt_member.ty(),
                         });
                     }
                 }
@@ -307,13 +295,11 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                     // are specified, although the ordering shouldn't matter
                     validate_param_list_ordering(&fields, ParamListKind::Params(fields_id))?;
 
-                    // Validate all fields of an struct def implement `RtInstantiable`
-                    let rti_trt = self.core_defs().runtime_instantiable_trt;
+                    // Validate all fields of an struct def implement `SizedTy`
+                    let rti_trt = self.builder().create_sized_ty_term();
                     for field in fields.positional().iter() {
                         let field_ty = self.typer().infer_ty_of_term(field.ty)?;
-                        let dummy_rt = self.builder().create_trt_term(rti_trt);
-
-                        self.unifier().unify_terms(field_ty, dummy_rt)?;
+                        self.unifier().unify_terms(field_ty, rti_trt)?;
                     }
                 }
 
@@ -332,14 +318,12 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                         ParamListKind::Params(variant.fields),
                     )?;
 
-                    // Validate all fields of an struct def implement `RtInstantiable`
-                    let rti_trt = self.core_defs().runtime_instantiable_trt;
+                    // Validate all fields of an struct def implement `SizedTy`
+                    let sized_ty = self.builder().create_sized_ty_term();
 
                     for field in variant_fields.positional().iter() {
                         let field_ty = self.typer().infer_ty_of_term(field.ty)?;
-                        let dummy_rt = self.builder().create_trt_term(rti_trt);
-
-                        self.unifier().unify_terms(field_ty, dummy_rt)?;
+                        self.unifier().unify_terms(field_ty, sized_ty)?;
                     }
                 }
 
@@ -382,7 +366,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
             Term::ScopeVar(scope_var) => {
                 // Forward to the value:
                 let member = self.scope_manager().get_scope_var_member(scope_var);
-                let value = member.member.data.value();
+                let value = member.member.value();
                 if let Some(value) = value {
                     self.validate_union_element(union_term_id, value)
                 } else {
@@ -552,7 +536,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
             Term::Level3(_) => invalid_merge_element(),
             // Level 2 terms are allowed:
             Term::Level2(level2_term) => match level2_term {
-                Level2Term::Trt(_) | Level2Term::AnyTy => {
+                Level2Term::Trt(_) | Level2Term::AnyTy | Level2Term::SizedTy => {
                     *merge_kind = ensure_merge_is_level2()?;
                     Ok(())
                 }
@@ -1002,11 +986,10 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
     ///
     /// *Note*: assumes the term has been simplified and validated.
     pub(crate) fn term_is_runtime_instantiable(&mut self, term_id: TermId) -> TcResult<bool> {
-        // Ensure that the type of the term unifies with "RuntimeInstantiable":
+        // Ensure that the type of the term unifies with "SizedTy":
         let ty_id_of_term = self.typer().infer_ty_of_simplified_term(term_id)?;
-        let rt_instantiable_def = self.core_defs().runtime_instantiable_trt;
-        let rt_instantiable = self.builder().create_trt_term(rt_instantiable_def);
-        match self.unifier().unify_terms(ty_id_of_term, rt_instantiable) {
+        let rt_instantiable_trt = self.builder().create_sized_ty_term();
+        match self.unifier().unify_terms(ty_id_of_term, rt_instantiable_trt) {
             Ok(_) => Ok(true),
             // We only return Ok(false) if the error is that the terms do not unify:
             Err(TcError::CannotUnify { src: _, target: _ }) => Ok(false),

@@ -23,103 +23,214 @@ pub enum Mutability {
     Immutable,
 }
 
-/// A member declaration either containing only a type, only a value, or both.
-#[derive(Copy, Clone, Debug)]
-pub enum MemberData {
-    Uninitialised { ty: TermId },
-    InitialisedWithTy { ty: TermId, value: TermId },
-    InitialisedWithInferredTy { value: TermId },
-}
-
-impl MemberData {
-    /// Get the type of the member, if it exists.
-    pub fn ty(&self) -> Option<TermId> {
-        match self {
-            MemberData::Uninitialised { ty } => Some(*ty),
-            MemberData::InitialisedWithTy { ty, .. } => Some(*ty),
-            MemberData::InitialisedWithInferredTy { .. } => None,
-        }
-    }
-
-    /// Get the value of the member, if it exists.
-    pub fn value(&self) -> Option<TermId> {
-        match self {
-            MemberData::Uninitialised { .. } => None,
-            MemberData::InitialisedWithTy { value, .. } => Some(*value),
-            MemberData::InitialisedWithInferredTy { value } => Some(*value),
-        }
-    }
-
-    /// Turn the given type and value into a [MemberData].
-    pub fn from_ty_and_value(ty: Option<TermId>, value: Option<TermId>) -> Self {
-        match (ty, value) {
-            (Some(ty), Some(value)) => MemberData::InitialisedWithTy { ty, value },
-            (Some(ty), None) => MemberData::Uninitialised { ty },
-            (None, Some(value)) => MemberData::InitialisedWithInferredTy { value },
-            (None, None) => panic!("Got None for both ty and value when creating MemberData"),
-        }
-    }
-}
-
-/// The kind of a member: either a bound member or a stack member.
-/// @@Todo: distinction between actual stack and "constant stack"
+/// A bound member, basically type function parameters.
+///
+/// Should be part of a [ScopeKind::Bound] and can be set by a
+/// [ScopeKind::SetBound].
+///
+/// The value of a bound member should always be None.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MemberKind {
-    /// A bound member, basically type function parameters.
-    Bound,
-    /// A stack member (basically all declared variables).
-    Stack {
-        /// The amount of assignments are left until the member has finished
-        /// initialising (== closed).
-        assignments_until_closed: usize,
-    },
+pub struct BoundMember {
+    pub name: Identifier,
+    pub ty: TermId,
 }
 
-/// A member of a scope, i.e. a variable or a type definition.
-#[derive(Debug, Clone, Copy)]
-pub struct Member {
+/// A set bound member.
+///
+/// Should be part of a [ScopeKind::SetBound].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SetBoundMember {
     pub name: Identifier,
-    pub data: MemberData,
-    pub visibility: Visibility,
+    pub ty: TermId,
+    pub value: TermId,
+}
+
+/// A variable scope member.
+///
+/// Should be part of a [ScopeKind::Variable].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VariableMember {
+    pub name: Identifier,
     pub mutability: Mutability,
-    pub kind: MemberKind,
+    pub ty: TermId,
+    pub value: TermId,
+}
+
+/// A constant scope member.
+///
+/// Should be part of a [ScopeKind::Constant] or [ScopeKind::Variable].
+///
+/// Has a flag as to whether the member is closed (can be substituted by its
+/// value -- think referential transparency).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ConstantMember {
+    pub name: Identifier,
+    pub visibility: Visibility,
+    pub ty: TermId,
+    /// If this field is `None` or `Some((_, false))`, the member is open. If it
+    /// is `Some(_, true)` then the member is closed.
+    pub value_and_is_closed: Option<(TermId, bool)>,
+}
+
+impl ConstantMember {
+    /// Get the value of the constant member
+    pub(crate) fn value(&self) -> Option<TermId> {
+        self.value_and_is_closed.map(|(value, _)| value)
+    }
+
+    /// Get the given property of the constant member if it is closed
+    pub(crate) fn if_closed<T>(&self, f: impl FnOnce(TermId) -> Option<T>) -> Option<T> {
+        match self.value_and_is_closed {
+            Some((value, true)) => f(value),
+            _ => None,
+        }
+    }
+
+    /// Set the value of the constant member
+    pub(crate) fn set_value(&mut self, new_value: TermId) {
+        let _ = self.value_and_is_closed.insert((new_value, false));
+    }
+
+    /// Whether the constant member is closed.
+    pub(crate) fn is_closed(&self) -> bool {
+        matches!(self.value_and_is_closed, Some((_, true)))
+    }
+}
+
+/// A member of a scope.
+#[derive(Debug, Clone, Copy)]
+pub enum Member {
+    Bound(BoundMember),
+    SetBound(SetBoundMember),
+    Variable(VariableMember),
+    Constant(ConstantMember),
 }
 
 impl Member {
-    /// Create a closed stack member with the given data.
-    pub fn closed_stack(
-        name: Identifier,
-        visibility: Visibility,
-        mutability: Mutability,
-        data: MemberData,
-    ) -> Self {
-        Member {
-            name,
-            data,
-            visibility,
-            mutability,
-            kind: MemberKind::Stack { assignments_until_closed: 0 },
+    /// Get the name of the member
+    pub fn name(&self) -> Identifier {
+        match self {
+            Member::Bound(BoundMember { name, .. })
+            | Member::SetBound(SetBoundMember { name, .. })
+            | Member::Variable(VariableMember { name, .. })
+            | Member::Constant(ConstantMember { name, .. }) => *name,
         }
     }
 
-    /// Create a bound member with the given data.
-    pub fn bound(
-        name: Identifier,
-        visibility: Visibility,
-        mutability: Mutability,
-        data: MemberData,
-    ) -> Self {
-        Member { name, data, visibility, mutability, kind: MemberKind::Bound }
+    /// Get the type of the member
+    pub fn ty(&self) -> TermId {
+        match self {
+            Member::Bound(BoundMember { ty, .. })
+            | Member::SetBound(SetBoundMember { ty, .. })
+            | Member::Variable(VariableMember { ty, .. })
+            | Member::Constant(ConstantMember { ty, .. }) => *ty,
+        }
     }
 
-    /// Whether the member is closed (no assignments remaining) and not a bound
-    /// member.
-    pub fn is_closed_and_non_bound(&self) -> bool {
-        matches!(self.kind, MemberKind::Stack { assignments_until_closed: 0 })
+    /// Get the value of the member
+    pub fn value(&self) -> Option<TermId> {
+        match self {
+            Member::Bound(_) => None,
+            Member::SetBound(SetBoundMember { value, .. })
+            | Member::Variable(VariableMember { value, .. }) => Some(*value),
+            Member::Constant(ConstantMember { value_and_is_closed, .. }) => {
+                value_and_is_closed.map(|(value, _)| value)
+            }
+        }
+    }
+
+    /// Create a closed constant member with the given data and visibility.
+    pub fn closed_constant(
+        name: impl Into<Identifier>,
+        visibility: Visibility,
+        ty: TermId,
+        value: TermId,
+    ) -> Self {
+        Member::Constant(ConstantMember {
+            name: name.into(),
+            ty,
+            value_and_is_closed: Some((value, true)),
+            visibility,
+        })
+    }
+
+    /// Create an open constant member with the given data and visibility.
+    pub fn open_constant(
+        name: impl Into<Identifier>,
+        visibility: Visibility,
+        ty: TermId,
+        value: TermId,
+    ) -> Self {
+        Member::Constant(ConstantMember {
+            name: name.into(),
+            ty,
+            value_and_is_closed: Some((value, false)),
+            visibility,
+        })
+    }
+
+    /// Create an uninitialised (open) constant member with the given data and
+    /// visibility.
+    pub fn uninitialised_constant(
+        name: impl Into<Identifier>,
+        visibility: Visibility,
+        ty: TermId,
+    ) -> Self {
+        Member::Constant(ConstantMember {
+            name: name.into(),
+            ty,
+            value_and_is_closed: None,
+            visibility,
+        })
+    }
+
+    /// Create a variable member with the given data and mutability.
+    pub fn variable(
+        name: impl Into<Identifier>,
+        mutability: Mutability,
+        ty: TermId,
+        value: TermId,
+    ) -> Self {
+        Member::Variable(VariableMember { name: name.into(), ty, mutability, value })
+    }
+
+    /// Create a bound member with the given data.
+    pub fn bound(name: impl Into<Identifier>, ty: TermId) -> Self {
+        Member::Bound(BoundMember { name: name.into(), ty })
+    }
+
+    /// Create a set bound member with the given data.
+    pub fn set_bound(name: impl Into<Identifier>, ty: TermId, value: TermId) -> Self {
+        Member::SetBound(SetBoundMember { name: name.into(), value, ty })
+    }
+
+    /// Create a new member with the given `ty` and `value`, but of the same
+    /// kind as `self`.
+    ///
+    /// This assumes that `ty` and `value` were acquired from a member of the
+    /// same kind as self, and thus value is appropriately set to `Some(_)` or
+    /// `None`. Might panic otherwise.
+    #[must_use]
+    pub fn with_ty_and_value(&self, ty: TermId, value: Option<TermId>) -> Self {
+        match *self {
+            Member::Bound(bound_member) => Member::Bound(BoundMember { ty, ..bound_member }),
+            Member::SetBound(set_bound) => {
+                Member::SetBound(SetBoundMember { ty, value: value.unwrap(), ..set_bound })
+            }
+            Member::Variable(variable) => {
+                Member::Variable(VariableMember { ty, value: value.unwrap(), ..variable })
+            }
+            Member::Constant(constant) => Member::Constant(ConstantMember {
+                ty,
+                value_and_is_closed: value.map(|value| (value, constant.is_closed())),
+                ..constant
+            }),
+        }
     }
 }
 
-/// A member of a scope, i.e. a variable or a type definition.
+/// A member of a scope, i.e. a variable or a type definition, along with its
+/// originating scope.
 #[derive(Debug, Clone, Copy)]
 pub struct ScopeMember {
     pub member: Member,
@@ -177,7 +288,8 @@ impl Scope {
     /// Create a new [Scope] from the given members.
     pub fn new(kind: ScopeKind, members: impl IntoIterator<Item = Member>) -> Self {
         let members: Vec<_> = members.into_iter().collect();
-        let member_names = members.iter().enumerate().map(|(i, member)| (member.name, i)).collect();
+        let member_names =
+            members.iter().enumerate().map(|(i, member)| (member.name(), i)).collect();
         Self { kind, members, member_names }
     }
 
@@ -187,7 +299,7 @@ impl Scope {
         self.members.push(member);
         let index = self.members.len() - 1;
 
-        self.member_names.insert(member.name, index);
+        self.member_names.insert(member.name(), index);
         index
     }
 
@@ -794,6 +906,8 @@ pub enum Level2Term {
     // ---- Level 2 ---- the term that is a return term of trait(..)
     /// A trait term.
     Trt(TrtDefId),
+    /// A type that is runtime instantiable, i.e. sized.
+    SizedTy,
     /// Basically a trait term that all types implement, i.e. the trait that is
     /// a supertrait to all other traits.
     AnyTy,

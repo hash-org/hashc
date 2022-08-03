@@ -1,6 +1,6 @@
 //! This file contains the logic and the intermediate representation for the
 //! deconstruction of patterns. Within [crate::exhaustiveness] there is a
-//! defined pattern representation [crate::exhaustiveness::Pat], this  
+//! defined pattern representation [crate::exhaustiveness::Pat], this
 //! file contains the [Constructor] and [DeconstructedPat] representations
 //! that are further reduced representations of the patterns in
 //! order to reduce the complexity of the usefulness/exhaustiveness
@@ -41,9 +41,9 @@ use super::{
     FieldPat, Pat, RangeEnd,
 };
 
-pub struct PatCtx<'gs, 'ls, 'cd, 's> {
+pub struct PatCtx<'tc> {
     /// Reference to the typechecker storage
-    storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
+    storage: StorageRefMut<'tc>,
     /// The term of the current column that is under investigation
     pub ty: TermId,
     /// Span of the current pattern under investigation.
@@ -53,7 +53,7 @@ pub struct PatCtx<'gs, 'ls, 'cd, 's> {
     pub(super) is_top_level: bool,
 }
 
-impl<'gs, 'ls, 'cd, 's> PatCtx<'gs, 'ls, 'cd, 's> {
+impl<'tc> PatCtx<'tc> {
     /// Get a [SourceLocation] from the current [PatCtx]
     fn location(&self) -> SourceLocation {
         SourceLocation {
@@ -70,13 +70,13 @@ impl<'gs, 'ls, 'cd, 's> PatCtx<'gs, 'ls, 'cd, 's> {
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorage for PatCtx<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorage for PatCtx<'tc> {
     fn storages(&self) -> StorageRef {
         self.storage.storages()
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorageMut for PatCtx<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorageMut for PatCtx<'tc> {
     fn storages_mut(&mut self) -> StorageRefMut {
         self.storage.storages_mut()
     }
@@ -94,7 +94,7 @@ pub struct IntRange {
     bias: u128,
 }
 
-impl<'gs, 'ls, 'cd, 's> IntRange {
+impl<'tc> IntRange {
     /// Get the boundaries of the current [IntRange]
     pub fn boundaries(&self) -> (u128, u128) {
         (*self.range.start(), *self.range.end())
@@ -102,7 +102,7 @@ impl<'gs, 'ls, 'cd, 's> IntRange {
 
     /// Attempt to build a [IntRange] from a provided constant.
     #[inline]
-    pub fn from_constant(ctx: PatCtx<'gs, 'ls, 'cd, 's>, constant: Constant) -> Self {
+    pub fn from_constant(ctx: PatCtx<'tc>, constant: Constant) -> Self {
         let reader = ctx.reader();
 
         let bias: u128 = match reader.get_term(constant.ty) {
@@ -130,7 +130,7 @@ impl<'gs, 'ls, 'cd, 's> IntRange {
 
     /// Create an [IntRange] from two specified bounds, and assuming that the
     /// type is an integer (of the column)
-    fn from_range(ctx: PatCtx<'gs, 'ls, 'cd, 's>, lo: u128, hi: u128, end: &RangeEnd) -> IntRange {
+    fn from_range(ctx: PatCtx<'tc>, lo: u128, hi: u128, end: &RangeEnd) -> IntRange {
         let bias = Self::signed_bias(ctx);
 
         let (lo, hi) = (lo ^ bias, hi ^ bias);
@@ -147,7 +147,7 @@ impl<'gs, 'ls, 'cd, 's> IntRange {
     /// the bias is set to be just at the end of the signed boundary
     /// of the integer size, in other words at the position where the
     /// last byte is that identifies the sign.
-    fn signed_bias(ctx: PatCtx<'gs, 'ls, 'cd, 's>) -> u128 {
+    fn signed_bias(ctx: PatCtx<'tc>) -> u128 {
         let reader = ctx.reader();
 
         match reader.get_term(ctx.ty) {
@@ -161,14 +161,14 @@ impl<'gs, 'ls, 'cd, 's> IntRange {
     }
 
     /// Whether the type of the column is an integral
-    fn is_integral(ctx: PatCtx<'gs, 'ls, 'cd, 's>) -> bool {
+    fn is_integral(ctx: PatCtx<'tc>) -> bool {
         todo!()
     }
 
     /// Convert this range into a [PatKind] by judging the given
     /// type within the [PatCtx]
     #[inline]
-    pub fn to_pat(&self, ctx: PatCtx<'gs, 'ls, 'cd, 's>) -> PatKind {
+    pub fn to_pat(&self, ctx: PatCtx<'tc>) -> PatKind {
         let (lo, hi) = self.boundaries();
 
         let bias = self.bias;
@@ -458,8 +458,8 @@ pub(super) struct SplitWildcard {
     all_ctors: SmallVec<[Constructor; 1]>,
 }
 
-impl<'gs, 'ls, 'cd, 's> SplitWildcard {
-    pub(super) fn new(ctx: PatCtx<'gs, 'ls, 'cd, 's>) -> Self {
+impl<'tc> SplitWildcard {
+    pub(super) fn new(ctx: PatCtx<'tc>) -> Self {
         let reader = ctx.reader();
 
         let make_range = |ctx, start, end| {
@@ -513,7 +513,7 @@ impl<'gs, 'ls, 'cd, 's> SplitWildcard {
 
     pub(super) fn split<'a>(
         &mut self,
-        mut ctx: PatCtx<'gs, 'ls, 'cd, 's>,
+        mut ctx: PatCtx<'tc>,
         ctors: impl Iterator<Item = &'a Constructor> + Clone,
     ) {
         // Since `all_ctors` never contains wildcards, this won't recurse further.
@@ -527,29 +527,23 @@ impl<'gs, 'ls, 'cd, 's> SplitWildcard {
 
     /// Whether there are any value constructors for this type that are not
     /// present in the matrix.
-    fn any_missing(&self, ctx: PatCtx<'gs, 'ls, 'cd, 's>) -> bool {
+    fn any_missing(&self, ctx: PatCtx<'tc>) -> bool {
         self.iter_missing(ctx).next().is_some()
     }
 
     /// Iterate over the constructors for this type that are not present in the
     /// matrix.
-    pub(super) fn iter_missing<'a, 'p>(
+    pub(super) fn iter_missing<'a>(
         &'a self,
-        mut ctx: PatCtx<'gs, 'ls, 'cd, 's>,
-    ) -> impl Iterator<Item = &'a Constructor> + 'p
-    where
-        'gs: 'p,
-        'ls: 'p,
-        'cd: 'p,
-        's: 'p,
-        'a: 'p,
-    {
-        self.all_ctors
-            .iter()
-            .filter(move |ctor| !ctor.is_covered_by_any(ctx.new_from(), &self.matrix_ctors))
+        mut ctx: PatCtx<'tc>,
+    ) -> impl Iterator<Item = &'a Constructor> + '_ {
+        self.all_ctors.iter()
+        // .
+        // .filter(move |ctor| !ctor.is_covered_by_any(ctx.new_from(),
+        // &self.matrix_ctors))
     }
 
-    fn into_ctors(self, mut ctx: PatCtx<'gs, 'ls, 'cd, 's>) -> SmallVec<[Constructor; 1]> {
+    fn into_ctors(self, mut ctx: PatCtx<'tc>) -> SmallVec<[Constructor; 1]> {
         // If Some constructors are missing, thus we can specialize with the special
         // `Missing` constructor, which stands for those constructors that are
         // not seen in the matrix, and matches the same rows as any of them
@@ -624,9 +618,9 @@ pub(super) enum Constructor {
     NonExhaustive,
 }
 
-impl<'gs, 'ls, 'cd, 's> Constructor {
+impl<'tc> Constructor {
     /// Compute the `arity` of this [Constructor].
-    pub fn arity(&self, ctx: PatCtx<'gs, 'ls, 'cd, 's>) -> usize {
+    pub fn arity(&self, ctx: PatCtx<'tc>) -> usize {
         match self {
             Constructor::Single | Constructor::Variant(_) => {
                 // we need to get term from the context here...
@@ -698,7 +692,7 @@ impl<'gs, 'ls, 'cd, 's> Constructor {
     /// constructors already present in the matrix, unless all of them are.
     pub(super) fn split<'a>(
         &self,
-        mut ctx: PatCtx<'gs, 'ls, 'cd, 's>,
+        mut ctx: PatCtx<'tc>,
         ctors: impl Iterator<Item = &'a Constructor> + Clone,
     ) -> SmallVec<[Self; 1]> {
         match self {
@@ -732,7 +726,7 @@ impl<'gs, 'ls, 'cd, 's> Constructor {
     /// subset of `other`. For the simple cases, this is simply checking for
     /// equality. For the "grouped" constructors, this checks for inclusion.
     #[inline]
-    pub(super) fn is_covered_by(&self, ctx: PatCtx<'gs, 'ls, 'cd, 's>, other: &Self) -> bool {
+    pub(super) fn is_covered_by(&self, ctx: PatCtx<'tc>, other: &Self) -> bool {
         match (self, other) {
             // Wildcards cover anything
             (_, Constructor::Wildcard) => true,
@@ -769,11 +763,7 @@ impl<'gs, 'ls, 'cd, 's> Constructor {
     /// `used_ctors` is assumed to be built from `matrix.head_ctors()` with
     /// wildcards filtered out, and `self` is assumed to have been split
     /// from a wildcard.
-    fn is_covered_by_any(
-        &self,
-        ctx: PatCtx<'gs, 'ls, 'cd, 's>,
-        used_ctors: &[Constructor],
-    ) -> bool {
+    fn is_covered_by_any(&self, ctx: PatCtx<'tc>, used_ctors: &[Constructor]) -> bool {
         if used_ctors.is_empty() {
             return false;
         }
@@ -809,7 +799,7 @@ pub(super) struct Fields<'p> {
     fields: &'p [DeconstructedPat<'p>],
 }
 
-impl<'p, 'gs, 'ls, 'cd, 's> Fields<'p> {
+impl<'p, 'tc> Fields<'p> {
     fn empty() -> Self {
         Fields { fields: &[] }
     }
@@ -820,7 +810,7 @@ impl<'p, 'gs, 'ls, 'cd, 's> Fields<'p> {
     }
 
     pub(super) fn from_iter(
-        ctx: PatCtx<'gs, 'ls, 'cd, 's>,
+        ctx: PatCtx<'tc>,
         fields: impl IntoIterator<Item = DeconstructedPat<'p>>,
     ) -> Self {
         // let fields: &[_] = cx.pattern_arena.alloc_from_iter(fields);
@@ -830,7 +820,7 @@ impl<'p, 'gs, 'ls, 'cd, 's> Fields<'p> {
 
     /// Creates a new list of wildcard fields for a given constructor. The
     /// result must have a length of `ctor.arity()`.
-    pub(super) fn wildcards(ctx: PatCtx<'gs, 'ls, 'cd, 's>, ctor: &Constructor) -> Self {
+    pub(super) fn wildcards(ctx: PatCtx<'tc>, ctor: &Constructor) -> Self {
         match ctor {
             Constructor::Single => todo!(),
             Constructor::Variant(_) => todo!(),
@@ -868,7 +858,7 @@ pub(crate) struct DeconstructedPat<'p> {
     reachable: Cell<bool>,
 }
 
-impl<'p, 'gs, 'ls, 'cd, 's> DeconstructedPat<'p> {
+impl<'p, 'tc> DeconstructedPat<'p> {
     pub(super) fn new(ctor: Constructor, fields: Fields<'p>, ty: TermId, span: Span) -> Self {
         DeconstructedPat { ctor, fields, span, ty, reachable: Cell::new(false) }
     }
@@ -879,7 +869,7 @@ impl<'p, 'gs, 'ls, 'cd, 's> DeconstructedPat<'p> {
         Self::new(Constructor::Wildcard, Fields::empty(), ty, DUMMY_SPAN)
     }
 
-    pub(super) fn wild_from_ctor(mut ctx: PatCtx<'gs, 'ls, 'cd, 's>, ctor: Constructor) -> Self {
+    pub(super) fn wild_from_ctor(mut ctx: PatCtx<'tc>, ctor: Constructor) -> Self {
         let fields = Fields::wildcards(ctx.new_from(), &ctor);
 
         DeconstructedPat::new(ctor, fields, ctx.ty, DUMMY_SPAN)
@@ -912,7 +902,7 @@ impl<'p, 'gs, 'ls, 'cd, 's> DeconstructedPat<'p> {
     }
 
     /// Convert a [Pat] into a [DeconstructedPat].
-    pub(crate) fn from_pat(mut ctx: PatCtx<'gs, 'ls, 'cd, 's>, pat: &'p Pat) -> Self {
+    pub(crate) fn from_pat(mut ctx: PatCtx<'tc>, pat: &'p Pat) -> Self {
         // let make_pat = |ctx, pat| DeconstructedPat::from_pat(ctx, pat);
 
         // @@Todo: support int, and float ranges
@@ -1014,7 +1004,7 @@ impl<'p, 'gs, 'ls, 'cd, 's> DeconstructedPat<'p> {
         Self::new(ctor, fields, ctx.ty, pat.span)
     }
 
-    pub(crate) fn to_pat(&self, mut ctx: PatCtx<'gs, 'ls, 'cd, 's>) -> Pat {
+    pub(crate) fn to_pat(&self, mut ctx: PatCtx<'tc>) -> Pat {
         let mut children = self.iter_fields().map(|p| p.to_pat(ctx.new_from())).collect_vec();
 
         let kind = match &self.ctor {
@@ -1115,7 +1105,7 @@ impl<'p, 'gs, 'ls, 'cd, 's> DeconstructedPat<'p> {
 
     pub(super) fn specialise<'a>(
         &'a self,
-        ctx: PatCtx<'gs, 'ls, 'cd, 's>,
+        ctx: PatCtx<'tc>,
         other_ctor: &Constructor,
     ) -> SmallVec<[&'p DeconstructedPat<'p>; 2]> {
         match (&self.ctor, other_ctor) {

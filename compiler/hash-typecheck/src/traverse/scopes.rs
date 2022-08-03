@@ -15,7 +15,7 @@ pub(crate) struct VisitConstantScope {
     pub(crate) scope_id: ScopeId,
 }
 
-impl<'gs, 'ls, 'cd, 'src> TcVisitor<'gs, 'ls, 'cd, 'src> {
+impl<'tc> TcVisitor<'tc> {
     /// Visit a constant scope, creating a [ScopeId] corresponding to it, and a
     /// derived name from a parent declaration.
     ///

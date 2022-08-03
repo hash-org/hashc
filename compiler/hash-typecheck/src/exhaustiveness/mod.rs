@@ -67,24 +67,24 @@ mod usefulness;
 
 /// Contains functionality for converting patterns to a representation that
 /// is suitable for performing usefulness and exhaustiveness analysis.
-pub struct PatLowerCtx<'gs, 'ls, 'cd, 's> {
-    storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
+pub struct PatLowerCtx<'tc> {
+    storage: StorageRefMut<'tc>,
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorage for PatLowerCtx<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorage for PatLowerCtx<'tc> {
     fn storages(&self) -> StorageRef {
         self.storage.storages()
     }
 }
-impl<'gs, 'ls, 'cd, 's> crate::storage::AccessToStorageMut for PatLowerCtx<'gs, 'ls, 'cd, 's> {
+impl<'tc> crate::storage::AccessToStorageMut for PatLowerCtx<'tc> {
     fn storages_mut(&mut self) -> StorageRefMut {
         self.storage.storages_mut()
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> PatLowerCtx<'gs, 'ls, 'cd, 's> {
+impl<'tc> PatLowerCtx<'tc> {
     /// Create a new [PatCtx].
-    pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd, 's>) -> Self {
+    pub fn new(storage: StorageRefMut<'tc>) -> Self {
         Self { storage }
     }
 

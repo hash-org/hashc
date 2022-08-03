@@ -4,8 +4,8 @@ use crate::{
     storage::{
         primitives::{
             AccessTerm, Arg, ArgsId, BoundVar, Level0Term, Level1Term, Level2Term, Level3Term,
-            NominalDef, Param, ParamsId, ScopeId, StructDef, StructFields, Sub, SubVar, Term,
-            TermId, TyFn, TyFnCase,
+            Member, NominalDef, Param, ParamsId, ScopeId, StructDef, StructFields, Sub, SubVar,
+            Term, TermId, TyFn, TyFnCase,
         },
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
@@ -15,23 +15,23 @@ use std::collections::HashSet;
 use super::{AccessToOps, AccessToOpsMut};
 
 /// Contains actions related to variable discovery.
-pub struct Discoverer<'gs, 'ls, 'cd, 's> {
-    storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
+pub struct Discoverer<'tc> {
+    storage: StorageRefMut<'tc>,
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorage for Discoverer<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorage for Discoverer<'tc> {
     fn storages(&self) -> StorageRef {
         self.storage.storages()
     }
 }
-impl<'gs, 'ls, 'cd, 's> AccessToStorageMut for Discoverer<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorageMut for Discoverer<'tc> {
     fn storages_mut(&mut self) -> StorageRefMut {
         self.storage.storages_mut()
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
-    pub(crate) fn new(storage: StorageRefMut<'gs, 'ls, 'cd, 's>) -> Self {
+impl<'tc> Discoverer<'tc> {
+    pub(crate) fn new(storage: StorageRefMut<'tc>) -> Self {
         Self { storage }
     }
 
@@ -120,30 +120,6 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
         }
     }
 
-    /// Add the free variables that exist in the given [Level2Term], to the
-    /// given [HashSet].
-    pub(crate) fn add_free_sub_vars_in_level2_term_to_set(
-        &self,
-        term: &Level2Term,
-        _result: &mut HashSet<SubVar>,
-    ) {
-        match term {
-            Level2Term::Trt(_) | Level2Term::AnyTy => {}
-        }
-    }
-
-    /// Add the free variables that exist in the given [Level3Term], to the
-    /// given [HashSet].
-    pub(crate) fn add_free_sub_vars_in_level3_term_to_set(
-        &self,
-        term: &Level3Term,
-        _: &mut HashSet<SubVar>,
-    ) {
-        match term {
-            Level3Term::TrtKind => {}
-        }
-    }
-
     /// Add the free variables that exist in the given term, to the given
     /// [HashSet].
     ///
@@ -206,12 +182,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
                 self.add_free_sub_vars_in_term_to_set(*term, result);
             }
             // Definite-level terms:
-            Term::Level3(term) => {
-                self.add_free_sub_vars_in_level3_term_to_set(term, result);
-            }
-            Term::Level2(term) => {
-                self.add_free_sub_vars_in_level2_term_to_set(term, result);
-            }
+            Term::Level3(_) | Term::Level2(_) => {}
             Term::Level1(term) => {
                 self.add_free_sub_vars_in_level1_term_to_set(term, result);
             }
@@ -356,7 +327,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
                 let trt_def_scope = self.reader().get_trt_def(*trt_def_id).members;
                 self.add_free_bound_vars_in_scope_to_set(trt_def_scope, result)
             }
-            Level2Term::AnyTy => {}
+            Level2Term::AnyTy | Level2Term::SizedTy => todo!(),
         }
     }
 
@@ -413,10 +384,8 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
         let reader = self.reader();
         let scope = reader.get_scope(scope);
         for member in scope.iter() {
-            if let Some(ty) = member.data.ty() {
-                self.add_free_bound_vars_in_term_to_set(ty, result)
-            }
-            if let Some(value) = member.data.value() {
+            self.add_free_bound_vars_in_term_to_set(member.ty(), result);
+            if let Some(value) = member.value() {
                 self.add_free_bound_vars_in_term_to_set(value, result)
             }
         }
@@ -720,14 +689,17 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
                 } else {
                     // Try to resolve the bound var
                     match self.reader().get_scope(set_bound_scope_id).get(var.name) {
-                        Some(member) => {
-                            let value = member.0.data.value().unwrap_or_else(|| {
-                                tc_panic!(
-                                    term_id,
-                                    self,
-                                    "Found bound var in set bound scope, but it has no value"
-                                )
-                            });
+                        Some((member, _)) => {
+                            let value = match member {
+                                Member::SetBound(set_bound) => set_bound.value,
+                                _ => {
+                                    tc_panic!(
+                                        term_id,
+                                        self,
+                                        "Found non set bound member in set bound scope"
+                                    )
+                                }
+                            };
                             // @@Correctness: do we need to recurse here?
                             Ok(Some(self.apply_set_bound_to_term_with_flag(
                                 set_bound_scope_id,
@@ -1087,7 +1059,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
                     // Wrap in set scope, filtered by having only the vars that appear in the term.
                     let filtered_set_bound_scope_id =
                         self.scope_manager().filter_scope(set_bound_scope_id, |member| {
-                            vars.contains(&BoundVar { name: member.name })
+                            vars.contains(&BoundVar { name: member.name() })
                         });
                     Ok(Some(
                         self.builder().create_set_bound_term(term_id, filtered_set_bound_scope_id),
@@ -1096,6 +1068,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
             }
             Term::Level3(Level3Term::TrtKind)
             | Term::Level2(Level2Term::AnyTy)
+            | Term::Level2(Level2Term::SizedTy)
             | Term::Var(_)
             | Term::Root
             | Term::ScopeVar(_)

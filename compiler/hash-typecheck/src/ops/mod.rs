@@ -4,15 +4,17 @@
 //! Code from this module is to be used while traversing and typing the AST, in
 //! order to unify types and ensure correctness.
 use self::{
-    building::PrimitiveBuilder, cache::CacheManager, discover::Discoverer, pats::PatMatcher,
-    reader::PrimitiveReader, scope::ScopeManager, simplify::Simplifier, substitute::Substituter,
-    typing::Typer, unify::Unifier, validate::Validator,
+    building::PrimitiveBuilder, cache::CacheManager, core::CoreDefReader, discover::Discoverer,
+    pats::PatMatcher, reader::PrimitiveReader, scope::ScopeManager, simplify::Simplifier,
+    substitute::Substituter, typing::Typer, unify::Unifier, validate::Validator,
 };
 use crate::storage::{primitives::ScopeId, AccessToStorage, AccessToStorageMut};
 
 pub mod building;
 pub mod cache;
+pub mod core;
 pub mod discover;
+pub mod oracle;
 pub mod params;
 pub mod pats;
 pub mod reader;
@@ -26,7 +28,7 @@ pub mod validate;
 /// Trait to access various structures that can perform typechecking queries,
 /// by a reference to a [StorageRef](crate::storage::StorageRef).
 pub trait AccessToOps: AccessToStorage {
-    /// Create an instance ofa [PrimitiveReader].
+    /// Create an instance of [PrimitiveReader].
     fn reader(&self) -> PrimitiveReader {
         PrimitiveReader::new(self.global_storage())
     }
@@ -93,6 +95,11 @@ pub trait AccessToOpsMut: AccessToStorageMut {
     /// Create an instance of [Discoverer].
     fn discoverer(&mut self) -> Discoverer {
         Discoverer::new(self.storages_mut())
+    }
+
+    /// Create an instance of [CoreDefReader].
+    fn core_defs(&mut self) -> CoreDefReader {
+        CoreDefReader::new(self.storages_mut())
     }
 }
 

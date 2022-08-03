@@ -10,7 +10,7 @@ use super::deconstruct::{Constructor, DeconstructedPat, Fields, PatCtx};
 #[derive(Debug)]
 pub(crate) struct Witness<'p>(Vec<DeconstructedPat<'p>>);
 
-impl<'p, 'gs, 'ls, 'cd, 's> Witness<'p> {
+impl<'p, 'tc> Witness<'p> {
     /// Asserts that the witness contains a single pattern, and returns it.
     fn single_pattern(self) -> DeconstructedPat<'p> {
         assert_eq!(self.0.len(), 1);
@@ -31,7 +31,7 @@ impl<'p, 'gs, 'ls, 'cd, 's> Witness<'p> {
     ///
     /// left_ty: struct X { a: (bool, &'static str), b: usize}
     /// pats: [(false, "foo"), 42]  => X { a: (false, "foo"), b: 42 }
-    fn apply_constructor(mut self, mut ctx: PatCtx<'gs, 'ls, 'cd, 's>, ctor: &Constructor) -> Self {
+    fn apply_constructor(mut self, mut ctx: PatCtx<'tc>, ctor: &Constructor) -> Self {
         let pat = {
             let len = self.0.len();
             let arity = ctor.arity(ctx.new_from());
@@ -54,7 +54,7 @@ struct PatStack<'p> {
     pats: SmallVec<[&'p DeconstructedPat<'p>; 2]>,
 }
 
-impl<'p, 'gs, 'ls, 'cd, 's> PatStack<'p> {
+impl<'p, 'tc> PatStack<'p> {
     /// Construct a [PatStack] with a single pattern.
     fn singleton(pat: &'p DeconstructedPat<'p>) -> Self {
         Self::from_vec(smallvec![pat])
@@ -105,11 +105,7 @@ impl<'p, 'gs, 'ls, 'cd, 's> PatStack<'p> {
     /// have their missing fields filled with wild patterns.
     ///
     /// This is roughly the inverse of `Constructor::apply`.
-    fn pop_head_constructor(
-        &self,
-        ctx: PatCtx<'gs, 'ls, 'cd, 's>,
-        ctor: &Constructor,
-    ) -> PatStack<'p> {
+    fn pop_head_constructor(&self, ctx: PatCtx<'tc>, ctor: &Constructor) -> PatStack<'p> {
         // We pop the head pattern and push the new fields extracted from the arguments
         // of `self.head()`.
         let mut new_fields: SmallVec<[_; 2]> = self.head().specialise(ctx, ctor);
@@ -125,7 +121,7 @@ pub(super) struct Matrix<'p> {
     patterns: Vec<PatStack<'p>>,
 }
 
-impl<'p, 'gs, 'ls, 'cd, 's> Matrix<'p> {
+impl<'p, 'tc> Matrix<'p> {
     /// Create a new [Matrix] with zero rows and columns.
     fn empty() -> Self {
         Matrix { patterns: vec![] }
@@ -153,11 +149,7 @@ impl<'p, 'gs, 'ls, 'cd, 's> Matrix<'p> {
 
     /// This computes `S(constructor, self)`. See top of the file for
     /// explanations.
-    fn specialize_constructor(
-        &self,
-        mut ctx: PatCtx<'gs, 'ls, 'cd, 's>,
-        ctor: &Constructor,
-    ) -> Matrix<'p> {
+    fn specialize_constructor(&self, mut ctx: PatCtx<'tc>, ctor: &Constructor) -> Matrix<'p> {
         let mut matrix = Matrix::empty();
 
         for row in &self.patterns {

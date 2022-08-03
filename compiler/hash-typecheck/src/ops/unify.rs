@@ -1,7 +1,5 @@
 //! Utilities related to type unification and substitution.
-use super::{
-    params::pair_args_with_params, typing::InferredMemberData, AccessToOps, AccessToOpsMut,
-};
+use super::{params::pair_args_with_params, AccessToOps, AccessToOpsMut};
 use crate::{
     diagnostics::{
         error::{TcError, TcResult},
@@ -23,24 +21,24 @@ use std::collections::HashSet;
 pub struct UnifyTysOpts {}
 
 /// Performs type unification and other related operations.
-pub struct Unifier<'gs, 'ls, 'cd, 's> {
-    storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
+pub struct Unifier<'tc> {
+    storage: StorageRefMut<'tc>,
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorage for Unifier<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorage for Unifier<'tc> {
     fn storages(&self) -> crate::storage::StorageRef {
         self.storage.storages()
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorageMut for Unifier<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorageMut for Unifier<'tc> {
     fn storages_mut(&mut self) -> StorageRefMut {
         self.storage.storages_mut()
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
-    pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd, 's>) -> Self {
+impl<'tc> Unifier<'tc> {
+    pub fn new(storage: StorageRefMut<'tc>) -> Self {
         Self { storage }
     }
 
@@ -304,23 +302,16 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
         for name in a_names {
             let (a_member, _) = scope_a.get(name).unwrap();
             let (b_member, _) = scope_b.get(name).unwrap();
-            let a_data = self.typer().infer_member_ty(a_member.data).unwrap();
-            let b_data = self.typer().infer_member_ty(b_member.data).unwrap();
-            match (a_data, b_data) {
-                (
-                    InferredMemberData { ty: a_ty, value: Some(a_value) },
-                    InferredMemberData { ty: b_ty, value: Some(b_value) },
-                ) => {
-                    if !self.terms_are_equal(a_ty, b_ty) || !self.terms_are_equal(a_value, b_value)
+            match (a_member.value(), b_member.value()) {
+                (Some(a_value), Some(b_value)) => {
+                    if !self.terms_are_equal(a_member.ty(), b_member.ty())
+                        || !self.terms_are_equal(a_value, b_value)
                     {
                         return false;
                     }
                 }
-                (
-                    InferredMemberData { ty: a_ty, value: None },
-                    InferredMemberData { ty: b_ty, value: None },
-                ) => {
-                    if !self.terms_are_equal(a_ty, b_ty) {
+                (None, None) => {
+                    if !self.terms_are_equal(a_member.ty(), b_member.ty()) {
                         return false;
                     }
                 }
@@ -630,12 +621,14 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
                             cannot_unify()
                         }
                     }
-                    // If a trait tries to be unified with "Type", it is always successful:
-                    (Level2Term::Trt(_), Level2Term::AnyTy) => Ok(Sub::empty()),
-                    // The other way around doesn't hold however:
-                    (Level2Term::AnyTy, Level2Term::Trt(_)) => cannot_unify(),
-                    // "Type" unifies with "Type":
-                    (Level2Term::AnyTy, Level2Term::AnyTy) => Ok(Sub::empty()),
+                    (Level2Term::Trt(_), Level2Term::AnyTy)
+                    | (Level2Term::AnyTy, Level2Term::AnyTy)
+                    | (Level2Term::SizedTy, Level2Term::SizedTy)
+                    | (Level2Term::SizedTy, Level2Term::AnyTy) => Ok(Sub::empty()),
+                    (Level2Term::AnyTy, Level2Term::Trt(_))
+                    | (Level2Term::AnyTy, Level2Term::SizedTy)
+                    | (Level2Term::Trt(_), Level2Term::SizedTy)
+                    | (Level2Term::SizedTy, Level2Term::Trt(_)) => cannot_unify(),
                 }
             }
             (Term::Level2(_), _) | (_, Term::Level2(_)) => {

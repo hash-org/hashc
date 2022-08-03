@@ -9,9 +9,7 @@
 
 use diagnostics::reporting::TcErrorWithStorage;
 use hash_pipeline::{traits::Tc, CompilerResult};
-use storage::{
-    core::CoreDefs, AccessToStorage, AccessToStorageMut, GlobalStorage, LocalStorage, StorageRefMut,
-};
+use storage::{AccessToStorage, AccessToStorageMut, GlobalStorage, LocalStorage, StorageRefMut};
 use traverse::TcVisitor;
 
 use crate::fmt::PrepareForFormatting;
@@ -30,7 +28,6 @@ pub struct TcImpl;
 #[derive(Debug)]
 pub struct TcState {
     pub global_storage: GlobalStorage,
-    pub core_defs: CoreDefs,
     pub prev_local_storage: LocalStorage,
 }
 
@@ -38,9 +35,8 @@ impl TcState {
     /// Create a new [TcState].
     pub fn new() -> Self {
         let mut global_storage = GlobalStorage::new();
-        let core_defs = CoreDefs::new(&mut global_storage);
         let local_storage = LocalStorage::new(&mut global_storage);
-        Self { global_storage, core_defs, prev_local_storage: local_storage }
+        Self { global_storage, prev_local_storage: local_storage }
     }
 }
 
@@ -68,7 +64,6 @@ impl Tc<'_> for TcImpl {
         // previous local storage.
         let mut storage = StorageRefMut {
             global_storage: &mut state.global_storage,
-            core_defs: &state.core_defs,
             local_storage: &mut state.prev_local_storage,
             source_map: &workspace.source_map,
         };
@@ -104,7 +99,6 @@ impl Tc<'_> for TcImpl {
         let mut storage = StorageRefMut {
             global_storage: &mut state.global_storage,
             local_storage: &mut local_storage,
-            core_defs: &state.core_defs,
             source_map: &sources.source_map,
         };
         let mut tc_visitor = TcVisitor::new_in_source(

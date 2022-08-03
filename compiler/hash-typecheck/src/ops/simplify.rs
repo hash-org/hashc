@@ -10,8 +10,9 @@ use crate::{
     storage::{
         primitives::{
             AccessOp, AccessTerm, Arg, ArgsId, ConstructedTerm, FnLit, FnTy, Level0Term,
-            Level1Term, Level2Term, Level3Term, NominalDef, Param, ParamsId, ScopeKind,
-            StructFields, Term, TermId, TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
+            Level1Term, Level2Term, Level3Term, Member, Mutability, NominalDef, Param, ParamsId,
+            ScopeKind, StructFields, Term, TermId, TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase,
+            TyFnTy,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -21,17 +22,17 @@ use hash_source::identifier::Identifier;
 use itertools::Itertools;
 
 /// Can perform simplification on terms.
-pub struct Simplifier<'gs, 'ls, 'cd, 's> {
-    storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
+pub struct Simplifier<'tc> {
+    storage: StorageRefMut<'tc>,
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorage for Simplifier<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorage for Simplifier<'tc> {
     fn storages(&self) -> crate::storage::StorageRef {
         self.storage.storages()
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorageMut for Simplifier<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorageMut for Simplifier<'tc> {
     fn storages_mut(&mut self) -> StorageRefMut {
         self.storage.storages_mut()
     }
@@ -94,8 +95,8 @@ fn turn_unresolved_var_err_into_unresolved_in_value_err(
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
-    pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd, 's>) -> Self {
+impl<'tc> Simplifier<'tc> {
+    pub fn new(storage: StorageRefMut<'tc>) -> Self {
         Self { storage }
     }
 
@@ -425,8 +426,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
 
                 Ok(Some(result))
             }
-            // Cannot access members of the `Type` trait:
-            Level2Term::AnyTy => does_not_support_access(access_term),
+            Level2Term::SizedTy | Level2Term::AnyTy => does_not_support_access(access_term),
         }
     }
 
@@ -1075,7 +1075,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
     /// Simplify the given [Level2Term], if possible.
     pub(crate) fn simplify_level2_term(&mut self, term: &Level2Term) -> TcResult<Option<TermId>> {
         match term {
-            Level2Term::Trt(_) | Level2Term::AnyTy => Ok(None),
+            Level2Term::Trt(_) | Level2Term::AnyTy | Level2Term::SizedTy => Ok(None),
         }
     }
 
@@ -1317,16 +1317,20 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
             // Resolve the variable to its value if it is set and closed.
             Term::ScopeVar(var) => {
                 let scope_member = self.scope_manager().get_scope_var_member(var);
-                if scope_member.member.is_closed_and_non_bound() {
-                    let maybe_resolved_term_id = scope_member.member.data.value();
-                    // Try to simplify it
-                    if let Some(resolved_term_id) = maybe_resolved_term_id {
-                        Ok(Some(self.potentially_simplify_term(resolved_term_id)?))
-                    } else {
-                        Ok(None)
+                match scope_member.member {
+                    Member::Bound(_) => Ok(None),
+                    Member::Constant(constant) => constant
+                        .if_closed(|value| Some(self.potentially_simplify_term(value)))
+                        .transpose(),
+                    Member::SetBound(set_bound) => {
+                        Ok(Some(self.potentially_simplify_term(set_bound.value)?))
                     }
-                } else {
-                    Ok(None)
+                    // @@Correctness: is this always valid? What's the difference between constant
+                    // and runtime immutable?
+                    Member::Variable(variable) if variable.mutability == Mutability::Immutable => {
+                        Ok(Some(self.potentially_simplify_term(variable.value)?))
+                    }
+                    Member::Variable(_variable) => Ok(None),
                 }
             }
             // Nothing can be done for bound vars
@@ -1441,122 +1445,5 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
         }
 
         Ok(new_term)
-    }
-}
-
-#[cfg(test)]
-mod test_super {
-    use hash_source::SourceMap;
-
-    use super::*;
-    use crate::{
-        fmt::PrepareForFormatting,
-        storage::{
-            core::CoreDefs,
-            primitives::{ModDefOrigin, ScopeKind, Visibility},
-            GlobalStorage, LocalStorage,
-        },
-    };
-
-    fn _get_storages() -> (GlobalStorage, LocalStorage, CoreDefs, SourceMap) {
-        let mut global_storage = GlobalStorage::new();
-        let local_storage = LocalStorage::new(&mut global_storage);
-        let core_defs = CoreDefs::new(&mut global_storage);
-        let source_map = SourceMap::new();
-
-        (global_storage, local_storage, core_defs, source_map)
-    }
-
-    // #[test]
-    fn _test_simplify() {
-        let (mut global_storage, mut local_storage, core_defs, source_map) = _get_storages();
-        let mut storage_ref = StorageRefMut {
-            global_storage: &mut global_storage,
-            local_storage: &mut local_storage,
-            core_defs: &core_defs,
-            source_map: &source_map,
-        };
-
-        let builder = storage_ref.builder();
-
-        // Handy shorthand for &Self type
-        let _ref_self_ty = builder.create_app_ty_fn_term(
-            core_defs.reference_ty_fn,
-            builder.create_args(
-                [builder.create_arg("T", builder.create_var_term("Self"))],
-                ParamOrigin::TyFn,
-            ),
-        );
-        let dog_def = builder.create_named_struct_def(
-            "Dog",
-            builder.create_params(
-                [builder.create_param("foo", builder.create_nominal_def_term(core_defs.str_ty))],
-                ParamOrigin::Struct,
-            ),
-        );
-
-        let hash_impl = builder.create_nameless_mod_def(
-            ModDefOrigin::TrtImpl(builder.create_trt_term(core_defs.hash_trt)),
-            builder.create_scope(
-                ScopeKind::Constant,
-                [
-                    builder.create_constant_member(
-                        "Self",
-                        builder.create_any_ty_term(),
-                        builder.create_nominal_def_term(dog_def),
-                        Visibility::Public,
-                    ),
-                    builder.create_constant_member(
-                        "hash",
-                        builder.create_fn_ty_term(
-                            builder.create_params(
-                                [builder.create_param("value", builder.create_var_term("Self"))],
-                                ParamOrigin::Fn,
-                            ),
-                            builder.create_nominal_def_term(core_defs.u64_ty),
-                        ),
-                        builder.create_fn_lit_term(
-                            builder.create_fn_ty_term(
-                                builder.create_params(
-                                    [builder
-                                        .create_param("value", builder.create_var_term("Self"))],
-                                    ParamOrigin::Fn,
-                                ),
-                                builder.create_nominal_def_term(core_defs.u64_ty),
-                            ),
-                            builder
-                                .create_rt_term(builder.create_nominal_def_term(core_defs.u64_ty)),
-                        ),
-                        Visibility::Public,
-                    ),
-                ],
-            ),
-        );
-
-        let dog = builder.create_merge_term([
-            builder.create_nominal_def_term(dog_def),
-            builder.create_mod_def_term(hash_impl),
-        ]);
-
-        let dog_instance = builder.create_rt_term(dog);
-
-        let dog_hash = builder.create_prop_access(dog_instance, "hash");
-        let dog_hash_simplified = storage_ref
-            .simplifier()
-            .potentially_simplify_term(dog_hash)
-            .map_err(|err| match err {
-                TcError::CannotUnify { src, target } => {
-                    format!(
-                        "Cannot unify {} with {}",
-                        src.for_formatting(storage_ref.global_storage()),
-                        target.for_formatting(storage_ref.global_storage()),
-                    )
-                }
-                _ => format!("{:?}", err),
-            })
-            .unwrap();
-
-        println!("{}", dog_hash.for_formatting(storage_ref.global_storage()));
-        println!("{}", dog_hash_simplified.for_formatting(storage_ref.global_storage()));
     }
 }

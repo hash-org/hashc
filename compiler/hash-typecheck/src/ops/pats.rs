@@ -14,8 +14,8 @@ use crate::{
     ops::{validate::TermValidation, AccessToOpsMut},
     storage::{
         primitives::{
-            AccessOp, AccessPat, ConstPat, ConstructorPat, IfPat, ListPat, Member, MemberData,
-            ModPat, Mutability, Param, Pat, PatArg, PatId, SpreadPat, TermId, Visibility,
+            AccessOp, AccessPat, ConstPat, ConstructorPat, IfPat, ListPat, Member, ModPat,
+            Mutability, Param, Pat, PatArg, PatId, SpreadPat, TermId,
         },
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
@@ -24,24 +24,24 @@ use crate::{
 use super::{params::pair_args_with_params, AccessToOps};
 
 /// Contains functions related to pattern matching.
-pub struct PatMatcher<'gs, 'ls, 'cd, 's> {
-    storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
+pub struct PatMatcher<'tc> {
+    storage: StorageRefMut<'tc>,
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorage for PatMatcher<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorage for PatMatcher<'tc> {
     fn storages(&self) -> StorageRef {
         self.storage.storages()
     }
 }
-impl<'gs, 'ls, 'cd, 's> AccessToStorageMut for PatMatcher<'gs, 'ls, 'cd, 's> {
+impl<'tc> AccessToStorageMut for PatMatcher<'tc> {
     fn storages_mut(&mut self) -> StorageRefMut {
         self.storage.storages_mut()
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
+impl<'tc> PatMatcher<'tc> {
     /// Create a new [PatMatcher].
-    pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd, 's>) -> Self {
+    pub fn new(storage: StorageRefMut<'tc>) -> Self {
         Self { storage }
     }
 
@@ -59,10 +59,13 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
         let mut names: HashSet<Identifier> = HashSet::new();
 
         for (member, pat) in members.iter() {
-            if names.contains(&member.name) {
-                return Err(TcError::IdentifierBoundMultipleTimes { name: member.name, pat: *pat });
+            if names.contains(&member.name()) {
+                return Err(TcError::IdentifierBoundMultipleTimes {
+                    name: member.name(),
+                    pat: *pat,
+                });
             } else {
-                names.insert(member.name);
+                names.insert(member.name());
             }
         }
 
@@ -79,10 +82,7 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
         &self,
         members: &[(Member, PatId)],
     ) -> HashMap<Identifier, (TermId, PatId)> {
-        members
-            .iter()
-            .map(|(member, pat)| (member.name, (member.data.ty().unwrap(), *pat)))
-            .collect()
+        members.iter().map(|(member, pat)| (member.name(), (member.ty(), *pat))).collect()
     }
 
     /// Function to check that the inner patterns of a [Pat::Or] adhere to the
@@ -165,12 +165,7 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
         let bound_members = match pat {
             // Binding: Add the binding as a member
             Pat::Binding(binding) => Ok(Some(vec![(
-                Member::closed_stack(
-                    binding.name,
-                    binding.visibility,
-                    binding.mutability,
-                    MemberData::from_ty_and_value(Some(term_ty_id), Some(simplified_term_id)),
-                ),
+                Member::variable(binding.name, binding.mutability, term_ty_id, simplified_term_id),
                 pat_id,
             )])),
             Pat::Access(AccessPat { subject, property }) => {
@@ -356,7 +351,7 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
                 Some(name) => {
                     // Since `pat_ty` will be `List<T = Unresolved>`, we need to create a new
                     // `List<T = term_ty_id>` and perform a unification...
-                    let list_inner_ty = self.core_defs().list_ty_fn;
+                    let list_inner_ty = self.core_defs().list_ty_fn();
                     let builder = self.builder();
 
                     let pat_ty = builder.create_app_ty_fn_term(
@@ -373,14 +368,11 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
                         self.validator().validate_term(rt_term)?;
 
                     Ok(Some(vec![(
-                        Member::closed_stack(
+                        Member::variable(
                             name,
-                            Visibility::Private,
                             Mutability::Immutable,
-                            MemberData::from_ty_and_value(
-                                Some(term_ty_id),
-                                Some(simplified_term_id),
-                            ),
+                            term_ty_id,
+                            simplified_term_id,
                         ),
                         pat_id,
                     )]))
