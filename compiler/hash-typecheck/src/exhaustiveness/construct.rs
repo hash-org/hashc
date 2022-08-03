@@ -1,3 +1,29 @@
+//! Exhaustiveness data structure to represent the `subject` of
+//! a [`super::deconstruct::DeconstructedPat`]. [Constructor]s
+//! are a useful abstraction when performing the splitting and
+//! specialisation operations on the deconstructed patterns.
+//!
+//! ## Splitting
+//!
+//! Splitting a constructor means to take the [Constructor] and to
+//! yield all the possible [Constructor]s that can cover the
+//! underlying constructors. For example, if the constructor
+//! is specified as [Constructor::Wildcard], we take the provided
+//! [PatCtx] which stores the relevant term of the constructor and
+//! produce a [Constructor] that matches all possible cases of the
+//! term. For example, if the term is `char` and the constructor
+//! is [Constructor::Wildcard], then the resultant constructors
+//! becomes:
+//!
+//! ```ignore
+//! [
+//!     Constructor::IntRange(0..=55295),      // 0..=D7FF
+//!     Constructor::IntRange(57344..=1114111) // E000..=10FFFF
+//! ]
+//! ```
+//!
+//! In other words, all the possible (valid) values of the `char` type.
+//! A similar process occurs with all other wildcard types,
 use hash_reporting::macros::panic_on_span;
 use hash_source::{
     location::{SourceLocation, Span},
@@ -185,36 +211,38 @@ impl<'gs, 'ls, 'cd, 's> ConstructorOps<'gs, 'ls, 'cd, 's> {
             }
             // Fast track to just the single constructor if this range is trivial
             Constructor::IntRange(range) if !range.is_singleton() => {
-                let mut split_range = SplitIntRange::new(range);
+                // @@Future: this is only used when `range` patterns are a thing
+
+                let mut range = SplitIntRange::new(range);
                 let int_ranges = ctors.filter_map(|c| {
                     self.constructor_store().map_unsafe(c, |c| c.as_int_range().cloned())
                 });
 
-                split_range.split(int_ranges);
-                split_range
+                range.split(int_ranges);
+                range
                     .iter()
                     .map(Constructor::IntRange)
                     .map(|ctor| self.constructor_store().create(ctor))
                     .collect()
             }
             Constructor::List(List { kind: ListKind::Var(prefix_len, suffix_len) }) => {
-                let mut split_self = SplitVarList::new(prefix_len, suffix_len);
+                let mut list = SplitVarList::new(prefix_len, suffix_len);
 
-                let slices = ctors
+                let lists = ctors
                     .filter_map(|c| {
                         self.constructor_store().map_unsafe(c, |c| c.as_list().cloned())
                     })
                     .map(|s| s.kind);
-                split_self.split(slices);
+                list.split(lists);
 
-                split_self
-                    .iter()
+                list.iter()
                     .map(Constructor::List)
                     .map(|ctor| self.constructor_store().create(ctor))
                     .collect()
             }
             // In any other case, the split just puts this constructor
-            // into the
+            // into the resultant constructors since it cannot split it any
+            // more...
             _ => smallvec![ctor_id],
         }
     }

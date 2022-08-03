@@ -261,7 +261,7 @@ impl<'gs, 'ls, 'cd, 's> IntRangeOps<'gs, 'ls, 'cd, 's> {
         let bias: u128 = match reader.get_term(constant.ty) {
             Term::Level0(Level0Term::Lit(lit)) => match lit {
                 LitTerm::Int { kind, .. } if kind.is_signed() => {
-                    // @@Todo: support `ibig` type here
+                    // @@Future: support `ibig` type here
                     let size = kind.size().unwrap();
                     1u128 << (size * 8 - 1)
                 }

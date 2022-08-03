@@ -37,6 +37,9 @@ impl ListKind {
     }
 }
 
+/// Representation of list patterns within the exhaustiveness sub-system.
+/// [List]s have an inner `kind` which denote whether this [List] has a fixed
+/// length or a variable length (which occurs when a `...` pattern) is present.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct List {
     /// The kind of pattern it is: fixed-length `[x, y]` or
@@ -75,7 +78,7 @@ impl SplitVarList {
         SplitVarList { arity: prefix + suffix, max_list: ListKind::Var(prefix, suffix) }
     }
 
-    /// Pass a set of slices relative to which to split this one.
+    /// Pass a set of lists relative to which to split this one.
     ///
     /// We don't need to split the [List] if the kind is [ListKind::Fixed].
     pub fn split(&mut self, slices: impl Iterator<Item = ListKind>) {

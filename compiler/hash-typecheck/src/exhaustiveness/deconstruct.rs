@@ -1,3 +1,10 @@
+//! This file contains logic surrounding [DeconstructedPat] which is a
+//! representation of a [Pat] that is deconstructed and simplified
+//! to the point of being processable by the usefulness algorithm. A
+//! [DeconstructedPat] is essentially a tree representation of a
+//! [Pat] with any of the inner fields of the [Pat] being represented
+//! as child [DeconstructedPat]s stored within the `fields` parameter
+//! of the structure.
 use std::cell::Cell;
 
 use hash_source::location::Span;
@@ -352,22 +359,22 @@ impl<'gs, 'ls, 'cd, 's> DeconstructPatOps<'gs, 'ls, 'cd, 's> {
                 // We return a wildcard for each field of `other_ctor`.
                 self.fields_ops().wildcards(ctx, other_ctor_id).iter_patterns().copied().collect()
             }
-            (Constructor::List(self_list), Constructor::List(other_list))
-                if self_list.arity() != other_list.arity() =>
+            (Constructor::List(this_list), Constructor::List(other_list))
+                if this_list.arity() != other_list.arity() =>
             {
-                // If the arities mismatch, `self_list` must cover `other_list` and thus
+                // If the arities mismatch, `this_list` must cover `other_list` and thus
                 // it must be that `other_list` is a variable length list. Then, `other_list`
-                // will have a guaranteed larger arity that `self_list`.
+                // will have a guaranteed larger arity that `this_list`.
                 //
-                // So when specialising, we will fill the middle part of the `self_list` to
+                // So when specialising, we will fill the middle part of the `this_list` to
                 // match the arity of the `other_list`.
-                match self_list.kind {
-                    ListKind::Fixed(_) => panic!("{:?} cannot cover {:?}", self_list, other_list),
+                match this_list.kind {
+                    ListKind::Fixed(_) => panic!("{:?} cannot cover {:?}", this_list, other_list),
                     ListKind::Var(_prefix, _suffix) => {
                         // @@Todo: we will need to get the inner `ty` of the list
 
                         // let prefix = &pat.fields.fields[..prefix];
-                        // let suffix = &pat.fields.fields[self_list.arity() - suffix..];
+                        // let suffix = &pat.fields.fields[this_list.arity() - suffix..];
 
                         todo!()
                         // let wildcard: &_ = &DeconstructedPat::wildcard();

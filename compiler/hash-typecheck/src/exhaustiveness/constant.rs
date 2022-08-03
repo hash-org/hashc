@@ -2,12 +2,6 @@
 //! to represent literals, and convert them into a `ConstantValue` which is
 //! used within the exhaustiveness sub-system to represent these values within
 //! a single data type.
-//!
-//! **Note**:
-//!
-//! The defined API is only temporary and is an initial attempt to create
-//! an ABI for Hash, it is subject to change and is incomplete.
-
 use crate::storage::primitives::{IntKind, TermId};
 use num_bigint::BigInt;
 

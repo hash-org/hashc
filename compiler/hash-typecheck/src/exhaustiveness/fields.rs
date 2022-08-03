@@ -1,3 +1,9 @@
+//! Data structure that represents the `fields` of a [DeconstructedPat].
+//! The [Fields] data structure is an inner [Vec] of [DeconstructedPatId]s.
+//! It has some useful creation methods for when [DeconstructedPat]s need
+//! to be created from a provided [PatCtx]. [FieldOps] defines methods
+//! that operate on [Fields] with the typechecker context available for
+//! reading and creating [DeconstructedPat]s.
 use itertools::Itertools;
 
 use crate::{
@@ -13,10 +19,13 @@ use crate::{
     },
 };
 
-use super::{construct::Constructor, AccessToUsefulnessOps};
+use super::{construct::Constructor, deconstruct::DeconstructedPat, AccessToUsefulnessOps};
 
+/// Representation of the `fields` that are stored by [DeconstructedPat]
+/// which are nested [DeconstructedPat]s.
 #[derive(Debug, Clone)]
 pub struct Fields {
+    /// Vector of the inner ids stored by the [Fields]
     pub fields: Vec<DeconstructedPatId>,
 }
 
@@ -26,7 +35,7 @@ impl Fields {
         Fields { fields: vec![] }
     }
 
-    /// Returns the list of patterns.
+    /// Returns an [Iterator] of the inner stored [DeconstructedPatId]s.
     pub fn iter_patterns(&self) -> impl Iterator<Item = &DeconstructedPatId> {
         self.fields.iter()
     }
@@ -49,10 +58,12 @@ impl<'gs, 'ls, 'cd, 's> AccessToStorage for FieldOps<'gs, 'ls, 'cd, 's> {
 }
 
 impl<'gs, 'ls, 'cd, 's> FieldOps<'gs, 'ls, 'cd, 's> {
+    /// Create a new [FieldOps].
     pub fn new(storage: StorageRef<'gs, 'ls, 'cd, 's>) -> Self {
         Self { storage }
     }
 
+    /// Create [Fields] from an [Iterator] of [Term]s.
     pub fn wildcards_from_tys(&self, tys: impl IntoIterator<Item = TermId>) -> Fields {
         Fields::from_iter(tys.into_iter().map(|ty| {
             let pat = self.deconstruct_pat_ops().wildcard(ty);

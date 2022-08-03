@@ -1,3 +1,8 @@
+//! Lowering utilities from a [primitives::Pat] into a [Pat]. The
+//! [Pat] is an intermediate data structure that represents a
+//! simplification of the [primitives::Pat] since a lot of
+//! the information that is stored within the [primitives::Pat] is
+//! not necessary for the exhaustiveness checking to be carried out.
 use crate::{
     diagnostics::{error::TcResult, macros::tc_panic},
     exhaustiveness::constant::Constant,
@@ -114,18 +119,18 @@ pub struct Pat {
     pub has_guard: bool,
 }
 
-pub struct PatLowerOps<'gs, 'ls, 'cd, 's> {
+pub struct LowerPatOps<'gs, 'ls, 'cd, 's> {
     storage: StorageRef<'gs, 'ls, 'cd, 's>,
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorage for PatLowerOps<'gs, 'ls, 'cd, 's> {
+impl<'gs, 'ls, 'cd, 's> AccessToStorage for LowerPatOps<'gs, 'ls, 'cd, 's> {
     fn storages(&self) -> StorageRef {
         self.storage.storages()
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> PatLowerOps<'gs, 'ls, 'cd, 's> {
-    /// Create a new [PatLowerOps].
+impl<'gs, 'ls, 'cd, 's> LowerPatOps<'gs, 'ls, 'cd, 's> {
+    /// Create a new [LowerPatOps].
     pub fn new(storage: StorageRef<'gs, 'ls, 'cd, 's>) -> Self {
         Self { storage }
     }

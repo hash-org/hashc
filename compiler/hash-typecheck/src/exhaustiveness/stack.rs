@@ -1,3 +1,9 @@
+//! Exhaustiveness stack data structure, which is used
+//! to represent [super::matrix::Matrix] rows. This file
+//! contains some utilities on the [PatStack] to perform
+//! transformations, and [PatStackOps] contains functions
+//! that are relevant to the usefulness and exhaustiveness
+//! algorithm.
 use smallvec::{smallvec, SmallVec};
 
 use crate::{
@@ -11,10 +17,11 @@ use crate::{
 
 use super::AccessToUsefulnessOps;
 
-/// A row of a matrix. Rows of len 1 are very common, which is why
-/// `SmallVec[_; /// 2]` works well.
+/// A row of a [super::matrix::Matrix]. Rows of len 1 are very common, which is
+/// why `SmallVec[_; /// 2]` works well.
 #[derive(Clone)]
 pub struct PatStack {
+    /// The stored patterns in the row.
     pub pats: SmallVec<[DeconstructedPatId; 2]>,
 }
 
@@ -61,6 +68,7 @@ impl<'gs, 'ls, 'cd, 's> AccessToStorage for StackOps<'gs, 'ls, 'cd, 's> {
 }
 
 impl<'gs, 'ls, 'cd, 's> StackOps<'gs, 'ls, 'cd, 's> {
+    /// Create an instance of [StackOps]
     pub fn new(storage: StorageRef<'gs, 'ls, 'cd, 's>) -> Self {
         Self { storage }
     }
@@ -84,12 +92,13 @@ impl<'gs, 'ls, 'cd, 's> StackOps<'gs, 'ls, 'cd, 's> {
             .collect()
     }
 
-    /// This computes `S(self.head().ctor(), self)`. See top of the file for
-    /// explanations.
+    /// This computes `S(self.head().ctor(), self)`. Take the head of
+    /// the [PatStack], specialise it with the provided `ctor` and
+    /// and build a new [PatStack] with the result of the specialisation
+    /// and the rest of the row items.
     ///
-    ///
-    /// @@Todo: Structure patterns with a partial wild pattern `Foo(a: 42,..)`
-    /// have their missing fields filled with wild patterns.
+    /// @@Future: Structure patterns with a partial wild pattern `Foo(a: 42,
+    /// ..)` have their missing fields filled with wild patterns.
     ///
     /// This is roughly the inverse of `Constructor::apply`.
     pub(crate) fn pop_head_constructor(

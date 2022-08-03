@@ -1,47 +1,10 @@
-//! Hash Typechecker pattern exhaustiveness module. This module contains all
-//! of the machinery that is responsible for validating the exhaustiveness and
-//! usefulness of patterns.
+//! This module contains the entry point for the usefulness and
+//! exhaustiveness algorithm that the Hash typechecker uses to
+//! verify that patterns are refutable, and match blocks
+//! are fully exhaustive.
 //!
-//! Usefulness and exhaustiveness are inherently linked concepts, and are
-//! computed in at the same time. In terms of `usefulness` we compute that if a
-//! specified pattern `p` is useful in regards to a row of patterns `v` which
-//! precede `p`. In other words, will this pattern `p` be ever reached if the
-//! patterns `v` are specified before it. Usefulness determines if certain
-//! branches in a `match` statement or other constructs that utilise patterns
-//! will ever be matched.
-//!
-//! Exhaustiveness is similar to usefulness, but addresses the question of will
-//! the provided row of patterns `v` cover all variants of some subject type.
-//! For example, in the `match` block:
-//! ```ignore
-//! x := Some(3); // ty: Option<i32>
-//! match x {
-//!     Some(_) => print("there is a number");
-//!     None => print("there is no number");
-//! };
-//! ```
-//!
-//! So in this example, for `x` which is of type `Option<i32>`, will the
-//! patterns: [`Some(_)`, `None`] cover all cases of `Option<i32>`. In this
-//! situation yes, because both variants and their inner constructors because of
-//! the wildcard `_`. However, a case where this property does not hold can be
-//! easily constructed:
-//! ```ignore
-//! x := Some(3); // ty: Option<i32>
-//! match x {
-//!     Some(3) => print("The number is 3!");
-//!     None => print("there is no number");
-//! };
-//! ```
-//!
-//! Well here, we can come up with cases which the pattern set does not cover,
-//! for example `Some(4)`. Therefore, the exhaustiveness check will conclude
-//! that the provided pattern vector is not exhaustive and misses some cases.
-//!
-//! The implementation of this algorithm is based on the research paper:
-//! <http://moscova.inria.fr/~maranget/papers/warn/warn.pdf>, and is heavily
-//! inspired by the Rust Compiler implementation:
-//! <https://github.com/rust-lang/rust/tree/master/compiler/rustc_mir_build/src/thir/pattern/usefulness.rs>
+//! More information about the algorithm and the implementation
+//! is detailed within [super].
 use std::iter::once;
 
 use super::{
@@ -61,6 +24,8 @@ use hash_utils::stack::ensure_sufficient_stack;
 use itertools::Itertools;
 use smallvec::smallvec;
 
+/// Collection of patterns that were `witnessed` when traversing
+/// the provided patterns.
 #[derive(Debug)]
 pub struct Witness(pub Vec<DeconstructedPatId>);
 
@@ -73,6 +38,7 @@ impl Witness {
     }
 }
 
+/// Representation of the result from computing the usefulness of a pattern.
 #[derive(Debug)]
 pub enum Usefulness {
     /// If we don't care about witnesses, simply remember if the pattern was
@@ -184,12 +150,13 @@ impl<'gs, 'ls, 'cd, 's> AccessToStorage for UsefulnessOps<'gs, 'ls, 'cd, 's> {
 }
 
 impl<'gs, 'ls, 'cd, 's> UsefulnessOps<'gs, 'ls, 'cd, 's> {
+    /// Create a new instance of [UsefulnessOps].
     pub fn new(storage: StorageRef<'gs, 'ls, 'cd, 's>) -> Self {
         Self { storage }
     }
 
     /// Constructs a partial witness for a pattern given a list of
-    /// patterns expanded by the specialization step.
+    /// patterns expanded by the specialisation step.
     ///
     /// When a pattern P is discovered to be useful, this function is used
     /// bottom-up to reconstruct a complete witness, e.g., a pattern P' that    
@@ -197,11 +164,11 @@ impl<'gs, 'ls, 'cd, 's> UsefulnessOps<'gs, 'ls, 'cd, 's> {
     /// covered by any previously used patterns and is covered by the
     /// pattern P'. Examples:
     ///
-    /// left_ty: tuple of 3 elements
-    /// pats: [10, 20, _]           => (10, 20, _)
+    /// left_ty: `(u32, u32, u32)`
+    /// pats: `[10, 20, _]           => (10, 20, _)`
     ///
-    /// left_ty: struct X { a: (bool, &'static str), b: usize}
-    /// pats: [(false, "foo"), 42]  => X { a: (false, "foo"), b: 42 }
+    /// left_ty: struct `X := struct(a: (bool, str), b: u32)`
+    /// pats: `[(false, "foo"), 42]  => X( a = (false, "foo"), b = 42)`
     fn apply_constructor_on_witness(
         &self,
         ctx: PatCtx,
@@ -263,10 +230,9 @@ impl<'gs, 'ls, 'cd, 's> UsefulnessOps<'gs, 'ls, 'cd, 's> {
                         })
                         .collect_vec();
 
-                    // Firstly, read all of the patterns stored in the current witness
-                    // and clone them whilst forgetting
-                    // the reachability
-                    let t: Vec<_> = witnesses
+                    // Prepare new witnesses by attaching each of the `new_pats` to the end of
+                    // old witness `ids`
+                    let ids: Vec<_> = witnesses
                         .into_iter()
                         .flat_map(|witness| {
                             new_pats.iter().map(move |pat| {
@@ -275,25 +241,27 @@ impl<'gs, 'ls, 'cd, 's> UsefulnessOps<'gs, 'ls, 'cd, 's> {
                         })
                         .collect();
 
-                    let mut new_witnesses = vec![];
-
-                    for inner in t {
-                        let mut new_inner = vec![];
-
-                        for pat in inner {
+                    // Now we need to create the new witnesses, so iterate over each of the inner
+                    // id collections, and copy them within the store
+                    ids.iter()
+                        .map(|new_witness_pats| {
                             let reader = self.reader();
 
-                            let new_pat =
-                                reader.get_deconstructed_pat(pat).clone_and_forget_reachability();
+                            let copied_pats = new_witness_pats
+                                .iter()
+                                .map(|pat| {
+                                    // Clone and forget the `pat` and then forget that that it is
+                                    // reachable
+                                    let new_pat = reader.get_deconstructed_pat(*pat);
+                                    new_pat.reachable.set(false);
 
-                            let new_pat = self.deconstructed_pat_store().create(new_pat);
-                            new_inner.push(new_pat);
-                        }
+                                    self.deconstructed_pat_store().create(new_pat)
+                                })
+                                .collect_vec();
 
-                        new_witnesses.push(Witness(new_inner))
-                    }
-
-                    new_witnesses
+                            Witness(copied_pats)
+                        })
+                        .collect_vec()
                 } else {
                     witnesses
                         .into_iter()
@@ -309,27 +277,27 @@ impl<'gs, 'ls, 'cd, 's> UsefulnessOps<'gs, 'ls, 'cd, 's> {
     /// Algorithm from <http://moscova.inria.fr/~maranget/papers/warn/index.html>.
     /// The algorithm from the paper has been modified to correctly handle empty
     /// types. The changes are:
+    ///
     ///   (0) We don't exit early if the pattern matrix has zero rows. We just
     ///       continue to recurse over columns.
-    ///   (1) all_constructors will only return constructors that are statically
-    ///       possible. E.g., it will only return `Ok` for `Result<T, !>`.
+    ///
+    ///   (1) @@TODO: all_constructors will only return constructors that are
+    ///       statically possible. E.g., it will only return `Ok` for
+    ///       `Result<T, !>`.
     ///
     /// This finds whether a (row) vector `v` of patterns is 'useful' in
     /// relation to a set of such vectors `m` - this is defined as there
     /// being a set of inputs that will match `v` but not any of the sets in
     /// `m`.
     ///
-    /// All the patterns at each column of the `matrix ++ v` matrix must have
-    /// the same type.
+    /// **Note** All the patterns at each column of the `matrix ++ v` matrix
+    /// must have the same type. The types must also be simplified at this
+    /// stage!
     ///
     /// This is used both for reachability checking (if a pattern isn't useful
     /// in relation to preceding patterns, it is not reachable) and
     /// exhaustiveness checking (if a wildcard pattern is useful in relation
     /// to a matrix, the matrix isn't exhaustive).
-    ///
-    /// `is_under_guard` is used to inform if the pattern has a guard. If it
-    /// has one it must not be inserted into the matrix. This shouldn't be
-    /// relied on for soundness.
     fn is_useful(
         &mut self,
         matrix: &Matrix,
@@ -374,7 +342,7 @@ impl<'gs, 'ls, 'cd, 's> UsefulnessOps<'gs, 'ls, 'cd, 's> {
 
                 report.extend(usefulness);
 
-                // @@Todo: deal with `if-guards` on the patterns themselves.
+                // @@Investigate: deal with `if-guards` on the patterns themselves.
                 //
                 // If the pattern has a guard don't add it to the matrix, but otherwise
                 // just push it into the matrix, it doesn't matter if it has already
@@ -387,10 +355,12 @@ impl<'gs, 'ls, 'cd, 's> UsefulnessOps<'gs, 'ls, 'cd, 's> {
                 }
             }
         } else {
-            let v_ctor = head.ctor();
-
             // @@Todo: we should check that int ranges don't overlap here, in case
             // they're partially covered by other ranges.
+            //
+            // @@Future: since this isn't necessarily an error, we should integrate this
+            // with our warning system.
+            let v_ctor = head.ctor();
             let reader = self.reader();
 
             let ctors = matrix.heads().map(|id| reader.get_deconstructed_pat(id).ctor());
@@ -422,9 +392,14 @@ impl<'gs, 'ls, 'cd, 's> UsefulnessOps<'gs, 'ls, 'cd, 's> {
         report
     }
 
+    /// The entrypoint for the usefulness algorithm. Computes whether a match is
+    /// exhaustive and which of its arms are reachable.
+    ///
+    /// Note: the input patterns must have been lowered through
+    /// [super::lower::LowerPatOps]
     pub(crate) fn compute_match_usefulness(
         &mut self,
-        _subject: TermId,
+        subject: TermId,
         arms: &[MatchArm],
     ) -> UsefulnessReport {
         let mut matrix = Matrix::empty();
@@ -456,11 +431,9 @@ impl<'gs, 'ls, 'cd, 's> UsefulnessOps<'gs, 'ls, 'cd, 's> {
             })
             .collect();
 
-        // @@Todo: create the wildcard, using an arena
-        // let wildcard = ...;
-        // let v = PatStack::singleton(v);
-
-        let v = PatStack::from_vec(smallvec![]);
+        let wildcard =
+            self.deconstructed_pat_store().create(self.deconstruct_pat_ops().wildcard(subject));
+        let v = PatStack::singleton(wildcard);
 
         let usefulness = self.is_useful(&matrix, &v, MatchArmKind::ExhaustiveWildcard, false, true);
 

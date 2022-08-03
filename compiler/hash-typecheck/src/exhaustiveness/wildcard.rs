@@ -1,3 +1,8 @@
+//! This file contains logic for splitting [Constructor]s that
+//! are of the variant [Constructor::Wildcard]. In this situation
+//! the `splitting` operation creates [Constructor]s that represent
+//! the whole range of all possible values by the associated type
+//! to the constructor.
 use smallvec::{smallvec, SmallVec};
 
 use crate::{
@@ -9,7 +14,7 @@ use crate::{
     },
 };
 
-/// A wildcard constructor that we split relative to the constructors in the
+/// A [Constructor::Wildcard] that we split relative to the constructors in the
 /// matrix.
 ///
 /// A constructor that is not present in the matrix rows will only be covered by
@@ -64,6 +69,7 @@ impl<'gs, 'ls, 'cd, 's> SplitWildcardOps<'gs, 'ls, 'cd, 's> {
         // for `Option<!>`, we do not include `Some(_)` in the returned list of
         // constructors.
         let all_ctors = match reader.get_term(ctx.ty) {
+            // @@Todo: deal with ints, chars, never, and lists...
             // term if ctx.typer().term_is_char() => ...,
             // term if ctx.typer().term_is_uint() => ...,
             // term if ctx.typer().term_is_int() => ...,

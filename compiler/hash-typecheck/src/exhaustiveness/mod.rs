@@ -1,7 +1,50 @@
-//! Hash Typechecker exhaustiveness and usefulness checking
-//! implementation. This module contains the needed data
-//! structures and logic to implement pattern exhaustiveness and usefulness
-//! checking.
+//! Hash Typechecker pattern exhaustiveness module. This module contains all
+//! of the machinery that is responsible for validating the exhaustiveness and
+//! usefulness of patterns.
+//!
+//! Usefulness and exhaustiveness are inherently linked concepts, and are
+//! computed in at the same time. In terms of `usefulness` we compute that if a
+//! specified pattern `p` is useful in regards to a row of patterns `v` which
+//! precede `p`. In other words, will this pattern `p` be ever reached if the
+//! patterns `v` are specified before it. Usefulness determines if certain
+//! branches in a `match` statement or other constructs that utilise patterns
+//! will ever be matched.
+//!
+//! Exhaustiveness is similar to usefulness, but addresses the question of will
+//! the provided row of patterns `v` cover all variants of some subject type.
+//! For example, in the `match` block:
+//! ```ignore
+//! x := Some(3); // ty: Option<i32>
+//! match x {
+//!     Some(_) => print("there is a number");
+//!     None => print("there is no number");
+//! };
+//! ```
+//!
+//! So in this example, for `x` which is of type `Option<i32>`, will the
+//! patterns: [`Some(_)`, `None`] cover all cases of `Option<i32>`. In this
+//! situation yes, because both variants and their inner constructors because of
+//! the wildcard `_`. However, a case where this property does not hold can be
+//! easily constructed:
+//! ```ignore
+//! x := Some(3); // ty: Option<i32>
+//! match x {
+//!     Some(3) => print("The number is 3!");
+//!     None => print("there is no number");
+//! };
+//! ```
+//!
+//! Well here, we can come up with cases which the pattern set does not cover,
+//! for example `Some(4)`. Therefore, the exhaustiveness check will conclude
+//! that the provided pattern vector is not exhaustive and misses some cases.
+//!
+//! The implementation of this algorithm is based on the research paper:
+//!
+//! <http://moscova.inria.fr/~maranget/papers/warn/warn.pdf>
+//!
+//! and is heavily inspired by the Rust Compiler implementation:
+//!
+//! <https://github.com/rust-lang/rust/tree/master/compiler/rustc_mir_build/src/thir/pattern/usefulness.rs>
 
 #![allow(unused)] // @@Todo: remove when integrated with tc-visitor
 
@@ -23,7 +66,7 @@ use crate::storage::{primitives::TermId, AccessToStorage};
 
 use self::{
     construct::ConstructorOps, deconstruct::DeconstructPatOps, fields::FieldOps,
-    lower::PatLowerOps, matrix::MatrixOps, range::IntRangeOps, stack::StackOps,
+    lower::LowerPatOps, matrix::MatrixOps, range::IntRangeOps, stack::StackOps,
     usefulness::UsefulnessOps, wildcard::SplitWildcardOps,
 };
 
@@ -65,9 +108,9 @@ pub(crate) trait AccessToUsefulnessOps: AccessToStorage {
         FieldOps::new(self.storages())
     }
 
-    /// Create an instance of [PatLowerOps].
-    fn pat_lowerer(&self) -> PatLowerOps {
-        PatLowerOps::new(self.storages())
+    /// Create an instance of [LowerPatOps].
+    fn pat_lowerer(&self) -> LowerPatOps {
+        LowerPatOps::new(self.storages())
     }
 
     /// Create an instance of [MatrixOps].
