@@ -123,14 +123,15 @@ impl<'tc> FieldOps<'tc> {
                     ),
                 }
             }
-            Constructor::List(_list) => {
-                todo!()
-                // let arity = list.arity();
+            Constructor::List(list) => {
+                let arity = list.arity();
 
-                // // Use the oracle to get the inner term `T` for the type...
-                // let ty = ...;
+                // Use the oracle to get the inner term `T` for the type...
+                let Some(ty) = self.oracle().term_as_list(ctx.ty) else {
+                        panic!("provided ty is not list as expected: {}", self.for_fmt(ctx.ty))
+                };
 
-                // Fields::wildcards_from_tys((0..arity).map(|_| ty))
+                self.wildcards_from_tys((0..arity).map(|_| ty))
             }
             Constructor::Str(..)
             | Constructor::IntRange(..)
