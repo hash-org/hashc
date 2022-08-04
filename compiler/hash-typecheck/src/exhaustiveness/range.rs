@@ -51,7 +51,7 @@ use super::lower::PatKind;
 /// Represents what kind of [IntRange] is being
 /// boundaries are specified when creating it.
 ///
-/// @@TODO: once we support ranges in the parser, move this there.
+/// @@Ranges: once we support ranges in the parser, move this there.
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum RangeEnd {
     /// The end element is included in the range, i.e. closed interval range.
@@ -261,7 +261,7 @@ impl<'tc> IntRangeOps<'tc> {
         let bias: u128 = match reader.get_term(constant.ty) {
             Term::Level0(Level0Term::Lit(lit)) => match lit {
                 LitTerm::Int { kind, .. } if kind.is_signed() => {
-                    // @@Future: support `ibig` type here
+                    // @@Future: support `ibig` here
                     let size = kind.size().unwrap();
                     1u128 << (size * 8 - 1)
                 }
@@ -283,7 +283,7 @@ impl<'tc> IntRangeOps<'tc> {
 
     /// Create an [IntRange] from two specified bounds, and assuming that the
     /// type is an integer (of the column)
-    fn make_range(&self, ctx: PatCtx, lo: u128, hi: u128, end: &RangeEnd) -> IntRange {
+    pub(crate) fn make_range(&self, ctx: PatCtx, lo: u128, hi: u128, end: &RangeEnd) -> IntRange {
         let bias = self.signed_bias(ctx);
 
         let (lo, hi) = (lo ^ bias, hi ^ bias);

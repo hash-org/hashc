@@ -52,7 +52,7 @@ use super::{
 /// The [Constructor] represents the type of constructor that a pattern
 /// is.
 ///
-/// @@Todo: float ranges
+/// @@Ranges: float ranges
 #[derive(Debug, Clone)]
 pub enum Constructor {
     /// The constructor for patterns that have a single constructor, like
@@ -78,11 +78,6 @@ pub enum Constructor {
 }
 
 impl Constructor {
-    /// Check if the [Constructor] is non-exhaustive.
-    pub(super) fn is_non_exhaustive(&self) -> bool {
-        matches!(self, Constructor::NonExhaustive)
-    }
-
     /// Check if the [Constructor] is a wildcard.
     pub(super) fn is_wildcard(&self) -> bool {
         matches!(self, Constructor::Wildcard)
@@ -211,7 +206,7 @@ impl<'tc> ConstructorOps<'tc> {
             }
             // Fast track to just the single constructor if this range is trivial
             Constructor::IntRange(range) if !range.is_singleton() => {
-                // @@Future: this is only used when `range` patterns are a thing
+                // @@Ranges: this is only used when `range` patterns are a thing
 
                 let mut range = SplitIntRange::new(range);
                 let int_ranges = ctors.filter_map(|c| {

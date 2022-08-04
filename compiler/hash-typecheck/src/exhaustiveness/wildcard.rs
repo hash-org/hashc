@@ -9,7 +9,7 @@ use crate::{
     exhaustiveness::PatCtx,
     ops::AccessToOps,
     storage::{
-        primitives::{ConstructorId, Level1Term, NominalDef, Term},
+        primitives::{ConstructorId, IntKind, Level1Term, NominalDef, Term},
         AccessToStorage, StorageRef,
     },
 };
@@ -38,7 +38,12 @@ pub struct SplitWildcard {
     pub all_ctors: SmallVec<[ConstructorId; 1]>,
 }
 
-use super::{construct::Constructor, AccessToUsefulnessOps};
+use super::{
+    construct::Constructor,
+    list::{List, ListKind},
+    range::RangeEnd,
+    AccessToUsefulnessOps,
+};
 
 pub struct SplitWildcardOps<'tc> {
     storage: StorageRef<'tc>,
@@ -60,46 +65,106 @@ impl<'tc> SplitWildcardOps<'tc> {
     pub(super) fn from(&mut self, ctx: PatCtx) -> SplitWildcard {
         let reader = self.reader();
 
+        let make_range = |start, end| {
+            Constructor::IntRange(self.int_range_ops().make_range(
+                ctx,
+                start,
+                end,
+                &RangeEnd::Included,
+            ))
+        };
+
         // This determines the set of all possible constructors for the type `ctx.ty`.
         // For numbers, lists we use ranges and variable-length lists when appropriate.
         //
-        //
-        // @@Future:
         // we need make sure to omit constructors that are statically impossible. E.g.,
         // for `Option<!>`, we do not include `Some(_)` in the returned list of
         // constructors.
-        let all_ctors = match reader.get_term(ctx.ty) {
-            // @@Todo: deal with ints, chars, never, and lists...
-            // term if ctx.typer().term_is_char() => ...,
-            // term if ctx.typer().term_is_uint() => ...,
-            // term if ctx.typer().term_is_int() => ...,
-            // term if ctx.typer().term_is_list() => ...,
-            Term::Level1(Level1Term::NominalDef(def)) => {
-                match reader.get_nominal_def(*def) {
-                    NominalDef::Struct(_) => smallvec![Constructor::Single],
-                    NominalDef::Enum(enum_def) => {
-                        // The exception is if the pattern is at the top level, because we
-                        // want empty matches to be
-                        // considered exhaustive.
-                        let is_secretly_empty = enum_def.variants.is_empty() && !ctx.is_top_level;
+        let all_ctors = if let Some(int_kind) = self.oracle().term_as_int(ctx.ty) {
+            match int_kind {
+                // @@Future: Maybe in the future, we can have a compiler setting/project
+                // setting that allows a user to say `it's ok to use the `target` pointer width`
+                IntKind::ISize | IntKind::USize | IntKind::UBig | IntKind::IBig => {
+                    smallvec![Constructor::NonExhaustive]
+                }
+                kind if kind.is_signed() => {
+                    // Safe to unwrap since we deal with `ibig` and `ubig` variants...
+                    let size = kind.size().unwrap();
+                    let bits = size * 8;
 
-                        let mut ctors: SmallVec<[_; 1]> = enum_def
-                            .variants
-                            .iter()
-                            .enumerate()
-                            .map(|(index, _)| Constructor::Variant(index))
-                            .collect();
+                    let min = 1u128 << (bits - 1);
+                    let max = min - 1;
 
-                        if is_secretly_empty {
-                            ctors.push(Constructor::NonExhaustive);
-                        }
+                    // i_kind::MIN..=_kind::MAX
+                    smallvec![make_range(min, max)]
+                }
+                kind => {
+                    // Safe to unwrap since we deal with `ibig` and `ubig` variants...
+                    let size = kind.size().unwrap();
+                    let bits = size * 8;
 
-                        ctors
-                    }
+                    let shift = 128 - bits;
+
+                    // Truncate (shift left to drop out leftover values, shift right to fill with
+                    // zeroes).
+                    let max = (u128::MAX << shift) >> shift;
+
+                    smallvec![make_range(0, max)]
                 }
             }
-            Term::Level1(Level1Term::Tuple(_)) => smallvec![Constructor::Single],
-            _ => smallvec![Constructor::NonExhaustive],
+        } else if self.oracle().term_as_list(ctx.ty).is_some() {
+            // For lists, we just default to a variable length list
+            smallvec![Constructor::List(List { kind: ListKind::Var(0, 0) })]
+        } else {
+            match ctx.ty {
+                ty if self.oracle().term_is_char(ty) => {
+                    smallvec![
+                        // The valid Unicode Scalar Value ranges.
+                        make_range('\u{0000}' as u128, '\u{D7FF}' as u128),
+                        make_range('\u{E000}' as u128, '\u{10FFFF}' as u128),
+                    ]
+                }
+                ty if self.oracle().term_is_never(ty) => {
+                    // If our subject is the never type, we cannot
+                    // expose its emptiness. The exception is if the pattern
+                    // is at the top level, because we want empty matches
+                    // to be considered exhaustive.
+                    if !ctx.is_top_level {
+                        smallvec![Constructor::NonExhaustive]
+                    } else {
+                        smallvec![]
+                    }
+                }
+                ty => match reader.get_term(ty) {
+                    Term::Level1(Level1Term::NominalDef(def)) => {
+                        match reader.get_nominal_def(*def) {
+                            NominalDef::Struct(_) => smallvec![Constructor::Single],
+                            NominalDef::Enum(enum_def) => {
+                                // The exception is if the pattern is at the top level, because we
+                                // want empty matches to be
+                                // considered exhaustive.
+                                let is_secretly_empty =
+                                    enum_def.variants.is_empty() && !ctx.is_top_level;
+
+                                let mut ctors: SmallVec<[_; 1]> = enum_def
+                                    .variants
+                                    .iter()
+                                    .enumerate()
+                                    .map(|(index, _)| Constructor::Variant(index))
+                                    .collect();
+
+                                if is_secretly_empty {
+                                    ctors.push(Constructor::NonExhaustive);
+                                }
+
+                                ctors
+                            }
+                        }
+                    }
+                    Term::Level1(Level1Term::Tuple(_)) => smallvec![Constructor::Single],
+                    _ => smallvec![Constructor::NonExhaustive],
+                },
+            }
         };
 
         // Now we have to allocate `all_ctors` into storage
@@ -189,8 +254,8 @@ impl<'tc> SplitWildcardOps<'tc> {
             // The exception is: if we are at the top-level, for example in an empty match,
             // we sometimes prefer reporting the list of constructors instead of
             // just `_`.
-            let ctor = if !wildcard.matrix_ctors.is_empty() || (ctx.is_top_level)
-            // @@TODO: and if it's not an integral
+            let ctor = if !wildcard.matrix_ctors.is_empty()
+                || (ctx.is_top_level && self.oracle().term_as_int(ctx.ty).is_none())
             {
                 Constructor::Missing
             } else {

@@ -4,7 +4,7 @@
 //! the information that is stored within the [primitives::Pat] is
 //! not necessary for the exhaustiveness checking to be carried out.
 use crate::{
-    diagnostics::{error::TcResult, macros::tc_panic},
+    diagnostics::macros::tc_panic,
     exhaustiveness::constant::Constant,
     ops::AccessToOps,
     storage::{
@@ -69,8 +69,8 @@ pub enum PatKind {
     Variant {
         /// The id of the nominal definition that represents the enumeration.
         ///
-        /// @@TODO: Replace this with id of union of structs, when `enum`s are
-        /// no longer represented within `NominalDefId`
+        /// @@EnumToUnion: Replace this with id of union of structs, when
+        /// `enum`s are no longer represented within `NominalDefId`
         def: NominalDefId,
         /// The inner patterns of the variant
         pats: Vec<FieldPat>,
@@ -137,7 +137,7 @@ impl<'tc> LowerPatOps<'tc> {
 
     /// Take a [primitives::Pat] and convert it into [Pat], essentially lowering
     /// the pattern.
-    pub fn lower_pat(&self, id: PatId) -> TcResult<Pat> {
+    pub fn lower_pat(&self, id: PatId) -> Pat {
         let reader = self.reader();
 
         let pat = reader.get_pat(id);
@@ -155,7 +155,7 @@ impl<'tc> LowerPatOps<'tc> {
             // Tuple patterns are represented as leaves since they can't have alternative
             // variants
             primitives::Pat::Tuple(fields) => {
-                let pats = self.lower_pat_fields(*fields)?;
+                let pats = self.lower_pat_fields(*fields);
                 PatKind::Leaf { pats }
             }
             primitives::Pat::Constructor(_) => {
@@ -171,7 +171,7 @@ impl<'tc> LowerPatOps<'tc> {
                 // We don't care about the `name` of the arg because the list
                 // never has the `name` assigned to anything...
                 for PatArg { pat, .. } in pats.positional() {
-                    let mut lowered_pat = self.lower_pat(*pat)?;
+                    let mut lowered_pat = self.lower_pat(*pat);
 
                     if matches!(lowered_pat.kind.as_ref(), PatKind::Spread) {
                         if spread.is_some() {
@@ -192,18 +192,18 @@ impl<'tc> LowerPatOps<'tc> {
                 PatKind::List { prefix, spread, suffix }
             }
             primitives::Pat::Or(pats) => PatKind::Or {
-                pats: pats.clone().into_iter().flat_map(|pat| self.lower_pat(pat)).collect_vec(),
+                pats: pats.clone().into_iter().map(|pat| self.lower_pat(pat)).collect_vec(),
             },
             primitives::Pat::If(if_pat) => {
                 // we need to set `has_guard` to true on the pattern
-                let mut inner = self.lower_pat(if_pat.pat)?;
+                let mut inner = self.lower_pat(if_pat.pat);
                 inner.has_guard = true;
 
-                return Ok(inner);
+                return inner;
             }
         };
 
-        Ok(Pat { span, kind: Box::new(kind), has_guard: false })
+        Pat { span, kind: Box::new(kind), has_guard: false }
     }
 
     /// Function to lower a [primitives::Pat::Constructor]. If the constructor
@@ -212,7 +212,7 @@ impl<'tc> LowerPatOps<'tc> {
     /// definitions.
     ///
     /// **Note** the term of the subject of the constructor must be simplified!
-    pub fn lower_constructor(&self, pat: primitives::Pat, span: Span) -> TcResult<Pat> {
+    pub fn lower_constructor(&self, pat: primitives::Pat, span: Span) -> Pat {
         let ConstructorPat { subject, args } = match pat {
             primitives::Pat::Constructor(constructor) => constructor,
             _ => unreachable!(),
@@ -220,7 +220,7 @@ impl<'tc> LowerPatOps<'tc> {
 
         // Transform the arguments into fields, since it doesn't matter
         // whether this will become a variant or a leaf.
-        let pats = self.lower_pat_fields(args)?;
+        let pats = self.lower_pat_fields(args);
 
         // We need to determine if this is a enumeration or a struct, if it is a
         // struct, we can easily conclude that this lowered pattern is a `Leaf`,
@@ -234,15 +234,15 @@ impl<'tc> LowerPatOps<'tc> {
 
                 match nominal_def {
                     NominalDef::Struct(_) => PatKind::Leaf { pats },
-                    // @@Todo: get the variant index here
-                    NominalDef::Enum(_) => PatKind::Variant { def: *id, pats, index: 0 },
+                    // @@EnumToUnion: get the variant index here
+                    NominalDef::Enum(_) => unreachable!(),
                 }
             }
             // Was the subject not simplified :^( ?
             _ => tc_panic!(subject, self, "Not a nominal!"),
         };
 
-        Ok(Pat { kind: Box::new(kind), span, has_guard: false })
+        Pat { kind: Box::new(kind), span, has_guard: false }
     }
 
     /// Function to lower a collection of pattern fields. This is used for
@@ -250,7 +250,7 @@ impl<'tc> LowerPatOps<'tc> {
     /// fields are named or not, and properly computes the `index` of each
     /// field based on the definition position and whether or not it is a
     /// named argument.
-    pub fn lower_pat_fields(&self, fields: PatArgsId) -> TcResult<Vec<FieldPat>> {
+    pub fn lower_pat_fields(&self, fields: PatArgsId) -> Vec<FieldPat> {
         let reader = self.reader();
         let args = reader.get_pat_args(fields).clone();
 
@@ -263,7 +263,7 @@ impl<'tc> LowerPatOps<'tc> {
             // to use the parameter list in order to resolve the index. By now it should be
             // verified that no un-named arguments appear after named arguments as this
             // creates an ambiguous ordering of arguments.
-            .flat_map(|(index, arg)| -> TcResult<FieldPat> {
+            .map(|(index, arg)| -> FieldPat {
                 let field = if_chain! {
                     if let Some(name) = arg.name;
                     if let Some((arg_index, _)) = args.get_by_name(name);
@@ -274,17 +274,17 @@ impl<'tc> LowerPatOps<'tc> {
                     }
                 };
 
-                Ok(FieldPat { index: field, pat: self.lower_pat(arg.pat)? })
+                FieldPat { index: field, pat: self.lower_pat(arg.pat) }
             })
             .collect_vec();
 
-        Ok(pats)
+        pats
     }
 
     /// Function that performs a lowering operation on a [Level0Term::Lit] and
     /// converts it into a [PatKind::Constant] or a [PatKind::Str] if it is
     /// a string.
-    pub fn lower_constant(&self, pat: PatId, ty: TermId, span: Span) -> TcResult<Pat> {
+    pub fn lower_constant(&self, pat: PatId, ty: TermId, span: Span) -> Pat {
         let reader = self.reader();
         let value = reader.get_term(ty);
 
@@ -301,6 +301,6 @@ impl<'tc> LowerPatOps<'tc> {
             _ => tc_panic!(pat, self, "Not a constant!"),
         };
 
-        Ok(Pat { kind: Box::new(kind), span, has_guard: false })
+        Pat { kind: Box::new(kind), span, has_guard: false }
     }
 }

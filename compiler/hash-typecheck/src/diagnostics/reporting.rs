@@ -12,7 +12,7 @@ use crate::{
         AccessToStorage, StorageRef,
     },
 };
-use hash_ast::ast::ParamOrigin;
+use hash_ast::ast::{MatchOrigin, ParamOrigin};
 use hash_error_codes::error_codes::HashErrorCode;
 use hash_reporting::{
     builder::ReportBuilder,
@@ -1100,6 +1100,42 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!("pattern doesn't bind {}", SequenceDisplay::all(bounds.as_slice())),
+                    )));
+                }
+            }
+            TcError::RefutablePat { pat, origin, uncovered_pats } => {
+                let origin = match origin {
+                    Some(inner) => match inner {
+                        MatchOrigin::Match => "`match`",
+                        MatchOrigin::If => "`if`",
+                        MatchOrigin::For => "`for-loop`",
+                        MatchOrigin::While => "`while` binding",
+                    },
+                    None => "declaration",
+                };
+
+                builder.with_error_code(HashErrorCode::RefutablePat).with_message(format!(
+                    "refutable pattern in {origin} binding: {} not covered",
+                    uncovered_pats.len()
+                ));
+
+                if let Some(location) = err.location_store().get_location(pat) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        format!("pattern {} not covered", uncovered_pats.len()),
+                    )));
+                }
+            }
+            TcError::NonExhaustiveMatch { term, uncovered_pats } => {
+                builder.with_error_code(HashErrorCode::NonExhaustiveMatch).with_message(format!(
+                    "non-exhaustive patterns: {} not covered",
+                    uncovered_pats.len()
+                ));
+
+                if let Some(location) = err.location_store().get_location(term) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        format!("pattern {} not covered", uncovered_pats.len()),
                     )));
                 }
             }

@@ -19,7 +19,7 @@ use crate::{
     },
 };
 
-use super::{construct::Constructor, deconstruct::DeconstructedPat, AccessToUsefulnessOps};
+use super::{construct::Constructor, AccessToUsefulnessOps};
 
 /// Representation of the `fields` that are stored by [DeconstructedPat]
 /// which are nested [DeconstructedPat]s.
@@ -108,7 +108,7 @@ impl<'tc> FieldOps<'tc> {
                                     self.for_fmt(ctx.ty),
                                 ),
                             },
-                            // @@Remove: when enums aren't represented as this anymore
+                            // @@EnumToUnion: when enums aren't represented as this anymore
                             NominalDef::Enum(_) => unreachable!(),
                         }
                     }

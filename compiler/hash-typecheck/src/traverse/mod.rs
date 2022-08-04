@@ -16,7 +16,9 @@ use crate::{
     },
 };
 use hash_ast::{
-    ast::{self, AccessKind, AstNodeRef, BinOp, OwnsAstNode, ParamOrigin, RefKind, UnOp},
+    ast::{
+        self, AccessKind, AstNodeRef, BinOp, MatchOrigin, OwnsAstNode, ParamOrigin, RefKind, UnOp,
+    },
     visitor::{self, walk, AstVisitor},
 };
 use hash_pipeline::sources::{NodeMap, SourceRef};
@@ -1239,13 +1241,17 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     ) -> Result<Self::MatchBlockRet, Self::Error> {
         let walk::MatchBlock { subject, .. } = walk::walk_match_block(self, ctx, node)?;
 
+        let mut branches = vec![];
         let mut redundant_errors = vec![];
+
         let match_return_values: Vec<_> = node
             .cases
             .ast_ref_iter()
             .map(|case| {
                 // Try to match the pattern with the case
                 let case_pat = self.visit_pat(ctx, case.pat.ast_ref())?;
+                branches.push(case_pat);
+
                 let case_match = self.pat_matcher().match_pat_with_term(case_pat, subject)?;
                 match case_match {
                     Some(members_to_add) => {
@@ -1268,11 +1274,24 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
             .flatten_ok()
             .collect::<TcResult<_>>()?;
 
-        // @@Todo: is_match_exhaustive()?
-
         if !redundant_errors.is_empty() {
             // @@Todo: return all errors, and make them warnings instead of hard errors
             return Err(redundant_errors[0].clone());
+        }
+
+        // Skip origins of `while` and `if` since they are always irrefutable, if the
+        // origin is a match, we want to check call `is_match_exhaustive` since it will
+        // generate a more relevant error, otherwise we call `is_pat_irrefutable`
+        match &node.body().origin {
+            MatchOrigin::If | MatchOrigin::While => {}
+            MatchOrigin::Match => {
+                self.exhaustiveness_checker().is_match_exhaustive(&branches, subject)?
+            }
+            origin @ MatchOrigin::For => self.exhaustiveness_checker().is_pat_irrefutable(
+                &branches,
+                subject,
+                Some(*origin),
+            )?,
         }
 
         let match_return_types: Vec<_> = match_return_values
@@ -1552,6 +1571,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         };
 
         // @@Todo: is pattern irrefutable?
+        // self.exhaustiveness_checker().is_pat_irrefutable(&[pat], term, None)?;
 
         let ty = node.ty.as_ref().map(|t| self.visit_ty(ctx, t.ast_ref())).transpose()?;
         let value = node.value.as_ref().map(|t| self.visit_expr(ctx, t.ast_ref())).transpose()?;
@@ -1573,6 +1593,13 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         // Apply the substitution on the type and value
         let mut value = value.map(|value| self.substituter().apply_sub_to_term(&sub, value));
         let ty = self.substituter().apply_sub_to_term(&sub, ty_or_unresolved);
+
+        // Ensure that the given pattern is irrefutable given the type of the term
+        //
+        // @@Investigate: Unclear what to do here if the `rhs` is a type that is
+        // not meant to be checked for refutability, presumably we always declare it
+        // is irrefutable because the `value` and `ty` matched...
+        self.exhaustiveness_checker().is_pat_irrefutable(&[pat_id], ty, None)?;
 
         if value.is_none() && self.state.within_intrinsics_directive {
             // @@Todo: see #391

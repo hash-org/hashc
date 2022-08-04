@@ -5,7 +5,7 @@
 //! [Pat] with any of the inner fields of the [Pat] being represented
 //! as child [DeconstructedPat]s stored within the `fields` parameter
 //! of the structure.
-use std::cell::Cell;
+use std::{cell::Cell, fmt::Debug};
 
 use hash_source::location::Span;
 use itertools::Itertools;
@@ -17,11 +17,12 @@ use crate::{
         list::{List, ListKind},
         PatCtx,
     },
+    fmt::{ForFormatting, PrepareForFormatting},
     ops::AccessToOps,
     storage::{
         primitives::{
-            ConstructedTerm, ConstructorId, DeconstructedPatId, Level0Term, Level1Term, NominalDef,
-            Term, TermId, TupleLit,
+            ConstructorId, DeconstructedPatId, Level1Term, NominalDef, StructFields, Term, TermId,
+            TupleTy,
         },
         AccessToStorage, StorageRef,
     },
@@ -37,9 +38,6 @@ use super::{
 /// A [DeconstructedPat] is a representation of a [Constructor] that is split
 /// between the constructor subject `ctor` and the `fields` that the constructor
 /// holds.
-///
-/// @@Todo: Implement `fmt` for the deconstructed pat as this is what will be
-/// used         for displaying these patterns.
 #[derive(Debug, Clone)]
 pub struct DeconstructedPat {
     /// The subject of the [DeconstructedPat].
@@ -56,13 +54,9 @@ pub struct DeconstructedPat {
 }
 
 impl DeconstructedPat {
+    /// Create a new [DeconstructedPat]
     pub(super) fn new(ctor: ConstructorId, fields: Fields, ty: TermId, span: Span) -> Self {
         DeconstructedPat { ctor, fields, span, ty, reachable: Cell::new(false) }
-    }
-
-    /// Clone this [DeconstructedPat] whilst also forgetting the reachability.
-    pub(super) fn clone_and_forget_reachability(&self) -> Self {
-        DeconstructedPat::new(self.ctor, self.fields.clone(), self.ty, self.span)
     }
 
     /// Expand an `or` pattern into a passed [Vec], whilst also
@@ -153,7 +147,6 @@ impl<'tc> DeconstructPatOps<'tc> {
     /// Convert a [Pat] into a [DeconstructedPat].
     #[allow(clippy::wrong_self_convention)]
     pub(crate) fn from_pat(&self, ctx: PatCtx, pat: &Pat) -> DeconstructedPat {
-        // @@Todo: support int, and float ranges
         let (ctor, fields) = match pat.kind.as_ref() {
             PatKind::Spread | PatKind::Wild => (Constructor::Wildcard, vec![]),
             PatKind::Constant { value } => {
@@ -166,14 +159,14 @@ impl<'tc> DeconstructPatOps<'tc> {
                 let reader = self.reader();
 
                 match reader.get_term(ctx.ty) {
-                    Term::Level0(Level0Term::Tuple(TupleLit { members })) => {
-                        let members = reader.get_args(*members).clone();
+                    Term::Level1(Level1Term::Tuple(TupleTy { members })) => {
+                        let members = reader.get_params(*members).clone();
 
                         // Create wild-cards for all of the tuple inner members
                         let mut wilds: SmallVec<[_; 2]> = members
                             .positional()
                             .iter()
-                            .map(|member| self.wildcard(member.value))
+                            .map(|member| self.wildcard(member.ty))
                             .collect();
 
                         for field in pats {
@@ -182,15 +175,26 @@ impl<'tc> DeconstructPatOps<'tc> {
 
                         (Constructor::Single, wilds.to_vec())
                     }
-                    Term::Level0(Level0Term::Constructed(ConstructedTerm { members, .. })) => {
+                    Term::Level1(Level1Term::NominalDef(nominal_def)) => {
                         let ctor = match pat.kind.as_ref() {
                             PatKind::Variant { index, .. } => Constructor::Variant(*index),
                             PatKind::Leaf { .. } => Constructor::Single,
                             _ => unreachable!(),
                         };
 
-                        let args = reader.get_args(*members);
-                        let tys = args.positional().iter().map(|arg| arg.value);
+                        let members = match reader.get_nominal_def(*nominal_def) {
+                            NominalDef::Struct(struct_def) => match struct_def.fields {
+                                StructFields::Explicit(members) => members,
+                                StructFields::Opaque => {
+                                    panic!("got unexpected opaque struct-def here")
+                                }
+                            },
+                            // @@EnumToUnion: when enums aren't a thing, do this with a union
+                            NominalDef::Enum(_) => unreachable!(),
+                        };
+
+                        let args = reader.get_params(members);
+                        let tys = args.positional().iter().map(|param| param.ty);
 
                         let mut wilds: SmallVec<[_; 2]> = tys.map(|ty| self.wildcard(ty)).collect();
 
@@ -247,54 +251,46 @@ impl<'tc> DeconstructPatOps<'tc> {
     }
 
     /// Convert a [DeconstructedPat] into a [Pat].
-    pub(crate) fn to_pat(&self, ctx: PatCtx, pat: DeconstructedPatId) -> Pat {
+    pub(crate) fn _to_pat(&self, ctx: PatCtx, pat: DeconstructedPatId) -> Pat {
         let reader = self.reader();
         let pat = reader.get_deconstructed_pat(pat);
         let ctor = reader.get_ctor(pat.ctor());
 
-        let children = pat.fields.iter_patterns().map(|p| self.to_pat(ctx, *p)).collect_vec();
+        let children = pat.fields.iter_patterns().map(|p| self._to_pat(ctx, *p)).collect_vec();
 
         let kind = match ctor {
             ctor @ (Constructor::Single | Constructor::Variant(_)) => {
                 let reader = self.reader();
 
                 match reader.get_term(pat.ty) {
-                    Term::Level0(Level0Term::Tuple(_)) => PatKind::Leaf {
+                    Term::Level1(Level1Term::Tuple(_)) => PatKind::Leaf {
                         pats: children
                             .into_iter()
                             .enumerate()
                             .map(|(index, pat)| FieldPat { index, pat })
                             .collect(),
                     },
-                    Term::Level0(Level0Term::Constructed(ConstructedTerm { subject, .. })) => {
-                        match reader.get_term(*subject) {
-                            Term::Level1(Level1Term::NominalDef(id)) => {
-                                let nominal_def = reader.get_nominal_def(*id);
 
-                                let pats = children
-                                    .into_iter()
-                                    .enumerate()
-                                    .map(|(index, pat)| FieldPat { index, pat })
-                                    .collect_vec();
+                    Term::Level1(Level1Term::NominalDef(id)) => {
+                        let nominal_def = reader.get_nominal_def(*id);
 
-                                match nominal_def {
-                                    NominalDef::Struct(_) => PatKind::Leaf { pats },
-                                    NominalDef::Enum(_) => {
-                                        let Constructor::Variant(index) = ctor else {
-                                            unreachable!()
-                                        };
+                        let pats = children
+                            .into_iter()
+                            .enumerate()
+                            .map(|(index, pat)| FieldPat { index, pat })
+                            .collect_vec();
 
-                                        PatKind::Variant { def: *id, pats, index }
-                                    }
-                                }
+                        match nominal_def {
+                            NominalDef::Struct(_) => PatKind::Leaf { pats },
+                            NominalDef::Enum(_) => {
+                                let Constructor::Variant(index) = ctor else {
+                                    unreachable!()
+                                };
+
+                                PatKind::Variant { def: *id, pats, index }
                             }
-                            _ => tc_panic!(
-                                subject,
-                                self,
-                                "Malformed constructed subject during pattern conversion"
-                            ),
                         }
-                    }
+                    },
                     _ => tc_panic!(
                         ctx.ty,
                         self,
@@ -344,7 +340,7 @@ impl<'tc> DeconstructPatOps<'tc> {
     /// will be turned into multiple `specialised` variants of the
     /// constructor,
     pub(super) fn specialise(
-        &mut self,
+        &self,
         ctx: PatCtx,
         pat: DeconstructedPatId,
         other_ctor_id: ConstructorId,
@@ -370,20 +366,23 @@ impl<'tc> DeconstructPatOps<'tc> {
                 // match the arity of the `other_list`.
                 match this_list.kind {
                     ListKind::Fixed(_) => panic!("{:?} cannot cover {:?}", this_list, other_list),
-                    ListKind::Var(_prefix, _suffix) => {
-                        // @@Todo: we will need to get the inner `ty` of the list
+                    ListKind::Var(prefix, suffix) => {
+                        // we will need to get the inner `ty` of the list
+                        let Some(inner_ty) = self.oracle().term_as_list(ctx.ty) else {
+                            panic!("provided ty is not list as expected: {}", self.for_fmt(ctx.ty))
+                        };
 
-                        // let prefix = &pat.fields.fields[..prefix];
-                        // let suffix = &pat.fields.fields[this_list.arity() - suffix..];
+                        let prefix = pat.fields.fields[..prefix].to_vec();
+                        let suffix = pat.fields.fields[this_list.arity() - suffix..].to_vec();
 
-                        todo!()
-                        // let wildcard: &_ = &DeconstructedPat::wildcard();
+                        let wildcard = self.wildcard(inner_ty);
 
-                        // let extra_wildcards = other_list.arity() -
-                        // self_list.arity();
-                        // let extra_wildcards = (0..extra_wildcards).map(|_|
-                        // wildcard); prefix.iter().
-                        // chain(extra_wildcards).chain(suffix).collect()
+                        let extra_wildcards = other_list.arity() - this_list.arity();
+                        let extra_wildcards = (0..extra_wildcards)
+                            .map(|_| self.deconstructed_pat_store().create(wildcard.clone()))
+                            .collect_vec();
+
+                        prefix.into_iter().chain(extra_wildcards).chain(suffix).collect()
                     }
                 }
             }
@@ -411,6 +410,111 @@ impl<'tc> DeconstructPatOps<'tc> {
             for p in pat.fields.iter_patterns() {
                 let p = reader.get_deconstructed_pat(*p);
                 self.collect_unreachable_spans(&p, spans);
+            }
+        }
+    }
+}
+
+impl PrepareForFormatting for DeconstructedPatId {}
+
+impl Debug for ForFormatting<'_, DeconstructedPatId> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let pat = self.global_storage.deconstructed_pat_store.get(self.t);
+        let ctor = self.global_storage.constructor_store.get(pat.ctor);
+
+        // Utility for printing a joined list of things...
+        let mut first = true;
+        let mut start_or_continue = |s| {
+            if first {
+                first = false;
+                ""
+            } else {
+                s
+            }
+        };
+
+        match ctor {
+            Constructor::Single | Constructor::Variant(_) => {
+                let term = self.global_storage.term_store.get(pat.ty);
+
+                // If it is a `struct` or an `enum` then try and get the
+                // variant name...
+                match term {
+                    Term::Level1(Level1Term::NominalDef(nominal_def)) => {
+                        match self.global_storage.nominal_def_store.get(*nominal_def) {
+                            NominalDef::Struct(struct_def) => {
+                                if let Some(name) = struct_def.name {
+                                    write!(f, "{}", name)?;
+                                }
+                            }
+                            // @@EnumToUnion: remove and replace
+                            NominalDef::Enum(_) => unreachable!(),
+                        }
+                    }
+                    _ => panic!(
+                        "Unexpected ty `{}` when printing deconstructed pat",
+                        pat.ty.for_formatting(self.global_storage)
+                    ),
+                };
+
+                write!(f, "(")?;
+
+                for p in pat.fields.iter_patterns() {
+                    write!(f, "{}", start_or_continue(", "))?;
+                    write!(f, "{:?}", p.for_formatting(self.global_storage))?;
+                }
+                write!(f, ")")
+            }
+            Constructor::IntRange(range) => write!(f, "{:?}", range),
+            Constructor::Str(value) => write!(f, "{}", value),
+            Constructor::List(list) => {
+                let mut subpatterns = pat.fields.iter_patterns();
+
+                write!(f, "[")?;
+
+                match list.kind {
+                    ListKind::Fixed(_) => {
+                        for p in subpatterns {
+                            write!(f, "{}{:?}", start_or_continue(", "), p)?;
+                        }
+                    }
+                    ListKind::Var(prefix, _) => {
+                        for p in subpatterns.by_ref().take(prefix) {
+                            write!(
+                                f,
+                                "{}{:?}",
+                                start_or_continue(", "),
+                                p.for_formatting(self.global_storage)
+                            )?;
+                        }
+                        write!(f, "{}", start_or_continue(", "))?;
+                        write!(f, "..")?;
+                        for p in subpatterns {
+                            write!(
+                                f,
+                                "{}{:?}",
+                                start_or_continue(", "),
+                                p.for_formatting(self.global_storage)
+                            )?;
+                        }
+                    }
+                }
+
+                write!(f, "]")
+            }
+            Constructor::Or => {
+                for pat in pat.fields.iter_patterns() {
+                    write!(
+                        f,
+                        "{}{:?}",
+                        start_or_continue(" | "),
+                        pat.for_formatting(self.global_storage)
+                    )?;
+                }
+                Ok(())
+            }
+            Constructor::Wildcard | Constructor::Missing | Constructor::NonExhaustive => {
+                write!(f, "_ : {}", pat.ty().for_formatting(self.global_storage))
             }
         }
     }

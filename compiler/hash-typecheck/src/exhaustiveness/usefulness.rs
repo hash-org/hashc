@@ -22,7 +22,6 @@ use crate::{
 use hash_source::location::Span;
 use hash_utils::stack::ensure_sufficient_stack;
 use itertools::Itertools;
-use smallvec::smallvec;
 
 /// Collection of patterns that were `witnessed` when traversing
 /// the provided patterns.
@@ -133,7 +132,7 @@ pub(crate) enum Reachability {
 pub(crate) struct UsefulnessReport {
     /// For each arm of the input, whether that arm is reachable after the arms
     /// above it.
-    pub(crate) arm_usefulness: Vec<(MatchArm, Reachability)>,
+    pub(crate) _arm_usefulness: Vec<(MatchArm, Reachability)>,
     /// If the match is exhaustive, this is empty. If not, this contains
     /// witnesses for the lack of exhaustiveness.
     pub(crate) non_exhaustiveness_witnesses: Vec<DeconstructedPatId>,
@@ -281,7 +280,7 @@ impl<'tc> UsefulnessOps<'tc> {
     ///   (0) We don't exit early if the pattern matrix has zero rows. We just
     ///       continue to recurse over columns.
     ///
-    ///   (1) @@TODO: all_constructors will only return constructors that are
+    ///   (1) all_constructors will only return constructors that are
     ///       statically possible. E.g., it will only return `Ok` for
     ///       `Result<T, !>`.
     ///
@@ -355,11 +354,9 @@ impl<'tc> UsefulnessOps<'tc> {
                 }
             }
         } else {
-            // @@Todo: we should check that int ranges don't overlap here, in case
-            // they're partially covered by other ranges.
-            //
-            // @@Future: since this isn't necessarily an error, we should integrate this
-            // with our warning system.
+            // @@Ranges: we should check that int ranges don't overlap here, in case
+            // they're partially covered by other ranges. Additionally, since this isn't
+            // necessarily an error, we should integrate this with our warning system.
             let v_ctor = head.ctor();
             let reader = self.reader();
 
@@ -447,6 +444,6 @@ impl<'tc> UsefulnessOps<'tc> {
             Usefulness::NoWitnesses { .. } => panic!(),
         };
 
-        UsefulnessReport { arm_usefulness, non_exhaustiveness_witnesses }
+        UsefulnessReport { _arm_usefulness: arm_usefulness, non_exhaustiveness_witnesses }
     }
 }

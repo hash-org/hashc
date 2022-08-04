@@ -1,7 +1,5 @@
 //! Data structures used within the exhaustiveness implementation to represent
 //! list patterns.
-use crate::storage::primitives::TermId;
-use hash_source::location::Span;
 use std::{cmp::max, iter::once};
 
 /// Represents the kind of [List], whether it is

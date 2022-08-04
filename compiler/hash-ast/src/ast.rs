@@ -1026,7 +1026,7 @@ pub struct MatchCase {
 }
 
 /// The origin of a match block
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum MatchOrigin {
     If,
     Match,

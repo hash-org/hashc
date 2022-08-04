@@ -46,8 +46,6 @@
 //!
 //! <https://github.com/rust-lang/rust/tree/master/compiler/rustc_mir_build/src/thir/pattern/usefulness.rs>
 
-#![allow(unused)] // @@Todo: remove when integrated with tc-visitor
-
 pub mod constant;
 pub mod construct;
 pub mod deconstruct;

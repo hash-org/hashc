@@ -2,13 +2,11 @@
 //! constructs.
 use crate::storage::{
     primitives::{IntKind, TermId},
-    AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
+    AccessToStorage, StorageRef,
 };
 
-use super::AccessToOpsMut;
-
 pub struct Oracle<'tc> {
-    storage: StorageRefMut<'tc>,
+    storage: StorageRef<'tc>,
 }
 
 impl<'tc> AccessToStorage for Oracle<'tc> {
@@ -16,27 +14,20 @@ impl<'tc> AccessToStorage for Oracle<'tc> {
         self.storage.storages()
     }
 }
-impl<'tc> AccessToStorageMut for Oracle<'tc> {
-    fn storages_mut(&mut self) -> StorageRefMut {
-        self.storage.storages_mut()
-    }
-}
 
 impl<'tc> Oracle<'tc> {
-    pub fn new(storage: StorageRefMut<'tc>) -> Self {
+    pub fn new(storage: StorageRef<'tc>) -> Self {
         Self { storage }
     }
 
     /// If the term is a string type.
-    pub fn term_is_str(&mut self, term: TermId) -> bool {
-        let str_ty = self.core_defs().str_ty();
-        self.unifier().terms_are_equal(term, str_ty)
+    pub fn term_is_str(&mut self, _term: TermId) -> bool {
+        todo!()
     }
 
     /// If the term is a char type.
-    pub fn term_is_char(&mut self, term: TermId) -> bool {
-        let char_ty = self.core_defs().char_ty();
-        self.unifier().terms_are_equal(term, char_ty)
+    pub fn term_is_char(&mut self, _term: TermId) -> bool {
+        todo!()
     }
 
     /// If the term is an integer type, returns its [IntKind].

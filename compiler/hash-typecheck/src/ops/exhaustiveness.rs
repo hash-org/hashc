@@ -36,14 +36,18 @@
 //! about the exhaustiveness check algorithm are within the
 //! [exhaustiveness](crate::exhaustiveness) module.
 use hash_ast::ast::MatchOrigin;
+use itertools::Itertools;
 
 use crate::{
-    diagnostics::error::TcResult,
+    diagnostics::error::{TcError, TcResult},
+    exhaustiveness::{usefulness::MatchArm, AccessToUsefulnessOps, PatCtx},
     storage::{
-        primitives::{PatId, TermId},
+        primitives::{Pat, PatId, TermId},
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
 };
+
+use super::AccessToOps;
 
 /// Contains actions related to pattern exhaustiveness and usefulness checking.
 pub struct ExhaustivenessChecker<'tc> {
@@ -67,11 +71,43 @@ impl<'tc> ExhaustivenessChecker<'tc> {
         Self { storage }
     }
 
+    fn lower_pats_to_arms(&mut self, pats: &[PatId], term: TermId) -> Vec<MatchArm> {
+        let reader = self.reader();
+
+        pats.iter()
+            .map(|id| {
+                let prim_pat = reader.get_pat(*id);
+
+                // Create new `ctx` for lowering these patterns
+                let span = self.location_store().get_span(*id).unwrap();
+                let ctx = PatCtx { ty: term, span, is_top_level: true };
+
+                let lowered_pat = self.pat_lowerer().lower_pat(*id);
+                let destructed_pat = self.deconstruct_pat_ops().from_pat(ctx, &lowered_pat);
+
+                let pat = self.deconstructed_pat_store().create(destructed_pat);
+
+                MatchArm { pat, has_guard: matches!(prim_pat, Pat::If(_)) }
+            })
+            .collect_vec()
+    }
+
     /// Checks whether a `match` block is exhaustive from the provided patterns
     /// of each branch and whether there are any `useless` patterns that
     /// are present within the
-    pub fn is_match_exhaustive(&mut self, _pats: &[PatId], _term: TermId) -> TcResult<()> {
-        todo!()
+    pub fn is_match_exhaustive(&mut self, pats: &[PatId], term: TermId) -> TcResult<()> {
+        let arms = self.lower_pats_to_arms(pats, term);
+        let report = self.usefulness_ops().compute_match_usefulness(term, &arms);
+
+        // @@Todo: deal with arm reachability in the form of generating
+        // warnings in the discussed diagnostic system.
+        let witnesses = report.non_exhaustiveness_witnesses;
+
+        if witnesses.is_empty() {
+            Ok(())
+        } else {
+            Err(TcError::NonExhaustiveMatch { term, uncovered_pats: witnesses })
+        }
     }
 
     /// Checks whether the given [PatId] is irrefutable in terms of the provided
@@ -83,17 +119,21 @@ impl<'tc> ExhaustivenessChecker<'tc> {
     /// occurs in [ast desugaring](hash_ast_desugaring::desugaring) module.
     pub fn is_pat_irrefutable(
         &mut self,
-        _pats: &[PatId],
-        _term: TermId,
+        pats: &[PatId],
+        term: TermId,
         origin: Option<MatchOrigin>,
     ) -> TcResult<()> {
-        if let Some(origin) = origin {
-            // We shouldn't be checking irrefutability if the origin
-            // is a match block...
-            assert!(origin != MatchOrigin::Match);
-        } else {
-        }
+        let arms = self.lower_pats_to_arms(pats, term);
+        let report = self.usefulness_ops().compute_match_usefulness(term, &arms);
 
-        todo!()
+        // We ignore whether the pattern is unreachable (i.e. whether the type is
+        // empty). We only care about exhaustiveness here.
+        let witnesses = report.non_exhaustiveness_witnesses;
+
+        if witnesses.is_empty() {
+            Ok(())
+        } else {
+            Err(TcError::RefutablePat { origin, pat: pats[0], uncovered_pats: witnesses })
+        }
     }
 }
