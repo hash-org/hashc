@@ -92,7 +92,7 @@ impl<'tc> StackOps<'tc> {
             .collect()
     }
 
-    /// This computes `S(self.head().ctor(), self)`. Take the head of
+    /// This computes `S(self.head().ctor, self)`. Take the head of
     /// the [PatStack], specialise it with the provided `ctor` and
     /// and build a new [PatStack] with the result of the specialisation
     /// and the rest of the row items.

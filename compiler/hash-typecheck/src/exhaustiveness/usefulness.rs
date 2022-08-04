@@ -214,7 +214,7 @@ impl<'tc> UsefulnessOps<'tc> {
                     let mut wildcard = self.split_wildcard_ops().from(ctx);
 
                     let reader = self.reader();
-                    let ctors = matrix.heads().map(|id| reader.get_deconstructed_pat(id).ctor());
+                    let ctors = matrix.heads().map(|id| reader.get_deconstructed_pat(id).ctor);
 
                     self.split_wildcard_ops().split(ctx, &mut wildcard, ctors);
 
@@ -322,8 +322,7 @@ impl<'tc> UsefulnessOps<'tc> {
         let reader = self.reader();
         let head = reader.get_deconstructed_pat(v.head());
 
-        let ty = head.ty();
-        let span = head.span();
+        let DeconstructedPat { ty, span, .. } = head;
 
         // Create a new `PatCtx`, based on on the provided parameters
         let ctx = PatCtx::new(ty, span, is_top_level);
@@ -357,10 +356,10 @@ impl<'tc> UsefulnessOps<'tc> {
             // @@Ranges: we should check that int ranges don't overlap here, in case
             // they're partially covered by other ranges. Additionally, since this isn't
             // necessarily an error, we should integrate this with our warning system.
-            let v_ctor = head.ctor();
+            let v_ctor = head.ctor;
             let reader = self.reader();
 
-            let ctors = matrix.heads().map(|id| reader.get_deconstructed_pat(id).ctor());
+            let ctors = matrix.heads().map(|id| reader.get_deconstructed_pat(id).ctor);
 
             // We split the head constructor of `v`.
             let split_ctors = self.constructor_ops().split(ctx, v_ctor, ctors);

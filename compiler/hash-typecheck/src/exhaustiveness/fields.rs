@@ -75,7 +75,7 @@ impl<'tc> FieldOps<'tc> {
     }
 
     /// Creates a new list of wildcard fields for a given constructor. The
-    /// result must have a length of `ctor.arity()`.
+    /// result will have a length of `ctor.arity()`.
     pub(super) fn wildcards(&self, ctx: PatCtx, ctor: ConstructorId) -> Fields {
         let reader = self.reader();
         let ctor = reader.get_ctor(ctor);

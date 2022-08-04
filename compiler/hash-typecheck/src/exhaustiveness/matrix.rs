@@ -94,7 +94,7 @@ impl<'tc> MatrixOps<'tc> {
         // the matrix.
         for row in &matrix.patterns {
             let head = reader.get_deconstructed_pat(row.head());
-            let other = self.constructor_store().get(head.ctor());
+            let other = self.constructor_store().get(head.ctor);
 
             if self.constructor_ops().is_covered_by(ctx, &ctor, &other) {
                 let new_row = self.stack_ops().pop_head_constructor(ctx, row, ctor_id);

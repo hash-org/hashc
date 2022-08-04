@@ -31,7 +31,7 @@ use crate::{
 use super::{
     construct::Constructor,
     fields::Fields,
-    lower::{FieldPat, Pat, PatKind},
+    lower::{Pat, PatKind},
     AccessToUsefulnessOps,
 };
 
@@ -78,21 +78,6 @@ impl DeconstructedPat {
         let mut pats = Vec::new();
         Self::expand(pat, &mut pats);
         pats
-    }
-
-    /// Function to get the constructor of the [DeconstructedPat]
-    pub(super) fn ctor(&self) -> ConstructorId {
-        self.ctor
-    }
-
-    /// Function to get the `span` of the [DeconstructedPat]
-    pub(super) fn span(&self) -> Span {
-        self.span
-    }
-
-    /// Function to get the `ty` of the [DeconstructedPat]
-    pub(super) fn ty(&self) -> TermId {
-        self.ty
     }
 
     /// We keep track for each pattern if it was ever reachable during the
@@ -250,90 +235,92 @@ impl<'tc> DeconstructPatOps<'tc> {
         DeconstructedPat::new(ctor, fields, ctx.ty, pat.span)
     }
 
-    /// Convert a [DeconstructedPat] into a [Pat].
-    pub(crate) fn _to_pat(&self, ctx: PatCtx, pat: DeconstructedPatId) -> Pat {
-        let reader = self.reader();
-        let pat = reader.get_deconstructed_pat(pat);
-        let ctor = reader.get_ctor(pat.ctor());
+    // Convert a [DeconstructedPat] into a [Pat].
+    // pub(crate) fn _to_pat(&self, ctx: PatCtx, pat: DeconstructedPatId) -> Pat {
+    //     let reader = self.reader();
+    //     let pat = reader.get_deconstructed_pat(pat);
+    //     let ctor = reader.get_ctor(pat.ctor);
 
-        let children = pat.fields.iter_patterns().map(|p| self._to_pat(ctx, *p)).collect_vec();
+    //     let children = pat.fields.iter_patterns().map(|p| self._to_pat(ctx,
+    // *p)).collect_vec();
 
-        let kind = match ctor {
-            ctor @ (Constructor::Single | Constructor::Variant(_)) => {
-                let reader = self.reader();
+    //     let kind = match ctor {
+    //         ctor @ (Constructor::Single | Constructor::Variant(_)) => {
+    //             let reader = self.reader();
 
-                match reader.get_term(pat.ty) {
-                    Term::Level1(Level1Term::Tuple(_)) => PatKind::Leaf {
-                        pats: children
-                            .into_iter()
-                            .enumerate()
-                            .map(|(index, pat)| FieldPat { index, pat })
-                            .collect(),
-                    },
+    //             match reader.get_term(pat.ty) {
+    //                 Term::Level1(Level1Term::Tuple(_)) => PatKind::Leaf {
+    //                     pats: children
+    //                         .into_iter()
+    //                         .enumerate()
+    //                         .map(|(index, pat)| FieldPat { index, pat })
+    //                         .collect(),
+    //                 },
 
-                    Term::Level1(Level1Term::NominalDef(id)) => {
-                        let nominal_def = reader.get_nominal_def(*id);
+    //                 Term::Level1(Level1Term::NominalDef(id)) => {
+    //                     let nominal_def = reader.get_nominal_def(*id);
 
-                        let pats = children
-                            .into_iter()
-                            .enumerate()
-                            .map(|(index, pat)| FieldPat { index, pat })
-                            .collect_vec();
+    //                     let pats = children
+    //                         .into_iter()
+    //                         .enumerate()
+    //                         .map(|(index, pat)| FieldPat { index, pat })
+    //                         .collect_vec();
 
-                        match nominal_def {
-                            NominalDef::Struct(_) => PatKind::Leaf { pats },
-                            NominalDef::Enum(_) => {
-                                let Constructor::Variant(index) = ctor else {
-                                    unreachable!()
-                                };
+    //                     match nominal_def {
+    //                         NominalDef::Struct(_) => PatKind::Leaf { pats },
+    //                         NominalDef::Enum(_) => {
+    //                             let Constructor::Variant(index) = ctor else {
+    //                                 unreachable!()
+    //                             };
 
-                                PatKind::Variant { def: *id, pats, index }
-                            }
-                        }
-                    },
-                    _ => tc_panic!(
-                        ctx.ty,
-                        self,
-                        "Unexpected ty `{}` when converting to pattern",
-                        self.for_fmt(ctx.ty),
-                    ),
-                }
-            }
-            Constructor::IntRange(range) => self.int_range_ops().to_pat_kind(ctx, &range),
-            Constructor::Str(value) => PatKind::Str { value },
-            Constructor::List(List { kind }) => match kind {
-                ListKind::Fixed(_) => {
-                    PatKind::List { prefix: children, spread: None, suffix: vec![] }
-                }
-                ListKind::Var(prefix, _) => {
-                    let mut children = children.into_iter().peekable();
+    //                             PatKind::Variant { def: *id, pats, index }
+    //                         }
+    //                     }
+    //                 },
+    //                 _ => tc_panic!(
+    //                     ctx.ty,
+    //                     self,
+    //                     "Unexpected ty `{}` when converting to pattern",
+    //                     self.for_fmt(ctx.ty),
+    //                 ),
+    //             }
+    //         }
+    //         Constructor::IntRange(range) => self.int_range_ops().to_pat_kind(ctx,
+    // &range),         Constructor::Str(value) => PatKind::Str { value },
+    //         Constructor::List(List { kind }) => match kind {
+    //             ListKind::Fixed(_) => {
+    //                 PatKind::List { prefix: children, spread: None, suffix:
+    // vec![] }             }
+    //             ListKind::Var(prefix, _) => {
+    //                 let mut children = children.into_iter().peekable();
 
-                    // build the prefix and suffix components
-                    let prefix: Vec<_> = children.by_ref().take(prefix).collect();
-                    let suffix: Vec<_> = children.collect();
+    //                 // build the prefix and suffix components
+    //                 let prefix: Vec<_> =
+    // children.by_ref().take(prefix).collect();                 let suffix:
+    // Vec<_> = children.collect();
 
-                    // Create the `spread` dummy pattern
-                    let spread = Pat {
-                        span: Span::default(),
-                        kind: Box::new(PatKind::Spread),
-                        has_guard: false,
-                    };
+    //                 // Create the `spread` dummy pattern
+    //                 let spread = Pat {
+    //                     span: Span::default(),
+    //                     kind: Box::new(PatKind::Spread),
+    //                     has_guard: false,
+    //                 };
 
-                    PatKind::List { prefix, spread: Some(spread), suffix }
-                }
-            },
-            Constructor::Wildcard | Constructor::NonExhaustive => PatKind::Wild,
-            Constructor::Or => panic!(
-                "cannot convert an `or` deconstructed pat back into pat"
-            ),
-            Constructor::Missing => panic!(
-                "trying to convert a `Missing` constructor into a `Pat`; this is probably a bug,             
-                `Missing` should have been processed in `apply_constructors`"
-            ),
-        };
+    //                 PatKind::List { prefix, spread: Some(spread), suffix }
+    //             }
+    //         },
+    //         Constructor::Wildcard | Constructor::NonExhaustive => PatKind::Wild,
+    //         Constructor::Or => panic!(
+    //             "cannot convert an `or` deconstructed pat back into pat"
+    //         ),
+    //         Constructor::Missing => tc_panic!(
+    //             "trying to convert a `Missing` constructor into a `Pat`; this is
+    // probably a bug,             `Missing` should have been processed in
+    // `apply_constructors`"         ),
+    //     };
 
-        Pat { span: pat.span, kind: Box::new(kind), has_guard: false }
-    }
+    //     Pat { span: pat.span, kind: Box::new(kind), has_guard: false }
+    // }
 
     /// Perform a `specialisation` on the current [DeconstructedPat]. This means
     /// that for a particular other constructor, this [DeconstructedPat]
@@ -347,7 +334,7 @@ impl<'tc> DeconstructPatOps<'tc> {
     ) -> SmallVec<[DeconstructedPatId; 2]> {
         let reader = self.reader();
         let pat = reader.get_deconstructed_pat(pat);
-        let ctor = reader.get_ctor(pat.ctor());
+        let ctor = reader.get_ctor(pat.ctor);
         let other_ctor = reader.get_ctor(other_ctor_id);
 
         match (ctor, other_ctor) {
@@ -514,7 +501,7 @@ impl Debug for ForFormatting<'_, DeconstructedPatId> {
                 Ok(())
             }
             Constructor::Wildcard | Constructor::Missing | Constructor::NonExhaustive => {
-                write!(f, "_ : {}", pat.ty().for_formatting(self.global_storage))
+                write!(f, "_ : {}", pat.ty.for_formatting(self.global_storage))
             }
         }
     }
