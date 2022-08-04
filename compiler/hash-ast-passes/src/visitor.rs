@@ -1200,13 +1200,13 @@ impl AstVisitor for SemanticAnalyser<'_> {
         Ok(())
     }
 
-    type IgnorePatRet = ();
+    type WildPatRet = ();
 
-    fn visit_ignore_pat(
+    fn visit_wild_pat(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::IgnorePat>,
-    ) -> Result<Self::IgnorePatRet, Self::Error> {
+        _: hash_ast::ast::AstNodeRef<hash_ast::ast::WildPat>,
+    ) -> Result<Self::WildPatRet, Self::Error> {
         Ok(())
     }
 

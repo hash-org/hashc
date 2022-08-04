@@ -1215,13 +1215,13 @@ impl AstVisitor for AstTreeGenerator {
         ))
     }
 
-    type IgnorePatRet = TreeNode;
+    type WildPatRet = TreeNode;
 
-    fn visit_ignore_pat(
+    fn visit_wild_pat(
         &mut self,
         _: &Self::Ctx,
-        _: ast::AstNodeRef<ast::IgnorePat>,
-    ) -> Result<Self::IgnorePatRet, Self::Error> {
+        _: ast::AstNodeRef<ast::WildPat>,
+    ) -> Result<Self::WildPatRet, Self::Error> {
         Ok(TreeNode::leaf("ignore"))
     }
 

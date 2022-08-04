@@ -2234,14 +2234,14 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         }
     }
 
-    type IgnorePatRet = PatId;
+    type WildPatRet = PatId;
 
-    fn visit_ignore_pat(
+    fn visit_wild_pat(
         &mut self,
         _ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::IgnorePat>,
-    ) -> Result<Self::IgnorePatRet, Self::Error> {
-        let pat = self.builder().create_ignore_pat();
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::WildPat>,
+    ) -> Result<Self::WildPatRet, Self::Error> {
+        let pat = self.builder().create_wildcard_pat();
         self.copy_location_from_node_to_target(node, pat);
         Ok(pat)
     }

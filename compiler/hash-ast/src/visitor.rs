@@ -693,12 +693,12 @@ pub trait AstVisitor: Sized {
         node: ast::AstNodeRef<ast::BindingPat>,
     ) -> Result<Self::BindingPatRet, Self::Error>;
 
-    type IgnorePatRet;
-    fn visit_ignore_pat(
+    type WildPatRet;
+    fn visit_wild_pat(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::IgnorePat>,
-    ) -> Result<Self::IgnorePatRet, Self::Error>;
+        node: ast::AstNodeRef<ast::WildPat>,
+    ) -> Result<Self::WildPatRet, Self::Error>;
 
     type ModulePatEntryRet;
     fn visit_module_pat_entry(
@@ -1400,12 +1400,12 @@ pub trait AstVisitorMut: Sized {
         node: ast::AstNodeRefMut<ast::BindingPat>,
     ) -> Result<Self::BindingPatRet, Self::Error>;
 
-    type IgnorePatRet;
-    fn visit_ignore_pat(
+    type WildPatRet;
+    fn visit_wild_pat(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::IgnorePat>,
-    ) -> Result<Self::IgnorePatRet, Self::Error>;
+        node: ast::AstNodeRefMut<ast::WildPat>,
+    ) -> Result<Self::WildPatRet, Self::Error>;
 
     type ModulePatEntryRet;
     fn visit_module_pat_entry(
@@ -2551,7 +2551,7 @@ pub mod walk {
         If(V::IfPatRet),
         Binding(V::BindingPatRet),
         Spread(V::SpreadPatRet),
-        Ignore(V::IgnorePatRet),
+        Wild(V::WildPatRet),
     }
 
     pub fn walk_pat<V: AstVisitor>(
@@ -2574,7 +2574,7 @@ pub mod walk {
                 Pat::Binding(visitor.visit_binding_pat(ctx, node.with_body(r))?)
             }
             ast::Pat::Spread(r) => Pat::Spread(visitor.visit_spread_pat(ctx, node.with_body(r))?),
-            ast::Pat::Ignore(r) => Pat::Ignore(visitor.visit_ignore_pat(ctx, node.with_body(r))?),
+            ast::Pat::Wild(r) => Pat::Wild(visitor.visit_wild_pat(ctx, node.with_body(r))?),
         })
     }
 
@@ -2595,7 +2595,7 @@ pub mod walk {
             IfPatRet = Ret,
             BindingPatRet = Ret,
             SpreadPatRet = Ret,
-            IgnorePatRet = Ret,
+            WildPatRet = Ret,
         >,
     {
         Ok(match walk_pat(visitor, ctx, node)? {
@@ -2609,7 +2609,7 @@ pub mod walk {
             Pat::If(r) => r,
             Pat::Binding(r) => r,
             Pat::Spread(r) => r,
-            Pat::Ignore(r) => r,
+            Pat::Wild(r) => r,
         })
     }
 
@@ -4296,7 +4296,7 @@ pub mod walk_mut {
         If(V::IfPatRet),
         Binding(V::BindingPatRet),
         Spread(V::SpreadPatRet),
-        Ignore(V::IgnorePatRet),
+        Wild(V::WildPatRet),
     }
 
     pub fn walk_pat<V: AstVisitorMut>(
@@ -4334,8 +4334,8 @@ pub mod walk_mut {
             ast::Pat::Spread(r) => {
                 Pat::Spread(visitor.visit_spread_pat(ctx, AstNodeRefMut::new(r, span, id))?)
             }
-            ast::Pat::Ignore(r) => {
-                Pat::Ignore(visitor.visit_ignore_pat(ctx, AstNodeRefMut::new(r, span, id))?)
+            ast::Pat::Wild(r) => {
+                Pat::Wild(visitor.visit_wild_pat(ctx, AstNodeRefMut::new(r, span, id))?)
             }
         })
     }
@@ -4357,7 +4357,7 @@ pub mod walk_mut {
             IfPatRet = Ret,
             BindingPatRet = Ret,
             SpreadPatRet = Ret,
-            IgnorePatRet = Ret,
+            WildPatRet = Ret,
         >,
     {
         Ok(match walk_pat(visitor, ctx, node)? {
@@ -4371,7 +4371,7 @@ pub mod walk_mut {
             Pat::If(r) => r,
             Pat::Binding(r) => r,
             Pat::Spread(r) => r,
-            Pat::Ignore(r) => r,
+            Pat::Wild(r) => r,
         })
     }
 

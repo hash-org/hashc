@@ -690,9 +690,9 @@ pub struct SpreadPat {
     pub name: Option<AstNode<Name>>,
 }
 
-/// The catch-all, i.e "ignore" pattern.
+/// The wildcard pattern.
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct IgnorePat;
+pub struct WildPat;
 
 /// Represents what kind of [RangePat] is being
 /// boundaries are specified when creating it.
@@ -713,7 +713,7 @@ impl Display for RangeEnd {
     }
 }
 
-/// A pattern. e.g. `Ok(Dog {props = (1, x)})`.
+/// A pattern. e.g. `Ok(Dog(props = (1, x)))`.
 #[derive(Debug, PartialEq, Clone)]
 pub enum Pat {
     /// An access pattern is one that denotes the access of a property from
@@ -730,11 +730,20 @@ pub enum Pat {
     Module(ModulePat),
     /// A tuple pattern is a collection of patterns, e.g `(1, x, 'c')`
     Tuple(TuplePat),
+    /// A list pattern, which is a collection of patterns e.g `[x, 2, y]`
     List(ListPat),
+    /// A literal pattern e.g. `c`
     Lit(LitPat),
+    /// An `or` pattern which groups multiple patterns e.g. `a | b | c`
     Or(OrPat),
+    /// A pattern that is guarded by an if statement, e.g. `x if x > 5`
     If(IfPat),
-    Ignore(IgnorePat),
+    /// Wildcard pattern, similar to a binding but it is not binded
+    /// to any member.
+    Wild(WildPat),
+    /// Similar to a [Pat::Wild], but does captures a collection of patterns,
+    /// which can be used to ignore a range of elements in a tuple or
+    /// a list.
     Spread(SpreadPat),
 }
 

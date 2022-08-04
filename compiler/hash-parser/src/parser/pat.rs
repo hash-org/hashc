@@ -121,7 +121,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 if *ident == CORE_IDENTIFIERS.underscore =>
             {
                 self.skip_token();
-                Pat::Ignore(IgnorePat)
+                Pat::Wild(WildPat)
             }
             // A name bind that has visibility/mutability modifiers
             Token {

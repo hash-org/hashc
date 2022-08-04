@@ -193,7 +193,7 @@ impl<'tc> PatMatcher<'tc> {
 
                 Ok(Some(vec![]))
             }
-            // Ignore: No bindings but always matches
+            // No bindings but always matches
             Pat::Wild => Ok(Some(vec![])),
             // Lit: Unify the literal with the subject
             Pat::Lit(lit_term) => match self.unifier().unify_terms(lit_term, simplified_term_id) {

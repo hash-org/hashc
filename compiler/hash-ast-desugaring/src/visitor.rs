@@ -1037,13 +1037,13 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         Ok(())
     }
 
-    type IgnorePatRet = ();
+    type WildPatRet = ();
 
-    fn visit_ignore_pat(
+    fn visit_wild_pat(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::IgnorePat>,
-    ) -> Result<Self::IgnorePatRet, Self::Error> {
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::WildPat>,
+    ) -> Result<Self::WildPatRet, Self::Error> {
         Ok(())
     }
 

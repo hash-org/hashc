@@ -4,9 +4,9 @@ use hash_ast::{
     ast::{
         AstNode, AstNodes, BindingPat, Block, BlockExpr, BodyBlock, BoolLit, BoolLitPat,
         BreakStatement, ConstructorCallArg, ConstructorCallArgs, ConstructorCallExpr,
-        ConstructorPat, Expr, ExprKind, ForLoopBlock, IfBlock, IfClause, IfPat, IgnorePat, Lit,
-        LitExpr, LitPat, LoopBlock, MatchBlock, MatchCase, MatchOrigin, Name, Pat, TuplePatEntry,
-        VariableExpr, WhileLoopBlock,
+        ConstructorPat, Expr, ExprKind, ForLoopBlock, IfBlock, IfClause, IfPat, Lit, LitExpr,
+        LitPat, LoopBlock, MatchBlock, MatchCase, MatchOrigin, Name, Pat, TuplePatEntry,
+        VariableExpr, WhileLoopBlock, WildPat,
     },
     ast_nodes,
 };
@@ -249,7 +249,7 @@ impl<'s> AstDesugaring<'s> {
             MatchCase {
                 pat: AstNode::new(
                     Pat::If(IfPat {
-                        pat: AstNode::new(Pat::Ignore(IgnorePat), condition_span),
+                        pat: AstNode::new(Pat::Wild(WildPat), condition_span),
                         condition,
                     }),
                     branch_span,
@@ -354,7 +354,7 @@ impl<'s> AstDesugaring<'s> {
 
             AstNode::new(
                 MatchCase {
-                    pat: AstNode::new(Pat::Ignore(IgnorePat), else_block_span),
+                    pat: AstNode::new(Pat::Wild(WildPat), else_block_span),
                     expr: AstNode::new(
                         Expr::new(ExprKind::Block(BlockExpr(block))),
                         else_block_span,
@@ -371,7 +371,7 @@ impl<'s> AstDesugaring<'s> {
             // use for generating the else-branch.
             AstNode::new(
                 MatchCase {
-                    pat: AstNode::new(Pat::Ignore(IgnorePat), parent_span),
+                    pat: AstNode::new(Pat::Wild(WildPat), parent_span),
                     expr: AstNode::new(
                         Expr::new(ExprKind::Block(BlockExpr(AstNode::new(
                             Block::Body(BodyBlock { statements: AstNodes::empty(), expr: None }),
