@@ -34,7 +34,7 @@ impl<'tc> AccessToStorageMut for Typer<'tc> {
     }
 }
 
-/// A version of [MemberData] where the type has been inferred if it was not
+/// A version of member data where the type has been inferred if it was not
 /// given in the member definition.
 #[derive(Debug, Clone, Copy)]
 pub struct InferredMemberData {

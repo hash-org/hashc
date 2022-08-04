@@ -1,9 +1,11 @@
-//! Data structure that represents the `fields` of a [DeconstructedPat].
-//! The [Fields] data structure is an inner [Vec] of [DeconstructedPatId]s.
-//! It has some useful creation methods for when [DeconstructedPat]s need
-//! to be created from a provided [PatCtx]. [FieldOps] defines methods
-//! that operate on [Fields] with the typechecker context available for
-//! reading and creating [DeconstructedPat]s.
+//! Data structure that represents the `fields` of a
+//! [DeconstructedPat](super::deconstruct::DeconstructedPat). The [Fields] data
+//! structure is an inner [Vec] of [DeconstructedPatId]s. It has some useful
+//! creation methods for when
+//! [DeconstructedPat](super::deconstruct::DeconstructedPat)s need to be created
+//! from a provided [PatCtx]. [FieldOps] defines methods that operate on
+//! [Fields] with the typechecker context available for reading and creating
+//! [DeconstructedPat](super::deconstruct::DeconstructedPat)s.
 use itertools::Itertools;
 
 use crate::{
@@ -21,8 +23,9 @@ use crate::{
 
 use super::{construct::Constructor, AccessToUsefulnessOps};
 
-/// Representation of the `fields` that are stored by [DeconstructedPat]
-/// which are nested [DeconstructedPat]s.
+/// Representation of the `fields` that are stored by
+/// [DeconstructedPat](super::deconstruct::DeconstructedPat) which are nested
+/// patterns.
 #[derive(Debug, Clone)]
 pub struct Fields {
     /// Vector of the inner ids stored by the [Fields]

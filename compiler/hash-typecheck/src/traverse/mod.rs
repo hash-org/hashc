@@ -1594,6 +1594,11 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let mut value = value.map(|value| self.substituter().apply_sub_to_term(&sub, value));
         let ty = self.substituter().apply_sub_to_term(&sub, ty_or_unresolved);
 
+        // We need to ensure that the resultant type is equivalent to the resultant
+        // type from the pattern
+        let pat_ty = self.typer().infer_ty_of_pat(pat_id)?;
+        self.unifier().unify_terms(pat_ty, ty)?;
+
         // Ensure that the given pattern is irrefutable given the type of the term
         //
         // @@Investigate: Unclear what to do here if the `rhs` is a type that is

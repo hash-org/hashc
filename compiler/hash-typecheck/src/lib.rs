@@ -52,7 +52,7 @@ impl Default for TcState {
 impl Tc<'_> for TcImpl {
     type State = TcState;
 
-    /// Make a [State] for [TcImpl]. Internally, this creates
+    /// Make a [Self::State] for [TcImpl]. Internally, this creates
     /// a new [GlobalStorage] and [LocalStorage] with a default
     /// [SourceId]. This is safe because both methods that are used
     /// to visit any source kind, will overwrite the stored [SourceId]
