@@ -378,7 +378,7 @@ impl<'tc> Typer<'tc> {
         let pat = self.reader().get_pat(pat_id).clone();
 
         let ty_of_pat = match pat {
-            Pat::Mod(_) | Pat::Ignore | Pat::Binding(_) => {
+            Pat::Mod(_) | Pat::Wild | Pat::Binding(_) => {
                 // We don't know this; it depends on the subject:
                 Ok(self.builder().create_unresolved_term())
             }
@@ -391,6 +391,10 @@ impl<'tc> Typer<'tc> {
             Pat::Lit(lit_term) => {
                 // The term of a literal pattern is the literal (lol):
                 Ok(lit_term)
+            }
+            Pat::Range { lo, .. } => {
+                // The term of the range is the type of `lo` since `lo` is a literal term
+                Ok(lo)
             }
             Pat::Tuple(tuple_pat) => {
                 // For each parameter, get its type, and then create a tuple

@@ -36,6 +36,8 @@ use std::{
     ops::RangeInclusive,
 };
 
+use hash_ast::ast::RangeEnd;
+
 use crate::{
     diagnostics::macros::tc_panic,
     exhaustiveness::{constant::Constant, PatCtx},
@@ -47,27 +49,6 @@ use crate::{
 };
 
 use super::lower::PatKind;
-
-/// Represents what kind of [IntRange] is being
-/// boundaries are specified when creating it.
-///
-/// @@Ranges: once we support ranges in the parser, move this there.
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
-pub enum RangeEnd {
-    /// The end element is included in the range, i.e. closed interval range.
-    Included,
-    /// The end element is excluded in the range, i.e. open interval range.
-    Excluded,
-}
-
-impl fmt::Display for RangeEnd {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            RangeEnd::Included => write!(f, "..="),
-            RangeEnd::Excluded => write!(f, ".."),
-        }
-    }
-}
 
 #[derive(Clone)]
 

@@ -148,7 +148,7 @@ impl<'tc> LowerPatOps<'tc> {
             primitives::Pat::Binding(_)
             | primitives::Pat::Access(_)
             | primitives::Pat::Const(_)
-            | primitives::Pat::Ignore
+            | primitives::Pat::Wild
             | primitives::Pat::Mod(_) => PatKind::Wild,
             primitives::Pat::Spread(_) => PatKind::Spread,
             primitives::Pat::Lit(term) => return self.lower_constant(id, *term, span),
@@ -201,6 +201,7 @@ impl<'tc> LowerPatOps<'tc> {
 
                 return inner;
             }
+            primitives::Pat::Range { .. } => todo!(),
         };
 
         Pat { span, kind: Box::new(kind), has_guard: false }

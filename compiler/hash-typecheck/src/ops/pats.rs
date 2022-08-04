@@ -183,8 +183,18 @@ impl<'tc> PatMatcher<'tc> {
                     Err(_) => Ok(None),
                 }
             }
+            Pat::Range { lo, hi, .. } => {
+                // The `lo` and `hi` should always unify with the subject term...
+                self.unifier().unify_terms(lo, simplified_term_id)?;
+                self.unifier().unify_terms(hi, simplified_term_id)?;
+
+                // They should also unify with one another...
+                self.unifier().unifier().unify_terms(hi, lo)?;
+
+                Ok(Some(vec![]))
+            }
             // Ignore: No bindings but always matches
-            Pat::Ignore => Ok(Some(vec![])),
+            Pat::Wild => Ok(Some(vec![])),
             // Lit: Unify the literal with the subject
             Pat::Lit(lit_term) => match self.unifier().unify_terms(lit_term, simplified_term_id) {
                 Ok(_) => Ok(Some(vec![])),

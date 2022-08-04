@@ -1,6 +1,6 @@
 //! Contains type definitions that the rest of the storage and the general
 //! typechecker use.
-use hash_ast::ast::ParamOrigin;
+use hash_ast::ast::{ParamOrigin, RangeEnd};
 use hash_source::{identifier::Identifier, string::Str, SourceId};
 use num_bigint::BigInt;
 use slotmap::new_key_type;
@@ -1279,6 +1279,9 @@ pub enum Pat {
     Access(AccessPat),
     /// Resolved binding pattern.
     Const(ConstPat),
+    /// A range pattern `2..5`, the `lo` and `hi` values
+    /// must be `Term::Level0(Level0Term::Lit)`.
+    Range { lo: TermId, hi: TermId, end: RangeEnd },
     /// Literal pattern, of the given term.
     ///
     /// The inner term must be `Term::Level0(Level0Term::Lit)`.
@@ -1300,7 +1303,7 @@ pub enum Pat {
     /// A conditional pattern.
     If(IfPat),
     /// A wildcard pattern, ignoring the subject and always matching.
-    Ignore,
+    Wild,
 }
 
 // IDs for all the primitives to be stored on mapped storage.

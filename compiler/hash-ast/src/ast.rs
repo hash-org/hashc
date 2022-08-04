@@ -694,6 +694,25 @@ pub struct SpreadPat {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct IgnorePat;
 
+/// Represents what kind of [RangePat] is being
+/// boundaries are specified when creating it.
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+pub enum RangeEnd {
+    /// The end element is included in the range, i.e. closed interval range.
+    Included,
+    /// The end element is excluded in the range, i.e. open interval range.
+    Excluded,
+}
+
+impl Display for RangeEnd {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RangeEnd::Included => write!(f, "..="),
+            RangeEnd::Excluded => write!(f, ".."),
+        }
+    }
+}
+
 /// A pattern. e.g. `Ok(Dog {props = (1, x)})`.
 #[derive(Debug, PartialEq, Clone)]
 pub enum Pat {

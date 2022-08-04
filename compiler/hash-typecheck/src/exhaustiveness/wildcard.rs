@@ -3,6 +3,7 @@
 //! the `splitting` operation creates [Constructor]s that represent
 //! the whole range of all possible values by the associated type
 //! to the constructor.
+use hash_ast::ast::RangeEnd;
 use smallvec::{smallvec, SmallVec};
 
 use crate::{
@@ -41,7 +42,6 @@ pub struct SplitWildcard {
 use super::{
     construct::Constructor,
     list::{List, ListKind},
-    range::RangeEnd,
     AccessToUsefulnessOps,
 };
 

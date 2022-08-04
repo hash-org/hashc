@@ -640,7 +640,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
 
     /// Create an ignore pattern ("_").
     pub fn create_ignore_pat(&self) -> PatId {
-        self.create_pat(Pat::Ignore)
+        self.create_pat(Pat::Wild)
     }
 
     /// Create an access pattern.

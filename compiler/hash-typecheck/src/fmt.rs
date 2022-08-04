@@ -601,6 +601,13 @@ impl<'gs> TcFormatter<'gs> {
                 write!(f, "{}::{}", property, subject.for_formatting(self.global_storage))
             }
             Pat::Const(ConstPat { term }) => self.fmt_term(f, *term, opts),
+            Pat::Range { lo, hi, end } => {
+                // write the `lo`, then the range end, and finally the `hi`
+                self.fmt_term(f, *lo, opts.clone())?;
+                write!(f, "{}", end)?;
+
+                self.fmt_term(f, *hi, opts)
+            }
             Pat::Lit(lit_term) => self.fmt_term(f, *lit_term, opts),
             Pat::Tuple(tuple_pat) => {
                 opts.is_atomic.set(true);
@@ -635,7 +642,7 @@ impl<'gs> TcFormatter<'gs> {
                 self.fmt_term_as_single(f, if_pat.condition, opts)?;
                 Ok(())
             }
-            Pat::Ignore => {
+            Pat::Wild => {
                 write!(f, "_")
             }
             Pat::Mod(ModPat { members }) => {
