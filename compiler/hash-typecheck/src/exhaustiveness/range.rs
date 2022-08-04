@@ -33,7 +33,6 @@ use std::{
     cmp::{max, min},
     fmt,
     iter::once,
-    ops::RangeInclusive,
 };
 
 use hash_ast::ast::RangeEnd;
@@ -50,10 +49,16 @@ use crate::{
 
 use super::lower::PatKind;
 
-#[derive(Clone)]
+/// The [IntRange] is used as a structure to represent `integral` types like
+/// signed integers, unsigned integers, characters and of-course range patterns
+/// which are represented in this format. [IntRange] is a useful abstraction to
+/// represent these data types rather than listing all of the possible
+/// constructors that these data types have.
+#[derive(Clone, Copy)]
 
 pub struct IntRange {
-    pub range: RangeInclusive<u128>,
+    pub(super) start: u128,
+    pub(super) end: u128,
 
     /// Keeps the bias used for encoding the range. It depends on the type of
     /// the range and possibly the pointer size of the current architecture.
@@ -65,13 +70,13 @@ pub struct IntRange {
 impl IntRange {
     /// Get the boundaries of the current [IntRange]
     pub fn boundaries(&self) -> (u128, u128) {
-        (*self.range.start(), *self.range.end())
+        (self.start, self.end)
     }
 
     /// Check whether `self` is covered by the other range, in other words
     /// if other is a super-range of `self`.
     pub fn is_subrange(&self, other: &Self) -> bool {
-        other.range.start() <= self.range.start() && self.range.end() <= other.range.end()
+        other.start <= self.start && self.end <= other.end
     }
 
     /// Get the intersection between `self` and `other` [IntRange]s.
@@ -80,7 +85,7 @@ impl IntRange {
         let (other_lo, other_hi) = other.boundaries();
 
         if lo <= other_hi && other_lo <= hi {
-            Some(IntRange { range: max(lo, other_lo)..=min(hi, other_hi), bias: self.bias })
+            Some(IntRange { start: max(lo, other_lo), end: min(hi, other_hi), bias: self.bias })
         } else {
             None
         }
@@ -89,7 +94,7 @@ impl IntRange {
     /// Check whether the [IntRange] is a singleton, or in other words if there
     /// is only one step within the range
     pub fn is_singleton(&self) -> bool {
-        self.range.start() == self.range.end()
+        self.start == self.end
     }
 
     /// If the `other` range covers all possible values of this [IntRange], then
@@ -190,7 +195,7 @@ impl SplitIntRange {
 
     /// Iterate over the contained ranges.
     pub fn iter(&self) -> impl Iterator<Item = IntRange> + '_ {
-        let (lo, hi) = Self::to_borders(self.range.clone());
+        let (lo, hi) = Self::to_borders(self.range);
         // Start with the start of the range.
         let mut prev_border = lo;
 
@@ -209,12 +214,12 @@ impl SplitIntRange {
             .filter(|(prev_border, border)| prev_border != border)
             // Finally, convert to ranges.
             .map(move |(prev_border, border)| {
-                let range = match (prev_border, border) {
-                    (IntBorder::JustBefore(n), IntBorder::JustBefore(m)) if n < m => n..=(m - 1),
-                    (IntBorder::JustBefore(n), IntBorder::AfterMax) => n..=u128::MAX,
+                let (start, end) = match (prev_border, border) {
+                    (IntBorder::JustBefore(n), IntBorder::JustBefore(m)) if n < m => (n, (m - 1)),
+                    (IntBorder::JustBefore(n), IntBorder::AfterMax) => (n, u128::MAX),
                     _ => unreachable!(), // Ruled out by the sorting and filtering we did
                 };
-                IntRange { range, bias: self.range.bias }
+                IntRange { start, end, bias: self.range.bias }
             })
     }
 }
@@ -259,7 +264,7 @@ impl<'tc> IntRangeOps<'tc> {
 
         // read from the constant the actual bits and apply bias
         let val = constant.data() ^ bias;
-        IntRange { range: val..=val, bias }
+        IntRange { start: val, end: val, bias }
     }
 
     /// Create an [IntRange] from two specified bounds, and assuming that the
@@ -273,7 +278,7 @@ impl<'tc> IntRangeOps<'tc> {
             panic!("malformed range pattern: {}..={}", lo, (hi - offset));
         }
 
-        IntRange { range: lo..=(hi - offset), bias }
+        IntRange { start: lo, end: hi - offset, bias }
     }
 
     /// Get the bias based on the type, if it is a signed, integer then

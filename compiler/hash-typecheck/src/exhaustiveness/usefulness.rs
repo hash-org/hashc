@@ -181,7 +181,7 @@ impl<'tc> UsefulnessOps<'tc> {
             let pats = witness.0.drain((len - arity)..).rev();
             let fields = Fields::from_iter(pats);
 
-            DeconstructedPat::new(ctor, fields, ctx.ty, Span::dummy())
+            DeconstructedPat::new(ctor, fields, ctx.ty, Span::default())
         };
 
         let pat = self.deconstructed_pat_store().create(pat);

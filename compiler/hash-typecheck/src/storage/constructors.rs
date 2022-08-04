@@ -30,7 +30,7 @@ impl ConstructorStore {
 
     /// Get a [Constructor] by a specified [ConstructorId].
     pub fn get(&self, id: ConstructorId) -> Constructor {
-        self.data.borrow().get(id).unwrap().clone()
+        *self.data.borrow().get(id).unwrap()
     }
 
     /// Apply an update to an inner stored element within the store.

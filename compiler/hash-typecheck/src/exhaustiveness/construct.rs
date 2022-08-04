@@ -53,7 +53,7 @@ use super::{
 /// is.
 ///
 /// @@Ranges: float ranges
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum Constructor {
     /// The constructor for patterns that have a single constructor, like
     /// tuples, struct patterns and fixed-length arrays.

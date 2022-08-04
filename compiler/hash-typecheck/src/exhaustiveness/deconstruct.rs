@@ -128,7 +128,7 @@ impl<'tc> DeconstructPatOps<'tc> {
     pub(super) fn wild_from_ctor(&self, ctx: PatCtx, ctor_id: ConstructorId) -> DeconstructedPat {
         let fields = self.fields_ops().wildcards(ctx, ctor_id);
 
-        DeconstructedPat::new(ctor_id, fields, ctx.ty, Span::dummy())
+        DeconstructedPat::new(ctor_id, fields, ctx.ty, Span::default())
     }
 
     /// Create a new wildcard [DeconstructedPat], primarily used when
@@ -136,7 +136,7 @@ impl<'tc> DeconstructPatOps<'tc> {
     pub(super) fn wildcard(&self, ty: TermId) -> DeconstructedPat {
         let ctor = self.constructor_store().create(Constructor::Wildcard);
 
-        DeconstructedPat::new(ctor, Fields::empty(), ty, Span::dummy())
+        DeconstructedPat::new(ctor, Fields::empty(), ty, Span::default())
     }
 
     /// Check whether this [DeconstructedPat] is an `or` pattern.
@@ -314,7 +314,7 @@ impl<'tc> DeconstructPatOps<'tc> {
 
                     // Create the `spread` dummy pattern
                     let spread = Pat {
-                        span: Span::dummy(),
+                        span: Span::default(),
                         kind: Box::new(PatKind::Spread),
                         has_guard: false,
                     };

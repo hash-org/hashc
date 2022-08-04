@@ -60,12 +60,6 @@ impl Span {
     pub fn size(&self) -> usize {
         self.end() - self.start()
     }
-
-    /// Get a dummy [Span] that is used as a default value
-    #[inline]
-    pub fn dummy() -> Span {
-        Span(0, 0)
-    }
 }
 
 impl Default for Span {
