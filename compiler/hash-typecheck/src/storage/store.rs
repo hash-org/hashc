@@ -326,6 +326,15 @@ impl<Key: SequenceStoreKey, Value: Clone> SequenceStore<Key, Value> {
         value_slice_ref.clone_from_slice(new_value_sequence);
     }
 
+    /// Iterate over the value sequence for the given key.
+    ///
+    /// It is safe to call mutating store methods (`create_*` etc) when mapping
+    /// the iterator etc.
+    pub fn iter(&self, key: Key) -> impl Iterator<Item = Value> + '_ {
+        key.to_index_range()
+            .map(move |index| self.data.borrow().get(key.index() + index).unwrap().clone())
+    }
+
     /// Get a value sequence by a key, and map it to another value given its
     /// slice.
     ///
