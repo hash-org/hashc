@@ -475,7 +475,6 @@ mod test_super {
     // Ensuring macros expand correctly:
     new_store_key!(pub TestK);
     new_store!(pub Test<TestK, ()>);
-
     new_sequence_store_key!(pub TestSeqK);
     new_sequence_store!(pub TestSeq<TestSeqK, ()>);
 }
