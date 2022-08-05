@@ -16,7 +16,7 @@ use fs::{read_in_path, resolve_path, PRELUDE};
 use hash_ast::{ast::OwnsAstNode, tree::AstTreeGenerator, visitor::AstVisitor};
 use hash_reporting::{report::Report, writer::ReportWriter};
 use hash_source::{ModuleKind, SourceId};
-use hash_utils::{path::adjust_canonicalization, timed, tree_writing::TreeWriter};
+use hash_utils::{path::adjust_canonicalisation, timing::timed, tree_writing::TreeWriter};
 use settings::{CompilerJobParams, CompilerMode, CompilerSettings};
 use sources::{Module, Workspace};
 use traits::{Desugar, Parser, SemanticPass, Tc, VirtualMachine};
@@ -174,7 +174,7 @@ where
 
                     println!(
                         "Tree for `{}`:\n{}",
-                        adjust_canonicalization(generated_module.path()),
+                        adjust_canonicalisation(generated_module.path()),
                         TreeWriter::new(&tree)
                     );
                 }

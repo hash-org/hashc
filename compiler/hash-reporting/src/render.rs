@@ -14,7 +14,7 @@ use std::{
 };
 
 use hash_source::{location::SourceLocation, SourceMap};
-use hash_utils::path::adjust_canonicalization;
+use hash_utils::path::adjust_canonicalisation;
 
 use crate::{
     highlight::{highlight, Colour, Modifier},
@@ -368,7 +368,7 @@ impl ReportCodeBlock {
                 Modifier::Underline,
                 format!(
                     "{}:{}:{}",
-                    adjust_canonicalization(modules.path_by_id(source_id)),
+                    adjust_canonicalisation(modules.path_by_id(source_id)),
                     start_row + 1,
                     start_col + 1,
                 )
