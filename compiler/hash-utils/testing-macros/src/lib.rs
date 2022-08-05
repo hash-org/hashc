@@ -1,4 +1,4 @@
-//! Hash testing utilities for running various tests that might include
+//! Testing utilities for running various tests that might include
 //! resources on the disk. This file primarily has the `generate_tests` macro
 //! that will read a directory and generate various test cases from the provided
 //! `case.hash` files and names of the directories that contain the cases.

@@ -38,7 +38,6 @@ pub mod pats;
 pub mod primitives;
 pub mod scope;
 pub mod sources;
-pub mod store;
 pub mod terms;
 pub mod trts;
 
