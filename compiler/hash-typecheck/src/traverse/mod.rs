@@ -1563,7 +1563,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::Declaration>,
     ) -> Result<Self::DeclarationRet, Self::Error> {
         let pat_id = self.visit_pat(ctx, node.pat.ast_ref())?;
-        let pat = self.reader().get_pat(pat_id).clone();
+        let pat = self.reader().get_pat(pat_id);
 
         // Set the declaration hit if it is just a binding pattern:
         if let Pat::Binding(BindingPat { name, .. }) = pat {

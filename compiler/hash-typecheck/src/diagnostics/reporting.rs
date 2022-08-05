@@ -19,6 +19,7 @@ use hash_reporting::{
     report::{Report, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind},
 };
 use hash_utils::printing::SequenceDisplay;
+use itertools::Itertools;
 
 /// A [TcError] with attached typechecker storage.
 pub(crate) struct TcErrorWithStorage<'tc> {
@@ -1114,28 +1115,41 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     None => "declaration",
                 };
 
+                // Prepare patterns for printing
+                let uncovered = uncovered_pats
+                    .iter()
+                    .map(|id| format!("{}", id.for_formatting(err.global_storage())))
+                    .collect_vec();
+
+                let pats = SequenceDisplay::all(&uncovered);
+
                 builder.with_error_code(HashErrorCode::RefutablePat).with_message(format!(
-                    "refutable pattern in {origin} binding: {} not covered",
-                    uncovered_pats.len()
+                    "refutable pattern in {origin} binding: {pats} not covered",
                 ));
 
                 if let Some(location) = err.location_store().get_location(pat) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
-                        format!("pattern {} not covered", uncovered_pats.len()),
+                        format!("pattern {pats} not covered"),
                     )));
                 }
             }
             TcError::NonExhaustiveMatch { term, uncovered_pats } => {
-                builder.with_error_code(HashErrorCode::NonExhaustiveMatch).with_message(format!(
-                    "non-exhaustive patterns: {} not covered",
-                    uncovered_pats.len()
-                ));
+                let uncovered = uncovered_pats
+                    .iter()
+                    .map(|id| format!("{}", id.for_formatting(err.global_storage())))
+                    .collect_vec();
+
+                let pats = SequenceDisplay::all(&uncovered);
+
+                builder
+                    .with_error_code(HashErrorCode::NonExhaustiveMatch)
+                    .with_message(format!("non-exhaustive patterns: {} not covered", pats));
 
                 if let Some(location) = err.location_store().get_location(term) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
-                        format!("pattern {} not covered", uncovered_pats.len()),
+                        format!("pattern {} not covered", pats),
                     )));
                 }
             }

@@ -40,7 +40,7 @@ use itertools::Itertools;
 
 use crate::{
     diagnostics::error::{TcError, TcResult},
-    exhaustiveness::{usefulness::MatchArm, AccessToUsefulnessOps, PatCtx},
+    exhaustiveness::{usefulness::MatchArm, AccessToUsefulnessOps},
     storage::{
         primitives::{Pat, PatId, TermId},
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
@@ -78,13 +78,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
             .map(|id| {
                 let prim_pat = reader.get_pat(*id);
 
-                // Create new `ctx` for lowering these patterns
-                let span = self.location_store().get_span(*id).unwrap();
-                let ctx = PatCtx { ty: term, span, is_top_level: true };
-
-                let lowered_pat = self.pat_lowerer().lower_pat(*id);
-                let destructed_pat = self.deconstruct_pat_ops().from_pat(ctx, &lowered_pat);
-
+                let destructed_pat = self.pat_lowerer().deconstruct_pat(term, *id);
                 let pat = self.deconstructed_pat_store().create(destructed_pat);
 
                 MatchArm { pat, has_guard: matches!(prim_pat, Pat::If(_)) }

@@ -600,15 +600,15 @@ impl<'gs> TcFormatter<'gs> {
             Pat::Access(AccessPat { subject, property }) => {
                 write!(f, "{}::{}", property, subject.for_formatting(self.global_storage))
             }
-            Pat::Const(ConstPat { term }) => self.fmt_term(f, *term, opts),
+            Pat::Const(ConstPat { term }) => self.fmt_term(f, term, opts),
             Pat::Range(RangePat { lo, hi, end }) => {
                 // write the `lo`, then the range end, and finally the `hi`
-                self.fmt_term(f, *lo, opts.clone())?;
+                self.fmt_term(f, lo, opts.clone())?;
                 write!(f, "{}", end)?;
 
-                self.fmt_term(f, *hi, opts)
+                self.fmt_term(f, hi, opts)
             }
-            Pat::Lit(lit_term) => self.fmt_term(f, *lit_term, opts),
+            Pat::Lit(lit_term) => self.fmt_term(f, lit_term, opts),
             Pat::Tuple(tuple_pat) => {
                 opts.is_atomic.set(true);
                 write!(f, "({})", tuple_pat.for_formatting(self.global_storage))
@@ -647,7 +647,7 @@ impl<'gs> TcFormatter<'gs> {
             }
             Pat::Mod(ModPat { members }) => {
                 opts.is_atomic.set(true);
-                let pat_params = self.global_storage.pat_args_store.get(*members);
+                let pat_params = self.global_storage.pat_args_store.get(members);
 
                 write!(f, "{{ ")?;
                 for (i, param) in pat_params.positional().iter().enumerate() {

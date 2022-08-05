@@ -15,11 +15,10 @@ use crate::{
     exhaustiveness::PatCtx,
     ops::AccessToOps,
     storage::{
-        primitives::{ConstructorId, DeconstructedPatId, TermId},
+        primitives::{ConstructorId, DeconstructedPatId, PatId, TermId},
         AccessToStorage, StorageRef,
     },
 };
-use hash_source::location::Span;
 use hash_utils::stack::ensure_sufficient_stack;
 use itertools::Itertools;
 
@@ -123,7 +122,7 @@ pub(crate) enum Reachability {
     /// branches that have been found to be unreachable despite the overall
     /// arm being reachable. Used only in the presence of or-patterns,
     /// otherwise it stays empty.
-    Reachable(Vec<Span>),
+    Reachable(Vec<PatId>),
     /// The arm is unreachable.
     Unreachable,
 }
@@ -135,7 +134,7 @@ pub(crate) struct UsefulnessReport {
     pub(crate) _arm_usefulness: Vec<(MatchArm, Reachability)>,
     /// If the match is exhaustive, this is empty. If not, this contains
     /// witnesses for the lack of exhaustiveness.
-    pub(crate) non_exhaustiveness_witnesses: Vec<DeconstructedPatId>,
+    pub(crate) non_exhaustiveness_witnesses: Vec<PatId>,
 }
 
 pub struct UsefulnessOps<'tc> {
@@ -181,7 +180,7 @@ impl<'tc> UsefulnessOps<'tc> {
             let pats = witness.0.drain((len - arity)..).rev();
             let fields = Fields::from_iter(pats);
 
-            DeconstructedPat::new(ctor, fields, ctx.ty, Span::default())
+            DeconstructedPat::new(ctor, fields, ctx.ty, None)
         };
 
         let pat = self.deconstructed_pat_store().create(pat);
@@ -322,10 +321,10 @@ impl<'tc> UsefulnessOps<'tc> {
         let reader = self.reader();
         let head = reader.get_deconstructed_pat(v.head());
 
-        let DeconstructedPat { ty, span, .. } = head;
+        let DeconstructedPat { ty, .. } = head;
 
         // Create a new `PatCtx`, based on on the provided parameters
-        let ctx = PatCtx::new(ty, span, is_top_level);
+        let ctx = PatCtx::new(ty, is_top_level);
         let mut report = Usefulness::new_not_useful(arm_kind);
 
         // If the first pattern is an or-pattern, expand it.
@@ -419,7 +418,7 @@ impl<'tc> UsefulnessOps<'tc> {
                 let pat = reader.get_deconstructed_pat(arm.pat);
 
                 let reachability = if pat.is_reachable() {
-                    Reachability::Reachable(self.deconstruct_pat_ops().unreachable_spans(&pat))
+                    Reachability::Reachable(self.deconstruct_pat_ops().unreachable_pats(&pat))
                 } else {
                     Reachability::Unreachable
                 };
@@ -437,9 +436,10 @@ impl<'tc> UsefulnessOps<'tc> {
         // on a wildcard, the base case is that `pats` is empty and thus the
         // set of patterns that are provided in the match block are exhaustive.
         let non_exhaustiveness_witnesses = match usefulness {
-            Usefulness::WithWitnesses(pats) => {
-                pats.into_iter().map(|w| w.single_pattern()).collect()
-            }
+            Usefulness::WithWitnesses(pats) => pats
+                .into_iter()
+                .map(|w| self.pat_lowerer().construct_pat(w.single_pattern()))
+                .collect(),
             Usefulness::NoWitnesses { .. } => panic!(),
         };
 

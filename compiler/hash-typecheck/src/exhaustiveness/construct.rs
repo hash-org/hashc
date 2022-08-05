@@ -24,7 +24,6 @@
 //!
 //! In other words, all the possible (valid) values of the `char` type.
 //! A similar process occurs with all other wildcard types,
-use hash_reporting::macros::panic_on_span;
 use hash_source::{
     location::{SourceLocation, Span},
     string::Str,
@@ -246,12 +245,7 @@ impl<'tc> ConstructorOps<'tc> {
     /// subset of `other`. For the simple cases, this is simply checking for
     /// equality. For the "grouped" constructors, this checks for inclusion.
     #[inline]
-    pub fn is_covered_by(
-        &self,
-        ctx: PatCtx,
-        ctor: &DeconstructedCtor,
-        other: &DeconstructedCtor,
-    ) -> bool {
+    pub fn is_covered_by(&self, ctor: &DeconstructedCtor, other: &DeconstructedCtor) -> bool {
         match (ctor, other) {
             // Wildcards cover anything
             (_, DeconstructedCtor::Wildcard) => true,
@@ -277,14 +271,7 @@ impl<'tc> ConstructorOps<'tc> {
                 self_slice.is_covered_by(*other_slice)
             }
             (DeconstructedCtor::NonExhaustive, _) => false,
-
-            _ => panic_on_span!(
-                self.location(ctx.span),
-                self.source_map(),
-                "trying to compare incompatible constructors {:?} and {:?}",
-                ctor,
-                other
-            ),
+            _ => panic!("trying to compare incompatible constructors {:?} and {:?}", ctor, other),
         }
     }
 

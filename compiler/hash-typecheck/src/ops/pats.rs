@@ -152,7 +152,7 @@ impl<'tc> PatMatcher<'tc> {
             self.validator().validate_term(term_id)?;
         let pat_ty = self.typer().infer_ty_of_pat(pat_id)?;
 
-        let pat = self.reader().get_pat(pat_id).clone();
+        let pat = self.reader().get_pat(pat_id);
 
         // Note: for spread patterns, unifying between the `term` and the type
         // of the pattern doesn't make sense because the term will always be `T`

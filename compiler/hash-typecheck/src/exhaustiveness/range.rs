@@ -47,8 +47,6 @@ use crate::{
     },
 };
 
-use super::lower::PatKind;
-
 /// The [IntRange] is used as a structure to represent `integral` types like
 /// signed integers, unsigned integers, characters and of-course range patterns
 /// which are represented in this format. [IntRange] is a useful abstraction to
@@ -295,25 +293,6 @@ impl<'tc> IntRangeOps<'tc> {
                 1u128 << (size * 8 - 1)
             }
             _ => 0,
-        }
-    }
-
-    /// Convert this range into a [PatKind] by judging the given
-    /// type within the [PatCtx].
-    #[inline]
-    pub fn to_pat_kind(&self, ctx: PatCtx, range: &IntRange) -> PatKind {
-        let (lo, hi) = range.boundaries();
-
-        let bias = range.bias;
-        let (lo, hi) = (lo ^ bias, hi ^ bias);
-
-        let lo_const = Constant::from_u128(lo, ctx.ty);
-        // let hi_const = Constant::from_u128(hi, ctx.ty);
-
-        if lo == hi {
-            PatKind::Constant { value: lo_const }
-        } else {
-            panic!("Ranges are not supported yet")
         }
     }
 }

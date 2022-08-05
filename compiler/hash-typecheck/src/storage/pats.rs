@@ -1,12 +1,14 @@
 //! Contains structures to keep track of patterns and information relating to
 //! them.
+use std::cell::RefCell;
+
 use super::primitives::{Pat, PatArgs, PatArgsId, PatId};
 use slotmap::SlotMap;
 
 /// Stores patterns, indexed by [PatId]s.
 #[derive(Debug, Default)]
 pub struct PatStore {
-    data: SlotMap<PatId, Pat>,
+    data: RefCell<SlotMap<PatId, Pat>>,
 }
 
 impl PatStore {
@@ -15,18 +17,13 @@ impl PatStore {
     }
 
     /// Create a pattern, returning its assigned [PatId].
-    pub fn create(&mut self, pat: Pat) -> PatId {
-        self.data.insert(pat)
+    pub fn create(&self, pat: Pat) -> PatId {
+        self.data.borrow_mut().insert(pat)
     }
 
     /// Get a pattern by [PatId].
-    pub fn get(&self, id: PatId) -> &Pat {
-        self.data.get(id).unwrap()
-    }
-
-    /// Get a pattern by [PatId], mutably.
-    pub fn get_mut(&mut self, id: PatId) -> &mut Pat {
-        self.data.get_mut(id).unwrap()
+    pub fn get(&self, id: PatId) -> Pat {
+        self.data.borrow().get(id).unwrap().clone()
     }
 }
 

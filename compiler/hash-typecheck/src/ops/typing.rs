@@ -375,7 +375,7 @@ impl<'tc> Typer<'tc> {
     /// Get the term of the given pattern, whose type is the type of the pattern
     /// subject.
     pub(crate) fn get_term_of_pat(&mut self, pat_id: PatId) -> TcResult<TermId> {
-        let pat = self.reader().get_pat(pat_id).clone();
+        let pat = self.reader().get_pat(pat_id);
 
         let ty_of_pat = match pat {
             Pat::Mod(_) | Pat::Wild | Pat::Binding(_) => {

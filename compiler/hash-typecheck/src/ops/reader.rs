@@ -36,7 +36,7 @@ impl<'gs> PrimitiveReader<'gs> {
     }
 
     /// Get the pattern with the given [PatId].
-    pub fn get_pat(&self, id: PatId) -> &Pat {
+    pub fn get_pat(&self, id: PatId) -> Pat {
         self.gs.pat_store.get(id)
     }
 

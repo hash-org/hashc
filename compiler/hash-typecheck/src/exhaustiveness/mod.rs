@@ -58,8 +58,6 @@ pub mod stack;
 pub mod usefulness;
 pub mod wildcard;
 
-use hash_source::location::Span;
-
 use crate::storage::{primitives::TermId, AccessToStorage};
 
 use self::{
@@ -74,8 +72,6 @@ use self::{
 pub struct PatCtx {
     /// The term of the current column that is under investigation
     pub ty: TermId,
-    /// Span of the current pattern under investigation.
-    pub(super) span: Span,
     /// Whether the current pattern is the whole pattern as found in a match
     /// arm, or if it's a sub-pattern.
     pub(super) is_top_level: bool,
@@ -83,8 +79,8 @@ pub struct PatCtx {
 
 impl PatCtx {
     /// Create a new [PatCtx]
-    pub fn new(ty: TermId, span: Span, is_top_level: bool) -> Self {
-        PatCtx { ty, span, is_top_level }
+    pub fn new(ty: TermId, is_top_level: bool) -> Self {
+        PatCtx { ty, is_top_level }
     }
 }
 

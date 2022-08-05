@@ -3,9 +3,7 @@
 use super::params::{ParamListKind, ParamUnificationErrorReason};
 use crate::storage::{
     location::LocationTarget,
-    primitives::{
-        AccessOp, AccessTerm, ArgsId, DeconstructedPatId, ParamsId, PatId, TermId, TyFnCase,
-    },
+    primitives::{AccessOp, AccessTerm, ArgsId, ParamsId, PatId, TermId, TyFnCase},
 };
 use hash_ast::ast::MatchOrigin;
 use hash_source::identifier::Identifier;
@@ -171,13 +169,13 @@ pub enum TcError {
         /// it's either in a for-loop or a declaration.
         origin: Option<MatchOrigin>,
         /// Generated patterns that are not covered by `pat`
-        uncovered_pats: Vec<DeconstructedPatId>,
+        uncovered_pats: Vec<PatId>,
     },
     /// When a match block is non-exhaustive
     NonExhaustiveMatch {
         /// The term of the subject expression
         term: TermId,
         /// Generated patterns that are not covered by match arms
-        uncovered_pats: Vec<DeconstructedPatId>,
+        uncovered_pats: Vec<PatId>,
     },
 }
