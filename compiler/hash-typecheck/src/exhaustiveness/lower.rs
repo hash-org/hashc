@@ -8,8 +8,8 @@ use crate::{
     storage::{
         primitives::{
             ConstructorPat, DeconstructedPatId, IfPat, Level0Term, Level1Term, ListPat, LitTerm,
-            NominalDef, Pat, PatArg, PatArgsId, PatId, SpreadPat, StructFields, Term, TermId,
-            TupleTy,
+            ModDef, ModPat, NominalDef, Pat, PatArg, PatArgsId, PatId, ScopeKind, SpreadPat,
+            StructFields, Term, TermId, TupleTy,
         },
         AccessToStorage, StorageRef,
     },
@@ -60,12 +60,58 @@ impl<'tc> LowerPatOps<'tc> {
         let pat = reader.get_pat(pat_id);
 
         let (ctor, fields) = match pat {
-            Pat::Wild
-            | Pat::Mod(_)
-            | Pat::Binding(_)
-            | Pat::Spread(_)
-            | Pat::Access(_)
-            | Pat::Const(_) => (DeconstructedCtor::Wildcard, vec![]),
+            Pat::Wild | Pat::Binding(_) | Pat::Spread(_) => (DeconstructedCtor::Wildcard, vec![]),
+
+            // For all members in the scope, fill it in as a wildcard, and then provide
+            // deconstructed patterns for the actual members that are specified in the
+            // pattern...
+            //
+            // @@Speed: Could we just care about the specified fields and assume that the
+            // rest are wildcards, since this seems to be redundant, might need to introduce
+            // some kind of special fields that doesn't care about all of the filled in fields...
+            Pat::Mod(ModPat { members }) => {
+                let specified_members = reader.get_pat_args(members).clone();
+
+                let scope = match reader.get_term(ty) {
+                    Term::Level1(Level1Term::ModDef(id)) => {
+                        let ModDef { members, .. } = reader.get_mod_def(*id);
+                        let scope = self.scope_store().get(*members);
+
+                        // We should be in a constant scope
+                        assert!(scope.kind == ScopeKind::Constant);
+                        scope
+                    }
+                    _ => tc_panic!(
+                        ty,
+                        self,
+                        "expected a module definition when deconstructing pattern!"
+                    ),
+                };
+
+                let mut scope_members = scope
+                    .members
+                    .iter()
+                    .map(|member| self.deconstruct_pat_ops().wildcard(member.ty()))
+                    .collect_vec();
+
+                // Iterate over the specified members and set the `actual` pattern here
+                for member in specified_members.positional() {
+                    let index = *scope.member_names.get(&member.name.unwrap()).unwrap();
+
+                    scope_members[index] =
+                        self.deconstruct_pat(scope_members[index].ty, member.pat);
+                }
+
+                (DeconstructedCtor::Single, scope_members)
+            }
+            // This is essentially a simplification to some unit nominal definition like
+            // for example `None`..., here we need to be able to get the `type` of the
+            // actual pattern in order to figure out which
+            Pat::Access(_) | Pat::Const(_) => {
+                // @@EnumToUnion: when enums aren't a thing, do this with a union and create a
+                // `DeconstructedCtor::Variant(idx)` where `idx` is the union member number
+                unreachable!()
+            }
             Pat::Range(_) => todo!(),
             Pat::Lit(term) => match reader.get_term(term) {
                 Term::Level0(Level0Term::Lit(lit)) => match lit {
