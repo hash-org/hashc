@@ -875,15 +875,17 @@ pub enum Pat {
     Module(ModulePat),
     /// A tuple pattern is a collection of patterns, e.g `(1, x, 'c')`
     Tuple(TuplePat),
-    /// A list pattern, which is a collection of patterns e.g `[x, 2, y]`
+    /// A list pattern, which is a collection of patterns, including spread and
+    /// matches a list e.g `[x, 2, y]`
     List(ListPat),
     /// A literal pattern e.g. `c`
     Lit(LitPat),
-    /// An `or` pattern which groups multiple patterns e.g. `a | b | c`
+    /// An `or` pattern which groups multiple patterns and matches one of the
+    /// provided patterns e.g. `a | b | c`
     Or(OrPat),
     /// A pattern that is guarded by an if statement, e.g. `x if x > 5`
     If(IfPat),
-    /// Wildcard pattern, similar to a binding but it is not binded
+    /// Wildcard pattern, similar to a binding but it is not bound
     /// to any member.
     Wild(WildPat),
     /// Similar to a [Pat::Wild], but does captures a collection of patterns,

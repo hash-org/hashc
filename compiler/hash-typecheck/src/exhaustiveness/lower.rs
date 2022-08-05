@@ -253,6 +253,8 @@ impl<'tc> LowerPatOps<'tc> {
                             .map(|p| self.construct_pat(*p))
                             .collect_vec();
 
+                        // @@Todo: immutable builder required.
+
                         // let args = self.builder().create_pat_args(children);
                         // Pat::Tuple(args)
 
@@ -260,6 +262,8 @@ impl<'tc> LowerPatOps<'tc> {
                     }
                     Term::Level1(Level1Term::NominalDef(_)) => {
                         let _children = pat.fields.iter_patterns().map(|p| self.construct_pat(*p));
+
+                        // @@Todo: immutable builder required.
 
                         // let args = self.builder().create_pat_args(children);
                         // Pat::Constructor(ConstructorPat { subject: pat.ty, args })
@@ -282,6 +286,8 @@ impl<'tc> LowerPatOps<'tc> {
                     ListKind::Fixed(_) => {
                         let _inner_term = self.oracle().term_as_list(pat.ty).unwrap();
 
+                        // @@Todo: immutable builder required.
+
                         // let inner = self.builder().create_pat_args(children);
                         // Pat::List(ListPat { term: inner_term, inner })
                         todo!()
@@ -302,6 +308,8 @@ impl<'tc> LowerPatOps<'tc> {
                         // spread pattern
                         let _inner = prefix.into_iter().chain(once(spread)).chain(suffix);
                         let _term = self.oracle().term_as_list(pat.ty).unwrap();
+
+                        // @@Todo: immutable builder required.
 
                         // let elements = self.builder().create_pat_args(inner);
                         // Pat::List(ListPat { term, inner: elements })
