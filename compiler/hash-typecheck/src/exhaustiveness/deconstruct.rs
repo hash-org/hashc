@@ -29,15 +29,15 @@ use crate::{
 };
 
 use super::{
-    construct::Constructor,
+    construct::DeconstructedCtor,
     fields::Fields,
     lower::{Pat, PatKind},
     AccessToUsefulnessOps,
 };
 
-/// A [DeconstructedPat] is a representation of a [Constructor] that is split
-/// between the constructor subject `ctor` and the `fields` that the constructor
-/// holds.
+/// A [DeconstructedPat] is a representation of a [DeconstructedCtor] that is
+/// split between the constructor subject `ctor` and the `fields` that the
+/// constructor holds.
 #[derive(Debug, Clone)]
 pub struct DeconstructedPat {
     /// The subject of the [DeconstructedPat].
@@ -119,27 +119,27 @@ impl<'tc> DeconstructPatOps<'tc> {
     /// Create a new wildcard [DeconstructedPat], primarily used when
     /// performing specialisations.
     pub(super) fn wildcard(&self, ty: TermId) -> DeconstructedPat {
-        let ctor = self.constructor_store().create(Constructor::Wildcard);
+        let ctor = self.constructor_store().create(DeconstructedCtor::Wildcard);
 
         DeconstructedPat::new(ctor, Fields::empty(), ty, Span::default())
     }
 
     /// Check whether this [DeconstructedPat] is an `or` pattern.
     pub(super) fn is_or_pat(&self, pat: &DeconstructedPat) -> bool {
-        self.constructor_store().map_unsafe(pat.ctor, |ctor| matches!(ctor, Constructor::Or))
+        self.constructor_store().map_unsafe(pat.ctor, |ctor| matches!(ctor, DeconstructedCtor::Or))
     }
 
     /// Convert a [Pat] into a [DeconstructedPat].
     #[allow(clippy::wrong_self_convention)]
     pub(crate) fn from_pat(&self, ctx: PatCtx, pat: &Pat) -> DeconstructedPat {
         let (ctor, fields) = match pat.kind.as_ref() {
-            PatKind::Spread | PatKind::Wild => (Constructor::Wildcard, vec![]),
+            PatKind::Spread | PatKind::Wild => (DeconstructedCtor::Wildcard, vec![]),
             PatKind::Constant { value } => {
                 // This deals with `char` and `integer` types...
                 let range = self.int_range_ops().range_from_constant(*value);
-                (Constructor::IntRange(range), vec![])
+                (DeconstructedCtor::IntRange(range), vec![])
             }
-            PatKind::Str { value } => (Constructor::Str(*value), vec![]),
+            PatKind::Str { value } => (DeconstructedCtor::Str(*value), vec![]),
             PatKind::Variant { pats, .. } | PatKind::Leaf { pats } => {
                 let reader = self.reader();
 
@@ -158,12 +158,12 @@ impl<'tc> DeconstructPatOps<'tc> {
                             wilds[field.index] = self.from_pat(ctx, &field.pat);
                         }
 
-                        (Constructor::Single, wilds.to_vec())
+                        (DeconstructedCtor::Single, wilds.to_vec())
                     }
                     Term::Level1(Level1Term::NominalDef(nominal_def)) => {
                         let ctor = match pat.kind.as_ref() {
-                            PatKind::Variant { index, .. } => Constructor::Variant(*index),
-                            PatKind::Leaf { .. } => Constructor::Single,
+                            PatKind::Variant { index, .. } => DeconstructedCtor::Variant(*index),
+                            PatKind::Leaf { .. } => DeconstructedCtor::Single,
                             _ => unreachable!(),
                         };
 
@@ -207,7 +207,7 @@ impl<'tc> DeconstructPatOps<'tc> {
                     ListKind::Fixed(prefix.len() + suffix.len())
                 };
 
-                let ctor = Constructor::List(List::new(kind));
+                let ctor = DeconstructedCtor::List(List::new(kind));
                 let fields =
                     prefix.iter().chain(suffix).map(|pat| self.from_pat(ctx, pat)).collect_vec();
 
@@ -221,7 +221,7 @@ impl<'tc> DeconstructPatOps<'tc> {
 
                 let fields = pats.iter().map(|pat| self.from_pat(ctx, pat)).collect_vec();
 
-                (Constructor::Or, fields)
+                (DeconstructedCtor::Or, fields)
             }
         };
 
@@ -338,11 +338,11 @@ impl<'tc> DeconstructPatOps<'tc> {
         let other_ctor = reader.get_ctor(other_ctor_id);
 
         match (ctor, other_ctor) {
-            (Constructor::Wildcard, _) => {
+            (DeconstructedCtor::Wildcard, _) => {
                 // We return a wildcard for each field of `other_ctor`.
                 self.fields_ops().wildcards(ctx, other_ctor_id).iter_patterns().copied().collect()
             }
-            (Constructor::List(this_list), Constructor::List(other_list))
+            (DeconstructedCtor::List(this_list), DeconstructedCtor::List(other_list))
                 if this_list.arity() != other_list.arity() =>
             {
                 // If the arities mismatch, `this_list` must cover `other_list` and thus
@@ -407,7 +407,7 @@ impl PrepareForFormatting for DeconstructedPatId {}
 impl Debug for ForFormatting<'_, DeconstructedPatId> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let pat = self.global_storage.deconstructed_pat_store.get(self.t);
-        let ctor = self.global_storage.constructor_store.get(pat.ctor);
+        let ctor = self.global_storage.deconstructed_ctor_store.get(pat.ctor);
 
         // Utility for printing a joined list of things...
         let mut first = true;
@@ -421,7 +421,7 @@ impl Debug for ForFormatting<'_, DeconstructedPatId> {
         };
 
         match ctor {
-            Constructor::Single | Constructor::Variant(_) => {
+            DeconstructedCtor::Single | DeconstructedCtor::Variant(_) => {
                 let term = self.global_storage.term_store.get(pat.ty);
 
                 // If it is a `struct` or an `enum` then try and get the
@@ -452,9 +452,9 @@ impl Debug for ForFormatting<'_, DeconstructedPatId> {
                 }
                 write!(f, ")")
             }
-            Constructor::IntRange(range) => write!(f, "{:?}", range),
-            Constructor::Str(value) => write!(f, "{}", value),
-            Constructor::List(list) => {
+            DeconstructedCtor::IntRange(range) => write!(f, "{:?}", range),
+            DeconstructedCtor::Str(value) => write!(f, "{}", value),
+            DeconstructedCtor::List(list) => {
                 let mut subpatterns = pat.fields.iter_patterns();
 
                 write!(f, "[")?;
@@ -489,7 +489,7 @@ impl Debug for ForFormatting<'_, DeconstructedPatId> {
 
                 write!(f, "]")
             }
-            Constructor::Or => {
+            DeconstructedCtor::Or => {
                 for pat in pat.fields.iter_patterns() {
                     write!(
                         f,
@@ -500,7 +500,9 @@ impl Debug for ForFormatting<'_, DeconstructedPatId> {
                 }
                 Ok(())
             }
-            Constructor::Wildcard | Constructor::Missing | Constructor::NonExhaustive => {
+            DeconstructedCtor::Wildcard
+            | DeconstructedCtor::Missing
+            | DeconstructedCtor::NonExhaustive => {
                 write!(f, "_ : {}", pat.ty.for_formatting(self.global_storage))
             }
         }

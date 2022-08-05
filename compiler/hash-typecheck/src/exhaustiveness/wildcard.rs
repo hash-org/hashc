@@ -1,6 +1,6 @@
-//! This file contains logic for splitting [Constructor]s that
+//! This file contains logic for splitting [DeconstructedCtor]s that
 //! are of the variant [Constructor::Wildcard]. In this situation
-//! the `splitting` operation creates [Constructor]s that represent
+//! the `splitting` operation creates [DeconstructedCtor]s that represent
 //! the whole range of all possible values by the associated type
 //! to the constructor.
 use hash_ast::ast::{IntTy, RangeEnd};
@@ -40,7 +40,7 @@ pub struct SplitWildcard {
 }
 
 use super::{
-    construct::Constructor,
+    construct::DeconstructedCtor,
     list::{List, ListKind},
     AccessToUsefulnessOps,
 };
@@ -66,7 +66,7 @@ impl<'tc> SplitWildcardOps<'tc> {
         let reader = self.reader();
 
         let make_range = |start, end| {
-            Constructor::IntRange(self.int_range_ops().make_range(
+            DeconstructedCtor::IntRange(self.int_range_ops().make_range(
                 ctx,
                 start,
                 end,
@@ -85,7 +85,7 @@ impl<'tc> SplitWildcardOps<'tc> {
                 // @@Future: Maybe in the future, we can have a compiler setting/project
                 // setting that allows a user to say `it's ok to use the `target` pointer width`
                 IntTy::ISize | IntTy::USize | IntTy::UBig | IntTy::IBig => {
-                    smallvec![Constructor::NonExhaustive]
+                    smallvec![DeconstructedCtor::NonExhaustive]
                 }
                 kind if kind.is_signed() => {
                     // Safe to unwrap since we deal with `ibig` and `ubig` variants...
@@ -114,7 +114,7 @@ impl<'tc> SplitWildcardOps<'tc> {
             }
         } else if self.oracle().term_as_list(ctx.ty).is_some() {
             // For lists, we just default to a variable length list
-            smallvec![Constructor::List(List { kind: ListKind::Var(0, 0) })]
+            smallvec![DeconstructedCtor::List(List { kind: ListKind::Var(0, 0) })]
         } else {
             match ctx.ty {
                 ty if self.oracle().term_is_char(ty) => {
@@ -130,7 +130,7 @@ impl<'tc> SplitWildcardOps<'tc> {
                     // is at the top level, because we want empty matches
                     // to be considered exhaustive.
                     if !ctx.is_top_level {
-                        smallvec![Constructor::NonExhaustive]
+                        smallvec![DeconstructedCtor::NonExhaustive]
                     } else {
                         smallvec![]
                     }
@@ -138,7 +138,7 @@ impl<'tc> SplitWildcardOps<'tc> {
                 ty => match reader.get_term(ty) {
                     Term::Level1(Level1Term::NominalDef(def)) => {
                         match reader.get_nominal_def(*def) {
-                            NominalDef::Struct(_) => smallvec![Constructor::Single],
+                            NominalDef::Struct(_) => smallvec![DeconstructedCtor::Single],
                             NominalDef::Enum(enum_def) => {
                                 // The exception is if the pattern is at the top level, because we
                                 // want empty matches to be
@@ -150,19 +150,19 @@ impl<'tc> SplitWildcardOps<'tc> {
                                     .variants
                                     .iter()
                                     .enumerate()
-                                    .map(|(index, _)| Constructor::Variant(index))
+                                    .map(|(index, _)| DeconstructedCtor::Variant(index))
                                     .collect();
 
                                 if is_secretly_empty {
-                                    ctors.push(Constructor::NonExhaustive);
+                                    ctors.push(DeconstructedCtor::NonExhaustive);
                                 }
 
                                 ctors
                             }
                         }
                     }
-                    Term::Level1(Level1Term::Tuple(_)) => smallvec![Constructor::Single],
-                    _ => smallvec![Constructor::NonExhaustive],
+                    Term::Level1(Level1Term::Tuple(_)) => smallvec![DeconstructedCtor::Single],
+                    _ => smallvec![DeconstructedCtor::NonExhaustive],
                 },
             }
         };
@@ -257,9 +257,9 @@ impl<'tc> SplitWildcardOps<'tc> {
             let ctor = if !wildcard.matrix_ctors.is_empty()
                 || (ctx.is_top_level && self.oracle().term_as_int(ctx.ty).is_none())
             {
-                Constructor::Missing
+                DeconstructedCtor::Missing
             } else {
-                Constructor::Wildcard
+                DeconstructedCtor::Wildcard
             };
 
             let ctor = self.constructor_store().create(ctor);

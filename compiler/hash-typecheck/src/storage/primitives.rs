@@ -1272,7 +1272,7 @@ new_key_type! {
     /// The ID of a [PatArgs]
     pub struct PatArgsId;
 
-    /// The ID of a [Constructor]
+    /// The ID of a [DeconstructedCtor]
     pub struct ConstructorId;
 
     /// The ID of a [DeconstructedPat]

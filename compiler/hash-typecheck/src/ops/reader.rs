@@ -2,7 +2,7 @@
 //! ease.
 
 use crate::{
-    exhaustiveness::{construct::Constructor, deconstruct::DeconstructedPat},
+    exhaustiveness::{construct::DeconstructedCtor, deconstruct::DeconstructedPat},
     storage::{
         primitives::{
             Args, ArgsId, ConstructorId, DeconstructedPatId, ModDef, ModDefId, NominalDef,
@@ -75,9 +75,9 @@ impl<'gs> PrimitiveReader<'gs> {
         self.gs.deconstructed_pat_store.get(id)
     }
 
-    /// Get the associated [Constructor] from [ConstructorId].
-    pub fn get_ctor(&self, id: ConstructorId) -> Constructor {
-        self.gs.constructor_store.get(id)
+    /// Get the associated [DeconstructedCtor] from [ConstructorId].
+    pub fn get_ctor(&self, id: ConstructorId) -> DeconstructedCtor {
+        self.gs.deconstructed_ctor_store.get(id)
     }
 
     /// Get the trait definition with the given [TrtDefId].

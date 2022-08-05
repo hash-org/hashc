@@ -1,16 +1,16 @@
 //! Exhaustiveness data structure to represent the `subject` of
-//! a [`super::deconstruct::DeconstructedPat`]. [Constructor]s
+//! a [`super::deconstruct::DeconstructedPat`]. [DeconstructedCtor]s
 //! are a useful abstraction when performing the splitting and
 //! specialisation operations on the deconstructed patterns.
 //!
 //! ## Splitting
 //!
-//! Splitting a constructor means to take the [Constructor] and to
-//! yield all the possible [Constructor]s that can cover the
+//! Splitting a constructor means to take the [DeconstructedCtor] and to
+//! yield all the possible [DeconstructedCtor]s that can cover the
 //! underlying constructors. For example, if the constructor
 //! is specified as [Constructor::Wildcard], we take the provided
 //! [PatCtx] which stores the relevant term of the constructor and
-//! produce a [Constructor] that matches all possible cases of the
+//! produce a [DeconstructedCtor] that matches all possible cases of the
 //! term. For example, if the term is `char` and the constructor
 //! is [Constructor::Wildcard], then the resultant constructors
 //! becomes:
@@ -49,12 +49,12 @@ use super::{
     AccessToUsefulnessOps,
 };
 
-/// The [Constructor] represents the type of constructor that a pattern
+/// The [DeconstructedCtor] represents the type of constructor that a pattern
 /// is.
 ///
 /// @@Ranges: float ranges
 #[derive(Debug, Clone, Copy)]
-pub enum Constructor {
+pub enum DeconstructedCtor {
     /// The constructor for patterns that have a single constructor, like
     /// tuples, struct patterns and fixed-length arrays.
     Single,
@@ -77,24 +77,24 @@ pub enum Constructor {
     NonExhaustive,
 }
 
-impl Constructor {
-    /// Check if the [Constructor] is a wildcard.
+impl DeconstructedCtor {
+    /// Check if the [DeconstructedCtor] is a wildcard.
     pub(super) fn is_wildcard(&self) -> bool {
-        matches!(self, Constructor::Wildcard)
+        matches!(self, DeconstructedCtor::Wildcard)
     }
 
-    /// Try and convert the [Constructor] into a [IntRange].
+    /// Try and convert the [DeconstructedCtor] into a [IntRange].
     pub fn as_int_range(&self) -> Option<&IntRange> {
         match self {
-            Constructor::IntRange(range) => Some(range),
+            DeconstructedCtor::IntRange(range) => Some(range),
             _ => None,
         }
     }
 
-    /// Try and convert the [Constructor] into a [List].
+    /// Try and convert the [DeconstructedCtor] into a [List].
     pub fn as_list(&self) -> Option<&List> {
         match self {
-            Constructor::List(list) => Some(list),
+            DeconstructedCtor::List(list) => Some(list),
             _ => None,
         }
     }
@@ -121,12 +121,12 @@ impl<'tc> ConstructorOps<'tc> {
         SourceLocation { span, source_id: self.local_storage().current_source() }
     }
 
-    /// Compute the `arity` of this [Constructor].
+    /// Compute the `arity` of this [DeconstructedCtor].
     pub(crate) fn arity(&self, ctx: PatCtx, ctor: ConstructorId) -> usize {
         let reader = self.reader();
 
         match reader.get_ctor(ctor) {
-            Constructor::Single | Constructor::Variant(_) => {
+            DeconstructedCtor::Single | DeconstructedCtor::Variant(_) => {
                 // we need to get term from the context here...
                 //
                 // if it a tuple, get the length and that is the arity
@@ -156,17 +156,17 @@ impl<'tc> ConstructorOps<'tc> {
                     ),
                 }
             }
-            Constructor::List(list) => list.arity(),
-            Constructor::IntRange(_)
-            | Constructor::Str(_)
-            | Constructor::Wildcard
-            | Constructor::NonExhaustive
-            | Constructor::Missing => 0,
-            Constructor::Or => panic!("`Or` constructor doesn't have a fixed arity"),
+            DeconstructedCtor::List(list) => list.arity(),
+            DeconstructedCtor::IntRange(_)
+            | DeconstructedCtor::Str(_)
+            | DeconstructedCtor::Wildcard
+            | DeconstructedCtor::NonExhaustive
+            | DeconstructedCtor::Missing => 0,
+            DeconstructedCtor::Or => panic!("`Or` constructor doesn't have a fixed arity"),
         }
     }
 
-    /// # Split a [Constructor]
+    /// # Split a [DeconstructedCtor]
     ///
     /// Some constructors (namely `Wildcard`, `IntRange` and `List`) actually
     /// stand for a set of actual constructors (like variants, integers or
@@ -199,13 +199,13 @@ impl<'tc> ConstructorOps<'tc> {
         let ctor = reader.get_ctor(ctor_id);
 
         match ctor {
-            Constructor::Wildcard => {
+            DeconstructedCtor::Wildcard => {
                 let mut wildcard = self.split_wildcard_ops().from(ctx);
                 self.split_wildcard_ops().split(ctx, &mut wildcard, ctors);
                 self.split_wildcard_ops().convert_into_ctors(ctx, wildcard)
             }
             // Fast track to just the single constructor if this range is trivial
-            Constructor::IntRange(range) if !range.is_singleton() => {
+            DeconstructedCtor::IntRange(range) if !range.is_singleton() => {
                 // @@Ranges: this is only used when `range` patterns are a thing
 
                 let mut range = SplitIntRange::new(range);
@@ -216,11 +216,11 @@ impl<'tc> ConstructorOps<'tc> {
                 range.split(int_ranges);
                 range
                     .iter()
-                    .map(Constructor::IntRange)
+                    .map(DeconstructedCtor::IntRange)
                     .map(|ctor| self.constructor_store().create(ctor))
                     .collect()
             }
-            Constructor::List(List { kind: ListKind::Var(prefix_len, suffix_len) }) => {
+            DeconstructedCtor::List(List { kind: ListKind::Var(prefix_len, suffix_len) }) => {
                 let mut list = SplitVarList::new(prefix_len, suffix_len);
 
                 let lists = ctors
@@ -231,7 +231,7 @@ impl<'tc> ConstructorOps<'tc> {
                 list.split(lists);
 
                 list.iter()
-                    .map(Constructor::List)
+                    .map(DeconstructedCtor::List)
                     .map(|ctor| self.constructor_store().create(ctor))
                     .collect()
             }
@@ -246,28 +246,37 @@ impl<'tc> ConstructorOps<'tc> {
     /// subset of `other`. For the simple cases, this is simply checking for
     /// equality. For the "grouped" constructors, this checks for inclusion.
     #[inline]
-    pub fn is_covered_by(&self, ctx: PatCtx, ctor: &Constructor, other: &Constructor) -> bool {
+    pub fn is_covered_by(
+        &self,
+        ctx: PatCtx,
+        ctor: &DeconstructedCtor,
+        other: &DeconstructedCtor,
+    ) -> bool {
         match (ctor, other) {
             // Wildcards cover anything
-            (_, Constructor::Wildcard) => true,
+            (_, DeconstructedCtor::Wildcard) => true,
             // The missing ctors are not covered by anything in the matrix except wildcards.
-            (Constructor::Missing | Constructor::Wildcard, _) => false,
+            (DeconstructedCtor::Missing | DeconstructedCtor::Wildcard, _) => false,
 
-            (Constructor::Single, Constructor::Single) => true,
-            (Constructor::Variant(self_id), Constructor::Variant(other_id)) => self_id == other_id,
+            (DeconstructedCtor::Single, DeconstructedCtor::Single) => true,
+            (DeconstructedCtor::Variant(self_id), DeconstructedCtor::Variant(other_id)) => {
+                self_id == other_id
+            }
 
-            (Constructor::IntRange(self_range), Constructor::IntRange(other_range)) => {
+            (DeconstructedCtor::IntRange(self_range), DeconstructedCtor::IntRange(other_range)) => {
                 self_range.is_covered_by(other_range)
             }
 
             // It's safe to compare the `id`s of the allocated strings since they are
             // de-duplicated.
-            (Constructor::Str(self_str), Constructor::Str(other_str)) => self_str == other_str,
+            (DeconstructedCtor::Str(self_str), DeconstructedCtor::Str(other_str)) => {
+                self_str == other_str
+            }
 
-            (Constructor::List(self_slice), Constructor::List(other_slice)) => {
+            (DeconstructedCtor::List(self_slice), DeconstructedCtor::List(other_slice)) => {
                 self_slice.is_covered_by(*other_slice)
             }
-            (Constructor::NonExhaustive, _) => false,
+            (DeconstructedCtor::NonExhaustive, _) => false,
 
             _ => panic_on_span!(
                 self.location(ctx.span),
@@ -296,27 +305,27 @@ impl<'tc> ConstructorOps<'tc> {
 
         match ctor {
             // If `self` is `Single`, `used_ctors` cannot contain anything else than `Single`s.
-            Constructor::Single => !used_ctors.is_empty(),
-            Constructor::Variant(i) => used_ctors.iter().any(|c| {
+            DeconstructedCtor::Single => !used_ctors.is_empty(),
+            DeconstructedCtor::Variant(i) => used_ctors.iter().any(|c| {
                 self.constructor_store()
-                    .map_unsafe(*c, |c| matches!(c, Constructor::Variant(k) if *k == i))
+                    .map_unsafe(*c, |c| matches!(c, DeconstructedCtor::Variant(k) if *k == i))
             }),
-            Constructor::IntRange(range) => used_ctors
+            DeconstructedCtor::IntRange(range) => used_ctors
                 .iter()
                 .filter_map(|c| {
                     self.constructor_store().map_unsafe(*c, |c| c.as_int_range().cloned())
                 })
                 .any(|other| range.is_covered_by(&other)),
-            Constructor::List(list) => used_ctors
+            DeconstructedCtor::List(list) => used_ctors
                 .iter()
                 .filter_map(|c| self.constructor_store().map_unsafe(*c, |c| c.as_list().cloned()))
                 .any(|other| list.is_covered_by(other)),
             // This constructor is never covered by anything else
-            Constructor::NonExhaustive => false,
-            Constructor::Str(_)
-            | Constructor::Missing
-            | Constructor::Wildcard
-            | Constructor::Or => {
+            DeconstructedCtor::NonExhaustive => false,
+            DeconstructedCtor::Str(_)
+            | DeconstructedCtor::Missing
+            | DeconstructedCtor::Wildcard
+            | DeconstructedCtor::Or => {
                 panic!("Unexpected ctor in all_ctors")
             }
         }

@@ -8,7 +8,7 @@
 use std::iter::once;
 
 use super::{
-    construct::Constructor, deconstruct::DeconstructedPat, fields::Fields, matrix::Matrix,
+    construct::DeconstructedCtor, deconstruct::DeconstructedPat, fields::Fields, matrix::Matrix,
     stack::PatStack, AccessToUsefulnessOps,
 };
 use crate::{
@@ -206,7 +206,7 @@ impl<'tc> UsefulnessOps<'tc> {
             Usefulness::WithWitnesses(witnesses) => {
                 let new_witnesses = if self
                     .constructor_store()
-                    .map_unsafe(ctor_id, |ctor| matches!(ctor, Constructor::Missing))
+                    .map_unsafe(ctor_id, |ctor| matches!(ctor, DeconstructedCtor::Missing))
                 {
                     // We got the special `Missing` constructor, so each of the missing constructors
                     // gives a new  pattern that is not caught by the match. We

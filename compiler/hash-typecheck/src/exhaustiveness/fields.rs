@@ -21,7 +21,7 @@ use crate::{
     },
 };
 
-use super::{construct::Constructor, AccessToUsefulnessOps};
+use super::{construct::DeconstructedCtor, AccessToUsefulnessOps};
 
 /// Representation of the `fields` that are stored by
 /// [DeconstructedPat](super::deconstruct::DeconstructedPat) which are nested
@@ -81,7 +81,7 @@ impl<'tc> FieldOps<'tc> {
         let ctor = reader.get_ctor(ctor);
 
         match ctor {
-            Constructor::Single | Constructor::Variant(_) => {
+            DeconstructedCtor::Single | DeconstructedCtor::Variant(_) => {
                 let reader = self.reader();
 
                 match reader.get_term(ctx.ty) {
@@ -123,7 +123,7 @@ impl<'tc> FieldOps<'tc> {
                     ),
                 }
             }
-            Constructor::List(list) => {
+            DeconstructedCtor::List(list) => {
                 let arity = list.arity();
 
                 // Use the oracle to get the inner term `T` for the type...
@@ -133,12 +133,12 @@ impl<'tc> FieldOps<'tc> {
 
                 self.wildcards_from_tys((0..arity).map(|_| ty))
             }
-            Constructor::Str(..)
-            | Constructor::IntRange(..)
-            | Constructor::NonExhaustive
-            | Constructor::Missing { .. }
-            | Constructor::Wildcard => Fields::empty(),
-            Constructor::Or => {
+            DeconstructedCtor::Str(..)
+            | DeconstructedCtor::IntRange(..)
+            | DeconstructedCtor::NonExhaustive
+            | DeconstructedCtor::Missing { .. }
+            | DeconstructedCtor::Wildcard => Fields::empty(),
+            DeconstructedCtor::Or => {
                 panic!("called `Fields::wildcards` on an `Or` ctor")
             }
         }

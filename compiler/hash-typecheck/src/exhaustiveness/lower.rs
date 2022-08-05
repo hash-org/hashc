@@ -207,10 +207,10 @@ impl<'tc> LowerPatOps<'tc> {
         Pat { span, kind: Box::new(kind), has_guard: false }
     }
 
-    /// Function to lower a [primitives::Pat::Constructor]. If the constructor
-    /// subject is an enum variant, it will create a [PatKind::Variant]
-    /// pattern, otherwise it uses [PatKind::Leaf] to represent other
-    /// definitions.
+    /// Function to lower a [primitives::Pat::DeconstructedCtor]. If the
+    /// constructor subject is an enum variant, it will create a
+    /// [PatKind::Variant] pattern, otherwise it uses [PatKind::Leaf] to
+    /// represent other definitions.
     ///
     /// **Note** the term of the subject of the constructor must be simplified!
     pub fn lower_constructor(&self, pat: primitives::Pat, span: Span) -> Pat {
