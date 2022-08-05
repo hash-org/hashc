@@ -18,16 +18,16 @@ macro_rules! new_store_key {
     ($visibility:vis $name:ident) => {
         #[derive(PartialEq, Eq, Clone, Copy, Hash, Debug)]
         $visibility struct $name {
-            index: usize,
+            index: u32,
         }
 
         impl $crate::storage::store::StoreKey for $name {
             fn to_index(self) -> usize {
-                self.index
+                self.index.try_into().unwrap()
             }
 
             fn from_index_unchecked(index: usize) -> Self {
-                Self { index }
+                Self { index: index.try_into().unwrap() }
             }
         }
     };
@@ -165,17 +165,17 @@ macro_rules! new_sequence_store_key {
     ($visibility:vis $name:ident) => {
         #[derive(PartialEq, Eq, Clone, Copy, Hash, Debug)]
         $visibility struct $name {
-            index: usize,
-            len: usize,
+            index: u32,
+            len: u32,
         }
 
         impl $crate::storage::store::SequenceStoreKey for $name {
             fn to_index_and_len(self) -> (usize, usize) {
-                (self.index, self.len)
+                (self.index.try_into().unwrap(), self.len.try_into().unwrap())
             }
 
             fn from_index_and_len_unchecked(index: usize, len: usize) -> Self {
-                Self { index, len }
+                Self { index: index.try_into().unwrap(), len: len.try_into().unwrap() }
             }
         }
     };
