@@ -1,3 +1,5 @@
+//! Provides generic data structures to store values by generated keys in an
+//! efficient way, with interior mutability.
 use std::{cell::RefCell, hash::Hash, marker::PhantomData, ops::Range};
 
 /// Represents a key that can be used to index a [`Store`].
