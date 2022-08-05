@@ -1192,6 +1192,21 @@ pub struct ModPat {
     pub members: PatArgsId,
 }
 
+/// A range pattern containing two terms `lo` and `hi`, and
+/// an `end` kind which specifies if the [RangePat] is a
+/// closed range or not.
+///
+/// The `lo` and `hi` values must be `Term::Level0(Level0Term::Lit)`.
+#[derive(Clone, Debug, Copy)]
+pub struct RangePat {
+    /// Start value of the range, must be a literal term.
+    pub lo: TermId,
+    /// End value of the range, must be a literal term.
+    pub hi: TermId,
+    /// If the range is closed or not.
+    pub end: RangeEnd,
+}
+
 /// Represents a pattern in the language.
 #[derive(Clone, Debug)]
 pub enum Pat {
@@ -1201,9 +1216,8 @@ pub enum Pat {
     Access(AccessPat),
     /// Resolved binding pattern.
     Const(ConstPat),
-    /// A range pattern `2..5`, the `lo` and `hi` values
-    /// must be `Term::Level0(Level0Term::Lit)`.
-    Range { lo: TermId, hi: TermId, end: RangeEnd },
+    /// A range pattern `2..5
+    Range(RangePat),
     /// Literal pattern, of the given term.
     ///
     /// The inner term must be `Term::Level0(Level0Term::Lit)`.
@@ -1233,54 +1247,34 @@ pub enum Pat {
 new_key_type! {
     /// The ID of a [TrtDef] stored in [super::trts::TrtDefStore].
     pub struct TrtDefId;
-}
 
-new_key_type! {
     /// The ID of a [NominalDef] stored in [super::nominals::NominalDefStore].
     pub struct NominalDefId;
-}
 
-new_key_type! {
     /// The ID of a [ModDef] stored in [super::mods::ModDefStore].
     pub struct ModDefId;
-}
 
-new_key_type! {
     /// The ID of a [Term] stored in [super::values::TermStore].
     pub struct TermId;
-}
 
-new_key_type! {
     /// The ID of a [Scope] stored in [super::values::ScopeStore].
     pub struct ScopeId;
-}
 
-new_key_type! {
     /// The Id of a [Args]
     pub struct ArgsId;
-}
 
-new_key_type! {
     /// The ID of a [Params]
     pub struct ParamsId;
-}
 
-new_key_type! {
     /// The ID of a [Pat]
     pub struct PatId;
-}
 
-new_key_type! {
     /// The ID of a [PatArgs]
     pub struct PatArgsId;
-}
 
-new_key_type! {
     /// The ID of a [Constructor]
     pub struct ConstructorId;
-}
 
-new_key_type! {
     /// The ID of a [DeconstructedPat]
     pub struct DeconstructedPatId;
 }

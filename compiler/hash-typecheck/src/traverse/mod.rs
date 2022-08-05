@@ -1570,9 +1570,6 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
             self.state.declaration_name_hint = Some(name);
         };
 
-        // @@Todo: is pattern irrefutable?
-        // self.exhaustiveness_checker().is_pat_irrefutable(&[pat], term, None)?;
-
         let ty = node.ty.as_ref().map(|t| self.visit_ty(ctx, t.ast_ref())).transpose()?;
         let value = node.value.as_ref().map(|t| self.visit_expr(ctx, t.ast_ref())).transpose()?;
 
@@ -1594,18 +1591,6 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let mut value = value.map(|value| self.substituter().apply_sub_to_term(&sub, value));
         let ty = self.substituter().apply_sub_to_term(&sub, ty_or_unresolved);
 
-        // We need to ensure that the resultant type is equivalent to the resultant
-        // type from the pattern
-        let pat_ty = self.typer().infer_ty_of_pat(pat_id)?;
-        self.unifier().unify_terms(pat_ty, ty)?;
-
-        // Ensure that the given pattern is irrefutable given the type of the term
-        //
-        // @@Investigate: Unclear what to do here if the `rhs` is a type that is
-        // not meant to be checked for refutability, presumably we always declare it
-        // is irrefutable because the `value` and `ty` matched...
-        self.exhaustiveness_checker().is_pat_irrefutable(&[pat_id], ty, None)?;
-
         if value.is_none() && self.state.within_intrinsics_directive {
             // @@Todo: see #391
             value = Some(self.builder().create_rt_term(ty));
@@ -1616,10 +1601,14 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
             Some(value) => {
                 // If there is a value, match it with the pattern and acquire the members to add
                 // to the scope.
-                match self.pat_matcher().match_pat_with_term(pat_id, value)? {
+                let members = match self.pat_matcher().match_pat_with_term(pat_id, value)? {
                     Some(members) => members,
                     None => return Err(TcError::UselessMatchCase { pat: pat_id, subject: value }),
-                }
+                };
+
+                // Ensure that the given pattern is irrefutable given the type of the term
+                self.exhaustiveness_checker().is_pat_irrefutable(&[pat_id], ty, None)?;
+                members
             }
             None => {
                 if let Pat::Binding(BindingPat { name, mutability: _, visibility }) = pat {

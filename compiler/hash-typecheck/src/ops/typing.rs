@@ -12,7 +12,7 @@ use crate::{
         primitives::{
             AccessOp, AccessPat, Arg, ArgsId, ConstPat, ConstructedTerm, Level0Term, Level1Term,
             Level2Term, Level3Term, ListPat, LitTerm, Member, ModDefOrigin, NominalDef, Param,
-            ParamsId, Pat, PatArgsId, PatId, StructFields, Term, TermId,
+            ParamsId, Pat, PatArgsId, PatId, RangePat, StructFields, Term, TermId,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -392,7 +392,7 @@ impl<'tc> Typer<'tc> {
                 // The term of a literal pattern is the literal (lol):
                 Ok(lit_term)
             }
-            Pat::Range { lo, .. } => {
+            Pat::Range(RangePat { lo, .. }) => {
                 // The term of the range is the type of `lo` since `lo` is a literal term
                 Ok(lo)
             }

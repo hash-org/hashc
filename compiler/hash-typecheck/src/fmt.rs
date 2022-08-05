@@ -5,9 +5,9 @@ use crate::storage::{
     primitives::{
         AccessOp, AccessPat, ArgsId, BoundVar, ConstPat, ConstructedTerm, EnumDef, Level0Term,
         Level1Term, Level2Term, Level3Term, ListPat, LitTerm, Member, ModDefId, ModDefOrigin,
-        ModPat, Mutability, NominalDef, NominalDefId, ParamsId, Pat, PatArgsId, PatId, ScopeId,
-        ScopeVar, SpreadPat, StructDef, Sub, SubVar, Term, TermId, TrtDefId, UnresolvedTerm, Var,
-        Visibility,
+        ModPat, Mutability, NominalDef, NominalDefId, ParamsId, Pat, PatArgsId, PatId, RangePat,
+        ScopeId, ScopeVar, SpreadPat, StructDef, Sub, SubVar, Term, TermId, TrtDefId,
+        UnresolvedTerm, Var, Visibility,
     },
     GlobalStorage,
 };
@@ -601,7 +601,7 @@ impl<'gs> TcFormatter<'gs> {
                 write!(f, "{}::{}", property, subject.for_formatting(self.global_storage))
             }
             Pat::Const(ConstPat { term }) => self.fmt_term(f, *term, opts),
-            Pat::Range { lo, hi, end } => {
+            Pat::Range(RangePat { lo, hi, end }) => {
                 // write the `lo`, then the range end, and finally the `hi`
                 self.fmt_term(f, *lo, opts.clone())?;
                 write!(f, "{}", end)?;
