@@ -503,13 +503,152 @@ pub struct StrLit(pub Str);
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct CharLit(pub char);
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum IntTy {
+    I8,
+    I16,
+    I32,
+    I64,
+    I128,
+    ISize,
+    IBig,
+    U8,
+    U16,
+    U32,
+    U64,
+    U128,
+    USize,
+    UBig,
+}
+
+impl IntTy {
+    /// Check if the variant is signed or not.
+    #[inline]
+    pub fn is_signed(&self) -> bool {
+        matches!(
+            self,
+            IntTy::I8
+                | IntTy::I16
+                | IntTy::I32
+                | IntTy::I64
+                | IntTy::I128
+                | IntTy::ISize
+                | IntTy::IBig
+        )
+    }
+
+    /// Check if the variant is unsigned.
+    #[inline]
+    pub fn is_unsigned(&self) -> bool {
+        !self.is_signed()
+    }
+
+    /// Get the size of [IntTy] in bytes. Returns [None] for
+    /// [IntTy::IBig] and [IntTy::UBig] variants
+    pub fn size(&self) -> Option<u64> {
+        match self {
+            IntTy::I8 | IntTy::U8 => Some(1),
+            IntTy::I16 | IntTy::U16 => Some(2),
+            IntTy::I32 | IntTy::U32 => Some(4),
+            IntTy::I64 | IntTy::U64 => Some(8),
+            IntTy::I128 | IntTy::U128 => Some(16),
+            // @@Todo: actually get the target pointer size, don't default to 64bit pointers.
+            IntTy::ISize | IntTy::USize => Some(8),
+            IntTy::IBig | IntTy::UBig => None,
+        }
+    }
+
+    /// Convert the [IntTy] into a primitive type name
+    pub fn to_name(&self) -> &'static str {
+        match self {
+            IntTy::I8 => "i8",
+            IntTy::I16 => "i16",
+            IntTy::I32 => "i32",
+            IntTy::I64 => "i64",
+            IntTy::I128 => "i128",
+            IntTy::ISize => "isize",
+            IntTy::IBig => "ibig",
+            IntTy::U8 => "u8",
+            IntTy::U16 => "u16",
+            IntTy::U32 => "u32",
+            IntTy::U64 => "u64",
+            IntTy::U128 => "u128",
+            IntTy::USize => "usize",
+            IntTy::UBig => "ubig",
+        }
+    }
+}
+
+impl Display for IntTy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_name())
+    }
+}
+
+/// The type of the float the [IntLit] is storing.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum IntLitKind {
+    /// integer kind `i128`, `u32` ,`i8`...
+    Suffixed(IntTy),
+    /// No provided suffix type, so defaults to `i32`
+    Unsuffixed,
+}
+
+impl Display for IntLitKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            IntLitKind::Suffixed(ty) => write!(f, "{ty}"),
+            IntLitKind::Unsuffixed => write!(f, ""),
+        }
+    }
+}
+
 /// An integer literal.
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct IntLit(pub u64);
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub struct IntLit {
+    pub value: u128,
+    pub kind: IntLitKind,
+}
+
+/// The type of the float the [FloatLit] is storing.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum FloatTy {
+    F32,
+    F64,
+}
+
+impl Display for FloatTy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FloatTy::F32 => write!(f, "f32"),
+            FloatTy::F64 => write!(f, "f64"),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum FloatLitKind {
+    /// Has a provided user suffix type
+    Suffixed(FloatTy),
+    /// No provided suffix type, so defaults to `f32`
+    Unsuffixed,
+}
+
+impl Display for FloatLitKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FloatLitKind::Suffixed(ty) => write!(f, "{ty}"),
+            FloatLitKind::Unsuffixed => write!(f, ""),
+        }
+    }
+}
 
 /// A float literal.
 #[derive(Debug, PartialEq, Clone)]
-pub struct FloatLit(pub f64);
+pub struct FloatLit {
+    pub value: f64,
+    pub kind: FloatLitKind,
+}
 
 /// A boolean literal.
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -642,12 +781,18 @@ pub struct StrLitPat(pub Str);
 pub struct CharLitPat(pub char);
 
 /// An integer literal pattern.
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct IntLitPat(pub u64);
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub struct IntLitPat {
+    pub value: u128,
+    pub kind: IntLitKind,
+}
 
 /// A float literal pattern.
-#[derive(Debug, PartialEq, Clone)]
-pub struct FloatLitPat(pub f64);
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub struct FloatLitPat {
+    pub value: f64,
+    pub kind: FloatLitKind,
+}
 
 /// A boolean literal pattern.
 #[derive(Debug, PartialEq, Eq, Clone)]

@@ -404,7 +404,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         _: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::IntLit>,
     ) -> Result<Self::IntLitRet, Self::Error> {
-        let term = self.builder().create_lit_term(node.0);
+        let term = self.builder().create_lit_term(*node.body());
 
         // add the location of the term to the location storage
         self.copy_location_from_node_to_target(node, term);
@@ -2124,7 +2124,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         _: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::IntLitPat>,
     ) -> Result<Self::IntLitPatRet, Self::Error> {
-        let lit = self.builder().create_lit_term(node.0);
+        let lit = self.builder().create_lit_term(*node.body());
         let lit_pat = self.builder().create_lit_pat(lit);
 
         self.copy_location_from_node_to_target(node, lit);

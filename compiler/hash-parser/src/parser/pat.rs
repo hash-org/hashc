@@ -321,10 +321,15 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Convert a [Lit] into a [LitPat].
     pub(crate) fn convert_lit_into_pat(&self, kind: &TokenKind) -> LitPat {
         match kind {
-            TokenKind::StrLit(s) => LitPat::Str(StrLitPat(*s)),
-            TokenKind::CharLit(s) => LitPat::Char(CharLitPat(*s)),
-            TokenKind::IntLit(s) => LitPat::Int(IntLitPat(*s)),
-            TokenKind::FloatLit(s) => LitPat::Float(FloatLitPat(*s)),
+            // @@Todo: support Integer/Float ascriptions
+            TokenKind::IntLit(value) => {
+                LitPat::Int(IntLitPat { value: (*value).into(), kind: IntLitKind::Unsuffixed })
+            }
+            TokenKind::FloatLit(value) => {
+                LitPat::Float(FloatLitPat { value: (*value), kind: FloatLitKind::Unsuffixed })
+            }
+            TokenKind::StrLit(value) => LitPat::Str(StrLitPat(*value)),
+            TokenKind::CharLit(value) => LitPat::Char(CharLitPat(*value)),
             TokenKind::Keyword(Keyword::False) => LitPat::Bool(BoolLitPat(false)),
             TokenKind::Keyword(Keyword::True) => LitPat::Bool(BoolLitPat(true)),
             _ => unreachable!(),

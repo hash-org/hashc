@@ -5,7 +5,7 @@ use std::{convert::Infallible, iter};
 use hash_utils::tree_writing::TreeNode;
 
 use crate::{
-    ast,
+    ast::{self, FloatLit, FloatLitPat, IntLit, IntLitPat},
     visitor::{walk, AstVisitor},
 };
 
@@ -147,7 +147,9 @@ impl AstVisitor for AstTreeGenerator {
         _: &Self::Ctx,
         node: ast::AstNodeRef<ast::FloatLit>,
     ) -> Result<Self::FloatLitRet, Self::Error> {
-        Ok(TreeNode::leaf(labelled("float", node.0, "")))
+        let FloatLit { value, kind } = node.body();
+
+        Ok(TreeNode::leaf(labelled("float", format!("{value}{kind}"), "")))
     }
 
     type BoolLitRet = TreeNode;
@@ -165,7 +167,9 @@ impl AstVisitor for AstTreeGenerator {
         _: &Self::Ctx,
         node: ast::AstNodeRef<ast::IntLit>,
     ) -> Result<Self::IntLitRet, Self::Error> {
-        Ok(TreeNode::leaf(labelled("int", node.0, "")))
+        let IntLit { value, kind } = node.body();
+
+        Ok(TreeNode::leaf(labelled("int", format!("{value}{kind}"), "")))
     }
 
     type BinaryOperatorRet = TreeNode;
@@ -1134,7 +1138,9 @@ impl AstVisitor for AstTreeGenerator {
         _: &Self::Ctx,
         node: ast::AstNodeRef<ast::IntLitPat>,
     ) -> Result<Self::IntLitPatRet, Self::Error> {
-        Ok(TreeNode::leaf(labelled("int", node.0, "")))
+        let IntLitPat { value, kind } = node.body();
+
+        Ok(TreeNode::leaf(labelled("int", format!("{value}{kind}"), "")))
     }
 
     type FloatLitPatRet = TreeNode;
@@ -1143,7 +1149,9 @@ impl AstVisitor for AstTreeGenerator {
         _: &Self::Ctx,
         node: ast::AstNodeRef<ast::FloatLitPat>,
     ) -> Result<Self::FloatLitPatRet, Self::Error> {
-        Ok(TreeNode::leaf(labelled("float", node.0, "")))
+        let FloatLitPat { value, kind } = node.body();
+
+        Ok(TreeNode::leaf(labelled("float", format!("{value}{kind}"), "")))
     }
 
     type BoolLitPatRet = TreeNode;

@@ -1,9 +1,8 @@
 //! Functionality related to determining properties about terms and other
 //! constructs.
-use crate::storage::{
-    primitives::{IntKind, TermId},
-    AccessToStorage, StorageRef,
-};
+use hash_ast::ast::IntTy;
+
+use crate::storage::{primitives::TermId, AccessToStorage, StorageRef};
 
 pub struct Oracle<'tc> {
     storage: StorageRef<'tc>,
@@ -30,8 +29,8 @@ impl<'tc> Oracle<'tc> {
         todo!()
     }
 
-    /// If the term is an integer type, returns its [IntKind].
-    pub fn term_as_int(&mut self, _term: TermId) -> Option<IntKind> {
+    /// If the term is an integer type, returns its [IntTy].
+    pub fn term_as_int(&mut self, _term: TermId) -> Option<IntTy> {
         todo!()
     }
 

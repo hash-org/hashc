@@ -2,7 +2,8 @@
 //! to represent literals, and convert them into a `ConstantValue` which is
 //! used within the exhaustiveness sub-system to represent these values within
 //! a single data type.
-use crate::storage::primitives::{IntKind, TermId};
+use crate::storage::primitives::TermId;
+use hash_ast::ast::IntTy;
 use num_bigint::BigInt;
 
 #[derive(Debug, Clone, Copy)]
@@ -28,7 +29,7 @@ impl Constant {
     /// Function to convert a [BigInt] into a [Constant]. The only
     /// constraint is that it can fit into a [u128], otherwise the
     /// function will currently panic.
-    pub fn from_int(int: BigInt, kind: IntKind, ty: TermId) -> Self {
+    pub fn from_int(int: BigInt, kind: IntTy, ty: TermId) -> Self {
         let size = kind.size().unwrap_or_else(|| int.bits());
         assert!(size < 128);
 

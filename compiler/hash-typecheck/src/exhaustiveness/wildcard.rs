@@ -3,14 +3,14 @@
 //! the `splitting` operation creates [Constructor]s that represent
 //! the whole range of all possible values by the associated type
 //! to the constructor.
-use hash_ast::ast::RangeEnd;
+use hash_ast::ast::{IntTy, RangeEnd};
 use smallvec::{smallvec, SmallVec};
 
 use crate::{
     exhaustiveness::PatCtx,
     ops::AccessToOps,
     storage::{
-        primitives::{ConstructorId, IntKind, Level1Term, NominalDef, Term},
+        primitives::{ConstructorId, Level1Term, NominalDef, Term},
         AccessToStorage, StorageRef,
     },
 };
@@ -84,7 +84,7 @@ impl<'tc> SplitWildcardOps<'tc> {
             match int_kind {
                 // @@Future: Maybe in the future, we can have a compiler setting/project
                 // setting that allows a user to say `it's ok to use the `target` pointer width`
-                IntKind::ISize | IntKind::USize | IntKind::UBig | IntKind::IBig => {
+                IntTy::ISize | IntTy::USize | IntTy::UBig | IntTy::IBig => {
                     smallvec![Constructor::NonExhaustive]
                 }
                 kind if kind.is_signed() => {

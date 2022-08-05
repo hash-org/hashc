@@ -21,7 +21,7 @@
 //! ```
 //!
 //! The above pattern `(key, value)` is irrefutable because it covers
-//! all the possibilities of the type `(u32, char)` which is the type
+//! all the possibilities of the type `(i32, char)` which is the type
 //! of the list element. However, in the situation that the pattern
 //! was for example `(key, 'c')`, well for any time that `char` is
 //! not a `c`, this match will fail, which means the pattern is refutable

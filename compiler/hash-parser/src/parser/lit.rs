@@ -14,10 +14,15 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let token = self.current_token();
         let lit = self.node_with_span(
             match token.kind {
-                TokenKind::IntLit(num) => Lit::Int(IntLit(num)),
-                TokenKind::FloatLit(num) => Lit::Float(FloatLit(num)),
-                TokenKind::CharLit(ch) => Lit::Char(CharLit(ch)),
-                TokenKind::StrLit(str) => Lit::Str(StrLit(str)),
+                // @@Todo: support Integer/Float ascriptions
+                TokenKind::IntLit(value) => {
+                    Lit::Int(IntLit { value: value.into(), kind: IntLitKind::Unsuffixed })
+                }
+                TokenKind::FloatLit(value) => {
+                    Lit::Float(FloatLit { value, kind: FloatLitKind::Unsuffixed })
+                }
+                TokenKind::CharLit(value) => Lit::Char(CharLit(value)),
+                TokenKind::StrLit(value) => Lit::Str(StrLit(value)),
                 TokenKind::Keyword(Keyword::False) => Lit::Bool(BoolLit(false)),
                 TokenKind::Keyword(Keyword::True) => Lit::Bool(BoolLit(true)),
                 _ => unreachable!(),
