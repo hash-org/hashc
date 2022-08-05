@@ -21,7 +21,7 @@ macro_rules! new_store_key {
             index: u32,
         }
 
-        impl $crate::storage::store::StoreKey for $name {
+        impl $crate::store::StoreKey for $name {
             fn to_index(self) -> usize {
                 self.index.try_into().unwrap()
             }
@@ -169,7 +169,7 @@ macro_rules! new_sequence_store_key {
             len: u32,
         }
 
-        impl $crate::storage::store::SequenceStoreKey for $name {
+        impl $crate::store::SequenceStoreKey for $name {
             fn to_index_and_len(self) -> (usize, usize) {
                 (self.index.try_into().unwrap(), self.len.try_into().unwrap())
             }
