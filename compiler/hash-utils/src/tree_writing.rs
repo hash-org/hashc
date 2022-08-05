@@ -1,3 +1,7 @@
+//! Utilities to print tree structures as an ASCII/Unicode tree, similar to the
+//! UNIX `tree` command.
+//!
+//! Can be adapted to any data structure `T` by `impl From<T> for TreeNode`.
 use core::fmt;
 use std::{borrow::Cow, iter};
 

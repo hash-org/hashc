@@ -1,4 +1,4 @@
-//! Hash utilities for printing various data structures that might be used for
+//! Utilities for printing various data structures that might be used for
 //! debugging purposes or for creating human readable error messages when
 //! reporting errors.
 use std::fmt;

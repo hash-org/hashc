@@ -42,7 +42,7 @@
 //!
 //! <http://moscova.inria.fr/~maranget/papers/warn/warn.pdf>
 //!
-//! and is heavily inspired by the Rust Compiler implementation:
+//! inspired by and based off of the Rust Compiler implementation:
 //!
 //! <https://github.com/rust-lang/rust/tree/master/compiler/rustc_mir_build/src/thir/pattern/usefulness.rs>
 

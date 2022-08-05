@@ -1,4 +1,4 @@
-//! Stack growing utility, for when a function exceeds it's stack space
+//! Stack growing utility, for when a function exceeds its stack space
 //! and the stack needs to expand.
 //!
 //! This is taken from the Rust compiler.
