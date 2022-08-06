@@ -38,7 +38,7 @@ counter! {
 #[derive(Debug, PartialEq, Eq)]
 pub enum PatKind<'i> {
     Spread,
-    Ignore,
+    Wild,
     Bind(Identifier),
     Lit(Const),
     Tuple(&'i [Pat<'i>]),

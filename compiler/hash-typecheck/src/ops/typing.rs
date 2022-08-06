@@ -12,7 +12,7 @@ use crate::{
         primitives::{
             AccessOp, AccessPat, Arg, ArgsId, ConstPat, ConstructedTerm, Level0Term, Level1Term,
             Level2Term, Level3Term, ListPat, LitTerm, Member, ModDefOrigin, NominalDef, Param,
-            ParamsId, Pat, PatArgsId, PatId, StructFields, Term, TermId,
+            ParamsId, Pat, PatArgsId, PatId, RangePat, StructFields, Term, TermId,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -34,7 +34,7 @@ impl<'tc> AccessToStorageMut for Typer<'tc> {
     }
 }
 
-/// A version of [MemberData] where the type has been inferred if it was not
+/// A version of member data where the type has been inferred if it was not
 /// given in the member definition.
 #[derive(Debug, Clone, Copy)]
 pub struct InferredMemberData {
@@ -375,10 +375,10 @@ impl<'tc> Typer<'tc> {
     /// Get the term of the given pattern, whose type is the type of the pattern
     /// subject.
     pub(crate) fn get_term_of_pat(&mut self, pat_id: PatId) -> TcResult<TermId> {
-        let pat = self.reader().get_pat(pat_id).clone();
+        let pat = self.reader().get_pat(pat_id);
 
         let ty_of_pat = match pat {
-            Pat::Mod(_) | Pat::Ignore | Pat::Binding(_) => {
+            Pat::Mod(_) | Pat::Wild | Pat::Binding(_) => {
                 // We don't know this; it depends on the subject:
                 Ok(self.builder().create_unresolved_term())
             }
@@ -391,6 +391,10 @@ impl<'tc> Typer<'tc> {
             Pat::Lit(lit_term) => {
                 // The term of a literal pattern is the literal (lol):
                 Ok(lit_term)
+            }
+            Pat::Range(RangePat { lo, .. }) => {
+                // The term of the range is the type of `lo` since `lo` is a literal term
+                Ok(lo)
             }
             Pat::Tuple(tuple_pat) => {
                 // For each parameter, get its type, and then create a tuple

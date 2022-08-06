@@ -7,14 +7,29 @@
 //! because it is only accessible from one file, whereas a type definition will
 //! be in [GlobalStorage] because it can be accessed from any file (with the
 //! appropriate import).
-use hash_source::SourceMap;
 
-use crate::fmt::{ForFormatting, PrepareForFormatting};
+pub mod arguments;
+pub mod cache;
+pub mod constructors;
+pub mod core;
+pub mod deconstructed_pat;
+pub mod location;
+pub mod mods;
+pub mod nominals;
+pub mod params;
+pub mod pats;
+pub mod primitives;
+pub mod scope;
+pub mod sources;
+pub mod terms;
+pub mod trts;
 
 use self::{
     arguments::ArgsStore,
     cache::Cache,
+    constructors::DeconstructedCtorStore,
     core::create_core_defs_in,
+    deconstructed_pat::DeconstructedPatStore,
     location::LocationStore,
     mods::ModDefStore,
     nominals::NominalDefStore,
@@ -26,20 +41,9 @@ use self::{
     terms::TermStore,
     trts::TrtDefStore,
 };
-
-pub mod arguments;
-pub mod cache;
-pub mod core;
-pub mod location;
-pub mod mods;
-pub mod nominals;
-pub mod params;
-pub mod pats;
-pub mod primitives;
-pub mod scope;
-pub mod sources;
-pub mod terms;
-pub mod trts;
+use crate::fmt::{ForFormatting, PrepareForFormatting};
+use hash_source::{SourceId, SourceMap};
+use std::cell::Cell;
 
 /// Keeps track of typechecking information across all source files.
 #[derive(Debug)]
@@ -55,6 +59,13 @@ pub struct GlobalStorage {
     pub pat_store: PatStore,
     pub pat_args_store: PatArgsStore,
     pub checked_sources: CheckedSources,
+
+    /// Pattern fields from
+    /// [super::exhaustiveness::deconstruct::DeconstructedPat]
+    pub deconstructed_pat_store: DeconstructedPatStore,
+
+    /// The [super::exhaustiveness::construct::DeconstructedCtor] store.
+    pub deconstructed_ctor_store: DeconstructedCtorStore,
 
     /// The typechecking cache, contains cached simplification, validation
     /// and unification results
@@ -82,6 +93,8 @@ impl GlobalStorage {
             nominal_def_store: NominalDefStore::new(),
             pat_store: PatStore::new(),
             pat_args_store: PatArgsStore::new(),
+            deconstructed_pat_store: DeconstructedPatStore::new(),
+            deconstructed_ctor_store: DeconstructedCtorStore::new(),
             checked_sources: CheckedSources::new(),
             root_scope,
             params_store: ParamsStore::new(),
@@ -104,11 +117,13 @@ impl Default for GlobalStorage {
 pub struct LocalStorage {
     /// All the scopes in a given source.
     pub scopes: ScopeStack,
+    /// The current [SourceId]
+    pub id: Cell<SourceId>,
 }
 
 impl LocalStorage {
     /// Create a new, empty [LocalStorage] for the given source.
-    pub fn new(gs: &mut GlobalStorage) -> Self {
+    pub fn new(gs: &mut GlobalStorage, id: SourceId) -> Self {
         Self {
             scopes: ScopeStack::many([
                 // First the root scope
@@ -116,7 +131,19 @@ impl LocalStorage {
                 // Then the scope for the source
                 gs.scope_store.create(Scope::empty(ScopeKind::Constant)),
             ]),
+            id: Cell::new(id),
         }
+    }
+
+    /// Get the current [SourceId]
+    pub fn current_source(&self) -> SourceId {
+        self.id.get()
+    }
+
+    /// Set the current [SourceId], it does not matter whether
+    /// this is a [SourceId::Module] or [SourceId::Interactive]
+    pub fn set_current_source(&mut self, id: SourceId) {
+        self.id.set(id);
     }
 }
 
@@ -189,6 +216,14 @@ pub trait AccessToStorage {
 
     fn pat_store(&self) -> &PatStore {
         &self.global_storage().pat_store
+    }
+
+    fn constructor_store(&self) -> &DeconstructedCtorStore {
+        &self.global_storage().deconstructed_ctor_store
+    }
+
+    fn deconstructed_pat_store(&self) -> &DeconstructedPatStore {
+        &self.global_storage().deconstructed_pat_store
     }
 
     fn pat_params_store(&self) -> &PatArgsStore {
@@ -273,6 +308,10 @@ pub trait AccessToStorageMut: AccessToStorage {
 
     fn pat_store_mut(&mut self) -> &mut PatStore {
         &mut self.global_storage_mut().pat_store
+    }
+
+    fn deconstructed_pat_store_mut(&mut self) -> &mut DeconstructedPatStore {
+        &mut self.global_storage_mut().deconstructed_pat_store
     }
 
     fn pat_params_store_mut(&mut self) -> &mut PatArgsStore {

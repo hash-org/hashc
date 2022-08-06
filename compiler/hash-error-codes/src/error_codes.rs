@@ -49,4 +49,6 @@ error_codes! {
     // Pattern errors
     IdentifierBoundMultipleTimes = 80,
     MissingPatternBounds = 81,
+    RefutablePat = 82,
+    NonExhaustiveMatch = 83,
 }
