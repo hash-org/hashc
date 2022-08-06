@@ -10,9 +10,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Convert the current token (provided it is a primitive literal) into a
     /// [ExprKind::LitExpr] by simply matching on the type of the
     /// expr.
-    pub(crate) fn parse_lit(&self) -> AstNode<Expr> {
+    pub(crate) fn parse_atomic_lit(&self) -> AstNode<Lit> {
         let token = self.current_token();
-        let lit = self.node_with_span(
+
+        self.node_with_span(
             match token.kind {
                 // @@Todo: support Integer/Float ascriptions
                 TokenKind::IntLit(value) => {
@@ -28,9 +29,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 _ => unreachable!(),
             },
             token.span,
-        );
-
-        self.node_with_span(Expr::new(ExprKind::LitExpr(LitExpr(lit))), token.span)
+        )
     }
 
     /// Parse a single map entry in a literal.

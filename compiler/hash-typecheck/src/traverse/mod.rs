@@ -17,7 +17,8 @@ use crate::{
 };
 use hash_ast::{
     ast::{
-        self, AccessKind, AstNodeRef, BinOp, MatchOrigin, OwnsAstNode, ParamOrigin, RefKind, UnOp,
+        self, AccessKind, AstNodeRef, BinOp, Lit, MatchOrigin, OwnsAstNode, ParamOrigin, RefKind,
+        UnOp,
     },
     visitor::{self, walk, AstVisitor},
 };
@@ -2074,89 +2075,6 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         Ok(spread_pat)
     }
 
-    type StrLitPatRet = PatId;
-
-    fn visit_str_lit_pat(
-        &mut self,
-        _: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::StrLitPat>,
-    ) -> Result<Self::StrLitPatRet, Self::Error> {
-        let lit = self.builder().create_lit_term(node.0.to_string());
-        let lit_pat = self.builder().create_lit_pat(lit);
-
-        self.copy_location_from_node_to_target(node, lit);
-        self.copy_location_from_node_to_target(node, lit_pat);
-
-        Ok(lit_pat)
-    }
-
-    type CharLitPatRet = PatId;
-
-    fn visit_char_lit_pat(
-        &mut self,
-        _: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::CharLitPat>,
-    ) -> Result<Self::CharLitPatRet, Self::Error> {
-        let lit = self.builder().create_lit_term(node.0);
-        let lit_pat = self.builder().create_lit_pat(lit);
-
-        self.copy_location_from_node_to_target(node, lit);
-        self.copy_location_from_node_to_target(node, lit_pat);
-
-        Ok(lit_pat)
-    }
-
-    type IntLitPatRet = PatId;
-
-    fn visit_int_lit_pat(
-        &mut self,
-        _: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::IntLitPat>,
-    ) -> Result<Self::IntLitPatRet, Self::Error> {
-        let lit = self.builder().create_lit_term(*node.body());
-        let lit_pat = self.builder().create_lit_pat(lit);
-
-        self.copy_location_from_node_to_target(node, lit);
-        self.copy_location_from_node_to_target(node, lit_pat);
-
-        Ok(lit_pat)
-    }
-
-    type FloatLitPatRet = PatId;
-
-    fn visit_float_lit_pat(
-        &mut self,
-        _ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::FloatLitPat>,
-    ) -> Result<Self::FloatLitPatRet, Self::Error> {
-        panic_on_span!(
-            self.source_location_at_node(node),
-            self.source_map(),
-            "hit float pattern during typechecking"
-        )
-    }
-
-    type BoolLitPatRet = PatId;
-
-    fn visit_bool_lit_pat(
-        &mut self,
-        _ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::BoolLitPat>,
-    ) -> Result<Self::BoolLitPatRet, Self::Error> {
-        let bool_term = self.builder().create_var_term(if node.0 {
-            CORE_IDENTIFIERS.r#true
-        } else {
-            CORE_IDENTIFIERS.r#false
-        });
-        self.copy_location_from_node_to_target(node, bool_term);
-        let bool_term_simplified = self.validator().validate_term(bool_term)?.simplified_term_id;
-
-        let bool_pat = self.builder().create_constant_pat(bool_term_simplified);
-        self.copy_location_from_node_to_target(node, bool_pat);
-
-        Ok(bool_pat)
-    }
-
     type LitPatRet = PatId;
 
     fn visit_lit_pat(
@@ -2164,7 +2082,16 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::LitPat>,
     ) -> Result<Self::LitPatRet, Self::Error> {
-        walk::walk_lit_pat_same_children(self, ctx, node)
+        let walk::LitPat { lit } = walk::walk_lit_pat(self, ctx, node)?;
+
+        let pat = match node.body().lit.body() {
+            Lit::Bool(_) => self.builder().create_constant_pat(lit),
+            _ => self.builder().create_lit_pat(lit),
+        };
+
+        self.copy_location_from_node_to_target(node, pat);
+
+        Ok(pat)
     }
 
     type OrPatRet = PatId;

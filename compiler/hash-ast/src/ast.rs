@@ -657,14 +657,23 @@ pub struct BoolLit(pub bool);
 /// A literal.
 #[derive(Debug, PartialEq, Clone)]
 pub enum Lit {
+    /// String literals, e.g. `"Viktor"`
     Str(StrLit),
+    /// Character literals, e.g. `'c'`
     Char(CharLit),
+    /// Integer literals, e.g. `5i32`
     Int(IntLit),
+    /// Float literals, e.g. `27.4`
     Float(FloatLit),
+    /// Boolean literals e.g. `false`
     Bool(BoolLit),
+    /// Map literals, e.g. `set! { 3, 4 }`
     Set(SetLit),
+    /// Map literals, e.g. `map! { x: 3, y: 4 }`
     Map(MapLit),
+    /// List literals, e.g. `[1, 2, x + 4]`
     List(ListLit),
+    /// Tuple literals, e.g. `(1, a, 3)`
     Tuple(TupleLit),
 }
 
@@ -772,42 +781,13 @@ pub struct ListPat {
     pub fields: AstNodes<Pat>,
 }
 
-/// A string literal pattern.
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct StrLitPat(pub Str);
-
-/// A character literal pattern.
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct CharLitPat(pub char);
-
-/// An integer literal pattern.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub struct IntLitPat {
-    pub value: u128,
-    pub kind: IntLitKind,
-}
-
-/// A float literal pattern.
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub struct FloatLitPat {
-    pub value: f64,
-    pub kind: FloatLitKind,
-}
-
-/// A boolean literal pattern.
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct BoolLitPat(pub bool);
-
-/// A literal pattern, e.g. `1`, `3.4`, `"foo"`, `false`.
+/// A literal pattern, limited to strings, character, floats, and integers, e.g.
+/// `3`, `c`
 #[derive(Debug, PartialEq, Clone)]
-pub enum LitPat {
-    Str(StrLitPat),
-    Char(CharLitPat),
-    Int(IntLitPat),
-    Float(FloatLitPat),
-    Bool(BoolLitPat),
+pub struct LitPat {
+    /// The literal of the pattern
+    pub lit: AstNode<Lit>,
 }
-
 /// An access pattern, denoting the access of a property from
 /// another pattern.
 #[derive(Debug, PartialEq, Clone)]
@@ -879,6 +859,9 @@ pub enum Pat {
     /// matches a list e.g `[x, 2, y]`
     List(ListPat),
     /// A literal pattern e.g. `c`
+    ///
+    /// @@Note: `tuple`, `map`, and `set` literal cannot appear within this
+    /// branch
     Lit(LitPat),
     /// An `or` pattern which groups multiple patterns and matches one of the
     /// provided patterns e.g. `a | b | c`

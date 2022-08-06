@@ -53,9 +53,10 @@ impl AstVisitor for SemanticAnalyser<'_> {
 
     fn visit_lit(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::Lit>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Lit>,
     ) -> Result<Self::LitRet, Self::Error> {
+        let _ = walk::walk_lit_same_children(self, ctx, node);
         Ok(())
     }
 
@@ -150,8 +151,13 @@ impl AstVisitor for SemanticAnalyser<'_> {
     fn visit_float_lit(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::FloatLit>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::FloatLit>,
     ) -> Result<Self::FloatLitRet, Self::Error> {
+        // We disallow float literals within patterns
+        if self.is_in_lit_pat {
+            self.append_error(AnalysisErrorKind::DisallowedFloatPat, node.span());
+        }
+
         Ok(())
     }
 
@@ -359,9 +365,10 @@ impl AstVisitor for SemanticAnalyser<'_> {
 
     fn visit_lit_expr(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::LitExpr>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::LitExpr>,
     ) -> Result<Self::LitExprRet, Self::Error> {
+        let _ = walk::walk_lit_expr(self, ctx, node);
         Ok(())
     }
 
@@ -1084,58 +1091,6 @@ impl AstVisitor for SemanticAnalyser<'_> {
         Ok(())
     }
 
-    type StrLitPatRet = ();
-
-    fn visit_str_lit_pat(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::StrLitPat>,
-    ) -> Result<Self::StrLitPatRet, Self::Error> {
-        Ok(())
-    }
-
-    type CharLitPatRet = ();
-
-    fn visit_char_lit_pat(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::CharLitPat>,
-    ) -> Result<Self::CharLitPatRet, Self::Error> {
-        Ok(())
-    }
-
-    type IntLitPatRet = ();
-
-    fn visit_int_lit_pat(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::IntLitPat>,
-    ) -> Result<Self::IntLitPatRet, Self::Error> {
-        Ok(())
-    }
-
-    type FloatLitPatRet = ();
-
-    fn visit_float_lit_pat(
-        &mut self,
-        _: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::FloatLitPat>,
-    ) -> Result<Self::FloatLitPatRet, Self::Error> {
-        self.append_error(AnalysisErrorKind::DisallowedFloatPat, node.span());
-
-        Ok(())
-    }
-
-    type BoolLitPatRet = ();
-
-    fn visit_bool_lit_pat(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::BoolLitPat>,
-    ) -> Result<Self::BoolLitPatRet, Self::Error> {
-        Ok(())
-    }
-
     type LitPatRet = ();
 
     fn visit_lit_pat(
@@ -1143,7 +1098,12 @@ impl AstVisitor for SemanticAnalyser<'_> {
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::LitPat>,
     ) -> Result<Self::LitPatRet, Self::Error> {
-        walk::walk_lit_pat_same_children(self, ctx, node)
+        let last_in_lit_pat = mem::replace(&mut self.is_in_lit_pat, true);
+
+        let _ = walk::walk_lit_pat(self, ctx, node);
+
+        self.is_in_lit_pat = last_in_lit_pat;
+        Ok(())
     }
 
     type OrPatRet = ();

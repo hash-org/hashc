@@ -22,6 +22,8 @@ pub struct SemanticAnalyser<'s> {
     pub(crate) is_in_loop: bool,
     /// Whether the current visitor is within a function definition.
     pub(crate) is_in_fn: bool,
+    /// Whether the analyser is currently checking a literal pattern
+    pub(crate) is_in_lit_pat: bool,
     /// Any collected errors when passing through the tree.
     pub(crate) errors: Vec<AnalysisError>,
     /// Any collected warning that were found during the walk.
@@ -41,6 +43,7 @@ impl<'s> SemanticAnalyser<'s> {
         Self {
             is_in_loop: false,
             is_in_fn: false,
+            is_in_lit_pat: false,
             errors: vec![],
             warnings: vec![],
             source_id,
