@@ -53,14 +53,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                                 &start,
                             ))
                         }
-                        Some(_) => self.error_with_location(
+                        Some(token) => self.error_with_location(
                             AstGenErrorKind::ExpectedOperator,
-                            Some(TokenKindVector::from_row(vec![
+                            Some(TokenKindVector::from_vec(vec![
                                 TokenKind::Dot,
                                 TokenKind::Eq,
                                 TokenKind::Semi,
                             ])),
-                            None,
+                            Some(token.kind),
                             self.next_location(),
                         ),
                         // Special case where there is a expression at the end of the stream and

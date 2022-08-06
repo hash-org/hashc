@@ -225,7 +225,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 }
                 Some(token) => self.error(
                     AstGenErrorKind::Expected,
-                    Some(TokenKindVector::from_row(vec![TokenKind::Comma, TokenKind::Gt])),
+                    Some(TokenKindVector::from_vec(vec![TokenKind::Comma, TokenKind::Gt])),
                     Some(token.kind),
                 )?,
                 None => self.unexpected_eof()?,
@@ -357,7 +357,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 }
                 Some(token) => self.error(
                     AstGenErrorKind::Expected,
-                    Some(TokenKindVector::from_row(vec![TokenKind::Comma, TokenKind::Gt])),
+                    Some(TokenKindVector::from_vec(vec![TokenKind::Comma, TokenKind::Gt])),
                     Some(token.kind),
                 )?,
                 None => self.unexpected_eof()?,

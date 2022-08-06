@@ -1,5 +1,5 @@
-error: Failed to parse
+error: failed to parse
  --> $DIR/case.hash:1:15
 1 |   k := map!{ 1::2 };
   |                 ^ here
-  = note: Expected a name here.
+  = note: expected a name here.

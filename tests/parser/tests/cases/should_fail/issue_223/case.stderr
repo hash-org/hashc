@@ -1,6 +1,7 @@
-error: Failed to parse
+error: failed to parse
  --> $DIR/case.hash:1:36
 1 |   wrap := (res: Result<T, (int, str)>): Result<T, IoError> => match res {
   |                                      ^ here
 2 |   };
-  = note: Expected value assignment after type annotation within named tuple. Consider adding a `=`
+  = note: expected value assignment after type annotation within named tuple.
+  = help: consider adding a `=`

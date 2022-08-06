@@ -1,6 +1,6 @@
-error: Failed to parse
+error: failed to parse
  --> $DIR/case.hash:2:7
 1 |   // Spread patterns are disallowed within namespaces
 2 |   { x,  ...d} := foo();
   |         ^ here
-  = note: Unexpectedly reached the end of input, however received a `.`.
+  = note: unexpectedly reached the end of input, however received a `.`.

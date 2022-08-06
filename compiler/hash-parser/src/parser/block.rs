@@ -44,7 +44,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 (true, _) => block.statements.nodes.push(statement),
                 (false, Some(token)) => self.error(
                     AstGenErrorKind::Expected,
-                    Some(TokenKindVector::from_row(vec![TokenKind::Semi])),
+                    Some(TokenKindVector::singleton(TokenKind::Semi)),
                     Some(token.kind),
                 )?,
                 (false, None) => block.expr = Some(statement),

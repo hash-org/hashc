@@ -1,5 +1,5 @@
-error: Failed to parse
+error: failed to parse
  --> $DIR/case.hash:1:3
 1 |   a<> := b + 2;
   |     ^ here
-  = note: Expected an expression, however received a `>`.
+  = note: expected an expression, however received a `>`.

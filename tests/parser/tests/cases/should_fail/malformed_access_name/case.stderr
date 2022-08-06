@@ -1,6 +1,7 @@
-error: Failed to parse
+error: failed to parse
  --> $DIR/case.hash:7:7
 6 |   
 7 |   a::b:c()
   |         ^^ here
-  = note: Unexpectedly encountered a `(...)`. Consider adding a `;`
+  = note: unexpectedly encountered a `(...)`.
+  = help: consider adding a `;`

@@ -1,7 +1,8 @@
-error: Failed to parse
+error: failed to parse
  --> $DIR/case.hash:5:5
 4 |       has_brother = true // <--- Error should be reported here since there is no comma....
 5 |       age = 12, 
   |       ^^^ here
 6 |       gender = false
-  = note: Unexpectedly encountered the identifier `age`. Consider adding a `,`
+  = note: unexpectedly encountered the identifier `age`.
+  = help: consider adding a `,`

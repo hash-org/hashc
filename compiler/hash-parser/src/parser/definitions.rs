@@ -117,7 +117,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 }
                 token => self.error_with_location(
                     AstGenErrorKind::Expected,
-                    Some(TokenKindVector::from_row(vec![TokenKind::Comma, TokenKind::Gt])),
+                    Some(TokenKindVector::from_vec(vec![TokenKind::Comma, TokenKind::Gt])),
                     token.map(|t| t.kind),
                     token.map_or_else(|| self.next_location(), |t| t.span),
                 )?,

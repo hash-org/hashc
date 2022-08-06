@@ -2,7 +2,7 @@
 //! logic that transforms tokens into an AST.
 use hash_ast::{ast::*, ast_nodes};
 use hash_source::{identifier::CORE_IDENTIFIERS, location::Span};
-use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
+use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind};
 
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
@@ -162,8 +162,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 return self.parse_list_pat(tree, *span);
             }
             token => self.error_with_location(
-                AstGenErrorKind::Expected,
-                Some(TokenKindVector::begin_pat()),
+                AstGenErrorKind::ExpectedPat,
+                None,
                 Some(token.kind),
                 token.span,
             )?,
@@ -391,7 +391,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
             token => self.error_with_location(
                 AstGenErrorKind::Expected,
-                Some(TokenKindVector::begin_visibility()),
+                None,
                 token.map(|t| t.kind),
                 token.map_or_else(|| self.next_location(), |t| t.span),
             ),

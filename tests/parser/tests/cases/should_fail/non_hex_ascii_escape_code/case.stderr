@@ -1,5 +1,5 @@
-error: Failed to parse
+error: failed to parse
  --> $DIR/case.hash:1:8
 1 |   k := '\xhh';
   |          ^ here
-  = note: Encountered unexpected character `h`. ASCII escape code must only contain hex digits
+  = note: encountered unexpected character `h`. ASCII escape code must only contain hex digits

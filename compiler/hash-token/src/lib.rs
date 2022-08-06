@@ -285,7 +285,7 @@ impl TokenKindVector {
     }
 
     /// Create a [TokenKindVector] from a provided row of expected atoms.
-    pub fn from_row(items: Vec<TokenKind>) -> Self {
+    pub fn from_vec(items: Vec<TokenKind>) -> Self {
         Self(items)
     }
 
@@ -302,21 +302,6 @@ impl TokenKindVector {
     #[inline(always)]
     pub fn begin_visibility() -> Self {
         Self(vec![TokenKind::Keyword(Keyword::Pub), TokenKind::Keyword(Keyword::Priv)])
-    }
-
-    /// Tokens expected when the parser expects a collection of patterns to be
-    /// present.
-    pub fn begin_pat_collection() -> Self {
-        Self(vec![TokenKind::Delimiter(Delimiter::Paren, true), TokenKind::Colon])
-    }
-
-    /// Tokens expected when a pattern begins in a match statement.
-    pub fn begin_pat() -> Self {
-        Self(vec![
-            TokenKind::Delimiter(Delimiter::Paren, true),
-            TokenKind::Delimiter(Delimiter::Brace, true),
-            TokenKind::Delimiter(Delimiter::Bracket, true),
-        ])
     }
 }
 
