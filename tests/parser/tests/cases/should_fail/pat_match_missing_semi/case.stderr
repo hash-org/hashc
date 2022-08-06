@@ -1,7 +1,7 @@
-error: Failed to parse
+error: unexpectedly reached the end of input
   --> $DIR/case.hash:10:16
  9 |           };
 10 |           _ => -1
    |                  ^ here
 11 |       };
-   = note: Unexpectedly reached the end of input. Consider adding a `;`
+   = help: consider adding a `;`

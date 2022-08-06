@@ -1,5 +1,4 @@
-error: Failed to parse
+error: encountered unexpected character `'`. ASCII escape code must only contain hex digits
  --> $DIR/case.hash:1:8
 1 |   k := '\x0';
   |          ^^ here
-  = note: Encountered unexpected character `'`. ASCII escape code must only contain hex digits

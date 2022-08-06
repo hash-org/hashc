@@ -6,6 +6,7 @@ pub mod keyword;
 use delimiter::Delimiter;
 use hash_source::{identifier::Identifier, location::Span, string::Str};
 use keyword::Keyword;
+use smallvec::{smallvec, SmallVec};
 
 /// A Lexeme token that represents the smallest code unit of a hash source file.
 /// The token contains a kind which is elaborated by [TokenKind] and a [Span] in
@@ -79,8 +80,12 @@ impl TokenKind {
         )
     }
 
-    /// Check if the current token can begin a pattern
+    /// Check whether a token is a numeric prefix, either being `+` or `-`
+    pub fn is_numeric_prefix(&self) -> bool {
+        matches!(self, TokenKind::Plus | TokenKind::Minus)
+    }
 
+    /// Check if the current token can begin a pattern
     /// Checks if the [TokenKind] must begin a block, as in the specified
     /// keywords that follow a specific syntax, and must be statements.
     pub fn begins_block(&self) -> bool {
@@ -108,6 +113,11 @@ impl TokenKind {
                 | TokenKind::CharLit(_)
                 | TokenKind::StrLit(_)
         )
+    }
+
+    /// Check if the [TokenKind] is a numeric literal
+    pub fn is_numeric(&self) -> bool {
+        matches!(self, TokenKind::IntLit(_) | TokenKind::FloatLit(_))
     }
 }
 
@@ -268,24 +278,24 @@ impl std::fmt::Display for TokenKind {
 /// can use the [`ToString`] trait and just auto cast into a string, whilst
 /// holding a vector of strings.
 #[derive(Debug)]
-pub struct TokenKindVector(Vec<TokenKind>);
+pub struct TokenKindVector(SmallVec<[TokenKind; 2]>);
 
 impl TokenKindVector {
     /// Create a new empty [TokenKindVector].
     pub fn empty() -> Self {
-        Self(vec![])
+        Self(smallvec![])
     }
 
-    pub fn inner(&self) -> &Vec<TokenKind> {
+    pub fn inner(&self) -> &SmallVec<[TokenKind; 2]> {
         &self.0
     }
 
-    pub fn into_inner(self) -> Vec<TokenKind> {
+    pub fn into_inner(self) -> SmallVec<[TokenKind; 2]> {
         self.0
     }
 
     /// Create a [TokenKindVector] from a provided row of expected atoms.
-    pub fn from_row(items: Vec<TokenKind>) -> Self {
+    pub fn from_vec(items: SmallVec<[TokenKind; 2]>) -> Self {
         Self(items)
     }
 
@@ -296,27 +306,12 @@ impl TokenKindVector {
 
     /// Create a [TokenKindVector] with a single atom.
     pub fn singleton(kind: TokenKind) -> Self {
-        Self(vec![kind])
+        Self(smallvec![kind])
     }
 
     #[inline(always)]
     pub fn begin_visibility() -> Self {
-        Self(vec![TokenKind::Keyword(Keyword::Pub), TokenKind::Keyword(Keyword::Priv)])
-    }
-
-    /// Tokens expected when the parser expects a collection of patterns to be
-    /// present.
-    pub fn begin_pat_collection() -> Self {
-        Self(vec![TokenKind::Delimiter(Delimiter::Paren, true), TokenKind::Colon])
-    }
-
-    /// Tokens expected when a pattern begins in a match statement.
-    pub fn begin_pat() -> Self {
-        Self(vec![
-            TokenKind::Delimiter(Delimiter::Paren, true),
-            TokenKind::Delimiter(Delimiter::Brace, true),
-            TokenKind::Delimiter(Delimiter::Bracket, true),
-        ])
+        Self(smallvec![TokenKind::Keyword(Keyword::Pub), TokenKind::Keyword(Keyword::Priv)])
     }
 }
 

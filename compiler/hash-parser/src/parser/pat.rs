@@ -2,7 +2,7 @@
 //! logic that transforms tokens into an AST.
 use hash_ast::{ast::*, ast_nodes};
 use hash_source::{identifier::CORE_IDENTIFIERS, location::Span};
-use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
+use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind};
 
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
@@ -133,6 +133,33 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             // Spread pattern
             token if token.has_kind(TokenKind::Dot) => Pat::Spread(self.parse_spread_pat()?),
 
+            // Numeric literals with numeric prefixes are also allowed
+            token if token.kind.is_numeric_prefix() => {
+                self.skip_token();
+
+                // Should be a numeric
+                match self.peek() {
+                    Some(second) if second.kind.is_numeric() => {
+                        self.skip_token();
+
+                        let is_negated = matches!(token.kind, TokenKind::Minus);
+
+                        let mut lit = self.parse_numeric_lit(is_negated);
+                        let adjusted_span = token.span.join(lit.span());
+                        lit.set_span(adjusted_span);
+
+                        Pat::Lit(LitPat { lit })
+                    }
+                    // @@Future: could refine error here to be more specific about numeric literals
+                    token => self.error_with_location(
+                        AstGenErrorKind::ExpectedPat,
+                        None,
+                        token.map(|tok| tok.kind),
+                        token.map_or_else(|| self.current_location(), |tok| tok.span),
+                    )?,
+                }
+            }
+
             // Literal patterns
             token if token.kind.is_lit() => {
                 self.skip_token();
@@ -162,8 +189,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 return self.parse_list_pat(tree, *span);
             }
             token => self.error_with_location(
-                AstGenErrorKind::Expected,
-                Some(TokenKindVector::begin_pat()),
+                AstGenErrorKind::ExpectedPat,
+                None,
                 Some(token.kind),
                 token.span,
             )?,
@@ -373,7 +400,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
             token => self.error_with_location(
                 AstGenErrorKind::Expected,
-                Some(TokenKindVector::begin_visibility()),
+                None,
                 token.map(|t| t.kind),
                 token.map_or_else(|| self.next_location(), |t| t.span),
             ),
@@ -387,10 +414,17 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn begins_pat(&self) -> bool {
         // Perform the initial pattern component lookahead
         let mut n_lookahead = match self.peek() {
-            // Literals are allowed, but they must be immediately followed
+            // literals are allowed, but they must be immediately followed
             // by a colon
             Some(token) if token.kind.is_lit() => {
                 return matches!(self.peek_second(), Some(token) if token.has_kind(TokenKind::Colon));
+            }
+            // negation/positive operators on numerics are also allowed
+            Some(Token { kind: TokenKind::Minus | TokenKind::Plus, .. }) => {
+                match self.peek_second() {
+                    Some(token) if token.kind.is_numeric() => 2,
+                    _ => return false,
+                }
             }
             // Namespace, List, Tuple, etc.
             Some(Token { kind: TokenKind::Tree(_, _), .. }) => 1,

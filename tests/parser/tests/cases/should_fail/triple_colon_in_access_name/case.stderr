@@ -1,5 +1,4 @@
-error: Failed to parse
+error: expected a name here
  --> $DIR/case.hash:1:7
 1 |   a::b:::c<int>();
   |         ^ here
-  = note: Expected a name here.

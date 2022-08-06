@@ -1,0 +1,6 @@
+error: unexpectedly encountered a `=`
+ --> $DIR/case.hash:2:2
+1 |   // Should report that it unexpectedly encountered `=`
+2 |   <=>a
+  |    ^ here
+  = help: consider adding a `>`

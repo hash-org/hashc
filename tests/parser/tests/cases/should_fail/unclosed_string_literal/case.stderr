@@ -1,5 +1,4 @@
-error: Failed to parse
+error: unclosed string literal
  --> $DIR/case.hash:1:2
 1 |   "a
   |    ^^ here
-  = note: Unclosed string literal

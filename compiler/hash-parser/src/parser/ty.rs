@@ -1,9 +1,9 @@
 //! Hash Compiler AST generation sources. This file contains the sources to the
 //! logic that transforms tokens into an AST.
+use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 use hash_ast::ast::*;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
-
-use super::{error::AstGenErrorKind, AstGen, AstGenResult};
+use smallvec::smallvec;
 
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a [Ty]. This includes all forms of a [Ty]. This function
@@ -225,7 +225,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 }
                 Some(token) => self.error(
                     AstGenErrorKind::Expected,
-                    Some(TokenKindVector::from_row(vec![TokenKind::Comma, TokenKind::Gt])),
+                    Some(TokenKindVector::from_vec(smallvec![TokenKind::Comma, TokenKind::Gt])),
                     Some(token.kind),
                 )?,
                 None => self.unexpected_eof()?,
@@ -357,7 +357,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 }
                 Some(token) => self.error(
                     AstGenErrorKind::Expected,
-                    Some(TokenKindVector::from_row(vec![TokenKind::Comma, TokenKind::Gt])),
+                    Some(TokenKindVector::from_vec(smallvec![TokenKind::Comma, TokenKind::Gt])),
                     Some(token.kind),
                 )?,
                 None => self.unexpected_eof()?,
