@@ -2,20 +2,27 @@
 //! to manually call the corresponding stores.
 use crate::storage::{
     location::LocationTarget,
+    mods::ModDefId,
+    nominals::NominalDefId,
+    pats::PatId,
     primitives::{
         AccessOp, AccessPat, AccessTerm, Arg, ArgsId, BindingPat, BoundVar, ConstPat,
         ConstructedTerm, ConstructorPat, EnumDef, EnumVariant, EnumVariantValue, FnCall, FnLit,
         FnTy, IfPat, Level0Term, Level1Term, Level2Term, Level3Term, ListPat, LitTerm, Member,
-        ModDef, ModDefId, ModDefOrigin, ModPat, Mutability, NominalDef, NominalDefId, Param,
-        ParamList, ParamsId, Pat, PatArg, PatArgsId, PatId, Scope, ScopeId, ScopeKind, ScopeVar,
-        SetBound, StructDef, StructFields, Term, TermId, TrtDef, TrtDefId, TupleLit, TupleTy, TyFn,
-        TyFnCall, TyFnCase, TyFnTy, UnresolvedTerm, Var, Visibility,
+        ModDef, ModDefOrigin, ModPat, Mutability, NominalDef, Param, ParamList, ParamsId, Pat,
+        PatArg, PatArgsId, Scope, ScopeKind, ScopeVar, SetBound, StructDef, StructFields, Term,
+        TrtDef, TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy, UnresolvedTerm, Var,
+        Visibility,
     },
+    scope::ScopeId,
+    terms::TermId,
+    trts::TrtDefId,
     GlobalStorage,
 };
 use hash_ast::ast::ParamOrigin;
 use hash_source::{identifier::Identifier, location::SourceLocation};
-use std::cell::{Cell, RefCell};
+use hash_utils::store::Store;
+use std::cell::Cell;
 
 /// Helper to create various primitive constructions (from
 /// [crate::storage::primitives]).
@@ -27,27 +34,22 @@ pub struct PrimitiveBuilder<'gs> {
     //
     // *Important*: Should ensure that each method starts and ends the borrow within itself and
     // doesn't call any other methods in between, otherwise it will cause a panic.
-    gs: RefCell<&'gs mut GlobalStorage>,
+    gs: &'gs GlobalStorage,
     scope: Cell<Option<ScopeId>>,
 }
 
 impl<'gs> PrimitiveBuilder<'gs> {
     /// Create a new [PrimitiveBuilder] with a given scope.
-    pub fn new(gs: &'gs mut GlobalStorage) -> Self {
-        Self { gs: RefCell::new(gs), scope: Cell::new(None) }
-    }
-
-    /// Release [Self], returning the original [GlobalStorage].
-    pub fn release(self) -> &'gs mut GlobalStorage {
-        self.gs.into_inner()
+    pub fn new(gs: &'gs GlobalStorage) -> Self {
+        Self { gs, scope: Cell::new(None) }
     }
 
     /// Create a new [PrimitiveBuilder] with a given scope.
     ///
     /// This adds every constructed item into the scope with their given names
     /// (if any).
-    pub fn new_with_scope(gs: &'gs mut GlobalStorage, scope: ScopeId) -> Self {
-        Self { gs: RefCell::new(gs), scope: Cell::new(Some(scope)) }
+    pub fn new_with_scope(gs: &'gs GlobalStorage, scope: ScopeId) -> Self {
+        Self { gs, scope: Cell::new(Some(scope)) }
     }
 
     /// Create a variable with the given name.
@@ -120,7 +122,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
         members: ScopeId,
     ) -> ModDefId {
         let name = name.map(Into::into);
-        let def_id = self.gs.borrow_mut().mod_def_store.create(ModDef { name, members, origin });
+        let def_id = self.gs.mod_def_store.create(ModDef { name, members, origin });
         if let Some(name) = name {
             self.add_mod_def_to_scope(name, def_id, origin);
         }
@@ -129,12 +131,9 @@ impl<'gs> PrimitiveBuilder<'gs> {
 
     /// Create a nameless struct with opaque fields.
     pub fn create_nameless_opaque_struct_def(&self) -> NominalDefId {
-        let def_id = self
-            .gs
-            .borrow_mut()
+        self.gs
             .nominal_def_store
-            .create(NominalDef::Struct(StructDef { name: None, fields: StructFields::Opaque }));
-        def_id
+            .create(NominalDef::Struct(StructDef { name: None, fields: StructFields::Opaque }))
     }
 
     /// Create a struct with the given name and opaque fields.
@@ -142,7 +141,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// This adds the name to the scope.
     pub fn create_opaque_struct_def(&self, struct_name: impl Into<Identifier>) -> NominalDefId {
         let name = struct_name.into();
-        let def_id = self.gs.borrow_mut().nominal_def_store.create(NominalDef::Struct(StructDef {
+        let def_id = self.gs.nominal_def_store.create(NominalDef::Struct(StructDef {
             name: Some(name),
             fields: StructFields::Opaque,
         }));
@@ -170,7 +169,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
         fields: ParamsId,
     ) -> NominalDefId {
         let name = struct_name.into();
-        let def_id = self.gs.borrow_mut().nominal_def_store.create(NominalDef::Struct(StructDef {
+        let def_id = self.gs.nominal_def_store.create(NominalDef::Struct(StructDef {
             name: Some(name),
             fields: StructFields::Explicit(fields),
         }));
@@ -180,12 +179,10 @@ impl<'gs> PrimitiveBuilder<'gs> {
     }
 
     pub fn create_nameless_struct_def(&self, fields: ParamsId) -> NominalDefId {
-        let def_id = self.gs.borrow_mut().nominal_def_store.create(NominalDef::Struct(StructDef {
+        self.gs.nominal_def_store.create(NominalDef::Struct(StructDef {
             name: None,
             fields: StructFields::Explicit(fields),
-        }));
-
-        def_id
+        }))
     }
 
     /// Create an enum variant value term ([Level0Term::EnumVariant]).
@@ -221,11 +218,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
         let variants = variants.into_iter().map(|variant| (variant.name, variant)).collect();
 
         // let name = enum_name.into();
-        let def_id = self
-            .gs
-            .borrow_mut()
-            .nominal_def_store
-            .create(NominalDef::Enum(EnumDef { name, variants }));
+        let def_id = self.gs.nominal_def_store.create(NominalDef::Enum(EnumDef { name, variants }));
 
         // Only add the enum def to the scope if it has a name...
         if let Some(name) = name {
@@ -246,7 +239,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
     pub fn add_pub_member_to_scope(&self, name: impl Into<Identifier>, ty: TermId, value: TermId) {
         let member = Member::open_constant(name.into(), Visibility::Public, ty, value);
         if let Some(scope) = self.scope.get() {
-            self.gs.borrow_mut().scope_store.get_mut(scope).add(member);
+            self.gs.scope_store.modify_fast(scope, |scope| scope.add(member));
         }
     }
 
@@ -383,12 +376,12 @@ impl<'gs> PrimitiveBuilder<'gs> {
 
     /// Create a term with the given term value.
     pub fn create_term(&self, term: Term) -> TermId {
-        self.gs.borrow_mut().term_store.create(term)
+        self.gs.term_store.create(term)
     }
 
     /// Create a pattern with the given pattern value.
     pub fn create_pat(&self, pat: Pat) -> PatId {
-        self.gs.borrow_mut().pat_store.create(pat)
+        self.gs.pat_store.create(pat)
     }
 
     /// Create a [Level1Term::Fn] term with the given parameters and return
@@ -409,7 +402,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
         members: impl IntoIterator<Item = Member>,
     ) -> ScopeId {
         let scope = Scope::new(kind, members);
-        self.gs.borrow_mut().scope_store.create(scope)
+        self.gs.scope_store.create(scope)
     }
 
     /// Create a trait definition either being named or nameless.
@@ -420,7 +413,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
     ) -> TrtDefId {
         let name = trait_name.map(|t| t.into());
 
-        let trt_def_id = self.gs.borrow_mut().trt_def_store.create(TrtDef { name, members });
+        let trt_def_id = self.gs.trt_def_store.create(TrtDef { name, members });
         let trt_def_ty = self.create_trt_kind_term();
         let trt_def_value = self.create_trt_term(trt_def_id);
 
@@ -435,8 +428,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
     pub fn create_nameless_trt_def(&self, members: impl Iterator<Item = Member>) -> TrtDefId {
         let members = self.create_scope(ScopeKind::Constant, members);
 
-        let trt_def_id = self.gs.borrow_mut().trt_def_store.create(TrtDef { name: None, members });
-        trt_def_id
+        self.gs.trt_def_store.create(TrtDef { name: None, members })
     }
 
     /// Create [Level1Term::ModDef] with the given [ModDefId].
@@ -459,16 +451,20 @@ impl<'gs> PrimitiveBuilder<'gs> {
         params: impl IntoIterator<Item = Param>,
         origin: ParamOrigin,
     ) -> ParamsId {
-        let params = ParamList::new(params.into_iter().collect(), origin);
-        self.gs.borrow_mut().params_store.create(params)
+        let _params = ParamList::new(params.into_iter().collect(), origin);
+        // self.gs.params_store.create(params)
+        // @@Todo: immutable params
+        todo!()
     }
 
     /// Create a [ArgsId] from an iterator of [Arg]. This function wil create a
     /// [Args](crate::storage::primitives::Args), append it to the store and
     /// return  the created id.
     pub fn create_args(&self, args: impl IntoIterator<Item = Arg>, origin: ParamOrigin) -> ArgsId {
-        let params = ParamList::new(args.into_iter().collect(), origin);
-        self.gs.borrow_mut().args_store.create(params)
+        let _params = ParamList::new(args.into_iter().collect(), origin);
+        // self.gs.args_store.create(params)
+        // @@Todo: immutable args
+        todo!()
     }
 
     /// Create a nameless type function term with parameters, return type and
@@ -532,7 +528,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
 
     /// Create a new unresolved term value, of type [Term::Unresolved].
     pub fn create_unresolved(&self) -> UnresolvedTerm {
-        let resolution_id = self.gs.borrow().term_store.new_resolution_id();
+        let resolution_id = self.gs.term_store.new_resolution_id();
         UnresolvedTerm { resolution_id }
     }
 
@@ -578,8 +574,10 @@ impl<'gs> PrimitiveBuilder<'gs> {
         args: impl IntoIterator<Item = PatArg>,
         origin: ParamOrigin,
     ) -> PatArgsId {
-        let args = ParamList::new(args.into_iter().collect(), origin);
-        self.gs.borrow_mut().pat_args_store.create(args)
+        let _args = ParamList::new(args.into_iter().collect(), origin);
+        // self.gs.pat_args_store.create(args)
+        // @@Todo: immutable args
+        todo!()
     }
 
     /// Create a pattern parameter
@@ -658,6 +656,6 @@ impl<'gs> PrimitiveBuilder<'gs> {
         target: impl Into<LocationTarget>,
         location: SourceLocation,
     ) {
-        self.gs.borrow_mut().location_store.add_location_to_target(target, location);
+        self.gs.location_store.add_location_to_target(target, location);
     }
 }

@@ -13,10 +13,12 @@ use crate::{
     },
     ops::{validate::TermValidation, AccessToOpsMut},
     storage::{
+        pats::PatId,
         primitives::{
             AccessOp, AccessPat, ConstPat, ConstructorPat, IfPat, ListPat, Member, ModPat,
-            Mutability, Param, Pat, PatArg, PatId, SpreadPat, TermId,
+            Mutability, Param, Pat, PatArg, SpreadPat,
         },
+        terms::TermId,
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
 };

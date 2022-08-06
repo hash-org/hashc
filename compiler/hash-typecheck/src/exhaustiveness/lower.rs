@@ -6,15 +6,18 @@ use crate::{
     diagnostics::macros::tc_panic,
     ops::AccessToOps,
     storage::{
+        pats::PatId,
         primitives::{
             ConstructorPat, DeconstructedPatId, IfPat, Level0Term, Level1Term, ListPat, LitTerm,
-            ModDef, ModPat, NominalDef, Pat, PatArg, PatArgsId, PatId, ScopeKind, SpreadPat,
-            StructFields, Term, TermId, TupleTy,
+            ModDef, ModPat, NominalDef, Pat, PatArg, PatArgsId, ScopeKind, SpreadPat, StructFields,
+            Term, TupleTy,
         },
+        terms::TermId,
         AccessToStorage, StorageRef,
     },
 };
 
+use hash_utils::store::Store;
 use if_chain::if_chain;
 use itertools::Itertools;
 use smallvec::SmallVec;
@@ -74,8 +77,8 @@ impl<'tc> LowerPatOps<'tc> {
 
                 let scope = match reader.get_term(ty) {
                     Term::Level1(Level1Term::ModDef(id)) => {
-                        let ModDef { members, .. } = reader.get_mod_def(*id);
-                        let scope = self.scope_store().get(*members);
+                        let ModDef { members, .. } = reader.get_mod_def(id);
+                        let scope = self.scope_store().get(members);
 
                         // We should be in a constant scope
                         assert!(scope.kind == ScopeKind::Constant);
@@ -115,14 +118,14 @@ impl<'tc> LowerPatOps<'tc> {
             Pat::Range(_) => todo!(),
             Pat::Lit(term) => match reader.get_term(term) {
                 Term::Level0(Level0Term::Lit(lit)) => match lit {
-                    LitTerm::Str(value) => (DeconstructedCtor::Str(*value), vec![]),
+                    LitTerm::Str(value) => (DeconstructedCtor::Str(value), vec![]),
                     LitTerm::Int { value, kind } => {
-                        let value = Constant::from_int(value.clone(), *kind, term);
+                        let value = Constant::from_int(value, kind, term);
                         let range = self.int_range_ops().range_from_constant(value);
                         (DeconstructedCtor::IntRange(range), vec![])
                     }
                     LitTerm::Char(value) => {
-                        let value = Constant::from_char(*value, term);
+                        let value = Constant::from_char(value, term);
                         let range = self.int_range_ops().range_from_constant(value);
                         (DeconstructedCtor::IntRange(range), vec![])
                     }
@@ -136,7 +139,7 @@ impl<'tc> LowerPatOps<'tc> {
                 // wildcard fields for all of the inner types
                 match reader.get_term(ty) {
                     Term::Level1(Level1Term::Tuple(TupleTy { members })) => {
-                        let members = reader.get_params(*members).clone();
+                        let members = reader.get_params(members).clone();
 
                         // Create wild-cards for all of the tuple inner members
                         let mut wilds: SmallVec<[_; 2]> = members
@@ -167,7 +170,7 @@ impl<'tc> LowerPatOps<'tc> {
                     Term::Level1(Level1Term::NominalDef(nominal_def)) => {
                         let fields = self.pat_lowerer().deconstruct_pat_fields(args);
 
-                        let (ctor, members) = match reader.get_nominal_def(*nominal_def) {
+                        let (ctor, members) = match reader.get_nominal_def(nominal_def) {
                             NominalDef::Struct(struct_def) => match struct_def.fields {
                                 StructFields::Explicit(members) => {
                                     (DeconstructedCtor::Single, members)

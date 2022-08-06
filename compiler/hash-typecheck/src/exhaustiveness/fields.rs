@@ -14,9 +14,9 @@ use crate::{
     ops::AccessToOps,
     storage::{
         primitives::{
-            ConstructorId, DeconstructedPatId, Level1Term, NominalDef, StructFields, Term, TermId,
-            TupleTy,
+            ConstructorId, DeconstructedPatId, Level1Term, NominalDef, StructFields, Term, TupleTy,
         },
+        terms::TermId,
         AccessToStorage, StorageRef,
     },
 };
@@ -86,13 +86,13 @@ impl<'tc> FieldOps<'tc> {
 
                 match reader.get_term(ctx.ty) {
                     Term::Level1(Level1Term::Tuple(TupleTy { members })) => {
-                        let members = reader.get_params(*members);
+                        let members = reader.get_params(members);
                         let tys = members.positional().iter().map(|member| member.ty).collect_vec();
 
                         self.wildcards_from_tys(tys)
                     }
                     Term::Level1(Level1Term::NominalDef(def)) => {
-                        match reader.get_nominal_def(*def) {
+                        match reader.get_nominal_def(def) {
                             NominalDef::Struct(struct_def) => match struct_def.fields {
                                 StructFields::Explicit(params) => {
                                     let members = reader.get_params(params);

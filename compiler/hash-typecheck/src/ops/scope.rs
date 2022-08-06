@@ -9,14 +9,16 @@ use crate::{
     },
     storage::{
         primitives::{
-            ArgsId, BoundVar, Member, Mutability, ParamsId, ScopeId, ScopeKind, ScopeMember,
-            ScopeVar, TermId,
+            ArgsId, BoundVar, Member, Mutability, ParamsId, ScopeKind, ScopeMember, ScopeVar,
         },
+        scope::ScopeId,
+        terms::TermId,
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
 };
 use hash_reporting::{report::Report, writer};
 use hash_source::identifier::Identifier;
+use hash_utils::store::Store;
 
 /// Contains actions related to variable resolution.
 pub struct ScopeManager<'tc> {
@@ -139,7 +141,7 @@ impl<'tc> ScopeManager<'tc> {
         scope: ScopeId,
         mut include_member: impl FnMut(&Member) -> bool,
     ) -> ScopeId {
-        let original_scope = self.reader().get_scope(scope).clone();
+        let original_scope = self.reader().get_scope(scope);
         let new_scope = self.builder().create_scope(
             original_scope.kind,
             original_scope.members.iter().filter(|member| include_member(member)).copied(),
@@ -237,34 +239,36 @@ impl<'tc> ScopeManager<'tc> {
         index: usize,
         value: TermId,
     ) -> TcResult<()> {
-        let member = self.scope_store_mut().get_mut(scope_id).get_by_index(index);
+        let member = self.scope_store().map_fast(scope_id, |scope| scope.get_by_index(index));
 
         // Unify types:
         let rhs_ty = self.typer().infer_ty_of_term(value)?;
         let _ = self.unifier().unify_terms(rhs_ty, member.ty())?;
 
-        let member = self.scope_store_mut().get_mut(scope_id).get_mut_by_index(index);
-        // @@Todo: add back once this is property implemented
-        // if member.is_closed() {
-        //     tc_panic!(value, self, "Cannot assign to closed member");
-        // }
+        self.scope_store().modify_fast(scope_id, |scope| {
+            let member = scope.get_mut_by_index(index);
 
-        match member {
-            Member::Bound(_) | Member::SetBound(_) => {
-                // @@Todo: refine this error
-                Err(TcError::InvalidAssignSubject { location: (scope_id, index).into() })
+            // @@Todo: add back once this is property implemented
+            // if member.is_closed() {
+            //     tc_panic!(value, self, "Cannot assign to closed member");
+            // }
+            match member {
+                Member::Bound(_) | Member::SetBound(_) => {
+                    // @@Todo: refine this error
+                    Err(TcError::InvalidAssignSubject { location: (scope_id, index).into() })
+                }
+                Member::Variable(variable) => {
+                    // Assign
+                    // @@Todo: check if mutable
+                    variable.value = value;
+                    Ok(())
+                }
+                Member::Constant(constant) => {
+                    // @@Todo implement this properly
+                    constant.set_value(value);
+                    Ok(())
+                }
             }
-            Member::Variable(variable) => {
-                // Assign
-                // @@Todo: check if mutable
-                variable.value = value;
-                Ok(())
-            }
-            Member::Constant(constant) => {
-                // @@Todo implement this properly
-                constant.set_value(value);
-                Ok(())
-            }
-        }
+        })
     }
 }

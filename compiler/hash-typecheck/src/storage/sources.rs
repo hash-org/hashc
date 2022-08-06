@@ -1,8 +1,7 @@
 //! Contains structures to keep track of which sources have been typechecked.
-use super::primitives::TermId;
-
+use super::terms::TermId;
 use hash_source::SourceId;
-use std::collections::HashMap;
+use hash_utils::store::{DefaultPartialStore, PartialStore};
 
 /// Contains a record of all the sources which have been typechecked, and maps
 /// them to (ModDefId)[crate::storage::primitives::ModDefId]s.
@@ -12,7 +11,7 @@ pub struct CheckedSources {
     ///
     /// No [SourceId::Interactive] entries should exist as this
     /// would be an invariant.
-    data: HashMap<SourceId, TermId>,
+    data: DefaultPartialStore<SourceId, TermId>,
 }
 
 impl CheckedSources {
@@ -21,12 +20,12 @@ impl CheckedSources {
     }
 
     /// Mark a given source as checked, by providing its module term.
-    pub fn mark_checked(&mut self, source_id: SourceId, mod_def_term: TermId) {
+    pub fn mark_checked(&self, source_id: SourceId, mod_def_term: TermId) {
         self.data.insert(source_id, mod_def_term);
     }
 
     /// Get the module term of the given source if it has already been checked.
     pub fn source_mod_def(&self, source_id: SourceId) -> Option<TermId> {
-        self.data.get(&source_id).copied()
+        self.data.get(source_id)
     }
 }

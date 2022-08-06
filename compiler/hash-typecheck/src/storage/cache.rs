@@ -1,19 +1,16 @@
 //! Typechecking operations cache storing results for previous simplifications,
 //! unifications, and validations.
 
+use super::{primitives::Sub, terms::TermId};
+use crate::ops::validate::TermValidation;
+use hash_utils::store::{DefaultPartialStore, PartialStore};
+use log::log_enabled;
 use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
     fmt::Display,
     hash::Hash,
 };
-
-use hash_utils::store::{DefaultPartialStore, PartialStore};
-use log::log_enabled;
-
-use crate::ops::validate::TermValidation;
-
-use super::primitives::{Sub, TermId};
 
 #[derive(Debug)]
 pub struct CacheMetrics {

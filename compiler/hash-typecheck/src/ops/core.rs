@@ -1,13 +1,12 @@
 //! Functionality related to determining properties about terms and other
 //! constructs.
-use hash_source::identifier::{Identifier, CORE_IDENTIFIERS};
-
+use super::AccessToOps;
 use crate::storage::{
-    primitives::{Member, TermId},
-    AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
+    primitives::Member, terms::TermId, AccessToStorage, AccessToStorageMut, StorageRef,
+    StorageRefMut,
 };
-
-use super::AccessToOpsMut;
+use hash_source::identifier::{Identifier, CORE_IDENTIFIERS};
+use hash_utils::store::Store;
 
 pub struct CoreDefReader<'tc> {
     storage: StorageRefMut<'tc>,
@@ -33,7 +32,7 @@ impl<'tc> CoreDefReader<'tc> {
     /// Resolve the given core definition by name.
     ///
     /// Panics if the core definition doesn't exist.
-    pub fn resolve_core_def(&mut self, var_name: Identifier) -> TermId {
+    pub fn resolve_core_def(&self, var_name: Identifier) -> TermId {
         let root_scope = self.global_storage().root_scope;
         let (resolved, index) = self
             .scope_store()
@@ -50,95 +49,95 @@ impl<'tc> CoreDefReader<'tc> {
         }
     }
 
-    pub fn str_ty(&mut self) -> TermId {
+    pub fn str_ty(&self) -> TermId {
         self.resolve_core_def(CORE_IDENTIFIERS.str)
     }
 
-    pub fn list_ty_fn(&mut self) -> TermId {
+    pub fn list_ty_fn(&self) -> TermId {
         self.resolve_core_def(CORE_IDENTIFIERS.List)
     }
 
-    pub fn map_ty_fn(&mut self) -> TermId {
+    pub fn map_ty_fn(&self) -> TermId {
         self.resolve_core_def(CORE_IDENTIFIERS.Map)
     }
 
-    pub fn set_ty_fn(&mut self) -> TermId {
+    pub fn set_ty_fn(&self) -> TermId {
         self.resolve_core_def(CORE_IDENTIFIERS.Set)
     }
 
-    pub fn i8_ty(&mut self) -> TermId {
+    pub fn i8_ty(&self) -> TermId {
         self.resolve_core_def(CORE_IDENTIFIERS.i8)
     }
 
-    pub fn i16_ty(&mut self) -> TermId {
+    pub fn i16_ty(&self) -> TermId {
         self.resolve_core_def(CORE_IDENTIFIERS.i16)
     }
 
-    pub fn i32_ty(&mut self) -> TermId {
+    pub fn i32_ty(&self) -> TermId {
         self.resolve_core_def(CORE_IDENTIFIERS.i32)
     }
 
-    pub fn i64_ty(&mut self) -> TermId {
+    pub fn i64_ty(&self) -> TermId {
         self.resolve_core_def(CORE_IDENTIFIERS.i64)
     }
 
-    pub fn u8_ty(&mut self) -> TermId {
+    pub fn u8_ty(&self) -> TermId {
         self.resolve_core_def(CORE_IDENTIFIERS.u8)
     }
 
-    pub fn u16_ty(&mut self) -> TermId {
+    pub fn u16_ty(&self) -> TermId {
         self.resolve_core_def(CORE_IDENTIFIERS.u16)
     }
 
-    pub fn u32_ty(&mut self) -> TermId {
+    pub fn u32_ty(&self) -> TermId {
         self.resolve_core_def(CORE_IDENTIFIERS.u32)
     }
 
-    pub fn u64_ty(&mut self) -> TermId {
+    pub fn u64_ty(&self) -> TermId {
         self.resolve_core_def(CORE_IDENTIFIERS.u64)
     }
 
-    pub fn f32_ty(&mut self) -> TermId {
+    pub fn f32_ty(&self) -> TermId {
         self.resolve_core_def(CORE_IDENTIFIERS.f32)
     }
 
-    pub fn f64_ty(&mut self) -> TermId {
+    pub fn f64_ty(&self) -> TermId {
         self.resolve_core_def(CORE_IDENTIFIERS.f64)
     }
 
-    pub fn char_ty(&mut self) -> TermId {
+    pub fn char_ty(&self) -> TermId {
         self.resolve_core_def(CORE_IDENTIFIERS.char)
     }
 
-    pub fn bool_ty(&mut self) -> TermId {
+    pub fn bool_ty(&self) -> TermId {
         self.resolve_core_def(CORE_IDENTIFIERS.bool)
     }
 
-    pub fn reference_ty_fn(&mut self) -> TermId {
+    pub fn reference_ty_fn(&self) -> TermId {
         self.resolve_core_def(CORE_IDENTIFIERS.Ref)
     }
 
-    pub fn reference_mut_ty_fn(&mut self) -> TermId {
+    pub fn reference_mut_ty_fn(&self) -> TermId {
         self.resolve_core_def(CORE_IDENTIFIERS.RefMut)
     }
 
-    pub fn raw_reference_ty_fn(&mut self) -> TermId {
+    pub fn raw_reference_ty_fn(&self) -> TermId {
         self.resolve_core_def(CORE_IDENTIFIERS.RawRefMut)
     }
 
-    pub fn raw_reference_mut_ty_fn(&mut self) -> TermId {
+    pub fn raw_reference_mut_ty_fn(&self) -> TermId {
         self.resolve_core_def(CORE_IDENTIFIERS.RawRefMut)
     }
 
-    pub fn hash_trt(&mut self) -> TermId {
+    pub fn hash_trt(&self) -> TermId {
         self.resolve_core_def(CORE_IDENTIFIERS.Hash)
     }
 
-    pub fn eq_trt(&mut self) -> TermId {
+    pub fn eq_trt(&self) -> TermId {
         self.resolve_core_def(CORE_IDENTIFIERS.Eq)
     }
 
-    pub fn index_trt(&mut self) -> TermId {
+    pub fn index_trt(&self) -> TermId {
         self.resolve_core_def(CORE_IDENTIFIERS.Index)
     }
 }

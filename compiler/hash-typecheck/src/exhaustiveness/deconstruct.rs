@@ -5,24 +5,22 @@
 //! [Pat] with any of the inner fields of the [Pat] being represented
 //! as child [DeconstructedPat]s stored within the `fields` parameter
 //! of the structure.
-use std::{cell::Cell, fmt::Debug};
-
-use itertools::Itertools;
-use smallvec::SmallVec;
-
+use super::{construct::DeconstructedCtor, fields::Fields, AccessToUsefulnessOps};
 use crate::{
     exhaustiveness::{list::ListKind, PatCtx},
     fmt::{ForFormatting, PrepareForFormatting},
     ops::AccessToOps,
     storage::{
-        primitives::{
-            ConstructorId, DeconstructedPatId, Level1Term, NominalDef, PatId, Term, TermId,
-        },
+        pats::PatId,
+        primitives::{ConstructorId, DeconstructedPatId, Level1Term, NominalDef, Term},
+        terms::TermId,
         AccessToStorage, StorageRef,
     },
 };
-
-use super::{construct::DeconstructedCtor, fields::Fields, AccessToUsefulnessOps};
+use hash_utils::store::Store;
+use itertools::Itertools;
+use smallvec::SmallVec;
+use std::{cell::Cell, fmt::Debug};
 
 /// A [DeconstructedPat] is a representation of a [DeconstructedCtor] that is
 /// split between the constructor subject `ctor` and the `fields` that the
@@ -214,7 +212,7 @@ impl Debug for ForFormatting<'_, DeconstructedPatId> {
                 // variant name...
                 match term {
                     Term::Level1(Level1Term::NominalDef(nominal_def)) => {
-                        match self.global_storage.nominal_def_store.get(*nominal_def) {
+                        match self.global_storage.nominal_def_store.get(nominal_def) {
                             NominalDef::Struct(struct_def) => {
                                 if let Some(name) = struct_def.name {
                                     write!(f, "{}", name)?;

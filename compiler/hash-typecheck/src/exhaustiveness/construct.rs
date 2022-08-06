@@ -24,12 +24,10 @@
 //!
 //! In other words, all the possible (valid) values of the `char` type.
 //! A similar process occurs with all other wildcard types,
-use hash_source::{
-    location::{SourceLocation, Span},
-    string::Str,
+use super::{
+    range::{IntRange, SplitIntRange},
+    AccessToUsefulnessOps,
 };
-use smallvec::{smallvec, SmallVec};
-
 use crate::{
     diagnostics::macros::tc_panic,
     exhaustiveness::{
@@ -42,11 +40,11 @@ use crate::{
         AccessToStorage, StorageRef,
     },
 };
-
-use super::{
-    range::{IntRange, SplitIntRange},
-    AccessToUsefulnessOps,
+use hash_source::{
+    location::{SourceLocation, Span},
+    string::Str,
 };
+use smallvec::{smallvec, SmallVec};
 
 /// The [DeconstructedCtor] represents the type of constructor that a pattern
 /// is.
@@ -135,10 +133,10 @@ impl<'tc> ConstructorOps<'tc> {
 
                 match reader.get_term(ctx.ty) {
                     Term::Level1(Level1Term::Tuple(TupleTy { members })) => {
-                        reader.get_params(*members).len()
+                        reader.get_params(members).len()
                     }
                     Term::Level1(Level1Term::NominalDef(def)) => {
-                        match reader.get_nominal_def(*def) {
+                        match reader.get_nominal_def(def) {
                             NominalDef::Struct(struct_def) => match struct_def.fields {
                                 StructFields::Explicit(params) => reader.get_params(params).len(),
                                 StructFields::Opaque => 0,

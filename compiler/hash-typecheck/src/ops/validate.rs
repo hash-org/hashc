@@ -1,4 +1,6 @@
 //! Contains utilities to validate terms.
+use hash_utils::store::Store;
+
 use super::{scope::ScopeManager, AccessToOps, AccessToOpsMut};
 use crate::{
     diagnostics::{
@@ -8,12 +10,15 @@ use crate::{
     },
     ops::params::validate_param_list_ordering,
     storage::{
+        mods::ModDefId,
+        nominals::NominalDefId,
         primitives::{
-            ArgsId, ConstructedTerm, FnTy, Level0Term, Level1Term, Level2Term, Member, ModDefId,
-            ModDefOrigin, NominalDef, NominalDefId, ParamsId, Scope, ScopeId, ScopeKind,
-            StructFields, Term, TermId, TrtDefId,
+            ArgsId, ConstructedTerm, FnTy, Level0Term, Level1Term, Level2Term, Member,
+            ModDefOrigin, NominalDef, ParamsId, Scope, ScopeKind, StructFields, Term,
         },
-        terms::TermStore,
+        scope::ScopeId,
+        terms::{TermId, TermStore},
+        trts::TrtDefId,
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
 };
@@ -144,11 +149,11 @@ impl<'tc> Validator<'tc> {
         let progressive_scope_id = self.scope_store_mut().create(progressive_scope);
         ScopeManager::enter_scope_with(self, progressive_scope_id, |this| {
             // @@Performance: sad that we have to clone here:
-            let scope = this.reader().get_scope(scope_id).clone();
+            let scope = this.reader().get_scope(scope_id);
             for member in scope.iter() {
                 // Add the member to the progressive scope so that this and next members can
                 // access it.
-                this.scope_store_mut().get_mut(progressive_scope_id).add(member);
+                this.scope_store_mut().modify_fast(progressive_scope_id, |scope| scope.add(member));
 
                 // Initialisation check
                 if !allow_uninitialised {
@@ -199,13 +204,13 @@ impl<'tc> Validator<'tc> {
         scope_originating_term_id: TermId,
         scope_id: ScopeId,
     ) -> TcResult<()> {
-        let scope = self.reader().get_scope(scope_id).clone();
+        let scope = self.reader().get_scope(scope_id);
 
         // Simplify the term and ensure it is a trait
         let simplified_trt_def_term_id =
             self.simplifier().potentially_simplify_term(trt_def_term_id)?;
         let reader = self.reader();
-        let simplified_trt_def_term = reader.get_term(simplified_trt_def_term_id).clone();
+        let simplified_trt_def_term = reader.get_term(simplified_trt_def_term_id);
 
         // Ensure the term leads to a trait definition:
         match simplified_trt_def_term {
@@ -221,7 +226,7 @@ impl<'tc> Validator<'tc> {
             Term::Level2(Level2Term::Trt(trt_def_id)) => {
                 let trt_def_members = self.reader().get_trt_def(trt_def_id).members;
                 // @@Performance: cloning :((
-                let trt_def_members = self.reader().get_scope(trt_def_members).clone();
+                let trt_def_members = self.reader().get_scope(trt_def_members);
 
                 // Ensure all members have been implemented:
                 for trt_member in trt_def_members.iter() {
@@ -306,7 +311,7 @@ impl<'tc> Validator<'tc> {
                 Ok(())
             }
             NominalDef::Enum(enum_def) => {
-                for (_, variant) in enum_def.variants.clone().iter() {
+                for (_, variant) in enum_def.variants.iter() {
                     let variant_fields = self.params_store().get(variant.fields).clone();
 
                     // Validate the ordering and the number of times parameter field names
@@ -340,7 +345,7 @@ impl<'tc> Validator<'tc> {
         union_element_term_id: TermId,
     ) -> TcResult<()> {
         let reader = self.reader();
-        let union_element_term = reader.get_term(union_element_term_id).clone();
+        let union_element_term = reader.get_term(union_element_term_id);
 
         // Error helper:
         let invalid_union_element = || -> TcResult<()> {
@@ -509,7 +514,6 @@ impl<'tc> Validator<'tc> {
             }
             Term::SetBound(set_bound) => {
                 // Ensure the inner one is valid
-                let set_bound = *set_bound;
                 self.scope_manager().enter_scope(set_bound.scope, |this| {
                     this.validator().validate_merge_element(
                         merge_kind,
@@ -525,7 +529,7 @@ impl<'tc> Validator<'tc> {
             // Union allowed if each inner term is allowed
             Term::Union(terms) => {
                 let mut initial_merge_kind = *merge_kind;
-                let terms = terms.clone();
+                let terms = terms;
                 for term_id in terms.iter() {
                     self.validate_merge_element(&mut initial_merge_kind, merge_term_id, *term_id)?;
                 }
@@ -693,7 +697,6 @@ impl<'tc> Validator<'tc> {
             Term::Level1(level1_term) => match level1_term {
                 Level1Term::Tuple(tuple_ty) => {
                     // Validate each parameter
-                    let tuple_ty = *tuple_ty;
                     self.validate_params(tuple_ty.members)?;
 
                     let members = self.params_store().get(tuple_ty.members).clone();
@@ -706,7 +709,6 @@ impl<'tc> Validator<'tc> {
                 }
                 Level1Term::Fn(fn_ty) => {
                     // Validate parameters and return type
-                    let fn_ty = *fn_ty;
                     self.validate_params(fn_ty.params)?;
                     self.validate_term(fn_ty.return_ty)?;
 
@@ -730,14 +732,12 @@ impl<'tc> Validator<'tc> {
             Term::Level0(level0_term) => match level0_term {
                 Level0Term::Rt(rt_inner_term) => {
                     // Validate the inner term, and ensure it is runtime instantiable:
-                    let rt_inner_term = *rt_inner_term;
                     self.validate_term(rt_inner_term)?;
                     self.ensure_term_is_runtime_instantiable(rt_inner_term)?;
                     Ok(result)
                 }
                 Level0Term::FnLit(fn_lit) => {
                     // Ensure the inner type is a function type, and get it:
-                    let fn_lit = *fn_lit;
                     match self.term_is_fn_ty(fn_lit.fn_ty)? {
                         Some(fn_ty) => {
                             // Validate constituents:
@@ -766,8 +766,6 @@ impl<'tc> Validator<'tc> {
                     }
                 }
                 Level0Term::Constructed(ConstructedTerm { subject, members }) => {
-                    let (subject, members) = (*subject, *members);
-
                     // Ensure the subject of the term is constructable
                     if !self.simplifier().is_term_constructable(subject) {
                         Err(TcError::InvalidCallSubject { term: subject })
@@ -820,7 +818,6 @@ impl<'tc> Validator<'tc> {
 
             // Set bound, just validate inner
             Term::SetBound(set_bound) => {
-                let set_bound = *set_bound;
                 let _ = self.scope_manager().enter_scope(set_bound.scope, |this| {
                     this.validator().validate_term(set_bound.term)
                 })?;
@@ -830,7 +827,7 @@ impl<'tc> Validator<'tc> {
             // Type function type:
             Term::TyFnTy(ty_fn_ty) => {
                 // Validate the params and return type:
-                let ty_fn_ty = ty_fn_ty.clone();
+                let ty_fn_ty = ty_fn_ty;
                 self.validate_params(ty_fn_ty.params)?;
 
                 let param_scope = self.scope_manager().make_bound_scope(ty_fn_ty.params);
@@ -861,7 +858,7 @@ impl<'tc> Validator<'tc> {
             // Type function:
             Term::TyFn(ty_fn) => {
                 // Validate params and return type.
-                let ty_fn = ty_fn.clone();
+                let ty_fn = ty_fn;
                 self.validate_params(ty_fn.general_params)?;
 
                 // Enter param scope:
@@ -938,14 +935,14 @@ impl<'tc> Validator<'tc> {
             }
 
             // Typeof: recurse to inner
-            Term::TyOf(term) => self.validate_term(*term),
+            Term::TyOf(term) => self.validate_term(term),
 
             // Type function application:
             Term::TyFnCall(app_ty_fn) => {
                 // Since this could be typed, it means the application is valid in terms of
                 // unification of type function params with the arguments. Thus, all we need to
                 // do is validate individually the term and the arguments:
-                let app_ty_fn = app_ty_fn.clone();
+                let app_ty_fn = app_ty_fn;
                 self.validate_term(app_ty_fn.subject)?;
                 self.validate_args(app_ty_fn.args)?;
                 Ok(result)
@@ -1076,7 +1073,7 @@ impl<'tc> Validator<'tc> {
             | Term::Var(_) => Ok(false),
             Term::Merge(terms) | Term::Union(terms) => {
                 // Valid if each element is okay to be used as the return type:
-                let terms = terms.clone();
+                let terms = terms;
                 for term in terms {
                     if !(self.term_can_be_used_as_ty_fn_return_ty(term)?) {
                         return Ok(false);
@@ -1098,7 +1095,6 @@ impl<'tc> Validator<'tc> {
             }
             Term::SetBound(set_bound) => {
                 // Look at inner term
-                let set_bound = *set_bound;
                 self.scope_manager().enter_scope(set_bound.scope, |this| {
                     this.validator().term_can_be_used_as_ty_fn_return_ty(set_bound.term)
                 })
@@ -1140,7 +1136,7 @@ impl<'tc> Validator<'tc> {
             | Term::Var(_) => Ok(false),
             Term::Union(terms) | Term::Merge(terms) => {
                 // Valid if each element is okay to be used as a parameter type:
-                let terms = terms.clone();
+                let terms = terms;
                 for term in terms {
                     if !(self.term_can_be_used_as_ty_fn_param_ty(term)?) {
                         return Ok(false);
@@ -1162,7 +1158,6 @@ impl<'tc> Validator<'tc> {
             }
             Term::SetBound(set_bound) => {
                 // Look at inner term
-                let set_bound = *set_bound;
                 self.scope_manager().enter_scope(set_bound.scope, |this| {
                     this.validator().term_can_be_used_as_ty_fn_param_ty(set_bound.term)
                 })
@@ -1188,7 +1183,7 @@ impl<'tc> Validator<'tc> {
         let reader = self.reader();
         let term = reader.get_term(simplified_term_id);
         match term {
-            Term::Level1(Level1Term::Fn(fn_ty)) => Ok(Some(*fn_ty)),
+            Term::Level1(Level1Term::Fn(fn_ty)) => Ok(Some(fn_ty)),
             _ => Ok(None),
         }
     }

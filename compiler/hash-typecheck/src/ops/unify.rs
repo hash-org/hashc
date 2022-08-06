@@ -1,4 +1,6 @@
 //! Utilities related to type unification and substitution.
+use hash_utils::store::Store;
+
 use super::{params::pair_args_with_params, AccessToOps, AccessToOpsMut};
 use crate::{
     diagnostics::{
@@ -8,10 +10,13 @@ use crate::{
     },
     storage::{
         location::LocationTarget,
+        pats::PatId,
         primitives::{
-            Arg, ArgsId, Level0Term, Level1Term, Level2Term, Level3Term, Param, ParamsId, PatId,
-            ScopeId, ScopeKind, Sub, Term, TermId,
+            Arg, ArgsId, Level0Term, Level1Term, Level2Term, Level3Term, Param, ParamsId,
+            ScopeKind, Sub, Term,
         },
+        scope::ScopeId,
+        terms::TermId,
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
 };
@@ -279,8 +284,8 @@ impl<'tc> Unifier<'tc> {
         }
 
         let reader = self.reader();
-        let scope_a = reader.get_scope(a).clone();
-        let scope_b = reader.get_scope(b).clone();
+        let scope_a = reader.get_scope(a);
+        let scope_b = reader.get_scope(b);
 
         // Ensure kinds are both [Scope::SetBound]
         if scope_a.kind != ScopeKind::SetBound || scope_b.kind != ScopeKind::SetBound {
@@ -341,8 +346,8 @@ impl<'tc> Unifier<'tc> {
         // First we want to simplify the terms:
         let simplified_src_id = self.simplifier().potentially_simplify_term(src_id)?;
         let simplified_target_id = self.simplifier().potentially_simplify_term(target_id)?;
-        let simplified_src = self.reader().get_term(simplified_src_id).clone();
-        let simplified_target = self.reader().get_term(simplified_target_id).clone();
+        let simplified_src = self.reader().get_term(simplified_src_id);
+        let simplified_target = self.reader().get_term(simplified_target_id);
 
         // Helper to return a unification error
         let cannot_unify = || Err(TcError::CannotUnify { src: src_id, target: target_id });
@@ -362,7 +367,7 @@ impl<'tc> Unifier<'tc> {
             (Term::TyOf(src_inner), Term::TyOf(dest_inner)) => {
                 self.unify_terms(src_inner, dest_inner)
             }
-            (Term::TyOf(src_inner), _) => match self.term_store().get(src_inner).clone() {
+            (Term::TyOf(src_inner), _) => match self.term_store().get(src_inner) {
                 // When the `src_inner` is an unresolved term, the unification between the target
                 // will yield a substitution `unresolved` -> `Rt(inner)`, so we need to verify
                 // that the inner term is runtime instantiable...
@@ -377,7 +382,7 @@ impl<'tc> Unifier<'tc> {
                 Term::Unresolved(_) => Ok(Sub::empty()),
                 _ => cannot_unify(),
             },
-            (_, Term::TyOf(target_inner)) => match self.term_store().get(target_inner).clone() {
+            (_, Term::TyOf(target_inner)) => match self.term_store().get(target_inner) {
                 // When the `target_inner` is an unresolved term, the unification between the target
                 // will yield a substitution `unresolved` -> `Rt(inner)`, so we need to verify
                 // that the inner term is runtime instantiable...

@@ -1,14 +1,21 @@
 //! Contains utilities to format types for displaying in error messages and
 //! debug output.
 
+use hash_utils::store::Store;
+
 use crate::storage::{
+    mods::ModDefId,
+    nominals::NominalDefId,
+    pats::PatId,
     primitives::{
         AccessOp, AccessPat, ArgsId, BoundVar, ConstPat, ConstructedTerm, EnumDef, Level0Term,
-        Level1Term, Level2Term, Level3Term, ListPat, LitTerm, Member, ModDefId, ModDefOrigin,
-        ModPat, Mutability, NominalDef, NominalDefId, ParamsId, Pat, PatArgsId, PatId, RangePat,
-        ScopeId, ScopeVar, SpreadPat, StructDef, Sub, SubVar, Term, TermId, TrtDefId,
-        UnresolvedTerm, Var, Visibility,
+        Level1Term, Level2Term, Level3Term, ListPat, LitTerm, Member, ModDefOrigin, ModPat,
+        Mutability, NominalDef, ParamsId, Pat, PatArgsId, RangePat, ScopeVar, SpreadPat, StructDef,
+        Sub, SubVar, Term, UnresolvedTerm, Var, Visibility,
     },
+    scope::ScopeId,
+    terms::TermId,
+    trts::TrtDefId,
     GlobalStorage,
 };
 use core::fmt;
@@ -425,7 +432,7 @@ impl<'gs> TcFormatter<'gs> {
                 write!(f, ">")?;
                 Ok(())
             }
-            Term::Unresolved(unresolved_term) => self.fmt_unresolved(f, unresolved_term),
+            Term::Unresolved(unresolved_term) => self.fmt_unresolved(f, &unresolved_term),
             Term::SetBound(set_bound) => {
                 opts.is_atomic.set(false);
                 self.fmt_term_as_single(f, set_bound.term, opts.clone())?;
@@ -441,10 +448,10 @@ impl<'gs> TcFormatter<'gs> {
                 }
                 Ok(())
             }
-            Term::Level3(term) => self.fmt_level3_term(f, term, opts),
-            Term::Level2(term) => self.fmt_level2_term(f, term, opts),
-            Term::Level1(term) => self.fmt_level1_term(f, term, opts),
-            Term::Level0(term) => self.fmt_level0_term(f, term, opts),
+            Term::Level3(term) => self.fmt_level3_term(f, &term, opts),
+            Term::Level2(term) => self.fmt_level2_term(f, &term, opts),
+            Term::Level1(term) => self.fmt_level1_term(f, &term, opts),
+            Term::Level0(term) => self.fmt_level0_term(f, &term, opts),
             Term::Root => {
                 opts.is_atomic.set(true);
                 write!(f, "Root")

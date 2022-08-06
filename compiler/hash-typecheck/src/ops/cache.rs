@@ -2,10 +2,7 @@
 
 use hash_utils::store::PartialStore;
 
-use crate::storage::{
-    primitives::{Sub, TermId},
-    AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
-};
+use crate::storage::{primitives::Sub, terms::TermId, AccessToStorage, StorageRef, StorageRefMut};
 
 use super::validate::TermValidation;
 
@@ -23,12 +20,6 @@ pub struct CacheManager<'tc> {
 impl<'tc> AccessToStorage for CacheManager<'tc> {
     fn storages(&self) -> StorageRef {
         self.storage.storages()
-    }
-}
-
-impl<'tc> AccessToStorageMut for CacheManager<'tc> {
-    fn storages_mut(&mut self) -> StorageRefMut {
-        self.storage.storages_mut()
     }
 }
 

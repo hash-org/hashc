@@ -3,7 +3,9 @@
 use super::params::{ParamListKind, ParamUnificationErrorReason};
 use crate::storage::{
     location::LocationTarget,
-    primitives::{AccessOp, AccessTerm, ArgsId, ParamsId, PatId, TermId, TyFnCase},
+    pats::PatId,
+    primitives::{AccessOp, AccessTerm, ArgsId, ParamsId, TyFnCase},
+    terms::TermId,
 };
 use hash_ast::ast::MatchOrigin;
 use hash_source::identifier::Identifier;

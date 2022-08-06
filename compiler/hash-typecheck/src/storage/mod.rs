@@ -35,14 +35,15 @@ use self::{
     nominals::NominalDefStore,
     params::ParamsStore,
     pats::{PatArgsStore, PatStore},
-    primitives::{Scope, ScopeId, ScopeKind},
-    scope::{ScopeStack, ScopeStore},
+    primitives::{Scope, ScopeKind},
+    scope::{ScopeId, ScopeStack, ScopeStore},
     sources::CheckedSources,
     terms::TermStore,
     trts::TrtDefStore,
 };
 use crate::fmt::{ForFormatting, PrepareForFormatting};
 use hash_source::{SourceId, SourceMap};
+use hash_utils::store::Store;
 use std::cell::Cell;
 
 /// Keeps track of typechecking information across all source files.
@@ -82,7 +83,7 @@ pub struct GlobalStorage {
 impl GlobalStorage {
     /// Create a new, empty [GlobalStorage].
     pub fn new() -> Self {
-        let mut scope_store = ScopeStore::new();
+        let scope_store = ScopeStore::new();
         let root_scope = scope_store.create(Scope::empty(ScopeKind::Constant));
         let mut gs = Self {
             location_store: LocationStore::new(),

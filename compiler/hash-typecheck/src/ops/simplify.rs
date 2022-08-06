@@ -11,14 +11,15 @@ use crate::{
         primitives::{
             AccessOp, AccessTerm, Arg, ArgsId, ConstructedTerm, FnLit, FnTy, Level0Term,
             Level1Term, Level2Term, Level3Term, Member, Mutability, NominalDef, Param, ParamsId,
-            ScopeKind, StructFields, Term, TermId, TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase,
-            TyFnTy,
+            ScopeKind, StructFields, Term, TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
         },
+        terms::TermId,
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
 };
 use hash_ast::ast::ParamOrigin;
 use hash_source::identifier::Identifier;
+use hash_utils::store::Store;
 use itertools::Itertools;
 
 /// Can perform simplification on terms.
@@ -185,7 +186,6 @@ impl<'tc> Simplifier<'tc> {
         match term {
             Term::SetBound(set_bound) => {
                 // Enter the bound and try access
-                let set_bound = *set_bound;
                 let result = self.scope_manager().enter_scope(set_bound.scope, |this| {
                     this.simplifier().access_struct_or_tuple_field(set_bound.term, field_name)
                 })?;
@@ -199,7 +199,7 @@ impl<'tc> Simplifier<'tc> {
             }
             Term::Merge(terms) => {
                 // Try this for each term:
-                for term in terms.clone() {
+                for term in terms {
                     match self.access_struct_or_tuple_field(term, field_name)? {
                         Some(result) => return Ok(Some(result)),
                         None => continue,
@@ -211,7 +211,7 @@ impl<'tc> Simplifier<'tc> {
                 // If it is a struct or a tuple, and the name is resolved in the fields, return
                 // the (runtime) value of the field.
                 if let Level1Term::NominalDef(nominal_def_id) = level1_term {
-                    let nominal_def = reader.get_nominal_def(*nominal_def_id);
+                    let nominal_def = reader.get_nominal_def(nominal_def_id);
                     if let NominalDef::Struct(struct_def) = nominal_def {
                         if let StructFields::Explicit(fields) = &struct_def.fields {
                             let reader = self.reader();
@@ -444,7 +444,7 @@ impl<'tc> Simplifier<'tc> {
     /// Apply the given access term structure, if possible.
     fn apply_access_term(&mut self, access_term: &AccessTerm) -> TcResult<Option<TermId>> {
         let simplified_subject_id = self.potentially_simplify_term(access_term.subject)?;
-        let simplified_subject = self.reader().get_term(simplified_subject_id).clone();
+        let simplified_subject = self.reader().get_term(simplified_subject_id);
 
         // Overwrite the the `subject` with `simplified_subject_id`
         let access_term = &AccessTerm { subject: simplified_subject_id, ..*access_term };
@@ -541,7 +541,7 @@ impl<'tc> Simplifier<'tc> {
             potentially_simplified_subject.is_some(),
             potentially_simplified_subject.unwrap_or(apply_ty_fn.subject),
         );
-        let simplified_subject = self.reader().get_term(simplified_subject_id).clone();
+        let simplified_subject = self.reader().get_term(simplified_subject_id);
 
         // Helper for errors:
         let cannot_apply = || -> TcResult<Option<TermId>> {
@@ -697,7 +697,7 @@ impl<'tc> Simplifier<'tc> {
         match term {
             Term::Merge(terms) => {
                 // Recurse into the inner terms:
-                let terms = terms.clone();
+                let terms = terms;
                 let results: Vec<_> = terms
                     .iter()
                     .filter_map(|item| {
@@ -734,7 +734,6 @@ impl<'tc> Simplifier<'tc> {
                 }
             }
             Term::SetBound(set_bound) => {
-                let set_bound = *set_bound;
                 let constructed_result =
                     self.scope_manager().enter_scope(set_bound.scope, |this| {
                         this.simplifier().use_term_as_constructed_subject(
@@ -757,7 +756,7 @@ impl<'tc> Simplifier<'tc> {
             Term::Level1(Level1Term::NominalDef(nominal_def_id)) => {
                 let reader = self.reader();
 
-                let nominal_def = reader.get_nominal_def(*nominal_def_id);
+                let nominal_def = reader.get_nominal_def(nominal_def_id);
                 match nominal_def {
                     NominalDef::Struct(struct_def) => {
                         let params_id = match struct_def.fields {
@@ -807,7 +806,7 @@ impl<'tc> Simplifier<'tc> {
         match term {
             Term::Merge(terms) => {
                 // Recurse into the inner terms:
-                let terms = terms.clone();
+                let terms = terms;
                 let results: Vec<_> = terms
                     .iter()
                     .enumerate()
@@ -853,7 +852,6 @@ impl<'tc> Simplifier<'tc> {
                 }
             }
             Term::SetBound(set_bound) => {
-                let set_bound = *set_bound;
                 let result = self.scope_manager().enter_scope(set_bound.scope, |this| {
                     this.simplifier().use_term_as_fn_call_subject(set_bound.term)
                 })?;
@@ -878,15 +876,15 @@ impl<'tc> Simplifier<'tc> {
                 match level0_term {
                     Level0Term::Rt(rt_inner_term_id) => {
                         // Only accept if it is a function type inside:
-                        match reader.get_term(*rt_inner_term_id) {
-                            Term::Level1(Level1Term::Fn(fn_ty)) => Ok(*fn_ty),
+                        match reader.get_term(rt_inner_term_id) {
+                            Term::Level1(Level1Term::Fn(fn_ty)) => Ok(fn_ty),
                             _ => cannot_use_as_fn_call_subject(),
                         }
                     }
                     Level0Term::FnLit(fn_lit) => {
                         // Just return the inner type:
                         match reader.get_term(fn_lit.fn_ty) {
-                            Term::Level1(Level1Term::Fn(fn_ty)) => Ok(*fn_ty),
+                            Term::Level1(Level1Term::Fn(fn_ty)) => Ok(fn_ty),
                             _ => tc_panic!(
                                 fn_lit.fn_ty,
                                 self,
@@ -1202,7 +1200,7 @@ impl<'tc> Simplifier<'tc> {
                     .unwrap_or(term_id);
                 let reader = self.reader();
                 let term = reader.get_term(simplified_term_id);
-                match is_nested(term) {
+                match is_nested(&term) {
                     // It is a merge, flatten it (this also means the merge has been
                     // simplified):
                     Some(terms) => {
@@ -1255,7 +1253,7 @@ impl<'tc> Simplifier<'tc> {
             return Ok(Some(term));
         }
 
-        let value = self.reader().get_term(term_id).clone();
+        let value = self.reader().get_term(term_id);
         let new_term = match value {
             Term::Merge(inner) => Ok(self
                 .simplify_algebraic_term_list(&inner, |term| match term {

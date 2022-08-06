@@ -25,7 +25,7 @@ use self::{
     reader::PrimitiveReader, scope::ScopeManager, simplify::Simplifier, substitute::Substituter,
     typing::Typer, unify::Unifier, validate::Validator,
 };
-use crate::storage::{primitives::ScopeId, AccessToStorage, AccessToStorageMut};
+use crate::storage::{scope::ScopeId, AccessToStorage, AccessToStorageMut};
 
 /// Trait to access various structures that can perform typechecking queries,
 /// by a reference to a [StorageRef](crate::storage::StorageRef).
@@ -39,6 +39,19 @@ pub trait AccessToOps: AccessToStorage {
     fn oracle(&self) -> Oracle {
         Oracle::new(self.storages())
     }
+
+    /// Create an instance of [PrimitiveBuilder] from the global storage.
+    fn builder(&self) -> PrimitiveBuilder {
+        PrimitiveBuilder::new(self.global_storage())
+    }
+
+    /// Create an instance of [PrimitiveBuilder] from the global storage, with
+    /// the given scope.
+    ///
+    /// See [PrimitiveBuilder] docs for more information.
+    fn builder_with_scope(&self, scope: ScopeId) -> PrimitiveBuilder {
+        PrimitiveBuilder::new_with_scope(self.global_storage(), scope)
+    }
 }
 
 impl<T: AccessToStorage> AccessToOps for T {}
@@ -46,19 +59,6 @@ impl<T: AccessToStorage> AccessToOps for T {}
 /// Trait to access various structures that can perform typechecking operations,
 /// by a reference to a [StorageRefMut](crate::storage::StorageRefMut).
 pub trait AccessToOpsMut: AccessToStorageMut {
-    /// Create an instance of [PrimitiveBuilder] from the global storage.
-    fn builder(&mut self) -> PrimitiveBuilder {
-        PrimitiveBuilder::new(self.global_storage_mut())
-    }
-
-    /// Create an instance of [PrimitiveBuilder] from the global storage, with
-    /// the given scope.
-    ///
-    /// See [PrimitiveBuilder] docs for more information.
-    fn builder_with_scope(&mut self, scope: ScopeId) -> PrimitiveBuilder {
-        PrimitiveBuilder::new_with_scope(self.global_storage_mut(), scope)
-    }
-
     /// Create an instance of [CacheManager].
     fn cacher(&mut self) -> CacheManager {
         CacheManager::new(self.storages_mut())

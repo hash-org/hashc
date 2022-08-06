@@ -15,7 +15,9 @@ use crate::{
     exhaustiveness::PatCtx,
     ops::AccessToOps,
     storage::{
-        primitives::{ConstructorId, DeconstructedPatId, PatId, TermId},
+        pats::PatId,
+        primitives::{ConstructorId, DeconstructedPatId},
+        terms::TermId,
         AccessToStorage, StorageRef,
     },
 };
@@ -28,7 +30,7 @@ use itertools::Itertools;
 pub struct Witness(pub Vec<DeconstructedPatId>);
 
 impl Witness {
-    /// Asserts that the witness contains a single pattern, and returns it.   
+    /// Asserts that the witness contains a single pattern, and returns it.
     pub fn single_pattern(self) -> DeconstructedPatId {
         assert_eq!(self.0.len(), 1);
 
@@ -157,7 +159,7 @@ impl<'tc> UsefulnessOps<'tc> {
     /// patterns expanded by the specialisation step.
     ///
     /// When a pattern P is discovered to be useful, this function is used
-    /// bottom-up to reconstruct a complete witness, e.g., a pattern P' that    
+    /// bottom-up to reconstruct a complete witness, e.g., a pattern P' that
     /// covers a subset of values, V, where each value in that set is not
     /// covered by any previously used patterns and is covered by the
     /// pattern P'. Examples:

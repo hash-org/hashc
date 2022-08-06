@@ -4,9 +4,11 @@ use crate::{
     storage::{
         primitives::{
             AccessTerm, Arg, ArgsId, BoundVar, Level0Term, Level1Term, Level2Term, Level3Term,
-            Member, NominalDef, Param, ParamsId, ScopeId, StructDef, StructFields, Sub, SubVar,
-            Term, TermId, TyFn, TyFnCase,
+            Member, NominalDef, Param, ParamsId, StructDef, StructFields, Sub, SubVar, Term, TyFn,
+            TyFnCase,
         },
+        scope::ScopeId,
+        terms::TermId,
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
 };
@@ -135,7 +137,7 @@ impl<'tc> Discoverer<'tc> {
         match term {
             Term::Unresolved(unresolved) => {
                 // Found a free variable:
-                result.insert((*unresolved).into());
+                result.insert(unresolved.into());
             }
             Term::Access(term) => {
                 // Free vars in the subject:
@@ -144,13 +146,13 @@ impl<'tc> Discoverer<'tc> {
             Term::Merge(terms) => {
                 // Free vars in each term:
                 for inner_term_id in terms {
-                    self.add_free_sub_vars_in_term_to_set(*inner_term_id, result);
+                    self.add_free_sub_vars_in_term_to_set(inner_term_id, result);
                 }
             }
             Term::Union(terms) => {
                 // Free vars in each term:
                 for inner_term_id in terms {
-                    self.add_free_sub_vars_in_term_to_set(*inner_term_id, result);
+                    self.add_free_sub_vars_in_term_to_set(inner_term_id, result);
                 }
             }
             Term::TyFn(ty_fn) => {
@@ -179,15 +181,15 @@ impl<'tc> Discoverer<'tc> {
                 self.add_free_sub_vars_in_term_to_set(set_bound.term, result);
             }
             Term::TyOf(term) => {
-                self.add_free_sub_vars_in_term_to_set(*term, result);
+                self.add_free_sub_vars_in_term_to_set(term, result);
             }
             // Definite-level terms:
             Term::Level3(_) | Term::Level2(_) => {}
             Term::Level1(term) => {
-                self.add_free_sub_vars_in_level1_term_to_set(term, result);
+                self.add_free_sub_vars_in_level1_term_to_set(&term, result);
             }
             Term::Level0(term) => {
-                self.add_free_sub_vars_in_level0_term_to_set(term, result);
+                self.add_free_sub_vars_in_level0_term_to_set(&term, result);
             }
             // No vars:
             Term::Var(_) | Term::Root | Term::ScopeVar(_) | Term::BoundVar(_) => {}
@@ -352,7 +354,7 @@ impl<'tc> Discoverer<'tc> {
                     NominalDef::Struct(StructDef {
                         fields: StructFields::Explicit(fields),
                         ..
-                    }) => self.add_free_bound_vars_in_params_to_set(*fields, result),
+                    }) => self.add_free_bound_vars_in_params_to_set(fields, result),
                     // @@Todo: add bound vars to opaque structs
                     NominalDef::Struct(_) => {}
                     NominalDef::Enum(_) => {
@@ -406,7 +408,7 @@ impl<'tc> Discoverer<'tc> {
         match term {
             Term::BoundVar(var) => {
                 // Found a bound var
-                result.insert(*var);
+                result.insert(var);
             }
             Term::Access(term) => {
                 // Free vars in the subject:
@@ -415,13 +417,13 @@ impl<'tc> Discoverer<'tc> {
             Term::Merge(terms) => {
                 // Free vars in each term:
                 for inner_term_id in terms {
-                    self.add_free_bound_vars_in_term_to_set(*inner_term_id, result);
+                    self.add_free_bound_vars_in_term_to_set(inner_term_id, result);
                 }
             }
             Term::Union(terms) => {
                 // Free vars in each term:
                 for inner_term_id in terms {
-                    self.add_free_bound_vars_in_term_to_set(*inner_term_id, result);
+                    self.add_free_bound_vars_in_term_to_set(inner_term_id, result);
                 }
             }
             Term::TyFn(ty_fn) => {
@@ -494,16 +496,16 @@ impl<'tc> Discoverer<'tc> {
                 self.add_free_bound_vars_in_term_to_set(set_bound.term, result);
             }
             Term::TyOf(term) => {
-                self.add_free_bound_vars_in_term_to_set(*term, result);
+                self.add_free_bound_vars_in_term_to_set(term, result);
             }
             Term::Level2(term) => {
-                self.add_free_bound_vars_in_level2_term_to_set(term, result);
+                self.add_free_bound_vars_in_level2_term_to_set(&term, result);
             }
             Term::Level1(term) => {
-                self.add_free_bound_vars_in_level1_term_to_set(term, result);
+                self.add_free_bound_vars_in_level1_term_to_set(&term, result);
             }
             Term::Level0(term) => {
-                self.add_free_bound_vars_in_level0_term_to_set(term, result);
+                self.add_free_bound_vars_in_level0_term_to_set(&term, result);
             }
             // No bound vars:
             Term::Var(_)
@@ -684,7 +686,7 @@ impl<'tc> Discoverer<'tc> {
         let term = reader.get_term(term_id);
         let result = match term {
             Term::BoundVar(var) => {
-                if ignore_bound_vars.contains(var) {
+                if ignore_bound_vars.contains(&var) {
                     Ok(None)
                 } else {
                     // Try to resolve the bound var
@@ -717,7 +719,6 @@ impl<'tc> Discoverer<'tc> {
             }
             Term::Access(term) => {
                 // Apply to subject
-                let term = *term;
                 let subject_applied = self.apply_set_bound_to_term_rec(
                     set_bound_scope_id,
                     term.subject,
@@ -735,7 +736,7 @@ impl<'tc> Discoverer<'tc> {
             }
             Term::Merge(terms) => {
                 // Apply each term:
-                let terms = terms.clone();
+                let terms = terms;
                 let mut applied_once = false;
                 let merge_applied = terms
                     .iter()
@@ -756,7 +757,7 @@ impl<'tc> Discoverer<'tc> {
             }
             Term::Union(terms) => {
                 // Apply each term:
-                let terms = terms.clone();
+                let terms = terms;
                 let mut applied_once = false;
                 let union_applied = terms
                     .iter()
@@ -778,7 +779,7 @@ impl<'tc> Discoverer<'tc> {
             Term::TyFn(ty_fn) => {
                 // Keep track of the param variables here cause we have to subtract the ones in
                 // the params before traversing.
-                let ty_fn = ty_fn.clone();
+                let ty_fn = ty_fn;
                 let mut applied_once = false;
                 let mut ty_fn_bound_vars_due_to_params = HashSet::new();
                 self.add_param_vars_as_bound_vars_to_set(
@@ -852,7 +853,7 @@ impl<'tc> Discoverer<'tc> {
             }
             Term::TyFnTy(ty_fn_ty) => {
                 // Same basic procedure as for TyFn.
-                let ty_fn_ty = ty_fn_ty.clone();
+                let ty_fn_ty = ty_fn_ty;
                 let mut applied_once = false;
                 let mut ty_fn_bound_vars_due_to_params = HashSet::new();
                 self.add_param_vars_as_bound_vars_to_set(
@@ -882,7 +883,7 @@ impl<'tc> Discoverer<'tc> {
                 }
             }
             Term::TyFnCall(app_ty_fn) => {
-                let app_ty_fn = app_ty_fn.clone();
+                let app_ty_fn = app_ty_fn;
                 let mut applied_once = false;
                 let subject = self.apply_set_bound_to_term_with_flag(
                     set_bound_scope_id,
@@ -903,7 +904,6 @@ impl<'tc> Discoverer<'tc> {
                 }
             }
             Term::TyOf(term) => {
-                let term = *term;
                 let mut applied_once = false;
                 let inner = self.apply_set_bound_to_term_with_flag(
                     set_bound_scope_id,
@@ -919,7 +919,6 @@ impl<'tc> Discoverer<'tc> {
             }
             // Definite-level terms:
             Term::Level1(Level1Term::Tuple(tuple_ty)) => {
-                let tuple_ty = *tuple_ty;
                 let mut applied_once = false;
                 let members = self.apply_set_bound_to_params_with_flag(
                     set_bound_scope_id,
@@ -934,7 +933,6 @@ impl<'tc> Discoverer<'tc> {
                 }
             }
             Term::Level1(Level1Term::Fn(fn_ty)) => {
-                let fn_ty = *fn_ty;
                 let mut applied_once = false;
                 let params = self.apply_set_bound_to_params_with_flag(
                     set_bound_scope_id,
@@ -956,10 +954,9 @@ impl<'tc> Discoverer<'tc> {
             }
             Term::Level0(term) => match term {
                 Level0Term::Rt(inner) => Ok(self
-                    .apply_set_bound_to_term_rec(set_bound_scope_id, *inner, ignore_bound_vars)?
+                    .apply_set_bound_to_term_rec(set_bound_scope_id, inner, ignore_bound_vars)?
                     .map(|result| self.builder().create_rt_term(result))),
                 Level0Term::FnCall(fn_call) => {
-                    let fn_call = *fn_call;
                     let mut applied_once = false;
                     let subject = self.apply_set_bound_to_term_with_flag(
                         set_bound_scope_id,
@@ -980,7 +977,6 @@ impl<'tc> Discoverer<'tc> {
                     }
                 }
                 Level0Term::FnLit(fn_lit) => {
-                    let fn_lit = *fn_lit;
                     let mut applied_once = false;
                     let fn_ty = self.apply_set_bound_to_term_with_flag(
                         set_bound_scope_id,
@@ -1005,7 +1001,6 @@ impl<'tc> Discoverer<'tc> {
                     Ok(None)
                 }
                 Level0Term::Tuple(tuple_lit) => {
-                    let tuple_lit = *tuple_lit;
                     let mut applied_once = false;
                     let members = self.apply_set_bound_to_args_with_flag(
                         set_bound_scope_id,
@@ -1021,7 +1016,6 @@ impl<'tc> Discoverer<'tc> {
                 }
                 Level0Term::Lit(_) => Ok(None),
                 Level0Term::Constructed(constructed) => {
-                    let constructed = *constructed;
                     let mut applied_once = false;
                     let subject = self.apply_set_bound_to_term_with_flag(
                         set_bound_scope_id,

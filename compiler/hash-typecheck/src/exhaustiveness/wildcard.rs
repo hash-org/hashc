@@ -137,7 +137,7 @@ impl<'tc> SplitWildcardOps<'tc> {
                 }
                 ty => match reader.get_term(ty) {
                     Term::Level1(Level1Term::NominalDef(def)) => {
-                        match reader.get_nominal_def(*def) {
+                        match reader.get_nominal_def(def) {
                             NominalDef::Struct(_) => smallvec![DeconstructedCtor::Single],
                             NominalDef::Enum(enum_def) => {
                                 // The exception is if the pattern is at the top level, because we

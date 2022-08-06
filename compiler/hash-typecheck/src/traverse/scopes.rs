@@ -4,8 +4,8 @@
 use super::TcVisitor;
 use crate::{
     diagnostics::error::TcResult,
-    ops::{scope::ScopeManager, AccessToOpsMut},
-    storage::primitives::{ScopeId, ScopeKind},
+    ops::{scope::ScopeManager, AccessToOps},
+    storage::{primitives::ScopeKind, scope::ScopeId},
 };
 use hash_ast::{ast, visitor::AstVisitor};
 use hash_source::identifier::Identifier;

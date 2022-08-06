@@ -8,10 +8,12 @@ use crate::{
     ops::{scope::ScopeManager, AccessToOps, AccessToOpsMut},
     storage::{
         location::{IndexedLocationTarget, LocationTarget},
+        pats::PatId,
         primitives::{
             AccessOp, Arg, ArgsId, BindingPat, ConstPat, EnumVariant, Member, ModDefOrigin,
-            Mutability, Param, Pat, PatArg, PatId, ScopeKind, SpreadPat, Sub, TermId, Visibility,
+            Mutability, Param, Pat, PatArg, ScopeKind, SpreadPat, Sub, Visibility,
         },
+        terms::TermId,
         AccessToStorage, AccessToStorageMut, LocalStorage, StorageRef, StorageRefMut,
     },
 };
@@ -29,6 +31,7 @@ use hash_source::{
     location::{SourceLocation, Span},
     ModuleKind, SourceId,
 };
+use hash_utils::store::Store;
 use itertools::Itertools;
 
 use self::scopes::VisitConstantScope;
@@ -1631,7 +1634,9 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let current_scope_id = self.scopes().current_scope();
         let member_indexes = members
             .iter()
-            .map(|member| self.scope_store_mut().get_mut(current_scope_id).add(*member))
+            .map(|member| {
+                self.scope_store_mut().modify_fast(current_scope_id, |scope| scope.add(*member))
+            })
             .collect::<Vec<_>>();
 
         // Add the locations of all members:

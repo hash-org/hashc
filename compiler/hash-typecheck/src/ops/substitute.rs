@@ -3,8 +3,10 @@ use super::{AccessToOps, AccessToOpsMut};
 use crate::storage::{
     primitives::{
         Arg, ArgsId, ConstructedTerm, FnTy, Level0Term, Level1Term, Level2Term, Level3Term, Param,
-        ParamsId, ScopeId, Sub, SubVar, Term, TermId, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
+        ParamsId, Sub, SubVar, Term, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
     },
+    scope::ScopeId,
+    terms::TermId,
     AccessToStorage, AccessToStorageMut, StorageRefMut,
 };
 
@@ -182,7 +184,7 @@ impl<'tc> Substituter<'tc> {
     /// [ScopeKind::SetBound](crate::storage::primitives::ScopeKind::SetBound).
     pub fn apply_sub_to_scope(&mut self, sub: &Sub, scope_id: ScopeId) -> ScopeId {
         let reader = self.reader();
-        let old_scope = reader.get_scope(scope_id).clone();
+        let old_scope = reader.get_scope(scope_id);
         let mut new_members = vec![];
         for old_member in old_scope.iter() {
             let new_value = old_member.value().map(|value| self.apply_sub_to_term(sub, value));
@@ -210,7 +212,7 @@ impl<'tc> Substituter<'tc> {
             return term_id;
         }
 
-        let term = self.reader().get_term(term_id).clone();
+        let term = self.reader().get_term(term_id);
 
         let new_term = match term {
             // Leaves:

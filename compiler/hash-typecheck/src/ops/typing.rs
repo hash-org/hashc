@@ -9,11 +9,13 @@ use crate::{
         macros::tc_panic,
     },
     storage::{
+        pats::PatId,
         primitives::{
             AccessOp, AccessPat, Arg, ArgsId, ConstPat, ConstructedTerm, Level0Term, Level1Term,
             Level2Term, Level3Term, ListPat, LitTerm, Member, ModDefOrigin, NominalDef, Param,
-            ParamsId, Pat, PatArgsId, PatId, RangePat, StructFields, Term, TermId,
+            ParamsId, Pat, PatArgsId, RangePat, StructFields, Term,
         },
+        terms::TermId,
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
 };
@@ -72,7 +74,7 @@ impl<'tc> Typer<'tc> {
     /// **Warning**: This might produce unexpected behaviour if the term is not
     /// simplified.
     pub(crate) fn infer_ty_of_simplified_term(&mut self, term_id: TermId) -> TcResult<TermId> {
-        let term = self.reader().get_term(term_id).clone();
+        let term = self.reader().get_term(term_id);
         let new_term = match term {
             Term::Access(access_term) => {
                 // Here we want to get the type of the subject, and ensure it contains this
@@ -103,7 +105,7 @@ impl<'tc> Typer<'tc> {
                 match ty_of_subject {
                     Term::TyFnTy(ty_fn_ty) => {
                         // Unify the type function type params with the given args:
-                        let ty_fn_ty = ty_fn_ty.clone();
+                        let ty_fn_ty = ty_fn_ty;
                         let _ = self.unifier().unify_params_with_args(
                             ty_fn_ty.params,
                             app_ty_fn.args,
@@ -474,7 +476,7 @@ impl<'tc> Typer<'tc> {
         tuple_term_id: TermId,
     ) -> TcResult<Option<ParamsId>> {
         // First, try to read the value as a tuple literal:
-        let tuple_term = self.reader().get_term(tuple_term_id).clone();
+        let tuple_term = self.reader().get_term(tuple_term_id);
         match tuple_term {
             Term::Level0(Level0Term::Tuple(tuple_lit)) => {
                 Ok(Some(self.infer_params_of_args(tuple_lit.members, true)?))
@@ -483,7 +485,7 @@ impl<'tc> Typer<'tc> {
                 let tuple_ty_id = self.infer_ty_of_simplified_term(tuple_term_id)?;
 
                 // Otherwise, get the type and try to get the parameters that way:
-                let tuple_ty = self.reader().get_term(tuple_ty_id).clone();
+                let tuple_ty = self.reader().get_term(tuple_ty_id);
                 match tuple_ty {
                     Term::Merge(terms) => {
                         // Try each term:
@@ -517,7 +519,7 @@ impl<'tc> Typer<'tc> {
         &mut self,
         term_id: TermId,
     ) -> TcResult<Vec<(TermId, ParamsId)>> {
-        let term = self.reader().get_term(term_id).clone();
+        let term = self.reader().get_term(term_id);
 
         match term {
             Term::Level0(Level0Term::Constructed(ConstructedTerm { subject, members })) => {
@@ -527,7 +529,7 @@ impl<'tc> Typer<'tc> {
             _ => {
                 let constructed_ty_id = self.infer_ty_of_simplified_term(term_id)?;
                 let reader = self.reader();
-                let constructed_term = reader.get_term(constructed_ty_id).clone();
+                let constructed_term = reader.get_term(constructed_ty_id);
 
                 match constructed_term {
                     Term::Union(terms) => {

@@ -2,7 +2,7 @@
 //! to represent literals, and convert them into a `ConstantValue` which is
 //! used within the exhaustiveness sub-system to represent these values within
 //! a single data type.
-use crate::storage::primitives::TermId;
+use crate::storage::terms::TermId;
 use hash_ast::ast::IntTy;
 use num_bigint::BigInt;
 

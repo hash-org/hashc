@@ -9,6 +9,11 @@ use std::{
     fmt::Display,
 };
 
+use super::{
+    mods::ModDefId, nominals::NominalDefId, pats::PatId, scope::ScopeId, terms::TermId,
+    trts::TrtDefId,
+};
+
 /// The visibility of a member of a const scope.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum Visibility {
@@ -672,7 +677,7 @@ pub struct BoundVar {
 }
 
 /// A scope variable, identified by a `ScopeId` and `usize` index.
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, PartialOrd, Ord)]
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub struct ScopeVar {
     pub name: Identifier,
     pub scope: ScopeId,
@@ -681,7 +686,7 @@ pub struct ScopeVar {
 
 /// A term with a set of bounds being assigned to specific values. The bound
 /// variables should be present in the inner term
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, PartialOrd, Ord)]
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub struct SetBound {
     pub term: TermId,
     /// Must be [ScopeKind::SetBound]
@@ -1236,29 +1241,11 @@ pub enum Pat {
 // IDs for all the primitives to be stored on mapped storage.
 
 new_key_type! {
-    /// The ID of a [TrtDef] stored in [super::trts::TrtDefStore].
-    pub struct TrtDefId;
-
-    /// The ID of a [NominalDef] stored in [super::nominals::NominalDefStore].
-    pub struct NominalDefId;
-
-    /// The ID of a [ModDef] stored in [super::mods::ModDefStore].
-    pub struct ModDefId;
-
-    /// The ID of a [Term] stored in [super::values::TermStore].
-    pub struct TermId;
-
-    /// The ID of a [Scope] stored in [super::values::ScopeStore].
-    pub struct ScopeId;
-
     /// The Id of a [Args]
     pub struct ArgsId;
 
     /// The ID of a [Params]
     pub struct ParamsId;
-
-    /// The ID of a [Pat]
-    pub struct PatId;
 
     /// The ID of a [PatArgs]
     pub struct PatArgsId;

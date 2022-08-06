@@ -8,7 +8,12 @@ use std::{cell::RefCell, collections::HashMap, hash::Hash, rc::Rc};
 use hash_source::location::{SourceLocation, Span};
 use hash_utils::store::{DefaultPartialStore, PartialStore};
 
-use super::primitives::{ArgsId, ParamsId, PatArgsId, PatId, ScopeId, TermId};
+use super::{
+    pats::PatId,
+    primitives::{ArgsId, ParamsId, PatArgsId},
+    scope::ScopeId,
+    terms::TermId,
+};
 
 /// An index into the location map.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
@@ -39,21 +44,18 @@ impl From<TermId> for LocationTarget {
     }
 }
 
-impl From<&TermId> for LocationTarget {
-    fn from(id: &TermId) -> Self {
-        Self::Term(*id)
+impl<T: Clone> From<&T> for LocationTarget
+where
+    LocationTarget: From<T>,
+{
+    fn from(x: &T) -> Self {
+        Self::from(x.clone())
     }
 }
 
 impl From<PatId> for LocationTarget {
     fn from(id: PatId) -> Self {
         Self::Pat(id)
-    }
-}
-
-impl From<&PatId> for LocationTarget {
-    fn from(id: &PatId) -> Self {
-        Self::Pat(*id)
     }
 }
 

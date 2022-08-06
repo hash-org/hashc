@@ -1,8 +1,7 @@
 //! Functionality related to determining properties about terms and other
 //! constructs.
+use crate::storage::{terms::TermId, AccessToStorage, StorageRef};
 use hash_ast::ast::IntTy;
-
-use crate::storage::{primitives::TermId, AccessToStorage, StorageRef};
 
 pub struct Oracle<'tc> {
     storage: StorageRef<'tc>,

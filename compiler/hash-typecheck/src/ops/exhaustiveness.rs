@@ -42,8 +42,8 @@ use crate::{
     diagnostics::error::{TcError, TcResult},
     exhaustiveness::{usefulness::MatchArm, AccessToUsefulnessOps},
     storage::{
-        primitives::{Pat, PatId, TermId},
-        AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
+        pats::PatId, primitives::Pat, terms::TermId, AccessToStorage, AccessToStorageMut,
+        StorageRef, StorageRefMut,
     },
 };
 

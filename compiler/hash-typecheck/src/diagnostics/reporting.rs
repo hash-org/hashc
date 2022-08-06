@@ -18,7 +18,7 @@ use hash_reporting::{
     builder::ReportBuilder,
     report::{Report, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind},
 };
-use hash_utils::printing::SequenceDisplay;
+use hash_utils::{printing::SequenceDisplay, store::Store};
 use itertools::Itertools;
 
 /// A [TcError] with attached typechecker storage.
