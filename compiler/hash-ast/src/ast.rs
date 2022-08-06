@@ -838,10 +838,21 @@ pub enum RangeEnd {
 impl Display for RangeEnd {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            RangeEnd::Included => write!(f, "..="),
-            RangeEnd::Excluded => write!(f, ".."),
+            RangeEnd::Included => write!(f, ".."),
+            RangeEnd::Excluded => write!(f, "..<"),
         }
     }
+}
+
+/// A range pattern, which has a `lo` and `hi` endpoints
+/// representing the boundaries of the range, and a
+/// `end` which specifies if the range is open or closed
+/// interval.
+#[derive(Debug, PartialEq, Clone)]
+pub struct RangePat {
+    pub lo: AstNode<Lit>,
+    pub hi: AstNode<Lit>,
+    pub end: RangeEnd,
 }
 
 /// A pattern. e.g. `Ok(Dog(props = (1, x)))`.
@@ -881,6 +892,9 @@ pub enum Pat {
     /// which can be used to ignore a range of elements in a tuple or
     /// a list.
     Spread(SpreadPat),
+    /// A range pattern which represents an open or closed range of primitives
+    /// e.g. `'a'..'z'`, `3..27`... etc
+    Range(RangePat),
 }
 
 /// Enum representing whether a declaration is public or private
