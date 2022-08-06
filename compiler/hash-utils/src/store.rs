@@ -1,6 +1,6 @@
 //! Provides generic data structures to store values by generated keys in an
 //! efficient way, with interior mutability.
-use std::{cell::RefCell, hash::Hash, ops::Range};
+use std::{cell::RefCell, collections::HashMap, hash::Hash, ops::Range};
 
 /// Represents a key that can be used to index a [`Store`].
 pub trait StoreKey: Copy + Eq + Hash {
@@ -205,7 +205,8 @@ macro_rules! new_sequence_store_key {
 /// A sequence store, which provides a way to efficiently store sequences of
 /// contiguous values by an opaque generated key.
 ///
-/// Use [`new_sequence_store_key`] to make such a key type.
+/// Use [`new_sequence_store_key`] to make such a key type, and
+/// [`new_sequence_store`] to make a new sequence store.
 ///
 /// Like [`Store`], this data structure has interior mutability and so all of
 /// its methods take `&self`. This makes it easy to use from within contexts
@@ -469,6 +470,126 @@ macro_rules! new_sequence_store {
     };
 }
 
+/// A partial store, which provides a way to store values indexed by existing
+/// keys. Unlike [`Store`], not every instance of `Key` necessarily has a value
+/// in a [`PartialStore<Key, _>`].
+///
+/// Use [`new_partial_store`] to make a new partial store.
+///
+/// Like [`Store`], this data structure has interior mutability and so all of
+/// its methods take `&self`. This makes it easy to use from within contexts
+/// without having to worry too much about borrowing rules.
+///
+/// *Warning*: The `Value`'s `Clone` implementation must not interact with the
+/// store, otherwise it might lead to a panic.
+pub trait PartialStore<Key: Copy + Eq + Hash, Value: Clone> {
+    fn internal_data(&self) -> &RefCell<HashMap<Key, Value>>;
+
+    /// Insert a key-value pair inside the store, returning the old value if it
+    /// exists.
+    fn insert(&self, key: Key, value: Value) -> Option<Value> {
+        self.internal_data().borrow_mut().insert(key, value)
+    }
+
+    /// Get a value by its key, if it exists.
+    fn get(&self, key: Key) -> Option<Value> {
+        self.internal_data().borrow().get(&key).cloned()
+    }
+
+    /// Whether the store has the given key.
+    fn has(&self, key: Key) -> bool {
+        self.internal_data().borrow().contains_key(&key)
+    }
+
+    /// Get a value by a key, and map it to another value given its reference,
+    /// if it exists.
+    ///
+    /// *Warning*: Do not call mutating store methods (`create` etc) in `f`
+    /// otherwise there will be a panic. If you want to do this, consider using
+    /// [`Self::map()`] instead.
+    fn map_fast<T>(&self, key: Key, f: impl FnOnce(Option<&Value>) -> T) -> T {
+        let data = self.internal_data().borrow();
+        let value = data.get(&key);
+        f(value)
+    }
+
+    /// Get a value by a key, and map it to another value given its reference,
+    /// if it exists.
+    ///
+    /// It is safe to provide a closure `f` to this function that modifies the
+    /// store in some way (`create` etc). If you do not need to modify the
+    /// store, consider using [`Self::map_fast()`] instead.
+    fn map<T>(&self, key: Key, f: impl FnOnce(Option<&Value>) -> T) -> T {
+        let value = self.get(key);
+        f(value.as_ref())
+    }
+
+    /// Modify a value by a key, possibly returning another value, if it exists.
+    ///
+    /// *Warning*: Do not call mutating store methods (`create` etc) in `f`
+    /// otherwise there will be a panic. If you want to do this, consider using
+    /// [`Self::modify()`] instead.
+    fn modify_fast<T>(&self, key: Key, f: impl FnOnce(Option<&mut Value>) -> T) -> T {
+        let mut data = self.internal_data().borrow_mut();
+        let value = data.get_mut(&key);
+        f(value)
+    }
+
+    /// Modify a value by a key, possibly returning another value, if it exists.
+    ///
+    /// It is safe to provide a closure `f` to this function that modifies the
+    /// store in some way (`create` etc). If you do not need to modify the
+    /// store, consider using [`Self::modify_fast()`] instead.
+    fn modify<T>(&self, key: Key, f: impl FnOnce(Option<&mut Value>) -> T) -> T {
+        let mut value = self.get(key);
+        let ret = f(value.as_mut());
+        if let Some(value) = value {
+            self.insert(key, value);
+        }
+        ret
+    }
+
+    /// The number of entries in the store.
+    fn len(&self) -> usize {
+        self.internal_data().borrow().len()
+    }
+
+    /// Whether the store is empty.
+    fn is_empty(&self) -> bool {
+        self.internal_data().borrow().is_empty()
+    }
+
+    /// Clear the store of all key-value pairs.
+    fn clear(&self) {
+        self.internal_data().borrow_mut().clear()
+    }
+}
+
+/// Create a new [`PartialStore`] with the given name, key and value type.
+#[macro_export]
+macro_rules! new_partial_store {
+    ($visibility:vis $name:ident<$Key:ty, $Value:ty>) => {
+        #[derive(Default, Debug)]
+        $visibility struct $name {
+            data: RefCell<HashMap<$Key, $Value>>,
+        }
+
+        #[allow(dead_code)]
+        impl $name {
+            /// Create a new empty store.
+            $visibility fn new() -> Self {
+                Self { data: RefCell::new(HashMap::new()) }
+            }
+        }
+
+        impl $crate::store::PartialStore<$Key, $Value> for $name {
+            fn internal_data(&self) -> &RefCell<HashMap<$Key, $Value>> {
+                &self.data
+            }
+        }
+    };
+}
+
 #[cfg(test)]
 mod test_super {
     use super::*;
@@ -477,4 +598,5 @@ mod test_super {
     new_store!(pub Test<TestK, ()>);
     new_sequence_store_key!(pub TestSeqK);
     new_sequence_store!(pub TestSeq<TestSeqK, ()>);
+    new_partial_store!(pub TestPartial<TestK, ()>);
 }

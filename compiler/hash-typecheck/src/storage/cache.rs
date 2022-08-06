@@ -1,8 +1,14 @@
 //! Typechecking operations cache storing results for previous simplifications,
 //! unifications, and validations.
 
-use std::{collections::HashMap, fmt::Display, hash::Hash};
+use std::{
+    cell::{Cell, RefCell},
+    collections::HashMap,
+    fmt::Display,
+    hash::Hash,
+};
 
+use hash_utils::store::PartialStore;
 use log::log_enabled;
 
 use crate::ops::validate::TermValidation;
@@ -35,73 +41,61 @@ impl Display for CacheMetrics {
 #[derive(Debug)]
 pub struct CacheStore<K, V> {
     /// The store
-    store: HashMap<K, V>,
+    store: RefCell<HashMap<K, V>>,
     /// Number of times the cache successfully retrieved a result
-    hits: usize,
+    hits: Cell<usize>,
     /// Number of times the cache didn't have an operation stored
-    misses: usize,
+    misses: Cell<usize>,
 }
 
 impl<K, V> Default for CacheStore<K, V> {
     fn default() -> Self {
-        Self { store: HashMap::new(), hits: Default::default(), misses: Default::default() }
+        Self {
+            store: RefCell::new(HashMap::new()),
+            hits: Default::default(),
+            misses: Default::default(),
+        }
     }
 }
 
-impl<K: Hash + Eq, V> CacheStore<K, V> {
-    /// Create a new [CacheStore]
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Create a new [CacheStore] with an initial capacity. The capacity
-    /// value is used for each inner operation store.
-    pub(crate) fn with_capacity(capacity: usize) -> Self {
-        Self { store: HashMap::with_capacity(capacity), hits: 0, misses: 0 }
-    }
-    /// Get a value within the [CacheStore] whilst also recording whether
-    /// the value was within the cache or not.
-
-    pub(crate) fn get(&mut self, key: K) -> Option<&V> {
-        let value = self.store.get(&key);
-
-        // We don't want to record cache metrics if we're not in debug
-        if log_enabled!(log::Level::Debug) {
-            if value.is_some() {
-                self.hits += 1;
-            } else {
-                self.misses += 1;
-            }
-        }
-
-        value
-    }
-
-    /// Get the inner store of the [CacheStore]
-    pub fn store(&self) -> &HashMap<K, V> {
+impl<K: Copy + Hash + Eq, V: Clone> PartialStore<K, V> for CacheStore<K, V> {
+    fn internal_data(&self) -> &RefCell<HashMap<K, V>> {
         &self.store
     }
 
-    /// Put a value into the [CacheStore]
-    pub(crate) fn put(&mut self, key: K, value: V) {
-        self.store.insert(key, value);
+    /// Get a value by its key, if it exists.
+    fn get(&self, key: K) -> Option<V> {
+        let value = self.internal_data().borrow().get(&key).cloned();
+
+        // Override for metrics:
+        // We don't want to record cache metrics if we're not in debug
+        if log_enabled!(log::Level::Debug) {
+            if value.is_some() {
+                self.hits.set(self.hits.get() + 1);
+            } else {
+                self.misses.set(self.misses.get() + 1);
+            }
+        }
+        value
+    }
+
+    /// Clear the [CacheStore] and metrics.
+    fn clear(&self) {
+        self.internal_data().borrow_mut().clear();
+        self.reset_metrics();
+    }
+}
+
+impl<K: Copy + Hash + Eq, V: Clone> CacheStore<K, V> {
+    /// Clear the [CacheStore] metrics on hits/misses
+    pub fn reset_metrics(&self) {
+        self.misses.set(0);
+        self.hits.set(0);
     }
 
     /// Create [CacheMetrics] from the [CacheStore]
     pub(crate) fn metrics(&self) -> CacheMetrics {
-        CacheMetrics { hits: self.hits, misses: self.misses, size: self.store.len() }
-    }
-
-    /// Clear the [CacheStore] metrics on hits/misses
-    pub fn reset_metrics(&mut self) {
-        self.misses = 0;
-        self.hits = 0;
-    }
-
-    /// Clear the [CacheStore] and store metrics
-    pub fn clear(&mut self) {
-        self.store.clear();
-        self.reset_metrics();
+        CacheMetrics { hits: self.hits.get(), misses: self.misses.get(), size: self.len() }
     }
 }
 
@@ -121,16 +115,5 @@ impl Cache {
     /// Create a new [Cache]
     pub fn new() -> Self {
         Self::default()
-    }
-
-    /// Create a new [Cache] with an initial capacity. The capacity
-    /// value is used for each inner operation store.
-    pub fn new_with_capacity(capacity: usize) -> Self {
-        Self {
-            simplification_store: CacheStore::with_capacity(capacity),
-            validation_store: CacheStore::with_capacity(capacity),
-            unification_store: CacheStore::with_capacity(capacity),
-            inference_store: CacheStore::with_capacity(capacity),
-        }
     }
 }
