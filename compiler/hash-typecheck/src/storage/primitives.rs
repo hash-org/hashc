@@ -788,8 +788,8 @@ impl From<String> for LitTerm {
 impl From<IntLit> for LitTerm {
     fn from(lit: IntLit) -> Self {
         match lit.kind {
-            IntLitKind::Suffixed(kind) => LitTerm::Int { value: lit.value.into(), kind },
-            IntLitKind::Unsuffixed => LitTerm::Int { value: lit.value.into(), kind: IntTy::I32 },
+            IntLitKind::Suffixed(kind) => LitTerm::Int { value: lit.value, kind },
+            IntLitKind::Unsuffixed => LitTerm::Int { value: lit.value, kind: IntTy::I32 },
         }
     }
 }

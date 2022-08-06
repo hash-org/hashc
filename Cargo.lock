@@ -382,6 +382,7 @@ version = "0.1.0"
 dependencies = [
  "hash-source",
  "hash-utils",
+ "num-bigint",
  "replace_with",
 ]
 
@@ -456,6 +457,7 @@ dependencies = [
  "hash-source",
  "hash-token",
  "hash-utils",
+ "num-bigint",
  "profiling",
  "rayon",
  "thiserror",

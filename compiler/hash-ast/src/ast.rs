@@ -2,6 +2,7 @@
 
 use hash_source::{identifier::Identifier, location::Span, string::Str};
 use hash_utils::counter;
+use num_bigint::BigInt;
 use replace_with::replace_with_or_abort;
 use std::{
     fmt::Display,
@@ -604,9 +605,9 @@ impl Display for IntLitKind {
 }
 
 /// An integer literal.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct IntLit {
-    pub value: u128,
+    pub value: BigInt,
     pub kind: IntLitKind,
 }
 
