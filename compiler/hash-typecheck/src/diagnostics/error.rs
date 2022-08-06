@@ -5,7 +5,7 @@ use crate::storage::{
     location::LocationTarget,
     primitives::{AccessOp, AccessTerm, ArgsId, ParamsId, PatId, TermId, TyFnCase},
 };
-use hash_ast::ast::MatchOrigin;
+use hash_ast::ast::{MatchOrigin, RangeEnd};
 use hash_source::identifier::Identifier;
 
 /// Convenient type alias for a result with a [TcError] as the error type.
@@ -178,4 +178,15 @@ pub enum TcError {
         /// Generated patterns that are not covered by match arms
         uncovered_pats: Vec<PatId>,
     },
+    /// When an inclusive range pattern boundaries are invalid
+    InvalidRangePatBoundaries {
+        /// The kind of range end this pattern has,
+        end: RangeEnd,
+        /// Term of the range pattern lower bound
+        term: TermId,
+    },
+    /// When an unsized integer literal is specified in the range. This
+    /// is currently not supported because the exhaustiveness checking
+    /// cannot currently deal with this kind of range.
+    UnsupportedRangePatTy { term: TermId },
 }
