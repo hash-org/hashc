@@ -1,6 +1,6 @@
 //! Contains type definitions that the rest of the storage and the general
 //! typechecker use.
-use hash_ast::ast::{IntLit, IntLitKind, IntLitPat, IntTy, ParamOrigin, RangeEnd};
+use hash_ast::ast::{IntLit, IntLitKind, IntTy, ParamOrigin, RangeEnd};
 use hash_source::{identifier::Identifier, string::Str, SourceId};
 use num_bigint::BigInt;
 use slotmap::new_key_type;
@@ -788,17 +788,8 @@ impl From<String> for LitTerm {
 impl From<IntLit> for LitTerm {
     fn from(lit: IntLit) -> Self {
         match lit.kind {
-            IntLitKind::Suffixed(kind) => LitTerm::Int { value: lit.value.into(), kind },
-            IntLitKind::Unsuffixed => LitTerm::Int { value: lit.value.into(), kind: IntTy::I32 },
-        }
-    }
-}
-
-impl From<IntLitPat> for LitTerm {
-    fn from(lit: IntLitPat) -> Self {
-        match lit.kind {
-            IntLitKind::Suffixed(kind) => LitTerm::Int { value: lit.value.into(), kind },
-            IntLitKind::Unsuffixed => LitTerm::Int { value: lit.value.into(), kind: IntTy::I32 },
+            IntLitKind::Suffixed(kind) => LitTerm::Int { value: lit.value, kind },
+            IntLitKind::Unsuffixed => LitTerm::Int { value: lit.value, kind: IntTy::I32 },
         }
     }
 }

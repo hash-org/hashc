@@ -2,11 +2,11 @@
 //! implementation.
 use hash_ast::{
     ast::{
-        AstNode, AstNodes, BindingPat, Block, BlockExpr, BodyBlock, BoolLit, BoolLitPat,
-        BreakStatement, ConstructorCallArg, ConstructorCallArgs, ConstructorCallExpr,
-        ConstructorPat, Expr, ExprKind, ForLoopBlock, IfBlock, IfClause, IfPat, Lit, LitExpr,
-        LitPat, LoopBlock, MatchBlock, MatchCase, MatchOrigin, Name, Pat, TuplePatEntry,
-        VariableExpr, WhileLoopBlock, WildPat,
+        AstNode, AstNodes, BindingPat, Block, BlockExpr, BodyBlock, BoolLit, BreakStatement,
+        ConstructorCallArg, ConstructorCallArgs, ConstructorCallExpr, ConstructorPat, Expr,
+        ExprKind, ForLoopBlock, IfBlock, IfClause, IfPat, Lit, LitExpr, LitPat, LoopBlock,
+        MatchBlock, MatchCase, MatchOrigin, Name, Pat, TuplePatEntry, VariableExpr, WhileLoopBlock,
+        WildPat,
     },
     ast_nodes,
 };
@@ -187,7 +187,9 @@ impl<'s> AstDesugaring<'s> {
                     AstNode::new(
                         MatchCase {
                             pat: AstNode::new(
-                                Pat::Lit(LitPat::Bool(BoolLitPat(true))),
+                                Pat::Lit(LitPat {
+                                    lit: AstNode::new(Lit::Bool(BoolLit(true)), condition_span)
+                                }),
                                 condition_span
                             ),
                             expr: AstNode::new(
@@ -200,7 +202,9 @@ impl<'s> AstDesugaring<'s> {
                     AstNode::new(
                         MatchCase {
                             pat: AstNode::new(
-                                Pat::Lit(LitPat::Bool(BoolLitPat(false))),
+                                Pat::Lit(LitPat {
+                                    lit: AstNode::new(Lit::Bool(BoolLit(false)), condition_span)
+                                }),
                                 condition_span
                             ),
                             expr: AstNode::new(
