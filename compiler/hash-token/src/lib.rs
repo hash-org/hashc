@@ -80,8 +80,12 @@ impl TokenKind {
         )
     }
 
-    /// Check if the current token can begin a pattern
+    /// Check whether a token is a numeric prefix, either being `+` or `-`
+    pub fn is_numeric_prefix(&self) -> bool {
+        matches!(self, TokenKind::Plus | TokenKind::Minus)
+    }
 
+    /// Check if the current token can begin a pattern
     /// Checks if the [TokenKind] must begin a block, as in the specified
     /// keywords that follow a specific syntax, and must be statements.
     pub fn begins_block(&self) -> bool {
@@ -109,6 +113,11 @@ impl TokenKind {
                 | TokenKind::CharLit(_)
                 | TokenKind::StrLit(_)
         )
+    }
+
+    /// Check if the [TokenKind] is a numeric literal
+    pub fn is_numeric(&self) -> bool {
+        matches!(self, TokenKind::IntLit(_) | TokenKind::FloatLit(_))
     }
 }
 

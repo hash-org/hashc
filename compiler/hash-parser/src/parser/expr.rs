@@ -614,6 +614,26 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
             TokenKind::Plus => return self.parse_expr(),
             kind @ (TokenKind::Minus | TokenKind::Exclamation | TokenKind::Tilde) => {
+                // Immediately deal with negation on numeric literals...
+                if *kind == TokenKind::Minus {
+                    match self.peek() {
+                        Some(token) if token.kind.is_numeric() => {
+                            self.skip_token();
+
+                            // Parse the numeric literal and apply negation to it
+                            let mut lit = self.parse_numeric_lit(true);
+                            let adjusted_span = token.span.join(lit.span());
+                            lit.set_span(adjusted_span);
+
+                            return Ok(self.node_with_span(
+                                Expr::new(ExprKind::LitExpr(LitExpr(lit))),
+                                adjusted_span,
+                            ));
+                        }
+                        _ => {}
+                    }
+                }
+
                 let expr = self.parse_expr()?;
 
                 let operator = self.node_with_span(

@@ -133,6 +133,33 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             // Spread pattern
             token if token.has_kind(TokenKind::Dot) => Pat::Spread(self.parse_spread_pat()?),
 
+            // Numeric literals with numeric prefixes are also allowed
+            token if token.kind.is_numeric_prefix() => {
+                self.skip_token();
+
+                // Should be a numeric
+                match self.peek() {
+                    Some(second) if second.kind.is_numeric() => {
+                        self.skip_token();
+
+                        let is_negated = matches!(token.kind, TokenKind::Minus);
+
+                        let mut lit = self.parse_numeric_lit(is_negated);
+                        let adjusted_span = token.span.join(lit.span());
+                        lit.set_span(adjusted_span);
+
+                        Pat::Lit(LitPat { lit })
+                    }
+                    // @@Future: could refine error here to be more specific about numeric literals
+                    token => self.error_with_location(
+                        AstGenErrorKind::ExpectedPat,
+                        None,
+                        token.map(|tok| tok.kind),
+                        token.map_or_else(|| self.current_location(), |tok| tok.span),
+                    )?,
+                }
+            }
+
             // Literal patterns
             token if token.kind.is_lit() => {
                 self.skip_token();
@@ -387,10 +414,17 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn begins_pat(&self) -> bool {
         // Perform the initial pattern component lookahead
         let mut n_lookahead = match self.peek() {
-            // Literals are allowed, but they must be immediately followed
+            // literals are allowed, but they must be immediately followed
             // by a colon
             Some(token) if token.kind.is_lit() => {
                 return matches!(self.peek_second(), Some(token) if token.has_kind(TokenKind::Colon));
+            }
+            // negation/positive operators on numerics are also allowed
+            Some(Token { kind: TokenKind::Minus | TokenKind::Plus, .. }) => {
+                match self.peek_second() {
+                    Some(token) if token.kind.is_numeric() => 2,
+                    _ => return false,
+                }
             }
             // Namespace, List, Tuple, etc.
             Some(Token { kind: TokenKind::Tree(_, _), .. }) => 1,

@@ -3,6 +3,7 @@
 use hash_ast::ast::*;
 use hash_source::location::Span;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
+use num_bigint::{BigInt, Sign};
 
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
@@ -26,6 +27,32 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 TokenKind::StrLit(value) => Lit::Str(StrLit(value)),
                 TokenKind::Keyword(Keyword::False) => Lit::Bool(BoolLit(false)),
                 TokenKind::Keyword(Keyword::True) => Lit::Bool(BoolLit(true)),
+                _ => unreachable!(),
+            },
+            token.span,
+        )
+    }
+
+    /// Parse a numeric literal that can also be negated
+    pub(crate) fn parse_numeric_lit(&self, is_negated: bool) -> AstNode<Lit> {
+        let token = self.current_token();
+
+        self.node_with_span(
+            match token.kind {
+                // @@Todo: support Integer/Float ascriptions
+                TokenKind::IntLit(value) => {
+                    let value = BigInt::from_bytes_be(
+                        if is_negated { Sign::Minus } else { Sign::NoSign },
+                        &value.to_be_bytes(),
+                    );
+
+                    Lit::Int(IntLit { value, kind: IntLitKind::Unsuffixed })
+                }
+                TokenKind::FloatLit(value) => {
+                    let value = if is_negated { -value } else { value };
+
+                    Lit::Float(FloatLit { value, kind: FloatLitKind::Unsuffixed })
+                }
                 _ => unreachable!(),
             },
             token.span,

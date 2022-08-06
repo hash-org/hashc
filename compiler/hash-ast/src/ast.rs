@@ -59,6 +59,11 @@ impl<T> AstNode<T> {
         self.span
     }
 
+    /// Set the [Span] of this [AstNode].
+    pub fn set_span(&mut self, span: Span) {
+        self.span = span;
+    }
+
     /// Get the [AstNodeId] of this node.
     pub fn id(&self) -> AstNodeId {
         self.id
