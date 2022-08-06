@@ -8,7 +8,7 @@ use std::{
     hash::Hash,
 };
 
-use hash_utils::store::PartialStore;
+use hash_utils::store::{DefaultPartialStore, PartialStore};
 use log::log_enabled;
 
 use crate::ops::validate::TermValidation;
@@ -41,7 +41,7 @@ impl Display for CacheMetrics {
 #[derive(Debug)]
 pub struct CacheStore<K, V> {
     /// The store
-    store: RefCell<HashMap<K, V>>,
+    store: DefaultPartialStore<K, V>,
     /// Number of times the cache successfully retrieved a result
     hits: Cell<usize>,
     /// Number of times the cache didn't have an operation stored
@@ -51,7 +51,7 @@ pub struct CacheStore<K, V> {
 impl<K, V> Default for CacheStore<K, V> {
     fn default() -> Self {
         Self {
-            store: RefCell::new(HashMap::new()),
+            store: DefaultPartialStore::new(),
             hits: Default::default(),
             misses: Default::default(),
         }
@@ -60,13 +60,12 @@ impl<K, V> Default for CacheStore<K, V> {
 
 impl<K: Copy + Hash + Eq, V: Clone> PartialStore<K, V> for CacheStore<K, V> {
     fn internal_data(&self) -> &RefCell<HashMap<K, V>> {
-        &self.store
+        self.store.internal_data()
     }
 
     /// Get a value by its key, if it exists.
     fn get(&self, key: K) -> Option<V> {
-        let value = self.internal_data().borrow().get(&key).cloned();
-
+        let value = self.store.get(key);
         // Override for metrics:
         // We don't want to record cache metrics if we're not in debug
         if log_enabled!(log::Level::Debug) {
@@ -81,7 +80,7 @@ impl<K: Copy + Hash + Eq, V: Clone> PartialStore<K, V> for CacheStore<K, V> {
 
     /// Clear the [CacheStore] and metrics.
     fn clear(&self) {
-        self.internal_data().borrow_mut().clear();
+        self.store.clear();
         self.reset_metrics();
     }
 }

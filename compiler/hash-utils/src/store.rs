@@ -1,6 +1,6 @@
 //! Provides generic data structures to store values by generated keys in an
 //! efficient way, with interior mutability.
-use std::{cell::RefCell, collections::HashMap, hash::Hash, ops::Range};
+use std::{cell::RefCell, collections::HashMap, hash::Hash, marker::PhantomData, ops::Range};
 
 /// Represents a key that can be used to index a [`Store`].
 pub trait StoreKey: Copy + Eq + Hash {
@@ -125,23 +125,48 @@ macro_rules! new_store {
     ($visibility:vis $name:ident<$Key:ty, $Value:ty>) => {
         #[derive(Default, Debug)]
         $visibility struct $name {
-            data: RefCell<Vec<$Value>>,
+            data: std::cell::RefCell<Vec<$Value>>,
         }
 
         #[allow(dead_code)]
         impl $name {
             /// Create a new empty store.
             $visibility fn new() -> Self {
-                Self { data: RefCell::new(Vec::new()) }
+                Self { data: std::cell::RefCell::new(Vec::new()) }
             }
         }
 
         impl $crate::store::Store<$Key, $Value> for $name {
-            fn internal_data(&self) -> &RefCell<Vec<$Value>> {
+            fn internal_data(&self) -> &std::cell::RefCell<Vec<$Value>> {
                 &self.data
             }
         }
     };
+}
+
+/// A default implementation of [`Store`].
+#[derive(Debug)]
+pub struct DefaultStore<K, V> {
+    data: RefCell<Vec<V>>,
+    _phantom: PhantomData<K>,
+}
+
+impl<K, V> std::default::Default for DefaultStore<K, V> {
+    fn default() -> Self {
+        Self { data: RefCell::new(Vec::new()), _phantom: PhantomData::default() }
+    }
+}
+
+impl<K, V> DefaultStore<K, V> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl<K: StoreKey, V: Clone> Store<K, V> for DefaultStore<K, V> {
+    fn internal_data(&self) -> &RefCell<Vec<V>> {
+        &self.data
+    }
 }
 
 /// Represents a key that can be used to index a [`SequenceStore`].
@@ -214,7 +239,7 @@ macro_rules! new_sequence_store_key {
 ///
 /// *Warning*: The `Value`'s `Clone` implementation must not interact with the
 /// store, otherwise it might lead to a panic.
-trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
+pub trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
     /// Get a reference to the internal data of the store.
     ///
     /// This should only be used to implement new store methods, not to access
@@ -390,7 +415,7 @@ trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
     }
 }
 
-trait SequenceStoreCopy<Key: SequenceStoreKey, Value: Copy>: SequenceStore<Key, Value> {
+pub trait SequenceStoreCopy<Key: SequenceStoreKey, Value: Copy>: SequenceStore<Key, Value> {
     /// Set the value sequence corresponding to the given key, to the given
     /// slice. Uses `memcpy` to do this, given that the value implements `Copy`.
     ///
@@ -422,7 +447,7 @@ impl<Key: SequenceStoreKey, Value: Copy, T: SequenceStore<Key, Value>> SequenceS
 {
 }
 
-trait SequenceStoreIter<Key: SequenceStoreKey, Value: Clone> {
+pub trait SequenceStoreIter<Key: SequenceStoreKey, Value: Clone> {
     type Iter<'s>
     where
         Self: 's,
@@ -451,23 +476,48 @@ macro_rules! new_sequence_store {
     ($visibility:vis $name:ident<$Key:ty, $Value:ty>) => {
         #[derive(Default, Debug)]
         $visibility struct $name {
-            data: RefCell<Vec<$Value>>,
+            data: std::cell::RefCell<Vec<$Value>>,
         }
 
         #[allow(dead_code)]
         impl $name {
             /// Create a new empty store.
             $visibility fn new() -> Self {
-                Self { data: RefCell::new(Vec::new()) }
+                Self { data: std::cell::RefCell::new(Vec::new()) }
             }
         }
 
         impl $crate::store::SequenceStore<$Key, $Value> for $name {
-            fn internal_data(&self) -> &RefCell<Vec<$Value>> {
+            fn internal_data(&self) -> &std::cell::RefCell<Vec<$Value>> {
                 &self.data
             }
         }
     };
+}
+
+/// A default implementation of [`SequenceStore`].
+#[derive(Debug)]
+pub struct DefaultSequenceStore<K, V> {
+    data: RefCell<Vec<V>>,
+    _phantom: PhantomData<K>,
+}
+
+impl<K, V> std::default::Default for DefaultSequenceStore<K, V> {
+    fn default() -> Self {
+        Self { data: RefCell::new(Vec::new()), _phantom: PhantomData::default() }
+    }
+}
+
+impl<K, V> DefaultSequenceStore<K, V> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl<K: SequenceStoreKey, V: Clone> SequenceStore<K, V> for DefaultSequenceStore<K, V> {
+    fn internal_data(&self) -> &RefCell<Vec<V>> {
+        &self.data
+    }
 }
 
 /// A partial store, which provides a way to store values indexed by existing
@@ -571,23 +621,47 @@ macro_rules! new_partial_store {
     ($visibility:vis $name:ident<$Key:ty, $Value:ty>) => {
         #[derive(Default, Debug)]
         $visibility struct $name {
-            data: RefCell<HashMap<$Key, $Value>>,
+            data: std::cell::RefCell<std::collections::HashMap<$Key, $Value>>,
         }
 
         #[allow(dead_code)]
         impl $name {
             /// Create a new empty store.
             $visibility fn new() -> Self {
-                Self { data: RefCell::new(HashMap::new()) }
+                Self { data: std::cell::RefCell::new(std::collections::HashMap::new()) }
             }
         }
 
         impl $crate::store::PartialStore<$Key, $Value> for $name {
-            fn internal_data(&self) -> &RefCell<HashMap<$Key, $Value>> {
+            fn internal_data(&self) -> &std::cell::RefCell<std::collections::HashMap<$Key, $Value>> {
                 &self.data
             }
         }
     };
+}
+
+/// A default implementation of [`PartialStore`].
+#[derive(Debug)]
+pub struct DefaultPartialStore<K, V> {
+    data: std::cell::RefCell<std::collections::HashMap<K, V>>,
+}
+
+impl<K, V> std::default::Default for DefaultPartialStore<K, V> {
+    fn default() -> Self {
+        Self { data: RefCell::new(HashMap::new()) }
+    }
+}
+
+impl<K, V> DefaultPartialStore<K, V> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl<K: Copy + Eq + Hash, V: Clone> PartialStore<K, V> for DefaultPartialStore<K, V> {
+    fn internal_data(&self) -> &RefCell<HashMap<K, V>> {
+        &self.data
+    }
 }
 
 #[cfg(test)]
