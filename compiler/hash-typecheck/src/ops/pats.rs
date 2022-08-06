@@ -139,6 +139,10 @@ impl<'tc> PatMatcher<'tc> {
 
     /// Match the given pattern with the given term, returning a potential list
     /// of extracted `binds` that the pattern describes.
+    ///
+    /// @@Fixme Re-work level 0 unification (i.e. should never work when Rts are
+    /// involved), and that this function should unify the types, rather
+    /// than the values, of the pattern and term.
     fn match_pat_with_term_and_extract_binds(
         &mut self,
         pat_id: PatId,
@@ -148,7 +152,7 @@ impl<'tc> PatMatcher<'tc> {
             self.validator().validate_term(term_id)?;
         let pat_ty = self.typer().infer_ty_of_pat(pat_id)?;
 
-        let pat = self.reader().get_pat(pat_id).clone();
+        let pat = self.reader().get_pat(pat_id);
 
         // Note: for spread patterns, unifying between the `term` and the type
         // of the pattern doesn't make sense because the term will always be `T`
@@ -183,8 +187,13 @@ impl<'tc> PatMatcher<'tc> {
                     Err(_) => Ok(None),
                 }
             }
-            // Ignore: No bindings but always matches
-            Pat::Ignore => Ok(Some(vec![])),
+            // No bindings in range patterns
+            //
+            // @@Todo: we could add a check in the future that tries to see if this is a useful
+            // match?
+            Pat::Range(_) => Ok(Some(vec![])),
+            // No bindings but always matches
+            Pat::Wild => Ok(Some(vec![])),
             // Lit: Unify the literal with the subject
             Pat::Lit(lit_term) => match self.unifier().unify_terms(lit_term, simplified_term_id) {
                 Ok(_) => Ok(Some(vec![])),

@@ -5,7 +5,7 @@ use std::{convert::Infallible, iter};
 use hash_utils::tree_writing::TreeNode;
 
 use crate::{
-    ast,
+    ast::{self, FloatLit, IntLit},
     visitor::{walk, AstVisitor},
 };
 
@@ -147,7 +147,9 @@ impl AstVisitor for AstTreeGenerator {
         _: &Self::Ctx,
         node: ast::AstNodeRef<ast::FloatLit>,
     ) -> Result<Self::FloatLitRet, Self::Error> {
-        Ok(TreeNode::leaf(labelled("float", node.0, "")))
+        let FloatLit { value, kind } = node.body();
+
+        Ok(TreeNode::leaf(labelled("float", format!("{value}{kind}"), "")))
     }
 
     type BoolLitRet = TreeNode;
@@ -165,7 +167,9 @@ impl AstVisitor for AstTreeGenerator {
         _: &Self::Ctx,
         node: ast::AstNodeRef<ast::IntLit>,
     ) -> Result<Self::IntLitRet, Self::Error> {
-        Ok(TreeNode::leaf(labelled("int", node.0, "")))
+        let IntLit { value, kind } = node.body();
+
+        Ok(TreeNode::leaf(labelled("int", format!("{value}{kind}"), "")))
     }
 
     type BinaryOperatorRet = TreeNode;
@@ -1110,58 +1114,14 @@ impl AstVisitor for AstTreeGenerator {
         }
     }
 
-    type StrLitPatRet = TreeNode;
-    fn visit_str_lit_pat(
-        &mut self,
-        _: &Self::Ctx,
-        node: ast::AstNodeRef<ast::StrLitPat>,
-    ) -> Result<Self::StrLitPatRet, Self::Error> {
-        Ok(TreeNode::leaf(labelled("str", node.0, "\"")))
-    }
-
-    type CharLitPatRet = TreeNode;
-    fn visit_char_lit_pat(
-        &mut self,
-        _: &Self::Ctx,
-        node: ast::AstNodeRef<ast::CharLitPat>,
-    ) -> Result<Self::CharLitPatRet, Self::Error> {
-        Ok(TreeNode::leaf(labelled("char", node.0, "\'")))
-    }
-
-    type IntLitPatRet = TreeNode;
-    fn visit_int_lit_pat(
-        &mut self,
-        _: &Self::Ctx,
-        node: ast::AstNodeRef<ast::IntLitPat>,
-    ) -> Result<Self::IntLitPatRet, Self::Error> {
-        Ok(TreeNode::leaf(labelled("int", node.0, "")))
-    }
-
-    type FloatLitPatRet = TreeNode;
-    fn visit_float_lit_pat(
-        &mut self,
-        _: &Self::Ctx,
-        node: ast::AstNodeRef<ast::FloatLitPat>,
-    ) -> Result<Self::FloatLitPatRet, Self::Error> {
-        Ok(TreeNode::leaf(labelled("float", node.0, "")))
-    }
-
-    type BoolLitPatRet = TreeNode;
-    fn visit_bool_lit_pat(
-        &mut self,
-        _: &Self::Ctx,
-        node: ast::AstNodeRef<ast::BoolLitPat>,
-    ) -> Result<Self::BoolLitPatRet, Self::Error> {
-        Ok(TreeNode::leaf(labelled("bool", node.0, "")))
-    }
-
     type LitPatRet = TreeNode;
     fn visit_lit_pat(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::LitPat>,
     ) -> Result<Self::LitPatRet, Self::Error> {
-        walk::walk_lit_pat_same_children(self, ctx, node)
+        let walk::LitPat { lit } = walk::walk_lit_pat(self, ctx, node)?;
+        Ok(lit)
     }
 
     type OrPatRet = TreeNode;
@@ -1215,13 +1175,13 @@ impl AstVisitor for AstTreeGenerator {
         ))
     }
 
-    type IgnorePatRet = TreeNode;
+    type WildPatRet = TreeNode;
 
-    fn visit_ignore_pat(
+    fn visit_wild_pat(
         &mut self,
         _: &Self::Ctx,
-        _: ast::AstNodeRef<ast::IgnorePat>,
-    ) -> Result<Self::IgnorePatRet, Self::Error> {
+        _: ast::AstNodeRef<ast::WildPat>,
+    ) -> Result<Self::WildPatRet, Self::Error> {
         Ok(TreeNode::leaf("ignore"))
     }
 

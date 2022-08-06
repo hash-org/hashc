@@ -178,7 +178,8 @@ impl<'tc> Substituter<'tc> {
     /// Apply the given substitution to the given scope, creating a new scope
     /// with the applied substitution.
     ///
-    /// This is only ever applied for [ScopeKind::SetBound].
+    /// This is only ever applied for
+    /// [ScopeKind::SetBound](crate::storage::primitives::ScopeKind::SetBound).
     pub fn apply_sub_to_scope(&mut self, sub: &Sub, scope_id: ScopeId) -> ScopeId {
         let reader = self.reader();
         let old_scope = reader.get_scope(scope_id).clone();

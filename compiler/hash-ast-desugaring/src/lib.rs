@@ -10,7 +10,7 @@ use hash_source::SourceId;
 use std::collections::HashSet;
 use visitor::AstDesugaring;
 
-mod desugaring;
+pub mod desugaring;
 mod visitor;
 
 pub struct AstDesugarer;

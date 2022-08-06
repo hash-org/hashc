@@ -946,56 +946,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         Ok(())
     }
 
-    type StrLitPatRet = ();
-
-    fn visit_str_lit_pat(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::StrLitPat>,
-    ) -> Result<Self::StrLitPatRet, Self::Error> {
-        Ok(())
-    }
-
-    type CharLitPatRet = ();
-
-    fn visit_char_lit_pat(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::CharLitPat>,
-    ) -> Result<Self::CharLitPatRet, Self::Error> {
-        Ok(())
-    }
-
-    type IntLitPatRet = ();
-
-    fn visit_int_lit_pat(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::IntLitPat>,
-    ) -> Result<Self::IntLitPatRet, Self::Error> {
-        Ok(())
-    }
-
-    type FloatLitPatRet = ();
-
-    fn visit_float_lit_pat(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::FloatLitPat>,
-    ) -> Result<Self::FloatLitPatRet, Self::Error> {
-        Ok(())
-    }
-
-    type BoolLitPatRet = ();
-
-    fn visit_bool_lit_pat(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::BoolLitPat>,
-    ) -> Result<Self::BoolLitPatRet, Self::Error> {
-        Ok(())
-    }
-
     type LitPatRet = ();
 
     fn visit_lit_pat(
@@ -1037,13 +987,13 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         Ok(())
     }
 
-    type IgnorePatRet = ();
+    type WildPatRet = ();
 
-    fn visit_ignore_pat(
+    fn visit_wild_pat(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::IgnorePat>,
-    ) -> Result<Self::IgnorePatRet, Self::Error> {
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::WildPat>,
+    ) -> Result<Self::WildPatRet, Self::Error> {
         Ok(())
     }
 

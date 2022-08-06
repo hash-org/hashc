@@ -638,9 +638,9 @@ impl<'gs> PrimitiveBuilder<'gs> {
         self.create_pat(Pat::If(IfPat { pat, condition }))
     }
 
-    /// Create an ignore pattern ("_").
-    pub fn create_ignore_pat(&self) -> PatId {
-        self.create_pat(Pat::Ignore)
+    /// Create a wildcard pattern `_`.
+    pub fn create_wildcard_pat(&self) -> PatId {
+        self.create_pat(Pat::Wild)
     }
 
     /// Create an access pattern.

@@ -98,7 +98,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             kind if kind.is_unary_op() => return self.parse_unary_expr(),
 
             // Handle primitive literals
-            kind if kind.is_lit() => self.parse_lit(),
+            kind if kind.is_lit() => self.node_with_span(
+                Expr::new(ExprKind::LitExpr(LitExpr(self.parse_atomic_lit()))),
+                token.span,
+            ),
             TokenKind::Ident(ident) => {
                 // Create the variable expr
                 self.node_with_span(

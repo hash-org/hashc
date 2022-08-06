@@ -1,6 +1,6 @@
 //! Contains type definitions that the rest of the storage and the general
 //! typechecker use.
-use hash_ast::ast::ParamOrigin;
+use hash_ast::ast::{IntLit, IntLitKind, IntTy, ParamOrigin, RangeEnd};
 use hash_source::{identifier::Identifier, string::Str, SourceId};
 use num_bigint::BigInt;
 use slotmap::new_key_type;
@@ -765,95 +765,11 @@ pub struct AccessTerm {
     pub op: AccessOp,
 }
 
-/// The kind of integer that is held within the
-/// [LitTerm::Int] kind.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum IntKind {
-    I8,
-    I16,
-    I32,
-    I64,
-    I128,
-    ISize,
-    IBig,
-    U8,
-    U16,
-    U32,
-    U64,
-    U128,
-    USize,
-    UBig,
-}
-
-impl IntKind {
-    /// Check if the variant is signed or not.
-    #[inline]
-    pub fn is_signed(&self) -> bool {
-        matches!(
-            self,
-            IntKind::I8
-                | IntKind::I16
-                | IntKind::I32
-                | IntKind::I64
-                | IntKind::I128
-                | IntKind::ISize
-                | IntKind::IBig
-        )
-    }
-
-    /// Check if the variant is unsigned.
-    #[inline]
-    pub fn is_unsigned(&self) -> bool {
-        !self.is_signed()
-    }
-
-    /// Get the size of [IntKind] in bytes. Returns [None] for
-    /// [IntKind::IBig] and [IntKind::UBig] variants
-    pub fn size(&self) -> Option<u64> {
-        match self {
-            IntKind::I8 | IntKind::U8 => Some(1),
-            IntKind::I16 | IntKind::U16 => Some(2),
-            IntKind::I32 | IntKind::U32 => Some(4),
-            IntKind::I64 | IntKind::U64 => Some(8),
-            IntKind::I128 | IntKind::U128 => Some(16),
-            // @@Todo: actually get the target pointer size, don't default to 64bit pointers.
-            IntKind::ISize | IntKind::USize => Some(8),
-            IntKind::IBig | IntKind::UBig => None,
-        }
-    }
-
-    /// Convert the [IntKind] into a primitive type name
-    pub fn to_name(&self) -> &'static str {
-        match self {
-            IntKind::I8 => "i8",
-            IntKind::I16 => "i16",
-            IntKind::I32 => "i32",
-            IntKind::I64 => "i64",
-            IntKind::I128 => "i128",
-            IntKind::ISize => "isize",
-            IntKind::IBig => "ibig",
-            IntKind::U8 => "u8",
-            IntKind::U16 => "u16",
-            IntKind::U32 => "u32",
-            IntKind::U64 => "u64",
-            IntKind::U128 => "u128",
-            IntKind::USize => "usize",
-            IntKind::UBig => "ubig",
-        }
-    }
-}
-
-impl Display for IntKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.to_name())
-    }
-}
-
 /// A literal term, which is level 0.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LitTerm {
     Str(Str),
-    Int { value: BigInt, kind: IntKind },
+    Int { value: BigInt, kind: IntTy },
     Char(char),
 }
 
@@ -869,15 +785,12 @@ impl From<String> for LitTerm {
     }
 }
 
-impl From<u64> for LitTerm {
-    fn from(s: u64) -> Self {
-        LitTerm::Int { value: s.into(), kind: IntKind::U64 }
-    }
-}
-
-impl From<i64> for LitTerm {
-    fn from(s: i64) -> Self {
-        LitTerm::Int { value: s.into(), kind: IntKind::I64 }
+impl From<IntLit> for LitTerm {
+    fn from(lit: IntLit) -> Self {
+        match lit.kind {
+            IntLitKind::Suffixed(kind) => LitTerm::Int { value: lit.value, kind },
+            IntLitKind::Unsuffixed => LitTerm::Int { value: lit.value, kind: IntTy::I32 },
+        }
     }
 }
 
@@ -1043,7 +956,7 @@ impl Sub {
         Self { data: pairs.into_iter().map(|(from, to)| (from.into(), to)).collect() }
     }
 
-    /// Get the substitution for the given [SubSubject], if any.
+    /// Get the substitution for the given [SubVar], if any.
     pub fn get_sub_for(&self, subject: SubVar) -> Option<TermId> {
         self.data.get(&subject).copied()
     }
@@ -1270,6 +1183,21 @@ pub struct ModPat {
     pub members: PatArgsId,
 }
 
+/// A range pattern containing two terms `lo` and `hi`, and
+/// an `end` kind which specifies if the [RangePat] is a
+/// closed range or not.
+///
+/// The `lo` and `hi` values must be `Term::Level0(Level0Term::Lit)`.
+#[derive(Clone, Debug, Copy)]
+pub struct RangePat {
+    /// Start value of the range, must be a literal term.
+    pub lo: TermId,
+    /// End value of the range, must be a literal term.
+    pub hi: TermId,
+    /// If the range is closed or not.
+    pub end: RangeEnd,
+}
+
 /// Represents a pattern in the language.
 #[derive(Clone, Debug)]
 pub enum Pat {
@@ -1279,6 +1207,8 @@ pub enum Pat {
     Access(AccessPat),
     /// Resolved binding pattern.
     Const(ConstPat),
+    /// A range pattern `2..5
+    Range(RangePat),
     /// Literal pattern, of the given term.
     ///
     /// The inner term must be `Term::Level0(Level0Term::Lit)`.
@@ -1300,7 +1230,7 @@ pub enum Pat {
     /// A conditional pattern.
     If(IfPat),
     /// A wildcard pattern, ignoring the subject and always matching.
-    Ignore,
+    Wild,
 }
 
 // IDs for all the primitives to be stored on mapped storage.
@@ -1308,46 +1238,36 @@ pub enum Pat {
 new_key_type! {
     /// The ID of a [TrtDef] stored in [super::trts::TrtDefStore].
     pub struct TrtDefId;
-}
 
-new_key_type! {
     /// The ID of a [NominalDef] stored in [super::nominals::NominalDefStore].
     pub struct NominalDefId;
-}
 
-new_key_type! {
     /// The ID of a [ModDef] stored in [super::mods::ModDefStore].
     pub struct ModDefId;
-}
 
-new_key_type! {
     /// The ID of a [Term] stored in [super::values::TermStore].
     pub struct TermId;
-}
 
-new_key_type! {
     /// The ID of a [Scope] stored in [super::values::ScopeStore].
     pub struct ScopeId;
-}
 
-new_key_type! {
     /// The Id of a [Args]
     pub struct ArgsId;
-}
 
-new_key_type! {
     /// The ID of a [Params]
     pub struct ParamsId;
-}
 
-new_key_type! {
     /// The ID of a [Pat]
     pub struct PatId;
-}
 
-new_key_type! {
-    /// The ID of a [ParamsPat]
+    /// The ID of a [PatArgs]
     pub struct PatArgsId;
+
+    /// The ID of a [DeconstructedCtor]
+    pub struct ConstructorId;
+
+    /// The ID of a [DeconstructedPat]
+    pub struct DeconstructedPatId;
 }
 
 /// The ID of a [UnresolvedTerm], separate from its [TermId], stored in

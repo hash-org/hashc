@@ -16,7 +16,10 @@ use crate::{
     },
 };
 use hash_ast::{
-    ast::{self, AccessKind, AstNodeRef, BinOp, OwnsAstNode, ParamOrigin, RefKind, UnOp},
+    ast::{
+        self, AccessKind, AstNodeRef, BinOp, Lit, MatchOrigin, OwnsAstNode, ParamOrigin, RefKind,
+        UnOp,
+    },
     visitor::{self, walk, AstVisitor},
 };
 use hash_pipeline::sources::{NodeMap, SourceRef};
@@ -60,7 +63,6 @@ impl TcVisitorState {
 /// Contains typechecker state that is accessed while traversing.
 pub struct TcVisitor<'tc> {
     pub storage: StorageRefMut<'tc>,
-    pub source_id: SourceId,
     pub node_map: &'tc NodeMap,
     pub state: TcVisitorState,
 }
@@ -80,18 +82,14 @@ impl<'tc> AccessToStorageMut for TcVisitor<'tc> {
 impl<'tc> TcVisitor<'tc> {
     /// Create a new [TcVisitor] with the given state, traversing the given
     /// source from [SourceId].
-    pub fn new_in_source(
-        storage: StorageRefMut<'tc>,
-        source_id: SourceId,
-        node_map: &'tc NodeMap,
-    ) -> Self {
-        TcVisitor { storage, source_id, node_map, state: TcVisitorState::new() }
+    pub fn new_in_source(storage: StorageRefMut<'tc>, node_map: &'tc NodeMap) -> Self {
+        TcVisitor { storage, node_map, state: TcVisitorState::new() }
     }
 
     /// Visits the source passed in as an argument to [Self::new_in_source], and
     /// returns the term of the module that corresponds to the source.
     pub fn visit_source(&mut self) -> TcResult<TermId> {
-        let source_id = self.source_id;
+        let source_id = self.local_storage().current_source();
         let source = self.node_map.get_source(source_id);
 
         let result = match source {
@@ -123,7 +121,7 @@ impl<'tc> TcVisitor<'tc> {
 
     /// Create a [SourceLocation] from a [Span].
     pub(crate) fn source_location(&self, span: Span) -> SourceLocation {
-        SourceLocation { span, source_id: self.source_id }
+        SourceLocation { span, source_id: self.local_storage().current_source() }
     }
 
     /// Create a [SourceLocation] at the given [hash_ast::ast::AstNode].
@@ -407,7 +405,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         _: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::IntLit>,
     ) -> Result<Self::IntLitRet, Self::Error> {
-        let term = self.builder().create_lit_term(node.0);
+        let term = self.builder().create_lit_term(node.body().clone());
 
         // add the location of the term to the location storage
         self.copy_location_from_node_to_target(node, term);
@@ -726,8 +724,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let import_module_id = self.source_map().get_module_id_by_path(&node.resolved_path);
         match import_module_id {
             Some(import_module_id) => {
+                let id = SourceId::Module(import_module_id);
+
                 // Resolve the ModDef corresponding to the SourceId if it exists:
-                match self.checked_sources().source_mod_def(SourceId::Module(import_module_id)) {
+                match self.checked_sources().source_mod_def(id) {
                     Some(already_checked_mod_term) => {
                         // Already exists, meaning this module has been checked before:
                         Ok(already_checked_mod_term)
@@ -739,18 +739,14 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
                         let node_map = self.node_map;
                         let storage_ref_mut = self.storages_mut();
                         let mut child_local_storage =
-                            LocalStorage::new(storage_ref_mut.global_storage);
+                            LocalStorage::new(storage_ref_mut.global_storage, id);
                         let storage_ref_mut = StorageRefMut {
                             local_storage: &mut child_local_storage,
                             ..storage_ref_mut
                         };
 
                         // Visit the child module
-                        let mut child_visitor = TcVisitor::new_in_source(
-                            storage_ref_mut,
-                            SourceId::Module(import_module_id),
-                            node_map,
-                        );
+                        let mut child_visitor = TcVisitor::new_in_source(storage_ref_mut, node_map);
                         let module_term = child_visitor.visit_source()?;
                         Ok(module_term)
                     }
@@ -1246,13 +1242,17 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     ) -> Result<Self::MatchBlockRet, Self::Error> {
         let walk::MatchBlock { subject, .. } = walk::walk_match_block(self, ctx, node)?;
 
+        let mut branches = vec![];
         let mut redundant_errors = vec![];
+
         let match_return_values: Vec<_> = node
             .cases
             .ast_ref_iter()
             .map(|case| {
                 // Try to match the pattern with the case
                 let case_pat = self.visit_pat(ctx, case.pat.ast_ref())?;
+                branches.push(case_pat);
+
                 let case_match = self.pat_matcher().match_pat_with_term(case_pat, subject)?;
                 match case_match {
                     Some(members_to_add) => {
@@ -1278,6 +1278,21 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         if !redundant_errors.is_empty() {
             // @@Todo: return all errors, and make them warnings instead of hard errors
             return Err(redundant_errors[0].clone());
+        }
+
+        // Skip origins of `while` and `if` since they are always irrefutable, if the
+        // origin is a match, we want to check call `is_match_exhaustive` since it will
+        // generate a more relevant error, otherwise we call `is_pat_irrefutable`
+        match &node.body().origin {
+            MatchOrigin::If | MatchOrigin::While => {}
+            MatchOrigin::Match => {
+                self.exhaustiveness_checker().is_match_exhaustive(&branches, subject)?
+            }
+            origin @ MatchOrigin::For => self.exhaustiveness_checker().is_pat_irrefutable(
+                &branches,
+                subject,
+                Some(*origin),
+            )?,
         }
 
         let match_return_types: Vec<_> = match_return_values
@@ -1549,7 +1564,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::Declaration>,
     ) -> Result<Self::DeclarationRet, Self::Error> {
         let pat_id = self.visit_pat(ctx, node.pat.ast_ref())?;
-        let pat = self.reader().get_pat(pat_id).clone();
+        let pat = self.reader().get_pat(pat_id);
 
         // Set the declaration hit if it is just a binding pattern:
         if let Pat::Binding(BindingPat { name, .. }) = pat {
@@ -1587,10 +1602,14 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
             Some(value) => {
                 // If there is a value, match it with the pattern and acquire the members to add
                 // to the scope.
-                match self.pat_matcher().match_pat_with_term(pat_id, value)? {
+                let members = match self.pat_matcher().match_pat_with_term(pat_id, value)? {
                     Some(members) => members,
                     None => return Err(TcError::UselessMatchCase { pat: pat_id, subject: value }),
-                }
+                };
+
+                // Ensure that the given pattern is irrefutable given the type of the term
+                self.exhaustiveness_checker().is_pat_irrefutable(&[pat_id], ty, None)?;
+                members
             }
             None => {
                 if let Pat::Binding(BindingPat { name, mutability: _, visibility }) = pat {
@@ -2056,89 +2075,6 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         Ok(spread_pat)
     }
 
-    type StrLitPatRet = PatId;
-
-    fn visit_str_lit_pat(
-        &mut self,
-        _: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::StrLitPat>,
-    ) -> Result<Self::StrLitPatRet, Self::Error> {
-        let lit = self.builder().create_lit_term(node.0.to_string());
-        let lit_pat = self.builder().create_lit_pat(lit);
-
-        self.copy_location_from_node_to_target(node, lit);
-        self.copy_location_from_node_to_target(node, lit_pat);
-
-        Ok(lit_pat)
-    }
-
-    type CharLitPatRet = PatId;
-
-    fn visit_char_lit_pat(
-        &mut self,
-        _: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::CharLitPat>,
-    ) -> Result<Self::CharLitPatRet, Self::Error> {
-        let lit = self.builder().create_lit_term(node.0);
-        let lit_pat = self.builder().create_lit_pat(lit);
-
-        self.copy_location_from_node_to_target(node, lit);
-        self.copy_location_from_node_to_target(node, lit_pat);
-
-        Ok(lit_pat)
-    }
-
-    type IntLitPatRet = PatId;
-
-    fn visit_int_lit_pat(
-        &mut self,
-        _: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::IntLitPat>,
-    ) -> Result<Self::IntLitPatRet, Self::Error> {
-        let lit = self.builder().create_lit_term(node.0);
-        let lit_pat = self.builder().create_lit_pat(lit);
-
-        self.copy_location_from_node_to_target(node, lit);
-        self.copy_location_from_node_to_target(node, lit_pat);
-
-        Ok(lit_pat)
-    }
-
-    type FloatLitPatRet = PatId;
-
-    fn visit_float_lit_pat(
-        &mut self,
-        _ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::FloatLitPat>,
-    ) -> Result<Self::FloatLitPatRet, Self::Error> {
-        panic_on_span!(
-            self.source_location_at_node(node),
-            self.source_map(),
-            "hit float pattern during typechecking"
-        )
-    }
-
-    type BoolLitPatRet = PatId;
-
-    fn visit_bool_lit_pat(
-        &mut self,
-        _ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::BoolLitPat>,
-    ) -> Result<Self::BoolLitPatRet, Self::Error> {
-        let bool_term = self.builder().create_var_term(if node.0 {
-            CORE_IDENTIFIERS.r#true
-        } else {
-            CORE_IDENTIFIERS.r#false
-        });
-        self.copy_location_from_node_to_target(node, bool_term);
-        let bool_term_simplified = self.validator().validate_term(bool_term)?.simplified_term_id;
-
-        let bool_pat = self.builder().create_constant_pat(bool_term_simplified);
-        self.copy_location_from_node_to_target(node, bool_pat);
-
-        Ok(bool_pat)
-    }
-
     type LitPatRet = PatId;
 
     fn visit_lit_pat(
@@ -2146,7 +2082,16 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::LitPat>,
     ) -> Result<Self::LitPatRet, Self::Error> {
-        walk::walk_lit_pat_same_children(self, ctx, node)
+        let walk::LitPat { lit } = walk::walk_lit_pat(self, ctx, node)?;
+
+        let pat = match node.body().lit.body() {
+            Lit::Bool(_) => self.builder().create_constant_pat(lit),
+            _ => self.builder().create_lit_pat(lit),
+        };
+
+        self.copy_location_from_node_to_target(node, pat);
+
+        Ok(pat)
     }
 
     type OrPatRet = PatId;
@@ -2205,14 +2150,14 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         }
     }
 
-    type IgnorePatRet = PatId;
+    type WildPatRet = PatId;
 
-    fn visit_ignore_pat(
+    fn visit_wild_pat(
         &mut self,
         _ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::IgnorePat>,
-    ) -> Result<Self::IgnorePatRet, Self::Error> {
-        let pat = self.builder().create_ignore_pat();
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::WildPat>,
+    ) -> Result<Self::WildPatRet, Self::Error> {
+        let pat = self.builder().create_wildcard_pat();
         self.copy_location_from_node_to_target(node, pat);
         Ok(pat)
     }
@@ -2252,12 +2197,12 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::Module>,
     ) -> Result<Self::ModuleRet, Self::Error> {
+        let id = self.local_storage().current_source();
+
         // Decide on whether we are creating a new scope, or if we are going to use the
         // global scope. If we're within the `prelude` module, we need to append
         // all members into the global scope rather than creating a new scope
-        let members = if let Some(ModuleKind::Prelude) =
-            self.source_map().module_kind_by_id(self.source_id)
-        {
+        let members = if let Some(ModuleKind::Prelude) = self.source_map().module_kind_by_id(id) {
             self.global_storage().root_scope
         } else {
             self.builder().create_scope(ScopeKind::Constant, vec![])
@@ -2265,13 +2210,11 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         // Get the end of the filename for the module and use this as the name of the
         // module
-        let name = self.source_map().source_name(self.source_id).to_owned();
+        let name = self.source_map().source_name(id).to_owned();
         let VisitConstantScope { scope_id, .. } =
             self.visit_constant_scope(ctx, node.contents.ast_ref_iter(), Some(members))?;
 
-        let source_id = self.source_id;
-        let mod_def =
-            self.builder().create_named_mod_def(name, ModDefOrigin::Source(source_id), scope_id);
+        let mod_def = self.builder().create_named_mod_def(name, ModDefOrigin::Source(id), scope_id);
 
         let term = self.builder().create_mod_def_term(mod_def);
         self.validator().validate_mod_def(mod_def, term, false)?;

@@ -1,12 +1,16 @@
 //! Contains helpers to read various things stored in [crate::storage] with
 //! ease.
 
-use crate::storage::{
-    primitives::{
-        Args, ArgsId, ModDef, ModDefId, NominalDef, NominalDefId, Params, ParamsId, Pat, PatArgs,
-        PatArgsId, PatId, Scope, ScopeId, Term, TermId, TrtDef, TrtDefId,
+use crate::{
+    exhaustiveness::{construct::DeconstructedCtor, deconstruct::DeconstructedPat},
+    storage::{
+        primitives::{
+            Args, ArgsId, ConstructorId, DeconstructedPatId, ModDef, ModDefId, NominalDef,
+            NominalDefId, Params, ParamsId, Pat, PatArgs, PatArgsId, PatId, Scope, ScopeId, Term,
+            TermId, TrtDef, TrtDefId,
+        },
+        GlobalStorage,
     },
-    GlobalStorage,
 };
 
 /// Helper to read various primitive constructions (from
@@ -32,7 +36,7 @@ impl<'gs> PrimitiveReader<'gs> {
     }
 
     /// Get the pattern with the given [PatId].
-    pub fn get_pat(&self, id: PatId) -> &Pat {
+    pub fn get_pat(&self, id: PatId) -> Pat {
         self.gs.pat_store.get(id)
     }
 
@@ -64,6 +68,16 @@ impl<'gs> PrimitiveReader<'gs> {
     /// Get the [PatArgs] with the given [PatArgsId].
     pub fn get_pat_args(&self, id: PatArgsId) -> &PatArgs {
         self.gs.pat_args_store.get(id)
+    }
+
+    /// Get the associated [DeconstructedPat] from [DeconstructedPatId].
+    pub fn get_deconstructed_pat(&self, id: DeconstructedPatId) -> DeconstructedPat {
+        self.gs.deconstructed_pat_store.get(id)
+    }
+
+    /// Get the associated [DeconstructedCtor] from [ConstructorId].
+    pub fn get_ctor(&self, id: ConstructorId) -> DeconstructedCtor {
+        self.gs.deconstructed_ctor_store.get(id)
     }
 
     /// Get the trait definition with the given [TrtDefId].

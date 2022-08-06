@@ -14,6 +14,7 @@ num-bigint = "0.4"
 smallvec = "1.9.0"
 
 hash-ast = { path = "../hash-ast" }
+hash-ast-desugaring = { path = "../hash-ast-desugaring" }
 hash-source = { path = "../hash-source" }
 hash-utils = { path = "../hash-utils" }
 hash-alloc = { path = "../hash-alloc" }

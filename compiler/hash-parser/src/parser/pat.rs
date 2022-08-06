@@ -121,7 +121,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 if *ident == CORE_IDENTIFIERS.underscore =>
             {
                 self.skip_token();
-                Pat::Ignore(IgnorePat)
+                Pat::Wild(WildPat)
             }
             // A name bind that has visibility/mutability modifiers
             Token {
@@ -136,7 +136,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             // Literal patterns
             token if token.kind.is_lit() => {
                 self.skip_token();
-                Pat::Lit(self.convert_lit_into_pat(&token.kind))
+                Pat::Lit(LitPat { lit: self.parse_atomic_lit() })
             }
             // Tuple patterns
             Token { kind: TokenKind::Tree(Delimiter::Paren, tree_index), span } => {
@@ -316,19 +316,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         };
 
         Ok(self.node_with_joined_span(TuplePatEntry { name, pat }, &start))
-    }
-
-    /// Convert a [Lit] into a [LitPat].
-    pub(crate) fn convert_lit_into_pat(&self, kind: &TokenKind) -> LitPat {
-        match kind {
-            TokenKind::StrLit(s) => LitPat::Str(StrLitPat(*s)),
-            TokenKind::CharLit(s) => LitPat::Char(CharLitPat(*s)),
-            TokenKind::IntLit(s) => LitPat::Int(IntLitPat(*s)),
-            TokenKind::FloatLit(s) => LitPat::Float(FloatLitPat(*s)),
-            TokenKind::Keyword(Keyword::False) => LitPat::Bool(BoolLitPat(false)),
-            TokenKind::Keyword(Keyword::True) => LitPat::Bool(BoolLitPat(true)),
-            _ => unreachable!(),
-        }
     }
 
     /// Parse a spread operator from the current token tree. A spread operator

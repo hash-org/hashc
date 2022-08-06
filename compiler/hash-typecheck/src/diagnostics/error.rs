@@ -5,6 +5,7 @@ use crate::storage::{
     location::LocationTarget,
     primitives::{AccessOp, AccessTerm, ArgsId, ParamsId, PatId, TermId, TyFnCase},
 };
+use hash_ast::ast::MatchOrigin;
 use hash_source::identifier::Identifier;
 
 /// Convenient type alias for a result with a [TcError] as the error type.
@@ -155,4 +156,26 @@ pub enum TcError {
     /// declared bounds within two patterns. For example, if one pattern
     /// binds `k`, but the other doesn't.
     MissingPatternBounds { pat: PatId, bounds: Vec<Identifier> },
+
+    /// When a pattern is expected to be irrefutable but was found to be
+    /// refutable with provided `witnesses` or possible patterns that are
+    /// not covered by the pattern.
+    RefutablePat {
+        /// The pattern that is refutable
+        pat: PatId,
+        /// Where the refutability check came from, `for`, `while`, `match`...
+        ///
+        /// Although we should only really ever get `for` or `None` which means
+        /// it's either in a for-loop or a declaration.
+        origin: Option<MatchOrigin>,
+        /// Generated patterns that are not covered by `pat`
+        uncovered_pats: Vec<PatId>,
+    },
+    /// When a match block is non-exhaustive
+    NonExhaustiveMatch {
+        /// The term of the subject expression
+        term: TermId,
+        /// Generated patterns that are not covered by match arms
+        uncovered_pats: Vec<PatId>,
+    },
 }

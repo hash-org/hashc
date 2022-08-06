@@ -5,9 +5,9 @@ use crate::storage::{
     primitives::{
         AccessOp, AccessPat, ArgsId, BoundVar, ConstPat, ConstructedTerm, EnumDef, Level0Term,
         Level1Term, Level2Term, Level3Term, ListPat, LitTerm, Member, ModDefId, ModDefOrigin,
-        ModPat, Mutability, NominalDef, NominalDefId, ParamsId, Pat, PatArgsId, PatId, ScopeId,
-        ScopeVar, SpreadPat, StructDef, Sub, SubVar, Term, TermId, TrtDefId, UnresolvedTerm, Var,
-        Visibility,
+        ModPat, Mutability, NominalDef, NominalDefId, ParamsId, Pat, PatArgsId, PatId, RangePat,
+        ScopeId, ScopeVar, SpreadPat, StructDef, Sub, SubVar, Term, TermId, TrtDefId,
+        UnresolvedTerm, Var, Visibility,
     },
     GlobalStorage,
 };
@@ -600,8 +600,15 @@ impl<'gs> TcFormatter<'gs> {
             Pat::Access(AccessPat { subject, property }) => {
                 write!(f, "{}::{}", property, subject.for_formatting(self.global_storage))
             }
-            Pat::Const(ConstPat { term }) => self.fmt_term(f, *term, opts),
-            Pat::Lit(lit_term) => self.fmt_term(f, *lit_term, opts),
+            Pat::Const(ConstPat { term }) => self.fmt_term(f, term, opts),
+            Pat::Range(RangePat { lo, hi, end }) => {
+                // write the `lo`, then the range end, and finally the `hi`
+                self.fmt_term(f, lo, opts.clone())?;
+                write!(f, "{}", end)?;
+
+                self.fmt_term(f, hi, opts)
+            }
+            Pat::Lit(lit_term) => self.fmt_term(f, lit_term, opts),
             Pat::Tuple(tuple_pat) => {
                 opts.is_atomic.set(true);
                 write!(f, "({})", tuple_pat.for_formatting(self.global_storage))
@@ -635,12 +642,12 @@ impl<'gs> TcFormatter<'gs> {
                 self.fmt_term_as_single(f, if_pat.condition, opts)?;
                 Ok(())
             }
-            Pat::Ignore => {
+            Pat::Wild => {
                 write!(f, "_")
             }
             Pat::Mod(ModPat { members }) => {
                 opts.is_atomic.set(true);
-                let pat_params = self.global_storage.pat_args_store.get(*members);
+                let pat_params = self.global_storage.pat_args_store.get(members);
 
                 write!(f, "{{ ")?;
                 for (i, param) in pat_params.positional().iter().enumerate() {

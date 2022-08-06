@@ -10,22 +10,26 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Convert the current token (provided it is a primitive literal) into a
     /// [ExprKind::LitExpr] by simply matching on the type of the
     /// expr.
-    pub(crate) fn parse_lit(&self) -> AstNode<Expr> {
+    pub(crate) fn parse_atomic_lit(&self) -> AstNode<Lit> {
         let token = self.current_token();
-        let lit = self.node_with_span(
+
+        self.node_with_span(
             match token.kind {
-                TokenKind::IntLit(num) => Lit::Int(IntLit(num)),
-                TokenKind::FloatLit(num) => Lit::Float(FloatLit(num)),
-                TokenKind::CharLit(ch) => Lit::Char(CharLit(ch)),
-                TokenKind::StrLit(str) => Lit::Str(StrLit(str)),
+                // @@Todo: support Integer/Float ascriptions
+                TokenKind::IntLit(value) => {
+                    Lit::Int(IntLit { value: value.into(), kind: IntLitKind::Unsuffixed })
+                }
+                TokenKind::FloatLit(value) => {
+                    Lit::Float(FloatLit { value, kind: FloatLitKind::Unsuffixed })
+                }
+                TokenKind::CharLit(value) => Lit::Char(CharLit(value)),
+                TokenKind::StrLit(value) => Lit::Str(StrLit(value)),
                 TokenKind::Keyword(Keyword::False) => Lit::Bool(BoolLit(false)),
                 TokenKind::Keyword(Keyword::True) => Lit::Bool(BoolLit(true)),
                 _ => unreachable!(),
             },
             token.span,
-        );
-
-        self.node_with_span(Expr::new(ExprKind::LitExpr(LitExpr(lit))), token.span)
+        )
     }
 
     /// Parse a single map entry in a literal.
