@@ -1,5 +1,4 @@
-error: failed to parse
+error: Couldn't import module `does_not_exist`: Module couldn't be found
  --> $DIR/case.hash:1:6
 1 |   k := import("does_not_exist");
   |        ^^^^^^^^^^^^^^^^^^^^^^^^ here
-  = note: Couldn't import module `does_not_exist`: Module couldn't be found.

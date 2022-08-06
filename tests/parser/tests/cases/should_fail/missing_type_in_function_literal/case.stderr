@@ -1,7 +1,6 @@
-error: failed to parse
+error: expected a type annotation
  --> $DIR/case.hash:3:19
 2 |   
 3 |   foo := (l: u32, k:) -> u32 => { // error here!
   |                     ^ here
 4 |       l * k
-  = note: expected a type annotation.

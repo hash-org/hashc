@@ -1,6 +1,5 @@
-error: failed to parse
+error: expected an expression, however received a `;`
  --> $DIR/case.hash:2:11
 1 |   // This directive does not have an expression
 2 |   k := #dump;
   |             ^ here
-  = note: expected an expression, however received a `;`.

@@ -1,5 +1,4 @@
-error: failed to parse
+error: invalid character escape sequence. Unicode escape literal must be at most 6 hex digits
  --> $DIR/case.hash:1:8
 1 |   k := '\u{00000000000}'; // This is an invalid unicode char as it too big.
   |          ^^^^^^^^^^^^^^ here
-  = note: invalid character escape sequence. Unicode escape literal must be at most 6 hex digits

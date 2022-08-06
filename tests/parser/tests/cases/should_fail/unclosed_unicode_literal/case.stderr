@@ -1,5 +1,4 @@
-error: failed to parse
+error: invalid character escape sequence. Expected `}` after a escape sequence
  --> $DIR/case.hash:1:14
 1 |   k := '\u{005a';
   |                ^ here
-  = note: invalid character escape sequence. Expected `}` after a escape sequence

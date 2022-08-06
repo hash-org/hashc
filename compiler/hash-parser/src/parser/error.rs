@@ -110,28 +110,20 @@ impl From<AstGenError> for ParseError {
 
         let mut base_message = match &err.kind {
             AstGenErrorKind::Keyword => {
-                let keyword = err.received.unwrap();
-
-                format!("encountered an unexpected keyword {}", keyword.as_error_string())
+                format!(
+                    "encountered an unexpected keyword {}",
+                    err.received.unwrap().as_error_string()
+                )
             }
             AstGenErrorKind::Expected => match &err.received {
                 Some(kind) => format!("unexpectedly encountered {}", kind.as_error_string()),
                 None => "unexpectedly reached the end of input".to_string(),
             },
-            AstGenErrorKind::Block => {
-                let base: String = "expected block body, which begins with a '{'".into();
-
-                match err.received {
-                    Some(kind) => {
-                        format!("{}, however received '{}'.", base, kind.as_error_string())
-                    }
-                    None => base,
-                }
-            }
+            AstGenErrorKind::Block => "expected block body, which begins with a `{`".to_string(),
             AstGenErrorKind::EOF => "unexpectedly reached the end of input".to_string(),
-            AstGenErrorKind::ReAssignmentOp => "Expected a re-assignment operator".to_string(),
+            AstGenErrorKind::ReAssignmentOp => "expected a re-assignment operator".to_string(),
             AstGenErrorKind::TypeDefinition(ty) => {
-                format!("expected {} definition entries here which begin with a '('", ty)
+                format!("expected {ty} definition entries here which begin with a `(`")
             }
             AstGenErrorKind::ExpectedValueAfterTyAnnotation => {
                 "expected value assignment after type annotation within named tuple".to_string()
@@ -139,9 +131,9 @@ impl From<AstGenError> for ParseError {
             AstGenErrorKind::ExpectedOperator => "expected an operator".to_string(),
             AstGenErrorKind::ExpectedExpr => "expected an expression".to_string(),
             AstGenErrorKind::ExpectedName => "expected a name here".to_string(),
-            AstGenErrorKind::ExpectedArrow => "expected an arrow '=>' ".to_string(),
+            AstGenErrorKind::ExpectedArrow => "expected an arrow `=>` ".to_string(),
             AstGenErrorKind::ExpectedFnArrow => {
-                "expected an arrow '->' after type arguments denoting a function type".to_string()
+                "expected an arrow `->` after type arguments denoting a function type".to_string()
             }
             AstGenErrorKind::ExpectedFnBody => "expected a function body".to_string(),
             AstGenErrorKind::ExpectedType => "expected a type annotation".to_string(),
@@ -154,7 +146,7 @@ impl From<AstGenError> for ParseError {
             }
             AstGenErrorKind::ErroneousImport(err) => err.to_string(),
             AstGenErrorKind::Namespace => {
-                "expected identifier after a name access qualifier '::'".to_string()
+                "expected identifier after a name access qualifier `::`".to_string()
             }
             AstGenErrorKind::MalformedSpreadPattern(dots) => {
                 format!(
@@ -163,17 +155,14 @@ impl From<AstGenError> for ParseError {
             }
         };
 
-        // Block and expected format the error message in their own way, whereas all the
-        // other error types follow a conformed order to formatting expected tokens
-        if !matches!(&err.kind, AstGenErrorKind::Block) {
-            if !matches!(&err.kind, AstGenErrorKind::Expected) {
-                if let Some(kind) = err.received {
-                    let atom_msg = format!(", however received {}", kind.as_error_string());
-                    base_message.push_str(&atom_msg);
-                }
+        // `AstGenErrorKind::Expected` format the error message in their own way,
+        // whereas all the other error types follow a conformed order to
+        // formatting expected tokens
+        if !matches!(&err.kind, AstGenErrorKind::Expected) {
+            if let Some(kind) = err.received {
+                let atom_msg = format!(", however received {}", kind.as_error_string());
+                base_message.push_str(&atom_msg);
             }
-
-            base_message.push('.');
         }
 
         // If the generated error has suggested tokens that aren't empty.
@@ -221,25 +210,20 @@ impl ParseError {
         match self {
             ParseError::Import(import_error) => return import_error.create_report(),
             ParseError::Parsing { message, location, help } => {
+                // When we don't have a source for the error, just add a note
+                builder.with_message(message);
+
                 if let Some(location) = location {
-                    builder
-                        .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
-                            location, "here",
-                        )))
-                        .add_element(ReportElement::Note(ReportNote::new(
-                            ReportNoteKind::Note,
-                            message,
-                        )));
-                } else {
-                    // When we don't have a source for the error, just add a note
-                    builder.with_message(message);
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location, "here",
+                    )));
                 }
 
                 // Add the `help` message as a separate note
-                if let Some(message) = help {
+                if let Some(help_message) = help {
                     builder.add_element(ReportElement::Note(ReportNote::new(
                         ReportNoteKind::Help,
-                        message,
+                        help_message,
                     )));
                 }
             }

@@ -1,6 +1,5 @@
-error: failed to parse
+error: unexpectedly encountered a `>`
  --> $DIR/case.hash:1:20
 1 |   str_eq: (str, str) > str;
   |                      ^ here
-  = note: unexpectedly encountered a `>`.
   = help: consider adding a `;`

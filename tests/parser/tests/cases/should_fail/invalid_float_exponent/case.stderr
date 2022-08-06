@@ -1,5 +1,4 @@
-error: failed to parse
+error: expected field name access or a method call
  --> $DIR/case.hash:1:12
 1 |   k := 12e23.0;
   |              ^ here
-  = note: expected field name access or a method call.
