@@ -7,9 +7,9 @@ use crate::storage::{
         ConstructedTerm, ConstructorPat, EnumDef, EnumVariant, EnumVariantValue, FnCall, FnLit,
         FnTy, IfPat, Level0Term, Level1Term, Level2Term, Level3Term, ListPat, LitTerm, Member,
         ModDef, ModDefId, ModDefOrigin, ModPat, Mutability, NominalDef, NominalDefId, Param,
-        ParamList, ParamsId, Pat, PatArg, PatArgsId, PatId, Scope, ScopeId, ScopeKind, ScopeVar,
-        SetBound, StructDef, StructFields, Term, TermId, TrtDef, TrtDefId, TupleLit, TupleTy, TyFn,
-        TyFnCall, TyFnCase, TyFnTy, UnresolvedTerm, Var, Visibility,
+        ParamList, ParamsId, Pat, PatArg, PatArgsId, PatId, RangePat, Scope, ScopeId, ScopeKind,
+        ScopeVar, SetBound, StructDef, StructFields, Term, TermId, TrtDef, TrtDefId, TupleLit,
+        TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy, UnresolvedTerm, Var, Visibility,
     },
     GlobalStorage,
 };
@@ -625,6 +625,11 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// Create a literal pattern.
     pub fn create_lit_pat(&self, lit_term: TermId) -> PatId {
         self.create_pat(Pat::Lit(lit_term))
+    }
+
+    /// Create a [Pat::Range]
+    pub fn create_range_pat(&self, range: RangePat) -> PatId {
+        self.create_pat(Pat::Range(range))
     }
 
     /// Create an OR-pattern.

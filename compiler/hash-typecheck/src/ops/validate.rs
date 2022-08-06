@@ -1,4 +1,6 @@
 //! Contains utilities to validate terms.
+use hash_ast::ast::RangeEnd;
+
 use super::{scope::ScopeManager, AccessToOps, AccessToOpsMut};
 use crate::{
     diagnostics::{
@@ -9,9 +11,9 @@ use crate::{
     ops::params::validate_param_list_ordering,
     storage::{
         primitives::{
-            ArgsId, ConstructedTerm, FnTy, Level0Term, Level1Term, Level2Term, Member, ModDefId,
-            ModDefOrigin, NominalDef, NominalDefId, ParamsId, Scope, ScopeId, ScopeKind,
-            StructFields, Term, TermId, TrtDefId,
+            ArgsId, ConstructedTerm, FnTy, Level0Term, Level1Term, Level2Term, LitTerm, Member,
+            ModDefId, ModDefOrigin, NominalDef, NominalDefId, ParamsId, RangePat, Scope, ScopeId,
+            ScopeKind, StructFields, Term, TermId, TrtDefId,
         },
         terms::TermStore,
         AccessToStorage, AccessToStorageMut, StorageRefMut,
@@ -1190,6 +1192,56 @@ impl<'tc> Validator<'tc> {
         match term {
             Term::Level1(Level1Term::Fn(fn_ty)) => Ok(Some(*fn_ty)),
             _ => Ok(None),
+        }
+    }
+
+    /// Validate that a [Pat::Range] has matching `lo`, and `hi` types, and that
+    /// the values of ranges are semantically correct
+    pub(crate) fn validate_range_pat(&mut self, pat: &RangePat) -> TcResult<()> {
+        let RangePat { lo, hi, end } = *pat;
+
+        // Expect to be literal terms, which should definitely unify
+        let _ = self.unifier().unify_terms(hi, lo)?;
+
+        let reader = self.reader();
+
+        // Ensure that the range makes sense...
+        let lo_term = reader.get_term(lo);
+        let hi_term = reader.get_term(hi);
+
+        let invalid_range_bound =
+            |term, end| -> TcResult<()> { Err(TcError::InvalidRangePatBoundaries { term, end }) };
+
+        // If the `end` is inclusive, we need to verify that `lhs` is less than
+        // or equal to `rhs`, otherwise it must be less than `rhs
+        match (lo_term, hi_term) {
+            (
+                Term::Level0(Level0Term::Lit(LitTerm::Char(lhs))),
+                Term::Level0(Level0Term::Lit(LitTerm::Char(rhs))),
+            ) => match end {
+                RangeEnd::Included if lhs > rhs => invalid_range_bound(lo, end),
+                RangeEnd::Excluded if lhs >= rhs => invalid_range_bound(lo, end),
+                _ => Ok(()),
+            },
+            (
+                Term::Level0(Level0Term::Lit(LitTerm::Int { value: lhs, kind: lhs_kind })),
+                Term::Level0(Level0Term::Lit(LitTerm::Int { value: rhs, kind: rhs_kind })),
+            ) => {
+                // Check that the integer type is sized, if it is not then we currently
+                // say that this is not supported...
+                if lhs_kind.size().is_none() || rhs_kind.size().is_none() {
+                    return Err(TcError::UnsupportedRangePatTy {
+                        term: lhs_kind.size().map_or(lo, |_| hi),
+                    });
+                }
+
+                match end {
+                    RangeEnd::Included if lhs > rhs => invalid_range_bound(lo, end),
+                    RangeEnd::Excluded if lhs > rhs => invalid_range_bound(lo, end),
+                    _ => Ok(()),
+                }
+            }
+            _ => unreachable!(),
         }
     }
 }
