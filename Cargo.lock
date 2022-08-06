@@ -458,6 +458,7 @@ dependencies = [
  "hash-utils",
  "profiling",
  "rayon",
+ "smallvec",
  "thiserror",
 ]
 
@@ -525,6 +526,7 @@ dependencies = [
  "derive_more",
  "hash-alloc",
  "hash-source",
+ "smallvec",
  "strum_macros",
 ]
 

@@ -1,0 +1,7 @@
+error: failed to parse
+ --> $DIR/case.hash:2:2
+1 |   // Should report that it unexpectedly encountered `=`
+2 |   <=>a
+  |    ^ here
+  = note: unexpectedly encountered a `=`.
+  = help: consider adding a `>`

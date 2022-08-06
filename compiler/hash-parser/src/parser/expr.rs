@@ -1,12 +1,11 @@
 //! Hash Compiler AST generation sources. This file contains the sources to the
 //! logic that transforms tokens into an AST.
-use std::{path::PathBuf, str::FromStr};
-
+use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 use hash_ast::{ast::*, ast_nodes};
 use hash_source::location::Span;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
-
-use super::{error::AstGenErrorKind, AstGen, AstGenResult};
+use smallvec::smallvec;
+use std::{path::PathBuf, str::FromStr};
 
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a top level [Expr] that are terminated with a semi-colon.
@@ -55,7 +54,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                         }
                         Some(token) => self.error_with_location(
                             AstGenErrorKind::ExpectedOperator,
-                            Some(TokenKindVector::from_vec(vec![
+                            Some(TokenKindVector::from_vec(smallvec![
                                 TokenKind::Dot,
                                 TokenKind::Eq,
                                 TokenKind::Semi,

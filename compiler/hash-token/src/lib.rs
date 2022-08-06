@@ -6,6 +6,7 @@ pub mod keyword;
 use delimiter::Delimiter;
 use hash_source::{identifier::Identifier, location::Span, string::Str};
 use keyword::Keyword;
+use smallvec::{smallvec, SmallVec};
 
 /// A Lexeme token that represents the smallest code unit of a hash source file.
 /// The token contains a kind which is elaborated by [TokenKind] and a [Span] in
@@ -268,24 +269,24 @@ impl std::fmt::Display for TokenKind {
 /// can use the [`ToString`] trait and just auto cast into a string, whilst
 /// holding a vector of strings.
 #[derive(Debug)]
-pub struct TokenKindVector(Vec<TokenKind>);
+pub struct TokenKindVector(SmallVec<[TokenKind; 2]>);
 
 impl TokenKindVector {
     /// Create a new empty [TokenKindVector].
     pub fn empty() -> Self {
-        Self(vec![])
+        Self(smallvec![])
     }
 
-    pub fn inner(&self) -> &Vec<TokenKind> {
+    pub fn inner(&self) -> &SmallVec<[TokenKind; 2]> {
         &self.0
     }
 
-    pub fn into_inner(self) -> Vec<TokenKind> {
+    pub fn into_inner(self) -> SmallVec<[TokenKind; 2]> {
         self.0
     }
 
     /// Create a [TokenKindVector] from a provided row of expected atoms.
-    pub fn from_vec(items: Vec<TokenKind>) -> Self {
+    pub fn from_vec(items: SmallVec<[TokenKind; 2]>) -> Self {
         Self(items)
     }
 
@@ -296,12 +297,12 @@ impl TokenKindVector {
 
     /// Create a [TokenKindVector] with a single atom.
     pub fn singleton(kind: TokenKind) -> Self {
-        Self(vec![kind])
+        Self(smallvec![kind])
     }
 
     #[inline(always)]
     pub fn begin_visibility() -> Self {
-        Self(vec![TokenKind::Keyword(Keyword::Pub), TokenKind::Keyword(Keyword::Priv)])
+        Self(smallvec![TokenKind::Keyword(Keyword::Pub), TokenKind::Keyword(Keyword::Priv)])
     }
 }
 
