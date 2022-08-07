@@ -206,7 +206,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let (pat, can_continue) = if let Pat::Lit(LitPat(lit)) = &pat {
             match self.peek() {
                 Some(token) if token.has_kind(TokenKind::Dot) => {
-                    println!("offset={}", self.offset.get());
                     match self.maybe_parse_range_pat(lit.clone()) {
                         Some(pat) => (Pat::Range(pat), false),
                         None => (pat, true),

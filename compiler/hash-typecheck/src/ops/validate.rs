@@ -1203,7 +1203,12 @@ impl<'tc> Validator<'tc> {
         // Expect to be literal terms, which should definitely unify
         let hi_ty = self.typer().infer_ty_of_term(hi)?;
         let lo_ty = self.typer().infer_ty_of_term(lo)?;
-        let _ = self.unifier().unify_terms(hi_ty, lo_ty)?;
+        let subs = self.unifier().unify_terms_bi(hi_ty, lo_ty)?;
+
+        // If the subs is not empty, then we fail
+        if !subs.is_empty() {
+            return Err(TcError::CannotUnify { src: lo_ty, target: hi_ty });
+        }
 
         let reader = self.reader();
 

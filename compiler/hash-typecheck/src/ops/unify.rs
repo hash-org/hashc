@@ -255,6 +255,15 @@ impl<'tc> Unifier<'tc> {
         Ok(cumulative_sub)
     }
 
+    /// Bi-directional-unification
+    pub(crate) fn unify_terms_bi(&mut self, lhs: TermId, rhs: TermId) -> TcResult<Sub> {
+        let mut lhs_subs = self.unify_terms(lhs, rhs)?;
+        let rhs_subs = self.unify_terms(rhs, lhs)?;
+
+        lhs_subs.extend(&rhs_subs);
+        Ok(lhs_subs)
+    }
+
     /// Terms are equal if they unify both ways without any substitutions.
     pub(crate) fn terms_are_equal(&mut self, a: TermId, b: TermId) -> bool {
         self.unify_terms(a, b).contains(&Sub::empty())
