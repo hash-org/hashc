@@ -158,7 +158,7 @@ pub(crate) fn pair_args_with_params<'p, 'a, T: Clone + GetNameOpt>(
 ///
 /// This does not perform any typechecking, it simply checks that the given
 /// [ParamList] follows the described rules. This function works for either
-/// parameters or arguments, and hence why it accepts a [ParameterListOrigin]
+/// parameters or arguments, and hence why it accepts a [ParamListKind]
 /// in order to preserve context in the event of an error.
 pub(crate) fn validate_param_list_ordering<T: Clone + GetNameOpt>(
     params: &ParamList<T>,

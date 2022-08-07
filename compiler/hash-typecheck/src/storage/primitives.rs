@@ -974,6 +974,11 @@ impl Sub {
         self.data.get(&subject).copied()
     }
 
+    /// Check whether the substitution is empty
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+
     /// Get all the subjects (i.e. the domain) of the substitution as an
     /// iterator.
     pub fn domain(&self) -> impl Iterator<Item = SubVar> + '_ {

@@ -31,7 +31,7 @@ const BLOCK_DIAGNOSTIC_MARKER: char = '-';
 const DIAGNOSTIC_CONNECTING_CHAR: &str = "|";
 
 /// Struct to represent the column and row offset produced from converting a
-/// [Span].
+/// [hash_source::location::Span].
 pub(crate) struct ColRowOffset {
     /// The column offset.
     col: usize,

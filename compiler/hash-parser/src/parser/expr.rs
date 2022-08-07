@@ -5,6 +5,7 @@ use std::{path::PathBuf, str::FromStr};
 use hash_ast::{ast::*, ast_nodes};
 use hash_source::location::Span;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
+use smallvec::smallvec;
 
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
@@ -53,14 +54,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                                 &start,
                             ))
                         }
-                        Some(_) => self.error_with_location(
+                        Some(token) => self.error_with_location(
                             AstGenErrorKind::ExpectedOperator,
-                            Some(TokenKindVector::from_row(vec![
+                            Some(TokenKindVector::from_vec(smallvec![
                                 TokenKind::Dot,
                                 TokenKind::Eq,
                                 TokenKind::Semi,
                             ])),
-                            None,
+                            Some(token.kind),
                             self.next_location(),
                         ),
                         // Special case where there is a expression at the end of the stream and
@@ -615,6 +616,26 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
             TokenKind::Plus => return self.parse_expr(),
             kind @ (TokenKind::Minus | TokenKind::Exclamation | TokenKind::Tilde) => {
+                // Immediately deal with negation on numeric literals...
+                if *kind == TokenKind::Minus {
+                    match self.peek() {
+                        Some(token) if token.kind.is_numeric() => {
+                            self.skip_token();
+
+                            // Parse the numeric literal and apply negation to it
+                            let mut lit = self.create_numeric_lit(true);
+                            let adjusted_span = token.span.join(lit.span());
+                            lit.set_span(adjusted_span);
+
+                            return Ok(self.node_with_span(
+                                Expr::new(ExprKind::LitExpr(LitExpr(lit))),
+                                adjusted_span,
+                            ));
+                        }
+                        _ => {}
+                    }
+                }
+
                 let expr = self.parse_expr()?;
 
                 let operator = self.node_with_span(
@@ -657,7 +678,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// both. As such a name is returned before parsing a type, function, or
     /// both. A destructuring pattern, potential for-all statement, optional
     /// type definition and a potential definition of the right hand side. For
-    /// example: ```text
+    /// example:
+    ///
+    /// ```text
     /// some_var: float = ...;
     /// ^^^^^^^^  ^^^^^   ^^^─────┐
     /// pattern    type    the right hand-side expr

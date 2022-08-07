@@ -638,6 +638,13 @@ pub trait AstVisitor: Sized {
         node: ast::AstNodeRef<ast::LitPat>,
     ) -> Result<Self::LitPatRet, Self::Error>;
 
+    type RangePatRet;
+    fn visit_range_pat(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::RangePat>,
+    ) -> Result<Self::RangePatRet, Self::Error>;
+
     type OrPatRet;
     fn visit_or_pat(
         &mut self,
@@ -1311,6 +1318,13 @@ pub trait AstVisitorMut: Sized {
         ctx: &Self::Ctx,
         node: ast::AstNodeRefMut<ast::LitPat>,
     ) -> Result<Self::LitPatRet, Self::Error>;
+
+    type RangePatRet;
+    fn visit_range_pat(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::RangePat>,
+    ) -> Result<Self::RangePatRet, Self::Error>;
 
     type OrPatRet;
     fn visit_or_pat(
@@ -2485,6 +2499,7 @@ pub mod walk {
         Binding(V::BindingPatRet),
         Spread(V::SpreadPatRet),
         Wild(V::WildPatRet),
+        Range(V::RangePatRet),
     }
 
     pub fn walk_pat<V: AstVisitor>(
@@ -2508,6 +2523,7 @@ pub mod walk {
             }
             ast::Pat::Spread(r) => Pat::Spread(visitor.visit_spread_pat(ctx, node.with_body(r))?),
             ast::Pat::Wild(r) => Pat::Wild(visitor.visit_wild_pat(ctx, node.with_body(r))?),
+            ast::Pat::Range(r) => Pat::Range(visitor.visit_range_pat(ctx, node.with_body(r))?),
         })
     }
 
@@ -2529,6 +2545,7 @@ pub mod walk {
             BindingPatRet = Ret,
             SpreadPatRet = Ret,
             WildPatRet = Ret,
+            RangePatRet = Ret,
         >,
     {
         Ok(match walk_pat(visitor, ctx, node)? {
@@ -2543,6 +2560,7 @@ pub mod walk {
             Pat::Binding(r) => r,
             Pat::Spread(r) => r,
             Pat::Wild(r) => r,
+            Pat::Range(r) => r,
         })
     }
 
@@ -2718,16 +2736,30 @@ pub mod walk {
         })
     }
 
-    pub struct LitPat<V: AstVisitor> {
-        pub lit: V::LitRet,
-    }
+    pub struct LitPat<V: AstVisitor>(pub V::LitRet);
 
     pub fn walk_lit_pat<V: AstVisitor>(
         visitor: &mut V,
         ctx: &V::Ctx,
         node: ast::AstNodeRef<ast::LitPat>,
     ) -> Result<LitPat<V>, V::Error> {
-        Ok(LitPat { lit: visitor.visit_lit(ctx, node.lit.ast_ref())? })
+        Ok(LitPat(visitor.visit_lit(ctx, node.0.ast_ref())?))
+    }
+
+    pub struct RangePat<V: AstVisitor> {
+        pub lo: V::LitRet,
+        pub hi: V::LitRet,
+    }
+
+    pub fn walk_range_pat<V: AstVisitor>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::RangePat>,
+    ) -> Result<RangePat<V>, V::Error> {
+        Ok(RangePat {
+            lo: visitor.visit_lit(ctx, node.lo.ast_ref())?,
+            hi: visitor.visit_lit(ctx, node.hi.ast_ref())?,
+        })
     }
 
     pub struct ModulePatEntry<V: AstVisitor> {
@@ -4190,6 +4222,7 @@ pub mod walk_mut {
         Binding(V::BindingPatRet),
         Spread(V::SpreadPatRet),
         Wild(V::WildPatRet),
+        Range(V::RangePatRet),
     }
 
     pub fn walk_pat<V: AstVisitorMut>(
@@ -4230,6 +4263,9 @@ pub mod walk_mut {
             ast::Pat::Wild(r) => {
                 Pat::Wild(visitor.visit_wild_pat(ctx, AstNodeRefMut::new(r, span, id))?)
             }
+            ast::Pat::Range(r) => {
+                Pat::Range(visitor.visit_range_pat(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
         })
     }
 
@@ -4251,6 +4287,7 @@ pub mod walk_mut {
             BindingPatRet = Ret,
             SpreadPatRet = Ret,
             WildPatRet = Ret,
+            RangePatRet = Ret,
         >,
     {
         Ok(match walk_pat(visitor, ctx, node)? {
@@ -4265,6 +4302,7 @@ pub mod walk_mut {
             Pat::Binding(r) => r,
             Pat::Spread(r) => r,
             Pat::Wild(r) => r,
+            Pat::Range(r) => r,
         })
     }
 
@@ -4434,16 +4472,14 @@ pub mod walk_mut {
         })
     }
 
-    pub struct LitPat<V: AstVisitorMut> {
-        pub lit: V::LitRet,
-    }
+    pub struct LitPat<V: AstVisitorMut>(pub V::LitRet);
 
     pub fn walk_lit_pat<V: AstVisitorMut>(
         visitor: &mut V,
         ctx: &V::Ctx,
         mut node: ast::AstNodeRefMut<ast::LitPat>,
     ) -> Result<LitPat<V>, V::Error> {
-        Ok(LitPat { lit: visitor.visit_lit(ctx, node.lit.ast_ref_mut())? })
+        Ok(LitPat(visitor.visit_lit(ctx, node.0.ast_ref_mut())?))
     }
 
     pub struct ModulePatEntry<V: AstVisitorMut> {

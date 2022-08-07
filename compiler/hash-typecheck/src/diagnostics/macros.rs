@@ -4,14 +4,15 @@
 const TC_FATAL_ERROR_MESSAGE: &str =
     "A fatal error occurred during typechecking on the reported node";
 
-/// The macro `tc_panic` is essentially used to create a [Report], build
-/// it and then print it whilst panicking. This is a useful utility to denote
-/// where a panic occurs and provide additional context about where the panic
-/// occurred in regards to traversing the sources.
+/// The macro `tc_panic` is essentially used to create a
+/// [hash_reporting::report::Report], build it and then print it whilst
+/// panicking. This is a useful utility to denote where a panic occurs and
+/// provide additional context about where the panic occurred in regards to
+/// traversing the sources.
 ///
 /// The `storage` argument to the macro is used to access the storage in order
-/// to resolve the [SourceMap] and [GlobalStorage] so that the term location can
-/// be fetched.
+/// to resolve the [hash_source::SourceMap] and [crate::storage::GlobalStorage]
+/// so that the term location can be fetched.
 pub macro tc_panic {
     ($term: expr, $storage:expr, $fmt: expr) => {
         {
@@ -58,10 +59,11 @@ pub macro tc_panic {
     },
 }
 
-/// The macro `tc_panic_on_many` is essentially used to create a [Report], build
-/// it and then print it whilst panicking. This macro differs from `tc_panic`
-/// because it accepts the `expr` and treats it as an iterable. For each term, a
-/// code block element is added to the built report.
+/// The macro `tc_panic_on_many` is essentially used to create a
+/// [hash_reporting::report::Report], build it and then print it whilst
+/// panicking. This macro differs from `tc_panic` because it accepts the `expr`
+/// and treats it as an iterable. For each term, a code block element is added
+/// to the built report.
 pub macro tc_panic_on_many {
     ([$($terms:expr),*  $(,)?], $storage:expr, $fmt: expr) => {
         {

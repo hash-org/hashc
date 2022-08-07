@@ -3,6 +3,7 @@
 use hash_ast::ast::*;
 use hash_source::location::Span;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
+use num_bigint::{BigInt, Sign};
 
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
@@ -26,6 +27,81 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 TokenKind::StrLit(value) => Lit::Str(StrLit(value)),
                 TokenKind::Keyword(Keyword::False) => Lit::Bool(BoolLit(false)),
                 TokenKind::Keyword(Keyword::True) => Lit::Bool(BoolLit(true)),
+                _ => unreachable!(),
+            },
+            token.span,
+        )
+    }
+
+    ///
+    pub(crate) fn parse_primitive_lit(&self) -> AstGenResult<AstNode<Lit>> {
+        let token = self
+            .next_token()
+            .ok_or_else(|| self.make_error(AstGenErrorKind::EOF, None, None, None))?;
+
+        // Deal with the numeric prefix `+` by just simply ignoring it
+        let lit = match token.kind {
+            kind if kind.is_numeric_prefix() => {
+                let is_negated = self.parse_token_fast(TokenKind::Minus).is_some();
+
+                // We want to skip the `+` sign if it's not `-`
+                if !is_negated {
+                    self.skip_token();
+                }
+
+                match self.peek() {
+                    Some(token) if token.kind.is_numeric() => {
+                        self.skip_token();
+                        return Ok(self.create_numeric_lit(is_negated));
+                    }
+                    token => self.error_with_location(
+                        AstGenErrorKind::ExpectedLiteral,
+                        None,
+                        token.map(|t| t.kind),
+                        self.next_location(),
+                    ),
+                }
+            }
+            TokenKind::IntLit(value) => {
+                Ok(Lit::Int(IntLit { value: value.into(), kind: IntLitKind::Unsuffixed }))
+            }
+            TokenKind::FloatLit(value) => {
+                Ok(Lit::Float(FloatLit { value, kind: FloatLitKind::Unsuffixed }))
+            }
+            TokenKind::CharLit(value) => Ok(Lit::Char(CharLit(value))),
+            TokenKind::StrLit(value) => Ok(Lit::Str(StrLit(value))),
+            kind => self.error_with_location(
+                AstGenErrorKind::ExpectedLiteral,
+                None,
+                Some(kind),
+                token.span,
+            ),
+        }?;
+
+        Ok(self.node_with_joined_span(lit, &token.span))
+    }
+
+    /// Create a numeric literal that can also be negated, it is verified
+    /// that the current token is a numeric literal
+    pub(crate) fn create_numeric_lit(&self, is_negated: bool) -> AstNode<Lit> {
+        let token = self.current_token();
+
+        self.node_with_span(
+            match token.kind {
+                // @@Todo: support Integer/Float ascriptions
+                TokenKind::IntLit(value) => {
+                    let value = BigInt::from_bytes_be(
+                        if is_negated { Sign::Minus } else { Sign::NoSign },
+                        &value.to_be_bytes(),
+                    );
+
+                    Lit::Int(IntLit { value, kind: IntLitKind::Unsuffixed })
+                }
+                TokenKind::FloatLit(value) => {
+                    let value = if is_negated { -value } else { value };
+
+                    Lit::Float(FloatLit { value, kind: FloatLitKind::Unsuffixed })
+                }
                 _ => unreachable!(),
             },
             token.span,

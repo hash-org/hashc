@@ -2,6 +2,7 @@
 //! logic that transforms tokens into an AST.
 use hash_ast::ast::*;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, TokenKind, TokenKindVector};
+use smallvec::smallvec;
 
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 use crate::parser::error::TyArgumentKind;
@@ -93,16 +94,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub fn parse_ty_fn_def(&self) -> AstGenResult<TyFnDef> {
         let mut params = AstNodes::empty();
 
-        // We can't do this because the parse_separated_fn() function expects a token
-        // tree and not the while tree:
-        //
-        // let args = self.parse_separated_fn(
-        //     || self.parse_ty_fn_def_arg(),
-        //     || self.parse_token_atom(TokenKind::Comma),
-        // )?;
-        //
-        // And so instead we do this:
-        //
+        // Flag denoting that we were able to parse the ending `>` within the function
+        // def arg
+        let mut arg_ending = false;
+
         while let Some(param) = self.peek_resultant_fn(|| self.parse_ty_fn_def_arg()) {
             params.nodes.push(param);
 
@@ -112,15 +107,26 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 }
                 Some(token) if token.has_kind(TokenKind::Gt) => {
                     self.skip_token();
+                    arg_ending = true;
                     break;
                 }
                 token => self.error_with_location(
                     AstGenErrorKind::Expected,
-                    Some(TokenKindVector::from_row(vec![TokenKind::Comma, TokenKind::Gt])),
+                    Some(TokenKindVector::from_vec(smallvec![TokenKind::Comma, TokenKind::Gt])),
                     token.map(|t| t.kind),
                     token.map_or_else(|| self.next_location(), |t| t.span),
                 )?,
             }
+        }
+
+        // So if we failed to parse even a `>` we should report this...
+        if !arg_ending {
+            self.error_with_location(
+                AstGenErrorKind::Expected,
+                Some(TokenKindVector::singleton(TokenKind::Gt)),
+                self.peek().map(|tok| tok.kind),
+                self.next_location(),
+            )?;
         }
 
         // see if we need to add a return ty...

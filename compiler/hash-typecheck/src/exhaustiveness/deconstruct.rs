@@ -1,10 +1,10 @@
 //! This file contains logic surrounding [DeconstructedPat] which is a
-//! representation of a [Pat] that is deconstructed and simplified
-//! to the point of being processable by the usefulness algorithm. A
-//! [DeconstructedPat] is essentially a tree representation of a
-//! [Pat] with any of the inner fields of the [Pat] being represented
-//! as child [DeconstructedPat]s stored within the `fields` parameter
-//! of the structure.
+//! representation of a [crate::storage::primitives::Pat]  that is
+//! deconstructed and simplified to the point of being processable by the
+//!  usefulness algorithm. A [DeconstructedPat] is essentially a tree
+//! representation of a `pat` with any of the inner fields of the pat being
+//! represented as child [DeconstructedPat]s stored within the  `fields`
+//! parameter of the structure.
 use std::{cell::Cell, fmt::Debug};
 
 use hash_utils::store::Store;
@@ -181,7 +181,7 @@ impl<'tc> DeconstructPatOps<'tc> {
     }
 
     /// Internal method to to recursively walk a [DeconstructedPat] and collect
-    /// any [Span]s of patterns that were marked as unreachable.
+    /// any [PatId]s of patterns that were marked as unreachable.
     fn collect_unreachable_pats(&self, pat: &DeconstructedPat, spans: &mut Vec<PatId>) {
         // We don't look at sub-patterns if we
         // already reported the whole pattern as  unreachable.

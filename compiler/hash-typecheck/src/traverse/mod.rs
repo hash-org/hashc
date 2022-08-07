@@ -30,7 +30,7 @@ use crate::{
         pats::PatId,
         primitives::{
             AccessOp, Arg, BindingPat, ConstPat, EnumVariant, Member, ModDefOrigin, Mutability,
-            Param, Pat, PatArg, ScopeKind, SpreadPat, Sub, Visibility,
+            Param, Pat, PatArg, RangePat, ScopeKind, SpreadPat, Sub, Visibility,
         },
         terms::TermId,
         AccessToStorage, LocalStorage, StorageRef,
@@ -2080,14 +2080,32 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::LitPat>,
     ) -> Result<Self::LitPatRet, Self::Error> {
-        let walk::LitPat { lit } = walk::walk_lit_pat(self, ctx, node)?;
+        let walk::LitPat(lit) = walk::walk_lit_pat(self, ctx, node)?;
 
-        let pat = match node.body().lit.body() {
+        let pat = match node.body().0.body() {
             Lit::Bool(_) => self.builder().create_constant_pat(lit),
             _ => self.builder().create_lit_pat(lit),
         };
 
         self.copy_location_from_node_to_target(node, pat);
+
+        Ok(pat)
+    }
+
+    type RangePatRet = PatId;
+
+    fn visit_range_pat(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::RangePat>,
+    ) -> Result<Self::RangePatRet, Self::Error> {
+        let walk::RangePat { lo, hi } = walk::walk_range_pat(self, ctx, node)?;
+
+        let range_pat = RangePat { lo, hi, end: node.body().end };
+        let pat = self.builder().create_range_pat(range_pat);
+        self.copy_location_from_node_to_target(node, pat);
+
+        self.validator().validate_range_pat(&range_pat)?;
 
         Ok(pat)
     }
@@ -2106,7 +2124,6 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     }
 
     type IfPatRet = PatId;
-
     fn visit_if_pat(
         &mut self,
         ctx: &Self::Ctx,
@@ -2119,6 +2136,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     }
 
     type BindingPatRet = PatId;
+
     fn visit_binding_pat(
         &mut self,
         _: &Self::Ctx,

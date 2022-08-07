@@ -401,7 +401,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
             token => self.error_with_location(
                 error.unwrap_or(AstGenErrorKind::Expected),
-                Some(TokenKindVector::from_row(vec![TokenKind::Delimiter(delimiter, true)])),
+                Some(TokenKindVector::singleton(TokenKind::Delimiter(delimiter, true))),
                 token.map(|tok| tok.kind),
                 token.map_or_else(|| self.current_location(), |tok| tok.span),
             )?,

@@ -1,0 +1,2 @@
+// Should report that it unexpectedly encountered `=`
+<=>a

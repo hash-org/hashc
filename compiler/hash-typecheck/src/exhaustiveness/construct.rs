@@ -8,17 +8,17 @@
 //! Splitting a constructor means to take the [DeconstructedCtor] and to
 //! yield all the possible [DeconstructedCtor]s that can cover the
 //! underlying constructors. For example, if the constructor
-//! is specified as [Constructor::Wildcard], we take the provided
+//! is specified as [DeconstructedCtor::Wildcard], we take the provided
 //! [PatCtx] which stores the relevant term of the constructor and
 //! produce a [DeconstructedCtor] that matches all possible cases of the
 //! term. For example, if the term is `char` and the constructor
-//! is [Constructor::Wildcard], then the resultant constructors
+//! is [DeconstructedCtor::Wildcard], then the resultant constructors
 //! becomes:
 //!
 //! ```ignore
 //! [
-//!     Constructor::IntRange(0..=55295),      // 0..=D7FF
-//!     Constructor::IntRange(57344..=1114111) // E000..=10FFFF
+//!     DeconstructedCtor::IntRange(0..=55295),      // 0..=D7FF
+//!     DeconstructedCtor::IntRange(57344..=1114111) // E000..=10FFFF
 //! ]
 //! ```
 //!

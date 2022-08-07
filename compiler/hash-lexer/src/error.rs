@@ -30,31 +30,31 @@ pub struct LexerErrorWrapper(pub SourceId, pub LexerError);
 pub enum LexerErrorKind {
     /// Occurs when a escape sequence (within a character or a string) is
     /// malformed.
-    #[error("Invalid character escape sequence")]
+    #[error("invalid character escape sequence")]
     BadEscapeSequence,
     /// Occurs when a numerical literal doesn't follow the language
     /// specification, or is too large.
-    #[error("Malformed numerical literal")]
+    #[error("malformed numerical literal")]
     MalformedNumericalLit,
     /// Occurs when a float literal exponent has no proceeding digits.
-    #[error("Expected float exponent to have at least one digit")]
+    #[error("expected float exponent to have at least one digit")]
     MissingExponentDigits,
     /// Occurs when a numerical literal doesn't follow the language
     /// specification, or is too large.
-    #[error("Unclosed string literal")]
+    #[error("unclosed string literal")]
     UnclosedStringLit,
     /// Occurs when a character literal is comprised of more than one character
-    #[error("Invalid character literal `{0}`, character literals may only contain one codepoint")]
+    #[error("invalid character literal `{0}`, character literals may only contain one codepoint")]
     InvalidCharacterLit(String),
     /// Occurs when a char is unexpected in the current context
-    #[error("Encountered unexpected character `{0}`")]
+    #[error("encountered unexpected character `{0}`")]
     Unexpected(char),
     /// Occurs when the tokeniser expects a particular token next, but could not
     /// derive one.
-    #[error("Expected token `{0}`")]
+    #[error("expected token `{0}`")]
     Expected(TokenKind),
     /// Unclosed tree block
-    #[error("Encountered unclosed delimiter `{}`, add a `{0}` after the inner expression", .0.left())]
+    #[error("encountered unclosed delimiter `{}`, add a `{0}` after the inner expression", .0.left())]
     Unclosed(Delimiter),
 }
 

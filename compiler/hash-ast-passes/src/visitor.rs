@@ -1107,6 +1107,18 @@ impl AstVisitor for SemanticAnalyser<'_> {
         Ok(())
     }
 
+    type RangePatRet = ();
+
+    fn visit_range_pat(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::RangePat>,
+    ) -> Result<Self::RangePatRet, Self::Error> {
+        let _ = walk::walk_range_pat(self, ctx, node)?;
+
+        Ok(())
+    }
+
     type OrPatRet = ();
 
     fn visit_or_pat(

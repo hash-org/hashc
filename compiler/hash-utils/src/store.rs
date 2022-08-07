@@ -396,7 +396,7 @@ pub trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
     ///
     /// *Warning*: Do not call mutating store methods (`create_*` etc) in `f`
     /// otherwise there will be a panic. If you want to do this, consider using
-    /// [`Self::modify()`] instead.
+    /// [`Self::modify_cloned()`] instead.
     fn modify_fast<T>(&self, key: Key, f: impl FnOnce(&mut [Value]) -> T) -> T {
         let mut data = self.internal_data().borrow_mut();
         let value = data.get_mut(key.to_index_range()).unwrap();
