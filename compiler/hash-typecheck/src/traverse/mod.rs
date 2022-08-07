@@ -33,7 +33,7 @@ use crate::{
             Param, Pat, PatArg, ScopeKind, SpreadPat, Sub, Visibility,
         },
         terms::TermId,
-        AccessToStorage, AccessToStorageMut, LocalStorage, StorageRef, StorageRefMut,
+        AccessToStorage, LocalStorage, StorageRef,
     },
 };
 
@@ -66,7 +66,7 @@ impl TcVisitorState {
 ///
 /// Contains typechecker state that is accessed while traversing.
 pub struct TcVisitor<'tc> {
-    pub storage: StorageRefMut<'tc>,
+    pub storage: StorageRef<'tc>,
     pub node_map: &'tc NodeMap,
     pub state: TcVisitorState,
 }
@@ -77,16 +77,10 @@ impl<'tc> AccessToStorage for TcVisitor<'tc> {
     }
 }
 
-impl<'tc> AccessToStorageMut for TcVisitor<'tc> {
-    fn storages_mut(&mut self) -> StorageRefMut {
-        self.storage.storages_mut()
-    }
-}
-
 impl<'tc> TcVisitor<'tc> {
     /// Create a new [TcVisitor] with the given state, traversing the given
     /// source from [SourceId].
-    pub fn new_in_source(storage: StorageRefMut<'tc>, node_map: &'tc NodeMap) -> Self {
+    pub fn new_in_source(storage: StorageRef<'tc>, node_map: &'tc NodeMap) -> Self {
         TcVisitor { storage, node_map, state: TcVisitorState::new() }
     }
 
@@ -106,7 +100,7 @@ impl<'tc> TcVisitor<'tc> {
         // Add the result to the checked sources.
         // @@Correctness: the visitor will loop infinitely if there are circular module
         // dependencies. Need to find a way to prevent this.
-        self.checked_sources_mut().mark_checked(source_id, result);
+        self.checked_sources().mark_checked(source_id, result);
 
         log::debug!(
             "tc cache metrics:\n{: <8}: {}\n{: <8}: {}\n{: <8}: {}\n{: <8}: {}\n",
@@ -142,7 +136,7 @@ impl<'tc> TcVisitor<'tc> {
         target: impl Into<LocationTarget>,
     ) {
         let location = self.source_location_at_node(node);
-        self.location_store_mut().add_location_to_target(target, location);
+        self.location_store().add_location_to_target(target, location);
     }
 
     /// Copy the [SourceLocation] of the given [hash_ast::ast::AstNode] list to
@@ -741,16 +735,14 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
                         // First, create a new storage reference for the child module:
                         let node_map = self.node_map;
-                        let storage_ref_mut = self.storages_mut();
-                        let mut child_local_storage =
-                            LocalStorage::new(storage_ref_mut.global_storage, id);
-                        let storage_ref_mut = StorageRefMut {
-                            local_storage: &mut child_local_storage,
-                            ..storage_ref_mut
-                        };
+                        let storage_ref = self.storages();
+                        let child_local_storage = LocalStorage::new(storage_ref.global_storage, id);
+                        let child_storage_ref =
+                            StorageRef { local_storage: &child_local_storage, ..storage_ref };
 
                         // Visit the child module
-                        let mut child_visitor = TcVisitor::new_in_source(storage_ref_mut, node_map);
+                        let mut child_visitor =
+                            TcVisitor::new_in_source(child_storage_ref, node_map);
                         let module_term = child_visitor.visit_source()?;
                         Ok(module_term)
                     }
@@ -1636,7 +1628,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let member_indexes = members
             .iter()
             .map(|member| {
-                self.scope_store_mut().modify_fast(current_scope_id, |scope| scope.add(*member))
+                self.scope_store().modify_fast(current_scope_id, |scope| scope.add(*member))
             })
             .collect::<Vec<_>>();
 

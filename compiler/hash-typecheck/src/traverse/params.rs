@@ -11,7 +11,7 @@ use super::TcVisitor;
 use crate::{
     diagnostics::error::TcResult,
     ops::AccessToOps,
-    storage::{primitives::Param, AccessToStorage, AccessToStorageMut},
+    storage::{primitives::Param, AccessToStorage},
 };
 
 impl<'tc> TcVisitor<'tc> {
@@ -62,7 +62,7 @@ impl<'tc> TcVisitor<'tc> {
         // @@Note: This should never fail since we panic above if there is no span!
         if let Some(ty_span) = ty_span {
             let value_location = self.source_location(ty_span);
-            self.location_store_mut().add_location_to_target(ty, value_location);
+            self.location_store().add_location_to_target(ty, value_location);
         }
 
         Ok(Param { name: Some(name), ty, default_value })
@@ -88,7 +88,7 @@ impl<'tc> TcVisitor<'tc> {
         let runtime_instantiable_trt = self.builder().create_sized_ty_term();
         let ty = ty.unwrap_or(runtime_instantiable_trt);
 
-        self.location_store_mut().add_location_to_target(ty, location);
+        self.location_store().add_location_to_target(ty, location);
 
         Ok(Param { ty, name: Some(name), default_value: default })
     }
