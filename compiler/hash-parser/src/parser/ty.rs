@@ -13,9 +13,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         self.parse_type_with_precedence(0)
     }
 
-    /// Parse a [Ty] with precedence in mind. The type notation within hash
-    /// contains [TyOp] operators which are binary operators for type terms.
-    /// This function implements the same precedence algorithm for correctly
+    /// Parse a [Ty] with precedence in mind. The type notation contains
+    /// [BinTyOp] operators which are binary operators for type terms. This
+    /// function implements the same precedence algorithm for correctly
     /// forming binary type expressions.
     fn parse_type_with_precedence(&self, min_prec: u8) -> AstGenResult<AstNode<Ty>> {
         let mut lhs = self.parse_singular_type()?;
@@ -172,12 +172,13 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         Ok(self.node_with_joined_span(ty, &span))
     }
 
-    /// This parses some type arguments after an [AccessName], however due to
-    /// the nature of the language grammar, since the [TokenKind] could be a
-    /// [`TokenKind::Lt`] or `<`, it could also be a comparison rather than
-    /// the beginning of a type argument. Therefore, we have to lookahead to
-    /// see if there is another type followed by either a comma (which locks the
-    /// `type_args`) or a closing [`TokenKind::Gt`].
+    /// This parses type arguments, however due to the nature of the language
+    /// grammar, since the [Token
+    ///Kind] could be a [`TokenKind::Lt`] or `<`, it could also be a comp
+    ///arison rather than the beginning of a type argument. Therefore, we
+    /// have to lookahead to see if there is another type followed by
+    ///either a comma (which locks the `type_args`) or a
+    /// closing [`TokenKind::Gt`].
     pub(crate) fn parse_ty_args(&self, lt_eaten: bool) -> AstGenResult<AstNodes<TyArg>> {
         // Only parse is if the caller specifies that they haven't eaten an `lt`
         if !lt_eaten {

@@ -1195,7 +1195,7 @@ impl<'tc> Validator<'tc> {
         }
     }
 
-    /// Validate that a [Pat::Range] has matching `lo`, and `hi` types, and that
+    /// Validate that a [RangePat] has matching `lo`, and `hi` types, and that
     /// the values of ranges are semantically correct
     pub(crate) fn validate_range_pat(&mut self, pat: &RangePat) -> TcResult<()> {
         let RangePat { lo, hi, end } = *pat;

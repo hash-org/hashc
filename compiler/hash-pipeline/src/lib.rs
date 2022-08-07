@@ -153,8 +153,8 @@ where
         eprintln!("{: <12}: {total:?}\n", format!("{}", CompilerMode::Full));
     }
 
-    /// Utility function used by AST like stages in order to print the
-    /// current [Sources].
+    /// Utility function used by AST-like stages in order to print the
+    /// current [self::sources::NodeMap].
     fn print_sources(&self, workspace: &Workspace, entry_point: SourceId) {
         match entry_point {
             SourceId::Interactive(id) => {
@@ -332,10 +332,9 @@ where
         Ok(())
     }
 
-    /// Run a particular job within the pipeline. This function handles both
-    /// cases of either the entry point being an [InteractiveId] or a
-    /// [ModuleId]. The function deals with executing the required stages in
-    /// order as specified by the `job_parameters`
+    /// Run a particular job within the pipeline. The function deals with
+    /// executing the required stages in order as specified by the
+    /// `job_parameters`
     fn run_pipeline(
         &mut self,
         entry_point: SourceId,

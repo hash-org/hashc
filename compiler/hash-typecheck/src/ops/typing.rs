@@ -49,10 +49,10 @@ impl<'tc> Typer<'tc> {
 
     /// Get the type of the given term, as another term. This will copy over the
     /// location of the provided term to the new term within
-    /// [LocationStore].
+    /// [crate::storage::location::LocationStore].
     ///
     /// First simplifies the term. If you already know you have a simplified
-    /// term, you can use [Self::ty_of_simplified_term].
+    /// term, you can use [`Typer::ty_of_simplified_term`].
     pub(crate) fn infer_ty_of_term(&mut self, term: TermId) -> TcResult<TermId> {
         if let Some(inferred_term) = self.cacher().has_been_inferred(term) {
             return Ok(inferred_term);
