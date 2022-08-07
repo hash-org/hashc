@@ -18,7 +18,7 @@ use crate::{
 
 /// A row of a [super::matrix::Matrix]. Rows of len 1 are very common, which is
 /// why `SmallVec[_; /// 2]` works well.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct PatStack {
     /// The stored patterns in the row.
     pub pats: SmallVec<[DeconstructedPatId; 2]>,

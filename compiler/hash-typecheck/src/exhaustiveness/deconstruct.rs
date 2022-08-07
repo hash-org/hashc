@@ -125,18 +125,18 @@ impl<'tc> DeconstructPatOps<'tc> {
     pub(super) fn specialise(
         &self,
         ctx: PatCtx,
-        pat: DeconstructedPatId,
-        other_ctor_id: DeconstructedCtorId,
+        pat_id: DeconstructedPatId,
+        ctor_id: DeconstructedCtorId,
     ) -> SmallVec<[DeconstructedPatId; 2]> {
         let reader = self.reader();
-        let pat = reader.get_deconstructed_pat(pat);
-        let ctor = reader.get_deconstructed_ctor(pat.ctor);
-        let other_ctor = reader.get_deconstructed_ctor(other_ctor_id);
+        let pat = reader.get_deconstructed_pat(pat_id);
+        let pat_ctor = reader.get_deconstructed_ctor(pat.ctor);
+        let other_ctor = reader.get_deconstructed_ctor(ctor_id);
 
-        match (ctor, other_ctor) {
+        match (pat_ctor, other_ctor) {
             (DeconstructedCtor::Wildcard, _) => {
                 // We return a wildcard for each field of `other_ctor`.
-                self.fields_ops().wildcards(ctx, other_ctor_id).iter_patterns().copied().collect()
+                self.fields_ops().wildcards(ctx, ctor_id).iter_patterns().copied().collect()
             }
             (DeconstructedCtor::List(this_list), DeconstructedCtor::List(other_list))
                 if this_list.arity() != other_list.arity() =>

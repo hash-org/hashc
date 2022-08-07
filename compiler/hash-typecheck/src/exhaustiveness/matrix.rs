@@ -125,8 +125,14 @@ impl Debug for ForFormatting<'_, Matrix> {
         let Matrix { patterns: m, .. } = &self.t;
 
         // Firstly, get all the patterns within the matrix as strings...
-        let pretty_printed_matrix: Vec<Vec<String>> =
-            m.iter().map(|row| row.iter().map(|pat| format!("{:?}", pat)).collect()).collect();
+        let pretty_printed_matrix: Vec<Vec<String>> = m
+            .iter()
+            .map(|row| {
+                row.iter()
+                    .map(|pat| format!("{:?}", pat.for_formatting(self.global_storage)))
+                    .collect()
+            })
+            .collect();
 
         let column_count = m.iter().map(|row| row.len()).next().unwrap_or(0);
 

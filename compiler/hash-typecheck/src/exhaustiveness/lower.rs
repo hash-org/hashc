@@ -370,7 +370,7 @@ impl<'tc> LowerPatOps<'tc> {
                 panic!("cannot convert an `or` deconstructed pat back into pat")
             }
             DeconstructedCtor::Missing => panic!(
-                "trying to convert a `Missing` constructor into a `Pat`; this is probably a bug, `Missing` should have been processed in `apply_constructors`"
+                "trying to convert a `Missing` constructor into a `Pat`; this is probably a bug, `Missing` should have been processed in `apply_ctors`"
             ),
         };
 

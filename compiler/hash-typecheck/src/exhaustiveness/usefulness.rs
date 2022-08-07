@@ -54,7 +54,7 @@ impl Usefulness {
     /// Create a `useful` [Usefulness] report.
     pub fn new_useful(preference: MatchArmKind) -> Self {
         match preference {
-            //            A single (empty) witness of reachability.
+            // A single (empty) witness of reachability.
             MatchArmKind::ExhaustiveWildcard => Usefulness::WithWitnesses(vec![Witness(vec![])]),
             MatchArmKind::Real => Usefulness::NoWitnesses { useful: true },
         }
@@ -196,7 +196,7 @@ impl<'tc> UsefulnessOps<'tc> {
     /// pre-specialization. This new usefulness can then be merged
     /// with the results of specializing with the other constructors.
     fn apply_constructor(
-        &mut self,
+        &self,
         ctx: PatCtx,
         usefulness: Usefulness,
         matrix: &Matrix, // used to compute missing ctors
@@ -358,13 +358,13 @@ impl<'tc> UsefulnessOps<'tc> {
             // @@Ranges: we should check that int ranges don't overlap here, in case
             // they're partially covered by other ranges. Additionally, since this isn't
             // necessarily an error, we should integrate this with our warning system.
-            let v_ctor = head.ctor;
             let reader = self.reader();
-
             let ctors = matrix.heads().map(|id| reader.get_deconstructed_pat(id).ctor);
 
             // We split the head constructor of `v`.
+            let v_ctor = head.ctor;
             let split_ctors = self.constructor_ops().split(ctx, v_ctor, ctors);
+
             let start_matrix = &matrix;
 
             // For each constructor, we compute whether there's a value that starts with it

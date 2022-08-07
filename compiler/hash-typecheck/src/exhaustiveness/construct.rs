@@ -24,6 +24,8 @@
 //!
 //! In other words, all the possible (valid) values of the `char` type.
 //! A similar process occurs with all other wildcard types,
+use std::fmt::Debug;
+
 use hash_source::{
     location::{SourceLocation, Span},
     string::Str,
@@ -41,6 +43,7 @@ use crate::{
         list::{List, ListKind, SplitVarList},
         PatCtx,
     },
+    fmt::{ForFormatting, PrepareForFormatting},
     ops::AccessToOps,
     storage::{
         deconstructed::DeconstructedCtorId,
@@ -282,14 +285,14 @@ impl<'tc> ConstructorOps<'tc> {
     /// from a wildcard.
     pub(super) fn is_covered_by_any(
         &self,
-        ctor: DeconstructedCtorId,
+        pat: DeconstructedCtorId,
         used_ctors: &[DeconstructedCtorId],
     ) -> bool {
         if used_ctors.is_empty() {
             return false;
         }
 
-        let ctor = self.reader().get_deconstructed_ctor(ctor);
+        let ctor = self.reader().get_deconstructed_ctor(pat);
 
         match ctor {
             // If `self` is `Single`, `used_ctors` cannot contain anything else than `Single`s.
@@ -317,5 +320,14 @@ impl<'tc> ConstructorOps<'tc> {
                 panic!("Unexpected ctor in all_ctors")
             }
         }
+    }
+}
+
+impl PrepareForFormatting for DeconstructedCtorId {}
+
+impl Debug for ForFormatting<'_, DeconstructedCtorId> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let ctor = self.global_storage.deconstructed_ctor_store.get(self.t);
+        write!(f, "{:?}", ctor)
     }
 }
