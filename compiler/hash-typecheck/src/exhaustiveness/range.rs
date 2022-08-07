@@ -273,7 +273,7 @@ impl<'tc> IntRangeOps<'tc> {
         let (lo, hi) = (lo ^ bias, hi ^ bias);
         let offset = (*end == RangeEnd::Excluded) as u128;
         if lo > hi || (lo == hi && *end == RangeEnd::Excluded) {
-            panic!("malformed range pattern: {}..={}", lo, (hi - offset));
+            panic!("malformed range pattern: {}..{}", lo, (hi - offset));
         }
 
         IntRange { start: lo, end: hi - offset, bias }
@@ -284,15 +284,14 @@ impl<'tc> IntRangeOps<'tc> {
     /// of the integer size, in other words at the position where the
     /// last byte is that identifies the sign.
     fn signed_bias(&self, ctx: PatCtx) -> u128 {
-        let reader = self.reader();
-
-        match reader.get_term(ctx.ty) {
-            Term::Level0(Level0Term::Lit(LitTerm::Int { kind, .. })) if kind.is_signed() => {
-                // @@Future: support `ibig` here
-                let size = kind.size().unwrap();
-                1u128 << (size * 8 - 1)
+        // @@Future: support `ibig` here
+        if let Some(ty) = self.oracle().term_as_int_ty(ctx.ty) {
+            if let Some(size) = ty.size() && ty.is_signed()  {
+                let bits = (size * 8) as u128;
+                return 1u128 << (bits - 1);
             }
-            _ => 0,
-        }
+        };
+
+        0
     }
 }

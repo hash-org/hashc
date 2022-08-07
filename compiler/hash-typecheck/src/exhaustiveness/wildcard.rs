@@ -92,7 +92,7 @@ impl<'tc> SplitWildcardOps<'tc> {
                 kind if kind.is_signed() => {
                     // Safe to unwrap since we deal with `ibig` and `ubig` variants...
                     let size = kind.size().unwrap();
-                    let bits = size * 8;
+                    let bits = (size * 8) as u128;
 
                     let min = 1u128 << (bits - 1);
                     let max = min - 1;
