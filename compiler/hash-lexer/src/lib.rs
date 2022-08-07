@@ -368,7 +368,7 @@ impl<'a> Lexer<'a> {
             // tokeniser being too greedy and eating the 'dot' without reason.
             // Admittedly, this is a slight ambiguity in the language syntax, but
             // there isn't currently a clear way to resolve this ambiguity.
-            '.' if !is_id_start(self.peek_second()) => {
+            '.' if !is_id_start(self.peek_second()) && self.peek_second() != '.' => {
                 self.skip();
 
                 let after_digits = self.eat_decimal_digits(10);

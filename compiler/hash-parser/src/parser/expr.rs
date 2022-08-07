@@ -621,7 +621,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                             self.skip_token();
 
                             // Parse the numeric literal and apply negation to it
-                            let mut lit = self.parse_numeric_lit(true);
+                            let mut lit = self.create_numeric_lit(true);
                             let adjusted_span = token.span.join(lit.span());
                             lit.set_span(adjusted_span);
 

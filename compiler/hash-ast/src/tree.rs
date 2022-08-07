@@ -1120,7 +1120,7 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::LitPat>,
     ) -> Result<Self::LitPatRet, Self::Error> {
-        let walk::LitPat { lit } = walk::walk_lit_pat(self, ctx, node)?;
+        let walk::LitPat(lit) = walk::walk_lit_pat(self, ctx, node)?;
         Ok(lit)
     }
 

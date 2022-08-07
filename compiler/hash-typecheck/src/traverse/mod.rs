@@ -2083,9 +2083,9 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::LitPat>,
     ) -> Result<Self::LitPatRet, Self::Error> {
-        let walk::LitPat { lit } = walk::walk_lit_pat(self, ctx, node)?;
+        let walk::LitPat(lit) = walk::walk_lit_pat(self, ctx, node)?;
 
-        let pat = match node.body().lit.body() {
+        let pat = match node.body().0.body() {
             Lit::Bool(_) => self.builder().create_constant_pat(lit),
             _ => self.builder().create_lit_pat(lit),
         };

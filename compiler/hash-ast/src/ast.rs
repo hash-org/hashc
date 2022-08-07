@@ -790,10 +790,7 @@ pub struct ListPat {
 /// A literal pattern, limited to strings, character, floats, and integers, e.g.
 /// `3`, `c`
 #[derive(Debug, PartialEq, Clone)]
-pub struct LitPat {
-    /// The literal of the pattern
-    pub lit: AstNode<Lit>,
-}
+pub struct LitPat(pub AstNode<Lit>);
 /// An access pattern, denoting the access of a property from
 /// another pattern.
 #[derive(Debug, PartialEq, Clone)]
@@ -847,7 +844,7 @@ impl Display for RangeEnd {
 /// A range pattern, which has a `lo` and `hi` endpoints
 /// representing the boundaries of the range, and a
 /// `end` which specifies if the range is open or closed
-/// interval.
+/// interval, e.g. `'a'..<'g'`
 #[derive(Debug, PartialEq, Clone)]
 pub struct RangePat {
     pub lo: AstNode<Lit>,

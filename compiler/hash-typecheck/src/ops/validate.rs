@@ -1201,7 +1201,9 @@ impl<'tc> Validator<'tc> {
         let RangePat { lo, hi, end } = *pat;
 
         // Expect to be literal terms, which should definitely unify
-        let _ = self.unifier().unify_terms(hi, lo)?;
+        let hi_ty = self.typer().infer_ty_of_term(hi)?;
+        let lo_ty = self.typer().infer_ty_of_term(lo)?;
+        let _ = self.unifier().unify_terms(hi_ty, lo_ty)?;
 
         let reader = self.reader();
 

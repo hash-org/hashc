@@ -187,9 +187,10 @@ impl<'s> AstDesugaring<'s> {
                     AstNode::new(
                         MatchCase {
                             pat: AstNode::new(
-                                Pat::Lit(LitPat {
-                                    lit: AstNode::new(Lit::Bool(BoolLit(true)), condition_span)
-                                }),
+                                Pat::Lit(LitPat(AstNode::new(
+                                    Lit::Bool(BoolLit(true)),
+                                    condition_span
+                                ))),
                                 condition_span
                             ),
                             expr: AstNode::new(
@@ -202,9 +203,10 @@ impl<'s> AstDesugaring<'s> {
                     AstNode::new(
                         MatchCase {
                             pat: AstNode::new(
-                                Pat::Lit(LitPat {
-                                    lit: AstNode::new(Lit::Bool(BoolLit(false)), condition_span)
-                                }),
+                                Pat::Lit(LitPat(AstNode::new(
+                                    Lit::Bool(BoolLit(false)),
+                                    condition_span
+                                ))),
                                 condition_span
                             ),
                             expr: AstNode::new(

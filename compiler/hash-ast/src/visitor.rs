@@ -2733,16 +2733,14 @@ pub mod walk {
         })
     }
 
-    pub struct LitPat<V: AstVisitor> {
-        pub lit: V::LitRet,
-    }
+    pub struct LitPat<V: AstVisitor>(pub V::LitRet);
 
     pub fn walk_lit_pat<V: AstVisitor>(
         visitor: &mut V,
         ctx: &V::Ctx,
         node: ast::AstNodeRef<ast::LitPat>,
     ) -> Result<LitPat<V>, V::Error> {
-        Ok(LitPat { lit: visitor.visit_lit(ctx, node.lit.ast_ref())? })
+        Ok(LitPat(visitor.visit_lit(ctx, node.0.ast_ref())?))
     }
 
     pub struct RangePat<V: AstVisitor> {
@@ -4472,16 +4470,14 @@ pub mod walk_mut {
         })
     }
 
-    pub struct LitPat<V: AstVisitorMut> {
-        pub lit: V::LitRet,
-    }
+    pub struct LitPat<V: AstVisitorMut>(pub V::LitRet);
 
     pub fn walk_lit_pat<V: AstVisitorMut>(
         visitor: &mut V,
         ctx: &V::Ctx,
         mut node: ast::AstNodeRefMut<ast::LitPat>,
     ) -> Result<LitPat<V>, V::Error> {
-        Ok(LitPat { lit: visitor.visit_lit(ctx, node.lit.ast_ref_mut())? })
+        Ok(LitPat(visitor.visit_lit(ctx, node.0.ast_ref_mut())?))
     }
 
     pub struct ModulePatEntry<V: AstVisitorMut> {
