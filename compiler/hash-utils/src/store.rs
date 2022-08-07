@@ -377,7 +377,8 @@ pub trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
     /// [`Self::map()`] instead.
     fn map_fast<T>(&self, key: Key, f: impl FnOnce(&[Value]) -> T) -> T {
         let data = self.internal_data().borrow();
-        let value = data.get(key.to_index_range()).unwrap();
+        let (index, len) = key.to_index_and_len();
+        let value = data.get(index..index + len).unwrap();
         f(value)
     }
 
@@ -399,7 +400,8 @@ pub trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
     /// [`Self::modify_cloned()`] instead.
     fn modify_fast<T>(&self, key: Key, f: impl FnOnce(&mut [Value]) -> T) -> T {
         let mut data = self.internal_data().borrow_mut();
-        let value = data.get_mut(key.to_index_range()).unwrap();
+        let (index, len) = key.to_index_and_len();
+        let value = data.get_mut(index..index + len).unwrap();
         f(value)
     }
 
@@ -424,7 +426,8 @@ pub trait SequenceStoreCopy<Key: SequenceStoreKey, Value: Copy>: SequenceStore<K
     fn set_from_slice_copied(&self, key: Key, new_value_sequence: &[Value]) {
         assert!(key.len() == new_value_sequence.len());
         let mut data = self.internal_data().borrow_mut();
-        let value_slice_ref = data.get_mut(key.to_index_range()).unwrap();
+        let (index, len) = key.to_index_and_len();
+        let value_slice_ref = data.get_mut(index..index + len).unwrap();
         value_slice_ref.copy_from_slice(new_value_sequence);
     }
 

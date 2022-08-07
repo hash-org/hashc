@@ -375,21 +375,36 @@ impl<'tc> Unifier<'tc> {
             (Term::TyOf(src_inner), Term::TyOf(dest_inner)) => {
                 self.unify_terms(src_inner, dest_inner)
             }
-            (Term::TyOf(src_inner), _) => match self.term_store().get(src_inner) {
-                // When the `src_inner` is an unresolved term, the unification between the target
-                // will yield a substitution `unresolved` -> `Rt(inner)`, so we need to verify
-                // that the inner term is runtime instantiable...
-                Term::Unresolved(inner)
-                    if self.validator().term_is_runtime_instantiable(simplified_target_id)? =>
-                {
-                    let instantiated_target = self.builder().create_rt_term(simplified_target_id);
+            (Term::TyOf(src_inner), _) => {
+                if let Some(src_scope_var) = self.oracle().term_as_scope_var(src_inner) {
+                    // If it is a scope var, try to just forward to its type
+                    self.unify_terms(
+                        self.scope_manager().get_scope_var_member(src_scope_var).member.ty(),
+                        simplified_target_id,
+                    )
+                } else {
+                    match self.term_store().get(src_inner) {
+                        // When the `src_inner` is an unresolved term, the unification between the
+                        // target will yield a substitution `unresolved` ->
+                        // `Rt(inner)`, so we need to verify that the inner
+                        // term is runtime instantiable...
+                        Term::Unresolved(inner)
+                            if self
+                                .validator()
+                                .term_is_runtime_instantiable(simplified_target_id)? =>
+                        {
+                            let instantiated_target =
+                                self.builder().create_rt_term(simplified_target_id);
 
-                    Ok(Sub::from_pairs([(inner, instantiated_target)]))
+                            Ok(Sub::from_pairs([(inner, instantiated_target)]))
+                        }
+                        // If the inner is not runtime instantiable, it succeeds but with no
+                        // substitution.
+                        Term::Unresolved(_) => Ok(Sub::empty()),
+                        _ => cannot_unify(),
+                    }
                 }
-                // If the inner is not runtime instantiable, it succeeds but with no substitution.
-                Term::Unresolved(_) => Ok(Sub::empty()),
-                _ => cannot_unify(),
-            },
+            }
             (_, Term::TyOf(target_inner)) => match self.term_store().get(target_inner) {
                 // When the `target_inner` is an unresolved term, the unification between the target
                 // will yield a substitution `unresolved` -> `Rt(inner)`, so we need to verify
