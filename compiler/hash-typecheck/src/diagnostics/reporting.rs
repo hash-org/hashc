@@ -12,7 +12,7 @@ use crate::{
         AccessToStorage, StorageRef,
     },
 };
-use hash_ast::ast::{MatchOrigin, ParamOrigin};
+use hash_ast::ast::{MatchOrigin, ParamOrigin, RangeEnd};
 use hash_error_codes::error_codes::HashErrorCode;
 use hash_reporting::{
     builder::ReportBuilder,
@@ -1150,6 +1150,42 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!("pattern {} not covered", pats),
+                    )));
+                }
+            }
+            TcError::InvalidRangePatBoundaries { end, term } => {
+                let message = match end {
+                    RangeEnd::Included => {
+                        "lower range bound must be less than or equal to upper bound"
+                    }
+                    RangeEnd::Excluded => "lower range bound must be less than upper bound",
+                };
+
+                builder
+                    .with_error_code(HashErrorCode::InvalidRangePatBoundaries)
+                    .with_message(message);
+
+                if let Some(location) = err.location_store().get_location(term) {
+                    builder
+                        .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(location, "")));
+                }
+            }
+            TcError::UnsupportedRangePatTy { term } => {
+                builder.with_error_code(HashErrorCode::InvalidRangePatBoundaries).with_message(
+                    format!(
+                        "the type `{}` is not supported in range patterns",
+                        term.for_formatting(err.global_storage())
+                    ),
+                );
+
+                if let Some(location) = err.location_store().get_location(term) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        ""
+                    )))
+                    .add_element(ReportElement::Note(ReportNote::new(
+                        ReportNoteKind::Note,
+                        "this type is not yet supported because it is an un-sized integer type."
                     )));
                 }
             }

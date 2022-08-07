@@ -51,4 +51,5 @@ error_codes! {
     MissingPatternBounds = 81,
     RefutablePat = 82,
     NonExhaustiveMatch = 83,
+    InvalidRangePatBoundaries = 84,
 }

@@ -92,6 +92,8 @@ pub enum AstGenErrorKind {
     /// Malformed spread pattern (if for any reason there is a problem with
     /// parsing the spread operator)
     MalformedSpreadPattern(u8),
+    /// Expected a literal token, mainly originating from range pattern parsing
+    ExpectedLiteral,
 }
 
 impl std::fmt::Display for TyArgumentKind {
@@ -153,6 +155,7 @@ impl From<AstGenError> for ParseError {
                     "malformed spread pattern, expected {dots} more `.` to complete the pattern"
                 )
             }
+            AstGenErrorKind::ExpectedLiteral => "expected literal".to_string(),
         };
 
         // `AstGenErrorKind::Expected` format the error message in their own way,

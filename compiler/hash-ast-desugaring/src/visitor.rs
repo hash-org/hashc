@@ -956,6 +956,16 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         Ok(())
     }
 
+    type RangePatRet = ();
+
+    fn visit_range_pat(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::RangePat>,
+    ) -> Result<Self::RangePatRet, Self::Error> {
+        Ok(())
+    }
+
     type OrPatRet = ();
 
     fn visit_or_pat(

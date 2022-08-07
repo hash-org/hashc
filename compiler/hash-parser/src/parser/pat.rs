@@ -66,10 +66,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// pattern operators such as a `|`, if guards or any form of compound
     /// pattern.
     pub(crate) fn parse_singular_pat(&self) -> AstGenResult<AstNode<Pat>> {
-        let mut subject = self.parse_pat_component()?;
+        let (mut subject, can_continue) = self.parse_pat_component()?;
         let span = subject.span();
 
-        while let Some(token) = self.peek() {
+        while let Some(token) = self.peek() && can_continue {
             subject = match token.kind {
                 // A constructor pattern which uses the `subject` to apply the constructor on
                 TokenKind::Tree(Delimiter::Paren, tree_index) => {
@@ -111,7 +111,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// which is considered to be a single pattern, but made of components
     /// of other single patterns that have very specific rules about when it
     /// can be done.
-    fn parse_pat_component(&self) -> AstGenResult<AstNode<Pat>> {
+    ///
+    /// Returns a flag whether further patterns that are applied onto this
+    /// [Pat] can be parsed. The `can_continue` flag is set to `false` if this
+    /// produces a [Pat::Range].
+    fn parse_pat_component(&self) -> AstGenResult<(AstNode<Pat>, bool)> {
         let start = self.next_location();
         let token =
             self.peek().ok_or_else(|| self.make_error(AstGenErrorKind::EOF, None, None, None))?;
@@ -144,11 +148,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
                         let is_negated = matches!(token.kind, TokenKind::Minus);
 
-                        let mut lit = self.parse_numeric_lit(is_negated);
+                        let mut lit = self.create_numeric_lit(is_negated);
                         let adjusted_span = token.span.join(lit.span());
                         lit.set_span(adjusted_span);
 
-                        Pat::Lit(LitPat { lit })
+                        Pat::Lit(LitPat(lit))
                     }
                     // @@Future: could refine error here to be more specific about numeric literals
                     token => self.error_with_location(
@@ -163,14 +167,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             // Literal patterns
             token if token.kind.is_lit() => {
                 self.skip_token();
-                Pat::Lit(LitPat { lit: self.parse_atomic_lit() })
+                Pat::Lit(LitPat(self.parse_atomic_lit()))
             }
             // Tuple patterns
             Token { kind: TokenKind::Tree(Delimiter::Paren, tree_index), span } => {
                 self.skip_token();
                 let tree = self.token_trees.get(*tree_index).unwrap();
 
-                return self.parse_tuple_pat(tree, *span);
+                return Ok((self.parse_tuple_pat(tree, *span)?, true));
             }
             // Namespace patterns
             Token { kind: TokenKind::Tree(Delimiter::Brace, tree_index), span } => {
@@ -186,7 +190,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 self.skip_token();
                 let tree = self.token_trees.get(*tree_index).unwrap();
 
-                return self.parse_list_pat(tree, *span);
+                return Ok((self.parse_list_pat(tree, *span)?, true));
             }
             token => self.error_with_location(
                 AstGenErrorKind::ExpectedPat,
@@ -196,12 +200,62 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             )?,
         };
 
-        Ok(self.node_with_joined_span(pat, &start))
+        // The only valid `range` pattern prefixes are either a bind, or a numeric
+        // literal, bindings are later reported as erroneous anyway, but it's better
+        // for error-reporting to defer this until later
+        let (pat, can_continue) = if let Pat::Lit(LitPat(lit)) = &pat {
+            match self.peek() {
+                Some(token) if token.has_kind(TokenKind::Dot) => {
+                    match self.maybe_parse_range_pat(lit.clone()) {
+                        Some(pat) => (Pat::Range(pat), false),
+                        None => (pat, true),
+                    }
+                }
+                _ => (pat, true),
+            }
+        } else {
+            (pat, true)
+        };
+
+        Ok((self.node_with_joined_span(pat, &start), can_continue))
     }
 
     /// Parse an arbitrary number of [Pat]s which are comma separated.
     pub fn parse_pat_collection(&self) -> AstGenResult<AstNodes<Pat>> {
         self.parse_separated_fn(|| self.parse_pat(), || self.parse_token(TokenKind::Comma))
+    }
+
+    /// Attempt to parse a range-pattern, if it fails then the
+    /// function returns [None]
+    fn maybe_parse_range_pat(&self, lo: AstNode<Lit>) -> Option<RangePat> {
+        let offset = self.offset();
+
+        // Parse the two dots...
+        for _ in 0..2 {
+            match self.parse_token_fast(TokenKind::Dot) {
+                Some(_) => {}
+                None => {
+                    self.offset.set(offset);
+                    return None;
+                }
+            }
+        }
+
+        // Now parse the range end specifier...
+        let end = match self.parse_token_fast(TokenKind::Lt) {
+            Some(_) => RangeEnd::Excluded,
+            _ => RangeEnd::Included,
+        };
+
+        // Now parse the `hi` part of the range
+        match self.peek_resultant_fn(|| self.parse_primitive_lit()) {
+            Some(hi) => Some(RangePat { lo, hi, end }),
+            None => {
+                // Reset the token offset to the beginning
+                self.offset.set(offset);
+                None
+            }
+        }
     }
 
     /// Parse a [ModulePatEntry]. The [ModulePatEntry] refers to
@@ -412,20 +466,56 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// essentially a dry-run of [Self::parse_singular_pat] since it doesn't
     /// create any kind of patterns whilst traversing the token tree.
     pub(crate) fn begins_pat(&self) -> bool {
+        let check_lit = |offset| {
+            match self.peek_nth(offset) {
+                Some(token) if token.kind.is_lit() || token.kind.is_numeric_prefix() => {
+                    if token.kind.is_numeric_prefix() {
+                        // This must be a numeric literal
+                        match self.peek_second() {
+                            Some(token) if token.kind.is_numeric() => Some(2),
+                            _ => None,
+                        }
+                    } else {
+                        Some(1)
+                    }
+                }
+                _ => Some(0),
+            }
+        };
+
+        // Firstly, we might need to deal with literals and range patterns
+        if let Some(count) = check_lit(0) && count != 0 {
+            // If we peek, there is a dot, and we can check that there 
+            // is also a lit at the end, then we can conclude that this could 
+            // be a pattern
+            let range_tokens = [
+                self.peek_nth(count).map_or(false, |t| t.kind == TokenKind::Dot),
+                self.peek_nth(count + 1).map_or(false, |t| t.kind == TokenKind::Dot),
+                self.peek_nth(count + 2).map_or(false, |t| t.kind == TokenKind::Lt),
+            ];
+
+            let count = match range_tokens {
+                // No initial dot, so it could just be a literal
+                [false, _, _] => {
+                    return matches!(self.peek_nth(count), Some(token) if token.has_kind(TokenKind::Colon))
+                },
+                // `..`
+                [true, true, false] => count + 2,
+                // `..<`
+                [true, true, true] => count + 3,
+                _ => return false,
+            };
+
+            // Now we need to check that there is a literal after this range token
+            if let Some(offset) = check_lit(count) && offset != 0 {
+                return matches!(self.peek_nth(offset + count), Some(token) if token.has_kind(TokenKind::Colon))
+            } else {
+                return false
+            }
+        }
+
         // Perform the initial pattern component lookahead
         let mut n_lookahead = match self.peek() {
-            // literals are allowed, but they must be immediately followed
-            // by a colon
-            Some(token) if token.kind.is_lit() => {
-                return matches!(self.peek_second(), Some(token) if token.has_kind(TokenKind::Colon));
-            }
-            // negation/positive operators on numerics are also allowed
-            Some(Token { kind: TokenKind::Minus | TokenKind::Plus, .. }) => {
-                match self.peek_second() {
-                    Some(token) if token.kind.is_numeric() => 2,
-                    _ => return false,
-                }
-            }
             // Namespace, List, Tuple, etc.
             Some(Token { kind: TokenKind::Tree(_, _), .. }) => 1,
             // Identifier or constructor pattern

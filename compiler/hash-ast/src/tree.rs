@@ -1120,8 +1120,26 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::LitPat>,
     ) -> Result<Self::LitPatRet, Self::Error> {
-        let walk::LitPat { lit } = walk::walk_lit_pat(self, ctx, node)?;
+        let walk::LitPat(lit) = walk::walk_lit_pat(self, ctx, node)?;
         Ok(lit)
+    }
+
+    type RangePatRet = TreeNode;
+    fn visit_range_pat(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::RangePat>,
+    ) -> Result<Self::RangePatRet, Self::Error> {
+        let walk::RangePat { lo, hi } = walk::walk_range_pat(self, ctx, node)?;
+
+        Ok(TreeNode::branch(
+            "range",
+            vec![
+                TreeNode::branch("lo", vec![lo]),
+                TreeNode::branch("hi", vec![hi]),
+                TreeNode::leaf(labelled("end", format!("{}", node.body().end), "`")),
+            ],
+        ))
     }
 
     type OrPatRet = TreeNode;
@@ -1151,6 +1169,7 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type BindingPatRet = TreeNode;
+
     fn visit_binding_pat(
         &mut self,
         ctx: &Self::Ctx,

@@ -1,0 +1,6 @@
+error: expected an arrow `=>` 
+ --> $DIR/case.hash:3:10
+2 |       match k {
+3 |           1..< => {};
+  |            ^ here
+4 |       }
