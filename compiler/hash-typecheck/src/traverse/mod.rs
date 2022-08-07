@@ -1488,7 +1488,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let _ = self.state.fn_def_return_ty.insert(unified_return_ty);
 
         // Return never as the return expression shouldn't evaluate to anything.
-        let never_term = self.builder().create_never_term();
+        let never_term = self.builder().create_never_ty();
         let term = self.builder().create_rt_term(never_term);
 
         self.copy_location_from_node_to_target(node, term);

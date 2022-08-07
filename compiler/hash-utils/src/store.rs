@@ -340,7 +340,8 @@ pub trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
 
     /// Get the value sequence for the given key as an owned vector.
     fn get_vec(&self, key: Key) -> Vec<Value> {
-        self.internal_data().borrow().get(key.to_index_range()).unwrap().to_vec()
+        let (index, len) = key.to_index_and_len();
+        self.internal_data().borrow().get(index..index + len).unwrap().to_vec()
     }
 
     /// Set the value at the given index in the value sequence corresponding to

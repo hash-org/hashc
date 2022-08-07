@@ -91,7 +91,7 @@ pub fn create_core_defs_in(global_storage: &mut GlobalStorage) {
     );
 
     // Never type
-    let never_ty = builder.create_never_term();
+    let never_ty = builder.create_never_ty();
     builder.add_pub_member_to_scope(
         CORE_IDENTIFIERS.never,
         builder.create_sized_ty_term(),
