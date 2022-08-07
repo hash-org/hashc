@@ -1,12 +1,13 @@
 //! Hash Compiler source location definitions.
 #![feature(path_file_prefix)]
 
-use bimap::BiMap;
-use slotmap::{new_key_type, Key, SlotMap};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
 };
+
+use bimap::BiMap;
+use slotmap::{new_key_type, Key, SlotMap};
 
 pub mod identifier;
 pub mod location;

@@ -36,22 +36,19 @@
 //! about the exhaustiveness check algorithm are within the
 //! [exhaustiveness](crate::exhaustiveness) module.
 use hash_ast::ast::MatchOrigin;
+use hash_utils::store::Store;
 use itertools::Itertools;
 
+use super::AccessToOps;
 use crate::{
     diagnostics::error::{TcError, TcResult},
     exhaustiveness::{usefulness::MatchArm, AccessToUsefulnessOps},
-    storage::{
-        primitives::{Pat, PatId, TermId},
-        AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
-    },
+    storage::{pats::PatId, primitives::Pat, terms::TermId, AccessToStorage, StorageRef},
 };
-
-use super::AccessToOps;
 
 /// Contains actions related to pattern exhaustiveness and usefulness checking.
 pub struct ExhaustivenessChecker<'tc> {
-    storage: StorageRefMut<'tc>,
+    storage: StorageRef<'tc>,
 }
 
 impl<'tc> AccessToStorage for ExhaustivenessChecker<'tc> {
@@ -59,19 +56,14 @@ impl<'tc> AccessToStorage for ExhaustivenessChecker<'tc> {
         self.storage.storages()
     }
 }
-impl<'tc> AccessToStorageMut for ExhaustivenessChecker<'tc> {
-    fn storages_mut(&mut self) -> StorageRefMut {
-        self.storage.storages_mut()
-    }
-}
 
 impl<'tc> ExhaustivenessChecker<'tc> {
     /// Create a new [ExhaustivenessChecker].
-    pub fn new(storage: StorageRefMut<'tc>) -> Self {
+    pub fn new(storage: StorageRef<'tc>) -> Self {
         Self { storage }
     }
 
-    fn lower_pats_to_arms(&mut self, pats: &[PatId], term: TermId) -> Vec<MatchArm> {
+    fn lower_pats_to_arms(&self, pats: &[PatId], term: TermId) -> Vec<MatchArm> {
         let reader = self.reader();
 
         pats.iter()
@@ -89,7 +81,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
     /// Checks whether a `match` block is exhaustive from the provided patterns
     /// of each branch and whether there are any `useless` patterns that
     /// are present within the
-    pub fn is_match_exhaustive(&mut self, pats: &[PatId], term: TermId) -> TcResult<()> {
+    pub fn is_match_exhaustive(&self, pats: &[PatId], term: TermId) -> TcResult<()> {
         let arms = self.lower_pats_to_arms(pats, term);
         let report = self.usefulness_ops().compute_match_usefulness(term, &arms);
 
@@ -112,7 +104,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
     /// avoid being more complicated than they are needed. This process
     /// occurs in [ast desugaring](hash_ast_desugaring::desugaring) module.
     pub fn is_pat_irrefutable(
-        &mut self,
+        &self,
         pats: &[PatId],
         term: TermId,
         origin: Option<MatchOrigin>,

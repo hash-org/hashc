@@ -1,13 +1,14 @@
 //! Hash Compiler filesystem utility functions.
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
+
 use hash_reporting::{
     builder::ReportBuilder,
     report::{Report, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind},
 };
 use hash_source::location::SourceLocation;
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
 use thiserror::Error;
 
 /// The location of a build directory of this package, this used to resolve

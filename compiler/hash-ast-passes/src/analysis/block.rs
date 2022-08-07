@@ -8,9 +8,8 @@ use hash_ast::{
     visitor::AstVisitor,
 };
 
-use crate::diagnostics::{error::AnalysisErrorKind, origins::BlockOrigin};
-
 use super::SemanticAnalyser;
+use crate::diagnostics::{error::AnalysisErrorKind, origins::BlockOrigin};
 
 impl SemanticAnalyser<'_> {
     /// This function will verify that all of the given expressions are

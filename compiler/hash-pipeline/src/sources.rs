@@ -1,7 +1,5 @@
 //! Hash Compiler sources map and interfaces for accessing and storing
 //! job sources.
-use hash_ast::ast;
-use hash_source::{InteractiveId, ModuleId, ModuleKind, SourceId, SourceMap};
 use std::{
     collections::{
         hash_map::{Iter, IterMut},
@@ -9,6 +7,9 @@ use std::{
     },
     path::{Path, PathBuf},
 };
+
+use hash_ast::ast;
+use hash_source::{InteractiveId, ModuleId, ModuleKind, SourceId, SourceMap};
 
 /// Data structure which holds information and compiler stage results for a
 /// particular interactive block. Currently, this only stores the generated

@@ -10,7 +10,7 @@
 use diagnostics::reporting::TcErrorWithStorage;
 use hash_pipeline::{traits::Tc, CompilerResult};
 use hash_source::SourceId;
-use storage::{AccessToStorage, AccessToStorageMut, GlobalStorage, LocalStorage, StorageRefMut};
+use storage::{AccessToStorage, GlobalStorage, LocalStorage, StorageRefMut};
 use traverse::TcVisitor;
 
 use crate::fmt::PrepareForFormatting;
@@ -37,8 +37,8 @@ impl TcState {
     pub fn new() -> Self {
         let source_id = SourceId::default();
 
-        let mut global_storage = GlobalStorage::new();
-        let local_storage = LocalStorage::new(&mut global_storage, source_id);
+        let global_storage = GlobalStorage::new();
+        let local_storage = LocalStorage::new(&global_storage, source_id);
         Self { global_storage, prev_local_storage: local_storage }
     }
 }
@@ -74,12 +74,12 @@ impl Tc<'_> for TcImpl {
 
         // Instantiate a visitor with the source and visit the source, using the
         // previous local storage.
-        let mut storage = StorageRefMut {
+        let storage = StorageRefMut {
             global_storage: &mut state.global_storage,
             local_storage: &mut state.prev_local_storage,
             source_map: &workspace.source_map,
         };
-        let mut tc_visitor = TcVisitor::new_in_source(storage.storages_mut(), workspace.node_map());
+        let mut tc_visitor = TcVisitor::new_in_source(storage.storages(), workspace.node_map());
         match tc_visitor.visit_source() {
             Ok(source_term) => {
                 println!("{}", source_term.for_formatting(storage.global_storage()));
@@ -103,15 +103,15 @@ impl Tc<'_> for TcImpl {
     ) -> CompilerResult<()> {
         // Instantiate a visitor with the source and visit the source, using a new local
         // storage.
-        let mut local_storage = LocalStorage::new(&mut state.global_storage, SourceId::Module(id));
+        let mut local_storage = LocalStorage::new(&state.global_storage, SourceId::Module(id));
 
-        let mut storage = StorageRefMut {
+        let storage = StorageRefMut {
             global_storage: &mut state.global_storage,
             local_storage: &mut local_storage,
             source_map: &sources.source_map,
         };
 
-        let mut tc_visitor = TcVisitor::new_in_source(storage.storages_mut(), sources.node_map());
+        let mut tc_visitor = TcVisitor::new_in_source(storage.storages(), sources.node_map());
 
         match tc_visitor.visit_source() {
             Ok(_) => Ok(()),

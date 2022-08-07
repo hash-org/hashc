@@ -1,13 +1,14 @@
 //! Contains a [`Vec`]-like implementation for allocating contiguous sequences
 //! within a [`Wall`].
 
-use crate::Wall;
 use core::fmt;
 use std::{
     borrow::{Borrow, BorrowMut},
     mem::{ManuallyDrop, MaybeUninit},
     ops::{Deref, DerefMut},
 };
+
+use crate::Wall;
 
 /// A [`Vec`]-like implementation for allocating contiguous sequences within a
 /// [`Wall`].
@@ -391,8 +392,9 @@ impl<T: Eq> Eq for Row<'_, T> {}
 
 #[cfg(test)]
 mod tests {
-    use crate::{collections::row::Row, Castle};
     use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use crate::{collections::row::Row, Castle};
 
     #[test]
     fn row_construction_test() {

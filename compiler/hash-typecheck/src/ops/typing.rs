@@ -2,35 +2,33 @@
 use hash_ast::ast::ParamOrigin;
 use itertools::Itertools;
 
-use super::{params::pair_args_with_params, AccessToOps, AccessToOpsMut};
+use super::{params::pair_args_with_params, AccessToOps};
 use crate::{
     diagnostics::{
         error::{TcError, TcResult},
         macros::tc_panic,
     },
     storage::{
+        arguments::ArgsId,
+        params::ParamsId,
+        pats::{PatArgsId, PatId},
         primitives::{
-            AccessOp, AccessPat, Arg, ArgsId, ConstPat, ConstructedTerm, Level0Term, Level1Term,
-            Level2Term, Level3Term, ListPat, LitTerm, Member, ModDefOrigin, NominalDef, Param,
-            ParamsId, Pat, PatArgsId, PatId, RangePat, StructFields, Term, TermId,
+            AccessOp, AccessPat, Arg, ConstPat, ConstructedTerm, Level0Term, Level1Term,
+            Level2Term, Level3Term, ListPat, LitTerm, Member, ModDefOrigin, NominalDef, Param, Pat,
+            RangePat, StructFields, Term,
         },
-        AccessToStorage, AccessToStorageMut, StorageRefMut,
+        terms::TermId,
+        AccessToStorage, StorageRef,
     },
 };
 /// Can resolve the type of a given term, as another term.
 pub struct Typer<'tc> {
-    storage: StorageRefMut<'tc>,
+    storage: StorageRef<'tc>,
 }
 
 impl<'tc> AccessToStorage for Typer<'tc> {
     fn storages(&self) -> crate::storage::StorageRef {
         self.storage.storages()
-    }
-}
-
-impl<'tc> AccessToStorageMut for Typer<'tc> {
-    fn storages_mut(&mut self) -> StorageRefMut {
-        self.storage.storages_mut()
     }
 }
 
@@ -43,7 +41,7 @@ pub struct InferredMemberData {
 }
 
 impl<'tc> Typer<'tc> {
-    pub fn new(storage: StorageRefMut<'tc>) -> Self {
+    pub fn new(storage: StorageRef<'tc>) -> Self {
         Self { storage }
     }
 
@@ -53,7 +51,7 @@ impl<'tc> Typer<'tc> {
     ///
     /// First simplifies the term. If you already know you have a simplified
     /// term, you can use [`Typer::ty_of_simplified_term`].
-    pub(crate) fn infer_ty_of_term(&mut self, term: TermId) -> TcResult<TermId> {
+    pub(crate) fn infer_ty_of_term(&self, term: TermId) -> TcResult<TermId> {
         if let Some(inferred_term) = self.cacher().has_been_inferred(term) {
             return Ok(inferred_term);
         }
@@ -71,8 +69,8 @@ impl<'tc> Typer<'tc> {
     ///
     /// **Warning**: This might produce unexpected behaviour if the term is not
     /// simplified.
-    pub(crate) fn infer_ty_of_simplified_term(&mut self, term_id: TermId) -> TcResult<TermId> {
-        let term = self.reader().get_term(term_id).clone();
+    pub(crate) fn infer_ty_of_simplified_term(&self, term_id: TermId) -> TcResult<TermId> {
+        let term = self.reader().get_term(term_id);
         let new_term = match term {
             Term::Access(access_term) => {
                 // Here we want to get the type of the subject, and ensure it contains this
@@ -103,7 +101,7 @@ impl<'tc> Typer<'tc> {
                 match ty_of_subject {
                     Term::TyFnTy(ty_fn_ty) => {
                         // Unify the type function type params with the given args:
-                        let ty_fn_ty = ty_fn_ty.clone();
+                        let ty_fn_ty = ty_fn_ty;
                         let _ = self.unifier().unify_params_with_args(
                             ty_fn_ty.params,
                             app_ty_fn.args,
@@ -262,7 +260,7 @@ impl<'tc> Typer<'tc> {
             }
         }?;
 
-        self.location_store_mut().copy_location(term_id, new_term);
+        self.location_store().copy_location(term_id, new_term);
         Ok(new_term)
     }
 
@@ -272,32 +270,34 @@ impl<'tc> Typer<'tc> {
     /// This will populate the default values with the values of the args if
     /// `populate_defaults` is true.
     pub(crate) fn infer_params_of_args(
-        &mut self,
+        &self,
         args_id: ArgsId,
         populate_defaults: bool,
     ) -> TcResult<ParamsId> {
-        let args = self.reader().get_args(args_id).clone();
-        let origin = args.origin();
-        let params_list: Vec<_> = args
-            .into_positional()
-            .into_iter()
-            .map(|arg| {
-                Ok(Param {
-                    name: arg.name,
-                    ty: self.infer_ty_of_term(arg.value)?,
-                    default_value: if populate_defaults { Some(arg.value) } else { None },
+        self.args_store().map_as_param_list(args_id, |args| {
+            let params_list: Vec<_> = args
+                .borrowed()
+                .into_positional()
+                .into_iter()
+                .map(|arg| {
+                    Ok(Param {
+                        name: arg.name,
+                        ty: self.infer_ty_of_term(arg.value)?,
+                        default_value: if populate_defaults { Some(arg.value) } else { None },
+                    })
                 })
-            })
-            .collect::<TcResult<_>>()?;
+                .collect::<TcResult<_>>()?;
 
-        let params_id = self.builder().create_params(params_list.iter().copied(), origin);
+            let params_id =
+                self.builder().create_params(params_list.iter().copied(), args.origin());
 
-        // Copy locations:
-        for i in 0..params_list.len() {
-            self.location_store_mut().copy_location((args_id, i), (params_id, i))
-        }
+            // Copy locations:
+            for i in 0..params_list.len() {
+                self.location_store().copy_location((args_id, i), (params_id, i))
+            }
 
-        Ok(params_id)
+            Ok(params_id)
+        })
     }
 
     /// Create an argument from a parameter. This will copy the name
@@ -314,67 +314,68 @@ impl<'tc> Typer<'tc> {
     /// the args is by being careful not to overwrite the specified
     /// arguments with default values of the parameters.
     pub(crate) fn infer_args_from_params(
-        &mut self,
+        &self,
         args_id: ArgsId,
         params_id: ParamsId,
         params_subject: TermId,
         args_subject: TermId,
     ) -> TcResult<ArgsId> {
-        let params = self.params_store().get(params_id).clone();
-        let args = self.args_store().get(args_id).clone();
+        self.params_store().map_as_param_list(params_id, |params| {
+            self.args_store().map_as_param_list(args_id, |args| {
+                // Pair parameters and arguments, then extract the resultant arguments...
+                let pairs = pair_args_with_params(
+                    &params,
+                    &args,
+                    params_id,
+                    args_id,
+                    |p| self.infer_arg_from_param(p),
+                    params_subject,
+                    args_subject,
+                )?;
 
-        // Pair parameters and arguments, then extract the resultant arguments...
-        let pairs = pair_args_with_params(
-            &params,
-            &args,
-            params_id,
-            args_id,
-            |p| self.infer_arg_from_param(p),
-            params_subject,
-            args_subject,
-        )?;
+                let arg_pairs: Vec<_> = pairs.iter().map(|(_, arg)| *arg.as_ref()).collect();
+                let params_sub = self.unifier().unify_param_arg_pairs(pairs)?;
 
-        let arg_pairs: Vec<_> = pairs.iter().map(|(_, arg)| *arg).collect();
-        let params_sub = self.unifier().unify_param_arg_pairs(pairs)?;
+                // Copy over the origin from the initial args
+                let new_args = self.builder().create_args(arg_pairs, args.origin());
 
-        // Copy over the origin from the initial args
-        let new_args = self.builder().create_args(arg_pairs, args.origin());
-
-        // Apply substitution to arguments
-        Ok(self.substituter().apply_sub_to_args(&params_sub, new_args))
+                // Apply substitution to arguments
+                Ok(self.substituter().apply_sub_to_args(&params_sub, new_args))
+            })
+        })
     }
 
     /// From the given [PatArgsId], infer a [ArgsId] describing the the
     /// arguments.
-    pub(crate) fn infer_args_of_pat_args(&mut self, id: PatArgsId) -> TcResult<ArgsId> {
-        let pat_args = self.reader().get_pat_args(id).clone();
-        let origin = pat_args.origin();
+    pub(crate) fn infer_args_of_pat_args(&self, id: PatArgsId) -> TcResult<ArgsId> {
+        self.pat_args_store().map_as_param_list(id, |pat_args| {
+            let arg_tys: Vec<_> = pat_args
+                .borrowed()
+                .into_positional()
+                .into_iter()
+                .map(|param| Ok(Arg { name: param.name, value: self.get_term_of_pat(param.pat)? }))
+                .collect::<TcResult<_>>()?;
 
-        let arg_tys: Vec<_> = pat_args
-            .into_positional()
-            .into_iter()
-            .map(|param| Ok(Arg { name: param.name, value: self.get_term_of_pat(param.pat)? }))
-            .collect::<TcResult<_>>()?;
+            let args_id = self.builder().create_args(arg_tys.iter().copied(), pat_args.origin());
 
-        let args_id = self.builder().create_args(arg_tys.iter().copied(), origin);
+            // Copy locations:
+            for i in 0..arg_tys.len() {
+                self.location_store().copy_location((id, i), (args_id, i))
+            }
 
-        // Copy locations:
-        for i in 0..arg_tys.len() {
-            self.location_store_mut().copy_location((id, i), (args_id, i))
-        }
-
-        Ok(args_id)
+            Ok(args_id)
+        })
     }
 
     /// Get the type of the given pattern, as a term.
-    pub(crate) fn infer_ty_of_pat(&mut self, pat: PatId) -> TcResult<TermId> {
+    pub(crate) fn infer_ty_of_pat(&self, pat: PatId) -> TcResult<TermId> {
         let pat_term = self.get_term_of_pat(pat)?;
         self.infer_ty_of_term(pat_term)
     }
 
     /// Get the term of the given pattern, whose type is the type of the pattern
     /// subject.
-    pub(crate) fn get_term_of_pat(&mut self, pat_id: PatId) -> TcResult<TermId> {
+    pub(crate) fn get_term_of_pat(&self, pat_id: PatId) -> TcResult<TermId> {
         let pat = self.reader().get_pat(pat_id);
 
         let ty_of_pat = match pat {
@@ -456,7 +457,7 @@ impl<'tc> Typer<'tc> {
         }?;
 
         // Copy location:
-        self.location_store_mut().copy_location(pat_id, ty_of_pat);
+        self.location_store().copy_location(pat_id, ty_of_pat);
 
         Ok(ty_of_pat)
     }
@@ -470,11 +471,11 @@ impl<'tc> Typer<'tc> {
     /// This function will populate default values if it can (if the tuple is a
     /// literal).
     pub(crate) fn infer_params_ty_of_tuple_term(
-        &mut self,
+        &self,
         tuple_term_id: TermId,
     ) -> TcResult<Option<ParamsId>> {
         // First, try to read the value as a tuple literal:
-        let tuple_term = self.reader().get_term(tuple_term_id).clone();
+        let tuple_term = self.reader().get_term(tuple_term_id);
         match tuple_term {
             Term::Level0(Level0Term::Tuple(tuple_lit)) => {
                 Ok(Some(self.infer_params_of_args(tuple_lit.members, true)?))
@@ -483,7 +484,7 @@ impl<'tc> Typer<'tc> {
                 let tuple_ty_id = self.infer_ty_of_simplified_term(tuple_term_id)?;
 
                 // Otherwise, get the type and try to get the parameters that way:
-                let tuple_ty = self.reader().get_term(tuple_ty_id).clone();
+                let tuple_ty = self.reader().get_term(tuple_ty_id);
                 match tuple_ty {
                     Term::Merge(terms) => {
                         // Try each term:
@@ -514,10 +515,10 @@ impl<'tc> Typer<'tc> {
     ///
     /// Note: Assumes the term is simplified.
     pub(crate) fn infer_constructors_of_nominal_term(
-        &mut self,
+        &self,
         term_id: TermId,
     ) -> TcResult<Vec<(TermId, ParamsId)>> {
-        let term = self.reader().get_term(term_id).clone();
+        let term = self.reader().get_term(term_id);
 
         match term {
             Term::Level0(Level0Term::Constructed(ConstructedTerm { subject, members })) => {
@@ -527,7 +528,7 @@ impl<'tc> Typer<'tc> {
             _ => {
                 let constructed_ty_id = self.infer_ty_of_simplified_term(term_id)?;
                 let reader = self.reader();
-                let constructed_term = reader.get_term(constructed_ty_id).clone();
+                let constructed_term = reader.get_term(constructed_ty_id);
 
                 match constructed_term {
                     Term::Union(terms) => {

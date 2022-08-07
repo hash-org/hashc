@@ -1,12 +1,24 @@
 //! Contains type definitions that the rest of the storage and the general
 //! typechecker use.
+use std::{
+    borrow::Cow,
+    collections::{HashMap, HashSet},
+    fmt::Display,
+};
+
 use hash_ast::ast::{IntLit, IntLitKind, IntTy, ParamOrigin, RangeEnd};
 use hash_source::{identifier::Identifier, string::Str, SourceId};
 use num_bigint::BigInt;
-use slotmap::new_key_type;
-use std::{
-    collections::{HashMap, HashSet},
-    fmt::Display,
+
+use super::{
+    arguments::ArgsId,
+    mods::ModDefId,
+    nominals::NominalDefId,
+    params::ParamsId,
+    pats::{PatArgsId, PatId},
+    scope::ScopeId,
+    terms::TermId,
+    trts::TrtDefId,
 };
 
 /// The visibility of a member of a const scope.
@@ -343,36 +355,29 @@ pub trait GetNameOpt {
     fn get_name_opt(&self) -> Option<Identifier>;
 }
 
-/// A list of parameters, generic over the parameter type.
-///
-/// Provides ways to store and get a parameter by its name or index.
+/// A borrowed or owned list of parameters, generic over the parameter type.
 #[derive(Debug, Clone)]
-pub struct ParamList<ParamType: Clone> {
-    params: Vec<ParamType>,
-    name_map: HashMap<Identifier, usize>,
+pub struct ParamList<'p, ParamType: Clone> {
+    params: Cow<'p, [ParamType]>,
     origin: ParamOrigin,
 }
 
-impl<ParamType: GetNameOpt + Clone> ParamList<ParamType> {
-    /// Create a new [ParamList] from the given list of parameters.
-    pub fn new(params: Vec<ParamType>, origin: ParamOrigin) -> Self {
-        let name_map = params
-            .iter()
-            .enumerate()
-            .filter_map(|(i, param)| Some((param.get_name_opt()?, i)))
-            .collect();
+impl<ParamType: GetNameOpt + Clone> ParamList<'static, ParamType> {
+    /// Create a new [ParamList] from the given vec of parameters and origin.
+    pub fn new_owned(params: Vec<ParamType>, origin: ParamOrigin) -> Self {
+        Self { params: Cow::Owned(params), origin }
+    }
+}
 
-        Self { params, name_map, origin }
+impl<'p, ParamType: GetNameOpt + Clone> ParamList<'p, ParamType> {
+    /// Create a new [ParamList] from the given slice of parameters.
+    pub fn new(params: &'p [ParamType], origin: ParamOrigin) -> Self {
+        Self { params: Cow::Borrowed(params), origin }
     }
 
     /// Get the parameters as a positional slice
     pub fn positional(&self) -> &[ParamType] {
-        &self.params
-    }
-
-    /// Get the origin of the parameters.
-    pub fn origin(&self) -> ParamOrigin {
-        self.origin
+        self.params.as_ref()
     }
 
     /// Get the length of the parameters.
@@ -380,32 +385,40 @@ impl<ParamType: GetNameOpt + Clone> ParamList<ParamType> {
         self.params.len()
     }
 
+    /// Borrow the parameters as a borrowed type.
+    pub fn borrowed<'s: 'p>(&'s self) -> ParamList<'s, ParamType> {
+        Self::new(self.params.as_ref(), self.origin)
+    }
+
     /// Check if the [ParamList] is empty
     pub fn is_empty(&self) -> bool {
         self.params.is_empty()
     }
 
+    /// Get the origin of the parameters.
+    pub fn origin(&self) -> ParamOrigin {
+        self.origin
+    }
+
     /// Turn [Self] into the parameters as a positional vector.
     pub fn into_positional(self) -> Vec<ParamType> {
-        self.params
+        self.params.into_owned()
     }
 
     /// Get a parameter by name.
     pub fn get_by_name(&self, name: Identifier) -> Option<(usize, &ParamType)> {
-        let param_index = *self.name_map.get(&name)?;
-        Some((param_index, self.positional().get(param_index)?))
+        self.params.iter().enumerate().find_map(|(i, param)| {
+            if param.get_name_opt().contains(&name) {
+                Some((i, param))
+            } else {
+                None
+            }
+        })
     }
 
     /// Get all the names of the fields within the [ParamList
     pub fn names(&self) -> HashSet<Identifier> {
-        self.name_map.keys().cloned().collect::<HashSet<_>>()
-    }
-}
-
-/// Build a [ParamList] from an iterator of `ParamType`.
-impl<ParamType: GetNameOpt + Clone> FromIterator<ParamType> for ParamList<ParamType> {
-    fn from_iter<T: IntoIterator<Item = ParamType>>(iter: T) -> Self {
-        Self::new(iter.into_iter().collect(), ParamOrigin::Unknown)
+        HashSet::from_iter(self.params.iter().flat_map(|param| param.get_name_opt()))
     }
 }
 
@@ -423,7 +436,7 @@ impl GetNameOpt for Arg {
 }
 
 /// A list of arguments.
-pub type Args = ParamList<Arg>;
+pub type Args<'p> = ParamList<'p, Arg>;
 
 /// A parameter, declaring a potentially named variable with a given type and
 /// default value.
@@ -441,7 +454,7 @@ impl GetNameOpt for Param {
 }
 
 /// A list of parameters.
-pub type Params = ParamList<Param>;
+pub type Params<'p> = ParamList<'p, Param>;
 
 /// A set of variables which are bound in some scope.
 ///
@@ -672,7 +685,7 @@ pub struct BoundVar {
 }
 
 /// A scope variable, identified by a `ScopeId` and `usize` index.
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, PartialOrd, Ord)]
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub struct ScopeVar {
     pub name: Identifier,
     pub scope: ScopeId,
@@ -681,7 +694,7 @@ pub struct ScopeVar {
 
 /// A term with a set of bounds being assigned to specific values. The bound
 /// variables should be present in the inner term
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, PartialOrd, Ord)]
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub struct SetBound {
     pub term: TermId,
     /// Must be [ScopeKind::SetBound]
@@ -1147,7 +1160,7 @@ impl GetNameOpt for PatArg {
 }
 
 /// A pattern of parameters.
-pub type PatArgs = ParamList<PatArg>;
+pub type PatArgs<'p> = ParamList<'p, PatArg>;
 
 /// A constructor pattern, used for enum variants and structs.
 #[derive(Clone, Debug, Copy)]
@@ -1236,43 +1249,6 @@ pub enum Pat {
     If(IfPat),
     /// A wildcard pattern, ignoring the subject and always matching.
     Wild,
-}
-
-// IDs for all the primitives to be stored on mapped storage.
-
-new_key_type! {
-    /// The ID of a [TrtDef] stored in [super::trts::TrtDefStore].
-    pub struct TrtDefId;
-
-    /// The ID of a [NominalDef] stored in [super::nominals::NominalDefStore].
-    pub struct NominalDefId;
-
-    /// The ID of a [ModDef] stored in [super::mods::ModDefStore].
-    pub struct ModDefId;
-
-    /// The ID of a [Term] stored in [super::values::TermStore].
-    pub struct TermId;
-
-    /// The ID of a [Scope] stored in [super::values::ScopeStore].
-    pub struct ScopeId;
-
-    /// The Id of a [Args]
-    pub struct ArgsId;
-
-    /// The ID of a [Params]
-    pub struct ParamsId;
-
-    /// The ID of a [Pat]
-    pub struct PatId;
-
-    /// The ID of a [PatArgs]
-    pub struct PatArgsId;
-
-    /// The ID of a [DeconstructedCtor]
-    pub struct ConstructorId;
-
-    /// The ID of a [DeconstructedPat]
-    pub struct DeconstructedPatId;
 }
 
 /// The ID of a [UnresolvedTerm], separate from its [TermId], stored in

@@ -1,7 +1,10 @@
 //! Contains utilities to validate terms.
-use hash_ast::ast::RangeEnd;
+use std::fmt::Display;
 
-use super::{scope::ScopeManager, AccessToOps, AccessToOpsMut};
+use hash_ast::ast::RangeEnd;
+use hash_utils::store::Store;
+
+use super::AccessToOps;
 use crate::{
     diagnostics::{
         error::{TcError, TcResult},
@@ -10,16 +13,20 @@ use crate::{
     },
     ops::params::validate_param_list_ordering,
     storage::{
+        arguments::ArgsId,
+        mods::ModDefId,
+        nominals::NominalDefId,
+        params::ParamsId,
         primitives::{
-            ArgsId, ConstructedTerm, FnTy, Level0Term, Level1Term, Level2Term, LitTerm, Member,
-            ModDefId, ModDefOrigin, NominalDef, NominalDefId, ParamsId, RangePat, Scope, ScopeId,
-            ScopeKind, StructFields, Term, TermId, TrtDefId,
+            ConstructedTerm, FnTy, Level0Term, Level1Term, Level2Term, LitTerm, Member,
+            ModDefOrigin, NominalDef, RangePat, Scope, ScopeKind, StructFields, Term,
         },
-        terms::TermStore,
-        AccessToStorage, AccessToStorageMut, StorageRefMut,
+        scope::ScopeId,
+        terms::{TermId, TermStore},
+        trts::TrtDefId,
+        AccessToStorage, StorageRef,
     },
 };
-use std::fmt::Display;
 
 /// Represents the level of a term.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -83,18 +90,12 @@ impl Term {
 
 /// Can resolve the type of a given term, as another term.
 pub struct Validator<'tc> {
-    storage: StorageRefMut<'tc>,
+    storage: StorageRef<'tc>,
 }
 
 impl<'tc> AccessToStorage for Validator<'tc> {
     fn storages(&self) -> crate::storage::StorageRef {
         self.storage.storages()
-    }
-}
-
-impl<'tc> AccessToStorageMut for Validator<'tc> {
-    fn storages_mut(&mut self) -> StorageRefMut {
-        self.storage.storages_mut()
     }
 }
 
@@ -125,7 +126,7 @@ enum SelfMode {
 }
 
 impl<'tc> Validator<'tc> {
-    pub fn new(storage: StorageRefMut<'tc>) -> Self {
+    pub fn new(storage: StorageRef<'tc>) -> Self {
         Self { storage }
     }
 
@@ -134,7 +135,7 @@ impl<'tc> Validator<'tc> {
     /// Allows uninitialised members in the scope if `allow_uninitialised` is
     /// true.
     fn validate_constant_scope(
-        &mut self,
+        &self,
         scope_id: ScopeId,
         allow_uninitialised: bool,
     ) -> TcResult<()> {
@@ -143,14 +144,14 @@ impl<'tc> Validator<'tc> {
 
         // Enter the progressive scope:
         let progressive_scope = Scope::new(ScopeKind::Constant, []);
-        let progressive_scope_id = self.scope_store_mut().create(progressive_scope);
-        ScopeManager::enter_scope_with(self, progressive_scope_id, |this| {
+        let progressive_scope_id = self.scope_store().create(progressive_scope);
+        self.scope_manager().enter_scope(progressive_scope_id, |this| {
             // @@Performance: sad that we have to clone here:
-            let scope = this.reader().get_scope(scope_id).clone();
+            let scope = this.reader().get_scope(scope_id);
             for member in scope.iter() {
                 // Add the member to the progressive scope so that this and next members can
                 // access it.
-                this.scope_store_mut().get_mut(progressive_scope_id).add(member);
+                this.scope_store().modify_fast(progressive_scope_id, |scope| scope.add(member));
 
                 // Initialisation check
                 if !allow_uninitialised {
@@ -168,13 +169,14 @@ impl<'tc> Validator<'tc> {
                 match member.value() {
                     None => {
                         // Validate only the type
-                        this.validate_term(member.ty())?;
+                        this.validator().validate_term(member.ty())?;
                     }
                     Some(value) => {
                         // Validate the term, the type, and unify them.
-                        let TermValidation { term_ty_id, .. } = this.validate_term(value)?;
+                        let TermValidation { term_ty_id, .. } =
+                            this.validator().validate_term(value)?;
                         let TermValidation { simplified_term_id: simplified_ty_id, .. } =
-                            this.validate_term(member.ty())?;
+                            this.validator().validate_term(member.ty())?;
                         let _ = this.unifier().unify_terms(term_ty_id, simplified_ty_id)?;
                     }
                 }
@@ -196,18 +198,18 @@ impl<'tc> Validator<'tc> {
     ///
     /// Assumes that `scope` has already been validated.
     fn ensure_scope_implements_trait(
-        &mut self,
+        &self,
         trt_def_term_id: TermId,
         scope_originating_term_id: TermId,
         scope_id: ScopeId,
     ) -> TcResult<()> {
-        let scope = self.reader().get_scope(scope_id).clone();
+        let scope = self.reader().get_scope(scope_id);
 
         // Simplify the term and ensure it is a trait
         let simplified_trt_def_term_id =
             self.simplifier().potentially_simplify_term(trt_def_term_id)?;
         let reader = self.reader();
-        let simplified_trt_def_term = reader.get_term(simplified_trt_def_term_id).clone();
+        let simplified_trt_def_term = reader.get_term(simplified_trt_def_term_id);
 
         // Ensure the term leads to a trait definition:
         match simplified_trt_def_term {
@@ -223,7 +225,7 @@ impl<'tc> Validator<'tc> {
             Term::Level2(Level2Term::Trt(trt_def_id)) => {
                 let trt_def_members = self.reader().get_trt_def(trt_def_id).members;
                 // @@Performance: cloning :((
-                let trt_def_members = self.reader().get_scope(trt_def_members).clone();
+                let trt_def_members = self.reader().get_scope(trt_def_members);
 
                 // Ensure all members have been implemented:
                 for trt_member in trt_def_members.iter() {
@@ -249,7 +251,7 @@ impl<'tc> Validator<'tc> {
     /// Validate the module definition of the given [ModDefId], defined in
     /// `originating_term_id`.
     pub(crate) fn validate_mod_def(
-        &mut self,
+        &self,
         mod_def_id: ModDefId,
         originating_term_id: TermId,
         allow_uninitialised: bool,
@@ -276,7 +278,7 @@ impl<'tc> Validator<'tc> {
     }
 
     /// Validate the trait definition of the given [TrtDefId]
-    pub(crate) fn validate_trt_def(&mut self, trt_def_id: TrtDefId) -> TcResult<()> {
+    pub(crate) fn validate_trt_def(&self, trt_def_id: TrtDefId) -> TcResult<()> {
         // @@Design: do we allow traits without self?
         let reader = self.reader();
         let trt_def = reader.get_trt_def(trt_def_id);
@@ -284,14 +286,14 @@ impl<'tc> Validator<'tc> {
     }
 
     /// Validate the nominal definition of the given [NominalDefId]
-    pub(crate) fn validate_nominal_def(&mut self, nominal_def_id: NominalDefId) -> TcResult<()> {
+    pub(crate) fn validate_nominal_def(&self, nominal_def_id: NominalDefId) -> TcResult<()> {
         match self.nominal_def_store().get(nominal_def_id) {
             NominalDef::Struct(struct_def) => {
                 // Ensure all members types of the fields for the struct are
                 // runtime-instantiable by ensuring that the type of the field
                 // term implements the rti trait.
                 if let StructFields::Explicit(fields_id) = struct_def.fields {
-                    let fields = self.params_store().get(fields_id).clone();
+                    let fields = self.params_store().get_owned_param_list(fields_id);
 
                     // Validate the ordering and the number of times parameter field names
                     // are specified, although the ordering shouldn't matter
@@ -308,8 +310,8 @@ impl<'tc> Validator<'tc> {
                 Ok(())
             }
             NominalDef::Enum(enum_def) => {
-                for (_, variant) in enum_def.variants.clone().iter() {
-                    let variant_fields = self.params_store().get(variant.fields).clone();
+                for (_, variant) in enum_def.variants.iter() {
+                    let variant_fields = self.params_store().get_owned_param_list(variant.fields);
 
                     // Validate the ordering and the number of times parameter field names
                     // are specified, although the ordering shouldn't matter
@@ -337,12 +339,12 @@ impl<'tc> Validator<'tc> {
     /// Ensure the element `union_element_term_id` of the union with the given
     /// `union_term_id` is level 1, with each element containing 1 nominal.
     pub(crate) fn validate_union_element(
-        &mut self,
+        &self,
         union_term_id: TermId,
         union_element_term_id: TermId,
     ) -> TcResult<()> {
         let reader = self.reader();
-        let union_element_term = reader.get_term(union_element_term_id).clone();
+        let union_element_term = reader.get_term(union_element_term_id);
 
         // Error helper:
         let invalid_union_element = || -> TcResult<()> {
@@ -409,7 +411,7 @@ impl<'tc> Validator<'tc> {
     /// Furthermore, if it is level 1, the merge should only have zero or one
     /// nominal definition attached.
     fn validate_merge_element(
-        &mut self,
+        &self,
         merge_kind: &mut MergeKind,
         merge_term_id: TermId,
         merge_element_term_id: TermId,
@@ -511,7 +513,6 @@ impl<'tc> Validator<'tc> {
             }
             Term::SetBound(set_bound) => {
                 // Ensure the inner one is valid
-                let set_bound = *set_bound;
                 self.scope_manager().enter_scope(set_bound.scope, |this| {
                     this.validator().validate_merge_element(
                         merge_kind,
@@ -527,7 +528,7 @@ impl<'tc> Validator<'tc> {
             // Union allowed if each inner term is allowed
             Term::Union(terms) => {
                 let mut initial_merge_kind = *merge_kind;
-                let terms = terms.clone();
+                let terms = terms;
                 for term_id in terms.iter() {
                     self.validate_merge_element(&mut initial_merge_kind, merge_term_id, *term_id)?;
                 }
@@ -584,8 +585,8 @@ impl<'tc> Validator<'tc> {
     /// declared parameter names.
     ///
     /// **Note**: Requires that the parameters have already been simplified.
-    pub(crate) fn validate_params(&mut self, params_id: ParamsId) -> TcResult<()> {
-        let params = self.params_store().get(params_id).clone();
+    pub(crate) fn validate_params(&self, params_id: ParamsId) -> TcResult<()> {
+        let params = self.params_store().get_owned_param_list(params_id);
         validate_param_list_ordering(&params, ParamListKind::Params(params_id))?;
 
         for param in params.positional() {
@@ -607,8 +608,8 @@ impl<'tc> Validator<'tc> {
     /// Validate the given arguments, by validating their values.
     ///
     /// **Note**: Requires that the arguments have already been simplified.
-    pub(crate) fn validate_args(&mut self, args_id: ArgsId) -> TcResult<()> {
-        let args = self.args_store().get(args_id).clone();
+    pub(crate) fn validate_args(&self, args_id: ArgsId) -> TcResult<()> {
+        let args = self.args_store().get_owned_param_list(args_id);
 
         for arg in args.positional() {
             self.validate_term(arg.value)?;
@@ -620,7 +621,7 @@ impl<'tc> Validator<'tc> {
     ///
     /// Returns the simplified term, along with its type, which are computed
     /// during the validation.
-    pub(crate) fn validate_term(&mut self, term_id: TermId) -> TcResult<TermValidation> {
+    pub(crate) fn validate_term(&self, term_id: TermId) -> TcResult<TermValidation> {
         // Check if we have already performed a simplification on this term, if so
         // return the result.
         if let Some(term) = self.cacher().has_been_validated(term_id) {
@@ -695,10 +696,9 @@ impl<'tc> Validator<'tc> {
             Term::Level1(level1_term) => match level1_term {
                 Level1Term::Tuple(tuple_ty) => {
                     // Validate each parameter
-                    let tuple_ty = *tuple_ty;
                     self.validate_params(tuple_ty.members)?;
 
-                    let members = self.params_store().get(tuple_ty.members).clone();
+                    let members = self.params_store().get_owned_param_list(tuple_ty.members);
 
                     // Ensure each parameter is runtime instantiable:
                     for param in members.positional() {
@@ -708,11 +708,10 @@ impl<'tc> Validator<'tc> {
                 }
                 Level1Term::Fn(fn_ty) => {
                     // Validate parameters and return type
-                    let fn_ty = *fn_ty;
                     self.validate_params(fn_ty.params)?;
                     self.validate_term(fn_ty.return_ty)?;
 
-                    let params = self.params_store().get(fn_ty.params).clone();
+                    let params = self.params_store().get_owned_param_list(fn_ty.params);
 
                     // Ensure each parameter and return type are runtime instantiable:
                     for param in params.positional() {
@@ -732,14 +731,12 @@ impl<'tc> Validator<'tc> {
             Term::Level0(level0_term) => match level0_term {
                 Level0Term::Rt(rt_inner_term) => {
                     // Validate the inner term, and ensure it is runtime instantiable:
-                    let rt_inner_term = *rt_inner_term;
                     self.validate_term(rt_inner_term)?;
                     self.ensure_term_is_runtime_instantiable(rt_inner_term)?;
                     Ok(result)
                 }
                 Level0Term::FnLit(fn_lit) => {
                     // Ensure the inner type is a function type, and get it:
-                    let fn_lit = *fn_lit;
                     match self.term_is_fn_ty(fn_lit.fn_ty)? {
                         Some(fn_ty) => {
                             // Validate constituents:
@@ -768,8 +765,6 @@ impl<'tc> Validator<'tc> {
                     }
                 }
                 Level0Term::Constructed(ConstructedTerm { subject, members }) => {
-                    let (subject, members) = (*subject, *members);
-
                     // Ensure the subject of the term is constructable
                     if !self.simplifier().is_term_constructable(subject) {
                         Err(TcError::InvalidCallSubject { term: subject })
@@ -822,7 +817,6 @@ impl<'tc> Validator<'tc> {
 
             // Set bound, just validate inner
             Term::SetBound(set_bound) => {
-                let set_bound = *set_bound;
                 let _ = self.scope_manager().enter_scope(set_bound.scope, |this| {
                     this.validator().validate_term(set_bound.term)
                 })?;
@@ -832,13 +826,14 @@ impl<'tc> Validator<'tc> {
             // Type function type:
             Term::TyFnTy(ty_fn_ty) => {
                 // Validate the params and return type:
-                let ty_fn_ty = ty_fn_ty.clone();
+                let ty_fn_ty = ty_fn_ty;
                 self.validate_params(ty_fn_ty.params)?;
 
                 let param_scope = self.scope_manager().make_bound_scope(ty_fn_ty.params);
                 self.scope_manager().enter_scope(param_scope, |this| {
                     let _ = this.validator().validate_term(ty_fn_ty.return_ty)?;
-                    let params = this.validator().params_store().get(ty_fn_ty.params).clone();
+                    let params =
+                        this.validator().params_store().get_owned_param_list(ty_fn_ty.params);
 
                     // Ensure each parameter's type can be used as a type function parameter type:
                     for param in params.positional() {
@@ -863,7 +858,7 @@ impl<'tc> Validator<'tc> {
             // Type function:
             Term::TyFn(ty_fn) => {
                 // Validate params and return type.
-                let ty_fn = ty_fn.clone();
+                let ty_fn = ty_fn;
                 self.validate_params(ty_fn.general_params)?;
 
                 // Enter param scope:
@@ -940,14 +935,14 @@ impl<'tc> Validator<'tc> {
             }
 
             // Typeof: recurse to inner
-            Term::TyOf(term) => self.validate_term(*term),
+            Term::TyOf(term) => self.validate_term(term),
 
             // Type function application:
             Term::TyFnCall(app_ty_fn) => {
                 // Since this could be typed, it means the application is valid in terms of
                 // unification of type function params with the arguments. Thus, all we need to
                 // do is validate individually the term and the arguments:
-                let app_ty_fn = app_ty_fn.clone();
+                let app_ty_fn = app_ty_fn;
                 self.validate_term(app_ty_fn.subject)?;
                 self.validate_args(app_ty_fn.args)?;
                 Ok(result)
@@ -972,7 +967,7 @@ impl<'tc> Validator<'tc> {
     ///
     /// Internally uses [Self::term_is_runtime_instantiable], check its docs for
     /// info.
-    pub(crate) fn ensure_term_is_runtime_instantiable(&mut self, term_id: TermId) -> TcResult<()> {
+    pub(crate) fn ensure_term_is_runtime_instantiable(&self, term_id: TermId) -> TcResult<()> {
         if !(self.term_is_runtime_instantiable(term_id)?) {
             Err(TcError::TermIsNotRuntimeInstantiable { term: term_id })
         } else {
@@ -987,7 +982,7 @@ impl<'tc> Validator<'tc> {
     /// types, function types, structs and enums.
     ///
     /// *Note*: assumes the term has been simplified and validated.
-    pub(crate) fn term_is_runtime_instantiable(&mut self, term_id: TermId) -> TcResult<bool> {
+    pub(crate) fn term_is_runtime_instantiable(&self, term_id: TermId) -> TcResult<bool> {
         // Ensure that the type of the term unifies with "SizedTy":
         let ty_id_of_term = self.typer().infer_ty_of_simplified_term(term_id)?;
         let rt_instantiable_trt = self.builder().create_sized_ty_term();
@@ -1006,10 +1001,7 @@ impl<'tc> Validator<'tc> {
     /// other type functions.
     ///
     /// *Note*: assumes the term has been simplified and validated.
-    pub(crate) fn term_can_be_used_as_ty_fn_return_value(
-        &mut self,
-        term_id: TermId,
-    ) -> TcResult<bool> {
+    pub(crate) fn term_can_be_used_as_ty_fn_return_value(&self, term_id: TermId) -> TcResult<bool> {
         // First ensure its type can be used as a return type:
         let term_ty_id = self.typer().infer_ty_of_simplified_term(term_id)?;
         if !(self.term_can_be_used_as_ty_fn_return_ty(term_ty_id)?) {
@@ -1060,10 +1052,7 @@ impl<'tc> Validator<'tc> {
     /// [Self::term_can_be_used_as_ty_fn_return_value].
     ///
     /// *Note*: assumes the term has been simplified and validated.
-    pub(crate) fn term_can_be_used_as_ty_fn_return_ty(
-        &mut self,
-        term_id: TermId,
-    ) -> TcResult<bool> {
+    pub(crate) fn term_can_be_used_as_ty_fn_return_ty(&self, term_id: TermId) -> TcResult<bool> {
         let reader = self.reader();
         let term = reader.get_term(term_id);
         match term {
@@ -1078,7 +1067,7 @@ impl<'tc> Validator<'tc> {
             | Term::Var(_) => Ok(false),
             Term::Merge(terms) | Term::Union(terms) => {
                 // Valid if each element is okay to be used as the return type:
-                let terms = terms.clone();
+                let terms = terms;
                 for term in terms {
                     if !(self.term_can_be_used_as_ty_fn_return_ty(term)?) {
                         return Ok(false);
@@ -1100,7 +1089,6 @@ impl<'tc> Validator<'tc> {
             }
             Term::SetBound(set_bound) => {
                 // Look at inner term
-                let set_bound = *set_bound;
                 self.scope_manager().enter_scope(set_bound.scope, |this| {
                     this.validator().term_can_be_used_as_ty_fn_return_ty(set_bound.term)
                 })
@@ -1128,7 +1116,7 @@ impl<'tc> Validator<'tc> {
     /// 2 terms. **Note**: assumes the term has been simplified.
     ///
     /// @@Extension: we could allow level 3 terms as parameters too (TraitKind).
-    pub(crate) fn term_can_be_used_as_ty_fn_param_ty(&mut self, term_id: TermId) -> TcResult<bool> {
+    pub(crate) fn term_can_be_used_as_ty_fn_param_ty(&self, term_id: TermId) -> TcResult<bool> {
         let reader = self.reader();
         let term = reader.get_term(term_id);
         match term {
@@ -1142,7 +1130,7 @@ impl<'tc> Validator<'tc> {
             | Term::Var(_) => Ok(false),
             Term::Union(terms) | Term::Merge(terms) => {
                 // Valid if each element is okay to be used as a parameter type:
-                let terms = terms.clone();
+                let terms = terms;
                 for term in terms {
                     if !(self.term_can_be_used_as_ty_fn_param_ty(term)?) {
                         return Ok(false);
@@ -1164,7 +1152,6 @@ impl<'tc> Validator<'tc> {
             }
             Term::SetBound(set_bound) => {
                 // Look at inner term
-                let set_bound = *set_bound;
                 self.scope_manager().enter_scope(set_bound.scope, |this| {
                     this.validator().term_can_be_used_as_ty_fn_param_ty(set_bound.term)
                 })
@@ -1185,12 +1172,12 @@ impl<'tc> Validator<'tc> {
     }
 
     /// Determine if the given term is a function type, and if so return it.
-    pub(crate) fn term_is_fn_ty(&mut self, term_id: TermId) -> TcResult<Option<FnTy>> {
+    pub(crate) fn term_is_fn_ty(&self, term_id: TermId) -> TcResult<Option<FnTy>> {
         let simplified_term_id = self.simplifier().potentially_simplify_term(term_id)?;
         let reader = self.reader();
         let term = reader.get_term(simplified_term_id);
         match term {
-            Term::Level1(Level1Term::Fn(fn_ty)) => Ok(Some(*fn_ty)),
+            Term::Level1(Level1Term::Fn(fn_ty)) => Ok(Some(fn_ty)),
             _ => Ok(None),
         }
     }

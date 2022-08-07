@@ -1,7 +1,8 @@
 //! Timing/profiling utilities.
 
-use log::log_enabled;
 use std::time::{Duration, Instant};
+
+use log::log_enabled;
 
 /// Execute the given closure while timing it, and pass the duration to the
 /// second closure.

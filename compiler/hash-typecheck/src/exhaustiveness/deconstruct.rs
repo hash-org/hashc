@@ -7,22 +7,23 @@
 //! parameter of the structure.
 use std::{cell::Cell, fmt::Debug};
 
+use hash_utils::store::Store;
 use itertools::Itertools;
 use smallvec::SmallVec;
 
+use super::{construct::DeconstructedCtor, fields::Fields, AccessToUsefulnessOps};
 use crate::{
     exhaustiveness::{list::ListKind, PatCtx},
     fmt::{ForFormatting, PrepareForFormatting},
     ops::AccessToOps,
     storage::{
-        primitives::{
-            ConstructorId, DeconstructedPatId, Level1Term, NominalDef, PatId, Term, TermId,
-        },
+        deconstructed::{DeconstructedCtorId, DeconstructedPatId},
+        pats::PatId,
+        primitives::{Level1Term, NominalDef, Term},
+        terms::TermId,
         AccessToStorage, StorageRef,
     },
 };
-
-use super::{construct::DeconstructedCtor, fields::Fields, AccessToUsefulnessOps};
 
 /// A [DeconstructedPat] is a representation of a [DeconstructedCtor] that is
 /// split between the constructor subject `ctor` and the `fields` that the
@@ -30,7 +31,7 @@ use super::{construct::DeconstructedCtor, fields::Fields, AccessToUsefulnessOps}
 #[derive(Debug, Clone)]
 pub struct DeconstructedPat {
     /// The subject of the [DeconstructedPat].
-    pub ctor: ConstructorId,
+    pub ctor: DeconstructedCtorId,
     /// Any fields that are applying to the subject of the
     /// [DeconstructedPat]
     pub fields: Fields,
@@ -48,7 +49,12 @@ pub struct DeconstructedPat {
 
 impl DeconstructedPat {
     /// Create a new [DeconstructedPat]
-    pub(super) fn new(ctor: ConstructorId, fields: Fields, ty: TermId, id: Option<PatId>) -> Self {
+    pub(super) fn new(
+        ctor: DeconstructedCtorId,
+        fields: Fields,
+        ty: TermId,
+        id: Option<PatId>,
+    ) -> Self {
         DeconstructedPat {
             ctor,
             fields,
@@ -89,7 +95,11 @@ impl<'tc> DeconstructPatOps<'tc> {
     /// Create a `match-all` [DeconstructedPat] and infer [Fields] as
     /// from the provided type in the context, this is only to be used
     /// when creating `match-all` wildcard patterns.
-    pub(super) fn wild_from_ctor(&self, ctx: PatCtx, ctor_id: ConstructorId) -> DeconstructedPat {
+    pub(super) fn wild_from_ctor(
+        &self,
+        ctx: PatCtx,
+        ctor_id: DeconstructedCtorId,
+    ) -> DeconstructedPat {
         let fields = self.fields_ops().wildcards(ctx, ctor_id);
 
         DeconstructedPat::new(ctor_id, fields, ctx.ty, None)
@@ -105,7 +115,7 @@ impl<'tc> DeconstructPatOps<'tc> {
 
     /// Check whether this [DeconstructedPat] is an `or` pattern.
     pub(super) fn is_or_pat(&self, pat: &DeconstructedPat) -> bool {
-        self.constructor_store().map_unsafe(pat.ctor, |ctor| matches!(ctor, DeconstructedCtor::Or))
+        self.constructor_store().map_fast(pat.ctor, |ctor| matches!(ctor, DeconstructedCtor::Or))
     }
 
     /// Perform a `specialisation` on the current [DeconstructedPat]. This means
@@ -116,12 +126,12 @@ impl<'tc> DeconstructPatOps<'tc> {
         &self,
         ctx: PatCtx,
         pat: DeconstructedPatId,
-        other_ctor_id: ConstructorId,
+        other_ctor_id: DeconstructedCtorId,
     ) -> SmallVec<[DeconstructedPatId; 2]> {
         let reader = self.reader();
         let pat = reader.get_deconstructed_pat(pat);
-        let ctor = reader.get_ctor(pat.ctor);
-        let other_ctor = reader.get_ctor(other_ctor_id);
+        let ctor = reader.get_deconstructed_ctor(pat.ctor);
+        let other_ctor = reader.get_deconstructed_ctor(other_ctor_id);
 
         match (ctor, other_ctor) {
             (DeconstructedCtor::Wildcard, _) => {
@@ -141,7 +151,7 @@ impl<'tc> DeconstructPatOps<'tc> {
                     ListKind::Fixed(_) => panic!("{:?} cannot cover {:?}", this_list, other_list),
                     ListKind::Var(prefix, suffix) => {
                         // we will need to get the inner `ty` of the list
-                        let Some(inner_ty) = self.oracle().term_as_list(ctx.ty) else {
+                        let Some(inner_ty) = self.oracle().term_as_list_ty(ctx.ty) else {
                             panic!("provided ty is not list as expected: {}", self.for_fmt(ctx.ty))
                         };
 
@@ -214,7 +224,7 @@ impl Debug for ForFormatting<'_, DeconstructedPatId> {
                 // variant name...
                 match term {
                     Term::Level1(Level1Term::NominalDef(nominal_def)) => {
-                        match self.global_storage.nominal_def_store.get(*nominal_def) {
+                        match self.global_storage.nominal_def_store.get(nominal_def) {
                             NominalDef::Struct(struct_def) => {
                                 if let Some(name) = struct_def.name {
                                     write!(f, "{}", name)?;

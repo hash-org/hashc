@@ -1,15 +1,15 @@
 //! Hash AST identifier storage utilities and wrappers.
-use dashmap::DashMap;
-
-use fnv::FnvBuildHasher;
-use hash_alloc::{collections::string::BrickString, Castle, Wall};
-use hash_utils::counter;
-use lazy_static::lazy_static;
 use std::{
     borrow::{Borrow, Cow},
     fmt::{Debug, Display},
     thread_local,
 };
+
+use dashmap::DashMap;
+use fnv::FnvBuildHasher;
+use hash_alloc::{collections::string::BrickString, Castle, Wall};
+use hash_utils::counter;
+use lazy_static::lazy_static;
 
 counter! {
     name: Identifier,
@@ -93,10 +93,12 @@ pub struct CoreIdentifiers {
     pub i16: Identifier,
     pub i32: Identifier,
     pub i64: Identifier,
+    pub isize: Identifier,
     pub u8: Identifier,
     pub u16: Identifier,
     pub u32: Identifier,
     pub u64: Identifier,
+    pub usize: Identifier,
     pub f32: Identifier,
     pub f64: Identifier,
     pub str: Identifier,
@@ -179,6 +181,8 @@ impl CoreIdentifiers {
             eq: ident_map.create_ident("eq"),
             a: ident_map.create_ident("a"),
             b: ident_map.create_ident("b"),
+            isize: ident_map.create_ident("isize"),
+            usize: ident_map.create_ident("usize"),
         }
     }
 }

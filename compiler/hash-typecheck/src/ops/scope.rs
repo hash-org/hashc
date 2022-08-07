@@ -1,6 +1,10 @@
 //! Functionality related to resolving variables in scopes.
 
-use super::{params::pair_args_with_params, AccessToOps, AccessToOpsMut};
+use hash_reporting::{report::Report, writer};
+use hash_source::identifier::Identifier;
+use hash_utils::store::Store;
+
+use super::{params::pair_args_with_params, AccessToOps};
 use crate::{
     diagnostics::{
         error::{TcError, TcResult},
@@ -8,19 +12,18 @@ use crate::{
         reporting::TcErrorWithStorage,
     },
     storage::{
-        primitives::{
-            ArgsId, BoundVar, Member, Mutability, ParamsId, ScopeId, ScopeKind, ScopeMember,
-            ScopeVar, TermId,
-        },
-        AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
+        arguments::ArgsId,
+        params::ParamsId,
+        primitives::{BoundVar, Member, Mutability, ScopeKind, ScopeMember, ScopeVar},
+        scope::ScopeId,
+        terms::TermId,
+        AccessToStorage, StorageRef,
     },
 };
-use hash_reporting::{report::Report, writer};
-use hash_source::identifier::Identifier;
 
 /// Contains actions related to variable resolution.
 pub struct ScopeManager<'tc> {
-    storage: StorageRefMut<'tc>,
+    storage: StorageRef<'tc>,
 }
 
 impl<'tc> AccessToStorage for ScopeManager<'tc> {
@@ -28,15 +31,10 @@ impl<'tc> AccessToStorage for ScopeManager<'tc> {
         self.storage.storages()
     }
 }
-impl<'tc> AccessToStorageMut for ScopeManager<'tc> {
-    fn storages_mut(&mut self) -> StorageRefMut {
-        self.storage.storages_mut()
-    }
-}
 
 impl<'tc> ScopeManager<'tc> {
     /// Create a new [ScopeManager].
-    pub fn new(storage: StorageRefMut<'tc>) -> Self {
+    pub fn new(storage: StorageRef<'tc>) -> Self {
         Self { storage }
     }
 
@@ -66,7 +64,7 @@ impl<'tc> ScopeManager<'tc> {
     }
 
     /// Get a [ScopeMember] from a [ScopeVar].
-    pub(crate) fn get_scope_var_member(&mut self, scope_var: ScopeVar) -> ScopeMember {
+    pub(crate) fn get_scope_var_member(&self, scope_var: ScopeVar) -> ScopeMember {
         let reader = self.reader();
         let member = reader.get_scope(scope_var.scope).get_by_index(scope_var.index);
         ScopeMember { member, scope_id: scope_var.scope, index: scope_var.index }
@@ -78,7 +76,7 @@ impl<'tc> ScopeManager<'tc> {
     /// is bound to. Furthermore, the originating scope must be either
     /// [ScopeKind::Bound] or [ScopeKind::SetBound]. Otherwise it panics.
     pub(crate) fn get_bound_var_member(
-        &mut self,
+        &self,
         bound_var: BoundVar,
         originating_term: TermId,
     ) -> ScopeMember {
@@ -113,8 +111,8 @@ impl<'tc> ScopeManager<'tc> {
     /// This function is meant to be used for runtime functions, and not type
     /// functions. This is because it creates a variable scope, and assigns each
     /// argument to its type wrapped by `Rt(..)`.
-    pub(crate) fn make_rt_param_scope(&mut self, params_id: ParamsId) -> ScopeId {
-        let params = self.reader().get_params(params_id).clone();
+    pub(crate) fn make_rt_param_scope(&self, params_id: ParamsId) -> ScopeId {
+        let params = self.reader().get_params_owned(params_id).clone();
         let builder = self.builder();
         let param_scope = builder.create_scope(
             ScopeKind::Variable,
@@ -135,11 +133,11 @@ impl<'tc> ScopeManager<'tc> {
     ///
     /// Retains scope kind.
     pub(crate) fn filter_scope(
-        &mut self,
+        &self,
         scope: ScopeId,
         mut include_member: impl FnMut(&Member) -> bool,
     ) -> ScopeId {
-        let original_scope = self.reader().get_scope(scope).clone();
+        let original_scope = self.reader().get_scope(scope);
         let new_scope = self.builder().create_scope(
             original_scope.kind,
             original_scope.members.iter().filter(|member| include_member(member)).copied(),
@@ -153,14 +151,14 @@ impl<'tc> ScopeManager<'tc> {
     ///
     /// This assigns each parameter name to its corresponding argument value.
     pub(crate) fn make_set_bound_scope(
-        &mut self,
+        &self,
         params_id: ParamsId,
         args_id: ArgsId,
         params_subject: TermId,
         args_subject: TermId,
     ) -> ScopeId {
-        let args = self.args_store().get(args_id).clone();
-        let params = self.params_store().get(params_id).clone();
+        let args = self.args_store().get_owned_param_list(args_id);
+        let params = self.params_store().get_owned_param_list(params_id);
         let paired = pair_args_with_params(
             &params,
             &args,
@@ -195,8 +193,8 @@ impl<'tc> ScopeManager<'tc> {
     ///
     /// This function is meant to be used for type functions, because it creates
     /// a constant scope and does not assign parameters to any values.
-    pub(crate) fn make_bound_scope(&mut self, params_id: ParamsId) -> ScopeId {
-        let params = self.reader().get_params(params_id).clone();
+    pub(crate) fn make_bound_scope(&self, params_id: ParamsId) -> ScopeId {
+        let params = self.reader().get_params_owned(params_id).clone();
         let builder = self.builder();
         let param_scope = builder.create_scope(
             ScopeKind::Bound,
@@ -209,20 +207,23 @@ impl<'tc> ScopeManager<'tc> {
     }
 
     /// Enter the given scope, and run the given callback inside it.
-    pub fn enter_scope<T>(&mut self, scope: ScopeId, f: impl FnOnce(&mut Self) -> T) -> T {
-        Self::enter_scope_with(self, scope, f)
+    pub fn enter_scope<T>(&self, scope: ScopeId, f: impl FnOnce(&Self) -> T) -> T {
+        self.scopes().append(scope);
+        let result = f(self);
+        self.scopes().pop_the_scope(scope);
+        result
     }
 
     /// Enter the given scope, and run the given callback inside it, with the
     /// given struct to access storage.
-    pub fn enter_scope_with<S: AccessToStorageMut, T>(
-        storage: &mut S,
+    pub fn enter_scope_with<C: AccessToStorage, T>(
+        ctx: &mut C,
         scope: ScopeId,
-        f: impl FnOnce(&mut S) -> T,
+        f: impl FnOnce(&mut C) -> T,
     ) -> T {
-        storage.scopes_mut().append(scope);
-        let result = f(storage);
-        storage.scopes_mut().pop_the_scope(scope);
+        ctx.scopes().append(scope);
+        let result = f(ctx);
+        ctx.scopes().pop_the_scope(scope);
         result
     }
 
@@ -231,40 +232,37 @@ impl<'tc> ScopeManager<'tc> {
     /// This will unify the value with the index, decrement the
     /// `assignments_until_closed` counter for the member, and will panic if
     /// the counter is zero already.
-    pub fn assign_member(
-        &mut self,
-        scope_id: ScopeId,
-        index: usize,
-        value: TermId,
-    ) -> TcResult<()> {
-        let member = self.scope_store_mut().get_mut(scope_id).get_by_index(index);
+    pub fn assign_member(&self, scope_id: ScopeId, index: usize, value: TermId) -> TcResult<()> {
+        let member = self.scope_store().map_fast(scope_id, |scope| scope.get_by_index(index));
 
         // Unify types:
         let rhs_ty = self.typer().infer_ty_of_term(value)?;
         let _ = self.unifier().unify_terms(rhs_ty, member.ty())?;
 
-        let member = self.scope_store_mut().get_mut(scope_id).get_mut_by_index(index);
-        // @@Todo: add back once this is property implemented
-        // if member.is_closed() {
-        //     tc_panic!(value, self, "Cannot assign to closed member");
-        // }
+        self.scope_store().modify_fast(scope_id, |scope| {
+            let member = scope.get_mut_by_index(index);
 
-        match member {
-            Member::Bound(_) | Member::SetBound(_) => {
-                // @@Todo: refine this error
-                Err(TcError::InvalidAssignSubject { location: (scope_id, index).into() })
+            // @@Todo: add back once this is property implemented
+            // if member.is_closed() {
+            //     tc_panic!(value, self, "Cannot assign to closed member");
+            // }
+            match member {
+                Member::Bound(_) | Member::SetBound(_) => {
+                    // @@Todo: refine this error
+                    Err(TcError::InvalidAssignSubject { location: (scope_id, index).into() })
+                }
+                Member::Variable(variable) => {
+                    // Assign
+                    // @@Todo: check if mutable
+                    variable.value = value;
+                    Ok(())
+                }
+                Member::Constant(constant) => {
+                    // @@Todo implement this properly
+                    constant.set_value(value);
+                    Ok(())
+                }
             }
-            Member::Variable(variable) => {
-                // Assign
-                // @@Todo: check if mutable
-                variable.value = value;
-                Ok(())
-            }
-            Member::Constant(constant) => {
-                // @@Todo implement this properly
-                constant.set_value(value);
-                Ok(())
-            }
-        }
+        })
     }
 }

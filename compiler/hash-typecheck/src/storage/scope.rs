@@ -1,90 +1,67 @@
 //! Contains structures that store information about the scopes in a given
 //! module, as well as the symbols in each scope.
-use super::primitives::{Scope, ScopeId};
-use slotmap::SlotMap;
+use std::cell::RefCell;
 
-/// Stores all the scopes within a typechecking cycle.
-///
-/// Scopes are accessed by an ID, of scope [ScopeId].
-#[derive(Debug, Default)]
-pub struct ScopeStore {
-    data: SlotMap<ScopeId, Scope>,
-}
+use hash_utils::{new_store, new_store_key};
 
-impl ScopeStore {
-    pub fn new() -> Self {
-        Self::default()
-    }
+use super::primitives::Scope;
 
-    /// Create a scope, returning its assigned [ScopeId].
-    pub fn create(&mut self, scope: Scope) -> ScopeId {
-        self.data.insert(scope)
-    }
-
-    /// Get a scope by [ScopeId].
-    ///
-    /// If the scope is not found, this function will panic. However, this
-    /// shouldn't happen because the only way to acquire a scope is to use
-    /// [Self::create], and scopes cannot be deleted.
-    pub fn get(&self, scope_id: ScopeId) -> &Scope {
-        self.data.get(scope_id).unwrap()
-    }
-
-    /// Get a scope by [ScopeId], mutably.
-    ///
-    /// If the scope is not found, this function will panic.
-    pub fn get_mut(&mut self, scope_id: ScopeId) -> &mut Scope {
-        self.data.get_mut(scope_id).unwrap()
-    }
-}
+new_store_key!(pub ScopeId);
+new_store!(pub ScopeStore<ScopeId, Scope>);
 
 /// Stores a collection of scopes, used from within
 /// [LocalStorage](crate::storage::LocalStorage).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScopeStack {
-    scopes: Vec<ScopeId>,
+    scopes: RefCell<Vec<ScopeId>>,
 }
 
 impl ScopeStack {
     /// Create a [ScopeStack] from a single scope.
     pub fn singular(scope_id: ScopeId) -> Self {
-        Self { scopes: vec![scope_id] }
+        Self { scopes: RefCell::new(vec![scope_id]) }
     }
 
     /// Create a [ScopeStack] from a collection of scopes.
     pub fn many(scopes: impl IntoIterator<Item = ScopeId>) -> Self {
-        Self { scopes: scopes.into_iter().collect() }
+        Self { scopes: RefCell::new(scopes.into_iter().collect()) }
     }
 
     /// Append a scope to the stack.
-    pub fn append(&mut self, scope_id: ScopeId) {
-        self.scopes.push(scope_id);
+    pub fn append(&self, scope_id: ScopeId) {
+        self.scopes.borrow_mut().push(scope_id);
     }
 
     /// Get the current scope ID.
     pub fn current_scope(&self) -> ScopeId {
-        *self.scopes.last().unwrap()
+        *self.scopes.borrow().last().unwrap()
     }
 
     /// Iterate up the scopes in the stack.
+    ///
+    /// *Warning*: It is not safe to modify the scope stack by popping scopes
+    /// while iterating!
     pub fn iter_up(&self) -> impl Iterator<Item = ScopeId> + DoubleEndedIterator + '_ {
-        self.scopes.iter().copied().rev()
+        let len = self.scopes.borrow().len();
+        (0..len).map(move |index| *self.scopes.borrow().get(index).unwrap())
     }
 
     /// Pop the current scope.
-    pub fn pop_scope(&mut self) -> ScopeId {
+    pub fn pop_scope(&self) -> ScopeId {
+        let mut scopes = self.scopes.borrow_mut();
         // Don't include the first element (root scope).
-        if self.scopes.len() <= 1 {
+        if scopes.len() <= 1 {
+            drop(scopes);
             panic!("Cannot pop root scope")
         } else {
-            self.scopes.pop().unwrap()
+            scopes.pop().unwrap()
         }
     }
 
     /// Pop the given scope.
     ///
     /// Panics if the last scope is not the same as the given ID.
-    pub fn pop_the_scope(&mut self, expected_id: ScopeId) -> ScopeId {
+    pub fn pop_the_scope(&self, expected_id: ScopeId) -> ScopeId {
         let popped = self.pop_scope();
         assert!(popped == expected_id, "Expected scope ID {:?} but got {:?}", expected_id, popped);
         popped

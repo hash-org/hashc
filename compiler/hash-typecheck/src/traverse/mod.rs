@@ -1,21 +1,5 @@
 //! Contains functions to traverse the AST and add types to it, while checking
 //! it for correctness.
-use crate::{
-    diagnostics::{
-        error::{TcError, TcResult},
-        macros::tc_panic,
-    },
-    ops::{scope::ScopeManager, AccessToOps, AccessToOpsMut},
-    storage::{
-        location::{IndexedLocationTarget, LocationTarget},
-        primitives::{
-            AccessOp, Arg, ArgsId, BindingPat, ConstPat, EnumVariant, Member, ModDefOrigin,
-            Mutability, Param, Pat, PatArg, PatId, RangePat, ScopeKind, SpreadPat, Sub, TermId,
-            Visibility,
-        },
-        AccessToStorage, AccessToStorageMut, LocalStorage, StorageRef, StorageRefMut,
-    },
-};
 use hash_ast::{
     ast::{
         self, AccessKind, AstNodeRef, BinOp, Lit, MatchOrigin, OwnsAstNode, ParamOrigin, RefKind,
@@ -30,9 +14,28 @@ use hash_source::{
     location::{SourceLocation, Span},
     ModuleKind, SourceId,
 };
+use hash_utils::store::Store;
 use itertools::Itertools;
 
 use self::scopes::VisitConstantScope;
+use crate::{
+    diagnostics::{
+        error::{TcError, TcResult},
+        macros::tc_panic,
+    },
+    ops::{scope::ScopeManager, AccessToOps},
+    storage::{
+        arguments::ArgsId,
+        location::{IndexedLocationTarget, LocationTarget},
+        pats::PatId,
+        primitives::{
+            AccessOp, Arg, BindingPat, ConstPat, EnumVariant, Member, ModDefOrigin, Mutability,
+            Param, Pat, PatArg, RangePat, ScopeKind, SpreadPat, Sub, Visibility,
+        },
+        terms::TermId,
+        AccessToStorage, LocalStorage, StorageRef,
+    },
+};
 
 pub mod params;
 pub mod scopes;
@@ -63,7 +66,7 @@ impl TcVisitorState {
 ///
 /// Contains typechecker state that is accessed while traversing.
 pub struct TcVisitor<'tc> {
-    pub storage: StorageRefMut<'tc>,
+    pub storage: StorageRef<'tc>,
     pub node_map: &'tc NodeMap,
     pub state: TcVisitorState,
 }
@@ -74,16 +77,10 @@ impl<'tc> AccessToStorage for TcVisitor<'tc> {
     }
 }
 
-impl<'tc> AccessToStorageMut for TcVisitor<'tc> {
-    fn storages_mut(&mut self) -> StorageRefMut {
-        self.storage.storages_mut()
-    }
-}
-
 impl<'tc> TcVisitor<'tc> {
     /// Create a new [TcVisitor] with the given state, traversing the given
     /// source from [SourceId].
-    pub fn new_in_source(storage: StorageRefMut<'tc>, node_map: &'tc NodeMap) -> Self {
+    pub fn new_in_source(storage: StorageRef<'tc>, node_map: &'tc NodeMap) -> Self {
         TcVisitor { storage, node_map, state: TcVisitorState::new() }
     }
 
@@ -103,7 +100,7 @@ impl<'tc> TcVisitor<'tc> {
         // Add the result to the checked sources.
         // @@Correctness: the visitor will loop infinitely if there are circular module
         // dependencies. Need to find a way to prevent this.
-        self.checked_sources_mut().mark_checked(source_id, result);
+        self.checked_sources().mark_checked(source_id, result);
 
         log::debug!(
             "tc cache metrics:\n{: <8}: {}\n{: <8}: {}\n{: <8}: {}\n{: <8}: {}\n",
@@ -139,7 +136,7 @@ impl<'tc> TcVisitor<'tc> {
         target: impl Into<LocationTarget>,
     ) {
         let location = self.source_location_at_node(node);
-        self.location_store_mut().add_location_to_target(target, location);
+        self.location_store().add_location_to_target(target, location);
     }
 
     /// Copy the [SourceLocation] of the given [hash_ast::ast::AstNode] list to
@@ -738,16 +735,14 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
                         // First, create a new storage reference for the child module:
                         let node_map = self.node_map;
-                        let storage_ref_mut = self.storages_mut();
-                        let mut child_local_storage =
-                            LocalStorage::new(storage_ref_mut.global_storage, id);
-                        let storage_ref_mut = StorageRefMut {
-                            local_storage: &mut child_local_storage,
-                            ..storage_ref_mut
-                        };
+                        let storage_ref = self.storages();
+                        let child_local_storage = LocalStorage::new(storage_ref.global_storage, id);
+                        let child_storage_ref =
+                            StorageRef { local_storage: &child_local_storage, ..storage_ref };
 
                         // Visit the child module
-                        let mut child_visitor = TcVisitor::new_in_source(storage_ref_mut, node_map);
+                        let mut child_visitor =
+                            TcVisitor::new_in_source(child_storage_ref, node_map);
                         let module_term = child_visitor.visit_source()?;
                         Ok(module_term)
                     }
@@ -1485,7 +1480,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let _ = self.state.fn_def_return_ty.insert(unified_return_ty);
 
         // Return never as the return expression shouldn't evaluate to anything.
-        let never_term = self.builder().create_never_term();
+        let never_term = self.builder().create_never_ty();
         let term = self.builder().create_rt_term(never_term);
 
         self.copy_location_from_node_to_target(node, term);
@@ -1632,7 +1627,9 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let current_scope_id = self.scopes().current_scope();
         let member_indexes = members
             .iter()
-            .map(|member| self.scope_store_mut().get_mut(current_scope_id).add(*member))
+            .map(|member| {
+                self.scope_store().modify_fast(current_scope_id, |scope| scope.add(*member))
+            })
             .collect::<Vec<_>>();
 
         // Add the locations of all members:

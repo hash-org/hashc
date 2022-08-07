@@ -2,6 +2,8 @@
 
 mod command;
 
+use std::{env, process::exit};
+
 use command::InteractiveCommand;
 use hash_pipeline::{
     settings::CompilerJobParams,
@@ -12,7 +14,6 @@ use hash_pipeline::{
 use hash_reporting::errors::{CompilerError, InteractiveCommandError};
 use hash_source::SourceId;
 use rustyline::{error::ReadlineError, Editor};
-use std::{env, process::exit};
 
 type CompilerResult<T> = Result<T, CompilerError>;
 

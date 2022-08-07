@@ -3,6 +3,8 @@
 //! traversal, the visitor calls various functions that are defined on the
 //! analyser to perform a variety of semantic checks.
 
+use std::{collections::HashSet, convert::Infallible, mem};
+
 use ::if_chain::if_chain;
 use hash_ast::{
     ast::{
@@ -13,7 +15,6 @@ use hash_ast::{
 };
 use hash_reporting::macros::panic_on_span;
 use hash_source::{identifier::CORE_IDENTIFIERS, ModuleKind};
-use std::{collections::HashSet, convert::Infallible, mem};
 
 use crate::{
     analysis::SemanticAnalyser,

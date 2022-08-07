@@ -1,15 +1,21 @@
 //! Contains structures to keep track of terms and information relevant to them.
 use std::cell::Cell;
 
-use super::primitives::{ResolutionId, Term, TermId};
-use slotmap::SlotMap;
+use hash_utils::{
+    new_store_key,
+    store::{DefaultStore, Store},
+};
+
+use super::primitives::{ResolutionId, Term};
+
+new_store_key!(pub TermId);
 
 /// Stores all the terms within a typechecking cycle.
 ///
 /// terms are accessed by an ID, of type [TermId].
 #[derive(Debug, Default)]
 pub struct TermStore {
-    data: SlotMap<TermId, Term>,
+    data: DefaultStore<TermId, Term>,
     /// Keeps track of the last ID used for unresolved terms.
     /// This will be incremented every time a [Term::Unresolved] is created.
     ///
@@ -20,30 +26,15 @@ pub struct TermStore {
     last_resolution_id: Cell<usize>,
 }
 
+impl Store<TermId, Term> for TermStore {
+    fn internal_data(&self) -> &std::cell::RefCell<Vec<Term>> {
+        self.data.internal_data()
+    }
+}
+
 impl TermStore {
     pub fn new() -> Self {
         Self::default()
-    }
-
-    /// Create a term, returning its assigned [TermId].
-    pub fn create(&mut self, term: Term) -> TermId {
-        self.data.insert(term)
-    }
-
-    /// Get a term by [TermId].
-    ///
-    /// If the term is not found, this function will panic. However, this
-    /// shouldn't happen because the only way to acquire a term is to use
-    /// [Self::create], and terms cannot be deleted.
-    pub fn get(&self, term_id: TermId) -> &Term {
-        self.data.get(term_id).unwrap()
-    }
-
-    /// Get a term by [TermId], mutably.
-    ///
-    /// If the term is not found, this function will panic.
-    pub fn get_mut(&mut self, term_id: TermId) -> &mut Term {
-        self.data.get_mut(term_id).unwrap()
     }
 
     /// Get a new [ResolutionId] for a new [Term::Unresolved].

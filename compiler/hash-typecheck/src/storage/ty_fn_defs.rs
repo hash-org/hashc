@@ -2,7 +2,7 @@
 //! them.
 use hash_utils::{new_store, new_store_key};
 
-use super::primitives::ModDef;
+use super::primitives::TyFnDef;
 
-new_store_key!(pub ModDefId);
-new_store!(pub ModDefStore<ModDefId, ModDef>);
+new_store_key!(pub TyFnDefId);
+new_store!(pub TyFnDefStore<TyFnDefId, TyFnDef>);

@@ -7,6 +7,9 @@
 //! is detailed within [super].
 use std::iter::once;
 
+use hash_utils::{stack::ensure_sufficient_stack, store::Store};
+use itertools::Itertools;
+
 use super::{
     construct::DeconstructedCtor, deconstruct::DeconstructedPat, fields::Fields, matrix::Matrix,
     stack::PatStack, AccessToUsefulnessOps,
@@ -15,12 +18,12 @@ use crate::{
     exhaustiveness::PatCtx,
     ops::AccessToOps,
     storage::{
-        primitives::{ConstructorId, DeconstructedPatId, PatId, TermId},
+        deconstructed::{DeconstructedCtorId, DeconstructedPatId},
+        pats::PatId,
+        terms::TermId,
         AccessToStorage, StorageRef,
     },
 };
-use hash_utils::stack::ensure_sufficient_stack;
-use itertools::Itertools;
 
 /// Collection of patterns that were `witnessed` when traversing
 /// the provided patterns.
@@ -28,7 +31,7 @@ use itertools::Itertools;
 pub struct Witness(pub Vec<DeconstructedPatId>);
 
 impl Witness {
-    /// Asserts that the witness contains a single pattern, and returns it.   
+    /// Asserts that the witness contains a single pattern, and returns it.
     pub fn single_pattern(self) -> DeconstructedPatId {
         assert_eq!(self.0.len(), 1);
 
@@ -157,7 +160,7 @@ impl<'tc> UsefulnessOps<'tc> {
     /// patterns expanded by the specialisation step.
     ///
     /// When a pattern P is discovered to be useful, this function is used
-    /// bottom-up to reconstruct a complete witness, e.g., a pattern P' that    
+    /// bottom-up to reconstruct a complete witness, e.g., a pattern P' that
     /// covers a subset of values, V, where each value in that set is not
     /// covered by any previously used patterns and is covered by the
     /// pattern P'. Examples:
@@ -171,7 +174,7 @@ impl<'tc> UsefulnessOps<'tc> {
         &self,
         ctx: PatCtx,
         mut witness: Witness,
-        ctor: ConstructorId,
+        ctor: DeconstructedCtorId,
     ) -> Witness {
         let pat = {
             let len = witness.0.len();
@@ -197,7 +200,7 @@ impl<'tc> UsefulnessOps<'tc> {
         ctx: PatCtx,
         usefulness: Usefulness,
         matrix: &Matrix, // used to compute missing ctors
-        ctor_id: ConstructorId,
+        ctor_id: DeconstructedCtorId,
     ) -> Usefulness {
         match usefulness {
             Usefulness::NoWitnesses { .. } => usefulness,
@@ -205,7 +208,7 @@ impl<'tc> UsefulnessOps<'tc> {
             Usefulness::WithWitnesses(witnesses) => {
                 let new_witnesses = if self
                     .constructor_store()
-                    .map_unsafe(ctor_id, |ctor| matches!(ctor, DeconstructedCtor::Missing))
+                    .map_fast(ctor_id, |ctor| matches!(ctor, DeconstructedCtor::Missing))
                 {
                     // We got the special `Missing` constructor, so each of the missing constructors
                     // gives a new  pattern that is not caught by the match. We
@@ -381,7 +384,7 @@ impl<'tc> UsefulnessOps<'tc> {
         }
 
         if report.is_useful() {
-            self.deconstructed_pat_store().update_unsafe(v.head(), |item| item.set_reachable());
+            self.deconstructed_pat_store().modify_fast(v.head(), |item| item.set_reachable());
         }
 
         report

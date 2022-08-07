@@ -1,7 +1,9 @@
 //! Hash Compiler source locations utilities and definitions.
-use crate::SourceId;
-use derive_more::Constructor;
 use std::{convert::TryInto, fmt};
+
+use derive_more::Constructor;
+
+use crate::SourceId;
 
 /// Enum representing a location of a token within the source.
 ///

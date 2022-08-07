@@ -1,9 +1,10 @@
 //! Hash diagnostic report data structures.
 use std::{cell::Cell, fmt};
 
-use crate::highlight::{highlight, Colour, Modifier};
 use hash_error_codes::error_codes::HashErrorCode;
 use hash_source::location::SourceLocation;
+
+use crate::highlight::{highlight, Colour, Modifier};
 
 /// A data type representing a comment/message on a specific span in a code
 /// block.

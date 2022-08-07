@@ -57,14 +57,12 @@ pub mod range;
 pub mod stack;
 pub mod usefulness;
 pub mod wildcard;
-
-use crate::storage::{primitives::TermId, AccessToStorage};
-
 use self::{
     construct::ConstructorOps, deconstruct::DeconstructPatOps, fields::FieldOps,
     lower::LowerPatOps, matrix::MatrixOps, range::IntRangeOps, stack::StackOps,
     usefulness::UsefulnessOps, wildcard::SplitWildcardOps,
 };
+use crate::storage::{terms::TermId, AccessToStorage};
 
 /// General exhaustiveness context that's used when performing
 /// splitting and specialisation operations.

@@ -28,8 +28,13 @@ use hash_source::{
     location::{SourceLocation, Span},
     string::Str,
 };
+use hash_utils::store::Store;
 use smallvec::{smallvec, SmallVec};
 
+use super::{
+    range::{IntRange, SplitIntRange},
+    AccessToUsefulnessOps,
+};
 use crate::{
     diagnostics::macros::tc_panic,
     exhaustiveness::{
@@ -38,14 +43,10 @@ use crate::{
     },
     ops::AccessToOps,
     storage::{
-        primitives::{ConstructorId, Level1Term, NominalDef, StructFields, Term, TupleTy},
+        deconstructed::DeconstructedCtorId,
+        primitives::{Level1Term, NominalDef, StructFields, Term, TupleTy},
         AccessToStorage, StorageRef,
     },
-};
-
-use super::{
-    range::{IntRange, SplitIntRange},
-    AccessToUsefulnessOps,
 };
 
 /// The [DeconstructedCtor] represents the type of constructor that a pattern
@@ -121,10 +122,10 @@ impl<'tc> ConstructorOps<'tc> {
     }
 
     /// Compute the `arity` of this [DeconstructedCtor].
-    pub(crate) fn arity(&self, ctx: PatCtx, ctor: ConstructorId) -> usize {
+    pub(crate) fn arity(&self, ctx: PatCtx, ctor: DeconstructedCtorId) -> usize {
         let reader = self.reader();
 
-        match reader.get_ctor(ctor) {
+        match reader.get_deconstructed_ctor(ctor) {
             DeconstructedCtor::Single | DeconstructedCtor::Variant(_) => {
                 // we need to get term from the context here...
                 //
@@ -135,12 +136,14 @@ impl<'tc> ConstructorOps<'tc> {
 
                 match reader.get_term(ctx.ty) {
                     Term::Level1(Level1Term::Tuple(TupleTy { members })) => {
-                        reader.get_params(*members).len()
+                        reader.get_params_owned(members).len()
                     }
                     Term::Level1(Level1Term::NominalDef(def)) => {
-                        match reader.get_nominal_def(*def) {
+                        match reader.get_nominal_def(def) {
                             NominalDef::Struct(struct_def) => match struct_def.fields {
-                                StructFields::Explicit(params) => reader.get_params(params).len(),
+                                StructFields::Explicit(params) => {
+                                    reader.get_params_owned(params).len()
+                                }
                                 StructFields::Opaque => 0,
                             },
                             // @@Remove: when enums are no longer represented as thi
@@ -191,11 +194,11 @@ impl<'tc> ConstructorOps<'tc> {
     pub(super) fn split(
         &self,
         ctx: PatCtx,
-        ctor_id: ConstructorId,
-        ctors: impl Iterator<Item = ConstructorId> + Clone,
-    ) -> SmallVec<[ConstructorId; 1]> {
+        ctor_id: DeconstructedCtorId,
+        ctors: impl Iterator<Item = DeconstructedCtorId> + Clone,
+    ) -> SmallVec<[DeconstructedCtorId; 1]> {
         let reader = self.reader();
-        let ctor = reader.get_ctor(ctor_id);
+        let ctor = reader.get_deconstructed_ctor(ctor_id);
 
         match ctor {
             DeconstructedCtor::Wildcard => {
@@ -209,7 +212,7 @@ impl<'tc> ConstructorOps<'tc> {
 
                 let mut range = SplitIntRange::new(range);
                 let int_ranges = ctors.filter_map(|c| {
-                    self.constructor_store().map_unsafe(c, |c| c.as_int_range().cloned())
+                    self.constructor_store().map_fast(c, |c| c.as_int_range().cloned())
                 });
 
                 range.split(int_ranges);
@@ -223,9 +226,7 @@ impl<'tc> ConstructorOps<'tc> {
                 let mut list = SplitVarList::new(prefix_len, suffix_len);
 
                 let lists = ctors
-                    .filter_map(|c| {
-                        self.constructor_store().map_unsafe(c, |c| c.as_list().cloned())
-                    })
+                    .filter_map(|c| self.constructor_store().map_fast(c, |c| c.as_list().cloned()))
                     .map(|s| s.kind);
                 list.split(lists);
 
@@ -281,31 +282,31 @@ impl<'tc> ConstructorOps<'tc> {
     /// from a wildcard.
     pub(super) fn is_covered_by_any(
         &self,
-        ctor: ConstructorId,
-        used_ctors: &[ConstructorId],
+        ctor: DeconstructedCtorId,
+        used_ctors: &[DeconstructedCtorId],
     ) -> bool {
         if used_ctors.is_empty() {
             return false;
         }
 
-        let ctor = self.reader().get_ctor(ctor);
+        let ctor = self.reader().get_deconstructed_ctor(ctor);
 
         match ctor {
             // If `self` is `Single`, `used_ctors` cannot contain anything else than `Single`s.
             DeconstructedCtor::Single => !used_ctors.is_empty(),
             DeconstructedCtor::Variant(i) => used_ctors.iter().any(|c| {
                 self.constructor_store()
-                    .map_unsafe(*c, |c| matches!(c, DeconstructedCtor::Variant(k) if *k == i))
+                    .map_fast(*c, |c| matches!(c, DeconstructedCtor::Variant(k) if *k == i))
             }),
             DeconstructedCtor::IntRange(range) => used_ctors
                 .iter()
                 .filter_map(|c| {
-                    self.constructor_store().map_unsafe(*c, |c| c.as_int_range().cloned())
+                    self.constructor_store().map_fast(*c, |c| c.as_int_range().cloned())
                 })
                 .any(|other| range.is_covered_by(&other)),
             DeconstructedCtor::List(list) => used_ctors
                 .iter()
-                .filter_map(|c| self.constructor_store().map_unsafe(*c, |c| c.as_list().cloned()))
+                .filter_map(|c| self.constructor_store().map_fast(*c, |c| c.as_list().cloned()))
                 .any(|other| list.is_covered_by(other)),
             // This constructor is never covered by anything else
             DeconstructedCtor::NonExhaustive => false,

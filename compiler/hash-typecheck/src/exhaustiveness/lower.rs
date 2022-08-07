@@ -2,19 +2,7 @@
 //! vice versa.
 use std::iter::once;
 
-use crate::{
-    diagnostics::macros::tc_panic,
-    ops::AccessToOps,
-    storage::{
-        primitives::{
-            ConstructorPat, DeconstructedPatId, IfPat, Level0Term, Level1Term, ListPat, LitTerm,
-            ModDef, ModPat, NominalDef, Pat, PatArg, PatArgsId, PatId, ScopeKind, SpreadPat,
-            StructFields, Term, TermId, TupleTy,
-        },
-        AccessToStorage, StorageRef,
-    },
-};
-
+use hash_utils::store::Store;
 use if_chain::if_chain;
 use itertools::Itertools;
 use smallvec::SmallVec;
@@ -27,6 +15,20 @@ use super::{
     list::{List, ListKind},
     range::IntRange,
     AccessToUsefulnessOps,
+};
+use crate::{
+    diagnostics::macros::tc_panic,
+    ops::AccessToOps,
+    storage::{
+        deconstructed::DeconstructedPatId,
+        pats::{PatArgsId, PatId},
+        primitives::{
+            ConstructorPat, IfPat, Level0Term, Level1Term, ListPat, LitTerm, ModDef, ModPat,
+            NominalDef, Pat, PatArg, ScopeKind, SpreadPat, StructFields, Term, TupleTy,
+        },
+        terms::TermId,
+        AccessToStorage, StorageRef,
+    },
 };
 
 /// Representation of a field within a collection of patterns.
@@ -70,12 +72,12 @@ impl<'tc> LowerPatOps<'tc> {
             // rest are wildcards, since this seems to be redundant, might need to introduce
             // some kind of special fields that doesn't care about all of the filled in fields...
             Pat::Mod(ModPat { members }) => {
-                let specified_members = reader.get_pat_args(members).clone();
+                let specified_members = reader.get_pat_args_owned(members).clone();
 
                 let scope = match reader.get_term(ty) {
                     Term::Level1(Level1Term::ModDef(id)) => {
-                        let ModDef { members, .. } = reader.get_mod_def(*id);
-                        let scope = self.scope_store().get(*members);
+                        let ModDef { members, .. } = reader.get_mod_def(id);
+                        let scope = self.scope_store().get(members);
 
                         // We should be in a constant scope
                         assert!(scope.kind == ScopeKind::Constant);
@@ -115,14 +117,14 @@ impl<'tc> LowerPatOps<'tc> {
             Pat::Range(_) => todo!(),
             Pat::Lit(term) => match reader.get_term(term) {
                 Term::Level0(Level0Term::Lit(lit)) => match lit {
-                    LitTerm::Str(value) => (DeconstructedCtor::Str(*value), vec![]),
+                    LitTerm::Str(value) => (DeconstructedCtor::Str(value), vec![]),
                     LitTerm::Int { value, kind } => {
-                        let value = Constant::from_int(value.clone(), *kind, term);
+                        let value = Constant::from_int(value, kind, term);
                         let range = self.int_range_ops().range_from_constant(value);
                         (DeconstructedCtor::IntRange(range), vec![])
                     }
                     LitTerm::Char(value) => {
-                        let value = Constant::from_char(*value, term);
+                        let value = Constant::from_char(value, term);
                         let range = self.int_range_ops().range_from_constant(value);
                         (DeconstructedCtor::IntRange(range), vec![])
                     }
@@ -136,7 +138,7 @@ impl<'tc> LowerPatOps<'tc> {
                 // wildcard fields for all of the inner types
                 match reader.get_term(ty) {
                     Term::Level1(Level1Term::Tuple(TupleTy { members })) => {
-                        let members = reader.get_params(*members).clone();
+                        let members = reader.get_params_owned(members).clone();
 
                         // Create wild-cards for all of the tuple inner members
                         let mut wilds: SmallVec<[_; 2]> = members
@@ -167,7 +169,7 @@ impl<'tc> LowerPatOps<'tc> {
                     Term::Level1(Level1Term::NominalDef(nominal_def)) => {
                         let fields = self.pat_lowerer().deconstruct_pat_fields(args);
 
-                        let (ctor, members) = match reader.get_nominal_def(*nominal_def) {
+                        let (ctor, members) = match reader.get_nominal_def(nominal_def) {
                             NominalDef::Struct(struct_def) => match struct_def.fields {
                                 StructFields::Explicit(members) => {
                                     (DeconstructedCtor::Single, members)
@@ -180,7 +182,7 @@ impl<'tc> LowerPatOps<'tc> {
                             NominalDef::Enum(_) => unreachable!(),
                         };
 
-                        let args = reader.get_params(members);
+                        let args = reader.get_params_owned(members);
                         let tys = args.positional().iter().map(|param| param.ty);
 
                         let mut wilds: SmallVec<[_; 2]> =
@@ -208,8 +210,8 @@ impl<'tc> LowerPatOps<'tc> {
                 let mut suffix = vec![];
                 let mut spread = false;
 
-                let pats = reader.get_pat_args(inner).clone();
-                let inner_ty = self.oracle().term_as_list(ty).unwrap();
+                let pats = reader.get_pat_args_owned(inner);
+                let inner_ty = self.oracle().term_as_list_ty(ty).unwrap();
 
                 // We don't care about the `name` of the arg because the list
                 // never has the `name` assigned to anything...
@@ -284,7 +286,7 @@ impl<'tc> LowerPatOps<'tc> {
             return pat.id.unwrap();
         }
 
-        let ctor = reader.get_ctor(pat.ctor);
+        let ctor = reader.get_deconstructed_ctor(pat.ctor);
 
         // Build the pattern based from the constructor and the fields...
         let pat = match ctor {
@@ -330,7 +332,7 @@ impl<'tc> LowerPatOps<'tc> {
 
                 match kind {
                     ListKind::Fixed(_) => {
-                        let _inner_term = self.oracle().term_as_list(pat.ty).unwrap();
+                        let _inner_term = self.oracle().term_as_list_ty(pat.ty).unwrap();
 
                         // @@Todo: immutable builder required.
 
@@ -353,7 +355,7 @@ impl<'tc> LowerPatOps<'tc> {
                         // Now create an inner collection of patterns with the inserted
                         // spread pattern
                         let _inner = prefix.into_iter().chain(once(spread)).chain(suffix);
-                        let _term = self.oracle().term_as_list(pat.ty).unwrap();
+                        let _term = self.oracle().term_as_list_ty(pat.ty).unwrap();
 
                         // @@Todo: immutable builder required.
 
@@ -422,7 +424,7 @@ impl<'tc> LowerPatOps<'tc> {
     /// named argument.
     pub fn deconstruct_pat_fields(&self, fields: PatArgsId) -> Vec<FieldPat> {
         let reader = self.reader();
-        let args = reader.get_pat_args(fields).clone();
+        let args = reader.get_pat_args_owned(fields).clone();
 
         let pats = args
             .positional()

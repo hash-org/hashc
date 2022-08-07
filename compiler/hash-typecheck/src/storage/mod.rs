@@ -10,12 +10,11 @@
 
 pub mod arguments;
 pub mod cache;
-pub mod constructors;
-pub mod core;
-pub mod deconstructed_pat;
+pub mod deconstructed;
 pub mod location;
 pub mod mods;
 pub mod nominals;
+pub mod param_list;
 pub mod params;
 pub mod pats;
 pub mod primitives;
@@ -24,26 +23,30 @@ pub mod sources;
 pub mod terms;
 pub mod trts;
 
+use std::cell::Cell;
+
+use hash_source::{SourceId, SourceMap};
+use hash_utils::store::Store;
+
 use self::{
     arguments::ArgsStore,
     cache::Cache,
-    constructors::DeconstructedCtorStore,
-    core::create_core_defs_in,
-    deconstructed_pat::DeconstructedPatStore,
+    deconstructed::{DeconstructedCtorStore, DeconstructedPatStore},
     location::LocationStore,
     mods::ModDefStore,
     nominals::NominalDefStore,
     params::ParamsStore,
     pats::{PatArgsStore, PatStore},
-    primitives::{Scope, ScopeId, ScopeKind},
-    scope::{ScopeStack, ScopeStore},
+    primitives::{Scope, ScopeKind},
+    scope::{ScopeId, ScopeStack, ScopeStore},
     sources::CheckedSources,
     terms::TermStore,
     trts::TrtDefStore,
 };
-use crate::fmt::{ForFormatting, PrepareForFormatting};
-use hash_source::{SourceId, SourceMap};
-use std::cell::Cell;
+use crate::{
+    fmt::{ForFormatting, PrepareForFormatting},
+    ops::bootstrap::create_core_defs_in,
+};
 
 /// Keeps track of typechecking information across all source files.
 #[derive(Debug)]
@@ -82,9 +85,9 @@ pub struct GlobalStorage {
 impl GlobalStorage {
     /// Create a new, empty [GlobalStorage].
     pub fn new() -> Self {
-        let mut scope_store = ScopeStore::new();
+        let scope_store = ScopeStore::new();
         let root_scope = scope_store.create(Scope::empty(ScopeKind::Constant));
-        let mut gs = Self {
+        let gs = Self {
             location_store: LocationStore::new(),
             term_store: TermStore::new(),
             scope_store,
@@ -101,7 +104,7 @@ impl GlobalStorage {
             args_store: ArgsStore::new(),
             cache: Cache::new(),
         };
-        create_core_defs_in(&mut gs);
+        create_core_defs_in(&gs);
         gs
     }
 }
@@ -123,7 +126,7 @@ pub struct LocalStorage {
 
 impl LocalStorage {
     /// Create a new, empty [LocalStorage] for the given source.
-    pub fn new(gs: &mut GlobalStorage, id: SourceId) -> Self {
+    pub fn new(gs: &GlobalStorage, id: SourceId) -> Self {
         Self {
             scopes: ScopeStack::many([
                 // First the root scope
@@ -142,7 +145,7 @@ impl LocalStorage {
 
     /// Set the current [SourceId], it does not matter whether
     /// this is a [SourceId::Module] or [SourceId::Interactive]
-    pub fn set_current_source(&mut self, id: SourceId) {
+    pub fn set_current_source(&self, id: SourceId) {
         self.id.set(id);
     }
 }
@@ -153,7 +156,7 @@ impl LocalStorage {
 pub struct StorageRef<'tc> {
     pub local_storage: &'tc LocalStorage,
     pub global_storage: &'tc GlobalStorage,
-    source_map: &'tc SourceMap,
+    pub source_map: &'tc SourceMap,
 }
 
 /// A mutable reference to the storage, which includes both local and global
@@ -226,7 +229,7 @@ pub trait AccessToStorage {
         &self.global_storage().deconstructed_pat_store
     }
 
-    fn pat_params_store(&self) -> &PatArgsStore {
+    fn pat_args_store(&self) -> &PatArgsStore {
         &self.global_storage().pat_args_store
     }
 
@@ -261,70 +264,6 @@ pub trait AccessToStorage {
 /// the storage given a path to a [StorageRefMut] object.
 pub trait AccessToStorageMut: AccessToStorage {
     fn storages_mut(&mut self) -> StorageRefMut;
-
-    fn global_storage_mut(&mut self) -> &mut GlobalStorage {
-        self.storages_mut().global_storage
-    }
-
-    fn local_storage_mut(&mut self) -> &mut LocalStorage {
-        self.storages_mut().local_storage
-    }
-
-    fn term_store_mut(&mut self) -> &mut TermStore {
-        &mut self.global_storage_mut().term_store
-    }
-
-    fn cache_mut(&mut self) -> &mut Cache {
-        &mut self.global_storage_mut().cache
-    }
-
-    fn location_store_mut(&mut self) -> &mut LocationStore {
-        &mut self.global_storage_mut().location_store
-    }
-
-    fn scope_store_mut(&mut self) -> &mut ScopeStore {
-        &mut self.global_storage_mut().scope_store
-    }
-
-    fn nominal_def_store_mut(&mut self) -> &mut NominalDefStore {
-        &mut self.global_storage_mut().nominal_def_store
-    }
-
-    fn trt_def_store_mut(&mut self) -> &mut TrtDefStore {
-        &mut self.global_storage_mut().trt_def_store
-    }
-
-    fn args_store_mut(&mut self) -> &mut ArgsStore {
-        &mut self.global_storage_mut().args_store
-    }
-
-    fn params_store_mut(&mut self) -> &mut ParamsStore {
-        &mut self.global_storage_mut().params_store
-    }
-
-    fn mod_def_store_mut(&mut self) -> &mut ModDefStore {
-        &mut self.global_storage_mut().mod_def_store
-    }
-
-    fn pat_store_mut(&mut self) -> &mut PatStore {
-        &mut self.global_storage_mut().pat_store
-    }
-
-    fn deconstructed_pat_store_mut(&mut self) -> &mut DeconstructedPatStore {
-        &mut self.global_storage_mut().deconstructed_pat_store
-    }
-
-    fn pat_params_store_mut(&mut self) -> &mut PatArgsStore {
-        &mut self.global_storage_mut().pat_args_store
-    }
-
-    fn checked_sources_mut(&mut self) -> &mut CheckedSources {
-        &mut self.global_storage_mut().checked_sources
-    }
-
-    fn scopes_mut(&mut self) -> &mut ScopeStack {
-        &mut self.local_storage_mut().scopes
-    }
 }
 
 impl<'tc> AccessToStorage for StorageRef<'tc> {

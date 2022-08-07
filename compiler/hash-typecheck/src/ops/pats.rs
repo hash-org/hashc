@@ -6,26 +6,27 @@ use hash_ast::ast::ParamOrigin;
 use hash_source::identifier::Identifier;
 use itertools::Itertools;
 
+use super::{params::pair_args_with_params, AccessToOps};
 use crate::{
     diagnostics::{
         error::{TcError, TcResult},
         macros::tc_panic,
     },
-    ops::{validate::TermValidation, AccessToOpsMut},
+    ops::validate::TermValidation,
     storage::{
+        pats::PatId,
         primitives::{
             AccessOp, AccessPat, ConstPat, ConstructorPat, IfPat, ListPat, Member, ModPat,
-            Mutability, Param, Pat, PatArg, PatId, SpreadPat, TermId,
+            Mutability, Param, Pat, PatArg, SpreadPat,
         },
-        AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
+        terms::TermId,
+        AccessToStorage, StorageRef,
     },
 };
 
-use super::{params::pair_args_with_params, AccessToOps};
-
 /// Contains functions related to pattern matching.
 pub struct PatMatcher<'tc> {
-    storage: StorageRefMut<'tc>,
+    storage: StorageRef<'tc>,
 }
 
 impl<'tc> AccessToStorage for PatMatcher<'tc> {
@@ -33,20 +34,15 @@ impl<'tc> AccessToStorage for PatMatcher<'tc> {
         self.storage.storages()
     }
 }
-impl<'tc> AccessToStorageMut for PatMatcher<'tc> {
-    fn storages_mut(&mut self) -> StorageRefMut {
-        self.storage.storages_mut()
-    }
-}
 
 impl<'tc> PatMatcher<'tc> {
     /// Create a new [PatMatcher].
-    pub fn new(storage: StorageRefMut<'tc>) -> Self {
+    pub fn new(storage: StorageRef<'tc>) -> Self {
         Self { storage }
     }
 
     /// Internal function to infer a pattern from a `Param`.
-    fn param_to_pat(&mut self, param: &Param) -> PatArg {
+    fn param_to_pat(&self, param: &Param) -> PatArg {
         let Param { name, default_value, .. } = param;
         let pat = self.builder().create_constant_pat(default_value.unwrap());
 
@@ -90,7 +86,7 @@ impl<'tc> PatMatcher<'tc> {
     ///
     /// - For every inner pattern, the resultant members must be equivalent in
     ///   terms of name and type.
-    fn pat_members_match(&mut self, members: &[(Vec<(Member, PatId)>, PatId)]) -> TcResult<()> {
+    fn pat_members_match(&self, members: &[(Vec<(Member, PatId)>, PatId)]) -> TcResult<()> {
         let member_maps = members
             .iter()
             .map(|(members, pat)| (self.map_variables_to_terms(members), pat))
@@ -144,7 +140,7 @@ impl<'tc> PatMatcher<'tc> {
     /// involved), and that this function should unify the types, rather
     /// than the values, of the pattern and term.
     fn match_pat_with_term_and_extract_binds(
-        &mut self,
+        &self,
         pat_id: PatId,
         term_id: TermId,
     ) -> TcResult<Option<Vec<(Member, PatId)>>> {
@@ -206,7 +202,7 @@ impl<'tc> PatMatcher<'tc> {
                 match self.unifier().unify_terms(tuple_term, simplified_term_id) {
                     Ok(_) => {
                         let tuple_pat_args =
-                            self.reader().get_pat_args(tuple_pat_params_id).clone();
+                            self.reader().get_pat_args_owned(tuple_pat_params_id).clone();
 
                         // First, we get the tuple pattern parameters in the form of args (for
                         // `pair_args_with_params` error reporting):
@@ -220,7 +216,8 @@ impl<'tc> PatMatcher<'tc> {
                             .unwrap_or_else(|| {
                                 tc_panic!(simplified_term_id, self, "This is not a tuple term.")
                             });
-                        let subject_params = self.reader().get_params(subject_params_id).clone();
+                        let subject_params =
+                            self.reader().get_params_owned(subject_params_id).clone();
 
                         // For each param pair: accumulate the bound members
                         let bound_members = pair_args_with_params(
@@ -253,7 +250,7 @@ impl<'tc> PatMatcher<'tc> {
                 }
             }
             Pat::Mod(ModPat { members }) => {
-                let members = self.reader().get_pat_args(members).clone();
+                let members = self.reader().get_pat_args_owned(members).clone();
 
                 let mut bound_members = vec![];
 
@@ -281,7 +278,7 @@ impl<'tc> PatMatcher<'tc> {
                 let constructor_term = self.typer().get_term_of_pat(pat_id)?;
 
                 let pat_args = self.typer().infer_args_of_pat_args(args)?;
-                let constructor_args = self.reader().get_pat_args(args).clone();
+                let constructor_args = self.reader().get_pat_args_owned(args).clone();
 
                 let possible_params =
                     self.typer().infer_constructors_of_nominal_term(simplified_term_id)?;
@@ -294,7 +291,7 @@ impl<'tc> PatMatcher<'tc> {
                         simplified_term_id,
                     ) {
                         Ok(_) => {
-                            let subject_params = self.reader().get_params(params).clone();
+                            let subject_params = self.reader().get_params_owned(params).clone();
 
                             let bound_members = pair_args_with_params(
                                 &subject_params,
@@ -338,7 +335,7 @@ impl<'tc> PatMatcher<'tc> {
             Pat::List(ListPat { term, inner }) => {
                 // We need to collect all of the binds from the inner patterns of
                 // the list
-                let params = self.reader().get_pat_args(inner).clone();
+                let params = self.reader().get_pat_args_owned(inner).clone();
 
                 let mut bound_members = vec![];
 
@@ -437,7 +434,7 @@ impl<'tc> PatMatcher<'tc> {
     /// members), or [`None`] if it doesn't match. If the types mismatch, it
     /// returns an error.
     pub fn match_pat_with_term(
-        &mut self,
+        &self,
         pat_id: PatId,
         term_id: TermId,
     ) -> TcResult<Option<Vec<Member>>> {

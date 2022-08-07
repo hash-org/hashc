@@ -6,14 +6,15 @@
 #![feature(iter_intersperse)]
 #![feature(try_find)]
 
-use convert_case::{Case, Casing};
-use proc_macro::{Span, TokenStream};
-use quote::{format_ident, quote};
-use regex::Regex;
 use std::{
     fs, io, iter,
     path::{Path, PathBuf},
 };
+
+use convert_case::{Case, Casing};
+use proc_macro::{Span, TokenStream};
+use quote::{format_ident, quote};
+use regex::Regex;
 use syn::{
     parse::{Parse, ParseStream},
     parse_macro_input,

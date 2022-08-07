@@ -4,13 +4,15 @@
 //! the whole range of all possible values by the associated type
 //! to the constructor.
 use hash_ast::ast::{IntTy, RangeEnd};
+use hash_utils::store::Store;
 use smallvec::{smallvec, SmallVec};
 
 use crate::{
     exhaustiveness::PatCtx,
     ops::AccessToOps,
     storage::{
-        primitives::{ConstructorId, Level1Term, NominalDef, Term},
+        deconstructed::DeconstructedCtorId,
+        primitives::{Level1Term, NominalDef, Term},
         AccessToStorage, StorageRef,
     },
 };
@@ -34,9 +36,9 @@ use crate::{
 #[derive(Debug)]
 pub struct SplitWildcard {
     /// Constructors seen in the matrix.
-    pub matrix_ctors: Vec<ConstructorId>,
+    pub matrix_ctors: Vec<DeconstructedCtorId>,
     /// All the constructors for this type
-    pub all_ctors: SmallVec<[ConstructorId; 1]>,
+    pub all_ctors: SmallVec<[DeconstructedCtorId; 1]>,
 }
 
 use super::{
@@ -80,7 +82,7 @@ impl<'tc> SplitWildcardOps<'tc> {
         // we need make sure to omit constructors that are statically impossible. E.g.,
         // for `Option<!>`, we do not include `Some(_)` in the returned list of
         // constructors.
-        let all_ctors = if let Some(int_kind) = self.oracle().term_as_int(ctx.ty) {
+        let all_ctors = if let Some(int_kind) = self.oracle().term_as_int_ty(ctx.ty) {
             match int_kind {
                 // @@Future: Maybe in the future, we can have a compiler setting/project
                 // setting that allows a user to say `it's ok to use the `target` pointer width`
@@ -112,19 +114,19 @@ impl<'tc> SplitWildcardOps<'tc> {
                     smallvec![make_range(0, max)]
                 }
             }
-        } else if self.oracle().term_as_list(ctx.ty).is_some() {
+        } else if self.oracle().term_as_list_ty(ctx.ty).is_some() {
             // For lists, we just default to a variable length list
             smallvec![DeconstructedCtor::List(List { kind: ListKind::Var(0, 0) })]
         } else {
             match ctx.ty {
-                ty if self.oracle().term_is_char(ty) => {
+                ty if self.oracle().term_is_char_ty(ty) => {
                     smallvec![
                         // The valid Unicode Scalar Value ranges.
                         make_range('\u{0000}' as u128, '\u{D7FF}' as u128),
                         make_range('\u{E000}' as u128, '\u{10FFFF}' as u128),
                     ]
                 }
-                ty if self.oracle().term_is_never(ty) => {
+                ty if self.oracle().term_is_never_ty(ty) => {
                     // If our subject is the never type, we cannot
                     // expose its emptiness. The exception is if the pattern
                     // is at the top level, because we want empty matches
@@ -137,7 +139,7 @@ impl<'tc> SplitWildcardOps<'tc> {
                 }
                 ty => match reader.get_term(ty) {
                     Term::Level1(Level1Term::NominalDef(def)) => {
-                        match reader.get_nominal_def(*def) {
+                        match reader.get_nominal_def(def) {
                             NominalDef::Struct(_) => smallvec![DeconstructedCtor::Single],
                             NominalDef::Enum(enum_def) => {
                                 // The exception is if the pattern is at the top level, because we
@@ -180,7 +182,7 @@ impl<'tc> SplitWildcardOps<'tc> {
         &mut self,
         ctx: PatCtx,
         ctor: &mut SplitWildcard,
-        ctors: impl Iterator<Item = ConstructorId> + Clone,
+        ctors: impl Iterator<Item = DeconstructedCtorId> + Clone,
     ) {
         // Since `all_ctors` never contains wildcards, this won't recurse further.
         ctor.all_ctors = ctor
@@ -189,9 +191,8 @@ impl<'tc> SplitWildcardOps<'tc> {
             .flat_map(|ctor| self.constructor_ops().split(ctx, *ctor, ctors.clone()))
             .collect();
 
-        ctor.matrix_ctors = ctors
-            .filter(|c| !self.constructor_store().map_unsafe(*c, |c| c.is_wildcard()))
-            .collect();
+        ctor.matrix_ctors =
+            ctors.filter(|c| !self.constructor_store().map_fast(*c, |c| c.is_wildcard())).collect();
     }
 
     /// Whether there are any value constructors for this type that are not
@@ -205,7 +206,7 @@ impl<'tc> SplitWildcardOps<'tc> {
     pub(super) fn iter_missing<'a>(
         &'a self,
         wildcard: &'a SplitWildcard,
-    ) -> impl Iterator<Item = ConstructorId> + 'a {
+    ) -> impl Iterator<Item = DeconstructedCtorId> + 'a {
         wildcard.all_ctors.iter().copied().filter(move |ctor| {
             !self.constructor_ops().is_covered_by_any(*ctor, &wildcard.matrix_ctors)
         })
@@ -222,7 +223,7 @@ impl<'tc> SplitWildcardOps<'tc> {
         &self,
         ctx: PatCtx,
         wildcard: SplitWildcard,
-    ) -> SmallVec<[ConstructorId; 1]> {
+    ) -> SmallVec<[DeconstructedCtorId; 1]> {
         // If Some constructors are missing, thus we can specialise with the special
         // `Missing` constructor, which stands for those constructors that are
         // not seen in the matrix, and matches the same rows as any of them
@@ -255,7 +256,7 @@ impl<'tc> SplitWildcardOps<'tc> {
             // we sometimes prefer reporting the list of constructors instead of
             // just `_`.
             let ctor = if !wildcard.matrix_ctors.is_empty()
-                || (ctx.is_top_level && self.oracle().term_as_int(ctx.ty).is_none())
+                || (ctx.is_top_level && self.oracle().term_as_int_ty(ctx.ty).is_none())
             {
                 DeconstructedCtor::Missing
             } else {

@@ -1,16 +1,19 @@
 //! Operations related to handling parameters.
 
+use std::{borrow::Cow, collections::HashSet};
+
 use crate::{
     diagnostics::{
         error::{TcError, TcResult},
         params::ParamListKind,
     },
     storage::{
+        arguments::ArgsId,
         location::LocationTarget,
-        primitives::{ArgsId, GetNameOpt, Param, ParamList, Params, ParamsId},
+        params::ParamsId,
+        primitives::{GetNameOpt, Param, ParamList, Params},
     },
 };
-use std::collections::HashSet;
 
 /// Pair the given parameters with the given parameter list (either args, or
 /// pattern params).
@@ -21,15 +24,15 @@ use std::collections::HashSet;
 /// The `infer_arg_from_default_param` closure is used to create a `T` arg type
 /// from a parameter that has a default value but was not provided in the
 /// argument list.
-pub(crate) fn pair_args_with_params<'p, T: Clone + GetNameOpt>(
-    params: &'p Params,
-    args: &ParamList<T>,
+pub(crate) fn pair_args_with_params<'p, 'a, T: Clone + GetNameOpt>(
+    params: &'p Params<'_>,
+    args: &'a ParamList<'_, T>,
     params_id: ParamsId,
     args_id: ArgsId,
     mut infer_arg_from_default_param: impl FnMut(&Param) -> T,
     params_subject: impl Into<LocationTarget>,
     args_subject: impl Into<LocationTarget>,
-) -> TcResult<Vec<(&'p Param, T)>> {
+) -> TcResult<Vec<(&'p Param, Cow<'a, T>)>> {
     let mut result = vec![];
 
     // Keep track of used params to ensure no parameter is given twice.
@@ -73,7 +76,7 @@ pub(crate) fn pair_args_with_params<'p, T: Clone + GetNameOpt>(
                             return Err(TcError::ParamGivenTwice { param_kind: origin, index });
                         } else {
                             used_params.insert(index);
-                            result.push((param, arg.clone()));
+                            result.push((param, Cow::Borrowed(arg)));
 
                             // If the parameter has a `default` value, we need to remove it from the
                             // `default_params` list because it is being overridden by the call site
@@ -109,7 +112,7 @@ pub(crate) fn pair_args_with_params<'p, T: Clone + GetNameOpt>(
                     used_params.insert(i);
 
                     let param = params.positional().get(i).unwrap();
-                    result.push((param, arg.clone()));
+                    result.push((param, Cow::Borrowed(arg)));
 
                     // If the parameter has a `default` value, we need to remove
                     // it from the `default_params` list
@@ -127,7 +130,7 @@ pub(crate) fn pair_args_with_params<'p, T: Clone + GetNameOpt>(
     for default_param in &default_params {
         let (_, param) = params.get_by_name(*default_param).unwrap();
 
-        result.push((param, infer_arg_from_default_param(param)));
+        result.push((param, Cow::Owned(infer_arg_from_default_param(param))));
     }
 
     // Compare the parameter list subtracted from the `default_params` that weren't

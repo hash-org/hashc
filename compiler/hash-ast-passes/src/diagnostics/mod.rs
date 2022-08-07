@@ -1,8 +1,9 @@
 //! Hash AST semantic passes diagnostic definitions and logic.
 #![allow(dead_code)]
 
-use self::{error::AnalysisError, warning::AnalysisWarning};
 use hash_reporting::report::Report;
+
+use self::{error::AnalysisError, warning::AnalysisWarning};
 
 pub(crate) mod directives;
 pub(crate) mod error;

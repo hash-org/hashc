@@ -1,5 +1,9 @@
 //! Utilities related to type unification and substitution.
-use super::{params::pair_args_with_params, AccessToOps, AccessToOpsMut};
+use std::{borrow::Borrow, collections::HashSet};
+
+use hash_utils::store::Store;
+
+use super::{params::pair_args_with_params, AccessToOps};
 use crate::{
     diagnostics::{
         error::{TcError, TcResult},
@@ -7,22 +11,25 @@ use crate::{
         params::ParamUnificationErrorReason,
     },
     storage::{
+        arguments::ArgsId,
         location::LocationTarget,
+        params::ParamsId,
+        pats::PatId,
         primitives::{
-            Arg, ArgsId, Level0Term, Level1Term, Level2Term, Level3Term, Param, ParamsId, PatId,
-            ScopeId, ScopeKind, Sub, Term, TermId,
+            Arg, Level0Term, Level1Term, Level2Term, Level3Term, Param, ScopeKind, Sub, Term,
         },
-        AccessToStorage, AccessToStorageMut, StorageRefMut,
+        scope::ScopeId,
+        terms::TermId,
+        AccessToStorage, StorageRef,
     },
 };
-use std::collections::HashSet;
 
 /// Options that are received by the unifier when unifying types.
 pub struct UnifyTysOpts {}
 
 /// Performs type unification and other related operations.
 pub struct Unifier<'tc> {
-    storage: StorageRefMut<'tc>,
+    storage: StorageRef<'tc>,
 }
 
 impl<'tc> AccessToStorage for Unifier<'tc> {
@@ -31,21 +38,15 @@ impl<'tc> AccessToStorage for Unifier<'tc> {
     }
 }
 
-impl<'tc> AccessToStorageMut for Unifier<'tc> {
-    fn storages_mut(&mut self) -> StorageRefMut {
-        self.storage.storages_mut()
-    }
-}
-
 impl<'tc> Unifier<'tc> {
-    pub fn new(storage: StorageRefMut<'tc>) -> Self {
+    pub fn new(storage: StorageRef<'tc>) -> Self {
         Self { storage }
     }
 
     /// Get the super-substitution of the two substitutions.
     ///
     /// Equivalent to first unifying `U(s0, s1)` and then applying `s1` or `s0`.
-    pub(crate) fn get_super_sub(&mut self, s0: &Sub, s1: &Sub) -> TcResult<Sub> {
+    pub(crate) fn get_super_sub(&self, s0: &Sub, s1: &Sub) -> TcResult<Sub> {
         let fv_s1 = self.discoverer().get_free_sub_vars_in_sub(s1);
         let dom_s0: HashSet<_> = s0.domain().collect();
         if fv_s1.intersection(&dom_s0).next().is_some() {
@@ -63,10 +64,10 @@ impl<'tc> Unifier<'tc> {
     ///
     /// This implements the algorithm outlined in the paper:
     /// <https://www.researchgate.net/publication/221600544_On_the_Unification_of_Substitutions_in_Type_Interfaces>
-    pub(crate) fn unify_subs(&mut self, s0: &Sub, s1: &Sub) -> TcResult<Sub> {
+    pub(crate) fn unify_subs(&self, s0: &Sub, s1: &Sub) -> TcResult<Sub> {
         let dom_s0: HashSet<_> = s0.domain().collect();
         let dom_s1: HashSet<_> = s1.domain().collect();
-        let mut substituter = self.substituter();
+        let substituter = self.substituter();
 
         // First split the domains into three parts: d0, d1 (not directly needed), and
         // the intersection (see second loop)
@@ -92,7 +93,7 @@ impl<'tc> Unifier<'tc> {
 
         // Now deal with the intersection:
         for &b in dom_s0.intersection(&dom_s1) {
-            let mut substituter = self.substituter();
+            let substituter = self.substituter();
             let subbed0_b = substituter.apply_sub_to_subject(s0, b);
             let subbed1_b = substituter.apply_sub_to_subject(s1, b);
             let x0 = substituter.apply_sub_to_term(&result, subbed0_b);
@@ -119,14 +120,14 @@ impl<'tc> Unifier<'tc> {
     /// Unification is actually performed by
     /// [this](Unifier::unify_param_arg_pairs) function.
     pub(crate) fn unify_params_with_args(
-        &mut self,
+        &self,
         params_id: ParamsId,
         args_id: ArgsId,
         params_subject: TermId,
         args_subject: TermId,
     ) -> TcResult<Sub> {
-        let params = self.params_store().get(params_id).clone();
-        let args = self.args_store().get(args_id).clone();
+        let params = self.params_store().get_owned_param_list(params_id);
+        let args = self.args_store().get_owned_param_list(args_id);
 
         let pairs = pair_args_with_params(
             &params,
@@ -146,13 +147,16 @@ impl<'tc> Unifier<'tc> {
     /// This is done by first getting the type of each argument, and unifying
     /// with the type of each parameter. Then, a substitution is created
     /// from each parameter to each argument value.
-    pub(crate) fn unify_param_arg_pairs(&mut self, pairs: Vec<(&Param, Arg)>) -> TcResult<Sub> {
+    pub(crate) fn unify_param_arg_pairs(
+        &self,
+        pairs: impl IntoIterator<Item = (impl Borrow<Param>, impl Borrow<Arg>)>,
+    ) -> TcResult<Sub> {
         let mut sub = Sub::empty();
 
         for (param, arg) in pairs.into_iter() {
             // Ensure their types unify:
-            let ty_of_arg = self.typer().infer_ty_of_term(arg.value)?;
-            let ty_sub = self.unify_terms(ty_of_arg, param.ty)?;
+            let ty_of_arg = self.typer().infer_ty_of_term(arg.borrow().value)?;
+            let ty_sub = self.unify_terms(ty_of_arg, param.borrow().ty)?;
 
             // Add the ty sub to the sub
             sub = self.get_super_sub(&sub, &ty_sub)?;
@@ -164,14 +168,14 @@ impl<'tc> Unifier<'tc> {
     /// The function requires a reference to the parent source and target
     /// terms in order to give meaningful error messages.
     pub(crate) fn unify_args(
-        &mut self,
+        &self,
         src_args_id: ArgsId,
         target_args_id: ArgsId,
         src_id: TermId,
         target_id: TermId,
     ) -> TcResult<Sub> {
-        let src_args = self.args_store().get(src_args_id).clone();
-        let target_args = self.args_store().get(target_args_id).clone();
+        let src_args = self.args_store().get_owned_param_list(src_args_id);
+        let target_args = self.args_store().get_owned_param_list(target_args_id);
 
         let cannot_unify = |reason: ParamUnificationErrorReason| {
             Err(TcError::CannotUnifyArgs {
@@ -211,14 +215,14 @@ impl<'tc> Unifier<'tc> {
     /// The function requires a reference to the parent source and target
     /// terms in order to give meaningful error messages.
     pub(crate) fn unify_params(
-        &mut self,
+        &self,
         src_params_id: ParamsId,
         target_params_id: ParamsId,
         src: impl Into<LocationTarget>,
         target: impl Into<LocationTarget>,
     ) -> TcResult<Sub> {
-        let src_params = self.params_store().get(src_params_id).clone();
-        let target_params = self.params_store().get(target_params_id).clone();
+        let src_params = self.params_store().get_owned_param_list(src_params_id);
+        let target_params = self.params_store().get_owned_param_list(target_params_id);
 
         let cannot_unify = |reason: ParamUnificationErrorReason| {
             Err(TcError::CannotUnifyParams {
@@ -265,7 +269,7 @@ impl<'tc> Unifier<'tc> {
     }
 
     /// Terms are equal if they unify both ways without any substitutions.
-    pub(crate) fn terms_are_equal(&mut self, a: TermId, b: TermId) -> bool {
+    pub(crate) fn terms_are_equal(&self, a: TermId, b: TermId) -> bool {
         self.unify_terms(a, b).contains(&Sub::empty())
             && self.unify_terms(b, a).contains(&Sub::empty())
     }
@@ -276,7 +280,7 @@ impl<'tc> Unifier<'tc> {
     /// This panics if either scope is not [ScopeKind::SetBound], or if a type
     /// error occurs.
     pub(crate) fn set_bound_scopes_are_equivalent(
-        &mut self,
+        &self,
         a: ScopeId,
         b: ScopeId,
         a_originating_term: TermId,
@@ -288,8 +292,8 @@ impl<'tc> Unifier<'tc> {
         }
 
         let reader = self.reader();
-        let scope_a = reader.get_scope(a).clone();
-        let scope_b = reader.get_scope(b).clone();
+        let scope_a = reader.get_scope(a);
+        let scope_b = reader.get_scope(b);
 
         // Ensure kinds are both [Scope::SetBound]
         if scope_a.kind != ScopeKind::SetBound || scope_b.kind != ScopeKind::SetBound {
@@ -337,7 +341,7 @@ impl<'tc> Unifier<'tc> {
     /// eq) of target.
     ///
     /// Note: Assumes that both terms have been validated.
-    pub(crate) fn unify_terms(&mut self, src_id: TermId, target_id: TermId) -> TcResult<Sub> {
+    pub(crate) fn unify_terms(&self, src_id: TermId, target_id: TermId) -> TcResult<Sub> {
         // Shortcut: terms have the same ID:
         if src_id == target_id {
             return Ok(Sub::empty());
@@ -350,8 +354,8 @@ impl<'tc> Unifier<'tc> {
         // First we want to simplify the terms:
         let simplified_src_id = self.simplifier().potentially_simplify_term(src_id)?;
         let simplified_target_id = self.simplifier().potentially_simplify_term(target_id)?;
-        let simplified_src = self.reader().get_term(simplified_src_id).clone();
-        let simplified_target = self.reader().get_term(simplified_target_id).clone();
+        let simplified_src = self.reader().get_term(simplified_src_id);
+        let simplified_target = self.reader().get_term(simplified_target_id);
 
         // Helper to return a unification error
         let cannot_unify = || Err(TcError::CannotUnify { src: src_id, target: target_id });
@@ -371,7 +375,7 @@ impl<'tc> Unifier<'tc> {
             (Term::TyOf(src_inner), Term::TyOf(dest_inner)) => {
                 self.unify_terms(src_inner, dest_inner)
             }
-            (Term::TyOf(src_inner), _) => match self.term_store().get(src_inner).clone() {
+            (Term::TyOf(src_inner), _) => match self.term_store().get(src_inner) {
                 // When the `src_inner` is an unresolved term, the unification between the target
                 // will yield a substitution `unresolved` -> `Rt(inner)`, so we need to verify
                 // that the inner term is runtime instantiable...
@@ -386,7 +390,7 @@ impl<'tc> Unifier<'tc> {
                 Term::Unresolved(_) => Ok(Sub::empty()),
                 _ => cannot_unify(),
             },
-            (_, Term::TyOf(target_inner)) => match self.term_store().get(target_inner).clone() {
+            (_, Term::TyOf(target_inner)) => match self.term_store().get(target_inner) {
                 // When the `target_inner` is an unresolved term, the unification between the target
                 // will yield a substitution `unresolved` -> `Rt(inner)`, so we need to verify
                 // that the inner term is runtime instantiable...
@@ -776,7 +780,7 @@ impl<'tc> Unifier<'tc> {
     /// Function used to verify a variadic sequence of terms. This ensures that
     /// the types of all the terms can be unified.
     pub(crate) fn unify_rt_term_sequence(
-        &mut self,
+        &self,
         sequence: impl IntoIterator<Item = TermId>,
     ) -> TcResult<TermId> {
         let mut elements = sequence.into_iter().peekable();
@@ -795,7 +799,7 @@ impl<'tc> Unifier<'tc> {
 
             // Only add the position to the last term...
             if elements.peek().is_none() {
-                self.location_store_mut().copy_location(element_ty, shared_term);
+                self.location_store().copy_location(element_ty, shared_term);
             }
         }
 
@@ -810,7 +814,7 @@ impl<'tc> Unifier<'tc> {
     /// messages because the terms are being clobbered, ideally the
     /// associated `PatId` should be used here.
     pub(crate) fn unify_pat_terms(
-        &mut self,
+        &self,
         sequence: impl IntoIterator<Item = (TermId, PatId)>,
     ) -> TcResult<TermId> {
         let mut elements = sequence.into_iter().peekable();
@@ -832,7 +836,7 @@ impl<'tc> Unifier<'tc> {
 
             // Only add the position to the last term...
             if elements.peek().is_none() {
-                self.location_store_mut().copy_location(element_ty, shared_term);
+                self.location_store().copy_location(element_ty, shared_term);
             }
         }
 

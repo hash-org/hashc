@@ -6,16 +6,15 @@
 //! algorithm.
 use smallvec::{smallvec, SmallVec};
 
+use super::AccessToUsefulnessOps;
 use crate::{
     exhaustiveness::PatCtx,
     ops::AccessToOps,
     storage::{
-        primitives::{ConstructorId, DeconstructedPatId},
+        deconstructed::{DeconstructedCtorId, DeconstructedPatId},
         AccessToStorage, StorageRef,
     },
 };
-
-use super::AccessToUsefulnessOps;
 
 /// A row of a [super::matrix::Matrix]. Rows of len 1 are very common, which is
 /// why `SmallVec[_; /// 2]` works well.
@@ -105,7 +104,7 @@ impl<'tc> StackOps<'tc> {
         &mut self,
         ctx: PatCtx,
         stack: &PatStack,
-        ctor: ConstructorId,
+        ctor: DeconstructedCtorId,
     ) -> PatStack {
         // We pop the head pattern and push the new fields extracted from the arguments
         // of `self.head()`.

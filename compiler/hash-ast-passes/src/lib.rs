@@ -8,15 +8,15 @@ pub mod analysis;
 pub(crate) mod diagnostics;
 pub mod visitor;
 
+use std::collections::HashSet;
+
 use analysis::SemanticAnalyser;
 use crossbeam_channel::unbounded;
-
 use diagnostics::Diagnostic;
 use hash_ast::{ast::OwnsAstNode, visitor::AstVisitor};
 use hash_pipeline::{sources::Workspace, traits::SemanticPass, CompilerResult};
 use hash_reporting::report::Report;
 use hash_source::SourceId;
-use std::collections::HashSet;
 
 pub struct HashSemanticAnalysis;
 

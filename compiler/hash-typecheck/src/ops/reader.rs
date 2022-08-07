@@ -1,14 +1,21 @@
 //! Contains helpers to read various things stored in [crate::storage] with
 //! ease.
 
+use hash_utils::store::Store;
+
 use crate::{
     exhaustiveness::{construct::DeconstructedCtor, deconstruct::DeconstructedPat},
     storage::{
-        primitives::{
-            Args, ArgsId, ConstructorId, DeconstructedPatId, ModDef, ModDefId, NominalDef,
-            NominalDefId, Params, ParamsId, Pat, PatArgs, PatArgsId, PatId, Scope, ScopeId, Term,
-            TermId, TrtDef, TrtDefId,
-        },
+        arguments::ArgsId,
+        deconstructed::{DeconstructedCtorId, DeconstructedPatId},
+        mods::ModDefId,
+        nominals::NominalDefId,
+        params::ParamsId,
+        pats::{PatArgsId, PatId},
+        primitives::{Args, ModDef, NominalDef, Params, Pat, PatArgs, Scope, Term, TrtDef},
+        scope::ScopeId,
+        terms::TermId,
+        trts::TrtDefId,
         GlobalStorage,
     },
 };
@@ -31,7 +38,7 @@ impl<'gs> PrimitiveReader<'gs> {
     }
 
     /// Get the term with the given [TermId].
-    pub fn get_term(&self, id: TermId) -> &Term {
+    pub fn get_term(&self, id: TermId) -> Term {
         self.gs.term_store.get(id)
     }
 
@@ -41,33 +48,33 @@ impl<'gs> PrimitiveReader<'gs> {
     }
 
     /// Get the module definition with the given [ModDefId].
-    pub fn get_mod_def(&self, id: ModDefId) -> &ModDef {
+    pub fn get_mod_def(&self, id: ModDefId) -> ModDef {
         self.gs.mod_def_store.get(id)
     }
 
     /// Get the nominal definition with the given [NominalDefId].
-    pub fn get_nominal_def(&self, id: NominalDefId) -> &NominalDef {
+    pub fn get_nominal_def(&self, id: NominalDefId) -> NominalDef {
         self.gs.nominal_def_store.get(id)
     }
 
     /// Get the scope with the given [ScopeId].
-    pub fn get_scope(&self, id: ScopeId) -> &Scope {
+    pub fn get_scope(&self, id: ScopeId) -> Scope {
         self.gs.scope_store.get(id)
     }
 
     /// Get the args with the given [ArgsId].
-    pub fn get_args(&self, id: ArgsId) -> &Args {
-        self.gs.args_store.get(id)
+    pub fn get_args_owned(&self, id: ArgsId) -> Args<'static> {
+        self.gs.args_store.get_owned_param_list(id)
     }
 
     /// Get the params with the given [ParamsId].
-    pub fn get_params(&self, id: ParamsId) -> &Params {
-        self.gs.params_store.get(id)
+    pub fn get_params_owned(&self, id: ParamsId) -> Params<'static> {
+        self.gs.params_store.get_owned_param_list(id)
     }
 
     /// Get the [PatArgs] with the given [PatArgsId].
-    pub fn get_pat_args(&self, id: PatArgsId) -> &PatArgs {
-        self.gs.pat_args_store.get(id)
+    pub fn get_pat_args_owned(&self, id: PatArgsId) -> PatArgs<'static> {
+        self.gs.pat_args_store.get_owned_param_list(id)
     }
 
     /// Get the associated [DeconstructedPat] from [DeconstructedPatId].
@@ -76,12 +83,12 @@ impl<'gs> PrimitiveReader<'gs> {
     }
 
     /// Get the associated [DeconstructedCtor] from [ConstructorId].
-    pub fn get_ctor(&self, id: ConstructorId) -> DeconstructedCtor {
+    pub fn get_deconstructed_ctor(&self, id: DeconstructedCtorId) -> DeconstructedCtor {
         self.gs.deconstructed_ctor_store.get(id)
     }
 
     /// Get the trait definition with the given [TrtDefId].
-    pub fn get_trt_def(&self, id: TrtDefId) -> &TrtDef {
+    pub fn get_trt_def(&self, id: TrtDefId) -> TrtDef {
         self.gs.trt_def_store.get(id)
     }
 }

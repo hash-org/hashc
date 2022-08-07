@@ -1,12 +1,17 @@
 //! Error-related data structures for errors that occur during typechecking.
 
-use super::params::{ParamListKind, ParamUnificationErrorReason};
-use crate::storage::{
-    location::LocationTarget,
-    primitives::{AccessOp, AccessTerm, ArgsId, ParamsId, PatId, TermId, TyFnCase},
-};
 use hash_ast::ast::{MatchOrigin, RangeEnd};
 use hash_source::identifier::Identifier;
+
+use super::params::{ParamListKind, ParamUnificationErrorReason};
+use crate::storage::{
+    arguments::ArgsId,
+    location::LocationTarget,
+    params::ParamsId,
+    pats::PatId,
+    primitives::{AccessOp, AccessTerm, TyFnCase},
+    terms::TermId,
+};
 
 /// Convenient type alias for a result with a [TcError] as the error type.
 pub type TcResult<T> = Result<T, TcError>;

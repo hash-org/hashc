@@ -5,17 +5,18 @@
 //! is required.
 use std::fmt::Debug;
 
+use hash_utils::store::Store;
+
+use super::{stack::PatStack, AccessToUsefulnessOps};
 use crate::{
     exhaustiveness::PatCtx,
     fmt::{ForFormatting, PrepareForFormatting},
     ops::AccessToOps,
     storage::{
-        primitives::{ConstructorId, DeconstructedPatId},
+        deconstructed::{DeconstructedCtorId, DeconstructedPatId},
         AccessToStorage, StorageRef,
     },
 };
-
-use super::{stack::PatStack, AccessToUsefulnessOps};
 
 /// A 2D matrix which is used to represent the
 /// pattern matrix in order to produce [super::usefulness::Witness]
@@ -82,7 +83,7 @@ impl<'tc> MatrixOps<'tc> {
         &self,
         ctx: PatCtx,
         matrix: &Matrix,
-        ctor_id: ConstructorId,
+        ctor_id: DeconstructedCtorId,
     ) -> Matrix {
         let mut specialised_matrix = Matrix::empty();
         let ctor = self.constructor_store().get(ctor_id);
