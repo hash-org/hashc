@@ -985,8 +985,8 @@ impl<'tc> Validator<'tc> {
     pub(crate) fn term_is_runtime_instantiable(&self, term_id: TermId) -> TcResult<bool> {
         // Ensure that the type of the term unifies with "SizedTy":
         let ty_id_of_term = self.typer().infer_ty_of_simplified_term(term_id)?;
-        let rt_instantiable_trt = self.builder().create_sized_ty_term();
-        match self.unifier().unify_terms(ty_id_of_term, rt_instantiable_trt) {
+        let sized_ty_trt = self.builder().create_sized_ty_term();
+        match self.unifier().unify_terms(ty_id_of_term, sized_ty_trt) {
             Ok(_) => Ok(true),
             // We only return Ok(false) if the error is that the terms do not unify:
             Err(TcError::CannotUnify { src: _, target: _ }) => Ok(false),
