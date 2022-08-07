@@ -164,7 +164,10 @@ impl<'tc> SplitWildcardOps<'tc> {
                         }
                     }
                     Term::Level1(Level1Term::Tuple(_)) => smallvec![DeconstructedCtor::Single],
-                    _ => smallvec![DeconstructedCtor::NonExhaustive],
+                    term => {
+                        println!("non-exhaustive?: {term:?}");
+                        smallvec![DeconstructedCtor::NonExhaustive]
+                    }
                 },
             }
         };

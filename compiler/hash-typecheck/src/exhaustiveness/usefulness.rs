@@ -433,6 +433,7 @@ impl<'tc> UsefulnessOps<'tc> {
             self.deconstructed_pat_store().create(self.deconstruct_pat_ops().wildcard(subject));
         let v = PatStack::singleton(wildcard);
 
+        println!("COMPUTING EXHAUSTIVENESS");
         let usefulness = self.is_useful(&matrix, &v, MatchArmKind::ExhaustiveWildcard, false, true);
 
         // It should not be possible to not get any witnesses since we're matching

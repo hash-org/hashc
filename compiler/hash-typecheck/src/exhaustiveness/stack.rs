@@ -4,11 +4,14 @@
 //! transformations, and [StackOps] contains functions
 //! that are relevant to the usefulness and exhaustiveness
 //! algorithm.
+use std::fmt::Debug;
+
 use smallvec::{smallvec, SmallVec};
 
 use super::AccessToUsefulnessOps;
 use crate::{
     exhaustiveness::PatCtx,
+    fmt::{ForFormatting, PrepareForFormatting},
     ops::AccessToOps,
     storage::{
         deconstructed::{DeconstructedCtorId, DeconstructedPatId},
@@ -110,8 +113,23 @@ impl<'tc> StackOps<'tc> {
         // of `self.head()`.
         let mut new_fields: SmallVec<[_; 2]> =
             self.deconstruct_pat_ops().specialise(ctx, stack.head(), ctor);
+
         new_fields.extend_from_slice(&stack.pats[1..]);
 
         PatStack::from_vec(new_fields)
+    }
+}
+
+impl PrepareForFormatting for PatStack {}
+
+impl Debug for ForFormatting<'_, PatStack> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "|")?;
+
+        for pat in self.t.iter() {
+            write!(f, " {:?} |", pat.for_formatting(self.global_storage))?;
+        }
+
+        Ok(())
     }
 }
