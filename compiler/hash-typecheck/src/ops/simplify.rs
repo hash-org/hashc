@@ -1086,7 +1086,7 @@ impl<'tc> Simplifier<'tc> {
         }
     }
 
-    /// Simplify the given [Args], if possible.
+    /// Simplify the given [ArgsId], if possible.
     pub(crate) fn simplify_args(&mut self, args_id: ArgsId) -> TcResult<Option<ArgsId>> {
         let args = self.args_store().get(args_id).clone();
 
@@ -1120,7 +1120,7 @@ impl<'tc> Simplifier<'tc> {
         }
     }
 
-    /// Simplify the given [Params], if possible.
+    /// Simplify the given [ParamsId], if possible.
     pub(crate) fn simplify_params(&mut self, params_id: ParamsId) -> TcResult<Option<ParamsId>> {
         let params = self.params_store().get(params_id).clone();
 

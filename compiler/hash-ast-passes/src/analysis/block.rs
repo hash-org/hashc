@@ -19,9 +19,9 @@ impl SemanticAnalyser<'_> {
     /// to be `mutable` as this is disallowed.
     ///
     /// During the checking process, the function also collects the indices of
-    /// the erroneous statements in the provided [AstNodes<Expression>]. This is
-    /// so that the caller can later 'skip' these statements when performing
-    /// further checks.
+    /// the erroneous statements in the provided
+    /// [hash_ast::ast::AstNodes<Expression>]. This is so that the caller can
+    /// later 'skip' these statements when performing further checks.
     pub(crate) fn check_members_are_declarative<'s>(
         &mut self,
         members: impl Iterator<Item = AstNodeRef<'s, Expr>>,

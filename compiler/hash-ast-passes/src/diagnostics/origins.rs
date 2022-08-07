@@ -39,7 +39,8 @@ impl Display for PatOrigin {
 
 /// Denotes where an error occurred from which type of block. This is useful
 /// when giving more context about errors such as
-/// [AnalysisErrorKind::NonDeclarativeExpression] occur from.
+/// [crate::diagnostics::error::AnalysisErrorKind::NonDeclarativeExpression]
+/// occur from.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum BlockOrigin {
     Root,

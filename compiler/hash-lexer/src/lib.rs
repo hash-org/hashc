@@ -576,7 +576,7 @@ impl<'a> Lexer<'a> {
     }
 
     /// Consume a char literal provided that the current previous token is a
-    /// single quote, this will produce a [TokenAtom::CharLiteral] provided
+    /// single quote, this will produce a [TokenKind::CharLit] provided
     /// that the literal is correctly formed and is ended before the end of
     /// file is reached. This function expects the the callee has previously
     /// eaten the starting single quote.
@@ -741,10 +741,10 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    /// Cousin of [Self::eat_while], it consumes the input, and produces a slice
-    /// from where it began to eat the input and where it finished, this is
-    /// sometimes beneficial as the slice doesn't have to be re-allocated as
-    /// a string.
+    /// Cousin of [`Self::eat_while()`], it consumes the input, and produces a
+    /// slice from where it began to eat the input and where it finished,
+    /// this is sometimes beneficial as the slice doesn't have to be
+    /// re-allocated as a string.
     fn eat_while_and_slice(&self, condition: impl FnMut(char) -> bool) -> &str {
         let start = self.offset.get();
         self.eat_while_and_discard(condition);

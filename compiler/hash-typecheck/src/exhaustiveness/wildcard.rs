@@ -1,5 +1,5 @@
 //! This file contains logic for splitting [DeconstructedCtor]s that
-//! are of the variant [Constructor::Wildcard]. In this situation
+//! are of the variant [DeconstructedCtor::Wildcard]. In this situation
 //! the `splitting` operation creates [DeconstructedCtor]s that represent
 //! the whole range of all possible values by the associated type
 //! to the constructor.
@@ -15,8 +15,8 @@ use crate::{
     },
 };
 
-/// A [Constructor::Wildcard] that we split relative to the constructors in the
-/// matrix.
+/// A [DeconstructedCtor::Wildcard] that we split relative to the constructors
+/// in the matrix.
 ///
 /// A constructor that is not present in the matrix rows will only be covered by
 /// the rows that have wildcards. Thus we can group all of those constructors
@@ -215,8 +215,8 @@ impl<'tc> SplitWildcardOps<'tc> {
     ///
     /// In the case that the wildcard has missing constructors, it is at the
     /// top level, and the row type is not of an integral kind then we will
-    /// use the [Constructor::Missing] variant, otherwise falling back to
-    /// [Constructor::Wildcard] in the situations where it is nonsensical
+    /// use the [DeconstructedCtor::Missing] variant, otherwise falling back to
+    /// [DeconstructedCtor::Wildcard] in the situations where it is nonsensical
     /// to show all missing constructors.
     pub(super) fn convert_into_ctors(
         &self,

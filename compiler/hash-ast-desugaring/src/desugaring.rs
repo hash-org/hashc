@@ -20,8 +20,8 @@ impl<'s> AstDesugaring<'s> {
     /// simpler [LoopBlock]. This is not obvious from the function definition
     /// because it accepts a [AstNode<Block>], not specifically a
     /// [ForLoopBlock]. This is because it operates by using
-    /// [AstNode::replace] in order to convert the for-loop into a
-    /// de-sugared loop.
+    /// [hash_ast::ast::AstNodeRefMut::replace] in order to convert the for-loop
+    /// into a de-sugared loop.
     ///
     /// The process is as follows: de-sugaring a for-loop from:
     /// ```text
@@ -139,8 +139,8 @@ impl<'s> AstDesugaring<'s> {
     /// [LoopBlock]. This is not obvious from the function definition
     /// because it accepts a [AstNode<Block>], not specifically a
     /// [WhileLoopBlock]. This is because it operates by using
-    /// [AstNode::replace] in order to convert the while-loop into a
-    /// de-sugared loop.
+    /// [hash_ast::ast::AstNodeRefMut::replace()] in order to convert the
+    /// while-loop into a de-sugared loop.
     ///
     /// The process is as follows: de-sugaring a for-loop from:
     /// ```text
@@ -270,8 +270,8 @@ impl<'s> AstDesugaring<'s> {
     /// case. This function converts a [IfBlock] into a [MatchBlock]. This
     /// is not obvious from the function definition because it accepts a
     /// [Block], not specifically a [IfBlock]. This is because it operates
-    /// by using [AstNode<T>::replace] in order to convert the if-block into
-    /// a match-block.
+    /// by using [hash_ast::ast::AstNodeRefMut::replace()] in order to convert
+    /// the if-block into a match-block.
     ///
     /// The de-sugaring process is as follows, take the following if block:
     ///

@@ -10,7 +10,7 @@ pub(crate) mod origins;
 pub(crate) mod warning;
 
 /// Enum representing any generated message that can be emitted by the
-/// [SemanticAnalyser].
+/// [crate::SemanticAnalyser].
 pub(crate) enum Diagnostic {
     Warning(AnalysisWarning),
     Error(AnalysisError),

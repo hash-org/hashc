@@ -33,6 +33,31 @@ macro_rules! new_store_key {
     };
 }
 
+/// Create a new [`Store`] with the given name, key and value type.
+#[macro_export]
+macro_rules! new_store {
+    ($visibility:vis $name:ident<$Key:ty, $Value:ty>) => {
+        #[derive(Default, Debug)]
+        $visibility struct $name {
+            data: RefCell<Vec<$Value>>,
+        }
+
+        #[allow(dead_code)]
+        impl $name {
+            /// Create a new empty store.
+            $visibility fn new() -> Self {
+                Self { data: RefCell::new(Vec::new()) }
+            }
+        }
+
+        impl $crate::store::Store<$Key, $Value> for $name {
+            fn internal_data(&self) -> &RefCell<Vec<$Value>> {
+                &self.data
+            }
+        }
+    };
+}
+
 /// A store, which provides a way to efficiently store values indexed by opaque
 /// generated keys.
 ///
@@ -119,31 +144,6 @@ pub trait Store<Key: StoreKey, Value: Clone> {
     }
 }
 
-/// Create a new [`Store`] with the given name, key and value type.
-#[macro_export]
-macro_rules! new_store {
-    ($visibility:vis $name:ident<$Key:ty, $Value:ty>) => {
-        #[derive(Default, Debug)]
-        $visibility struct $name {
-            data: RefCell<Vec<$Value>>,
-        }
-
-        #[allow(dead_code)]
-        impl $name {
-            /// Create a new empty store.
-            $visibility fn new() -> Self {
-                Self { data: RefCell::new(Vec::new()) }
-            }
-        }
-
-        impl $crate::store::Store<$Key, $Value> for $name {
-            fn internal_data(&self) -> &RefCell<Vec<$Value>> {
-                &self.data
-            }
-        }
-    };
-}
-
 /// Represents a key that can be used to index a [`SequenceStore`].
 pub trait SequenceStoreKey: Copy + Eq + Hash {
     /// Turn the key into an index and a length.
@@ -213,7 +213,7 @@ macro_rules! new_sequence_store_key {
 ///
 /// *Warning*: The `Value`'s `Clone` implementation must not interact with the
 /// store, otherwise it might lead to a panic.
-trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
+pub trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
     /// Get a reference to the internal data of the store.
     ///
     /// This should only be used to implement new store methods, not to access
@@ -369,7 +369,7 @@ trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
     ///
     /// *Warning*: Do not call mutating store methods (`create_*` etc) in `f`
     /// otherwise there will be a panic. If you want to do this, consider using
-    /// [`Self::modify()`] instead.
+    /// [`Self::modify_cloned()`] instead.
     fn modify_fast<T>(&self, key: Key, f: impl FnOnce(&mut [Value]) -> T) -> T {
         let mut data = self.internal_data().borrow_mut();
         let value = data.get_mut(key.to_index_range()).unwrap();

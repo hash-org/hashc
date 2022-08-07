@@ -676,7 +676,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// both. As such a name is returned before parsing a type, function, or
     /// both. A destructuring pattern, potential for-all statement, optional
     /// type definition and a potential definition of the right hand side. For
-    /// example: ```text
+    /// example:
+    ///
+    /// ```text
     /// some_var: float = ...;
     /// ^^^^^^^^  ^^^^^   ^^^─────┐
     /// pattern    type    the right hand-side expr
