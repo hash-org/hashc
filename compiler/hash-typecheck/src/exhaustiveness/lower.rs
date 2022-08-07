@@ -211,7 +211,7 @@ impl<'tc> LowerPatOps<'tc> {
                 let mut spread = false;
 
                 let pats = reader.get_pat_args_owned(inner);
-                let inner_ty = self.oracle().term_as_list(ty).unwrap();
+                let inner_ty = self.oracle().term_as_list_ty(ty).unwrap();
 
                 // We don't care about the `name` of the arg because the list
                 // never has the `name` assigned to anything...
@@ -332,7 +332,7 @@ impl<'tc> LowerPatOps<'tc> {
 
                 match kind {
                     ListKind::Fixed(_) => {
-                        let _inner_term = self.oracle().term_as_list(pat.ty).unwrap();
+                        let _inner_term = self.oracle().term_as_list_ty(pat.ty).unwrap();
 
                         // @@Todo: immutable builder required.
 
@@ -355,7 +355,7 @@ impl<'tc> LowerPatOps<'tc> {
                         // Now create an inner collection of patterns with the inserted
                         // spread pattern
                         let _inner = prefix.into_iter().chain(once(spread)).chain(suffix);
-                        let _term = self.oracle().term_as_list(pat.ty).unwrap();
+                        let _term = self.oracle().term_as_list_ty(pat.ty).unwrap();
 
                         // @@Todo: immutable builder required.
 

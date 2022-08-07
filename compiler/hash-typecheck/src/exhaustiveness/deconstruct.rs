@@ -151,7 +151,7 @@ impl<'tc> DeconstructPatOps<'tc> {
                     ListKind::Fixed(_) => panic!("{:?} cannot cover {:?}", this_list, other_list),
                     ListKind::Var(prefix, suffix) => {
                         // we will need to get the inner `ty` of the list
-                        let Some(inner_ty) = self.oracle().term_as_list(ctx.ty) else {
+                        let Some(inner_ty) = self.oracle().term_as_list_ty(ctx.ty) else {
                             panic!("provided ty is not list as expected: {}", self.for_fmt(ctx.ty))
                         };
 

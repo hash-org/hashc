@@ -10,15 +10,17 @@
 use hash_ast::ast::ParamOrigin;
 use hash_source::identifier::CORE_IDENTIFIERS;
 
-use super::{
-    primitives::{Member, ModDefOrigin, ScopeKind, Visibility},
-    GlobalStorage,
+use crate::{
+    ops::building::PrimitiveBuilder,
+    storage::{
+        primitives::{Member, ModDefOrigin, ScopeKind, Visibility},
+        GlobalStorage,
+    },
 };
-use crate::ops::building::PrimitiveBuilder;
 
 /// Create the core language type and trait definitions in the given
 /// [GlobalStorage], and add their symbols to the root scope.
-pub fn create_core_defs_in(global_storage: &mut GlobalStorage) {
+pub fn create_core_defs_in(global_storage: &GlobalStorage) {
     // @@Safety: core defs have not been filled in global_storage, don't access
     // global_storage.core_defs()!
     //
@@ -41,11 +43,13 @@ pub fn create_core_defs_in(global_storage: &mut GlobalStorage) {
     let _i16_ty = builder.create_opaque_struct_def(CORE_IDENTIFIERS.i16);
     let i32_ty = builder.create_opaque_struct_def(CORE_IDENTIFIERS.i32);
     let _i64_ty = builder.create_opaque_struct_def(CORE_IDENTIFIERS.i64);
+    let _isize_ty = builder.create_opaque_struct_def(CORE_IDENTIFIERS.isize);
 
     let _u8_ty = builder.create_opaque_struct_def(CORE_IDENTIFIERS.u8);
     let _u16_ty = builder.create_opaque_struct_def(CORE_IDENTIFIERS.u16);
     let _u32_ty = builder.create_opaque_struct_def(CORE_IDENTIFIERS.u32);
     let u64_ty = builder.create_opaque_struct_def(CORE_IDENTIFIERS.u64);
+    let _usize_ty = builder.create_opaque_struct_def(CORE_IDENTIFIERS.usize);
 
     let _f32_ty = builder.create_opaque_struct_def(CORE_IDENTIFIERS.f32);
     let _f64_ty = builder.create_opaque_struct_def(CORE_IDENTIFIERS.f64);

@@ -126,7 +126,7 @@ impl<'tc> FieldOps<'tc> {
                 let arity = list.arity();
 
                 // Use the oracle to get the inner term `T` for the type...
-                let Some(ty) = self.oracle().term_as_list(ctx.ty) else {
+                let Some(ty) = self.oracle().term_as_list_ty(ctx.ty) else {
                         panic!("provided ty is not list as expected: {}", self.for_fmt(ctx.ty))
                 };
 

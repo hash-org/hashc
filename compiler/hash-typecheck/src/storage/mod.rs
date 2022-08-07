@@ -10,7 +10,6 @@
 
 pub mod arguments;
 pub mod cache;
-pub mod core;
 pub mod deconstructed;
 pub mod location;
 pub mod mods;
@@ -32,7 +31,6 @@ use hash_utils::store::Store;
 use self::{
     arguments::ArgsStore,
     cache::Cache,
-    core::create_core_defs_in,
     deconstructed::{DeconstructedCtorStore, DeconstructedPatStore},
     location::LocationStore,
     mods::ModDefStore,
@@ -45,7 +43,10 @@ use self::{
     terms::TermStore,
     trts::TrtDefStore,
 };
-use crate::fmt::{ForFormatting, PrepareForFormatting};
+use crate::{
+    fmt::{ForFormatting, PrepareForFormatting},
+    ops::bootstrap::create_core_defs_in,
+};
 
 /// Keeps track of typechecking information across all source files.
 #[derive(Debug)]
@@ -86,7 +87,7 @@ impl GlobalStorage {
     pub fn new() -> Self {
         let scope_store = ScopeStore::new();
         let root_scope = scope_store.create(Scope::empty(ScopeKind::Constant));
-        let mut gs = Self {
+        let gs = Self {
             location_store: LocationStore::new(),
             term_store: TermStore::new(),
             scope_store,
@@ -103,7 +104,7 @@ impl GlobalStorage {
             args_store: ArgsStore::new(),
             cache: Cache::new(),
         };
-        create_core_defs_in(&mut gs);
+        create_core_defs_in(&gs);
         gs
     }
 }

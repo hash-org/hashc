@@ -73,6 +73,10 @@ impl<'tc> CoreDefReader<'tc> {
         self.resolve_core_def(CORE_IDENTIFIERS.i64)
     }
 
+    pub fn isize_ty(&self) -> TermId {
+        self.resolve_core_def(CORE_IDENTIFIERS.isize)
+    }
+
     pub fn u8_ty(&self) -> TermId {
         self.resolve_core_def(CORE_IDENTIFIERS.u8)
     }
@@ -87,6 +91,10 @@ impl<'tc> CoreDefReader<'tc> {
 
     pub fn u64_ty(&self) -> TermId {
         self.resolve_core_def(CORE_IDENTIFIERS.u64)
+    }
+
+    pub fn usize_ty(&self) -> TermId {
+        self.resolve_core_def(CORE_IDENTIFIERS.usize)
     }
 
     pub fn f32_ty(&self) -> TermId {
