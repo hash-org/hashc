@@ -1,6 +1,15 @@
 //! Contains utilities to convert a [super::error::TcError] into a
 //! [hash_reporting::report::Report].
 
+use hash_ast::ast::{MatchOrigin, ParamOrigin};
+use hash_error_codes::error_codes::HashErrorCode;
+use hash_reporting::{
+    builder::ReportBuilder,
+    report::{Report, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind},
+};
+use hash_utils::{printing::SequenceDisplay, store::Store};
+use itertools::Itertools;
+
 use super::{
     error::TcError,
     params::{ParamListKind, ParamUnificationErrorReason},
@@ -12,14 +21,6 @@ use crate::{
         AccessToStorage, StorageRef,
     },
 };
-use hash_ast::ast::{MatchOrigin, ParamOrigin};
-use hash_error_codes::error_codes::HashErrorCode;
-use hash_reporting::{
-    builder::ReportBuilder,
-    report::{Report, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind},
-};
-use hash_utils::{printing::SequenceDisplay, store::Store};
-use itertools::Itertools;
 
 /// A [TcError] with attached typechecker storage.
 pub(crate) struct TcErrorWithStorage<'tc> {

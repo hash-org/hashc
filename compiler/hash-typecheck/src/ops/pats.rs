@@ -6,6 +6,7 @@ use hash_ast::ast::ParamOrigin;
 use hash_source::identifier::Identifier;
 use itertools::Itertools;
 
+use super::{params::pair_args_with_params, AccessToOps};
 use crate::{
     diagnostics::{
         error::{TcError, TcResult},
@@ -22,8 +23,6 @@ use crate::{
         AccessToStorage, StorageRef,
     },
 };
-
-use super::{params::pair_args_with_params, AccessToOps};
 
 /// Contains functions related to pattern matching.
 pub struct PatMatcher<'tc> {

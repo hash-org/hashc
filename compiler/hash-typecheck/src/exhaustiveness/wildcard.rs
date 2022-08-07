@@ -3,6 +3,10 @@
 //! the `splitting` operation creates [DeconstructedCtor]s that represent
 //! the whole range of all possible values by the associated type
 //! to the constructor.
+use hash_ast::ast::{IntTy, RangeEnd};
+use hash_utils::store::Store;
+use smallvec::{smallvec, SmallVec};
+
 use crate::{
     exhaustiveness::PatCtx,
     ops::AccessToOps,
@@ -12,9 +16,6 @@ use crate::{
         AccessToStorage, StorageRef,
     },
 };
-use hash_ast::ast::{IntTy, RangeEnd};
-use hash_utils::store::Store;
-use smallvec::{smallvec, SmallVec};
 
 /// A [Constructor::Wildcard] that we split relative to the constructors in the
 /// matrix.

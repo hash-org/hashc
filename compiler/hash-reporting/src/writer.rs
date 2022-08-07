@@ -1,10 +1,12 @@
 //! Hash diagnostic report writing utilities and definitions.
+use std::fmt;
+
+use hash_source::SourceMap;
+
 use crate::{
     highlight::{highlight, Modifier},
     report::{Report, ReportElement},
 };
-use hash_source::SourceMap;
-use std::fmt;
 
 /// General data type for displaying [Report]s. This is needed due to the
 /// [Report] rendering process needing access to the program modules to get

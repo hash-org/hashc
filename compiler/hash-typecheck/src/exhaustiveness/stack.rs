@@ -6,6 +6,7 @@
 //! algorithm.
 use smallvec::{smallvec, SmallVec};
 
+use super::AccessToUsefulnessOps;
 use crate::{
     exhaustiveness::PatCtx,
     ops::AccessToOps,
@@ -14,8 +15,6 @@ use crate::{
         AccessToStorage, StorageRef,
     },
 };
-
-use super::AccessToUsefulnessOps;
 
 /// A row of a [super::matrix::Matrix]. Rows of len 1 are very common, which is
 /// why `SmallVec[_; /// 2]` works well.

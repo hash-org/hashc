@@ -1,4 +1,6 @@
 //! Contains utilities to validate terms.
+use std::fmt::Display;
+
 use hash_utils::store::Store;
 
 use super::AccessToOps;
@@ -24,7 +26,6 @@ use crate::{
         AccessToStorage, StorageRef,
     },
 };
-use std::fmt::Display;
 
 /// Represents the level of a term.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

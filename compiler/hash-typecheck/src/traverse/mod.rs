@@ -1,23 +1,5 @@
 //! Contains functions to traverse the AST and add types to it, while checking
 //! it for correctness.
-use crate::{
-    diagnostics::{
-        error::{TcError, TcResult},
-        macros::tc_panic,
-    },
-    ops::{scope::ScopeManager, AccessToOps},
-    storage::{
-        arguments::ArgsId,
-        location::{IndexedLocationTarget, LocationTarget},
-        pats::PatId,
-        primitives::{
-            AccessOp, Arg, BindingPat, ConstPat, EnumVariant, Member, ModDefOrigin, Mutability,
-            Param, Pat, PatArg, ScopeKind, SpreadPat, Sub, Visibility,
-        },
-        terms::TermId,
-        AccessToStorage, AccessToStorageMut, LocalStorage, StorageRef, StorageRefMut,
-    },
-};
 use hash_ast::{
     ast::{
         self, AccessKind, AstNodeRef, BinOp, Lit, MatchOrigin, OwnsAstNode, ParamOrigin, RefKind,
@@ -36,6 +18,24 @@ use hash_utils::store::Store;
 use itertools::Itertools;
 
 use self::scopes::VisitConstantScope;
+use crate::{
+    diagnostics::{
+        error::{TcError, TcResult},
+        macros::tc_panic,
+    },
+    ops::{scope::ScopeManager, AccessToOps},
+    storage::{
+        arguments::ArgsId,
+        location::{IndexedLocationTarget, LocationTarget},
+        pats::PatId,
+        primitives::{
+            AccessOp, Arg, BindingPat, ConstPat, EnumVariant, Member, ModDefOrigin, Mutability,
+            Param, Pat, PatArg, ScopeKind, SpreadPat, Sub, Visibility,
+        },
+        terms::TermId,
+        AccessToStorage, AccessToStorageMut, LocalStorage, StorageRef, StorageRefMut,
+    },
+};
 
 pub mod params;
 pub mod scopes;

@@ -2,21 +2,6 @@
 //! vice versa.
 use std::iter::once;
 
-use crate::{
-    diagnostics::macros::tc_panic,
-    ops::AccessToOps,
-    storage::{
-        deconstructed::DeconstructedPatId,
-        pats::{PatArgsId, PatId},
-        primitives::{
-            ConstructorPat, IfPat, Level0Term, Level1Term, ListPat, LitTerm, ModDef, ModPat,
-            NominalDef, Pat, PatArg, ScopeKind, SpreadPat, StructFields, Term, TupleTy,
-        },
-        terms::TermId,
-        AccessToStorage, StorageRef,
-    },
-};
-
 use hash_utils::store::Store;
 use if_chain::if_chain;
 use itertools::Itertools;
@@ -30,6 +15,20 @@ use super::{
     list::{List, ListKind},
     range::IntRange,
     AccessToUsefulnessOps,
+};
+use crate::{
+    diagnostics::macros::tc_panic,
+    ops::AccessToOps,
+    storage::{
+        deconstructed::DeconstructedPatId,
+        pats::{PatArgsId, PatId},
+        primitives::{
+            ConstructorPat, IfPat, Level0Term, Level1Term, ListPat, LitTerm, ModDef, ModPat,
+            NominalDef, Pat, PatArg, ScopeKind, SpreadPat, StructFields, Term, TupleTy,
+        },
+        terms::TermId,
+        AccessToStorage, StorageRef,
+    },
 };
 
 /// Representation of a field within a collection of patterns.

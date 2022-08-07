@@ -3,9 +3,8 @@
 
 use hash_ast::ast::{AstNodes, Pat, TuplePatEntry};
 
-use crate::diagnostics::{error::AnalysisErrorKind, origins::PatOrigin};
-
 use super::SemanticAnalyser;
+use crate::diagnostics::{error::AnalysisErrorKind, origins::PatOrigin};
 
 impl SemanticAnalyser<'_> {
     pub(crate) fn check_compound_pat_rules(

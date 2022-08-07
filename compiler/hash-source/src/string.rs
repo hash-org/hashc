@@ -1,11 +1,10 @@
 //! Hash Compiler string literal storage utilities and wrappers.
 use std::fmt::Display;
 
+use dashmap::DashMap;
 use fnv::FnvBuildHasher;
 use hash_utils::counter;
 use lazy_static::lazy_static;
-
-use dashmap::DashMap;
 
 /// A map containing identifiers that essentially point to a string literal that
 /// has been parsed during the tokenisation process. This is so that we don't

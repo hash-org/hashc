@@ -1,11 +1,12 @@
 //! Contains structures to keep track of terms and information relevant to them.
 use std::cell::Cell;
 
-use super::primitives::{ResolutionId, Term};
 use hash_utils::{
     new_store_key,
     store::{DefaultStore, Store},
 };
+
+use super::primitives::{ResolutionId, Term};
 
 new_store_key!(pub TermId);
 

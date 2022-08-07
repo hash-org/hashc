@@ -1,5 +1,9 @@
 //! Functionality related to resolving variables in scopes.
 
+use hash_reporting::{report::Report, writer};
+use hash_source::identifier::Identifier;
+use hash_utils::store::Store;
+
 use super::{params::pair_args_with_params, AccessToOps};
 use crate::{
     diagnostics::{
@@ -16,9 +20,6 @@ use crate::{
         AccessToStorage, StorageRef,
     },
 };
-use hash_reporting::{report::Report, writer};
-use hash_source::identifier::Identifier;
-use hash_utils::store::Store;
 
 /// Contains actions related to variable resolution.
 pub struct ScopeManager<'tc> {

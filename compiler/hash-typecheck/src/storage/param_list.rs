@@ -1,11 +1,12 @@
 //! Contains structures to store lists of arguments/parameters etc (any
 //! name-indexed type).
+use std::{cell::RefCell, collections::HashSet};
+
 use hash_ast::ast::ParamOrigin;
 use hash_source::identifier::Identifier;
 use hash_utils::store::{
     DefaultPartialStore, DefaultSequenceStore, PartialStore, SequenceStore, SequenceStoreKey,
 };
-use std::{cell::RefCell, collections::HashSet};
 
 use super::primitives::{GetNameOpt, ParamList};
 

@@ -7,6 +7,7 @@ use std::fmt::Debug;
 
 use hash_utils::store::Store;
 
+use super::{stack::PatStack, AccessToUsefulnessOps};
 use crate::{
     exhaustiveness::PatCtx,
     fmt::{ForFormatting, PrepareForFormatting},
@@ -16,8 +17,6 @@ use crate::{
         AccessToStorage, StorageRef,
     },
 };
-
-use super::{stack::PatStack, AccessToUsefulnessOps};
 
 /// A 2D matrix which is used to represent the
 /// pattern matrix in order to produce [super::usefulness::Witness]

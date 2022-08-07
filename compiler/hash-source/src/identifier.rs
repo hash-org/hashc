@@ -1,15 +1,15 @@
 //! Hash AST identifier storage utilities and wrappers.
-use dashmap::DashMap;
-
-use fnv::FnvBuildHasher;
-use hash_alloc::{collections::string::BrickString, Castle, Wall};
-use hash_utils::counter;
-use lazy_static::lazy_static;
 use std::{
     borrow::{Borrow, Cow},
     fmt::{Debug, Display},
     thread_local,
 };
+
+use dashmap::DashMap;
+use fnv::FnvBuildHasher;
+use hash_alloc::{collections::string::BrickString, Castle, Wall};
+use hash_utils::counter;
+use lazy_static::lazy_static;
 
 counter! {
     name: Identifier,

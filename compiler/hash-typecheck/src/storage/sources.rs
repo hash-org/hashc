@@ -1,7 +1,8 @@
 //! Contains structures to keep track of which sources have been typechecked.
-use super::terms::TermId;
 use hash_source::SourceId;
 use hash_utils::store::{DefaultPartialStore, PartialStore};
+
+use super::terms::TermId;
 
 /// Contains a record of all the sources which have been typechecked, and maps
 /// them to (ModDefId)[crate::storage::primitives::ModDefId]s.

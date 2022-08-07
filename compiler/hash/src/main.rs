@@ -5,6 +5,8 @@ mod args;
 mod crash_handler;
 mod logger;
 
+use std::{num::NonZeroUsize, panic};
+
 use clap::Parser as ClapParser;
 use hash_ast_desugaring::AstDesugarer;
 use hash_ast_passes::HashSemanticAnalysis;
@@ -19,7 +21,6 @@ use hash_typecheck::TcImpl;
 use hash_vm::vm::{Interpreter, InterpreterOptions};
 use log::LevelFilter;
 use logger::CompilerLogger;
-use std::{num::NonZeroUsize, panic};
 
 use crate::{
     args::{AstGenMode, CheckMode, CompilerOptions, DeSugarMode, IrGenMode, SubCmd},

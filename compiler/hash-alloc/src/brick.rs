@@ -1,13 +1,14 @@
 //! Contains a [`Box`]-like implementation for allocating values within a
 //! [`Wall`].
 
-use crate::Wall;
 use core::fmt;
 use std::{
     borrow::{Borrow, BorrowMut},
     mem::ManuallyDrop,
     ops::{Deref, DerefMut},
 };
+
+use crate::Wall;
 
 /// A [`Box`]-like implementation for allocating values within a [`Wall`].
 ///

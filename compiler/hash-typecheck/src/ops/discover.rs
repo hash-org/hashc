@@ -1,4 +1,7 @@
 //! Functionality related to discovering variables in terms.
+use std::collections::HashSet;
+
+use super::AccessToOps;
 use crate::{
     diagnostics::{error::TcResult, macros::tc_panic},
     storage::{
@@ -13,9 +16,6 @@ use crate::{
         AccessToStorage, StorageRef,
     },
 };
-use std::collections::HashSet;
-
-use super::AccessToOps;
 
 /// Contains actions related to variable discovery.
 pub struct Discoverer<'tc> {

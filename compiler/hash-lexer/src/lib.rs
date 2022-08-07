@@ -2,10 +2,11 @@
 
 #![feature(cell_update)]
 
+use std::{cell::Cell, iter};
+
 use error::{LexerError, LexerErrorKind, LexerErrorWrapper, LexerResult};
 use hash_source::{identifier::CORE_IDENTIFIERS, location::Span, SourceId};
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind};
-use std::{cell::Cell, iter};
 use utils::is_id_start;
 
 use crate::utils::is_id_continue;

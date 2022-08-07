@@ -7,6 +7,9 @@
 //! is detailed within [super].
 use std::iter::once;
 
+use hash_utils::{stack::ensure_sufficient_stack, store::Store};
+use itertools::Itertools;
+
 use super::{
     construct::DeconstructedCtor, deconstruct::DeconstructedPat, fields::Fields, matrix::Matrix,
     stack::PatStack, AccessToUsefulnessOps,
@@ -21,8 +24,6 @@ use crate::{
         AccessToStorage, StorageRef,
     },
 };
-use hash_utils::{stack::ensure_sufficient_stack, store::Store};
-use itertools::Itertools;
 
 /// Collection of patterns that were `witnessed` when traversing
 /// the provided patterns.

@@ -6,6 +6,8 @@ mod import_resolver;
 pub mod parser;
 mod source;
 
+use std::{env, path::PathBuf};
+
 use crossbeam_channel::{unbounded, Sender};
 use hash_ast::ast::{self};
 use hash_lexer::Lexer;
@@ -19,7 +21,6 @@ use hash_source::{InteractiveId, ModuleId, ModuleKind, SourceId};
 use import_resolver::ImportResolver;
 use parser::{error::ParseError, AstGen};
 use source::ParseSource;
-use std::{env, path::PathBuf};
 
 /// Messages that are passed from parser workers into the general message queue.
 #[derive(Debug)]

@@ -1,6 +1,7 @@
 //! Hash Compiler crash handler
-use backtrace::Backtrace;
 use std::{io::Write, panic::PanicInfo, process::exit, sync::atomic, thread};
+
+use backtrace::Backtrace;
 
 const BUG_REPORT_MSG: &str = "This is an compiler bug, please file a bug report at";
 const BUG_REPORT_URI: &str =

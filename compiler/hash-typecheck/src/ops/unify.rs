@@ -1,4 +1,6 @@
 //! Utilities related to type unification and substitution.
+use std::{borrow::Borrow, collections::HashSet};
+
 use hash_utils::store::Store;
 
 use super::{params::pair_args_with_params, AccessToOps};
@@ -21,7 +23,6 @@ use crate::{
         AccessToStorage, StorageRef,
     },
 };
-use std::{borrow::Borrow, collections::HashSet};
 
 /// Options that are received by the unifier when unifying types.
 pub struct UnifyTysOpts {}

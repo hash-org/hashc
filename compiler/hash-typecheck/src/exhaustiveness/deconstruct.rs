@@ -5,6 +5,12 @@
 //! [Pat] with any of the inner fields of the [Pat] being represented
 //! as child [DeconstructedPat]s stored within the `fields` parameter
 //! of the structure.
+use std::{cell::Cell, fmt::Debug};
+
+use hash_utils::store::Store;
+use itertools::Itertools;
+use smallvec::SmallVec;
+
 use super::{construct::DeconstructedCtor, fields::Fields, AccessToUsefulnessOps};
 use crate::{
     exhaustiveness::{list::ListKind, PatCtx},
@@ -18,10 +24,6 @@ use crate::{
         AccessToStorage, StorageRef,
     },
 };
-use hash_utils::store::Store;
-use itertools::Itertools;
-use smallvec::SmallVec;
-use std::{cell::Cell, fmt::Debug};
 
 /// A [DeconstructedPat] is a representation of a [DeconstructedCtor] that is
 /// split between the constructor subject `ctor` and the `fields` that the

@@ -7,13 +7,12 @@ use hash_ast::{
 };
 use hash_reporting::macros::panic_on_span;
 
+use super::TcVisitor;
 use crate::{
     diagnostics::error::TcResult,
     ops::AccessToOps,
     storage::{primitives::Param, AccessToStorage, AccessToStorageMut},
 };
-
-use super::TcVisitor;
 
 impl<'tc> TcVisitor<'tc> {
     /// Function that combines the logic between visiting struct

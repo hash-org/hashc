@@ -1,6 +1,11 @@
 //! Contains functionality to simplify terms into more concrete terms.
 use std::iter;
 
+use hash_ast::ast::ParamOrigin;
+use hash_source::identifier::Identifier;
+use hash_utils::store::{SequenceStore, Store};
+use itertools::Itertools;
+
 use super::{substitute::Substituter, unify::Unifier, AccessToOps};
 use crate::{
     diagnostics::{
@@ -19,10 +24,6 @@ use crate::{
         AccessToStorage, StorageRef,
     },
 };
-use hash_ast::ast::ParamOrigin;
-use hash_source::identifier::Identifier;
-use hash_utils::store::{SequenceStore, Store};
-use itertools::Itertools;
 
 /// Can perform simplification on terms.
 pub struct Simplifier<'tc> {

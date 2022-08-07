@@ -1,14 +1,14 @@
 //! Contains type definitions that the rest of the storage and the general
 //! typechecker use.
-use hash_ast::ast::{IntLit, IntLitKind, IntTy, ParamOrigin, RangeEnd};
-use hash_source::{identifier::Identifier, string::Str, SourceId};
-use num_bigint::BigInt;
-
 use std::{
     borrow::Cow,
     collections::{HashMap, HashSet},
     fmt::Display,
 };
+
+use hash_ast::ast::{IntLit, IntLitKind, IntTy, ParamOrigin, RangeEnd};
+use hash_source::{identifier::Identifier, string::Str, SourceId};
+use num_bigint::BigInt;
 
 use super::{
     arguments::ArgsId,

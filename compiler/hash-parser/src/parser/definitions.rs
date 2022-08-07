@@ -3,9 +3,8 @@
 use hash_ast::ast::*;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, TokenKind, TokenKindVector};
 
-use crate::parser::error::TyArgumentKind;
-
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
+use crate::parser::error::TyArgumentKind;
 
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a [StructDef]. The keyword `struct` begins the construct and is

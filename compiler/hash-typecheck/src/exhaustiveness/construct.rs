@@ -24,6 +24,13 @@
 //!
 //! In other words, all the possible (valid) values of the `char` type.
 //! A similar process occurs with all other wildcard types,
+use hash_source::{
+    location::{SourceLocation, Span},
+    string::Str,
+};
+use hash_utils::store::Store;
+use smallvec::{smallvec, SmallVec};
+
 use super::{
     range::{IntRange, SplitIntRange},
     AccessToUsefulnessOps,
@@ -41,12 +48,6 @@ use crate::{
         AccessToStorage, StorageRef,
     },
 };
-use hash_source::{
-    location::{SourceLocation, Span},
-    string::Str,
-};
-use hash_utils::store::Store;
-use smallvec::{smallvec, SmallVec};
 
 /// The [DeconstructedCtor] represents the type of constructor that a pattern
 /// is.

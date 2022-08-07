@@ -2,8 +2,9 @@
 //! module, as well as the symbols in each scope.
 use std::cell::RefCell;
 
-use super::primitives::Scope;
 use hash_utils::{new_store, new_store_key};
+
+use super::primitives::Scope;
 
 new_store_key!(pub ScopeId);
 new_store!(pub ScopeStore<ScopeId, Scope>);

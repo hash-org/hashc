@@ -1,5 +1,6 @@
 //! Hash Compiler error and warning reporting module.
 use std::{io, process::exit};
+
 use thiserror::Error;
 
 use crate::highlight::{highlight, Colour, Modifier};

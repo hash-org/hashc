@@ -5,6 +5,9 @@
 
 use std::{cell::RefCell, collections::HashMap, hash::Hash, rc::Rc};
 
+use hash_source::location::{SourceLocation, Span};
+use hash_utils::store::{DefaultPartialStore, PartialStore};
+
 use super::{
     arguments::ArgsId,
     params::ParamsId,
@@ -12,8 +15,6 @@ use super::{
     scope::ScopeId,
     terms::TermId,
 };
-use hash_source::location::{SourceLocation, Span};
-use hash_utils::store::{DefaultPartialStore, PartialStore};
 
 /// An index into the location map.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]

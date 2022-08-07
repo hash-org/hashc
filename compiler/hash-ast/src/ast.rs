@@ -1,15 +1,16 @@
 //! Frontend-agnostic Hash AST (abstract syntax tree) type definitions.
 
-use hash_source::{identifier::Identifier, location::Span, string::Str};
-use hash_utils::counter;
-use num_bigint::BigInt;
-use replace_with::replace_with_or_abort;
 use std::{
     fmt::Display,
     hash::Hash,
     ops::{Deref, DerefMut},
     path::PathBuf,
 };
+
+use hash_source::{identifier::Identifier, location::Span, string::Str};
+use hash_utils::counter;
+use num_bigint::BigInt;
+use replace_with::replace_with_or_abort;
 
 counter! {
     name: AstNodeId,

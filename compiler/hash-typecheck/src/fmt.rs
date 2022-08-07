@@ -1,5 +1,10 @@
 //! Contains utilities to format types for displaying in error messages and
 //! debug output.
+use core::fmt;
+use std::{cell::Cell, fmt::Display, rc::Rc};
+
+use hash_utils::store::Store;
+
 use crate::storage::{
     arguments::ArgsId,
     mods::ModDefId,
@@ -17,9 +22,6 @@ use crate::storage::{
     trts::TrtDefId,
     GlobalStorage,
 };
-use core::fmt;
-use hash_utils::store::Store;
-use std::{cell::Cell, fmt::Display, rc::Rc};
 
 // Contains various options regarding the formatting of terms.
 #[derive(Debug, Clone)]

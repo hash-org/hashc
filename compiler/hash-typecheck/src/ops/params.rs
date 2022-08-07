@@ -1,5 +1,7 @@
 //! Operations related to handling parameters.
 
+use std::{borrow::Cow, collections::HashSet};
+
 use crate::{
     diagnostics::{
         error::{TcError, TcResult},
@@ -12,7 +14,6 @@ use crate::{
         primitives::{GetNameOpt, Param, ParamList, Params},
     },
 };
-use std::{borrow::Cow, collections::HashSet};
 
 /// Pair the given parameters with the given parameter list (either args, or
 /// pattern params).

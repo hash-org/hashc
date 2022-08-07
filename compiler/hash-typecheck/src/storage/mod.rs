@@ -24,6 +24,11 @@ pub mod sources;
 pub mod terms;
 pub mod trts;
 
+use std::cell::Cell;
+
+use hash_source::{SourceId, SourceMap};
+use hash_utils::store::Store;
+
 use self::{
     arguments::ArgsStore,
     cache::Cache,
@@ -41,9 +46,6 @@ use self::{
     trts::TrtDefStore,
 };
 use crate::fmt::{ForFormatting, PrepareForFormatting};
-use hash_source::{SourceId, SourceMap};
-use hash_utils::store::Store;
-use std::cell::Cell;
 
 /// Keeps track of typechecking information across all source files.
 #[derive(Debug)]

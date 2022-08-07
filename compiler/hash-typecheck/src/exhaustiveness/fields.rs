@@ -9,6 +9,7 @@
 use hash_utils::store::Store;
 use itertools::Itertools;
 
+use super::{construct::DeconstructedCtor, AccessToUsefulnessOps};
 use crate::{
     diagnostics::macros::tc_panic,
     exhaustiveness::PatCtx,
@@ -20,8 +21,6 @@ use crate::{
         AccessToStorage, StorageRef,
     },
 };
-
-use super::{construct::DeconstructedCtor, AccessToUsefulnessOps};
 
 /// Representation of the `fields` that are stored by
 /// [DeconstructedPat](super::deconstruct::DeconstructedPat) which are nested

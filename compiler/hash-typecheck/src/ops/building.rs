@@ -1,5 +1,11 @@
 //! Contains helper structures to create complex types and values without having
 //! to manually call the corresponding stores.
+use std::cell::Cell;
+
+use hash_ast::ast::ParamOrigin;
+use hash_source::{identifier::Identifier, location::SourceLocation};
+use hash_utils::store::{SequenceStore, Store};
+
 use crate::storage::{
     arguments::ArgsId,
     location::LocationTarget,
@@ -20,10 +26,6 @@ use crate::storage::{
     trts::TrtDefId,
     GlobalStorage,
 };
-use hash_ast::ast::ParamOrigin;
-use hash_source::{identifier::Identifier, location::SourceLocation};
-use hash_utils::store::{SequenceStore, Store};
-use std::cell::Cell;
 
 /// Helper to create various primitive constructions (from
 /// [crate::storage::primitives]).

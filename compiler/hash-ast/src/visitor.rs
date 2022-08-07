@@ -1,7 +1,8 @@
 //! Visitor implementation for [crate::ast] nodes.
 
-use crate::ast;
 use std::convert::Infallible;
+
+use crate::ast;
 
 /// A visitor [crate::ast] nodes that takes `&mut self`.
 ///
@@ -3001,9 +3002,8 @@ pub mod walk {
 }
 
 pub mod walk_mut {
-    use crate::ast::AstNodeRefMut;
-
     use super::{ast, AstVisitorMut};
+    use crate::ast::AstNodeRefMut;
 
     pub struct Param<V: AstVisitorMut> {
         pub name: V::NameRet,

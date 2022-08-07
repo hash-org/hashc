@@ -4,10 +4,11 @@
 //! constructs and duplicating logic.
 #![feature(generic_associated_types)]
 
+use std::collections::HashSet;
+
 use hash_ast::{ast::OwnsAstNode, visitor::AstVisitorMut};
 use hash_pipeline::{sources::Workspace, traits::Desugar, CompilerResult};
 use hash_source::SourceId;
-use std::collections::HashSet;
 use visitor::AstDesugaring;
 
 pub mod desugaring;

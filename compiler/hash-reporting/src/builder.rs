@@ -1,6 +1,7 @@
 //! Hash compiler diagnostic report builder.
-use crate::report::{Report, ReportElement, ReportKind};
 use hash_error_codes::error_codes::HashErrorCode;
+
+use crate::report::{Report, ReportElement, ReportKind};
 
 /// A utility struct that allows for a [Report] to be built incrementally
 /// adding annotations and other metadata to the report.

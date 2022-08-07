@@ -39,13 +39,12 @@ use hash_ast::ast::MatchOrigin;
 use hash_utils::store::Store;
 use itertools::Itertools;
 
+use super::AccessToOps;
 use crate::{
     diagnostics::error::{TcError, TcResult},
     exhaustiveness::{usefulness::MatchArm, AccessToUsefulnessOps},
     storage::{pats::PatId, primitives::Pat, terms::TermId, AccessToStorage, StorageRef},
 };
-
-use super::AccessToOps;
 
 /// Contains actions related to pattern exhaustiveness and usefulness checking.
 pub struct ExhaustivenessChecker<'tc> {

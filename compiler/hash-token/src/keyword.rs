@@ -1,5 +1,6 @@
 //! Hash Compiler token keyword definitions.
 use std::fmt;
+
 use strum_macros::AsRefStr;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, AsRefStr)]
