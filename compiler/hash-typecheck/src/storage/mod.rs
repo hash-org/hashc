@@ -10,12 +10,12 @@
 
 pub mod arguments;
 pub mod cache;
-pub mod constructors;
 pub mod core;
-pub mod deconstructed_pat;
+pub mod deconstructed;
 pub mod location;
 pub mod mods;
 pub mod nominals;
+pub mod param_list;
 pub mod params;
 pub mod pats;
 pub mod primitives;
@@ -27,9 +27,8 @@ pub mod trts;
 use self::{
     arguments::ArgsStore,
     cache::Cache,
-    constructors::DeconstructedCtorStore,
     core::create_core_defs_in,
-    deconstructed_pat::DeconstructedPatStore,
+    deconstructed::{DeconstructedCtorStore, DeconstructedPatStore},
     location::LocationStore,
     mods::ModDefStore,
     nominals::NominalDefStore,
@@ -227,7 +226,7 @@ pub trait AccessToStorage {
         &self.global_storage().deconstructed_pat_store
     }
 
-    fn pat_params_store(&self) -> &PatArgsStore {
+    fn pat_args_store(&self) -> &PatArgsStore {
         &self.global_storage().pat_args_store
     }
 

@@ -1,18 +1,19 @@
 //! Contains helper structures to create complex types and values without having
 //! to manually call the corresponding stores.
 use crate::storage::{
+    arguments::ArgsId,
     location::LocationTarget,
     mods::ModDefId,
     nominals::NominalDefId,
-    pats::PatId,
+    params::ParamsId,
+    pats::{PatArgsId, PatId},
     primitives::{
-        AccessOp, AccessPat, AccessTerm, Arg, ArgsId, BindingPat, BoundVar, ConstPat,
-        ConstructedTerm, ConstructorPat, EnumDef, EnumVariant, EnumVariantValue, FnCall, FnLit,
-        FnTy, IfPat, Level0Term, Level1Term, Level2Term, Level3Term, ListPat, LitTerm, Member,
-        ModDef, ModDefOrigin, ModPat, Mutability, NominalDef, Param, ParamList, ParamsId, Pat,
-        PatArg, PatArgsId, Scope, ScopeKind, ScopeVar, SetBound, StructDef, StructFields, Term,
-        TrtDef, TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy, UnresolvedTerm, Var,
-        Visibility,
+        AccessOp, AccessPat, AccessTerm, Arg, BindingPat, BoundVar, ConstPat, ConstructedTerm,
+        ConstructorPat, EnumDef, EnumVariant, EnumVariantValue, FnCall, FnLit, FnTy, IfPat,
+        Level0Term, Level1Term, Level2Term, Level3Term, ListPat, LitTerm, Member, ModDef,
+        ModDefOrigin, ModPat, Mutability, NominalDef, Param, Pat, PatArg, Scope, ScopeKind,
+        ScopeVar, SetBound, StructDef, StructFields, Term, TrtDef, TupleLit, TupleTy, TyFn,
+        TyFnCall, TyFnCase, TyFnTy, UnresolvedTerm, Var, Visibility,
     },
     scope::ScopeId,
     terms::TermId,
@@ -21,7 +22,7 @@ use crate::storage::{
 };
 use hash_ast::ast::ParamOrigin;
 use hash_source::{identifier::Identifier, location::SourceLocation};
-use hash_utils::store::Store;
+use hash_utils::store::{SequenceStore, Store};
 use std::cell::Cell;
 
 /// Helper to create various primitive constructions (from
@@ -451,20 +452,18 @@ impl<'gs> PrimitiveBuilder<'gs> {
         params: impl IntoIterator<Item = Param>,
         origin: ParamOrigin,
     ) -> ParamsId {
-        let _params = ParamList::new(params.into_iter().collect(), origin);
-        // self.gs.params_store.create(params)
-        // @@Todo: immutable params
-        todo!()
+        let params_id = self.gs.params_store.create_from_iter(params);
+        self.gs.params_store.set_origin(params_id, origin);
+        params_id
     }
 
     /// Create a [ArgsId] from an iterator of [Arg]. This function wil create a
     /// [Args](crate::storage::primitives::Args), append it to the store and
     /// return  the created id.
     pub fn create_args(&self, args: impl IntoIterator<Item = Arg>, origin: ParamOrigin) -> ArgsId {
-        let _params = ParamList::new(args.into_iter().collect(), origin);
-        // self.gs.args_store.create(params)
-        // @@Todo: immutable args
-        todo!()
+        let args_id = self.gs.args_store.create_from_iter(args);
+        self.gs.args_store.set_origin(args_id, origin);
+        args_id
     }
 
     /// Create a nameless type function term with parameters, return type and
@@ -574,10 +573,9 @@ impl<'gs> PrimitiveBuilder<'gs> {
         args: impl IntoIterator<Item = PatArg>,
         origin: ParamOrigin,
     ) -> PatArgsId {
-        let _args = ParamList::new(args.into_iter().collect(), origin);
-        // self.gs.pat_args_store.create(args)
-        // @@Todo: immutable args
-        todo!()
+        let args_id = self.gs.pat_args_store.create_from_iter(args);
+        self.gs.pat_args_store.set_origin(args_id, origin);
+        args_id
     }
 
     /// Create a pattern parameter

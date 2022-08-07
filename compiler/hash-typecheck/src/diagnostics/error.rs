@@ -2,9 +2,11 @@
 
 use super::params::{ParamListKind, ParamUnificationErrorReason};
 use crate::storage::{
+    arguments::ArgsId,
     location::LocationTarget,
+    params::ParamsId,
     pats::PatId,
-    primitives::{AccessOp, AccessTerm, ArgsId, ParamsId, TyFnCase},
+    primitives::{AccessOp, AccessTerm, TyFnCase},
     terms::TermId,
 };
 use hash_ast::ast::MatchOrigin;

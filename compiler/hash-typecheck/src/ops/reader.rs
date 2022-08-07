@@ -6,13 +6,13 @@ use hash_utils::store::Store;
 use crate::{
     exhaustiveness::{construct::DeconstructedCtor, deconstruct::DeconstructedPat},
     storage::{
+        arguments::ArgsId,
+        deconstructed::{DeconstructedCtorId, DeconstructedPatId},
         mods::ModDefId,
         nominals::NominalDefId,
-        pats::PatId,
-        primitives::{
-            Args, ArgsId, ConstructorId, DeconstructedPatId, ModDef, NominalDef, Params, ParamsId,
-            Pat, PatArgs, PatArgsId, Scope, Term, TrtDef,
-        },
+        params::ParamsId,
+        pats::{PatArgsId, PatId},
+        primitives::{Args, ModDef, NominalDef, Params, Pat, PatArgs, Scope, Term, TrtDef},
         scope::ScopeId,
         terms::TermId,
         trts::TrtDefId,
@@ -63,18 +63,18 @@ impl<'gs> PrimitiveReader<'gs> {
     }
 
     /// Get the args with the given [ArgsId].
-    pub fn get_args(&self, id: ArgsId) -> &Args {
-        self.gs.args_store.get(id)
+    pub fn get_args_owned(&self, id: ArgsId) -> Args<'static> {
+        self.gs.args_store.get_owned_param_list(id)
     }
 
     /// Get the params with the given [ParamsId].
-    pub fn get_params(&self, id: ParamsId) -> &Params {
-        self.gs.params_store.get(id)
+    pub fn get_params_owned(&self, id: ParamsId) -> Params<'static> {
+        self.gs.params_store.get_owned_param_list(id)
     }
 
     /// Get the [PatArgs] with the given [PatArgsId].
-    pub fn get_pat_args(&self, id: PatArgsId) -> &PatArgs {
-        self.gs.pat_args_store.get(id)
+    pub fn get_pat_args_owned(&self, id: PatArgsId) -> PatArgs<'static> {
+        self.gs.pat_args_store.get_owned_param_list(id)
     }
 
     /// Get the associated [DeconstructedPat] from [DeconstructedPatId].
@@ -83,7 +83,7 @@ impl<'gs> PrimitiveReader<'gs> {
     }
 
     /// Get the associated [DeconstructedCtor] from [ConstructorId].
-    pub fn get_ctor(&self, id: ConstructorId) -> DeconstructedCtor {
+    pub fn get_deconstructed_ctor(&self, id: DeconstructedCtorId) -> DeconstructedCtor {
         self.gs.deconstructed_ctor_store.get(id)
     }
 

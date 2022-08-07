@@ -6,11 +6,11 @@ use crate::{
     diagnostics::macros::tc_panic,
     ops::AccessToOps,
     storage::{
-        pats::PatId,
+        deconstructed::DeconstructedPatId,
+        pats::{PatArgsId, PatId},
         primitives::{
-            ConstructorPat, DeconstructedPatId, IfPat, Level0Term, Level1Term, ListPat, LitTerm,
-            ModDef, ModPat, NominalDef, Pat, PatArg, PatArgsId, ScopeKind, SpreadPat, StructFields,
-            Term, TupleTy,
+            ConstructorPat, IfPat, Level0Term, Level1Term, ListPat, LitTerm, ModDef, ModPat,
+            NominalDef, Pat, PatArg, ScopeKind, SpreadPat, StructFields, Term, TupleTy,
         },
         terms::TermId,
         AccessToStorage, StorageRef,
@@ -73,7 +73,7 @@ impl<'tc> LowerPatOps<'tc> {
             // rest are wildcards, since this seems to be redundant, might need to introduce
             // some kind of special fields that doesn't care about all of the filled in fields...
             Pat::Mod(ModPat { members }) => {
-                let specified_members = reader.get_pat_args(members).clone();
+                let specified_members = reader.get_pat_args_owned(members).clone();
 
                 let scope = match reader.get_term(ty) {
                     Term::Level1(Level1Term::ModDef(id)) => {
@@ -139,7 +139,7 @@ impl<'tc> LowerPatOps<'tc> {
                 // wildcard fields for all of the inner types
                 match reader.get_term(ty) {
                     Term::Level1(Level1Term::Tuple(TupleTy { members })) => {
-                        let members = reader.get_params(members).clone();
+                        let members = reader.get_params_owned(members).clone();
 
                         // Create wild-cards for all of the tuple inner members
                         let mut wilds: SmallVec<[_; 2]> = members
@@ -183,7 +183,7 @@ impl<'tc> LowerPatOps<'tc> {
                             NominalDef::Enum(_) => unreachable!(),
                         };
 
-                        let args = reader.get_params(members);
+                        let args = reader.get_params_owned(members);
                         let tys = args.positional().iter().map(|param| param.ty);
 
                         let mut wilds: SmallVec<[_; 2]> =
@@ -211,7 +211,7 @@ impl<'tc> LowerPatOps<'tc> {
                 let mut suffix = vec![];
                 let mut spread = false;
 
-                let pats = reader.get_pat_args(inner).clone();
+                let pats = reader.get_pat_args_owned(inner);
                 let inner_ty = self.oracle().term_as_list(ty).unwrap();
 
                 // We don't care about the `name` of the arg because the list
@@ -287,7 +287,7 @@ impl<'tc> LowerPatOps<'tc> {
             return pat.id.unwrap();
         }
 
-        let ctor = reader.get_ctor(pat.ctor);
+        let ctor = reader.get_deconstructed_ctor(pat.ctor);
 
         // Build the pattern based from the constructor and the fields...
         let pat = match ctor {
@@ -425,7 +425,7 @@ impl<'tc> LowerPatOps<'tc> {
     /// named argument.
     pub fn deconstruct_pat_fields(&self, fields: PatArgsId) -> Vec<FieldPat> {
         let reader = self.reader();
-        let args = reader.get_pat_args(fields).clone();
+        let args = reader.get_pat_args_owned(fields).clone();
 
         let pats = args
             .positional()

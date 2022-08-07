@@ -3,7 +3,7 @@
 use crate::ast;
 use std::convert::Infallible;
 
-/// The main visitor trait for [crate::ast] nodes.
+/// A visitor [crate::ast] nodes that takes `&mut self`.
 ///
 /// This contains a method for each AST structure, as well as a dedicated return
 /// type for it. These can be implemented using the functions defined in [walk]
@@ -687,6 +687,8 @@ pub trait AstVisitor: Sized {
     ) -> Result<Self::ModuleRet, Self::Error>;
 }
 
+/// A visitor [crate::ast] nodes that takes `&mut self` and mutable node
+/// references.
 pub trait AstVisitorMut: Sized {
     /// Context type immutably passed to each visitor method for separating
     /// mutable from immutable context.

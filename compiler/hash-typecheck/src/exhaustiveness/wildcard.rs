@@ -3,17 +3,18 @@
 //! the `splitting` operation creates [DeconstructedCtor]s that represent
 //! the whole range of all possible values by the associated type
 //! to the constructor.
-use hash_ast::ast::{IntTy, RangeEnd};
-use smallvec::{smallvec, SmallVec};
-
 use crate::{
     exhaustiveness::PatCtx,
     ops::AccessToOps,
     storage::{
-        primitives::{ConstructorId, Level1Term, NominalDef, Term},
+        deconstructed::DeconstructedCtorId,
+        primitives::{Level1Term, NominalDef, Term},
         AccessToStorage, StorageRef,
     },
 };
+use hash_ast::ast::{IntTy, RangeEnd};
+use hash_utils::store::Store;
+use smallvec::{smallvec, SmallVec};
 
 /// A [Constructor::Wildcard] that we split relative to the constructors in the
 /// matrix.
@@ -34,9 +35,9 @@ use crate::{
 #[derive(Debug)]
 pub struct SplitWildcard {
     /// Constructors seen in the matrix.
-    pub matrix_ctors: Vec<ConstructorId>,
+    pub matrix_ctors: Vec<DeconstructedCtorId>,
     /// All the constructors for this type
-    pub all_ctors: SmallVec<[ConstructorId; 1]>,
+    pub all_ctors: SmallVec<[DeconstructedCtorId; 1]>,
 }
 
 use super::{
@@ -180,7 +181,7 @@ impl<'tc> SplitWildcardOps<'tc> {
         &mut self,
         ctx: PatCtx,
         ctor: &mut SplitWildcard,
-        ctors: impl Iterator<Item = ConstructorId> + Clone,
+        ctors: impl Iterator<Item = DeconstructedCtorId> + Clone,
     ) {
         // Since `all_ctors` never contains wildcards, this won't recurse further.
         ctor.all_ctors = ctor
@@ -189,9 +190,8 @@ impl<'tc> SplitWildcardOps<'tc> {
             .flat_map(|ctor| self.constructor_ops().split(ctx, *ctor, ctors.clone()))
             .collect();
 
-        ctor.matrix_ctors = ctors
-            .filter(|c| !self.constructor_store().map_unsafe(*c, |c| c.is_wildcard()))
-            .collect();
+        ctor.matrix_ctors =
+            ctors.filter(|c| !self.constructor_store().map_fast(*c, |c| c.is_wildcard())).collect();
     }
 
     /// Whether there are any value constructors for this type that are not
@@ -205,7 +205,7 @@ impl<'tc> SplitWildcardOps<'tc> {
     pub(super) fn iter_missing<'a>(
         &'a self,
         wildcard: &'a SplitWildcard,
-    ) -> impl Iterator<Item = ConstructorId> + 'a {
+    ) -> impl Iterator<Item = DeconstructedCtorId> + 'a {
         wildcard.all_ctors.iter().copied().filter(move |ctor| {
             !self.constructor_ops().is_covered_by_any(*ctor, &wildcard.matrix_ctors)
         })
@@ -222,7 +222,7 @@ impl<'tc> SplitWildcardOps<'tc> {
         &self,
         ctx: PatCtx,
         wildcard: SplitWildcard,
-    ) -> SmallVec<[ConstructorId; 1]> {
+    ) -> SmallVec<[DeconstructedCtorId; 1]> {
         // If Some constructors are missing, thus we can specialise with the special
         // `Missing` constructor, which stands for those constructors that are
         // not seen in the matrix, and matches the same rows as any of them

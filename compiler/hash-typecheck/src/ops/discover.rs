@@ -2,23 +2,24 @@
 use crate::{
     diagnostics::{error::TcResult, macros::tc_panic},
     storage::{
+        arguments::ArgsId,
+        params::ParamsId,
         primitives::{
-            AccessTerm, Arg, ArgsId, BoundVar, Level0Term, Level1Term, Level2Term, Level3Term,
-            Member, NominalDef, Param, ParamsId, StructDef, StructFields, Sub, SubVar, Term, TyFn,
-            TyFnCase,
+            AccessTerm, Arg, BoundVar, Level0Term, Level1Term, Level2Term, Level3Term, Member,
+            NominalDef, Param, StructDef, StructFields, Sub, SubVar, Term, TyFn, TyFnCase,
         },
         scope::ScopeId,
         terms::TermId,
-        AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
+        AccessToStorage, StorageRef,
     },
 };
 use std::collections::HashSet;
 
-use super::{AccessToOps, AccessToOpsMut};
+use super::AccessToOps;
 
 /// Contains actions related to variable discovery.
 pub struct Discoverer<'tc> {
-    storage: StorageRefMut<'tc>,
+    storage: StorageRef<'tc>,
 }
 
 impl<'tc> AccessToStorage for Discoverer<'tc> {
@@ -26,14 +27,9 @@ impl<'tc> AccessToStorage for Discoverer<'tc> {
         self.storage.storages()
     }
 }
-impl<'tc> AccessToStorageMut for Discoverer<'tc> {
-    fn storages_mut(&mut self) -> StorageRefMut {
-        self.storage.storages_mut()
-    }
-}
 
 impl<'tc> Discoverer<'tc> {
-    pub(crate) fn new(storage: StorageRefMut<'tc>) -> Self {
+    pub(crate) fn new(storage: StorageRef<'tc>) -> Self {
         Self { storage }
     }
 
@@ -44,15 +40,15 @@ impl<'tc> Discoverer<'tc> {
         params_id: ParamsId,
         result: &mut HashSet<SubVar>,
     ) {
-        let params = self.params_store().get(params_id);
-
-        // Add default value and type free vars
-        for param in params.positional() {
-            self.add_free_sub_vars_in_term_to_set(param.ty, result);
-            if let Some(default_value_id) = param.default_value {
-                self.add_free_sub_vars_in_term_to_set(default_value_id, result);
+        self.params_store().map_as_param_list_fast(params_id, |params| {
+            // Add default value and type free vars
+            for param in params.positional() {
+                self.add_free_sub_vars_in_term_to_set(param.ty, result);
+                if let Some(default_value_id) = param.default_value {
+                    self.add_free_sub_vars_in_term_to_set(default_value_id, result);
+                }
             }
-        }
+        })
     }
 
     /// Add the free variables that exist in the given args, to the given
@@ -62,11 +58,11 @@ impl<'tc> Discoverer<'tc> {
         args_id: ArgsId,
         result: &mut HashSet<SubVar>,
     ) {
-        let args = self.args_store().get(args_id);
-
-        for arg in args.positional() {
-            self.add_free_sub_vars_in_term_to_set(arg.value, result);
-        }
+        self.args_store().map_as_param_list_fast(args_id, |args| {
+            for arg in args.positional() {
+                self.add_free_sub_vars_in_term_to_set(arg.value, result);
+            }
+        })
     }
 
     /// Add the free variables that exist in the given [Level0Term], to the
@@ -242,15 +238,15 @@ impl<'tc> Discoverer<'tc> {
         params_id: ParamsId,
         result: &mut HashSet<BoundVar>,
     ) {
-        let params = self.params_store().get(params_id);
-
-        // Add default value and type free vars
-        for param in params.positional() {
-            self.add_free_bound_vars_in_term_to_set(param.ty, result);
-            if let Some(default_value_id) = param.default_value {
-                self.add_free_bound_vars_in_term_to_set(default_value_id, result);
+        self.params_store().map_as_param_list_fast(params_id, |params| {
+            // Add default value and type free vars
+            for param in params.positional() {
+                self.add_free_bound_vars_in_term_to_set(param.ty, result);
+                if let Some(default_value_id) = param.default_value {
+                    self.add_free_bound_vars_in_term_to_set(default_value_id, result);
+                }
             }
-        }
+        })
     }
 
     /// Add the parameter variables in the parameters to the given [HashSet] as
@@ -260,14 +256,14 @@ impl<'tc> Discoverer<'tc> {
         params_id: ParamsId,
         result: &mut HashSet<BoundVar>,
     ) {
-        let params = self.params_store().get(params_id);
-
-        // Add default value and type free vars
-        for param in params.positional() {
-            if let Some(name) = param.name {
-                result.insert(BoundVar { name });
+        self.params_store().map_as_param_list_fast(params_id, |params| {
+            // Add default value and type free vars
+            for param in params.positional() {
+                if let Some(name) = param.name {
+                    result.insert(BoundVar { name });
+                }
             }
-        }
+        })
     }
 
     /// Add the free variables that exist in the given args, to the given
@@ -277,11 +273,11 @@ impl<'tc> Discoverer<'tc> {
         args_id: ArgsId,
         result: &mut HashSet<BoundVar>,
     ) {
-        let args = self.args_store().get(args_id);
-
-        for arg in args.positional() {
-            self.add_free_bound_vars_in_term_to_set(arg.value, result);
-        }
+        self.args_store().map_as_param_list_fast(args_id, |args| {
+            for arg in args.positional() {
+                self.add_free_bound_vars_in_term_to_set(arg.value, result);
+            }
+        })
     }
 
     /// Add the free variables that exist in the given [Level0Term], to the
@@ -527,50 +523,52 @@ impl<'tc> Discoverer<'tc> {
     }
 
     pub(crate) fn apply_set_bound_to_params_with_flag(
-        &mut self,
+        &self,
         set_bound_scope_id: ScopeId,
         params_id: ParamsId,
         ignore_bound_vars: &HashSet<BoundVar>,
         applied_once: &mut bool,
     ) -> TcResult<ParamsId> {
-        let params = self.params_store().get(params_id).clone();
-
-        let result = params
-            .positional()
-            .iter()
-            .map(|param| {
-                Ok(Param {
-                    name: param.name,
-                    ty: self.apply_set_bound_to_term_with_flag(
-                        set_bound_scope_id,
-                        param.ty,
-                        ignore_bound_vars,
-                        applied_once,
-                    )?,
-                    default_value: param
-                        .default_value
-                        .map(|value| {
-                            self.apply_set_bound_to_term_with_flag(
-                                set_bound_scope_id,
-                                value,
-                                ignore_bound_vars,
-                                applied_once,
-                            )
-                        })
-                        .transpose()?,
+        let result = self.params_store().map_as_param_list(params_id, |params| {
+            params
+                .positional()
+                .iter()
+                .map(|param| {
+                    Ok(Param {
+                        name: param.name,
+                        ty: self.apply_set_bound_to_term_with_flag(
+                            set_bound_scope_id,
+                            param.ty,
+                            ignore_bound_vars,
+                            applied_once,
+                        )?,
+                        default_value: param
+                            .default_value
+                            .map(|value| {
+                                self.apply_set_bound_to_term_with_flag(
+                                    set_bound_scope_id,
+                                    value,
+                                    ignore_bound_vars,
+                                    applied_once,
+                                )
+                            })
+                            .transpose()?,
+                    })
                 })
-            })
-            .collect::<TcResult<Vec<_>>>()?;
+                .collect::<TcResult<Vec<_>>>()
+        })?;
+        let params_origin = self.params_store().get_origin(params_id);
 
-        let new_params = self.builder().create_params(result, params.origin());
-        self.location_store_mut().copy_locations(params_id, new_params);
+        let new_params = self.builder().create_params(result, params_origin);
+        self.location_store().copy_locations(params_id, new_params);
+
         Ok(new_params)
     }
 
     /// Apply the given [Scope] of kind [Scope::SetBound] to the given params,
     /// at the lowest level possible.
     pub(crate) fn apply_set_bound_to_params(
-        &mut self,
+        &self,
         set_bound_scope_id: ScopeId,
         params_id: ParamsId,
     ) -> TcResult<ParamsId> {
@@ -583,39 +581,39 @@ impl<'tc> Discoverer<'tc> {
     }
 
     pub(crate) fn apply_set_bound_to_args_with_flag(
-        &mut self,
+        &self,
         set_bound_scope_id: ScopeId,
         args_id: ArgsId,
         ignore_bound_vars: &HashSet<BoundVar>,
         applied_once: &mut bool,
     ) -> TcResult<ArgsId> {
-        let args = self.args_store().get(args_id).clone();
-
-        let result = args
-            .positional()
-            .iter()
-            .map(|arg| {
-                Ok(Arg {
-                    name: arg.name,
-                    value: self.apply_set_bound_to_term_with_flag(
-                        set_bound_scope_id,
-                        arg.value,
-                        ignore_bound_vars,
-                        applied_once,
-                    )?,
+        let result = self.args_store().map_as_param_list(args_id, |args| {
+            args.positional()
+                .iter()
+                .map(|arg| {
+                    Ok(Arg {
+                        name: arg.name,
+                        value: self.apply_set_bound_to_term_with_flag(
+                            set_bound_scope_id,
+                            arg.value,
+                            ignore_bound_vars,
+                            applied_once,
+                        )?,
+                    })
                 })
-            })
-            .collect::<TcResult<Vec<_>>>()?;
+                .collect::<TcResult<Vec<_>>>()
+        })?;
+        let args_origin = self.args_store().get_origin(args_id);
 
-        let new_args = self.builder().create_args(result, args.origin());
-        self.location_store_mut().copy_locations(args_id, new_args);
+        let new_args = self.builder().create_args(result, args_origin);
+        self.location_store().copy_locations(args_id, new_args);
         Ok(new_args)
     }
 
     /// Apply the given [Scope] of kind [Scope::SetBound] to the given args, at
     /// the lowest level possible.
     pub(crate) fn apply_set_bound_to_args(
-        &mut self,
+        &self,
         set_bound_scope_id: ScopeId,
         args_id: ArgsId,
     ) -> TcResult<ArgsId> {
@@ -630,7 +628,7 @@ impl<'tc> Discoverer<'tc> {
     /// Apply the given [Scope] of kind [Scope::SetBound] to the given term, at
     /// the lowest level possible.
     pub(crate) fn potentially_apply_set_bound_to_term(
-        &mut self,
+        &self,
         set_bound_scope_id: ScopeId,
         term_id: TermId,
     ) -> TcResult<TermId> {
@@ -642,7 +640,7 @@ impl<'tc> Discoverer<'tc> {
     /// Apply the given [Scope] of kind [Scope::SetBound] to the given term, at
     /// the lowest level possible. Returns None if no application occurred.
     pub(crate) fn apply_set_bound_to_term(
-        &mut self,
+        &self,
         set_bound_scope_id: ScopeId,
         term_id: TermId,
     ) -> TcResult<Option<TermId>> {
@@ -653,7 +651,7 @@ impl<'tc> Discoverer<'tc> {
     // term is returned, with a flag to indicate if the term is the original or
     // the modified.
     pub(crate) fn apply_set_bound_to_term_with_flag(
-        &mut self,
+        &self,
         set_bound_scope_id: ScopeId,
         term_id: TermId,
         ignore_bound_vars: &HashSet<BoundVar>,
@@ -677,7 +675,7 @@ impl<'tc> Discoverer<'tc> {
     /// Takes a list of bound vars to ignore, because they are bound in some
     /// child scope (like a type function bound).
     pub(crate) fn apply_set_bound_to_term_rec(
-        &mut self,
+        &self,
         set_bound_scope_id: ScopeId,
         term_id: TermId,
         ignore_bound_vars: &HashSet<BoundVar>,
@@ -1073,7 +1071,7 @@ impl<'tc> Discoverer<'tc> {
         }?;
 
         if let Some(result) = result {
-            self.location_store_mut().copy_location(term_id, result);
+            self.location_store().copy_location(term_id, result);
         }
 
         Ok(result)

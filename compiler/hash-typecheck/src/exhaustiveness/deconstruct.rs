@@ -11,8 +11,9 @@ use crate::{
     fmt::{ForFormatting, PrepareForFormatting},
     ops::AccessToOps,
     storage::{
+        deconstructed::{DeconstructedCtorId, DeconstructedPatId},
         pats::PatId,
-        primitives::{ConstructorId, DeconstructedPatId, Level1Term, NominalDef, Term},
+        primitives::{Level1Term, NominalDef, Term},
         terms::TermId,
         AccessToStorage, StorageRef,
     },
@@ -28,7 +29,7 @@ use std::{cell::Cell, fmt::Debug};
 #[derive(Debug, Clone)]
 pub struct DeconstructedPat {
     /// The subject of the [DeconstructedPat].
-    pub ctor: ConstructorId,
+    pub ctor: DeconstructedCtorId,
     /// Any fields that are applying to the subject of the
     /// [DeconstructedPat]
     pub fields: Fields,
@@ -46,7 +47,12 @@ pub struct DeconstructedPat {
 
 impl DeconstructedPat {
     /// Create a new [DeconstructedPat]
-    pub(super) fn new(ctor: ConstructorId, fields: Fields, ty: TermId, id: Option<PatId>) -> Self {
+    pub(super) fn new(
+        ctor: DeconstructedCtorId,
+        fields: Fields,
+        ty: TermId,
+        id: Option<PatId>,
+    ) -> Self {
         DeconstructedPat {
             ctor,
             fields,
@@ -87,7 +93,11 @@ impl<'tc> DeconstructPatOps<'tc> {
     /// Create a `match-all` [DeconstructedPat] and infer [Fields] as
     /// from the provided type in the context, this is only to be used
     /// when creating `match-all` wildcard patterns.
-    pub(super) fn wild_from_ctor(&self, ctx: PatCtx, ctor_id: ConstructorId) -> DeconstructedPat {
+    pub(super) fn wild_from_ctor(
+        &self,
+        ctx: PatCtx,
+        ctor_id: DeconstructedCtorId,
+    ) -> DeconstructedPat {
         let fields = self.fields_ops().wildcards(ctx, ctor_id);
 
         DeconstructedPat::new(ctor_id, fields, ctx.ty, None)
@@ -103,7 +113,7 @@ impl<'tc> DeconstructPatOps<'tc> {
 
     /// Check whether this [DeconstructedPat] is an `or` pattern.
     pub(super) fn is_or_pat(&self, pat: &DeconstructedPat) -> bool {
-        self.constructor_store().map_unsafe(pat.ctor, |ctor| matches!(ctor, DeconstructedCtor::Or))
+        self.constructor_store().map_fast(pat.ctor, |ctor| matches!(ctor, DeconstructedCtor::Or))
     }
 
     /// Perform a `specialisation` on the current [DeconstructedPat]. This means
@@ -114,12 +124,12 @@ impl<'tc> DeconstructPatOps<'tc> {
         &self,
         ctx: PatCtx,
         pat: DeconstructedPatId,
-        other_ctor_id: ConstructorId,
+        other_ctor_id: DeconstructedCtorId,
     ) -> SmallVec<[DeconstructedPatId; 2]> {
         let reader = self.reader();
         let pat = reader.get_deconstructed_pat(pat);
-        let ctor = reader.get_ctor(pat.ctor);
-        let other_ctor = reader.get_ctor(other_ctor_id);
+        let ctor = reader.get_deconstructed_ctor(pat.ctor);
+        let other_ctor = reader.get_deconstructed_ctor(other_ctor_id);
 
         match (ctor, other_ctor) {
             (DeconstructedCtor::Wildcard, _) => {

@@ -1,18 +1,20 @@
 //! Functionality related to variable substitution inside terms/types.
-use super::{AccessToOps, AccessToOpsMut};
+use super::AccessToOps;
 use crate::storage::{
+    arguments::ArgsId,
+    params::ParamsId,
     primitives::{
-        Arg, ArgsId, ConstructedTerm, FnTy, Level0Term, Level1Term, Level2Term, Level3Term, Param,
-        ParamsId, Sub, SubVar, Term, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
+        Arg, ConstructedTerm, FnTy, Level0Term, Level1Term, Level2Term, Level3Term, Param, Sub,
+        SubVar, Term, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
     },
     scope::ScopeId,
     terms::TermId,
-    AccessToStorage, AccessToStorageMut, StorageRefMut,
+    AccessToStorage, StorageRef,
 };
 
 /// Can perform substitutions (see [Sub]) on terms.
 pub struct Substituter<'tc> {
-    storage: StorageRefMut<'tc>,
+    storage: StorageRef<'tc>,
 }
 
 impl<'tc> AccessToStorage for Substituter<'tc> {
@@ -21,21 +23,15 @@ impl<'tc> AccessToStorage for Substituter<'tc> {
     }
 }
 
-impl<'tc> AccessToStorageMut for Substituter<'tc> {
-    fn storages_mut(&mut self) -> StorageRefMut {
-        self.storage.storages_mut()
-    }
-}
-
 impl<'tc> Substituter<'tc> {
-    pub fn new(storage: StorageRefMut<'tc>) -> Self {
+    pub fn new(storage: StorageRef<'tc>) -> Self {
         Self { storage }
     }
 
     /// Apply the given substitution to the given arguments, producing a new set
     /// of arguments with the substituted variables.
-    pub fn apply_sub_to_args(&mut self, sub: &Sub, args_id: ArgsId) -> ArgsId {
-        let args = self.args_store().get(args_id).clone();
+    pub fn apply_sub_to_args(&self, sub: &Sub, args_id: ArgsId) -> ArgsId {
+        let args = self.args_store().get_owned_param_list(args_id);
 
         let new_args = args
             .positional()
@@ -43,13 +39,13 @@ impl<'tc> Substituter<'tc> {
             .map(|arg| Arg { name: arg.name, value: self.apply_sub_to_term(sub, arg.value) })
             .collect::<Vec<_>>();
 
-        self.builder().create_args(new_args, args.origin())
+        self.builder().create_args(new_args, self.args_store().get_origin(args_id))
     }
 
     /// Apply the given substitution to the given parameters, producing a new
     /// set of parameters with the substituted variables.
-    pub fn apply_sub_to_params(&mut self, sub: &Sub, params_id: ParamsId) -> ParamsId {
-        let params = self.params_store().get(params_id).clone();
+    pub fn apply_sub_to_params(&self, sub: &Sub, params_id: ParamsId) -> ParamsId {
+        let params = self.params_store().get_owned_param_list(params_id);
 
         let new_params = params
             .positional()
@@ -61,12 +57,12 @@ impl<'tc> Substituter<'tc> {
             })
             .collect::<Vec<_>>();
 
-        self.builder().create_params(new_params, params.origin())
+        self.builder().create_params(new_params, self.params_store().get_origin(params_id))
     }
 
     /// Apply the given substitution to the given [FnTy], producing a new
     /// [FnTy] with the substituted variables.
-    pub fn apply_sub_to_fn_ty(&mut self, sub: &Sub, fn_ty: FnTy) -> FnTy {
+    pub fn apply_sub_to_fn_ty(&self, sub: &Sub, fn_ty: FnTy) -> FnTy {
         // Apply to parameters and return type
         let subbed_params = self.apply_sub_to_params(sub, fn_ty.params);
         let subbed_return_ty = self.apply_sub_to_term(sub, fn_ty.return_ty);
@@ -75,11 +71,7 @@ impl<'tc> Substituter<'tc> {
 
     /// Apply the given substitution to the given [ConstructedTerm], producing a
     /// new [ConstructedTerm] with the substituted variables.
-    pub fn apply_sub_to_constructed_ty(
-        &mut self,
-        sub: &Sub,
-        term: ConstructedTerm,
-    ) -> ConstructedTerm {
+    pub fn apply_sub_to_constructed_ty(&self, sub: &Sub, term: ConstructedTerm) -> ConstructedTerm {
         let members = self.apply_sub_to_args(sub, term.members);
         let subject = self.apply_sub_to_term(sub, term.subject);
 
@@ -89,7 +81,7 @@ impl<'tc> Substituter<'tc> {
     /// Apply the given substitution to the given [Level3Term], producing a new
     /// [Level3Term] with the substituted variables.
     pub fn apply_sub_to_level3_term(
-        &mut self,
+        &self,
         _: &Sub,
         term: Level3Term,
         original_term: TermId,
@@ -102,7 +94,7 @@ impl<'tc> Substituter<'tc> {
     /// Apply the given substitution to the given [Level2Term], producing a new
     /// [Level2Term] with the substituted variables.
     pub fn apply_sub_to_level2_term(
-        &mut self,
+        &self,
         _sub: &Sub,
         term: Level2Term,
         original_term: TermId,
@@ -115,7 +107,7 @@ impl<'tc> Substituter<'tc> {
     /// Apply the given substitution to the given [Level1Term], producing a new
     /// [Level1Term] with the substituted variables.
     pub fn apply_sub_to_level1_term(
-        &mut self,
+        &self,
         sub: &Sub,
         term: Level1Term,
         original_term: TermId,
@@ -140,7 +132,7 @@ impl<'tc> Substituter<'tc> {
     /// Apply the given substitution to the given [Level0Term], producing a new
     /// [Level0Term] with the substituted variables.
     pub fn apply_sub_to_level0_term(
-        &mut self,
+        &self,
         sub: &Sub,
         term: Level0Term,
         original_term: TermId,
@@ -182,7 +174,7 @@ impl<'tc> Substituter<'tc> {
     ///
     /// This is only ever applied for
     /// [ScopeKind::SetBound](crate::storage::primitives::ScopeKind::SetBound).
-    pub fn apply_sub_to_scope(&mut self, sub: &Sub, scope_id: ScopeId) -> ScopeId {
+    pub fn apply_sub_to_scope(&self, sub: &Sub, scope_id: ScopeId) -> ScopeId {
         let reader = self.reader();
         let old_scope = reader.get_scope(scope_id);
         let mut new_members = vec![];
@@ -196,7 +188,7 @@ impl<'tc> Substituter<'tc> {
 
     /// Apply the given substitution to the given [SubVar], producing a new
     /// term with the substituted result.
-    pub fn apply_sub_to_subject(&mut self, sub: &Sub, subject: SubVar) -> TermId {
+    pub fn apply_sub_to_subject(&self, sub: &Sub, subject: SubVar) -> TermId {
         match sub.get_sub_for(subject) {
             Some(subbed_term_id) => subbed_term_id,
             None => self.builder().create_term(subject.into()),
@@ -205,7 +197,7 @@ impl<'tc> Substituter<'tc> {
 
     /// Apply the given substitution to the term indexed by the given [TermId],
     /// producing a new term with the substituted variables.
-    pub fn apply_sub_to_term(&mut self, sub: &Sub, term_id: TermId) -> TermId {
+    pub fn apply_sub_to_term(&self, sub: &Sub, term_id: TermId) -> TermId {
         // Short circuit: no vars in the sub and in the term match:
         let vars_in_term = self.discoverer().get_free_sub_vars_in_term(term_id);
         if !sub.domain().any(|var| vars_in_term.contains(&var)) {
@@ -296,7 +288,7 @@ impl<'tc> Substituter<'tc> {
             Term::Level0(term) => self.apply_sub_to_level0_term(sub, term, term_id),
         };
 
-        self.location_store_mut().copy_location(term_id, new_term);
+        self.location_store().copy_location(term_id, new_term);
         new_term
     }
 }

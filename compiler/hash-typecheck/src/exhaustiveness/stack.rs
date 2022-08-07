@@ -10,7 +10,7 @@ use crate::{
     exhaustiveness::PatCtx,
     ops::AccessToOps,
     storage::{
-        primitives::{ConstructorId, DeconstructedPatId},
+        deconstructed::{DeconstructedCtorId, DeconstructedPatId},
         AccessToStorage, StorageRef,
     },
 };
@@ -105,7 +105,7 @@ impl<'tc> StackOps<'tc> {
         &mut self,
         ctx: PatCtx,
         stack: &PatStack,
-        ctor: ConstructorId,
+        ctor: DeconstructedCtorId,
     ) -> PatStack {
         // We pop the head pattern and push the new fields extracted from the arguments
         // of `self.head()`.

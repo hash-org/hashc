@@ -1,15 +1,12 @@
 //! Functionality related to determining properties about terms and other
 //! constructs.
 use super::AccessToOps;
-use crate::storage::{
-    primitives::Member, terms::TermId, AccessToStorage, AccessToStorageMut, StorageRef,
-    StorageRefMut,
-};
+use crate::storage::{primitives::Member, terms::TermId, AccessToStorage, StorageRef};
 use hash_source::identifier::{Identifier, CORE_IDENTIFIERS};
 use hash_utils::store::Store;
 
 pub struct CoreDefReader<'tc> {
-    storage: StorageRefMut<'tc>,
+    storage: StorageRef<'tc>,
 }
 
 impl<'tc> AccessToStorage for CoreDefReader<'tc> {
@@ -18,14 +15,8 @@ impl<'tc> AccessToStorage for CoreDefReader<'tc> {
     }
 }
 
-impl<'tc> AccessToStorageMut for CoreDefReader<'tc> {
-    fn storages_mut(&mut self) -> StorageRefMut {
-        self.storage.storages_mut()
-    }
-}
-
 impl<'tc> CoreDefReader<'tc> {
-    pub fn new(storage: StorageRefMut<'tc>) -> Self {
+    pub fn new(storage: StorageRef<'tc>) -> Self {
         Self { storage }
     }
 

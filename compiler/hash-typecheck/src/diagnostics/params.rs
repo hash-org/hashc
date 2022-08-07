@@ -6,11 +6,7 @@ use std::{collections::HashSet, fmt::Display};
 use hash_ast::ast::ParamOrigin;
 use hash_source::{identifier::Identifier, location::SourceLocation};
 
-use crate::storage::{
-    location::LocationStore,
-    primitives::{ArgsId, ParamsId},
-    GlobalStorage,
-};
+use crate::storage::{arguments::ArgsId, location::LocationStore, params::ParamsId, GlobalStorage};
 
 /// Particular reason why parameters couldn't be unified, either argument
 /// length mis-match or that a name mismatched between the two given parameters.
@@ -50,16 +46,16 @@ impl ParamListKind {
     /// Get the [ParamOrigin] from the [ParamListKind]
     pub(crate) fn origin(&self, store: &GlobalStorage) -> ParamOrigin {
         match self {
-            ParamListKind::Params(id) => store.params_store.get(*id).origin(),
-            ParamListKind::Args(id) => store.args_store.get(*id).origin(),
+            ParamListKind::Params(id) => store.params_store.get_origin(*id),
+            ParamListKind::Args(id) => store.args_store.get_origin(*id),
         }
     }
 
     /// Get the names fields within the [ParamListKind]
     pub(crate) fn names(&self, store: &GlobalStorage) -> HashSet<Identifier> {
         match self {
-            ParamListKind::Params(id) => store.params_store.get(*id).names(),
-            ParamListKind::Args(id) => store.args_store.get(*id).names(),
+            ParamListKind::Params(id) => store.params_store.names(*id),
+            ParamListKind::Args(id) => store.args_store.names(*id),
         }
     }
 

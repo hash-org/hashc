@@ -6,6 +6,7 @@
 //! from a provided [PatCtx]. [FieldOps] defines methods that operate on
 //! [Fields] with the typechecker context available for reading and creating
 //! [DeconstructedPat](super::deconstruct::DeconstructedPat)s.
+use hash_utils::store::Store;
 use itertools::Itertools;
 
 use crate::{
@@ -13,9 +14,8 @@ use crate::{
     exhaustiveness::PatCtx,
     ops::AccessToOps,
     storage::{
-        primitives::{
-            ConstructorId, DeconstructedPatId, Level1Term, NominalDef, StructFields, Term, TupleTy,
-        },
+        deconstructed::{DeconstructedCtorId, DeconstructedPatId},
+        primitives::{Level1Term, NominalDef, StructFields, Term, TupleTy},
         terms::TermId,
         AccessToStorage, StorageRef,
     },
@@ -76,9 +76,9 @@ impl<'tc> FieldOps<'tc> {
 
     /// Creates a new list of wildcard fields for a given constructor. The
     /// result will have a length of `ctor.arity()`.
-    pub(super) fn wildcards(&self, ctx: PatCtx, ctor: ConstructorId) -> Fields {
+    pub(super) fn wildcards(&self, ctx: PatCtx, ctor: DeconstructedCtorId) -> Fields {
         let reader = self.reader();
-        let ctor = reader.get_ctor(ctor);
+        let ctor = reader.get_deconstructed_ctor(ctor);
 
         match ctor {
             DeconstructedCtor::Single | DeconstructedCtor::Variant(_) => {
@@ -86,7 +86,7 @@ impl<'tc> FieldOps<'tc> {
 
                 match reader.get_term(ctx.ty) {
                     Term::Level1(Level1Term::Tuple(TupleTy { members })) => {
-                        let members = reader.get_params(members);
+                        let members = reader.get_params_owned(members);
                         let tys = members.positional().iter().map(|member| member.ty).collect_vec();
 
                         self.wildcards_from_tys(tys)
@@ -95,7 +95,7 @@ impl<'tc> FieldOps<'tc> {
                         match reader.get_nominal_def(def) {
                             NominalDef::Struct(struct_def) => match struct_def.fields {
                                 StructFields::Explicit(params) => {
-                                    let members = reader.get_params(params);
+                                    let members = reader.get_params_owned(params);
                                     let tys = members
                                         .positional()
                                         .iter()

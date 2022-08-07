@@ -1,41 +1,37 @@
 //! Contains functionality to simplify terms into more concrete terms.
 use std::iter;
 
-use super::{substitute::Substituter, unify::Unifier, AccessToOps, AccessToOpsMut};
+use super::{substitute::Substituter, unify::Unifier, AccessToOps};
 use crate::{
     diagnostics::{
         error::{TcError, TcResult},
         macros::{tc_panic, tc_panic_on_many},
     },
     storage::{
+        arguments::ArgsId,
+        params::ParamsId,
         primitives::{
-            AccessOp, AccessTerm, Arg, ArgsId, ConstructedTerm, FnLit, FnTy, Level0Term,
-            Level1Term, Level2Term, Level3Term, Member, Mutability, NominalDef, Param, ParamsId,
-            ScopeKind, StructFields, Term, TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
+            AccessOp, AccessTerm, Arg, ConstructedTerm, FnLit, FnTy, Level0Term, Level1Term,
+            Level2Term, Level3Term, Member, Mutability, NominalDef, Param, ScopeKind, StructFields,
+            Term, TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
         },
         terms::TermId,
-        AccessToStorage, AccessToStorageMut, StorageRefMut,
+        AccessToStorage, StorageRef,
     },
 };
 use hash_ast::ast::ParamOrigin;
 use hash_source::identifier::Identifier;
-use hash_utils::store::Store;
+use hash_utils::store::{SequenceStore, Store};
 use itertools::Itertools;
 
 /// Can perform simplification on terms.
 pub struct Simplifier<'tc> {
-    storage: StorageRefMut<'tc>,
+    storage: StorageRef<'tc>,
 }
 
 impl<'tc> AccessToStorage for Simplifier<'tc> {
     fn storages(&self) -> crate::storage::StorageRef {
         self.storage.storages()
-    }
-}
-
-impl<'tc> AccessToStorageMut for Simplifier<'tc> {
-    fn storages_mut(&mut self) -> StorageRefMut {
-        self.storage.storages_mut()
     }
 }
 
@@ -97,18 +93,18 @@ fn turn_unresolved_var_err_into_unresolved_in_value_err(
 }
 
 impl<'tc> Simplifier<'tc> {
-    pub fn new(storage: StorageRefMut<'tc>) -> Self {
+    pub fn new(storage: StorageRef<'tc>) -> Self {
         Self { storage }
     }
 
     /// Convenience method to get a [Unifier].
-    fn unifier(&mut self) -> Unifier {
-        Unifier::new(self.storages_mut())
+    fn unifier(&self) -> Unifier {
+        Unifier::new(self.storages())
     }
 
     /// Convenience method to get a [Substituter].
-    fn substituter(&mut self) -> Substituter {
-        Substituter::new(self.storages_mut())
+    fn substituter(&self) -> Substituter {
+        Substituter::new(self.storages())
     }
 
     /// Convert an accessed type (or any other type for that matter) along with
@@ -120,7 +116,7 @@ impl<'tc> Simplifier<'tc> {
     /// created, which is the same as the resolved function type without the
     /// first parameter (with the substitution from the unification applied).
     fn turn_accessed_ty_and_subject_ty_into_method(
-        &mut self,
+        &self,
         accessed_ty: TermId,
         subject_ty: TermId,
         initial_subject_term: TermId,
@@ -140,7 +136,7 @@ impl<'tc> Simplifier<'tc> {
         // @@Todo: infer type variables here:
         match self.validator().term_is_fn_ty(accessed_ty)? {
             Some(fn_ty) => {
-                let params = self.params_store().get(fn_ty.params).clone();
+                let params = self.params_store().get_owned_param_list(fn_ty.params);
 
                 if params.positional().is_empty() {
                     invalid_property_access()?;
@@ -151,8 +147,6 @@ impl<'tc> Simplifier<'tc> {
 
                 // Apply the substitution on the parameters and return type:
                 let subbed_params_id = self.substituter().apply_sub_to_params(&sub, fn_ty.params);
-                let subbed_params = self.params_store().get(subbed_params_id).clone();
-
                 let _subbed_return_ty = self.substituter().apply_sub_to_term(&sub, fn_ty.return_ty);
 
                 let builder = self.builder();
@@ -160,7 +154,9 @@ impl<'tc> Simplifier<'tc> {
                 // Return the substituted type without the first parameter:
                 Ok(builder.create_rt_term(builder.create_fn_ty_term(
                     builder.create_params(
-                        subbed_params.into_positional().into_iter().skip(1),
+                        self.params_store().map_fast(subbed_params_id, |params| {
+                            params.iter().skip(1).copied().collect_vec()
+                        }),
                         ParamOrigin::Fn,
                     ),
                     fn_ty.return_ty,
@@ -177,7 +173,7 @@ impl<'tc> Simplifier<'tc> {
     /// is the inner type of a runtime term. Returns `Some(X)` if found,
     /// where X is the runtime term of the result, or `None` if not found.
     fn access_struct_or_tuple_field(
-        &mut self,
+        &self,
         rt_term_ty_id: TermId,
         field_name: Identifier,
     ) -> TcResult<Option<TermId>> {
@@ -215,7 +211,7 @@ impl<'tc> Simplifier<'tc> {
                     if let NominalDef::Struct(struct_def) = nominal_def {
                         if let StructFields::Explicit(fields) = &struct_def.fields {
                             let reader = self.reader();
-                            let fields = reader.get_params(*fields);
+                            let fields = reader.get_params_owned(*fields);
                             if let Some((_, param)) = fields.get_by_name(field_name) {
                                 let param_ty = param.ty;
                                 return Ok(Some(self.builder().create_rt_term(param_ty)));
@@ -223,9 +219,9 @@ impl<'tc> Simplifier<'tc> {
                         }
                     }
                 } else if let Level1Term::Tuple(tuple_ty) = level1_term {
-                    let params = self.params_store().get(tuple_ty.members);
-
-                    if let Some((_, param)) = params.get_by_name(field_name) {
+                    if let Some((_, param)) =
+                        self.params_store().get_by_name(tuple_ty.members, field_name)
+                    {
                         let param_ty = param.ty;
                         return Ok(Some(self.builder().create_rt_term(param_ty)));
                     }
@@ -241,7 +237,7 @@ impl<'tc> Simplifier<'tc> {
     /// given [Level0Term], if possible, originating from the given
     /// [AccessTerm].
     fn apply_access_to_level0_term(
-        &mut self,
+        &self,
         term: &Level0Term,
         access_term: &AccessTerm,
         originating_term: TermId,
@@ -319,8 +315,8 @@ impl<'tc> Simplifier<'tc> {
             }
             Level0Term::Constructed(ConstructedTerm { members, .. })
             | Level0Term::Tuple(TupleLit { members }) => {
-                let tuple_members = self.args_store().get(*members);
-                if let Some((_, member)) = tuple_members.get_by_name(access_term.name) {
+                if let Some((_, member)) = self.args_store().get_by_name(*members, access_term.name)
+                {
                     Ok(Some(member.value))
                 } else {
                     name_not_found(access_term)
@@ -330,7 +326,7 @@ impl<'tc> Simplifier<'tc> {
                 // Create an Rt(..) of the value wrapped, and use that as the subject.
                 let term_value = Level0Term::Rt(self.typer().infer_ty_of_term(originating_term)?);
                 let term = self.builder().create_term(Term::Level0(term_value.clone()));
-                self.location_store_mut().copy_location(originating_term, term);
+                self.location_store().copy_location(originating_term, term);
                 self.apply_access_to_level0_term(&term_value, access_term, term)
             }
         }
@@ -340,7 +336,7 @@ impl<'tc> Simplifier<'tc> {
     /// given [Level1Term], if possible, originating from the given
     /// [AccessTerm].
     fn apply_access_to_level1_term(
-        &mut self,
+        &self,
         term: &Level1Term,
         access_term: &AccessTerm,
     ) -> TcResult<Option<TermId>> {
@@ -362,7 +358,7 @@ impl<'tc> Simplifier<'tc> {
                         this.scope_store().get(mod_def_scope).get(access_term.name)
                     {
                         if let Some(inner_term) = result {
-                            this.location_store_mut()
+                            this.location_store()
                                 .copy_location((mod_def_scope, member.1), inner_term)
                         }
                     }
@@ -405,7 +401,7 @@ impl<'tc> Simplifier<'tc> {
     /// given [Level2Term], if possible, originating from the given
     /// [AccessTerm].
     fn apply_access_to_level2_term(
-        &mut self,
+        &self,
         term: &Level2Term,
         access_term: &AccessTerm,
     ) -> TcResult<Option<TermId>> {
@@ -434,7 +430,7 @@ impl<'tc> Simplifier<'tc> {
     /// given [Level3Term], if possible, originating from the given
     /// [AccessTerm].
     fn apply_access_to_level3_term(
-        &mut self,
+        &self,
         _term: &Level3Term,
         access_term: &AccessTerm,
     ) -> TcResult<Option<TermId>> {
@@ -442,7 +438,7 @@ impl<'tc> Simplifier<'tc> {
     }
 
     /// Apply the given access term structure, if possible.
-    fn apply_access_term(&mut self, access_term: &AccessTerm) -> TcResult<Option<TermId>> {
+    fn apply_access_term(&self, access_term: &AccessTerm) -> TcResult<Option<TermId>> {
         let simplified_subject_id = self.potentially_simplify_term(access_term.subject)?;
         let simplified_subject = self.reader().get_term(simplified_subject_id);
 
@@ -534,7 +530,7 @@ impl<'tc> Simplifier<'tc> {
     }
 
     /// Apply the given type function application structure, if possible.
-    fn apply_ty_fn(&mut self, apply_ty_fn: &TyFnCall) -> TcResult<Option<TermId>> {
+    fn apply_ty_fn(&self, apply_ty_fn: &TyFnCall) -> TcResult<Option<TermId>> {
         let potentially_simplified_subject = self.simplify_term(apply_ty_fn.subject)?;
 
         let (subject_simplified, simplified_subject_id) = (
@@ -684,7 +680,7 @@ impl<'tc> Simplifier<'tc> {
     /// *Note*: Expects the term to be simplified.
 
     pub fn use_term_as_constructed_subject(
-        &mut self,
+        &self,
         term_id: TermId,
         args: ArgsId,
         args_subject: TermId,
@@ -797,7 +793,7 @@ impl<'tc> Simplifier<'tc> {
     /// - Struct definitions (`NominalDef(StructDef(..))`)
     ///
     /// *Note*: Expects the term to be simplified.
-    pub fn use_term_as_fn_call_subject(&mut self, term_id: TermId) -> TcResult<FnTy> {
+    pub fn use_term_as_fn_call_subject(&self, term_id: TermId) -> TcResult<FnTy> {
         let reader = self.reader();
         let term = reader.get_term(term_id);
 
@@ -948,13 +944,13 @@ impl<'tc> Simplifier<'tc> {
     /// Simplify the given term, just returning the original if no
     /// simplification occurred.
     #[inline]
-    pub(crate) fn potentially_simplify_term(&mut self, term_id: TermId) -> TcResult<TermId> {
+    pub(crate) fn potentially_simplify_term(&self, term_id: TermId) -> TcResult<TermId> {
         Ok(self.simplify_term(term_id)?.unwrap_or(term_id))
     }
 
     /// Simplify the given [Level0Term], if possible.
     pub(crate) fn simplify_level0_term(
-        &mut self,
+        &self,
         term: &Level0Term,
         originating_term: TermId,
     ) -> TcResult<Option<TermId>> {
@@ -1041,7 +1037,7 @@ impl<'tc> Simplifier<'tc> {
     }
 
     /// Simplify the given [Level1Term], if possible.
-    pub(crate) fn simplify_level1_term(&mut self, term: &Level1Term) -> TcResult<Option<TermId>> {
+    pub(crate) fn simplify_level1_term(&self, term: &Level1Term) -> TcResult<Option<TermId>> {
         match term {
             Level1Term::ModDef(_) | Level1Term::NominalDef(_) => Ok(None),
             Level1Term::Tuple(tuple_ty) => {
@@ -1071,22 +1067,22 @@ impl<'tc> Simplifier<'tc> {
     }
 
     /// Simplify the given [Level2Term], if possible.
-    pub(crate) fn simplify_level2_term(&mut self, term: &Level2Term) -> TcResult<Option<TermId>> {
+    pub(crate) fn simplify_level2_term(&self, term: &Level2Term) -> TcResult<Option<TermId>> {
         match term {
             Level2Term::Trt(_) | Level2Term::AnyTy | Level2Term::SizedTy => Ok(None),
         }
     }
 
     /// Simplify the given [Level3Term], if possible.
-    pub(crate) fn simplify_level3_term(&mut self, term: &Level3Term) -> TcResult<Option<TermId>> {
+    pub(crate) fn simplify_level3_term(&self, term: &Level3Term) -> TcResult<Option<TermId>> {
         match term {
             Level3Term::TrtKind => Ok(None),
         }
     }
 
     /// Simplify the given [Args], if possible.
-    pub(crate) fn simplify_args(&mut self, args_id: ArgsId) -> TcResult<Option<ArgsId>> {
-        let args = self.args_store().get(args_id).clone();
+    pub(crate) fn simplify_args(&self, args_id: ArgsId) -> TcResult<Option<ArgsId>> {
+        let args = self.args_store().get_owned_param_list(args_id);
 
         // Simplify values:
         let mut simplified_once = false;
@@ -1109,8 +1105,9 @@ impl<'tc> Simplifier<'tc> {
 
         // Only return the new args if we simplified them:
         if simplified_once {
-            let new_args = self.builder().create_args(result, args.origin());
-            self.location_store_mut().copy_locations(args_id, new_args);
+            let new_args =
+                self.builder().create_args(result, self.args_store().get_origin(args_id));
+            self.location_store().copy_locations(args_id, new_args);
 
             Ok(Some(new_args))
         } else {
@@ -1119,8 +1116,8 @@ impl<'tc> Simplifier<'tc> {
     }
 
     /// Simplify the given [Params], if possible.
-    pub(crate) fn simplify_params(&mut self, params_id: ParamsId) -> TcResult<Option<ParamsId>> {
-        let params = self.params_store().get(params_id).clone();
+    pub(crate) fn simplify_params(&self, params_id: ParamsId) -> TcResult<Option<ParamsId>> {
+        let params = self.params_store().get_owned_param_list(params_id);
 
         // Simplify types and default values:
         let mut simplified_once = false;
@@ -1157,8 +1154,9 @@ impl<'tc> Simplifier<'tc> {
 
         // Only return the new params if we simplified them:
         if simplified_once {
-            let new_params = self.builder().create_params(result, params.origin());
-            self.location_store_mut().copy_locations(params_id, new_params);
+            let new_params =
+                self.builder().create_params(result, self.params_store().get_origin(params_id));
+            self.location_store().copy_locations(params_id, new_params);
 
             Ok(Some(new_params))
         } else {
@@ -1177,7 +1175,7 @@ impl<'tc> Simplifier<'tc> {
     ///
     /// This is to be used for merge and union types.
     pub fn simplify_algebraic_term_list(
-        &mut self,
+        &self,
         term_list: &[TermId],
         is_nested: impl Fn(&Term) -> Option<Vec<TermId>>,
     ) -> TcResult<Option<Vec<TermId>>> {
@@ -1246,7 +1244,7 @@ impl<'tc> Simplifier<'tc> {
     ///
     /// This does not perform all validity checks, some are performed by
     /// [super::Typer], and all are by [super::Validator].
-    pub(crate) fn simplify_term(&mut self, term_id: TermId) -> TcResult<Option<TermId>> {
+    pub(crate) fn simplify_term(&self, term_id: TermId) -> TcResult<Option<TermId>> {
         // Check if we have already performed a simplification on this term, if so
         // return the result.
         if let Some(term) = self.cacher().has_been_simplified(term_id) {
@@ -1297,7 +1295,7 @@ impl<'tc> Simplifier<'tc> {
                     ScopeKind::Bound => {
                         // Create a bound var if it is part of a bound:
                         let bound_var = self.builder().create_bound_var_term(var.name);
-                        self.location_store_mut().copy_location(term_id, bound_var);
+                        self.location_store().copy_location(term_id, bound_var);
                         Ok(Some(self.potentially_simplify_term(bound_var)?))
                     }
                     _ => {
@@ -1307,7 +1305,7 @@ impl<'tc> Simplifier<'tc> {
                             scope_member.scope_id,
                             scope_member.index,
                         );
-                        self.location_store_mut().copy_location(term_id, scope_var);
+                        self.location_store().copy_location(term_id, scope_var);
                         Ok(Some(self.potentially_simplify_term(scope_var)?))
                     }
                 }
@@ -1436,7 +1434,7 @@ impl<'tc> Simplifier<'tc> {
 
         // Copy over the location if a new term was created
         if let Some(new_term) = new_term {
-            self.location_store_mut().copy_location(term_id, new_term);
+            self.location_store().copy_location(term_id, new_term);
 
             // We want to add an entry for the operation within the cache...
             self.cacher().add_simplification_entry(term_id, new_term);

@@ -76,12 +76,12 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 }
             }
             TcError::CannotUnifyArgs { src_args_id, target_args_id, reason, src, target } => {
-                let src_args = err.args_store().get(*src_args_id);
-                let target_args = err.args_store().get(*target_args_id);
+                let src_args = err.args_store().get_owned_param_list(*src_args_id);
+                let target_args = err.args_store().get_owned_param_list(*target_args_id);
 
                 // It doesn't matter whether we use `src` or `target` since they should be the
                 // same
-                let origin = src_args.origin();
+                let origin = err.args_store().get_origin(*src_args_id);
 
                 match &reason {
                     ParamUnificationErrorReason::LengthMismatch => {
@@ -197,12 +197,12 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 }
             }
             TcError::CannotUnifyParams { src_params_id, target_params_id, reason, src, target } => {
-                let src_params = err.params_store().get(*src_params_id);
-                let target_params = err.params_store().get(*target_params_id);
+                let src_params = err.params_store().get_owned_param_list(*src_params_id);
+                let target_params = err.params_store().get_owned_param_list(*target_params_id);
 
                 // It doesn't matter whether we use `src` or `target` since they should be the
                 // same
-                let origin = src_params.origin();
+                let origin = err.params_store().get_origin(*src_params_id);
 
                 match &reason {
                     ParamUnificationErrorReason::LengthMismatch => {
@@ -354,12 +354,14 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 params_subject,
                 args_subject,
             } => {
-                let params = err.params_store().get(*params_id);
-                let args = err.args_store().get(*args_id);
+                let params = err.params_store().get_owned_param_list(*params_id);
+                let args = err.args_store().get_owned_param_list(*args_id);
 
                 builder.with_error_code(HashErrorCode::ParameterLengthMismatch);
 
-                match params.origin() {
+                let params_origin = err.params_store().get_origin(*params_id);
+
+                match params_origin {
                     ParamOrigin::Struct => {
                         // @@ErrorReporting: Get the name of the struct...
 
@@ -429,7 +431,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                             .with_error_code(HashErrorCode::ParameterLengthMismatch)
                             .with_message(format!(
                                 "{} expects {} arguments, however {} arguments were given",
-                                params.origin(),
+                                params_origin,
                                 params.len(),
                                 args.len()
                             ));
@@ -458,8 +460,8 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     .with_message(format!("parameter with name `{}` is not defined", name));
 
                 // find the parameter and report the location
-                let params = err.params_store().get(*params_id);
-                let args = err.args_store().get(*args_id);
+                let _params = err.params_store().get_owned_param_list(*params_id);
+                let args = err.args_store().get_owned_param_list(*args_id);
                 let (id, _) = args.get_by_name(*name).unwrap();
 
                 // Provide information about the location of the target type if available
@@ -474,7 +476,10 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 if let Some(location) = err.location_store().get_location(*params_subject) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
-                        format!("the {} is defined here", params.origin()),
+                        format!(
+                            "the {} is defined here",
+                            err.params_store().get_origin(*params_id)
+                        ),
                     )));
                 }
             }
@@ -488,7 +493,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 // Safety: this should be safe to unwrap otherwise we can't detect this issue.
                 let (name, first_use) = match param_kind {
                     ParamListKind::Params(id) => {
-                        let params = err.params_store().get(*id);
+                        let params = err.params_store().get_owned_param_list(*id);
 
                         // Extract the name from the parameter
                         let Param { name, .. } = params.positional()[*index];
@@ -504,7 +509,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                         (name, first_use)
                     }
                     ParamListKind::Args(id) => {
-                        let args = err.args_store().get(*id);
+                        let args = err.args_store().get_owned_param_list(*id);
 
                         // Extract the name from the argument
                         let Arg { name, .. } = args.positional()[*index];

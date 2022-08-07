@@ -5,12 +5,14 @@
 //! is required.
 use std::fmt::Debug;
 
+use hash_utils::store::Store;
+
 use crate::{
     exhaustiveness::PatCtx,
     fmt::{ForFormatting, PrepareForFormatting},
     ops::AccessToOps,
     storage::{
-        primitives::{ConstructorId, DeconstructedPatId},
+        deconstructed::{DeconstructedCtorId, DeconstructedPatId},
         AccessToStorage, StorageRef,
     },
 };
@@ -82,7 +84,7 @@ impl<'tc> MatrixOps<'tc> {
         &self,
         ctx: PatCtx,
         matrix: &Matrix,
-        ctor_id: ConstructorId,
+        ctor_id: DeconstructedCtorId,
     ) -> Matrix {
         let mut specialised_matrix = Matrix::empty();
         let ctor = self.constructor_store().get(ctor_id);

@@ -9,7 +9,7 @@ use hash_reporting::macros::panic_on_span;
 
 use crate::{
     diagnostics::error::TcResult,
-    ops::{AccessToOps, AccessToOpsMut},
+    ops::AccessToOps,
     storage::{primitives::Param, AccessToStorage, AccessToStorageMut},
 };
 

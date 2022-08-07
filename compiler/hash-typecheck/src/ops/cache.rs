@@ -2,7 +2,7 @@
 
 use hash_utils::store::PartialStore;
 
-use crate::storage::{primitives::Sub, terms::TermId, AccessToStorage, StorageRef, StorageRefMut};
+use crate::storage::{primitives::Sub, terms::TermId, AccessToStorage, StorageRef};
 
 use super::validate::TermValidation;
 
@@ -14,7 +14,7 @@ use super::validate::TermValidation;
 /// any logic that governs how the cache evicts its entries.
 #[derive(Debug)]
 pub struct CacheManager<'tc> {
-    storage: StorageRefMut<'tc>,
+    storage: StorageRef<'tc>,
 }
 
 impl<'tc> AccessToStorage for CacheManager<'tc> {
@@ -25,7 +25,7 @@ impl<'tc> AccessToStorage for CacheManager<'tc> {
 
 impl<'tc> CacheManager<'tc> {
     /// Create a new [CacheManager].
-    pub fn new(storage: StorageRefMut<'tc>) -> Self {
+    pub fn new(storage: StorageRef<'tc>) -> Self {
         Self { storage }
     }
 
