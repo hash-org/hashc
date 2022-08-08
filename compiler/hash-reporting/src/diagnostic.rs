@@ -13,7 +13,7 @@ pub trait Diagnostics<E: Into<Report>, W: Into<Report>> {
     /// Get a reference to the associated [Self::DiagnosticsStore]
     fn store(&self) -> &Self::DiagnosticsStore;
 
-    /// Add an error into the [DiagnosticsStore]
+    /// Add an error into the [Self]
     fn add_error(&mut self, error: E);
 
     /// Add a warning into the diagnostics store.

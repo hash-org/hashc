@@ -33,6 +33,81 @@ macro_rules! new_store_key {
     };
 }
 
+/// Create a new [`Store`] with the given name, key and value type.
+#[macro_export]
+macro_rules! new_store {
+    ($visibility:vis $name:ident<$Key:ty, $Value:ty>) => {
+        #[derive(Default, Debug)]
+        $visibility struct $name {
+            data: std::cell::RefCell<Vec<$Value>>,
+        }
+
+        #[allow(dead_code)]
+        impl $name {
+            /// Create a new empty store.
+            $visibility fn new() -> Self {
+                Self { data: std::cell::RefCell::new(Vec::new()) }
+            }
+        }
+
+        impl $crate::store::Store<$Key, $Value> for $name {
+            fn internal_data(&self) -> &std::cell::RefCell<Vec<$Value>> {
+                &self.data
+            }
+        }
+    };
+}
+
+/// Create a new [`PartialStore`] with the given name, key and value type.
+#[macro_export]
+macro_rules! new_partial_store {
+    ($visibility:vis $name:ident<$Key:ty, $Value:ty>) => {
+        #[derive(Default, Debug)]
+        $visibility struct $name {
+            data: std::cell::RefCell<std::collections::HashMap<$Key, $Value>>,
+        }
+
+        #[allow(dead_code)]
+        impl $name {
+            /// Create a new empty store.
+            $visibility fn new() -> Self {
+                Self { data: std::cell::RefCell::new(std::collections::HashMap::new()) }
+            }
+        }
+
+        impl $crate::store::PartialStore<$Key, $Value> for $name {
+            fn internal_data(&self) -> &std::cell::RefCell<std::collections::HashMap<$Key, $Value>> {
+                &self.data
+            }
+        }
+    };
+}
+
+/// Create a new [`SequenceStore`] with the given name, key and value type.
+#[macro_export]
+macro_rules! new_sequence_store {
+    ($visibility:vis $name:ident<$Key:ty, $Value:ty>) => {
+        #[derive(Default, Debug)]
+        $visibility struct $name {
+            data: std::cell::RefCell<Vec<$Value>>,
+        }
+
+        #[allow(dead_code)]
+        impl $name {
+            /// Create a new empty store.
+            $visibility fn new() -> Self {
+                Self { data: std::cell::RefCell::new(Vec::new()) }
+            }
+        }
+
+        impl $crate::store::SequenceStore<$Key, $Value> for $name {
+            fn internal_data(&self) -> &std::cell::RefCell<Vec<$Value>> {
+                &self.data
+            }
+        }
+    };
+}
+
 /// A store, which provides a way to efficiently store values indexed by opaque
 /// generated keys.
 ///
@@ -117,31 +192,6 @@ pub trait Store<Key: StoreKey, Value: Clone> {
         self.set(key, value);
         ret
     }
-}
-
-/// Create a new [`Store`] with the given name, key and value type.
-#[macro_export]
-macro_rules! new_store {
-    ($visibility:vis $name:ident<$Key:ty, $Value:ty>) => {
-        #[derive(Default, Debug)]
-        $visibility struct $name {
-            data: std::cell::RefCell<Vec<$Value>>,
-        }
-
-        #[allow(dead_code)]
-        impl $name {
-            /// Create a new empty store.
-            $visibility fn new() -> Self {
-                Self { data: std::cell::RefCell::new(Vec::new()) }
-            }
-        }
-
-        impl $crate::store::Store<$Key, $Value> for $name {
-            fn internal_data(&self) -> &std::cell::RefCell<Vec<$Value>> {
-                &self.data
-            }
-        }
-    };
 }
 
 /// A default implementation of [`Store`].
@@ -437,7 +487,7 @@ pub trait SequenceStoreCopy<Key: SequenceStoreKey, Value: Copy>: SequenceStore<K
     ///
     /// It is safe to provide a closure `f` to this function that modifies the
     /// store in some way (`create_*` etc). If you do not need to modify the
-    /// store, consider using [`Self::modify_fast()`] instead.
+    /// store, consider using `modify_fast()` instead.
     fn modify_copied<T>(&self, key: Key, f: impl FnOnce(&mut [Value]) -> T) -> T {
         let mut value = self.get_vec(key);
         let ret = f(&mut value);
@@ -473,31 +523,6 @@ impl<Key: SequenceStoreKey, Value: Clone, T: SequenceStore<Key, Value>>
             self.internal_data().borrow().get(key.index() + index).unwrap().clone()
         })
     }
-}
-
-/// Create a new [`SequenceStore`] with the given name, key and value type.
-#[macro_export]
-macro_rules! new_sequence_store {
-    ($visibility:vis $name:ident<$Key:ty, $Value:ty>) => {
-        #[derive(Default, Debug)]
-        $visibility struct $name {
-            data: std::cell::RefCell<Vec<$Value>>,
-        }
-
-        #[allow(dead_code)]
-        impl $name {
-            /// Create a new empty store.
-            $visibility fn new() -> Self {
-                Self { data: std::cell::RefCell::new(Vec::new()) }
-            }
-        }
-
-        impl $crate::store::SequenceStore<$Key, $Value> for $name {
-            fn internal_data(&self) -> &std::cell::RefCell<Vec<$Value>> {
-                &self.data
-            }
-        }
-    };
 }
 
 /// A default implementation of [`SequenceStore`].
@@ -618,31 +643,6 @@ pub trait PartialStore<Key: Copy + Eq + Hash, Value: Clone> {
     fn clear(&self) {
         self.internal_data().borrow_mut().clear()
     }
-}
-
-/// Create a new [`PartialStore`] with the given name, key and value type.
-#[macro_export]
-macro_rules! new_partial_store {
-    ($visibility:vis $name:ident<$Key:ty, $Value:ty>) => {
-        #[derive(Default, Debug)]
-        $visibility struct $name {
-            data: std::cell::RefCell<std::collections::HashMap<$Key, $Value>>,
-        }
-
-        #[allow(dead_code)]
-        impl $name {
-            /// Create a new empty store.
-            $visibility fn new() -> Self {
-                Self { data: std::cell::RefCell::new(std::collections::HashMap::new()) }
-            }
-        }
-
-        impl $crate::store::PartialStore<$Key, $Value> for $name {
-            fn internal_data(&self) -> &std::cell::RefCell<std::collections::HashMap<$Key, $Value>> {
-                &self.data
-            }
-        }
-    };
 }
 
 /// A default implementation of [`PartialStore`].

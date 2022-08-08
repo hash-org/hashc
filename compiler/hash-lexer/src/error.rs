@@ -17,8 +17,8 @@ pub type LexerResult<T> = Result<T, LexerError>;
 
 /// A [LexerError] represents a encountered error during tokenisation, which
 /// includes an optional message with the error, the [LexerErrorKind] which
-/// classifies the error, and a [Span] that represents where the tokenisation
-/// error occurred.
+/// classifies the error, and a [SourceLocation] that represents where the
+/// tokenisation error occurred.
 #[derive(Debug, Constructor, Error)]
 #[error("{kind}{}", .message.as_ref().map(|s| format!(". {s}")).unwrap_or_else(|| String::from("")))]
 pub struct LexerError {
@@ -75,7 +75,7 @@ impl From<LexerError> for Report {
 }
 
 /// Lexer error store, the lexer stores an internal store so that
-/// it can implement [DiagnosticsStore]
+/// it can implement [Diagnostics::DiagnosticsStore]
 #[derive(Default)]
 pub struct LexerDiagnostics {
     errors: Vec<LexerError>,
