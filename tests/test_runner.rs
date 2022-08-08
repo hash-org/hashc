@@ -27,7 +27,7 @@
 //! "parsing" stage and then stop compiling, and emit the errors.
 #![cfg(test)]
 
-use std::fs;
+use std::{fs, path::PathBuf};
 
 use hash_parser::HashParser;
 use hash_pipeline::{
@@ -38,19 +38,27 @@ use hash_pipeline::{
 use hash_reporting::{report::Report, writer::ReportWriter};
 use hash_source::{ModuleKind, SourceId};
 use hash_testing_macros::generate_tests;
-use hash_utils::testing::TestingInput;
-use lazy_static::lazy_static;
 use regex::Regex;
 
-/// Whether or not the UI tests should re-generate the output.
-const REGENERATE_OUTPUT: bool = false;
+use crate::{ANSI_REGEX, REGENERATE_OUTPUT};
 
-/// This is the ANSI Regular expression matcher. This will match all the
-/// specified ANSI escape codes that are used by the [`hash_reporting`] crate.
-const ANSI_RE: &str = r"[\x1b\x9b]\[[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]";
+/// Represents the input to a test, which is the path to the test input and a
+/// snake case name.
+#[derive(Debug, Clone)]
+pub struct TestingInput {
+    /// The path to the test file
+    pub path: PathBuf,
 
-lazy_static! {
-    pub static ref ANSI_REGEX: Regex = Regex::new(ANSI_RE).unwrap();
+    /// filename of the test, useful for when looking for resources
+    /// that have been generated that are related to the file.
+    ///
+    /// N.B. the `filename` does not contain `.hash` prefix.
+    pub filename: String,
+
+    /// Generated snake-cae name for the file
+    ///
+    /// @@Deprecated
+    pub snake_name: String,
 }
 
 /// This function is used to handle the case of verifying that a parser test was
@@ -62,10 +70,8 @@ fn handle_failure_case(
     result: Result<(), Vec<Report>>,
     sources: Workspace,
 ) -> std::io::Result<()> {
-    let content_path = input.path.join("case.hash");
-
     // Verify that the parser failed to parse this file
-    assert!(result.is_err(), "parsing file: {:?} did not fail", content_path);
+    assert!(result.is_err(), "parsing file: {:?} did not fail", input.path);
 
     let diagnostics = result.unwrap_err();
     let contents = diagnostics
@@ -74,17 +80,19 @@ fn handle_failure_case(
         .collect::<Vec<_>>()
         .join("\n");
 
+    let test_dir = input.path.parent().unwrap();
+
     // Remove any ANSI escape codes generated from the reporting...
     let report_contents = ANSI_REGEX.replace_all(contents.as_str(), "");
 
     // Replace the directory by `$DIR`
-    let dir_regex = Regex::new(input.path.as_path().to_str().unwrap()).unwrap();
+    let dir_regex = Regex::new(test_dir.to_str().unwrap()).unwrap();
     let report_contents = dir_regex.replace_all(report_contents.as_ref(), r"$$DIR").to_string();
 
     // We want to load the `.stderr` file and verify that the contents of the
     // file match to the created report. If the `.stderr` file does not exist
     // then we create it and write the generated report to that file
-    let stderr_path = input.path.join("case.stderr");
+    let stderr_path = test_dir.join(format!("{}.stderr", input.filename));
 
     // If we specify to re-generate the output, then we will always write the
     // content of the report into the specified file
@@ -98,8 +106,8 @@ fn handle_failure_case(
         pretty_assertions::assert_eq!(err_contents, report_contents);
     } else {
         panic!(
-            "Missing `.stderr` file for `{:?}`. Consider running with `REGENERATE_OUTPUT=true`",
-            content_path
+            "missing `.stderr` file for `{:?}`, consider running with `REGENERATE_OUTPUT=true`",
+            input.path
         );
     }
 
@@ -112,9 +120,8 @@ fn handle_test(input: TestingInput) {
     let should_fail = input.snake_name.starts_with("should_fail");
 
     let mut workspace = Workspace::new();
-    let content_path = input.path.join("case.hash");
-    let target = Module::new(content_path.clone());
-    let contents = read_in_path(content_path.as_path()).unwrap();
+    let target = Module::new(input.path.clone());
+    let contents = read_in_path(input.path.as_path()).unwrap();
 
     let target_id = workspace.add_module(contents, target, ModuleKind::Normal);
 
@@ -134,30 +141,9 @@ fn handle_test(input: TestingInput) {
     } else {
         // Check whether the result fails or not, depending on if the file_path begins
         // with 'should_fail'...
-        assert!(result.is_ok(), "parsing file failed: {:?}", content_path);
+        assert!(result.is_ok(), "parsing file failed: {:?}", input.path);
     }
 }
 
 // Generate all the tests
-generate_tests!("./cases/", r"^*\.hash$", "ui_test", handle_test);
-
-// @@Todo: move this into `main.rs` within this crate
-// so that we can edit each individual test case rather
-// than using it as a constant.
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    #[allow(clippy::assertions_on_constants)]
-    fn ensure_regenerate_output_is_disabled() {
-        assert!(
-            !REGENERATE_OUTPUT,
-            "
-        Verify that the `REGENERATE_OUTPUT` module flag is not accidentally left
-        on making all of the test cases that observe compiler output
-        automatically overwrite old results with current ones.
-        "
-        );
-    }
-}
+generate_tests!("./cases/", r"^*\.hash$", "ui", handle_test);

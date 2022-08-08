@@ -2,9 +2,7 @@
 //! resources on the disk. This file primarily has the `generate_tests` macro
 //! that will read a directory and generate various test cases from the provided
 //! `case.hash` files and names of the directories that contain the cases.
-#![feature(proc_macro_span)]
-#![feature(iter_intersperse)]
-#![feature(try_find)]
+#![feature(iter_intersperse, path_file_prefix, try_find, proc_macro_span)]
 
 use std::{
     fs, io, iter,
@@ -78,7 +76,7 @@ impl Parse for GenerateTestsInput {
 /// stage it should run to, etc.
 #[derive(Debug, Clone)]
 struct FileEntry {
-    /// The directory path of where the test case is located.
+    /// The path of the test
     path: PathBuf,
     /// Name of the file in snake case.
     snake_name: String,
@@ -99,30 +97,27 @@ fn read_dir(
         let path = entry.path();
 
         let entry_snake_name = path.file_stem().unwrap().to_str().unwrap().to_case(Case::Snake);
+
         let snake_name: String = base_name
             .into_iter()
             .chain(iter::once(entry_snake_name.as_str()))
             .intersperse("_")
             .collect();
 
-        if entry.metadata()?.is_dir() {
-            let dir_contents = entry.path().read_dir()?;
+        // Get the metadata for the current path...
+        let entry_metadata = entry.metadata()?;
 
-            let mut test_found = false;
-            for sub_entry in dir_contents {
-                if test_pattern.is_match(sub_entry?.file_name().to_str().unwrap()) {
-                    test_found = true;
-                    break;
-                }
-            }
-
-            if !test_found {
-                entries.extend(read_dir(&path, test_pattern, Some(&snake_name))?);
-                continue;
-            }
+        // If this is a `directory`, then we recurse and perform
+        // the same operation, otherwise if it is a file, then
+        // we check if name matches the regex pattern and add it
+        // to the entries if so...
+        if entry_metadata.is_dir() {
+            entries.extend(read_dir(&path, test_pattern, Some(&snake_name))?);
+        } else if entry_metadata.is_file()
+            && test_pattern.is_match(path.file_name().unwrap().to_str().unwrap())
+        {
+            entries.push(FileEntry { path, snake_name });
         }
-
-        entries.push(FileEntry { path, snake_name });
     }
 
     Ok(entries)
@@ -186,17 +181,26 @@ pub fn generate_tests(input: TokenStream) -> TokenStream {
     let mut entries = read_dir(&file_path, &test_pattern, None).unwrap();
     entries.sort_by_cached_key(|entry| entry.path.to_owned());
 
+    // Compute the test parameters from each entry
     let paths = entries.iter().map(|entry| entry.path.to_str().unwrap());
+    let filenames = entries.iter().map(|entry| entry.path.file_prefix().unwrap().to_str().unwrap());
     let snake_names = entries.iter().map(|entry| entry.snake_name.to_owned());
+
+    // Create the test names from the provided prefix and the computed `snake_name`
     let test_names = entries
         .iter()
         .map(|entry| format_ident!("{}_test_{}", input.test_prefix, entry.snake_name));
 
+    // Create the tests
     let output = quote! {
         #(
             #[test]
             fn #test_names() {
-                #test_func(TestingInput { path: #paths.into(), snake_name: #snake_names.into() });
+                #test_func(TestingInput {
+                    path: #paths.into(),
+                    filename: #filenames.into(),
+                    snake_name: #snake_names.into()
+                });
             }
         )*
     };
