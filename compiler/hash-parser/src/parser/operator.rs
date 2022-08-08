@@ -3,7 +3,8 @@
 use hash_ast::ast::*;
 use hash_token::{keyword::Keyword, TokenKind};
 
-use super::{error::AstGenErrorKind, AstGen, AstGenResult};
+use super::AstGen;
+use crate::diagnostics::error::{ParseErrorKind, ParseResult};
 
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// This function is used to pickup 'glued' operator tokens to form more
@@ -79,12 +80,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     }
 
     /// Function to parse a fat arrow component '=>' in any given context.
-    pub(crate) fn parse_arrow(&self) -> AstGenResult<()> {
+    pub(crate) fn parse_arrow(&self) -> ParseResult<()> {
         // Essentially, we want to re-map the error into a more concise one given
         // the parsing context.
         if self.parse_token_fast(TokenKind::Eq).is_none() {
             return self.error_with_location(
-                AstGenErrorKind::ExpectedArrow,
+                ParseErrorKind::ExpectedArrow,
                 None,
                 None,
                 self.next_location(),
@@ -93,7 +94,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         if self.parse_token_fast(TokenKind::Gt).is_none() {
             return self.error_with_location(
-                AstGenErrorKind::ExpectedArrow,
+                ParseErrorKind::ExpectedArrow,
                 None,
                 None,
                 self.next_location(),
@@ -104,15 +105,15 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     }
 
     /// Function to parse a fat arrow component '=>' in any given context.
-    pub(crate) fn parse_thin_arrow(&self) -> AstGenResult<()> {
+    pub(crate) fn parse_thin_arrow(&self) -> ParseResult<()> {
         // Essentially, we want to re-map the error into a more concise one given
         // the parsing context.
         if self.parse_token_fast(TokenKind::Minus).is_none() {
-            return self.error(AstGenErrorKind::ExpectedFnArrow, None, None)?;
+            return self.error(ParseErrorKind::ExpectedFnArrow, None, None)?;
         }
 
         if self.parse_token_fast(TokenKind::Gt).is_none() {
-            return self.error(AstGenErrorKind::ExpectedFnArrow, None, None)?;
+            return self.error(ParseErrorKind::ExpectedFnArrow, None, None)?;
         }
 
         Ok(())

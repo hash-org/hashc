@@ -2,7 +2,6 @@
 //! logic that transforms tokens into an AST.
 mod block;
 mod definitions;
-pub mod error;
 mod expr;
 mod lit;
 mod name;
@@ -16,8 +15,10 @@ use hash_ast::ast::*;
 use hash_source::location::{SourceLocation, Span};
 use hash_token::{delimiter::Delimiter, Token, TokenKind, TokenKindVector};
 
-use self::error::{AstGenError, AstGenErrorKind};
-use crate::import_resolver::ImportResolver;
+use crate::{
+    diagnostics::error::{ParseError, ParseErrorKind, ParseResult},
+    import_resolver::ImportResolver,
+};
 
 /// Macro that allow for a flag within the [AstGen] logic to
 /// be enabled in the current scope and then disabled after the
@@ -58,8 +59,6 @@ macro_rules! disable_flag {
         $gen.$flag.set(value);
     };
 }
-
-pub type AstGenResult<T> = Result<T, AstGenError>;
 
 pub struct AstGen<'stream, 'resolver> {
     /// Current token stream offset.
@@ -247,12 +246,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     #[inline(always)]
     fn make_error(
         &self,
-        kind: AstGenErrorKind,
+        kind: ParseErrorKind,
         expected: Option<TokenKindVector>,
         received: Option<TokenKind>,
         span: Option<Span>,
-    ) -> AstGenError {
-        AstGenError::new(
+    ) -> ParseError {
+        ParseError::new(
             kind,
             self.source_location(&span.unwrap_or_else(|| self.current_location())),
             expected,
@@ -263,21 +262,21 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Create an error at the current location.
     pub(crate) fn error<T>(
         &self,
-        kind: AstGenErrorKind,
+        kind: ParseErrorKind,
         expected: Option<TokenKindVector>,
         received: Option<TokenKind>,
-    ) -> AstGenResult<T> {
+    ) -> ParseResult<T> {
         Err(self.make_error(kind, expected, received, None))
     }
 
     /// Create an error at the current location.
     pub(crate) fn error_with_location<T>(
         &self,
-        kind: AstGenErrorKind,
+        kind: ParseErrorKind,
         expected: Option<TokenKindVector>,
         received: Option<TokenKind>,
         span: Span,
-    ) -> AstGenResult<T> {
+    ) -> ParseResult<T> {
         Err(self.make_error(kind, expected, received, Some(span)))
     }
 
@@ -286,15 +285,15 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// root generator there are no more tokens or within a nested generator
     /// (such as if the generator is within a brackets) that it should now
     /// read no more tokens.
-    pub(crate) fn expected_eof<T>(&self) -> AstGenResult<T> {
+    pub(crate) fn expected_eof<T>(&self) -> ParseResult<T> {
         // move onto the next token
         self.offset.set(self.offset.get() + 1);
-        self.error(AstGenErrorKind::EOF, None, Some(self.current_token().kind))
+        self.error(ParseErrorKind::Eof, None, Some(self.current_token().kind))
     }
 
     /// Verify that the current [AstGen] has no more tokens.
     #[inline(always)]
-    pub(crate) fn verify_is_empty(&self) -> AstGenResult<()> {
+    pub(crate) fn verify_is_empty(&self) -> ParseResult<()> {
         if self.has_token() {
             return self.expected_eof();
         }
@@ -304,8 +303,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Generate an error representing that the current generator unexpectedly
     /// reached the end of input at this point.
-    pub(crate) fn unexpected_eof<T>(&self) -> AstGenResult<T> {
-        self.error(AstGenErrorKind::EOF, None, None)
+    pub(crate) fn unexpected_eof<T>(&self) -> ParseResult<T> {
+        self.error(ParseErrorKind::Eof, None, None)
     }
 
     /// Function to peek ahead and match some parsing function that returns a
@@ -333,9 +332,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// used with a nested generator.
     pub(crate) fn parse_separated_fn<T>(
         &self,
-        parse_fn: impl Fn() -> AstGenResult<AstNode<T>>,
-        separator_fn: impl Fn() -> AstGenResult<()>,
-    ) -> AstGenResult<AstNodes<T>> {
+        parse_fn: impl Fn() -> ParseResult<AstNode<T>>,
+        separator_fn: impl Fn() -> ParseResult<()>,
+    ) -> ParseResult<AstNodes<T>> {
         let start = self.current_location();
         let mut args = vec![];
 
@@ -356,14 +355,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     }
 
     /// Function to parse the next [Token] with the specified [TokenKind].
-    pub(crate) fn parse_token(&self, atom: TokenKind) -> AstGenResult<()> {
+    pub(crate) fn parse_token(&self, atom: TokenKind) -> ParseResult<()> {
         match self.peek() {
             Some(token) if token.has_kind(atom) => {
                 self.skip_token();
                 Ok(())
             }
             token => self.error_with_location(
-                AstGenErrorKind::Expected,
+                ParseErrorKind::Expected,
                 Some(TokenKindVector::singleton(atom)),
                 token.map(|t| t.kind),
                 token.map_or_else(|| self.next_location(), |t| t.span),
@@ -388,8 +387,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn parse_delim_tree(
         &self,
         delimiter: Delimiter,
-        error: Option<AstGenErrorKind>,
-    ) -> AstGenResult<Self> {
+        error: Option<ParseErrorKind>,
+    ) -> ParseResult<Self> {
         match self.peek() {
             Some(Token { kind: TokenKind::Tree(inner, tree_index), span })
                 if *inner == delimiter =>
@@ -400,7 +399,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 Ok(self.from_stream(tree, *span))
             }
             token => self.error_with_location(
-                error.unwrap_or(AstGenErrorKind::Expected),
+                error.unwrap_or(ParseErrorKind::Expected),
                 Some(TokenKindVector::singleton(TokenKind::Delimiter(delimiter, true))),
                 token.map(|tok| tok.kind),
                 token.map_or_else(|| self.current_location(), |tok| tok.span),
@@ -409,7 +408,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     }
 
     /// Parse a [Module] which is simply made of a list of statements
-    pub(crate) fn parse_module(&self) -> AstGenResult<AstNode<Module>> {
+    pub(crate) fn parse_module(&self) -> ParseResult<AstNode<Module>> {
         let start = self.current_location();
         let mut contents = vec![];
 
@@ -427,7 +426,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// follows that there are an arbitrary number of statements, followed
     /// by an optional final expression which doesn't need to be completed
     /// by a comma...
-    pub(crate) fn parse_expr_from_interactive(&self) -> AstGenResult<AstNode<BodyBlock>> {
+    pub(crate) fn parse_expr_from_interactive(&self) -> ParseResult<AstNode<BodyBlock>> {
         let start = self.current_location();
 
         let body = self.parse_body_block_inner()?;

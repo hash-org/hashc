@@ -2,6 +2,7 @@
 //! `hash-ast` which provides a general interface to write a parser.
 #![feature(cell_update, is_some_with)]
 
+mod diagnostics;
 mod import_resolver;
 pub mod parser;
 mod source;

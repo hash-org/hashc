@@ -4,13 +4,14 @@ use hash_ast::ast::*;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
 use smallvec::smallvec;
 
-use super::{error::AstGenErrorKind, AstGen, AstGenResult};
+use super::AstGen;
+use crate::diagnostics::error::{ParseErrorKind, ParseResult};
 
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a [Ty]. This includes all forms of a [Ty]. This function
     /// does not deal with any kind of [Ty] annotation or [TyFnDef]
     /// syntax.
-    pub(crate) fn parse_type(&self) -> AstGenResult<AstNode<Ty>> {
+    pub(crate) fn parse_type(&self) -> ParseResult<AstNode<Ty>> {
         self.parse_type_with_precedence(0)
     }
 
@@ -18,7 +19,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// [BinTyOp] operators which are binary operators for type terms. This
     /// function implements the same precedence algorithm for correctly
     /// forming binary type expressions.
-    fn parse_type_with_precedence(&self, min_prec: u8) -> AstGenResult<AstNode<Ty>> {
+    fn parse_type_with_precedence(&self, min_prec: u8) -> ParseResult<AstNode<Ty>> {
         let mut lhs = self.parse_singular_type()?;
         let lhs_span = lhs.span();
 
@@ -57,9 +58,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     }
 
     /// Parse a [Ty]. This includes only singular forms of a type.
-    fn parse_singular_type(&self) -> AstGenResult<AstNode<Ty>> {
+    fn parse_singular_type(&self) -> ParseResult<AstNode<Ty>> {
         let token = self.peek().ok_or_else(|| {
-            self.make_error(AstGenErrorKind::ExpectedType, None, None, Some(self.next_location()))
+            self.make_error(ParseErrorKind::ExpectedType, None, None, Some(self.next_location()))
         })?;
 
         let mut multi_ty_components = true;
@@ -140,7 +141,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
 
             kind => {
-                self.error_with_location(AstGenErrorKind::ExpectedType, None, Some(*kind), span)?
+                self.error_with_location(ParseErrorKind::ExpectedType, None, Some(*kind), span)?
             }
         };
 
@@ -180,7 +181,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// have to lookahead to see if there is another type followed by
     ///either a comma (which locks the `type_args`) or a
     /// closing [`TokenKind::Gt`].
-    pub(crate) fn parse_ty_args(&self, lt_eaten: bool) -> AstGenResult<AstNodes<TyArg>> {
+    pub(crate) fn parse_ty_args(&self, lt_eaten: bool) -> ParseResult<AstNodes<TyArg>> {
         // Only parse is if the caller specifies that they haven't eaten an `lt`
         if !lt_eaten {
             self.parse_token(TokenKind::Lt)?;
@@ -226,7 +227,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     break;
                 }
                 Some(token) => self.error(
-                    AstGenErrorKind::Expected,
+                    ParseErrorKind::Expected,
                     Some(TokenKindVector::from_vec(smallvec![TokenKind::Comma, TokenKind::Gt])),
                     Some(token.kind),
                 )?,
@@ -243,7 +244,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// arbitrary number of comma separated types followed by a return
     /// [Ty] that is preceded by an `thin-arrow` (->) after the
     /// parentheses. e.g. `(i32) -> str`
-    fn parse_fn_or_tuple_ty(&self) -> AstGenResult<Ty> {
+    fn parse_fn_or_tuple_ty(&self) -> ParseResult<Ty> {
         let mut params = AstNodes::empty();
 
         let gen = self.parse_delim_tree(Delimiter::Paren, None)?;
@@ -307,7 +308,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parses a [Ty::TyFn] with the pre-condition that the initial
     /// subject type is parsed and passed into the function. This function
     /// only deals with the argument part of the function.
-    fn parse_ty_fn(&self) -> AstGenResult<Ty> {
+    fn parse_ty_fn(&self) -> ParseResult<Ty> {
         // Since this is only called from `parse_singular_type` we know that this should
         // only be fired when the next token is a an `<`
         debug_assert!(matches!(self.next_token(), Some(Token { kind: TokenKind::Lt, .. })));
@@ -358,7 +359,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     break;
                 }
                 Some(token) => self.error(
-                    AstGenErrorKind::Expected,
+                    ParseErrorKind::Expected,
                     Some(TokenKindVector::from_vec(smallvec![TokenKind::Comma, TokenKind::Gt])),
                     Some(token.kind),
                 )?,

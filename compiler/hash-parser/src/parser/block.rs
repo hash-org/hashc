@@ -3,13 +3,14 @@
 use hash_ast::ast::*;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, TokenKind, TokenKindVector};
 
-use super::{error::AstGenErrorKind, AstGen, AstGenResult};
+use super::{AstGen, ParseResult};
+use crate::diagnostics::error::ParseErrorKind;
 
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a block.
     #[inline]
-    pub(crate) fn parse_block(&self) -> AstGenResult<AstNode<Block>> {
-        let gen = self.parse_delim_tree(Delimiter::Brace, Some(AstGenErrorKind::Block))?;
+    pub(crate) fn parse_block(&self) -> ParseResult<AstNode<Block>> {
+        let gen = self.parse_delim_tree(Delimiter::Brace, Some(ParseErrorKind::Block))?;
 
         Ok(self.node_with_span(Block::Body(gen.parse_body_block_inner()?), self.current_location()))
     }
@@ -17,8 +18,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Helper function to simply parse a body block without wrapping it in
     /// [Block].
     #[inline]
-    pub(crate) fn parse_body_block(&self) -> AstGenResult<AstNode<BodyBlock>> {
-        let gen = self.parse_delim_tree(Delimiter::Brace, Some(AstGenErrorKind::Block))?;
+    pub(crate) fn parse_body_block(&self) -> ParseResult<AstNode<BodyBlock>> {
+        let gen = self.parse_delim_tree(Delimiter::Brace, Some(ParseErrorKind::Block))?;
 
         Ok(self.node_with_span(gen.parse_body_block_inner()?, self.current_location()))
     }
@@ -26,7 +27,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a body block that uses itself as the inner generator. This
     /// function will advance the current generator than expecting that the
     /// next token is a brace tree.
-    pub(crate) fn parse_body_block_inner(&self) -> AstGenResult<BodyBlock> {
+    pub(crate) fn parse_body_block_inner(&self) -> ParseResult<BodyBlock> {
         // Append the initial statement if there is one.
         let mut block = BodyBlock { statements: AstNodes::empty(), expr: None };
 
@@ -43,7 +44,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             match (has_semi, self.peek()) {
                 (true, _) => block.statements.nodes.push(statement),
                 (false, Some(token)) => self.error(
-                    AstGenErrorKind::Expected,
+                    ParseErrorKind::Expected,
                     Some(TokenKindVector::singleton(TokenKind::Semi)),
                     Some(token.kind),
                 )?,
@@ -55,7 +56,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     }
 
     /// Parse a `for` loop block.
-    pub(crate) fn parse_for_loop(&self) -> AstGenResult<AstNode<Block>> {
+    pub(crate) fn parse_for_loop(&self) -> ParseResult<AstNode<Block>> {
         debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::For)));
 
         let start = self.current_location();
@@ -75,7 +76,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     }
 
     /// Parse a `while` loop block.
-    pub(crate) fn parse_while_loop(&self) -> AstGenResult<AstNode<Block>> {
+    pub(crate) fn parse_while_loop(&self) -> ParseResult<AstNode<Block>> {
         debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::While)));
 
         let start = self.current_location();
@@ -88,7 +89,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Parse a match case. A match case involves handling the pattern and the
     /// expression branch.
-    pub(crate) fn parse_match_case(&self) -> AstGenResult<AstNode<MatchCase>> {
+    pub(crate) fn parse_match_case(&self) -> ParseResult<AstNode<MatchCase>> {
         let start = self.current_location();
         let pattern = self.parse_pat()?;
 
@@ -100,7 +101,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Parse a match block statement, which is composed of a subject and an
     /// arbitrary number of match cases that are surrounded in braces.
-    pub(crate) fn parse_match_block(&self) -> AstGenResult<AstNode<Block>> {
+    pub(crate) fn parse_match_block(&self) -> ParseResult<AstNode<Block>> {
         debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Match)));
 
         let start = self.current_location();
@@ -141,7 +142,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// empty block since an if-block could be assigned to any variable and
     /// therefore we need to know the outcome of all branches for
     /// typechecking.
-    pub(crate) fn parse_if_block(&self) -> AstGenResult<AstNode<Block>> {
+    pub(crate) fn parse_if_block(&self) -> ParseResult<AstNode<Block>> {
         debug_assert!(matches!(self.current_token().kind, TokenKind::Keyword(Keyword::If)));
 
         let start = self.current_location();
