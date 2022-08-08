@@ -1,3 +1,30 @@
+//! Hash Compiler UI Test runner, this file will read the `cases` directory for
+//! `.hash` files in the specific `should_pass` and `should_fail` directories.
+//!
+//! In the event of a `should_pass` case, the resultant run should not return
+//! any errors. However, it's possible for the case to generate warnings
+//! (which is not currently tested).
+//!
+//! In the event of a `should_fail` case, the test will emit "reports" that
+//! signal what the error is, the case handler will render the reports
+//! into strings, strip any kind of ANSI codes, and compare with the
+//! `casename.stderr` to ensure that the test produces the expected errors.
+//!
+//! Additionally, it's also possible for the case file to specify at the
+//! top of the file what testing parameters should be provided, for example
+//!
+//!
+//! If the case is in `should_fail`:
+//! ```ignore
+//! // stage-parse, pass
+//!
+//! foo := () => { ... };
+//!
+//! bar := () => { ... };
+//! ```
+//!
+//! In this example, the case specifies that the stage should only go up to the
+//! "parsing" stage and then stop compiling, and emit the errors.
 #![cfg(test)]
 
 use std::fs;
@@ -10,8 +37,8 @@ use hash_pipeline::{
 };
 use hash_reporting::{report::Report, writer::ReportWriter};
 use hash_source::{ModuleKind, SourceId};
+use hash_testing_macros::generate_tests;
 use hash_utils::testing::TestingInput;
-use hash_utils_testing_macros::generate_tests;
 use lazy_static::lazy_static;
 use regex::Regex;
 

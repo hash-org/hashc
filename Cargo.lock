@@ -466,24 +466,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hash-parser-tests"
-version = "0.1.0"
-dependencies = [
- "hash-ast",
- "hash-lexer",
- "hash-parser",
- "hash-pipeline",
- "hash-reporting",
- "hash-source",
- "hash-utils",
- "hash-utils-testing-macros",
- "lazy_static",
- "pretty_assertions",
- "rayon",
- "regex",
-]
-
-[[package]]
 name = "hash-pipeline"
 version = "0.1.0"
 dependencies = [
@@ -520,6 +502,35 @@ dependencies = [
  "hash-utils",
  "lazy_static",
  "slotmap",
+]
+
+[[package]]
+name = "hash-testing-macros"
+version = "0.1.0"
+dependencies = [
+ "convert_case",
+ "hash-utils",
+ "quote",
+ "regex",
+ "syn",
+]
+
+[[package]]
+name = "hash-tests"
+version = "0.1.0"
+dependencies = [
+ "hash-ast",
+ "hash-lexer",
+ "hash-parser",
+ "hash-pipeline",
+ "hash-reporting",
+ "hash-source",
+ "hash-testing-macros",
+ "hash-utils",
+ "lazy_static",
+ "pretty_assertions",
+ "rayon",
+ "regex",
 ]
 
 [[package]]
@@ -560,17 +571,6 @@ version = "0.1.0"
 dependencies = [
  "log",
  "stacker",
-]
-
-[[package]]
-name = "hash-utils-testing-macros"
-version = "0.1.0"
-dependencies = [
- "convert_case",
- "hash-utils",
- "quote",
- "regex",
- "syn",
 ]
 
 [[package]]

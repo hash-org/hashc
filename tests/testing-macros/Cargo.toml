@@ -1,5 +1,5 @@
 [package]
-name = "hash-utils-testing-macros"
+name = "hash-testing-macros"
 version = "0.1.0"
 edition = "2021"
 
@@ -13,4 +13,4 @@ convert_case = "0.4"
 regex = "1.5"
 
 # For documentation purposes
-hash-utils = {path = ".." }
+hash-utils = {path = "../../compiler/hash-utils" }
