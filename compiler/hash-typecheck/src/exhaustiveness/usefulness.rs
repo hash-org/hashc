@@ -364,7 +364,6 @@ impl<'tc> UsefulnessOps<'tc> {
             // We split the head constructor of `v`.
             let v_ctor = head.ctor;
             let split_ctors = self.constructor_ops().split(ctx, v_ctor, ctors);
-
             let start_matrix = &matrix;
 
             // For each constructor, we compute whether there's a value that starts with it
@@ -374,13 +373,11 @@ impl<'tc> UsefulnessOps<'tc> {
                 let spec_matrix = self.matrix_ops().specialise_ctor(ctx, start_matrix, ctor);
 
                 let v = self.stack_ops().pop_head_constructor(ctx, v, ctor);
-
                 let usefulness = ensure_sufficient_stack(|| {
                     self.is_useful(&spec_matrix, &v, arm_kind, is_under_guard, false)
                 });
 
                 let usefulness = self.apply_constructor(ctx, usefulness, start_matrix, ctor);
-
                 report.extend(usefulness);
             }
         }

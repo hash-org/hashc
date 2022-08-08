@@ -1,6 +1,6 @@
 //! Lowering utilities from a [Pat] into a [DeconstructedPat] and
 //! vice versa.
-use std::iter::once;
+use std::{iter::once, mem::size_of};
 
 use hash_ast::ast::RangeEnd;
 use hash_utils::store::Store;
@@ -390,16 +390,40 @@ impl<'tc> LowerPatOps<'tc> {
         if lo == hi {
             Pat::Lit(ty)
         } else {
-            let kind = self.oracle().term_as_int_ty(ty).unwrap();
-            let size = kind.size().unwrap() as usize;
+            let (lo, hi) = if let Some(kind) = self.oracle().term_as_int_ty(ty) {
+                let size = kind.size().unwrap() as usize;
 
-            // Trim the values within the stored range and then create
-            // literal terms with those values...
-            let lo_val = BigInt::from_signed_bytes_le(&lo.to_le_bytes()[0..size]);
-            let hi_val = BigInt::from_signed_bytes_le(&hi.to_le_bytes()[0..size]);
+                // Trim the values within the stored range and then create
+                // literal terms with those values...
+                let lo_val = BigInt::from_signed_bytes_le(&lo.to_le_bytes()[0..size]);
+                let hi_val = BigInt::from_signed_bytes_le(&hi.to_le_bytes()[0..size]);
 
-            let lo = self.builder().create_lit_term(LitTerm::Int { value: lo_val, kind });
-            let hi = self.builder().create_lit_term(LitTerm::Int { value: hi_val, kind });
+                let lo = self.builder().create_lit_term(LitTerm::Int { value: lo_val, kind });
+                let hi = self.builder().create_lit_term(LitTerm::Int { value: hi_val, kind });
+
+                (lo, hi)
+            } else if self.oracle().term_is_char_ty(ty) {
+                let size = size_of::<char>();
+
+                // This must be a `char` literal
+                let (lo_val, hi_val) = unsafe {
+                    let lo_val = char::from_u32_unchecked(u32::from_le_bytes(
+                        lo.to_le_bytes()[0..size].try_into().unwrap(),
+                    ));
+                    let hi_val = char::from_u32_unchecked(u32::from_le_bytes(
+                        hi.to_le_bytes()[0..size].try_into().unwrap(),
+                    ));
+
+                    (lo_val, hi_val)
+                };
+
+                let lo = self.builder().create_lit_term(LitTerm::Char(lo_val));
+                let hi = self.builder().create_lit_term(LitTerm::Char(hi_val));
+
+                (lo, hi)
+            } else {
+                unreachable!()
+            };
 
             Pat::Range(RangePat { lo, hi, end: RangeEnd::Included })
         }
