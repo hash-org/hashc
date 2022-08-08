@@ -75,9 +75,9 @@ impl<'tc> MatrixOps<'tc> {
             if self.deconstruct_pat_ops().is_or_pat(&pat) {
                 matrix.patterns.extend(self.stack_ops().expand_or_pat(&row));
             }
-        } else {
-            matrix.patterns.push(row);
         }
+
+        matrix.patterns.push(row);
     }
 
     /// This computes `S(constructor, matrix)`.
@@ -98,8 +98,6 @@ impl<'tc> MatrixOps<'tc> {
         for row in &matrix.patterns {
             let head = reader.get_deconstructed_pat(row.head());
             let row_head_ctor = self.constructor_store().get(head.ctor);
-
-            println!("row={:?}, {:?}", self.for_fmt(row.clone()), row_head_ctor);
 
             if self.constructor_ops().is_covered_by(&ctor, &row_head_ctor) {
                 let new_row = self.stack_ops().pop_head_constructor(ctx, row, ctor_id);

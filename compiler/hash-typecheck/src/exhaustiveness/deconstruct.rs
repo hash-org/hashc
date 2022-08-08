@@ -133,7 +133,6 @@ impl<'tc> DeconstructPatOps<'tc> {
         let pat_ctor = reader.get_deconstructed_ctor(pat.ctor);
         let other_ctor = reader.get_deconstructed_ctor(other_ctor_id);
 
-        println!("p={:?} o={:?}, ty={}", pat_ctor, other_ctor, self.for_fmt(ctx.ty));
         match (pat_ctor, other_ctor) {
             (DeconstructedCtor::Wildcard, _) => {
                 // We return a wildcard for each field of `other_ctor`.

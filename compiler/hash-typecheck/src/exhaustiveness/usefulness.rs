@@ -32,7 +32,7 @@ pub struct Witness(pub Vec<DeconstructedPatId>);
 
 impl Witness {
     /// Asserts that the witness contains a single pattern, and returns it.
-    pub fn single_pattern(self) -> DeconstructedPatId {
+    pub fn single_pat(self) -> DeconstructedPatId {
         assert_eq!(self.0.len(), 1);
 
         self.0.into_iter().next().unwrap()
@@ -63,7 +63,7 @@ impl Usefulness {
     /// Create a `useless` [Usefulness] report.
     pub fn new_not_useful(preference: MatchArmKind) -> Self {
         match preference {
-            MatchArmKind::ExhaustiveWildcard => Usefulness::WithWitnesses(vec![Witness(vec![])]),
+            MatchArmKind::ExhaustiveWildcard => Usefulness::WithWitnesses(vec![]),
             MatchArmKind::Real => Usefulness::NoWitnesses { useful: false },
         }
     }
@@ -372,6 +372,7 @@ impl<'tc> UsefulnessOps<'tc> {
             for ctor in split_ctors {
                 // cache the result of `Fields::wildcards` because it is used a lot.
                 let spec_matrix = self.matrix_ops().specialise_ctor(ctx, start_matrix, ctor);
+
                 let v = self.stack_ops().pop_head_constructor(ctx, v, ctor);
 
                 let usefulness = ensure_sufficient_stack(|| {
@@ -379,6 +380,7 @@ impl<'tc> UsefulnessOps<'tc> {
                 });
 
                 let usefulness = self.apply_constructor(ctx, usefulness, start_matrix, ctor);
+
                 report.extend(usefulness);
             }
         }
@@ -432,18 +434,15 @@ impl<'tc> UsefulnessOps<'tc> {
         let wildcard =
             self.deconstructed_pat_store().create(self.deconstruct_pat_ops().wildcard(subject));
         let v = PatStack::singleton(wildcard);
-
-        println!("COMPUTING EXHAUSTIVENESS");
         let usefulness = self.is_useful(&matrix, &v, MatchArmKind::ExhaustiveWildcard, false, true);
 
         // It should not be possible to not get any witnesses since we're matching
         // on a wildcard, the base case is that `pats` is empty and thus the
         // set of patterns that are provided in the match block are exhaustive.
         let non_exhaustiveness_witnesses = match usefulness {
-            Usefulness::WithWitnesses(pats) => pats
-                .into_iter()
-                .map(|w| self.pat_lowerer().construct_pat(w.single_pattern()))
-                .collect(),
+            Usefulness::WithWitnesses(pats) => {
+                pats.into_iter().map(|w| self.pat_lowerer().construct_pat(w.single_pat())).collect()
+            }
             Usefulness::NoWitnesses { .. } => panic!(),
         };
 
