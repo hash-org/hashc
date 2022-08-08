@@ -1,5 +1,5 @@
 //! Hash diagnostic report data structures.
-use std::{cell::Cell, fmt, io};
+use std::{cell::Cell, convert::Infallible, fmt, io};
 
 use hash_error_codes::error_codes::HashErrorCode;
 use hash_source::location::SourceLocation;
@@ -164,5 +164,11 @@ impl From<io::Error> for Report {
         // @@ErrorReporting: we might want to show a bit more info here.
         report.with_kind(ReportKind::Error).with_message(err.to_string());
         report.build()
+    }
+}
+
+impl From<Infallible> for Report {
+    fn from(err: Infallible) -> Self {
+        match err {}
     }
 }

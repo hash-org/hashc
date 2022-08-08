@@ -1,5 +1,7 @@
 //! Hash Compiler lexer error data types.
 
+use std::convert::Infallible;
+
 use derive_more::Constructor;
 use hash_reporting::{
     builder::ReportBuilder,
@@ -81,7 +83,7 @@ pub struct LexerDiagnostics {
     errors: Vec<LexerError>,
 }
 
-impl Diagnostics<LexerError, LexerError> for Lexer<'_> {
+impl Diagnostics<LexerError, Infallible> for Lexer<'_> {
     type DiagnosticsStore = LexerDiagnostics;
 
     fn store(&self) -> &Self::DiagnosticsStore {
@@ -95,8 +97,8 @@ impl Diagnostics<LexerError, LexerError> for Lexer<'_> {
 
     /// The lexer does not currently emit any warnings and so if this
     /// is called, it should panic.
-    fn add_warning(&mut self, _: LexerError) {
-        unimplemented!()
+    fn add_warning(&mut self, warning: Infallible) {
+        match warning {}
     }
 
     fn has_errors(&self) -> bool {
@@ -112,11 +114,11 @@ impl Diagnostics<LexerError, LexerError> for Lexer<'_> {
         self.diagnostics.errors.into_iter().map(|err| err.into()).collect()
     }
 
-    fn into_diagnostics(self) -> (Vec<LexerError>, Vec<LexerError>) {
+    fn into_diagnostics(self) -> (Vec<LexerError>, Vec<Infallible>) {
         (self.diagnostics.errors, vec![])
     }
 
-    fn merge(&mut self, other: impl Diagnostics<LexerError, LexerError>) {
+    fn merge(&mut self, other: impl Diagnostics<LexerError, Infallible>) {
         let (errors, _) = other.into_diagnostics();
         self.diagnostics.errors.extend(errors)
     }
