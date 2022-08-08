@@ -2,9 +2,11 @@
 //! vice versa.
 use std::iter::once;
 
+use hash_ast::ast::RangeEnd;
 use hash_utils::store::Store;
 use if_chain::if_chain;
 use itertools::Itertools;
+use num_bigint::BigInt;
 use smallvec::SmallVec;
 
 use super::{
@@ -24,7 +26,7 @@ use crate::{
         pats::{PatArgsId, PatId},
         primitives::{
             ConstructorPat, IfPat, Level0Term, Level1Term, ListPat, LitTerm, ModDef, ModPat,
-            NominalDef, Pat, PatArg, ScopeKind, SpreadPat, StructFields, Term, TupleTy,
+            NominalDef, Pat, PatArg, RangePat, ScopeKind, SpreadPat, StructFields, Term, TupleTy,
         },
         terms::TermId,
         AccessToStorage, StorageRef,
@@ -388,7 +390,18 @@ impl<'tc> LowerPatOps<'tc> {
         if lo == hi {
             Pat::Lit(ty)
         } else {
-            panic!("Ranges are not supported yet")
+            let kind = self.oracle().term_as_int_ty(ty).unwrap();
+            let size = kind.size().unwrap() as usize;
+
+            // Trim the values within the stored range and then create
+            // literal terms with those values...
+            let lo_val = BigInt::from_signed_bytes_le(&lo.to_le_bytes()[0..size]);
+            let hi_val = BigInt::from_signed_bytes_le(&hi.to_le_bytes()[0..size]);
+
+            let lo = self.builder().create_lit_term(LitTerm::Int { value: lo_val, kind });
+            let hi = self.builder().create_lit_term(LitTerm::Int { value: hi_val, kind });
+
+            Pat::Range(RangePat { lo, hi, end: RangeEnd::Included })
         }
     }
 
