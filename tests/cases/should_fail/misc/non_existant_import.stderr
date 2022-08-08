@@ -1,0 +1,4 @@
+error: couldn't import `does_not_exist`, module couldn't be found
+ --> $DIR/non_existant_import.hash:1:6
+1 |   k := import("does_not_exist");
+  |        ^^^^^^^^^^^^^^^^^^^^^^^^ here

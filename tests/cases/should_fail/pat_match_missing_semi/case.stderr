@@ -1,7 +1,0 @@
-error: unexpectedly reached the end of input
-  --> $DIR/case.hash:10:16
- 9 |           };
-10 |           _ => -1
-   |                  ^ here
-11 |       };
-   = help: consider adding a `;`

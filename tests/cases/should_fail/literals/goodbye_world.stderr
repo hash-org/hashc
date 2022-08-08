@@ -1,0 +1,4 @@
+error: unclosed string literal
+ --> $DIR/goodbye_world.hash:1:8
+1 |   print("goodbye world...
+  |          ^^^^^^^^^^^^^^^^^ here

@@ -1,0 +1,5 @@
+error: expected an expression, however received a `;`
+ --> $DIR/expresionless_directive.hash:2:11
+1 |   // This directive does not have an expression
+2 |   k := #dump;
+  |             ^ here

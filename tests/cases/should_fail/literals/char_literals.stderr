@@ -1,0 +1,4 @@
+error: invalid character literal `av`, character literals may only contain one codepoint
+ --> $DIR/char_literals.hash:1:6
+1 |   k := 'av';
+  |        ^^^^ here

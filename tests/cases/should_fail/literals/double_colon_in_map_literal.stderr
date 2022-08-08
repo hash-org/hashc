@@ -1,0 +1,4 @@
+error: expected a name here
+ --> $DIR/double_colon_in_map_literal.hash:1:15
+1 |   k := map!{ 1::2 };
+  |                 ^ here

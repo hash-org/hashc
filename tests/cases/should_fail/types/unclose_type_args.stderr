@@ -1,0 +1,5 @@
+error: expected an operator, however received a `:`
+ --> $DIR/unclose_type_args.hash:1:5
+1 |   k<t := do_something();
+  |       ^ here
+  = help: consider adding either a `.`, `=`, or `;`

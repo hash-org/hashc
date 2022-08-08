@@ -1,0 +1,4 @@
+error: encountered unexpected character `'`. ASCII escape code must only contain hex digits
+ --> $DIR/short_ascii_code.hash:1:8
+1 |   k := '\x0';
+  |          ^^ here

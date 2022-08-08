@@ -1,0 +1,4 @@
+error: expected an expression
+ --> $DIR/missing_expression_in_function_call.hash:1:11
+1 |   l := f(a = );
+  |             ^ here

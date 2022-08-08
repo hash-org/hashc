@@ -1,5 +1,0 @@
-error: expected an operator, however received a `:`
- --> $DIR/case.hash:1:5
-1 |   k<t := do_something();
-  |       ^ here
-  = help: consider adding either a `.`, `=`, or `;`

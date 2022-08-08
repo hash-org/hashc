@@ -1,4 +1,0 @@
-error: expected a name here
- --> $DIR/case.hash:1:15
-1 |   k := map!{ 1::2 };
-  |                 ^ here

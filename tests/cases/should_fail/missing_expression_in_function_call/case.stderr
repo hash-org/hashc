@@ -1,4 +1,0 @@
-error: expected an expression
- --> $DIR/case.hash:1:11
-1 |   l := f(a = );
-  |             ^ here

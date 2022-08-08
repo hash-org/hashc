@@ -1,0 +1,4 @@
+error: malformed spread pattern, expected 1 more `.` to complete the pattern
+ --> $DIR/incomplete_spread_pattern.hash:1:5
+1 |   [ ..d ] := k;
+  |       ^ here

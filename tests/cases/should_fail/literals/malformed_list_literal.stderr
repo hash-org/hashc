@@ -1,0 +1,4 @@
+error: encountered unclosed delimiter `[`, add a `]` after the inner expression
+ --> $DIR/malformed_list_literal.hash:1:5
+1 |   k = [1,
+  |       ^ here

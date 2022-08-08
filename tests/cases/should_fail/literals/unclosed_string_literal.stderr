@@ -1,0 +1,4 @@
+error: unclosed string literal
+ --> $DIR/unclosed_string_literal.hash:1:2
+1 |   "a
+  |    ^^ here

@@ -1,0 +1,4 @@
+error: invalid character escape sequence. unknown escape sequence `j`
+ --> $DIR/unknown_escape_sequence.hash:1:8
+1 |   k := '\j';
+  |          ^ here

@@ -1,6 +1,0 @@
-// Well technically this pattern is 'irrefutable', even if we know that this is true, the compiler
-// cannot sensibly reason about it much further than parsing...
-// 5 := 5;
-
-// Even this works at parsing, but will fail at typechecking
-// 15 := 12;

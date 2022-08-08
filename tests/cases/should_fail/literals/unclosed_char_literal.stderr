@@ -1,0 +1,4 @@
+error: invalid character literal `a`, character literals may only contain one codepoint
+ --> $DIR/unclosed_char_literal.hash:1:1
+1 |   'a
+  |   ^^^ here
