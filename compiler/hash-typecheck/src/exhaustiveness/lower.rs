@@ -1,10 +1,12 @@
 //! Lowering utilities from a [Pat] into a [DeconstructedPat] and
 //! vice versa.
-use std::iter::once;
+use std::{iter::once, mem::size_of};
 
+use hash_ast::ast::RangeEnd;
 use hash_utils::store::Store;
 use if_chain::if_chain;
 use itertools::Itertools;
+use num_bigint::BigInt;
 use smallvec::SmallVec;
 
 use super::{
@@ -24,7 +26,7 @@ use crate::{
         pats::{PatArgsId, PatId},
         primitives::{
             ConstructorPat, IfPat, Level0Term, Level1Term, ListPat, LitTerm, ModDef, ModPat,
-            NominalDef, Pat, PatArg, ScopeKind, SpreadPat, StructFields, Term, TupleTy,
+            NominalDef, Pat, PatArg, RangePat, ScopeKind, SpreadPat, StructFields, Term, TupleTy,
         },
         terms::TermId,
         AccessToStorage, StorageRef,
@@ -370,7 +372,7 @@ impl<'tc> LowerPatOps<'tc> {
                 panic!("cannot convert an `or` deconstructed pat back into pat")
             }
             DeconstructedCtor::Missing => panic!(
-                "trying to convert a `Missing` constructor into a `Pat`; this is probably a bug, `Missing` should have been processed in `apply_constructors`"
+                "trying to convert a `Missing` constructor into a `Pat`; this is probably a bug, `Missing` should have been processed in `apply_ctors`"
             ),
         };
 
@@ -388,7 +390,42 @@ impl<'tc> LowerPatOps<'tc> {
         if lo == hi {
             Pat::Lit(ty)
         } else {
-            panic!("Ranges are not supported yet")
+            let (lo, hi) = if let Some(kind) = self.oracle().term_as_int_ty(ty) {
+                let size = kind.size().unwrap() as usize;
+
+                // Trim the values within the stored range and then create
+                // literal terms with those values...
+                let lo_val = BigInt::from_signed_bytes_le(&lo.to_le_bytes()[0..size]);
+                let hi_val = BigInt::from_signed_bytes_le(&hi.to_le_bytes()[0..size]);
+
+                let lo = self.builder().create_lit_term(LitTerm::Int { value: lo_val, kind });
+                let hi = self.builder().create_lit_term(LitTerm::Int { value: hi_val, kind });
+
+                (lo, hi)
+            } else if self.oracle().term_is_char_ty(ty) {
+                let size = size_of::<char>();
+
+                // This must be a `char` literal
+                let (lo_val, hi_val) = unsafe {
+                    let lo_val = char::from_u32_unchecked(u32::from_le_bytes(
+                        lo.to_le_bytes()[0..size].try_into().unwrap(),
+                    ));
+                    let hi_val = char::from_u32_unchecked(u32::from_le_bytes(
+                        hi.to_le_bytes()[0..size].try_into().unwrap(),
+                    ));
+
+                    (lo_val, hi_val)
+                };
+
+                let lo = self.builder().create_lit_term(LitTerm::Char(lo_val));
+                let hi = self.builder().create_lit_term(LitTerm::Char(hi_val));
+
+                (lo, hi)
+            } else {
+                unreachable!()
+            };
+
+            Pat::Range(RangePat { lo, hi, end: RangeEnd::Included })
         }
     }
 

@@ -125,15 +125,15 @@ impl<'tc> DeconstructPatOps<'tc> {
     pub(super) fn specialise(
         &self,
         ctx: PatCtx,
-        pat: DeconstructedPatId,
+        pat_id: DeconstructedPatId,
         other_ctor_id: DeconstructedCtorId,
     ) -> SmallVec<[DeconstructedPatId; 2]> {
         let reader = self.reader();
-        let pat = reader.get_deconstructed_pat(pat);
-        let ctor = reader.get_deconstructed_ctor(pat.ctor);
+        let pat = reader.get_deconstructed_pat(pat_id);
+        let pat_ctor = reader.get_deconstructed_ctor(pat.ctor);
         let other_ctor = reader.get_deconstructed_ctor(other_ctor_id);
 
-        match (ctor, other_ctor) {
+        match (pat_ctor, other_ctor) {
             (DeconstructedCtor::Wildcard, _) => {
                 // We return a wildcard for each field of `other_ctor`.
                 self.fields_ops().wildcards(ctx, other_ctor_id).iter_patterns().copied().collect()
@@ -296,10 +296,19 @@ impl Debug for ForFormatting<'_, DeconstructedPatId> {
                 }
                 Ok(())
             }
-            DeconstructedCtor::Wildcard
+            ctor @ (DeconstructedCtor::Wildcard
             | DeconstructedCtor::Missing
-            | DeconstructedCtor::NonExhaustive => {
-                write!(f, "_ : {}", pat.ty.for_formatting(self.global_storage))
+            | DeconstructedCtor::NonExhaustive) => {
+                // Just for clarity, we want to also print what specific `wildcard` constructor
+                // it is
+                let prefix = match ctor {
+                    DeconstructedCtor::Wildcard => "",
+                    DeconstructedCtor::Missing => "m",
+                    DeconstructedCtor::NonExhaustive => "ne",
+                    _ => unreachable!(),
+                };
+
+                write!(f, "{}_ : {}", prefix, pat.ty.for_formatting(self.global_storage))
             }
         }
     }

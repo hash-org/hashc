@@ -251,7 +251,9 @@ impl<'gs> TcFormatter<'gs> {
                         write!(f, "{}{}", value, kind.to_name())
                     }
                     LitTerm::Char(char) => {
-                        write!(f, "\'{}\'", char)
+                        // Use debug implementation since we want to display the `literal` value
+                        // rather than the actual glyph
+                        write!(f, "{:?}", char)
                     }
                 }
             }

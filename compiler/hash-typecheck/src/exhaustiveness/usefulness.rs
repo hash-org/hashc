@@ -32,7 +32,7 @@ pub struct Witness(pub Vec<DeconstructedPatId>);
 
 impl Witness {
     /// Asserts that the witness contains a single pattern, and returns it.
-    pub fn single_pattern(self) -> DeconstructedPatId {
+    pub fn single_pat(self) -> DeconstructedPatId {
         assert_eq!(self.0.len(), 1);
 
         self.0.into_iter().next().unwrap()
@@ -54,7 +54,7 @@ impl Usefulness {
     /// Create a `useful` [Usefulness] report.
     pub fn new_useful(preference: MatchArmKind) -> Self {
         match preference {
-            //            A single (empty) witness of reachability.
+            // A single (empty) witness of reachability.
             MatchArmKind::ExhaustiveWildcard => Usefulness::WithWitnesses(vec![Witness(vec![])]),
             MatchArmKind::Real => Usefulness::NoWitnesses { useful: true },
         }
@@ -63,7 +63,7 @@ impl Usefulness {
     /// Create a `useless` [Usefulness] report.
     pub fn new_not_useful(preference: MatchArmKind) -> Self {
         match preference {
-            MatchArmKind::ExhaustiveWildcard => Usefulness::WithWitnesses(vec![Witness(vec![])]),
+            MatchArmKind::ExhaustiveWildcard => Usefulness::WithWitnesses(vec![]),
             MatchArmKind::Real => Usefulness::NoWitnesses { useful: false },
         }
     }
@@ -196,7 +196,7 @@ impl<'tc> UsefulnessOps<'tc> {
     /// pre-specialization. This new usefulness can then be merged
     /// with the results of specializing with the other constructors.
     fn apply_constructor(
-        &mut self,
+        &self,
         ctx: PatCtx,
         usefulness: Usefulness,
         matrix: &Matrix, // used to compute missing ctors
@@ -358,12 +358,11 @@ impl<'tc> UsefulnessOps<'tc> {
             // @@Ranges: we should check that int ranges don't overlap here, in case
             // they're partially covered by other ranges. Additionally, since this isn't
             // necessarily an error, we should integrate this with our warning system.
-            let v_ctor = head.ctor;
             let reader = self.reader();
-
             let ctors = matrix.heads().map(|id| reader.get_deconstructed_pat(id).ctor);
 
             // We split the head constructor of `v`.
+            let v_ctor = head.ctor;
             let split_ctors = self.constructor_ops().split(ctx, v_ctor, ctors);
             let start_matrix = &matrix;
 
@@ -372,8 +371,8 @@ impl<'tc> UsefulnessOps<'tc> {
             for ctor in split_ctors {
                 // cache the result of `Fields::wildcards` because it is used a lot.
                 let spec_matrix = self.matrix_ops().specialise_ctor(ctx, start_matrix, ctor);
-                let v = self.stack_ops().pop_head_constructor(ctx, v, ctor);
 
+                let v = self.stack_ops().pop_head_constructor(ctx, v, ctor);
                 let usefulness = ensure_sufficient_stack(|| {
                     self.is_useful(&spec_matrix, &v, arm_kind, is_under_guard, false)
                 });
@@ -432,17 +431,15 @@ impl<'tc> UsefulnessOps<'tc> {
         let wildcard =
             self.deconstructed_pat_store().create(self.deconstruct_pat_ops().wildcard(subject));
         let v = PatStack::singleton(wildcard);
-
         let usefulness = self.is_useful(&matrix, &v, MatchArmKind::ExhaustiveWildcard, false, true);
 
         // It should not be possible to not get any witnesses since we're matching
         // on a wildcard, the base case is that `pats` is empty and thus the
         // set of patterns that are provided in the match block are exhaustive.
         let non_exhaustiveness_witnesses = match usefulness {
-            Usefulness::WithWitnesses(pats) => pats
-                .into_iter()
-                .map(|w| self.pat_lowerer().construct_pat(w.single_pattern()))
-                .collect(),
+            Usefulness::WithWitnesses(pats) => {
+                pats.into_iter().map(|w| self.pat_lowerer().construct_pat(w.single_pat())).collect()
+            }
             Usefulness::NoWitnesses { .. } => panic!(),
         };
 

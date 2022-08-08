@@ -68,14 +68,16 @@ impl<'tc> MatrixOps<'tc> {
     /// Pushes a new row to the matrix. If the row starts with an or-pattern,
     /// this recursively expands it.
     pub(crate) fn push(&self, matrix: &mut Matrix, row: PatStack) {
-        let reader = self.reader();
-        let ctor = reader.get_deconstructed_pat(row.head());
+        if !row.is_empty() {
+            let reader = self.reader();
+            let pat = reader.get_deconstructed_pat(row.head());
 
-        if !row.is_empty() && self.deconstruct_pat_ops().is_or_pat(&ctor) {
-            matrix.patterns.extend(self.stack_ops().expand_or_pat(&row));
-        } else {
-            matrix.patterns.push(row);
+            if self.deconstruct_pat_ops().is_or_pat(&pat) {
+                matrix.patterns.extend(self.stack_ops().expand_or_pat(&row));
+            }
         }
+
+        matrix.patterns.push(row);
     }
 
     /// This computes `S(constructor, matrix)`.
@@ -95,9 +97,9 @@ impl<'tc> MatrixOps<'tc> {
         // the matrix.
         for row in &matrix.patterns {
             let head = reader.get_deconstructed_pat(row.head());
-            let other = self.constructor_store().get(head.ctor);
+            let row_head_ctor = self.constructor_store().get(head.ctor);
 
-            if self.constructor_ops().is_covered_by(&ctor, &other) {
+            if self.constructor_ops().is_covered_by(&ctor, &row_head_ctor) {
                 let new_row = self.stack_ops().pop_head_constructor(ctx, row, ctor_id);
                 self.push(&mut specialised_matrix, new_row);
             }
@@ -125,8 +127,14 @@ impl Debug for ForFormatting<'_, Matrix> {
         let Matrix { patterns: m, .. } = &self.t;
 
         // Firstly, get all the patterns within the matrix as strings...
-        let pretty_printed_matrix: Vec<Vec<String>> =
-            m.iter().map(|row| row.iter().map(|pat| format!("{:?}", pat)).collect()).collect();
+        let pretty_printed_matrix: Vec<Vec<String>> = m
+            .iter()
+            .map(|row| {
+                row.iter()
+                    .map(|pat| format!("{:?}", pat.for_formatting(self.global_storage)))
+                    .collect()
+            })
+            .collect();
 
         let column_count = m.iter().map(|row| row.len()).next().unwrap_or(0);
 
