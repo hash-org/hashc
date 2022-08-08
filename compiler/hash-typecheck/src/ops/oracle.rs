@@ -3,7 +3,11 @@
 use hash_ast::ast::{IntTy, ParamOrigin};
 
 use super::AccessToOps;
-use crate::storage::{terms::TermId, AccessToStorage, StorageRef};
+use crate::storage::{
+    primitives::{ScopeVar, Term},
+    terms::TermId,
+    AccessToStorage, StorageRef,
+};
 
 pub struct Oracle<'tc> {
     storage: StorageRef<'tc>,
@@ -28,6 +32,16 @@ impl<'tc> Oracle<'tc> {
     /// If the term is a char type.
     pub fn term_is_char_ty(&self, term: TermId) -> bool {
         self.unifier().terms_are_equal(term, self.core_defs().char_ty())
+    }
+
+    /// If the term is a scope variable.
+    ///
+    /// **Note**: assumes that the term is simplified.
+    pub fn term_as_scope_var(&self, term: TermId) -> Option<ScopeVar> {
+        match self.reader().get_term(term) {
+            Term::ScopeVar(scope_var) => Some(scope_var),
+            _ => None,
+        }
     }
 
     /// If the term is an integer type, returns its [IntTy].

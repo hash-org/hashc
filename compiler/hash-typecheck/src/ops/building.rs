@@ -292,7 +292,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
         self.create_term(Term::Level2(Level2Term::AnyTy))
     }
 
-    /// Create a term [Level2Term::AnyTy].
+    /// Create a term [Level2Term::SizedTy].
     pub fn create_sized_ty_term(&self) -> TermId {
         self.create_term(Term::Level2(Level2Term::SizedTy))
     }
