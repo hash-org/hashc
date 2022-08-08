@@ -28,11 +28,12 @@ pub trait Diagnostics<E: Into<Report>, W: Into<Report>> {
     /// Convert the [Diagnostics] into a [Vec<Report>].
     fn into_reports(self) -> Vec<Report>;
 
-    /// Convert the [Diagnostics] into a [Vec<E>]. This is useful
+    /// Convert the [Diagnostics] into it's respective parts.
+    /// This is useful
     /// when we just want to get the errors from the diagnostics
     /// rather than immediately converting the diagnostics into
     /// [Report]s.
-    fn into_errors(self) -> Vec<E>;
+    fn into_diagnostics(self) -> (Vec<E>, Vec<W>);
 
     /// Merge another diagnostic store with this one.
     fn merge(&mut self, other: impl Diagnostics<E, W>);

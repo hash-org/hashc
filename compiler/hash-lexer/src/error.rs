@@ -112,11 +112,12 @@ impl Diagnostics<LexerError, LexerError> for Lexer<'_> {
         self.diagnostics.errors.into_iter().map(|err| err.into()).collect()
     }
 
-    fn into_errors(self) -> Vec<LexerError> {
-        self.diagnostics.errors
+    fn into_diagnostics(self) -> (Vec<LexerError>, Vec<LexerError>) {
+        (self.diagnostics.errors, vec![])
     }
 
     fn merge(&mut self, other: impl Diagnostics<LexerError, LexerError>) {
-        self.diagnostics.errors.extend(other.into_errors())
+        let (errors, _) = other.into_diagnostics();
+        self.diagnostics.errors.extend(errors)
     }
 }

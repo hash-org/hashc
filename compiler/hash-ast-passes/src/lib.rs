@@ -12,7 +12,6 @@ use std::collections::HashSet;
 
 use analysis::SemanticAnalyser;
 use crossbeam_channel::unbounded;
-use diagnostics::Diagnostic;
 use hash_ast::{ast::OwnsAstNode, visitor::AstVisitor};
 use hash_pipeline::{sources::Workspace, traits::SemanticPass, CompilerResult};
 use hash_reporting::report::Report;
@@ -45,7 +44,7 @@ impl<'pool> SemanticPass<'pool> for HashSemanticAnalysis {
         state: &mut Self::State,
         pool: &'pool rayon::ThreadPool,
     ) -> Result<(), Vec<Report>> {
-        let (sender, receiver) = unbounded::<Diagnostic>();
+        let (sender, receiver) = unbounded::<Report>();
 
         let source_map = &workspace.source_map;
         let node_map = &mut workspace.node_map;
@@ -111,7 +110,7 @@ impl<'pool> SemanticPass<'pool> for HashSemanticAnalysis {
         if messages.is_empty() {
             Ok(())
         } else {
-            Err(messages.into_iter().map(|message| message.into()).collect())
+            Err(messages.into_iter().collect())
         }
     }
 }
