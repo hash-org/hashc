@@ -1,8 +1,5 @@
 //! Hash Compiler parser error utilities.
-use std::io;
-
 use derive_more::Constructor;
-use hash_lexer::error::LexerErrorWrapper;
 use hash_pipeline::fs::ImportError;
 use hash_reporting::{
     builder::ReportBuilder,
@@ -19,7 +16,7 @@ pub struct AstGenError {
     /// The kind of the error.
     kind: AstGenErrorKind,
     /// Location of where the error references
-    span: SourceLocation,
+    location: SourceLocation,
     /// An optional vector of tokens that are expected to circumvent the error.
     expected: Option<TokenKindVector>,
     /// An optional token in question that was received byt shouldn't of been
@@ -106,7 +103,7 @@ impl std::fmt::Display for TyArgumentKind {
 }
 
 /// Conversion implementation from an AST Generator Error into a Parser Error.
-impl From<AstGenError> for ParseError {
+impl From<AstGenError> for Report {
     fn from(err: AstGenError) -> Self {
         let expected = err.expected;
 
@@ -173,87 +170,21 @@ impl From<AstGenError> for ParseError {
             format!("consider adding {}", SequenceDisplay::either(tokens.into_inner().as_slice()))
         });
 
-        Self::Parsing { message: base_message, location: Some(err.span), help }
-    }
-}
-
-/// Hash ParseError enum representing the variants of possible errors.
-#[derive(Debug)]
-pub enum ParseError {
-    Import(ImportError),
-    IO(io::Error),
-    Parsing {
-        /// The generated error message.
-        message: String,
-        /// Location of the parsing error, it is optional since sometimes it
-        /// isn't yet possible to get the span of the error.
-        location: Option<SourceLocation>,
-        /// An optional help message that is generated from the error.
-        help: Option<String>,
-    },
-}
-
-impl From<io::Error> for ParseError {
-    fn from(err: io::Error) -> Self {
-        Self::IO(err)
-    }
-}
-
-impl From<ParseError> for Report {
-    fn from(err: ParseError) -> Self {
-        err.create_report()
-    }
-}
-
-impl ParseError {
-    pub fn create_report(self) -> Report {
+        // Now actually build the report
         let mut builder = ReportBuilder::new();
-        builder.with_kind(ReportKind::Error).with_message("failed to parse");
+        builder
+            .with_kind(ReportKind::Error)
+            .with_message(base_message)
+            .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(err.location, "here")));
 
-        match self {
-            ParseError::Import(import_error) => return import_error.create_report(),
-            ParseError::Parsing { message, location, help } => {
-                // When we don't have a source for the error, just add a note
-                builder.with_message(message);
-
-                if let Some(location) = location {
-                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
-                        location, "here",
-                    )));
-                }
-
-                // Add the `help` message as a separate note
-                if let Some(help_message) = help {
-                    builder.add_element(ReportElement::Note(ReportNote::new(
-                        ReportNoteKind::Help,
-                        help_message,
-                    )));
-                }
-            }
-            ParseError::IO(inner) => {
-                // @@ErrorReporting: we might want to show a bit more info here.
-                builder.with_message(inner.to_string());
-            }
-        };
+        // Add the `help` message as a separate note
+        if let Some(help_message) = help {
+            builder.add_element(ReportElement::Note(ReportNote::new(
+                ReportNoteKind::Help,
+                help_message,
+            )));
+        }
 
         builder.build()
-    }
-}
-
-impl From<LexerErrorWrapper> for ParseError {
-    /// Implementation to convert a [`hash_lexer::error::LexerError`] with the
-    /// combination of a [`hash_source::SourceId`] into a [ParseError]. This
-    /// is used in order to interface with the lexer within the parsing
-    /// stage.
-    ///
-    /// @@Future: In the future, there is a hope that we don't
-    /// need to convert between various error kinds in crates and they can just
-    /// be passed around as reports which are pipeline stage agnostic.
-    fn from(LexerErrorWrapper(source_id, err): LexerErrorWrapper) -> Self {
-        ParseError::Parsing {
-            message: err.to_string(),
-            location: Some(SourceLocation { span: err.span, source_id }),
-            help: None,
-        }
     }
 }

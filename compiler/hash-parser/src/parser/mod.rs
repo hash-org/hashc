@@ -250,11 +250,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         kind: AstGenErrorKind,
         expected: Option<TokenKindVector>,
         received: Option<TokenKind>,
-        location: Option<Span>,
+        span: Option<Span>,
     ) -> AstGenError {
         AstGenError::new(
             kind,
-            self.source_location(&location.unwrap_or_else(|| self.current_location())),
+            self.source_location(&span.unwrap_or_else(|| self.current_location())),
             expected,
             received,
         )
@@ -276,9 +276,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         kind: AstGenErrorKind,
         expected: Option<TokenKindVector>,
         received: Option<TokenKind>,
-        location: Span,
+        span: Span,
     ) -> AstGenResult<T> {
-        Err(self.make_error(kind, expected, received, Some(location)))
+        Err(self.make_error(kind, expected, received, Some(span)))
     }
 
     /// Generate an error that represents that within the current [AstGen] the

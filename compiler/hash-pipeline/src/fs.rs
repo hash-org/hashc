@@ -21,11 +21,11 @@ pub static PRELUDE: &str = concat!(env!("STDLIB_PATH"), "/", "prelude");
 /// Import error is an abstraction to represent errors that are in relevance to
 /// IO operations rather than parsing operations.
 #[derive(Debug, Clone, Error)]
-#[error("Couldn't import module `{filename}`: {message}")]
+#[error("couldn't import `{filename}`, {message}")]
 pub struct ImportError {
     pub filename: PathBuf,
     pub message: String,
-    pub src: Option<SourceLocation>,
+    pub location: Option<SourceLocation>,
 }
 
 impl ImportError {
@@ -34,7 +34,7 @@ impl ImportError {
         let mut builder = ReportBuilder::new();
         builder.with_kind(ReportKind::Error).with_message("Failed to import");
 
-        if let Some(src) = self.src {
+        if let Some(src) = self.location {
             builder
                 .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(src, "here")))
                 .add_element(ReportElement::Note(ReportNote::new(
@@ -52,7 +52,7 @@ impl ImportError {
 /// Function that builds a module map of the standard library that is shipped
 /// with the compiler distribution. Standard library modules are referenced
 /// within imports
-pub fn get_stdlib_modules(dir: impl AsRef<Path>) -> Vec<PathBuf> {
+fn get_stdlib_modules(dir: impl AsRef<Path>) -> Vec<PathBuf> {
     let mut paths: Vec<PathBuf> = Vec::new();
 
     if dir.as_ref().is_dir() {
@@ -99,7 +99,7 @@ pub fn get_stdlib_modules(dir: impl AsRef<Path>) -> Vec<PathBuf> {
 /// reading the file fails, an [ImportError] is returned.
 pub fn read_in_path(path: &Path) -> Result<String, ImportError> {
     fs::read_to_string(&path).map_err(|_| ImportError {
-        src: None,
+        location: None,
         message: format!("Cannot read file: {}", path.to_string_lossy()),
         filename: path.to_owned(),
     })
@@ -172,7 +172,7 @@ pub fn resolve_path(
             message:
                 "This directory likely doesn't have a `index.hash` module, consider creating one."
                     .to_string(),
-            src: location,
+            location,
         })
     } else {
         // we don't need to anything if the given raw_path already has a extension
@@ -200,8 +200,8 @@ pub fn resolve_path(
                 } else {
                     Err(ImportError {
                         filename: path.to_path_buf(),
-                        message: "Module couldn't be found".to_string(),
-                        src: location,
+                        message: "module couldn't be found".to_string(),
+                        location,
                     })
                 }
             }
