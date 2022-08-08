@@ -23,28 +23,34 @@ use syn::{
     Expr,
 };
 
+/// Struct representing parameter inputs to the [`generate_tests!`] proc macro.
 #[derive(Debug)]
 struct GenerateTestsInput {
+    /// The entry point of the `ui_tests`
     path: String,
+    /// What is the function that handles each test case.
     func: Expr,
+    /// What pattern to use when matching for case files.
     test_pattern: String,
+
+    /// prefix to use for when generating each test case.
     test_prefix: String,
-}
-
-fn parse_str_lit(expr: &Expr) -> syn::Result<String> {
-    let str_lit_err = || syn::Error::new_spanned(expr, "Expecting string literal");
-
-    match expr {
-        Expr::Lit(expr_lit) => match &expr_lit.lit {
-            syn::Lit::Str(str) => Ok(str.value()),
-            _ => Err(str_lit_err()),
-        },
-        _ => Err(str_lit_err()),
-    }
 }
 
 impl Parse for GenerateTestsInput {
     fn parse(input: ParseStream) -> syn::Result<Self> {
+        let parse_str_lit = |expr: &Expr| -> syn::Result<String> {
+            let str_lit_err = || syn::Error::new_spanned(expr, "Expecting string literal");
+
+            match expr {
+                Expr::Lit(expr_lit) => match &expr_lit.lit {
+                    syn::Lit::Str(str) => Ok(str.value()),
+                    _ => Err(str_lit_err()),
+                },
+                _ => Err(str_lit_err()),
+            }
+        };
+
         let mut result = Punctuated::<Expr, Comma>::parse_terminated(input)?;
         let args_err = || syn::Error::new(input.span(), "Expecting three arguments to macro");
 
@@ -66,12 +72,21 @@ impl Parse for GenerateTestsInput {
     }
 }
 
+/// A detected case entry, which holds the path of the directory
+/// that the file is in, and some other metadata about the test
+/// case, such as whether the case should pass, or which compiler
+/// stage it should run to, etc.
 #[derive(Debug, Clone)]
 struct FileEntry {
+    /// The directory path of where the test case is located.
     path: PathBuf,
+    /// Name of the file in snake case.
     snake_name: String,
 }
 
+/// Function to read a directory and extract all of the test cases within
+/// the directory recursively. The function will collect all files that match
+/// the specified `test_pattern`.
 fn read_dir(
     path: &Path,
     test_pattern: &Regex,
@@ -123,7 +138,7 @@ fn read_dir(
 /// will be generated.
 ///
 /// The format of this macro is as follows:
-/// ```notrust
+/// ```ignore
 /// generate_tests!(TEST_DIR, TEST_PATTERN, TEST_FN);
 /// ```
 ///

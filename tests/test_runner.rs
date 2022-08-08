@@ -8,7 +8,7 @@
 //! In the event of a `should_fail` case, the test will emit "reports" that
 //! signal what the error is, the case handler will render the reports
 //! into strings, strip any kind of ANSI codes, and compare with the
-//! `casename.stderr` to ensure that the test produces the expected errors.
+//! `case.stderr` to ensure that the test produces the expected errors.
 //!
 //! Additionally, it's also possible for the case file to specify at the
 //! top of the file what testing parameters should be provided, for example
@@ -137,9 +137,13 @@ fn handle_test(input: TestingInput) {
         assert!(result.is_ok(), "parsing file failed: {:?}", content_path);
     }
 }
-// "case.hash" is the test pattern.
-generate_tests!("./cases/", r"^case\.hash$", "self", handle_test);
 
+// Generate all the tests
+generate_tests!("./cases/", r"^*\.hash$", "ui_test", handle_test);
+
+// @@Todo: move this into `main.rs` within this crate
+// so that we can edit each individual test case rather
+// than using it as a constant.
 #[cfg(test)]
 mod tests {
     use super::*;
