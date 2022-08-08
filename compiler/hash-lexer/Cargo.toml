@@ -10,6 +10,4 @@ derive_more = "0.99"
 
 hash-source = {path = "../hash-source" }
 hash-token = {path = "../hash-token" }
-
-# We will use this when we unify errors from `lexer` and `parse` crates
-# hash-reporting = {path = "../hash-reporting" }
+hash-reporting = {path = "../hash-reporting" }

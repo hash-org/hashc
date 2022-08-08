@@ -1,9 +1,16 @@
-//! Hash Compiler parser error data types.
+//! Hash Compiler lexer error data types.
 
 use derive_more::Constructor;
-use hash_source::{location::Span, SourceId};
+use hash_reporting::{
+    builder::ReportBuilder,
+    diagnostic::Diagnostics,
+    report::{Report, ReportCodeBlock, ReportElement, ReportKind},
+};
+use hash_source::location::SourceLocation;
 use hash_token::{delimiter::Delimiter, TokenKind};
 use thiserror::Error;
+
+use crate::Lexer;
 
 /// Utility type that wraps a [Result] and a [LexerError]
 pub type LexerResult<T> = Result<T, LexerError>;
@@ -15,14 +22,10 @@ pub type LexerResult<T> = Result<T, LexerError>;
 #[derive(Debug, Constructor, Error)]
 #[error("{kind}{}", .message.as_ref().map(|s| format!(". {s}")).unwrap_or_else(|| String::from("")))]
 pub struct LexerError {
-    pub(crate) message: Option<String>,
+    message: Option<String>,
     kind: LexerErrorKind,
-    pub span: Span,
+    location: SourceLocation,
 }
-
-/// This implementation exists since we can't use tuples that are un-named
-/// with foreign module types.
-pub struct LexerErrorWrapper(pub SourceId, pub LexerError);
 
 /// A [LexerErrorKind] represents the kind of [LexerError] which gives
 /// additional context to the error with the provided message in [LexerError]
@@ -58,38 +61,62 @@ pub enum LexerErrorKind {
     Unclosed(Delimiter),
 }
 
-// For now, we don't use the reporting capabilities within the lexer and just
-// let the `hash-parser` crate handle the reporting. This is partially due to
-// the fact that the current infrastructure within the compiler will lex and
-// parse at the same time within the thread pool. Ideally, instead of passing
-// `<Lexer|Parser>Error` around, we could just use the `Report` type which is
-// agnostic and can also be sent as messages around the sub-systems.
+impl From<LexerError> for Report {
+    fn from(err: LexerError) -> Self {
+        let mut builder = ReportBuilder::new();
 
-// impl LexerError {
-//     pub fn create_report(&self, source_id: SourceId) -> Report {
-//         let mut builder = ReportBuilder::new();
+        builder
+            .with_kind(ReportKind::Error)
+            .with_message(err.to_string())
+            .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(err.location, "here")));
 
-//         builder
-//             .with_kind(ReportKind::Error)
-//             .with_message("Failed to parse")
-//             .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
-//                 SourceLocation {
-//                     span: self.span,
-//                     source_id,
-//                 },
-//                 "here",
-//             )))
-//             .add_element(ReportElement::Note(ReportNote::new(
-//                 ReportNoteKind::Note,
-//                 self.to_string(),
-//             )));
+        builder.build()
+    }
+}
 
-//         builder.build().unwrap()
-//     }
-// }
+/// Lexer error store, the lexer stores an internal store so that
+/// it can implement [DiagnosticsStore]
+#[derive(Default)]
+pub struct LexerDiagnostics {
+    errors: Vec<LexerError>,
+}
 
-// impl From<LexerErrorWrapper> for Report {
-//     fn from(LexerErrorWrapper(source_id, err): LexerErrorWrapper) -> Self {
-//         err.create_report(source_id)
-//     }
-// }
+impl Diagnostics<LexerError, LexerError> for Lexer<'_> {
+    type DiagnosticsStore = LexerDiagnostics;
+
+    fn store(&self) -> &Self::DiagnosticsStore {
+        &self.diagnostics
+    }
+
+    /// Add an error into the store
+    fn add_error(&mut self, error: LexerError) {
+        self.diagnostics.errors.push(error);
+    }
+
+    /// The lexer does not currently emit any warnings and so if this
+    /// is called, it should panic.
+    fn add_warning(&mut self, _: LexerError) {
+        unimplemented!()
+    }
+
+    fn has_errors(&self) -> bool {
+        !self.diagnostics.errors.is_empty()
+    }
+
+    /// Lexer never emits any warnings so this always false
+    fn has_warnings(&self) -> bool {
+        false
+    }
+
+    fn into_reports(self) -> Vec<Report> {
+        self.diagnostics.errors.into_iter().map(|err| err.into()).collect()
+    }
+
+    fn into_errors(self) -> Vec<LexerError> {
+        self.diagnostics.errors
+    }
+
+    fn merge(&mut self, other: impl Diagnostics<LexerError, LexerError>) {
+        self.diagnostics.errors.extend(other.into_errors())
+    }
+}

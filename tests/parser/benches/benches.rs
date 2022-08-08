@@ -27,7 +27,7 @@ macro_rules! bench_func {
                 // create a new lexer
                 let mut lex = Lexer::new($source, SourceId::Interactive(interactive_id));
 
-                while let Ok(Some(token)) = lex.advance_token() {
+                while let Some(token) = lex.advance_token() {
                     black_box(token);
                 }
             });

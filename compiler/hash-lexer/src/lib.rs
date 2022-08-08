@@ -4,8 +4,13 @@
 
 use std::{cell::Cell, iter};
 
-use error::{LexerError, LexerErrorKind, LexerErrorWrapper, LexerResult};
-use hash_source::{identifier::CORE_IDENTIFIERS, location::Span, SourceId};
+use error::{LexerDiagnostics, LexerError, LexerErrorKind, LexerResult};
+use hash_reporting::diagnostic::Diagnostics;
+use hash_source::{
+    identifier::CORE_IDENTIFIERS,
+    location::{SourceLocation, Span},
+    SourceId,
+};
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind};
 use utils::is_id_start;
 
@@ -35,10 +40,18 @@ pub struct Lexer<'a> {
     /// Representing the last character the lexer encountered. This is only set
     /// by [Lexer::advance_token] so that [Lexer::eat_token_tree] can perform a
     /// check on if the token tree was closed up.
-    // @@Cleanup: We could use a delimiter stack to automatically guarantee this?
     previous_delimiter: Cell<Option<char>>,
 
+    /// Token tree store, essentially a collection of token trees that are
+    /// produced when the lexer encounters bracketed token streams.
     token_trees: Vec<Vec<Token>>,
+
+    /// The lexer diagnostics store
+    diagnostics: LexerDiagnostics,
+
+    /// Whether the [Lexer] encountered a fatal error and
+    /// must abort on the next token advance
+    fatal_error: Cell<bool>,
 }
 
 impl<'a> Lexer<'a> {
@@ -48,9 +61,38 @@ impl<'a> Lexer<'a> {
             offset: Cell::new(0),
             source_id,
             previous_delimiter: Cell::new(None),
+            fatal_error: Cell::new(false),
             contents,
             token_trees: vec![],
+            diagnostics: LexerDiagnostics::default(),
         }
+    }
+
+    /// Put an error into the [LexerDiagnostics]
+    fn emit_error(
+        &mut self,
+        message: Option<String>,
+        kind: LexerErrorKind,
+        span: Span,
+    ) -> TokenKind {
+        self.add_error(LexerError::new(
+            message,
+            kind,
+            SourceLocation { span, source_id: self.source_id },
+        ));
+
+        TokenKind::Err
+    }
+
+    /// Create a Lexer error and return a [Result], but internally
+    /// it is always the [Err] variant.
+    fn error<T>(
+        &self,
+        message: Option<String>,
+        kind: LexerErrorKind,
+        span: Span,
+    ) -> Result<T, LexerError> {
+        Err(LexerError::new(message, kind, SourceLocation { span, source_id: self.source_id }))
     }
 
     /// Returns a reference to the stored token trees for the current job
@@ -59,13 +101,8 @@ impl<'a> Lexer<'a> {
     }
 
     /// Tokenise the given input stream
-    pub fn tokenise(&mut self) -> Result<Vec<Token>, LexerErrorWrapper> {
-        let iter = std::iter::from_fn(|| self.advance_token().transpose());
-
-        iter.collect::<Result<_, _>>().map_err(|err| LexerErrorWrapper(self.source_id, err))
-
-        // Row::try_from_iter(iter, wall).map_err(|err|
-        // LexerErrorWrapper(self.source_id, err))
+    pub fn tokenise(&mut self) -> Vec<Token> {
+        std::iter::from_fn(|| self.advance_token()).collect::<Vec<_>>()
     }
 
     /// Returns amount of already consumed symbols.
@@ -75,12 +112,12 @@ impl<'a> Lexer<'a> {
     }
 
     /// Peeks the next symbol from the input stream without consuming it.
-    fn peek(&self) -> char {
+    fn peek(&mut self) -> char {
         self.nth_char(0)
     }
 
     /// Peeks the second symbol from the input stream without consuming it.
-    fn peek_second(&self) -> char {
+    fn peek_second(&mut self) -> char {
         self.nth_char(1)
     }
 
@@ -104,7 +141,7 @@ impl<'a> Lexer<'a> {
     }
 
     /// Moves to the next character.
-    fn next(&self) -> Option<char> {
+    fn next(&mut self) -> Option<char> {
         let slice = unsafe { self.as_slice() };
         let ch = slice.chars().next()?;
 
@@ -113,7 +150,7 @@ impl<'a> Lexer<'a> {
     }
 
     /// Move to the next character and skip it essentially.
-    fn skip(&self) {
+    fn skip(&mut self) {
         let slice = unsafe { self.as_slice() };
         let ch = slice.chars().next().unwrap();
 
@@ -127,7 +164,7 @@ impl<'a> Lexer<'a> {
     }
 
     /// Parses a token from the input string.
-    pub fn advance_token(&mut self) -> LexerResult<Option<Token>> {
+    pub fn advance_token(&mut self) -> Option<Token> {
         // Eat any comments or whitespace before processing the token...
         loop {
             match self.peek() {
@@ -142,10 +179,7 @@ impl<'a> Lexer<'a> {
 
                         // @@Hack: since we already compare if the first item is a slash, we'll just
                         // return here the slash and advance it by one.
-                        return Ok(Some(Token::new(
-                            TokenKind::Slash,
-                            Span::new(offset, offset + 1),
-                        )));
+                        return Some(Token::new(TokenKind::Slash, Span::new(offset, offset + 1)));
                     }
                 },
                 _ => break,
@@ -155,9 +189,7 @@ impl<'a> Lexer<'a> {
         let offset = self.offset.get();
         let next_token = self.next();
 
-        if next_token.is_none() {
-            return Ok(None);
-        }
+        next_token?;
 
         // We avoid checking if the tokens are compound here because we don't really
         // want to deal with comments and spaces in an awkward way... Once the
@@ -167,9 +199,9 @@ impl<'a> Lexer<'a> {
         // > ':' => match self.peek() {
         // >   ':' => {
         // > self.next();
-        // > break TokenAtom::NameAccess
+        // > break TokenKind::NameAccess
         // > }
-        // >   _ => break TokenAtom::Colon
+        // >   _ => break TokenKind::Colon
         // > },
         //
         // could work here, but however what about if there was a space or a comment
@@ -200,31 +232,36 @@ impl<'a> Lexer<'a> {
 
             // Consume a token tree, which is a starting delimiter, followed by a an arbitrary
             // number of tokens and closed by a following delimiter...
-            ch @ ('(' | '{' | '[') => self.eat_token_tree(Delimiter::from_left(ch).unwrap())?,
+            ch @ ('(' | '{' | '[') => self.eat_token_tree(Delimiter::from_left(ch).unwrap()),
 
             // Identifier (this should be checked after other variant that can
             // start as identifier).
             ch if is_id_start(ch) => self.ident(ch),
             // Numeric literal.
-            ch @ '0'..='9' => self.number(ch)?,
+            ch @ '0'..='9' => self.number(ch),
             // character literal.
-            '\'' => self.char()?,
+            '\'' => self.char(),
             // String literal.
-            '"' => self.string()?,
+            '"' => self.string(),
 
             // We have to exit the current tree if we encounter a closing delimiter...
             ch @ (')' | '}' | ']') => {
                 self.previous_delimiter.set(Some(ch));
 
-                return Ok(None);
+                return None;
             }
 
             // We didn't get a hit on the right token...
             ch => TokenKind::Unexpected(ch),
         };
 
+        // If we encountered a unrecoverable error, then terminate
+        if self.fatal_error.get() {
+            return None;
+        }
+
         let location = Span::new(offset, self.len_consumed());
-        Ok(Some(Token::new(token_kind, location)))
+        Some(Token::new(token_kind, location))
     }
 
     /// This will essentially recursively consume tokens until it reaches the
@@ -233,7 +270,7 @@ impl<'a> Lexer<'a> {
     /// as an error because it is essentially an un-closed block. This kind of
     /// behaviour is desired and avoids performing complex delimiter depth
     /// analysis later on.
-    fn eat_token_tree(&mut self, delimiter: Delimiter) -> LexerResult<TokenKind> {
+    fn eat_token_tree(&mut self, delimiter: Delimiter) -> TokenKind {
         let mut children_tokens = vec![];
         let start = self.offset.get() - 1; // we need to ge the previous location to accurately denote the error...
 
@@ -242,12 +279,17 @@ impl<'a> Lexer<'a> {
         self.previous_delimiter.set(None);
 
         while !self.is_eof() {
-            // @@ErrorReporting: Option here doesn't just mean EOF, it could also be that
+            // `None` here doesn't just mean EOF, it could also be that
             // the next token failed to be parsed.
-            match self.advance_token()? {
+            match self.advance_token() {
                 Some(token) => children_tokens.push(token),
                 None => break,
             };
+        }
+
+        // If there is a fatal error, then we need to abort
+        if self.fatal_error.get() {
+            return TokenKind::Err;
         }
 
         match self.previous_delimiter.get() {
@@ -255,20 +297,20 @@ impl<'a> Lexer<'a> {
                 // push this to the token_trees and get the current index to use instead...
                 self.token_trees.push(children_tokens);
 
-                Ok(TokenKind::Tree(delimiter, self.token_trees.len() - 1))
+                TokenKind::Tree(delimiter, self.token_trees.len() - 1)
             }
-            _ => Err(LexerError::new(
+            _ => self.emit_error(
                 None,
                 LexerErrorKind::Unclosed(delimiter),
                 Span::new(start, start + 1),
-            )),
+            ),
         }
     }
 
     /// Consume an identifier, at this stage keywords are also considered to be
     /// identifiers. The function expects that the first character of the
     /// identifier is consumed when the function is called.
-    fn ident(&self, first: char) -> TokenKind {
+    fn ident(&mut self, first: char) -> TokenKind {
         debug_assert!(is_id_start(first));
 
         let start = self.offset.get() - first.len_utf8();
@@ -321,7 +363,7 @@ impl<'a> Lexer<'a> {
     /// Consume a number literal, either float or integer. The function expects
     /// that the first character of the numeric literal is consumed when the
     /// function is called.
-    fn number(&self, prev: char) -> LexerResult<TokenKind> {
+    fn number(&mut self, prev: char) -> TokenKind {
         // record the start location of the literal
         let start = self.offset.get() - 1;
 
@@ -346,20 +388,22 @@ impl<'a> Lexer<'a> {
                 // @@ErrorHandling: We shouldn't error here, this should be handled by the
                 // SmallVec<..> change to integers
                 if value.is_err() {
-                    return Err(LexerError::new(
+                    return self.emit_error(
                         Some("Integer literal too large".to_string()),
                         LexerErrorKind::MalformedNumericalLit,
                         Span::new(start, self.offset.get()),
-                    ));
+                    );
                 }
 
-                return Ok(TokenKind::IntLit(value.unwrap()));
+                return TokenKind::IntLit(value.unwrap());
             }
         }
 
         // @@Performance: could avoid allocating the string here?
-        let pre_digits =
-            iter::once(prev).chain(self.eat_decimal_digits(10).chars()).filter(|c| *c != '_');
+        let pre_digits = iter::once(prev)
+            .chain(self.eat_decimal_digits(10).chars())
+            .filter(|c| *c != '_')
+            .collect::<String>();
 
         // peek next to check if this is an actual float literal...
         match self.peek() {
@@ -375,58 +419,67 @@ impl<'a> Lexer<'a> {
                 let after_digits = self.eat_decimal_digits(10);
 
                 let num = pre_digits
+                    .chars()
                     .chain(std::iter::once('.'))
-                    .chain(after_digits.chars().filter(|c| *c != '_'));
+                    .chain(after_digits.chars().filter(|c| *c != '_'))
+                    .collect::<String>();
 
-                self.eat_float_lit(num, start)
+                self.eat_float_lit(num.chars(), start)
             }
             // Immediate exponent
-            'e' | 'E' => self.eat_float_lit(pre_digits, start),
+            'e' | 'E' => self.eat_float_lit(pre_digits.chars(), start),
             _ => {
-                let digits = pre_digits.collect::<String>();
-
                 // @@TODO: Use our own parser for integers and floats instead of relying on
                 // rust's default one.
-                match digits.parse::<u64>() {
-                    Err(err) => Err(LexerError::new(
-                        Some(format!("{}.", err)),
-                        LexerErrorKind::MalformedNumericalLit,
-                        Span::new(start, self.offset.get()),
-                    )),
-                    Ok(value) => Ok(TokenKind::IntLit(value)),
+                match pre_digits.parse::<u64>() {
+                    Err(err) => {
+                        self.emit_error(
+                            Some(format!("{}.", err)),
+                            LexerErrorKind::MalformedNumericalLit,
+                            Span::new(start, self.offset.get()),
+                        );
+
+                        TokenKind::Err
+                    }
+                    Ok(value) => TokenKind::IntLit(value),
                 }
             }
         }
     }
 
     /// Function to apply an exponent to a floating point literal.
-    fn eat_float_lit(
-        &self,
-        num: impl Iterator<Item = char>,
-        start: usize,
-    ) -> LexerResult<TokenKind> {
+    fn eat_float_lit(&mut self, num: impl Iterator<Item = char>, start: usize) -> TokenKind {
         let num = num.collect::<String>().parse::<f64>();
 
         match num {
-            Err(err) => Err(LexerError::new(
-                Some(format!("{}.", err)),
-                LexerErrorKind::MalformedNumericalLit,
-                Span::new(start, self.offset.get()),
-            )),
+            Err(err) => {
+                self.emit_error(
+                    Some(format!("{}.", err)),
+                    LexerErrorKind::MalformedNumericalLit,
+                    Span::new(start, self.offset.get()),
+                );
+                TokenKind::Err
+            }
             Ok(value) => {
-                let exp = self.eat_exponent(start)?;
+                match self.eat_exponent(start) {
+                    Ok(exp) => {
+                        // if an exponent was specified, as in it is non-zero, we need to apply the
+                        // exponent to the float literal.
+                        let value = if exp != 0 { value * 10f64.powi(exp) } else { value };
 
-                // if an exponent was specified, as in it is non-zero, we need to apply the
-                // exponent to the float literal.
-                let value = if exp != 0 { value * 10f64.powi(exp) } else { value };
-
-                Ok(TokenKind::FloatLit(value))
+                        TokenKind::FloatLit(value)
+                    }
+                    Err(err) => {
+                        self.add_error(err);
+                        TokenKind::Err
+                    }
+                }
             }
         }
     }
 
     /// Consume an exponent for a float literal.
-    fn eat_exponent(&self, start: usize) -> LexerResult<i32> {
+    fn eat_exponent(&mut self, start: usize) -> LexerResult<i32> {
         if !matches!(self.peek(), 'e' | 'E') {
             // @@Hack: we return a zero to signal that there was no exponent and therefore
             // avoid applying it later
@@ -445,19 +498,19 @@ impl<'a> Lexer<'a> {
 
         // Check that there is at least on digit in the exponent
         if self.peek() == EOF_CHAR {
-            return Err(LexerError::new(
+            return self.error(
                 None,
                 LexerErrorKind::MissingExponentDigits,
                 Span::new(start, self.offset.get()),
-            ));
+            );
         }
 
         match self.eat_decimal_digits(10).parse::<i32>() {
-            Err(_) => Err(LexerError::new(
+            Err(_) => self.error(
                 Some("Invalid float exponent.".to_string()),
                 LexerErrorKind::MalformedNumericalLit,
                 Span::new(start, self.offset.get() + 1),
-            )),
+            ),
             Ok(num) if negated => Ok(-num),
             Ok(num) => Ok(num),
         }
@@ -466,14 +519,14 @@ impl<'a> Lexer<'a> {
     /// Consume only decimal digits up to encountering a non-decimal digit
     /// whilst taking into account that the language supports '_' as digit
     /// separators which should just be skipped over...
-    fn eat_decimal_digits(&self, radix: u32) -> &str {
+    fn eat_decimal_digits(&mut self, radix: u32) -> &str {
         self.eat_while_and_slice(move |c| c.is_digit(radix) || c == '_')
     }
 
     /// Transform an ordinary character into a well known escape sequence
     /// specified by the escape literal rules. More information about the
     /// escape sequences can be found at [escape sequences](https://hash-org.github.io/lang/basics/intro.html)
-    fn char_from_escape_seq(&self) -> LexerResult<char> {
+    fn char_from_escape_seq(&mut self) -> LexerResult<char> {
         let c = self.next().unwrap();
 
         // we need to compute the old byte offset by accounting for both the 'u'
@@ -488,46 +541,46 @@ impl<'a> Lexer<'a> {
                 // The next character should be a '{', otherwise this isn't a correct escaped
                 // literal
                 if self.peek() != '{' {
-                    return Err(LexerError::new(
+                    return self.error(
                         Some("Expected `{` after a `\\u` escape sequence".to_string()),
                         LexerErrorKind::BadEscapeSequence,
                         Span::new(start, self.offset.get()),
-                    ));
+                    );
                 }
 
                 self.skip(); // Eat the '{' beginning part of the scape sequence
 
                 // here we expect up to 6 hex digits, which is finally closed by a '}'
-                let chars = self.eat_while_and_slice(|c| c.is_ascii_hexdigit());
+                let chars = self.eat_while_and_slice(|c| c.is_ascii_hexdigit()).to_string();
 
                 if self.peek() != '}' {
-                    return Err(LexerError::new(
-                        Some("Expected `}` after a escape sequence".to_string()),
+                    return self.error(
+                        Some("expected `}` after a escape sequence".to_string()),
                         LexerErrorKind::BadEscapeSequence,
                         Span::new(self.offset.get(), self.offset.get() + 1),
-                    ));
+                    );
                 }
                 self.skip(); // Eat the '}' ending part of the scape sequence
 
                 if chars.len() > 6 {
-                    return Err(LexerError::new(
+                    return self.error(
                         Some("Unicode escape literal must be at most 6 hex digits".to_string()),
                         LexerErrorKind::BadEscapeSequence,
                         Span::new(start, self.offset.get()),
-                    ));
+                    );
                 }
 
-                let value = u32::from_str_radix(chars, 16);
+                let value = u32::from_str_radix(chars.as_str(), 16);
 
                 if value.is_err() {
-                    return Err(LexerError::new(
+                    return self.error(
                         Some(
                             "Unicode escape literal must only be comprised of hex digits"
                                 .to_string(),
                         ),
                         LexerErrorKind::BadEscapeSequence,
                         Span::new(start, self.offset.get()),
-                    ));
+                    );
                 }
 
                 Ok(char::from_u32(value.unwrap()).unwrap())
@@ -539,16 +592,16 @@ impl<'a> Lexer<'a> {
                 let chars: Result<String, LexerError> = (0..2)
                     .map(|_| match self.peek() {
                         c if c.is_ascii_hexdigit() => Ok(self.next().unwrap()),
-                        EOF_CHAR => Err(LexerError::new(
+                        EOF_CHAR => self.error(
                             Some("ASCII escape code too short".to_string()),
                             LexerErrorKind::BadEscapeSequence,
                             Span::new(start, self.offset.get()),
-                        )),
-                        c => Err(LexerError::new(
+                        ),
+                        c => self.error(
                             Some("ASCII escape code must only contain hex digits".to_string()),
                             LexerErrorKind::Unexpected(c),
                             Span::new(start, self.offset.get()),
-                        )),
+                        ),
                     })
                     .collect();
 
@@ -568,11 +621,11 @@ impl<'a> Lexer<'a> {
             '\\' => Ok('\\'),
             '"' => Ok('\"'),
             '\'' => Ok('\''),
-            ch => Err(LexerError::new(
-                Some(format!("Unknown escape sequence `{}`", ch)),
+            ch => self.error(
+                Some(format!("unknown escape sequence `{}`", ch)),
                 LexerErrorKind::BadEscapeSequence,
                 Span::new(start, start + 1),
-            )),
+            ),
         }
     }
 
@@ -581,7 +634,7 @@ impl<'a> Lexer<'a> {
     /// that the literal is correctly formed and is ended before the end of
     /// file is reached. This function expects the the callee has previously
     /// eaten the starting single quote.
-    fn char(&self) -> LexerResult<TokenKind> {
+    fn char(&mut self) -> TokenKind {
         // Subtract one to capture the previous quote, since we know it's one byte in
         // size
         let start = self.offset.get() - 1;
@@ -593,58 +646,79 @@ impl<'a> Lexer<'a> {
             let ch = self.next().unwrap();
             self.skip();
 
-            return Ok(TokenKind::CharLit(ch));
+            return TokenKind::CharLit(ch);
         } else if self.peek() == '\\' {
             // otherwise, this is an escaped char and hence we eat the '\' and use the next
             // char as the actual char by escaping it
             self.skip();
 
-            let ch = self.char_from_escape_seq()?;
-            let next = self.peek();
+            match self.char_from_escape_seq() {
+                Ok(ch) => {
+                    let next = self.peek();
 
-            // eat the single quote after the character
-            if next != '\'' {
-                let offset = self.offset.get();
+                    // eat the single quote after the character
+                    if next != '\'' {
+                        let offset = self.offset.get();
 
-                // @@Improvement: Maybe make this a function to check if we're about to hit the
-                // end...
-                if next == EOF_CHAR {
-                    return Err(LexerError::new(
-                        Some("Unclosed character literal".to_string()),
-                        LexerErrorKind::Expected(TokenKind::SingleQuote),
-                        Span::new(offset, offset + 1),
-                    ));
+                        // @@Improvement: Maybe make this a function to check if we're about to hit
+                        // the end...
+                        if next == EOF_CHAR {
+                            return self.emit_error(
+                                Some("unclosed character literal".to_string()),
+                                LexerErrorKind::Expected(TokenKind::SingleQuote),
+                                Span::new(offset, offset + 1),
+                            );
+                        }
+
+                        return self.emit_error(
+                            Some("character literal can only contain one codepoint".to_string()),
+                            LexerErrorKind::BadEscapeSequence,
+                            Span::new(start, offset),
+                        );
+                    }
+
+                    self.skip(); // eat the ending part of the character literal `'`
+
+                    return TokenKind::CharLit(ch);
                 }
+                Err(err) => {
+                    // Add the error to the diagnostics, and then try to recover by seeing if we can
+                    // get the next token to be a `'`
+                    self.add_error(err);
 
-                return Err(LexerError::new(
-                    Some("Character literal can only contain one codepoint".to_string()),
-                    LexerErrorKind::BadEscapeSequence,
-                    Span::new(start, offset),
-                ));
-            }
+                    if self.peek() != '\'' {
+                        self.fatal_error.set(true);
+                    }
+                    self.skip(); // Recover...
 
-            self.skip(); // eat the ending part of the character literal `'`
-
-            return Ok(TokenKind::CharLit(ch));
+                    return TokenKind::Err;
+                }
+            };
         }
 
         // So here we know that this is an invalid character literal, to improve
         // the reporting aspect, we want to eat up until the next `'` in order
         // to highlight the entire literal
-        let lit = self.eat_while_and_slice(move |c| c != '\'' && !c.is_whitespace());
+        let lit = self.eat_while_and_slice(move |c| c != '\'' && !c.is_whitespace()).to_string();
 
-        Err(LexerError::new(
+        // @@ErrorReporting: essentially we jump over the erroneous character literal
+        // and continue lexing
+        if !self.is_eof() {
+            self.skip();
+        }
+
+        self.emit_error(
             None,
-            LexerErrorKind::InvalidCharacterLit(lit.to_string()),
-            Span::new(start, self.offset.get() + 1),
-        ))
+            LexerErrorKind::InvalidCharacterLit(lit),
+            Span::new(start, self.offset.get()),
+        )
     }
 
     /// Consume a string literal provided that the current previous token is a
     /// double quote, this will produce a [TokenKind::StrLit] provided
     /// that the literal is correctly formed and is ended before the end of
     /// file is reached.
-    fn string(&self) -> LexerResult<TokenKind> {
+    fn string(&mut self) -> TokenKind {
         let mut value = String::from("");
         let mut closed = false;
 
@@ -656,46 +730,53 @@ impl<'a> Lexer<'a> {
                     closed = true;
                     break;
                 }
-                '\\' => {
-                    let ch = self.char_from_escape_seq()?;
-                    value.push(ch);
-                }
+                '\\' => match self.char_from_escape_seq() {
+                    Ok(ch) => value.push(ch),
+                    Err(err) => {
+                        self.add_error(err);
+                        return TokenKind::Err;
+                    }
+                },
                 ch => value.push(ch),
             }
         }
 
-        // Report that the literal is unclosed
+        // Report that the literal is unclosed and set the error as being fatal
         if !closed {
-            return Err(LexerError::new(
+            self.fatal_error.set(true);
+
+            return self.emit_error(
                 None,
                 LexerErrorKind::UnclosedStringLit,
                 Span::new(start, self.offset.get()),
-            ));
+            );
         }
 
         // Essentially we put the string into the literal map and get an id out which we
         // use for the actual representation in the token
-        Ok(TokenKind::StrLit(value.into()))
+        TokenKind::StrLit(value.into())
     }
 
     /// Consume a line comment after the first following slash, essentially
-    /// eating characters up to the next '\n' encountered. If we reach EOF
+    /// eating characters up to the next `\n` encountered. If we reach `EOF`
     /// before a newline, then we stop eating there.
-    //@@DocSupport: These could return a TokenKind so that we can feed it into some
-    //@@DocSupport: kind of documentation generator tool
-    fn line_comment(&self) {
+    ///
+    /// @@DocSupport: These could return a TokenKind so that we can feed it into
+    /// some kind of documentation generator tool
+    fn line_comment(&mut self) {
         debug_assert!(self.peek() == '/' && self.peek_second() == '/');
         self.skip();
         self.eat_while_and_discard(|c| c != '\n');
     }
 
-    /// Consume a block comment after the first following '/*' sequence of
+    /// Consume a block comment after the first following `/*a` sequence of
     /// characters. If the iterator encounters the start of another block
     /// comment, we increment a nested comment counter to ensure that nested
     /// block comments are accounted for and handled gracefully.
-    //@@DocSupport: These could return a TokenKind so that we can feed it into some
-    //@@DocSupport: kind of documentation generator tool
-    fn block_comment(&self) {
+    ///
+    /// @@DocSupport: These could return a TokenKind so that we can feed it into
+    /// some kind of documentation generator tool
+    fn block_comment(&mut self) {
         debug_assert!(self.peek() == '/' && self.peek_second() == '*');
         self.skip();
 
@@ -730,7 +811,7 @@ impl<'a> Lexer<'a> {
     /// discard any characters that it encounters whilst eating the input,
     /// this is useful because in some cases we don't want to preserve what
     /// the token represents, such as comments or white-spaces...
-    fn eat_while_and_discard(&self, mut condition: impl FnMut(char) -> bool) {
+    fn eat_while_and_discard(&mut self, mut condition: impl FnMut(char) -> bool) {
         let slice = unsafe { self.as_slice() }.chars();
 
         for ch in slice {
@@ -746,7 +827,7 @@ impl<'a> Lexer<'a> {
     /// slice from where it began to eat the input and where it finished,
     /// this is sometimes beneficial as the slice doesn't have to be
     /// re-allocated as a string.
-    fn eat_while_and_slice(&self, condition: impl FnMut(char) -> bool) -> &str {
+    fn eat_while_and_slice(&mut self, condition: impl FnMut(char) -> bool) -> &str {
         let start = self.offset.get();
         self.eat_while_and_discard(condition);
         let end = self.offset.get();
