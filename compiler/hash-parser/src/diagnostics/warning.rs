@@ -1,6 +1,7 @@
 //! Parser warning definitions.
 #![allow(unused, dead_code)]
 
+use derive_more::Constructor;
 use hash_reporting::{
     builder::ReportBuilder,
     report::{Report, ReportCodeBlock, ReportElement, ReportKind},
@@ -8,6 +9,7 @@ use hash_reporting::{
 use hash_source::location::SourceLocation;
 
 /// Represents a generated warning from within [AstGen]
+#[derive(Constructor)]
 pub struct ParseWarning {
     /// The kind of warning that is generated, stores relevant information
     /// about the warning

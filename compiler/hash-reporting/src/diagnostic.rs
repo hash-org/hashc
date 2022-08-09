@@ -39,5 +39,5 @@ pub trait Diagnostics<E: Into<Report>, W: Into<Report>> {
     fn into_diagnostics(self) -> (Vec<E>, Vec<W>);
 
     /// Merge another diagnostic store with this one.
-    fn merge(&mut self, other: impl Diagnostics<E, W>);
+    fn merge_diagnostics(&mut self, other: impl Diagnostics<E, W>);
 }

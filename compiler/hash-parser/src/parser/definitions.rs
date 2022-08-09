@@ -16,21 +16,21 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub fn parse_struct_def(&self) -> ParseResult<StructDef> {
         debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Struct)));
 
-        let gen = self.parse_delim_tree(
+        let mut gen = self.parse_delim_tree(
             Delimiter::Paren,
             Some(ParseErrorKind::TypeDefinition(TyArgumentKind::Struct)),
         )?;
 
         let entries = gen.parse_separated_fn(
-            || gen.parse_struct_def_entry(),
-            || gen.parse_token(TokenKind::Comma),
+            |g| g.parse_struct_def_entry(),
+            |g| g.parse_token(TokenKind::Comma),
         )?;
 
         Ok(StructDef { entries })
     }
 
     /// Parse a struct definition entry which is represented as a [Param].
-    pub fn parse_struct_def_entry(&self) -> ParseResult<AstNode<Param>> {
+    pub fn parse_struct_def_entry(&mut self) -> ParseResult<AstNode<Param>> {
         let name = self.parse_name()?;
         let name_span = name.span();
 
@@ -53,7 +53,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         Ok(self.node_with_joined_span(
             Param { name, ty, default, origin: ParamOrigin::Struct },
-            &name_span,
+            name_span,
         ))
     }
 
@@ -62,14 +62,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub fn parse_enum_def(&self) -> ParseResult<EnumDef> {
         debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Enum)));
 
-        let gen = self.parse_delim_tree(
+        let mut gen = self.parse_delim_tree(
             Delimiter::Paren,
             Some(ParseErrorKind::TypeDefinition(TyArgumentKind::Enum)),
         )?;
 
         let entries = gen.parse_separated_fn(
-            || gen.parse_enum_def_entry(),
-            || gen.parse_token(TokenKind::Comma),
+            |g| g.parse_enum_def_entry(),
+            |g| g.parse_token(TokenKind::Comma),
         )?;
 
         Ok(EnumDef { entries })
@@ -83,25 +83,25 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let mut args = AstNodes::empty();
 
         if matches!(self.peek(), Some(token) if token.is_paren_tree()) {
-            let gen = self.parse_delim_tree(Delimiter::Paren, None)?;
+            let mut gen = self.parse_delim_tree(Delimiter::Paren, None)?;
             args =
-                gen.parse_separated_fn(|| gen.parse_type(), || gen.parse_token(TokenKind::Comma))?;
+                gen.parse_separated_fn(|g| g.parse_type(), |g| g.parse_token(TokenKind::Comma))?;
         }
 
-        Ok(self.node_with_joined_span(EnumDefEntry { name, args }, &name_span))
+        Ok(self.node_with_joined_span(EnumDefEntry { name, args }, name_span))
     }
 
     /// Parse a [TyFnDef]. Type functions specify logic at the type
     /// level on expressions such as struct, enum, function, and trait
     /// definitions.
-    pub fn parse_ty_fn_def(&self) -> ParseResult<TyFnDef> {
+    pub fn parse_ty_fn_def(&mut self) -> ParseResult<TyFnDef> {
         let mut params = AstNodes::empty();
 
         // Flag denoting that we were able to parse the ending `>` within the function
         // def arg
         let mut arg_ending = false;
 
-        while let Some(param) = self.peek_resultant_fn(|| self.parse_ty_fn_def_arg()) {
+        while let Some(param) = self.peek_resultant_fn(|g| g.parse_ty_fn_def_arg()) {
             params.nodes.push(param);
 
             match self.peek() {
@@ -133,7 +133,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
 
         // see if we need to add a return ty...
-        let return_ty = match self.peek_resultant_fn(|| self.parse_thin_arrow()) {
+        let return_ty = match self.peek_resultant_fn(|g| g.parse_thin_arrow()) {
             Some(_) => Some(self.parse_type()?),
             None => None,
         };
@@ -178,7 +178,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 }),
                 origin: ParamOrigin::TyFn,
             },
-            &start,
+            start,
         ))
     }
 

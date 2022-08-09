@@ -60,7 +60,7 @@ impl Diagnostics<AnalysisError, AnalysisWarning> for SemanticAnalyser<'_> {
         (self.diagnostics.errors, self.diagnostics.warnings)
     }
 
-    fn merge(&mut self, other: impl Diagnostics<AnalysisError, AnalysisWarning>) {
+    fn merge_diagnostics(&mut self, other: impl Diagnostics<AnalysisError, AnalysisWarning>) {
         let (errors, warnings) = other.into_diagnostics();
 
         self.diagnostics.errors.extend(errors);

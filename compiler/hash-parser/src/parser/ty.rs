@@ -45,9 +45,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     lhs =
                         match op {
                             BinTyOp::Union => self
-                                .node_with_joined_span(Ty::Union(UnionTy { lhs, rhs }), &lhs_span),
+                                .node_with_joined_span(Ty::Union(UnionTy { lhs, rhs }), lhs_span),
                             BinTyOp::Merge => self
-                                .node_with_joined_span(Ty::Merge(MergeTy { lhs, rhs }), &lhs_span),
+                                .node_with_joined_span(Ty::Merge(MergeTy { lhs, rhs }), lhs_span),
                         }
                 }
                 _ => break,
@@ -153,8 +153,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
                     Ty::TyFnCall(TyFnCall {
                         subject: self.node_with_joined_span(
-                            Expr::new(ExprKind::Ty(TyExpr(self.node_with_joined_span(ty, &span)))),
-                            &span,
+                            Expr::new(ExprKind::Ty(TyExpr(self.node_with_joined_span(ty, span)))),
+                            span,
                         ),
                         args: self.parse_ty_args(true)?,
                     })
@@ -163,7 +163,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     self.offset.update(|offset| offset + 2);
 
                     Ty::Access(AccessTy {
-                        subject: self.node_with_joined_span(ty, &span),
+                        subject: self.node_with_joined_span(ty, span),
                         property: self.parse_name()?
                     })
                 }
@@ -171,7 +171,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
         }
 
-        Ok(self.node_with_joined_span(ty, &span))
+        Ok(self.node_with_joined_span(ty, span))
     }
 
     /// This parses type arguments, however due to the nature of the language
@@ -247,7 +247,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     fn parse_fn_or_tuple_ty(&self) -> ParseResult<Ty> {
         let mut params = AstNodes::empty();
 
-        let gen = self.parse_delim_tree(Delimiter::Paren, None)?;
+        let mut gen = self.parse_delim_tree(Delimiter::Paren, None)?;
         params.span = gen.parent_span;
 
         match gen.peek() {
@@ -258,25 +258,25 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
             _ => {
                 params = gen.parse_separated_fn(
-                    || {
-                        let start = gen.next_location();
+                    |g| {
+                        let start = g.next_location();
 
                         // Here we have to essentially try and parse a identifier. If this is the
                         // case and then there is a colon present then we
                         // have a named field.
-                        let (name, ty) = match gen.peek_second() {
+                        let (name, ty) = match g.peek_second() {
                             Some(token) if token.has_kind(TokenKind::Colon) => {
-                                let ident = gen.parse_name()?;
-                                gen.skip_token(); // :
+                                let ident = g.parse_name()?;
+                                g.skip_token(); // :
 
-                                (Some(ident), gen.parse_type()?)
+                                (Some(ident), g.parse_type()?)
                             }
-                            _ => (None, gen.parse_type()?),
+                            _ => (None, g.parse_type()?),
                         };
 
-                        Ok(gen.node_with_joined_span(TyArg { name, ty }, &start))
+                        Ok(g.node_with_joined_span(TyArg { name, ty }, start))
                     },
-                    || gen.parse_token(TokenKind::Comma),
+                    |g| g.parse_token(TokenKind::Comma),
                 )?;
             }
         };
@@ -287,7 +287,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             !gen.stream.is_empty() && gen.token_at(gen.offset() - 1).has_kind(TokenKind::Comma);
 
         // If there is an arrow '=>', then this must be a function type
-        match self.peek_resultant_fn(|| self.parse_thin_arrow()) {
+        match self.peek_resultant_fn(|g| g.parse_thin_arrow()) {
             Some(_) => {
                 // Parse the return type here, and then give the function name
                 Ok(Ty::Fn(FnTy { params, return_ty: self.parse_type()? }))

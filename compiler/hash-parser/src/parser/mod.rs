@@ -12,6 +12,7 @@ mod ty;
 use std::cell::Cell;
 
 use hash_ast::ast::*;
+use hash_reporting::diagnostic::Diagnostics;
 use hash_source::location::{SourceLocation, Span};
 use hash_token::{delimiter::Delimiter, Token, TokenKind, TokenKindVector};
 
@@ -246,7 +247,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Create a new [AstNode] with a span that ranges from the start [Span] to
     /// the current [Span].
     #[inline(always)]
-    pub(crate) fn node_with_joined_span<T>(&self, body: T, start: &Span) -> AstNode<T> {
+    pub(crate) fn node_with_joined_span<T>(&self, body: T, start: Span) -> AstNode<T> {
         AstNode::new(body, start.join(self.current_location()))
     }
 
@@ -321,10 +322,13 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// peeked. This is essentially a convertor from a [AstGenResult<T>]
     /// into an [Option<T>] with the side effect of resetting the parser state
     /// back to it's original settings.
-    pub(crate) fn peek_resultant_fn<T, E>(&self, parse_fn: impl Fn() -> Result<T, E>) -> Option<T> {
+    pub(crate) fn peek_resultant_fn<T, E>(
+        &self,
+        mut parse_fn: impl FnMut(&Self) -> Result<T, E>,
+    ) -> Option<T> {
         let start = self.offset();
 
-        match parse_fn() {
+        match parse_fn(self) {
             Ok(result) => Some(result),
             Err(_) => {
                 self.offset.set(start);
@@ -339,9 +343,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// the end of the current generator, and therefore it is intended to be
     /// used with a nested generator.
     pub(crate) fn parse_separated_fn<T>(
-        &self,
-        parse_fn: impl Fn() -> ParseResult<AstNode<T>>,
-        separator_fn: impl Fn() -> ParseResult<()>,
+        &mut self,
+        mut parse_fn: impl FnMut(&mut Self) -> ParseResult<AstNode<T>>,
+        mut separator_fn: impl FnMut(&mut Self) -> ParseResult<()>,
     ) -> ParseResult<AstNodes<T>> {
         let start = self.current_location();
         let mut args = vec![];
@@ -349,13 +353,13 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // so parse the arguments to the function here... with potential type
         // annotations
         while self.has_token() {
-            match parse_fn() {
+            match parse_fn(self) {
                 Ok(el) => args.push(el),
                 Err(err) => return Err(err),
             }
 
             if self.has_token() {
-                separator_fn()?;
+                separator_fn(self)?;
             }
         }
 
@@ -415,17 +419,26 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
     }
 
-    /// Parse a [Module] which is simply made of a list of statements
-    pub(crate) fn parse_module(&self) -> ParseResult<AstNode<Module>> {
+    /// Parse a [Module] which is simply made of a list of statements.
+    ///
+    /// The function returns [None] if parsing failed, which means the caller
+    /// should get all the diagnostics for the current session.
+    pub(crate) fn parse_module(&mut self) -> Option<AstNode<Module>> {
         let start = self.current_location();
         let mut contents = vec![];
 
         while self.has_token() {
-            contents.push(self.parse_top_level_expr(true).map(|(_, statement)| statement)?);
+            match self.parse_top_level_expr(true).map(|(_, statement)| statement) {
+                Ok(statement) => contents.push(statement),
+                Err(err) => {
+                    self.add_error(err);
+                    return None;
+                }
+            }
         }
 
         let span = start.join(self.current_location());
-        Ok(self.node_with_span(Module { contents: AstNodes::new(contents, Some(span)) }, span))
+        Some(self.node_with_span(Module { contents: AstNodes::new(contents, Some(span)) }, span))
     }
 
     /// This function is used to exclusively parse a interactive block which
@@ -433,11 +446,19 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// are like ghost blocks without the actual braces to begin with. It
     /// follows that there are an arbitrary number of statements, followed
     /// by an optional final expression which doesn't need to be completed
-    /// by a comma...
-    pub(crate) fn parse_expr_from_interactive(&self) -> ParseResult<AstNode<BodyBlock>> {
+    /// by a comma.
+    ///
+    /// The function returns [None] if parsing failed, which means the caller
+    /// should get all the diagnostics for the current session.
+    pub(crate) fn parse_expr_from_interactive(&mut self) -> Option<AstNode<BodyBlock>> {
         let start = self.current_location();
 
-        let body = self.parse_body_block_inner()?;
-        Ok(self.node_with_joined_span(body, &start))
+        match self.parse_body_block_inner() {
+            Ok(body) => Some(self.node_with_joined_span(body, start)),
+            Err(err) => {
+                self.add_error(err);
+                None
+            }
+        }
     }
 }

@@ -79,7 +79,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             ),
         }?;
 
-        Ok(self.node_with_joined_span(lit, &token.span))
+        Ok(self.node_with_joined_span(lit, token.span))
     }
 
     /// Create a numeric literal that can also be negated, it is verified
@@ -110,14 +110,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     }
 
     /// Parse a single map entry in a literal.
-    pub(crate) fn parse_map_entry(&self) -> ParseResult<AstNode<MapLitEntry>> {
+    pub(crate) fn parse_map_entry(&mut self) -> ParseResult<AstNode<MapLitEntry>> {
         let start = self.current_location();
 
         let key = self.parse_expr_with_precedence(0)?;
         self.parse_token(TokenKind::Colon)?;
         let value = self.parse_expr_with_precedence(0)?;
 
-        Ok(self.node_with_joined_span(MapLitEntry { key, value }, &start))
+        Ok(self.node_with_joined_span(MapLitEntry { key, value }, start))
     }
 
     /// Parse a map literal which is made of braces with an arbitrary number of
@@ -126,12 +126,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Map)));
 
         let start = self.current_location();
-        let gen = self.parse_delim_tree(Delimiter::Brace, None)?;
+        let mut gen = self.parse_delim_tree(Delimiter::Brace, None)?;
 
         let elements =
-            gen.parse_separated_fn(|| gen.parse_map_entry(), || gen.parse_token(TokenKind::Comma))?;
+            gen.parse_separated_fn(|g| g.parse_map_entry(), |g| g.parse_token(TokenKind::Comma))?;
 
-        Ok(self.node_with_joined_span(Lit::Map(MapLit { elements }), &start))
+        Ok(self.node_with_joined_span(Lit::Map(MapLit { elements }), start))
     }
 
     /// Parse a set literal which is made of braces with an arbitrary number of
@@ -140,23 +140,23 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Set)));
 
         let start = self.current_location();
-        let gen = self.parse_delim_tree(Delimiter::Brace, None)?;
+        let mut gen = self.parse_delim_tree(Delimiter::Brace, None)?;
 
         let elements = gen.parse_separated_fn(
-            || gen.parse_expr_with_precedence(0),
-            || gen.parse_token(TokenKind::Comma),
+            |g| g.parse_expr_with_precedence(0),
+            |g| g.parse_token(TokenKind::Comma),
         )?;
 
-        Ok(self.node_with_joined_span(Lit::Set(SetLit { elements }), &start))
+        Ok(self.node_with_joined_span(Lit::Set(SetLit { elements }), start))
     }
 
     /// Function to parse a tuple literal entry with a name.
-    pub(crate) fn parse_tuple_lit_entry(&self) -> ParseResult<AstNode<TupleLitEntry>> {
+    pub(crate) fn parse_tuple_lit_entry(&mut self) -> ParseResult<AstNode<TupleLitEntry>> {
         let start = self.next_location();
         let offset = self.offset();
 
         // Determine if this might have a tuple field name and optional type
-        let entry = if let Some(name) = self.peek_resultant_fn(|| self.parse_name()) {
+        let entry = if let Some(name) = self.peek_resultant_fn(|g| g.parse_name()) {
             // Here we can identify if we need to backtrack and just parse an expression...
             if !matches!(self.peek(), Some(Token { kind: TokenKind::Colon | TokenKind::Eq, .. })) {
                 self.offset.set(offset);
@@ -184,15 +184,15 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     )
                 })?;
 
+                let value = self.parse_expr_with_re_assignment()?.0;
+
                 // Now we try and parse an expression that allows re-assignment operators...
-                Some(self.node_with_joined_span(
-                    TupleLitEntry {
-                        name: Some(name),
-                        ty,
-                        value: self.parse_expr_with_re_assignment()?.0,
-                    },
-                    &start,
-                ))
+                Some(
+                    self.node_with_joined_span(
+                        TupleLitEntry { name: Some(name), ty, value },
+                        start,
+                    ),
+                )
             }
         } else {
             None
@@ -200,14 +200,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         match entry {
             Some(entry) => Ok(entry),
-            None => Ok(self.node_with_joined_span(
-                TupleLitEntry {
-                    name: None,
-                    ty: None,
-                    value: self.parse_expr_with_re_assignment()?.0,
-                },
-                &start,
-            )),
+            None => {
+                let value = self.parse_expr_with_re_assignment()?.0;
+
+                Ok(self.node_with_joined_span(TupleLitEntry { name: None, ty: None, value }, start))
+            }
         }
     }
 
@@ -217,8 +214,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         tree: &'stream [Token],
         span: Span,
     ) -> ParseResult<AstNode<Expr>> {
-        let gen = self.from_stream(tree, span);
-
+        let mut gen = self.from_stream(tree, span);
         let mut elements = AstNodes::empty();
 
         while gen.has_token() {

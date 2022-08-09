@@ -12,7 +12,7 @@ use smallvec::{smallvec, SmallVec};
 /// The token contains a kind which is elaborated by [TokenKind] and a [Span] in
 /// the source that is represented as a span. The span is the beginning byte
 /// offset, and the number of bytes for the said token.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub struct Token {
     /// The current token type.
     pub kind: TokenKind,

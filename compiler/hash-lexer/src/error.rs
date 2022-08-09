@@ -122,7 +122,7 @@ impl Diagnostics<LexerError, Infallible> for Lexer<'_> {
         (self.diagnostics.errors, vec![])
     }
 
-    fn merge(&mut self, other: impl Diagnostics<LexerError, Infallible>) {
+    fn merge_diagnostics(&mut self, other: impl Diagnostics<LexerError, Infallible>) {
         let (errors, _) = other.into_diagnostics();
         self.diagnostics.errors.extend(errors)
     }

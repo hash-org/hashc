@@ -76,7 +76,7 @@ impl<'stream, 'resolver> Diagnostics<ParseError, ParseWarning> for AstGen<'strea
         (self.diagnostics.errors.to_vec(), self.diagnostics.warnings)
     }
 
-    fn merge(&mut self, other: impl Diagnostics<ParseError, ParseWarning>) {
+    fn merge_diagnostics(&mut self, other: impl Diagnostics<ParseError, ParseWarning>) {
         let (errors, warnings) = other.into_diagnostics();
 
         self.diagnostics.errors.extend(errors);
