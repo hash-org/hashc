@@ -532,6 +532,8 @@ name = "hash-tests"
 version = "0.1.0"
 dependencies = [
  "hash-ast",
+ "hash-ast-desugaring",
+ "hash-ast-passes",
  "hash-lexer",
  "hash-parser",
  "hash-pipeline",
@@ -539,7 +541,9 @@ dependencies = [
  "hash-source",
  "hash-testing-internal",
  "hash-testing-macros",
+ "hash-typecheck",
  "hash-utils",
+ "hash-vm",
  "lazy_static",
  "pretty_assertions",
  "rayon",

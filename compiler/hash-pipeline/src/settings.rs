@@ -9,7 +9,7 @@ use std::fmt::Display;
 pub struct CompilerSettings {
     /// Print metrics about each stage when the entire pipeline has completed.
     ///
-    /// Note: This flag has no effect if the compiler is not specified to run in
+    /// N.B: This flag has no effect if the compiler is not specified to run in
     ///       debug mode!
     pub display_metrics: bool,
 
@@ -17,11 +17,32 @@ pub struct CompilerSettings {
     /// This value is used to determine the thread pool size that is then shared
     /// across arbitrary stages within the compiler.
     pub worker_count: usize,
+
+    /// Whether the compiler should skip bootstrapping the prelude, this
+    /// is set for testing purposes.
+    pub(crate) skip_prelude: bool,
+
+    /// Whether the pipeline should output errors and warnings to
+    /// standard error
+    pub(crate) emit_errors: bool,
 }
 
 impl CompilerSettings {
     pub fn new(display_metrics: bool, worker_count: usize) -> Self {
-        Self { worker_count, display_metrics }
+        Self { display_metrics, worker_count, skip_prelude: false, emit_errors: true }
+    }
+
+    /// Specify whether the compiler pipeline should skip running
+    /// prelude during bootstrapping.
+    pub fn set_skip_prelude(&mut self, value: bool) {
+        self.skip_prelude = value;
+    }
+
+    /// Specify whether the compiler should emit errors to
+    /// standard error, or if they should be handled by the
+    /// caller.
+    pub fn set_emit_errors(&mut self, value: bool) {
+        self.emit_errors = value;
     }
 }
 
@@ -30,6 +51,8 @@ impl Default for CompilerSettings {
         Self {
             display_metrics: false, // @@TODO: determine this by the mode of operation
             worker_count: num_cpus::get(),
+            skip_prelude: false,
+            emit_errors: true,
         }
     }
 }

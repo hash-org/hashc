@@ -26,16 +26,20 @@
 
 use std::fs;
 
+use hash_ast_desugaring::AstDesugarer;
+use hash_ast_passes::HashSemanticAnalysis;
 use hash_parser::HashParser;
 use hash_pipeline::{
-    fs::read_in_path,
-    sources::{Module, Workspace},
-    traits::Parser,
+    settings::{CompilerJobParams, CompilerSettings},
+    sources::Workspace,
+    Compiler,
 };
 use hash_reporting::{report::Report, writer::ReportWriter};
-use hash_source::{ModuleKind, SourceId};
+use hash_source::ModuleKind;
 use hash_testing_internal::{metadata::TestResult, TestingInput};
 use hash_testing_macros::generate_tests;
+use hash_typecheck::TcImpl;
+use hash_vm::vm::{Interpreter, InterpreterOptions};
 use regex::Regex;
 
 use crate::{ANSI_REGEX, REGENERATE_OUTPUT};
@@ -46,15 +50,18 @@ use crate::{ANSI_REGEX, REGENERATE_OUTPUT};
 /// entry within the case.
 fn handle_failure_case(
     input: TestingInput,
-    result: Result<(), Vec<Report>>,
+    diagnostics: Vec<Report>,
     sources: Workspace,
 ) -> std::io::Result<()> {
     println!("{:?}", input);
 
     // Verify that the parser failed to parse this file
-    assert!(result.is_err(), "parsing file: {:?} did not fail", input.path);
+    assert!(
+        diagnostics.iter().any(|report| report.is_error()),
+        "parsing file: {:?} did not fail",
+        input.path
+    );
 
-    let diagnostics = result.unwrap_err();
     let contents = diagnostics
         .into_iter()
         .map(|report| format!("{}", ReportWriter::new(report, sources.source_map())))
@@ -97,29 +104,49 @@ fn handle_failure_case(
 
 /// Generic test handler in the event whether a case should pass or fail.
 fn handle_test(input: TestingInput) {
-    let mut workspace = Workspace::new();
-    let target = Module::new(input.path.clone());
-    let contents = read_in_path(input.path.as_path()).unwrap();
+    // Initialise the compiler pipeline
+    let parser = HashParser::new();
+    let desugarer = AstDesugarer;
+    let semantic_analyser = HashSemanticAnalysis;
+    let checker = TcImpl;
 
-    let target_id = workspace.add_module(contents, target, ModuleKind::Normal);
+    // Create the vm
+    let vm = Interpreter::new(InterpreterOptions::default());
 
-    let mut parser = HashParser::new();
+    let worker_count = 2;
+    let mut compiler_settings = CompilerSettings::new(false, worker_count);
+    compiler_settings.set_skip_prelude(true);
+    compiler_settings.set_emit_errors(false);
 
+    // We need at least 2 workers for the parsing loop in order so that the job
+    // queue can run within a worker and any other jobs can run inside another
+    // worker or workers.
     let pool = rayon::ThreadPoolBuilder::new()
-        .num_threads(2)
-        .thread_name(|id| format!("parse-worker-{}", id))
+        .num_threads(worker_count)
+        .thread_name(|id| format!("compiler-worker-{}", id))
         .build()
         .unwrap();
 
-    // Now parse the module and store the result
-    let result = parser.parse(SourceId::Module(target_id), &mut workspace, &pool);
+    let mut compiler =
+        Compiler::new(parser, desugarer, semantic_analyser, checker, vm, &pool, compiler_settings);
+    let mut compiler_state = compiler.bootstrap();
+
+    // // Now parse the module and store the result
+    compiler_state = compiler.run_on_filename(
+        input.path.to_str().unwrap(),
+        ModuleKind::Normal,
+        compiler_state,
+        CompilerJobParams::new(input.metadata.stage, false),
+    );
+
+    let diagnostics = compiler_state.diagnostics;
 
     // Based on the specified metadata within the test case itself, we know
     // whether the test should fail or not
     if input.metadata.completion == TestResult::Fail {
-        handle_failure_case(input, result, workspace).unwrap();
+        handle_failure_case(input, diagnostics, compiler_state.workspace).unwrap();
     } else {
-        assert!(result.is_ok(), "parsing file failed: {:?}", input.path);
+        assert!(diagnostics.is_empty(), "parsing file failed: {:?}", input.path);
     }
 }
 
