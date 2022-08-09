@@ -48,10 +48,6 @@ pub struct Lexer<'a> {
 
     /// The lexer diagnostics store
     diagnostics: LexerDiagnostics,
-
-    /// Whether the [Lexer] encountered a fatal error and
-    /// must abort on the next token advance
-    fatal_error: Cell<bool>,
 }
 
 impl<'a> Lexer<'a> {
@@ -61,14 +57,29 @@ impl<'a> Lexer<'a> {
             offset: Cell::new(0),
             source_id,
             previous_delimiter: Cell::new(None),
-            fatal_error: Cell::new(false),
             contents,
             token_trees: vec![],
             diagnostics: LexerDiagnostics::default(),
         }
     }
 
-    /// Put an error into the [LexerDiagnostics]
+    /// Emit an error into [LexerDiagnostics] and also
+    /// set `has_fatal_error` flag to true so that the
+    /// lexer terminates on the next advancement.
+    #[inline]
+    fn emit_fatal_error(
+        &mut self,
+        message: Option<String>,
+        kind: LexerErrorKind,
+        span: Span,
+    ) -> TokenKind {
+        self.diagnostics.has_fatal_error.set(true);
+        self.emit_error(message, kind, span)
+    }
+
+    /// Put an error into the [LexerDiagnostics], whilst returning a
+    /// [TokenKind::Err] in place of a lexed token.
+    #[inline]
     fn emit_error(
         &mut self,
         message: Option<String>,
@@ -86,6 +97,7 @@ impl<'a> Lexer<'a> {
 
     /// Create a Lexer error and return a [Result], but internally
     /// it is always the [Err] variant.
+    #[inline]
     fn error<T>(
         &self,
         message: Option<String>,
@@ -256,7 +268,7 @@ impl<'a> Lexer<'a> {
         };
 
         // If we encountered a unrecoverable error, then terminate
-        if self.fatal_error.get() {
+        if self.diagnostics.has_fatal_error.get() {
             return None;
         }
 
@@ -288,7 +300,7 @@ impl<'a> Lexer<'a> {
         }
 
         // If there is a fatal error, then we need to abort
-        if self.fatal_error.get() {
+        if self.diagnostics.has_fatal_error.get() {
             return TokenKind::Err;
         }
 
@@ -432,15 +444,11 @@ impl<'a> Lexer<'a> {
                 // @@TODO: Use our own parser for integers and floats instead of relying on
                 // rust's default one.
                 match pre_digits.parse::<u64>() {
-                    Err(err) => {
-                        self.emit_error(
-                            Some(format!("{}.", err)),
-                            LexerErrorKind::MalformedNumericalLit,
-                            Span::new(start, self.offset.get()),
-                        );
-
-                        TokenKind::Err
-                    }
+                    Err(err) => self.emit_error(
+                        Some(format!("{}.", err)),
+                        LexerErrorKind::MalformedNumericalLit,
+                        Span::new(start, self.offset.get()),
+                    ),
                     Ok(value) => TokenKind::IntLit(value),
                 }
             }
@@ -452,14 +460,11 @@ impl<'a> Lexer<'a> {
         let num = num.collect::<String>().parse::<f64>();
 
         match num {
-            Err(err) => {
-                self.emit_error(
-                    Some(format!("{}.", err)),
-                    LexerErrorKind::MalformedNumericalLit,
-                    Span::new(start, self.offset.get()),
-                );
-                TokenKind::Err
-            }
+            Err(err) => self.emit_error(
+                Some(format!("{}.", err)),
+                LexerErrorKind::MalformedNumericalLit,
+                Span::new(start, self.offset.get()),
+            ),
             Ok(value) => {
                 match self.eat_exponent(start) {
                     Ok(exp) => {
@@ -687,7 +692,7 @@ impl<'a> Lexer<'a> {
                     self.add_error(err);
 
                     if self.peek() != '\'' {
-                        self.fatal_error.set(true);
+                        self.diagnostics.has_fatal_error.set(true);
                     }
                     self.skip(); // Recover...
 
@@ -743,9 +748,7 @@ impl<'a> Lexer<'a> {
 
         // Report that the literal is unclosed and set the error as being fatal
         if !closed {
-            self.fatal_error.set(true);
-
-            return self.emit_error(
+            return self.emit_fatal_error(
                 None,
                 LexerErrorKind::UnclosedStringLit,
                 Span::new(start, self.offset.get()),
