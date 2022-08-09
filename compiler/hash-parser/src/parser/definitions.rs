@@ -5,7 +5,10 @@ use hash_token::{delimiter::Delimiter, keyword::Keyword, TokenKind, TokenKindVec
 use smallvec::smallvec;
 
 use super::AstGen;
-use crate::diagnostics::error::{ParseErrorKind, ParseResult, TyArgumentKind};
+use crate::diagnostics::{
+    error::{ParseErrorKind, ParseResult},
+    TyArgumentKind,
+};
 
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a [StructDef]. The keyword `struct` begins the construct and is

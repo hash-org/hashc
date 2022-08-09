@@ -16,7 +16,10 @@ use hash_source::location::{SourceLocation, Span};
 use hash_token::{delimiter::Delimiter, Token, TokenKind, TokenKindVector};
 
 use crate::{
-    diagnostics::error::{ParseError, ParseErrorKind, ParseResult},
+    diagnostics::{
+        error::{ParseError, ParseErrorKind, ParseResult},
+        ParserDiagnostics,
+    },
     import_resolver::ImportResolver,
 };
 
@@ -87,6 +90,9 @@ pub struct AstGen<'stream, 'resolver> {
     /// Instance of an [ImportResolver] to notify the parser of encountered
     /// imports.
     resolver: &'resolver ImportResolver<'resolver>,
+
+    /// Collected diagnostics for the current [AstGen]
+    pub(crate) diagnostics: ParserDiagnostics,
 }
 
 /// Implementation of the [AstGen] with accompanying functions to parse specific
@@ -105,6 +111,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             is_compound_expr: Cell::new(false),
             offset: Cell::new(0),
             resolver,
+            diagnostics: ParserDiagnostics::default(),
         }
     }
 
@@ -119,6 +126,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             is_compound_expr: self.is_compound_expr.clone(),
             parent_span: Some(parent_span),
             resolver: self.resolver,
+            diagnostics: ParserDiagnostics::default(),
         }
     }
 

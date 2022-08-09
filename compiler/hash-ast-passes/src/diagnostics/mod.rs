@@ -27,20 +27,24 @@ impl Diagnostics<AnalysisError, AnalysisWarning> for SemanticAnalyser<'_> {
         &self.diagnostics
     }
 
+    fn store_mut(&mut self) -> &mut Self::DiagnosticsStore {
+        &mut self.diagnostics
+    }
+
     fn add_error(&mut self, error: AnalysisError) {
         self.diagnostics.errors.push(error);
     }
 
     fn add_warning(&mut self, warning: AnalysisWarning) {
-        self.diagnostics.warnings.push(warning);
+        self.store_mut().warnings.push(warning);
     }
 
     fn has_errors(&self) -> bool {
-        !self.diagnostics.errors.is_empty()
+        !self.store().errors.is_empty()
     }
 
     fn has_warnings(&self) -> bool {
-        !self.diagnostics.warnings.is_empty()
+        !self.store().warnings.is_empty()
     }
 
     fn into_reports(self) -> Vec<Report> {

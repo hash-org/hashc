@@ -282,7 +282,7 @@ impl std::fmt::Display for TokenKind {
 /// can just the display representations of the token atoms. Or even better, we
 /// can use the [`ToString`] trait and just auto cast into a string, whilst
 /// holding a vector of strings.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TokenKindVector(SmallVec<[TokenKind; 2]>);
 
 impl TokenKindVector {

@@ -13,6 +13,9 @@ pub trait Diagnostics<E: Into<Report>, W: Into<Report>> {
     /// Get a reference to the associated [Self::DiagnosticsStore]
     fn store(&self) -> &Self::DiagnosticsStore;
 
+    /// Get a mutable reference to [Self::DiagnosticsStore]
+    fn store_mut(&mut self) -> &mut Self::DiagnosticsStore;
+
     /// Add an error into the [Self]
     fn add_error(&mut self, error: E);
 

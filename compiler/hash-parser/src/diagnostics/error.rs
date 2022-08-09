@@ -9,12 +9,14 @@ use hash_source::location::SourceLocation;
 use hash_token::{TokenKind, TokenKindVector};
 use hash_utils::printing::SequenceDisplay;
 
+use super::TyArgumentKind;
+
 /// Utility wrapper type for [ParseError] in [Result]
 pub type ParseResult<T> = Result<T, ParseError>;
 
 /// A [ParseError] represents possible errors that occur when transforming the
 /// token stream into the AST.
-#[derive(Debug, Constructor)]
+#[derive(Debug, Clone, Constructor)]
 pub struct ParseError {
     /// The kind of the error.
     kind: ParseErrorKind,
@@ -26,18 +28,8 @@ pub struct ParseError {
     received: Option<TokenKind>,
 }
 
-/// Enum representing the kind of statement where type arguments can be expected
-/// to be present.
-#[derive(Debug)]
-pub enum TyArgumentKind {
-    /// Type arguments at a struct definition.
-    Struct,
-    /// Type arguments at a enum definition.
-    Enum,
-}
-
 /// Enum representation of the AST generation error variants.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ParseErrorKind {
     /// Expected keyword at current location
     Keyword,
@@ -94,15 +86,6 @@ pub enum ParseErrorKind {
     MalformedSpreadPattern(u8),
     /// Expected a literal token, mainly originating from range pattern parsing
     ExpectedLiteral,
-}
-
-impl std::fmt::Display for TyArgumentKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TyArgumentKind::Struct => write!(f, "struct"),
-            TyArgumentKind::Enum => write!(f, "enumeration"),
-        }
-    }
 }
 
 /// Conversion implementation from an AST Generator Error into a Parser Error.

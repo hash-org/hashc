@@ -90,9 +90,13 @@ impl Diagnostics<LexerError, Infallible> for Lexer<'_> {
         &self.diagnostics
     }
 
+    fn store_mut(&mut self) -> &mut Self::DiagnosticsStore {
+        &mut self.diagnostics
+    }
+
     /// Add an error into the store
     fn add_error(&mut self, error: LexerError) {
-        self.diagnostics.errors.push(error);
+        self.store_mut().errors.push(error);
     }
 
     /// The lexer does not currently emit any warnings and so if this
@@ -102,7 +106,7 @@ impl Diagnostics<LexerError, Infallible> for Lexer<'_> {
     }
 
     fn has_errors(&self) -> bool {
-        !self.diagnostics.errors.is_empty()
+        !self.store().errors.is_empty()
     }
 
     /// Lexer never emits any warnings so this always false
