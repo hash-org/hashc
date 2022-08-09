@@ -11,7 +11,11 @@ use hash_source::{
     location::{SourceLocation, Span},
     SourceId,
 };
-use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind};
+use hash_token::{
+    delimiter::{Delimiter, DelimiterVariant},
+    keyword::Keyword,
+    Token, TokenKind,
+};
 use utils::is_id_start;
 
 use crate::utils::is_id_continue;
@@ -42,6 +46,9 @@ pub struct Lexer<'a> {
     /// check on if the token tree was closed up.
     previous_delimiter: Cell<Option<char>>,
 
+    /// If the current token position is within a token tree
+    within_token_tree: Cell<bool>,
+
     /// Token tree store, essentially a collection of token trees that are
     /// produced when the lexer encounters bracketed token streams.
     token_trees: Vec<Vec<Token>>,
@@ -56,6 +63,7 @@ impl<'a> Lexer<'a> {
         Lexer {
             offset: Cell::new(0),
             source_id,
+            within_token_tree: Cell::new(false),
             previous_delimiter: Cell::new(None),
             contents,
             token_trees: vec![],
@@ -257,12 +265,13 @@ impl<'a> Lexer<'a> {
             '"' => self.string(),
 
             // We have to exit the current tree if we encounter a closing delimiter...
-            ch @ (')' | '}' | ']') => {
+            ch @ (')' | '}' | ']') if self.within_token_tree.get() => {
                 self.previous_delimiter.set(Some(ch));
-
                 return None;
             }
-
+            ')' => TokenKind::Delimiter(Delimiter::Paren, DelimiterVariant::Right),
+            '}' => TokenKind::Delimiter(Delimiter::Brace, DelimiterVariant::Right),
+            ']' => TokenKind::Delimiter(Delimiter::Bracket, DelimiterVariant::Right),
             // We didn't get a hit on the right token...
             ch => TokenKind::Unexpected(ch),
         };
@@ -289,6 +298,7 @@ impl<'a> Lexer<'a> {
         // we need to reset self.prev here as it might be polluted with previous token
         // trees
         self.previous_delimiter.set(None);
+        let prev_in_token_tree = self.within_token_tree.replace(true);
 
         while !self.is_eof() {
             // `None` here doesn't just mean EOF, it could also be that
@@ -298,6 +308,8 @@ impl<'a> Lexer<'a> {
                 None => break,
             };
         }
+
+        self.within_token_tree.replace(prev_in_token_tree);
 
         // If there is a fatal error, then we need to abort
         if self.diagnostics.has_fatal_error.get() {

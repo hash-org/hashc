@@ -14,7 +14,10 @@ use std::cell::Cell;
 use hash_ast::ast::*;
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::location::{SourceLocation, Span};
-use hash_token::{delimiter::Delimiter, Token, TokenKind, TokenKindVector};
+use hash_token::{
+    delimiter::{Delimiter, DelimiterVariant},
+    Token, TokenKind, TokenKindVector,
+};
 
 use crate::{
     diagnostics::{
@@ -412,7 +415,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
             token => self.error_with_location(
                 error.unwrap_or(ParseErrorKind::Expected),
-                Some(TokenKindVector::singleton(TokenKind::Delimiter(delimiter, true))),
+                Some(TokenKindVector::singleton(TokenKind::Delimiter(
+                    delimiter,
+                    DelimiterVariant::Left,
+                ))),
                 token.map(|tok| tok.kind),
                 token.map_or_else(|| self.current_location(), |tok| tok.span),
             )?,

@@ -3,7 +3,7 @@
 pub mod delimiter;
 pub mod keyword;
 
-use delimiter::Delimiter;
+use delimiter::{Delimiter, DelimiterVariant};
 use hash_source::{identifier::Identifier, location::Span, string::Str};
 use keyword::Keyword;
 use smallvec::{smallvec, SmallVec};
@@ -187,10 +187,8 @@ pub enum TokenKind {
     /// Keyword
     Keyword(Keyword),
 
-    /// Delimiter: '(' '{', '[' and right hand-side variants, useful for error
-    /// reporting and messages. The boolean flag represents if the delimiter
-    /// is left or right, If it's true, then it is the left variant.
-    Delimiter(Delimiter, bool),
+    /// Delimiters `(`, `{`, `[` and right hand-side variants
+    Delimiter(Delimiter, DelimiterVariant),
 
     /// A token that was unexpected by the lexer, e.g. a unicode symbol not
     /// within string literal.
@@ -252,8 +250,8 @@ impl std::fmt::Display for TokenKind {
             TokenKind::IntLit(num) => write!(f, "{}", num),
             TokenKind::FloatLit(num) => write!(f, "{}", num),
             TokenKind::CharLit(ch) => write!(f, "'{}'", ch),
-            TokenKind::Delimiter(delim, left) => {
-                if *left {
+            TokenKind::Delimiter(delim, variant) => {
+                if *variant == DelimiterVariant::Left {
                     write!(f, "{}", delim.left())
                 } else {
                     write!(f, "{}", delim.right())

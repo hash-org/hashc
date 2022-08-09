@@ -1,4 +1,4 @@
-error: unexpectedly reached the end of input
+error: unexpectedly encountered a `)`
  --> $DIR/dangling_parenthesis.hash:3:17
 2 |   
 3 |   k := (a) + ((b)));
