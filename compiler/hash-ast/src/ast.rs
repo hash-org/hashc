@@ -1475,12 +1475,6 @@ pub struct ConstructorCallArg {
     pub value: AstNode<Expr>,
 }
 
-/// Function call arguments.
-#[derive(Debug, PartialEq, Clone)]
-pub struct ConstructorCallArgs {
-    pub entries: AstNodes<ConstructorCallArg>,
-}
-
 /// A constructor call expression. This can either be a function
 /// call, a struct instantiation or a enum variant instantiation.
 #[derive(Debug, PartialEq, Clone)]
@@ -1488,7 +1482,7 @@ pub struct ConstructorCallExpr {
     /// An expression which evaluates to a function value.
     pub subject: AstNode<Expr>,
     /// Arguments to the function, in the form of [ConstructorCallArgs].
-    pub args: AstNode<ConstructorCallArgs>,
+    pub args: AstNodes<ConstructorCallArg>,
 }
 
 /// An directive expression.

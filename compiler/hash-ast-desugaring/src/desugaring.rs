@@ -3,10 +3,9 @@
 use hash_ast::{
     ast::{
         AstNode, AstNodes, BindingPat, Block, BlockExpr, BodyBlock, BoolLit, BreakStatement,
-        ConstructorCallArg, ConstructorCallArgs, ConstructorCallExpr, ConstructorPat, Expr,
-        ExprKind, ForLoopBlock, IfBlock, IfClause, IfPat, Lit, LitExpr, LitPat, LoopBlock,
-        MatchBlock, MatchCase, MatchOrigin, Name, Pat, TuplePatEntry, VariableExpr, WhileLoopBlock,
-        WildPat,
+        ConstructorCallArg, ConstructorCallExpr, ConstructorPat, Expr, ExprKind, ForLoopBlock,
+        IfBlock, IfClause, IfPat, Lit, LitExpr, LitPat, LoopBlock, MatchBlock, MatchCase,
+        MatchOrigin, Name, Pat, TuplePatEntry, VariableExpr, WhileLoopBlock, WildPat,
     },
     ast_nodes,
 };
@@ -116,15 +115,10 @@ impl<'s> AstDesugaring<'s> {
                             })),
                             iter_span,
                         ),
-                        args: AstNode::new(
-                            ConstructorCallArgs {
-                                entries: ast_nodes![AstNode::new(
-                                    ConstructorCallArg { name: None, value: iterator },
-                                    iter_span
-                                )],
-                            },
-                            parent_span,
-                        ),
+                        args: ast_nodes![AstNode::new(
+                            ConstructorCallArg { name: None, value: iterator },
+                            iter_span
+                        )],
                     })),
                     body_span,
                 ),

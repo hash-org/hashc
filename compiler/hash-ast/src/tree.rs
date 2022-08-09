@@ -240,18 +240,6 @@ impl AstVisitor for AstTreeGenerator {
         }
     }
 
-    type ConstructorCallArgsRet = TreeNode;
-    fn visit_constructor_call_args(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::ConstructorCallArgs>,
-    ) -> Result<Self::ConstructorCallArgsRet, Self::Error> {
-        Ok(TreeNode::branch(
-            "args",
-            walk::walk_constructor_call_args(self, ctx, node)?.entries.into_iter().collect(),
-        ))
-    }
-
     type ConstructorCallExprRet = TreeNode;
     fn visit_constructor_call_expr(
         &mut self,
@@ -261,8 +249,8 @@ impl AstVisitor for AstTreeGenerator {
         let walk::ConstructorCallExpr { subject, args } =
             walk::walk_constructor_call_expr(self, ctx, node)?;
 
-        let children = if !node.args.entries.is_empty() {
-            vec![TreeNode::branch("subject", vec![subject]), args]
+        let children = if !node.args.is_empty() {
+            vec![TreeNode::branch("subject", vec![subject]), TreeNode::branch("args", args)]
         } else {
             vec![TreeNode::branch("subject", vec![subject])]
         };

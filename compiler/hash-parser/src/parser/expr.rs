@@ -554,10 +554,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         Ok(self.node_with_joined_span(
             Expr::new(ExprKind::ConstructorCall(ConstructorCallExpr {
                 subject,
-                args: self.node_with_span(
-                    ConstructorCallArgs { entries: AstNodes::new(args, Some(span)) },
-                    span,
-                ),
+                args: AstNodes::new(args, Some(span)),
             })),
             subject_span,
         ))
