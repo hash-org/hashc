@@ -39,11 +39,23 @@ pub struct TestMetadata {
     pub stage: CompilerMode,
     /// How should the test complete, pass or fail.
     pub completion: TestResult,
+    /// If the test should ignore any emitted warnings.
+    ///
+    /// - If this setting is specified, and when the `completion` is set to
+    ///   [TestResult::Pass], the function will see if any of the reports are
+    ///   errors, and then  base this if the compilation failed.
+    ///
+    /// - If this settings is specified, abd when the `completion` is set to
+    ///   [TestResult::Fail], the handler will ignore any generated `warning`
+    ///   reports when comparing the output of the erroneous case. However, a
+    ///   test case that produces no errors, but warnings will still fail since
+    ///   it did not `fail` compilation.
+    pub ignore_warnings: bool,
 }
 
 impl Default for TestMetadata {
     fn default() -> Self {
-        Self { stage: CompilerMode::Full, completion: TestResult::Pass }
+        Self { stage: CompilerMode::Full, completion: TestResult::Pass, ignore_warnings: false }
     }
 }
 
@@ -58,13 +70,13 @@ impl ToTokens for TestResult {
 
 impl ToTokens for TestMetadata {
     fn to_tokens(&self, tokens: &mut quote::__private::TokenStream) {
-        let TestMetadata { stage, completion } = *self;
+        let TestMetadata { stage, completion, ignore_warnings } = *self;
 
         // Convert the stage into the `tokenised` stage...
         let stage: quote::__private::TokenStream =
             format!("CompilerMode::{:?}", stage).parse().unwrap();
 
-        tokens.extend(quote! ( TestMetadata { completion: #completion, stage: #stage  }))
+        tokens.extend(quote! ( TestMetadata { completion: #completion, stage: #stage, ignore_warnings: #ignore_warnings  }))
     }
 }
 
@@ -75,12 +87,15 @@ pub struct TestMetadataBuilder {
 
     /// Whether the test is expected to pass or fail.
     completion: Option<TestResult>,
+
+    /// Whether the test can ignore warnings.
+    ignore_warnings: bool,
 }
 
 impl TestMetadataBuilder {
     /// Create a new [FileMetadataBuilder]
     pub fn new() -> Self {
-        Self { stage: None, completion: None }
+        Self { stage: None, completion: None, ignore_warnings: false }
     }
 
     /// Add a stage value to the test.
@@ -95,14 +110,21 @@ impl TestMetadataBuilder {
         self
     }
 
+    /// Specify whether the test should ignore warnings
+    pub fn with_ignore_warnings(&mut self, value: bool) -> &mut Self {
+        self.ignore_warnings = value;
+        self
+    }
+
     /// Build the [TestMetadata], defaulting to the specified defaults
     /// for any missing property.
     pub fn build(&mut self) -> TestMetadata {
-        let TestMetadata { stage, completion } = TestMetadata::default();
+        let TestMetadata { stage, completion, .. } = TestMetadata::default();
 
         TestMetadata {
             completion: self.completion.unwrap_or(completion),
             stage: self.stage.unwrap_or(stage),
+            ignore_warnings: self.ignore_warnings,
         }
     }
 }
@@ -171,6 +193,10 @@ pub fn parse_test_case_metadata(path: &PathBuf) -> Result<TestMetadata, io::Erro
                     };
 
                     builder.with_stage(stage);
+                }
+                "warnings" => {
+                    let action = matches!(value.as_str(), "ignore");
+                    builder.with_ignore_warnings(action);
                 }
                 // @@Future: would be nice to produce some kind of error report
                 _ => break,
