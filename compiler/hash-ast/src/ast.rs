@@ -24,8 +24,11 @@ counter! {
 /// Contains an inner type, as well as begin and end positions in the input.
 #[derive(Debug, Clone)]
 pub struct AstNode<T> {
+    /// The stored data within this node
     body: Box<T>,
+    /// Associated [Span] with this node
     span: Span,
+    /// Associated `id` with this [AstNode<T>]
     id: AstNodeId,
 }
 
@@ -340,25 +343,30 @@ pub struct TyArg {
 /// The tuple type.
 #[derive(Debug, PartialEq, Clone)]
 pub struct TupleTy {
+    /// inner types of the tuple type
     pub entries: AstNodes<TyArg>,
 }
 
 /// The list type, , e.g. `{str}`.
 #[derive(Debug, PartialEq, Clone)]
 pub struct ListTy {
+    /// Inner type of the list
     pub inner: AstNode<Ty>,
 }
 
 /// The set type, , e.g. `{str}`.
 #[derive(Debug, PartialEq, Clone)]
 pub struct SetTy {
+    /// Inner type of the set
     pub inner: AstNode<Ty>,
 }
 
 /// The map type, e.g. `{str: u32}`.
 #[derive(Debug, PartialEq, Clone)]
 pub struct MapTy {
+    /// The `key` type of the map type
     pub key: AstNode<Ty>,
+    /// The `value` type of the map type
     pub value: AstNode<Ty>,
 }
 
@@ -385,7 +393,9 @@ pub struct TyFn {
 /// followed by arguments. For example: `Conv<u32>` or `(Foo<bar>)<baz>`
 #[derive(Debug, PartialEq, Clone)]
 pub struct TyFnCall {
+    /// The subject of the type function call
     pub subject: AstNode<Expr>,
+    /// Arguments that are applied to the type function call
     pub args: AstNodes<TyArg>,
 }
 
@@ -393,14 +403,18 @@ pub struct TyFnCall {
 /// specified in place of one, e.g. `Conv ~ Eq`
 #[derive(Debug, PartialEq, Clone)]
 pub struct MergeTy {
+    /// left hand-side of the merge type
     pub lhs: AstNode<Ty>,
+    /// right hand-side of the merge type
     pub rhs: AstNode<Ty>,
 }
 
 /// A union type meaning that multiple types are accepted, e.g. `f64 | i64`
 #[derive(Debug, PartialEq, Clone)]
 pub struct UnionTy {
+    /// left hand-side of the union type
     pub lhs: AstNode<Ty>,
+    /// right hand-side of the union type
     pub rhs: AstNode<Ty>,
 }
 
@@ -476,8 +490,11 @@ pub struct ListLit {
 /// ```
 #[derive(Debug, PartialEq, Clone)]
 pub struct TupleLitEntry {
+    /// If the entry has a bounded name
     pub name: Option<AstNode<Name>>,
+    /// Optional type annotation on the tuple entry
     pub ty: Option<AstNode<Ty>>,
+    /// Value of the tuple literal entry
     pub value: AstNode<Expr>,
 }
 
@@ -491,7 +508,9 @@ pub struct TupleLit {
 /// A map literal entry, e.g. `"foo": 1`.
 #[derive(Debug, PartialEq, Clone)]
 pub struct MapLitEntry {
+    /// The key of the map entry
     pub key: AstNode<Expr>,
+    /// The value of the map entry
     pub value: AstNode<Expr>,
 }
 
@@ -613,7 +632,9 @@ impl Display for IntLitKind {
 /// An integer literal.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct IntLit {
+    /// The raw value of the literal
     pub value: BigInt,
+    /// Whether the literal has an ascription
     pub kind: IntLitKind,
 }
 
@@ -633,6 +654,7 @@ impl Display for FloatTy {
     }
 }
 
+/// The kind of ascription that is applied to the [FloatLit].
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum FloatLitKind {
     /// Has a provided user suffix type
@@ -653,7 +675,9 @@ impl Display for FloatLitKind {
 /// A float literal.
 #[derive(Debug, PartialEq, Clone)]
 pub struct FloatLit {
+    /// Raw value of the literal
     pub value: f64,
+    /// Whether the literal has an ascription
     pub kind: FloatLitKind,
 }
 
@@ -742,7 +766,7 @@ pub struct ConstructorPat {
     pub fields: AstNodes<TuplePatEntry>,
 }
 
-/// A module pattern entry, e.g. `{..., name: (fst, snd), ...}`.
+/// A module pattern entry, e.g. `{..., name as (fst, snd), ...}`.
 #[derive(Debug, PartialEq, Clone)]
 pub struct ModulePatEntry {
     /// The name of the field.
@@ -761,7 +785,9 @@ pub struct ModulePat {
 /// A tuple pattern entry
 #[derive(Debug, PartialEq, Clone)]
 pub struct TuplePatEntry {
+    /// If the tuple pattern entry binds a name to the pattern
     pub name: Option<AstNode<Name>>,
+    /// The pattern that is being applied on the tuple entry
     pub pat: AstNode<Pat>,
 }
 
@@ -816,6 +842,7 @@ pub struct BindingPat {
 /// A pattern spread
 #[derive(Debug, PartialEq, Clone)]
 pub struct SpreadPat {
+    /// If the spread pattern binds the selected range
     pub name: Option<AstNode<Name>>,
 }
 
@@ -848,8 +875,11 @@ impl Display for RangeEnd {
 /// interval, e.g. `'a'..<'g'`
 #[derive(Debug, PartialEq, Clone)]
 pub struct RangePat {
+    /// Initial bound of the range
     pub lo: AstNode<Lit>,
+    /// Upper bound of the range
     pub hi: AstNode<Lit>,
+    /// Whether the `end` is included or not
     pub end: RangeEnd,
 }
 
@@ -1173,6 +1203,8 @@ pub struct EnumDef {
 /// A trait definition, e.g. `add := <T> => trait { add: (T, T) -> T; }`.
 #[derive(Debug, PartialEq, Clone)]
 pub struct TraitDef {
+    /// Members of the trait definition, which are constricted to
+    /// constant-block only allowed [Expr]s.
     pub members: AstNodes<Expr>,
 }
 
@@ -1201,12 +1233,19 @@ pub struct MatchCase {
     pub expr: AstNode<Expr>,
 }
 
-/// The origin of a match block
+/// The origin of a match block when the AST is
+/// de-sugared into simpler constructs. More details
+/// about the de-structuring process is detailed in
+/// [Block].
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum MatchOrigin {
+    /// The match statement came from an `if` statement
     If,
+    /// The match statement has no de-sugared origin
     Match,
+    /// The match statement came from a de-sugared `for` loop
     For,
+    /// The match statement came from a de-sugared `while` loop
     While,
 }
 
@@ -1238,13 +1277,18 @@ impl BodyBlock {
     }
 }
 
+/// Loop block e.g. `loop { ... }`
 #[derive(Debug, PartialEq, Clone)]
 pub struct LoopBlock(pub AstNode<Block>);
 
+/// A for-loop block e.g. `for pat in iterator { ...body... }`
 #[derive(Debug, PartialEq, Clone)]
 pub struct ForLoopBlock {
+    /// The pattern that de-structures the operator
     pub pat: AstNode<Pat>,
+    /// The iterator of the for loop, goes after the `in`
     pub iterator: AstNode<Expr>,
+    /// The body of the for-loop
     pub body: AstNode<Block>,
 }
 
@@ -1407,10 +1451,15 @@ pub enum ParamOrigin {
     /// If at the current time, it's not known the origin of the parameter list,
     /// the function will default to using this.
     Unknown,
+    /// Parameters came from a tuple
     Tuple,
+    /// Parameters came from a struct
     Struct,
+    /// Parameters came from a function call
     Fn,
+    /// Parameters came from a type function call or definition
     TyFn,
+    /// Parameters came from an enum variant initialisation
     EnumVariant,
     /// List pattern parameters, the parameters are all the same, but it's
     /// used to represent the inner terms of the list pattern since spread
@@ -1594,15 +1643,20 @@ pub struct TraitImpl {
 /// A binary expression `2 + 2`.
 #[derive(Debug, PartialEq, Clone)]
 pub struct BinaryExpr {
+    /// left hand-side of the binary expression
     pub lhs: AstNode<Expr>,
+    /// right hand-side of the binary expression
     pub rhs: AstNode<Expr>,
+    /// The unary operator of the [BinaryExpr]
     pub operator: AstNode<BinOp>,
 }
 
 /// A unary expression `!a`.
 #[derive(Debug, PartialEq, Clone)]
 pub struct UnaryExpr {
+    /// The expression that the unary operator is applied to
     pub expr: AstNode<Expr>,
+    /// The unary operator of the [UnaryExpr]
     pub operator: AstNode<UnOp>,
 }
 
@@ -1618,27 +1672,48 @@ pub struct IndexExpr {
 /// The kind of an expression.
 #[derive(Debug, PartialEq, Clone)]
 pub enum ExprKind {
+    /// A constructor call which could be a struct/enum initialisation or a
+    /// function call e.g. `foo(5)`.
     ConstructorCall(ConstructorCallExpr),
+    /// A directive expression
     Directive(DirectiveExpr),
+    /// Declaration e.g. `x := 5;`
     Declaration(Declaration),
+    /// A variable e.g. `x`
     Variable(VariableExpr),
     /// Either a property access or a namespace access
     Access(AccessExpr),
+    /// Reference expression e.g. `&expr`
     Ref(RefExpr),
+    /// Dereference expression e.g. `*expr`
     Deref(DerefExpr),
+    /// Unsafe block expression e.g. `unsafe { *(&raw bytes) }`
     Unsafe(UnsafeExpr),
+    /// Literal expression e.g. `5`
     LitExpr(LitExpr),
+    /// Cast expression e.g. `x as u32`
     Cast(CastExpr),
+    /// Block expression
     Block(BlockExpr),
+    /// Import expression e.g. `import("lib")`
     Import(ImportExpr),
+    /// Struct definition expression e.g. `struct(foo: str)`
     StructDef(StructDef),
+    /// Struct definition expression e.g. `enum(Bar(u32), Baz(f32))`
     EnumDef(EnumDef),
+    /// Type function definition e.g. `<T> => ...`
     TyFnDef(TyFnDef),
+    /// Trait definition e.g.  `trait { ... }`
     TraitDef(TraitDef),
+    /// Function definition e.g. `(foo: i32) -> i32 => { ... }`
     FnDef(FnDef),
+    /// Type expression e.g. `type i32`
     Ty(TyExpr),
+    /// Break statement e.g. `return 5;`
     Return(ReturnStatement),
+    /// Break statement e.g. `break`
     Break(BreakStatement),
+    /// Continue statement e.g. `continue`
     Continue(ContinueStatement),
     /// Expression to index a subject e.g. `arr[x]`
     Index(IndexExpr),
@@ -1651,6 +1726,7 @@ pub enum ExprKind {
     /// A merge declaration is one that adds an implementation for a particular
     /// trait/struct to an already declared item, such as `x ~= impl { ... }`
     MergeDeclaration(MergeDeclaration),
+    /// Trait implementation e.g. `impl Clone { ... }`
     TraitImpl(TraitImpl),
     /// Binary Expression composed of a left and right hand-side with a binary
     /// operator
