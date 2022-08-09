@@ -37,8 +37,6 @@ pub enum ParseErrorKind {
     Expected,
     /// Expected the beginning of a body block.
     Block,
-    /// Expected end of input or token stream here, but encountered tokens.
-    Eof,
     /// Expecting a re-assignment operator at the specified location.
     /// Re-assignment operators are like normal operators, but they expect
     /// an 'equals' sign after the specified operator.
@@ -105,7 +103,6 @@ impl From<ParseError> for Report {
                 None => "unexpectedly reached the end of input".to_string(),
             },
             ParseErrorKind::Block => "expected block body, which begins with a `{`".to_string(),
-            ParseErrorKind::Eof => "unexpectedly reached the end of input".to_string(),
             ParseErrorKind::ReAssignmentOp => "expected a re-assignment operator".to_string(),
             ParseErrorKind::TypeDefinition(ty) => {
                 format!("expected {ty} definition entries here which begin with a `(`")

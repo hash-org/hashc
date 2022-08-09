@@ -1,4 +1,4 @@
-// stage=parse
+// stage=parse, warnings=ignore
 
 (
     while c < 10 {

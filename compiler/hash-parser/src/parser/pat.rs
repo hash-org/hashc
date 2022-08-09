@@ -118,8 +118,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// produces a [Pat::Range].
     fn parse_pat_component(&self) -> ParseResult<(AstNode<Pat>, bool)> {
         let start = self.next_location();
-        let token =
-            self.peek().ok_or_else(|| self.make_error(ParseErrorKind::Eof, None, None, None))?;
+        let token = self
+            .peek()
+            .ok_or_else(|| self.make_error(ParseErrorKind::Expected, None, None, None))?;
 
         let pat = match token {
             Token { kind: TokenKind::Ident(ident), .. }
@@ -293,12 +294,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let mut fields = vec![];
 
         while gen.has_token() {
-            let start = self.offset();
+            let start = gen.offset();
 
             match gen.parse_module_pat_entry().ok() {
                 Some(pat) => fields.push(pat),
                 None => {
-                    self.offset.set(start);
+                    gen.offset.set(start);
                     break;
                 }
             }

@@ -1,4 +1,4 @@
-// run=pass, stage=parse
+// run=pass, stage=parse, warnings=ignore
 
 // This is a crazy change of nested re-assignemnt operators.
 ((((a += b) *= c) += b) *= l) &&= c;

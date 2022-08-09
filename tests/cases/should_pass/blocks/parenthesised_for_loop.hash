@@ -1,4 +1,4 @@
-// stage=parse
+// stage=parse, warnings=ignore
 
 (for name in names.iter() {
     print(name);

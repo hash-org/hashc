@@ -93,7 +93,12 @@ fn handle_failure_case(
     if stderr_path.exists() {
         let err_contents = fs::read_to_string(stderr_path).unwrap();
 
-        pretty_assertions::assert_str_eq!(err_contents, report_contents, "\ncase `.stderr` does not match for: {:#?}\n", input);
+        pretty_assertions::assert_str_eq!(
+            err_contents,
+            report_contents,
+            "\ncase `.stderr` does not match for: {:#?}\n",
+            input
+        );
     } else {
         panic!(
             "missing `.stderr` file for `{:?}`, consider running with `REGENERATE_OUTPUT=true`",

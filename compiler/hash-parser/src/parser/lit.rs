@@ -38,7 +38,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn parse_primitive_lit(&self) -> ParseResult<AstNode<Lit>> {
         let token = self
             .next_token()
-            .ok_or_else(|| self.make_error(ParseErrorKind::Eof, None, None, None))?;
+            .ok_or_else(|| self.make_error(ParseErrorKind::Expected, None, None, None))?;
 
         // Deal with the numeric prefix `+` by just simply ignoring it
         let lit = match token.kind {

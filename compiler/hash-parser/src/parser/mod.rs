@@ -297,7 +297,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn expected_eof<T>(&self) -> ParseResult<T> {
         // move onto the next token
         self.offset.set(self.offset.get() + 1);
-        self.error(ParseErrorKind::Eof, None, Some(self.current_token().kind))
+        self.error(ParseErrorKind::Expected, None, Some(self.current_token().kind))
     }
 
     /// Verify that the current [AstGen] has no more tokens.
@@ -313,7 +313,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Generate an error representing that the current generator unexpectedly
     /// reached the end of input at this point.
     pub(crate) fn unexpected_eof<T>(&self) -> ParseResult<T> {
-        self.error(ParseErrorKind::Eof, None, None)
+        self.error(ParseErrorKind::Expected, None, None)
     }
 
     /// Function to peek ahead and match some parsing function that returns a

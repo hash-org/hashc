@@ -1,4 +1,4 @@
-// stage=parse
+// stage=parse, warnings=ignore
 
 b := ((match some_struct {
     Dog(name, age = 6) => match name {
