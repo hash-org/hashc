@@ -20,6 +20,7 @@ members = [
   "compiler/hash",
   "tests",
   "tests/testing-macros",
+  "tests/testing-internal",
 ]
 
 [profile.release]

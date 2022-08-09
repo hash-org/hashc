@@ -10,6 +10,7 @@ use std::{
 };
 
 use convert_case::{Case, Casing};
+use hash_testing_internal::metadata::{parse_test_case_metadata, TestMetadata};
 use proc_macro::{Span, TokenStream};
 use quote::{format_ident, quote};
 use regex::Regex;
@@ -75,21 +76,27 @@ impl Parse for GenerateTestsInput {
 /// case, such as whether the case should pass, or which compiler
 /// stage it should run to, etc.
 #[derive(Debug, Clone)]
-struct FileEntry {
+struct TestEntry {
     /// The path of the test
     path: PathBuf,
-    /// Name of the file in snake case.
+
+    /// Name of the file in snake case, only used to create
+    /// the name of the unit test.
     snake_name: String,
+
+    /// file metadata that is generated from checking the top of the file
+    /// for any test case configuration settings
+    metadata: TestMetadata,
 }
 
 /// Function to read a directory and extract all of the test cases within
 /// the directory recursively. The function will collect all files that match
 /// the specified `test_pattern`.
-fn read_dir(
+fn read_tests_from_dir(
     path: &Path,
     test_pattern: &Regex,
     base_name: Option<&str>,
-) -> io::Result<Vec<FileEntry>> {
+) -> io::Result<Vec<TestEntry>> {
     let mut entries = vec![];
 
     for entry in path.read_dir()? {
@@ -112,11 +119,14 @@ fn read_dir(
         // we check if name matches the regex pattern and add it
         // to the entries if so...
         if entry_metadata.is_dir() {
-            entries.extend(read_dir(&path, test_pattern, Some(&snake_name))?);
+            entries.extend(read_tests_from_dir(&path, test_pattern, Some(&snake_name))?);
         } else if entry_metadata.is_file()
             && test_pattern.is_match(path.file_name().unwrap().to_str().unwrap())
         {
-            entries.push(FileEntry { path, snake_name });
+            let metadata =
+                parse_test_case_metadata(&path).unwrap_or_else(|_| TestMetadata::default());
+
+            entries.push(TestEntry { path, snake_name, metadata });
         }
     }
 
@@ -178,13 +188,13 @@ pub fn generate_tests(input: TokenStream) -> TokenStream {
 
     let test_pattern = Regex::new(&input.test_pattern).unwrap();
 
-    let mut entries = read_dir(&file_path, &test_pattern, None).unwrap();
+    let mut entries = read_tests_from_dir(&file_path, &test_pattern, None).unwrap();
     entries.sort_by_cached_key(|entry| entry.path.to_owned());
 
     // Compute the test parameters from each entry
     let paths = entries.iter().map(|entry| entry.path.to_str().unwrap());
     let filenames = entries.iter().map(|entry| entry.path.file_prefix().unwrap().to_str().unwrap());
-    let snake_names = entries.iter().map(|entry| entry.snake_name.to_owned());
+    let case_metadata = entries.iter().map(|entry| entry.metadata);
 
     // Create the test names from the provided prefix and the computed `snake_name`
     let test_names = entries
@@ -196,10 +206,13 @@ pub fn generate_tests(input: TokenStream) -> TokenStream {
         #(
             #[test]
             fn #test_names() {
+                use hash_testing_internal::metadata::TestMetadata;
+                use hash_pipeline::settings::CompilerMode;
+
                 #test_func(TestingInput {
                     path: #paths.into(),
                     filename: #filenames.into(),
-                    snake_name: #snake_names.into()
+                    metadata: #case_metadata.into()
                 });
             }
         )*

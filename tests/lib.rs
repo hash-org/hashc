@@ -1,8 +1,13 @@
 #![feature(test)]
 extern crate test;
 
-pub mod parser;
-pub mod test_runner;
+/// Specific stage and stage implementation tests
+///
+/// @@Todo: possibly move into the crate itself?
+mod parser;
+
+/// Modules to do with UI tests and running them
+mod runner;
 
 use lazy_static::lazy_static;
 use regex::Regex;

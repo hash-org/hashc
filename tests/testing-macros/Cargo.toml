@@ -12,5 +12,7 @@ quote = "1.0"
 convert_case = "0.4"
 regex = "1.5"
 
-# For documentation purposes
+hash-testing-internal = {path = "../testing-internal" }
+
 hash-utils = {path = "../../compiler/hash-utils" }
+hash-reporting = {path = "../../compiler/hash-reporting" }

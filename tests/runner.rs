@@ -11,12 +11,9 @@
 //! `case.stderr` to ensure that the test produces the expected errors.
 //!
 //! Additionally, it's also possible for the case file to specify at the
-//! top of the file what testing parameters should be provided, for example
-//!
-//!
-//! If the case is in `should_fail`:
+//! top of the file what testing parameters should be provided, for example:
 //! ```ignore
-//! // stage-parse, pass
+//! // stage=parse, run=fail
 //!
 //! foo := () => { ... };
 //!
@@ -24,10 +21,10 @@
 //! ```
 //!
 //! In this example, the case specifies that the stage should only go up to the
-//! "parsing" stage and then stop compiling, and emit the errors.
+//! "parsing" stage and then stop compiling, and that the test case should fail.
 #![cfg(test)]
 
-use std::{fs, path::PathBuf};
+use std::fs;
 
 use hash_parser::HashParser;
 use hash_pipeline::{
@@ -37,29 +34,11 @@ use hash_pipeline::{
 };
 use hash_reporting::{report::Report, writer::ReportWriter};
 use hash_source::{ModuleKind, SourceId};
+use hash_testing_internal::{metadata::TestResult, TestingInput};
 use hash_testing_macros::generate_tests;
 use regex::Regex;
 
 use crate::{ANSI_REGEX, REGENERATE_OUTPUT};
-
-/// Represents the input to a test, which is the path to the test input and a
-/// snake case name.
-#[derive(Debug, Clone)]
-pub struct TestingInput {
-    /// The path to the test file
-    pub path: PathBuf,
-
-    /// filename of the test, useful for when looking for resources
-    /// that have been generated that are related to the file.
-    ///
-    /// N.B. the `filename` does not contain `.hash` prefix.
-    pub filename: String,
-
-    /// Generated snake-cae name for the file
-    ///
-    /// @@Deprecated
-    pub snake_name: String,
-}
 
 /// This function is used to handle the case of verifying that a parser test was
 /// expected to fail. This function verifies that it does fail and that the
@@ -70,6 +49,8 @@ fn handle_failure_case(
     result: Result<(), Vec<Report>>,
     sources: Workspace,
 ) -> std::io::Result<()> {
+    println!("{:?}", input);
+
     // Verify that the parser failed to parse this file
     assert!(result.is_err(), "parsing file: {:?} did not fail", input.path);
 
@@ -116,9 +97,6 @@ fn handle_failure_case(
 
 /// Generic test handler in the event whether a case should pass or fail.
 fn handle_test(input: TestingInput) {
-    // determine if this test should fail or not
-    let should_fail = input.snake_name.starts_with("should_fail");
-
     let mut workspace = Workspace::new();
     let target = Module::new(input.path.clone());
     let contents = read_in_path(input.path.as_path()).unwrap();
@@ -136,11 +114,11 @@ fn handle_test(input: TestingInput) {
     // Now parse the module and store the result
     let result = parser.parse(SourceId::Module(target_id), &mut workspace, &pool);
 
-    if should_fail {
+    // Based on the specified metadata within the test case itself, we know
+    // whether the test should fail or not
+    if input.metadata.completion == TestResult::Fail {
         handle_failure_case(input, result, workspace).unwrap();
     } else {
-        // Check whether the result fails or not, depending on if the file_path begins
-        // with 'should_fail'...
         assert!(result.is_ok(), "parsing file failed: {:?}", input.path);
     }
 }

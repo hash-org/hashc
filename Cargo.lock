@@ -505,10 +505,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "hash-testing-internal"
+version = "0.1.0"
+dependencies = [
+ "hash-pipeline",
+ "itertools",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "hash-testing-macros"
 version = "0.1.0"
 dependencies = [
  "convert_case",
+ "hash-reporting",
+ "hash-testing-internal",
  "hash-utils",
  "quote",
  "regex",
@@ -525,6 +537,7 @@ dependencies = [
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
+ "hash-testing-internal",
  "hash-testing-macros",
  "hash-utils",
  "lazy_static",
