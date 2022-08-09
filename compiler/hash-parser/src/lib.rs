@@ -82,22 +82,20 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
     // Perform the parsing operation now... and send the result through the
     // message queue, regardless of it being an error or not.
     let action = match &source.source_id() {
-        SourceId::Module(id) => match gen.parse_module() {
-            Some(node) => ParserAction::SetModuleNode {
-                module_id: *id,
-                node,
-                diagnostics: gen.into_reports(),
-            },
-            None => ParserAction::Error(gen.into_reports()),
-        },
-        SourceId::Interactive(id) => match gen.parse_expr_from_interactive() {
-            Some(node) => ParserAction::SetInteractiveNode {
+        SourceId::Module(id) => {
+            let node = gen.parse_module();
+
+            ParserAction::SetModuleNode { module_id: *id, node, diagnostics: gen.into_reports() }
+        }
+        SourceId::Interactive(id) => {
+            let node = gen.parse_expr_from_interactive();
+
+            ParserAction::SetInteractiveNode {
                 interactive_id: *id,
                 node,
                 diagnostics: gen.into_reports(),
-            },
-            None => ParserAction::Error(gen.into_reports()),
-        },
+            }
+        }
     };
 
     let sender = resolver.into_sender();

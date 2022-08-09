@@ -19,6 +19,13 @@ pub trait Diagnostics<E: Into<Report>, W> {
     /// Add an error into the [Self]
     fn add_error(&mut self, error: E);
 
+    /// Add an error from a [Result<T, E>] if the result is erroneous.
+    fn maybe_add_error<T>(&mut self, value: Result<T, E>) {
+        if let Err(e) = value {
+            self.add_error(e);
+        }
+    }
+
     /// Add a warning into the diagnostics store.
     fn add_warning(&mut self, warning: W);
 

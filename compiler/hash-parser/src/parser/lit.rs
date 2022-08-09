@@ -42,7 +42,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn parse_primitive_lit(&mut self) -> ParseResult<AstNode<Lit>> {
         let token = self
             .next_token()
-            .ok_or_else(|| self.make_error(ParseErrorKind::Expected, None, None, None))?;
+            .ok_or_else(|| self.make_err(ParseErrorKind::Expected, None, None, None))?;
 
         // Deal with the numeric prefix `+` by just simply ignoring it
         let lit = match token.kind {
@@ -71,7 +71,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
                         return Ok(lit);
                     }
-                    token => self.error_with_location(
+                    token => self.err_with_location(
                         ParseErrorKind::ExpectedLiteral,
                         None,
                         token.map(|t| t.kind),
@@ -87,7 +87,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
             TokenKind::CharLit(value) => Ok(Lit::Char(CharLit(value))),
             TokenKind::StrLit(value) => Ok(Lit::Str(StrLit(value))),
-            kind => self.error_with_location(
+            kind => self.err_with_location(
                 ParseErrorKind::ExpectedLiteral,
                 None,
                 Some(kind),
@@ -138,21 +138,22 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Parse a map literal which is made of braces with an arbitrary number of
     /// fields separated by commas.
-    pub(crate) fn parse_map_lit(&self) -> ParseResult<AstNode<Lit>> {
+    pub(crate) fn parse_map_lit(&mut self) -> ParseResult<AstNode<Lit>> {
         debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Map)));
 
         let start = self.current_location();
         let mut gen = self.parse_delim_tree(Delimiter::Brace, None)?;
 
         let elements =
-            gen.parse_separated_fn(|g| g.parse_map_entry(), |g| g.parse_token(TokenKind::Comma))?;
+            gen.parse_separated_fn(|g| g.parse_map_entry(), |g| g.parse_token(TokenKind::Comma));
+        self.consume_gen(gen);
 
         Ok(self.node_with_joined_span(Lit::Map(MapLit { elements }), start))
     }
 
     /// Parse a set literal which is made of braces with an arbitrary number of
     /// fields separated by commas.
-    pub(crate) fn parse_set_lit(&self) -> ParseResult<AstNode<Lit>> {
+    pub(crate) fn parse_set_lit(&mut self) -> ParseResult<AstNode<Lit>> {
         debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Set)));
 
         let start = self.current_location();
@@ -161,7 +162,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let elements = gen.parse_separated_fn(
             |g| g.parse_expr_with_precedence(0),
             |g| g.parse_token(TokenKind::Comma),
-        )?;
+        );
+        self.consume_gen(gen);
 
         Ok(self.node_with_joined_span(Lit::Set(SetLit { elements }), start))
     }
@@ -192,7 +194,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 };
 
                 self.parse_token_fast(TokenKind::Eq).ok_or_else(|| {
-                    self.make_error(
+                    self.make_err(
                         ParseErrorKind::ExpectedValueAfterTyAnnotation,
                         Some(TokenKindVector::singleton(TokenKind::Eq)),
                         None,
@@ -244,7 +246,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 Some(token) => {
                     // if we haven't exhausted the whole token stream, then report this as a
                     // unexpected token error
-                    return gen.error(
+                    return gen.err(
                         ParseErrorKind::Expected,
                         Some(TokenKindVector::singleton(TokenKind::Comma)),
                         Some(token.kind),

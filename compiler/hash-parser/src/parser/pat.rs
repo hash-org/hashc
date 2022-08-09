@@ -82,7 +82,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     let fields = gen.parse_separated_fn(
                         |g| g.parse_tuple_pat_entry(),
                         |g| g.parse_token(TokenKind::Comma),
-                    )?;
+                    );
+                    self.consume_gen(gen);
 
                     self.node_with_joined_span(
                         Pat::Constructor(ConstructorPat { subject, fields }),
@@ -118,9 +119,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// produces a [Pat::Range].
     fn parse_pat_component(&mut self) -> ParseResult<(AstNode<Pat>, bool)> {
         let start = self.next_location();
-        let token = self
-            .peek()
-            .ok_or_else(|| self.make_error(ParseErrorKind::Expected, None, None, None))?;
+        let token =
+            self.peek().ok_or_else(|| self.make_err(ParseErrorKind::Expected, None, None, None))?;
 
         let pat = match token {
             Token { kind: TokenKind::Ident(ident), .. }
@@ -157,7 +157,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                         Pat::Lit(LitPat(lit))
                     }
                     // @@Future: could refine error here to be more specific about numeric literals
-                    token => self.error_with_location(
+                    token => self.err_with_location(
                         ParseErrorKind::ExpectedPat,
                         None,
                         token.map(|tok| tok.kind),
@@ -194,7 +194,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
                 return Ok((self.parse_list_pat(tree, *span)?, true));
             }
-            token => self.error_with_location(
+            token => self.err_with_location(
                 ParseErrorKind::ExpectedPat,
                 None,
                 Some(token.kind),
@@ -220,11 +220,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         };
 
         Ok((self.node_with_joined_span(pat, start), can_continue))
-    }
-
-    /// Parse an arbitrary number of [Pat]s which are comma separated.
-    pub fn parse_pat_collection(&mut self) -> ParseResult<AstNodes<Pat>> {
-        self.parse_separated_fn(|g| g.parse_pat(), |g| g.parse_token(TokenKind::Comma))
     }
 
     /// Attempt to parse a range-pattern, if it fails then the
@@ -289,7 +284,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Parse a [ModulePat] which is comprised of a collection of
     /// [ModulePatEntry]s that are comma separated within a brace tree.
-    fn parse_module_pat(&self, tree: &'stream [Token], span: Span) -> ParseResult<ModulePat> {
+    fn parse_module_pat(&mut self, tree: &'stream [Token], span: Span) -> ParseResult<ModulePat> {
         let mut gen = self.from_stream(tree, span);
         let mut fields = vec![];
 
@@ -308,12 +303,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 gen.parse_token(TokenKind::Comma)?;
             }
         }
-
-        // @@ErrorReporting: So here, there is a problem because we do actually want to
-        // report that this should have been the end of the pattern but because in some
-        // contexts the function is being peeked and the error is being ignored, maybe
-        // there should be some mechanism to cause the function to hard error?
-        gen.verify_is_empty()?;
+        self.consume_gen(gen);
 
         Ok(ModulePat { fields: AstNodes::new(fields, Some(span)) })
     }
@@ -322,13 +312,13 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// consists of a list of comma separated within a square brackets .e.g
     /// `[x, 1, ..]`
     pub(crate) fn parse_list_pat(
-        &self,
+        &mut self,
         tree: &'stream [Token],
         parent_span: Span,
     ) -> ParseResult<AstNode<Pat>> {
         let mut gen = self.from_stream(tree, parent_span);
-        let fields =
-            gen.parse_separated_fn(|g| g.parse_pat(), |g| g.parse_token(TokenKind::Comma))?;
+        let fields = gen.parse_separated_fn(|g| g.parse_pat(), |g| g.parse_token(TokenKind::Comma));
+        self.consume_gen(gen);
 
         Ok(self.node_with_span(Pat::List(ListPat { fields }), parent_span))
     }
@@ -341,7 +331,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// the function will assume that this is not a tuple pattern and simply
     /// a pattern wrapped within parentheses.
     pub(crate) fn parse_tuple_pat(
-        &self,
+        &mut self,
         tree: &'stream [Token],
         parent_span: Span,
     ) -> ParseResult<AstNode<Pat>> {
@@ -362,10 +352,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // wrapped in parentheses and so we just unwrap it.
         let mut gen = self.from_stream(tree, parent_span);
 
-        let mut elements = gen.parse_separated_fn(
-            |g| g.parse_tuple_pat_entry(),
-            |g| g.parse_token(TokenKind::Comma),
-        )?;
+        let mut elements = gen
+            .parse_separated_fn(|g| g.parse_tuple_pat_entry(), |g| g.parse_token(TokenKind::Comma));
 
         // If there is no associated name with the entry and there is only one entry
         // then we can be sure that it is only a nested entry.
@@ -373,10 +361,15 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             && elements[0].name.is_none()
             && !matches!(gen.current_token().kind, TokenKind::Comma)
         {
-            let element = elements.nodes.pop().unwrap().into_body();
+            // @@Future: we want to check if there were any errors and then
+            // if not we want to possibly emit a warning about redundant parentheses
+            // for this particular pattern
+            self.consume_gen(gen);
 
+            let element = elements.nodes.pop().unwrap().into_body();
             Ok(element.pat)
         } else {
+            self.consume_gen(gen);
             Ok(self.node_with_span(Pat::Tuple(TuplePat { fields: elements }), parent_span))
         }
     }
@@ -417,7 +410,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn parse_spread_pat(&self) -> ParseResult<SpreadPat> {
         for k in 0..3 {
             self.parse_token_fast(TokenKind::Dot).ok_or_else(|| {
-                self.make_error(
+                self.make_err(
                     ParseErrorKind::MalformedSpreadPattern(3 - k),
                     None,
                     None,
@@ -459,7 +452,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             Some(Token { kind: TokenKind::Keyword(Keyword::Priv), span }) => {
                 Ok(self.node_with_span(Visibility::Private, *span))
             }
-            token => self.error_with_location(
+            token => self.err_with_location(
                 ParseErrorKind::Expected,
                 None,
                 token.map(|t| t.kind),
