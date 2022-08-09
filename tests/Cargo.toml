@@ -23,6 +23,10 @@ hash-pipeline = {path = "../compiler/hash-pipeline" }
 hash-parser = {path = "../compiler/hash-parser" }
 hash-reporting = {path = "../compiler/hash-reporting" }
 hash-lexer = {path = "../compiler/hash-lexer" }
+hash-ast-desugaring = { path = "../compiler/hash-ast-desugaring" }
+hash-ast-passes = { path = "../compiler/hash-ast-passes" }
+hash-typecheck = { path = "../compiler/hash-typecheck" }
+hash-vm = { path = "../compiler/hash-vm" }
 
 # Internal macros the that the tester uses
 hash-testing-macros = { path = "../tests/testing-macros" }
