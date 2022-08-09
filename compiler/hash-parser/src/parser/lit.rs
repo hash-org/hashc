@@ -1,12 +1,16 @@
 //! Hash Compiler AST generation sources. This file contains the sources to the
 //! logic that transforms tokens into an AST.
 use hash_ast::ast::*;
+use hash_reporting::diagnostic::Diagnostics;
 use hash_source::location::Span;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
 use num_bigint::{BigInt, Sign};
 
 use super::AstGen;
-use crate::diagnostics::error::{ParseErrorKind, ParseResult};
+use crate::diagnostics::{
+    error::{ParseErrorKind, ParseResult},
+    warning::{ParseWarning, SubjectKind, WarningKind},
+};
 
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Convert the current token (provided it is a primitive literal) into a
@@ -35,7 +39,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     }
 
     ///
-    pub(crate) fn parse_primitive_lit(&self) -> ParseResult<AstNode<Lit>> {
+    pub(crate) fn parse_primitive_lit(&mut self) -> ParseResult<AstNode<Lit>> {
         let token = self
             .next_token()
             .ok_or_else(|| self.make_error(ParseErrorKind::Expected, None, None, None))?;
@@ -45,7 +49,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             kind if kind.is_numeric_prefix() => {
                 let is_negated = self.parse_token_fast(TokenKind::Minus).is_some();
 
-                // We want to skip the `+` sign if it's not `-`
+                // We want to skip the `+` sign if it's not `-`, and emit the warning
+                // on the literal since the operator is unnecessary.
+                let emit_warning = !is_negated;
+
                 if !is_negated {
                     self.skip_token();
                 }
@@ -53,7 +60,16 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 match self.peek() {
                     Some(token) if token.kind.is_numeric() => {
                         self.skip_token();
-                        return Ok(self.create_numeric_lit(is_negated));
+                        let lit = self.create_numeric_lit(is_negated);
+
+                        if emit_warning {
+                            self.add_warning(ParseWarning::new(
+                                WarningKind::UselessUnaryOperator(SubjectKind::Lit),
+                                lit.span(),
+                            ));
+                        }
+
+                        return Ok(lit);
                     }
                     token => self.error_with_location(
                         ParseErrorKind::ExpectedLiteral,

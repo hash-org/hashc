@@ -4,7 +4,7 @@
 
 use crate::report::Report;
 
-pub trait Diagnostics<E: Into<Report>, W: Into<Report>> {
+pub trait Diagnostics<E: Into<Report>, W> {
     /// The store that is used to store the relevant diagnostics,
     /// this is up to the implementation of the trait how the  
     /// store is implemented.

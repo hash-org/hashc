@@ -66,7 +66,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a singular [Pat]. Singular [Pat]s cannot have any grouped
     /// pattern operators such as a `|`, if guards or any form of compound
     /// pattern.
-    pub(crate) fn parse_singular_pat(&self) -> ParseResult<AstNode<Pat>> {
+    pub(crate) fn parse_singular_pat(&mut self) -> ParseResult<AstNode<Pat>> {
         let (mut subject, can_continue) = self.parse_pat_component()?;
         let span = subject.span();
 
@@ -116,7 +116,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Returns a flag whether further patterns that are applied onto this
     /// [Pat] can be parsed. The `can_continue` flag is set to `false` if this
     /// produces a [Pat::Range].
-    fn parse_pat_component(&self) -> ParseResult<(AstNode<Pat>, bool)> {
+    fn parse_pat_component(&mut self) -> ParseResult<(AstNode<Pat>, bool)> {
         let start = self.next_location();
         let token = self
             .peek()
@@ -229,7 +229,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Attempt to parse a range-pattern, if it fails then the
     /// function returns [None]
-    fn maybe_parse_range_pat(&self, lo: AstNode<Lit>) -> Option<RangePat> {
+    fn maybe_parse_range_pat(&mut self, lo: AstNode<Lit>) -> Option<RangePat> {
         let offset = self.offset();
 
         // Parse the two dots...
@@ -250,7 +250,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         };
 
         // Now parse the `hi` part of the range
-        match self.peek_resultant_fn(|g| g.parse_primitive_lit()) {
+        match self.parse_primitive_lit().ok() {
             Some(hi) => Some(RangePat { lo, hi, end }),
             None => {
                 // Reset the token offset to the beginning

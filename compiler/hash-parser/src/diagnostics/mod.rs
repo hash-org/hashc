@@ -7,7 +7,10 @@ pub(crate) mod warning;
 use hash_reporting::diagnostic::Diagnostics;
 use smallvec::SmallVec;
 
-use self::{error::ParseError, warning::ParseWarning};
+use self::{
+    error::ParseError,
+    warning::{ParseWarning, ParseWarningWrapper},
+};
 use crate::parser::AstGen;
 
 /// Enum representing the kind of statement where type arguments can be expected
@@ -72,7 +75,11 @@ impl<'stream, 'resolver> Diagnostics<ParseError, ParseWarning> for AstGen<'strea
             .errors
             .into_iter()
             .map(|err| err.into())
-            .chain(self.diagnostics.warnings.into_iter().map(|warn| warn.into()))
+            .chain(
+                self.diagnostics.warnings.into_iter().map(|warn| {
+                    ParseWarningWrapper(warn, self.resolver.current_source_id()).into()
+                }),
+            )
             .collect()
     }
 

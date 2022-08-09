@@ -631,7 +631,17 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     }),
                 }
             }
-            TokenKind::Plus => return self.parse_expr(),
+            TokenKind::Plus => {
+                let inner_expr = self.parse_expr()?;
+
+                // Emit a warning for the unnecessary `+` operator
+                self.add_warning(ParseWarning::new(
+                    WarningKind::UselessUnaryOperator(inner_expr.kind().into()),
+                    inner_expr.span(),
+                ));
+
+                return Ok(inner_expr);
+            }
             kind @ (TokenKind::Minus | TokenKind::Exclamation | TokenKind::Tilde) => {
                 // Immediately deal with negation on numeric literals...
                 if *kind == TokenKind::Minus {
@@ -869,8 +879,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             // expression since it does not affect the precedence...
             if !matches!(expr.kind(), ExprKind::BinaryExpr(_) | ExprKind::Cast(_)) {
                 self.add_warning(ParseWarning::new(
-                    WarningKind::RedundantParenthesis,
-                    self.source_location(&expr.span()),
+                    WarningKind::RedundantParenthesis(expr.kind().into()),
+                    expr.span(),
                 ));
             }
 
