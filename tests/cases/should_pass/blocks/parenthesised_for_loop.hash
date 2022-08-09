@@ -1,3 +1,5 @@
+// stage=parse
+
 (for name in names.iter() {
     print(name);
 });

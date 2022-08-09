@@ -1,3 +1,5 @@
+// stage=parse
+
 a := unsafe { 2 };
 a := unsafe { unsafe { 2 } };
 

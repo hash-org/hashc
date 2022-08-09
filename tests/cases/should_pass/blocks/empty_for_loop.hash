@@ -1,3 +1,5 @@
+// stage=parse
+
 // Test that the parser shouldn't get confused between a struct literal and a for block
 for x in xs {};
 

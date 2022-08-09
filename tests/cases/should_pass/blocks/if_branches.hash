@@ -1,3 +1,5 @@
+// stage=parse
+
 if b == 2 {
      print("b is 2")
 } else if b == 3 {

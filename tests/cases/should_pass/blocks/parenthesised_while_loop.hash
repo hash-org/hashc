@@ -1,3 +1,5 @@
+// stage=parse
+
 (
     while c < 10 {
         print(c);

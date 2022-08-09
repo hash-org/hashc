@@ -1,3 +1,5 @@
+// stage=parse
+
 loop {
     c = 0;
 

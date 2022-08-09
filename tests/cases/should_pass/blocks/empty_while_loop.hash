@@ -1,3 +1,5 @@
+// stage=parse
+
 main := () => {
     while a {};
 };

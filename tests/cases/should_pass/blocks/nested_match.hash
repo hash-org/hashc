@@ -1,3 +1,5 @@
+// stage=parse
+
 data := match some_struct {
     Dog(name, age = 6) => match name {
         "Viktor" => print("Viktor is 6");

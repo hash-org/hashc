@@ -1,3 +1,5 @@
+// stage=parse
+
 // Here we specify that the function `fact` should be memoised using the 
 // directive `memoised`.
 

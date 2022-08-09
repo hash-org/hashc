@@ -1,3 +1,5 @@
+// stage=parse
+
 compare_id := (car: Car, id: int) => {
     // destruct the 'id' out of car and rename it
     Car(id = car_id) := car;

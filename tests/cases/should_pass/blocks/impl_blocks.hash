@@ -1,3 +1,5 @@
+// stage=parse
+
 Vector3 := <T: Eq> => struct(x: T, y: T, z: T);
 
 Vector3 ~= <T: Mul ~ Sub> => impl {

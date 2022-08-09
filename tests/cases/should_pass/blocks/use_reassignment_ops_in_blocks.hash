@@ -1,3 +1,5 @@
+// stage=parse
+
 if a { a+=1; };
 
 while a < b {

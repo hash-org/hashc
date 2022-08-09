@@ -1,3 +1,4 @@
+// stage=parse
 pub nested := mod {
     pub Colour := enum(Red, Green, Blue);
 };

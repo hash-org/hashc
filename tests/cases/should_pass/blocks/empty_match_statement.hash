@@ -1,2 +1,4 @@
+// stage=parse
+
 match xs {
 };

@@ -1,3 +1,5 @@
+// stage=parse
+
 Merge := <T: Add ~ Or> => trait {
     merge: (T, T) -> T = () => {};
 };

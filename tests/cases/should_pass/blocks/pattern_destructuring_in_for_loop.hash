@@ -1,4 +1,5 @@
-Point = struct(
+// stage=parse
+Point := struct(
     x: int,
     y: int
 );

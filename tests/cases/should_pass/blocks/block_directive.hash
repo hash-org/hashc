@@ -1,3 +1,5 @@
+// stage=parse
+
 t := #dump match t {
     "one" => 1;
     "two" => 2;

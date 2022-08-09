@@ -1,3 +1,5 @@
+// stage=parse
+
 // An 'if-statement' with a binary expr and empty block
 if i < 0 {
 };
