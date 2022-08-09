@@ -25,8 +25,9 @@ use crate::{
         deconstructed::DeconstructedPatId,
         pats::{PatArgsId, PatId},
         primitives::{
-            ConstructorPat, IfPat, Level0Term, Level1Term, ListPat, LitTerm, ModDef, ModPat,
-            NominalDef, Pat, PatArg, RangePat, ScopeKind, SpreadPat, StructFields, Term, TupleTy,
+            AccessPat, ConstructorPat, IfPat, Level0Term, Level1Term, ListPat, LitTerm, ModDef,
+            ModPat, NominalDef, Pat, PatArg, RangePat, ScopeKind, SpreadPat, StructFields, Term,
+            TupleTy,
         },
         terms::TermId,
         AccessToStorage, StorageRef,
@@ -108,13 +109,17 @@ impl<'tc> LowerPatOps<'tc> {
 
                 (DeconstructedCtor::Single, scope_members)
             }
+            // Since the type is already resolved, we just need to traverse down to
+            // the `Pat::Const`, and then we perform the lowering based on the type.
+            Pat::Access(AccessPat { subject, .. }) => return self.deconstruct_pat(ty, subject),
             // This is essentially a simplification to some unit nominal definition like
             // for example `None`..., here we need to be able to get the `type` of the
             // actual pattern in order to figure out which
-            Pat::Access(_) | Pat::Const(_) => {
+            Pat::Const(_) => {
                 // @@EnumToUnion: when enums aren't a thing, do this with a union and create a
                 // `DeconstructedCtor::Variant(idx)` where `idx` is the union member number
-                unreachable!()
+
+                (DeconstructedCtor::Wildcard, vec![])
             }
             Pat::Range(_) => todo!(),
             Pat::Lit(term) => match reader.get_term(term) {
