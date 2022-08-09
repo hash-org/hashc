@@ -48,20 +48,24 @@ use crate::{ANSI_REGEX, REGENERATE_OUTPUT};
 /// expected to fail. This function verifies that it does fail and that the
 /// generated [Report] (which is rendered) matches the recorded `case.stderr`
 /// entry within the case.
+///
+/// If the case specifies that `warnings=ignore`, then warnings will not be
+/// considered within the resultant `.stderr` file.
 fn handle_failure_case(
     input: TestingInput,
     diagnostics: Vec<Report>,
     sources: Workspace,
 ) -> std::io::Result<()> {
-    // Verify that the parser failed to parse this file
+    // verify that the case failed, as in reports where generated
     assert!(
         diagnostics.iter().any(|report| report.is_error()),
-        "parsing file: {:?} did not fail",
-        input.path
+        "\ntest case did not fail: {:#?}",
+        input
     );
 
     let contents = diagnostics
         .into_iter()
+        .filter(|report| if input.metadata.ignore_warnings { report.is_error() } else { true })
         .map(|report| format!("{}", ReportWriter::new(report, sources.source_map())))
         .collect::<Vec<_>>()
         .join("\n");
@@ -89,7 +93,7 @@ fn handle_failure_case(
     if stderr_path.exists() {
         let err_contents = fs::read_to_string(stderr_path).unwrap();
 
-        pretty_assertions::assert_eq!(err_contents, report_contents);
+        pretty_assertions::assert_str_eq!(err_contents, report_contents, "\ncase `.stderr` does not match for: {:#?}\n", input);
     } else {
         panic!(
             "missing `.stderr` file for `{:?}`, consider running with `REGENERATE_OUTPUT=true`",
@@ -98,6 +102,21 @@ fn handle_failure_case(
     }
 
     Ok(())
+}
+
+/// Function that handles a test case which is expected to be successful, in
+/// this situation, the function will verify that the test case did not emit any
+/// errors or warnings (although setting `warnings=ignore` will ignore
+/// warnings).
+fn handle_pass_case(input: TestingInput, diagnostics: Vec<Report>) {
+    let did_pass = if input.metadata.ignore_warnings {
+        diagnostics.iter().all(|report| report.is_warning())
+    } else {
+        // Expect no diagnostics to be emitted whatsoever
+        diagnostics.is_empty()
+    };
+
+    assert!(did_pass, "\ntest case did not pass: {:#?}", input);
 }
 
 /// Generic test handler in the event whether a case should pass or fail.
@@ -144,7 +163,7 @@ fn handle_test(input: TestingInput) {
     if input.metadata.completion == TestResult::Fail {
         handle_failure_case(input, diagnostics, compiler_state.workspace).unwrap();
     } else {
-        assert!(diagnostics.is_empty(), "parsing file failed: {:?}", input.path);
+        handle_pass_case(input, diagnostics);
     }
 }
 
