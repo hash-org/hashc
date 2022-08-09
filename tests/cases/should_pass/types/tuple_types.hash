@@ -1,3 +1,5 @@
+// run=pass, stage=parse
+
 // This should be the same
 k: () = b;
 k: (,) = b;

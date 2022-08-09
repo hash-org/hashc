@@ -1,3 +1,5 @@
+// run=pass, stage=parse
+
 match some_list_literal {
     [] => do_something();
     [a, ...x] => do_something_else();

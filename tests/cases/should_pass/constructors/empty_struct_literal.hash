@@ -1,1 +1,3 @@
+// run=pass, stage=parse
+
 struct_lit := MyDog();

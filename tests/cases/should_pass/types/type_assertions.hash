@@ -1,2 +1,4 @@
+// run=pass, stage=parse
+
 k := 12 as u8;
 k := (12 as usize) * (16 as usize) as u16;

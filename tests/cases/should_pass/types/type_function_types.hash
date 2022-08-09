@@ -1,3 +1,5 @@
+// run=pass, stage=parse
+
 // Various ways of declaring a type functiont type!
 x: <T: Type> -> Type;
 x: <T> -> Type;

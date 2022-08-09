@@ -1,3 +1,5 @@
+// run=pass, stage=parse
+
 main := (k: i32) => {
     2..6 := k;
     'c'..'z' := k;

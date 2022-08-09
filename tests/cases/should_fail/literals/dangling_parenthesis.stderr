@@ -1,5 +1,6 @@
 error: unexpectedly reached the end of input
- --> $DIR/dangling_parenthesis.hash:1:17
-1 |   k := (a) + ((b)));
+ --> $DIR/dangling_parenthesis.hash:3:17
+2 |   
+3 |   k := (a) + ((b)));
   |                   ^ here
   = help: consider adding a `;`

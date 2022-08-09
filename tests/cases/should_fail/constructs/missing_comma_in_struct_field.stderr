@@ -1,7 +1,7 @@
 error: unexpectedly encountered the identifier `age`
- --> $DIR/missing_comma_in_struct_field.hash:5:5
-4 |       has_brother = true // <--- Error should be reported here since there is no comma....
-5 |       age = 12, 
+ --> $DIR/missing_comma_in_struct_field.hash:6:5
+5 |       has_brother = true // <--- Error should be reported here since there is no comma....
+6 |       age = 12, 
   |       ^^^ here
-6 |       gender = false
+7 |       gender = false
   = help: consider adding a `,`

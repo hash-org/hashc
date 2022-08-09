@@ -1,1 +1,3 @@
+// run=fail, stage=parse
+
 k := '\u{005a';

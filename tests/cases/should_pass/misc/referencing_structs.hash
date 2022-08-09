@@ -1,1 +1,3 @@
+// run=pass, stage=parse
+
 my_ref := &Dog ( name = "Viktor" );

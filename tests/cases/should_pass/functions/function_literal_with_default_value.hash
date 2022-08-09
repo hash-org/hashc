@@ -1,3 +1,5 @@
+// run=pass, stage=parse
+
 // This demonstrates that one can specify that funciton arguments have 
 // default values.
 foo := (l: u32, k: u32 = 2) -> u32 => {

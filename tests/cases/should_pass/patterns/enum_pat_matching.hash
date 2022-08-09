@@ -1,3 +1,5 @@
+// run=pass, stage=parse
+
 NetworkError = enum(
    NoBytesReceived,
    ConnectionTerminated,

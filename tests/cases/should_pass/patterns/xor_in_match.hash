@@ -1,3 +1,5 @@
+// run=pass, stage=parse
+
 x: u32 = input<u32>();
 
 match x {

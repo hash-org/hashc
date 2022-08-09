@@ -1,6 +1,6 @@
 error: encountered unclosed delimiter `{`, add a `}` after the inner expression
- --> $DIR/unclosed_trait_def.hash:3:1
-2 |       merge: (T, T) -> T = () => };
-3 |   {;
+ --> $DIR/unclosed_trait_def.hash:4:1
+3 |       merge: (T, T) -> T = () => };
+4 |   {;
   |   ^ here
-4 |   
+5 |   

@@ -1,3 +1,5 @@
+// run=pass, stage=parse
+
 k := ~a;
 k := ---a;
 k := +(-(+a));

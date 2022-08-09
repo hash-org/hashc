@@ -1,4 +1,5 @@
 error: unclosed string literal
- --> $DIR/goodbye_world.hash:1:8
-1 |   print("goodbye world...
+ --> $DIR/goodbye_world.hash:3:8
+2 |   
+3 |   print("goodbye world...
   |          ^^^^^^^^^^^^^^^^^ here

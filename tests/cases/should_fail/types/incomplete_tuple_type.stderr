@@ -1,4 +1,5 @@
 error: expected a type annotation, however received a `,`
- --> $DIR/incomplete_tuple_type.hash:1:11
-1 |   k : (str: , bar: u8) -> u32 = ("str", 1); // Error here, should expect a type
+ --> $DIR/incomplete_tuple_type.hash:3:11
+2 |   
+3 |   k : (str: , bar: u8) -> u32 = ("str", 1); // Error here, should expect a type
   |             ^ here

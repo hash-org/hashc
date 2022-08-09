@@ -1,3 +1,5 @@
+// run=pass, stage=parse
+
 alpha := 5;
 alpha: int = 5;
 alpha: int;

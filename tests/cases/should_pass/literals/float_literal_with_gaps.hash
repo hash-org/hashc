@@ -1,1 +1,2 @@
+// run=pass, stage=parse
 k := 200_000.123_000;

@@ -1,3 +1,5 @@
+// run=pass, stage=parse
+
 (mut a, mut b) := (1, 2);
 mut test := get_test();
 

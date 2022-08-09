@@ -1,4 +1,5 @@
 error: encountered unclosed delimiter `[`, add a `]` after the inner expression
- --> $DIR/incomplete_list_pattern.hash:1:1
-1 |   [a := b;
+ --> $DIR/incomplete_list_pattern.hash:3:1
+2 |   
+3 |   [a := b;
   |   ^ here

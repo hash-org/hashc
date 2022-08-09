@@ -1,3 +1,5 @@
+// run=pass, stage=parse
+
 main := () => {
     -2 := -2;
 

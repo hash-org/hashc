@@ -1,5 +1,6 @@
 error: unexpectedly encountered a `=`
- --> $DIR/malformed_function_literal_arrow.hash:1:36
-1 |   str_eq: (str, str) -> str = (a, b) = a == b;
+ --> $DIR/malformed_function_literal_arrow.hash:3:36
+2 |   
+3 |   str_eq: (str, str) -> str = (a, b) = a == b;
   |                                      ^ here
   = help: consider adding a `;`

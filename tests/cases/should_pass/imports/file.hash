@@ -1,3 +1,5 @@
+// run=pass, stage=parse
+
 l := (a: i32, b: i32) => {
 
 };

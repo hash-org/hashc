@@ -1,3 +1,5 @@
+// run=pass, stage=parse
+
 l := f(a = "a");
 
 // These are allowed but they are not legal after parsing

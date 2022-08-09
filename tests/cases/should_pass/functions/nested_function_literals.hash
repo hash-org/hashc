@@ -1,3 +1,5 @@
+// run=pass, stage=parse
+
 strange_fib := (n: u32) => 
    if n == 1 || n == 2 {
        n

@@ -1,4 +1,5 @@
-// Create a new dog called viktor! 
+// run=fail, stage=parse
+
 viktor := Dog(
     name = "Viktor",
     has_brother = true // <--- Error should be reported here since there is no comma....

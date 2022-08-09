@@ -1,3 +1,5 @@
+// run=pass, stage=parse
+
 k := 0;
 k := 112;
 k := 112.12;

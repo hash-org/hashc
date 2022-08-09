@@ -1,3 +1,5 @@
+// run=pass, stage=parse
+
 (_, a, b, c, _) := k;
 (_, _, _) := k;
 

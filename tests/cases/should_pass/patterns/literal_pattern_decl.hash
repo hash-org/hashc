@@ -1,3 +1,5 @@
+// run=pass, stage=parse
+
 // These are legal patterns, but they might fail on further during compilation
 "str" := "str";
 "bax" := "str";

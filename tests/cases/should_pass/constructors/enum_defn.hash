@@ -1,3 +1,5 @@
+// run=pass, stage=parse
+
 pub Color := enum(
     Red,
     Green,

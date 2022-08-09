@@ -1,3 +1,6 @@
+
+// run=pass, stage=parse
+
 // Visible from outside:
 pub foo := 3;
 

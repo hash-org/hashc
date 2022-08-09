@@ -1,2 +1,4 @@
+// run=fail, stage=parse
+
 // Spread patterns are disallowed within namespaces
 { x,  ...d} := foo();

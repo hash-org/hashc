@@ -1,4 +1,5 @@
 error: invalid character literal `ab`, character literals may only contain one codepoint
- --> $DIR/multi_code_point_char_literal.hash:1:6
-1 |   k := 'ab';
+ --> $DIR/multi_code_point_char_literal.hash:3:6
+2 |   
+3 |   k := 'ab';
   |        ^^^^ here

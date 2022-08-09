@@ -1,3 +1,5 @@
+// run=fail, stage=parse
+
 // Should report that both these have invalid codepoints but recover from the error.
 main := () => {
     a := 'ab';

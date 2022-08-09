@@ -1,3 +1,5 @@
+// run=pass, stage=parse
+
 my_map := map!{};
 my_map := map!{ "a": 1 };
 my_map := map!{ "a": 1, };

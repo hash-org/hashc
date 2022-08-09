@@ -1,4 +1,5 @@
 error: expected a name here
- --> $DIR/double_hash.hash:1:7
-1 |   k := ##naughty_intrinsic();
+ --> $DIR/double_hash.hash:3:7
+2 |   
+3 |   k := ##naughty_intrinsic();
   |         ^ here

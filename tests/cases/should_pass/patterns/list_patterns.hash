@@ -1,3 +1,5 @@
+// run=pass, stage=parse
+
 // All of these patterns are refutable and will not pass the refutability check
 
 [a, b, ...x] := foo();

@@ -1,4 +1,5 @@
 error: expected a name here
- --> $DIR/triple_colon_in_access_name.hash:1:7
-1 |   a::b:::c<int>();
+ --> $DIR/triple_colon_in_access_name.hash:3:7
+2 |   
+3 |   a::b:::c<int>();
   |         ^ here

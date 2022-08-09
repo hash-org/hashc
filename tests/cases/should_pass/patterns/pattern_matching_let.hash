@@ -1,3 +1,5 @@
+// run=pass, stage=parse
+
 // struct desturcturing
 Dog(name) := dog;
 Dog(name = better_name) := dog;

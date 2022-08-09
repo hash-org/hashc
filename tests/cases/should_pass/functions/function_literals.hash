@@ -1,3 +1,5 @@
+// run=pass, stage=parse
+
 str_eq: (str, str) -> str = (a, b) => a == b;
 str_eq: (str, str) -> str = (a, b) -> str => a == b;
 

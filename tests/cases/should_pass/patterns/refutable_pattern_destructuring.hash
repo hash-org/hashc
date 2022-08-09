@@ -1,3 +1,5 @@
+// run=pass, stage=parse
+
 // Well technically this pattern is 'irrefutable', even if we know that this is true, the compiler
 // cannot sensibly reason about it much further than parsing...
 5 := 5;

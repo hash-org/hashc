@@ -1,1 +1,3 @@
+// run=fail, stage=parse
+
 str_eq: (str, str) > str;

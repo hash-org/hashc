@@ -1,3 +1,5 @@
+// run=pass, stage=parse
+
 match some_int_literal {
     2 => do_something();
     0x12 => do_something_else();

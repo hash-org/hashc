@@ -1,3 +1,5 @@
+// run=pass, stage=parse
+
 // De-structure the `dog` into `age` and `name`
 animals::Dog(name, age) := dog;
 

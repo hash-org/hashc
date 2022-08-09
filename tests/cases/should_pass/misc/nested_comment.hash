@@ -1,2 +1,4 @@
+// run=pass, stage=parse
+
 /* /* I'm a nested comment ! */ */
 print("hello");

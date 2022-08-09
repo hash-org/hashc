@@ -1,7 +1,7 @@
 error: unexpectedly reached the end of input
-  --> $DIR/pat_match_missing_semi.hash:10:16
- 9 |           };
-10 |           _ => -1
+  --> $DIR/pat_match_missing_semi.hash:12:16
+11 |           };
+12 |           _ => -1
    |                  ^ here
-11 |       };
+13 |       };
    = help: consider adding a `;`

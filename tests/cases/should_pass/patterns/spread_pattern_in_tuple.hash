@@ -1,3 +1,5 @@
+// run=pass, stage=parse
+
 // Just take the first and last element of the returned tuple from the function
 (a, ..., b) := some_foo();
 
