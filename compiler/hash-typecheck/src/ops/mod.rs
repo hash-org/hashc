@@ -26,7 +26,7 @@ use self::{
     reader::PrimitiveReader, scope::ScopeManager, simplify::Simplifier, substitute::Substituter,
     typing::Typer, unify::Unifier, validate::Validator,
 };
-use crate::storage::{scope::ScopeId, AccessToStorage, AccessToStorageMut};
+use crate::storage::{scope::ScopeId, AccessToStorage};
 
 /// Trait to access various structures that can perform typechecking queries,
 /// by a reference to a [StorageRef](crate::storage::StorageRef).
@@ -111,9 +111,3 @@ pub trait AccessToOps: AccessToStorage {
 }
 
 impl<T: AccessToStorage> AccessToOps for T {}
-
-/// Trait to access various structures that can perform typechecking operations,
-/// by a reference to a [StorageRefMut](crate::storage::StorageRefMut).
-pub trait AccessToOpsMut: AccessToStorageMut {}
-
-impl<T: AccessToStorageMut> AccessToOpsMut for T {}

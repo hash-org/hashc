@@ -44,6 +44,7 @@ use self::{
     trts::TrtDefStore,
 };
 use crate::{
+    diagnostics::{TcDiagnostics, TcDiagnosticsWrapper},
     fmt::{ForFormatting, PrepareForFormatting},
     ops::bootstrap::create_core_defs_in,
 };
@@ -62,6 +63,9 @@ pub struct GlobalStorage {
     pub pat_store: PatStore,
     pub pat_args_store: PatArgsStore,
     pub checked_sources: CheckedSources,
+
+    /// Storage for tc diagnostics
+    pub diagnostics_store: TcDiagnostics,
 
     /// Pattern fields from
     /// [super::exhaustiveness::deconstruct::DeconstructedPat]
@@ -91,6 +95,7 @@ impl GlobalStorage {
             location_store: LocationStore::new(),
             term_store: TermStore::new(),
             scope_store,
+            diagnostics_store: TcDiagnostics::default(),
             trt_def_store: TrtDefStore::new(),
             mod_def_store: ModDefStore::new(),
             nominal_def_store: NominalDefStore::new(),
@@ -161,17 +166,22 @@ pub struct StorageRef<'tc> {
 
 /// A mutable reference to the storage, which includes both local and global
 /// storage, as well as core definitions.
-#[derive(Debug)]
-pub struct StorageRefMut<'tc> {
-    pub local_storage: &'tc mut LocalStorage,
-    pub global_storage: &'tc mut GlobalStorage,
-    pub source_map: &'tc SourceMap,
-}
+// #[derive(Debug)]
+// pub struct StorageRefMut<'tc> {
+//     pub local_storage: &'tc mut LocalStorage,
+//     pub global_storage: &'tc mut GlobalStorage,
+//     pub source_map: &'tc SourceMap,
+// }
 
 /// Trait that provides convenient accessor methods to various parts of the
 /// storage given a path to a [StorageRef] object.
 pub trait AccessToStorage {
     fn storages(&self) -> StorageRef;
+
+    /// Create a [TcDiagnosticsWrapper]
+    fn diagnostics(&self) -> TcDiagnosticsWrapper<Self> {
+        TcDiagnosticsWrapper(self)
+    }
 
     fn global_storage(&self) -> &GlobalStorage {
         self.storages().global_storage
@@ -179,6 +189,10 @@ pub trait AccessToStorage {
 
     fn local_storage(&self) -> &LocalStorage {
         self.storages().local_storage
+    }
+
+    fn diagnostic_store(&self) -> &TcDiagnostics {
+        &self.storages().global_storage.diagnostics_store
     }
 
     fn scope_store(&self) -> &ScopeStore {
@@ -260,34 +274,8 @@ pub trait AccessToStorage {
     }
 }
 
-/// Trait that provides convenient mutable accessor methods to various parts of
-/// the storage given a path to a [StorageRefMut] object.
-pub trait AccessToStorageMut: AccessToStorage {
-    fn storages_mut(&mut self) -> StorageRefMut;
-}
-
 impl<'tc> AccessToStorage for StorageRef<'tc> {
     fn storages(&self) -> StorageRef {
         StorageRef { ..*self }
-    }
-}
-
-impl<'tc> AccessToStorage for StorageRefMut<'tc> {
-    fn storages(&self) -> StorageRef {
-        StorageRef {
-            global_storage: self.global_storage,
-            local_storage: self.local_storage,
-            source_map: self.source_map,
-        }
-    }
-}
-
-impl<'tc> AccessToStorageMut for StorageRefMut<'tc> {
-    fn storages_mut(&mut self) -> StorageRefMut {
-        StorageRefMut {
-            global_storage: self.global_storage,
-            local_storage: self.local_storage,
-            source_map: self.source_map,
-        }
     }
 }

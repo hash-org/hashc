@@ -36,13 +36,20 @@
 //! about the exhaustiveness check algorithm are within the
 //! [exhaustiveness](crate::exhaustiveness) module.
 use hash_ast::ast::MatchOrigin;
+use hash_reporting::diagnostic::Diagnostics;
 use hash_utils::store::Store;
 use itertools::Itertools;
 
 use super::AccessToOps;
 use crate::{
-    diagnostics::error::{TcError, TcResult},
-    exhaustiveness::{usefulness::MatchArm, AccessToUsefulnessOps},
+    diagnostics::{
+        error::{TcError, TcResult},
+        warning::TcWarning,
+    },
+    exhaustiveness::{
+        usefulness::{MatchArm, Reachability},
+        AccessToUsefulnessOps,
+    },
     storage::{pats::PatId, primitives::Pat, terms::TermId, AccessToStorage, StorageRef},
 };
 
@@ -76,7 +83,11 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                 let destructed_pat = self.pat_lowerer().deconstruct_pat(term, *id);
                 let pat = self.deconstructed_pat_store().create(destructed_pat);
 
-                MatchArm { pat, has_guard: matches!(prim_pat, Pat::If(_)) }
+                MatchArm {
+                    deconstructed_pat: pat,
+                    has_guard: matches!(prim_pat, Pat::If(_)),
+                    id: *id,
+                }
             })
             .collect_vec()
     }
@@ -90,10 +101,29 @@ impl<'tc> ExhaustivenessChecker<'tc> {
         let arms = self.lower_pats_to_arms(pats, term_ty);
         let report = self.usefulness_ops().compute_match_usefulness(term_ty, &arms);
 
-        // @@Todo: deal with arm reachability in the form of generating
-        // warnings in the discussed diagnostic system.
-        let witnesses = report.non_exhaustiveness_witnesses;
+        // report if any of the match arms are unreachable...
+        for (arm, reachability) in report.arm_usefulness {
+            match reachability {
+                Reachability::Unreachable => {
+                    self.diagnostics().add_warning(TcWarning::UnreachablePat { pat: arm.id })
+                }
+                Reachability::Reachable(pats) if pats.is_empty() => {}
+                Reachability::Reachable(pats) => {
+                    // Sort the items as in declaration order
+                    let mut items = pats.clone();
+                    items.sort_unstable();
 
+                    // @@Future add more sophisticated unreachable reporting since we might
+                    // want to identify if there is a originating pattern that makes the
+                    // current pattern unreachable
+                    for pat in pats {
+                        self.diagnostics().add_warning(TcWarning::UnreachablePat { pat })
+                    }
+                }
+            }
+        }
+
+        let witnesses = report.non_exhaustiveness_witnesses;
         if witnesses.is_empty() {
             Ok(())
         } else {

@@ -8,7 +8,7 @@ use hash_ast::{
     visitor::{self, walk, AstVisitor},
 };
 use hash_pipeline::sources::{NodeMap, SourceRef};
-use hash_reporting::macros::panic_on_span;
+use hash_reporting::{diagnostic::Diagnostics, macros::panic_on_span};
 use hash_source::{
     identifier::{Identifier, CORE_IDENTIFIERS},
     location::{SourceLocation, Span},
@@ -22,6 +22,7 @@ use crate::{
     diagnostics::{
         error::{TcError, TcResult},
         macros::tc_panic,
+        warning::TcWarning,
     },
     ops::{scope::ScopeManager, AccessToOps},
     storage::{
@@ -1223,7 +1224,6 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let walk::MatchBlock { subject, .. } = walk::walk_match_block(self, ctx, node)?;
 
         let mut branches = vec![];
-        let mut redundant_errors = vec![];
 
         let match_return_values: Vec<_> = node
             .cases
@@ -1246,19 +1246,18 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
                         })
                     }
                     None => {
-                        // Does not match, indicate that the case is useless!
-                        redundant_errors.push(TcError::UselessMatchCase { pat: case_pat, subject });
+                        // Emit warning for the useless match case in the event that the pattern
+                        // will never match with the subject since we know the types will never
+                        // correspond.
+                        self.diagnostics()
+                            .add_warning(TcWarning::UselessMatchCase { pat: case_pat, subject });
+
                         Ok(None)
                     }
                 }
             })
             .flatten_ok()
             .collect::<TcResult<_>>()?;
-
-        if !redundant_errors.is_empty() {
-            // @@Todo: return all errors, and make them warnings instead of hard errors
-            return Err(redundant_errors[0].clone());
-        }
 
         // Skip origins of `while` and `if` since they are always irrefutable, if the
         // origin is a match, we want to check call `is_match_exhaustive` since it will
@@ -1584,7 +1583,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
                 // to the scope.
                 let members = match self.pat_matcher().match_pat_with_term(pat_id, value)? {
                     Some(members) => members,
-                    None => return Err(TcError::UselessMatchCase { pat: pat_id, subject: value }),
+                    // @@Warnings
+                    // None => return Err(TcError::UselessMatchCase { pat: pat_id, subject: value
+                    // }),
+                    _ => vec![],
                 };
 
                 // Ensure that the given pattern is irrefutable given the type of the term

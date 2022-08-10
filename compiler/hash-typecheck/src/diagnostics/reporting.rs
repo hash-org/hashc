@@ -1025,28 +1025,6 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     )));
                 }
             }
-            TcError::UselessMatchCase { pat, subject } => {
-                // @@Todo: error code
-                builder.with_message(format!(
-                    "match case `{}` is redundant when matching on `{}`",
-                    pat.for_formatting(err.global_storage()),
-                    subject.for_formatting(err.global_storage())
-                ));
-
-                if let Some(location) = err.location_store().get_location(subject) {
-                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
-                        location,
-                        "the match subject is given here...",
-                    )));
-                }
-
-                if let Some(location) = err.location_store().get_location(pat) {
-                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
-                        location,
-                        "...and this pattern will never match the subject".to_string(),
-                    )));
-                }
-            }
             TcError::CannotPatMatchWithoutAssignment { pat } => {
                 // @@Todo: error code
                 builder.with_message(
