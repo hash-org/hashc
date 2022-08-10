@@ -63,6 +63,9 @@ impl<'tc> ExhaustivenessChecker<'tc> {
         Self { storage }
     }
 
+    /// Performs a lowering operation on all of the specified branches.
+    ///
+    /// This takes in the `term` which is the type of the subject.
     fn lower_pats_to_arms(&self, pats: &[PatId], term: TermId) -> Vec<MatchArm> {
         let reader = self.reader();
 
@@ -82,8 +85,10 @@ impl<'tc> ExhaustivenessChecker<'tc> {
     /// of each branch and whether there are any `useless` patterns that
     /// are present within the
     pub fn is_match_exhaustive(&self, pats: &[PatId], term: TermId) -> TcResult<()> {
-        let arms = self.lower_pats_to_arms(pats, term);
-        let report = self.usefulness_ops().compute_match_usefulness(term, &arms);
+        let term_ty = self.typer().infer_ty_of_term(term)?;
+
+        let arms = self.lower_pats_to_arms(pats, term_ty);
+        let report = self.usefulness_ops().compute_match_usefulness(term_ty, &arms);
 
         // @@Todo: deal with arm reachability in the form of generating
         // warnings in the discussed diagnostic system.
@@ -109,8 +114,10 @@ impl<'tc> ExhaustivenessChecker<'tc> {
         term: TermId,
         origin: Option<MatchOrigin>,
     ) -> TcResult<()> {
-        let arms = self.lower_pats_to_arms(pats, term);
-        let report = self.usefulness_ops().compute_match_usefulness(term, &arms);
+        let term_ty = self.typer().infer_ty_of_term(term)?;
+
+        let arms = self.lower_pats_to_arms(pats, term_ty);
+        let report = self.usefulness_ops().compute_match_usefulness(term_ty, &arms);
 
         // We ignore whether the pattern is unreachable (i.e. whether the type is
         // empty). We only care about exhaustiveness here.

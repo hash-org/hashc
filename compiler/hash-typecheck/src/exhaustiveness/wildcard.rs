@@ -64,7 +64,7 @@ impl<'tc> SplitWildcardOps<'tc> {
     }
 
     /// Create a [SplitWildcard] from the current context.
-    pub(super) fn from(&mut self, ctx: PatCtx) -> SplitWildcard {
+    pub(super) fn from(&self, ctx: PatCtx) -> SplitWildcard {
         let reader = self.reader();
 
         let make_range = |start, end| {

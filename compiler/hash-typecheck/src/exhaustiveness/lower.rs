@@ -122,7 +122,7 @@ impl<'tc> LowerPatOps<'tc> {
                 (DeconstructedCtor::Wildcard, vec![])
             }
             Pat::Range(range) => {
-                let range = self.lower_pat_range(range);
+                let range = self.lower_pat_range(ty, range);
                 (DeconstructedCtor::IntRange(range), vec![])
             }
             Pat::Lit(term) => match reader.get_term(term) {
@@ -392,11 +392,8 @@ impl<'tc> LowerPatOps<'tc> {
     /// the [RangePat] was already validated, and so this function will
     /// read `lo`, and `hi` terms, convert them into bytes and put them
     /// into the [IntRange]
-    pub fn lower_pat_range(&self, range: RangePat) -> IntRange {
+    pub fn lower_pat_range(&self, ty: TermId, range: RangePat) -> IntRange {
         let RangePat { lo, hi, end } = range;
-
-        // @@Fix: this should probably happen somewhere else?
-        let ty = self.typer().infer_ty_of_term(lo).unwrap();
 
         let term_to_u128 = |term| {
             // The only types we support we support within ranges is currently a
