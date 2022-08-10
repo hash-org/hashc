@@ -34,6 +34,16 @@ pub enum TcWarning {
     UnreachablePat {
         pat: PatId,
     },
+    /// When one ranges end is overlapping with another range
+    /// end, this warning does not cover general overlapping ranges.
+    OverlappingRangeEnd {
+        /// This range's end is overlapping with another range start
+        range: PatId,
+        /// This is the range start that the `range` is overlapping with
+        overlaps: PatId,
+        /// The specific term that is overlapping between the two ranges.
+        overlapping_term: TermId,
+    },
 }
 
 /// A [TcWarning] with attached typechecker storage.
@@ -81,6 +91,26 @@ impl<'tc> From<TcWarningWithStorage<'tc>> for Report {
                 if let Some(location) = item.location_store().get_location(pat) {
                     builder
                         .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(location, "")));
+                }
+            }
+            TcWarning::OverlappingRangeEnd { range, overlapping_term, overlaps } => {
+                builder.with_message("range pattern has an overlap with another pattern");
+
+                if let Some(location) = item.location_store().get_location(range) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        format!(
+                            "this range overlaps on `{}`...",
+                            overlapping_term.for_formatting(item.global_storage())
+                        ),
+                    )));
+                }
+
+                if let Some(location) = item.location_store().get_location(overlaps) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "...with this range",
+                    )));
                 }
             }
         }

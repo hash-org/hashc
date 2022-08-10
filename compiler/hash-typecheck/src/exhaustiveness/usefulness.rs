@@ -359,14 +359,26 @@ impl<'tc> UsefulnessOps<'tc> {
                 }
             }
         } else {
-            // @@Ranges: we should check that int ranges don't overlap here, in case
-            // they're partially covered by other ranges. Additionally, since this isn't
-            // necessarily an error, we should integrate this with our warning system.
             let reader = self.reader();
             let ctors = matrix.heads().map(|id| reader.get_deconstructed_pat(id).ctor);
 
-            // We split the head constructor of `v`.
             let v_ctor = head.ctor;
+
+            // check that int ranges don't overlap here, in case
+            // they're partially covered by other ranges.
+            if let DeconstructedCtor::IntRange(range) = reader.get_deconstructed_ctor(v_ctor) {
+                if let Some(head_id) = head.id {
+                    self.int_range_ops().check_for_overlapping_endpoints(
+                        head_id,
+                        range,
+                        matrix.heads(),
+                        matrix.column_count().unwrap_or(0),
+                        ty,
+                    );
+                }
+            }
+
+            // We split the head constructor of `v`.
             let split_ctors = self.constructor_ops().split(ctx, v_ctor, ctors);
             let start_matrix = &matrix;
 
