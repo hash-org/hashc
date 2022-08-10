@@ -2,6 +2,7 @@
 //! definition with some shared functions to append diagnostics to the analyser.
 
 use crossbeam_channel::Sender;
+use hash_reporting::{diagnostic::Diagnostics, report::Report};
 use hash_source::{
     location::{SourceLocation, Span},
     SourceId, SourceMap,
@@ -11,7 +12,7 @@ use crate::diagnostics::{
     error::{AnalysisError, AnalysisErrorKind},
     origins::BlockOrigin,
     warning::{AnalysisWarning, AnalysisWarningKind},
-    Diagnostic,
+    AnalyserDiagnostics,
 };
 
 mod block;
@@ -24,10 +25,6 @@ pub struct SemanticAnalyser<'s> {
     pub(crate) is_in_fn: bool,
     /// Whether the analyser is currently checking a literal pattern
     pub(crate) is_in_lit_pat: bool,
-    /// Any collected errors when passing through the tree.
-    pub(crate) errors: Vec<AnalysisError>,
-    /// Any collected warning that were found during the walk.
-    pub(crate) warnings: Vec<AnalysisWarning>,
     /// The current id of the source that is being passed.
     pub(crate) source_id: SourceId,
     /// A reference to the sources of the current job.
@@ -35,6 +32,9 @@ pub struct SemanticAnalyser<'s> {
     /// The current scope of the traversal, representing which block the
     /// analyser is walking.
     pub(crate) current_block: BlockOrigin,
+
+    /// [SemanticAnalyser] diagnostics store
+    pub(crate) diagnostics: AnalyserDiagnostics,
 }
 
 impl<'s> SemanticAnalyser<'s> {
@@ -44,8 +44,7 @@ impl<'s> SemanticAnalyser<'s> {
             is_in_loop: false,
             is_in_fn: false,
             is_in_lit_pat: false,
-            errors: vec![],
-            warnings: vec![],
+            diagnostics: AnalyserDiagnostics::default(),
             source_id,
             source_map,
             current_block: BlockOrigin::Root,
@@ -60,24 +59,20 @@ impl<'s> SemanticAnalyser<'s> {
         !matches!(self.current_block, BlockOrigin::Body)
     }
 
-    /// Append an error to the error queue.
+    /// Append an error to [AnalyserDiagnostics]
     pub(crate) fn append_error(&mut self, error: AnalysisErrorKind, span: Span) {
-        self.errors.push(AnalysisError::new(error, SourceLocation::new(span, self.source_id)))
+        self.add_error(AnalysisError::new(error, SourceLocation::new(span, self.source_id)))
     }
 
-    /// Append an warning to the warning queue.
+    /// Append an warning to [AnalyserDiagnostics]
     pub(crate) fn append_warning(&mut self, warning: AnalysisWarningKind, span: Span) {
-        self.warnings.push(AnalysisWarning::new(warning, SourceLocation::new(span, self.source_id)))
+        self.add_warning(AnalysisWarning::new(warning, SourceLocation::new(span, self.source_id)))
     }
 
     /// Given a [Sender], send all of the generated warnings and messaged into
     /// the sender.
-    pub(crate) fn send_generated_messages(self, sender: &Sender<Diagnostic>) {
-        self.errors.into_iter().for_each(|err| sender.send(Diagnostic::Error(err)).unwrap());
-
-        self.warnings
-            .into_iter()
-            .for_each(|warning| sender.send(Diagnostic::Warning(warning)).unwrap());
+    pub(crate) fn send_generated_messages(self, sender: &Sender<Report>) {
+        self.into_reports().into_iter().for_each(|report| sender.send(report).unwrap());
     }
 
     /// Create a [SourceLocation] from a [Span]

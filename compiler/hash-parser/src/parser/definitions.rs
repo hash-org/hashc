@@ -4,18 +4,18 @@ use hash_ast::ast::*;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, TokenKind, TokenKindVector};
 use smallvec::smallvec;
 
-use super::{error::AstGenErrorKind, AstGen, AstGenResult};
-use crate::parser::error::TyArgumentKind;
+use super::AstGen;
+use crate::diagnostics::error::{ParseErrorKind, ParseResult, TyArgumentKind};
 
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a [StructDef]. The keyword `struct` begins the construct and is
     /// followed by parentheses with inner struct fields defined.
-    pub fn parse_struct_def(&self) -> AstGenResult<StructDef> {
+    pub fn parse_struct_def(&self) -> ParseResult<StructDef> {
         debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Struct)));
 
         let gen = self.parse_delim_tree(
             Delimiter::Paren,
-            Some(AstGenErrorKind::TypeDefinition(TyArgumentKind::Struct)),
+            Some(ParseErrorKind::TypeDefinition(TyArgumentKind::Struct)),
         )?;
 
         let entries = gen.parse_separated_fn(
@@ -27,7 +27,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     }
 
     /// Parse a struct definition entry which is represented as a [Param].
-    pub fn parse_struct_def_entry(&self) -> AstGenResult<AstNode<Param>> {
+    pub fn parse_struct_def_entry(&self) -> ParseResult<AstNode<Param>> {
         let name = self.parse_name()?;
         let name_span = name.span();
 
@@ -56,12 +56,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Parse an [EnumDef]. The keyword `enum` begins the construct and is
     /// followed by parentheses with inner enum fields defined.
-    pub fn parse_enum_def(&self) -> AstGenResult<EnumDef> {
+    pub fn parse_enum_def(&self) -> ParseResult<EnumDef> {
         debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Enum)));
 
         let gen = self.parse_delim_tree(
             Delimiter::Paren,
-            Some(AstGenErrorKind::TypeDefinition(TyArgumentKind::Enum)),
+            Some(ParseErrorKind::TypeDefinition(TyArgumentKind::Enum)),
         )?;
 
         let entries = gen.parse_separated_fn(
@@ -73,7 +73,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     }
 
     /// Parse an [EnumDefEntry].
-    pub fn parse_enum_def_entry(&self) -> AstGenResult<AstNode<EnumDefEntry>> {
+    pub fn parse_enum_def_entry(&self) -> ParseResult<AstNode<EnumDefEntry>> {
         let name = self.parse_name()?;
         let name_span = name.span();
 
@@ -91,7 +91,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a [TyFnDef]. Type functions specify logic at the type
     /// level on expressions such as struct, enum, function, and trait
     /// definitions.
-    pub fn parse_ty_fn_def(&self) -> AstGenResult<TyFnDef> {
+    pub fn parse_ty_fn_def(&self) -> ParseResult<TyFnDef> {
         let mut params = AstNodes::empty();
 
         // Flag denoting that we were able to parse the ending `>` within the function
@@ -111,7 +111,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     break;
                 }
                 token => self.error_with_location(
-                    AstGenErrorKind::Expected,
+                    ParseErrorKind::Expected,
                     Some(TokenKindVector::from_vec(smallvec![TokenKind::Comma, TokenKind::Gt])),
                     token.map(|t| t.kind),
                     token.map_or_else(|| self.next_location(), |t| t.span),
@@ -122,7 +122,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // So if we failed to parse even a `>` we should report this...
         if !arg_ending {
             self.error_with_location(
-                AstGenErrorKind::Expected,
+                ParseErrorKind::Expected,
                 Some(TokenKindVector::singleton(TokenKind::Gt)),
                 self.peek().map(|tok| tok.kind),
                 self.next_location(),
@@ -146,7 +146,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     // Parse a [Param] which consists the name of the argument and
     // then any specified bounds on the argument which are essentially types
     // that are separated by a `~`
-    fn parse_ty_fn_def_arg(&self) -> AstGenResult<AstNode<Param>> {
+    fn parse_ty_fn_def_arg(&self) -> ParseResult<AstNode<Param>> {
         let start = self.current_location();
         let name = self.parse_name()?;
 
@@ -181,7 +181,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Parse a [TraitDef]. A [TraitDef] is essentially a block prefixed with
     /// `trait` that contains definitions or attach expressions to a trait.
-    pub fn parse_trait_def(&self) -> AstGenResult<TraitDef> {
+    pub fn parse_trait_def(&self) -> ParseResult<TraitDef> {
         debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Trait)));
 
         Ok(TraitDef { members: self.parse_exprs_from_braces()? })

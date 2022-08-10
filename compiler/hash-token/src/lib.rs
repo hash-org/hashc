@@ -195,6 +195,10 @@ pub enum TokenKind {
     /// A token that was unexpected by the lexer, e.g. a unicode symbol not
     /// within string literal.
     Unexpected(char),
+
+    /// Error token within the tokenisation process, essentially aiding deferred
+    /// error reporting
+    Err,
 }
 
 impl TokenKind {
@@ -263,6 +267,7 @@ impl std::fmt::Display for TokenKind {
             TokenKind::Ident(ident) => {
                 write!(f, "{}", String::from(*ident))
             }
+            TokenKind::Err => write!(f, "<error>"),
         }
     }
 }

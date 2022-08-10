@@ -1,8 +1,5 @@
 //! Hash Compiler parser error utilities.
-use std::io;
-
 use derive_more::Constructor;
-use hash_lexer::error::LexerErrorWrapper;
 use hash_pipeline::fs::ImportError;
 use hash_reporting::{
     builder::ReportBuilder,
@@ -12,14 +9,17 @@ use hash_source::location::SourceLocation;
 use hash_token::{TokenKind, TokenKindVector};
 use hash_utils::printing::SequenceDisplay;
 
-/// A [AstGenError] represents possible errors that occur when transforming the
+/// Utility wrapper type for [ParseError] in [Result]
+pub type ParseResult<T> = Result<T, ParseError>;
+
+/// A [ParseError] represents possible errors that occur when transforming the
 /// token stream into the AST.
 #[derive(Debug, Constructor)]
-pub struct AstGenError {
+pub struct ParseError {
     /// The kind of the error.
-    kind: AstGenErrorKind,
+    kind: ParseErrorKind,
     /// Location of where the error references
-    span: SourceLocation,
+    location: SourceLocation,
     /// An optional vector of tokens that are expected to circumvent the error.
     expected: Option<TokenKindVector>,
     /// An optional token in question that was received byt shouldn't of been
@@ -38,7 +38,7 @@ pub enum TyArgumentKind {
 
 /// Enum representation of the AST generation error variants.
 #[derive(Debug)]
-pub enum AstGenErrorKind {
+pub enum ParseErrorKind {
     /// Expected keyword at current location
     Keyword,
     /// Generic error specifying an expected token atom.
@@ -46,7 +46,7 @@ pub enum AstGenErrorKind {
     /// Expected the beginning of a body block.
     Block,
     /// Expected end of input or token stream here, but encountered tokens.
-    EOF,
+    Eof,
     /// Expecting a re-assignment operator at the specified location.
     /// Re-assignment operators are like normal operators, but they expect
     /// an 'equals' sign after the specified operator.
@@ -106,62 +106,62 @@ impl std::fmt::Display for TyArgumentKind {
 }
 
 /// Conversion implementation from an AST Generator Error into a Parser Error.
-impl From<AstGenError> for ParseError {
-    fn from(err: AstGenError) -> Self {
+impl From<ParseError> for Report {
+    fn from(err: ParseError) -> Self {
         let expected = err.expected;
 
         let mut base_message = match &err.kind {
-            AstGenErrorKind::Keyword => {
+            ParseErrorKind::Keyword => {
                 format!(
                     "encountered an unexpected keyword {}",
                     err.received.unwrap().as_error_string()
                 )
             }
-            AstGenErrorKind::Expected => match &err.received {
+            ParseErrorKind::Expected => match &err.received {
                 Some(kind) => format!("unexpectedly encountered {}", kind.as_error_string()),
                 None => "unexpectedly reached the end of input".to_string(),
             },
-            AstGenErrorKind::Block => "expected block body, which begins with a `{`".to_string(),
-            AstGenErrorKind::EOF => "unexpectedly reached the end of input".to_string(),
-            AstGenErrorKind::ReAssignmentOp => "expected a re-assignment operator".to_string(),
-            AstGenErrorKind::TypeDefinition(ty) => {
+            ParseErrorKind::Block => "expected block body, which begins with a `{`".to_string(),
+            ParseErrorKind::Eof => "unexpectedly reached the end of input".to_string(),
+            ParseErrorKind::ReAssignmentOp => "expected a re-assignment operator".to_string(),
+            ParseErrorKind::TypeDefinition(ty) => {
                 format!("expected {ty} definition entries here which begin with a `(`")
             }
-            AstGenErrorKind::ExpectedValueAfterTyAnnotation => {
+            ParseErrorKind::ExpectedValueAfterTyAnnotation => {
                 "expected value assignment after type annotation within named tuple".to_string()
             }
-            AstGenErrorKind::ExpectedOperator => "expected an operator".to_string(),
-            AstGenErrorKind::ExpectedExpr => "expected an expression".to_string(),
-            AstGenErrorKind::ExpectedName => "expected a name here".to_string(),
-            AstGenErrorKind::ExpectedArrow => "expected an arrow `=>` ".to_string(),
-            AstGenErrorKind::ExpectedFnArrow => {
+            ParseErrorKind::ExpectedOperator => "expected an operator".to_string(),
+            ParseErrorKind::ExpectedExpr => "expected an expression".to_string(),
+            ParseErrorKind::ExpectedName => "expected a name here".to_string(),
+            ParseErrorKind::ExpectedArrow => "expected an arrow `=>` ".to_string(),
+            ParseErrorKind::ExpectedFnArrow => {
                 "expected an arrow `->` after type arguments denoting a function type".to_string()
             }
-            AstGenErrorKind::ExpectedFnBody => "expected a function body".to_string(),
-            AstGenErrorKind::ExpectedType => "expected a type annotation".to_string(),
-            AstGenErrorKind::ExpectedPropertyAccess => {
+            ParseErrorKind::ExpectedFnBody => "expected a function body".to_string(),
+            ParseErrorKind::ExpectedType => "expected a type annotation".to_string(),
+            ParseErrorKind::ExpectedPropertyAccess => {
                 "expected field name access or a method call".to_string()
             }
-            AstGenErrorKind::ExpectedPat => "expected pattern".to_string(),
-            AstGenErrorKind::ImportPath => {
+            ParseErrorKind::ExpectedPat => "expected pattern".to_string(),
+            ParseErrorKind::ImportPath => {
                 "expected an import path which should be a string".to_string()
             }
-            AstGenErrorKind::ErroneousImport(err) => err.to_string(),
-            AstGenErrorKind::Namespace => {
+            ParseErrorKind::ErroneousImport(err) => err.to_string(),
+            ParseErrorKind::Namespace => {
                 "expected identifier after a name access qualifier `::`".to_string()
             }
-            AstGenErrorKind::MalformedSpreadPattern(dots) => {
+            ParseErrorKind::MalformedSpreadPattern(dots) => {
                 format!(
                     "malformed spread pattern, expected {dots} more `.` to complete the pattern"
                 )
             }
-            AstGenErrorKind::ExpectedLiteral => "expected literal".to_string(),
+            ParseErrorKind::ExpectedLiteral => "expected literal".to_string(),
         };
 
         // `AstGenErrorKind::Expected` format the error message in their own way,
         // whereas all the other error types follow a conformed order to
         // formatting expected tokens
-        if !matches!(&err.kind, AstGenErrorKind::Expected) {
+        if !matches!(&err.kind, ParseErrorKind::Expected) {
             if let Some(kind) = err.received {
                 let atom_msg = format!(", however received {}", kind.as_error_string());
                 base_message.push_str(&atom_msg);
@@ -173,87 +173,21 @@ impl From<AstGenError> for ParseError {
             format!("consider adding {}", SequenceDisplay::either(tokens.into_inner().as_slice()))
         });
 
-        Self::Parsing { message: base_message, location: Some(err.span), help }
-    }
-}
-
-/// Hash ParseError enum representing the variants of possible errors.
-#[derive(Debug)]
-pub enum ParseError {
-    Import(ImportError),
-    IO(io::Error),
-    Parsing {
-        /// The generated error message.
-        message: String,
-        /// Location of the parsing error, it is optional since sometimes it
-        /// isn't yet possible to get the span of the error.
-        location: Option<SourceLocation>,
-        /// An optional help message that is generated from the error.
-        help: Option<String>,
-    },
-}
-
-impl From<io::Error> for ParseError {
-    fn from(err: io::Error) -> Self {
-        Self::IO(err)
-    }
-}
-
-impl From<ParseError> for Report {
-    fn from(err: ParseError) -> Self {
-        err.create_report()
-    }
-}
-
-impl ParseError {
-    pub fn create_report(self) -> Report {
+        // Now actually build the report
         let mut builder = ReportBuilder::new();
-        builder.with_kind(ReportKind::Error).with_message("failed to parse");
+        builder
+            .with_kind(ReportKind::Error)
+            .with_message(base_message)
+            .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(err.location, "here")));
 
-        match self {
-            ParseError::Import(import_error) => return import_error.create_report(),
-            ParseError::Parsing { message, location, help } => {
-                // When we don't have a source for the error, just add a note
-                builder.with_message(message);
-
-                if let Some(location) = location {
-                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
-                        location, "here",
-                    )));
-                }
-
-                // Add the `help` message as a separate note
-                if let Some(help_message) = help {
-                    builder.add_element(ReportElement::Note(ReportNote::new(
-                        ReportNoteKind::Help,
-                        help_message,
-                    )));
-                }
-            }
-            ParseError::IO(inner) => {
-                // @@ErrorReporting: we might want to show a bit more info here.
-                builder.with_message(inner.to_string());
-            }
-        };
+        // Add the `help` message as a separate note
+        if let Some(help_message) = help {
+            builder.add_element(ReportElement::Note(ReportNote::new(
+                ReportNoteKind::Help,
+                help_message,
+            )));
+        }
 
         builder.build()
-    }
-}
-
-impl From<LexerErrorWrapper> for ParseError {
-    /// Implementation to convert a [`hash_lexer::error::LexerError`] with the
-    /// combination of a [`hash_source::SourceId`] into a [ParseError]. This
-    /// is used in order to interface with the lexer within the parsing
-    /// stage.
-    ///
-    /// @@Future: In the future, there is a hope that we don't
-    /// need to convert between various error kinds in crates and they can just
-    /// be passed around as reports which are pipeline stage agnostic.
-    fn from(LexerErrorWrapper(source_id, err): LexerErrorWrapper) -> Self {
-        ParseError::Parsing {
-            message: err.to_string(),
-            location: Some(SourceLocation { span: err.span, source_id }),
-            help: None,
-        }
     }
 }

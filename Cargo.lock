@@ -439,6 +439,7 @@ name = "hash-lexer"
 version = "0.1.0"
 dependencies = [
  "derive_more",
+ "hash-reporting",
  "hash-source",
  "hash-token",
  "thiserror",

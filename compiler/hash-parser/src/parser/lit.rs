@@ -5,7 +5,8 @@ use hash_source::location::Span;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
 use num_bigint::{BigInt, Sign};
 
-use super::{error::AstGenErrorKind, AstGen, AstGenResult};
+use super::AstGen;
+use crate::diagnostics::error::{ParseErrorKind, ParseResult};
 
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Convert the current token (provided it is a primitive literal) into a
@@ -34,10 +35,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     }
 
     ///
-    pub(crate) fn parse_primitive_lit(&self) -> AstGenResult<AstNode<Lit>> {
+    pub(crate) fn parse_primitive_lit(&self) -> ParseResult<AstNode<Lit>> {
         let token = self
             .next_token()
-            .ok_or_else(|| self.make_error(AstGenErrorKind::EOF, None, None, None))?;
+            .ok_or_else(|| self.make_error(ParseErrorKind::Eof, None, None, None))?;
 
         // Deal with the numeric prefix `+` by just simply ignoring it
         let lit = match token.kind {
@@ -55,7 +56,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                         return Ok(self.create_numeric_lit(is_negated));
                     }
                     token => self.error_with_location(
-                        AstGenErrorKind::ExpectedLiteral,
+                        ParseErrorKind::ExpectedLiteral,
                         None,
                         token.map(|t| t.kind),
                         self.next_location(),
@@ -71,7 +72,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             TokenKind::CharLit(value) => Ok(Lit::Char(CharLit(value))),
             TokenKind::StrLit(value) => Ok(Lit::Str(StrLit(value))),
             kind => self.error_with_location(
-                AstGenErrorKind::ExpectedLiteral,
+                ParseErrorKind::ExpectedLiteral,
                 None,
                 Some(kind),
                 token.span,
@@ -109,7 +110,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     }
 
     /// Parse a single map entry in a literal.
-    pub(crate) fn parse_map_entry(&self) -> AstGenResult<AstNode<MapLitEntry>> {
+    pub(crate) fn parse_map_entry(&self) -> ParseResult<AstNode<MapLitEntry>> {
         let start = self.current_location();
 
         let key = self.parse_expr_with_precedence(0)?;
@@ -121,7 +122,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Parse a map literal which is made of braces with an arbitrary number of
     /// fields separated by commas.
-    pub(crate) fn parse_map_lit(&self) -> AstGenResult<AstNode<Lit>> {
+    pub(crate) fn parse_map_lit(&self) -> ParseResult<AstNode<Lit>> {
         debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Map)));
 
         let start = self.current_location();
@@ -135,7 +136,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Parse a set literal which is made of braces with an arbitrary number of
     /// fields separated by commas.
-    pub(crate) fn parse_set_lit(&self) -> AstGenResult<AstNode<Lit>> {
+    pub(crate) fn parse_set_lit(&self) -> ParseResult<AstNode<Lit>> {
         debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Set)));
 
         let start = self.current_location();
@@ -150,7 +151,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     }
 
     /// Function to parse a tuple literal entry with a name.
-    pub(crate) fn parse_tuple_lit_entry(&self) -> AstGenResult<AstNode<TupleLitEntry>> {
+    pub(crate) fn parse_tuple_lit_entry(&self) -> ParseResult<AstNode<TupleLitEntry>> {
         let start = self.next_location();
         let offset = self.offset();
 
@@ -176,7 +177,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
                 self.parse_token_fast(TokenKind::Eq).ok_or_else(|| {
                     self.make_error(
-                        AstGenErrorKind::ExpectedValueAfterTyAnnotation,
+                        ParseErrorKind::ExpectedValueAfterTyAnnotation,
                         Some(TokenKindVector::singleton(TokenKind::Eq)),
                         None,
                         Some(self.next_location()),
@@ -215,7 +216,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         &self,
         tree: &'stream [Token],
         span: Span,
-    ) -> AstGenResult<AstNode<Expr>> {
+    ) -> ParseResult<AstNode<Expr>> {
         let gen = self.from_stream(tree, span);
 
         let mut elements = AstNodes::empty();
@@ -232,7 +233,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     // if we haven't exhausted the whole token stream, then report this as a
                     // unexpected token error
                     return gen.error(
-                        AstGenErrorKind::Expected,
+                        ParseErrorKind::Expected,
                         Some(TokenKindVector::singleton(TokenKind::Comma)),
                         Some(token.kind),
                     );

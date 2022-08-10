@@ -1,10 +1,13 @@
 //! Hash diagnostic report data structures.
-use std::{cell::Cell, fmt};
+use std::{cell::Cell, convert::Infallible, fmt, io};
 
 use hash_error_codes::error_codes::HashErrorCode;
 use hash_source::location::SourceLocation;
 
-use crate::highlight::{highlight, Colour, Modifier};
+use crate::{
+    builder::ReportBuilder,
+    highlight::{highlight, Colour, Modifier},
+};
 
 /// A data type representing a comment/message on a specific span in a code
 /// block.
@@ -150,5 +153,22 @@ impl Report {
     /// Check if the report denotes an occurred warning.
     pub fn is_warning(&self) -> bool {
         self.kind == ReportKind::Warning
+    }
+}
+
+/// Some basic conversions into reports
+impl From<io::Error> for Report {
+    fn from(err: io::Error) -> Self {
+        let mut report = ReportBuilder::new();
+
+        // @@ErrorReporting: we might want to show a bit more info here.
+        report.with_kind(ReportKind::Error).with_message(err.to_string());
+        report.build()
+    }
+}
+
+impl From<Infallible> for Report {
+    fn from(err: Infallible) -> Self {
+        match err {}
     }
 }

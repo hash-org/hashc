@@ -2,6 +2,7 @@
 //! `hash-ast` which provides a general interface to write a parser.
 #![feature(cell_update, is_some_with)]
 
+mod diagnostics;
 mod import_resolver;
 pub mod parser;
 mod source;
@@ -16,17 +17,17 @@ use hash_pipeline::{
     traits::Parser,
     CompilerResult,
 };
-use hash_reporting::report::Report;
+use hash_reporting::{diagnostic::Diagnostics, report::Report};
 use hash_source::{InteractiveId, ModuleId, ModuleKind, SourceId};
 use import_resolver::ImportResolver;
-use parser::{error::ParseError, AstGen};
+use parser::AstGen;
 use source::ParseSource;
 
 /// Messages that are passed from parser workers into the general message queue.
 #[derive(Debug)]
 pub enum ParserAction {
     /// An error occurred during the parsing or lexing of a module.
-    Error(ParseError),
+    Error(Vec<Report>),
     /// A worker has specified that a module should be put in the queue for
     /// lexing and parsing.
     ParseImport { resolved_path: PathBuf, contents: String, sender: Sender<ParserAction> },
@@ -46,12 +47,14 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
     // Lex the contents of the module or interactive block
     let mut lexer = Lexer::new(&contents, source_id);
 
-    let tokens = match lexer.tokenise() {
-        Ok(source) => source,
-        Err(err) => {
-            return sender.send(ParserAction::Error(err.into())).unwrap();
-        }
-    };
+    let tokens = lexer.tokenise();
+
+    // Check if the lexer has errors...
+    if lexer.has_errors() {
+        sender.send(ParserAction::Error(lexer.into_reports())).unwrap();
+        return;
+    }
+
     let trees = lexer.into_token_trees();
 
     // Create a new import resolver in the event of more modules that
@@ -64,11 +67,11 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
     // message queue, regardless of it being an error or not.
     let action = match &source.source_id() {
         SourceId::Module(id) => match gen.parse_module() {
-            Err(err) => ParserAction::Error(err.into()),
+            Err(err) => ParserAction::Error(vec![err.into()]),
             Ok(node) => ParserAction::SetModuleNode { module_id: *id, node },
         },
         SourceId::Interactive(id) => match gen.parse_expr_from_interactive() {
-            Err(err) => ParserAction::Error(err.into()),
+            Err(err) => ParserAction::Error(vec![err.into()]),
             Ok(node) => ParserAction::SetInteractiveNode { interactive_id: *id, node },
         },
     };
@@ -99,7 +102,7 @@ impl<'pool> HashParser {
         current_dir: PathBuf,
         workspace: &mut Workspace,
         pool: &'pool rayon::ThreadPool,
-    ) -> Vec<ParseError> {
+    ) -> Vec<Report> {
         let mut errors = Vec::new();
         let (sender, receiver) = unbounded::<ParserAction>();
 
@@ -136,7 +139,7 @@ impl<'pool> HashParser {
                         scope.spawn(move |_| parse_source(source, sender));
                     }
                     ParserAction::Error(err) => {
-                        errors.push(err);
+                        errors.extend(err);
                     }
                 }
             }
@@ -155,16 +158,9 @@ impl<'pool> Parser<'pool> for HashParser {
         workspace: &mut Workspace,
         pool: &'pool rayon::ThreadPool,
     ) -> CompilerResult<()> {
-        let current_dir =
-            env::current_dir().map_err(ParseError::from).map_err(|err| vec![Report::from(err)])?;
+        let current_dir = env::current_dir().map_err(|err| vec![err.into()])?;
 
-        // Parse and collect any errors that occurred
-        let errors: Vec<_> = self
-            .begin(target, current_dir, workspace, pool)
-            .into_iter()
-            .map(|err| err.create_report())
-            .collect();
-
+        let errors = self.begin(target, current_dir, workspace, pool);
         if errors.is_empty() {
             Ok(())
         } else {

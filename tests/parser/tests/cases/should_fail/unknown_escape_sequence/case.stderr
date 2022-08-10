@@ -1,4 +1,4 @@
-error: invalid character escape sequence. Unknown escape sequence `j`
+error: invalid character escape sequence. unknown escape sequence `j`
  --> $DIR/case.hash:1:8
 1 |   k := '\j';
   |          ^ here
