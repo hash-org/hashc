@@ -69,7 +69,7 @@ impl<'tc> SplitWildcardOps<'tc> {
 
         let make_range = |start, end| {
             DeconstructedCtor::IntRange(self.int_range_ops().make_range(
-                ctx,
+                ctx.ty,
                 start,
                 end,
                 &RangeEnd::Included,

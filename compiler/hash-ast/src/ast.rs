@@ -552,7 +552,7 @@ impl IntTy {
 
     /// Get the size of [IntTy] in bytes. Returns [None] for
     /// [IntTy::IBig] and [IntTy::UBig] variants
-    pub fn size(&self) -> Option<u64> {
+    pub const fn size(&self) -> Option<u64> {
         match self {
             IntTy::I8 | IntTy::U8 => Some(1),
             IntTy::I16 | IntTy::U16 => Some(2),

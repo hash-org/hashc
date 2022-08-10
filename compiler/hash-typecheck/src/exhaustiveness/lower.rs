@@ -121,7 +121,10 @@ impl<'tc> LowerPatOps<'tc> {
 
                 (DeconstructedCtor::Wildcard, vec![])
             }
-            Pat::Range(_) => todo!(),
+            Pat::Range(range) => {
+                let range = self.lower_pat_range(range);
+                (DeconstructedCtor::IntRange(range), vec![])
+            }
             Pat::Lit(term) => match reader.get_term(term) {
                 Term::Level0(Level0Term::Lit(lit)) => match lit {
                     LitTerm::Str(value) => (DeconstructedCtor::Str(value), vec![]),
@@ -383,6 +386,35 @@ impl<'tc> LowerPatOps<'tc> {
 
         // Now put the pat on the store and return it
         self.pat_store().create(pat)
+    }
+
+    /// Lower a [RangePat] into [IntRange]. This function expects that
+    /// the [RangePat] was already validated, and so this function will
+    /// read `lo`, and `hi` terms, convert them into bytes and put them
+    /// into the [IntRange]
+    pub fn lower_pat_range(&self, range: RangePat) -> IntRange {
+        let RangePat { lo, hi, end } = range;
+
+        // @@Fix: this should probably happen somewhere else?
+        let ty = self.typer().infer_ty_of_term(lo).unwrap();
+
+        let term_to_u128 = |term| {
+            // The only types we support we support within ranges is currently a
+            // `char` and `int` types
+            match self.reader().get_term(term) {
+                Term::Level0(Level0Term::Lit(LitTerm::Char(ch))) => {
+                    Constant::from_char(ch, term).data()
+                }
+                Term::Level0(Level0Term::Lit(LitTerm::Int { value, kind })) => {
+                    Constant::from_int(value, kind, term).data()
+                }
+                _ => tc_panic!(term, self, "term does not support lowering into range"),
+            }
+        };
+
+        let lo = term_to_u128(lo);
+        let hi = term_to_u128(hi);
+        self.int_range_ops().make_range(ty, lo, hi, &end)
     }
 
     /// Convert [IntRange] into a [Pat] by judging the given

@@ -39,10 +39,11 @@ use hash_ast::ast::RangeEnd;
 
 use crate::{
     diagnostics::macros::tc_panic,
-    exhaustiveness::{constant::Constant, PatCtx},
+    exhaustiveness::constant::Constant,
     ops::AccessToOps,
     storage::{
         primitives::{Level0Term, LitTerm, Term},
+        terms::TermId,
         AccessToStorage, StorageRef,
     },
 };
@@ -267,8 +268,8 @@ impl<'tc> IntRangeOps<'tc> {
 
     /// Create an [IntRange] from two specified bounds, and assuming that the
     /// type is an integer (of the column)
-    pub(crate) fn make_range(&self, ctx: PatCtx, lo: u128, hi: u128, end: &RangeEnd) -> IntRange {
-        let bias = self.signed_bias(ctx);
+    pub(crate) fn make_range(&self, ty: TermId, lo: u128, hi: u128, end: &RangeEnd) -> IntRange {
+        let bias = self.signed_bias(ty);
 
         let (lo, hi) = (lo ^ bias, hi ^ bias);
         let offset = (*end == RangeEnd::Excluded) as u128;
@@ -283,9 +284,9 @@ impl<'tc> IntRangeOps<'tc> {
     /// the bias is set to be just at the end of the signed boundary
     /// of the integer size, in other words at the position where the
     /// last byte is that identifies the sign.
-    fn signed_bias(&self, ctx: PatCtx) -> u128 {
+    fn signed_bias(&self, ty: TermId) -> u128 {
         // @@Future: support `ibig` here
-        if let Some(ty) = self.oracle().term_as_int_ty(ctx.ty) {
+        if let Some(ty) = self.oracle().term_as_int_ty(ty) {
             if let Some(size) = ty.size() && ty.is_signed()  {
                 let bits = (size * 8) as u128;
                 return 1u128 << (bits - 1);
