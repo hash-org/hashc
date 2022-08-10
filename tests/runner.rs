@@ -24,7 +24,7 @@
 //! "parsing" stage and then stop compiling, and that the test case should fail.
 #![cfg(test)]
 
-use std::fs;
+use std::{fs, io};
 
 use hash_ast_desugaring::AstDesugarer;
 use hash_ast_passes::HashSemanticAnalysis;
@@ -36,7 +36,10 @@ use hash_pipeline::{
 };
 use hash_reporting::{report::Report, writer::ReportWriter};
 use hash_source::ModuleKind;
-use hash_testing_internal::{metadata::TestResult, TestingInput};
+use hash_testing_internal::{
+    metadata::{HandleWarnings, TestResult},
+    TestingInput,
+};
 use hash_testing_macros::generate_tests;
 use hash_typecheck::TcImpl;
 use hash_vm::vm::{Interpreter, InterpreterOptions};
@@ -44,28 +47,18 @@ use regex::Regex;
 
 use crate::{ANSI_REGEX, REGENERATE_OUTPUT};
 
-/// This function is used to handle the case of verifying that a parser test was
-/// expected to fail. This function verifies that it does fail and that the
-/// generated [Report] (which is rendered) matches the recorded `case.stderr`
-/// entry within the case.
+/// Given the testing input, and a pre-filtered [Vec<Report>] based on
+/// the testing input parameters, render the reports and compare them
+/// to the saved corresponding `.stderr` file.
 ///
-/// If the case specifies that `warnings=ignore`, then warnings will not be
-/// considered within the resultant `.stderr` file.
-fn handle_failure_case(
+/// The report comparison removes all ANSI escape codes, and directory paths.
+fn compare_emitted_diagnostics(
     input: TestingInput,
     diagnostics: Vec<Report>,
     sources: Workspace,
 ) -> std::io::Result<()> {
-    // verify that the case failed, as in reports where generated
-    assert!(
-        diagnostics.iter().any(|report| report.is_error()),
-        "\ntest case did not fail: {:#?}",
-        input
-    );
-
     let contents = diagnostics
         .into_iter()
-        .filter(|report| if input.metadata.ignore_warnings { report.is_error() } else { true })
         .map(|report| format!("{}", ReportWriter::new(report, sources.source_map())))
         .collect::<Vec<_>>()
         .join("\n");
@@ -87,41 +80,103 @@ fn handle_failure_case(
     // If we specify to re-generate the output, then we will always write the
     // content of the report into the specified file
     if REGENERATE_OUTPUT || !stderr_path.exists() {
-        fs::write(&stderr_path, &report_contents)?;
+        // Avoid writing nothing to the `.stderr` case file
+        if !report_contents.is_empty() {
+            fs::write(&stderr_path, &report_contents)?;
+        }
     }
 
-    if stderr_path.exists() {
-        let err_contents = fs::read_to_string(stderr_path).unwrap();
+    // Read the contents of the file, if we couldn't find the file then we assume
+    // that the contents of `.stderr` are empty. We can assume this because the
+    // only reason why the file wouldn't be written to is if it didn't exist
+    // prior to this and that the contents of the diagnostics are empty, so
+    // returning an empty string makes sense here.
+    let err_contents =
+        fs::read_to_string(stderr_path.clone()).unwrap_or_else(|err| match err.kind() {
+            io::ErrorKind::NotFound => "".to_string(),
+            err => panic!("couldn't open file `{stderr_path:?}`: {:?}", err),
+        });
 
-        pretty_assertions::assert_str_eq!(
-            err_contents,
-            report_contents,
-            "\ncase `.stderr` does not match for: {:#?}\n",
-            input
-        );
-    } else {
-        panic!(
-            "missing `.stderr` file for `{:?}`, consider running with `REGENERATE_OUTPUT=true`",
-            input.path
-        );
-    }
+    pretty_assertions::assert_str_eq!(
+        err_contents,
+        report_contents,
+        "\ncase `.stderr` does not match for: {:#?}\n",
+        input
+    );
 
     Ok(())
+}
+
+/// This function is used to handle the case of verifying that a parser test was
+/// expected to fail. This function verifies that it does fail and that the
+/// generated [Report] (which is rendered) matches the recorded `case.stderr`
+/// entry within the case.
+///
+/// If the case specifies that `warnings=ignore`, then warnings will not be
+/// considered within the resultant `.stderr` file.
+fn handle_failure_case(
+    input: TestingInput,
+    diagnostics: Vec<Report>,
+    sources: Workspace,
+) -> std::io::Result<()> {
+    // verify that the case failed, as in reports where generated
+    assert!(
+        diagnostics.iter().any(|report| report.is_error()),
+        "\ntest case did not fail: {:#?}",
+        input
+    );
+
+    // If the test specifies that no warnings should be generated, then check
+    // that this is the case
+    if input.metadata.warnings == HandleWarnings::Disallow {
+        assert!(
+            diagnostics.iter().all(|report| report.is_error()),
+            "\ntest case generated warnings where they were disallowed: {:#?}",
+            input
+        );
+    }
+
+    // Filter out `warnings` if the function specifies them to be
+    // ignored.
+    let diagnostics = diagnostics
+        .into_iter()
+        .filter(|report| {
+            if input.metadata.warnings == HandleWarnings::Ignore {
+                report.is_error()
+            } else {
+                true
+            }
+        })
+        .collect();
+
+    compare_emitted_diagnostics(input, diagnostics, sources)
 }
 
 /// Function that handles a test case which is expected to be successful, in
 /// this situation, the function will verify that the test case did not emit any
 /// errors or warnings (although setting `warnings=ignore` will ignore
 /// warnings).
-fn handle_pass_case(input: TestingInput, diagnostics: Vec<Report>) {
-    let did_pass = if input.metadata.ignore_warnings {
-        diagnostics.iter().all(|report| report.is_warning())
-    } else {
+fn handle_pass_case(
+    input: TestingInput,
+    diagnostics: Vec<Report>,
+    sources: Workspace,
+) -> std::io::Result<()> {
+    let did_pass = match input.metadata.warnings {
+        HandleWarnings::Ignore | HandleWarnings::Compare => {
+            diagnostics.iter().all(|report| report.is_warning())
+        }
         // Expect no diagnostics to be emitted whatsoever
-        diagnostics.is_empty()
+        HandleWarnings::Disallow => diagnostics.is_empty(),
     };
 
     assert!(did_pass, "\ntest case did not pass: {:#?}", input);
+
+    // If we need to compare the output of the warnings, to the previous result...
+    if input.metadata.warnings == HandleWarnings::Compare {
+        compare_emitted_diagnostics(input, diagnostics, sources)?;
+    }
+
+    Ok(())
 }
 
 /// Generic test handler in the event whether a case should pass or fail.
@@ -168,7 +223,7 @@ fn handle_test(input: TestingInput) {
     if input.metadata.completion == TestResult::Fail {
         handle_failure_case(input, diagnostics, compiler_state.workspace).unwrap();
     } else {
-        handle_pass_case(input, diagnostics);
+        handle_pass_case(input, diagnostics, compiler_state.workspace).unwrap();
     }
 }
 

@@ -70,6 +70,12 @@ pub enum CompilerMode {
     Full,
 }
 
+impl Default for CompilerMode {
+    fn default() -> Self {
+        CompilerMode::Full
+    }
+}
+
 impl Display for CompilerMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
