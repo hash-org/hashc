@@ -1,0 +1,13 @@
+// run=pass, warnings=compare
+
+main := () => {
+    a := 5;
+
+    match a {
+        3 => {};
+        2 => {};
+        3 => {};
+        k => {};
+        _ => {};
+    }
+};

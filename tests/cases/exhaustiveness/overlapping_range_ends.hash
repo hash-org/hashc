@@ -1,15 +1,15 @@
 // run=pass, warnings=compare
 
 // Should print a warning about `overlapping` ranges on patterns `70..127` and `127..130`
-// main := () => {
-//     a := 6;
+main := () => {
+    a := 6;
 
-//     match a {
-//         0..20 => {};
-//         -50..<0 => {};
-//         70..127 => {};
-//         127..130 => {};
-//         a => {};
-//     }
-// };
+    match a {
+        0..20 => {};
+        -50..<0 => {};
+        70..127 => {};
+        127..130 => {};
+        a => {};
+    }
+};
 
