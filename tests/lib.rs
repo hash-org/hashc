@@ -24,7 +24,11 @@ lazy_static! {
     pub static ref ANSI_REGEX: Regex = Regex::new(ANSI_RE).unwrap();
 }
 
-/// Stub function for the
+/// Stub function for cargo to treat this as a library.
+///
+/// @@Future: this will become a command-line interface in order
+/// to update test outputs rather than using the in-built `REGENERATE_OUTPUT`
+/// flag.
 fn main() {}
 
 // @@Todo: move this into `main.rs` within this crate

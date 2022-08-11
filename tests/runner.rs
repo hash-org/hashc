@@ -1,5 +1,5 @@
 //! Hash Compiler UI Test runner, this file will read the `cases` directory for
-//! `.hash` files in the specific `should_pass` and `should_fail` directories.
+//! `.hash` files.
 //!
 //! In the event of a `should_pass` case, the resultant run should not return
 //! any errors. However, it's possible for the case to generate warnings
@@ -53,8 +53,6 @@ fn handle_failure_case(
     diagnostics: Vec<Report>,
     sources: Workspace,
 ) -> std::io::Result<()> {
-    println!("{:?}", input);
-
     // Verify that the parser failed to parse this file
     assert!(
         diagnostics.iter().any(|report| report.is_error()),

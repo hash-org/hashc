@@ -60,16 +60,9 @@ impl ToTokens for TestMetadata {
     fn to_tokens(&self, tokens: &mut quote::__private::TokenStream) {
         let TestMetadata { stage, completion } = *self;
 
-        // Convert the stage into the `tokenised` stage... yes it's ugly!
-        let stage = match stage {
-            CompilerMode::Parse => quote!(CompilerMode::Parse),
-            CompilerMode::DeSugar => quote!(CompilerMode::DeSugar),
-            CompilerMode::SemanticPass => quote!(CompilerMode::SemanticPass),
-            CompilerMode::Typecheck => quote!(CompilerMode::Typecheck),
-            CompilerMode::Lower => quote!(CompilerMode::Lower),
-            CompilerMode::IrGen => quote!(CompilerMode::IrGen),
-            CompilerMode::Full => quote!(CompilerMode::Full),
-        };
+        // Convert the stage into the `tokenised` stage...
+        let stage: quote::__private::TokenStream =
+            format!("CompilerMode::{:?}", stage).parse().unwrap();
 
         tokens.extend(quote! ( TestMetadata { completion: #completion, stage: #stage  }))
     }
