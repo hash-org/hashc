@@ -73,7 +73,7 @@ impl<'tc> MatrixOps<'tc> {
             let pat = reader.get_deconstructed_pat(row.head());
 
             if self.deconstruct_pat_ops().is_or_pat(&pat) {
-                matrix.patterns.extend(self.stack_ops().expand_or_pat(&row));
+                return matrix.patterns.extend(self.stack_ops().expand_or_pat(&row));
             }
         }
 
