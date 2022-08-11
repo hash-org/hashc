@@ -9,9 +9,9 @@ use std::{
 use bimap::BiMap;
 use slotmap::{new_key_type, Key, SlotMap};
 
+pub mod constant;
 pub mod identifier;
 pub mod location;
-pub mod string;
 
 new_key_type! {
     pub struct ModuleId;

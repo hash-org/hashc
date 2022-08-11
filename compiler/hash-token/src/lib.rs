@@ -4,7 +4,11 @@ pub mod delimiter;
 pub mod keyword;
 
 use delimiter::{Delimiter, DelimiterVariant};
-use hash_source::{identifier::Identifier, location::Span, string::Str};
+use hash_source::{
+    constant::{InternedFloat, InternedInt, InternedStr},
+    identifier::Identifier,
+    location::Span,
+};
 use keyword::Keyword;
 use smallvec::{smallvec, SmallVec};
 
@@ -124,7 +128,7 @@ impl TokenKind {
 /// An Atom represents all variants of a token that can be present in a source
 /// file. Atom token kinds can represent a single character, literal or an
 /// identifier.
-#[derive(Debug, PartialEq, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum TokenKind {
     /// '='
     Eq,
@@ -171,13 +175,13 @@ pub enum TokenKind {
     /// "'"
     SingleQuote,
     /// Integer Literal
-    IntLit(u64),
+    IntLit(InternedInt),
     /// Float literal
-    FloatLit(f64),
+    FloatLit(InternedFloat),
     /// Character literal
     CharLit(char),
     /// StrLiteral,
-    StrLit(Str),
+    StrLit(InternedStr),
     /// Identifier
     Ident(Identifier),
 

@@ -442,6 +442,8 @@ dependencies = [
  "hash-reporting",
  "hash-source",
  "hash-token",
+ "num-bigint",
+ "num-traits",
  "thiserror",
 ]
 
@@ -501,6 +503,7 @@ dependencies = [
  "hash-alloc",
  "hash-utils",
  "lazy_static",
+ "num-bigint",
  "slotmap",
 ]
 

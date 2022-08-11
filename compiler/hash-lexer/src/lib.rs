@@ -7,6 +7,7 @@ use std::{cell::Cell, iter};
 use error::{LexerDiagnostics, LexerError, LexerErrorKind, LexerResult};
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::{
+    constant::CONSTANT_MAP,
     identifier::CORE_IDENTIFIERS,
     location::{SourceLocation, Span},
     SourceId,
@@ -16,6 +17,8 @@ use hash_token::{
     keyword::Keyword,
     Token, TokenKind,
 };
+use num_bigint::BigInt;
+use num_traits::Num;
 use utils::is_id_start;
 
 use crate::utils::is_id_continue;
@@ -384,6 +387,19 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    fn create_int_const(&self, chars: &str, radix: u32) -> TokenKind {
+        // @@Future: do this ourselves
+
+        // ##Safety: this can't fail since the radix is validated by the parsing, and
+        //   we will always have at least one character in `chars`...
+        let value = BigInt::from_str_radix(chars, radix).unwrap();
+
+        // We need to create a interned constant here...
+        let interned_const = CONSTANT_MAP.create_int_constant(value, None); // @@Todo: support ascriptions
+
+        TokenKind::IntLit(interned_const)
+    }
+
     /// Consume a number literal, either float or integer. The function expects
     /// that the first character of the numeric literal is consumed when the
     /// function is called.
@@ -406,20 +422,7 @@ impl<'a> Lexer<'a> {
             if let Some(radix) = maybe_radix {
                 self.skip(); // accounting for the radix
 
-                let chars = self.eat_decimal_digits(radix);
-                let value = u64::from_str_radix(chars, radix);
-
-                // @@ErrorHandling: We shouldn't error here, this should be handled by the
-                // SmallVec<..> change to integers
-                if value.is_err() {
-                    return self.emit_error(
-                        Some("Integer literal too large".to_string()),
-                        LexerErrorKind::MalformedNumericalLit,
-                        Span::new(start, self.offset.get()),
-                    );
-                }
-
-                return TokenKind::IntLit(value.unwrap());
+                return self.create_int_const(self.eat_decimal_digits(radix), radix);
             }
         }
 
@@ -452,26 +455,13 @@ impl<'a> Lexer<'a> {
             }
             // Immediate exponent
             'e' | 'E' => self.eat_float_lit(pre_digits.chars(), start),
-            _ => {
-                // @@TODO: Use our own parser for integers and floats instead of relying on
-                // rust's default one.
-                match pre_digits.parse::<u64>() {
-                    Err(err) => self.emit_error(
-                        Some(format!("{}.", err)),
-                        LexerErrorKind::MalformedNumericalLit,
-                        Span::new(start, self.offset.get()),
-                    ),
-                    Ok(value) => TokenKind::IntLit(value),
-                }
-            }
+            _ => self.create_int_const(pre_digits.as_str(), 10),
         }
     }
 
     /// Function to apply an exponent to a floating point literal.
     fn eat_float_lit(&mut self, num: impl Iterator<Item = char>, start: usize) -> TokenKind {
-        let num = num.collect::<String>().parse::<f64>();
-
-        match num {
+        match num.collect::<String>().parse::<f64>() {
             Err(err) => self.emit_error(
                 Some(format!("{}.", err)),
                 LexerErrorKind::MalformedNumericalLit,
@@ -484,7 +474,9 @@ impl<'a> Lexer<'a> {
                         // exponent to the float literal.
                         let value = if exp != 0 { value * 10f64.powi(exp) } else { value };
 
-                        TokenKind::FloatLit(value)
+                        // Create interned float constant
+                        let float_const = CONSTANT_MAP.create_float_constant(value, None); // @@Todo: support type ascriptions
+                        TokenKind::FloatLit(float_const)
                     }
                     Err(err) => {
                         self.add_error(err);
@@ -536,7 +528,7 @@ impl<'a> Lexer<'a> {
     /// Consume only decimal digits up to encountering a non-decimal digit
     /// whilst taking into account that the language supports '_' as digit
     /// separators which should just be skipped over...
-    fn eat_decimal_digits(&mut self, radix: u32) -> &str {
+    fn eat_decimal_digits(&self, radix: u32) -> &str {
         self.eat_while_and_slice(move |c| c.is_digit(radix) || c == '_')
     }
 
@@ -826,7 +818,7 @@ impl<'a> Lexer<'a> {
     /// discard any characters that it encounters whilst eating the input,
     /// this is useful because in some cases we don't want to preserve what
     /// the token represents, such as comments or white-spaces...
-    fn eat_while_and_discard(&mut self, mut condition: impl FnMut(char) -> bool) {
+    fn eat_while_and_discard(&self, mut condition: impl FnMut(char) -> bool) {
         let slice = unsafe { self.as_slice() }.chars();
 
         for ch in slice {
@@ -842,7 +834,7 @@ impl<'a> Lexer<'a> {
     /// slice from where it began to eat the input and where it finished,
     /// this is sometimes beneficial as the slice doesn't have to be
     /// re-allocated as a string.
-    fn eat_while_and_slice(&mut self, condition: impl FnMut(char) -> bool) -> &str {
+    fn eat_while_and_slice(&self, condition: impl FnMut(char) -> bool) -> &str {
         let start = self.offset.get();
         self.eat_while_and_discard(condition);
         let end = self.offset.get();

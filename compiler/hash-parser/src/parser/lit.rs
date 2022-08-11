@@ -2,7 +2,7 @@
 //! logic that transforms tokens into an AST.
 use hash_ast::ast::*;
 use hash_reporting::diagnostic::Diagnostics;
-use hash_source::location::Span;
+use hash_source::{constant::CONSTANT_MAP, location::Span};
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
 use num_bigint::{BigInt, Sign};
 
@@ -23,7 +23,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             match token.kind {
                 // @@Todo: support Integer/Float ascriptions
                 TokenKind::IntLit(value) => {
-                    Lit::Int(IntLit { value: value.into(), kind: IntLitKind::Unsuffixed })
+                    Lit::Int(IntLit { value, kind: IntLitKind::Unsuffixed })
                 }
                 TokenKind::FloatLit(value) => {
                     Lit::Float(FloatLit { value, kind: FloatLitKind::Unsuffixed })
@@ -80,7 +80,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 }
             }
             TokenKind::IntLit(value) => {
-                Ok(Lit::Int(IntLit { value: value.into(), kind: IntLitKind::Unsuffixed }))
+                Ok(Lit::Int(IntLit { value, kind: IntLitKind::Unsuffixed }))
             }
             TokenKind::FloatLit(value) => {
                 Ok(Lit::Float(FloatLit { value, kind: FloatLitKind::Unsuffixed }))
@@ -106,16 +106,30 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         self.node_with_span(
             match token.kind {
                 // @@Todo: support Integer/Float ascriptions
-                TokenKind::IntLit(value) => {
-                    let value = BigInt::from_bytes_be(
+                TokenKind::IntLit(interned_const) => {
+                    let value_lookup = CONSTANT_MAP.lookup_int_constant(interned_const);
+
+                    // We need to modify the value and then put it back into the interned map
+                    let modified_value = BigInt::from_bytes_be(
                         if is_negated { Sign::Minus } else { Sign::NoSign },
-                        &value.to_be_bytes(),
+                        &value_lookup.to_bytes_be(),
                     );
 
+                    let value =
+                        CONSTANT_MAP.create_int_constant(modified_value, value_lookup.ascription);
                     Lit::Int(IntLit { value, kind: IntLitKind::Unsuffixed })
                 }
-                TokenKind::FloatLit(value) => {
-                    let value = if is_negated { -value } else { value };
+                TokenKind::FloatLit(interned_const) => {
+                    // If this constant is negated, we need to look it up, negate it and then
+                    // create a new one.
+                    let value = if is_negated {
+                        let value_lookup = CONSTANT_MAP.lookup_float_constant(interned_const);
+
+                        CONSTANT_MAP
+                            .create_float_constant(-value_lookup.value, value_lookup.ascription)
+                    } else {
+                        interned_const
+                    };
 
                     Lit::Float(FloatLit { value, kind: FloatLitKind::Unsuffixed })
                 }

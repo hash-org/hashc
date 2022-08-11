@@ -7,7 +7,11 @@ use std::{
 };
 
 use hash_ast::ast::{IntLit, IntLitKind, IntTy, ParamOrigin, RangeEnd};
-use hash_source::{identifier::Identifier, string::Str, SourceId};
+use hash_source::{
+    constant::{InternedStr, CONSTANT_MAP},
+    identifier::Identifier,
+    SourceId,
+};
 use num_bigint::BigInt;
 
 use super::{
@@ -781,7 +785,7 @@ pub struct AccessTerm {
 /// A literal term, which is level 0.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LitTerm {
-    Str(Str),
+    Str(InternedStr),
     Int { value: BigInt, kind: IntTy },
     Char(char),
 }
@@ -800,9 +804,11 @@ impl From<String> for LitTerm {
 
 impl From<IntLit> for LitTerm {
     fn from(lit: IntLit) -> Self {
+        let value = CONSTANT_MAP.lookup_int_constant(lit.value);
+
         match lit.kind {
-            IntLitKind::Suffixed(kind) => LitTerm::Int { value: lit.value, kind },
-            IntLitKind::Unsuffixed => LitTerm::Int { value: lit.value, kind: IntTy::I32 },
+            IntLitKind::Suffixed(kind) => LitTerm::Int { value: value.to_big_int(), kind },
+            IntLitKind::Unsuffixed => LitTerm::Int { value: value.to_big_int(), kind: IntTy::I32 },
         }
     }
 }
