@@ -139,37 +139,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             // Spread pattern
             token if token.has_kind(TokenKind::Dot) => Pat::Spread(self.parse_spread_pat()?),
 
-            // Numeric literals with numeric prefixes are also allowed
-            token if token.kind.is_numeric_prefix() => {
-                self.skip_token();
-
-                // Should be a numeric
-                match self.peek() {
-                    Some(second) if second.kind.is_numeric() => {
-                        self.skip_token();
-
-                        let is_negated = matches!(token.kind, TokenKind::Minus);
-
-                        let mut lit = self.create_numeric_lit(is_negated);
-                        let adjusted_span = token.span.join(lit.span());
-                        lit.set_span(adjusted_span);
-
-                        Pat::Lit(LitPat(lit))
-                    }
-                    // @@Future: could refine error here to be more specific about numeric literals
-                    token => self.err_with_location(
-                        ParseErrorKind::ExpectedPat,
-                        None,
-                        token.map(|tok| tok.kind),
-                        token.map_or_else(|| self.current_location(), |tok| tok.span),
-                    )?,
-                }
-            }
-
             // Literal patterns
             token if token.kind.is_lit() => {
                 self.skip_token();
-                Pat::Lit(LitPat(self.parse_atomic_lit()?))
+                Pat::Lit(LitPat(self.parse_primitive_lit()?))
             }
             // Tuple patterns
             Token { kind: TokenKind::Tree(Delimiter::Paren, tree_index), span } => {
@@ -245,13 +218,22 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         };
 
         // Now parse the `hi` part of the range
-        match self.parse_primitive_lit().ok() {
-            Some(hi) => Some(RangePat { lo, hi, end }),
-            None => {
-                // Reset the token offset to the beginning
-                self.offset.set(offset);
-                None
+        if matches!(self.peek(), Some(token) if token.kind.is_lit()) {
+            self.skip_token();
+
+            // @@ErrorReporting: just push the error but don't fail...
+            match self.peek_resultant_fn(|t| t.parse_primitive_lit()) {
+                Some(hi) => Some(RangePat { lo, hi, end }),
+                None => {
+                    // Reset the token offset to the beginning
+                    self.offset.set(offset);
+                    None
+                }
             }
+        } else {
+            // Reset the token offset to the beginning
+            self.offset.set(offset);
+            None
         }
     }
 
@@ -466,27 +448,17 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// essentially a dry-run of [Self::parse_singular_pat] since it doesn't
     /// create any kind of patterns whilst traversing the token tree.
     pub(crate) fn begins_pat(&self) -> bool {
-        let check_lit = |offset| {
-            match self.peek_nth(offset) {
-                Some(token) if token.kind.is_lit() || token.kind.is_numeric_prefix() => {
-                    if token.kind.is_numeric_prefix() {
-                        // This must be a numeric literal
-                        match self.peek_second() {
-                            Some(token) if token.kind.is_numeric() => Some(2),
-                            _ => None,
-                        }
-                    } else {
-                        Some(1)
-                    }
-                }
-                _ => Some(0),
-            }
+        let check_lit = |offset| match self.peek_nth(offset) {
+            Some(token) if token.kind.is_lit() => 1,
+            _ => 0,
         };
 
         // Firstly, we might need to deal with literals and range patterns
-        if let Some(count) = check_lit(0) && count != 0 {
-            // If we peek, there is a dot, and we can check that there 
-            // is also a lit at the end, then we can conclude that this could 
+        let count = check_lit(0);
+
+        if count != 0 {
+            // If we peek, there is a dot, and we can check that there
+            // is also a lit at the end, then we can conclude that this could
             // be a pattern
             let range_tokens = [
                 self.peek_nth(count).map_or(false, |t| t.kind == TokenKind::Dot),
@@ -498,7 +470,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 // No initial dot, so it could just be a literal
                 [false, _, _] => {
                     return matches!(self.peek_nth(count), Some(token) if token.has_kind(TokenKind::Colon))
-                },
+                }
                 // `..`
                 [true, true, false] => count + 2,
                 // `..<`
@@ -507,10 +479,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             };
 
             // Now we need to check that there is a literal after this range token
-            if let Some(offset) = check_lit(count) && offset != 0 {
-                return matches!(self.peek_nth(offset + count), Some(token) if token.has_kind(TokenKind::Colon))
+            let offset = check_lit(count);
+            if offset != 0 {
+                return matches!(self.peek_nth(offset + count), Some(token) if token.has_kind(TokenKind::Colon));
             } else {
-                return false
+                return false;
             }
         }
 

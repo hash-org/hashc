@@ -111,7 +111,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
             // Handle primitive literals
             kind if kind.is_lit() => self.node_with_span(
-                Expr::new(ExprKind::LitExpr(LitExpr(self.parse_atomic_lit()?))),
+                Expr::new(ExprKind::LitExpr(LitExpr(self.parse_primitive_lit()?))),
                 token.span,
             ),
             TokenKind::Ident(ident) => {
@@ -644,26 +644,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 return Ok(inner_expr);
             }
             kind @ (TokenKind::Minus | TokenKind::Exclamation | TokenKind::Tilde) => {
-                // Immediately deal with negation on numeric literals...
-                if *kind == TokenKind::Minus {
-                    match self.peek() {
-                        Some(token) if token.kind.is_numeric() => {
-                            self.skip_token();
-
-                            // Parse the numeric literal and apply negation to it
-                            let mut lit = self.create_numeric_lit(true);
-                            let adjusted_span = token.span.join(lit.span());
-                            lit.set_span(adjusted_span);
-
-                            return Ok(self.node_with_span(
-                                Expr::new(ExprKind::LitExpr(LitExpr(lit))),
-                                adjusted_span,
-                            ));
-                        }
-                        _ => {}
-                    }
-                }
-
                 let expr = self.parse_expr()?;
 
                 let operator = self.node_with_span(
