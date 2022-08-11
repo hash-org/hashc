@@ -23,7 +23,7 @@ pub struct FloatConstant {
     pub value: f64,
     /// If the constant contains a type ascription, as specified
     /// when the constant is declared, e.g. `32.4f64`
-    pub ascription: Option<Identifier>,
+    pub suffix: Option<Identifier>,
 }
 
 counter! {
@@ -37,8 +37,8 @@ impl Display for FloatConstant {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.value)?;
 
-        if let Some(ascription) = self.ascription {
-            write!(f, "{ascription}")?;
+        if let Some(suffix) = self.suffix {
+            write!(f, "{suffix}")?;
         }
 
         Ok(())
@@ -91,7 +91,7 @@ pub struct IntConstant {
     pub value: IntConstantValue,
     /// If the constant contains a type ascription, as specified
     /// when the constant is declared, e.g. `32u64`
-    pub ascription: Option<Identifier>,
+    pub suffix: Option<Identifier>,
 }
 
 impl IntConstant {
@@ -125,7 +125,7 @@ impl Display for IntConstant {
             // We want to snip the value from the `total` value since we don't care about the
             // rest...
             IntConstantValue::Small(value) => {
-                let is_signed = match self.ascription {
+                let is_signed = match self.suffix {
                     Some(ty) => match ty {
                         i if CORE_IDENTIFIERS.i8 == i => true,
                         i if CORE_IDENTIFIERS.i16 == i => true,
@@ -148,8 +148,8 @@ impl Display for IntConstant {
             IntConstantValue::Big(value) => write!(f, "{}", value)?,
         }
 
-        if let Some(ascription) = self.ascription {
-            write!(f, "{ascription}")?;
+        if let Some(suffix) = self.suffix {
+            write!(f, "{suffix}")?;
         }
 
         Ok(())
@@ -249,13 +249,9 @@ impl ConstantMap {
     }
 
     /// Create a [FloatConstant] within the [ConstantMap]
-    pub fn create_float_constant(
-        &self,
-        value: f64,
-        ascription: Option<Identifier>,
-    ) -> InternedFloat {
+    pub fn create_float_constant(&self, value: f64, suffix: Option<Identifier>) -> InternedFloat {
         let ident = InternedFloat::new();
-        let constant = FloatConstant { value, ascription };
+        let constant = FloatConstant { value, suffix };
 
         self.float_table.insert(ident, constant);
 
@@ -268,15 +264,11 @@ impl ConstantMap {
     }
 
     /// Create a [IntConstant] within the [ConstantMap].
-    pub fn create_int_constant(
-        &self,
-        value: BigInt,
-        ascription: Option<Identifier>,
-    ) -> InternedInt {
+    pub fn create_int_constant(&self, value: BigInt, suffix: Option<Identifier>) -> InternedInt {
         let value = IntConstantValue::from(value);
 
         let ident = InternedInt::new();
-        let constant = IntConstant { value, ascription };
+        let constant = IntConstant { value, suffix };
 
         // Insert the entries into the map and the reverse-lookup map
         self.int_table.insert(ident, constant);
@@ -287,13 +279,13 @@ impl ConstantMap {
     /// Get the [FloatConstant] behind the [InternedFloat]
     pub fn lookup_int_constant(&self, id: InternedInt) -> IntConstant {
         let lookup_value = self.int_table.get(&id).unwrap();
-        let IntConstant { value, ascription } = lookup_value.value();
+        let IntConstant { value, suffix } = lookup_value.value();
 
         let value = match value {
             IntConstantValue::Small(inner) => IntConstantValue::Small(*inner),
             IntConstantValue::Big(inner) => IntConstantValue::Big(inner.clone()),
         };
 
-        IntConstant { value, ascription: *ascription }
+        IntConstant { value, suffix: *suffix }
     }
 }

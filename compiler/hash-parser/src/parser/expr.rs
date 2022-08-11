@@ -111,7 +111,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
             // Handle primitive literals
             kind if kind.is_lit() => self.node_with_span(
-                Expr::new(ExprKind::LitExpr(LitExpr(self.parse_atomic_lit()))),
+                Expr::new(ExprKind::LitExpr(LitExpr(self.parse_atomic_lit()?))),
                 token.span,
             ),
             TokenKind::Ident(ident) => {

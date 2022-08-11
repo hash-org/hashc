@@ -9,7 +9,7 @@ use hash_reporting::{
     report::{Report, ReportCodeBlock, ReportElement, ReportKind},
 };
 use hash_source::location::SourceLocation;
-use hash_token::{delimiter::Delimiter, TokenKind};
+use hash_token::{delimiter::Delimiter, Base, TokenKind};
 use thiserror::Error;
 
 use crate::Lexer;
@@ -42,8 +42,11 @@ pub enum LexerErrorKind {
     #[error("malformed numerical literal")]
     MalformedNumericalLit,
     /// Occurs when a float literal exponent has no proceeding digits.
-    #[error("expected float exponent to have at least one digit")]
+    #[error("float exponent to have at least one digit")]
     MissingExponentDigits,
+    /// When an integer is specified, but no valid digits follow.
+    #[error("missing digits after integer base prefix")]
+    MissingDigits,
     /// Occurs when a numerical literal doesn't follow the language
     /// specification, or is too large.
     #[error("unclosed string literal")]
@@ -61,6 +64,9 @@ pub enum LexerErrorKind {
     /// Unclosed tree block
     #[error("encountered unclosed delimiter `{}`, add a `{0}` after the inner expression", .0.left())]
     Unclosed(Delimiter),
+    /// Unsupported radix featured on a float literal...
+    #[error("{0} float literal is not supported")]
+    UnsupportedFloatBaseLiteral(Base),
 }
 
 impl From<LexerError> for Report {

@@ -8,7 +8,7 @@ use error::{LexerDiagnostics, LexerError, LexerErrorKind, LexerResult};
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::{
     constant::CONSTANT_MAP,
-    identifier::CORE_IDENTIFIERS,
+    identifier::{Identifier, CORE_IDENTIFIERS},
     location::{SourceLocation, Span},
     SourceId,
 };
@@ -135,12 +135,12 @@ impl<'a> Lexer<'a> {
     }
 
     /// Peeks the next symbol from the input stream without consuming it.
-    fn peek(&mut self) -> char {
+    fn peek(&self) -> char {
         self.nth_char(0)
     }
 
     /// Peeks the second symbol from the input stream without consuming it.
-    fn peek_second(&mut self) -> char {
+    fn peek_second(&self) -> char {
         self.nth_char(1)
     }
 
@@ -173,7 +173,7 @@ impl<'a> Lexer<'a> {
     }
 
     /// Move to the next character and skip it essentially.
-    fn skip(&mut self) {
+    fn skip(&self) {
         let slice = unsafe { self.as_slice() };
         let ch = slice.chars().next().unwrap();
 
@@ -387,17 +387,40 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn create_int_const(&self, chars: &str, radix: u32) -> TokenKind {
-        // @@Future: do this ourselves
-
+    /// Function to create an integer constant from characters and
+    /// a specific radix.
+    fn create_int_const(
+        &self,
+        chars: &str,
+        radix: u32,
+        ascription: Option<Identifier>,
+    ) -> TokenKind {
         // ##Safety: this can't fail since the radix is validated by the parsing, and
         //   we will always have at least one character in `chars`...
+        //
+        // @@Future: do this ourselves
         let value = BigInt::from_str_radix(chars, radix).unwrap();
 
         // We need to create a interned constant here...
-        let interned_const = CONSTANT_MAP.create_int_constant(value, None); // @@Todo: support ascriptions
-
+        let interned_const = CONSTANT_MAP.create_int_constant(value, ascription);
         TokenKind::IntLit(interned_const)
+    }
+
+    /// Attempt to eat an identifier if the next token is one, otherwise don't
+    /// do anything
+    fn maybe_eat_identifier(&self) -> Option<Identifier> {
+        match self.peek() {
+            ch if is_id_start(ch) => {
+                self.skip();
+                let start = self.offset.get() - ch.len_utf8();
+
+                self.eat_while_and_discard(is_id_continue);
+                let name = &self.contents[start..self.offset.get()];
+
+                Some(name.into())
+            }
+            _ => None,
+        }
     }
 
     /// Consume a number literal, either float or integer. The function expects
@@ -421,8 +444,37 @@ impl<'a> Lexer<'a> {
             // if this does have a radix then we need to handle the radix
             if let Some(radix) = maybe_radix {
                 self.skip(); // accounting for the radix
+                let chars = self.eat_decimal_digits(radix);
 
-                return self.create_int_const(self.eat_decimal_digits(radix), radix);
+                // If we didn't get any characters, this means that
+                if chars.is_empty() {
+                    // @@Future: we want to return a `IntLit` token, and recover since this is not a
+                    // fatal error...
+                    return self.emit_error(
+                        None,
+                        LexerErrorKind::MissingDigits,
+                        Span::new(start, self.offset.get()),
+                    );
+                }
+
+                let suffix = self.maybe_eat_identifier();
+
+                // If this specifies a radix, and then also has a suffix which denotes
+                // that this literal is a `float`, then we error since we don't support
+                // non-decimal float literals.
+                if matches!(suffix, Some(s) if s == CORE_IDENTIFIERS.f32 || s == CORE_IDENTIFIERS.f64)
+                    && radix != 10
+                {
+                    // @@Future: we want to return a `IntLit` token, and recover since this is not a
+                    // fatal error...
+                    return self.emit_error(
+                        None,
+                        LexerErrorKind::UnsupportedFloatBaseLiteral(radix.into()),
+                        Span::new(start, self.offset.get()),
+                    );
+                } else {
+                    return self.create_int_const(chars, radix, suffix);
+                }
             }
         }
 
@@ -455,7 +507,29 @@ impl<'a> Lexer<'a> {
             }
             // Immediate exponent
             'e' | 'E' => self.eat_float_lit(pre_digits.chars(), start),
-            _ => self.create_int_const(pre_digits.as_str(), 10),
+            _ => {
+                let suffix = self.maybe_eat_identifier();
+
+                // If the suffix is equal to a float-like one, convert this token into
+                // a `float`...
+                if matches!(suffix, Some(s) if s == CORE_IDENTIFIERS.f32 || s == CORE_IDENTIFIERS.f64)
+                {
+                    match pre_digits.parse::<f64>() {
+                        Err(err) => self.emit_error(
+                            Some(format!("{}.", err)),
+                            LexerErrorKind::MalformedNumericalLit,
+                            Span::new(start, self.offset.get()),
+                        ),
+                        Ok(value) => {
+                            // Create interned float constant
+                            let float_const = CONSTANT_MAP.create_float_constant(value, suffix);
+                            TokenKind::FloatLit(float_const)
+                        }
+                    }
+                } else {
+                    self.create_int_const(pre_digits.as_str(), 10, suffix)
+                }
+            }
         }
     }
 
@@ -474,8 +548,11 @@ impl<'a> Lexer<'a> {
                         // exponent to the float literal.
                         let value = if exp != 0 { value * 10f64.powi(exp) } else { value };
 
+                        // Get the type ascription if any...
+                        let suffix = self.maybe_eat_identifier();
+
                         // Create interned float constant
-                        let float_const = CONSTANT_MAP.create_float_constant(value, None); // @@Todo: support type ascriptions
+                        let float_const = CONSTANT_MAP.create_float_constant(value, suffix);
                         TokenKind::FloatLit(float_const)
                     }
                     Err(err) => {

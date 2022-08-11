@@ -169,7 +169,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             // Literal patterns
             token if token.kind.is_lit() => {
                 self.skip_token();
-                Pat::Lit(LitPat(self.parse_atomic_lit()))
+                Pat::Lit(LitPat(self.parse_atomic_lit()?))
             }
             // Tuple patterns
             Token { kind: TokenKind::Tree(Delimiter::Paren, tree_index), span } => {

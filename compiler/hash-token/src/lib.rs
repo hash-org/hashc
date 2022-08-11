@@ -3,6 +3,8 @@
 pub mod delimiter;
 pub mod keyword;
 
+use std::fmt::Display;
+
 use delimiter::{Delimiter, DelimiterVariant};
 use hash_source::{
     constant::{InternedFloat, InternedInt, InternedStr},
@@ -16,7 +18,7 @@ use smallvec::{smallvec, SmallVec};
 /// The token contains a kind which is elaborated by [TokenKind] and a [Span] in
 /// the source that is represented as a span. The span is the beginning byte
 /// offset, and the number of bytes for the said token.
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct Token {
     /// The current token type.
     pub kind: TokenKind,
@@ -272,6 +274,46 @@ impl std::fmt::Display for TokenKind {
                 write!(f, "{}", String::from(*ident))
             }
             TokenKind::Err => write!(f, "<error>"),
+        }
+    }
+}
+
+/// Represents the featured base for numeric literals.
+#[derive(Debug)]
+pub enum Base {
+    /// Binary base, denoted in literals as `0b101010`
+    Binary,
+    /// Octal base, denoted in literals as `0o26317261`
+    Octal,
+    /// Decimal base, written as `102391`
+    Decimal,
+    /// Hexadecimal base, written as `0xdeadbeef`
+    Hex,
+    /// Unsupported base, the language doesn't support the
+    /// provided radix as a base.
+    Unsupported,
+}
+
+impl Display for Base {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Base::Binary => write!(f, "binary"),
+            Base::Octal => write!(f, "octal"),
+            Base::Decimal => write!(f, "decimal"),
+            Base::Hex => write!(f, "hexadecimal"),
+            Base::Unsupported => write!(f, "unsupported base"),
+        }
+    }
+}
+
+impl From<u32> for Base {
+    fn from(radix: u32) -> Self {
+        match radix {
+            2 => Base::Binary,
+            8 => Base::Octal,
+            10 => Base::Decimal,
+            16 => Base::Hex,
+            _ => Base::Unsupported,
         }
     }
 }
