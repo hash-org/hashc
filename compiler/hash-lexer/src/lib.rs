@@ -321,7 +321,7 @@ impl<'a> Lexer<'a> {
                 // push this to the token_trees and get the current index to use instead...
                 self.token_trees.push(children_tokens);
 
-                TokenKind::Tree(delimiter, self.token_trees.len() - 1)
+                TokenKind::Tree(delimiter, (self.token_trees.len() - 1) as u32)
             }
             _ => self.emit_error(
                 None,

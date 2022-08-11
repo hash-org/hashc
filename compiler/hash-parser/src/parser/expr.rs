@@ -203,8 +203,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
             // List literal
             TokenKind::Tree(Delimiter::Bracket, tree_index) => {
-                let tree = self.token_trees.get(tree_index).unwrap();
-
+                let tree = self.token_trees.get(tree_index as usize).unwrap();
                 self.parse_list_lit(tree, token.span)?
             }
 
@@ -238,7 +237,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     is_func = true;
                 }
 
-                let tree = self.token_trees.get(tree_index).unwrap();
+                let tree = self.token_trees.get(tree_index as usize).unwrap();
 
                 match is_func {
                     true => {
@@ -432,14 +431,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 TokenKind::Tree(Delimiter::Bracket, tree_index) => {
                     self.skip_token();
 
-                    let tree = self.token_trees.get(tree_index).unwrap();
+                    let tree = self.token_trees.get(tree_index as usize).unwrap();
                     self.parse_array_index(subject, tree, self.current_location())?
                 }
                 // Function call
                 TokenKind::Tree(Delimiter::Paren, tree_index) => {
                     self.skip_token();
 
-                    let tree = self.token_trees.get(tree_index).unwrap();
+                    let tree = self.token_trees.get(tree_index as usize).unwrap();
                     self.parse_constructor_call(subject, tree, self.current_location())?
                 }
                 _ => break,

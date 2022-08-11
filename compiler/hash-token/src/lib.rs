@@ -181,8 +181,10 @@ pub enum TokenKind {
     /// Identifier
     Ident(Identifier),
 
-    /// Tree
-    Tree(Delimiter, usize),
+    /// Tree - The index is set as a `u32` since it isn't going
+    /// to be the case that the index will or should ever really
+    /// reach `2^32` since the index is per module and not per project.
+    Tree(Delimiter, u32),
 
     /// Keyword
     Keyword(Keyword),

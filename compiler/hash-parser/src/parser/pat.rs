@@ -76,7 +76,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 TokenKind::Tree(Delimiter::Paren, tree_index) => {
                     self.skip_token();
 
-                    let tree = self.token_trees.get(tree_index).unwrap();
+                    let tree = self.token_trees.get(tree_index as usize).unwrap();
                     let mut gen = self.from_stream(tree, token.span);
 
                     let fields = gen.parse_separated_fn(
@@ -174,14 +174,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             // Tuple patterns
             Token { kind: TokenKind::Tree(Delimiter::Paren, tree_index), span } => {
                 self.skip_token();
-                let tree = self.token_trees.get(*tree_index).unwrap();
+                let tree = self.token_trees.get(*tree_index as usize).unwrap();
 
                 return Ok((self.parse_tuple_pat(tree, *span)?, true));
             }
             // Namespace patterns
             Token { kind: TokenKind::Tree(Delimiter::Brace, tree_index), span } => {
                 self.skip_token();
-                let tree = self.token_trees.get(*tree_index).unwrap();
+                let tree = self.token_trees.get(*tree_index as usize).unwrap();
 
                 let pat = self.parse_module_pat(tree, *span)?;
 
@@ -190,7 +190,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             // List pattern
             Token { kind: TokenKind::Tree(Delimiter::Bracket, tree_index), span } => {
                 self.skip_token();
-                let tree = self.token_trees.get(*tree_index).unwrap();
+                let tree = self.token_trees.get(*tree_index as usize).unwrap();
 
                 return Ok((self.parse_list_pat(tree, *span)?, true));
             }
