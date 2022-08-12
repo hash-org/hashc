@@ -23,6 +23,7 @@ use crate::{
     ops::AccessToOps,
     storage::{
         deconstructed::DeconstructedPatId,
+        params::ParamsId,
         pats::{PatArgsId, PatId},
         primitives::{
             AccessPat, ConstructorPat, IfPat, Level0Term, Level1Term, ListPat, LitTerm, ModDef,
@@ -142,12 +143,11 @@ impl<'tc> LowerPatOps<'tc> {
                 _ => tc_panic!(term, self, "Not a constant!"),
             },
             Pat::Tuple(args) => {
-                let fields = self.pat_lowerer().deconstruct_pat_fields(args);
-
                 // We need to read the tuple type from the ctx type and then create
                 // wildcard fields for all of the inner types
                 match reader.get_term(ty) {
                     Term::Level1(Level1Term::Tuple(TupleTy { members })) => {
+                        let fields = self.pat_lowerer().deconstruct_pat_fields(args, members);
                         let members = reader.get_params_owned(members).clone();
 
                         // Create wild-cards for all of the tuple inner members
@@ -177,8 +177,6 @@ impl<'tc> LowerPatOps<'tc> {
             Pat::Constructor(ConstructorPat { args, .. }) => {
                 match reader.get_term(ty) {
                     Term::Level1(Level1Term::NominalDef(nominal_def)) => {
-                        let fields = self.pat_lowerer().deconstruct_pat_fields(args);
-
                         let (ctor, members) = match reader.get_nominal_def(nominal_def) {
                             NominalDef::Struct(struct_def) => match struct_def.fields {
                                 StructFields::Explicit(members) => {
@@ -191,6 +189,10 @@ impl<'tc> LowerPatOps<'tc> {
                             // @@EnumToUnion: when enums aren't a thing, do this with a union
                             NominalDef::Enum(_) => unreachable!(),
                         };
+
+                        // Lower the fields by resolving what positions the actual fields are
+                        // with the reference of the constructor's type...
+                        let fields = self.pat_lowerer().deconstruct_pat_fields(args, members);
 
                         let args = reader.get_params_owned(members);
                         let tys = args.positional().iter().map(|param| param.ty);
@@ -514,9 +516,10 @@ impl<'tc> LowerPatOps<'tc> {
     /// fields are named or not, and properly computes the `index` of each
     /// field based on the definition position and whether or not it is a
     /// named argument.
-    pub fn deconstruct_pat_fields(&self, fields: PatArgsId) -> Vec<FieldPat> {
+    pub fn deconstruct_pat_fields(&self, fields: PatArgsId, ty: ParamsId) -> Vec<FieldPat> {
         let reader = self.reader();
-        let args = reader.get_pat_args_owned(fields).clone();
+        let args = reader.get_pat_args_owned(fields);
+        let ty_def = reader.get_params_owned(ty);
 
         let pats = args
             .positional()
@@ -530,7 +533,7 @@ impl<'tc> LowerPatOps<'tc> {
             .map(|(index, arg)| -> FieldPat {
                 let field = if_chain! {
                     if let Some(name) = arg.name;
-                    if let Some((arg_index, _)) = args.get_by_name(name);
+                    if let Some((arg_index, _)) = ty_def.get_by_name(name);
                     then {
                         arg_index
                     } else {

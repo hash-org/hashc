@@ -1,0 +1,14 @@
+// run=fail
+
+X := struct(
+    name: str,
+    age: i32,
+    height: f32
+);
+
+main := () => {
+    t := X(name = "Alex", age = 18, height = 183.1);
+
+    // Error: age MIN..11 | 13..MAX not covered!
+    X(age = 12) := t;
+};
