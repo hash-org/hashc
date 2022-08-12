@@ -146,9 +146,9 @@ impl<'tc> PatMatcher<'tc> {
     ) -> TcResult<Option<Vec<(Member, PatId)>>> {
         let TermValidation { simplified_term_id, term_ty_id } =
             self.validator().validate_term(term_id)?;
-        let pat_ty = self.typer().infer_ty_of_pat(pat_id)?;
 
         let pat = self.reader().get_pat(pat_id);
+        let pat_ty = self.typer().infer_ty_of_pat(pat_id)?;
 
         // Note: for spread patterns, unifying between the `term` and the type
         // of the pattern doesn't make sense because the term will always be `T`
@@ -284,38 +284,36 @@ impl<'tc> PatMatcher<'tc> {
                     self.typer().infer_constructors_of_nominal_term(simplified_term_id)?;
 
                 for (_, params) in possible_params {
-                    match self.unifier().unify_params_with_args(
+                    let subject_params = self.reader().get_params_owned(params).clone();
+
+                    match pair_args_with_params(
+                        &subject_params,
+                        &constructor_args,
                         params,
                         pat_args,
-                        constructor_term,
-                        simplified_term_id,
+                        |param| self.param_to_pat(param),
+                        term_id,
+                        pat_id,
                     ) {
-                        Ok(_) => {
-                            let subject_params = self.reader().get_params_owned(params).clone();
+                        Ok(members) => {
+                            let bound_members = members
+                                .into_iter()
+                                .map(|(param, arg)| {
+                                    let param_value = param
+                                        .default_value
+                                        .unwrap_or_else(|| self.builder().create_rt_term(param.ty));
 
-                            let bound_members = pair_args_with_params(
-                                &subject_params,
-                                &constructor_args,
-                                params,
-                                pat_args,
-                                |param| self.param_to_pat(param),
-                                term_id,
-                                pat_id,
-                            )?
-                            .into_iter()
-                            .map(|(param, arg)| {
-                                let param_value = param
-                                    .default_value
-                                    .unwrap_or_else(|| self.builder().create_rt_term(param.ty));
-
-                                Ok(self
-                                    .match_pat_with_term_and_extract_binds(arg.pat, param_value)?
-                                    .into_iter()
-                                    .flatten()
-                                    .collect::<Vec<_>>())
-                            })
-                            .flatten_ok()
-                            .collect::<TcResult<Vec<_>>>()?;
+                                    Ok(self
+                                        .match_pat_with_term_and_extract_binds(
+                                            arg.pat,
+                                            param_value,
+                                        )?
+                                        .into_iter()
+                                        .flatten()
+                                        .collect::<Vec<_>>())
+                                })
+                                .flatten_ok()
+                                .collect::<TcResult<Vec<_>>>()?;
 
                             // @@Refactor: we need to verify that the members are declared once.
                             // Since this happens at the bottom of the
@@ -353,7 +351,7 @@ impl<'tc> PatMatcher<'tc> {
 
                 Ok(Some(bound_members))
             }
-            Pat::Spread(SpreadPat { name, origin: _ }) => match name {
+            Pat::Spread(SpreadPat { name, .. }) => match name {
                 Some(name) => {
                     // Since `pat_ty` will be `List<T = Unresolved>`, we need to create a new
                     // `List<T = term_ty_id>` and perform a unification...

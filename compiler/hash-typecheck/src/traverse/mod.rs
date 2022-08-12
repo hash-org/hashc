@@ -1583,10 +1583,14 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
                 // to the scope.
                 let members = match self.pat_matcher().match_pat_with_term(pat_id, value)? {
                     Some(members) => members,
-                    // @@Warnings
-                    // None => return Err(TcError::UselessMatchCase { pat: pat_id, subject: value
-                    // }),
-                    _ => vec![],
+
+                    None => {
+                        self.diagnostics().add_warning(TcWarning::UselessMatchCase {
+                            pat: pat_id,
+                            subject: value,
+                        });
+                        vec![]
+                    }
                 };
 
                 // Ensure that the given pattern is irrefutable given the type of the term

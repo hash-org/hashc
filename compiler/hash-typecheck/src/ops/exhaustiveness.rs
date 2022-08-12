@@ -144,7 +144,11 @@ impl<'tc> ExhaustivenessChecker<'tc> {
         term: TermId,
         origin: Option<MatchOrigin>,
     ) -> TcResult<()> {
-        let term_ty = self.typer().infer_ty_of_term(term)?;
+        let term_ty = if self.oracle().term_is_literal(term) {
+            self.typer().infer_ty_of_term(term)?
+        } else {
+            term
+        };
 
         let arms = self.lower_pats_to_arms(pats, term_ty);
         let report = self.usefulness_ops().compute_match_usefulness(term_ty, &arms);

@@ -765,7 +765,7 @@ pub struct IfPat {
 pub struct ConstructorPat {
     /// The subject of the constructor pattern.
     pub subject: AstNode<Pat>,
-    /// The arguments of the enum variant as patterns.
+    /// The arguments of the constructor pattern.
     pub fields: AstNodes<TuplePatEntry>,
 }
 

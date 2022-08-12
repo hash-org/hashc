@@ -2,7 +2,7 @@
 //! vice versa.
 use std::{iter::once, mem::size_of};
 
-use hash_ast::ast::{RangeEnd, SpreadPatOrigin};
+use hash_ast::ast::{ParamOrigin, RangeEnd, SpreadPatOrigin};
 use hash_utils::store::Store;
 use if_chain::if_chain;
 use itertools::Itertools;
@@ -305,27 +305,44 @@ impl<'tc> LowerPatOps<'tc> {
 
                 match reader.get_term(pat.ty) {
                     Term::Level1(Level1Term::Tuple(_)) => {
-                        let _children = pat
+                        let children = pat
                             .fields
                             .iter_patterns()
-                            .map(|p| self.construct_pat(*p))
+                            .map(|p| PatArg {
+                                name: None,
+                                pat: self.construct_pat(*p)
+                            })
                             .collect_vec();
 
-                        // @@Todo: immutable builder required.
-
-                        // let args = self.builder().create_pat_args(children);
-                        // Pat::Tuple(args)
-
-                        todo!()
+                        let args = self.builder().create_pat_args(children, ParamOrigin::Tuple);
+                        Pat::Tuple(args)
                     }
-                    Term::Level1(Level1Term::NominalDef(_)) => {
-                        let _children = pat.fields.iter_patterns().map(|p| self.construct_pat(*p));
+                    Term::Level1(Level1Term::NominalDef(nom_def)) => {
+                        let tys = match reader.get_nominal_def(nom_def) {
+                            NominalDef::Struct(struct_def) => {
+                                match struct_def.fields {
+                                    StructFields::Explicit(fields) => {
+                                        reader.get_params_owned(fields)
+                                    },
+                                    StructFields::Opaque => unreachable!(),
+                                }
+                            },
+                            NominalDef::Enum(_) => unreachable!(),
+                        };
 
-                        // @@Todo: immutable builder required.
 
-                        // let args = self.builder().create_pat_args(children);
-                        // Pat::Constructor(ConstructorPat { subject: pat.ty, args })
-                        todo!()
+                        // Construct the inner arguments to the constructor by iterating over the 
+                        // pattern fields within the pattern. If possible, lookup the name of the 
+                        // field by using the nominal definition attached to the pattern.
+                        let children = pat.fields.iter_patterns().enumerate().map(|(index, p)| {
+                            PatArg {
+                                name: tys.positional().get(index).and_then(|param| param.name),
+                                pat: self.construct_pat(*p)
+                            }
+                        });
+
+                        let args = self.builder().create_pat_args(children, ParamOrigin::Unknown);
+                        Pat::Constructor(ConstructorPat { subject: pat.ty, args })
                     }
                     _ => tc_panic!(
                         pat.ty,
@@ -338,17 +355,14 @@ impl<'tc> LowerPatOps<'tc> {
             DeconstructedCtor::IntRange(range) => self.construct_pat_from_range(pat.ty, range),
             DeconstructedCtor::Str(_) => Pat::Lit(pat.ty),
             DeconstructedCtor::List(List { kind }) => {
-                let children = pat.fields.iter_patterns().map(|p| self.construct_pat(*p));
+                let children = pat.fields.iter_patterns().map(|p| PatArg { pat: self.construct_pat(*p), name: None });
 
                 match kind {
                     ListKind::Fixed(_) => {
-                        let _inner_term = self.oracle().term_as_list_ty(pat.ty).unwrap();
+                        let inner_term = self.oracle().term_as_list_ty(pat.ty).unwrap();
 
-                        // @@Todo: immutable builder required.
-
-                        // let inner = self.builder().create_pat_args(children);
-                        // Pat::List(ListPat { term: inner_term, inner })
-                        todo!()
+                        let inner = self.builder().create_pat_args(children, ParamOrigin::ListPat);
+                        Pat::List(ListPat { term: inner_term, inner })
                     }
                     #[allow(clippy::needless_collect)]
                     ListKind::Var(prefix, _) => {
@@ -360,18 +374,15 @@ impl<'tc> LowerPatOps<'tc> {
 
                         // Create the `spread` dummy pattern
                         let dummy = Pat::Spread(SpreadPat { name: None, origin: SpreadPatOrigin::List });
-                        let spread = self.pat_store().create(dummy);
+                        let spread = PatArg { pat: self.pat_store().create(dummy), name: None };
 
                         // Now create an inner collection of patterns with the inserted
                         // spread pattern
-                        let _inner = prefix.into_iter().chain(once(spread)).chain(suffix);
-                        let _term = self.oracle().term_as_list_ty(pat.ty).unwrap();
+                        let inner = prefix.into_iter().chain(once(spread)).chain(suffix);
+                        let term = self.oracle().term_as_list_ty(pat.ty).unwrap();
 
-                        // @@Todo: immutable builder required.
-
-                        // let elements = self.builder().create_pat_args(inner);
-                        // Pat::List(ListPat { term, inner: elements })
-                        todo!()
+                        let elements = self.builder().create_pat_args(inner, ParamOrigin::ListPat);
+                        Pat::List(ListPat { term, inner: elements })
                     }
                 }
             }

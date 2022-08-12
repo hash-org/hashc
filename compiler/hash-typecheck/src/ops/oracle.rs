@@ -4,7 +4,7 @@ use hash_ast::ast::{IntTy, ParamOrigin};
 
 use super::AccessToOps;
 use crate::storage::{
-    primitives::{ScopeVar, Term},
+    primitives::{Level0Term, ScopeVar, Term},
     terms::TermId,
     AccessToStorage, StorageRef,
 };
@@ -92,5 +92,12 @@ impl<'tc> Oracle<'tc> {
     /// If the term is the never type.
     pub fn term_is_never_ty(&self, term: TermId) -> bool {
         self.unifier().terms_are_equal(term, self.builder().create_never_ty())
+    }
+
+    /// If the term is a literal term.
+    pub fn term_is_literal(&self, term: TermId) -> bool {
+        let reader = self.reader();
+
+        matches!(reader.get_term(term), Term::Level0(Level0Term::Lit(_)))
     }
 }
