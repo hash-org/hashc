@@ -9,7 +9,7 @@ use ::if_chain::if_chain;
 use hash_ast::{
     ast::{
         BindingPat, Block, BlockExpr, ExprKind, LitExpr, ModulePatEntry, Mutability, ParamOrigin,
-        Pat, TuplePatEntry,
+        Pat, SpreadPatOrigin, TuplePatEntry,
     },
     visitor::{walk, AstVisitor},
 };
@@ -1072,8 +1072,17 @@ impl AstVisitor for SemanticAnalyser<'_> {
     fn visit_spread_pat(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::SpreadPat>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::SpreadPat>,
     ) -> Result<Self::SpreadPatRet, Self::Error> {
+        // The origin can't be unknown now
+        if node.origin == SpreadPatOrigin::Unknown {
+            panic_on_span!(
+                self.source_location(node.span()),
+                self.source_map,
+                "spread pattern origin is `unknown`"
+            )
+        }
+
         Ok(())
     }
 

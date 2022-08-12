@@ -1,5 +1,6 @@
-//! Hash Compiler AST generation sources. This file contains the sources to the
-//! logic that transforms tokens into an AST.
+//! Hash Compiler parser. The parser will take a generated token stream
+//! and it's accompanying token trees and will convert the stream into
+//! an AST.
 mod block;
 mod definitions;
 mod expr;
@@ -91,6 +92,11 @@ pub struct AstGen<'stream, 'resolver> {
     /// precedence operators.
     is_compound_expr: Cell<bool>,
 
+    /// Which compound pattern we are currently in, this only
+    /// matters for pattern kinds that allow `...` to be
+    /// present within their child patterns.
+    parent_pat: Cell<SpreadPatOrigin>,
+
     /// Instance of an [ImportResolver] to notify the parser of encountered
     /// imports.
     pub(crate) resolver: &'resolver ImportResolver<'resolver>,
@@ -113,6 +119,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             token_trees,
             parent_span: None,
             is_compound_expr: Cell::new(false),
+            parent_pat: Cell::new(SpreadPatOrigin::Unknown),
             offset: Cell::new(0),
             resolver,
             diagnostics: ParserDiagnostics::default(),
@@ -127,7 +134,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             stream,
             token_trees: self.token_trees,
             offset: Cell::new(0),
-            is_compound_expr: self.is_compound_expr.clone(),
+            is_compound_expr: Cell::new(self.is_compound_expr.get()),
+            parent_pat: Cell::new(self.parent_pat.get()),
             parent_span: Some(parent_span),
             resolver: self.resolver,
             diagnostics: ParserDiagnostics::default(),

@@ -353,7 +353,7 @@ impl<'tc> PatMatcher<'tc> {
 
                 Ok(Some(bound_members))
             }
-            Pat::Spread(SpreadPat { name }) => match name {
+            Pat::Spread(SpreadPat { name, origin: _ }) => match name {
                 Some(name) => {
                     // Since `pat_ty` will be `List<T = Unresolved>`, we need to create a new
                     // `List<T = term_ty_id>` and perform a unification...

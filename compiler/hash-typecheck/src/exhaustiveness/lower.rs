@@ -2,7 +2,7 @@
 //! vice versa.
 use std::{iter::once, mem::size_of};
 
-use hash_ast::ast::RangeEnd;
+use hash_ast::ast::{RangeEnd, SpreadPatOrigin};
 use hash_utils::store::Store;
 use if_chain::if_chain;
 use itertools::Itertools;
@@ -359,7 +359,7 @@ impl<'tc> LowerPatOps<'tc> {
                         let suffix: Vec<_> = children.collect();
 
                         // Create the `spread` dummy pattern
-                        let dummy = Pat::Spread(SpreadPat { name: None });
+                        let dummy = Pat::Spread(SpreadPat { name: None, origin: SpreadPatOrigin::List });
                         let spread = self.pat_store().create(dummy);
 
                         // Now create an inner collection of patterns with the inserted
