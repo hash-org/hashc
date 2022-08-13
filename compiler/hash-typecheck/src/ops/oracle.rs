@@ -4,7 +4,7 @@ use hash_ast::ast::{IntTy, ParamOrigin};
 
 use super::AccessToOps;
 use crate::storage::{
-    primitives::{Level0Term, ScopeVar, Term},
+    primitives::{Level0Term, Level1Term, ScopeVar, Term, TupleTy},
     terms::TermId,
     AccessToStorage, StorageRef,
 };
@@ -87,6 +87,16 @@ impl<'tc> Oracle<'tc> {
         );
         let sub = self.unifier().unify_terms(list_ty, term).ok()?;
         Some(self.substituter().apply_sub_to_term(&sub, list_inner_ty))
+    }
+
+    /// If the term is a [Level1Term::Tuple], return it.
+    pub fn term_as_tuple(&self, term: TermId) -> Option<TupleTy> {
+        let reader = self.reader();
+
+        match reader.get_term(term) {
+            Term::Level1(Level1Term::Tuple(ty)) => Some(ty),
+            _ => None,
+        }
     }
 
     /// If the term is the never type.

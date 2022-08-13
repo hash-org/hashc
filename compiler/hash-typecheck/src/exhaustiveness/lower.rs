@@ -232,7 +232,11 @@ impl<'tc> LowerPatOps<'tc> {
 
                     if matches!(pat, Pat::Spread(_)) {
                         if spread {
-                            tc_panic!(id, self, "found multiple spread patterns within list");
+                            tc_panic!(
+                                id,
+                                self,
+                                "found multiple spread patterns within list pattern"
+                            );
                         }
 
                         spread = true;
