@@ -1,6 +1,6 @@
-error[0082]: refutable pattern in declaration binding: `X(name = _, age = -2147483648i32..11i32, height = _)`, and `X(name = _, age = 13i32..2147483647i32, height = _)` not covered
+error[0082]: refutable pattern in declaration binding: `X(name = _, age = i32::MIN..11_i32, height = _)`, and `X(name = _, age = 13_i32..i32::MAX, height = _)` not covered
   --> $DIR/non-exhaustive-constructor-field.hash:13:5
 12 |       // Error: age MIN..11 | 13..MAX not covered!
 13 |       X(age = 12) := t;
-   |       ^^^^^^^^^^^ pattern `X(name = _, age = -2147483648i32..11i32, height = _)`, and `X(name = _, age = 13i32..2147483647i32, height = _)` not covered
+   |       ^^^^^^^^^^^ pattern `X(name = _, age = i32::MIN..11_i32, height = _)`, and `X(name = _, age = 13_i32..i32::MAX, height = _)` not covered
 14 |   };
