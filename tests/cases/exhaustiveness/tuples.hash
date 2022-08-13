@@ -1,0 +1,13 @@
+// run=pass
+
+main := () => {
+    t := ("Alex", 21, 183.7);
+
+    (name, age, height) := t;
+
+    combo := ((age, height), name);
+    
+    match combo {
+        ((a, f), n) => {};
+    }
+};

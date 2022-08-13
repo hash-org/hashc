@@ -2,7 +2,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use hash_ast::ast::ParamOrigin;
+use hash_ast::ast::{ParamOrigin, SpreadPatOrigin};
 use hash_source::identifier::Identifier;
 use itertools::Itertools;
 
@@ -14,7 +14,7 @@ use crate::{
     },
     ops::validate::TermValidation,
     storage::{
-        pats::PatId,
+        pats::{PatArgsId, PatId},
         primitives::{
             AccessOp, AccessPat, ConstPat, ConstructorPat, IfPat, ListPat, Member, ModPat,
             Mutability, Param, Pat, PatArg, SpreadPat,
@@ -133,6 +133,254 @@ impl<'tc> PatMatcher<'tc> {
         Ok(())
     }
 
+    /// Match a [Pat::Tuple] with a subject term, and extract bound members.
+    fn match_tuple_pat_with_term(
+        &self,
+        pat: PatId,
+        members: PatArgsId,
+        subject: TermId,
+    ) -> TcResult<Option<Vec<(Member, PatId)>>> {
+        // Get the term of the tuple and try to unify it with the subject:
+        let tuple_term = self.typer().get_term_of_pat(pat)?;
+
+        match self.unifier().unify_terms(tuple_term, subject) {
+            Ok(_) => {
+                let tuple_pat_args = self.reader().get_pat_args_owned(members).clone();
+
+                // First, we get the tuple pattern parameters in the form of args (for
+                // `pair_args_with_params` error reporting):
+                let tuple_pat_params_as_args_id = self.typer().infer_args_of_pat_args(members)?;
+
+                // We get the subject tuple's parameters:
+                let subject_params_id = self
+                    .typer()
+                    .infer_params_ty_of_tuple_term(subject)?
+                    .unwrap_or_else(|| tc_panic!(subject, self, "This is not a tuple term."));
+
+                let subject_params = self.reader().get_params_owned(subject_params_id).clone();
+
+                // For each param pair: accumulate the bound members
+                let bound_members = pair_args_with_params(
+                    &subject_params,
+                    &tuple_pat_args,
+                    subject_params_id,
+                    tuple_pat_params_as_args_id,
+                    |param| self.param_to_pat(param),
+                    subject,
+                    pat,
+                )?
+                .into_iter()
+                .map(|(param, pat_param)| {
+                    let param_value = param
+                        .default_value
+                        .unwrap_or_else(|| self.builder().create_rt_term(param.ty));
+
+                    // @@Todo: retain information about useless patterns
+                    Ok(self
+                        .match_pat_with_term_and_extract_binds(pat_param.pat, param_value)?
+                        .into_iter()
+                        .flatten()
+                        .collect::<Vec<_>>())
+                })
+                .flatten_ok()
+                .collect::<TcResult<Vec<_>>>()?;
+                Ok(Some(bound_members))
+            }
+            Err(_) => Ok(None),
+        }
+    }
+
+    /// Match a [Pat::Constructor] with a subject term. Walk all of the inner
+    /// patterns and collect bound members.
+    fn match_constructor_pat_with_term(
+        &self,
+        id: PatId,
+        ConstructorPat { args, .. }: ConstructorPat,
+        subject: TermId,
+    ) -> TcResult<Option<Vec<(Member, PatId)>>> {
+        // Get the term of the constructor and try to unify it with the subject:
+        let constructor_term = self.typer().get_term_of_pat(id)?;
+
+        let pat_args = self.typer().infer_args_of_pat_args(args)?;
+        let constructor_args = self.reader().get_pat_args_owned(args).clone();
+
+        let possible_params = self.typer().infer_constructors_of_nominal_term(subject)?;
+
+        for (_, params) in possible_params {
+            let subject_params = self.reader().get_params_owned(params).clone();
+
+            match pair_args_with_params(
+                &subject_params,
+                &constructor_args,
+                params,
+                pat_args,
+                |param| self.param_to_pat(param),
+                subject,
+                id,
+            ) {
+                Ok(members) => {
+                    let bound_members = members
+                        .into_iter()
+                        .map(|(param, arg)| {
+                            let param_value = param
+                                .default_value
+                                .unwrap_or_else(|| self.builder().create_rt_term(param.ty));
+
+                            Ok(self
+                                .match_pat_with_term_and_extract_binds(arg.pat, param_value)?
+                                .into_iter()
+                                .flatten()
+                                .collect::<Vec<_>>())
+                        })
+                        .flatten_ok()
+                        .collect::<TcResult<Vec<_>>>()?;
+
+                    // @@Refactor: we need to verify that the members are declared once.
+                    // Since this happens at the bottom of the
+                    // function already, it would be nice to
+                    // factor out this step to be at the bottom or factor out constructor
+                    // pattern checking into a separate
+                    // function.
+                    self.verify_members_are_bound_once(&bound_members)?;
+                    return Ok(Some(bound_members));
+                }
+                Err(_) => continue,
+            }
+        }
+
+        Err(TcError::NoConstructorOnType { subject: constructor_term })
+    }
+
+    /// Match a [Pat::List] with the subject term, walk all inner patterns
+    /// and extract bound members.
+    ///
+    /// @@Todo: if the inner parameter is a `...` pattern, we need to pass
+    /// in the `List<term>` type.
+    fn match_list_pat_with_term(
+        &self,
+        ListPat { term, inner }: ListPat,
+    ) -> TcResult<Option<Vec<(Member, PatId)>>> {
+        // We need to collect all of the binds from the inner patterns of
+        // the list
+        let params = self.reader().get_pat_args_owned(inner).clone();
+
+        let mut bound_members = vec![];
+        let shared_term = self.builder().create_rt_term(term);
+
+        for param in params.positional().iter() {
+            match self.match_pat_with_term_and_extract_binds(param.pat, shared_term)? {
+                Some(members) => {
+                    bound_members.extend(members);
+                }
+                // If one of them fails, we should fail as a whole
+                None => return Ok(None),
+            }
+        }
+
+        Ok(Some(bound_members))
+    }
+
+    /// Match a [Pat::Spread] with the subject type. The [Pat::Spread] must
+    /// be within a [Pat::List] since spread patterns in other structural
+    /// patterns are already eliminated at this stage.
+    fn match_spread_pat_with_term(
+        &self,
+        id: PatId,
+        SpreadPat { name, origin }: SpreadPat,
+        subject_ty: TermId,
+    ) -> TcResult<Option<Vec<(Member, PatId)>>> {
+        assert_eq!(origin, SpreadPatOrigin::List);
+
+        match name {
+            Some(name) => {
+                // Since `pat_ty` will be `List<T = Unresolved>`, we need to create a new
+                // `List<T = term_ty_id>` and perform a unification...
+                let list_inner_ty = self.core_defs().list_ty_fn();
+                let builder = self.builder();
+
+                let pat_ty = builder.create_app_ty_fn_term(
+                    list_inner_ty,
+                    builder
+                        .create_args([builder.create_nameless_arg(subject_ty)], ParamOrigin::TyFn),
+                );
+
+                let rt_term = self.builder().create_rt_term(pat_ty);
+
+                let TermValidation { simplified_term_id, term_ty_id } =
+                    self.validator().validate_term(rt_term)?;
+
+                Ok(Some(vec![(
+                    Member::variable(name, Mutability::Immutable, term_ty_id, simplified_term_id),
+                    id,
+                )]))
+            }
+            _ => Ok(Some(vec![])),
+        }
+    }
+
+    /// Match a [Pat::Mod] with the subject term, and then extract
+    /// all of the bound members that are specified.
+    fn match_mod_pat_with_term(
+        &self,
+        ModPat { members }: ModPat,
+        subject: TermId,
+    ) -> TcResult<Option<Vec<(Member, PatId)>>> {
+        let members = self.reader().get_pat_args_owned(members).clone();
+
+        let mut bound_members = vec![];
+
+        //  Here we have to basically try to access the given members using ns access...
+        for member in members.positional() {
+            let PatArg { name, pat } = *member;
+
+            // Before we recurse into the inner pattern, we need to
+            // create an access term that accesses `name` from the
+            // current term... and then we recurse into pattern
+            let term = self.builder().create_access(subject, name.unwrap(), AccessOp::Namespace);
+
+            // If one of them fails, then we have to fail as a whole
+            match self.match_pat_with_term_and_extract_binds(pat, term)? {
+                Some(inner_members) => bound_members.extend(inner_members),
+                None => return Ok(None),
+            }
+        }
+
+        Ok(Some(bound_members))
+    }
+
+    /// Match a [Pat::Or] with the subject term. Traverse all of the inner
+    /// members of the [Pat::Or], and verify that each of the child patterns
+    /// binds the same members, and each member has the same type.
+    fn match_or_pat_with_term(
+        &self,
+        pats: &[PatId],
+        subject: TermId,
+    ) -> TcResult<Option<Vec<(Member, PatId)>>> {
+        // Traverse all of the inner patterns within the `or` pattern, create a
+        // map between the member names that are produced and the type of the
+        // pattern... Then we want to ensure all of them are equal
+        let pat_members = pats
+            .iter()
+            .map(|pat| {
+                self.match_pat_with_term_and_extract_binds(*pat, subject)
+                    .map(|m| m.map(|t| (t, *pat)))
+            })
+            .flatten_ok()
+            .collect::<TcResult<Vec<_>>>()?;
+
+        // One of the cases never matches with the subject if the length is not the same
+        if pat_members.len() != pats.len() {
+            return Ok(None);
+        }
+
+        self.pat_members_match(&pat_members)?;
+
+        // Since all verification happens, we can now return the first member
+        // since we know that all of the types are the same, and all the binds
+        // will be in scope, regardless of which pattern is matched at runtime
+        Ok(Some(pat_members[0].0.clone()))
+    }
+
     /// Match the given pattern with the given term, returning a potential list
     /// of extracted `binds` that the pattern describes.
     ///
@@ -150,17 +398,8 @@ impl<'tc> PatMatcher<'tc> {
         let pat = self.reader().get_pat(pat_id);
         let pat_ty = self.typer().infer_ty_of_pat(pat_id)?;
 
-        // Note: for spread patterns, unifying between the `term` and the type
-        // of the pattern doesn't make sense because the term will always be `T`
-        // where the type of the spread is `List<T>`.
-        //
-        // @@Todo: do this in the Pat::List loop below rather than here.. For spread
-        // patterns the term_id should be List<T>.
-        if !matches!(pat, Pat::Spread(_)) {
-            // unify the pattern type with the subject type to ensure the match is
-            // valid:
-            let _ = self.unifier().unify_terms(pat_ty, term_ty_id)?;
-        }
+        // @@Incomplete: we need to expand `...` here for tuples and structs
+        let _ = self.unifier().unify_terms(pat_ty, term_ty_id)?;
 
         let bound_members = match pat {
             // Binding: Add the binding as a member
@@ -168,6 +407,13 @@ impl<'tc> PatMatcher<'tc> {
                 Member::variable(binding.name, binding.mutability, term_ty_id, simplified_term_id),
                 pat_id,
             )])),
+
+            // We don't actually do anything here with the spread pattern since this should happen
+            // at either the `list`, `tuple` or `constructor level. If it does not, then this
+            // is an invariant since the spread pattern shouldn't be here.
+            Pat::Spread(spread_pat) => {
+                self.match_spread_pat_with_term(pat_id, spread_pat, term_ty_id)
+            }
             Pat::Access(AccessPat { subject, property }) => {
                 let subject_term = self.typer().get_term_of_pat(subject)?;
                 let term = self.builder().create_ns_access(subject_term, property);
@@ -185,8 +431,8 @@ impl<'tc> PatMatcher<'tc> {
             }
             // No bindings in range patterns
             //
-            // @@Todo: we could add a check in the future that tries to see if this is a useful
-            // match?
+            // @@Improvement: we could add a check in the future that tries to see if this is a
+            // useful match.
             Pat::Range(_) => Ok(Some(vec![])),
             // No bindings but always matches
             Pat::Wild => Ok(Some(vec![])),
@@ -195,219 +441,15 @@ impl<'tc> PatMatcher<'tc> {
                 Ok(_) => Ok(Some(vec![])),
                 Err(_) => Ok(None),
             },
-            // Tuple: Unify the tuple with the subject, and then recurse to inner patterns
-            Pat::Tuple(tuple_pat_params_id) => {
-                // Get the term of the tuple and try to unify it with the subject:
-                let tuple_term = self.typer().get_term_of_pat(pat_id)?;
-                match self.unifier().unify_terms(tuple_term, simplified_term_id) {
-                    Ok(_) => {
-                        let tuple_pat_args =
-                            self.reader().get_pat_args_owned(tuple_pat_params_id).clone();
-
-                        // First, we get the tuple pattern parameters in the form of args (for
-                        // `pair_args_with_params` error reporting):
-                        let tuple_pat_params_as_args_id =
-                            self.typer().infer_args_of_pat_args(tuple_pat_params_id)?;
-
-                        // We get the subject tuple's parameters:
-                        let subject_params_id = self
-                            .typer()
-                            .infer_params_ty_of_tuple_term(simplified_term_id)?
-                            .unwrap_or_else(|| {
-                                tc_panic!(simplified_term_id, self, "This is not a tuple term.")
-                            });
-                        let subject_params =
-                            self.reader().get_params_owned(subject_params_id).clone();
-
-                        // For each param pair: accumulate the bound members
-                        let bound_members = pair_args_with_params(
-                            &subject_params,
-                            &tuple_pat_args,
-                            subject_params_id,
-                            tuple_pat_params_as_args_id,
-                            |param| self.param_to_pat(param),
-                            term_id,
-                            pat_id,
-                        )?
-                        .into_iter()
-                        .map(|(param, pat_param)| {
-                            let param_value = param
-                                .default_value
-                                .unwrap_or_else(|| self.builder().create_rt_term(param.ty));
-
-                            // @@Todo: retain information about useless patterns
-                            Ok(self
-                                .match_pat_with_term_and_extract_binds(pat_param.pat, param_value)?
-                                .into_iter()
-                                .flatten()
-                                .collect::<Vec<_>>())
-                        })
-                        .flatten_ok()
-                        .collect::<TcResult<Vec<_>>>()?;
-                        Ok(Some(bound_members))
-                    }
-                    Err(_) => Ok(None),
-                }
+            Pat::Mod(mod_pat) => self.match_mod_pat_with_term(mod_pat, term_id),
+            Pat::Tuple(members) => {
+                self.match_tuple_pat_with_term(pat_id, members, simplified_term_id)
             }
-            Pat::Mod(ModPat { members }) => {
-                let members = self.reader().get_pat_args_owned(members).clone();
-
-                let mut bound_members = vec![];
-
-                //  Here we have to basically try to access the given members using ns access...
-                for member in members.positional() {
-                    let PatArg { name, pat } = *member;
-
-                    // Before we recurse into the inner pattern, we need to
-                    // create an access term that accesses `name` from the
-                    // current term... and then we recurse into pattern
-                    let term =
-                        self.builder().create_access(term_id, name.unwrap(), AccessOp::Namespace);
-
-                    // If one of them fails, then we have to fail as a whole
-                    match self.match_pat_with_term_and_extract_binds(pat, term)? {
-                        Some(inner_members) => bound_members.extend(inner_members),
-                        None => return Ok(None),
-                    }
-                }
-
-                Ok(Some(bound_members))
+            Pat::Constructor(constructor) => {
+                self.match_constructor_pat_with_term(pat_id, constructor, simplified_term_id)
             }
-            Pat::Constructor(ConstructorPat { args, .. }) => {
-                // Get the term of the constructor and try to unify it with the subject:
-                let constructor_term = self.typer().get_term_of_pat(pat_id)?;
-
-                let pat_args = self.typer().infer_args_of_pat_args(args)?;
-                let constructor_args = self.reader().get_pat_args_owned(args).clone();
-
-                let possible_params =
-                    self.typer().infer_constructors_of_nominal_term(simplified_term_id)?;
-
-                for (_, params) in possible_params {
-                    let subject_params = self.reader().get_params_owned(params).clone();
-
-                    match pair_args_with_params(
-                        &subject_params,
-                        &constructor_args,
-                        params,
-                        pat_args,
-                        |param| self.param_to_pat(param),
-                        term_id,
-                        pat_id,
-                    ) {
-                        Ok(members) => {
-                            let bound_members = members
-                                .into_iter()
-                                .map(|(param, arg)| {
-                                    let param_value = param
-                                        .default_value
-                                        .unwrap_or_else(|| self.builder().create_rt_term(param.ty));
-
-                                    Ok(self
-                                        .match_pat_with_term_and_extract_binds(
-                                            arg.pat,
-                                            param_value,
-                                        )?
-                                        .into_iter()
-                                        .flatten()
-                                        .collect::<Vec<_>>())
-                                })
-                                .flatten_ok()
-                                .collect::<TcResult<Vec<_>>>()?;
-
-                            // @@Refactor: we need to verify that the members are declared once.
-                            // Since this happens at the bottom of the
-                            // function already, it would be nice to
-                            // factor out this step to be at the bottom or factor out constructor
-                            // pattern checking into a separate
-                            // function.
-                            self.verify_members_are_bound_once(&bound_members)?;
-                            return Ok(Some(bound_members));
-                        }
-                        Err(_) => continue,
-                    }
-                }
-
-                Err(TcError::NoConstructorOnType { subject: constructor_term })
-            }
-            Pat::List(ListPat { term, inner }) => {
-                // We need to collect all of the binds from the inner patterns of
-                // the list
-                let params = self.reader().get_pat_args_owned(inner).clone();
-
-                let mut bound_members = vec![];
-
-                let shared_term = self.builder().create_rt_term(term);
-
-                for param in params.positional().iter() {
-                    match self.match_pat_with_term_and_extract_binds(param.pat, shared_term)? {
-                        Some(members) => {
-                            bound_members.extend(members);
-                        }
-                        // If one of them fails, we should fail as a whole
-                        None => return Ok(None),
-                    }
-                }
-
-                Ok(Some(bound_members))
-            }
-            Pat::Spread(SpreadPat { name, .. }) => match name {
-                Some(name) => {
-                    // Since `pat_ty` will be `List<T = Unresolved>`, we need to create a new
-                    // `List<T = term_ty_id>` and perform a unification...
-                    let list_inner_ty = self.core_defs().list_ty_fn();
-                    let builder = self.builder();
-
-                    let pat_ty = builder.create_app_ty_fn_term(
-                        list_inner_ty,
-                        builder.create_args(
-                            [builder.create_nameless_arg(term_ty_id)],
-                            ParamOrigin::TyFn,
-                        ),
-                    );
-
-                    let rt_term = self.builder().create_rt_term(pat_ty);
-
-                    let TermValidation { simplified_term_id, term_ty_id } =
-                        self.validator().validate_term(rt_term)?;
-
-                    Ok(Some(vec![(
-                        Member::variable(
-                            name,
-                            Mutability::Immutable,
-                            term_ty_id,
-                            simplified_term_id,
-                        ),
-                        pat_id,
-                    )]))
-                }
-                _ => Ok(Some(vec![])),
-            },
-            Pat::Or(pats) => {
-                // Traverse all of the inner patterns within the `or` pattern, create a
-                // map between the member names that are produced and the type of the
-                // pattern... Then we want to ensure all of them are equal
-                let pat_members = pats
-                    .iter()
-                    .map(|pat| {
-                        self.match_pat_with_term_and_extract_binds(*pat, term_id)
-                            .map(|m| m.map(|t| (t, *pat)))
-                    })
-                    .flatten_ok()
-                    .collect::<TcResult<Vec<_>>>()?;
-
-                // One of the cases never matches with the subject if the length is not the same
-                if pat_members.len() != pats.len() {
-                    return Ok(None);
-                }
-
-                self.pat_members_match(&pat_members)?;
-
-                // Since all verification happens, we can now return the first member
-                // since we know that all of the types are the same, and all the binds
-                // will be in scope, regardless of which pattern is matched at runtime
-                Ok(Some(pat_members[0].0.clone()))
-            }
+            Pat::List(list) => self.match_list_pat_with_term(list),
+            Pat::Or(pats) => self.match_or_pat_with_term(&pats, simplified_term_id),
             Pat::If(IfPat { pat, .. }) => {
                 // Recurse to inner, but never say it is redundant:
                 match self.match_pat_with_term_and_extract_binds(pat, term_id)? {

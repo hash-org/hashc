@@ -2005,6 +2005,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TuplePat>,
     ) -> Result<Self::TuplePatRet, Self::Error> {
         let walk::TuplePat { elements } = walk::walk_tuple_pat(self, ctx, node)?;
+
         let members = self.builder().create_pat_args(elements, ParamOrigin::Tuple);
         let tuple_pat = self.builder().create_tuple_pat(members);
 
