@@ -312,7 +312,7 @@ impl<'tc> LowerPatOps<'tc> {
                             .iter_patterns()
                             .map(|p| PatArg {
                                 name: None,
-                                pat: self.construct_pat(*p)
+                                pat: self.construct_pat(p)
                             })
                             .collect_vec();
 
@@ -338,13 +338,12 @@ impl<'tc> LowerPatOps<'tc> {
                         // field by using the nominal definition attached to the pattern.
                         let children = pat.fields.iter_patterns().enumerate()
                             .filter(|(_, p)| {
-                                let ctor = reader.get_deconstructed_pat_ctor(**p);
-                                !ctor.is_wildcard()
+                                !reader.get_deconstructed_pat_ctor(*p).is_wildcard()
                             })
                             .map(|(index, p)| {
                                 PatArg {
                                     name: tys.positional().get(index).and_then(|param| param.name),
-                                    pat: self.construct_pat(*p)
+                                    pat: self.construct_pat(p)
                                 }
                             }).collect_vec();
 
@@ -375,7 +374,7 @@ impl<'tc> LowerPatOps<'tc> {
             DeconstructedCtor::IntRange(range) => self.construct_pat_from_range(pat.ty, range),
             DeconstructedCtor::Str(_) => Pat::Lit(pat.ty),
             DeconstructedCtor::List(List { kind }) => {
-                let children = pat.fields.iter_patterns().map(|p| PatArg { pat: self.construct_pat(*p), name: None });
+                let children = pat.fields.iter_patterns().map(|p| PatArg { pat: self.construct_pat(p), name: None });
 
                 match kind {
                     ListKind::Fixed(_) => {

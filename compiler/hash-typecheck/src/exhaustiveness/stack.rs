@@ -86,7 +86,7 @@ impl<'tc> StackOps<'tc> {
         pat.fields
             .iter_patterns()
             .map(move |pat| {
-                let mut new_stack = PatStack::singleton(*pat);
+                let mut new_stack = PatStack::singleton(pat);
 
                 new_stack.pats.extend_from_slice(&stack.pats[1..]);
                 new_stack
@@ -97,10 +97,9 @@ impl<'tc> StackOps<'tc> {
     /// This computes `S(self.head().ctor, self)`. Take the head of
     /// the [PatStack], specialise it with the provided `ctor` and
     /// and build a new [PatStack] with the result of the specialisation
-    /// and the rest of the row items.
-    ///
-    /// @@Future: Structure patterns with a partial wild pattern `Foo(a: 42,
-    /// ..)` have their missing fields filled with wild patterns.
+    /// and the rest of the row items. Structure patterns with a partial wild
+    /// pattern `Foo(a = 42, ...)` have their missing fields filled with wild
+    /// patterns.
     ///
     /// This is roughly the inverse of `Constructor::apply`.
     pub(crate) fn pop_head_constructor(
@@ -128,6 +127,11 @@ impl Debug for ForFormatting<'_, PatStack> {
 
         for pat in self.t.iter() {
             write!(f, " {:?} |", pat.for_formatting(self.global_storage))?;
+        }
+
+        // Just in case if the pattern stack was empty
+        if self.t.is_empty() {
+            write!(f, "|")?;
         }
 
         Ok(())

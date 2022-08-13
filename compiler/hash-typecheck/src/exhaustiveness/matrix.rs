@@ -96,8 +96,7 @@ impl<'tc> MatrixOps<'tc> {
         // the results of the specialisation as new rows in
         // the matrix.
         for row in &matrix.patterns {
-            let head = reader.get_deconstructed_pat(row.head());
-            let row_head_ctor = self.constructor_store().get(head.ctor);
+            let row_head_ctor = reader.get_deconstructed_pat_ctor(row.head());
 
             if self.constructor_ops().is_covered_by(&ctor, &row_head_ctor) {
                 let new_row = self.stack_ops().pop_head_constructor(ctx, row, ctor_id);
@@ -154,6 +153,7 @@ impl Debug for ForFormatting<'_, Matrix> {
             }
             writeln!(f)?;
         }
+
         Ok(())
     }
 }

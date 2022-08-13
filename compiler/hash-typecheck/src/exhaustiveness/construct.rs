@@ -149,7 +149,7 @@ impl<'tc> ConstructorOps<'tc> {
                                 }
                                 StructFields::Opaque => 0,
                             },
-                            // @@Remove: when enums are no longer represented as thi
+                            // @@EnumToUnion: remove this
                             NominalDef::Enum(_) => unreachable!(),
                         }
                     }
@@ -211,8 +211,6 @@ impl<'tc> ConstructorOps<'tc> {
             }
             // Fast track to just the single constructor if this range is trivial
             DeconstructedCtor::IntRange(range) if !range.is_singleton() => {
-                // @@Ranges: this is only used when `range` patterns are a thing
-
                 let mut range = SplitIntRange::new(range);
                 let int_ranges = ctors.filter_map(|c| {
                     self.constructor_store().map_fast(c, |c| c.as_int_range().cloned())
