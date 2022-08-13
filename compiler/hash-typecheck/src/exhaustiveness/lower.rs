@@ -336,14 +336,32 @@ impl<'tc> LowerPatOps<'tc> {
                         // Construct the inner arguments to the constructor by iterating over the 
                         // pattern fields within the pattern. If possible, lookup the name of the 
                         // field by using the nominal definition attached to the pattern.
-                        let children = pat.fields.iter_patterns().enumerate().map(|(index, p)| {
-                            PatArg {
-                                name: tys.positional().get(index).and_then(|param| param.name),
-                                pat: self.construct_pat(*p)
-                            }
-                        });
+                        let children = pat.fields.iter_patterns().enumerate()
+                            .filter(|(_, p)| {
+                                let ctor = reader.get_deconstructed_pat_ctor(**p);
+                                !ctor.is_wildcard()
+                            })
+                            .map(|(index, p)| {
+                                PatArg {
+                                    name: tys.positional().get(index).and_then(|param| param.name),
+                                    pat: self.construct_pat(*p)
+                                }
+                            }).collect_vec();
 
-                        let args = self.builder().create_pat_args(children, ParamOrigin::Unknown);
+                        // We collapse all fields that are specified as `wildcards` within
+                        // these construct patterns in order to represent them visually in a clearer
+                        // way. If a construct has 20 fields that 18 are specified as wildcards, and the 
+                        // rest have user specified patterns, then we only want to print those and the 
+                        // rest is denoted as `...`.
+                        let args = if pat.fields.len() != children.len() {
+                            let dummy = Pat::Spread(SpreadPat { name: None, origin: SpreadPatOrigin::List });
+                            let arg = PatArg { pat: self.pat_store().create(dummy), name: None };
+
+                            self.builder().create_pat_args(children.into_iter().chain(once(arg)), ParamOrigin::Unknown)
+                        }  else {
+                            self.builder().create_pat_args(children, ParamOrigin::Unknown)
+                        };
+
                         Pat::Constructor(ConstructorPat { subject: pat.ty, args })
                     }
                     _ => tc_panic!(

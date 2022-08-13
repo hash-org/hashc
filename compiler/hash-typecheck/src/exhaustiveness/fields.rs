@@ -41,6 +41,16 @@ impl Fields {
     pub fn iter_patterns(&self) -> impl Iterator<Item = &DeconstructedPatId> {
         self.fields.iter()
     }
+
+    /// Get the length of the [Fields].
+    pub fn len(&self) -> usize {
+        self.fields.len()
+    }
+
+    /// Check if [Fields] are empty.
+    pub fn is_empty(&self) -> bool {
+        self.fields.is_empty()
+    }
 }
 
 impl FromIterator<DeconstructedPatId> for Fields {

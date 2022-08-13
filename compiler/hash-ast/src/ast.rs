@@ -13,6 +13,7 @@ use hash_source::{
     location::Span,
 };
 use hash_utils::counter;
+use num_bigint::BigInt;
 use replace_with::replace_with_or_abort;
 
 counter! {
