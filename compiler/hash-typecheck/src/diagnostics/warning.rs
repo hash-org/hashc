@@ -11,8 +11,9 @@
 
 use hash_reporting::{
     builder::ReportBuilder,
-    report::{Report, ReportCodeBlock, ReportElement, ReportKind},
+    report::{Report, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind},
 };
+use hash_source::location::SourceLocation;
 
 use crate::{
     fmt::PrepareForFormatting,
@@ -43,6 +44,28 @@ pub enum TcWarning {
         overlaps: PatId,
         /// The specific term that is overlapping between the two ranges.
         overlapping_term: TermId,
+    },
+
+    /// When a named tuple type is coerced into a un-named tuple. This typically
+    /// happens when a tuple is re-structured during a declaration or a match
+    /// block pattern destructuring.
+    ///
+    /// This is not necessarily a problem, but it can lead to unexpected
+    /// behaviour and could be considered as a code smell.
+    NamedTupleCoercion {
+        /// The defined tuple type.
+        original: TermId,
+        /// The pattern that coerces the type into a un-named tuple.
+        ///
+        /// @@Investigate: Could this warning occur in a situation where a
+        /// non-pattern subject coerces the named tuple into an un-named
+        /// one?
+        coerced_into: PatId,
+    },
+    /// Debug warning that is generated for debugging purposes
+    Debug {
+        label: String,
+        location: Option<SourceLocation>,
     },
 }
 
@@ -111,6 +134,39 @@ impl<'tc> From<TcWarningWithStorage<'tc>> for Report {
                         location,
                         "...with this range",
                     )));
+                }
+            }
+            TcWarning::NamedTupleCoercion { original, coerced_into } => {
+                builder.with_message("named tuple is coerced into an un-named tuple");
+
+                if let Some(location) = item.location_store().get_location(original) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        format!(
+                            "the named tuple type `{}` is being coerced into an un-named tuple",
+                            original.for_formatting(item.global_storage())
+                        ),
+                    )));
+                }
+
+                if let Some(location) = item.location_store().get_location(coerced_into) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "the coercion occurs here",
+                    )));
+                }
+
+                builder.add_element(ReportElement::Note(ReportNote::new(
+                    ReportNoteKind::Note,
+                    "if a tuple type is declared as named, it's usually that field names are important and shouldn't be thrown away."
+                )));
+            }
+            TcWarning::Debug { ref label, location } => {
+                builder.with_message(label);
+
+                if let Some(location) = location {
+                    builder
+                        .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(location, "")));
                 }
             }
         }

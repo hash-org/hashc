@@ -2007,9 +2007,11 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let walk::TuplePat { elements } = walk::walk_tuple_pat(self, ctx, node)?;
 
         let members = self.builder().create_pat_args(elements, ParamOrigin::Tuple);
+        self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), members);
+
+        self.validator().validate_tuple_pat(members)?;
         let tuple_pat = self.builder().create_tuple_pat(members);
 
-        self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), members);
         self.copy_location_from_node_to_target(node, tuple_pat);
 
         Ok(tuple_pat)

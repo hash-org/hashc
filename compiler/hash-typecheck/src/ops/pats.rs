@@ -6,15 +6,21 @@ use std::{
 };
 
 use hash_ast::ast::{ParamOrigin, SpreadPatOrigin};
+use hash_reporting::diagnostic::Diagnostics;
 use hash_source::identifier::Identifier;
 use hash_utils::store::Store;
 use itertools::Itertools;
 
-use super::{params::pair_args_with_params, AccessToOps};
+use super::{
+    params::{pair_args_with_params, validate_named_params_match},
+    AccessToOps,
+};
 use crate::{
     diagnostics::{
         error::{TcError, TcResult},
         macros::tc_panic,
+        params::ParamListKind,
+        warning::TcWarning,
     },
     ops::validate::TermValidation,
     storage::{
@@ -137,6 +143,60 @@ impl<'tc> PatMatcher<'tc> {
         Ok(())
     }
 
+    /// Utility for creating the captured member when a spread pattern
+    /// has a binding. This takes in
+    fn create_pat_from_captured_members(
+        &self,
+        items: Vec<(PatArg, TermId, Option<TermId>)>,
+        name: Identifier,
+        original_id: PatId,
+    ) -> TcResult<Option<(Member, PatId)>> {
+        // If there is only one captured element, we turn this into a
+        // bind pattern rather than being a tuple...
+        let (id, inferred_term, value) = if items.len() == 1 {
+            // Create the binding that puts the
+            let id = self.pat_store().create(Pat::Binding(BindingPat {
+                name,
+                mutability: Mutability::Immutable,
+                visibility: Visibility::Private,
+            }));
+
+            (id, items[0].1, items[0].2.unwrap_or(items[0].1))
+        } else {
+            // Now we also need to infer the type of the tuple
+            let members = self.builder().create_args(
+                items.iter().map(|(member, value, _)| Arg { name: member.name, value: *value }),
+                ParamOrigin::Tuple,
+            );
+
+            let inferred_term = self.builder().create_tuple_lit_term(members);
+
+            let captured_members = self
+                .builder()
+                .create_pat_args(items.into_iter().map(|(arg, _, _)| arg), ParamOrigin::Tuple);
+            let id = self.pat_store().create(Pat::Tuple(captured_members));
+
+            (id, inferred_term, inferred_term)
+        };
+
+        // We need to copy over the location of the pattern from the spread pattern to
+        // this one so in-case it is used for error reporting purposes...
+        self.location_store().copy_location(original_id, id);
+
+        Ok(Some((Member::variable(name, Mutability::Immutable, inferred_term, value), id)))
+    }
+
+    fn maybe_erase_spread_pat_from_constructor(
+        &self,
+        _pat: PatId,
+        _constructor: ConstructorPat,
+        _subject: TermId,
+    ) -> TcResult<Option<(Member, PatId)>> {
+        let _reader = self.reader();
+        // @@Todo: implement spread pattern erasure for constructor patterns
+        Ok(None)
+    }
+
     /// Function use to erase any spread patterns that are present within
     /// [Pat::Tuple] and [Pat::Constructor]. Erasing means turning the spread
     /// patterns into a collection of wildcard fields that fill any missing
@@ -144,9 +204,10 @@ impl<'tc> PatMatcher<'tc> {
     ///
     /// N.B. This modifies the stored pattern associated with the provided
     /// [PatId].
-    fn maybe_erase_spread_pats(
+    fn maybe_erase_spread_pat_from_tuple(
         &self,
         pat: PatId,
+        members: PatArgsId,
         subject: TermId,
     ) -> TcResult<Option<(Member, PatId)>> {
         let reader = self.reader();
@@ -155,176 +216,185 @@ impl<'tc> PatMatcher<'tc> {
         // common operation.
         let wildcard_pat = || self.pat_store().create(Pat::Wild);
 
-        // Utility for creating the captured member when a spread pattern
-        // has a binding.
-        let captured_pat = |items: Vec<(PatArg, TermId)>, name, spread_id| {
-            // If there is only one captured element, we turn this into a
-            // bind pattern rather than being a tuple...
-            let (id, inferred_term) = if items.len() == 1 {
-                // Create the binding that puts the
-                let id = self.pat_store().create(Pat::Binding(BindingPat {
-                    name,
-                    mutability: Mutability::Immutable,
-                    visibility: Visibility::Private,
-                }));
+        let pat_members = reader.get_pat_args_owned(members);
 
-                (id, items[0].1)
-            } else {
-                // Now we also need to infer the type of the tuple
-                let members = self.builder().create_args(
-                    items.iter().map(|(member, value)| Arg { name: member.name, value: *value }),
-                    ParamOrigin::Tuple,
-                );
+        // Check if the members has a `...` pattern and then if so
+        // we will need to proceed and erase it.
+        let mut spread_pat = None;
 
-                let inferred_term = self.builder().create_tuple_lit_term(members);
-
-                let captured_members = self
-                    .builder()
-                    .create_pat_args(items.into_iter().map(|(arg, _)| arg), ParamOrigin::Tuple);
-                let id = self.pat_store().create(Pat::Tuple(captured_members));
-
-                (id, inferred_term)
-            };
-
-            // We need to copy over the location of the pattern from the spread pattern to
-            // this one so in-case it is used for error reporting purposes...
-            self.location_store().copy_location(spread_id, id);
-
-            Ok(Some((
-                Member::variable(name, Mutability::Immutable, inferred_term, inferred_term),
-                id,
-            )))
-        };
-
-        match reader.get_pat(pat) {
-            Pat::Constructor(ConstructorPat { .. }) => {
-                // @@Todo: implement spread pattern erasure for constructor patterns
-                Ok(None)
-            }
-            Pat::Tuple(members) => {
-                let pat_members = reader.get_pat_args_owned(members);
-
-                // Check if the members has a `...` pattern and then if so
-                // we will need to proceed and erase it.
-                let mut spread_pat = None;
-
-                for (index, member) in pat_members.positional().iter().enumerate() {
-                    if let Pat::Spread(SpreadPat { name, .. }) = reader.get_pat(member.pat) {
-                        if spread_pat.is_some() {
-                            tc_panic!(
-                                member.pat,
-                                self,
-                                "found multiple spread patterns within tuple pattern"
-                            )
-                        }
-
-                        spread_pat = Some((index, name, member.pat));
-                    }
+        for (index, member) in pat_members.positional().iter().enumerate() {
+            if let Pat::Spread(SpreadPat { name, .. }) = reader.get_pat(member.pat) {
+                if spread_pat.is_some() {
+                    tc_panic!(
+                        member.pat,
+                        self,
+                        "found multiple spread patterns within tuple pattern"
+                    )
                 }
 
-                if let Some((pos, name, spread_id)) = spread_pat {
-                    // In this situation, we need to collect all of the members within
-                    // the `subject` tuple type and build a map of where we essentially
-                    // need to fill in the missing fields.
-                    let member_id = self
-                        .typer()
-                        .infer_params_ty_of_tuple_term(subject)?
-                        .unwrap_or_else(|| tc_panic!(subject, self, "This is not a tuple term."));
-
-                    let ty_members = reader.get_params_owned(member_id);
-
-                    // Fast track if the members of the pattern have a greater length
-                    // than the type members
-                    if ty_members.len() < pat_members.len() {
-                        let filtered_members = pat_members
-                            .into_positional()
-                            .into_iter()
-                            .enumerate()
-                            .filter(|(index, _)| *index != pos)
-                            .map(|(_, arg)| arg);
-
-                        // So now we need to update the stored pattern with this newly constructed
-                        // one
-                        let new_pat_members =
-                            self.builder().create_pat_args(filtered_members, ParamOrigin::Tuple);
-
-                        self.pat_store().set(pat, Pat::Tuple(new_pat_members));
-
-                        return name.map_or(Ok(None), |name| captured_pat(vec![], name, spread_id));
-                    }
-
-                    // Build a collection of members that are to be inserted into the new tuple term
-                    let mut new_members = vec![];
-                    let mut captured_members = vec![];
-                    let mut spread_offset = 0;
-
-                    let (start, end) = if pos == pat_members.len() - 1 {
-                        (pos, ty_members.len())
-                    } else {
-                        (pos, (ty_members.len() - (pat_members.len() - pos)))
-                    };
-
-                    for (member_pos, ty_member) in ty_members.positional().iter().enumerate() {
-                        // If the member has a name, then we should try to get the
-                        // member from the pattern by the name
-                        if let Some(name) = ty_member.name {
-                            if let Some((index, arg)) = pat_members.get_by_name(name) {
-                                new_members.push((*arg, index));
-                            } else {
-                                let item = PatArg { name: Some(name), pat: wildcard_pat() };
-
-                                new_members.push((item, member_pos));
-
-                                // We need to save the index of the member that was captured so
-                                // we can create a type from it later
-                                captured_members.push((item, ty_member.ty));
-                            }
-                        } else {
-                            // The only valid case is if the `member_pos` is currently between
-                            // the starting index of the spread pattern and the number of members
-                            // already captured... if it is in this range then it means that we
-                            // must be creating a new wildcard pat
-                            if (start..=end).contains(&member_pos) {
-                                let item = PatArg { name: None, pat: wildcard_pat() };
-                                new_members.push((item, member_pos));
-
-                                // We need to save the index of the member that was captured so
-                                // we can create a type from it later
-                                captured_members.push((item, ty_member.ty));
-                            } else {
-                                let index = if member_pos < start {
-                                    member_pos
-                                } else {
-                                    spread_offset += 1;
-                                    min(pos + spread_offset, pat_members.len() - 1)
-                                };
-
-                                // in this case we just add the member that is in `pat_members` at
-                                // the adjusted index
-                                new_members.push((pat_members.positional()[index], index));
-                            }
-                        }
-                    }
-
-                    // Now we need to create the new tuple pattern and then update the store
-                    new_members.sort_by(|l, r| l.1.cmp(&r.1));
-
-                    let new_pat_members = self.builder().create_pat_args(
-                        new_members.into_iter().map(|(arg, _)| arg),
-                        ParamOrigin::Tuple,
-                    );
-
-                    self.pat_store().set(pat, Pat::Tuple(new_pat_members));
-
-                    // If the spread pattern has a bind, then we need to also create the new tuple
-                    // type and return it as a bound member to that value.
-                    name.map_or(Ok(None), |name| captured_pat(captured_members, name, spread_id))
-                } else {
-                    Ok(None)
-                }
+                spread_pat = Some((index, name, member.pat));
             }
-            _ => Ok(None),
         }
+
+        if spread_pat.is_none() {
+            return Ok(None);
+        }
+
+        let (pos, name, spread_id) = spread_pat.unwrap();
+
+        // In this situation, we need to collect all of the members within
+        // the `subject` tuple type and build a map of where we essentially
+        // need to fill in the missing fields.
+        let ty_members_id =
+            self.typer().infer_params_ty_of_tuple_term(subject)?.unwrap_or_else(|| {
+                tc_panic!(subject, self, "This term `{}` is not a tuple", self.for_fmt(subject))
+            });
+
+        let ty_members = reader.get_params_owned(ty_members_id);
+
+        // Fast track if the members of the pattern have a greater length
+        // than the type members
+        if ty_members.len() < pat_members.len() {
+            let filtered_members = pat_members
+                .into_positional()
+                .into_iter()
+                .enumerate()
+                .filter(|(index, _)| *index != pos)
+                .map(|(_, arg)| arg);
+
+            // So now we need to update the stored pattern with this newly constructed
+            // one
+            let new_pat_members =
+                self.builder().create_pat_args(filtered_members, ParamOrigin::Tuple);
+
+            self.pat_store().set(pat, Pat::Tuple(new_pat_members));
+
+            return name.map_or(Ok(None), |name| {
+                self.create_pat_from_captured_members(vec![], name, spread_id)
+            });
+        }
+
+        // - If `pat_members` and `ty_members` are named, `pat_members` field names must
+        //   all be present within `ty_member` fields.
+        let ty_members_named = ty_members.positional().iter().any(|member| member.name.is_some());
+        let pat_members_named = pat_members.positional().iter().any(|member| member.name.is_some());
+
+        // Build a collection of members that are to be inserted into the new tuple term
+        let mut new_members = vec![];
+        let mut captured_members = vec![];
+
+        match (ty_members_named, pat_members_named) {
+            // Both type and pattern is named
+            (true, true) => {
+                // verify all specified pat member names exist within the
+                // type...
+                validate_named_params_match(
+                    &ty_members,
+                    &pat_members,
+                    ty_members_id,
+                    ParamListKind::PatArgs(members),
+                    subject,
+                )?;
+
+                for (member_pos, ty_member) in ty_members.positional().iter().enumerate() {
+                    if let Some(name) = ty_member.name {
+                        if let Some((index, arg)) = pat_members.get_by_name(name) {
+                            new_members.push((*arg, index));
+                        } else {
+                            let item = PatArg { name: Some(name), pat: wildcard_pat() };
+
+                            new_members.push((item, member_pos));
+
+                            // We need to save the index of the member that was captured so
+                            // we can create a type from it later
+                            captured_members.push((item, ty_member.ty, ty_member.default_value));
+                        }
+                    }
+                }
+            }
+            // Either both un-named, or one of them is named. However, it doesn't
+            // matter because we can fallback to using positional resolution logic.
+            //
+            // If `ty_members` is named, and `pat_members` is un-named then all ty_member
+            // fields will be coerced into un-named fields. The captured tuple members
+            // preserve the names that they captured.
+            //
+            // Similarly, if `ty_members` is un-named, and `pat_members` are named, the
+            // fields will preserve there name fields, but the captured members by the
+            // spread pattern do not inherit any names since we don't know what they
+            // should be called.
+            _ => {
+                // Emit a warning since we're coercing this types members into named
+                // fields into un-named fields.
+                if ty_members_named && !pat_members_named {
+                    self.diagnostics().add_warning(TcWarning::NamedTupleCoercion {
+                        original: subject,
+                        coerced_into: pat,
+                    });
+                }
+
+                let mut spread_offset = 0;
+
+                // Determine the boundary of which the spread pattern captures elements
+                // for, this is redundant if the tuple has named fields.
+                let (start, end) = if pos == pat_members.len() - 1 {
+                    (pos, ty_members.len())
+                } else {
+                    (pos, (ty_members.len() - (pat_members.len() - pos)))
+                };
+
+                for (member_pos, ty_member) in ty_members.positional().iter().enumerate() {
+                    // The only valid case is if the `member_pos` is currently between
+                    // the starting index of the spread pattern and the number of members
+                    // already captured... if it is in this range then it means that we
+                    // must be creating a new wildcard pat
+                    if (start..=end).contains(&member_pos) {
+                        let item = PatArg { name: ty_member.name, pat: wildcard_pat() };
+                        new_members.push((item, member_pos));
+
+                        // We need to save the index of the member that was captured so
+                        // we can create a type from it later
+                        captured_members.push((item, ty_member.ty, ty_member.default_value));
+                    } else {
+                        // in this case we just add the member that is in `pat_members` at
+                        // the adjusted index
+                        let index = if member_pos < start {
+                            member_pos
+                        } else {
+                            spread_offset += 1;
+                            min(pos + spread_offset, pat_members.len() - 1)
+                        };
+
+                        let mut member = pat_members.positional()[index];
+
+                        // The member inherits the name of the tuple type member if the name
+                        // exists...
+                        if let Some(name) = ty_member.name {
+                            assert!(member.name.is_none());
+
+                            member.name = Some(name);
+                        }
+
+                        new_members.push((member, index));
+                    }
+                }
+            }
+        }
+
+        // Now we need to create the new tuple pattern and then update the store
+        new_members.sort_by(|l, r| l.1.cmp(&r.1));
+
+        let new_pat_members = self
+            .builder()
+            .create_pat_args(new_members.into_iter().map(|(arg, _)| arg), ParamOrigin::Tuple);
+
+        self.pat_store().set(pat, Pat::Tuple(new_pat_members));
+
+        // If the spread pattern has a bind, then we need to also create the new tuple
+        // type and return it as a bound member to that value.
+        name.map_or(Ok(None), |name| {
+            self.create_pat_from_captured_members(captured_members, name, spread_id)
+        })
     }
 
     /// Match a [Pat::Tuple] with a subject term, and extract bound members.
@@ -341,10 +411,6 @@ impl<'tc> PatMatcher<'tc> {
             Ok(_) => {
                 let tuple_pat_args = self.reader().get_pat_args_owned(members).clone();
 
-                // First, we get the tuple pattern parameters in the form of args (for
-                // `pair_args_with_params` error reporting):
-                let tuple_pat_params_as_args_id = self.typer().infer_args_of_pat_args(members)?;
-
                 // We get the subject tuple's parameters:
                 let subject_params_id = self
                     .typer()
@@ -354,30 +420,25 @@ impl<'tc> PatMatcher<'tc> {
                 let subject_params = self.reader().get_params_owned(subject_params_id).clone();
 
                 // For each param pair: accumulate the bound members
-                let bound_members = pair_args_with_params(
-                    &subject_params,
-                    &tuple_pat_args,
-                    subject_params_id,
-                    tuple_pat_params_as_args_id,
-                    |param| self.param_to_pat(param),
-                    subject,
-                    pat,
-                )?
-                .into_iter()
-                .map(|(param, pat_param)| {
-                    let param_value = param
-                        .default_value
-                        .unwrap_or_else(|| self.builder().create_rt_term(param.ty));
+                let bound_members = subject_params
+                    .positional()
+                    .iter()
+                    .zip(tuple_pat_args.positional())
+                    .map(|(param, pat_param)| {
+                        let param_value = param
+                            .default_value
+                            .unwrap_or_else(|| self.builder().create_rt_term(param.ty));
 
-                    // @@Todo: retain information about useless patterns
-                    Ok(self
-                        .match_pat_with_term_and_extract_binds(pat_param.pat, param_value)?
-                        .into_iter()
-                        .flatten()
-                        .collect::<Vec<_>>())
-                })
-                .flatten_ok()
-                .collect::<TcResult<Vec<_>>>()?;
+                        // @@Todo: retain information about useless patterns
+                        Ok(self
+                            .match_pat_with_term_and_extract_binds(pat_param.pat, param_value)?
+                            .into_iter()
+                            .flatten()
+                            .collect::<Vec<_>>())
+                    })
+                    .flatten_ok()
+                    .collect::<TcResult<Vec<_>>>()?;
+
                 Ok(Some(bound_members))
             }
             Err(_) => Ok(None),
@@ -589,10 +650,23 @@ impl<'tc> PatMatcher<'tc> {
         let TermValidation { simplified_term_id, term_ty_id } =
             self.validator().validate_term(term_id)?;
 
-        // we need to erase  `...` here for tuples and structs
-        let captured_member = self.maybe_erase_spread_pats(pat_id, simplified_term_id)?;
+        let reader = self.reader();
 
-        let pat = self.reader().get_pat(pat_id);
+        // we need to erase  `...` here for tuples and constructors
+        let captured_member = match reader.get_pat(pat_id) {
+            Pat::Tuple(members) => {
+                self.maybe_erase_spread_pat_from_tuple(pat_id, members, term_id)?
+            }
+            Pat::Constructor(constructor) => self.maybe_erase_spread_pat_from_constructor(
+                pat_id,
+                constructor,
+                simplified_term_id,
+            )?,
+            _ => None,
+        };
+
+        // re-read the pattern since it may of been modified
+        let pat = reader.get_pat(pat_id);
         let pat_ty = self.typer().infer_ty_of_pat(pat_id)?;
 
         let _ = self.unifier().unify_terms(pat_ty, term_ty_id)?;

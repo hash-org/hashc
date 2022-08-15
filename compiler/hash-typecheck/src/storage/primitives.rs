@@ -1260,6 +1260,13 @@ pub enum Pat {
     Wild,
 }
 
+impl Pat {
+    /// Check if the pattern is of the [Pat::Spread] variant.
+    pub fn is_spread(&self) -> bool {
+        matches!(self, Pat::Spread(_))
+    }
+}
+
 /// The ID of a [UnresolvedTerm], separate from its [TermId], stored in
 /// [super::terms::TermStore].
 ///

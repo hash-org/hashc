@@ -57,7 +57,7 @@ pub enum TcError {
     /// The parameter with the given name is not found in the given parameter
     /// list.
     ParamNotFound {
-        args_id: ArgsId,
+        args_kind: ParamListKind,
         params_id: ParamsId,
         params_subject: LocationTarget,
         name: Identifier,

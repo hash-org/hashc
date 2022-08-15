@@ -192,16 +192,21 @@ impl<'tc> Unifier<'tc> {
             return cannot_unify(ParamUnificationErrorReason::LengthMismatch);
         }
 
-        // For each argument, ensure it is the same:
         let mut cumulative_sub = Sub::empty();
-        let pairs = src_args.positional().iter().zip(target_args.positional());
-        for (index, (src_param, target_param)) in pairs.enumerate() {
-            // Names match
-            if src_param.name != target_param.name {
-                return cannot_unify(ParamUnificationErrorReason::NameMismatch(index));
-            }
-            // Values match
-            let ty_sub = self.unify_terms(src_param.value, target_param.value)?;
+
+        for (index, target_arg) in target_args.positional().iter().enumerate() {
+            let src_arg = if let Some(name) = target_arg.name {
+                // The name should be present within the `source_params`. Otherwise
+                // we'll raise a name-mismatch?
+                match src_args.get_by_name(name) {
+                    Some((_, src_param)) => src_param,
+                    None => src_args.positional().get(index).unwrap(),
+                }
+            } else {
+                src_args.positional().get(index).unwrap()
+            };
+
+            let ty_sub = self.unify_terms(src_arg.value, target_arg.value)?;
 
             // Add to cumulative substitution
             cumulative_sub.extend(&ty_sub);
@@ -239,23 +244,27 @@ impl<'tc> Unifier<'tc> {
             return cannot_unify(ParamUnificationErrorReason::LengthMismatch);
         }
 
-        // For each parameter, ensure it is the same:
-        // @@Todo: handle default values.
         let mut cumulative_sub = Sub::empty();
-        let pairs = src_params.positional().iter().zip(target_params.positional());
-        for (index, (src_param, target_param)) in pairs.enumerate() {
-            // Names match
-            if src_param.name != target_param.name {
-                return cannot_unify(ParamUnificationErrorReason::NameMismatch(index));
-            }
-            // Types match
+
+        // @@Todo: handle default values.
+        for (index, target_param) in target_params.positional().iter().enumerate() {
+            let src_param = if let Some(name) = target_param.name {
+                // The name should be present within the `source_params`. Otherwise
+                // we'll raise a name-mismatch?
+                match src_params.get_by_name(name) {
+                    Some((_, src_param)) => src_param,
+                    None => src_params.positional().get(index).unwrap(),
+                }
+            } else {
+                src_params.positional().get(index).unwrap()
+            };
+
             let ty_sub = self.unify_terms(src_param.ty, target_param.ty)?;
 
             // Add to cumulative substitution
             cumulative_sub.extend(&ty_sub);
         }
 
-        // Return the cumulative substitution of all the parameter types:
         Ok(cumulative_sub)
     }
 
@@ -686,7 +695,7 @@ impl<'tc> Unifier<'tc> {
                     // Tuples unify if all their members unify:
                     (Level1Term::Tuple(src_tuple), Level1Term::Tuple(target_tuple)) => self
                         .unify_params(src_tuple.members, target_tuple.members, src_id, target_id),
-                    // Tuples unify if their parameters and return unify:
+                    // Functions unify if their parameters and return unify:
                     (Level1Term::Fn(src_fn_ty), Level1Term::Fn(target_fn_ty)) => {
                         // Once again, params need to be unified inversely.
                         let params_sub = self.unify_params(

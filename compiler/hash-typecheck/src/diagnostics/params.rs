@@ -6,7 +6,10 @@ use std::{collections::HashSet, fmt::Display};
 use hash_ast::ast::ParamOrigin;
 use hash_source::{identifier::Identifier, location::SourceLocation};
 
-use crate::storage::{arguments::ArgsId, location::LocationStore, params::ParamsId, GlobalStorage};
+use crate::storage::{
+    arguments::ArgsId, location::LocationStore, params::ParamsId, pats::PatArgsId,
+    primitives::GetNameOpt, GlobalStorage,
+};
 
 /// Particular reason why parameters couldn't be unified, either argument
 /// length mis-match or that a name mismatched between the two given parameters.
@@ -26,6 +29,7 @@ pub enum ParamUnificationErrorReason {
 #[derive(Debug, Clone)]
 pub enum ParamListKind {
     Params(ParamsId),
+    PatArgs(PatArgsId),
     Args(ArgsId),
 }
 
@@ -39,6 +43,7 @@ impl ParamListKind {
     ) -> Option<SourceLocation> {
         match self {
             ParamListKind::Params(id) => store.get_location((*id, index)),
+            ParamListKind::PatArgs(id) => store.get_location((*id, index)),
             ParamListKind::Args(id) => store.get_location((*id, index)),
         }
     }
@@ -47,6 +52,7 @@ impl ParamListKind {
     pub(crate) fn origin(&self, store: &GlobalStorage) -> ParamOrigin {
         match self {
             ParamListKind::Params(id) => store.params_store.get_origin(*id),
+            ParamListKind::PatArgs(id) => store.pat_args_store.get_origin(*id),
             ParamListKind::Args(id) => store.args_store.get_origin(*id),
         }
     }
@@ -55,7 +61,21 @@ impl ParamListKind {
     pub(crate) fn names(&self, store: &GlobalStorage) -> HashSet<Identifier> {
         match self {
             ParamListKind::Params(id) => store.params_store.names(*id),
+            ParamListKind::PatArgs(id) => store.pat_args_store.names(*id),
             ParamListKind::Args(id) => store.args_store.names(*id),
+        }
+    }
+
+    /// Get a stored parameter/field by name.
+    pub(crate) fn get_name_index(&self, name: Identifier, store: &GlobalStorage) -> Option<usize> {
+        match self {
+            ParamListKind::Params(id) => {
+                store.params_store.get_by_name(*id, name).map(|param| param.0)
+            }
+            ParamListKind::PatArgs(id) => {
+                store.pat_args_store.get_by_name(*id, name).map(|param| param.0)
+            }
+            ParamListKind::Args(id) => store.args_store.get_by_name(*id, name).map(|param| param.0),
         }
     }
 
@@ -73,13 +93,24 @@ impl ParamListKind {
 
         lhs_names.difference(&rhs_names).into_iter().copied().collect()
     }
+
+    /// Get the English subject noun of the [ParamListKind]
+    pub(crate) fn as_noun(&self) -> &'static str {
+        match self {
+            ParamListKind::PatArgs(_) | ParamListKind::Params(_) => "field",
+            ParamListKind::Args(_) => "argument",
+        }
+    }
+}
+
+impl GetNameOpt for ParamListKind {
+    fn get_name_opt(&self) -> Option<Identifier> {
+        todo!()
+    }
 }
 
 impl Display for ParamListKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ParamListKind::Params(_) => write!(f, "fields"),
-            ParamListKind::Args(_) => write!(f, "arguments"),
-        }
+        write!(f, "{}s", self.as_noun())
     }
 }

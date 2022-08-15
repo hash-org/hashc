@@ -17,7 +17,7 @@ use super::{
 use crate::{
     fmt::PrepareForFormatting,
     storage::{
-        primitives::{AccessOp, Arg, Param},
+        primitives::{AccessOp, Arg, Param, PatArg},
         AccessToStorage, StorageRef,
     },
 };
@@ -455,21 +455,19 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     }
                 }
             }
-            TcError::ParamNotFound { args_id, params_id, params_subject, name } => {
+            TcError::ParamNotFound { args_kind, params_id, params_subject, name } => {
                 builder
                     .with_error_code(HashErrorCode::UnresolvedSymbol)
                     .with_message(format!("parameter with name `{}` is not defined", name));
 
                 // find the parameter and report the location
-                let _params = err.params_store().get_owned_param_list(*params_id);
-                let args = err.args_store().get_owned_param_list(*args_id);
-                let (id, _) = args.get_by_name(*name).unwrap();
+                let id = args_kind.get_name_index(*name, err.global_storage()).unwrap();
 
                 // Provide information about the location of the target type if available
-                if let Some(location) = err.location_store().get_location((*args_id, id)) {
+                if let Some(location) = args_kind.to_location(id, err.location_store()) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
-                        format!("argument `{}` not defined", name,),
+                        format!("{} `{}` not defined", args_kind.as_noun(), name),
                     )));
                 }
 
@@ -514,6 +512,22 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
 
                         // Extract the name from the argument
                         let Arg { name, .. } = args.positional()[*index];
+                        let name = name.unwrap();
+
+                        // find the ise of the first name
+                        let first_use = args
+                            .positional()
+                            .iter()
+                            .position(|param| param.name == Some(name))
+                            .unwrap();
+
+                        (name, first_use)
+                    }
+                    ParamListKind::PatArgs(id) => {
+                        let args = err.pat_args_store().get_owned_param_list(*id);
+
+                        // Extract the name from the argument
+                        let PatArg { name, .. } = args.positional()[*index];
                         let name = name.unwrap();
 
                         // find the ise of the first name
@@ -860,9 +874,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
 
                 if let Some(location) = err.location_store().get_location(term) {
                     builder
-                        .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
-                            location, "here",
-                        )))
+                        .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(location, "")))
                         .add_element(ReportElement::Note(ReportNote::new(
                             ReportNoteKind::Help,
                             "consider adding more type annotations to this expression",

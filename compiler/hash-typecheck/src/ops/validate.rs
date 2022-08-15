@@ -1,5 +1,5 @@
 //! Contains utilities to validate terms.
-use std::fmt::Display;
+use std::{collections::HashSet, fmt::Display};
 
 use hash_ast::ast::RangeEnd;
 use hash_utils::store::Store;
@@ -17,6 +17,7 @@ use crate::{
         mods::ModDefId,
         nominals::NominalDefId,
         params::ParamsId,
+        pats::PatArgsId,
         primitives::{
             ConstructedTerm, FnTy, Level0Term, Level1Term, Level2Term, LitTerm, Member,
             ModDefOrigin, NominalDef, RangePat, Scope, ScopeKind, StructFields, Term,
@@ -1237,5 +1238,49 @@ impl<'tc> Validator<'tc> {
             }
             _ => unreachable!(),
         }
+    }
+
+    /// Validate the members of a tuple pattern. Ensure that:
+    ///
+    /// - if the pattern contains named members, then all of the members must be
+    ///   named
+    ///  otherwise the pattern must not contain any fields that are named.
+    ///
+    /// - if the pattern has named fields, then ensure that no field names are
+    ///   duplicated.
+    pub(crate) fn validate_tuple_pat(&self, args: PatArgsId) -> TcResult<()> {
+        let reader = self.reader();
+        let members = reader.get_pat_args_owned(args);
+
+        let mut names = HashSet::new();
+        let mut has_name = false;
+
+        for (index, member) in members.positional().iter().enumerate() {
+            // If the tuple has a named field before, and then
+            // this field doesn't specify a name, then error as
+            // this is disallowed:
+            if has_name && member.name.is_none() && !reader.get_pat(member.pat).is_spread() {
+                return Err(TcError::AmbiguousArgumentOrdering {
+                    param_kind: ParamListKind::PatArgs(args),
+                    index,
+                });
+            }
+
+            if let Some(name) = member.name {
+                has_name = true;
+
+                // Field name was specified twice!
+                if names.contains(&name) {
+                    return Err(TcError::ParamGivenTwice {
+                        param_kind: ParamListKind::PatArgs(args),
+                        index,
+                    });
+                }
+
+                names.insert(name);
+            }
+        }
+
+        Ok(())
     }
 }

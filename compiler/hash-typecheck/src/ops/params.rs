@@ -90,7 +90,7 @@ pub(crate) fn pair_args_with_params<'p, 'a, T: Clone + GetNameOpt>(
                         // constructor is defined...
                         return Err(TcError::ParamNotFound {
                             params_subject: params_subject.into(),
-                            args_id,
+                            args_kind: origin,
                             params_id,
                             name: arg_name,
                         });
@@ -191,6 +191,31 @@ pub(crate) fn validate_param_list_ordering<T: Clone + GetNameOpt>(
                 if done_positional {
                     return Err(TcError::AmbiguousArgumentOrdering { param_kind: origin, index });
                 }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Function to validate that all of the named arguments specified in
+/// `args` exist within the specified `params`.
+pub(crate) fn validate_named_params_match<T: Clone + GetNameOpt>(
+    params: &Params<'_>,
+    args: &ParamList<'_, T>,
+    params_id: ParamsId,
+    args_id: ParamListKind,
+    subject: impl Into<LocationTarget>,
+) -> TcResult<()> {
+    for arg in args.positional() {
+        if let Some(name) = arg.get_name_opt() {
+            if params.get_by_name(name).is_none() {
+                return Err(TcError::ParamNotFound {
+                    params_id,
+                    args_kind: args_id,
+                    params_subject: subject.into(),
+                    name,
+                });
             }
         }
     }

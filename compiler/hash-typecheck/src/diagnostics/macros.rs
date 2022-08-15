@@ -40,7 +40,7 @@ pub macro tc_panic {
                 report
                     .add_element(report::ReportElement::CodeBlock(report::ReportCodeBlock::new(
                         location,
-                        "here",
+                        "",
                     )));
             }
 

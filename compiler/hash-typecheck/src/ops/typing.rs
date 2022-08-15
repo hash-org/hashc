@@ -464,9 +464,9 @@ impl<'tc> Typer<'tc> {
 
     /// Get the parameters of the given tuple term, if possible.
     ///
-    /// This function returns Some(..) if the term is validated and simplified,
-    /// and is a tuple term (either literal or Rt.). Otherwise it will
-    /// return None.
+    /// This function returns [Some(..)] if the term is validated and
+    /// simplified, and is a tuple term (either literal or Rt.). Otherwise
+    /// it will return None.
     ///
     /// This function will populate default values if it can (if the tuple is a
     /// literal).
