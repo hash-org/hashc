@@ -10,5 +10,5 @@ main := () => {
     t := X(name = "Alex", age = 18, height = 183.1);
 
     // Error: age MIN..11 | 13..MAX not covered!
-    X(age = 12) := t;
+    X(age = 12, ...) := t;
 };

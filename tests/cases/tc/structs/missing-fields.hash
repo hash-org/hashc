@@ -1,0 +1,15 @@
+// run=fail
+
+Dog := struct(
+    name: str,
+    age: i32,
+    width: f32,
+    height: f32,
+);
+
+
+main := () => {
+    viktor := Dog("viktor", 18, 123.6, 129.9);
+
+    Dog(name, height) := viktor;
+};

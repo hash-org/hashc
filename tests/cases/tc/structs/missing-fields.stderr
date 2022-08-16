@@ -1,0 +1,12 @@
+error[0035]: struct literal is missing the fields `age`, and `width`
+  --> $DIR/missing-fields.hash:14:5
+13 |   
+14 |       Dog(name, height) := viktor;
+   |       ^^^^^^^^^^^^^^^^^ missing `age`, and `width`
+15 |   };
+
+  --> $DIR/missing-fields.hash:12:15
+11 |   main := () => {
+12 |       viktor := Dog("viktor", 18, 123.6, 129.9);
+   |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the struct is defined here
+13 |   
