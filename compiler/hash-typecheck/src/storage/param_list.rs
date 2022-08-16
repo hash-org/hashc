@@ -50,6 +50,11 @@ impl<ParamListKey: SequenceStoreKey, ParamType: GetNameOpt + Clone>
         self.origins.get(key).unwrap_or(ParamOrigin::Unknown)
     }
 
+    /// Get the size of the parameter list
+    pub fn get_size(&self, key: ParamListKey) -> usize {
+        self.map_as_param_list_fast(key, |list| list.len())
+    }
+
     /// Get a parameter by name.
     pub fn get_by_name(&self, key: ParamListKey, name: Identifier) -> Option<(usize, ParamType)> {
         self.map_as_param_list_fast(key, |list| list.get_by_name(name).map(|(i, p)| (i, p.clone())))

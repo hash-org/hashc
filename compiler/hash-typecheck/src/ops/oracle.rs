@@ -4,7 +4,7 @@ use hash_ast::ast::{IntTy, ParamOrigin};
 
 use super::AccessToOps;
 use crate::storage::{
-    primitives::{Level0Term, Level1Term, ScopeVar, Term, TupleTy},
+    primitives::{EnumDef, Level0Term, Level1Term, NominalDef, ScopeVar, StructDef, Term, TupleTy},
     terms::TermId,
     AccessToStorage, StorageRef,
 };
@@ -109,5 +109,35 @@ impl<'tc> Oracle<'tc> {
         let reader = self.reader();
 
         matches!(reader.get_term(term), Term::Level0(Level0Term::Lit(_)))
+    }
+
+    /// Get a [Term] as a [StructDef].
+    pub fn term_as_struct_def(&self, term: TermId) -> Option<StructDef> {
+        match self.reader().get_term(term) {
+            Term::Level1(Level1Term::NominalDef(def)) => match self.reader().get_nominal_def(def) {
+                NominalDef::Struct(struct_def) => Some(struct_def),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// Get a [Term] as a [EnumDef].
+    pub fn term_as_enum_def(&self, term: TermId) -> Option<EnumDef> {
+        match self.reader().get_term(term) {
+            Term::Level1(Level1Term::NominalDef(def)) => match self.reader().get_nominal_def(def) {
+                NominalDef::Enum(enum_def) => Some(enum_def),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// Get a [Term] as a [NominalDef].
+    pub fn term_as_nominal_def(&self, term: TermId) -> Option<NominalDef> {
+        match self.reader().get_term(term) {
+            Term::Level1(Level1Term::NominalDef(def)) => Some(self.reader().get_nominal_def(def)),
+            _ => None,
+        }
     }
 }

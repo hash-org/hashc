@@ -772,6 +772,12 @@ impl fmt::Display for ForFormatting<'_, TermId> {
     }
 }
 
+impl fmt::Debug for ForFormatting<'_, TermId> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.global_storage.term_store.get(self.t))
+    }
+}
+
 impl fmt::Display for ForFormatting<'_, TrtDefId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         TcFormatter::new(self.global_storage).fmt_trt_def(f, self.t, self.opts.clone())

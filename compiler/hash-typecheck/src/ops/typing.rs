@@ -383,7 +383,7 @@ impl<'tc> Typer<'tc> {
                 // We don't know this; it depends on the subject:
                 Ok(self.builder().create_unresolved_term())
             }
-            Pat::Const(ConstPat { term, .. }) => Ok(term),
+            Pat::Const(ConstPat { term }) => Ok(term),
             Pat::Access(AccessPat { subject, property }) => {
                 let subject_id = self.get_term_of_pat(subject)?;
 
@@ -514,36 +514,41 @@ impl<'tc> Typer<'tc> {
     /// the term is a constructed literal).
     ///
     /// Note: Assumes the term is simplified.
-    pub(crate) fn infer_constructors_of_nominal_term(
+    pub(crate) fn infer_constructor_of_nominal_term(
         &self,
-        term_id: TermId,
+        term: TermId,
     ) -> TcResult<Vec<(TermId, ParamsId)>> {
-        let term = self.reader().get_term(term_id);
-
-        match term {
+        match self.reader().get_term(term) {
             Term::Level0(Level0Term::Constructed(ConstructedTerm { subject, members })) => {
                 let members = self.infer_params_of_args(members, true)?;
                 Ok(vec![(subject, members)])
             }
+            Term::Level1(Level1Term::NominalDef(nominal_id)) => {
+                match self.reader().get_nominal_def(nominal_id) {
+                    NominalDef::Struct(struct_def) => match struct_def.fields {
+                        StructFields::Explicit(params) => Ok(vec![(term, params)]),
+                        StructFields::Opaque => Ok(vec![]),
+                    },
+                    _ => Ok(vec![]),
+                }
+            }
             _ => {
-                let constructed_ty_id = self.infer_ty_of_simplified_term(term_id)?;
-                let reader = self.reader();
-                let constructed_term = reader.get_term(constructed_ty_id);
+                let constructed_ty_id = self.infer_ty_of_simplified_term(term)?;
 
-                match constructed_term {
+                match self.reader().get_term(constructed_ty_id) {
                     Term::Union(terms) => {
                         // Accumulate all terms
                         terms
                             .iter()
                             .copied()
-                            .map(|term| self.infer_constructors_of_nominal_term(term))
+                            .map(|term| self.infer_constructor_of_nominal_term(term))
                             .flatten_ok()
                             .collect()
                     }
                     Term::SetBound(set_bound) => {
                         // Recurse to inner and then apply the set bound on the results
                         let result = self.scope_manager().enter_scope(set_bound.scope, |this| {
-                            this.typer().infer_constructors_of_nominal_term(set_bound.term)
+                            this.typer().infer_constructor_of_nominal_term(set_bound.term)
                         })?;
                         result
                             .into_iter()
@@ -564,15 +569,15 @@ impl<'tc> Typer<'tc> {
                         terms
                             .iter()
                             .copied()
-                            .map(|term| self.infer_constructors_of_nominal_term(term))
+                            .map(|term| self.infer_constructor_of_nominal_term(term))
                             .flatten_ok()
                             .collect()
                     }
                     Term::Level1(Level1Term::NominalDef(nominal_id)) => {
-                        match reader.get_nominal_def(nominal_id) {
+                        match self.reader().get_nominal_def(nominal_id) {
                             NominalDef::Struct(struct_def) => match struct_def.fields {
                                 // @@Todo: remove default members:
-                                StructFields::Explicit(params) => Ok(vec![(term_id, params)]),
+                                StructFields::Explicit(params) => Ok(vec![(term, params)]),
                                 StructFields::Opaque => Ok(vec![]),
                             },
                             _ => Ok(vec![]),

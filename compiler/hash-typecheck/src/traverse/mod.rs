@@ -1976,13 +1976,15 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let walk::ConstructorPat { args, subject } = walk::walk_constructor_pat(self, ctx, node)?;
 
         let constructor_params = self.builder().create_pat_args(args, ParamOrigin::Unknown);
+        self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), constructor_params);
 
         let subject = self.typer().get_term_of_pat(subject)?;
-        let constructor_pat = self.builder().create_constructor_pat(subject, constructor_params);
+        let simplified = self.simplifier().potentially_simplify_term(subject)?;
 
-        self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), constructor_params);
+        let constructor_pat = self.builder().create_constructor_pat(simplified, constructor_params);
         self.copy_location_from_node_to_target(node, constructor_pat);
 
+        self.validator().validate_constructor_pat(constructor_pat)?;
         Ok(constructor_pat)
     }
 
