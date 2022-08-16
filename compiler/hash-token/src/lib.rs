@@ -3,7 +3,7 @@
 pub mod delimiter;
 pub mod keyword;
 
-use delimiter::Delimiter;
+use delimiter::{Delimiter, DelimiterVariant};
 use hash_source::{identifier::Identifier, location::Span, string::Str};
 use keyword::Keyword;
 use smallvec::{smallvec, SmallVec};
@@ -12,7 +12,7 @@ use smallvec::{smallvec, SmallVec};
 /// The token contains a kind which is elaborated by [TokenKind] and a [Span] in
 /// the source that is represented as a span. The span is the beginning byte
 /// offset, and the number of bytes for the said token.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub struct Token {
     /// The current token type.
     pub kind: TokenKind,
@@ -187,10 +187,8 @@ pub enum TokenKind {
     /// Keyword
     Keyword(Keyword),
 
-    /// Delimiter: '(' '{', '[' and right hand-side variants, useful for error
-    /// reporting and messages. The boolean flag represents if the delimiter
-    /// is left or right, If it's true, then it is the left variant.
-    Delimiter(Delimiter, bool),
+    /// Delimiters `(`, `{`, `[` and right hand-side variants
+    Delimiter(Delimiter, DelimiterVariant),
 
     /// A token that was unexpected by the lexer, e.g. a unicode symbol not
     /// within string literal.
@@ -252,8 +250,8 @@ impl std::fmt::Display for TokenKind {
             TokenKind::IntLit(num) => write!(f, "{}", num),
             TokenKind::FloatLit(num) => write!(f, "{}", num),
             TokenKind::CharLit(ch) => write!(f, "'{}'", ch),
-            TokenKind::Delimiter(delim, left) => {
-                if *left {
+            TokenKind::Delimiter(delim, variant) => {
+                if *variant == DelimiterVariant::Left {
                     write!(f, "{}", delim.left())
                 } else {
                     write!(f, "{}", delim.right())
@@ -282,7 +280,7 @@ impl std::fmt::Display for TokenKind {
 /// can just the display representations of the token atoms. Or even better, we
 /// can use the [`ToString`] trait and just auto cast into a string, whilst
 /// holding a vector of strings.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TokenKindVector(SmallVec<[TokenKind; 2]>);
 
 impl TokenKindVector {

@@ -4,17 +4,27 @@
 
 use crate::report::Report;
 
-pub trait Diagnostics<E: Into<Report>, W: Into<Report>> {
+pub trait Diagnostics<E: Into<Report>, W> {
     /// The store that is used to store the relevant diagnostics,
     /// this is up to the implementation of the trait how the  
     /// store is implemented.
     type DiagnosticsStore;
 
     /// Get a reference to the associated [Self::DiagnosticsStore]
-    fn store(&self) -> &Self::DiagnosticsStore;
+    fn diagnostic_store(&self) -> &Self::DiagnosticsStore;
+
+    /// Get a mutable reference to [Self::DiagnosticsStore]
+    fn diagnostic_store_mut(&mut self) -> &mut Self::DiagnosticsStore;
 
     /// Add an error into the [Self]
     fn add_error(&mut self, error: E);
+
+    /// Add an error from a [Result<T, E>] if the result is erroneous.
+    fn maybe_add_error<T>(&mut self, value: Result<T, E>) {
+        if let Err(e) = value {
+            self.add_error(e);
+        }
+    }
 
     /// Add a warning into the diagnostics store.
     fn add_warning(&mut self, warning: W);
@@ -36,5 +46,5 @@ pub trait Diagnostics<E: Into<Report>, W: Into<Report>> {
     fn into_diagnostics(self) -> (Vec<E>, Vec<W>);
 
     /// Merge another diagnostic store with this one.
-    fn merge(&mut self, other: impl Diagnostics<E, W>);
+    fn merge_diagnostics(&mut self, other: impl Diagnostics<E, W>);
 }

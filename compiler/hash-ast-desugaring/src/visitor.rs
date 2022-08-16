@@ -251,17 +251,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         Ok(())
     }
 
-    type ConstructorCallArgsRet = ();
-
-    fn visit_constructor_call_args(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ConstructorCallArgs>,
-    ) -> Result<Self::ConstructorCallArgsRet, Self::Error> {
-        let _ = walk_mut::walk_constructor_call_args(self, ctx, node);
-        Ok(())
-    }
-
     type ConstructorCallExprRet = ();
 
     fn visit_constructor_call_expr(

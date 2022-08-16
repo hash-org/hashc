@@ -282,21 +282,6 @@ impl AstVisitor for SemanticAnalyser<'_> {
         Ok(())
     }
 
-    type ConstructorCallArgsRet = ();
-
-    fn visit_constructor_call_args(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ConstructorCallArgs>,
-    ) -> Result<Self::ConstructorCallArgsRet, Self::Error> {
-        // Here we don't validate ordering of arguments because this is done later
-        // at typechecking when we can give more context about the problem (if there is
-        // one).
-
-        let _ = walk::walk_constructor_call_args(self, ctx, node);
-        Ok(())
-    }
-
     type ConstructorCallExprRet = ();
 
     fn visit_constructor_call_expr(

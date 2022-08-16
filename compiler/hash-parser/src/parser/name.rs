@@ -24,7 +24,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             {
                 Ok(self.node_with_span(Name { ident: *ident }, *span))
             }
-            token => self.error_with_location(
+            token => self.err_with_location(
                 err,
                 None,
                 None,

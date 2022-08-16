@@ -11,7 +11,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a [Ty]. This includes all forms of a [Ty]. This function
     /// does not deal with any kind of [Ty] annotation or [TyFnDef]
     /// syntax.
-    pub(crate) fn parse_type(&self) -> ParseResult<AstNode<Ty>> {
+    pub(crate) fn parse_type(&mut self) -> ParseResult<AstNode<Ty>> {
         self.parse_type_with_precedence(0)
     }
 
@@ -19,7 +19,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// [BinTyOp] operators which are binary operators for type terms. This
     /// function implements the same precedence algorithm for correctly
     /// forming binary type expressions.
-    fn parse_type_with_precedence(&self, min_prec: u8) -> ParseResult<AstNode<Ty>> {
+    fn parse_type_with_precedence(&mut self, min_prec: u8) -> ParseResult<AstNode<Ty>> {
         let mut lhs = self.parse_singular_type()?;
         let lhs_span = lhs.span();
 
@@ -45,9 +45,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     lhs =
                         match op {
                             BinTyOp::Union => self
-                                .node_with_joined_span(Ty::Union(UnionTy { lhs, rhs }), &lhs_span),
+                                .node_with_joined_span(Ty::Union(UnionTy { lhs, rhs }), lhs_span),
                             BinTyOp::Merge => self
-                                .node_with_joined_span(Ty::Merge(MergeTy { lhs, rhs }), &lhs_span),
+                                .node_with_joined_span(Ty::Merge(MergeTy { lhs, rhs }), lhs_span),
                         }
                 }
                 _ => break,
@@ -58,9 +58,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     }
 
     /// Parse a [Ty]. This includes only singular forms of a type.
-    fn parse_singular_type(&self) -> ParseResult<AstNode<Ty>> {
+    fn parse_singular_type(&mut self) -> ParseResult<AstNode<Ty>> {
         let token = self.peek().ok_or_else(|| {
-            self.make_error(ParseErrorKind::ExpectedType, None, None, Some(self.next_location()))
+            self.make_err(ParseErrorKind::ExpectedType, None, None, Some(self.next_location()))
         })?;
 
         let mut multi_ty_components = true;
@@ -95,7 +95,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 self.skip_token();
 
                 let tree = self.token_trees.get(*tree_index).unwrap();
-                let gen = self.from_stream(tree, token.span);
+                let mut gen = self.from_stream(tree, token.span);
 
                 let key_ty = gen.parse_type()?;
 
@@ -104,8 +104,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     Some(token) if token.has_kind(TokenKind::Colon) => {
                         gen.skip_token();
 
+                        // @@ErrorRecovery: Investigate introducing `Err` variant into types...
                         let value_ty = gen.parse_type()?;
-                        gen.verify_is_empty()?;
+                        self.consume_gen(gen);
 
                         Ty::Map(MapTy { key: key_ty, value: value_ty })
                     }
@@ -119,10 +120,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 self.skip_token();
 
                 let tree = self.token_trees.get(*tree_index).unwrap();
-                let gen = self.from_stream(tree, token.span);
+                let mut gen = self.from_stream(tree, token.span);
 
+                // @@ErrorRecovery: Investigate introducing `Err` variant into types...
                 let inner_type = gen.parse_type()?;
-                gen.verify_is_empty()?;
+                self.consume_gen(gen);
 
                 Ty::List(ListTy { inner: inner_type })
             }
@@ -141,7 +143,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
 
             kind => {
-                self.error_with_location(ParseErrorKind::ExpectedType, None, Some(*kind), span)?
+                self.err_with_location(ParseErrorKind::ExpectedType, None, Some(*kind), span)?
             }
         };
 
@@ -153,8 +155,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
                     Ty::TyFnCall(TyFnCall {
                         subject: self.node_with_joined_span(
-                            Expr::new(ExprKind::Ty(TyExpr(self.node_with_joined_span(ty, &span)))),
-                            &span,
+                            Expr::new(ExprKind::Ty(TyExpr(self.node_with_joined_span(ty, span)))),
+                            span,
                         ),
                         args: self.parse_ty_args(true)?,
                     })
@@ -163,7 +165,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     self.offset.update(|offset| offset + 2);
 
                     Ty::Access(AccessTy {
-                        subject: self.node_with_joined_span(ty, &span),
+                        subject: self.node_with_joined_span(ty, span),
                         property: self.parse_name()?
                     })
                 }
@@ -171,7 +173,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
         }
 
-        Ok(self.node_with_joined_span(ty, &span))
+        Ok(self.node_with_joined_span(ty, span))
     }
 
     /// This parses type arguments, however due to the nature of the language
@@ -181,7 +183,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// have to lookahead to see if there is another type followed by
     ///either a comma (which locks the `type_args`) or a
     /// closing [`TokenKind::Gt`].
-    pub(crate) fn parse_ty_args(&self, lt_eaten: bool) -> ParseResult<AstNodes<TyArg>> {
+    pub(crate) fn parse_ty_args(&mut self, lt_eaten: bool) -> ParseResult<AstNodes<TyArg>> {
         // Only parse is if the caller specifies that they haven't eaten an `lt`
         if !lt_eaten {
             self.parse_token(TokenKind::Lt)?;
@@ -226,7 +228,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     self.skip_token();
                     break;
                 }
-                Some(token) => self.error(
+                Some(token) => self.err(
                     ParseErrorKind::Expected,
                     Some(TokenKindVector::from_vec(smallvec![TokenKind::Comma, TokenKind::Gt])),
                     Some(token.kind),
@@ -244,10 +246,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// arbitrary number of comma separated types followed by a return
     /// [Ty] that is preceded by an `thin-arrow` (->) after the
     /// parentheses. e.g. `(i32) -> str`
-    fn parse_fn_or_tuple_ty(&self) -> ParseResult<Ty> {
+    fn parse_fn_or_tuple_ty(&mut self) -> ParseResult<Ty> {
         let mut params = AstNodes::empty();
 
-        let gen = self.parse_delim_tree(Delimiter::Paren, None)?;
+        let mut gen = self.parse_delim_tree(Delimiter::Paren, None)?;
         params.span = gen.parent_span;
 
         match gen.peek() {
@@ -258,26 +260,26 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
             _ => {
                 params = gen.parse_separated_fn(
-                    || {
-                        let start = gen.next_location();
+                    |g| {
+                        let start = g.next_location();
 
                         // Here we have to essentially try and parse a identifier. If this is the
                         // case and then there is a colon present then we
                         // have a named field.
-                        let (name, ty) = match gen.peek_second() {
+                        let (name, ty) = match g.peek_second() {
                             Some(token) if token.has_kind(TokenKind::Colon) => {
-                                let ident = gen.parse_name()?;
-                                gen.skip_token(); // :
+                                let ident = g.parse_name()?;
+                                g.skip_token(); // :
 
-                                (Some(ident), gen.parse_type()?)
+                                (Some(ident), g.parse_type()?)
                             }
-                            _ => (None, gen.parse_type()?),
+                            _ => (None, g.parse_type()?),
                         };
 
-                        Ok(gen.node_with_joined_span(TyArg { name, ty }, &start))
+                        Ok(g.node_with_joined_span(TyArg { name, ty }, start))
                     },
-                    || gen.parse_token(TokenKind::Comma),
-                )?;
+                    |g| g.parse_token(TokenKind::Comma),
+                );
             }
         };
 
@@ -285,9 +287,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // if this is a `TupleType`...
         let gen_has_comma =
             !gen.stream.is_empty() && gen.token_at(gen.offset() - 1).has_kind(TokenKind::Comma);
+        self.consume_gen(gen);
 
         // If there is an arrow '=>', then this must be a function type
-        match self.peek_resultant_fn(|| self.parse_thin_arrow()) {
+        match self.peek_resultant_fn(|g| g.parse_thin_arrow()) {
             Some(_) => {
                 // Parse the return type here, and then give the function name
                 Ok(Ty::Fn(FnTy { params, return_ty: self.parse_type()? }))
@@ -308,7 +311,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parses a [Ty::TyFn] with the pre-condition that the initial
     /// subject type is parsed and passed into the function. This function
     /// only deals with the argument part of the function.
-    fn parse_ty_fn(&self) -> ParseResult<Ty> {
+    fn parse_ty_fn(&mut self) -> ParseResult<Ty> {
         // Since this is only called from `parse_singular_type` we know that this should
         // only be fired when the next token is a an `<`
         debug_assert!(matches!(self.next_token(), Some(Token { kind: TokenKind::Lt, .. })));
@@ -358,7 +361,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
                     break;
                 }
-                Some(token) => self.error(
+                Some(token) => self.err(
                     ParseErrorKind::Expected,
                     Some(TokenKindVector::from_vec(smallvec![TokenKind::Comma, TokenKind::Gt])),
                     Some(token.kind),

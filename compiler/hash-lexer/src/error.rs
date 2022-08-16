@@ -1,6 +1,6 @@
 //! Hash Compiler lexer error data types.
 
-use std::convert::Infallible;
+use std::{cell::Cell, convert::Infallible};
 
 use derive_more::Constructor;
 use hash_reporting::{
@@ -80,19 +80,28 @@ impl From<LexerError> for Report {
 /// it can implement [Diagnostics::DiagnosticsStore]
 #[derive(Default)]
 pub struct LexerDiagnostics {
+    /// Inner stored diagnostics from the lexer.
     errors: Vec<LexerError>,
+
+    /// Whether the [Lexer] encountered a fatal error and
+    /// must abort on the next token advance
+    pub(crate) has_fatal_error: Cell<bool>,
 }
 
 impl Diagnostics<LexerError, Infallible> for Lexer<'_> {
     type DiagnosticsStore = LexerDiagnostics;
 
-    fn store(&self) -> &Self::DiagnosticsStore {
+    fn diagnostic_store(&self) -> &Self::DiagnosticsStore {
         &self.diagnostics
+    }
+
+    fn diagnostic_store_mut(&mut self) -> &mut Self::DiagnosticsStore {
+        &mut self.diagnostics
     }
 
     /// Add an error into the store
     fn add_error(&mut self, error: LexerError) {
-        self.diagnostics.errors.push(error);
+        self.diagnostic_store_mut().errors.push(error);
     }
 
     /// The lexer does not currently emit any warnings and so if this
@@ -102,7 +111,7 @@ impl Diagnostics<LexerError, Infallible> for Lexer<'_> {
     }
 
     fn has_errors(&self) -> bool {
-        !self.diagnostics.errors.is_empty()
+        !self.diagnostic_store().errors.is_empty()
     }
 
     /// Lexer never emits any warnings so this always false
@@ -118,7 +127,7 @@ impl Diagnostics<LexerError, Infallible> for Lexer<'_> {
         (self.diagnostics.errors, vec![])
     }
 
-    fn merge(&mut self, other: impl Diagnostics<LexerError, Infallible>) {
+    fn merge_diagnostics(&mut self, other: impl Diagnostics<LexerError, Infallible>) {
         let (errors, _) = other.into_diagnostics();
         self.diagnostics.errors.extend(errors)
     }

@@ -25,7 +25,6 @@ use crate::{
     },
     ops::{scope::ScopeManager, AccessToOps},
     storage::{
-        arguments::ArgsId,
         location::{IndexedLocationTarget, LocationTarget},
         pats::PatId,
         primitives::{
@@ -494,25 +493,6 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         Ok(Arg { name, value })
     }
 
-    type ConstructorCallArgsRet = ArgsId;
-
-    fn visit_constructor_call_args(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ConstructorCallArgs>,
-    ) -> Result<Self::ConstructorCallArgsRet, Self::Error> {
-        let walk::ConstructorCallArgs { entries } =
-            walk::walk_constructor_call_args(self, ctx, node)?;
-
-        // Create the Args object:
-        let args = self.builder().create_args(entries, ParamOrigin::Unknown);
-
-        // Add locations:
-        self.copy_location_from_nodes_to_targets(node.entries.ast_ref_iter(), args);
-
-        Ok(args)
-    }
-
     type ConstructorCallExprRet = TermId;
 
     fn visit_constructor_call_expr(
@@ -522,6 +502,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     ) -> Result<Self::ConstructorCallExprRet, Self::Error> {
         let walk::ConstructorCallExpr { args, subject } =
             walk::walk_constructor_call_expr(self, ctx, node)?;
+
+        // Create the Args object and add locations
+        let args = self.builder().create_args(args, ParamOrigin::Unknown);
+        self.copy_location_from_nodes_to_targets(node.args.ast_ref_iter(), args);
 
         // Create the function call term:
         let return_term = self.builder().create_fn_call_term(subject, args);

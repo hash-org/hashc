@@ -169,13 +169,6 @@ pub trait AstVisitor: Sized {
         node: ast::AstNodeRef<ast::ConstructorCallArg>,
     ) -> Result<Self::ConstructorCallArgRet, Self::Error>;
 
-    type ConstructorCallArgsRet;
-    fn visit_constructor_call_args(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::ConstructorCallArgs>,
-    ) -> Result<Self::ConstructorCallArgsRet, Self::Error>;
-
     type ConstructorCallExprRet;
     fn visit_constructor_call_expr(
         &mut self,
@@ -863,13 +856,6 @@ pub trait AstVisitorMut: Sized {
         ctx: &Self::Ctx,
         node: ast::AstNodeRefMut<ast::ConstructorCallArg>,
     ) -> Result<Self::ConstructorCallArgRet, Self::Error>;
-
-    type ConstructorCallArgsRet;
-    fn visit_constructor_call_args(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::ConstructorCallArgs>,
-    ) -> Result<Self::ConstructorCallArgsRet, Self::Error>;
 
     type ConstructorCallExprRet;
     fn visit_constructor_call_expr(
@@ -1671,26 +1657,9 @@ pub mod walk {
         })
     }
 
-    pub struct ConstructorCallArgs<V: AstVisitor> {
-        pub entries: V::CollectionContainer<V::ConstructorCallArgRet>,
-    }
-
-    pub fn walk_constructor_call_args<V: AstVisitor>(
-        visitor: &mut V,
-        ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::ConstructorCallArgs>,
-    ) -> Result<ConstructorCallArgs<V>, V::Error> {
-        Ok(ConstructorCallArgs {
-            entries: V::try_collect_items(
-                ctx,
-                node.entries.iter().map(|e| visitor.visit_constructor_call_arg(ctx, e.ast_ref())),
-            )?,
-        })
-    }
-
     pub struct ConstructorCallExpr<V: AstVisitor> {
         pub subject: V::ExprRet,
-        pub args: V::ConstructorCallArgsRet,
+        pub args: V::CollectionContainer<V::ConstructorCallArgRet>,
     }
 
     pub fn walk_constructor_call_expr<V: AstVisitor>(
@@ -1700,7 +1669,10 @@ pub mod walk {
     ) -> Result<ConstructorCallExpr<V>, V::Error> {
         Ok(ConstructorCallExpr {
             subject: visitor.visit_expr(ctx, node.subject.ast_ref())?,
-            args: visitor.visit_constructor_call_args(ctx, node.args.ast_ref())?,
+            args: V::try_collect_items(
+                ctx,
+                node.args.iter().map(|e| visitor.visit_constructor_call_arg(ctx, e.ast_ref())),
+            )?,
         })
     }
 
@@ -3328,28 +3300,9 @@ pub mod walk_mut {
         })
     }
 
-    pub struct ConstructorCallArgs<V: AstVisitorMut> {
-        pub entries: V::CollectionContainer<V::ConstructorCallArgRet>,
-    }
-
-    pub fn walk_constructor_call_args<V: AstVisitorMut>(
-        visitor: &mut V,
-        ctx: &V::Ctx,
-        mut node: ast::AstNodeRefMut<ast::ConstructorCallArgs>,
-    ) -> Result<ConstructorCallArgs<V>, V::Error> {
-        Ok(ConstructorCallArgs {
-            entries: V::try_collect_items(
-                ctx,
-                node.entries
-                    .iter_mut()
-                    .map(|e| visitor.visit_constructor_call_arg(ctx, e.ast_ref_mut())),
-            )?,
-        })
-    }
-
     pub struct ConstructorCallExpr<V: AstVisitorMut> {
         pub subject: V::ExprRet,
-        pub args: V::ConstructorCallArgsRet,
+        pub args: V::CollectionContainer<V::ConstructorCallArgRet>,
     }
 
     pub fn walk_constructor_call_expr<V: AstVisitorMut>(
@@ -3359,7 +3312,12 @@ pub mod walk_mut {
     ) -> Result<ConstructorCallExpr<V>, V::Error> {
         Ok(ConstructorCallExpr {
             subject: visitor.visit_expr(ctx, node.subject.ast_ref_mut())?,
-            args: visitor.visit_constructor_call_args(ctx, node.args.ast_ref_mut())?,
+            args: V::try_collect_items(
+                ctx,
+                node.args
+                    .iter_mut()
+                    .map(|e| visitor.visit_constructor_call_arg(ctx, e.ast_ref_mut())),
+            )?,
         })
     }
 

@@ -14,7 +14,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// syntax which permits for conditional matching of a pattern. There
     /// are only a few contexts where the full range of patterns is allowed
     /// (such as the `match` cases).
-    pub fn parse_pat(&self) -> ParseResult<AstNode<Pat>> {
+    pub fn parse_pat(&mut self) -> ParseResult<AstNode<Pat>> {
         // attempt to get the next token location as we're starting a pattern here, if
         // there is no token we should exit and return an error
         let start = self.next_location();
@@ -41,13 +41,13 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         if variants.len() == 1 {
             Ok(variants.nodes.pop().unwrap())
         } else {
-            Ok(self.node_with_joined_span(Pat::Or(OrPat { variants }), &start))
+            Ok(self.node_with_joined_span(Pat::Or(OrPat { variants }), start))
         }
     }
 
     /// Parse a [Pat] with an optional `if-guard` after the singular
     /// pattern.
-    pub fn parse_pat_with_if(&self) -> ParseResult<AstNode<Pat>> {
+    pub fn parse_pat_with_if(&mut self) -> ParseResult<AstNode<Pat>> {
         let start = self.next_location();
         let pat = self.parse_singular_pat()?;
 
@@ -57,7 +57,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
                 let condition = self.parse_expr_with_precedence(0)?;
 
-                Ok(self.node_with_joined_span(Pat::If(IfPat { pat, condition }), &start))
+                Ok(self.node_with_joined_span(Pat::If(IfPat { pat, condition }), start))
             }
             _ => Ok(pat),
         }
@@ -66,7 +66,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a singular [Pat]. Singular [Pat]s cannot have any grouped
     /// pattern operators such as a `|`, if guards or any form of compound
     /// pattern.
-    pub(crate) fn parse_singular_pat(&self) -> ParseResult<AstNode<Pat>> {
+    pub(crate) fn parse_singular_pat(&mut self) -> ParseResult<AstNode<Pat>> {
         let (mut subject, can_continue) = self.parse_pat_component()?;
         let span = subject.span();
 
@@ -77,16 +77,17 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     self.skip_token();
 
                     let tree = self.token_trees.get(tree_index).unwrap();
-                    let gen = self.from_stream(tree, token.span);
+                    let mut gen = self.from_stream(tree, token.span);
 
                     let fields = gen.parse_separated_fn(
-                        || gen.parse_tuple_pat_entry(),
-                        || gen.parse_token(TokenKind::Comma),
-                    )?;
+                        |g| g.parse_tuple_pat_entry(),
+                        |g| g.parse_token(TokenKind::Comma),
+                    );
+                    self.consume_gen(gen);
 
                     self.node_with_joined_span(
                         Pat::Constructor(ConstructorPat { subject, fields }),
-                        &span,
+                        span,
                     )
                 }
                 // An access pattern which accesses the `subject` with a particular `property`
@@ -97,7 +98,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
                     self.node_with_joined_span(
                         Pat::Access(AccessPat { subject, property: self.parse_name()? }),
-                        &span,
+                        span,
                     )
                 }
                 _ => break,
@@ -116,10 +117,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Returns a flag whether further patterns that are applied onto this
     /// [Pat] can be parsed. The `can_continue` flag is set to `false` if this
     /// produces a [Pat::Range].
-    fn parse_pat_component(&self) -> ParseResult<(AstNode<Pat>, bool)> {
+    fn parse_pat_component(&mut self) -> ParseResult<(AstNode<Pat>, bool)> {
         let start = self.next_location();
         let token =
-            self.peek().ok_or_else(|| self.make_error(ParseErrorKind::Eof, None, None, None))?;
+            self.peek().ok_or_else(|| self.make_err(ParseErrorKind::Expected, None, None, None))?;
 
         let pat = match token {
             Token { kind: TokenKind::Ident(ident), .. }
@@ -156,7 +157,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                         Pat::Lit(LitPat(lit))
                     }
                     // @@Future: could refine error here to be more specific about numeric literals
-                    token => self.error_with_location(
+                    token => self.err_with_location(
                         ParseErrorKind::ExpectedPat,
                         None,
                         token.map(|tok| tok.kind),
@@ -193,7 +194,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
                 return Ok((self.parse_list_pat(tree, *span)?, true));
             }
-            token => self.error_with_location(
+            token => self.err_with_location(
                 ParseErrorKind::ExpectedPat,
                 None,
                 Some(token.kind),
@@ -218,17 +219,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             (pat, true)
         };
 
-        Ok((self.node_with_joined_span(pat, &start), can_continue))
-    }
-
-    /// Parse an arbitrary number of [Pat]s which are comma separated.
-    pub fn parse_pat_collection(&self) -> ParseResult<AstNodes<Pat>> {
-        self.parse_separated_fn(|| self.parse_pat(), || self.parse_token(TokenKind::Comma))
+        Ok((self.node_with_joined_span(pat, start), can_continue))
     }
 
     /// Attempt to parse a range-pattern, if it fails then the
     /// function returns [None]
-    fn maybe_parse_range_pat(&self, lo: AstNode<Lit>) -> Option<RangePat> {
+    fn maybe_parse_range_pat(&mut self, lo: AstNode<Lit>) -> Option<RangePat> {
         let offset = self.offset();
 
         // Parse the two dots...
@@ -249,7 +245,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         };
 
         // Now parse the `hi` part of the range
-        match self.peek_resultant_fn(|| self.parse_primitive_lit()) {
+        match self.parse_primitive_lit().ok() {
             Some(hi) => Some(RangePat { lo, hi, end }),
             None => {
                 // Reset the token offset to the beginning
@@ -263,7 +259,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// destructuring either a struct or a namespace to extract fields,
     /// exported members. The function takes in a token atom because both
     /// syntaxes use different operators as pattern assigners.
-    pub(crate) fn parse_module_pat_entry(&self) -> ParseResult<AstNode<ModulePatEntry>> {
+    pub(crate) fn parse_module_pat_entry(&mut self) -> ParseResult<AstNode<ModulePatEntry>> {
         let start = self.current_location();
         let name = self.parse_name()?;
 
@@ -283,31 +279,31 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
         };
 
-        Ok(self.node_with_joined_span(ModulePatEntry { name, pat }, &start))
+        Ok(self.node_with_joined_span(ModulePatEntry { name, pat }, start))
     }
 
     /// Parse a [ModulePat] which is comprised of a collection of
     /// [ModulePatEntry]s that are comma separated within a brace tree.
-    fn parse_module_pat(&self, tree: &'stream [Token], span: Span) -> ParseResult<ModulePat> {
-        let gen = self.from_stream(tree, span);
+    fn parse_module_pat(&mut self, tree: &'stream [Token], span: Span) -> ParseResult<ModulePat> {
+        let mut gen = self.from_stream(tree, span);
         let mut fields = vec![];
 
         while gen.has_token() {
-            match gen.peek_resultant_fn(|| gen.parse_module_pat_entry()) {
+            let start = gen.offset();
+
+            match gen.parse_module_pat_entry().ok() {
                 Some(pat) => fields.push(pat),
-                None => break,
+                None => {
+                    gen.offset.set(start);
+                    break;
+                }
             }
 
             if gen.has_token() {
                 gen.parse_token(TokenKind::Comma)?;
             }
         }
-
-        // @@ErrorReporting: So here, there is a problem because we do actually want to
-        // report that this should have been the end of the pattern but because in some
-        // contexts the function is being peeked and the error is being ignored, maybe
-        // there should be some mechanism to cause the function to hard error?
-        gen.verify_is_empty()?;
+        self.consume_gen(gen);
 
         Ok(ModulePat { fields: AstNodes::new(fields, Some(span)) })
     }
@@ -316,13 +312,13 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// consists of a list of comma separated within a square brackets .e.g
     /// `[x, 1, ..]`
     pub(crate) fn parse_list_pat(
-        &self,
+        &mut self,
         tree: &'stream [Token],
         parent_span: Span,
     ) -> ParseResult<AstNode<Pat>> {
-        let gen = self.from_stream(tree, parent_span);
-
-        let fields = gen.parse_pat_collection()?;
+        let mut gen = self.from_stream(tree, parent_span);
+        let fields = gen.parse_separated_fn(|g| g.parse_pat(), |g| g.parse_token(TokenKind::Comma));
+        self.consume_gen(gen);
 
         Ok(self.node_with_span(Pat::List(ListPat { fields }), parent_span))
     }
@@ -335,7 +331,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// the function will assume that this is not a tuple pattern and simply
     /// a pattern wrapped within parentheses.
     pub(crate) fn parse_tuple_pat(
-        &self,
+        &mut self,
         tree: &'stream [Token],
         parent_span: Span,
     ) -> ParseResult<AstNode<Pat>> {
@@ -354,12 +350,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // perform a slight transformation if the number of parsed patterns is
         // only one. So essentially we handle the case where a pattern is
         // wrapped in parentheses and so we just unwrap it.
-        let gen = self.from_stream(tree, parent_span);
+        let mut gen = self.from_stream(tree, parent_span);
 
-        let mut elements = gen.parse_separated_fn(
-            || gen.parse_tuple_pat_entry(),
-            || gen.parse_token(TokenKind::Comma),
-        )?;
+        let mut elements = gen
+            .parse_separated_fn(|g| g.parse_tuple_pat_entry(), |g| g.parse_token(TokenKind::Comma));
 
         // If there is no associated name with the entry and there is only one entry
         // then we can be sure that it is only a nested entry.
@@ -367,17 +361,22 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             && elements[0].name.is_none()
             && !matches!(gen.current_token().kind, TokenKind::Comma)
         {
-            let element = elements.nodes.pop().unwrap().into_body();
+            // @@Future: we want to check if there were any errors and then
+            // if not we want to possibly emit a warning about redundant parentheses
+            // for this particular pattern
+            self.consume_gen(gen);
 
+            let element = elements.nodes.pop().unwrap().into_body();
             Ok(element.pat)
         } else {
+            self.consume_gen(gen);
             Ok(self.node_with_span(Pat::Tuple(TuplePat { fields: elements }), parent_span))
         }
     }
 
     /// Parse an entry within a tuple pattern which might contain an optional
     /// [Name] node.
-    pub(crate) fn parse_tuple_pat_entry(&self) -> ParseResult<AstNode<TuplePatEntry>> {
+    pub(crate) fn parse_tuple_pat_entry(&mut self) -> ParseResult<AstNode<TuplePatEntry>> {
         let start = self.next_location();
 
         let (name, pat) = match self.peek() {
@@ -397,7 +396,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             _ => (None, self.parse_pat()?),
         };
 
-        Ok(self.node_with_joined_span(TuplePatEntry { name, pat }, &start))
+        Ok(self.node_with_joined_span(TuplePatEntry { name, pat }, start))
     }
 
     /// Parse a spread operator from the current token tree. A spread operator
@@ -411,7 +410,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn parse_spread_pat(&self) -> ParseResult<SpreadPat> {
         for k in 0..3 {
             self.parse_token_fast(TokenKind::Dot).ok_or_else(|| {
-                self.make_error(
+                self.make_err(
                     ParseErrorKind::MalformedSpreadPattern(3 - k),
                     None,
                     None,
@@ -422,7 +421,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         // Try and see if there is a identifier that is followed by the spread to try
         // and bind the capture to a variable
-        let name = self.peek_resultant_fn(|| self.parse_name());
+        let name = self.peek_resultant_fn(|g| g.parse_name());
 
         Ok(SpreadPat { name })
     }
@@ -432,7 +431,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// function also accounts for visibility or mutability modifiers on the
     /// binding pattern.
     fn parse_binding_pat(&self) -> ParseResult<Pat> {
-        let visibility = self.peek_resultant_fn(|| self.parse_visibility());
+        let visibility = self.peek_resultant_fn(|g| g.parse_visibility());
 
         // Parse a mutability modifier if any
         let mutability = self
@@ -453,7 +452,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             Some(Token { kind: TokenKind::Keyword(Keyword::Priv), span }) => {
                 Ok(self.node_with_span(Visibility::Private, *span))
             }
-            token => self.error_with_location(
+            token => self.err_with_location(
                 ParseErrorKind::Expected,
                 None,
                 token.map(|t| t.kind),

@@ -23,8 +23,12 @@ pub struct AnalyserDiagnostics {
 impl Diagnostics<AnalysisError, AnalysisWarning> for SemanticAnalyser<'_> {
     type DiagnosticsStore = AnalyserDiagnostics;
 
-    fn store(&self) -> &Self::DiagnosticsStore {
+    fn diagnostic_store(&self) -> &Self::DiagnosticsStore {
         &self.diagnostics
+    }
+
+    fn diagnostic_store_mut(&mut self) -> &mut Self::DiagnosticsStore {
+        &mut self.diagnostics
     }
 
     fn add_error(&mut self, error: AnalysisError) {
@@ -32,15 +36,15 @@ impl Diagnostics<AnalysisError, AnalysisWarning> for SemanticAnalyser<'_> {
     }
 
     fn add_warning(&mut self, warning: AnalysisWarning) {
-        self.diagnostics.warnings.push(warning);
+        self.diagnostic_store_mut().warnings.push(warning);
     }
 
     fn has_errors(&self) -> bool {
-        !self.diagnostics.errors.is_empty()
+        !self.diagnostic_store().errors.is_empty()
     }
 
     fn has_warnings(&self) -> bool {
-        !self.diagnostics.warnings.is_empty()
+        !self.diagnostic_store().warnings.is_empty()
     }
 
     fn into_reports(self) -> Vec<Report> {
@@ -56,7 +60,7 @@ impl Diagnostics<AnalysisError, AnalysisWarning> for SemanticAnalyser<'_> {
         (self.diagnostics.errors, self.diagnostics.warnings)
     }
 
-    fn merge(&mut self, other: impl Diagnostics<AnalysisError, AnalysisWarning>) {
+    fn merge_diagnostics(&mut self, other: impl Diagnostics<AnalysisError, AnalysisWarning>) {
         let (errors, warnings) = other.into_diagnostics();
 
         self.diagnostics.errors.extend(errors);

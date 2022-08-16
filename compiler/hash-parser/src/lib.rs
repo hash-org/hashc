@@ -26,17 +26,33 @@ use source::ParseSource;
 /// Messages that are passed from parser workers into the general message queue.
 #[derive(Debug)]
 pub enum ParserAction {
-    /// An error occurred during the parsing or lexing of a module.
-    Error(Vec<Report>),
     /// A worker has specified that a module should be put in the queue for
     /// lexing and parsing.
     ParseImport { resolved_path: PathBuf, contents: String, sender: Sender<ParserAction> },
+    /// A unrecoverable error occurred during the parsing or lexing of a module.
+    Error(Vec<Report>),
     /// A worker has completed processing an interactive block and now provides
     /// the generated AST.
-    SetInteractiveNode { interactive_id: InteractiveId, node: ast::AstNode<ast::BodyBlock> },
+    SetInteractiveNode {
+        /// The corresponding id of the parsed interactive block.
+        interactive_id: InteractiveId,
+        /// The resultant parsed interactive body block.
+        node: ast::AstNode<ast::BodyBlock>,
+        /// The parser may still produce diagnostics for this module, and so we
+        /// want to propagate this
+        diagnostics: Vec<Report>,
+    },
     /// A worker has completed processing an module and now provides the
     /// generated AST.
-    SetModuleNode { module_id: ModuleId, node: ast::AstNode<ast::Module> },
+    SetModuleNode {
+        /// The corresponding id of the parsed module.
+        module_id: ModuleId,
+        /// The resultant parsed module.
+        node: ast::AstNode<ast::Module>,
+        /// The parser may still produce diagnostics for this module, and so we
+        /// want to propagate this
+        diagnostics: Vec<Report>,
+    },
 }
 
 /// Parse a specific source specified by [ParseSource].
@@ -61,19 +77,25 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
     // are encountered whilst parsing this module.
     let resolver = ImportResolver::new(source_id, source.path(), sender);
 
-    let gen = AstGen::new(&tokens, &trees, &resolver);
+    let mut gen = AstGen::new(&tokens, &trees, &resolver);
 
     // Perform the parsing operation now... and send the result through the
     // message queue, regardless of it being an error or not.
     let action = match &source.source_id() {
-        SourceId::Module(id) => match gen.parse_module() {
-            Err(err) => ParserAction::Error(vec![err.into()]),
-            Ok(node) => ParserAction::SetModuleNode { module_id: *id, node },
-        },
-        SourceId::Interactive(id) => match gen.parse_expr_from_interactive() {
-            Err(err) => ParserAction::Error(vec![err.into()]),
-            Ok(node) => ParserAction::SetInteractiveNode { interactive_id: *id, node },
-        },
+        SourceId::Module(id) => {
+            let node = gen.parse_module();
+
+            ParserAction::SetModuleNode { module_id: *id, node, diagnostics: gen.into_reports() }
+        }
+        SourceId::Interactive(id) => {
+            let node = gen.parse_expr_from_interactive();
+
+            ParserAction::SetInteractiveNode {
+                interactive_id: *id,
+                node,
+                diagnostics: gen.into_reports(),
+            }
+        }
     };
 
     let sender = resolver.into_sender();
@@ -103,7 +125,7 @@ impl<'pool> HashParser {
         workspace: &mut Workspace,
         pool: &'pool rayon::ThreadPool,
     ) -> Vec<Report> {
-        let mut errors = Vec::new();
+        let mut collected_diagnostics = Vec::new();
         let (sender, receiver) = unbounded::<ParserAction>();
 
         assert!(pool.current_num_threads() > 1, "Parser loop requires at least 2 workers");
@@ -115,13 +137,17 @@ impl<'pool> HashParser {
         pool.scope(|scope| {
             while let Ok(message) = receiver.recv() {
                 match message {
-                    ParserAction::SetInteractiveNode { interactive_id, node } => {
+                    ParserAction::SetInteractiveNode { interactive_id, node, diagnostics } => {
+                        collected_diagnostics.extend(diagnostics);
+
                         workspace
                             .node_map_mut()
                             .get_interactive_block_mut(interactive_id)
                             .set_node(node);
                     }
-                    ParserAction::SetModuleNode { module_id, node } => {
+                    ParserAction::SetModuleNode { module_id, node, diagnostics } => {
+                        collected_diagnostics.extend(diagnostics);
+
                         workspace.node_map_mut().get_module_mut(module_id).set_node(node);
                     }
                     ParserAction::ParseImport { resolved_path, contents, sender } => {
@@ -139,13 +165,13 @@ impl<'pool> HashParser {
                         scope.spawn(move |_| parse_source(source, sender));
                     }
                     ParserAction::Error(err) => {
-                        errors.extend(err);
+                        collected_diagnostics.extend(err);
                     }
                 }
             }
         });
 
-        errors
+        collected_diagnostics
     }
 }
 

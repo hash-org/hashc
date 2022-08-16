@@ -1,4 +1,4 @@
-// run=pass, stage=parse
+// run=pass, stage=parse, warnings=ignore
 
 k := ~a;
 k := ---a;

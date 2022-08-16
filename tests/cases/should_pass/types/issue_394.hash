@@ -1,4 +1,4 @@
-// run=pass, stage=parse
+// stage=parse, warnings=ignore
 
 main := () => {
     ((a.v)::c)<i32>;

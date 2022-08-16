@@ -84,7 +84,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // Essentially, we want to re-map the error into a more concise one given
         // the parsing context.
         if self.parse_token_fast(TokenKind::Eq).is_none() {
-            return self.error_with_location(
+            return self.err_with_location(
                 ParseErrorKind::ExpectedArrow,
                 None,
                 None,
@@ -93,7 +93,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
 
         if self.parse_token_fast(TokenKind::Gt).is_none() {
-            return self.error_with_location(
+            return self.err_with_location(
                 ParseErrorKind::ExpectedArrow,
                 None,
                 None,
@@ -109,11 +109,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // Essentially, we want to re-map the error into a more concise one given
         // the parsing context.
         if self.parse_token_fast(TokenKind::Minus).is_none() {
-            return self.error(ParseErrorKind::ExpectedFnArrow, None, None)?;
+            return self.err(ParseErrorKind::ExpectedFnArrow, None, None)?;
         }
 
         if self.parse_token_fast(TokenKind::Gt).is_none() {
-            return self.error(ParseErrorKind::ExpectedFnArrow, None, None)?;
+            return self.err(ParseErrorKind::ExpectedFnArrow, None, None)?;
         }
 
         Ok(())
