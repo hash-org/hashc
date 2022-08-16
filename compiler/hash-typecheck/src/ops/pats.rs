@@ -11,10 +11,7 @@ use hash_source::identifier::Identifier;
 use hash_utils::store::Store;
 use itertools::Itertools;
 
-use super::{
-    params::{pair_args_with_params, validate_named_params_match},
-    AccessToOps,
-};
+use super::{params::validate_named_params_match, AccessToOps};
 use crate::{
     diagnostics::{
         error::{TcError, TcResult},
@@ -27,7 +24,7 @@ use crate::{
         pats::{PatArgsId, PatId},
         primitives::{
             AccessOp, AccessPat, Arg, BindingPat, ConstPat, ConstructorPat, IfPat, ListPat, Member,
-            ModPat, Mutability, Param, Pat, PatArg, SpreadPat, Visibility,
+            ModPat, Mutability, NominalDef, Pat, PatArg, SpreadPat, StructFields, Visibility,
         },
         terms::TermId,
         AccessToStorage, StorageRef,
@@ -49,14 +46,6 @@ impl<'tc> PatMatcher<'tc> {
     /// Create a new [PatMatcher].
     pub fn new(storage: StorageRef<'tc>) -> Self {
         Self { storage }
-    }
-
-    /// Internal function to infer a pattern from a `Param`.
-    fn param_to_pat(&self, param: &Param) -> PatArg {
-        let Param { name, default_value, .. } = param;
-        let pat = self.builder().create_constant_pat(default_value.unwrap());
-
-        PatArg { name: *name, pat }
     }
 
     /// Internal function to verify that the members that are produced from
@@ -186,15 +175,123 @@ impl<'tc> PatMatcher<'tc> {
         Ok(Some((Member::variable(name, Mutability::Immutable, inferred_term, value), id)))
     }
 
+    /// Find a spread pattern within the provided [PatArgsId].
+    fn find_spread_pattern_in_members(
+        &self,
+        members: PatArgsId,
+    ) -> Option<(usize, Option<Identifier>, PatId)> {
+        let members = self.reader().get_pat_args_owned(members);
+
+        for (index, member) in members.positional().iter().enumerate() {
+            if let Pat::Spread(SpreadPat { name, .. }) = self.reader().get_pat(member.pat) {
+                return Some((index, name, member.pat));
+            }
+        }
+
+        None
+    }
+
+    /// Function that will `erase` a spread pattern from the given constructor
+    /// based on the arguments in the constructor. The constructor can
+    /// either be a struct or an [EnumVariant] or a [ConstructedTerm].
+    ///
+    /// In the case of the struct literal, all of the field names should have
+    /// been resolved since this happens when the struct field is validated.
+    /// So any fields that are not captured by the specified arguments are
+    /// then appended into a `named` tuple that is created as the captured
+    /// variable group. For example:
+    ///
+    /// ```ignore
+    /// Foo := struct(
+    ///     age: i32,
+    ///     sex: char,
+    ///     name: str,
+    /// );
+    ///
+    /// x := Foo::default();
+    ///
+    /// Foo(age, ...other) := x; // other: (name: str, sex: char)
+    /// ```
+    ///
+    /// In the case of the enum variant, the same logic is applied to un-named
+    /// tuples, where only a collection of the fields is captured. Any
+    /// members that are not specified are captured by an un-named tuple as
+    /// a side product that can be accessed if the spread pattern specifies
+    /// a bind. For example:
+    ///
+    /// ```ignore
+    /// Foo := enum(
+    ///     Bar(i32, str, char),
+    /// );
+    ///
+    /// x := Foo::default();
+    ///
+    /// Foo::Bar(num, ...other) := x; // other: (str, char)
+    /// ```
+    ///
+    /// Additionally, all of the fields that are not specified by the enum or
+    /// struct are now filled in as *wildcard* patterns, essentially being
+    /// ignored.
     fn maybe_erase_spread_pat_from_constructor(
         &self,
-        _pat: PatId,
-        _constructor: ConstructorPat,
-        _subject: TermId,
+        pat: PatId,
+        ConstructorPat { args, subject }: ConstructorPat,
     ) -> TcResult<Option<(Member, PatId)>> {
-        let _reader = self.reader();
-        // @@Todo: implement spread pattern erasure for constructor patterns
-        Ok(None)
+        let reader = self.reader();
+
+        // Utility for creating a wildcard pattern since this is a
+        // common operation.
+        let wildcard_pat = || self.pat_store().create(Pat::Wild);
+
+        let spread_pat = self.find_spread_pattern_in_members(args);
+        if spread_pat.is_none() {
+            return Ok(None);
+        }
+        let (_pos, name, spread_id) = spread_pat.unwrap();
+
+        let subject_members = match self.oracle().term_as_nominal_def(subject).unwrap() {
+            NominalDef::Struct(struct_def) => match struct_def.fields {
+                StructFields::Explicit(fields) => fields,
+                _ => unreachable!(),
+            },
+            NominalDef::Enum(_) => unreachable!(),
+        };
+
+        let pat_args = reader.get_pat_args_owned(args);
+        let ty_members = reader.get_params_owned(subject_members);
+
+        // Build a collection of members that are to be inserted into the new tuple term
+        let mut new_members = vec![];
+        let mut captured_members = vec![];
+
+        for (member_pos, ty_member) in ty_members.positional().iter().enumerate() {
+            if let Some(name) = ty_member.name {
+                if let Some((index, arg)) = pat_args.get_by_name(name) {
+                    new_members.push((*arg, index));
+                } else {
+                    let item = PatArg { name: Some(name), pat: wildcard_pat() };
+
+                    new_members.push((item, member_pos));
+
+                    // We need to save the index of the member that was captured so
+                    // we can create a type from it later
+                    captured_members.push((item, ty_member.ty, ty_member.default_value));
+                }
+            }
+        }
+
+        let new_pat_members = self
+            .builder()
+            .create_pat_args(new_members.into_iter().map(|(arg, _)| arg), ParamOrigin::Tuple);
+
+        self.pat_store()
+            .set(pat, Pat::Constructor(ConstructorPat { subject, args: new_pat_members }));
+
+        // If the spread pattern has a bind, then we need to also create the new tuple
+        // type and return it as a bound member to that value.
+        name.map_or(Ok(None), |name| {
+            self.create_pat_from_captured_members(captured_members, name, spread_id)
+        })
     }
 
     /// Function use to erase any spread patterns that are present within
@@ -216,26 +313,7 @@ impl<'tc> PatMatcher<'tc> {
         // common operation.
         let wildcard_pat = || self.pat_store().create(Pat::Wild);
 
-        let pat_members = reader.get_pat_args_owned(members);
-
-        // Check if the members has a `...` pattern and then if so
-        // we will need to proceed and erase it.
-        let mut spread_pat = None;
-
-        for (index, member) in pat_members.positional().iter().enumerate() {
-            if let Pat::Spread(SpreadPat { name, .. }) = reader.get_pat(member.pat) {
-                if spread_pat.is_some() {
-                    tc_panic!(
-                        member.pat,
-                        self,
-                        "found multiple spread patterns within tuple pattern"
-                    )
-                }
-
-                spread_pat = Some((index, name, member.pat));
-            }
-        }
-
+        let spread_pat = self.find_spread_pattern_in_members(members);
         if spread_pat.is_none() {
             return Ok(None);
         }
@@ -250,6 +328,7 @@ impl<'tc> PatMatcher<'tc> {
                 tc_panic!(subject, self, "This term `{}` is not a tuple", self.for_fmt(subject))
             });
 
+        let pat_members = reader.get_pat_args_owned(members);
         let ty_members = reader.get_params_owned(ty_members_id);
 
         // Fast track if the members of the pattern have a greater length
@@ -449,61 +528,40 @@ impl<'tc> PatMatcher<'tc> {
     /// patterns and collect bound members.
     fn match_constructor_pat_with_term(
         &self,
-        id: PatId,
-        ConstructorPat { args, .. }: ConstructorPat,
-        subject: TermId,
+        ConstructorPat { args, subject }: ConstructorPat,
     ) -> TcResult<Option<Vec<(Member, PatId)>>> {
-        // Get the term of the constructor and try to unify it with the subject:
-        let constructor_term = self.typer().get_term_of_pat(id)?;
+        // get the subject params
+        let possible_subject_params = self.typer().infer_constructor_of_nominal_term(subject)?;
 
-        let pat_args = self.typer().infer_args_of_pat_args(args)?;
-        let constructor_args = self.reader().get_pat_args_owned(args).clone();
-
-        let possible_params = self.typer().infer_constructors_of_nominal_term(subject)?;
-
-        for (_, params) in possible_params {
-            let subject_params = self.reader().get_params_owned(params).clone();
-
-            match pair_args_with_params(
-                &subject_params,
-                &constructor_args,
-                params,
-                pat_args,
-                |param| self.param_to_pat(param),
-                subject,
-                id,
-            ) {
-                Ok(members) => {
-                    let bound_members = members
-                        .into_iter()
-                        .map(|(param, arg)| {
-                            let param_value = param
-                                .default_value
-                                .unwrap_or_else(|| self.builder().create_rt_term(param.ty));
-
-                            Ok(self
-                                .match_pat_with_term_and_extract_binds(arg.pat, param_value)?
-                                .into_iter()
-                                .flatten()
-                                .collect::<Vec<_>>())
-                        })
-                        .flatten_ok()
-                        .collect::<TcResult<Vec<_>>>()?;
-
-                    // @@Refactor: we need to verify that the members are declared once.
-                    // Since this happens at the bottom of the
-                    // function already, it would be nice to
-                    // factor out this step to be at the bottom or factor out constructor
-                    // pattern checking into a separate
-                    // function.
-                    self.verify_members_are_bound_once(&bound_members)?;
-                    return Ok(Some(bound_members));
-                }
-                Err(_) => continue,
-            }
+        if possible_subject_params.is_empty() {
+            return Err(TcError::NoConstructorOnType { subject });
         }
 
-        Err(TcError::NoConstructorOnType { subject: constructor_term })
+        // @@Verify: Otherwise we get the first one, it should not be possible for
+        // another situation here...?
+        let (_, subject_params_id) = possible_subject_params[0];
+        let subject_params = self.reader().get_params_owned(subject_params_id);
+        let constructor_args = self.reader().get_pat_args_owned(args);
+
+        // For each param pair: accumulate the bound members
+        let bound_members = subject_params
+            .positional()
+            .iter()
+            .zip(constructor_args.positional())
+            .map(|(param, pat_param)| {
+                let param_value =
+                    param.default_value.unwrap_or_else(|| self.builder().create_rt_term(param.ty));
+
+                Ok(self
+                    .match_pat_with_term_and_extract_binds(pat_param.pat, param_value)?
+                    .into_iter()
+                    .flatten()
+                    .collect::<Vec<_>>())
+            })
+            .flatten_ok()
+            .collect::<TcResult<Vec<_>>>()?;
+
+        Ok(Some(bound_members))
     }
 
     /// Match a [Pat::List] with the subject term, walk all inner patterns
@@ -657,11 +715,9 @@ impl<'tc> PatMatcher<'tc> {
             Pat::Tuple(members) => {
                 self.maybe_erase_spread_pat_from_tuple(pat_id, members, term_id)?
             }
-            Pat::Constructor(constructor) => self.maybe_erase_spread_pat_from_constructor(
-                pat_id,
-                constructor,
-                simplified_term_id,
-            )?,
+            Pat::Constructor(constructor) => {
+                self.maybe_erase_spread_pat_from_constructor(pat_id, constructor)?
+            }
             _ => None,
         };
 
@@ -715,9 +771,7 @@ impl<'tc> PatMatcher<'tc> {
             Pat::Tuple(members) => {
                 self.match_tuple_pat_with_term(pat_id, members, simplified_term_id)
             }
-            Pat::Constructor(constructor) => {
-                self.match_constructor_pat_with_term(pat_id, constructor, simplified_term_id)
-            }
+            Pat::Constructor(constructor) => self.match_constructor_pat_with_term(constructor),
             Pat::List(list) => self.match_list_pat_with_term(list),
             Pat::Or(pats) => self.match_or_pat_with_term(&pats, simplified_term_id),
             Pat::If(IfPat { pat, .. }) => {
