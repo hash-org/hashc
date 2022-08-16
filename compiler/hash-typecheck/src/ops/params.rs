@@ -48,14 +48,14 @@ pub(crate) fn pair_args_with_params<'p, 'a, T: Clone + GetNameOpt>(
         .map(|param| param.name.unwrap())
         .collect();
 
-    let origin = ParamListKind::Args(args_id);
+    let args_kind = ParamListKind::Args(args_id);
 
     if params.len() < args.len() {
         return Err(TcError::MismatchingArgParamLength {
-            args_id,
+            args_kind,
             params_id,
-            params_subject: params_subject.into(),
-            args_subject: args_subject.into(),
+            params_location: params_subject.into(),
+            args_location: args_subject.into(),
         });
     }
 
@@ -73,7 +73,7 @@ pub(crate) fn pair_args_with_params<'p, 'a, T: Clone + GetNameOpt>(
                     Some((index, param)) => {
                         if used_params.contains(&index) {
                             // Ensure not already used
-                            return Err(TcError::ParamGivenTwice { param_kind: origin, index });
+                            return Err(TcError::ParamGivenTwice { param_kind: args_kind, index });
                         } else {
                             used_params.insert(index);
                             result.push((param, Cow::Borrowed(arg)));
@@ -90,7 +90,7 @@ pub(crate) fn pair_args_with_params<'p, 'a, T: Clone + GetNameOpt>(
                         // constructor is defined...
                         return Err(TcError::ParamNotFound {
                             params_subject: params_subject.into(),
-                            args_kind: origin,
+                            args_kind,
                             params_id,
                             name: arg_name,
                         });
@@ -102,12 +102,12 @@ pub(crate) fn pair_args_with_params<'p, 'a, T: Clone + GetNameOpt>(
                 if done_positional {
                     // Using positional args after named args is an error
                     return Err(TcError::AmbiguousArgumentOrdering {
-                        param_kind: origin,
+                        param_kind: args_kind,
                         index: i,
                     });
                 } else if used_params.contains(&i) {
                     // Ensure not already used
-                    return Err(TcError::ParamGivenTwice { param_kind: origin, index: i });
+                    return Err(TcError::ParamGivenTwice { param_kind: args_kind, index: i });
                 } else {
                     used_params.insert(i);
 
@@ -139,10 +139,10 @@ pub(crate) fn pair_args_with_params<'p, 'a, T: Clone + GetNameOpt>(
     if params.positional().len() != result.len() {
         // @@Todo: for pattern params, use a more specialised error here
         return Err(TcError::MismatchingArgParamLength {
-            args_id,
+            args_kind: ParamListKind::Args(args_id),
             params_id,
-            params_subject: params_subject.into(),
-            args_subject: args_subject.into(),
+            params_location: params_subject.into(),
+            args_location: args_subject.into(),
         });
     }
 
@@ -160,7 +160,7 @@ pub(crate) fn pair_args_with_params<'p, 'a, T: Clone + GetNameOpt>(
 /// [ParamList] follows the described rules. This function works for either
 /// parameters or arguments, and hence why it accepts a [ParamListKind]
 /// in order to preserve context in the event of an error.
-pub(crate) fn validate_param_list_ordering<T: Clone + GetNameOpt>(
+pub(crate) fn validate_param_list<T: Clone + GetNameOpt>(
     params: &ParamList<T>,
     origin: ParamListKind,
 ) -> TcResult<()> {
@@ -190,6 +190,35 @@ pub(crate) fn validate_param_list_ordering<T: Clone + GetNameOpt>(
                 // Using positional args after named args is an error
                 if done_positional {
                     return Err(TcError::AmbiguousArgumentOrdering { param_kind: origin, index });
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Function that validates a parameter list without considering the ordering of
+/// named and un-named parameters. This is a useful function for constructor
+/// pattern fields since there is no bound on which order the user specifies
+/// names on the fields. This function will simply verify that the fields
+/// don't repeat names.
+pub(crate) fn validate_param_list_unordered<T: Clone + GetNameOpt>(
+    params: &ParamList<T>,
+    origin: ParamListKind,
+) -> TcResult<()> {
+    // Keep track of used params to ensure no parameter is given twice.
+    let mut params_used = HashSet::new();
+
+    for (index, param) in params.positional().iter().enumerate() {
+        // If we have found the index in our set, that means that it must
+        // of already been used and therefore it should trigger an error
+        if let Some(name) = param.get_name_opt() {
+            if let Some((found_index, _)) = params.get_by_name(name) {
+                if params_used.contains(&found_index) {
+                    return Err(TcError::ParamGivenTwice { param_kind: origin, index });
+                } else {
+                    params_used.insert(found_index);
                 }
             }
         }
