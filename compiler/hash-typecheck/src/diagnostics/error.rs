@@ -49,10 +49,10 @@ pub enum TcError {
     CannotUseValueAsTy { value: TermId },
     /// The given arguments do not match the length of the target parameters.
     MismatchingArgParamLength {
-        args_id: ArgsId,
+        args_kind: ParamListKind,
         params_id: ParamsId,
-        params_subject: LocationTarget,
-        args_subject: LocationTarget,
+        params_location: LocationTarget,
+        args_location: LocationTarget,
     },
     /// The parameter with the given name is not found in the given parameter
     /// list.

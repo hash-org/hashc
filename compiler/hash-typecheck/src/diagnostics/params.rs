@@ -26,7 +26,7 @@ pub enum ParamUnificationErrorReason {
 /// a [super::error::TcError::ParamGivenTwice] occurs. It can either occur
 /// in an argument list, or it can occur within a parameter list.
 /// The reporting logic is the same, with the minor wording difference.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum ParamListKind {
     Params(ParamsId),
     PatArgs(PatArgsId),
@@ -34,9 +34,9 @@ pub enum ParamListKind {
 }
 
 impl ParamListKind {
-    /// Convert a [ParamListKind] into a [SourceLocation] by looking up the
-    /// inner id within the [LocationStore].
-    pub(crate) fn to_location(
+    /// Convert a [ParamListKind] and a field index into a [SourceLocation] by
+    /// looking up the inner id within the [LocationStore].
+    pub(crate) fn field_location(
         &self,
         index: usize,
         store: &LocationStore,
@@ -45,6 +45,15 @@ impl ParamListKind {
             ParamListKind::Params(id) => store.get_location((*id, index)),
             ParamListKind::PatArgs(id) => store.get_location((*id, index)),
             ParamListKind::Args(id) => store.get_location((*id, index)),
+        }
+    }
+
+    /// Get the length of the inner stored parameter.
+    pub(crate) fn len(&self, store: &GlobalStorage) -> usize {
+        match self {
+            ParamListKind::Params(id) => store.params_store.get_size(*id),
+            ParamListKind::PatArgs(id) => store.pat_args_store.get_size(*id),
+            ParamListKind::Args(id) => store.args_store.get_size(*id),
         }
     }
 
@@ -85,7 +94,7 @@ impl ParamListKind {
     /// in the current list as `missing`.
     pub(crate) fn compute_missing_fields(
         &self,
-        other: Self,
+        other: &Self,
         store: &GlobalStorage,
     ) -> Vec<Identifier> {
         let lhs_names = self.names(store);

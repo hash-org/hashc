@@ -350,13 +350,12 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 }
             }
             TcError::MismatchingArgParamLength {
-                args_id,
+                args_kind: args,
                 params_id,
-                params_subject,
-                args_subject,
+                params_location,
+                args_location,
             } => {
                 let params = err.params_store().get_owned_param_list(*params_id);
-                let args = err.args_store().get_owned_param_list(*args_id);
 
                 builder.with_error_code(HashErrorCode::ParameterLengthMismatch);
 
@@ -366,10 +365,10 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     ParamOrigin::Struct => {
                         // @@ErrorReporting: Get the name of the struct...
 
-                        if params.len() > args.len() {
+                        if params.len() > args.len(err.global_storage()) {
                             let p = ParamListKind::Params(*params_id);
-                            let a = ParamListKind::Args(*args_id);
-                            let missing_fields = p.compute_missing_fields(a, err.global_storage());
+                            let missing_fields =
+                                p.compute_missing_fields(args, err.global_storage());
 
                             builder.with_message(format!(
                                 "struct literal is missing the fields {}",
@@ -377,7 +376,8 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                             ));
 
                             // Add note about what fields are missing from the struct
-                            if let Some(location) = err.location_store().get_location(*args_subject)
+                            if let Some(location) =
+                                err.location_store().get_location(*args_location)
                             {
                                 builder.add_element(ReportElement::CodeBlock(
                                     ReportCodeBlock::new(
@@ -392,8 +392,8 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                         } else {
                             // Compute fields that shouldn't be present here...
                             let p = ParamListKind::Params(*params_id);
-                            let a = ParamListKind::Args(*args_id);
-                            let extra_fields = a.compute_missing_fields(p, err.global_storage());
+                            let extra_fields =
+                                args.compute_missing_fields(&p, err.global_storage());
 
                             builder.with_message(format!(
                                 "struct literal does not have the fields {}",
@@ -403,7 +403,8 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                             // Add note about what fields shouldn't be there
                             // @@Future: It would be nice to highlight the exact fields and just
                             // show them specifically rather than the whole subject expression...
-                            if let Some(location) = err.location_store().get_location(*args_subject)
+                            if let Some(location) =
+                                err.location_store().get_location(*args_location)
                             {
                                 builder.add_element(ReportElement::CodeBlock(
                                     ReportCodeBlock::new(
@@ -418,7 +419,8 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                         }
 
                         // Provide information about the location of the target type if available
-                        if let Some(location) = err.location_store().get_location(*params_subject) {
+                        if let Some(location) = err.location_store().get_location(*params_location)
+                        {
                             builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                                 location,
                                 "the struct is defined here",
@@ -426,6 +428,8 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                         }
                     }
                     _ => {
+                        let arg_length = args.len(err.global_storage());
+
                         // @@ErrorReporting: get more customised messages for other variant
                         // mismatch...
                         builder
@@ -434,22 +438,23 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                                 "{} expects {} arguments, however {} arguments were given",
                                 params_origin,
                                 params.len(),
-                                args.len()
+                                arg_length
                             ));
 
                         // Provide information about the location of the target type if available
-                        if let Some(location) = err.location_store().get_location(*args_subject) {
+                        if let Some(location) = err.location_store().get_location(*args_location) {
                             builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                                 location,
-                                format!("got {} arguments here...", args.len()),
+                                format!("got {} arguments here...", arg_length),
                             )));
                         }
 
                         // Provide information about the location of the target type if available
-                        if let Some(location) = err.location_store().get_location(*params_subject) {
+                        if let Some(location) = err.location_store().get_location(*params_location)
+                        {
                             builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                                 location,
-                                format!("...but this expects {} arguments.", params.len()),
+                                format!("...but this expects {} arguments.", arg_length),
                             )));
                         }
                     }
@@ -464,7 +469,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 let id = args_kind.get_name_index(*name, err.global_storage()).unwrap();
 
                 // Provide information about the location of the target type if available
-                if let Some(location) = args_kind.to_location(id, err.location_store()) {
+                if let Some(location) = args_kind.field_location(id, err.location_store()) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!("{} `{}` not defined", args_kind.as_noun(), name),
@@ -547,14 +552,14 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 ));
 
                 // Report where the secondary use occurred, and if possible the first use
-                if let Some(location) = param_kind.to_location(*index, err.location_store()) {
+                if let Some(location) = param_kind.field_location(*index, err.location_store()) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!("parameter `{}` has already been used", name),
                     )));
                 }
 
-                if let Some(location) = param_kind.to_location(first_use, err.location_store()) {
+                if let Some(location) = param_kind.field_location(first_use, err.location_store()) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "initial use occurs here",
@@ -570,7 +575,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     .with_message(format!("ambiguous parameter ordering within a {}", origin));
 
                 // Add the location of the
-                if let Some(location) = param_kind.to_location(*index, err.location_store()) {
+                if let Some(location) = param_kind.field_location(*index, err.location_store()) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "un-named parameters cannot appear after named parameters",
