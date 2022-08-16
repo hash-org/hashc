@@ -275,7 +275,9 @@ impl<'tc> ConstructorOps<'tc> {
                 self_slice.is_covered_by(*other_slice)
             }
             (DeconstructedCtor::NonExhaustive, _) => false,
-            _ => panic!("trying to compare incompatible constructors {:?} and {:?}", ctor, other),
+            _ => {
+                panic!("trying to compare incompatible constructors `{:?}` and `{:?}`", ctor, other)
+            }
         }
     }
 

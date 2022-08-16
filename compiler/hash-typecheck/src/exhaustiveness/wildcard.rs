@@ -64,12 +64,12 @@ impl<'tc> SplitWildcardOps<'tc> {
     }
 
     /// Create a [SplitWildcard] from the current context.
-    pub(super) fn from(&mut self, ctx: PatCtx) -> SplitWildcard {
+    pub(super) fn from(&self, ctx: PatCtx) -> SplitWildcard {
         let reader = self.reader();
 
         let make_range = |start, end| {
             DeconstructedCtor::IntRange(self.int_range_ops().make_range(
-                ctx,
+                ctx.ty,
                 start,
                 end,
                 &RangeEnd::Included,

@@ -25,8 +25,9 @@ use crate::{
         deconstructed::DeconstructedPatId,
         pats::{PatArgsId, PatId},
         primitives::{
-            ConstructorPat, IfPat, Level0Term, Level1Term, ListPat, LitTerm, ModDef, ModPat,
-            NominalDef, Pat, PatArg, RangePat, ScopeKind, SpreadPat, StructFields, Term, TupleTy,
+            AccessPat, ConstructorPat, IfPat, Level0Term, Level1Term, ListPat, LitTerm, ModDef,
+            ModPat, NominalDef, Pat, PatArg, RangePat, ScopeKind, SpreadPat, StructFields, Term,
+            TupleTy,
         },
         terms::TermId,
         AccessToStorage, StorageRef,
@@ -108,15 +109,22 @@ impl<'tc> LowerPatOps<'tc> {
 
                 (DeconstructedCtor::Single, scope_members)
             }
+            // Since the type is already resolved, we just need to traverse down to
+            // the `Pat::Const`, and then we perform the lowering based on the type.
+            Pat::Access(AccessPat { subject, .. }) => return self.deconstruct_pat(ty, subject),
             // This is essentially a simplification to some unit nominal definition like
             // for example `None`..., here we need to be able to get the `type` of the
             // actual pattern in order to figure out which
-            Pat::Access(_) | Pat::Const(_) => {
+            Pat::Const(_) => {
                 // @@EnumToUnion: when enums aren't a thing, do this with a union and create a
                 // `DeconstructedCtor::Variant(idx)` where `idx` is the union member number
-                unreachable!()
+
+                (DeconstructedCtor::Wildcard, vec![])
             }
-            Pat::Range(_) => todo!(),
+            Pat::Range(range) => {
+                let range = self.lower_pat_range(ty, range);
+                (DeconstructedCtor::IntRange(range), vec![])
+            }
             Pat::Lit(term) => match reader.get_term(term) {
                 Term::Level0(Level0Term::Lit(lit)) => match lit {
                     LitTerm::Str(value) => (DeconstructedCtor::Str(value), vec![]),
@@ -378,6 +386,32 @@ impl<'tc> LowerPatOps<'tc> {
 
         // Now put the pat on the store and return it
         self.pat_store().create(pat)
+    }
+
+    /// Lower a [RangePat] into [IntRange]. This function expects that
+    /// the [RangePat] was already validated, and so this function will
+    /// read `lo`, and `hi` terms, convert them into bytes and put them
+    /// into the [IntRange]
+    pub fn lower_pat_range(&self, ty: TermId, range: RangePat) -> IntRange {
+        let RangePat { lo, hi, end } = range;
+
+        let term_to_u128 = |term| {
+            // The only types we support we support within ranges is currently a
+            // `char` and `int` types
+            match self.reader().get_term(term) {
+                Term::Level0(Level0Term::Lit(LitTerm::Char(ch))) => {
+                    Constant::from_char(ch, term).data()
+                }
+                Term::Level0(Level0Term::Lit(LitTerm::Int { value, kind })) => {
+                    Constant::from_int(value, kind, term).data()
+                }
+                _ => tc_panic!(term, self, "term does not support lowering into range"),
+            }
+        };
+
+        let lo = term_to_u128(lo);
+        let hi = term_to_u128(hi);
+        self.int_range_ops().make_range(ty, lo, hi, &end)
     }
 
     /// Convert [IntRange] into a [Pat] by judging the given
