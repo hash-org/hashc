@@ -137,7 +137,7 @@ impl From<AnalysisError> for Report {
             AnalysisErrorKind::AmbiguousPatFieldOrder { origin } => {
                 builder
                     .with_error_code(HashErrorCode::AmbiguousFieldOrder)
-                    .with_message(format!("Ambiguous field order in `{}` pattern", origin));
+                    .with_message(format!("ambiguous field order in `{}` pattern", origin));
 
                 builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                     err.location,

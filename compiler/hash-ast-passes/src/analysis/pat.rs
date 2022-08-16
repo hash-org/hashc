@@ -13,7 +13,6 @@ impl SemanticAnalyser<'_> {
         origin: PatOrigin,
     ) {
         let mut seen_spread_pat = false;
-        let mut seen_named_field = false;
 
         // Verify that no spread patterns are present in the top level
         for field in fields.iter() {
@@ -21,25 +20,13 @@ impl SemanticAnalyser<'_> {
 
             let is_spread_pat = matches!(pat.body(), Pat::Spread(_));
 
-            // Detect an incorrect ordering of named-un/named arguments within the pattern
-            if !is_spread_pat {
-                if name.is_some() {
-                    seen_named_field = true;
-                } else if seen_named_field {
-                    self.append_error(
-                        AnalysisErrorKind::AmbiguousPatFieldOrder { origin },
-                        field.span(),
-                    );
-                }
-            }
-
             // We only care if this is a binding-free pattern entry, and we don't
             // care where the pattern occurs if it is after or before the named/un-named
             // argument order.
             if name.is_none() && is_spread_pat {
                 if seen_spread_pat {
                     self.append_error(
-                        AnalysisErrorKind::MultipleSpreadPats { origin: PatOrigin::Constructor },
+                        AnalysisErrorKind::MultipleSpreadPats { origin },
                         field.span(),
                     );
                 }
