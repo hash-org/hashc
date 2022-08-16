@@ -59,7 +59,7 @@ impl Display for InternedFloat {
 #[derive(Debug, Eq, PartialEq, Hash)]
 pub enum IntConstantValue {
     /// For small values, we store inline
-    Small(u128),
+    Small([u8; 8]),
     /// For bigger values, we just store a pointer to the `BigInt`
     Big(Box<BigInt>),
 }
@@ -70,9 +70,9 @@ impl From<BigInt> for IntConstantValue {
 
         // We want to see if we can fit this big-int in a `u128` so we can just copy it
         // directly
-        if bits <= 128 {
-            let data = (<BigInt as TryInto<i128>>::try_into(value).unwrap()).to_be_bytes();
-            IntConstantValue::Small(u128::from_be_bytes(data))
+        if bits <= 64 {
+            let data = (<BigInt as TryInto<i64>>::try_into(value).unwrap()).to_be_bytes();
+            IntConstantValue::Small(data)
         } else {
             IntConstantValue::Big(Box::new(value))
         }
@@ -88,7 +88,7 @@ pub struct IntConstant {
     /// directly stored as the value which happens in `99%` of cases, if the
     /// constant is not big enough to store this integer, then we resort to
     /// using [IntConstant
-    pub value: IntConstantValue,
+    value: IntConstantValue,
     /// If the constant contains a type ascription, as specified
     /// when the constant is declared, e.g. `32u64`
     pub suffix: Option<Identifier>,
@@ -98,7 +98,7 @@ impl IntConstant {
     /// Convert the constant into a Big endian order byte stream.
     pub fn to_bytes_be(&self) -> Vec<u8> {
         match &self.value {
-            IntConstantValue::Small(value) => value.to_be_bytes().to_vec(),
+            IntConstantValue::Small(value) => value.to_vec(),
             IntConstantValue::Big(value) => value.to_signed_bytes_be(),
         }
     }
@@ -106,7 +106,7 @@ impl IntConstant {
     /// Convert the constant into a [BigInt]
     pub fn to_big_int(self) -> BigInt {
         match self.value {
-            IntConstantValue::Small(inner) => BigInt::from_signed_bytes_be(&inner.to_be_bytes()),
+            IntConstantValue::Small(inner) => BigInt::from_signed_bytes_be(&inner),
             IntConstantValue::Big(inner) => *inner,
         }
     }
@@ -140,9 +140,9 @@ impl Display for IntConstant {
                 };
 
                 if is_signed {
-                    write!(f, "{}", i128::from_be_bytes(value.to_be_bytes()))?;
+                    write!(f, "{}", i64::from_be_bytes(*value))?;
                 } else {
-                    write!(f, "{}", value)?;
+                    write!(f, "{}", u64::from_be_bytes(*value))?;
                 }
             }
             IntConstantValue::Big(value) => write!(f, "{}", value)?,
