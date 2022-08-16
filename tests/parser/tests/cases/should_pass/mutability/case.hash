@@ -1,6 +1,0 @@
-(mut a, mut b) := (1, 2);
-mut test := get_test();
-
-modify_test(&mut test);
-a += 2;
-b += 3;

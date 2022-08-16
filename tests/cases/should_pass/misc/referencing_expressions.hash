@@ -1,0 +1,8 @@
+// run=pass, stage=parse
+
+k := &a;
+k := &(a + b);
+
+b: &T = () => {
+    &b
+};

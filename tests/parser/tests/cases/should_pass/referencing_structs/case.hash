@@ -1,1 +1,0 @@
-my_ref := &Dog ( name = "Viktor" );

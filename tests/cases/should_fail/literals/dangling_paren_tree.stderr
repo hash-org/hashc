@@ -1,0 +1,5 @@
+error: encountered unclosed delimiter `(`, add a `)` after the inner expression
+ --> $DIR/dangling_paren_tree.hash:5:2
+4 |   func_call();
+5 |   k(
+  |    ^ here

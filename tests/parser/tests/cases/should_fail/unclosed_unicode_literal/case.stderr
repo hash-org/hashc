@@ -1,4 +1,0 @@
-error: invalid character escape sequence. expected `}` after a escape sequence
- --> $DIR/case.hash:1:14
-1 |   k := '\u{005a';
-  |                ^ here

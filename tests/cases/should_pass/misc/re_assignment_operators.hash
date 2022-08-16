@@ -1,0 +1,13 @@
+// run=pass, stage=parse
+
+a += n;
+a -= n;
+a *= n;
+a /= n;
+a %= n;
+a ^= n;
+a |= n;
+a &&= n;
+a ||= n;
+a >>= n;
+a <<= n;

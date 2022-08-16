@@ -1,0 +1,5 @@
+error: expected a type annotation, however received a `=`
+ --> $DIR/missing_raw_ref_type.hash:3:9
+2 |   
+3 |   k: &raw = &raw [1,2,3,4,5,6];
+  |           ^ here

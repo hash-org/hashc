@@ -1,0 +1,7 @@
+// run=pass, stage=parse
+
+ty := <R> => type Vec<R>;
+
+my := <R: Clone ~ Eq> => type (Vec<R>, u32);
+sy := type (Vec<R>, u32);
+

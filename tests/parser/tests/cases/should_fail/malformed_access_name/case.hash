@@ -1,7 +1,0 @@
-// Explanation:
-//
-// Here we fail because the declared pattern is `a::b` followed by a `:` denoting 
-// a type signature and then the type `c` which then encounters the parenthesis 
-// which is erronous.
-
-a::b:c()

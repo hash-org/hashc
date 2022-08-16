@@ -1,5 +1,0 @@
-// Import the adding function from 'file' module
-
-{ l } := import("file");
-
-l(24, 26); // @@FixJunkie: Incorrect syntax highlighting for literals

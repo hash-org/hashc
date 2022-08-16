@@ -1,6 +1,0 @@
-error: expected an arrow `=>` 
- --> $DIR/case.hash:4:13
-3 |           // Should fail since you cannot apply `()` on this pattern
-4 |           1..2() => {};
-  |               ^^ here
-5 |       }

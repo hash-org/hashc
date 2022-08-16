@@ -1,7 +1,0 @@
-my_map := map!{};
-my_map := map!{ "a": 1 };
-my_map := map!{ "a": 1, };
-my_map := map!{ "a": 1 + 2, };
-my_map := map!{ "a": 1, "b": 2};
-my_map := map!{ "a": 1, "b": 2,};
-my_map := map!{ (a + b): 1, "b": 2,};

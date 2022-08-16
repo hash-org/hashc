@@ -1,4 +1,0 @@
-error: expected an expression, however received a `,`
- --> $DIR/case.hash:1:9
-1 |   k := [1,,];
-  |           ^ here

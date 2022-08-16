@@ -1,0 +1,3 @@
+// run=fail, stage=parse
+
+k := set{ 1,

@@ -1,6 +1,0 @@
-// These are legal patterns, but they might fail on further during compilation
-"str" := "str";
-"bax" := "str";
-
-'c' := 3;
-2 := 3.4;

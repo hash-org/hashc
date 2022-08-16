@@ -1,0 +1,3 @@
+// run=pass, stage=parse
+
+k := 10000e-2;

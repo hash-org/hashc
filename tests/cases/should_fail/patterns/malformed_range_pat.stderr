@@ -1,0 +1,6 @@
+error: expected an arrow `=>` 
+ --> $DIR/malformed_range_pat.hash:6:13
+5 |           // Should fail since you cannot apply `()` on this pattern
+6 |           1..2() => {};
+  |               ^^ here
+7 |       }

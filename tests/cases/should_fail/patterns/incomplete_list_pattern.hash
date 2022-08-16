@@ -1,0 +1,3 @@
+// run=fail, stage=parse
+
+[a := b;

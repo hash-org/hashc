@@ -1,0 +1,6 @@
+error: unexpectedly encountered a `=`
+ --> $DIR/issue_449.hash:3:2
+2 |   
+3 |   <=>a // Should report that it unexpectedly encountered `=`
+  |    ^ here
+  = help: consider adding a `>`

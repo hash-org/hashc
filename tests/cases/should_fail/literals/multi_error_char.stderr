@@ -1,0 +1,13 @@
+error: invalid character literal `ab`, character literals may only contain one codepoint
+ --> $DIR/multi_error_char.hash:5:10
+4 |   main := () => {
+5 |       a := 'ab';
+  |            ^^^^ here
+6 |   
+
+error: invalid character literal `ddddd`, character literals may only contain one codepoint
+ --> $DIR/multi_error_char.hash:7:10
+6 |   
+7 |       c := 'ddddd';
+  |            ^^^^^^^ here
+8 |   };

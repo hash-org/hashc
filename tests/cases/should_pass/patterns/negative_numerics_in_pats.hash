@@ -1,0 +1,16 @@
+// run=pass, stage=parse
+
+main := () => {
+    -2 := -2;
+
+    
+    match k {
+    -3 => print("it's negative three!");
+    _ => print("not negative three");
+    };
+
+    match k {
+    -3.29929e4 => print("it's negative three!");
+    _ => print("not negative three");
+    };
+};

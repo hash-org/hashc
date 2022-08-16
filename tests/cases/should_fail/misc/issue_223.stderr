@@ -1,0 +1,7 @@
+error: expected value assignment after type annotation within named tuple
+ --> $DIR/issue_223.hash:3:36
+2 |   
+3 |   wrap := (res: Result<T, (int, str)>): Result<T, IoError> => match res {
+  |                                      ^ here
+4 |   };
+  = help: consider adding a `=`

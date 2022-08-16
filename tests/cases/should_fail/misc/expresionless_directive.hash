@@ -1,0 +1,4 @@
+// run=fail, stage=parse
+
+// This directive does not have an expression
+k := #dump;

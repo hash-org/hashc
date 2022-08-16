@@ -1,6 +1,0 @@
-match some_list_literal {
-    [] => do_something();
-    [a, ...x] => do_something_else();
-    [a, ...x, alpha] if alpha % 2.0 == 0 => do_something_for_even();
-    beta => do_something_for_odd();
-};

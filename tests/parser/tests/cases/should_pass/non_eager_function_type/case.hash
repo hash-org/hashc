@@ -1,2 +1,0 @@
-// Despite this resembling the form of a function type (just without the >), the parser shouldn't fail to parse this.
-str_eq: (str, str) = something;

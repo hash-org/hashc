@@ -1,0 +1,6 @@
+error: expected an expression
+ --> $DIR/missing_default_value_in_function_literal.hash:5:20
+4 |   
+5 |   foo := (l: u32, k = ) -> u32 => { // error here!
+  |                      ^ here
+6 |       l * k

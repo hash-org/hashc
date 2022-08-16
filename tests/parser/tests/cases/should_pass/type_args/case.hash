@@ -1,3 +1,0 @@
-char_list := "Hello world".iter().collect<_, [char]>().transpose<SuperStr>();
-
-"Hello world".collect<_, [char]>();

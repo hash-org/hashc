@@ -1,0 +1,5 @@
+error: encountered unclosed delimiter `{`, add a `}` after the inner expression
+ --> $DIR/unclosed_set_literal.hash:3:9
+2 |   
+3 |   k := set{ 1,
+  |           ^ here

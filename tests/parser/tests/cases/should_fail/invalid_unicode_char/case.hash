@@ -1,1 +1,0 @@
-k := '\u{00000000000}'; // This is an invalid unicode char as it too big.

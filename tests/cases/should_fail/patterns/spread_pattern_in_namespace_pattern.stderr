@@ -1,0 +1,5 @@
+error: unexpectedly reached the end of input, however received a `.`
+ --> $DIR/spread_pattern_in_namespace_pattern.hash:4:7
+3 |   // Spread patterns are disallowed within namespaces
+4 |   { x,  ...d} := foo();
+  |         ^ here

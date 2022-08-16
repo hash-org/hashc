@@ -1,0 +1,6 @@
+error: unexpectedly encountered a `(...)`
+ --> $DIR/malformed_access_name.hash:9:7
+8 |   
+9 |   a::b:c()
+  |         ^^ here
+  = help: consider adding a `;`

@@ -1,0 +1,6 @@
+error: expected a type annotation
+ --> $DIR/missing_type_in_function_literal.hash:4:19
+3 |   // This test ensures that after a `:` there must be a specified type.
+4 |   foo := (l: u32, k:) -> u32 => { // error here!
+  |                     ^ here
+5 |       l * k

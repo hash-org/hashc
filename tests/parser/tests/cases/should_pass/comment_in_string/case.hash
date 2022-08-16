@@ -1,1 +1,0 @@
-a := " /* this is a comment in a string but it shouldn't be treated as a comment */";

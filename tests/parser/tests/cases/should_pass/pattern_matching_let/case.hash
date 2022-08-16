@@ -1,7 +1,0 @@
-// struct desturcturing
-Dog(name) := dog;
-Dog(name = better_name) := dog;
-
-// namespace destructuring
-{ name } := dog;
-{ name as even_better_name} := dog;

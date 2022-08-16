@@ -1,6 +1,0 @@
-main := () => {
-    match k {
-        // Should fail since you cannot apply `()` on this pattern
-        1..2() => {};
-    }
-}

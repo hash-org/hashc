@@ -1,1 +1,0 @@
-k : (str: , bar: u8) -> u32 = ("str", 1); // Error here, should expect a type

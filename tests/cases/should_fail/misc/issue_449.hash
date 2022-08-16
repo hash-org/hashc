@@ -1,0 +1,3 @@
+// run=fail, stage=parse
+
+<=>a // Should report that it unexpectedly encountered `=`

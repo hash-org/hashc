@@ -1,0 +1,19 @@
+// run=pass, stage=parse
+
+pub Color := enum(
+    Red,
+    Green,
+    Blue
+);
+
+// The famous `Option<T>` enum
+pub Option := <T> => enum(
+    Some(T),
+    None
+);
+
+// The famous `Result<T, E>` enum
+pub Result := <T, E> => enum(
+    Ok(T),
+    Err(E)
+);

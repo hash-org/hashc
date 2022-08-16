@@ -1,6 +1,0 @@
-error: unexpectedly encountered a `(...)`
- --> $DIR/case.hash:7:7
-6 |   
-7 |   a::b:c()
-  |         ^^ here
-  = help: consider adding a `;`

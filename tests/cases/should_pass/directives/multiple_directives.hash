@@ -1,0 +1,4 @@
+// run=pass, stage=parse
+
+// Here we apply two directives in order
+a := #dump #memoise () => 3;

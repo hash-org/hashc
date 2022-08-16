@@ -1,0 +1,14 @@
+// stage=parse
+
+loop {};
+
+
+x := 0;
+
+loop {
+    do_something(&x);
+
+    if x == 5 {
+        break;
+    }
+};  

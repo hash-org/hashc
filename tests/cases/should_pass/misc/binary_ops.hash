@@ -1,0 +1,3 @@
+// run=pass, stage=parse
+
+c := (a * b + 2) ^^ 3;

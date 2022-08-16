@@ -1,8 +1,0 @@
-if b == 2 {
-     print("b is 2")
-} else if b == 3 {
-     // print("b is 3")
-     a
-} else {
-    print("b isn't 2 or 3 ")
-};

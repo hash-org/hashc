@@ -1,4 +1,0 @@
-my_string := "hello world!";
-my_string := "🚧 Under construction 🚧";
-my_string := "\u{0000}\x00\n\t\0";
-my_string := " under construction ";

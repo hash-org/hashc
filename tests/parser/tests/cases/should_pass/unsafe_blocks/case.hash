@@ -1,6 +1,0 @@
-a := unsafe { 2 };
-a := unsafe { unsafe { 2 } };
-
-a := unsafe match k {
-    _ => print("beep!");
-};

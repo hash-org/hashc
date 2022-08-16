@@ -1,0 +1,3 @@
+// run=fail, stage=parse
+
+str_eq: (str, str) -> str = (a, b) = a == b;

@@ -1,0 +1,3 @@
+// run=fail, stage=parse
+
+k: &raw = &raw [1,2,3,4,5,6];

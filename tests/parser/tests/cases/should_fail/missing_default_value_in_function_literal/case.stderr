@@ -1,6 +1,0 @@
-error: expected an expression
- --> $DIR/case.hash:3:20
-2 |   
-3 |   foo := (l: u32, k = ) -> u32 => { // error here!
-  |                      ^ here
-4 |       l * k

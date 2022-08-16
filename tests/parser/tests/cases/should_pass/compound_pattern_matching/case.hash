@@ -1,6 +1,0 @@
-data := match some_struct {
-    1 | 2 => do_something_with_name();
-    1 | 2 | 3 => do_something_with_name();
-    4 | 5 if x > 17 => do_something_with_name();
-    _ => unreachable();
-};

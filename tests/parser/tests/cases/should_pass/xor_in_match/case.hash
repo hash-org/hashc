@@ -1,7 +1,0 @@
-x: u32 = input<u32>();
-
-match x {
-  1 | 2 | 3       => print("x is 1, 2, or 3");
-  4 | 5 | (2 | 4) => print("x is either 4, 5 or 6"); // using bitwise or operator
-  _               => print("x is something else");
-};

@@ -1,0 +1,3 @@
+// stage=parse
+
+my_value: i32 = if some_condition == x { 3 } else { 5 };

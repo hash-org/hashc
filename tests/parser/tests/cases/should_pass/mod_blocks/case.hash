@@ -1,3 +1,0 @@
-pub nested := mod {
-    pub Colour := enum(Red, Green, Blue);
-};

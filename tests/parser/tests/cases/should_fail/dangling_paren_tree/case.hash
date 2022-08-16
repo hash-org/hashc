@@ -1,3 +1,0 @@
-// This for some reason doesn't trip the unclosed parenthesis logic
-func_call();
-k(

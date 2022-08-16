@@ -1,5 +1,0 @@
-l := f(a = "a");
-
-// These are allowed but they are not legal after parsing
-l := f(a = "a", b, c = 'a'); 
-l := f(a = "a", b, c, '1');

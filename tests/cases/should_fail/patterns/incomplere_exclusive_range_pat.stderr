@@ -1,0 +1,6 @@
+error: expected an arrow `=>` 
+ --> $DIR/incomplere_exclusive_range_pat.hash:5:10
+4 |       match k {
+5 |           1..< => {};
+  |            ^ here
+6 |       }

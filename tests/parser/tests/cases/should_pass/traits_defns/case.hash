@@ -1,7 +1,0 @@
-Merge := <T: Add ~ Or> => trait {
-    merge: (T, T) -> T = () => {};
-};
-
-/// Type function def with no specified bounds on the parameter
-Merge := <R> => trait {
-};

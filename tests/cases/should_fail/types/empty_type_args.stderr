@@ -1,0 +1,5 @@
+error: expected an expression, however received a `>`
+ --> $DIR/empty_type_args.hash:3:3
+2 |   
+3 |   a<> := b + 2;
+  |     ^ here

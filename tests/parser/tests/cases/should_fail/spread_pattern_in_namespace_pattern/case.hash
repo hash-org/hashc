@@ -1,2 +1,0 @@
-// Spread patterns are disallowed within namespaces
-{ x,  ...d} := foo();

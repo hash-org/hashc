@@ -1,0 +1,13 @@
+[package]
+name = "hash-testing-internal"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+
+[dependencies]
+itertools = "0.10"
+syn = { version = "1.0", features = ["extra-traits", "full"] }
+quote = "1.0"
+
+hash-pipeline = {path = "../../compiler/hash-pipeline" }

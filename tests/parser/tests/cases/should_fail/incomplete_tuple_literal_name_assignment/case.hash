@@ -1,1 +1,0 @@
-k : (str, bar: u8) -> u32 = (k = ); // Error here (should report that there should be an expression)

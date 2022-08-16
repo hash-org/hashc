@@ -1,0 +1,4 @@
+// run=pass, stage=parse
+
+// This is a crazy change of nested re-assignemnt operators.
+((((a += b) *= c) += b) *= l) &&= c;

@@ -1,2 +1,0 @@
-k := MyEnum::Variant(1, 2, 3);
-k := MyEnum::Variant(Some(MyEnum::Variant(None, 2, 1)), 2, 3);

@@ -1,0 +1,4 @@
+// run=pass, stage=parse
+
+// Having a space between the ampersand and 'raw' shouldn't change the meaning...
+k: & raw [u64] = &raw [1,2,3,4,5,6];

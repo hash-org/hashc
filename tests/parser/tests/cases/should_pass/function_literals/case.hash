@@ -1,4 +1,0 @@
-str_eq: (str, str) -> str = (a, b) => a == b;
-str_eq: (str, str) -> str = (a, b) -> str => a == b;
-
-str_eq := (a, b) -> str => a == b;

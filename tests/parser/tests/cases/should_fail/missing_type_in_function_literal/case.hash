@@ -1,5 +1,0 @@
-// This test ensures that after a `:` there must be a specified type.
-
-foo := (l: u32, k:) -> u32 => { // error here!
-    l * k
-};

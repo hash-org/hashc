@@ -1,0 +1,13 @@
+// run=pass, stage=parse
+
+fk := () => {
+    print(x)
+};
+
+ft := (k: T) -> u64 => {
+    do_something(k)
+};
+
+ft: (T) -> u64 = (k) => {
+    do_something(t)
+};

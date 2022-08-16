@@ -1,0 +1,5 @@
+// run=pass, stage=parse
+
+main := () => {
+    ((a.v)::c)<i32>;
+};

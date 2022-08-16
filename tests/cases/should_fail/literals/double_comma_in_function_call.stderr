@@ -1,0 +1,5 @@
+error: expected an expression, however received a `,`
+ --> $DIR/double_comma_in_function_call.hash:3:10
+2 |   
+3 |   l := f(a,,);
+  |            ^ here

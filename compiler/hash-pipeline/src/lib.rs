@@ -377,19 +377,21 @@ where
     pub fn bootstrap(&mut self) -> CompilerState<'c, 'pool, D, S, C, V> {
         let mut compiler_state = self.create_state().unwrap();
 
-        // we need to load in the `prelude` module and have it ready for any other
-        // sources
-        compiler_state = self.run_on_filename(
-            PRELUDE.to_string(),
-            ModuleKind::Prelude,
-            compiler_state,
-            CompilerJobParams::default(),
-        );
+        if !self.settings.skip_prelude {
+            // we need to load in the `prelude` module and have it ready for any other
+            // sources
+            compiler_state = self.run_on_filename(
+                PRELUDE.to_string(),
+                ModuleKind::Prelude,
+                compiler_state,
+                CompilerJobParams::default(),
+            );
 
-        // The prelude shouldn't generate any errors, otherwise we just failed to
-        // bootstrap
-        if compiler_state.diagnostics.iter().any(|r| r.is_error()) {
-            panic!("Failed to bootstrap compiler");
+            // The prelude shouldn't generate any errors, otherwise we just failed to
+            // bootstrap
+            if compiler_state.diagnostics.iter().any(|r| r.is_error()) {
+                panic!("Failed to bootstrap compiler");
+            }
         }
 
         compiler_state
@@ -406,7 +408,8 @@ where
         let result = self.run_pipeline(entry_point, &mut compiler_state, job_params);
 
         // we can print the diagnostics here
-        if !compiler_state.diagnostics.is_empty() || result.is_err() {
+        if self.settings.emit_errors && (!compiler_state.diagnostics.is_empty() || result.is_err())
+        {
             let mut err_count = 0;
             let mut warn_count = 0;
 
@@ -450,20 +453,25 @@ where
     /// [`Self::run`]
     pub fn run_on_filename(
         &mut self,
-        filename: String,
+        filename: impl Into<String>,
         kind: ModuleKind,
         mut compiler_state: CompilerState<'c, 'pool, D, S, C, V>,
         job_params: CompilerJobParams,
     ) -> CompilerState<'c, 'pool, D, S, C, V> {
         // First we have to work out if we need to transform the path
         let current_dir = env::current_dir().unwrap();
-        let filename = resolve_path(filename, current_dir, None);
+        let filename = resolve_path(filename.into(), current_dir, None);
 
         if let Err(err) = filename {
-            eprintln!(
-                "{}",
-                ReportWriter::new(err.create_report(), compiler_state.workspace.source_map())
-            );
+            compiler_state.diagnostics.push(err.create_report());
+
+            // Only print the error if specified within the settings
+            if self.settings.emit_errors {
+                eprintln!(
+                    "{}",
+                    ReportWriter::new(err.create_report(), compiler_state.workspace.source_map())
+                );
+            }
 
             return compiler_state;
         };
@@ -472,10 +480,15 @@ where
         let contents = read_in_path(&filename);
 
         if let Err(err) = contents {
-            eprintln!(
-                "{}",
-                ReportWriter::new(err.create_report(), compiler_state.workspace.source_map())
-            );
+            compiler_state.diagnostics.push(err.create_report());
+
+            // Only print the error if specified within the settings
+            if self.settings.emit_errors {
+                eprintln!(
+                    "{}",
+                    ReportWriter::new(err.create_report(), compiler_state.workspace.source_map())
+                );
+            }
 
             return compiler_state;
         };

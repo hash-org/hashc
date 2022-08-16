@@ -1,8 +1,0 @@
-// Just take the first and last element of the returned tuple from the function
-(a, ..., b) := some_foo();
-
-(a, b, ...) := some_foo();
-
-// Place all of the remaining tuple fields into `x`
-(a, b, ...x) := some_foo();
-(...x, a, b) := some_foo();

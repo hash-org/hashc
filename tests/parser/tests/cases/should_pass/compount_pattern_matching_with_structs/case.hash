@@ -1,6 +1,0 @@
-data := match some_struct {
-    Dog(name, age = 6) | Dog(name, age = 5)  => do_something_with_name();
-    Dog(name, age = 13) | Dog(name, age) if age % 2 == 0  => do_something_with_name();
-    Dog(name, age) => do_something_with_name();
-    _ => unreachable();
-};
