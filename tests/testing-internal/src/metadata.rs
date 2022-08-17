@@ -33,10 +33,9 @@ impl Default for TestResult {
 
 impl ToTokens for TestResult {
     fn to_tokens(&self, tokens: &mut quote::__private::TokenStream) {
-        match self {
-            TestResult::Fail => tokens.extend(quote!(TestResult::Fail)),
-            TestResult::Pass => tokens.extend(quote!(TestResult::Pass)),
-        }
+        let item: quote::__private::TokenStream =
+            format!("TestResult::{:?}", self).parse().unwrap();
+        tokens.extend(item)
     }
 }
 
@@ -69,11 +68,9 @@ impl Default for HandleWarnings {
 
 impl ToTokens for HandleWarnings {
     fn to_tokens(&self, tokens: &mut quote::__private::TokenStream) {
-        tokens.extend(match self {
-            HandleWarnings::Ignore => quote!(HandleWarnings::Ignore),
-            HandleWarnings::Compare => quote!(HandleWarnings::Compare),
-            HandleWarnings::Disallow => quote!(HandleWarnings::Disallow),
-        })
+        let item: quote::__private::TokenStream =
+            format!("HandleWarnings::{:?}", self).parse().unwrap();
+        tokens.extend(item)
     }
 }
 
