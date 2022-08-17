@@ -27,8 +27,8 @@
 use std::fmt::Debug;
 
 use hash_source::{
+    constant::InternedStr,
     location::{SourceLocation, Span},
-    string::Str,
 };
 use hash_utils::store::Store;
 use smallvec::{smallvec, SmallVec};
@@ -66,7 +66,7 @@ pub enum DeconstructedCtor {
     /// Ranges of integer literal values (`2`, `2..=5` or `2..5`).
     IntRange(IntRange),
     /// String literals.
-    Str(Str),
+    Str(InternedStr),
     /// List patterns
     List(List),
     /// Wildcard pattern.

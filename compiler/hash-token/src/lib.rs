@@ -4,7 +4,11 @@ pub mod delimiter;
 pub mod keyword;
 
 use delimiter::{Delimiter, DelimiterVariant};
-use hash_source::{identifier::Identifier, location::Span, string::Str};
+use hash_source::{
+    constant::{InternedFloat, InternedInt, InternedStr},
+    identifier::Identifier,
+    location::Span,
+};
 use keyword::Keyword;
 use smallvec::{smallvec, SmallVec};
 
@@ -12,7 +16,7 @@ use smallvec::{smallvec, SmallVec};
 /// The token contains a kind which is elaborated by [TokenKind] and a [Span] in
 /// the source that is represented as a span. The span is the beginning byte
 /// offset, and the number of bytes for the said token.
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct Token {
     /// The current token type.
     pub kind: TokenKind,
@@ -124,7 +128,7 @@ impl TokenKind {
 /// An Atom represents all variants of a token that can be present in a source
 /// file. Atom token kinds can represent a single character, literal or an
 /// identifier.
-#[derive(Debug, PartialEq, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum TokenKind {
     /// '='
     Eq,
@@ -171,18 +175,20 @@ pub enum TokenKind {
     /// "'"
     SingleQuote,
     /// Integer Literal
-    IntLit(u64),
+    IntLit(InternedInt),
     /// Float literal
-    FloatLit(f64),
+    FloatLit(InternedFloat),
     /// Character literal
     CharLit(char),
     /// StrLiteral,
-    StrLit(Str),
+    StrLit(InternedStr),
     /// Identifier
     Ident(Identifier),
 
-    /// Tree
-    Tree(Delimiter, usize),
+    /// Tree - The index is set as a `u32` since it isn't going
+    /// to be the case that the index will or should ever really
+    /// reach `2^32` since the index is per module and not per project.
+    Tree(Delimiter, u32),
 
     /// Keyword
     Keyword(Keyword),

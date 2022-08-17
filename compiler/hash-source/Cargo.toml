@@ -10,6 +10,7 @@ dashmap = "5.1"
 fnv = "1.0.7"
 slotmap = "1.0"
 bimap = "0.6.2"
+num-bigint = "0.4"
 derive_more = "0.99"
 
 hash-utils = { path = "../hash-utils" } 

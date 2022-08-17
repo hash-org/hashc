@@ -1,128 +1,99 @@
 //! Hash Compiler AST generation sources. This file contains the sources to the
 //! logic that transforms tokens into an AST.
 use hash_ast::ast::*;
-use hash_reporting::diagnostic::Diagnostics;
-use hash_source::location::Span;
+use hash_source::{
+    constant::{IntConstant, CONSTANT_MAP},
+    identifier::{Identifier, CORE_IDENTIFIERS},
+    location::Span,
+};
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
-use num_bigint::{BigInt, Sign};
 
 use super::AstGen;
-use crate::diagnostics::{
-    error::{ParseErrorKind, ParseResult},
-    warning::{ParseWarning, SubjectKind, WarningKind},
-};
+use crate::diagnostics::error::{NumericLitKind, ParseErrorKind, ParseResult};
 
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
-    /// Convert the current token (provided it is a primitive literal) into a
-    /// [ExprKind::LitExpr] by simply matching on the type of the
-    /// expr.
-    pub(crate) fn parse_atomic_lit(&self) -> AstNode<Lit> {
+    /// Parse a primitive literal, which means it can be either a `char`,
+    /// `integer`, `float` or a `string`.
+    pub(crate) fn parse_primitive_lit(&self) -> ParseResult<AstNode<Lit>> {
         let token = self.current_token();
 
-        self.node_with_span(
+        Ok(self.node_with_span(
             match token.kind {
-                // @@Todo: support Integer/Float ascriptions
                 TokenKind::IntLit(value) => {
-                    Lit::Int(IntLit { value: value.into(), kind: IntLitKind::Unsuffixed })
+                    let IntConstant { suffix, .. } = CONSTANT_MAP.lookup_int_constant(value);
+
+                    // Parse the provided suffix
+                    let kind = suffix.map_or(Ok(IntLitKind::Unsuffixed), |s| {
+                        self.parse_integer_suffix(s, token.span)
+                    })?;
+
+                    Lit::Int(IntLit { value, kind })
                 }
                 TokenKind::FloatLit(value) => {
-                    Lit::Float(FloatLit { value, kind: FloatLitKind::Unsuffixed })
+                    let suffix = CONSTANT_MAP.lookup_float_constant(value).suffix;
+
+                    // Parse the provided suffix
+                    let kind = suffix.map_or(Ok(FloatLitKind::Unsuffixed), |s| {
+                        self.parse_float_suffix(s, token.span)
+                    })?;
+
+                    Lit::Float(FloatLit { value, kind })
                 }
                 TokenKind::CharLit(value) => Lit::Char(CharLit(value)),
                 TokenKind::StrLit(value) => Lit::Str(StrLit(value)),
                 TokenKind::Keyword(Keyword::False) => Lit::Bool(BoolLit(false)),
                 TokenKind::Keyword(Keyword::True) => Lit::Bool(BoolLit(true)),
-                _ => unreachable!(),
+                _ => self.err_with_location(
+                    ParseErrorKind::ExpectedLit,
+                    None,
+                    Some(token.kind),
+                    token.span,
+                )?,
             },
             token.span,
-        )
+        ))
     }
 
-    ///
-    pub(crate) fn parse_primitive_lit(&mut self) -> ParseResult<AstNode<Lit>> {
-        let token = self
-            .next_token()
-            .ok_or_else(|| self.make_err(ParseErrorKind::Expected, None, None, None))?;
-
-        // Deal with the numeric prefix `+` by just simply ignoring it
-        let lit = match token.kind {
-            kind if kind.is_numeric_prefix() => {
-                let is_negated = self.parse_token_fast(TokenKind::Minus).is_some();
-
-                // We want to skip the `+` sign if it's not `-`, and emit the warning
-                // on the literal since the operator is unnecessary.
-                let emit_warning = !is_negated;
-
-                if !is_negated {
-                    self.skip_token();
-                }
-
-                match self.peek() {
-                    Some(token) if token.kind.is_numeric() => {
-                        self.skip_token();
-                        let lit = self.create_numeric_lit(is_negated);
-
-                        if emit_warning {
-                            self.add_warning(ParseWarning::new(
-                                WarningKind::UselessUnaryOperator(SubjectKind::Lit),
-                                lit.span(),
-                            ));
-                        }
-
-                        return Ok(lit);
-                    }
-                    token => self.err_with_location(
-                        ParseErrorKind::ExpectedLiteral,
-                        None,
-                        token.map(|t| t.kind),
-                        self.next_location(),
-                    ),
-                }
-            }
-            TokenKind::IntLit(value) => {
-                Ok(Lit::Int(IntLit { value: value.into(), kind: IntLitKind::Unsuffixed }))
-            }
-            TokenKind::FloatLit(value) => {
-                Ok(Lit::Float(FloatLit { value, kind: FloatLitKind::Unsuffixed }))
-            }
-            TokenKind::CharLit(value) => Ok(Lit::Char(CharLit(value))),
-            TokenKind::StrLit(value) => Ok(Lit::Str(StrLit(value))),
-            kind => self.err_with_location(
-                ParseErrorKind::ExpectedLiteral,
+    /// Parse an integer literal suffix.
+    fn parse_integer_suffix(&self, suffix: Identifier, span: Span) -> ParseResult<IntLitKind> {
+        let ty = match suffix {
+            id if CORE_IDENTIFIERS.i8 == id => IntTy::I8,
+            id if CORE_IDENTIFIERS.i16 == id => IntTy::I16,
+            id if CORE_IDENTIFIERS.i32 == id => IntTy::I32,
+            id if CORE_IDENTIFIERS.i64 == id => IntTy::I64,
+            id if CORE_IDENTIFIERS.i128 == id => IntTy::I128,
+            id if CORE_IDENTIFIERS.isize == id => IntTy::ISize,
+            id if CORE_IDENTIFIERS.ibig == id => IntTy::IBig,
+            id if CORE_IDENTIFIERS.u8 == id => IntTy::U8,
+            id if CORE_IDENTIFIERS.u16 == id => IntTy::U16,
+            id if CORE_IDENTIFIERS.u32 == id => IntTy::U32,
+            id if CORE_IDENTIFIERS.u64 == id => IntTy::U64,
+            id if CORE_IDENTIFIERS.u128 == id => IntTy::U128,
+            id if CORE_IDENTIFIERS.usize == id => IntTy::USize,
+            id if CORE_IDENTIFIERS.ubig == id => IntTy::UBig,
+            id => self.err_with_location(
+                ParseErrorKind::InvalidLitSuffix(NumericLitKind::Integer, id),
                 None,
-                Some(kind),
-                token.span,
-            ),
-        }?;
+                None,
+                span,
+            )?,
+        };
 
-        Ok(self.node_with_joined_span(lit, token.span))
+        Ok(IntLitKind::Suffixed(ty))
     }
 
-    /// Create a numeric literal that can also be negated, it is verified
-    /// that the current token is a numeric literal
-    pub(crate) fn create_numeric_lit(&self, is_negated: bool) -> AstNode<Lit> {
-        let token = self.current_token();
-
-        self.node_with_span(
-            match token.kind {
-                // @@Todo: support Integer/Float ascriptions
-                TokenKind::IntLit(value) => {
-                    let value = BigInt::from_bytes_be(
-                        if is_negated { Sign::Minus } else { Sign::NoSign },
-                        &value.to_be_bytes(),
-                    );
-
-                    Lit::Int(IntLit { value, kind: IntLitKind::Unsuffixed })
-                }
-                TokenKind::FloatLit(value) => {
-                    let value = if is_negated { -value } else { value };
-
-                    Lit::Float(FloatLit { value, kind: FloatLitKind::Unsuffixed })
-                }
-                _ => unreachable!(),
-            },
-            token.span,
-        )
+    /// Parse an integer literal suffix.
+    fn parse_float_suffix(&self, suffix: Identifier, span: Span) -> ParseResult<FloatLitKind> {
+        match suffix {
+            id if CORE_IDENTIFIERS.f32 == id => Ok(FloatLitKind::Suffixed(FloatTy::F32)),
+            id if CORE_IDENTIFIERS.f64 == id => Ok(FloatLitKind::Suffixed(FloatTy::F64)),
+            id => self.err_with_location(
+                ParseErrorKind::InvalidLitSuffix(NumericLitKind::Float, id),
+                None,
+                None,
+                span,
+            )?,
+        }
     }
 
     /// Parse a single map entry in a literal.

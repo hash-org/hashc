@@ -93,8 +93,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             // Map or set type
             TokenKind::Tree(Delimiter::Brace, tree_index) => {
                 self.skip_token();
-
-                let tree = self.token_trees.get(*tree_index).unwrap();
+                let tree = self.token_trees.get(*tree_index as usize).unwrap();
                 let mut gen = self.from_stream(tree, token.span);
 
                 let key_ty = gen.parse_type()?;
@@ -119,7 +118,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             TokenKind::Tree(Delimiter::Bracket, tree_index) => {
                 self.skip_token();
 
-                let tree = self.token_trees.get(*tree_index).unwrap();
+                let tree = self.token_trees.get(*tree_index as usize).unwrap();
                 let mut gen = self.from_stream(tree, token.span);
 
                 // @@ErrorRecovery: Investigate introducing `Err` variant into types...

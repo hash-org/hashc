@@ -477,7 +477,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             {
                 self.skip_token();
 
-                let tree = self.token_trees.get(*tree_index).unwrap();
+                let tree = self.token_trees.get(*tree_index as usize).unwrap();
                 Ok(self.from_stream(tree, *span))
             }
             token => self.err_with_location(

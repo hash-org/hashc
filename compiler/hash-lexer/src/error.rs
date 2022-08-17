@@ -1,6 +1,6 @@
 //! Hash Compiler lexer error data types.
 
-use std::{cell::Cell, convert::Infallible};
+use std::{cell::Cell, convert::Infallible, fmt::Display};
 
 use derive_more::Constructor;
 use hash_reporting::{
@@ -13,6 +13,46 @@ use hash_token::{delimiter::Delimiter, TokenKind};
 use thiserror::Error;
 
 use crate::Lexer;
+
+/// Represents the featured base for numeric literals.
+#[derive(Debug)]
+pub enum Base {
+    /// Binary base, denoted in literals as `0b101010`
+    Binary,
+    /// Octal base, denoted in literals as `0o26317261`
+    Octal,
+    /// Decimal base, written as `102391`
+    Decimal,
+    /// Hexadecimal base, written as `0xdeadbeef`
+    Hex,
+    /// Unsupported base, the language doesn't support the
+    /// provided radix as a base.
+    Unsupported,
+}
+
+impl Display for Base {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Base::Binary => write!(f, "binary"),
+            Base::Octal => write!(f, "octal"),
+            Base::Decimal => write!(f, "decimal"),
+            Base::Hex => write!(f, "hexadecimal"),
+            Base::Unsupported => write!(f, "unsupported base"),
+        }
+    }
+}
+
+impl From<u32> for Base {
+    fn from(radix: u32) -> Self {
+        match radix {
+            2 => Base::Binary,
+            8 => Base::Octal,
+            10 => Base::Decimal,
+            16 => Base::Hex,
+            _ => Base::Unsupported,
+        }
+    }
+}
 
 /// Utility type that wraps a [Result] and a [LexerError]
 pub type LexerResult<T> = Result<T, LexerError>;
@@ -42,8 +82,11 @@ pub enum LexerErrorKind {
     #[error("malformed numerical literal")]
     MalformedNumericalLit,
     /// Occurs when a float literal exponent has no proceeding digits.
-    #[error("expected float exponent to have at least one digit")]
+    #[error("float exponent to have at least one digit")]
     MissingExponentDigits,
+    /// When an integer is specified, but no valid digits follow.
+    #[error("missing digits after integer base prefix")]
+    MissingDigits,
     /// Occurs when a numerical literal doesn't follow the language
     /// specification, or is too large.
     #[error("unclosed string literal")]
@@ -61,6 +104,9 @@ pub enum LexerErrorKind {
     /// Unclosed tree block
     #[error("encountered unclosed delimiter `{}`, add a `{0}` after the inner expression", .0.left())]
     Unclosed(Delimiter),
+    /// Unsupported radix featured on a float literal...
+    #[error("{0} float literal is not supported")]
+    UnsupportedFloatBaseLiteral(Base),
 }
 
 impl From<LexerError> for Report {

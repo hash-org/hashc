@@ -7,7 +7,8 @@ use std::{cell::Cell, iter};
 use error::{LexerDiagnostics, LexerError, LexerErrorKind, LexerResult};
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::{
-    identifier::CORE_IDENTIFIERS,
+    constant::CONSTANT_MAP,
+    identifier::{Identifier, CORE_IDENTIFIERS},
     location::{SourceLocation, Span},
     SourceId,
 };
@@ -16,6 +17,8 @@ use hash_token::{
     keyword::Keyword,
     Token, TokenKind,
 };
+use num_bigint::BigInt;
+use num_traits::Num;
 use utils::is_id_start;
 
 use crate::utils::is_id_continue;
@@ -132,12 +135,12 @@ impl<'a> Lexer<'a> {
     }
 
     /// Peeks the next symbol from the input stream without consuming it.
-    fn peek(&mut self) -> char {
+    fn peek(&self) -> char {
         self.nth_char(0)
     }
 
     /// Peeks the second symbol from the input stream without consuming it.
-    fn peek_second(&mut self) -> char {
+    fn peek_second(&self) -> char {
         self.nth_char(1)
     }
 
@@ -170,7 +173,7 @@ impl<'a> Lexer<'a> {
     }
 
     /// Move to the next character and skip it essentially.
-    fn skip(&mut self) {
+    fn skip(&self) {
         let slice = unsafe { self.as_slice() };
         let ch = slice.chars().next().unwrap();
 
@@ -233,7 +236,6 @@ impl<'a> Lexer<'a> {
             '~' => TokenKind::Tilde,
             '=' => TokenKind::Eq,
             '!' => TokenKind::Exclamation,
-            '-' => TokenKind::Minus,
             '+' => TokenKind::Plus,
             '*' => TokenKind::Star,
             '%' => TokenKind::Percent,
@@ -257,8 +259,15 @@ impl<'a> Lexer<'a> {
             // Identifier (this should be checked after other variant that can
             // start as identifier).
             ch if is_id_start(ch) => self.ident(ch),
+
+            // Negated numeric literal, immediately negate it rather than
+            // deferring the transformation...
+            '-' if matches!(self.peek(), '0'..='9') => self.number(self.peek(), true),
+
+            // If the next character is not a digit, then we just stop.
+            '-' => TokenKind::Minus,
             // Numeric literal.
-            ch @ '0'..='9' => self.number(ch),
+            ch @ '0'..='9' => self.number(ch, false),
             // character literal.
             '\'' => self.char(),
             // String literal.
@@ -321,7 +330,7 @@ impl<'a> Lexer<'a> {
                 // push this to the token_trees and get the current index to use instead...
                 self.token_trees.push(children_tokens);
 
-                TokenKind::Tree(delimiter, self.token_trees.len() - 1)
+                TokenKind::Tree(delimiter, (self.token_trees.len() - 1) as u32)
             }
             _ => self.emit_error(
                 None,
@@ -384,10 +393,48 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    /// Function to create an integer constant from characters and
+    /// a specific radix.
+    fn create_int_const(
+        &self,
+        chars: &str,
+        negated: bool,
+        radix: u32,
+        ascription: Option<Identifier>,
+    ) -> TokenKind {
+        // ##Safety: this can't fail since the radix is validated by the parsing, and
+        //   we will always have at least one character in `chars`...
+        //
+        // @@Future: do this ourselves
+        let parsed = BigInt::from_str_radix(chars, radix).unwrap();
+        let value = if negated { -parsed } else { parsed };
+
+        // We need to create a interned constant here...
+        let interned_const = CONSTANT_MAP.create_int_constant(value, ascription);
+        TokenKind::IntLit(interned_const)
+    }
+
+    /// Attempt to eat an identifier if the next token is one, otherwise don't
+    /// do anything
+    fn maybe_eat_identifier(&self) -> Option<Identifier> {
+        match self.peek() {
+            ch if is_id_start(ch) => {
+                self.skip();
+                let start = self.offset.get() - ch.len_utf8();
+
+                self.eat_while_and_discard(is_id_continue);
+                let name = &self.contents[start..self.offset.get()];
+
+                Some(name.into())
+            }
+            _ => None,
+        }
+    }
+
     /// Consume a number literal, either float or integer. The function expects
     /// that the first character of the numeric literal is consumed when the
     /// function is called.
-    fn number(&mut self, prev: char) -> TokenKind {
+    fn number(&mut self, prev: char, negated: bool) -> TokenKind {
         // record the start location of the literal
         let start = self.offset.get() - 1;
 
@@ -405,21 +452,37 @@ impl<'a> Lexer<'a> {
             // if this does have a radix then we need to handle the radix
             if let Some(radix) = maybe_radix {
                 self.skip(); // accounting for the radix
-
                 let chars = self.eat_decimal_digits(radix);
-                let value = u64::from_str_radix(chars, radix);
 
-                // @@ErrorHandling: We shouldn't error here, this should be handled by the
-                // SmallVec<..> change to integers
-                if value.is_err() {
+                // If we didn't get any characters, this means that
+                if chars.is_empty() {
+                    // @@Future: we want to return a `IntLit` token, and recover since this is not a
+                    // fatal error...
                     return self.emit_error(
-                        Some("Integer literal too large".to_string()),
-                        LexerErrorKind::MalformedNumericalLit,
+                        None,
+                        LexerErrorKind::MissingDigits,
                         Span::new(start, self.offset.get()),
                     );
                 }
 
-                return TokenKind::IntLit(value.unwrap());
+                let suffix = self.maybe_eat_identifier();
+
+                // If this specifies a radix, and then also has a suffix which denotes
+                // that this literal is a `float`, then we error since we don't support
+                // non-decimal float literals.
+                if matches!(suffix, Some(s) if s == CORE_IDENTIFIERS.f32 || s == CORE_IDENTIFIERS.f64)
+                    && radix != 10
+                {
+                    // @@Future: we want to return a `IntLit` token, and recover since this is not a
+                    // fatal error...
+                    return self.emit_error(
+                        None,
+                        LexerErrorKind::UnsupportedFloatBaseLiteral(radix.into()),
+                        Span::new(start, self.offset.get()),
+                    );
+                } else {
+                    return self.create_int_const(chars, negated, radix, suffix);
+                }
             }
         }
 
@@ -448,30 +511,46 @@ impl<'a> Lexer<'a> {
                     .chain(after_digits.chars().filter(|c| *c != '_'))
                     .collect::<String>();
 
-                self.eat_float_lit(num.chars(), start)
+                self.eat_float_lit(num.chars(), negated, start)
             }
             // Immediate exponent
-            'e' | 'E' => self.eat_float_lit(pre_digits.chars(), start),
+            'e' | 'E' => self.eat_float_lit(pre_digits.chars(), negated, start),
             _ => {
-                // @@TODO: Use our own parser for integers and floats instead of relying on
-                // rust's default one.
-                match pre_digits.parse::<u64>() {
-                    Err(err) => self.emit_error(
-                        Some(format!("{}.", err)),
-                        LexerErrorKind::MalformedNumericalLit,
-                        Span::new(start, self.offset.get()),
-                    ),
-                    Ok(value) => TokenKind::IntLit(value),
+                let suffix = self.maybe_eat_identifier();
+
+                // If the suffix is equal to a float-like one, convert this token into
+                // a `float`...
+                if matches!(suffix, Some(s) if s == CORE_IDENTIFIERS.f32 || s == CORE_IDENTIFIERS.f64)
+                {
+                    match pre_digits.parse::<f64>() {
+                        Err(err) => self.emit_error(
+                            Some(format!("{}.", err)),
+                            LexerErrorKind::MalformedNumericalLit,
+                            Span::new(start, self.offset.get()),
+                        ),
+                        Ok(parsed) => {
+                            let value = if negated { -parsed } else { parsed };
+
+                            // Create interned float constant
+                            let float_const = CONSTANT_MAP.create_float_constant(value, suffix);
+                            TokenKind::FloatLit(float_const)
+                        }
+                    }
+                } else {
+                    self.create_int_const(pre_digits.as_str(), negated, 10, suffix)
                 }
             }
         }
     }
 
     /// Function to apply an exponent to a floating point literal.
-    fn eat_float_lit(&mut self, num: impl Iterator<Item = char>, start: usize) -> TokenKind {
-        let num = num.collect::<String>().parse::<f64>();
-
-        match num {
+    fn eat_float_lit(
+        &mut self,
+        num: impl Iterator<Item = char>,
+        negated: bool,
+        start: usize,
+    ) -> TokenKind {
+        match num.collect::<String>().parse::<f64>() {
             Err(err) => self.emit_error(
                 Some(format!("{}.", err)),
                 LexerErrorKind::MalformedNumericalLit,
@@ -483,8 +562,14 @@ impl<'a> Lexer<'a> {
                         // if an exponent was specified, as in it is non-zero, we need to apply the
                         // exponent to the float literal.
                         let value = if exp != 0 { value * 10f64.powi(exp) } else { value };
+                        let value = if negated { -value } else { value };
 
-                        TokenKind::FloatLit(value)
+                        // Get the type ascription if any...
+                        let suffix = self.maybe_eat_identifier();
+
+                        // Create interned float constant
+                        let float_const = CONSTANT_MAP.create_float_constant(value, suffix);
+                        TokenKind::FloatLit(float_const)
                     }
                     Err(err) => {
                         self.add_error(err);
@@ -536,7 +621,7 @@ impl<'a> Lexer<'a> {
     /// Consume only decimal digits up to encountering a non-decimal digit
     /// whilst taking into account that the language supports '_' as digit
     /// separators which should just be skipped over...
-    fn eat_decimal_digits(&mut self, radix: u32) -> &str {
+    fn eat_decimal_digits(&self, radix: u32) -> &str {
         self.eat_while_and_slice(move |c| c.is_digit(radix) || c == '_')
     }
 
@@ -826,7 +911,7 @@ impl<'a> Lexer<'a> {
     /// discard any characters that it encounters whilst eating the input,
     /// this is useful because in some cases we don't want to preserve what
     /// the token represents, such as comments or white-spaces...
-    fn eat_while_and_discard(&mut self, mut condition: impl FnMut(char) -> bool) {
+    fn eat_while_and_discard(&self, mut condition: impl FnMut(char) -> bool) {
         let slice = unsafe { self.as_slice() }.chars();
 
         for ch in slice {
@@ -842,7 +927,7 @@ impl<'a> Lexer<'a> {
     /// slice from where it began to eat the input and where it finished,
     /// this is sometimes beneficial as the slice doesn't have to be
     /// re-allocated as a string.
-    fn eat_while_and_slice(&mut self, condition: impl FnMut(char) -> bool) -> &str {
+    fn eat_while_and_slice(&self, condition: impl FnMut(char) -> bool) -> &str {
         let start = self.offset.get();
         self.eat_while_and_discard(condition);
         let end = self.offset.get();

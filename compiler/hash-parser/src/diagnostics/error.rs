@@ -1,11 +1,13 @@
 //! Hash Compiler parser error utilities.
+use std::fmt::Display;
+
 use derive_more::Constructor;
 use hash_pipeline::fs::ImportError;
 use hash_reporting::{
     builder::ReportBuilder,
     report::{Report, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind},
 };
-use hash_source::location::SourceLocation;
+use hash_source::{identifier::Identifier, location::SourceLocation};
 use hash_token::{TokenKind, TokenKindVector};
 use hash_utils::printing::SequenceDisplay;
 
@@ -26,6 +28,29 @@ pub struct ParseError {
     expected: Option<TokenKindVector>,
     /// An optional token in question that was received byt shouldn't of been
     received: Option<TokenKind>,
+}
+
+/// Auxiliary data type to provide more information about the
+/// numerical literal kind that was encountered. This is used
+/// to give more accurate information about if the numerical
+/// literal was a `number` or a `float`. The reason why it
+/// is a number is because it still not clear whether this
+/// is meant to be an integer or a float.
+#[derive(Debug, Clone, Copy)]
+pub enum NumericLitKind {
+    /// Unclear, could be a `integer` or `float`
+    Integer,
+    /// Known to be a `float`
+    Float,
+}
+
+impl Display for NumericLitKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            NumericLitKind::Integer => write!(f, "integer"),
+            NumericLitKind::Float => write!(f, "float"),
+        }
+    }
 }
 
 /// Enum representation of the AST generation error variants.
@@ -83,13 +108,18 @@ pub enum ParseErrorKind {
     /// parsing the spread operator)
     MalformedSpreadPattern(u8),
     /// Expected a literal token, mainly originating from range pattern parsing
-    ExpectedLiteral,
+    ExpectedLit,
+    /// Invalid literal ascription for either `float` or `integer`
+    InvalidLitSuffix(NumericLitKind, Identifier),
 }
 
 /// Conversion implementation from an AST Generator Error into a Parser Error.
 impl From<ParseError> for Report {
     fn from(err: ParseError) -> Self {
         let expected = err.expected;
+
+        // We can have multiple notes describing what could be done about the error.
+        let mut help_notes = vec![];
 
         let mut base_message = match &err.kind {
             ParseErrorKind::Keyword => {
@@ -135,7 +165,19 @@ impl From<ParseError> for Report {
                     "malformed spread pattern, expected {dots} more `.` to complete the pattern"
                 )
             }
-            ParseErrorKind::ExpectedLiteral => "expected literal".to_string(),
+            ParseErrorKind::ExpectedLit => "expected literal".to_string(),
+            ParseErrorKind::InvalidLitSuffix(kind, suffix) => {
+                let suffix_note = match kind {
+                    NumericLitKind::Integer => format!("{kind} suffix must be `u32`, `i64`, etc"),
+                    NumericLitKind::Float => format!("{kind} suffix must be `f32` or `f64`"),
+                };
+
+                // push a note about what kind of suffix is expected
+                help_notes
+                    .push(ReportElement::Note(ReportNote::new(ReportNoteKind::Info, suffix_note)));
+
+                format!("invalid suffix `{suffix}` for {kind} literal")
+            }
         };
 
         // `AstGenErrorKind::Expected` format the error message in their own way,
@@ -149,9 +191,15 @@ impl From<ParseError> for Report {
         }
 
         // If the generated error has suggested tokens that aren't empty.
-        let help = expected.map(|tokens| {
-            format!("consider adding {}", SequenceDisplay::either(tokens.into_inner().as_slice()))
-        });
+        if let Some(expected_tokens) = expected {
+            help_notes.push(ReportElement::Note(ReportNote::new(
+                ReportNoteKind::Help,
+                format!(
+                    "consider adding {}",
+                    SequenceDisplay::either(expected_tokens.into_inner().as_slice())
+                ),
+            )));
+        }
 
         // Now actually build the report
         let mut builder = ReportBuilder::new();
@@ -160,12 +208,9 @@ impl From<ParseError> for Report {
             .with_message(base_message)
             .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(err.location, "here")));
 
-        // Add the `help` message as a separate note
-        if let Some(help_message) = help {
-            builder.add_element(ReportElement::Note(ReportNote::new(
-                ReportNoteKind::Help,
-                help_message,
-            )));
+        // Add the `help` messages to the report
+        for note in help_notes {
+            builder.add_element(note);
         }
 
         builder.build()

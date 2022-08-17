@@ -7,9 +7,12 @@ use std::{
     path::PathBuf,
 };
 
-use hash_source::{identifier::Identifier, location::Span, string::Str};
+use hash_source::{
+    constant::{InternedFloat, InternedInt, InternedStr},
+    identifier::Identifier,
+    location::Span,
+};
 use hash_utils::counter;
-use num_bigint::BigInt;
 use replace_with::replace_with_or_abort;
 
 counter! {
@@ -523,7 +526,7 @@ pub struct MapLit {
 
 /// A string literal.
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct StrLit(pub Str);
+pub struct StrLit(pub InternedStr);
 
 /// A character literal.
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -633,7 +636,7 @@ impl Display for IntLitKind {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct IntLit {
     /// The raw value of the literal
-    pub value: BigInt,
+    pub value: InternedInt,
     /// Whether the literal has an ascription
     pub kind: IntLitKind,
 }
@@ -673,10 +676,10 @@ impl Display for FloatLitKind {
 }
 
 /// A float literal.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct FloatLit {
     /// Raw value of the literal
-    pub value: f64,
+    pub value: InternedFloat,
     /// Whether the literal has an ascription
     pub kind: FloatLitKind,
 }
@@ -1585,7 +1588,7 @@ pub struct CastExpr {
 /// call.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Import {
-    pub path: Str,
+    pub path: InternedStr,
     pub resolved_path: PathBuf,
 }
 
