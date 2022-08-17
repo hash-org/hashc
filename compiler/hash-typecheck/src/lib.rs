@@ -7,7 +7,6 @@
 
 #![feature(generic_associated_types, decl_macro, slice_pattern, option_result_contains, let_else)]
 
-use diagnostics::reporting::TcErrorWithStorage;
 use hash_pipeline::{traits::Tc, CompilerResult};
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::SourceId;
@@ -82,18 +81,26 @@ impl Tc<'_> for TcImpl {
             source_map: &workspace.source_map,
         };
         let mut tc_visitor = TcVisitor::new_in_source(storage.storages(), workspace.node_map());
-        match tc_visitor.visit_source() {
-            Ok(source_term) => {
-                println!("{}", source_term.for_formatting(storage.global_storage()));
 
-                Ok(())
+        let result = tc_visitor.visit_source();
+
+        // If there are diagnostics that were generated or the result itself returned
+        // an error, then we should return those errors, otherwise print the inferred
+        // term.
+        if tc_visitor.diagnostics().has_diagnostics() || result.is_err() {
+            if let Err(err) = result {
+                tc_visitor.diagnostics().add_error(err);
             }
-            Err(error) => {
-                // Turn the error into a report:
-                let err_with_storage = TcErrorWithStorage { error, storage: storage.storages() };
-                Err(vec![err_with_storage.into()])
-            }
+
+            return Err(tc_visitor.diagnostics().into_reports());
         }
+
+        // Print the result if it was ok
+        if let Ok(source_term) = result {
+            println!("{}", source_term.for_formatting(storage.global_storage()));
+        }
+
+        Ok(())
     }
 
     fn check_module(

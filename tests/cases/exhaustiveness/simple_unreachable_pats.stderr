@@ -1,4 +1,4 @@
-warn: match case `3i32` is redundant when matching on `5i32`
+warn: match case `3_i32` is redundant when matching on `5_i32`
  --> $DIR/simple_unreachable_pats.hash:6:11
 5 |   
 6 |       match a {
@@ -11,7 +11,7 @@ warn: match case `3i32` is redundant when matching on `5i32`
   |           ^ ...and this pattern will never match the subject
 8 |           2 => {};
 
-warn: match case `2i32` is redundant when matching on `5i32`
+warn: match case `2_i32` is redundant when matching on `5_i32`
  --> $DIR/simple_unreachable_pats.hash:6:11
 5 |   
 6 |       match a {
@@ -24,7 +24,7 @@ warn: match case `2i32` is redundant when matching on `5i32`
   |           ^ ...and this pattern will never match the subject
 9 |           3 => {};
 
-warn: match case `3i32` is redundant when matching on `5i32`
+warn: match case `3_i32` is redundant when matching on `5_i32`
   --> $DIR/simple_unreachable_pats.hash:6:11
  5 |   
  6 |       match a {

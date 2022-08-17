@@ -248,7 +248,18 @@ impl<'gs> TcFormatter<'gs> {
                         write!(f, "\"{}\"", str)
                     }
                     LitTerm::Int { value, kind } => {
-                        write!(f, "{}{}", value, kind.to_name())
+                        // It's often the case that users don't include the range of the entire
+                        // integer and so we will write `-2147483648..x` and
+                        // same for max, what we want to do is write `MIN`
+                        // and `MAX for these situations since it is easier for the
+                        // user to understand the problem
+                        if let Some(min) = kind.min() && min == *value {
+                            write!(f, "{kind}::MIN")
+                        } else if let Some(max) = kind.max() && max == *value {
+                            write!(f, "{kind}::MAX")
+                        } else {
+                            write!(f, "{value}_{kind}")
+                        }
                     }
                     LitTerm::Char(char) => {
                         // Use debug implementation since we want to display the `literal` value
@@ -758,6 +769,12 @@ impl PrepareForFormatting for &Sub {}
 impl fmt::Display for ForFormatting<'_, TermId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         TcFormatter::new(self.global_storage).fmt_term(f, self.t, self.opts.clone())
+    }
+}
+
+impl fmt::Debug for ForFormatting<'_, TermId> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.global_storage.term_store.get(self.t))
     }
 }
 

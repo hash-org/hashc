@@ -4,7 +4,7 @@ use hash_ast::ast::{IntTy, ParamOrigin};
 
 use super::AccessToOps;
 use crate::storage::{
-    primitives::{ScopeVar, Term},
+    primitives::{EnumDef, Level0Term, Level1Term, NominalDef, ScopeVar, StructDef, Term, TupleTy},
     terms::TermId,
     AccessToStorage, StorageRef,
 };
@@ -89,8 +89,55 @@ impl<'tc> Oracle<'tc> {
         Some(self.substituter().apply_sub_to_term(&sub, list_inner_ty))
     }
 
+    /// If the term is a [Level1Term::Tuple], return it.
+    pub fn term_as_tuple_ty(&self, term: TermId) -> Option<TupleTy> {
+        let reader = self.reader();
+
+        match reader.get_term(term) {
+            Term::Level1(Level1Term::Tuple(ty)) => Some(ty),
+            _ => None,
+        }
+    }
+
     /// If the term is the never type.
     pub fn term_is_never_ty(&self, term: TermId) -> bool {
         self.unifier().terms_are_equal(term, self.builder().create_never_ty())
+    }
+
+    /// If the term is a literal term.
+    pub fn term_is_literal(&self, term: TermId) -> bool {
+        let reader = self.reader();
+
+        matches!(reader.get_term(term), Term::Level0(Level0Term::Lit(_)))
+    }
+
+    /// Get a [Term] as a [StructDef].
+    pub fn term_as_struct_def(&self, term: TermId) -> Option<StructDef> {
+        match self.reader().get_term(term) {
+            Term::Level1(Level1Term::NominalDef(def)) => match self.reader().get_nominal_def(def) {
+                NominalDef::Struct(struct_def) => Some(struct_def),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// Get a [Term] as a [EnumDef].
+    pub fn term_as_enum_def(&self, term: TermId) -> Option<EnumDef> {
+        match self.reader().get_term(term) {
+            Term::Level1(Level1Term::NominalDef(def)) => match self.reader().get_nominal_def(def) {
+                NominalDef::Enum(enum_def) => Some(enum_def),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// Get a [Term] as a [NominalDef].
+    pub fn term_as_nominal_def(&self, term: TermId) -> Option<NominalDef> {
+        match self.reader().get_term(term) {
+            Term::Level1(Level1Term::NominalDef(def)) => Some(self.reader().get_nominal_def(def)),
+            _ => None,
+        }
     }
 }

@@ -11,8 +11,9 @@
 
 use hash_reporting::{
     builder::ReportBuilder,
-    report::{Report, ReportCodeBlock, ReportElement, ReportKind},
+    report::{Report, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind},
 };
+use hash_source::location::SourceLocation;
 
 use crate::{
     fmt::PrepareForFormatting,
@@ -44,6 +45,28 @@ pub enum TcWarning {
         /// The specific term that is overlapping between the two ranges.
         overlapping_term: TermId,
     },
+
+    /// When a named tuple type is coerced into a un-named tuple. This typically
+    /// happens when a tuple is re-structured during a declaration or a match
+    /// block pattern destructuring.
+    ///
+    /// This is not necessarily a problem, but it can lead to unexpected
+    /// behaviour and could be considered as a code smell.
+    NamedTupleCoercion {
+        /// The defined tuple type.
+        original: TermId,
+        /// The pattern that coerces the type into a un-named tuple.
+        ///
+        /// @@Investigate: Could this warning occur in a situation where a
+        /// non-pattern subject coerces the named tuple into an un-named
+        /// one?
+        coerced_into: PatId,
+    },
+    /// Debug warning that is generated for debugging purposes
+    Debug {
+        label: String,
+        location: Option<SourceLocation>,
+    },
 }
 
 /// A [TcWarning] with attached typechecker storage.
@@ -59,26 +82,26 @@ impl<'tc> AccessToStorage for TcWarningWithStorage<'tc> {
 }
 
 impl<'tc> From<TcWarningWithStorage<'tc>> for Report {
-    fn from(item: TcWarningWithStorage<'tc>) -> Self {
+    fn from(ctx: TcWarningWithStorage<'tc>) -> Self {
         let mut builder = ReportBuilder::new();
         builder.with_kind(ReportKind::Warning);
 
-        match item.warning {
+        match ctx.warning {
             TcWarning::UselessMatchCase { pat, subject } => {
                 builder.with_message(format!(
                     "match case `{}` is redundant when matching on `{}`",
-                    pat.for_formatting(item.global_storage()),
-                    subject.for_formatting(item.global_storage())
+                    pat.for_formatting(ctx.global_storage()),
+                    subject.for_formatting(ctx.global_storage())
                 ));
 
-                if let Some(location) = item.location_store().get_location(subject) {
+                if let Some(location) = ctx.location_store().get_location(subject) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "the match subject is given here...",
                     )));
                 }
 
-                if let Some(location) = item.location_store().get_location(pat) {
+                if let Some(location) = ctx.location_store().get_location(pat) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "...and this pattern will never match the subject".to_string(),
@@ -88,7 +111,7 @@ impl<'tc> From<TcWarningWithStorage<'tc>> for Report {
             TcWarning::UnreachablePat { pat } => {
                 builder.with_message("pattern is unreachable".to_string());
 
-                if let Some(location) = item.location_store().get_location(pat) {
+                if let Some(location) = ctx.location_store().get_location(pat) {
                     builder
                         .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(location, "")));
                 }
@@ -96,21 +119,54 @@ impl<'tc> From<TcWarningWithStorage<'tc>> for Report {
             TcWarning::OverlappingRangeEnd { range, overlapping_term, overlaps } => {
                 builder.with_message("range pattern has an overlap with another pattern");
 
-                if let Some(location) = item.location_store().get_location(range) {
+                if let Some(location) = ctx.location_store().get_location(range) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!(
                             "this range overlaps on `{}`...",
-                            overlapping_term.for_formatting(item.global_storage())
+                            overlapping_term.for_formatting(ctx.global_storage())
                         ),
                     )));
                 }
 
-                if let Some(location) = item.location_store().get_location(overlaps) {
+                if let Some(location) = ctx.location_store().get_location(overlaps) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "...with this range",
                     )));
+                }
+            }
+            TcWarning::NamedTupleCoercion { original, coerced_into } => {
+                builder.with_message("named tuple is coerced into an un-named tuple");
+
+                if let Some(location) = ctx.location_store().get_location(original) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        format!(
+                            "the named tuple type `{}` is being coerced into an un-named tuple",
+                            original.for_formatting(ctx.global_storage())
+                        ),
+                    )));
+                }
+
+                if let Some(location) = ctx.location_store().get_location(coerced_into) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "the coercion occurs here",
+                    )));
+                }
+
+                builder.add_element(ReportElement::Note(ReportNote::new(
+                    ReportNoteKind::Note,
+                    "if a tuple type is declared as named, it's usually that field names are important and shouldn't be thrown away."
+                )));
+            }
+            TcWarning::Debug { ref label, location } => {
+                builder.with_message(label);
+
+                if let Some(location) = location {
+                    builder
+                        .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(location, "")));
                 }
             }
         }

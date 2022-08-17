@@ -1583,10 +1583,14 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
                 // to the scope.
                 let members = match self.pat_matcher().match_pat_with_term(pat_id, value)? {
                     Some(members) => members,
-                    // @@Warnings
-                    // None => return Err(TcError::UselessMatchCase { pat: pat_id, subject: value
-                    // }),
-                    _ => vec![],
+
+                    None => {
+                        self.diagnostics().add_warning(TcWarning::UselessMatchCase {
+                            pat: pat_id,
+                            subject: value,
+                        });
+                        vec![]
+                    }
                 };
 
                 // Ensure that the given pattern is irrefutable given the type of the term
@@ -1972,13 +1976,15 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let walk::ConstructorPat { args, subject } = walk::walk_constructor_pat(self, ctx, node)?;
 
         let constructor_params = self.builder().create_pat_args(args, ParamOrigin::Unknown);
+        self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), constructor_params);
 
         let subject = self.typer().get_term_of_pat(subject)?;
-        let constructor_pat = self.builder().create_constructor_pat(subject, constructor_params);
+        let simplified = self.simplifier().potentially_simplify_term(subject)?;
 
-        self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), constructor_params);
+        let constructor_pat = self.builder().create_constructor_pat(simplified, constructor_params);
         self.copy_location_from_node_to_target(node, constructor_pat);
 
+        self.validator().validate_constructor_pat(constructor_pat)?;
         Ok(constructor_pat)
     }
 
@@ -2001,10 +2007,13 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TuplePat>,
     ) -> Result<Self::TuplePatRet, Self::Error> {
         let walk::TuplePat { elements } = walk::walk_tuple_pat(self, ctx, node)?;
+
         let members = self.builder().create_pat_args(elements, ParamOrigin::Tuple);
+        self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), members);
+
+        self.validator().validate_tuple_pat(members)?;
         let tuple_pat = self.builder().create_tuple_pat(members);
 
-        self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), members);
         self.copy_location_from_node_to_target(node, tuple_pat);
 
         Ok(tuple_pat)

@@ -38,8 +38,18 @@ impl Fields {
     }
 
     /// Returns an [Iterator] of the inner stored [DeconstructedPatId]s.
-    pub fn iter_patterns(&self) -> impl Iterator<Item = &DeconstructedPatId> {
-        self.fields.iter()
+    pub fn iter_patterns(&self) -> impl Iterator<Item = DeconstructedPatId> + '_ {
+        self.fields.iter().copied()
+    }
+
+    /// Get the length of the [Fields].
+    pub fn len(&self) -> usize {
+        self.fields.len()
+    }
+
+    /// Check if [Fields] are empty.
+    pub fn is_empty(&self) -> bool {
+        self.fields.is_empty()
     }
 }
 

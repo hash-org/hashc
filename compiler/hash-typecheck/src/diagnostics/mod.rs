@@ -2,7 +2,6 @@
 //! crate.
 pub mod error;
 pub mod params;
-pub mod reporting;
 pub mod warning;
 
 pub(crate) mod macros;
@@ -13,8 +12,7 @@ use hash_reporting::diagnostic::Diagnostics;
 use smallvec::SmallVec;
 
 use self::{
-    error::TcError,
-    reporting::TcErrorWithStorage,
+    error::{TcError, TcErrorWithStorage},
     warning::{TcWarning, TcWarningWithStorage},
 };
 use crate::storage::AccessToStorage;

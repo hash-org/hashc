@@ -717,7 +717,7 @@ impl Interpreter {
                 self.registers.set_register64(dest, value);
             }
             Instruction::Jmp { location } => {
-                // @@ Correctness: is this the correct conversion??
+                // @@Correctness: is this the correct conversion??
                 let value = self.registers.get_register64(location).try_into().unwrap();
 
                 // Arbitrarily jump to the specified location in the register

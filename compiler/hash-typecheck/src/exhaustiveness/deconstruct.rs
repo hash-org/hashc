@@ -136,7 +136,7 @@ impl<'tc> DeconstructPatOps<'tc> {
         match (pat_ctor, other_ctor) {
             (DeconstructedCtor::Wildcard, _) => {
                 // We return a wildcard for each field of `other_ctor`.
-                self.fields_ops().wildcards(ctx, other_ctor_id).iter_patterns().copied().collect()
+                self.fields_ops().wildcards(ctx, other_ctor_id).iter_patterns().collect()
             }
             (DeconstructedCtor::List(this_list), DeconstructedCtor::List(other_list))
                 if this_list.arity() != other_list.arity() =>
@@ -169,7 +169,7 @@ impl<'tc> DeconstructPatOps<'tc> {
                     }
                 }
             }
-            _ => pat.fields.iter_patterns().copied().collect(),
+            _ => pat.fields.iter_patterns().collect(),
         }
     }
 
@@ -191,7 +191,7 @@ impl<'tc> DeconstructPatOps<'tc> {
             let reader = self.reader();
 
             for p in pat.fields.iter_patterns() {
-                let p = reader.get_deconstructed_pat(*p);
+                let p = reader.get_deconstructed_pat(p);
                 self.collect_unreachable_pats(&p, spans);
             }
         }

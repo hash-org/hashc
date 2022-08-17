@@ -1,12 +1,11 @@
 //! Error-related data structures for errors that in regards to parameters and
 //! arguments within any type that uses parameters.
 
-use std::{collections::HashSet, fmt::Display};
+use std::fmt::Display;
 
-use hash_ast::ast::ParamOrigin;
-use hash_source::{identifier::Identifier, location::SourceLocation};
+use hash_utils::store::SequenceStoreKey;
 
-use crate::storage::{arguments::ArgsId, location::LocationStore, params::ParamsId, GlobalStorage};
+use crate::storage::{arguments::ArgsId, params::ParamsId, pats::PatArgsId};
 
 /// Particular reason why parameters couldn't be unified, either argument
 /// length mis-match or that a name mismatched between the two given parameters.
@@ -23,63 +22,34 @@ pub enum ParamUnificationErrorReason {
 /// a [super::error::TcError::ParamGivenTwice] occurs. It can either occur
 /// in an argument list, or it can occur within a parameter list.
 /// The reporting logic is the same, with the minor wording difference.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum ParamListKind {
     Params(ParamsId),
+    PatArgs(PatArgsId),
     Args(ArgsId),
 }
 
 impl ParamListKind {
-    /// Convert a [ParamListKind] into a [SourceLocation] by looking up the
-    /// inner id within the [LocationStore].
-    pub(crate) fn to_location(
-        &self,
-        index: usize,
-        store: &LocationStore,
-    ) -> Option<SourceLocation> {
+    /// Get the length of the inner stored parameter.
+    pub(crate) fn len(&self) -> usize {
         match self {
-            ParamListKind::Params(id) => store.get_location((*id, index)),
-            ParamListKind::Args(id) => store.get_location((*id, index)),
+            ParamListKind::Params(id) => id.len(),
+            ParamListKind::PatArgs(id) => id.len(),
+            ParamListKind::Args(id) => id.len(),
         }
     }
 
-    /// Get the [ParamOrigin] from the [ParamListKind]
-    pub(crate) fn origin(&self, store: &GlobalStorage) -> ParamOrigin {
+    /// Get the English subject noun of the [ParamListKind]
+    pub(crate) fn as_noun(&self) -> &'static str {
         match self {
-            ParamListKind::Params(id) => store.params_store.get_origin(*id),
-            ParamListKind::Args(id) => store.args_store.get_origin(*id),
+            ParamListKind::PatArgs(_) | ParamListKind::Params(_) => "field",
+            ParamListKind::Args(_) => "argument",
         }
-    }
-
-    /// Get the names fields within the [ParamListKind]
-    pub(crate) fn names(&self, store: &GlobalStorage) -> HashSet<Identifier> {
-        match self {
-            ParamListKind::Params(id) => store.params_store.names(*id),
-            ParamListKind::Args(id) => store.args_store.names(*id),
-        }
-    }
-
-    /// Function used to compute the missing fields from another
-    /// [ParamListKind]. This does not compute a difference as it doesn't
-    /// consider items that are present in the other [ParamListKind] and not
-    /// in the current list as `missing`.
-    pub(crate) fn compute_missing_fields(
-        &self,
-        other: Self,
-        store: &GlobalStorage,
-    ) -> Vec<Identifier> {
-        let lhs_names = self.names(store);
-        let rhs_names = other.names(store);
-
-        lhs_names.difference(&rhs_names).into_iter().copied().collect()
     }
 }
 
 impl Display for ParamListKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ParamListKind::Params(_) => write!(f, "fields"),
-            ParamListKind::Args(_) => write!(f, "arguments"),
-        }
+        write!(f, "{}s", self.as_noun())
     }
 }

@@ -2,7 +2,7 @@
 //! vice versa.
 use std::{iter::once, mem::size_of};
 
-use hash_ast::ast::RangeEnd;
+use hash_ast::ast::{ParamOrigin, RangeEnd};
 use hash_utils::store::Store;
 use if_chain::if_chain;
 use itertools::Itertools;
@@ -23,6 +23,7 @@ use crate::{
     ops::AccessToOps,
     storage::{
         deconstructed::DeconstructedPatId,
+        params::ParamsId,
         pats::{PatArgsId, PatId},
         primitives::{
             AccessPat, ConstructorPat, IfPat, Level0Term, Level1Term, ListPat, LitTerm, ModDef,
@@ -142,12 +143,11 @@ impl<'tc> LowerPatOps<'tc> {
                 _ => tc_panic!(term, self, "Not a constant!"),
             },
             Pat::Tuple(args) => {
-                let fields = self.pat_lowerer().deconstruct_pat_fields(args);
-
                 // We need to read the tuple type from the ctx type and then create
                 // wildcard fields for all of the inner types
                 match reader.get_term(ty) {
                     Term::Level1(Level1Term::Tuple(TupleTy { members })) => {
+                        let fields = self.pat_lowerer().deconstruct_pat_fields(args, members);
                         let members = reader.get_params_owned(members).clone();
 
                         // Create wild-cards for all of the tuple inner members
@@ -177,8 +177,6 @@ impl<'tc> LowerPatOps<'tc> {
             Pat::Constructor(ConstructorPat { args, .. }) => {
                 match reader.get_term(ty) {
                     Term::Level1(Level1Term::NominalDef(nominal_def)) => {
-                        let fields = self.pat_lowerer().deconstruct_pat_fields(args);
-
                         let (ctor, members) = match reader.get_nominal_def(nominal_def) {
                             NominalDef::Struct(struct_def) => match struct_def.fields {
                                 StructFields::Explicit(members) => {
@@ -191,6 +189,10 @@ impl<'tc> LowerPatOps<'tc> {
                             // @@EnumToUnion: when enums aren't a thing, do this with a union
                             NominalDef::Enum(_) => unreachable!(),
                         };
+
+                        // Lower the fields by resolving what positions the actual fields are
+                        // with the reference of the constructor's type...
+                        let fields = self.pat_lowerer().deconstruct_pat_fields(args, members);
 
                         let args = reader.get_params_owned(members);
                         let tys = args.positional().iter().map(|param| param.ty);
@@ -230,7 +232,11 @@ impl<'tc> LowerPatOps<'tc> {
 
                     if matches!(pat, Pat::Spread(_)) {
                         if spread {
-                            tc_panic!(id, self, "found multiple spread patterns within list");
+                            tc_panic!(
+                                id,
+                                self,
+                                "found multiple spread patterns within list pattern"
+                            );
                         }
 
                         spread = true;
@@ -305,27 +311,61 @@ impl<'tc> LowerPatOps<'tc> {
 
                 match reader.get_term(pat.ty) {
                     Term::Level1(Level1Term::Tuple(_)) => {
-                        let _children = pat
+                        let children = pat
                             .fields
                             .iter_patterns()
-                            .map(|p| self.construct_pat(*p))
+                            .map(|p| PatArg {
+                                name: None,
+                                pat: self.construct_pat(p)
+                            })
                             .collect_vec();
 
-                        // @@Todo: immutable builder required.
-
-                        // let args = self.builder().create_pat_args(children);
-                        // Pat::Tuple(args)
-
-                        todo!()
+                        let args = self.builder().create_pat_args(children, ParamOrigin::Tuple);
+                        Pat::Tuple(args)
                     }
-                    Term::Level1(Level1Term::NominalDef(_)) => {
-                        let _children = pat.fields.iter_patterns().map(|p| self.construct_pat(*p));
+                    Term::Level1(Level1Term::NominalDef(nom_def)) => {
+                        let tys = match reader.get_nominal_def(nom_def) {
+                            NominalDef::Struct(struct_def) => {
+                                match struct_def.fields {
+                                    StructFields::Explicit(fields) => {
+                                        reader.get_params_owned(fields)
+                                    },
+                                    StructFields::Opaque => unreachable!(),
+                                }
+                            },
+                            NominalDef::Enum(_) => unreachable!(),
+                        };
 
-                        // @@Todo: immutable builder required.
 
-                        // let args = self.builder().create_pat_args(children);
-                        // Pat::Constructor(ConstructorPat { subject: pat.ty, args })
-                        todo!()
+                        // Construct the inner arguments to the constructor by iterating over the 
+                        // pattern fields within the pattern. If possible, lookup the name of the 
+                        // field by using the nominal definition attached to the pattern.
+                        let children = pat.fields.iter_patterns().enumerate()
+                            .filter(|(_, p)| {
+                                !reader.get_deconstructed_pat_ctor(*p).is_wildcard()
+                            })
+                            .map(|(index, p)| {
+                                PatArg {
+                                    name: tys.positional().get(index).and_then(|param| param.name),
+                                    pat: self.construct_pat(p)
+                                }
+                            }).collect_vec();
+
+                        // We collapse all fields that are specified as `wildcards` within
+                        // these construct patterns in order to represent them visually in a clearer
+                        // way. If a construct has 20 fields that 18 are specified as wildcards, and the 
+                        // rest have user specified patterns, then we only want to print those and the 
+                        // rest is denoted as `...`.
+                        let args = if pat.fields.len() != children.len() {
+                            let dummy = Pat::Spread(SpreadPat { name: None  });
+                            let arg = PatArg { pat: self.pat_store().create(dummy), name: None };
+
+                            self.builder().create_pat_args(children.into_iter().chain(once(arg)), ParamOrigin::Unknown)
+                        }  else {
+                            self.builder().create_pat_args(children, ParamOrigin::Unknown)
+                        };
+
+                        Pat::Constructor(ConstructorPat { subject: pat.ty, args })
                     }
                     _ => tc_panic!(
                         pat.ty,
@@ -338,17 +378,14 @@ impl<'tc> LowerPatOps<'tc> {
             DeconstructedCtor::IntRange(range) => self.construct_pat_from_range(pat.ty, range),
             DeconstructedCtor::Str(_) => Pat::Lit(pat.ty),
             DeconstructedCtor::List(List { kind }) => {
-                let children = pat.fields.iter_patterns().map(|p| self.construct_pat(*p));
+                let children = pat.fields.iter_patterns().map(|p| PatArg { pat: self.construct_pat(p), name: None });
 
                 match kind {
                     ListKind::Fixed(_) => {
-                        let _inner_term = self.oracle().term_as_list_ty(pat.ty).unwrap();
+                        let inner_term = self.oracle().term_as_list_ty(pat.ty).unwrap();
 
-                        // @@Todo: immutable builder required.
-
-                        // let inner = self.builder().create_pat_args(children);
-                        // Pat::List(ListPat { term: inner_term, inner })
-                        todo!()
+                        let inner = self.builder().create_pat_args(children, ParamOrigin::ListPat);
+                        Pat::List(ListPat { term: inner_term, inner })
                     }
                     #[allow(clippy::needless_collect)]
                     ListKind::Var(prefix, _) => {
@@ -360,18 +397,15 @@ impl<'tc> LowerPatOps<'tc> {
 
                         // Create the `spread` dummy pattern
                         let dummy = Pat::Spread(SpreadPat { name: None });
-                        let spread = self.pat_store().create(dummy);
+                        let spread = PatArg { pat: self.pat_store().create(dummy), name: None };
 
                         // Now create an inner collection of patterns with the inserted
                         // spread pattern
-                        let _inner = prefix.into_iter().chain(once(spread)).chain(suffix);
-                        let _term = self.oracle().term_as_list_ty(pat.ty).unwrap();
+                        let inner = prefix.into_iter().chain(once(spread)).chain(suffix);
+                        let term = self.oracle().term_as_list_ty(pat.ty).unwrap();
 
-                        // @@Todo: immutable builder required.
-
-                        // let elements = self.builder().create_pat_args(inner);
-                        // Pat::List(ListPat { term, inner: elements })
-                        todo!()
+                        let elements = self.builder().create_pat_args(inner, ParamOrigin::ListPat);
+                        Pat::List(ListPat { term, inner: elements })
                     }
                 }
             }
@@ -503,9 +537,10 @@ impl<'tc> LowerPatOps<'tc> {
     /// fields are named or not, and properly computes the `index` of each
     /// field based on the definition position and whether or not it is a
     /// named argument.
-    pub fn deconstruct_pat_fields(&self, fields: PatArgsId) -> Vec<FieldPat> {
+    pub fn deconstruct_pat_fields(&self, fields: PatArgsId, ty: ParamsId) -> Vec<FieldPat> {
         let reader = self.reader();
-        let args = reader.get_pat_args_owned(fields).clone();
+        let args = reader.get_pat_args_owned(fields);
+        let ty_def = reader.get_params_owned(ty);
 
         let pats = args
             .positional()
@@ -519,7 +554,7 @@ impl<'tc> LowerPatOps<'tc> {
             .map(|(index, arg)| -> FieldPat {
                 let field = if_chain! {
                     if let Some(name) = arg.name;
-                    if let Some((arg_index, _)) = args.get_by_name(name);
+                    if let Some((arg_index, _)) = ty_def.get_by_name(name);
                     then {
                         arg_index
                     } else {

@@ -61,7 +61,9 @@ use crate::{
 #[derive(Clone, Copy)]
 
 pub struct IntRange {
+    /// The beginning of the represented range
     pub(super) start: u128,
+    /// The end of the represented range
     pub(super) end: u128,
 
     /// Keeps the bias used for encoding the range. It depends on the type of
@@ -165,10 +167,11 @@ pub enum IntBorder {
 ///
 /// The following input:
 /// ```text
-///   |-------------------------| // `self`
+///   |-------------------------|           // `self`
 /// |------|  |----------|   |----|
 ///    |-------| |-------|
 /// ```
+///
 /// would be iterated over as follows:
 /// ```text
 ///   ||---|--||-|---|---|---|--|
@@ -268,7 +271,6 @@ impl<'tc> IntRangeOps<'tc> {
         let bias: u128 = match reader.get_term(constant.ty) {
             Term::Level0(Level0Term::Lit(lit)) => match lit {
                 LitTerm::Int { kind, .. } if kind.is_signed() => {
-                    // @@Future: support `ibig` here
                     let size = kind.size().unwrap();
                     1u128 << (size * 8 - 1)
                 }
@@ -307,7 +309,6 @@ impl<'tc> IntRangeOps<'tc> {
     /// of the integer size, in other words at the position where the
     /// last byte is that identifies the sign.
     fn signed_bias(&self, ty: TermId) -> u128 {
-        // @@Future: support `ibig` here
         if let Some(ty) = self.oracle().term_as_int_ty(ty) {
             if let Some(size) = ty.size() && ty.is_signed()  {
                 let bits = (size * 8) as u128;

@@ -13,6 +13,7 @@ use hash_source::{
     location::Span,
 };
 use hash_utils::counter;
+use num_bigint::BigInt;
 use replace_with::replace_with_or_abort;
 
 counter! {
@@ -587,6 +588,48 @@ impl IntTy {
         }
     }
 
+    /// Function to get the largest possible integer represented within this
+    /// type. For sizes `ibig` and `ubig` there is no defined max and so the
+    /// function returns [None].
+    pub fn max(&self) -> Option<BigInt> {
+        match self {
+            IntTy::I8 => Some(BigInt::from(i8::MAX)),
+            IntTy::I16 => Some(BigInt::from(i16::MAX)),
+            IntTy::I32 => Some(BigInt::from(i32::MAX)),
+            IntTy::I64 => Some(BigInt::from(i64::MAX)),
+            IntTy::I128 => Some(BigInt::from(i128::MAX)),
+            IntTy::ISize => Some(BigInt::from(isize::MAX)),
+            IntTy::U8 => Some(BigInt::from(u8::MAX)),
+            IntTy::U16 => Some(BigInt::from(u16::MAX)),
+            IntTy::U32 => Some(BigInt::from(u32::MAX)),
+            IntTy::U64 => Some(BigInt::from(u64::MAX)),
+            IntTy::U128 => Some(BigInt::from(u128::MAX)),
+            IntTy::USize => Some(BigInt::from(usize::MAX)),
+            IntTy::IBig | IntTy::UBig => None,
+        }
+    }
+
+    /// Function to get the most minimum integer represented within this
+    /// type. For sizes `ibig` and `ubig` there is no defined minimum and so the
+    /// function returns [None].
+    pub fn min(&self) -> Option<BigInt> {
+        match self {
+            IntTy::I8 => Some(BigInt::from(i8::MIN)),
+            IntTy::I16 => Some(BigInt::from(i16::MIN)),
+            IntTy::I32 => Some(BigInt::from(i32::MIN)),
+            IntTy::I64 => Some(BigInt::from(i64::MIN)),
+            IntTy::I128 => Some(BigInt::from(i128::MIN)),
+            IntTy::ISize => Some(BigInt::from(isize::MIN)),
+            IntTy::U8 => Some(BigInt::from(u8::MIN)),
+            IntTy::U16 => Some(BigInt::from(u16::MIN)),
+            IntTy::U32 => Some(BigInt::from(u32::MIN)),
+            IntTy::U64 => Some(BigInt::from(u64::MIN)),
+            IntTy::U128 => Some(BigInt::from(u128::MIN)),
+            IntTy::USize => Some(BigInt::from(usize::MIN)),
+            IntTy::IBig | IntTy::UBig => None,
+        }
+    }
+
     /// Convert the [IntTy] into a primitive type name
     pub fn to_name(&self) -> &'static str {
         match self {
@@ -765,7 +808,7 @@ pub struct IfPat {
 pub struct ConstructorPat {
     /// The subject of the constructor pattern.
     pub subject: AstNode<Pat>,
-    /// The arguments of the enum variant as patterns.
+    /// The arguments of the constructor pattern.
     pub fields: AstNodes<TuplePatEntry>,
 }
 

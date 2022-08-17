@@ -2,7 +2,7 @@ warn: range pattern has an overlap with another pattern
   --> $DIR/overlapping_range_ends.hash:10:9
  9 |           -50..<0 => {};
 10 |           70..127 => {};
-   |           ^^^^^^^ this range overlaps on `127i32`...
+   |           ^^^^^^^ this range overlaps on `127_i32`...
 11 |           127..130 => {};
 
   --> $DIR/overlapping_range_ends.hash:11:9

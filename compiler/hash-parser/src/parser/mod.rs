@@ -1,5 +1,6 @@
-//! Hash Compiler AST generation sources. This file contains the sources to the
-//! logic that transforms tokens into an AST.
+//! Hash Compiler parser. The parser will take a generated token stream
+//! and its accompanying token trees and will convert the stream into
+//! an AST.
 mod block;
 mod definitions;
 mod expr;

@@ -1,25 +1,28 @@
 //! Contains utilities to validate terms.
-use std::fmt::Display;
+use std::{collections::HashSet, fmt::Display};
 
-use hash_ast::ast::RangeEnd;
-use hash_utils::store::Store;
+use hash_ast::ast::{ParamOrigin, RangeEnd};
+use hash_utils::store::{SequenceStoreCopy, Store};
+use itertools::Itertools;
 
-use super::AccessToOps;
+use super::{params::validate_param_list_unordered, AccessToOps};
 use crate::{
     diagnostics::{
         error::{TcError, TcResult},
         macros::{tc_panic, tc_panic_on_many},
         params::ParamListKind,
     },
-    ops::params::validate_param_list_ordering,
+    ops::params::validate_param_list,
     storage::{
         arguments::ArgsId,
         mods::ModDefId,
         nominals::NominalDefId,
         params::ParamsId,
+        pats::{PatArgsId, PatId},
         primitives::{
-            ConstructedTerm, FnTy, Level0Term, Level1Term, Level2Term, LitTerm, Member,
-            ModDefOrigin, NominalDef, RangePat, Scope, ScopeKind, StructFields, Term,
+            BindingPat, ConstructedTerm, ConstructorPat, FnTy, Level0Term, Level1Term, Level2Term,
+            LitTerm, Member, ModDefOrigin, NominalDef, ParamList, Pat, RangePat, Scope, ScopeKind,
+            StructFields, Term,
         },
         scope::ScopeId,
         terms::{TermId, TermStore},
@@ -297,7 +300,7 @@ impl<'tc> Validator<'tc> {
 
                     // Validate the ordering and the number of times parameter field names
                     // are specified, although the ordering shouldn't matter
-                    validate_param_list_ordering(&fields, ParamListKind::Params(fields_id))?;
+                    validate_param_list(&fields, ParamListKind::Params(fields_id))?;
 
                     // Validate all fields of an struct def implement `SizedTy`
                     let rti_trt = self.builder().create_sized_ty_term();
@@ -317,10 +320,7 @@ impl<'tc> Validator<'tc> {
                     // are specified, although the ordering shouldn't matter
                     //
                     // @@Unnecessary?
-                    validate_param_list_ordering(
-                        &variant_fields,
-                        ParamListKind::Params(variant.fields),
-                    )?;
+                    validate_param_list(&variant_fields, ParamListKind::Params(variant.fields))?;
 
                     // Validate all fields of an struct def implement `SizedTy`
                     let sized_ty = self.builder().create_sized_ty_term();
@@ -587,7 +587,7 @@ impl<'tc> Validator<'tc> {
     /// **Note**: Requires that the parameters have already been simplified.
     pub(crate) fn validate_params(&self, params_id: ParamsId) -> TcResult<()> {
         let params = self.params_store().get_owned_param_list(params_id);
-        validate_param_list_ordering(&params, ParamListKind::Params(params_id))?;
+        validate_param_list(&params, ParamListKind::Params(params_id))?;
 
         for param in params.positional() {
             self.validate_term(param.ty)?;
@@ -771,7 +771,7 @@ impl<'tc> Validator<'tc> {
                     } else {
                         // There must be exactly one constructor
                         let (_, variants) =
-                            self.typer().infer_constructors_of_nominal_term(simplified_term_id)?[0];
+                            self.typer().infer_constructor_of_nominal_term(simplified_term_id)?[0];
 
                         self.validate_args(members)?;
                         let _ = self
@@ -1236,6 +1236,186 @@ impl<'tc> Validator<'tc> {
                 }
             }
             _ => unreachable!(),
+        }
+    }
+
+    /// Validate the members of a tuple pattern. Ensure that:
+    ///
+    /// - if the pattern contains named members, then all of the members must be
+    ///   named
+    ///  otherwise the pattern must not contain any fields that are named.
+    ///
+    /// - if the pattern has named fields, then ensure that no field names are
+    ///   duplicated.
+    pub(crate) fn validate_tuple_pat(&self, args: PatArgsId) -> TcResult<()> {
+        let reader = self.reader();
+        let members = reader.get_pat_args_owned(args);
+
+        let mut names = HashSet::new();
+        let mut has_name = false;
+
+        for (index, member) in members.positional().iter().enumerate() {
+            // If the tuple has a named field before, and then
+            // this field doesn't specify a name, then error as
+            // this is disallowed:
+            if has_name && member.name.is_none() && !reader.get_pat(member.pat).is_spread() {
+                return Err(TcError::AmbiguousArgumentOrdering {
+                    param_kind: ParamListKind::PatArgs(args),
+                    index,
+                });
+            }
+
+            if let Some(name) = member.name {
+                has_name = true;
+
+                // Field name was specified twice!
+                if names.contains(&name) {
+                    return Err(TcError::ParamGivenTwice {
+                        param_kind: ParamListKind::PatArgs(args),
+                        index,
+                    });
+                }
+
+                names.insert(name);
+            }
+        }
+
+        Ok(())
+    }
+
+    /// This function verifies that the given arguments to the constructor match
+    /// the subject of the [ConstructorPat].
+    ///
+    /// If the constructor subject is a `struct`, the argument names are
+    /// `inferred`  from the pattern bindings, if they have no names, then
+    /// they are assumed to be the name of the position that they are
+    /// specified at. The function will automatically apply the conversion
+    /// and amend the stored arguments with the inferred names.
+    ///
+    /// If the constructor subject is an `enum`, then standard argument position
+    /// rules are applied.
+    pub(crate) fn validate_constructor_pat(&self, pat: PatId) -> TcResult<()> {
+        let ConstructorPat { subject, args } =
+            if let Pat::Constructor(constructor_pat) = self.reader().get_pat(pat) {
+                constructor_pat
+            } else {
+                panic!("not a constructor pattern")
+            };
+
+        let kind = ParamListKind::PatArgs(args);
+
+        // get all of the fields of the argument and then
+        let nominal_def = self
+            .oracle()
+            .term_as_nominal_def(subject)
+            .ok_or(TcError::NoConstructorOnType { subject })?;
+
+        // @@Todo: deal with enums!
+        let (constructor_is_struct, members_id) = match nominal_def {
+            NominalDef::Struct(struct_def) => match struct_def.fields {
+                StructFields::Explicit(fields) => (true, fields),
+                StructFields::Opaque => return Err(TcError::NoConstructorOnType { subject }),
+            },
+            NominalDef::Enum(_) => unreachable!(),
+        };
+
+        let reader = self.reader();
+        let members = reader.get_params_owned(members_id);
+
+        let mut has_spread_pat = false;
+
+        // Apply the mentioned above transformation
+        if constructor_is_struct {
+            let mut pat_args = reader.get_pat_args_owned(args).into_positional();
+            let mut pat_args_length = pat_args.len();
+
+            // We need to adjust the length of `pat_args if it has a spread pattern
+            if pat_args.iter().any(|arg| reader.get_pat(arg.pat).is_spread()) {
+                pat_args_length -= 1;
+            }
+
+            // Verify that the argument list is less than or equal to the parameter list...
+            if pat_args_length > members.len() {
+                return Err(TcError::MismatchingArgParamLength {
+                    args_kind: kind,
+                    params_id: members_id,
+                    params_location: subject.into(),
+                    args_location: pat.into(),
+                });
+            }
+
+            for (index, pat_arg) in pat_args.iter_mut().enumerate() {
+                let pat = reader.get_pat(pat_arg.pat);
+
+                // If the pattern is a spread, record that it has
+                // a spread and skip trying to assign it a name since
+                // it will be erased later.
+                if pat.is_spread() {
+                    has_spread_pat = true;
+                    continue;
+                }
+
+                // We will need to manually infer it
+                if pat_arg.name.is_none() {
+                    // @@Sanity: it might be better just to always require named fields within
+                    // struct patterns because it can create a lot of confusion
+                    // with named fields, un-named fields and spread patterns
+                    // all in the same mix.
+                    let new_name = match pat {
+                        Pat::Binding(BindingPat { name, .. }) => name,
+                        _ => {
+                            // We get the name of the field at the index of this current
+                            // argument. If, this is after a spread pattern then we use
+                            // the index from the end of the parameter list as if it
+                            // was in a tuple.
+                            let offset = if has_spread_pat {
+                                members.len() - (pat_args_length - index)
+                            } else {
+                                index
+                            };
+
+                            // @@Temporary: for struct members that don't have names (which will be
+                            // possible in the future), don't assume this.
+                            members.positional()[offset].name.unwrap()
+                        }
+                    };
+
+                    pat_arg.name = Some(new_name);
+                }
+            }
+
+            // Now we update the pattern arguments
+            self.pat_args_store().set_from_slice_copied(args, &pat_args);
+        }
+
+        // Temporarily, we construct a pat_args without a spread pattern
+        // since we can't validate parameters with it in the args...
+        let pat_args = reader.get_pat_args_owned(args);
+
+        let adjusted_args = if has_spread_pat {
+            let spreadless_pat_args = pat_args
+                .into_positional()
+                .into_iter()
+                .filter(|arg| !reader.get_pat(arg.pat).is_spread())
+                .collect_vec();
+            ParamList::new_owned(spreadless_pat_args, ParamOrigin::Struct)
+        } else {
+            pat_args
+        };
+
+        validate_param_list_unordered(&adjusted_args, kind)?;
+
+        // If the constructor pattern has no spread, check that all arguments
+        // are in place
+        if !has_spread_pat && adjusted_args.len() != members.len() {
+            Err(TcError::MismatchingArgParamLength {
+                args_kind: kind,
+                params_id: members_id,
+                params_location: subject.into(),
+                args_location: pat.into(),
+            })
+        } else {
+            Ok(())
         }
     }
 }

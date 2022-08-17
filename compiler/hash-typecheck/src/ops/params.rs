@@ -2,6 +2,10 @@
 
 use std::{borrow::Cow, collections::HashSet};
 
+use hash_ast::ast::ParamOrigin;
+use hash_source::{identifier::Identifier, location::SourceLocation};
+use itertools::Itertools;
+
 use crate::{
     diagnostics::{
         error::{TcError, TcResult},
@@ -12,6 +16,7 @@ use crate::{
         location::LocationTarget,
         params::ParamsId,
         primitives::{GetNameOpt, Param, ParamList, Params},
+        AccessToStorage, StorageRef,
     },
 };
 
@@ -48,14 +53,14 @@ pub(crate) fn pair_args_with_params<'p, 'a, T: Clone + GetNameOpt>(
         .map(|param| param.name.unwrap())
         .collect();
 
-    let origin = ParamListKind::Args(args_id);
+    let args_kind = ParamListKind::Args(args_id);
 
     if params.len() < args.len() {
         return Err(TcError::MismatchingArgParamLength {
-            args_id,
+            args_kind,
             params_id,
-            params_subject: params_subject.into(),
-            args_subject: args_subject.into(),
+            params_location: params_subject.into(),
+            args_location: args_subject.into(),
         });
     }
 
@@ -73,7 +78,7 @@ pub(crate) fn pair_args_with_params<'p, 'a, T: Clone + GetNameOpt>(
                     Some((index, param)) => {
                         if used_params.contains(&index) {
                             // Ensure not already used
-                            return Err(TcError::ParamGivenTwice { param_kind: origin, index });
+                            return Err(TcError::ParamGivenTwice { param_kind: args_kind, index });
                         } else {
                             used_params.insert(index);
                             result.push((param, Cow::Borrowed(arg)));
@@ -90,7 +95,7 @@ pub(crate) fn pair_args_with_params<'p, 'a, T: Clone + GetNameOpt>(
                         // constructor is defined...
                         return Err(TcError::ParamNotFound {
                             params_subject: params_subject.into(),
-                            args_id,
+                            args_kind,
                             params_id,
                             name: arg_name,
                         });
@@ -102,12 +107,12 @@ pub(crate) fn pair_args_with_params<'p, 'a, T: Clone + GetNameOpt>(
                 if done_positional {
                     // Using positional args after named args is an error
                     return Err(TcError::AmbiguousArgumentOrdering {
-                        param_kind: origin,
+                        param_kind: args_kind,
                         index: i,
                     });
                 } else if used_params.contains(&i) {
                     // Ensure not already used
-                    return Err(TcError::ParamGivenTwice { param_kind: origin, index: i });
+                    return Err(TcError::ParamGivenTwice { param_kind: args_kind, index: i });
                 } else {
                     used_params.insert(i);
 
@@ -139,10 +144,10 @@ pub(crate) fn pair_args_with_params<'p, 'a, T: Clone + GetNameOpt>(
     if params.positional().len() != result.len() {
         // @@Todo: for pattern params, use a more specialised error here
         return Err(TcError::MismatchingArgParamLength {
-            args_id,
+            args_kind: ParamListKind::Args(args_id),
             params_id,
-            params_subject: params_subject.into(),
-            args_subject: args_subject.into(),
+            params_location: params_subject.into(),
+            args_location: args_subject.into(),
         });
     }
 
@@ -160,7 +165,7 @@ pub(crate) fn pair_args_with_params<'p, 'a, T: Clone + GetNameOpt>(
 /// [ParamList] follows the described rules. This function works for either
 /// parameters or arguments, and hence why it accepts a [ParamListKind]
 /// in order to preserve context in the event of an error.
-pub(crate) fn validate_param_list_ordering<T: Clone + GetNameOpt>(
+pub(crate) fn validate_param_list<T: Clone + GetNameOpt>(
     params: &ParamList<T>,
     origin: ParamListKind,
 ) -> TcResult<()> {
@@ -196,4 +201,145 @@ pub(crate) fn validate_param_list_ordering<T: Clone + GetNameOpt>(
     }
 
     Ok(())
+}
+
+/// Function that validates a parameter list without considering the ordering of
+/// named and un-named parameters. This is a useful function for constructor
+/// pattern fields since there is no bound on which order the user specifies
+/// names on the fields. This function will simply verify that the fields
+/// don't repeat names.
+pub(crate) fn validate_param_list_unordered<T: Clone + GetNameOpt>(
+    params: &ParamList<T>,
+    origin: ParamListKind,
+) -> TcResult<()> {
+    // Keep track of used params to ensure no parameter is given twice.
+    let mut params_used = HashSet::new();
+
+    for (index, param) in params.positional().iter().enumerate() {
+        // If we have found the index in our set, that means that it must
+        // of already been used and therefore it should trigger an error
+        if let Some(name) = param.get_name_opt() {
+            if let Some((found_index, _)) = params.get_by_name(name) {
+                if params_used.contains(&found_index) {
+                    return Err(TcError::ParamGivenTwice { param_kind: origin, index });
+                } else {
+                    params_used.insert(found_index);
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Function to validate that all of the named arguments specified in
+/// `args` exist within the specified `params`.
+pub(crate) fn validate_named_params_match<T: Clone + GetNameOpt>(
+    params: &Params<'_>,
+    args: &ParamList<'_, T>,
+    params_id: ParamsId,
+    args_id: ParamListKind,
+    subject: impl Into<LocationTarget>,
+) -> TcResult<()> {
+    for arg in args.positional() {
+        if let Some(name) = arg.get_name_opt() {
+            if params.get_by_name(name).is_none() {
+                return Err(TcError::ParamNotFound {
+                    params_id,
+                    args_kind: args_id,
+                    params_subject: subject.into(),
+                    name,
+                });
+            }
+        }
+    }
+
+    Ok(())
+}
+
+pub struct ParamOps<'tc> {
+    storage: StorageRef<'tc>,
+}
+
+impl<'tc> AccessToStorage for ParamOps<'tc> {
+    fn storages(&self) -> StorageRef {
+        self.storage.storages()
+    }
+}
+
+impl<'tc> ParamOps<'tc> {
+    /// Create a new instance of [ParamOps]
+    pub fn new(storage: StorageRef<'tc>) -> Self {
+        Self { storage }
+    }
+
+    /// Convert a [ParamListKind] and a field index into a [SourceLocation] by
+    /// looking up the inner id within the [LocationStore].
+    pub(crate) fn field_location(
+        &self,
+        param: &ParamListKind,
+        index: usize,
+    ) -> Option<SourceLocation> {
+        match param {
+            ParamListKind::Params(id) => self.location_store().get_location((*id, index)),
+            ParamListKind::PatArgs(id) => self.location_store().get_location((*id, index)),
+            ParamListKind::Args(id) => self.location_store().get_location((*id, index)),
+        }
+    }
+
+    /// Get the [ParamOrigin] from the [ParamListKind]
+    pub(crate) fn origin(&self, param: &ParamListKind) -> ParamOrigin {
+        match param {
+            ParamListKind::Params(id) => self.params_store().get_origin(*id),
+            ParamListKind::PatArgs(id) => self.pat_args_store().get_origin(*id),
+            ParamListKind::Args(id) => self.args_store().get_origin(*id),
+        }
+    }
+
+    /// Get the names fields within the [ParamListKind]
+    pub(crate) fn names(&self, param: &ParamListKind) -> HashSet<Identifier> {
+        match param {
+            ParamListKind::Params(id) => self.params_store().names(*id),
+            ParamListKind::PatArgs(id) => self.pat_args_store().names(*id),
+            ParamListKind::Args(id) => self.args_store().names(*id),
+        }
+    }
+
+    /// Get a stored parameter/field by name.
+    pub(crate) fn get_name_by_index(
+        &self,
+        param: &ParamListKind,
+        name: Identifier,
+    ) -> Option<usize> {
+        match param {
+            ParamListKind::Params(id) => {
+                self.params_store().get_by_name(*id, name).map(|param| param.0)
+            }
+            ParamListKind::PatArgs(id) => {
+                self.pat_args_store().get_by_name(*id, name).map(|param| param.0)
+            }
+            ParamListKind::Args(id) => {
+                self.args_store().get_by_name(*id, name).map(|param| param.0)
+            }
+        }
+    }
+
+    /// Function used to compute the missing fields from another
+    /// [ParamListKind]. This does not compute a difference as it doesn't
+    /// consider items that are present in the other [ParamListKind] and not
+    /// in the current list as `missing`.
+    pub(crate) fn compute_missing_fields(
+        &self,
+        param: &ParamListKind,
+        other: &ParamListKind,
+    ) -> Vec<Identifier> {
+        let lhs_names = self.names(param);
+        let rhs_names = self.names(other);
+
+        // Compute the missing names and then sort them
+        let mut missing_names = lhs_names.difference(&rhs_names).into_iter().copied().collect_vec();
+        missing_names.sort_unstable();
+
+        missing_names
+    }
 }
