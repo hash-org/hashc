@@ -2,7 +2,7 @@
 //! vice versa.
 use std::{iter::once, mem::size_of};
 
-use hash_ast::ast::{ParamOrigin, RangeEnd, SpreadPatOrigin};
+use hash_ast::ast::{ParamOrigin, RangeEnd};
 use hash_utils::store::Store;
 use if_chain::if_chain;
 use itertools::Itertools;
@@ -357,7 +357,7 @@ impl<'tc> LowerPatOps<'tc> {
                         // rest have user specified patterns, then we only want to print those and the 
                         // rest is denoted as `...`.
                         let args = if pat.fields.len() != children.len() {
-                            let dummy = Pat::Spread(SpreadPat { name: None, origin: SpreadPatOrigin::List });
+                            let dummy = Pat::Spread(SpreadPat { name: None  });
                             let arg = PatArg { pat: self.pat_store().create(dummy), name: None };
 
                             self.builder().create_pat_args(children.into_iter().chain(once(arg)), ParamOrigin::Unknown)
@@ -396,7 +396,7 @@ impl<'tc> LowerPatOps<'tc> {
                         let suffix: Vec<_> = children.collect();
 
                         // Create the `spread` dummy pattern
-                        let dummy = Pat::Spread(SpreadPat { name: None, origin: SpreadPatOrigin::List });
+                        let dummy = Pat::Spread(SpreadPat { name: None });
                         let spread = PatArg { pat: self.pat_store().create(dummy), name: None };
 
                         // Now create an inner collection of patterns with the inserted

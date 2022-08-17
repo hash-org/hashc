@@ -2062,8 +2062,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     ) -> Result<Self::SpreadPatRet, Self::Error> {
         let walk::SpreadPat { name } = walk::walk_spread_pat(self, ctx, node)?;
 
-        let spread_pat =
-            self.builder().create_pat(Pat::Spread(SpreadPat { name, origin: node.origin }));
+        let spread_pat = self.builder().create_pat(Pat::Spread(SpreadPat { name }));
 
         self.copy_location_from_node_to_target(node, spread_pat);
         Ok(spread_pat)

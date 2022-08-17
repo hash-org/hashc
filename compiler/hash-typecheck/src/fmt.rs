@@ -708,7 +708,7 @@ impl<'gs> TcFormatter<'gs> {
             Pat::List(ListPat { inner, .. }) => {
                 write!(f, "[{}]", inner.for_formatting(self.global_storage))
             }
-            Pat::Spread(SpreadPat { name, .. }) => {
+            Pat::Spread(SpreadPat { name }) => {
                 write!(f, "...")?;
 
                 // Write the name bind, if it exists

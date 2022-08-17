@@ -890,34 +890,6 @@ pub struct BindingPat {
 pub struct SpreadPat {
     /// If the spread pattern binds the selected range
     pub name: Option<AstNode<Name>>,
-
-    /// The parent origin of the spread pattern, whether it is
-    /// either a `constructor`, `tuple` or `list` pattern
-    pub origin: SpreadPatOrigin,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum SpreadPatOrigin {
-    /// The origin is a list pattern
-    List,
-    /// The origin is a constructor pattern
-    Constructor,
-    /// The origin is a tuple pattern
-    Tuple,
-    /// The origin is not known yet, it will likely
-    /// be resolved during AST passes.
-    Unknown,
-}
-
-impl Display for SpreadPatOrigin {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            SpreadPatOrigin::List => write!(f, "list"),
-            SpreadPatOrigin::Constructor => write!(f, "constructor"),
-            SpreadPatOrigin::Tuple => write!(f, "tuple"),
-            SpreadPatOrigin::Unknown => write!(f, "unknown"),
-        }
-    }
 }
 
 /// The wildcard pattern.

@@ -5,7 +5,7 @@ use std::{
     collections::{HashMap, HashSet},
 };
 
-use hash_ast::ast::{ParamOrigin, SpreadPatOrigin};
+use hash_ast::ast::ParamOrigin;
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::identifier::Identifier;
 use hash_utils::store::Store;
@@ -599,11 +599,9 @@ impl<'tc> PatMatcher<'tc> {
     fn match_spread_pat_with_term(
         &self,
         id: PatId,
-        SpreadPat { name, origin }: SpreadPat,
+        SpreadPat { name }: SpreadPat,
         subject_ty: TermId,
     ) -> TcResult<Option<Vec<(Member, PatId)>>> {
-        assert_eq!(origin, SpreadPatOrigin::List);
-
         match name {
             Some(name) => {
                 // Since `pat_ty` will be `List<T = Unresolved>`, we need to create a new
@@ -767,6 +765,7 @@ impl<'tc> PatMatcher<'tc> {
                 Ok(_) => Ok(Some(vec![])),
                 Err(_) => Ok(None),
             },
+
             Pat::Mod(mod_pat) => self.match_mod_pat_with_term(mod_pat, term_id),
             Pat::Tuple(members) => {
                 self.match_tuple_pat_with_term(pat_id, members, simplified_term_id)

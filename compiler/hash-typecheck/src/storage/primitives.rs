@@ -6,7 +6,7 @@ use std::{
     fmt::Display,
 };
 
-use hash_ast::ast::{IntLit, IntLitKind, IntTy, ParamOrigin, RangeEnd, SpreadPatOrigin};
+use hash_ast::ast::{IntLit, IntLitKind, IntTy, ParamOrigin, RangeEnd};
 use hash_source::{
     constant::{InternedStr, CONSTANT_MAP},
     identifier::Identifier,
@@ -1191,9 +1191,6 @@ pub struct ListPat {
 pub struct SpreadPat {
     /// Associated bind to the spread
     pub name: Option<Identifier>,
-
-    /// Origin of the spread pattern
-    pub origin: SpreadPatOrigin,
 }
 
 /// A conditional pattern, containing a pattern and an condition.

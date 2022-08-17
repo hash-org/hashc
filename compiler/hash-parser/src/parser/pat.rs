@@ -79,9 +79,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     let tree = self.token_trees.get(tree_index as usize).unwrap();
                     let mut gen = self.from_stream(tree, token.span);
 
-                    // Set the `parent_pat` as a `constructor`
-                    gen.parent_pat.set(SpreadPatOrigin::Constructor);
-
                     let fields = gen.parse_separated_fn(
                         |g| g.parse_tuple_pat_entry(),
                         |g| g.parse_token(TokenKind::Comma),
@@ -302,10 +299,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         parent_span: Span,
     ) -> ParseResult<AstNode<Pat>> {
         let mut gen = self.from_stream(tree, parent_span);
-
-        // Set the `parent_pat` origin as list
-        gen.parent_pat.set(SpreadPatOrigin::List);
-
         let fields = gen.parse_separated_fn(|g| g.parse_pat(), |g| g.parse_token(TokenKind::Comma));
         self.consume_gen(gen);
 
@@ -340,9 +333,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // only one. So essentially we handle the case where a pattern is
         // wrapped in parentheses and so we just unwrap it.
         let mut gen = self.from_stream(tree, parent_span);
-
-        // Set the `parent_pat` as a `constructor`
-        gen.parent_pat.set(SpreadPatOrigin::Tuple);
 
         let mut elements = gen
             .parse_separated_fn(|g| g.parse_tuple_pat_entry(), |g| g.parse_token(TokenKind::Comma));
@@ -415,7 +405,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // and bind the capture to a variable
         let name = self.peek_resultant_fn(|g| g.parse_name());
 
-        Ok(SpreadPat { name, origin: self.parent_pat.get() })
+        Ok(SpreadPat { name })
     }
 
     /// Function to parse a [BindingPat] without considering whether it

@@ -1095,12 +1095,10 @@ impl AstVisitor for AstTreeGenerator {
     ) -> Result<Self::SpreadPatRet, Self::Error> {
         let walk::SpreadPat { name } = walk::walk_spread_pat(self, ctx, node)?;
 
-        let label = format!("spread origin=`{}`", node.origin);
-
         if let Some(name) = name {
-            Ok(TreeNode::leaf(labelled(label, name.label, "\"")))
+            Ok(TreeNode::leaf(labelled("spread", name.label, "\"")))
         } else {
-            Ok(TreeNode::leaf(label))
+            Ok(TreeNode::leaf("spread"))
         }
     }
 
