@@ -16,6 +16,7 @@ use super::{
 };
 use crate::{
     fmt::PrepareForFormatting,
+    ops::AccessToOps,
     storage::{
         primitives::{AccessOp, Arg, Param, PatArg},
         AccessToStorage, StorageRef,
@@ -365,10 +366,10 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     ParamOrigin::Struct => {
                         // @@ErrorReporting: Get the name of the struct...
 
-                        if params.len() > args.len(err.global_storage()) {
-                            let p = ParamListKind::Params(*params_id);
-                            let missing_fields =
-                                p.compute_missing_fields(args, err.global_storage());
+                        if params.len() > args.len() {
+                            let missing_fields = err
+                                .param_ops()
+                                .compute_missing_fields(&ParamListKind::Params(*params_id), args);
 
                             builder.with_message(format!(
                                 "struct literal is missing the fields {}",
@@ -391,9 +392,9 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                             }
                         } else {
                             // Compute fields that shouldn't be present here...
-                            let p = ParamListKind::Params(*params_id);
-                            let extra_fields =
-                                args.compute_missing_fields(&p, err.global_storage());
+                            let extra_fields = err
+                                .param_ops()
+                                .compute_missing_fields(args, &ParamListKind::Params(*params_id));
 
                             builder.with_message(format!(
                                 "struct literal does not have the fields {}",
@@ -428,8 +429,6 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                         }
                     }
                     _ => {
-                        let arg_length = args.len(err.global_storage());
-
                         // @@ErrorReporting: get more customised messages for other variant
                         // mismatch...
                         builder
@@ -438,14 +437,14 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                                 "{} expects {} arguments, however {} arguments were given",
                                 params_origin,
                                 params.len(),
-                                arg_length
+                                args.len()
                             ));
 
                         // Provide information about the location of the target type if available
                         if let Some(location) = err.location_store().get_location(*args_location) {
                             builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                                 location,
-                                format!("got {} arguments here...", arg_length),
+                                format!("got {} arguments here...", args.len()),
                             )));
                         }
 
@@ -454,7 +453,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                         {
                             builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                                 location,
-                                format!("...but this expects {} arguments.", arg_length),
+                                format!("...but this expects {} arguments.", args.len()),
                             )));
                         }
                     }
@@ -466,10 +465,10 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     .with_message(format!("parameter with name `{}` is not defined", name));
 
                 // find the parameter and report the location
-                let id = args_kind.get_name_index(*name, err.global_storage()).unwrap();
+                let id = err.param_ops().get_name_by_index(args_kind, *name).unwrap();
 
                 // Provide information about the location of the target type if available
-                if let Some(location) = args_kind.field_location(id, err.location_store()) {
+                if let Some(location) = err.param_ops().field_location(args_kind, id) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!("{} `{}` not defined", args_kind.as_noun(), name),
@@ -488,7 +487,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 }
             }
             TcError::ParamGivenTwice { param_kind, index } => {
-                let origin = param_kind.origin(err.global_storage());
+                let origin = err.param_ops().origin(param_kind);
 
                 // we want to get the particular argument at the specified index, get the name
                 // and then later use the name to find the original use so that it can be
@@ -503,7 +502,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                         let Param { name, .. } = params.positional()[*index];
                         let name = name.unwrap();
 
-                        // find the ise of the first name
+                        // find the index of the first name
                         let first_use = params
                             .positional()
                             .iter()
@@ -519,7 +518,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                         let Arg { name, .. } = args.positional()[*index];
                         let name = name.unwrap();
 
-                        // find the ise of the first name
+                        // find the index of the first name
                         let first_use = args
                             .positional()
                             .iter()
@@ -535,7 +534,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                         let PatArg { name, .. } = args.positional()[*index];
                         let name = name.unwrap();
 
-                        // find the ise of the first name
+                        // find the index of the first name
                         let first_use = args
                             .positional()
                             .iter()
@@ -552,30 +551,29 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 ));
 
                 // Report where the secondary use occurred, and if possible the first use
-                if let Some(location) = param_kind.field_location(*index, err.location_store()) {
+                if let Some(location) = err.param_ops().field_location(param_kind, *index) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!("parameter `{}` has already been used", name),
                     )));
                 }
 
-                if let Some(location) = param_kind.field_location(first_use, err.location_store()) {
+                if let Some(location) = err.param_ops().field_location(param_kind, first_use) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "initial use occurs here",
                     )));
                 }
             }
-            // @@ErrorReporting: this could be delegated to semantic-analysis...
             TcError::AmbiguousArgumentOrdering { param_kind, index } => {
-                let origin = param_kind.origin(err.global_storage());
+                let origin = err.param_ops().origin(param_kind);
 
                 builder
                     .with_error_code(HashErrorCode::AmbiguousFieldOrder)
                     .with_message(format!("ambiguous parameter ordering within a {}", origin));
 
                 // Add the location of the
-                if let Some(location) = param_kind.field_location(*index, err.location_store()) {
+                if let Some(location) = err.param_ops().field_location(param_kind, *index) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "un-named parameters cannot appear after named parameters",

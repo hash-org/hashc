@@ -23,8 +23,8 @@ use crate::{
     storage::{
         pats::{PatArgsId, PatId},
         primitives::{
-            AccessOp, AccessPat, Arg, BindingPat, ConstPat, ConstructorPat, IfPat, ListPat, Member,
-            ModPat, Mutability, NominalDef, Pat, PatArg, SpreadPat, StructFields, Visibility,
+            AccessOp, AccessPat, Arg, ConstPat, ConstructorPat, IfPat, ListPat, Member, ModPat,
+            Mutability, Pat, PatArg, SpreadPat, StructFields,
         },
         terms::TermId,
         AccessToStorage, StorageRef,
@@ -133,8 +133,14 @@ impl<'tc> PatMatcher<'tc> {
     }
 
     /// Utility for creating the captured member when a spread pattern
-    /// has a binding. This takes in
-    fn create_pat_from_captured_members(
+    /// has a binding. This takes in all of the members that were captured
+    /// when erasing the `...` from the constructor or tuple and creates
+    /// a new member that is now visible with scope with the specified `name`.
+    ///
+    /// The type of the member is a tuple that contains the members that were
+    /// captured from the `...` erasure with their associated names and type
+    /// values.
+    fn create_tuple_member_from_captured_members_in_spread_pat(
         &self,
         items: Vec<(PatArg, TermId, Option<TermId>)>,
         name: Identifier,
@@ -142,37 +148,27 @@ impl<'tc> PatMatcher<'tc> {
     ) -> TcResult<Option<(Member, PatId)>> {
         // If there is only one captured element, we turn this into a
         // bind pattern rather than being a tuple...
-        let (id, inferred_term, value) = if items.len() == 1 {
-            // Create the binding that puts the
-            let id = self.pat_store().create(Pat::Binding(BindingPat {
-                name,
-                mutability: Mutability::Immutable,
-                visibility: Visibility::Private,
-            }));
 
-            (id, items[0].1, items[0].2.unwrap_or(items[0].1))
-        } else {
-            // Now we also need to infer the type of the tuple
-            let members = self.builder().create_args(
-                items.iter().map(|(member, value, _)| Arg { name: member.name, value: *value }),
-                ParamOrigin::Tuple,
-            );
+        // Now we also need to infer the type of the tuple
+        let members = self.builder().create_args(
+            items
+                .iter()
+                .map(|(member, ty, value)| Arg { name: member.name, value: value.unwrap_or(*ty) }),
+            ParamOrigin::Tuple,
+        );
 
-            let inferred_term = self.builder().create_tuple_lit_term(members);
+        let inferred_term = self.builder().create_tuple_lit_term(members);
 
-            let captured_members = self
-                .builder()
-                .create_pat_args(items.into_iter().map(|(arg, _, _)| arg), ParamOrigin::Tuple);
-            let id = self.pat_store().create(Pat::Tuple(captured_members));
-
-            (id, inferred_term, inferred_term)
-        };
+        let captured_members = self
+            .builder()
+            .create_pat_args(items.into_iter().map(|(arg, _, _)| arg), ParamOrigin::Tuple);
+        let id = self.pat_store().create(Pat::Tuple(captured_members));
 
         // We need to copy over the location of the pattern from the spread pattern to
         // this one so in-case it is used for error reporting purposes...
         self.location_store().copy_location(original_id, id);
 
-        Ok(Some((Member::variable(name, Mutability::Immutable, inferred_term, value), id)))
+        Ok(Some((Member::variable(name, Mutability::Immutable, inferred_term, inferred_term), id)))
     }
 
     /// Find a spread pattern within the provided [PatArgsId].
@@ -213,11 +209,11 @@ impl<'tc> PatMatcher<'tc> {
     /// Foo(age, ...other) := x; // other: (name: str, sex: char)
     /// ```
     ///
-    /// In the case of the enum variant, the same logic is applied to un-named
-    /// tuples, where only a collection of the fields is captured. Any
-    /// members that are not specified are captured by an un-named tuple as
-    /// a side product that can be accessed if the spread pattern specifies
-    /// a bind. For example:
+    /// In the case of an enum variant which is un-named, the same logic is
+    /// applied to un-named tuples, where only a collection of the fields is
+    /// captured. Any members that are not specified are captured by an
+    /// un-named tuple as a side product that can be accessed if the spread
+    /// pattern specifies a bind. For example:
     ///
     /// ```ignore
     /// Foo := enum(
@@ -247,14 +243,12 @@ impl<'tc> PatMatcher<'tc> {
         if spread_pat.is_none() {
             return Ok(None);
         }
-        let (_pos, name, spread_id) = spread_pat.unwrap();
+        let (_, name, spread_id) = spread_pat.unwrap();
 
-        let subject_members = match self.oracle().term_as_nominal_def(subject).unwrap() {
-            NominalDef::Struct(struct_def) => match struct_def.fields {
-                StructFields::Explicit(fields) => fields,
-                _ => unreachable!(),
-            },
-            NominalDef::Enum(_) => unreachable!(),
+        // @@Todo: deal with enum variants
+        let subject_members = match self.oracle().term_as_struct_def(subject).unwrap().fields {
+            StructFields::Explicit(fields) => fields,
+            _ => unreachable!(),
         };
 
         let pat_args = reader.get_pat_args_owned(args);
@@ -290,7 +284,11 @@ impl<'tc> PatMatcher<'tc> {
         // If the spread pattern has a bind, then we need to also create the new tuple
         // type and return it as a bound member to that value.
         name.map_or(Ok(None), |name| {
-            self.create_pat_from_captured_members(captured_members, name, spread_id)
+            self.create_tuple_member_from_captured_members_in_spread_pat(
+                captured_members,
+                name,
+                spread_id,
+            )
         })
     }
 
@@ -349,7 +347,11 @@ impl<'tc> PatMatcher<'tc> {
             self.pat_store().set(pat, Pat::Tuple(new_pat_members));
 
             return name.map_or(Ok(None), |name| {
-                self.create_pat_from_captured_members(vec![], name, spread_id)
+                self.create_tuple_member_from_captured_members_in_spread_pat(
+                    vec![],
+                    name,
+                    spread_id,
+                )
             });
         }
 
@@ -472,7 +474,11 @@ impl<'tc> PatMatcher<'tc> {
         // If the spread pattern has a bind, then we need to also create the new tuple
         // type and return it as a bound member to that value.
         name.map_or(Ok(None), |name| {
-            self.create_pat_from_captured_members(captured_members, name, spread_id)
+            self.create_tuple_member_from_captured_members_in_spread_pat(
+                captured_members,
+                name,
+                spread_id,
+            )
         })
     }
 

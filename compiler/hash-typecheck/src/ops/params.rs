@@ -2,6 +2,9 @@
 
 use std::{borrow::Cow, collections::HashSet};
 
+use hash_ast::ast::ParamOrigin;
+use hash_source::{identifier::Identifier, location::SourceLocation};
+
 use crate::{
     diagnostics::{
         error::{TcError, TcResult},
@@ -12,6 +15,7 @@ use crate::{
         location::LocationTarget,
         params::ParamsId,
         primitives::{GetNameOpt, Param, ParamList, Params},
+        AccessToStorage, StorageRef,
     },
 };
 
@@ -250,4 +254,87 @@ pub(crate) fn validate_named_params_match<T: Clone + GetNameOpt>(
     }
 
     Ok(())
+}
+
+pub struct ParamOps<'tc> {
+    storage: StorageRef<'tc>,
+}
+
+impl<'tc> AccessToStorage for ParamOps<'tc> {
+    fn storages(&self) -> StorageRef {
+        self.storage.storages()
+    }
+}
+
+impl<'tc> ParamOps<'tc> {
+    /// Create a new instance of [ParamOps]
+    pub fn new(storage: StorageRef<'tc>) -> Self {
+        Self { storage }
+    }
+
+    /// Convert a [ParamListKind] and a field index into a [SourceLocation] by
+    /// looking up the inner id within the [LocationStore].
+    pub(crate) fn field_location(
+        &self,
+        param: &ParamListKind,
+        index: usize,
+    ) -> Option<SourceLocation> {
+        match param {
+            ParamListKind::Params(id) => self.location_store().get_location((*id, index)),
+            ParamListKind::PatArgs(id) => self.location_store().get_location((*id, index)),
+            ParamListKind::Args(id) => self.location_store().get_location((*id, index)),
+        }
+    }
+
+    /// Get the [ParamOrigin] from the [ParamListKind]
+    pub(crate) fn origin(&self, param: &ParamListKind) -> ParamOrigin {
+        match param {
+            ParamListKind::Params(id) => self.params_store().get_origin(*id),
+            ParamListKind::PatArgs(id) => self.pat_args_store().get_origin(*id),
+            ParamListKind::Args(id) => self.args_store().get_origin(*id),
+        }
+    }
+
+    /// Get the names fields within the [ParamListKind]
+    pub(crate) fn names(&self, param: &ParamListKind) -> HashSet<Identifier> {
+        match param {
+            ParamListKind::Params(id) => self.params_store().names(*id),
+            ParamListKind::PatArgs(id) => self.pat_args_store().names(*id),
+            ParamListKind::Args(id) => self.args_store().names(*id),
+        }
+    }
+
+    /// Get a stored parameter/field by name.
+    pub(crate) fn get_name_by_index(
+        &self,
+        param: &ParamListKind,
+        name: Identifier,
+    ) -> Option<usize> {
+        match param {
+            ParamListKind::Params(id) => {
+                self.params_store().get_by_name(*id, name).map(|param| param.0)
+            }
+            ParamListKind::PatArgs(id) => {
+                self.pat_args_store().get_by_name(*id, name).map(|param| param.0)
+            }
+            ParamListKind::Args(id) => {
+                self.args_store().get_by_name(*id, name).map(|param| param.0)
+            }
+        }
+    }
+
+    /// Function used to compute the missing fields from another
+    /// [ParamListKind]. This does not compute a difference as it doesn't
+    /// consider items that are present in the other [ParamListKind] and not
+    /// in the current list as `missing`.
+    pub(crate) fn compute_missing_fields(
+        &self,
+        param: &ParamListKind,
+        other: &ParamListKind,
+    ) -> Vec<Identifier> {
+        let lhs_names = self.names(param);
+        let rhs_names = self.names(other);
+
+        lhs_names.difference(&rhs_names).into_iter().copied().collect()
+    }
 }

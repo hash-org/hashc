@@ -22,7 +22,7 @@ pub mod validate;
 
 use self::{
     building::PrimitiveBuilder, cache::CacheManager, core::CoreDefReader, discover::Discoverer,
-    exhaustiveness::ExhaustivenessChecker, oracle::Oracle, pats::PatMatcher,
+    exhaustiveness::ExhaustivenessChecker, oracle::Oracle, params::ParamOps, pats::PatMatcher,
     reader::PrimitiveReader, scope::ScopeManager, simplify::Simplifier, substitute::Substituter,
     typing::Typer, unify::Unifier, validate::Validator,
 };
@@ -105,6 +105,11 @@ pub trait AccessToOps: AccessToStorage {
     /// Create an instance of [ExhaustivenessChecker].
     fn exhaustiveness_checker(&self) -> ExhaustivenessChecker {
         ExhaustivenessChecker::new(self.storages())
+    }
+
+    /// Create an instance of [ParamOps]
+    fn param_ops(&self) -> ParamOps {
+        ParamOps::new(self.storages())
     }
 
     /// Create an instance of [Discoverer].

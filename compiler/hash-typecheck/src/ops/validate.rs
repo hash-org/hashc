@@ -1374,7 +1374,8 @@ impl<'tc> Validator<'tc> {
                                 index
                             };
 
-                            // Guaranteed to have a name since this is a struct definition.
+                            // @@Temporary: for struct members that don't have names (which will be
+                            // possible in the future), don't assume this.
                             members.positional()[offset].name.unwrap()
                         }
                     };

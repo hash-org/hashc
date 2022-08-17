@@ -90,7 +90,7 @@ impl<'tc> Oracle<'tc> {
     }
 
     /// If the term is a [Level1Term::Tuple], return it.
-    pub fn term_as_tuple(&self, term: TermId) -> Option<TupleTy> {
+    pub fn term_as_tuple_ty(&self, term: TermId) -> Option<TupleTy> {
         let reader = self.reader();
 
         match reader.get_term(term) {
