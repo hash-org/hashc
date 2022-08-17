@@ -82,26 +82,26 @@ impl<'tc> AccessToStorage for TcWarningWithStorage<'tc> {
 }
 
 impl<'tc> From<TcWarningWithStorage<'tc>> for Report {
-    fn from(item: TcWarningWithStorage<'tc>) -> Self {
+    fn from(ctx: TcWarningWithStorage<'tc>) -> Self {
         let mut builder = ReportBuilder::new();
         builder.with_kind(ReportKind::Warning);
 
-        match item.warning {
+        match ctx.warning {
             TcWarning::UselessMatchCase { pat, subject } => {
                 builder.with_message(format!(
                     "match case `{}` is redundant when matching on `{}`",
-                    pat.for_formatting(item.global_storage()),
-                    subject.for_formatting(item.global_storage())
+                    pat.for_formatting(ctx.global_storage()),
+                    subject.for_formatting(ctx.global_storage())
                 ));
 
-                if let Some(location) = item.location_store().get_location(subject) {
+                if let Some(location) = ctx.location_store().get_location(subject) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "the match subject is given here...",
                     )));
                 }
 
-                if let Some(location) = item.location_store().get_location(pat) {
+                if let Some(location) = ctx.location_store().get_location(pat) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "...and this pattern will never match the subject".to_string(),
@@ -111,7 +111,7 @@ impl<'tc> From<TcWarningWithStorage<'tc>> for Report {
             TcWarning::UnreachablePat { pat } => {
                 builder.with_message("pattern is unreachable".to_string());
 
-                if let Some(location) = item.location_store().get_location(pat) {
+                if let Some(location) = ctx.location_store().get_location(pat) {
                     builder
                         .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(location, "")));
                 }
@@ -119,17 +119,17 @@ impl<'tc> From<TcWarningWithStorage<'tc>> for Report {
             TcWarning::OverlappingRangeEnd { range, overlapping_term, overlaps } => {
                 builder.with_message("range pattern has an overlap with another pattern");
 
-                if let Some(location) = item.location_store().get_location(range) {
+                if let Some(location) = ctx.location_store().get_location(range) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!(
                             "this range overlaps on `{}`...",
-                            overlapping_term.for_formatting(item.global_storage())
+                            overlapping_term.for_formatting(ctx.global_storage())
                         ),
                     )));
                 }
 
-                if let Some(location) = item.location_store().get_location(overlaps) {
+                if let Some(location) = ctx.location_store().get_location(overlaps) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "...with this range",
@@ -139,17 +139,17 @@ impl<'tc> From<TcWarningWithStorage<'tc>> for Report {
             TcWarning::NamedTupleCoercion { original, coerced_into } => {
                 builder.with_message("named tuple is coerced into an un-named tuple");
 
-                if let Some(location) = item.location_store().get_location(original) {
+                if let Some(location) = ctx.location_store().get_location(original) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!(
                             "the named tuple type `{}` is being coerced into an un-named tuple",
-                            original.for_formatting(item.global_storage())
+                            original.for_formatting(ctx.global_storage())
                         ),
                     )));
                 }
 
-                if let Some(location) = item.location_store().get_location(coerced_into) {
+                if let Some(location) = ctx.location_store().get_location(coerced_into) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "the coercion occurs here",

@@ -43,47 +43,47 @@ impl<'tc> AccessToStorage for TcErrorWithStorage<'tc> {
 }
 
 impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
-    fn from(err: TcErrorWithStorage<'tc>) -> Self {
+    fn from(ctx: TcErrorWithStorage<'tc>) -> Self {
         let mut builder = ReportBuilder::new();
         builder.with_kind(ReportKind::Error);
 
-        match &err.error {
+        match &ctx.error {
             TcError::CannotUnify { src, target } => {
                 builder.with_error_code(HashErrorCode::TypeMismatch).with_message(format!(
                     "types mismatch, wanted `{}`, but got `{}`",
-                    target.for_formatting(err.global_storage()),
-                    src.for_formatting(err.global_storage())
+                    target.for_formatting(ctx.global_storage()),
+                    src.for_formatting(ctx.global_storage())
                 ));
 
                 // Now get the spans for the two terms and add them to the
                 // report
-                if let Some(location) = err.location_store().get_location(target) {
+                if let Some(location) = ctx.location_store().get_location(target) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!(
                             "this expects the type `{}`",
-                            target.for_formatting(err.global_storage()),
+                            target.for_formatting(ctx.global_storage()),
                         ),
                     )));
                 }
 
-                if let Some(location) = err.location_store().get_location(src) {
+                if let Some(location) = ctx.location_store().get_location(src) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!(
                             "...but this is of type `{}`",
-                            src.for_formatting(err.global_storage()),
+                            src.for_formatting(ctx.global_storage()),
                         ),
                     )));
                 }
             }
             TcError::CannotUnifyArgs { src_args_id, target_args_id, reason, src, target } => {
-                let src_args = err.args_store().get_owned_param_list(*src_args_id);
-                let target_args = err.args_store().get_owned_param_list(*target_args_id);
+                let src_args = ctx.args_store().get_owned_param_list(*src_args_id);
+                let target_args = ctx.args_store().get_owned_param_list(*target_args_id);
 
                 // It doesn't matter whether we use `src` or `target` since they should be the
                 // same
-                let origin = err.args_store().get_origin(*src_args_id);
+                let origin = ctx.args_store().get_origin(*src_args_id);
 
                 match &reason {
                     ParamUnificationErrorReason::LengthMismatch => {
@@ -97,7 +97,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                             ));
 
                         // Provide information about the location of the target type if available
-                        if let Some(location) = err.location_store().get_location(target) {
+                        if let Some(location) = ctx.location_store().get_location(target) {
                             builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                                 location,
                                 format!(
@@ -109,7 +109,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                         }
 
                         // Provide information about the source of the unification error
-                        if let Some(location) = err.location_store().get_location(src) {
+                        if let Some(location) = ctx.location_store().get_location(src) {
                             builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                                 location,
                                 format!("...but got {} arguments here", src_args.len()),
@@ -155,9 +155,9 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                             };
 
                         let src_location =
-                            err.location_store().get_location((*src_args_id, *index));
+                            ctx.location_store().get_location((*src_args_id, *index));
                         let target_location =
-                            err.location_store().get_location((*target_args_id, *index));
+                            ctx.location_store().get_location((*target_args_id, *index));
 
                         // Provide information about the location of the target type if available.
                         // If the location is not available, we just attach
@@ -199,12 +199,12 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 }
             }
             TcError::CannotUnifyParams { src_params_id, target_params_id, reason, src, target } => {
-                let src_params = err.params_store().get_owned_param_list(*src_params_id);
-                let target_params = err.params_store().get_owned_param_list(*target_params_id);
+                let src_params = ctx.params_store().get_owned_param_list(*src_params_id);
+                let target_params = ctx.params_store().get_owned_param_list(*target_params_id);
 
                 // It doesn't matter whether we use `src` or `target` since they should be the
                 // same
-                let origin = err.params_store().get_origin(*src_params_id);
+                let origin = ctx.params_store().get_origin(*src_params_id);
 
                 match &reason {
                     ParamUnificationErrorReason::LengthMismatch => {
@@ -218,7 +218,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                             ));
 
                         // Provide information about the location of the target type if available
-                        if let Some(location) = err.location_store().get_location(*target) {
+                        if let Some(location) = ctx.location_store().get_location(*target) {
                             builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                                 location,
                                 format!(
@@ -230,7 +230,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                         }
 
                         // Provide information about the source of the unification error
-                        if let Some(location) = err.location_store().get_location(*src) {
+                        if let Some(location) = ctx.location_store().get_location(*src) {
                             builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                                 location,
                                 format!("...but got {} parameters here", src_params.len()),
@@ -276,9 +276,9 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                             };
 
                         let src_location =
-                            err.location_store().get_location((*src_params_id, *index));
+                            ctx.location_store().get_location((*src_params_id, *index));
                         let target_location =
-                            err.location_store().get_location((*target_params_id, *index));
+                            ctx.location_store().get_location((*target_params_id, *index));
 
                         // Provide information about the location of the target type if available.
                         // If the location is not available, we just attach
@@ -322,13 +322,13 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
             TcError::NotATyFn { term } => {
                 builder.with_error_code(HashErrorCode::TyIsNotTyFn).with_message(format!(
                     "type `{}` is not a type function",
-                    term.for_formatting(err.global_storage())
+                    term.for_formatting(ctx.global_storage())
                 ));
 
                 // Get the location of the term
                 // @@Future: is it useful to also print the location of what was expecting
                 // something to be a type function.
-                if let Some(location) = err.location_store().get_location(term) {
+                if let Some(location) = ctx.location_store().get_location(term) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "this type is not a type function",
@@ -339,11 +339,11 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 builder.with_error_code(HashErrorCode::ValueCannotBeUsedAsType).with_message(
                     format!(
                         "type `{}` is not a type function",
-                        value.for_formatting(err.global_storage())
+                        value.for_formatting(ctx.global_storage())
                     ),
                 );
 
-                if let Some(location) = err.location_store().get_location(value) {
+                if let Some(location) = ctx.location_store().get_location(value) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "this cannot be used a type",
@@ -356,18 +356,18 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 params_location,
                 args_location,
             } => {
-                let params = err.params_store().get_owned_param_list(*params_id);
+                let params = ctx.params_store().get_owned_param_list(*params_id);
 
                 builder.with_error_code(HashErrorCode::ParameterLengthMismatch);
 
-                let params_origin = err.params_store().get_origin(*params_id);
+                let params_origin = ctx.params_store().get_origin(*params_id);
 
                 match params_origin {
                     ParamOrigin::Struct => {
                         // @@ErrorReporting: Get the name of the struct...
 
                         if params.len() > args.len() {
-                            let missing_fields = err
+                            let missing_fields = ctx
                                 .param_ops()
                                 .compute_missing_fields(&ParamListKind::Params(*params_id), args);
 
@@ -378,7 +378,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
 
                             // Add note about what fields are missing from the struct
                             if let Some(location) =
-                                err.location_store().get_location(*args_location)
+                                ctx.location_store().get_location(*args_location)
                             {
                                 builder.add_element(ReportElement::CodeBlock(
                                     ReportCodeBlock::new(
@@ -392,7 +392,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                             }
                         } else {
                             // Compute fields that shouldn't be present here...
-                            let extra_fields = err
+                            let extra_fields = ctx
                                 .param_ops()
                                 .compute_missing_fields(args, &ParamListKind::Params(*params_id));
 
@@ -405,7 +405,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                             // @@Future: It would be nice to highlight the exact fields and just
                             // show them specifically rather than the whole subject expression...
                             if let Some(location) =
-                                err.location_store().get_location(*args_location)
+                                ctx.location_store().get_location(*args_location)
                             {
                                 builder.add_element(ReportElement::CodeBlock(
                                     ReportCodeBlock::new(
@@ -420,7 +420,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                         }
 
                         // Provide information about the location of the target type if available
-                        if let Some(location) = err.location_store().get_location(*params_location)
+                        if let Some(location) = ctx.location_store().get_location(*params_location)
                         {
                             builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                                 location,
@@ -441,7 +441,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                             ));
 
                         // Provide information about the location of the target type if available
-                        if let Some(location) = err.location_store().get_location(*args_location) {
+                        if let Some(location) = ctx.location_store().get_location(*args_location) {
                             builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                                 location,
                                 format!("got {} arguments here...", args.len()),
@@ -449,7 +449,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                         }
 
                         // Provide information about the location of the target type if available
-                        if let Some(location) = err.location_store().get_location(*params_location)
+                        if let Some(location) = ctx.location_store().get_location(*params_location)
                         {
                             builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                                 location,
@@ -465,10 +465,10 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     .with_message(format!("parameter with name `{}` is not defined", name));
 
                 // find the parameter and report the location
-                let id = err.param_ops().get_name_by_index(args_kind, *name).unwrap();
+                let id = ctx.param_ops().get_name_by_index(args_kind, *name).unwrap();
 
                 // Provide information about the location of the target type if available
-                if let Some(location) = err.param_ops().field_location(args_kind, id) {
+                if let Some(location) = ctx.param_ops().field_location(args_kind, id) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!("{} `{}` not defined", args_kind.as_noun(), name),
@@ -476,18 +476,18 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 }
 
                 // Provide information about the location of the target type if available
-                if let Some(location) = err.location_store().get_location(*params_subject) {
+                if let Some(location) = ctx.location_store().get_location(*params_subject) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!(
                             "the {} is defined here",
-                            err.params_store().get_origin(*params_id)
+                            ctx.params_store().get_origin(*params_id)
                         ),
                     )));
                 }
             }
             TcError::ParamGivenTwice { param_kind, index } => {
-                let origin = err.param_ops().origin(param_kind);
+                let origin = ctx.param_ops().origin(param_kind);
 
                 // we want to get the particular argument at the specified index, get the name
                 // and then later use the name to find the original use so that it can be
@@ -496,7 +496,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 // Safety: this should be safe to unwrap otherwise we can't detect this issue.
                 let (name, first_use) = match param_kind {
                     ParamListKind::Params(id) => {
-                        let params = err.params_store().get_owned_param_list(*id);
+                        let params = ctx.params_store().get_owned_param_list(*id);
 
                         // Extract the name from the parameter
                         let Param { name, .. } = params.positional()[*index];
@@ -512,7 +512,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                         (name, first_use)
                     }
                     ParamListKind::Args(id) => {
-                        let args = err.args_store().get_owned_param_list(*id);
+                        let args = ctx.args_store().get_owned_param_list(*id);
 
                         // Extract the name from the argument
                         let Arg { name, .. } = args.positional()[*index];
@@ -528,7 +528,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                         (name, first_use)
                     }
                     ParamListKind::PatArgs(id) => {
-                        let args = err.pat_args_store().get_owned_param_list(*id);
+                        let args = ctx.pat_args_store().get_owned_param_list(*id);
 
                         // Extract the name from the argument
                         let PatArg { name, .. } = args.positional()[*index];
@@ -551,14 +551,14 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 ));
 
                 // Report where the secondary use occurred, and if possible the first use
-                if let Some(location) = err.param_ops().field_location(param_kind, *index) {
+                if let Some(location) = ctx.param_ops().field_location(param_kind, *index) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!("parameter `{}` has already been used", name),
                     )));
                 }
 
-                if let Some(location) = err.param_ops().field_location(param_kind, first_use) {
+                if let Some(location) = ctx.param_ops().field_location(param_kind, first_use) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "initial use occurs here",
@@ -566,14 +566,14 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 }
             }
             TcError::AmbiguousArgumentOrdering { param_kind, index } => {
-                let origin = err.param_ops().origin(param_kind);
+                let origin = ctx.param_ops().origin(param_kind);
 
                 builder
                     .with_error_code(HashErrorCode::AmbiguousFieldOrder)
                     .with_message(format!("ambiguous parameter ordering within a {}", origin));
 
                 // Add the location of the
-                if let Some(location) = err.param_ops().field_location(param_kind, *index) {
+                if let Some(location) = ctx.param_ops().field_location(param_kind, *index) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "un-named parameters cannot appear after named parameters",
@@ -588,16 +588,16 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     format!(
                         "the {op_member_kind} `{}` is not present within `{}`",
                         name,
-                        value.for_formatting(err.global_storage())
+                        value.for_formatting(ctx.global_storage())
                     ),
                 );
 
-                if let Some(location) = err.location_store().get_location(value) {
+                if let Some(location) = ctx.location_store().get_location(value) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!(
                             "`{}` does not contain the {} `{}`",
-                            value.for_formatting(err.global_storage()),
+                            value.for_formatting(ctx.global_storage()),
                             op,
                             name
                         ),
@@ -610,7 +610,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     name
                 ));
 
-                if let Some(location) = err.location_store().get_location(value) {
+                if let Some(location) = ctx.location_store().get_location(value) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "variable not defined in the current scope",
@@ -622,12 +622,12 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     .with_error_code(HashErrorCode::UnsupportedAccess)
                     .with_message("unsupported access");
 
-                if let Some(location) = err.location_store().get_location(value) {
+                if let Some(location) = ctx.location_store().get_location(value) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!(
                             "`{}` cannot be accessed using with the name `{}`",
-                            value.for_formatting(err.global_storage()),
+                            value.for_formatting(ctx.global_storage()),
                             name
                         ),
                     )));
@@ -637,16 +637,16 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 builder.with_error_code(HashErrorCode::UnsupportedNamespaceAccess).with_message(
                     format!(
                         "unsupported namespace access, `{}` cannot be namespaced",
-                        value.for_formatting(err.global_storage())
+                        value.for_formatting(ctx.global_storage())
                     ),
                 );
 
-                if let Some(location) = err.location_store().get_location(value) {
+                if let Some(location) = ctx.location_store().get_location(value) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!(
                             "`{}` cannot be namespaced using with the name `{}`",
-                            value.for_formatting(err.global_storage()),
+                            value.for_formatting(ctx.global_storage()),
                             name
                         ),
                     )));
@@ -657,17 +657,17 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 builder.with_error_code(HashErrorCode::UnsupportedPropertyAccess).with_message(
                     format!(
                         "unsupported property access for type `{}`",
-                        value.for_formatting(err.global_storage())
+                        value.for_formatting(ctx.global_storage())
                     ),
                 );
 
-                if let Some(location) = err.location_store().get_location(value) {
+                if let Some(location) = ctx.location_store().get_location(value) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!(
                             "the property `{}` cannot be accessed from `{}`, it does not support property accessing",
                             name,
-                            value.for_formatting(err.global_storage()),
+                            value.for_formatting(ctx.global_storage()),
                         ),
                     )));
                 }
@@ -675,11 +675,11 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
             TcError::InvalidTyFnApplication { type_fn, cases, unification_errors, .. } => {
                 builder.with_error_code(HashErrorCode::TypeMismatch).with_message(format!(
                     "the type function `{}` cannot be applied",
-                    type_fn.for_formatting(err.global_storage()),
+                    type_fn.for_formatting(ctx.global_storage()),
                 ));
 
                 // Now we show where the unification shouldn't occur
-                if let Some(location) = err.location_store().get_location(type_fn) {
+                if let Some(location) = ctx.location_store().get_location(type_fn) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "couldn't apply type function due to a type mismatch".to_string(),
@@ -698,7 +698,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 // report.
                 let _inner_reports: Vec<Report> = unification_errors
                     .iter()
-                    .map(|error| TcErrorWithStorage::new(error.clone(), err.storages()).into())
+                    .map(|error| TcErrorWithStorage::new(error.clone(), ctx.storages()).into())
                     .collect();
 
                 // @@Todo(feds01): Now we need to merge the reports:
@@ -708,12 +708,12 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     .with_error_code(HashErrorCode::InvalidMergeElement)
                     .with_message("invalid element within a merge declaration");
 
-                if let Some(location) = err.location_store().get_location(term) {
+                if let Some(location) = ctx.location_store().get_location(term) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!(
                             "cannot use the type `{}` within a merge declaration",
-                            term.for_formatting(err.global_storage()),
+                            term.for_formatting(ctx.global_storage()),
                         ),
                     )));
 
@@ -727,12 +727,12 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     .with_error_code(HashErrorCode::InvalidUnionElement)
                     .with_message("invalid element within a union");
 
-                if let Some(location) = err.location_store().get_location(term) {
+                if let Some(location) = ctx.location_store().get_location(term) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!(
                             "cannot use the type `{}` within a union",
-                            term.for_formatting(err.global_storage()),
+                            term.for_formatting(ctx.global_storage()),
                         ),
                     )));
 
@@ -746,12 +746,12 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     .with_error_code(HashErrorCode::DisallowedType)
                     .with_message("invalid function parameter type".to_string());
 
-                if let Some(location) = err.location_store().get_location(param_ty) {
+                if let Some(location) = ctx.location_store().get_location(param_ty) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!(
                             "cannot use the type `{}` within as the type of a function parameter",
-                            param_ty.for_formatting(err.global_storage()),
+                            param_ty.for_formatting(ctx.global_storage()),
                         ),
                     )));
                 }
@@ -761,12 +761,12 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     .with_error_code(HashErrorCode::DisallowedType)
                     .with_message("invalid function return type".to_string());
 
-                if let Some(location) = err.location_store().get_location(return_ty) {
+                if let Some(location) = ctx.location_store().get_location(return_ty) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!(
                             "cannot use the type `{}` as the return type of a function",
-                            return_ty.for_formatting(err.global_storage()),
+                            return_ty.for_formatting(ctx.global_storage()),
                         ),
                     )));
                 }
@@ -776,7 +776,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     .with_error_code(HashErrorCode::DisallowedType)
                     .with_message("invalid type of function return value".to_string());
 
-                if let Some(location) = err.location_store().get_location(return_value) {
+                if let Some(location) = ctx.location_store().get_location(return_value) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "this can't be used as the return of the function",
@@ -787,7 +787,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                         ReportNoteKind::Note,
                         format!(
                             "the type of the return value `{}` which is disallowed",
-                            return_value.for_formatting(err.global_storage()),
+                            return_value.for_formatting(ctx.global_storage()),
                         ),
                     )));
                 }
@@ -801,14 +801,14 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     "merge declarations should only contain a single nominal term".to_string(),
                 );
 
-                if let Some(location) = err.location_store().get_location(initial_term) {
+                if let Some(location) = ctx.location_store().get_location(initial_term) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "the merge declaration has an initial nominal term here",
                     )));
                 }
 
-                if let Some(location) = err.location_store().get_location(offending_term) {
+                if let Some(location) = ctx.location_store().get_location(offending_term) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "...and the second nominal term use occurs here",
@@ -816,7 +816,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 }
 
                 // Add the location of the actual merge for annotation
-                if let Some(location) = err.location_store().get_location(merge_term) {
+                if let Some(location) = ctx.location_store().get_location(merge_term) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "within this merge term",
@@ -825,10 +825,10 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
             }
 
             TcError::MergeShouldBeLevel1 { merge_term, offending_term } => {
-                let location = err.location_store().get_location(merge_term).unwrap();
+                let location = ctx.location_store().get_location(merge_term).unwrap();
 
-                let offender = err.term_store().get(*offending_term);
-                let offender_location = err.location_store().get_location(offending_term).unwrap();
+                let offender = ctx.term_store().get(*offending_term);
+                let offender_location = ctx.location_store().get_location(offending_term).unwrap();
 
                 builder
                     .with_error_code(HashErrorCode::DisallowedType)
@@ -843,15 +843,15 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                         offender_location,
                         format!(
                             "this term is of {} and not level-1",
-                            offender.get_term_level(err.term_store())
+                            offender.get_term_level(ctx.term_store())
                         ),
                     )));
             }
             TcError::MergeShouldBeLevel2 { merge_term, offending_term } => {
-                let location = err.location_store().get_location(merge_term).unwrap();
+                let location = ctx.location_store().get_location(merge_term).unwrap();
 
-                let offender = err.term_store().get(*offending_term);
-                let offender_location = err.location_store().get_location(offending_term).unwrap();
+                let offender = ctx.term_store().get(*offending_term);
+                let offender_location = ctx.location_store().get_location(offending_term).unwrap();
 
                 builder
                     .with_error_code(HashErrorCode::DisallowedType)
@@ -866,7 +866,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                         offender_location,
                         format!(
                             "this term is of {} and not level-2",
-                            offender.get_term_level(err.term_store())
+                            offender.get_term_level(ctx.term_store())
                         ),
                     )));
             }
@@ -875,7 +875,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     .with_error_code(HashErrorCode::UnresolvedType)
                     .with_message("insufficient information to resolve types".to_string());
 
-                if let Some(location) = err.location_store().get_location(term) {
+                if let Some(location) = ctx.location_store().get_location(term) {
                     builder
                         .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(location, "")))
                         .add_element(ReportElement::Note(ReportNote::new(
@@ -888,11 +888,11 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 builder.with_error_code(HashErrorCode::NonRuntimeInstantiable).with_message(
                     format!(
                         "the type `{}` is not runtime instantiable",
-                        term.for_formatting(err.global_storage())
+                        term.for_formatting(ctx.global_storage())
                     ),
                 );
 
-                if let Some(location) = err.location_store().get_location(term) {
+                if let Some(location) = ctx.location_store().get_location(term) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "cannot use this as it isn't runtime instantiable",
@@ -904,7 +904,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     .with_error_code(HashErrorCode::UnsupportedTyFnApplication)
                     .with_message("unsupported subject in type function application");
 
-                if let Some(location) = err.location_store().get_location(subject_id) {
+                if let Some(location) = ctx.location_store().get_location(subject_id) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "this cannot be used to as the subject to a type function application",
@@ -917,7 +917,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     .with_message(format!("ambiguous access of {} `{}`", access.op, access.name));
 
                 // show the subject if possible
-                if let Some(location) = err.location_store().get_location(access.subject) {
+                if let Some(location) = ctx.location_store().get_location(access.subject) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "ambiguous access occurs here",
@@ -934,7 +934,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                             .iter()
                             .map(|result| format!(
                                 "\t\t{}",
-                                result.for_formatting(err.global_storage())
+                                result.for_formatting(ctx.global_storage())
                             ))
                             .collect::<Vec<_>>()
                             .join("\n")
@@ -949,7 +949,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                         property
                     ));
 
-                if let Some(location) = err.location_store().get_location(subject) {
+                if let Some(location) = ctx.location_store().get_location(subject) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "this is not a method",
@@ -961,7 +961,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     .with_error_code(HashErrorCode::UninitialisedMember)
                     .with_message("members must be initialised in the current scope");
 
-                if let Some(location) = err.location_store().get_location(member_ty) {
+                if let Some(location) = ctx.location_store().get_location(member_ty) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "this declaration must be initialised",
@@ -971,10 +971,10 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
             TcError::CannotImplementNonTrait { term } => {
                 builder.with_error_code(HashErrorCode::TypeIsNotTrait).with_message(format!(
                     "type `{}` is not a trait",
-                    term.for_formatting(err.global_storage())
+                    term.for_formatting(ctx.global_storage())
                 ));
 
-                if let Some(location) = err.location_store().get_location(term) {
+                if let Some(location) = ctx.location_store().get_location(term) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "this cannot be implemented because it's not a trait",
@@ -989,24 +989,24 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 builder.with_error_code(HashErrorCode::TraitImplMissingMember).with_message(
                     format!(
                         "trait `{}` is missing the member `{}`",
-                        trt_def_term_id.for_formatting(err.global_storage()),
-                        trt_def_missing_member_term_id.for_formatting(err.global_storage())
+                        trt_def_term_id.for_formatting(ctx.global_storage()),
+                        trt_def_missing_member_term_id.for_formatting(ctx.global_storage())
                     ),
                 );
 
-                if let Some(location) = err.location_store().get_location(trt_impl_term_id) {
+                if let Some(location) = ctx.location_store().get_location(trt_impl_term_id) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!(
                             "the implementation of trait `{}` is missing the member `{}`",
-                            trt_def_term_id.for_formatting(err.global_storage()),
-                            trt_def_missing_member_term_id.for_formatting(err.global_storage())
+                            trt_def_term_id.for_formatting(ctx.global_storage()),
+                            trt_def_missing_member_term_id.for_formatting(ctx.global_storage())
                         ),
                     )));
                 }
 
                 // Add the location of the trait definition
-                if let Some(location) = err.location_store().get_location(trt_def_term_id) {
+                if let Some(location) = ctx.location_store().get_location(trt_def_term_id) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "trait defined here",
@@ -1015,13 +1015,13 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
 
                 // Add the location of the missing member definition if possible
                 if let Some(location) =
-                    err.location_store().get_location(trt_def_missing_member_term_id)
+                    ctx.location_store().get_location(trt_def_missing_member_term_id)
                 {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!(
                             "missing member `{}` is defined here",
-                            trt_def_missing_member_term_id.for_formatting(err.global_storage())
+                            trt_def_missing_member_term_id.for_formatting(ctx.global_storage())
                         ),
                     )));
                 }
@@ -1030,10 +1030,10 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 // @@Todo: error code
                 builder.with_message(format!(
                     "cannot use `{}` as a function call subject",
-                    term.for_formatting(err.global_storage())
+                    term.for_formatting(ctx.global_storage())
                 ));
 
-                if let Some(location) = err.location_store().get_location(term) {
+                if let Some(location) = ctx.location_store().get_location(term) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "this cannot be called because it's not function-like",
@@ -1047,12 +1047,12 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                         .to_string(),
                 );
 
-                if let Some(location) = err.location_store().get_location(pat) {
+                if let Some(location) = ctx.location_store().get_location(pat) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!(
                             "pattern `{}` is given here on an unset declaration",
-                            pat.for_formatting(err.global_storage())
+                            pat.for_formatting(ctx.global_storage())
                         ),
                     )));
                 }
@@ -1062,7 +1062,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     "assignment left-hand side needs to be a stack variable".to_string(),
                 );
 
-                if let Some(location) = err.location_store().get_location(*location) {
+                if let Some(location) = ctx.location_store().get_location(*location) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "non-variable term given in an assignment here",
@@ -1072,10 +1072,10 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
             TcError::NoConstructorOnType { subject } => {
                 builder.with_message(format!(
                     "type `{}` has no instantiable constructor",
-                    subject.for_formatting(err.global_storage())
+                    subject.for_formatting(ctx.global_storage())
                 ));
 
-                if let Some(location) = err.location_store().get_location(subject) {
+                if let Some(location) = ctx.location_store().get_location(subject) {
                     builder
                         .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(location, "")));
                 }
@@ -1085,7 +1085,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     format!("identifier `{}` is bound multiple times in the same pattern", name),
                 );
 
-                if let Some(location) = err.location_store().get_location(pat) {
+                if let Some(location) = ctx.location_store().get_location(pat) {
                     builder
                         .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(location, "")));
                 }
@@ -1096,7 +1096,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     SequenceDisplay::all(bounds.as_slice())
                 ));
 
-                if let Some(location) = err.location_store().get_location(pat) {
+                if let Some(location) = ctx.location_store().get_location(pat) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!("pattern doesn't bind {}", SequenceDisplay::all(bounds.as_slice())),
@@ -1117,7 +1117,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 // Prepare patterns for printing
                 let uncovered = uncovered_pats
                     .iter()
-                    .map(|id| format!("{}", id.for_formatting(err.global_storage())))
+                    .map(|id| format!("{}", id.for_formatting(ctx.global_storage())))
                     .collect_vec();
 
                 let pats = SequenceDisplay::all(&uncovered);
@@ -1126,7 +1126,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     "refutable pattern in {origin} binding: {pats} not covered",
                 ));
 
-                if let Some(location) = err.location_store().get_location(pat) {
+                if let Some(location) = ctx.location_store().get_location(pat) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!("pattern {pats} not covered"),
@@ -1136,7 +1136,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
             TcError::NonExhaustiveMatch { term, uncovered_pats } => {
                 let uncovered = uncovered_pats
                     .iter()
-                    .map(|id| format!("{}", id.for_formatting(err.global_storage())))
+                    .map(|id| format!("{}", id.for_formatting(ctx.global_storage())))
                     .collect_vec();
 
                 let pats = SequenceDisplay::all(&uncovered);
@@ -1145,7 +1145,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     .with_error_code(HashErrorCode::NonExhaustiveMatch)
                     .with_message(format!("non-exhaustive patterns: {} not covered", pats));
 
-                if let Some(location) = err.location_store().get_location(term) {
+                if let Some(location) = ctx.location_store().get_location(term) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!("pattern {} not covered", pats),
@@ -1164,7 +1164,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     .with_error_code(HashErrorCode::InvalidRangePatBoundaries)
                     .with_message(message);
 
-                if let Some(location) = err.location_store().get_location(term) {
+                if let Some(location) = ctx.location_store().get_location(term) {
                     builder
                         .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(location, "")));
                 }
@@ -1173,11 +1173,11 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 builder.with_error_code(HashErrorCode::InvalidRangePatBoundaries).with_message(
                     format!(
                         "the type `{}` is not supported in range patterns",
-                        term.for_formatting(err.global_storage())
+                        term.for_formatting(ctx.global_storage())
                     ),
                 );
 
-                if let Some(location) = err.location_store().get_location(term) {
+                if let Some(location) = ctx.location_store().get_location(term) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         ""
