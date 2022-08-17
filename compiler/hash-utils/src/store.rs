@@ -16,7 +16,7 @@ pub trait StoreKey: Copy + Eq + Hash {
 #[macro_export]
 macro_rules! new_store_key {
     ($visibility:vis $name:ident) => {
-        #[derive(PartialEq, Eq, Clone, Copy, Hash, Debug)]
+        #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Hash, Debug)]
         $visibility struct $name {
             index: u32,
         }

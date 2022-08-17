@@ -1,0 +1,8 @@
+// run=fail
+
+get_name := () -> str => {
+    "a name"
+};
+
+a := get_name();
+"str" := a;

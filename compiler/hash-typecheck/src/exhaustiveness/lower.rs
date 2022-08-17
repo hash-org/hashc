@@ -417,50 +417,60 @@ impl<'tc> LowerPatOps<'tc> {
     /// Convert [IntRange] into a [Pat] by judging the given
     /// type that is stored within the parent [DeconstructedPat].
     pub fn construct_pat_from_range(&self, ty: TermId, range: IntRange) -> Pat {
+        if range.is_singleton() {
+            Pat::Lit(ty)
+        } else {
+            Pat::Range(self.construct_range_pat(range, ty))
+        }
+    }
+
+    /// Function to specifically create a [RangePat] from two specified
+    /// boundaries and the type that represents the boundaries. This
+    /// function does not consider if the range boundaries are the same
+    /// which should yield a [Pat::Lit] instead of a [Pat::Range], if this
+    /// is the desired behaviour, then you should use
+    /// [`Self::construct_pat_from_range`].
+    pub(crate) fn construct_range_pat(&self, range: IntRange, ty: TermId) -> RangePat {
         let (lo, hi) = range.boundaries();
         let bias = range.bias;
         let (lo, hi) = (lo ^ bias, hi ^ bias);
 
-        if lo == hi {
-            Pat::Lit(ty)
-        } else {
-            let (lo, hi) = if let Some(kind) = self.oracle().term_as_int_ty(ty) {
-                let size = kind.size().unwrap() as usize;
+        let (lo, hi) = if let Some(kind) = self.oracle().term_as_int_ty(ty) {
+            let size = kind.size().unwrap() as usize;
 
-                // Trim the values within the stored range and then create
-                // literal terms with those values...
-                let lo_val = BigInt::from_signed_bytes_le(&lo.to_le_bytes()[0..size]);
-                let hi_val = BigInt::from_signed_bytes_le(&hi.to_le_bytes()[0..size]);
+            // Trim the values within the stored range and then create
+            // literal terms with those values...
+            let lo_val = BigInt::from_signed_bytes_le(&lo.to_le_bytes()[0..size]);
+            let hi_val = BigInt::from_signed_bytes_le(&hi.to_le_bytes()[0..size]);
 
-                let lo = self.builder().create_lit_term(LitTerm::Int { value: lo_val, kind });
-                let hi = self.builder().create_lit_term(LitTerm::Int { value: hi_val, kind });
+            let lo = self.builder().create_lit_term(LitTerm::Int { value: lo_val, kind });
+            let hi = self.builder().create_lit_term(LitTerm::Int { value: hi_val, kind });
 
-                (lo, hi)
-            } else if self.oracle().term_is_char_ty(ty) {
-                let size = size_of::<char>();
+            (lo, hi)
+        } else if self.oracle().term_is_char_ty(ty) {
+            let size = size_of::<char>();
 
-                // This must be a `char` literal
-                let (lo_val, hi_val) = unsafe {
-                    let lo_val = char::from_u32_unchecked(u32::from_le_bytes(
-                        lo.to_le_bytes()[0..size].try_into().unwrap(),
-                    ));
-                    let hi_val = char::from_u32_unchecked(u32::from_le_bytes(
-                        hi.to_le_bytes()[0..size].try_into().unwrap(),
-                    ));
+            // This must be a `char` literal
+            let (lo_val, hi_val) = unsafe {
+                let lo_val = char::from_u32_unchecked(u32::from_le_bytes(
+                    lo.to_le_bytes()[0..size].try_into().unwrap(),
+                ));
+                let hi_val = char::from_u32_unchecked(u32::from_le_bytes(
+                    hi.to_le_bytes()[0..size].try_into().unwrap(),
+                ));
 
-                    (lo_val, hi_val)
-                };
-
-                let lo = self.builder().create_lit_term(LitTerm::Char(lo_val));
-                let hi = self.builder().create_lit_term(LitTerm::Char(hi_val));
-
-                (lo, hi)
-            } else {
-                unreachable!()
+                (lo_val, hi_val)
             };
 
-            Pat::Range(RangePat { lo, hi, end: RangeEnd::Included })
-        }
+            let lo = self.builder().create_lit_term(LitTerm::Char(lo_val));
+            let hi = self.builder().create_lit_term(LitTerm::Char(hi_val));
+
+            (lo, hi)
+        } else {
+            unreachable!()
+        };
+
+        RangePat { lo, hi, end: RangeEnd::Included }
     }
 
     /// Expand an `or` pattern into a passed [Vec], whilst also

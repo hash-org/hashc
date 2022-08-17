@@ -4,7 +4,7 @@
 pub(crate) mod error;
 pub(crate) mod warning;
 
-use hash_reporting::diagnostic::Diagnostics;
+use hash_reporting::{diagnostic::Diagnostics, report::Report};
 use smallvec::SmallVec;
 
 use self::{
@@ -50,16 +50,12 @@ impl<'stream, 'resolver> Diagnostics<ParseError, ParseWarning> for AstGen<'strea
         &self.diagnostics
     }
 
-    fn diagnostic_store_mut(&mut self) -> &mut Self::DiagnosticsStore {
-        &mut self.diagnostics
-    }
-
     fn add_error(&mut self, error: ParseError) {
-        self.diagnostic_store_mut().errors.push(error);
+        self.diagnostics.errors.push(error);
     }
 
     fn add_warning(&mut self, warning: ParseWarning) {
-        self.diagnostic_store_mut().warnings.push(warning);
+        self.diagnostics.warnings.push(warning);
     }
 
     fn has_errors(&self) -> bool {
@@ -70,7 +66,7 @@ impl<'stream, 'resolver> Diagnostics<ParseError, ParseWarning> for AstGen<'strea
         !self.diagnostic_store().warnings.is_empty()
     }
 
-    fn into_reports(self) -> Vec<hash_reporting::report::Report> {
+    fn into_reports(self) -> Vec<Report> {
         self.diagnostics
             .errors
             .into_iter()

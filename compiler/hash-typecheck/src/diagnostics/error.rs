@@ -144,8 +144,6 @@ pub enum TcError {
         // "terms".
         trt_def_missing_member_term_id: TermId,
     },
-    /// Given match case is never going to match the subject.
-    UselessMatchCase { pat: PatId, subject: TermId },
     /// Cannot use pattern matching in a declaration without an assignment
     CannotPatMatchWithoutAssignment { pat: PatId },
     /// Cannot use a non-name as an assign subject.

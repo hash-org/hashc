@@ -9,8 +9,10 @@
 
 use diagnostics::reporting::TcErrorWithStorage;
 use hash_pipeline::{traits::Tc, CompilerResult};
+use hash_reporting::diagnostic::Diagnostics;
 use hash_source::SourceId;
-use storage::{AccessToStorage, GlobalStorage, LocalStorage, StorageRefMut};
+use ops::AccessToOps;
+use storage::{AccessToStorage, GlobalStorage, LocalStorage, StorageRef};
 use traverse::TcVisitor;
 
 use crate::fmt::PrepareForFormatting;
@@ -74,9 +76,9 @@ impl Tc<'_> for TcImpl {
 
         // Instantiate a visitor with the source and visit the source, using the
         // previous local storage.
-        let storage = StorageRefMut {
-            global_storage: &mut state.global_storage,
-            local_storage: &mut state.prev_local_storage,
+        let storage = StorageRef {
+            global_storage: &state.global_storage,
+            local_storage: &state.prev_local_storage,
             source_map: &workspace.source_map,
         };
         let mut tc_visitor = TcVisitor::new_in_source(storage.storages(), workspace.node_map());
@@ -103,23 +105,24 @@ impl Tc<'_> for TcImpl {
     ) -> CompilerResult<()> {
         // Instantiate a visitor with the source and visit the source, using a new local
         // storage.
-        let mut local_storage = LocalStorage::new(&state.global_storage, SourceId::Module(id));
+        let local_storage = LocalStorage::new(&state.global_storage, SourceId::Module(id));
 
-        let storage = StorageRefMut {
-            global_storage: &mut state.global_storage,
-            local_storage: &mut local_storage,
+        let storage = StorageRef {
+            global_storage: &state.global_storage,
+            local_storage: &local_storage,
             source_map: &sources.source_map,
         };
 
         let mut tc_visitor = TcVisitor::new_in_source(storage.storages(), sources.node_map());
 
-        match tc_visitor.visit_source() {
-            Ok(_) => Ok(()),
-            Err(error) => {
-                // Turn the error into a report:
-                let err_with_storage = TcErrorWithStorage { error, storage: storage.storages() };
-                Err(vec![err_with_storage.into()])
-            }
+        if let Err(err) = tc_visitor.visit_source() {
+            tc_visitor.diagnostics().add_error(err);
+        }
+
+        if tc_visitor.diagnostics().has_diagnostics() {
+            Err(tc_visitor.diagnostics().into_reports())
+        } else {
+            Ok(())
         }
     }
 }

@@ -36,13 +36,18 @@ use std::{
 };
 
 use hash_ast::ast::RangeEnd;
+use hash_reporting::diagnostic::Diagnostics;
+use hash_utils::store::Store;
 
+use super::AccessToUsefulnessOps;
 use crate::{
-    diagnostics::macros::tc_panic,
+    diagnostics::{macros::tc_panic, warning::TcWarning},
     exhaustiveness::constant::Constant,
     ops::AccessToOps,
     storage::{
-        primitives::{Level0Term, LitTerm, Term},
+        deconstructed::DeconstructedPatId,
+        pats::PatId,
+        primitives::{Level0Term, LitTerm, RangePat, Term},
         terms::TermId,
         AccessToStorage, StorageRef,
     },
@@ -108,6 +113,23 @@ impl IntRange {
         } else {
             false
         }
+    }
+
+    /// Check whether [Self] has a `suspicious` intersection with another range.
+    /// This occurs when:
+    ///
+    /// - the lower bound of `self` is equal to the upper  bound of the `other`
+    ///   intersection.
+    ///
+    /// - the upper bound of `self` is equal to the lower bound of the `other`
+    ///   intersection.
+    ///
+    /// Provided that both ranges are  not singletons.
+    pub fn suspicious_intersection(&self, other: &Self) -> bool {
+        let (lo, hi) = self.boundaries();
+        let (other_lo, other_hi) = other.boundaries();
+
+        (lo == other_hi || hi == other_lo) && !self.is_singleton() && !other.is_singleton()
     }
 }
 
@@ -294,5 +316,77 @@ impl<'tc> IntRangeOps<'tc> {
         };
 
         0
+    }
+
+    /// Function to check if any provided ranges have overlapping
+    /// ends. This might occur when the user wasn't clearly marking
+    /// the `start` and `end` of particular ranges which causes a
+    /// subtle overlap within the range.
+    ///
+    /// @@Future: Generally lint for overlapping ranges, and not just endpoints!
+    ///
+    /// @@Future: currently we can't handle patterns that have multiple rows
+    /// because that would mean we have to handle the fact that the patterns
+    /// of other rows must be structurally identical. Consider this
+    /// scenario:
+    ///
+    /// ```ignore
+    /// k := (1, false); // (i32, bool)
+    ///
+    /// match k {
+    ///  (1..50, false) => {...};
+    ///  (50..100, true) => {...};
+    /// }
+    /// ```
+    ///
+    /// Here, the ranges in the first column do `overlap` but the second element
+    /// of the tuple pattern yields a different pattern which means that
+    /// this overlap might not necessarily be applicable here
+    pub(super) fn check_for_overlapping_endpoints(
+        &self,
+        pat: PatId,
+        range: IntRange,
+        pats: impl Iterator<Item = DeconstructedPatId>,
+        column_count: usize,
+        ty: TermId,
+    ) {
+        // Don't lint literals... this is covered by useless match cases
+        if range.is_singleton() {
+            return;
+        }
+
+        // As described in the function doc... multiple columns aren't handled yet
+        if column_count != 1 {
+            return;
+        }
+
+        let reader = self.reader();
+
+        let overlaps: Vec<_> = pats
+            .filter_map(|pat| {
+                let d = reader.get_deconstructed_pat(pat);
+                let ctor =
+                    self.constructor_store().map_fast(d.ctor, |c| c.as_int_range().cloned())?;
+
+                Some((ctor, d.id.unwrap()))
+            })
+            .filter(|(other_range, _)| range.suspicious_intersection(other_range))
+            .map(|(range, id)| (range.intersection(&range).unwrap(), id))
+            .collect();
+
+        if overlaps.is_empty() {
+            return;
+        };
+
+        // Emit diagnostics for all of the found overlaps
+        for (overlapping_range, id) in overlaps {
+            let RangePat { hi, .. } = self.pat_lowerer().construct_range_pat(overlapping_range, ty);
+
+            self.diagnostics().add_warning(TcWarning::OverlappingRangeEnd {
+                range: id,
+                overlaps: pat,
+                overlapping_term: hi,
+            })
+        }
     }
 }

@@ -114,8 +114,12 @@ pub enum MatchArmKind {
 pub(crate) struct MatchArm {
     /// The pattern must have been lowered through
     /// `check_match::MatchVisitor::lower_pattern`.
-    pub(crate) pat: DeconstructedPatId,
+    pub(crate) deconstructed_pat: DeconstructedPatId,
+    /// Whether the arm has an `if-guard`
     pub(crate) has_guard: bool,
+    /// The corresponding [primitives::Pat] with this
+    /// match arm
+    pub(crate) id: PatId,
 }
 
 /// Indicates whether or not a given arm is reachable.
@@ -134,7 +138,7 @@ pub(crate) enum Reachability {
 pub(crate) struct UsefulnessReport {
     /// For each arm of the input, whether that arm is reachable after the arms
     /// above it.
-    pub(crate) _arm_usefulness: Vec<(MatchArm, Reachability)>,
+    pub(crate) arm_usefulness: Vec<(MatchArm, Reachability)>,
     /// If the match is exhaustive, this is empty. If not, this contains
     /// witnesses for the lack of exhaustiveness.
     pub(crate) non_exhaustiveness_witnesses: Vec<PatId>,
@@ -355,14 +359,26 @@ impl<'tc> UsefulnessOps<'tc> {
                 }
             }
         } else {
-            // @@Ranges: we should check that int ranges don't overlap here, in case
-            // they're partially covered by other ranges. Additionally, since this isn't
-            // necessarily an error, we should integrate this with our warning system.
             let reader = self.reader();
             let ctors = matrix.heads().map(|id| reader.get_deconstructed_pat(id).ctor);
 
-            // We split the head constructor of `v`.
             let v_ctor = head.ctor;
+
+            // check that int ranges don't overlap here, in case
+            // they're partially covered by other ranges.
+            if let DeconstructedCtor::IntRange(range) = reader.get_deconstructed_ctor(v_ctor) {
+                if let Some(head_id) = head.id {
+                    self.int_range_ops().check_for_overlapping_endpoints(
+                        head_id,
+                        range,
+                        matrix.heads(),
+                        matrix.column_count().unwrap_or(0),
+                        ty,
+                    );
+                }
+            }
+
+            // We split the head constructor of `v`.
             let split_ctors = self.constructor_ops().split(ctx, v_ctor, ctors);
             let start_matrix = &matrix;
 
@@ -406,7 +422,7 @@ impl<'tc> UsefulnessOps<'tc> {
             .iter()
             .copied()
             .map(|arm| {
-                let v = PatStack::singleton(arm.pat);
+                let v = PatStack::singleton(arm.deconstructed_pat);
                 self.is_useful(&matrix, &v, MatchArmKind::Real, arm.has_guard, true);
 
                 // We still compute the usefulness of if-guard patterns, but we don't
@@ -417,7 +433,7 @@ impl<'tc> UsefulnessOps<'tc> {
                 }
 
                 let reader = self.reader();
-                let pat = reader.get_deconstructed_pat(arm.pat);
+                let pat = reader.get_deconstructed_pat(arm.deconstructed_pat);
 
                 let reachability = if pat.is_reachable() {
                     Reachability::Reachable(self.deconstruct_pat_ops().unreachable_pats(&pat))
@@ -443,6 +459,6 @@ impl<'tc> UsefulnessOps<'tc> {
             Usefulness::NoWitnesses { .. } => panic!(),
         };
 
-        UsefulnessReport { _arm_usefulness: arm_usefulness, non_exhaustiveness_witnesses }
+        UsefulnessReport { arm_usefulness, non_exhaustiveness_witnesses }
     }
 }

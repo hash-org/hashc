@@ -1,0 +1,52 @@
+warn: match case `3i32` is redundant when matching on `5i32`
+ --> $DIR/simple_unreachable_pats.hash:6:11
+5 |   
+6 |       match a {
+  |             ^ the match subject is given here...
+7 |           3 => {};
+
+ --> $DIR/simple_unreachable_pats.hash:7:9
+6 |       match a {
+7 |           3 => {};
+  |           ^ ...and this pattern will never match the subject
+8 |           2 => {};
+
+warn: match case `2i32` is redundant when matching on `5i32`
+ --> $DIR/simple_unreachable_pats.hash:6:11
+5 |   
+6 |       match a {
+  |             ^ the match subject is given here...
+7 |           3 => {};
+
+ --> $DIR/simple_unreachable_pats.hash:8:9
+7 |           3 => {};
+8 |           2 => {};
+  |           ^ ...and this pattern will never match the subject
+9 |           3 => {};
+
+warn: match case `3i32` is redundant when matching on `5i32`
+  --> $DIR/simple_unreachable_pats.hash:6:11
+ 5 |   
+ 6 |       match a {
+   |             ^ the match subject is given here...
+ 7 |           3 => {};
+
+  --> $DIR/simple_unreachable_pats.hash:9:9
+ 8 |           2 => {};
+ 9 |           3 => {};
+   |           ^ ...and this pattern will never match the subject
+10 |           k => {};
+
+warn: pattern is unreachable
+  --> $DIR/simple_unreachable_pats.hash:9:9
+ 8 |           2 => {};
+ 9 |           3 => {};
+   |           ^ 
+10 |           k => {};
+
+warn: pattern is unreachable
+  --> $DIR/simple_unreachable_pats.hash:11:9
+10 |           k => {};
+11 |           _ => {};
+   |           ^ 
+12 |       }
