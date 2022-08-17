@@ -50,16 +50,12 @@ impl<'stream, 'resolver> Diagnostics<ParseError, ParseWarning> for AstGen<'strea
         &self.diagnostics
     }
 
-    fn diagnostic_store_mut(&mut self) -> &mut Self::DiagnosticsStore {
-        &mut self.diagnostics
-    }
-
     fn add_error(&mut self, error: ParseError) {
-        self.diagnostic_store_mut().errors.push(error);
+        self.diagnostics.errors.push(error);
     }
 
     fn add_warning(&mut self, warning: ParseWarning) {
-        self.diagnostic_store_mut().warnings.push(warning);
+        self.diagnostics.warnings.push(warning);
     }
 
     fn has_errors(&self) -> bool {

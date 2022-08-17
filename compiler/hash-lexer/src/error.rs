@@ -141,13 +141,9 @@ impl Diagnostics<LexerError, Infallible> for Lexer<'_> {
         &self.diagnostics
     }
 
-    fn diagnostic_store_mut(&mut self) -> &mut Self::DiagnosticsStore {
-        &mut self.diagnostics
-    }
-
     /// Add an error into the store
     fn add_error(&mut self, error: LexerError) {
-        self.diagnostic_store_mut().errors.push(error);
+        self.diagnostics.errors.push(error);
     }
 
     /// The lexer does not currently emit any warnings and so if this

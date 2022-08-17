@@ -38,12 +38,6 @@ impl<'tc, T: AccessToStorage> Diagnostics<TcError, TcWarning> for TcDiagnosticsW
         self.0.diagnostic_store()
     }
 
-    /// Implementing this access method is not possible for the typechecking
-    /// context and in fact is un-necessary
-    fn diagnostic_store_mut(&mut self) -> &mut Self::DiagnosticsStore {
-        unimplemented!()
-    }
-
     fn add_error(&mut self, error: TcError) {
         self.diagnostic_store().errors.borrow_mut().push(error);
     }

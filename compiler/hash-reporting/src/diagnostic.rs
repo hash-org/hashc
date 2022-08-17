@@ -13,9 +13,6 @@ pub trait Diagnostics<E, W> {
     /// Get a reference to the associated [Self::DiagnosticsStore]
     fn diagnostic_store(&self) -> &Self::DiagnosticsStore;
 
-    /// Get a mutable reference to [Self::DiagnosticsStore]
-    fn diagnostic_store_mut(&mut self) -> &mut Self::DiagnosticsStore;
-
     /// Add an error into the [Self]
     fn add_error(&mut self, error: E);
 
