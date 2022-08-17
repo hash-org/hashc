@@ -1,6 +1,6 @@
 //! Functionality related to resolving variables in scopes.
 
-use hash_reporting::{report::Report, writer};
+use hash_reporting::diagnostic::Diagnostics;
 use hash_source::identifier::Identifier;
 use hash_utils::store::Store;
 
@@ -9,7 +9,6 @@ use crate::{
     diagnostics::{
         error::{TcError, TcResult},
         macros::{tc_panic, tc_panic_on_many},
-        reporting::TcErrorWithStorage,
     },
     storage::{
         arguments::ArgsId,
@@ -171,8 +170,8 @@ impl<'tc> ScopeManager<'tc> {
         .unwrap_or_else(|err| {
             // This panics because this unification should have occurred in simplifying type
             // function call, so it should have error-ed there.
-            let report: Report = TcErrorWithStorage::new(err, self.storages()).into();
-            eprintln!("{}", writer::ReportWriter::new(report, self.source_map()));
+            self.diagnostics().add_error(err);
+
             tc_panic_on_many!(
                 [params_subject, args_subject],
                 self,
