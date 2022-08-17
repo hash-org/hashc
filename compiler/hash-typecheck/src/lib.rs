@@ -11,6 +11,7 @@ use diagnostics::reporting::TcErrorWithStorage;
 use hash_pipeline::{traits::Tc, CompilerResult};
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::SourceId;
+use ops::AccessToOps;
 use storage::{AccessToStorage, GlobalStorage, LocalStorage, StorageRef};
 use traverse::TcVisitor;
 

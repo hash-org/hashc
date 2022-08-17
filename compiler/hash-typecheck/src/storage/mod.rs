@@ -44,7 +44,7 @@ use self::{
     trts::TrtDefStore,
 };
 use crate::{
-    diagnostics::{TcDiagnostics, TcDiagnosticsWrapper},
+    diagnostics::DiagnosticsStore,
     fmt::{ForFormatting, PrepareForFormatting},
     ops::bootstrap::create_core_defs_in,
 };
@@ -65,7 +65,7 @@ pub struct GlobalStorage {
     pub checked_sources: CheckedSources,
 
     /// Storage for tc diagnostics
-    pub diagnostics_store: TcDiagnostics,
+    pub diagnostics_store: DiagnosticsStore,
 
     /// Pattern fields from
     /// [super::exhaustiveness::deconstruct::DeconstructedPat]
@@ -95,7 +95,7 @@ impl GlobalStorage {
             location_store: LocationStore::new(),
             term_store: TermStore::new(),
             scope_store,
-            diagnostics_store: TcDiagnostics::default(),
+            diagnostics_store: DiagnosticsStore::default(),
             trt_def_store: TrtDefStore::new(),
             mod_def_store: ModDefStore::new(),
             nominal_def_store: NominalDefStore::new(),
@@ -164,24 +164,10 @@ pub struct StorageRef<'tc> {
     pub source_map: &'tc SourceMap,
 }
 
-/// A mutable reference to the storage, which includes both local and global
-/// storage, as well as core definitions.
-// #[derive(Debug)]
-// pub struct StorageRefMut<'tc> {
-//     pub local_storage: &'tc mut LocalStorage,
-//     pub global_storage: &'tc mut GlobalStorage,
-//     pub source_map: &'tc SourceMap,
-// }
-
 /// Trait that provides convenient accessor methods to various parts of the
 /// storage given a path to a [StorageRef] object.
 pub trait AccessToStorage {
     fn storages(&self) -> StorageRef;
-
-    /// Create a [TcDiagnosticsWrapper]
-    fn diagnostics(&self) -> TcDiagnosticsWrapper<Self> {
-        TcDiagnosticsWrapper(self)
-    }
 
     fn global_storage(&self) -> &GlobalStorage {
         self.storages().global_storage
@@ -191,7 +177,7 @@ pub trait AccessToStorage {
         self.storages().local_storage
     }
 
-    fn diagnostic_store(&self) -> &TcDiagnostics {
+    fn diagnostic_store(&self) -> &DiagnosticsStore {
         &self.storages().global_storage.diagnostics_store
     }
 

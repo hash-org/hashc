@@ -22,17 +22,17 @@ use crate::storage::AccessToStorage;
 /// [TcDiagnostics] is a struct that stores the generated errors
 /// and warnings for the typechecking instance.
 #[derive(Debug, Default)]
-pub struct TcDiagnostics {
+pub struct DiagnosticsStore {
     /// The errors that the typechecking instance has emitted.
     pub(super) errors: RefCell<SmallVec<[TcError; 1]>>,
     /// The warnings that the typechecking instance has emitted.
     pub(super) warnings: RefCell<Vec<TcWarning>>,
 }
 
-pub struct TcDiagnosticsWrapper<'tc, T: ?Sized>(pub(crate) &'tc T);
+pub struct TcDiagnostics<'tc, T: ?Sized>(pub(crate) &'tc T);
 
-impl<'tc, T: AccessToStorage> Diagnostics<TcError, TcWarning> for TcDiagnosticsWrapper<'tc, T> {
-    type DiagnosticsStore = TcDiagnostics;
+impl<'tc, T: AccessToStorage> Diagnostics<TcError, TcWarning> for TcDiagnostics<'tc, T> {
+    type DiagnosticsStore = DiagnosticsStore;
 
     fn diagnostic_store(&self) -> &'tc Self::DiagnosticsStore {
         self.0.diagnostic_store()
@@ -55,7 +55,7 @@ impl<'tc, T: AccessToStorage> Diagnostics<TcError, TcWarning> for TcDiagnosticsW
     }
 
     fn into_reports(self) -> Vec<hash_reporting::report::Report> {
-        let TcDiagnostics { errors, warnings } = self.diagnostic_store();
+        let DiagnosticsStore { errors, warnings } = self.diagnostic_store();
 
         let errors = errors.clone().into_inner();
         let warnings = warnings.clone().into_inner();

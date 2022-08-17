@@ -341,7 +341,7 @@ impl<'tc> IntRangeOps<'tc> {
     ///
     /// Here, the ranges in the first column do `overlap` but the second element
     /// of the tuple pattern yields a different pattern which means that
-    /// this overlap might not necessarily be applicative here
+    /// this overlap might not necessarily be applicable here
     pub(super) fn check_for_overlapping_endpoints(
         &self,
         pat: PatId,
