@@ -4,6 +4,7 @@ use std::{borrow::Cow, collections::HashSet};
 
 use hash_ast::ast::ParamOrigin;
 use hash_source::{identifier::Identifier, location::SourceLocation};
+use itertools::Itertools;
 
 use crate::{
     diagnostics::{
@@ -335,6 +336,10 @@ impl<'tc> ParamOps<'tc> {
         let lhs_names = self.names(param);
         let rhs_names = self.names(other);
 
-        lhs_names.difference(&rhs_names).into_iter().copied().collect()
+        // Compute the missing names and then sort them
+        let mut missing_names = lhs_names.difference(&rhs_names).into_iter().copied().collect_vec();
+        missing_names.sort_unstable();
+
+        missing_names
     }
 }

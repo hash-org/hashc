@@ -547,6 +547,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
 
                 match params_origin {
                     ParamOrigin::Struct => {
+                        builder.with_error_code(HashErrorCode::MissingStructField);
                         // @@ErrorReporting: Get the name of the struct...
 
                         if params.len() > args.len() {
