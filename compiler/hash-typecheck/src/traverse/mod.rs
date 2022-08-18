@@ -2157,9 +2157,6 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
             // So this should only become a constant if we are a `enum` or `struct`
             // definition. Otherwise, we shadow the variable
             if self.oracle().term_is_struct_def(term) || self.oracle().term_is_enum_def(term) {
-                // @@Hack: we technically want to use the `term` from the scope here, but
-                // because the locations are messed up, instead we just copy the
-                // location to the created term
                 self.location_store().copy_location(ty, var_term);
                 let pat = self.builder().create_pat(Pat::Const(ConstPat { term: var_term }));
 
