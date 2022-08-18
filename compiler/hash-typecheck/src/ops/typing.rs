@@ -378,12 +378,17 @@ impl<'tc> Typer<'tc> {
     pub(crate) fn get_term_of_pat(&self, pat_id: PatId) -> TcResult<TermId> {
         let pat = self.reader().get_pat(pat_id);
 
+        let mut copy_location_to_term = true;
+
         let ty_of_pat = match pat {
             Pat::Mod(_) | Pat::Wild | Pat::Binding(_) => {
                 // We don't know this; it depends on the subject:
                 Ok(self.builder().create_unresolved_term())
             }
-            Pat::Const(ConstPat { term }) => Ok(term),
+            Pat::Const(ConstPat { term }) => {
+                copy_location_to_term = false;
+                Ok(term)
+            }
             Pat::Access(AccessPat { subject, property }) => {
                 let subject_id = self.get_term_of_pat(subject)?;
 
@@ -394,6 +399,8 @@ impl<'tc> Typer<'tc> {
                 Ok(lit_term)
             }
             Pat::Range(RangePat { lo, .. }) => {
+                copy_location_to_term = false;
+
                 // The term of the range is the type of `lo` since `lo` is a literal term
                 Ok(lo)
             }
@@ -456,8 +463,11 @@ impl<'tc> Typer<'tc> {
             }
         }?;
 
-        // Copy location:
-        self.location_store().copy_location(pat_id, ty_of_pat);
+        // Only copy the location if we are creating a new term, not taking one
+        // that exists as to avoid overriding it.
+        if copy_location_to_term {
+            self.location_store().copy_location(pat_id, ty_of_pat);
+        }
 
         Ok(ty_of_pat)
     }

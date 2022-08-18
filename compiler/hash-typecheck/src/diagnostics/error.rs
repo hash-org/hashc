@@ -72,11 +72,7 @@ pub enum TcError {
     },
     /// The parameter with the given name is not found in the given parameter
     /// list.
-    ParamNotFound {
-        args_kind: ParamListKind,
-        params_subject: LocationTarget,
-        name: Identifier,
-    },
+    ParamNotFound { args_kind: ParamListKind, params_subject: LocationTarget, name: Identifier },
     /// There is a argument or parameter (at the index) which is
     /// specified twice in the given argument list.
     ParamGivenTwice { param_kind: ParamListKind, index: usize },
@@ -685,10 +681,8 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 if let Some(location) = ctx.location_store().get_location(*params_subject) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
-                        format!(
-                            "the {} is defined here",
-                            ctx.param_ops().origin(args_kind)
-                    ))));
+                        format!("the {} is defined here", ctx.param_ops().origin(args_kind)),
+                    )));
                 }
             }
             TcError::ParamGivenTwice { param_kind, index } => {

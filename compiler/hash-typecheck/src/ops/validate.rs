@@ -12,7 +12,7 @@ use crate::{
         macros::{tc_panic, tc_panic_on_many},
         params::ParamListKind,
     },
-    ops::params::{validate_param_list, validate_named_params_match},
+    ops::params::{validate_named_params_match, validate_param_list},
     storage::{
         arguments::ArgsId,
         mods::ModDefId,

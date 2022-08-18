@@ -2145,27 +2145,31 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::BindingPat>,
     ) -> Result<Self::BindingPatRet, Self::Error> {
         let name = node.name.ident;
-        let term = self.builder().create_var_term(name);
+        let var_term = self.builder().create_var_term(name);
 
-        match self.scope_manager().resolve_name_in_scopes(name, term) {
-            Ok(_) => Ok(self.builder().create_pat(Pat::Const(ConstPat { term }))),
-            Err(_) => {
-                let pat = self.builder().create_binding_pat(
-                    node.name.body().ident,
-                    match node.mutability.as_ref().map(|x| *x.body()) {
-                        Some(hash_ast::ast::Mutability::Mutable) => Mutability::Mutable,
-                        Some(hash_ast::ast::Mutability::Immutable) | None => Mutability::Immutable,
-                    },
-                    match node.visibility.as_ref().map(|x| *x.body()) {
-                        Some(hash_ast::ast::Visibility::Private) | None => Visibility::Private,
-                        Some(hash_ast::ast::Visibility::Public) => Visibility::Public,
-                    },
-                );
-                self.copy_location_from_node_to_target(node, pat);
-
-                Ok(pat)
+        let pat = match self.scope_manager().resolve_name_in_scopes(name, var_term) {
+            Ok(scope_member) => {
+                // @@Hack: we technically want to use the `term` from the scope here, but
+                // because the locations are messed up, instead we just copy the
+                // location to the created term
+                self.location_store().copy_location(scope_member.member.ty(), var_term);
+                self.builder().create_pat(Pat::Const(ConstPat { term: var_term }))
             }
-        }
+            Err(_) => self.builder().create_binding_pat(
+                node.name.body().ident,
+                match node.mutability.as_ref().map(|x| *x.body()) {
+                    Some(hash_ast::ast::Mutability::Mutable) => Mutability::Mutable,
+                    Some(hash_ast::ast::Mutability::Immutable) | None => Mutability::Immutable,
+                },
+                match node.visibility.as_ref().map(|x| *x.body()) {
+                    Some(hash_ast::ast::Visibility::Private) | None => Visibility::Private,
+                    Some(hash_ast::ast::Visibility::Public) => Visibility::Public,
+                },
+            ),
+        };
+
+        self.copy_location_from_node_to_target(node, pat);
+        Ok(pat)
     }
 
     type WildPatRet = PatId;
