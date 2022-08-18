@@ -13,11 +13,11 @@ use hash_reporting::{
     builder::ReportBuilder,
     report::{Report, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind},
 };
-use hash_source::location::SourceLocation;
+
 
 use crate::{
     fmt::PrepareForFormatting,
-    storage::{pats::PatId, terms::TermId, AccessToStorage, StorageRef},
+    storage::{location::LocationTarget, pats::PatId, terms::TermId, AccessToStorage, StorageRef},
 };
 
 /// A warning that occurs during typechecking.
@@ -65,7 +65,7 @@ pub enum TcWarning {
     /// Debug warning that is generated for debugging purposes
     Debug {
         label: String,
-        location: Option<SourceLocation>,
+        location: LocationTarget,
     },
 }
 
@@ -164,7 +164,7 @@ impl<'tc> From<TcWarningWithStorage<'tc>> for Report {
             TcWarning::Debug { ref label, location } => {
                 builder.with_message(label);
 
-                if let Some(location) = location {
+                if let Some(location) = ctx.location_store().get_location(location) {
                     builder
                         .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(location, "")));
                 }

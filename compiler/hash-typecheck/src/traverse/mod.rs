@@ -451,9 +451,16 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let walk::VariableExpr { name } = walk::walk_variable_expr(self, ctx, node)?;
 
         let term = self.builder().create_var_term(name);
-        self.copy_location_from_node_to_target(node, term);
 
-        Ok(self.validator().validate_term(term)?.simplified_term_id)
+        let simplified_term = self.validator().validate_term(term)?.simplified_term_id;
+
+        // Don't set the location if the term is not a literal as this may override
+        // other locations of terms that we don't want to override...
+        if self.oracle().term_is_literal(simplified_term) {
+            self.copy_location_from_node_to_target(node, simplified_term);
+        }
+
+        Ok(simplified_term)
     }
 
     type DirectiveExprRet = TermId;
