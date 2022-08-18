@@ -97,11 +97,7 @@ impl<'a> Lexer<'a> {
         kind: LexerErrorKind,
         span: Span,
     ) -> TokenKind {
-        self.add_error(LexerError::new(
-            message,
-            kind,
-            SourceLocation { span, source_id: self.source_id },
-        ));
+        self.add_error(LexerError::new(message, kind, SourceLocation { span, id: self.source_id }));
 
         TokenKind::Err
     }
@@ -115,7 +111,7 @@ impl<'a> Lexer<'a> {
         kind: LexerErrorKind,
         span: Span,
     ) -> Result<T, LexerError> {
-        Err(LexerError::new(message, kind, SourceLocation { span, source_id: self.source_id }))
+        Err(LexerError::new(message, kind, SourceLocation { span, id: self.source_id }))
     }
 
     /// Returns a reference to the stored token trees for the current job

@@ -14,7 +14,6 @@ use hash_reporting::{
     report::{Report, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind},
 };
 
-
 use crate::{
     fmt::PrepareForFormatting,
     storage::{location::LocationTarget, pats::PatId, terms::TermId, AccessToStorage, StorageRef},

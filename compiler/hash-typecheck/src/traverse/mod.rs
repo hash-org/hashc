@@ -119,7 +119,7 @@ impl<'tc> TcVisitor<'tc> {
 
     /// Create a [SourceLocation] from a [Span].
     pub(crate) fn source_location(&self, span: Span) -> SourceLocation {
-        SourceLocation { span, source_id: self.local_storage().current_source() }
+        SourceLocation { span, id: self.local_storage().current_source() }
     }
 
     /// Create a [SourceLocation] at the given [hash_ast::ast::AstNode].

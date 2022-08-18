@@ -24,7 +24,7 @@ impl<'s> AstDesugaring<'s> {
 
     /// Create a [SourceLocation] from a [Span]
     pub(crate) fn source_location(&self, span: Span) -> SourceLocation {
-        SourceLocation { span, source_id: self.source_id }
+        SourceLocation { span, id: self.source_id }
     }
 }
 

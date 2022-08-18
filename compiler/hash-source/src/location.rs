@@ -76,18 +76,17 @@ impl fmt::Display for Span {
     }
 }
 
+/// A [SourceLocation] describes the location of something that is relative to
+/// a module that is within the workspace and that has an associated [Span].
+///
+/// [SourceLocation]s are only used when printing reports within the
+/// `hash_reporting` crate. Ideally, data structures that need to store
+/// locations of various items should use [Span] and then convert into
+/// [SourceLocation]s.
 #[derive(Debug, Clone, Copy, Constructor, PartialEq, Eq, Hash)]
 pub struct SourceLocation {
+    /// The associated [Span] with the [SourceLocation].
     pub span: Span,
-    pub source_id: SourceId,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn type_size() {
-        println!("{:?}", std::mem::size_of::<SourceLocation>());
-    }
+    /// The id of the source that the span is referencing.
+    pub id: SourceId,
 }
