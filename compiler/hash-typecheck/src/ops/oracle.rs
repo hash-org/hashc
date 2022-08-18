@@ -111,6 +111,16 @@ impl<'tc> Oracle<'tc> {
         matches!(reader.get_term(term), Term::Level0(Level0Term::Lit(_)))
     }
 
+    /// If the term is a [StructDef] term.
+    pub fn term_is_struct_def(&self, term: TermId) -> bool {
+        self.term_as_struct_def(term).is_some()
+    }
+
+    /// If the term is a literal term.
+    pub fn term_is_enum_def(&self, term: TermId) -> bool {
+        self.term_as_enum_def(term).is_some()
+    }
+
     /// Get a [Term] as a [StructDef].
     pub fn term_as_struct_def(&self, term: TermId) -> Option<StructDef> {
         match self.reader().get_term(term) {

@@ -155,6 +155,12 @@ impl Member {
         }
     }
 
+    /// Get the `value` [Term] of the [Member], if it doesn't exist then
+    /// we fallback to getting the `ty` of the [Member].
+    pub fn value_or_ty(&self) -> TermId {
+        self.value().unwrap_or_else(|| self.ty())
+    }
+
     /// Create a closed constant member with the given data and visibility.
     pub fn closed_constant(
         name: impl Into<Identifier>,
@@ -1261,6 +1267,11 @@ impl Pat {
     /// Check if the pattern is of the [Pat::Spread] variant.
     pub fn is_spread(&self) -> bool {
         matches!(self, Pat::Spread(_))
+    }
+
+    /// Check if the pattern is of the [Pat::Spread] variant.
+    pub fn is_bind(&self) -> bool {
+        matches!(self, Pat::Binding(_))
     }
 }
 
