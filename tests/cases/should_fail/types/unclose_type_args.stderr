@@ -3,4 +3,4 @@ error: expected an operator, however received a `:`
 2 |   
 3 |   k<t := do_something();
   |       ^ here
-  = help: consider adding either a `.`, `=`, or `;`
+  = help: consider adding either `.`, `=`, or `;`

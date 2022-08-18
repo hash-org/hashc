@@ -7,7 +7,11 @@ use hash_reporting::{
     report::{Report, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind},
 };
 use hash_source::identifier::Identifier;
-use hash_utils::{printing::SequenceDisplay, store::Store};
+use hash_utils::{
+    pluralise,
+    printing::{SequenceDisplay, SequenceDisplayOptions, SequenceJoinMode},
+    store::Store,
+};
 use itertools::Itertools;
 
 use super::params::{ParamListKind, ParamUnificationErrorReason};
@@ -273,10 +277,12 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                         builder
                             .with_error_code(HashErrorCode::ParameterLengthMismatch)
                             .with_message(format!(
-                                "{} expects {} arguments, however {} arguments were given",
+                                "{} expects {} argument{}, however {} argument{} were given",
                                 origin,
                                 target_args.len(),
-                                src_args.len()
+                                pluralise!(target_args.len()),
+                                src_args.len(),
+                                pluralise!(src_args.len())
                             ));
 
                         // Provide information about the location of the target type if available
@@ -284,9 +290,10 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                             builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                                 location,
                                 format!(
-                                    "this {} expects {} arguments...",
+                                    "this {} expects {} argument{}...",
                                     origin,
                                     target_args.len(),
+                                    pluralise!(target_args.len()),
                                 ),
                             )));
                         }
@@ -295,7 +302,11 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                         if let Some(location) = ctx.location_store().get_location(src) {
                             builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                                 location,
-                                format!("...but got {} arguments here", src_args.len()),
+                                format!(
+                                    "...but got {} argument{} here",
+                                    src_args.len(),
+                                    pluralise!(src_args.len())
+                                ),
                             )));
                         }
                     }
@@ -394,10 +405,12 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                         builder
                             .with_error_code(HashErrorCode::ParameterLengthMismatch)
                             .with_message(format!(
-                                "{} expects {} parameters, however {} parameters were given",
+                                "{} expects {} parameter{}, however {} parameter{} were given",
                                 origin,
                                 target_params.len(),
-                                src_params.len()
+                                pluralise!(target_params.len()),
+                                src_params.len(),
+                                pluralise!(src_params.len())
                             ));
 
                         // Provide information about the location of the target type if available
@@ -405,9 +418,10 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                             builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                                 location,
                                 format!(
-                                    "this {} expects {} parameters...",
+                                    "this {} expects {} parameter{}...",
                                     origin,
                                     target_params.len(),
+                                    pluralise!(target_params.len())
                                 ),
                             )));
                         }
@@ -555,9 +569,15 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                                 .param_ops()
                                 .compute_missing_fields(&ParamListKind::Params(*params_id), args);
 
+                            // Format the missing fields, limit to printing only `5` verbosely
+                            let formatted_missing_fields = SequenceDisplay::new(
+                                missing_fields.as_slice(),
+                                SequenceDisplayOptions::with_limit(SequenceJoinMode::All, 5),
+                            );
+
                             builder.with_message(format!(
-                                "struct literal is missing the fields {}",
-                                SequenceDisplay::all(missing_fields.as_slice())
+                                "struct literal is missing the field{} {formatted_missing_fields}",
+                                pluralise!(missing_fields.len()),
                             ));
 
                             // Add note about what fields are missing from the struct
@@ -567,10 +587,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                                 builder.add_element(ReportElement::CodeBlock(
                                     ReportCodeBlock::new(
                                         location,
-                                        format!(
-                                            "missing {}",
-                                            SequenceDisplay::all(missing_fields.as_slice())
-                                        ),
+                                        format!("missing {formatted_missing_fields}",),
                                     ),
                                 ));
                             }
@@ -580,9 +597,15 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                                 .param_ops()
                                 .compute_missing_fields(args, &ParamListKind::Params(*params_id));
 
+                            // Format the missing fields, limit to printing only `5` verbosely
+                            let formatted_extra_fields = SequenceDisplay::new(
+                                extra_fields.as_slice(),
+                                SequenceDisplayOptions::with_limit(SequenceJoinMode::All, 5),
+                            );
+
                             builder.with_message(format!(
-                                "struct literal does not have the fields {}",
-                                SequenceDisplay::all(extra_fields.as_slice())
+                                "struct literal does not have the fields{} {formatted_extra_fields}",
+                                pluralise!(extra_fields.len())
                             ));
 
                             // Add note about what fields shouldn't be there
@@ -595,8 +618,8 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                                     ReportCodeBlock::new(
                                         location,
                                         format!(
-                                            "fields {} do not exist on this struct",
-                                            SequenceDisplay::all(extra_fields.as_slice())
+                                            "field{} {formatted_extra_fields} do not exist on this struct",
+                                            pluralise!(extra_fields.len())
                                         ),
                                     ),
                                 ));
@@ -1304,7 +1327,10 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     .map(|id| format!("{}", id.for_formatting(ctx.global_storage())))
                     .collect_vec();
 
-                let pats = SequenceDisplay::all(&uncovered);
+                let pats = SequenceDisplay::new(
+                    &uncovered,
+                    SequenceDisplayOptions::with_limit(SequenceJoinMode::All, 3),
+                );
 
                 builder.with_error_code(HashErrorCode::RefutablePat).with_message(format!(
                     "refutable pattern in {origin} binding: {pats} not covered",
@@ -1313,7 +1339,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 if let Some(location) = ctx.location_store().get_location(pat) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
-                        format!("pattern {pats} not covered"),
+                        format!("pattern{} {pats} not covered", pluralise!(uncovered.len())),
                     )));
                 }
             }
@@ -1323,7 +1349,10 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     .map(|id| format!("{}", id.for_formatting(ctx.global_storage())))
                     .collect_vec();
 
-                let pats = SequenceDisplay::all(&uncovered);
+                let pats = SequenceDisplay::new(
+                    &uncovered,
+                    SequenceDisplayOptions::with_limit(SequenceJoinMode::All, 3),
+                );
 
                 builder
                     .with_error_code(HashErrorCode::NonExhaustiveMatch)
@@ -1332,7 +1361,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 if let Some(location) = ctx.location_store().get_location(term) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
-                        format!("pattern {} not covered", pats),
+                        format!("pattern{} {} not covered", pluralise!(uncovered.len()), pats),
                     )));
                 }
             }
