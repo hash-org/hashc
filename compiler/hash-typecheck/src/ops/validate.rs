@@ -12,7 +12,7 @@ use crate::{
         macros::{tc_panic, tc_panic_on_many},
         params::ParamListKind,
     },
-    ops::params::validate_param_list,
+    ops::params::{validate_param_list, validate_named_params_match},
     storage::{
         arguments::ArgsId,
         mods::ModDefId,
@@ -1326,6 +1326,8 @@ impl<'tc> Validator<'tc> {
 
         // Apply the mentioned above transformation
         if constructor_is_struct {
+            self.pat_args_store().set_origin(args, ParamOrigin::Struct);
+
             let mut pat_args = reader.get_pat_args_owned(args).into_positional();
             let mut pat_args_length = pat_args.len();
 
@@ -1403,7 +1405,9 @@ impl<'tc> Validator<'tc> {
             pat_args
         };
 
+        // Validate the `args` have no repeats and all fields are specified
         validate_param_list_unordered(&adjusted_args, kind)?;
+        validate_named_params_match(&members, &adjusted_args, kind, subject)?;
 
         // If the constructor pattern has no spread, check that all arguments
         // are in place

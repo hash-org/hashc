@@ -372,7 +372,6 @@ impl<'tc> PatMatcher<'tc> {
                 validate_named_params_match(
                     &ty_members,
                     &pat_members,
-                    ty_members_id,
                     ParamListKind::PatArgs(members),
                     subject,
                 )?;

@@ -74,7 +74,6 @@ pub enum TcError {
     /// list.
     ParamNotFound {
         args_kind: ParamListKind,
-        params_id: ParamsId,
         params_subject: LocationTarget,
         name: Identifier,
     },
@@ -666,10 +665,10 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     }
                 }
             }
-            TcError::ParamNotFound { args_kind, params_id, params_subject, name } => {
+            TcError::ParamNotFound { args_kind, params_subject, name } => {
                 builder
-                    .with_error_code(HashErrorCode::UnresolvedSymbol)
-                    .with_message(format!("parameter with name `{}` is not defined", name));
+                    .with_error_code(HashErrorCode::UnresolvedNameInValue)
+                    .with_message(format!("{} `{}` is not defined", args_kind.as_noun(), name));
 
                 // find the parameter and report the location
                 let id = ctx.param_ops().get_name_by_index(args_kind, *name).unwrap();
@@ -688,9 +687,8 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                         location,
                         format!(
                             "the {} is defined here",
-                            ctx.params_store().get_origin(*params_id)
-                        ),
-                    )));
+                            ctx.param_ops().origin(args_kind)
+                    ))));
                 }
             }
             TcError::ParamGivenTwice { param_kind, index } => {

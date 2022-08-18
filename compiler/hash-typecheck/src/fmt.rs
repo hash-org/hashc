@@ -814,6 +814,12 @@ impl fmt::Display for ForFormatting<'_, PatId> {
     }
 }
 
+impl fmt::Debug for ForFormatting<'_, PatId> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.global_storage.pat_store.get(self.t))
+    }
+}
+
 impl fmt::Display for ForFormatting<'_, ArgsId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         TcFormatter::new(self.global_storage).fmt_args(f, self.t)

@@ -96,7 +96,6 @@ pub(crate) fn pair_args_with_params<'p, 'a, T: Clone + GetNameOpt>(
                         return Err(TcError::ParamNotFound {
                             params_subject: params_subject.into(),
                             args_kind,
-                            params_id,
                             name: arg_name,
                         });
                     }
@@ -237,7 +236,6 @@ pub(crate) fn validate_param_list_unordered<T: Clone + GetNameOpt>(
 pub(crate) fn validate_named_params_match<T: Clone + GetNameOpt>(
     params: &Params<'_>,
     args: &ParamList<'_, T>,
-    params_id: ParamsId,
     args_id: ParamListKind,
     subject: impl Into<LocationTarget>,
 ) -> TcResult<()> {
@@ -245,7 +243,6 @@ pub(crate) fn validate_named_params_match<T: Clone + GetNameOpt>(
         if let Some(name) = arg.get_name_opt() {
             if params.get_by_name(name).is_none() {
                 return Err(TcError::ParamNotFound {
-                    params_id,
                     args_kind: args_id,
                     params_subject: subject.into(),
                     name,
