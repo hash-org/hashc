@@ -79,7 +79,7 @@ fn compare_emitted_diagnostics(
 
     // If we specify to re-generate the output, then we will always write the
     // content of the report into the specified file
-    if REGENERATE_OUTPUT || !stderr_path.exists() {
+    if *REGENERATE_OUTPUT || !stderr_path.exists() {
         // Avoid writing nothing to the `.stderr` case file
         if !report_contents.is_empty() {
             fs::write(&stderr_path, &report_contents)?;
