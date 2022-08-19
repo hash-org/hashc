@@ -1576,7 +1576,7 @@ pub struct ConstructorCallArg {
 pub struct ConstructorCallExpr {
     /// An expression which evaluates to a function value.
     pub subject: AstNode<Expr>,
-    /// Arguments to the function, in the form of [ConstructorCallArgs].
+    /// Arguments to the function, a list of [ConstructorCallArg]s.
     pub args: AstNodes<ConstructorCallArg>,
 }
 
