@@ -200,7 +200,7 @@ impl<'tc> Validator<'tc> {
     /// definition.
     ///
     /// Assumes that `scope` has already been validated.
-    fn ensure_scope_implements_trait(
+    fn ensure_scope_implements_trt(
         &self,
         trt_def_term_id: TermId,
         scope_originating_term_id: TermId,
@@ -218,7 +218,7 @@ impl<'tc> Validator<'tc> {
         match simplified_trt_def_term {
             Term::SetBound(set_bound) => {
                 self.scope_manager().enter_scope(set_bound.scope, |this| {
-                    this.validator().ensure_scope_implements_trait(
+                    this.validator().ensure_scope_implements_trt(
                         set_bound.term,
                         scope_originating_term_id,
                         scope_id,
@@ -270,7 +270,7 @@ impl<'tc> Validator<'tc> {
 
         // Ensure if it is a trait impl it implements all the trait members.
         if let ModDefOrigin::TrtImpl(trt_def_term_id) = mod_def_origin {
-            self.ensure_scope_implements_trait(
+            self.ensure_scope_implements_trt(
                 trt_def_term_id,
                 originating_term_id,
                 mod_def_members,
@@ -283,8 +283,7 @@ impl<'tc> Validator<'tc> {
     /// Validate the trait definition of the given [TrtDefId]
     pub(crate) fn validate_trt_def(&self, trt_def_id: TrtDefId) -> TcResult<()> {
         // @@Design: do we allow traits without self?
-        let reader = self.reader();
-        let trt_def = reader.get_trt_def(trt_def_id);
+        let trt_def = self.reader().get_trt_def(trt_def_id);
         self.validate_constant_scope(trt_def.members, true)
     }
 

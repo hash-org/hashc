@@ -360,9 +360,9 @@ impl<'tc> LowerPatOps<'tc> {
                             let dummy = Pat::Spread(SpreadPat { name: None  });
                             let arg = PatArg { pat: self.pat_store().create(dummy), name: None };
 
-                            self.builder().create_pat_args(children.into_iter().chain(once(arg)), ParamOrigin::Unknown)
+                            self.builder().create_pat_args(children.into_iter().chain(once(arg)), ParamOrigin::ListPat)
                         }  else {
-                            self.builder().create_pat_args(children, ParamOrigin::Unknown)
+                            self.builder().create_pat_args(children, ParamOrigin::ListPat)
                         };
 
                         Pat::Constructor(ConstructorPat { subject: pat.ty, args })

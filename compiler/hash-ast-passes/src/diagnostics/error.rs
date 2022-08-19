@@ -1,12 +1,12 @@
 //! Hash AST semantic analysis error diagnostic definitions.
 
-use hash_ast::ast::{ParamOrigin, Visibility};
+use hash_ast::ast::{AstNodeId, AstNodeRef, ParamOrigin, Visibility};
 use hash_error_codes::error_codes::HashErrorCode;
 use hash_reporting::{
     builder::ReportBuilder,
     report::{Report, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind},
 };
-use hash_source::{identifier::Identifier, location::SourceLocation, ModuleKind};
+use hash_source::{identifier::Identifier, location::SourceLocation, ModuleKind, SourceId};
 
 use super::{
     directives::DirectiveArgument,
@@ -20,12 +20,21 @@ pub struct AnalysisError {
 
     /// Where the error occurred
     location: SourceLocation,
+
+    /// The associated [AstNodeRef<T>] with this error, which is used
+    /// to sort the order that errors are emitted.
+    id: AstNodeId,
 }
 
 impl AnalysisError {
     /// Create a new [AnalysisError] from a passed kind and [SourceLocation].
-    pub(crate) fn new(kind: AnalysisErrorKind, location: SourceLocation) -> Self {
-        Self { kind, location }
+    pub(crate) fn new<T>(kind: AnalysisErrorKind, node: AstNodeRef<T>, id: SourceId) -> Self {
+        Self { kind, location: SourceLocation { span: node.span(), id }, id: node.id() }
+    }
+
+    /// Get the associated [AstNodeId] with this [AnalysisError].
+    pub(crate) fn id(&self) -> AstNodeId {
+        self.id
     }
 }
 
@@ -192,15 +201,19 @@ impl From<AnalysisError> for Report {
                     )));
             }
             AnalysisErrorKind::InsufficientTypeAnnotations { origin } => {
-                builder
-                    .with_message(format!("`{}` field does not have enough information", origin));
+                builder.with_message(format!(
+                    "`{}` {} does not have enough information",
+                    origin,
+                    origin.field_name()
+                ));
 
                 builder
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         err.location,
                         format!(
-                            "this {} field is missing a type annotation and a default value",
-                            origin
+                            "this `{}` {} is missing both a type annotation and a default value",
+                            origin,
+                            origin.field_name()
                         ),
                     )))
                     .add_element(ReportElement::Note(ReportNote::new(

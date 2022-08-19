@@ -33,7 +33,7 @@ impl SemanticAnalyser<'_> {
             {
                 self.append_error(
                     AnalysisErrorKind::NonDeclarativeExpression { origin },
-                    statement.span(),
+                    statement,
                 );
 
                 error_indices.insert(index);

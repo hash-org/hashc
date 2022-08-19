@@ -156,7 +156,7 @@ impl AstVisitor for SemanticAnalyser<'_> {
     ) -> Result<Self::FloatLitRet, Self::Error> {
         // We disallow float literals within patterns
         if self.is_in_lit_pat {
-            self.append_error(AnalysisErrorKind::DisallowedFloatPat, node.span());
+            self.append_error(AnalysisErrorKind::DisallowedFloatPat, node);
         }
 
         Ok(())
@@ -240,7 +240,7 @@ impl AstVisitor for SemanticAnalyser<'_> {
             if !matches!(module_kind, Some(ModuleKind::Prelude)) {
                 self.append_error(
                     AnalysisErrorKind::DisallowedDirective { name: node.name.ident, module_kind },
-                    node.name.span(),
+                    node.name.ast_ref(),
                 );
 
                 // exit early as we don't care about if the arguments of the directive are
@@ -262,7 +262,7 @@ impl AstVisitor for SemanticAnalyser<'_> {
                             expected: DirectiveArgument::ModBlock,
                             given: node.subject.kind().into()
                         },
-                        node.subject.span(),
+                        node.subject.ast_ref(),
                     );
                 }
             }
@@ -599,7 +599,7 @@ impl AstVisitor for SemanticAnalyser<'_> {
         {
             self.append_error(
                 AnalysisErrorKind::InsufficientTypeAnnotations { origin: node.origin },
-                node.span(),
+                node,
             );
         }
 
@@ -749,7 +749,10 @@ impl AstVisitor for SemanticAnalyser<'_> {
         for statement in node.statements.iter() {
             match statement.kind() {
                 ExprKind::LitExpr(LitExpr(lit)) if lit.body().is_constant() => {
-                    self.append_warning(AnalysisWarningKind::UselessExpression, statement.span());
+                    self.append_warning(
+                        AnalysisWarningKind::UselessExpression,
+                        statement.ast_ref(),
+                    );
                 }
                 _ => {}
             }
@@ -772,7 +775,7 @@ impl AstVisitor for SemanticAnalyser<'_> {
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ReturnStatement>,
     ) -> Result<Self::ReturnStatementRet, Self::Error> {
         if !self.is_in_fn {
-            self.append_error(AnalysisErrorKind::UsingReturnOutsideOfFn, node.span());
+            self.append_error(AnalysisErrorKind::UsingReturnOutsideOfFn, node);
         }
 
         let _ = walk::walk_return_statement(self, ctx, node);
@@ -787,7 +790,7 @@ impl AstVisitor for SemanticAnalyser<'_> {
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::BreakStatement>,
     ) -> Result<Self::BreakStatementRet, Self::Error> {
         if !self.is_in_loop {
-            self.append_error(AnalysisErrorKind::UsingBreakOutsideLoop, node.span());
+            self.append_error(AnalysisErrorKind::UsingBreakOutsideLoop, node);
         }
 
         Ok(())
@@ -801,7 +804,7 @@ impl AstVisitor for SemanticAnalyser<'_> {
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ContinueStatement>,
     ) -> Result<Self::ContinueStatementRet, Self::Error> {
         if !self.is_in_loop {
-            self.append_error(AnalysisErrorKind::UsingContinueOutsideLoop, node.span());
+            self.append_error(AnalysisErrorKind::UsingContinueOutsideLoop, node);
         }
 
         Ok(())
@@ -1023,7 +1026,7 @@ impl AstVisitor for SemanticAnalyser<'_> {
         if name.is_some() && matches!(pat.body(), Pat::Spread(_)) {
             self.append_error(
                 AnalysisErrorKind::IllegalSpreadPatUse { origin: PatOrigin::NamedField },
-                pat.span(),
+                pat.ast_ref(),
             );
         } else {
             // We only need to walk the children if it hasn't error'd yet
@@ -1140,18 +1143,21 @@ impl AstVisitor for SemanticAnalyser<'_> {
         // constant scope, then we should check if binding contains a visibility
         // modifier which is disallowed within body blocks.
         if self.is_in_constant_block() {
-            if let Some(node) = mutability {
-                if *node.body() == Mutability::Mutable {
-                    self.append_error(AnalysisErrorKind::IllegalBindingMutability, node.span());
+            if let Some(mut_annotation) = mutability {
+                if *mut_annotation.body() == Mutability::Mutable {
+                    self.append_error(
+                        AnalysisErrorKind::IllegalBindingMutability,
+                        mut_annotation.ast_ref(),
+                    );
                 }
             }
-        } else if let Some(node) = visibility {
+        } else if let Some(visibility_annotation) = visibility {
             self.append_error(
                 AnalysisErrorKind::IllegalBindingVisibilityModifier {
-                    modifier: *node.body(),
+                    modifier: *visibility_annotation.body(),
                     origin: self.current_block,
                 },
-                node.span(),
+                visibility_annotation.ast_ref(),
             );
         }
 
@@ -1181,7 +1187,7 @@ impl AstVisitor for SemanticAnalyser<'_> {
         if matches!(pat.body(), Pat::Spread(_)) {
             self.append_error(
                 AnalysisErrorKind::IllegalSpreadPatUse { origin: PatOrigin::Namespace },
-                pat.span(),
+                pat.ast_ref(),
             );
         } else {
             // We only need to walk the children if it hasn't error'd yet

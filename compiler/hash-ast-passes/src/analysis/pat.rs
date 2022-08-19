@@ -27,7 +27,7 @@ impl SemanticAnalyser<'_> {
                 if seen_spread_pat {
                     self.append_error(
                         AnalysisErrorKind::MultipleSpreadPats { origin },
-                        field.span(),
+                        field.ast_ref(),
                     );
                 }
 
@@ -61,7 +61,7 @@ impl SemanticAnalyser<'_> {
                 if seen_spread_pat {
                     self.append_error(
                         AnalysisErrorKind::MultipleSpreadPats { origin: PatOrigin::List },
-                        field.span(),
+                        field.ast_ref(),
                     );
                 } else {
                     seen_spread_pat = true;

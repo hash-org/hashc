@@ -1501,10 +1501,14 @@ pub enum ParamOrigin {
     Tuple,
     /// Parameters came from a struct
     Struct,
-    /// Parameters came from a function call
+    /// Parameters came from a function definition
     Fn,
-    /// Parameters came from a type function call or definition
+    /// Parameters came from a function call
+    FnCall,
+    /// Parameters came from a type function definition
     TyFn,
+    /// Parameters came from a type function call
+    TyFnCall,
     /// Parameters came from an enum variant initialisation
     EnumVariant,
     /// List pattern parameters, the parameters are all the same, but it's
@@ -1513,6 +1517,28 @@ pub enum ParamOrigin {
     ListPat,
     /// Module pattern
     ModulePat,
+    /// Constructor pattern, although this is likely to be erased into a
+    /// [ParamOrigin::Struct] or [ParamOrigin::EnumVariant] when inspected.
+    ConstructorPat,
+}
+
+impl ParamOrigin {
+    /// Get the name of the `field` that the [ParamOrigin] refers to.
+    /// In other words, what is the name for the parameters that are
+    /// associated with the [ParamOrigin].
+    pub fn field_name(&self) -> &'static str {
+        match self {
+            ParamOrigin::Unknown => "field",
+            ParamOrigin::Tuple => "field",
+            ParamOrigin::Struct => "field",
+            ParamOrigin::Fn | ParamOrigin::TyFn => "parameter",
+            ParamOrigin::FnCall | ParamOrigin::TyFnCall => "argument",
+            ParamOrigin::EnumVariant => "field",
+            ParamOrigin::ListPat => "element",
+            ParamOrigin::ModulePat => "field",
+            ParamOrigin::ConstructorPat => "field",
+        }
+    }
 }
 
 impl Display for ParamOrigin {
@@ -1521,11 +1547,12 @@ impl Display for ParamOrigin {
             ParamOrigin::Unknown => write!(f, "unknown"),
             ParamOrigin::Tuple => write!(f, "tuple"),
             ParamOrigin::Struct => write!(f, "struct"),
-            ParamOrigin::Fn => write!(f, "function"),
-            ParamOrigin::TyFn => write!(f, "type function"),
+            ParamOrigin::Fn | ParamOrigin::FnCall => write!(f, "function"),
+            ParamOrigin::TyFn | ParamOrigin::TyFnCall => write!(f, "type function"),
             ParamOrigin::EnumVariant => write!(f, "enum variant"),
             ParamOrigin::ListPat => write!(f, "list pattern"),
             ParamOrigin::ModulePat => write!(f, "module pattern"),
+            ParamOrigin::ConstructorPat => write!(f, "constructor pattern"),
         }
     }
 }

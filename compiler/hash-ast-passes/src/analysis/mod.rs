@@ -2,7 +2,8 @@
 //! definition with some shared functions to append diagnostics to the analyser.
 
 use crossbeam_channel::Sender;
-use hash_reporting::{diagnostic::Diagnostics, report::Report};
+use hash_ast::ast::AstNodeRef;
+use hash_reporting::diagnostic::Diagnostics;
 use hash_source::{
     location::{SourceLocation, Span},
     SourceId, SourceMap,
@@ -12,7 +13,7 @@ use crate::diagnostics::{
     error::{AnalysisError, AnalysisErrorKind},
     origins::BlockOrigin,
     warning::{AnalysisWarning, AnalysisWarningKind},
-    AnalyserDiagnostics,
+    AnalyserDiagnostics, AnalysisDiagnostic,
 };
 
 mod block;
@@ -60,19 +61,19 @@ impl<'s> SemanticAnalyser<'s> {
     }
 
     /// Append an error to [AnalyserDiagnostics]
-    pub(crate) fn append_error(&mut self, error: AnalysisErrorKind, span: Span) {
-        self.add_error(AnalysisError::new(error, SourceLocation::new(span, self.source_id)))
+    pub(crate) fn append_error<T>(&mut self, error: AnalysisErrorKind, node: AstNodeRef<T>) {
+        self.add_error(AnalysisError::new(error, node, self.source_id))
     }
 
     /// Append an warning to [AnalyserDiagnostics]
-    pub(crate) fn append_warning(&mut self, warning: AnalysisWarningKind, span: Span) {
-        self.add_warning(AnalysisWarning::new(warning, SourceLocation::new(span, self.source_id)))
+    pub(crate) fn append_warning<T>(&mut self, warning: AnalysisWarningKind, node: AstNodeRef<T>) {
+        self.add_warning(AnalysisWarning::new(warning, node, self.source_id))
     }
 
     /// Given a [Sender], send all of the generated warnings and messaged into
     /// the sender.
-    pub(crate) fn send_generated_messages(self, sender: &Sender<Report>) {
-        self.into_reports().into_iter().for_each(|report| sender.send(report).unwrap());
+    pub(crate) fn send_generated_messages(self, sender: &Sender<AnalysisDiagnostic>) {
+        self.diagnostics.items.into_iter().for_each(|t| sender.send(t).unwrap())
     }
 
     /// Create a [SourceLocation] from a [Span]
