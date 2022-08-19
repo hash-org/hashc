@@ -342,6 +342,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         if elements.len() == 1
             && elements[0].name.is_none()
             && !matches!(gen.current_token().kind, TokenKind::Comma)
+            && !matches!(elements[0].pat.body(), Pat::Spread(_))
         {
             // @@Future: we want to check if there were any errors and then
             // if not we want to possibly emit a warning about redundant parentheses
