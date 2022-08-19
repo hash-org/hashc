@@ -1,19 +1,18 @@
 #![feature(test)]
 extern crate test;
 
-/// Specific stage and stage implementation tests
-///
-/// @@Todo: possibly move into the crate itself?
-mod parser;
-
 /// Modules to do with UI tests and running them
 mod runner;
 
 use lazy_static::lazy_static;
 use regex::Regex;
 
-/// Whether or not the UI tests should re-generate the output.
-pub const REGENERATE_OUTPUT: bool = false;
+lazy_static! {
+    /// Whether or not the UI tests should re-generate the output.
+    pub static ref REGENERATE_OUTPUT: bool =
+        str::parse::<bool>(std::option_env!("REGENERATE_OUTPUT").unwrap_or("false"))
+            .unwrap_or(false);
+}
 
 /// This is the ANSI Regular expression matcher. This will match all the
 /// specified ANSI escape codes that are used by the [`hash_reporting`] crate.
@@ -42,7 +41,7 @@ mod tests {
     #[allow(clippy::assertions_on_constants)]
     fn ensure_regenerate_output_is_disabled() {
         assert!(
-            !REGENERATE_OUTPUT,
+            !*REGENERATE_OUTPUT,
             "
         Verify that the `REGENERATE_OUTPUT` module flag is not accidentally left
         on making all of the test cases that observe compiler output

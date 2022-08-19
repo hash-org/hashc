@@ -1,5 +1,5 @@
 error: invalid character literal `av`, character literals may only contain one codepoint
- --> $DIR/char_literals.hash:3:6
+ --> $DIR/malformed_char_literals.hash:3:6
 2 |   
 3 |   k := 'av';
   |        ^^^^ here

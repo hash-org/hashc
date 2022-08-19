@@ -77,58 +77,62 @@ impl<'gs> TcFormatter<'gs> {
         Ok(())
     }
 
+    /// Format the given member with the given formatter.
+    pub fn fmt_member(&self, f: &mut fmt::Formatter, member: Member) -> fmt::Result {
+        let mutability = match member {
+            Member::Variable(var) if var.mutability == Mutability::Mutable => "mut ",
+            _ => "",
+        };
+        let visibility = match member {
+            Member::Constant(constant_member)
+                if constant_member.visibility == Visibility::Public =>
+            {
+                "pub "
+            }
+            Member::Constant(constant_member)
+                if constant_member.visibility == Visibility::Private =>
+            {
+                "priv "
+            }
+            _ => "",
+        };
+        let name = member.name();
+
+        match (member.ty(), member.value()) {
+            (ty, None) => {
+                write!(
+                    f,
+                    "{}{}{}: {}",
+                    mutability,
+                    visibility,
+                    name,
+                    ty.for_formatting(self.global_storage)
+                )?;
+            }
+            (ty, Some(value)) => {
+                write!(
+                    f,
+                    "{}{}{}: {} = {}",
+                    mutability,
+                    visibility,
+                    name,
+                    ty.for_formatting(self.global_storage),
+                    value.for_formatting_with_opts(
+                        self.global_storage,
+                        TcFormatOpts { expand: true, ..TcFormatOpts::default() }
+                    ),
+                )?;
+            }
+        }
+        Ok(())
+    }
+
     /// Format the given scope with the given formatter.
     pub fn fmt_scope(&self, f: &mut fmt::Formatter, scope_id: ScopeId) -> fmt::Result {
         let scope = self.global_storage.scope_store.get(scope_id);
-
-        let scope_value_fmt_opts = TcFormatOpts { expand: true, ..TcFormatOpts::default() };
-
         for member in scope.iter() {
-            let mutability = match member {
-                Member::Variable(var) if var.mutability == Mutability::Mutable => "mut ",
-                _ => "",
-            };
-            let visibility = match member {
-                Member::Constant(constant_member)
-                    if constant_member.visibility == Visibility::Public =>
-                {
-                    "pub "
-                }
-                Member::Constant(constant_member)
-                    if constant_member.visibility == Visibility::Private =>
-                {
-                    "priv "
-                }
-                _ => "",
-            };
-            let name = member.name();
-
-            match (member.ty(), member.value()) {
-                (ty, None) => {
-                    writeln!(
-                        f,
-                        "{}{}{}: {};",
-                        mutability,
-                        visibility,
-                        name,
-                        ty.for_formatting(self.global_storage)
-                    )?;
-                }
-                (ty, Some(value)) => {
-                    writeln!(
-                        f,
-                        "{}{}{}: {} = {};",
-                        mutability,
-                        visibility,
-                        name,
-                        ty.for_formatting(self.global_storage),
-                        value.for_formatting_with_opts(
-                            self.global_storage,
-                            scope_value_fmt_opts.clone()
-                        ),
-                    )?;
-                }
-            }
+            self.fmt_member(f, member)?;
+            writeln!(f, ";")?;
         }
         Ok(())
     }
@@ -771,6 +775,7 @@ impl PrepareForFormatting for ScopeId {}
 impl PrepareForFormatting for PatArgsId {}
 impl PrepareForFormatting for PatId {}
 impl PrepareForFormatting for &Sub {}
+impl PrepareForFormatting for Member {}
 
 // Convenience implementations of Display for the types that implement
 // PrepareForFormatting:
@@ -844,6 +849,12 @@ impl fmt::Display for ForFormatting<'_, ScopeId> {
 impl fmt::Display for ForFormatting<'_, &Sub> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         TcFormatter::new(self.global_storage).fmt_sub(f, self.t)
+    }
+}
+
+impl fmt::Display for ForFormatting<'_, Member> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        TcFormatter::new(self.global_storage).fmt_member(f, self.t)
     }
 }
 

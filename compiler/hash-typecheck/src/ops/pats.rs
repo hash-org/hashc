@@ -21,6 +21,7 @@ use crate::{
     },
     ops::validate::TermValidation,
     storage::{
+        params::ParamsId,
         pats::{PatArgsId, PatId},
         primitives::{
             AccessOp, AccessPat, Arg, ConstPat, ConstructorPat, IfPat, ListPat, Member, ModPat,
@@ -358,7 +359,32 @@ impl<'tc> PatMatcher<'tc> {
         // - If `pat_members` and `ty_members` are named, `pat_members` field names must
         //   all be present within `ty_member` fields.
         let ty_members_named = ty_members.positional().iter().any(|member| member.name.is_some());
-        let pat_members_named = pat_members.positional().iter().any(|member| member.name.is_some());
+
+        // If the type members are named but the pattern members are not, we want to
+        // "infer" their names wherever possible. This is done by looking at
+        // each argument, and if it is a bind which is present in the type, we
+        // add a name to it.
+        let inferred_pat_members = if ty_members_named {
+            let inferred_pat_args_id = self.builder().create_pat_args(
+                pat_members.positional().iter().map(|arg| {
+                    if arg.name.is_none() {
+                        if let Pat::Binding(binding_pat) = reader.get_pat(arg.pat) {
+                            if ty_members.get_by_name(binding_pat.name).is_some() {
+                                return PatArg { name: Some(binding_pat.name), ..*arg };
+                            }
+                        }
+                    }
+                    *arg
+                }),
+                pat_members.origin(),
+            );
+            self.reader().get_pat_args_owned(inferred_pat_args_id)
+        } else {
+            pat_members
+        };
+
+        let pat_members_named =
+            inferred_pat_members.positional().iter().any(|member| member.name.is_some());
 
         // Build a collection of members that are to be inserted into the new tuple term
         let mut new_members = vec![];
@@ -371,14 +397,14 @@ impl<'tc> PatMatcher<'tc> {
                 // type...
                 validate_named_params_match(
                     &ty_members,
-                    &pat_members,
+                    &inferred_pat_members,
                     ParamListKind::PatArgs(members),
                     subject,
                 )?;
 
                 for (member_pos, ty_member) in ty_members.positional().iter().enumerate() {
                     if let Some(name) = ty_member.name {
-                        if let Some((index, arg)) = pat_members.get_by_name(name) {
+                        if let Some((index, arg)) = inferred_pat_members.get_by_name(name) {
                             new_members.push((*arg, index));
                         } else {
                             let item = PatArg { name: Some(name), pat: wildcard_pat() };
@@ -417,10 +443,10 @@ impl<'tc> PatMatcher<'tc> {
 
                 // Determine the boundary of which the spread pattern captures elements
                 // for, this is redundant if the tuple has named fields.
-                let (start, end) = if pos == pat_members.len() - 1 {
+                let (start, end) = if pos == inferred_pat_members.len() - 1 {
                     (pos, ty_members.len())
                 } else {
-                    (pos, (ty_members.len() - (pat_members.len() - pos)))
+                    (pos, (ty_members.len() - (inferred_pat_members.len() - pos)))
                 };
 
                 for (member_pos, ty_member) in ty_members.positional().iter().enumerate() {
@@ -442,10 +468,10 @@ impl<'tc> PatMatcher<'tc> {
                             member_pos
                         } else {
                             spread_offset += 1;
-                            min(pos + spread_offset, pat_members.len() - 1)
+                            min(pos + spread_offset, inferred_pat_members.len() - 1)
                         };
 
-                        let mut member = pat_members.positional()[index];
+                        let mut member = inferred_pat_members.positional()[index];
 
                         // The member inherits the name of the tuple type member if the name
                         // exists...
@@ -493,37 +519,11 @@ impl<'tc> PatMatcher<'tc> {
 
         match self.unifier().unify_terms(tuple_term, subject) {
             Ok(_) => {
-                let tuple_pat_args = self.reader().get_pat_args_owned(members).clone();
-
-                // We get the subject tuple's parameters:
                 let subject_params_id = self
                     .typer()
                     .infer_params_ty_of_tuple_term(subject)?
                     .unwrap_or_else(|| tc_panic!(subject, self, "This is not a tuple term."));
-
-                let subject_params = self.reader().get_params_owned(subject_params_id).clone();
-
-                // For each param pair: accumulate the bound members
-                let bound_members = subject_params
-                    .positional()
-                    .iter()
-                    .zip(tuple_pat_args.positional())
-                    .map(|(param, pat_param)| {
-                        let param_value = param
-                            .default_value
-                            .unwrap_or_else(|| self.builder().create_rt_term(param.ty));
-
-                        // @@Todo: retain information about useless patterns
-                        Ok(self
-                            .match_pat_with_term_and_extract_binds(pat_param.pat, param_value)?
-                            .into_iter()
-                            .flatten()
-                            .collect::<Vec<_>>())
-                    })
-                    .flatten_ok()
-                    .collect::<TcResult<Vec<_>>>()?;
-
-                Ok(Some(bound_members))
+                self.match_pat_args_with_subject_params(members, subject_params_id)
             }
             Err(_) => Ok(None),
         }
@@ -545,21 +545,30 @@ impl<'tc> PatMatcher<'tc> {
         // @@Verify: Otherwise we get the first one, it should not be possible for
         // another situation here...?
         let (_, subject_params_id) = possible_subject_params[0];
+
+        self.match_pat_args_with_subject_params(args, subject_params_id)
+    }
+
+    fn match_pat_args_with_subject_params(
+        &self,
+        pat_args_id: PatArgsId,
+        subject_params_id: ParamsId,
+    ) -> TcResult<Option<Vec<(Member, PatId)>>> {
         let subject_params = self.reader().get_params_owned(subject_params_id);
-        let constructor_args = self.reader().get_pat_args_owned(args);
+        let pat_args = self.reader().get_pat_args_owned(pat_args_id);
 
         // For each param pair: accumulate the bound members
         let mut bound_members = vec![];
 
         for (index, param) in subject_params.positional().iter().enumerate() {
             let arg = if let Some(name) = param.name {
-                if let Some((_, arg)) = constructor_args.get_by_name(name) {
+                if let Some((_, arg)) = pat_args.get_by_name(name) {
                     arg
                 } else {
-                    &constructor_args.positional()[index]
+                    &pat_args.positional()[index]
                 }
             } else {
-                &constructor_args.positional()[index]
+                &pat_args.positional()[index]
             };
 
             let param_value =
