@@ -359,7 +359,32 @@ impl<'tc> PatMatcher<'tc> {
         // - If `pat_members` and `ty_members` are named, `pat_members` field names must
         //   all be present within `ty_member` fields.
         let ty_members_named = ty_members.positional().iter().any(|member| member.name.is_some());
-        let pat_members_named = pat_members.positional().iter().any(|member| member.name.is_some());
+
+        // If the type members are named but the pattern members are not, we want to
+        // "infer" their names wherever possible. This is done by looking at
+        // each argument, and if it is a bind which is present in the type, we
+        // add a name to it.
+        let inferred_pat_members = if ty_members_named {
+            let inferred_pat_args_id = self.builder().create_pat_args(
+                pat_members.positional().iter().map(|arg| {
+                    if arg.name.is_none() {
+                        if let Pat::Binding(binding_pat) = reader.get_pat(arg.pat) {
+                            if let Some(_) = ty_members.get_by_name(binding_pat.name) {
+                                return PatArg { name: Some(binding_pat.name), ..*arg };
+                            }
+                        }
+                    }
+                    *arg
+                }),
+                pat_members.origin(),
+            );
+            self.reader().get_pat_args_owned(inferred_pat_args_id)
+        } else {
+            pat_members
+        };
+
+        let pat_members_named =
+            inferred_pat_members.positional().iter().any(|member| member.name.is_some());
 
         // Build a collection of members that are to be inserted into the new tuple term
         let mut new_members = vec![];
@@ -372,14 +397,14 @@ impl<'tc> PatMatcher<'tc> {
                 // type...
                 validate_named_params_match(
                     &ty_members,
-                    &pat_members,
+                    &inferred_pat_members,
                     ParamListKind::PatArgs(members),
                     subject,
                 )?;
 
                 for (member_pos, ty_member) in ty_members.positional().iter().enumerate() {
                     if let Some(name) = ty_member.name {
-                        if let Some((index, arg)) = pat_members.get_by_name(name) {
+                        if let Some((index, arg)) = inferred_pat_members.get_by_name(name) {
                             new_members.push((*arg, index));
                         } else {
                             let item = PatArg { name: Some(name), pat: wildcard_pat() };
@@ -418,10 +443,10 @@ impl<'tc> PatMatcher<'tc> {
 
                 // Determine the boundary of which the spread pattern captures elements
                 // for, this is redundant if the tuple has named fields.
-                let (start, end) = if pos == pat_members.len() - 1 {
+                let (start, end) = if pos == inferred_pat_members.len() - 1 {
                     (pos, ty_members.len())
                 } else {
-                    (pos, (ty_members.len() - (pat_members.len() - pos)))
+                    (pos, (ty_members.len() - (inferred_pat_members.len() - pos)))
                 };
 
                 for (member_pos, ty_member) in ty_members.positional().iter().enumerate() {
@@ -443,10 +468,10 @@ impl<'tc> PatMatcher<'tc> {
                             member_pos
                         } else {
                             spread_offset += 1;
-                            min(pos + spread_offset, pat_members.len() - 1)
+                            min(pos + spread_offset, inferred_pat_members.len() - 1)
                         };
 
-                        let mut member = pat_members.positional()[index];
+                        let mut member = inferred_pat_members.positional()[index];
 
                         // The member inherits the name of the tuple type member if the name
                         // exists...
@@ -565,11 +590,6 @@ impl<'tc> PatMatcher<'tc> {
                     .flatten()
                     .collect_vec(),
             );
-        }
-
-        println!("--");
-        for a in bound_members.iter() {
-            println!("Produced member: ({}) <=> ({})", self.for_fmt(a.0), self.for_fmt(a.1));
         }
 
         Ok(Some(bound_members))
