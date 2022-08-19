@@ -511,8 +511,9 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let walk::ConstructorCallExpr { args, subject } =
             walk::walk_constructor_call_expr(self, ctx, node)?;
 
-        // Create the Args object and add locations
-        let args = self.builder().create_args(args, ParamOrigin::Unknown);
+        // Create the args with origin as `FnCall`, although it might be altered
+        // when the term is simplified into `Struct` or `Enum` variant.
+        let args = self.builder().create_args(args, ParamOrigin::FnCall);
         self.copy_location_from_nodes_to_targets(node.args.ast_ref_iter(), args);
 
         // Create the function call term:
@@ -1982,7 +1983,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     ) -> Result<Self::ConstructorPatRet, Self::Error> {
         let walk::ConstructorPat { args, subject } = walk::walk_constructor_pat(self, ctx, node)?;
 
-        let constructor_params = self.builder().create_pat_args(args, ParamOrigin::Unknown);
+        let constructor_params = self.builder().create_pat_args(args, ParamOrigin::ConstructorPat);
         self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), constructor_params);
 
         let subject = self.typer().get_term_of_pat(subject)?;

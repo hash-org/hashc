@@ -192,15 +192,19 @@ impl From<AnalysisError> for Report {
                     )));
             }
             AnalysisErrorKind::InsufficientTypeAnnotations { origin } => {
-                builder
-                    .with_message(format!("`{}` field does not have enough information", origin));
+                builder.with_message(format!(
+                    "`{}` {} does not have enough information",
+                    origin,
+                    origin.field_name()
+                ));
 
                 builder
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         err.location,
                         format!(
-                            "this {} field is missing a type annotation and a default value",
-                            origin
+                            "this `{}` {} is missing both a type annotation and a default value",
+                            origin,
+                            origin.field_name()
                         ),
                     )))
                     .add_element(ReportElement::Note(ReportNote::new(
