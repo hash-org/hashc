@@ -1,0 +1,24 @@
+// run=pass
+
+ensure := <T> => (t: T) => {};
+
+main := () => {
+
+  ensure<i8>(1i8);
+  ensure<i16>(1i16);
+  ensure<i32>(1i32);
+  ensure<i32>(1); // default
+  ensure<i64>(1i64);
+
+  ensure<u8>(1u8);
+  ensure<u16>(1u16);
+  ensure<u32>(1u32);
+  ensure<u64>(1u64);
+
+  ensure<isize>(1isize);
+  ensure<usize>(1usize);
+
+  ensure<ibig>(1ibig);
+  ensure<ubig>(1ubig);
+};
+

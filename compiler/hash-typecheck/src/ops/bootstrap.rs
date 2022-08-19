@@ -44,12 +44,14 @@ pub fn create_core_defs_in(global_storage: &GlobalStorage) {
     let i32_ty = builder.create_opaque_struct_def(CORE_IDENTIFIERS.i32);
     let _i64_ty = builder.create_opaque_struct_def(CORE_IDENTIFIERS.i64);
     let _isize_ty = builder.create_opaque_struct_def(CORE_IDENTIFIERS.isize);
+    let _ibig_ty = builder.create_opaque_struct_def(CORE_IDENTIFIERS.ibig);
 
     let _u8_ty = builder.create_opaque_struct_def(CORE_IDENTIFIERS.u8);
     let _u16_ty = builder.create_opaque_struct_def(CORE_IDENTIFIERS.u16);
     let _u32_ty = builder.create_opaque_struct_def(CORE_IDENTIFIERS.u32);
     let u64_ty = builder.create_opaque_struct_def(CORE_IDENTIFIERS.u64);
     let _usize_ty = builder.create_opaque_struct_def(CORE_IDENTIFIERS.usize);
+    let _ubig_ty = builder.create_opaque_struct_def(CORE_IDENTIFIERS.ubig);
 
     let _f32_ty = builder.create_opaque_struct_def(CORE_IDENTIFIERS.f32);
     let _f64_ty = builder.create_opaque_struct_def(CORE_IDENTIFIERS.f64);
