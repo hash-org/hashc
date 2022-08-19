@@ -123,7 +123,7 @@ impl<'c, T> Row<'c, T> {
     /// Returns `None` if there are no elements in the `Row`, otherwise the
     /// popped element.
     pub fn pop(&mut self) -> Option<T> {
-        if self.len() == 0 {
+        if self.is_empty() {
             return None;
         }
 

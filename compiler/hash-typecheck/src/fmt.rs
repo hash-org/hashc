@@ -394,7 +394,7 @@ impl<'gs> TcFormatter<'gs> {
             }
             Term::Merge(terms) => self.fmt_term_list(f, terms, "~", opts),
             Term::Union(terms) => {
-                if terms.len() == 0 {
+                if terms.is_empty() {
                     opts.is_atomic.set(true);
                     write!(f, "never")
                 } else {
