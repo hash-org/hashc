@@ -1,6 +1,7 @@
 //! Hash AST semantic passes diagnostic definitions and logic.
 #![allow(dead_code)]
 
+use hash_ast::ast::AstNodeId;
 use hash_reporting::{diagnostic::Diagnostics, report::Report};
 
 use self::{error::AnalysisError, warning::AnalysisWarning};
@@ -11,13 +12,39 @@ pub(crate) mod error;
 pub(crate) mod origins;
 pub(crate) mod warning;
 
+/// A representation of either a [AnalysisWarning] or [AnalysisError]. This
+/// is used when they are accumulated and converted into reports at the end.
+pub enum AnalysisDiagnostic {
+    /// Warnings that are emitted by the analysis pass.
+    Warning(AnalysisWarning),
+    /// Errors that are emitted by the analysis pass.
+    Error(AnalysisError),
+}
+
+impl AnalysisDiagnostic {
+    /// Get the associated [AstNodeId] with the [AnalysisDiagnostic].
+    pub(crate) fn id(&self) -> AstNodeId {
+        match self {
+            AnalysisDiagnostic::Warning(w) => w.id(),
+            AnalysisDiagnostic::Error(e) => e.id(),
+        }
+    }
+}
+
+impl From<AnalysisDiagnostic> for Report {
+    fn from(diagnostic: AnalysisDiagnostic) -> Self {
+        match diagnostic {
+            AnalysisDiagnostic::Warning(w) => w.into(),
+            AnalysisDiagnostic::Error(e) => e.into(),
+        }
+    }
+}
+
 /// Store [SemanticAnalyser] diagnostics which can be errors or warnings.
 #[derive(Default)]
 pub struct AnalyserDiagnostics {
-    /// Any errors that the [SemanticAnalyser] produces.
-    errors: Vec<AnalysisError>,
-    /// Any warnings that the [SemanticAnalyser] produces.
-    warnings: Vec<AnalysisWarning>,
+    /// Any diagnostics that the [SemanticAnalyser] produces.
+    pub(crate) items: Vec<AnalysisDiagnostic>,
 }
 
 impl Diagnostics<AnalysisError, AnalysisWarning> for SemanticAnalyser<'_> {
@@ -28,38 +55,43 @@ impl Diagnostics<AnalysisError, AnalysisWarning> for SemanticAnalyser<'_> {
     }
 
     fn add_error(&mut self, error: AnalysisError) {
-        self.diagnostics.errors.push(error);
+        self.diagnostics.items.push(AnalysisDiagnostic::Error(error));
     }
 
     fn add_warning(&mut self, warning: AnalysisWarning) {
-        self.diagnostics.warnings.push(warning);
+        self.diagnostics.items.push(AnalysisDiagnostic::Warning(warning));
     }
 
     fn has_errors(&self) -> bool {
-        !self.diagnostic_store().errors.is_empty()
+        !self.diagnostics.items.iter().any(|d| matches!(d, AnalysisDiagnostic::Error(_)))
     }
 
     fn has_warnings(&self) -> bool {
-        !self.diagnostic_store().warnings.is_empty()
+        !self.diagnostics.items.iter().any(|d| matches!(d, AnalysisDiagnostic::Warning(_)))
     }
 
     fn into_reports(self) -> Vec<Report> {
-        self.diagnostics
-            .errors
-            .into_iter()
-            .map(|err| err.into())
-            .chain(self.diagnostics.warnings.into_iter().map(|warn| warn.into()))
-            .collect()
+        self.diagnostics.items.into_iter().map(|item| item.into()).collect()
     }
 
     fn into_diagnostics(self) -> (Vec<AnalysisError>, Vec<AnalysisWarning>) {
-        (self.diagnostics.errors, self.diagnostics.warnings)
+        let mut errors = vec![];
+        let mut warnings = vec![];
+
+        for item in self.diagnostics.items.into_iter() {
+            match item {
+                AnalysisDiagnostic::Warning(w) => warnings.push(w),
+                AnalysisDiagnostic::Error(e) => errors.push(e),
+            }
+        }
+
+        (errors, warnings)
     }
 
     fn merge_diagnostics(&mut self, other: impl Diagnostics<AnalysisError, AnalysisWarning>) {
         let (errors, warnings) = other.into_diagnostics();
 
-        self.diagnostics.errors.extend(errors);
-        self.diagnostics.warnings.extend(warnings);
+        self.diagnostics.items.extend(errors.into_iter().map(AnalysisDiagnostic::Error));
+        self.diagnostics.items.extend(warnings.into_iter().map(AnalysisDiagnostic::Warning));
     }
 }
