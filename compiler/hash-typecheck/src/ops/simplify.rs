@@ -3,7 +3,7 @@ use std::iter;
 
 use hash_ast::ast::ParamOrigin;
 use hash_source::identifier::Identifier;
-use hash_utils::store::{SequenceStore, Store};
+use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
 use itertools::Itertools;
 
 use super::{substitute::Substituter, unify::Unifier, AccessToOps};
@@ -20,7 +20,7 @@ use crate::{
             Level2Term, Level3Term, Member, Mutability, NominalDef, Param, ScopeKind, StructFields,
             Term, TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
         },
-        terms::TermId,
+        terms::{TermId, TermListId},
         AccessToStorage, StorageRef,
     },
 };
@@ -196,7 +196,9 @@ impl<'tc> Simplifier<'tc> {
             }
             Term::Merge(terms) => {
                 // Try this for each term:
-                for term in terms {
+                for idx in terms.to_index_range() {
+                    let term = self.term_list_store().get_at_index(terms, idx);
+
                     match self.access_struct_or_tuple_field(term, field_name)? {
                         Some(result) => return Ok(Some(result)),
                         None => continue,
@@ -450,7 +452,9 @@ impl<'tc> Simplifier<'tc> {
             Term::Union(terms) => {
                 // Try apply the access on each element, and if they all succeed then we get the
                 // union of the results:
-                let results: Vec<_> = terms
+                let results: Vec<_> = self
+                    .reader()
+                    .get_term_list_owned(terms)
                     .iter()
                     .map(|term| {
                         Ok(self
@@ -465,7 +469,9 @@ impl<'tc> Simplifier<'tc> {
             Term::Merge(terms) => {
                 // Apply the access to each result. If there are multiple results, it means
                 // there is an ambiguity which should be reported.
-                let results: Vec<_> = terms
+                let results: Vec<_> = self
+                    .reader()
+                    .get_term_list_owned(terms)
                     .iter()
                     .filter_map(|item| {
                         let item_access_term = AccessTerm { subject: *item, ..*access_term };
@@ -600,7 +606,7 @@ impl<'tc> Simplifier<'tc> {
                     })
                 } else {
                     // Otherwise, merge the results
-                    Ok(Some(self.builder().create_term(Term::Merge(results))))
+                    Ok(Some(self.builder().create_merge_term(results.into_iter())))
                 }
             }
             Term::Unresolved(_) => {
@@ -657,13 +663,13 @@ impl<'tc> Simplifier<'tc> {
     ///
     /// *Note*: Expects the term to be simplified.
     pub fn is_term_constructable(&self, term_id: TermId) -> bool {
-        let reader = self.reader();
-        let term = reader.get_term(term_id);
-
-        match term {
-            Term::Merge(terms) => terms.iter().any(|term| self.is_term_constructable(*term)),
+        match self.reader().get_term(term_id) {
+            Term::Merge(terms) => self
+                .reader()
+                .get_term_list_owned(terms)
+                .iter()
+                .any(|term| self.is_term_constructable(*term)),
             Term::SetBound(set_bound) => self.is_term_constructable(set_bound.term),
-            // @@Todo: should be specifically a struct!
             Term::Level1(Level1Term::NominalDef(_)) => true,
             _ => false,
         }
@@ -695,7 +701,9 @@ impl<'tc> Simplifier<'tc> {
             Term::Merge(terms) => {
                 // Recurse into the inner terms:
                 let terms = terms;
-                let results: Vec<_> = terms
+                let results: Vec<_> = self
+                    .reader()
+                    .get_term_list_owned(terms)
                     .iter()
                     .filter_map(|item| {
                         self.use_term_as_constructed_subject(*item, args, args_subject).ok()
@@ -804,7 +812,9 @@ impl<'tc> Simplifier<'tc> {
             Term::Merge(terms) => {
                 // Recurse into the inner terms:
                 let terms = terms;
-                let results: Vec<_> = terms
+                let results: Vec<_> = self
+                    .reader()
+                    .get_term_list_owned(terms)
                     .iter()
                     .enumerate()
                     .filter_map(|(i, item)| {
@@ -822,7 +832,8 @@ impl<'tc> Simplifier<'tc> {
                         let params = single_result.params;
                         let return_ty = self.builder().create_merge_term(
                             iter::once(single_result.return_ty).chain(
-                                terms
+                                self.reader()
+                                    .get_term_list_owned(terms)
                                     .iter()
                                     .enumerate()
                                     .filter(|(i, _)| i != result_i)
@@ -1177,16 +1188,17 @@ impl<'tc> Simplifier<'tc> {
     /// This is to be used for merge and union types.
     pub fn simplify_algebraic_term_list(
         &self,
-        term_list: &[TermId],
-        is_nested: impl Fn(&Term) -> Option<Vec<TermId>>,
-    ) -> TcResult<Option<Vec<TermId>>> {
+        terms: TermListId,
+        is_nested: impl Fn(&Term) -> Option<TermListId>,
+    ) -> TcResult<Option<TermListId>> {
         let mut simplified_once = false;
 
         // Flatten nests (associativity);
         // Also simplify inner terms
-        let flattened: Vec<TermId> = term_list
-            .iter()
-            .copied()
+        let flattened: Vec<TermId> = self
+            .reader()
+            .get_term_list_owned(terms)
+            .into_iter()
             .map(|term_id| {
                 // Check if the term is a nested list, and if so flatten it:
                 let simplified_term_id = self
@@ -1197,14 +1209,15 @@ impl<'tc> Simplifier<'tc> {
                         x
                     })
                     .unwrap_or(term_id);
-                let reader = self.reader();
-                let term = reader.get_term(simplified_term_id);
+
+                let term = self.reader().get_term(simplified_term_id);
+
                 match is_nested(&term) {
                     // It is a merge, flatten it (this also means the merge has been
                     // simplified):
                     Some(terms) => {
                         simplified_once = true;
-                        Ok(terms)
+                        Ok(self.reader().get_term_list_owned(terms))
                     }
                     // Not a merge, just return a single-element vector:
                     _ => Ok(vec![simplified_term_id]),
@@ -1231,7 +1244,8 @@ impl<'tc> Simplifier<'tc> {
                 _ => unreachable!(),
             }
         }
-        let result: Vec<_> = merged.into_iter().flatten().collect();
+
+        let result = self.term_list_store().create_from_iter_fast(merged.into_iter().flatten());
 
         // Only return if it has been simplified
         if !simplified_once {
@@ -1255,17 +1269,17 @@ impl<'tc> Simplifier<'tc> {
         let value = self.reader().get_term(term_id);
         let new_term = match value {
             Term::Merge(inner) => Ok(self
-                .simplify_algebraic_term_list(&inner, |term| match term {
-                    Term::Merge(terms) => Some(terms.clone()),
+                .simplify_algebraic_term_list(inner, |term| match term {
+                    Term::Merge(terms) => Some(*terms),
                     _ => None,
                 })?
-                .map(|result| self.builder().create_merge_term(result))),
+                .map(|result| self.builder().create_term(Term::Merge(result)))),
             Term::Union(inner) => Ok(self
-                .simplify_algebraic_term_list(&inner, |term| match term {
-                    Term::Union(terms) => Some(terms.clone()),
+                .simplify_algebraic_term_list(inner, |term| match term {
+                    Term::Union(terms) => Some(*terms),
                     _ => None,
                 })?
-                .map(|result| self.builder().create_union_term(result))),
+                .map(|result| self.builder().create_term(Term::Union(result)))),
             Term::SetBound(set_bound) => {
                 let simplified_inner =
                     self.scope_manager().enter_scope(set_bound.scope, |this| {

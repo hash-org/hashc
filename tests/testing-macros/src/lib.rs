@@ -168,11 +168,9 @@ fn read_tests_from_dir(
 /// different internal test logic. The prefix must be a specified string
 /// literal, leaving it empty will generate the normal test name.
 ///
-/// - `TEST_FN` must be an expression of type
-///   [`TestingFn`](hash_utils::testing::TestingFn). Every
-/// generated test case body will invoke this function with the appropriate
-/// [`TestingInput`](hash_utils::testing::TestingInput). Within this function,
-/// the actual test logic should be written.
+/// Every generated test case body will invoke this function with the
+/// appropriate [`TestingInput`](hash_testing_internal::TestingInput). Within
+/// this function, the actual test logic should be written.
 #[proc_macro]
 pub fn generate_tests(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as GenerateTestsInput);

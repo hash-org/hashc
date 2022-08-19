@@ -21,7 +21,7 @@ use super::{
     params::ParamsId,
     pats::{PatArgsId, PatId},
     scope::ScopeId,
-    terms::TermId,
+    terms::{TermId, TermListId},
     trts::TrtDefId,
 };
 
@@ -1072,7 +1072,7 @@ pub enum Term {
     /// associative, and commutative.
     ///
     /// Is level N, where N is the level of the inner types.
-    Merge(Vec<TermId>),
+    Merge(TermListId),
 
     /// Union of multiple types.
     ///
@@ -1080,7 +1080,7 @@ pub enum Term {
     /// associative, and commutative.
     ///
     /// Is level N, where N is the level of the inner types.
-    Union(Vec<TermId>),
+    Union(TermListId),
 
     /// A type function term.
     ///

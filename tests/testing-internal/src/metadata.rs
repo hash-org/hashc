@@ -129,7 +129,7 @@ pub struct TestMetadataBuilder {
 }
 
 impl TestMetadataBuilder {
-    /// Create a new [FileMetadataBuilder]
+    /// Create a new [TestMetadataBuilder]
     pub fn new() -> Self {
         Self { stage: None, completion: None, warnings: None }
     }

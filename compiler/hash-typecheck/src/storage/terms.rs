@@ -2,8 +2,8 @@
 use std::cell::Cell;
 
 use hash_utils::{
-    new_store_key,
-    store::{DefaultStore, Store},
+    new_sequence_store_key, new_store_key,
+    store::{DefaultSequenceStore, DefaultStore, Store},
 };
 
 use super::primitives::{ResolutionId, Term};
@@ -48,3 +48,9 @@ impl TermStore {
         ResolutionId(new_id)
     }
 }
+
+new_sequence_store_key!(pub TermListId);
+
+/// Define the [TermListStore], which is a sequence of [Term]s associated
+/// with a [TermListId].
+pub type TermListStore = DefaultSequenceStore<TermListId, TermId>;

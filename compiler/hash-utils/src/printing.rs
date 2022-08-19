@@ -35,7 +35,7 @@ macro_rules! pluralise {
     };
 }
 
-/// The [SequenceJoinKind] represents an options list for how a
+/// The [SequenceJoinMode] represents an options list for how a
 /// [SequenceDisplay] should be phrased as. The phrasing specifically affects
 /// the relationship the items have to one another in the current context. It
 /// could be that either one of the items is desired, or if all of the items are
@@ -101,7 +101,7 @@ impl<'a, T: 'a> SequenceDisplay<'a, T> {
     }
 
     /// Create a [SequenceDisplay] with the join mode as
-    /// [SequenceJoinKind::Either]
+    /// [SequenceJoinMode::Either].
     pub fn either(items: &'a [T]) -> Self {
         Self {
             items,
@@ -109,7 +109,8 @@ impl<'a, T: 'a> SequenceDisplay<'a, T> {
         }
     }
 
-    /// Create a [SequenceDisplay] with the join mode as [SequenceJoinKind::All]
+    /// Create a [SequenceDisplay] with the join mode as
+    /// [SequenceJoinMode::All].
     pub fn all(items: &'a [T]) -> Self {
         Self { items, options: SequenceDisplayOptions { mode: SequenceJoinMode::All, limit: None } }
     }

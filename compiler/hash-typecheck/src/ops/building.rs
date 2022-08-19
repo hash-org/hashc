@@ -304,13 +304,13 @@ impl<'gs> PrimitiveBuilder<'gs> {
 
     /// Create a term [Term::Merge] with the given inner terms.
     pub fn create_merge_term(&self, terms: impl IntoIterator<Item = TermId>) -> TermId {
-        let terms = terms.into_iter().collect();
+        let terms = self.gs.term_list_store.create_from_iter(terms);
         self.create_term(Term::Merge(terms))
     }
 
     /// Create a term [Term::Union] with the given inner terms.
     pub fn create_union_term(&self, terms: impl IntoIterator<Item = TermId>) -> TermId {
-        let terms = terms.into_iter().collect();
+        let terms = self.gs.term_list_store.create_from_iter(terms);
         self.create_term(Term::Union(terms))
     }
 
@@ -330,7 +330,8 @@ impl<'gs> PrimitiveBuilder<'gs> {
 
     /// Create the never type: [Term::Union] with no members.
     pub fn create_never_ty(&self) -> TermId {
-        self.create_term(Term::Union(vec![]))
+        let terms = self.gs.term_list_store.create_from_slice(&[]);
+        self.create_term(Term::Union(terms))
     }
 
     /// Create a tuple type term [Level1Term::Tuple].
