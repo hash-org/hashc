@@ -40,7 +40,7 @@ use self::{
     primitives::{Scope, ScopeKind},
     scope::{ScopeId, ScopeStack, ScopeStore},
     sources::CheckedSources,
-    terms::TermStore,
+    terms::{TermListStore, TermStore},
     trts::TrtDefStore,
 };
 use crate::{
@@ -53,7 +53,10 @@ use crate::{
 #[derive(Debug)]
 pub struct GlobalStorage {
     pub scope_store: ScopeStore,
+    /// Storage for terms
     pub term_store: TermStore,
+    /// Store for grouped terms
+    pub term_list_store: TermListStore,
     pub location_store: LocationStore,
     pub params_store: ParamsStore,
     pub args_store: ArgsStore,
@@ -94,6 +97,7 @@ impl GlobalStorage {
         let gs = Self {
             location_store: LocationStore::new(),
             term_store: TermStore::new(),
+            term_list_store: TermListStore::new(),
             scope_store,
             diagnostics_store: DiagnosticsStore::default(),
             trt_def_store: TrtDefStore::new(),
@@ -187,6 +191,10 @@ pub trait AccessToStorage {
 
     fn term_store(&self) -> &TermStore {
         &self.global_storage().term_store
+    }
+
+    fn term_list_store(&self) -> &TermListStore {
+        &self.global_storage().term_list_store
     }
 
     fn cache(&self) -> &Cache {

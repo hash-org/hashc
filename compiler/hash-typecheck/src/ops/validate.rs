@@ -2,7 +2,7 @@
 use std::{collections::HashSet, fmt::Display};
 
 use hash_ast::ast::{ParamOrigin, RangeEnd};
-use hash_utils::store::{SequenceStoreCopy, Store};
+use hash_utils::store::{SequenceStore, SequenceStoreCopy, SequenceStoreKey, Store};
 use itertools::Itertools;
 
 use super::{params::validate_param_list_unordered, AccessToOps};
@@ -528,9 +528,9 @@ impl<'tc> Validator<'tc> {
             // Union allowed if each inner term is allowed
             Term::Union(terms) => {
                 let mut initial_merge_kind = *merge_kind;
-                let terms = terms;
-                for term_id in terms.iter() {
-                    self.validate_merge_element(&mut initial_merge_kind, merge_term_id, *term_id)?;
+
+                for term_id in self.reader().get_term_list_owned(terms) {
+                    self.validate_merge_element(&mut initial_merge_kind, merge_term_id, term_id)?;
                 }
                 ensure_merge_is_level1(Some(merge_element_term_id))?;
                 Ok(())
@@ -645,12 +645,13 @@ impl<'tc> Validator<'tc> {
         let validated_term = match term {
             // Merge:
             Term::Merge(terms) => {
+                let terms = self.reader().get_term_list_owned(terms);
+
                 if let [term] = terms.as_slice() {
                     // Shortcut: single term:
                     self.validate_term(*term)
                 } else {
                     // First, validate each term:
-                    let terms = terms.clone();
                     for term in terms.iter().copied() {
                         self.validate_term(term)?;
                     }
@@ -672,12 +673,13 @@ impl<'tc> Validator<'tc> {
 
             // Union
             Term::Union(terms) => {
+                let terms = self.reader().get_term_list_owned(terms);
+
                 if let [term] = terms.as_slice() {
                     // Shortcut: single term:
                     self.validate_term(*term)
                 } else {
                     // First, validate each term:
-                    let terms = terms.clone();
                     for term in terms.iter().copied() {
                         self.validate_term(term)?;
                     }
@@ -1067,8 +1069,9 @@ impl<'tc> Validator<'tc> {
             | Term::Var(_) => Ok(false),
             Term::Merge(terms) | Term::Union(terms) => {
                 // Valid if each element is okay to be used as the return type:
-                let terms = terms;
-                for term in terms {
+                for idx in terms.to_index_range() {
+                    let term = self.term_list_store().get_at_index(terms, idx);
+
                     if !(self.term_can_be_used_as_ty_fn_return_ty(term)?) {
                         return Ok(false);
                     }
@@ -1130,12 +1133,14 @@ impl<'tc> Validator<'tc> {
             | Term::Var(_) => Ok(false),
             Term::Union(terms) | Term::Merge(terms) => {
                 // Valid if each element is okay to be used as a parameter type:
-                let terms = terms;
-                for term in terms {
+                for idx in terms.to_index_range() {
+                    let term = self.term_list_store().get_at_index(terms, idx);
+
                     if !(self.term_can_be_used_as_ty_fn_param_ty(term)?) {
                         return Ok(false);
                     }
                 }
+
                 Ok(true)
             }
             Term::Level0(_) | Term::TyFn(_) => {

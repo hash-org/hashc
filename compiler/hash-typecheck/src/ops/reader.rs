@@ -1,7 +1,7 @@
 //! Contains helpers to read various things stored in [crate::storage] with
 //! ease.
 
-use hash_utils::store::Store;
+use hash_utils::store::{SequenceStore, Store};
 
 use crate::{
     exhaustiveness::{construct::DeconstructedCtor, deconstruct::DeconstructedPat},
@@ -14,7 +14,7 @@ use crate::{
         pats::{PatArgsId, PatId},
         primitives::{Args, ModDef, NominalDef, Params, Pat, PatArgs, Scope, Term, TrtDef},
         scope::ScopeId,
-        terms::TermId,
+        terms::{TermId, TermListId},
         trts::TrtDefId,
         GlobalStorage,
     },
@@ -65,6 +65,11 @@ impl<'gs> PrimitiveReader<'gs> {
     /// Get the args with the given [ArgsId].
     pub fn get_args_owned(&self, id: ArgsId) -> Args<'static> {
         self.gs.args_store.get_owned_param_list(id)
+    }
+
+    /// Get the associated terms with the given [TermListId].
+    pub fn get_term_list_owned(&self, id: TermListId) -> Vec<TermId> {
+        self.gs.term_list_store.get_vec(id)
     }
 
     /// Get the params with the given [ParamsId].

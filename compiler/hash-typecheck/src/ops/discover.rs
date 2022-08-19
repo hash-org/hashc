@@ -1,6 +1,8 @@
 //! Functionality related to discovering variables in terms.
 use std::collections::HashSet;
 
+use hash_utils::store::{SequenceStore, SequenceStoreKey};
+
 use super::AccessToOps;
 use crate::{
     diagnostics::{error::TcResult, macros::tc_panic},
@@ -141,13 +143,15 @@ impl<'tc> Discoverer<'tc> {
             }
             Term::Merge(terms) => {
                 // Free vars in each term:
-                for inner_term_id in terms {
+                for idx in terms.to_index_range() {
+                    let inner_term_id = self.term_list_store().get_at_index(terms, idx);
                     self.add_free_sub_vars_in_term_to_set(inner_term_id, result);
                 }
             }
             Term::Union(terms) => {
                 // Free vars in each term:
-                for inner_term_id in terms {
+                for idx in terms.to_index_range() {
+                    let inner_term_id = self.term_list_store().get_at_index(terms, idx);
                     self.add_free_sub_vars_in_term_to_set(inner_term_id, result);
                 }
             }
@@ -412,13 +416,15 @@ impl<'tc> Discoverer<'tc> {
             }
             Term::Merge(terms) => {
                 // Free vars in each term:
-                for inner_term_id in terms {
+                for idx in terms.to_index_range() {
+                    let inner_term_id = self.term_list_store().get_at_index(terms, idx);
                     self.add_free_bound_vars_in_term_to_set(inner_term_id, result);
                 }
             }
             Term::Union(terms) => {
                 // Free vars in each term:
-                for inner_term_id in terms {
+                for idx in terms.to_index_range() {
+                    let inner_term_id = self.term_list_store().get_at_index(terms, idx);
                     self.add_free_bound_vars_in_term_to_set(inner_term_id, result);
                 }
             }
@@ -736,7 +742,9 @@ impl<'tc> Discoverer<'tc> {
                 // Apply each term:
                 let terms = terms;
                 let mut applied_once = false;
-                let merge_applied = terms
+                let merge_applied = self
+                    .reader()
+                    .get_term_list_owned(terms)
                     .iter()
                     .map(|term| {
                         self.apply_set_bound_to_term_with_flag(
@@ -757,7 +765,9 @@ impl<'tc> Discoverer<'tc> {
                 // Apply each term:
                 let terms = terms;
                 let mut applied_once = false;
-                let union_applied = terms
+                let union_applied = self
+                    .reader()
+                    .get_term_list_owned(terms)
                     .iter()
                     .map(|term| {
                         self.apply_set_bound_to_term_with_flag(

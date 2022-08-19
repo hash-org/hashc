@@ -1,7 +1,7 @@
 //! Utilities related to type unification and substitution.
 use std::{borrow::Borrow, collections::HashSet};
 
-use hash_utils::store::Store;
+use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
 
 use super::{params::pair_args_with_params, AccessToOps};
 use crate::{
@@ -435,7 +435,9 @@ impl<'tc> Unifier<'tc> {
                 // Try to merge source with each individual term in target. If all succeed,
                 // then the whole thing should succeed.
                 let mut subs = Sub::empty();
-                for inner_target_id in inner_target {
+                for idx in inner_target.to_index_range() {
+                    let inner_target_id = self.term_list_store().get_at_index(inner_target, idx);
+
                     match self.unify_terms(simplified_src_id, inner_target_id) {
                         Ok(result) => {
                             subs.extend(&result);
@@ -450,12 +452,15 @@ impl<'tc> Unifier<'tc> {
                 // Try to merge each individual term in source, with target. If any one
                 // succeeds, then the whole thing should succeed.
                 let mut first_error = None;
-                for inner_src_id in inner_src {
+                for idx in inner_src.to_index_range() {
+                    let inner_src_id = self.term_list_store().get_at_index(inner_src, idx);
+
                     match self.unify_terms(inner_src_id, simplified_target_id) {
                         Ok(result) => return Ok(result),
                         Err(e) => first_error = first_error.or(Some(e)),
                     }
                 }
+
                 match first_error {
                     Some(first_error) => Err(first_error),
                     None => cannot_unify(),
@@ -467,7 +472,9 @@ impl<'tc> Unifier<'tc> {
                 // Try to merge each individual term in source, with target. If any one
                 // succeeds, then the whole thing should succeed.
                 let mut first_error = None;
-                for inner_target_id in inner_target {
+                for idx in inner_target.to_index_range() {
+                    let inner_target_id = self.term_list_store().get_at_index(inner_target, idx);
+
                     match self.unify_terms(simplified_src_id, inner_target_id) {
                         Ok(result) => return Ok(result),
                         Err(e) => first_error = first_error.or(Some(e)),
@@ -482,7 +489,9 @@ impl<'tc> Unifier<'tc> {
                 // Try to merge source with each individual term in target. If all succeed,
                 // then the whole thing should succeed.
                 let mut subs = Sub::empty();
-                for inner_src_id in inner_src {
+                for idx in inner_src.to_index_range() {
+                    let inner_src_id = self.term_list_store().get_at_index(inner_src, idx);
+
                     match self.unify_terms(inner_src_id, simplified_target_id) {
                         Ok(result) => {
                             subs = self.unify_subs(&subs, &result)?;

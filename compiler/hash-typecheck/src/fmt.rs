@@ -3,7 +3,7 @@
 use core::fmt;
 use std::{cell::Cell, fmt::Display, rc::Rc};
 
-use hash_utils::store::Store;
+use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
 
 use crate::storage::{
     arguments::ArgsId,
@@ -18,7 +18,7 @@ use crate::storage::{
         UnresolvedTerm, Var, Visibility,
     },
     scope::ScopeId,
-    terms::TermId,
+    terms::{TermId, TermListId},
     trts::TrtDefId,
     GlobalStorage,
 };
@@ -347,18 +347,20 @@ impl<'gs> TcFormatter<'gs> {
         }
     }
 
+    /// Format the term as a single atomic [Term] which is associated with the
+    /// provided [TermId].
     pub fn fmt_term_as_single(
         &self,
         f: &mut fmt::Formatter,
-        term_id: TermId,
+        term: TermId,
         opts: TcFormatOpts,
     ) -> fmt::Result {
-        let term_fmt =
-            format!("{}", term_id.for_formatting_with_opts(self.global_storage, opts.clone()));
         if !opts.is_atomic.get() {
             write!(f, "(")?;
         }
-        write!(f, "{}", term_fmt)?;
+
+        self.fmt_term(f, term, opts.clone())?;
+
         if !opts.is_atomic.get() {
             write!(f, ")")?;
         }
@@ -390,30 +392,13 @@ impl<'gs> TcFormatter<'gs> {
                 opts.is_atomic.set(true);
                 write!(f, "{}", name)
             }
-            Term::Merge(terms) => {
-                opts.is_atomic.set(false);
-                for (i, term_id) in terms.iter().enumerate() {
-                    self.fmt_term_as_single(f, *term_id, opts.clone())?;
-                    if i != terms.len() - 1 {
-                        write!(f, " ~ ")?;
-                    }
-                }
-                Ok(())
-            }
+            Term::Merge(terms) => self.fmt_term_list(f, terms, "~", opts),
             Term::Union(terms) => {
-                if terms.is_empty() {
+                if terms.len() == 0 {
                     opts.is_atomic.set(true);
-                    write!(f, "never")?;
-                    Ok(())
+                    write!(f, "never")
                 } else {
-                    opts.is_atomic.set(false);
-                    for (i, term_id) in terms.iter().enumerate() {
-                        self.fmt_term_as_single(f, *term_id, opts.clone())?;
-                        if i != terms.len() - 1 {
-                            write!(f, " | ")?;
-                        }
-                    }
-                    Ok(())
+                    self.fmt_term_list(f, terms, "|", opts)
                 }
             }
             Term::TyFn(ty_fn) => {
@@ -492,6 +477,30 @@ impl<'gs> TcFormatter<'gs> {
                 )
             }
         }
+    }
+
+    pub fn fmt_term_list(
+        &self,
+        f: &mut fmt::Formatter,
+        terms: TermListId,
+        separator: &'static str,
+        opts: TcFormatOpts,
+    ) -> fmt::Result {
+        opts.is_atomic.set(false);
+
+        for idx in terms.to_index_range() {
+            self.fmt_term_as_single(
+                f,
+                self.global_storage.term_list_store.get_at_index(terms, idx),
+                opts.clone(),
+            )?;
+
+            if idx != terms.len() - 1 {
+                write!(f, " {separator} ")?;
+            }
+        }
+
+        Ok(())
     }
 
     /// Format a [Term::Unresolved], printing its resolution ID.

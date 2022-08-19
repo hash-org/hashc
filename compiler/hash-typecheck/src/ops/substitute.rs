@@ -219,19 +219,23 @@ impl<'tc> Substituter<'tc> {
             }
             Term::Merge(terms) => {
                 // Apply the substitution to each element of the merge.
-                let terms = terms
+                let terms = self
+                    .reader()
+                    .get_term_list_owned(terms)
                     .into_iter()
-                    .map(|term| self.apply_sub_to_term(sub, term))
-                    .collect::<Vec<_>>();
-                self.builder().create_term(Term::Merge(terms))
+                    .map(|term| self.apply_sub_to_term(sub, term));
+
+                self.builder().create_merge_term(terms)
             }
             Term::Union(terms) => {
                 // Apply the substitution to each element of the union.
-                let terms = terms
+                let terms = self
+                    .reader()
+                    .get_term_list_owned(terms)
                     .into_iter()
-                    .map(|term| self.apply_sub_to_term(sub, term))
-                    .collect::<Vec<_>>();
-                self.builder().create_term(Term::Union(terms))
+                    .map(|term| self.apply_sub_to_term(sub, term));
+
+                self.builder().create_union_term(terms)
             }
             Term::TyFn(ty_fn) => {
                 // Apply the substitution to the general parameters, return type, and each case.

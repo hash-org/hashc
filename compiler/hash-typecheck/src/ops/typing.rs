@@ -141,10 +141,13 @@ impl<'tc> Typer<'tc> {
             }
             Term::Merge(terms) => {
                 // The type of a merge is a merge of the inner terms:
-                let tys_of_terms: Vec<_> = terms
+                let tys_of_terms: Vec<_> = self
+                    .reader()
+                    .get_term_list_owned(terms)
                     .iter()
                     .map(|term| self.infer_ty_of_term(*term))
                     .collect::<TcResult<_>>()?;
+
                 Ok(self.builder().create_merge_term(tys_of_terms))
             }
             Term::Union(_) => {
@@ -498,9 +501,9 @@ impl<'tc> Typer<'tc> {
                 match tuple_ty {
                     Term::Merge(terms) => {
                         // Try each term:
-                        terms
-                            .iter()
-                            .copied()
+                        self.reader()
+                            .get_term_list_owned(terms)
+                            .into_iter()
                             .map(|term| self.infer_params_ty_of_tuple_term(term))
                             .flatten_ok()
                             .next()
@@ -548,9 +551,9 @@ impl<'tc> Typer<'tc> {
                 match self.reader().get_term(constructed_ty_id) {
                     Term::Union(terms) => {
                         // Accumulate all terms
-                        terms
-                            .iter()
-                            .copied()
+                        self.reader()
+                            .get_term_list_owned(terms)
+                            .into_iter()
                             .map(|term| self.infer_constructor_of_nominal_term(term))
                             .flatten_ok()
                             .collect()
@@ -576,9 +579,9 @@ impl<'tc> Typer<'tc> {
                     }
                     Term::Merge(terms) => {
                         // Try each term:
-                        terms
-                            .iter()
-                            .copied()
+                        self.reader()
+                            .get_term_list_owned(terms)
+                            .into_iter()
                             .map(|term| self.infer_constructor_of_nominal_term(term))
                             .flatten_ok()
                             .collect()
