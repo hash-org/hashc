@@ -119,7 +119,7 @@ impl<'tc> TcVisitor<'tc> {
 
     /// Create a [SourceLocation] from a [Span].
     pub(crate) fn source_location(&self, span: Span) -> SourceLocation {
-        SourceLocation { span, source_id: self.local_storage().current_source() }
+        SourceLocation { span, id: self.local_storage().current_source() }
     }
 
     /// Create a [SourceLocation] at the given [hash_ast::ast::AstNode].
@@ -451,9 +451,16 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let walk::VariableExpr { name } = walk::walk_variable_expr(self, ctx, node)?;
 
         let term = self.builder().create_var_term(name);
-        self.copy_location_from_node_to_target(node, term);
 
-        Ok(self.validator().validate_term(term)?.simplified_term_id)
+        let simplified_term = self.validator().validate_term(term)?.simplified_term_id;
+
+        // Don't set the location if the term is not a literal as this may override
+        // other locations of terms that we don't want to override...
+        if self.oracle().term_is_literal(simplified_term) {
+            self.copy_location_from_node_to_target(node, simplified_term);
+        }
+
+        Ok(simplified_term)
     }
 
     type DirectiveExprRet = TermId;
@@ -1995,7 +2002,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TuplePatEntry>,
     ) -> Result<Self::TuplePatEntryRet, Self::Error> {
+        // Here we set the `in_pat_fields` as true since we're currently within
+        // some kind of pattern fields...
         let walk::TuplePatEntry { name, pat } = walk::walk_tuple_pat_entry(self, ctx, node)?;
+
         Ok(PatArg { name, pat })
     }
 
@@ -2138,27 +2148,37 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::BindingPat>,
     ) -> Result<Self::BindingPatRet, Self::Error> {
         let name = node.name.ident;
-        let term = self.builder().create_var_term(name);
+        let var_term = self.builder().create_var_term(name);
 
-        match self.scope_manager().resolve_name_in_scopes(name, term) {
-            Ok(_) => Ok(self.builder().create_pat(Pat::Const(ConstPat { term }))),
-            Err(_) => {
-                let pat = self.builder().create_binding_pat(
-                    node.name.body().ident,
-                    match node.mutability.as_ref().map(|x| *x.body()) {
-                        Some(hash_ast::ast::Mutability::Mutable) => Mutability::Mutable,
-                        Some(hash_ast::ast::Mutability::Immutable) | None => Mutability::Immutable,
-                    },
-                    match node.visibility.as_ref().map(|x| *x.body()) {
-                        Some(hash_ast::ast::Visibility::Private) | None => Visibility::Private,
-                        Some(hash_ast::ast::Visibility::Public) => Visibility::Public,
-                    },
-                );
+        if let Ok(scope_member) = self.scope_manager().resolve_name_in_scopes(name, var_term) {
+            let term = scope_member.member.value_or_ty();
+            let ty = scope_member.member.ty();
+
+            // So this should only become a constant if we are a `enum` or `struct`
+            // definition. Otherwise, we shadow the variable
+            if self.oracle().term_is_struct_def(term) || self.oracle().term_is_enum_def(term) {
+                self.location_store().copy_location(ty, var_term);
+                let pat = self.builder().create_pat(Pat::Const(ConstPat { term: var_term }));
+
                 self.copy_location_from_node_to_target(node, pat);
-
-                Ok(pat)
+                return Ok(pat);
             }
         }
+
+        let pat = self.builder().create_binding_pat(
+            node.name.body().ident,
+            match node.mutability.as_ref().map(|x| *x.body()) {
+                Some(hash_ast::ast::Mutability::Mutable) => Mutability::Mutable,
+                Some(hash_ast::ast::Mutability::Immutable) | None => Mutability::Immutable,
+            },
+            match node.visibility.as_ref().map(|x| *x.body()) {
+                Some(hash_ast::ast::Visibility::Private) | None => Visibility::Private,
+                Some(hash_ast::ast::Visibility::Public) => Visibility::Public,
+            },
+        );
+
+        self.copy_location_from_node_to_target(node, pat);
+        Ok(pat)
     }
 
     type WildPatRet = PatId;

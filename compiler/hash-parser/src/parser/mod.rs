@@ -138,7 +138,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Function to create a [SourceLocation] from a [Span] by using the
     /// provided resolver
     pub(crate) fn source_location(&self, span: &Span) -> SourceLocation {
-        SourceLocation { span: *span, source_id: self.resolver.current_source_id() }
+        SourceLocation { span: *span, id: self.resolver.current_source_id() }
     }
 
     /// Get the current offset of where the stream is at.

@@ -121,7 +121,7 @@ impl<'tc> ConstructorOps<'tc> {
 
     /// Create a [SourceLocation] from a provided [Span].
     pub fn location(&self, span: Span) -> SourceLocation {
-        SourceLocation { span, source_id: self.local_storage().current_source() }
+        SourceLocation { span, id: self.local_storage().current_source() }
     }
 
     /// Compute the `arity` of this [DeconstructedCtor].

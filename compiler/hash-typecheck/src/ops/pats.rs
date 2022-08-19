@@ -372,7 +372,6 @@ impl<'tc> PatMatcher<'tc> {
                 validate_named_params_match(
                     &ty_members,
                     &pat_members,
-                    ty_members_id,
                     ParamListKind::PatArgs(members),
                     subject,
                 )?;
@@ -550,22 +549,39 @@ impl<'tc> PatMatcher<'tc> {
         let constructor_args = self.reader().get_pat_args_owned(args);
 
         // For each param pair: accumulate the bound members
-        let bound_members = subject_params
-            .positional()
-            .iter()
-            .zip(constructor_args.positional())
-            .map(|(param, pat_param)| {
-                let param_value =
-                    param.default_value.unwrap_or_else(|| self.builder().create_rt_term(param.ty));
+        let mut bound_members = vec![];
 
-                Ok(self
-                    .match_pat_with_term_and_extract_binds(pat_param.pat, param_value)?
+        for (index, param) in subject_params.positional().iter().enumerate() {
+            let arg = if let Some(name) = param.name {
+                if let Some((_, arg)) = constructor_args.get_by_name(name) {
+                    arg
+                } else {
+                    &constructor_args.positional()[index]
+                }
+            } else {
+                &constructor_args.positional()[index]
+            };
+
+            let param_value =
+                param.default_value.unwrap_or_else(|| self.builder().create_rt_term(param.ty));
+
+            // If the argument has a name, and if the pattern is not a bind, i.e. it's just
+            // setting the name, so that we don't add it twice then add the name
+            // to the scope.
+            if let Some(name) = arg.name && !self.reader().get_pat(arg.pat).is_bind() {
+                bound_members.push((
+                    Member::variable(name, Mutability::Immutable, param.ty, param_value),
+                    arg.pat,
+                ));
+            }
+
+            bound_members.extend(
+                self.match_pat_with_term_and_extract_binds(arg.pat, param_value)?
                     .into_iter()
                     .flatten()
-                    .collect::<Vec<_>>())
-            })
-            .flatten_ok()
-            .collect::<TcResult<Vec<_>>>()?;
+                    .collect_vec(),
+            );
+        }
 
         Ok(Some(bound_members))
     }

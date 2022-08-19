@@ -113,7 +113,7 @@ impl ReportCodeBlock {
         match self.info.get() {
             Some(info) => info,
             None => {
-                let SourceLocation { span, source_id } = self.source_location;
+                let SourceLocation { span, id: source_id } = self.source_location;
                 let source = sources.contents_by_id(source_id);
 
                 // Compute offset rows and columns from the provided span
@@ -152,7 +152,7 @@ impl ReportCodeBlock {
         modules: &'a SourceMap,
     ) -> impl Iterator<Item = (usize, &'a str)> {
         // Get the actual contents of the erroneous span
-        let source_id = self.source_location.source_id;
+        let source_id = self.source_location.id;
         let source = modules.contents_by_id(source_id);
 
         let ReportCodeBlockInfo { start_row, end_row, .. } = self.info(modules);
@@ -355,7 +355,7 @@ impl ReportCodeBlock {
         longest_indent_width: usize,
         report_kind: ReportKind,
     ) -> fmt::Result {
-        let source_id = self.source_location.source_id;
+        let source_id = self.source_location.id;
         let ReportCodeBlockInfo { start_row, end_row, start_col, .. } = self.info(modules);
 
         // Print the filename of the code block...

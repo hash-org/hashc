@@ -318,20 +318,9 @@ impl TokenKindVector {
         Self(smallvec![kind])
     }
 
-    #[inline(always)]
+    /// Create a [TokenKindVector] that provides tokens that can modify the
+    /// visibility of a variable.
     pub fn begin_visibility() -> Self {
         Self(smallvec![TokenKind::Keyword(Keyword::Pub), TokenKind::Keyword(Keyword::Priv)])
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn type_size() {
-        println!("{:?}", std::mem::size_of::<Delimiter>());
-        println!("{:?}", std::mem::size_of::<Token>());
-        println!("{:?}", std::mem::size_of::<TokenKind>());
     }
 }

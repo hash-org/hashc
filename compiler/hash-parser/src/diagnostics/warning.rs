@@ -82,7 +82,7 @@ impl From<ParseWarningWrapper> for Report {
 
         builder.with_kind(ReportKind::Warning).with_message(message).add_element(
             ReportElement::CodeBlock(ReportCodeBlock::new(
-                SourceLocation { span: warning.location, source_id: id },
+                SourceLocation { span: warning.location, id },
                 "here",
             )),
         );

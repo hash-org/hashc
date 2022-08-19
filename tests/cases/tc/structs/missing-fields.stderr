@@ -5,8 +5,14 @@ error[0017]: struct literal is missing the fields `age`, and `width`
    |       ^^^^^^^^^^^^^^^^^ missing `age`, and `width`
 15 |   };
 
-  --> $DIR/missing-fields.hash:12:15
-11 |   main := () => {
-12 |       viktor := Dog("viktor", 18, 123.6, 129.9);
-   |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the struct is defined here
-13 |   
+  --> $DIR/missing-fields.hash:3:8
+ 2 |    
+ 3 |    Dog := struct(
+   |  _________-
+ 4 | |      name: str,
+ 5 | |      age: i32,
+ 6 | |      width: f32,
+ 7 | |      height: f32,
+ 8 | |  );
+   | |___- the struct is defined here
+ 9 |    
