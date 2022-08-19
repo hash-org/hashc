@@ -369,7 +369,7 @@ impl<'tc> PatMatcher<'tc> {
                 pat_members.positional().iter().map(|arg| {
                     if arg.name.is_none() {
                         if let Pat::Binding(binding_pat) = reader.get_pat(arg.pat) {
-                            if let Some(_) = ty_members.get_by_name(binding_pat.name) {
+                            if ty_members.get_by_name(binding_pat.name).is_some() {
                                 return PatArg { name: Some(binding_pat.name), ..*arg };
                             }
                         }
