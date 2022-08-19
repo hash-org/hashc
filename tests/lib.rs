@@ -1,11 +1,6 @@
 #![feature(test)]
 extern crate test;
 
-/// Specific stage and stage implementation tests
-///
-/// @@Todo: possibly move into the crate itself?
-mod parser;
-
 /// Modules to do with UI tests and running them
 mod runner;
 

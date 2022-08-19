@@ -169,7 +169,16 @@ fn handle_pass_case(
         HandleWarnings::Disallow => diagnostics.is_empty(),
     };
 
-    assert!(did_pass, "\ntest case did not pass: {:#?}", input);
+    if !did_pass {
+        panic!(
+            "\ntest case did not pass:\n{}",
+            diagnostics
+                .into_iter()
+                .map(|report| format!("{}", ReportWriter::new(report, sources.source_map())))
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
+    }
 
     // If we need to compare the output of the warnings, to the previous result...
     if input.metadata.warnings == HandleWarnings::Compare {

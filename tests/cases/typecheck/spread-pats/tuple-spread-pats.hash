@@ -1,0 +1,31 @@
+// run=pass
+
+// test_spread_skipping_args := () -> i32 => {
+//     viktor := ("viktor", 123.6, 129.9, 18);
+
+//     (name, ...dimensions, age) := viktor;
+//     age
+// };
+
+// test_spread_correct_type_out_of_order := () -> (name: str, value: i32) => {
+//     x := (name = "test", value = 123, bar := 'a');
+//     (...rest, bar) := x;
+//     rest
+// };
+
+test_spread_correct_type_in_order := () -> (name: str, value: i32) => {
+    x := (name = "test", value = 123, bar := 'a');
+    (bar, ...rest) := x;
+    rest
+};
+
+// test_spread_empty := () -> () => {
+//     x := (name = "test", value = 123);
+//     (name, value, ...rest) := x;
+//     rest
+// };
+
+// test_spread_all := (foo: (a: str, b: i32)) -> (a: str, b: i32) => {
+//     (...rest) := foo;
+//     rest
+// };

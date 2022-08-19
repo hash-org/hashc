@@ -21,6 +21,7 @@ use crate::{
     },
     ops::validate::TermValidation,
     storage::{
+        params::ParamsId,
         pats::{PatArgsId, PatId},
         primitives::{
             AccessOp, AccessPat, Arg, ConstPat, ConstructorPat, IfPat, ListPat, Member, ModPat,
@@ -493,37 +494,11 @@ impl<'tc> PatMatcher<'tc> {
 
         match self.unifier().unify_terms(tuple_term, subject) {
             Ok(_) => {
-                let tuple_pat_args = self.reader().get_pat_args_owned(members).clone();
-
-                // We get the subject tuple's parameters:
                 let subject_params_id = self
                     .typer()
                     .infer_params_ty_of_tuple_term(subject)?
                     .unwrap_or_else(|| tc_panic!(subject, self, "This is not a tuple term."));
-
-                let subject_params = self.reader().get_params_owned(subject_params_id).clone();
-
-                // For each param pair: accumulate the bound members
-                let bound_members = subject_params
-                    .positional()
-                    .iter()
-                    .zip(tuple_pat_args.positional())
-                    .map(|(param, pat_param)| {
-                        let param_value = param
-                            .default_value
-                            .unwrap_or_else(|| self.builder().create_rt_term(param.ty));
-
-                        // @@Todo: retain information about useless patterns
-                        Ok(self
-                            .match_pat_with_term_and_extract_binds(pat_param.pat, param_value)?
-                            .into_iter()
-                            .flatten()
-                            .collect::<Vec<_>>())
-                    })
-                    .flatten_ok()
-                    .collect::<TcResult<Vec<_>>>()?;
-
-                Ok(Some(bound_members))
+                self.match_pat_args_with_subject_params(members, subject_params_id)
             }
             Err(_) => Ok(None),
         }
@@ -545,21 +520,30 @@ impl<'tc> PatMatcher<'tc> {
         // @@Verify: Otherwise we get the first one, it should not be possible for
         // another situation here...?
         let (_, subject_params_id) = possible_subject_params[0];
+
+        self.match_pat_args_with_subject_params(args, subject_params_id)
+    }
+
+    fn match_pat_args_with_subject_params(
+        &self,
+        pat_args_id: PatArgsId,
+        subject_params_id: ParamsId,
+    ) -> TcResult<Option<Vec<(Member, PatId)>>> {
         let subject_params = self.reader().get_params_owned(subject_params_id);
-        let constructor_args = self.reader().get_pat_args_owned(args);
+        let pat_args = self.reader().get_pat_args_owned(pat_args_id);
 
         // For each param pair: accumulate the bound members
         let mut bound_members = vec![];
 
         for (index, param) in subject_params.positional().iter().enumerate() {
             let arg = if let Some(name) = param.name {
-                if let Some((_, arg)) = constructor_args.get_by_name(name) {
+                if let Some((_, arg)) = pat_args.get_by_name(name) {
                     arg
                 } else {
-                    &constructor_args.positional()[index]
+                    &pat_args.positional()[index]
                 }
             } else {
-                &constructor_args.positional()[index]
+                &pat_args.positional()[index]
             };
 
             let param_value =
@@ -581,6 +565,11 @@ impl<'tc> PatMatcher<'tc> {
                     .flatten()
                     .collect_vec(),
             );
+        }
+
+        println!("--");
+        for a in bound_members.iter() {
+            println!("Produced member: ({}) <=> ({})", self.for_fmt(a.0), self.for_fmt(a.1));
         }
 
         Ok(Some(bound_members))
