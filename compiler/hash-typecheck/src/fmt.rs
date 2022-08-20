@@ -359,11 +359,13 @@ impl<'gs> TcFormatter<'gs> {
         term: TermId,
         opts: TcFormatOpts,
     ) -> fmt::Result {
+        let term = format!("{}", term.for_formatting_with_opts(self.global_storage, opts.clone()));
+
         if !opts.is_atomic.get() {
             write!(f, "(")?;
         }
 
-        self.fmt_term(f, term, opts.clone())?;
+        write!(f, "{}", term)?;
 
         if !opts.is_atomic.get() {
             write!(f, ")")?;
@@ -559,15 +561,15 @@ impl<'gs> TcFormatter<'gs> {
             }
             _ => match mod_def.origin {
                 ModDefOrigin::TrtImpl(trt_def_id) => {
-                    opts.is_atomic.set(false);
+                    opts.is_atomic.set(true);
                     write!(f, "impl {} {{..}}", trt_def_id.for_formatting(self.global_storage))
                 }
                 ModDefOrigin::AnonImpl => {
-                    opts.is_atomic.set(false);
+                    opts.is_atomic.set(true);
                     write!(f, "impl {{..}}")
                 }
                 ModDefOrigin::Mod => {
-                    opts.is_atomic.set(false);
+                    opts.is_atomic.set(true);
                     write!(f, "mod {{..}}")
                 }
                 ModDefOrigin::Source(_) => {

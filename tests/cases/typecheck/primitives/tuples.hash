@@ -1,0 +1,7 @@
+// run=pass
+
+ensure := <T> => (t: T) => {};
+
+main := () => {
+  ensure<(foo: i32, bar: str)>((foo := 3, bar := "4"));
+};
