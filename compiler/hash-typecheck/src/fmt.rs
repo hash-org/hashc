@@ -723,7 +723,7 @@ impl<'gs> TcFormatter<'gs> {
                     Ok(())
                 })
             }
-            Pat::List(ListPat { inner, .. }) => {
+            Pat::List(ListPat { element_pats: inner, .. }) => {
                 write!(f, "[{}]", inner.for_formatting(self.global_storage))
             }
             Pat::Spread(SpreadPat { name }) => {
@@ -770,6 +770,7 @@ pub trait PrepareForFormatting: Sized {
 }
 
 impl<T: PrepareForFormatting> PrepareForFormatting for Option<T> {}
+impl<T: PrepareForFormatting> PrepareForFormatting for &Vec<T> {}
 impl PrepareForFormatting for TermId {}
 impl PrepareForFormatting for TrtDefId {}
 impl PrepareForFormatting for ModDefId {}
@@ -880,5 +881,28 @@ where
                 write!(f, "None")
             }
         }
+    }
+}
+
+impl<'gs, T: PrepareForFormatting + Clone> fmt::Display for ForFormatting<'gs, &Vec<T>>
+where
+    ForFormatting<'gs, T>: Display,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.opts.is_atomic.set(false);
+        write!(f, "[")?;
+        for (idx, el) in self.t.iter().enumerate() {
+            write!(
+                f,
+                "{}",
+                el.clone().for_formatting_with_opts(self.global_storage, self.opts.clone())
+            )?;
+
+            if idx != self.t.len() - 1 {
+                write!(f, ", ")?;
+            }
+        }
+        write!(f, "]")?;
+        Ok(())
     }
 }

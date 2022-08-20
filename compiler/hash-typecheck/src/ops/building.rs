@@ -236,11 +236,11 @@ impl<'gs> PrimitiveBuilder<'gs> {
         self.create_term(Term::TyOf(inner))
     }
 
-    /// Add an open member to the scope, marking it as public.
+    /// Add an closed member to the scope, marking it as public.
     ///
     /// All other methods call this one to actually add members to the scope.
     pub fn add_pub_member_to_scope(&self, name: impl Into<Identifier>, ty: TermId, value: TermId) {
-        let member = Member::open_constant(name.into(), Visibility::Public, ty, value);
+        let member = Member::closed_constant(name.into(), Visibility::Public, ty, value);
         if let Some(scope) = self.scope.get() {
             self.gs.scope_store.modify_fast(scope, |scope| scope.add(member));
         }
@@ -598,7 +598,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
 
     /// Create a list pattern with parameters.
     pub fn create_list_pat(&self, term: TermId, inner: PatArgsId) -> PatId {
-        self.create_pat(Pat::List(ListPat { term, inner }))
+        self.create_pat(Pat::List(ListPat { list_element_ty: term, element_pats: inner }))
     }
 
     /// Create a binding pattern.

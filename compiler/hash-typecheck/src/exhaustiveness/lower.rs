@@ -220,7 +220,7 @@ impl<'tc> LowerPatOps<'tc> {
                     ),
                 }
             }
-            Pat::List(ListPat { inner, .. }) => {
+            Pat::List(ListPat { element_pats: inner, .. }) => {
                 let mut prefix = vec![];
                 let mut suffix = vec![];
                 let mut spread = false;
@@ -388,7 +388,7 @@ impl<'tc> LowerPatOps<'tc> {
                         let inner_term = self.oracle().term_as_list_ty(pat.ty).unwrap();
 
                         let inner = self.builder().create_pat_args(children, ParamOrigin::ListPat);
-                        Pat::List(ListPat { term: inner_term, inner })
+                        Pat::List(ListPat { list_element_ty: inner_term, element_pats: inner })
                     }
                     #[allow(clippy::needless_collect)]
                     ListKind::Var(prefix, _) => {
@@ -408,7 +408,7 @@ impl<'tc> LowerPatOps<'tc> {
                         let term = self.oracle().term_as_list_ty(pat.ty).unwrap();
 
                         let elements = self.builder().create_pat_args(inner, ParamOrigin::ListPat);
-                        Pat::List(ListPat { term, inner: elements })
+                        Pat::List(ListPat { list_element_ty: term, element_pats: elements })
                     }
                 }
             }

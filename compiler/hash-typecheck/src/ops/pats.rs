@@ -602,14 +602,14 @@ impl<'tc> PatMatcher<'tc> {
     /// in the `List<term>` type.
     fn match_list_pat_with_term(
         &self,
-        ListPat { term, inner }: ListPat,
+        ListPat { list_element_ty, element_pats }: ListPat,
     ) -> TcResult<Option<Vec<(Member, PatId)>>> {
         // We need to collect all of the binds from the inner patterns of
         // the list
-        let params = self.reader().get_pat_args_owned(inner).clone();
+        let params = self.reader().get_pat_args_owned(element_pats).clone();
 
         let mut bound_members = vec![];
-        let shared_term = self.builder().create_rt_term(term);
+        let shared_term = self.builder().create_rt_term(list_element_ty);
 
         for param in params.positional().iter() {
             match self.match_pat_with_term_and_extract_binds(param.pat, shared_term)? {

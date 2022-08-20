@@ -132,7 +132,8 @@ impl<'tc> ExhaustivenessChecker<'tc> {
     }
 
     /// Checks whether the given [PatId] is irrefutable in terms of the provided
-    /// [TermId] which will be used as the subject of the refutability check.
+    /// [TermId] which will be used as the subject type of the refutability
+    /// check.
     ///
     /// The function takes a list of [PatId]s because some of the cases that
     /// are checked for irrefutability are transpiled into a match block to
@@ -141,15 +142,9 @@ impl<'tc> ExhaustivenessChecker<'tc> {
     pub fn is_pat_irrefutable(
         &self,
         pats: &[PatId],
-        term: TermId,
+        term_ty: TermId,
         origin: Option<MatchOrigin>,
     ) -> TcResult<()> {
-        let term_ty = if self.oracle().term_is_literal(term) {
-            self.typer().infer_ty_of_term(term)?
-        } else {
-            term
-        };
-
         let arms = self.lower_pats_to_arms(pats, term_ty);
         let report = self.usefulness_ops().compute_match_usefulness(term_ty, &arms);
 

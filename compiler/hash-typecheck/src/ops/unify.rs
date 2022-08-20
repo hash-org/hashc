@@ -410,6 +410,17 @@ impl<'tc> Unifier<'tc> {
                         // If the inner is not runtime instantiable, it succeeds but with no
                         // substitution.
                         Term::Unresolved(_) => Ok(Sub::empty()),
+
+                        // If it is a double TyOf (no more), then it should be equivalent to Sized
+                        //
+                        // @@Inconsistent,@@Todo: this is not always valid, but it would be
+                        // fixed by having more information in case of
+                        // unresolved variables.
+                        Term::TyOf(inner) if self.oracle().term_as_ty_of(inner).is_none() => self
+                            .unify_terms(
+                                self.builder().create_sized_ty_term(),
+                                simplified_target_id,
+                            ),
                         _ => cannot_unify(),
                     }
                 }
@@ -810,8 +821,10 @@ impl<'tc> Unifier<'tc> {
         Ok(sub)
     }
 
-    /// Function used to verify a variadic sequence of terms. This ensures that
+    /// Function used to verify a sequence of terms. This ensures that
     /// the types of all the terms can be unified.
+    ///
+    /// Returns the *type* of the sequence.
     pub(crate) fn unify_rt_term_sequence(
         &self,
         sequence: impl IntoIterator<Item = TermId>,

@@ -1267,6 +1267,8 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
             .flatten_ok()
             .collect::<TcResult<_>>()?;
 
+        let ty_of_subject = self.typer().infer_ty_of_term(subject)?;
+
         // Skip origins of `while` and `if` since they are always irrefutable, if the
         // origin is a match, we want to check call `is_match_exhaustive` since it will
         // generate a more relevant error, otherwise we call `is_pat_irrefutable`
@@ -1277,7 +1279,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
             }
             origin @ MatchOrigin::For => self.exhaustiveness_checker().is_pat_irrefutable(
                 &branches,
-                subject,
+                ty_of_subject,
                 Some(*origin),
             )?,
         }
