@@ -3,6 +3,5 @@
 ensure := <T> => (t: T) => {};
 
 main := () => {
-  ensure<str>("Test");
-  ensure<str>("");
+  ensure<char>('a');
 };
