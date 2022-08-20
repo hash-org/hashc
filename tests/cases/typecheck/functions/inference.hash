@@ -1,0 +1,39 @@
+ensure := <T> => (t: T) => {};
+
+foo := (a: str) => 3;
+
+bar := (a: i32) => a;
+
+  // @@Todo: support untyped parameters
+// baz := (a) -> i32 => a;
+
+// @@Todo: change the syntax to be := for default value
+bin := (a = 3) => a;
+
+boo := (bing: bool) => {
+  if bing {
+    true
+  } else {
+    false
+  }
+};
+
+main := () => {
+  // named arg type
+  ensure<(a: str) -> i32>(foo);
+
+  // unnamed arg type
+  ensure<(str) -> i32>(foo);
+
+  // return type inference
+  ensure<(a: i32) -> i32>(bar);
+
+  // parameter type inference
+  // ensure<(a: i32) -> i32>(baz);
+
+  // default value inference
+  ensure<(a: i32) -> i32>(bin);
+
+  // more complex inference
+  ensure<(bing: bool) -> bool>(boo);
+};

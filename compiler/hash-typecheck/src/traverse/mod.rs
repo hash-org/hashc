@@ -1,5 +1,7 @@
 //! Contains functions to traverse the AST and add types to it, while checking
 //! it for correctness.
+use std::mem;
+
 use hash_ast::{
     ast::{
         self, AccessKind, AstNodeRef, BinOp, Lit, MatchOrigin, OwnsAstNode, ParamOrigin, RefKind,
@@ -1124,11 +1126,8 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let return_ty =
             node.return_ty.as_ref().map(|t| self.visit_ty(ctx, t.ast_ref())).transpose()?;
 
-        // Add return type to hint if given
-        if let Some(return_ty) = return_ty {
-            let _ = self.state.fn_def_return_ty.insert(return_ty);
-        }
-
+        // Set return type to hint if given
+        let old_return_ty = mem::replace(&mut self.state.fn_def_return_ty, return_ty);
         let params_potentially_unresolved = self.builder().create_params(params, ParamOrigin::Fn);
         let param_scope = self.scope_manager().make_rt_param_scope(params_potentially_unresolved);
 
@@ -1180,7 +1179,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         self.copy_location_from_node_to_target(node, fn_ty_term);
 
         // Clear return type
-        let _ = self.state.fn_def_return_ty.take();
+        self.state.fn_def_return_ty = old_return_ty;
 
         Ok(self.validator().validate_term(fn_ty_term)?.simplified_term_id)
     }

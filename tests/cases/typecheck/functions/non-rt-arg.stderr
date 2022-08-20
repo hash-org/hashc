@@ -1,0 +1,6 @@
+error[0025]: the type `Type` is not runtime instantiable
+ --> $DIR/non-rt-arg.hash:4:13
+3 |   // using types in argument position
+4 |   bong := (x: Type) -> i32 => {
+  |               ^^^^ cannot use this as it isn't runtime instantiable
+5 |     3
