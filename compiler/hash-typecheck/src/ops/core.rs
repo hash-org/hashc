@@ -28,8 +28,7 @@ impl<'tc> CoreDefReader<'tc> {
         let root_scope = self.global_storage().root_scope;
         let (resolved, index) = self
             .scope_store()
-            .get(root_scope)
-            .get(var_name)
+            .map_fast(root_scope, |scope| scope.get(var_name))
             .unwrap_or_else(|| panic!("Failed to find core def: {}", var_name));
         match resolved {
             Member::Constant(_) | Member::Variable(_) => {

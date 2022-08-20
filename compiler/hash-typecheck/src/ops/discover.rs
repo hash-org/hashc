@@ -1,7 +1,7 @@
 //! Functionality related to discovering variables in terms.
 use std::collections::HashSet;
 
-use hash_utils::store::{SequenceStore, SequenceStoreKey};
+use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
 
 use super::AccessToOps;
 use crate::{
@@ -384,7 +384,7 @@ impl<'tc> Discoverer<'tc> {
         result: &mut HashSet<BoundVar>,
     ) {
         let reader = self.reader();
-        let scope = reader.get_scope(scope);
+        let scope = reader.get_scope_copy(scope);
         for member in scope.iter() {
             self.add_free_bound_vars_in_term_to_set(member.ty(), result);
             if let Some(value) = member.value() {
@@ -694,7 +694,10 @@ impl<'tc> Discoverer<'tc> {
                     Ok(None)
                 } else {
                     // Try to resolve the bound var
-                    match self.reader().get_scope(set_bound_scope_id).get(var.name) {
+                    match self
+                        .scope_store()
+                        .map_fast(set_bound_scope_id, |scope| scope.get(var.name))
+                    {
                         Some((member, _)) => {
                             let value = match member {
                                 Member::SetBound(set_bound) => set_bound.value,
@@ -1049,12 +1052,9 @@ impl<'tc> Discoverer<'tc> {
             | Term::Level2(Level2Term::Trt(_))
             | Term::SetBound(_) => {
                 let vars = self.get_free_bound_vars_in_term(term_id);
-                if !self
-                    .reader()
-                    .get_scope(set_bound_scope_id)
-                    .iter_names()
-                    .any(|name| vars.contains(&BoundVar { name }))
-                {
+                if !self.scope_store().map_fast(set_bound_scope_id, |scope| {
+                    scope.iter_names().any(|name| vars.contains(&BoundVar { name }))
+                }) {
                     // No vars in mod:
                     Ok(None)
                 } else {

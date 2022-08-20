@@ -1,7 +1,7 @@
 //! Contains helpers to read various things stored in [crate::storage] with
 //! ease.
 
-use hash_utils::store::{SequenceStore, Store};
+use hash_utils::store::{CloneStore, SequenceStore, Store};
 
 use crate::{
     exhaustiveness::{construct::DeconstructedCtor, deconstruct::DeconstructedPat},
@@ -57,9 +57,9 @@ impl<'gs> PrimitiveReader<'gs> {
         self.gs.nominal_def_store.get(id)
     }
 
-    /// Get the scope with the given [ScopeId].
-    pub fn get_scope(&self, id: ScopeId) -> Scope {
-        self.gs.scope_store.get(id)
+    /// Get an owned copy of the scope with the given [ScopeId].
+    pub fn get_scope_copy(&self, id: ScopeId) -> Scope {
+        self.gs.scope_store.map_fast(id, |scope| scope.duplicate())
     }
 
     /// Get the args with the given [ArgsId].

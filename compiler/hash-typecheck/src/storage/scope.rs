@@ -11,7 +11,7 @@ new_store!(pub ScopeStore<ScopeId, Scope>);
 
 /// Stores a collection of scopes, used from within
 /// [LocalStorage](crate::storage::LocalStorage).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct ScopeStack {
     scopes: RefCell<Vec<ScopeId>>,
 }
@@ -43,7 +43,7 @@ impl ScopeStack {
     /// while iterating!
     pub fn iter_up(&self) -> impl Iterator<Item = ScopeId> + DoubleEndedIterator + '_ {
         let len = self.scopes.borrow().len();
-        (0..len).map(move |index| *self.scopes.borrow().get(index).unwrap())
+        (0..len).rev().map(move |index| *self.scopes.borrow().get(index).unwrap())
     }
 
     /// Pop the current scope.

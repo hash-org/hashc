@@ -1,4 +1,6 @@
 //! Functionality related to variable substitution inside terms/types.
+use hash_utils::store::Store;
+
 use super::AccessToOps;
 use crate::storage::{
     arguments::ArgsId,
@@ -175,15 +177,17 @@ impl<'tc> Substituter<'tc> {
     /// This is only ever applied for
     /// [ScopeKind::SetBound](crate::storage::primitives::ScopeKind::SetBound).
     pub fn apply_sub_to_scope(&self, sub: &Sub, scope_id: ScopeId) -> ScopeId {
-        let reader = self.reader();
-        let old_scope = reader.get_scope(scope_id);
+        let _reader = self.reader();
         let mut new_members = vec![];
-        for old_member in old_scope.iter() {
-            let new_value = old_member.value().map(|value| self.apply_sub_to_term(sub, value));
-            let new_ty = self.apply_sub_to_term(sub, old_member.ty());
-            new_members.push(old_member.with_ty_and_value(new_ty, new_value));
-        }
-        self.builder().create_scope(old_scope.kind, new_members)
+        let old_scope_kind = self.scope_store().map_fast(scope_id, |scope| {
+            for old_member in scope.iter() {
+                let new_value = old_member.value().map(|value| self.apply_sub_to_term(sub, value));
+                let new_ty = self.apply_sub_to_term(sub, old_member.ty());
+                new_members.push(old_member.with_ty_and_value(new_ty, new_value));
+            }
+            scope.kind
+        });
+        self.builder().create_scope(old_scope_kind, new_members)
     }
 
     /// Apply the given substitution to the given [SubVar], producing a new

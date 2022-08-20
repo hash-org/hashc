@@ -5,7 +5,7 @@
 //! is required.
 use std::fmt::Debug;
 
-use hash_utils::store::Store;
+use hash_utils::store::CloneStore;
 
 use super::{stack::PatStack, AccessToUsefulnessOps};
 use crate::{

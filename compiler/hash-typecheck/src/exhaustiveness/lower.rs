@@ -78,14 +78,21 @@ impl<'tc> LowerPatOps<'tc> {
             Pat::Mod(ModPat { members }) => {
                 let specified_members = reader.get_pat_args_owned(members).clone();
 
-                let scope = match reader.get_term(ty) {
+                let (scope_id, mut scope_members) = match reader.get_term(ty) {
                     Term::Level1(Level1Term::ModDef(id)) => {
                         let ModDef { members, .. } = reader.get_mod_def(id);
-                        let scope = self.scope_store().get(members);
-
-                        // We should be in a constant scope
-                        assert!(scope.kind == ScopeKind::Constant);
-                        scope
+                        self.scope_store().map_fast(members, |scope| {
+                            // We should be in a constant scope
+                            assert!(scope.kind == ScopeKind::Constant);
+                            (
+                                members,
+                                scope
+                                    .members
+                                    .iter()
+                                    .map(|member| self.deconstruct_pat_ops().wildcard(member.ty()))
+                                    .collect_vec(),
+                            )
+                        })
                     }
                     _ => tc_panic!(
                         ty,
@@ -94,15 +101,11 @@ impl<'tc> LowerPatOps<'tc> {
                     ),
                 };
 
-                let mut scope_members = scope
-                    .members
-                    .iter()
-                    .map(|member| self.deconstruct_pat_ops().wildcard(member.ty()))
-                    .collect_vec();
-
                 // Iterate over the specified members and set the `actual` pattern here
                 for member in specified_members.positional() {
-                    let index = *scope.member_names.get(&member.name.unwrap()).unwrap();
+                    let index = self
+                        .scope_store()
+                        .map_fast(scope_id, |scope| scope.get(member.name.unwrap()).unwrap().1);
 
                     scope_members[index] =
                         self.deconstruct_pat(scope_members[index].ty, member.pat);
@@ -337,8 +340,8 @@ impl<'tc> LowerPatOps<'tc> {
                         };
 
 
-                        // Construct the inner arguments to the constructor by iterating over the 
-                        // pattern fields within the pattern. If possible, lookup the name of the 
+                        // Construct the inner arguments to the constructor by iterating over the
+                        // pattern fields within the pattern. If possible, lookup the name of the
                         // field by using the nominal definition attached to the pattern.
                         let children = pat.fields.iter_patterns().enumerate()
                             .filter(|(_, p)| {
@@ -353,8 +356,8 @@ impl<'tc> LowerPatOps<'tc> {
 
                         // We collapse all fields that are specified as `wildcards` within
                         // these construct patterns in order to represent them visually in a clearer
-                        // way. If a construct has 20 fields that 18 are specified as wildcards, and the 
-                        // rest have user specified patterns, then we only want to print those and the 
+                        // way. If a construct has 20 fields that 18 are specified as wildcards, and the
+                        // rest have user specified patterns, then we only want to print those and the
                         // rest is denoted as `...`.
                         let args = if pat.fields.len() != children.len() {
                             let dummy = Pat::Spread(SpreadPat { name: None  });
