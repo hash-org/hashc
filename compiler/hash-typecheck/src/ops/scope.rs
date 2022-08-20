@@ -50,14 +50,12 @@ impl<'tc> ScopeManager<'tc> {
         term: TermId,
     ) -> TcResult<ScopeMember> {
         // Here, we have to look in the scopes:
-        for (_i, scope_id) in self.scopes().iter_up().enumerate() {
+        for scope_id in self.scopes().iter_up() {
             match self.scope_store().map_fast(scope_id, |scope| scope.get(name)) {
                 // Found in this scope, return the member.
                 Some((member, index)) => return Ok(ScopeMember { member, scope_id, index }),
                 // Continue to the next (higher) scope:
-                None => {
-                    println!("No good!");
-                }
+                None => continue,
             }
         }
 
