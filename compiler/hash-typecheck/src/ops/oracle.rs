@@ -121,6 +121,14 @@ impl<'tc> Oracle<'tc> {
         self.term_as_enum_def(term).is_some()
     }
 
+    /// If the term is a `Term::TyOf`, return its inner type.
+    pub fn term_as_ty_of(&self, term: TermId) -> Option<TermId> {
+        match self.reader().get_term(term) {
+            Term::TyOf(inner) => Some(inner),
+            _ => None,
+        }
+    }
+
     /// Get a [Term] as a [StructDef].
     pub fn term_as_struct_def(&self, term: TermId) -> Option<StructDef> {
         match self.reader().get_term(term) {

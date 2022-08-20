@@ -1195,10 +1195,10 @@ pub struct ConstructorPat {
 /// A list pattern
 #[derive(Clone, Debug, Copy)]
 pub struct ListPat {
-    /// The inner term of the list.
-    pub term: TermId,
-    /// Inner list of patterns
-    pub inner: PatArgsId,
+    /// The element type of the list
+    pub list_element_ty: TermId,
+    /// Patterns for the list elements
+    pub element_pats: PatArgsId,
 }
 
 /// Spread pattern

@@ -598,7 +598,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
 
     /// Create a list pattern with parameters.
     pub fn create_list_pat(&self, term: TermId, inner: PatArgsId) -> PatId {
-        self.create_pat(Pat::List(ListPat { term, inner }))
+        self.create_pat(Pat::List(ListPat { list_element_ty: term, element_pats: inner }))
     }
 
     /// Create a binding pattern.

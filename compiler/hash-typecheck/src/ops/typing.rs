@@ -415,7 +415,7 @@ impl<'tc> Typer<'tc> {
                 let args_id = self.infer_args_of_pat_args(constructor_pat.args)?;
                 Ok(self.builder().create_constructed_term(constructor_pat.subject, args_id))
             }
-            Pat::List(ListPat { term, .. }) => {
+            Pat::List(ListPat { list_element_ty, .. }) => {
                 // @@Future: use a list literal term instead
                 //
                 // We want to create a `List<T = term>` as the type of the pattern
@@ -424,7 +424,8 @@ impl<'tc> Typer<'tc> {
 
                 let list_ty = builder.create_app_ty_fn_term(
                     list_inner_ty,
-                    builder.create_args([builder.create_arg("T", term)], ParamOrigin::TyFn),
+                    builder
+                        .create_args([builder.create_arg("T", list_element_ty)], ParamOrigin::TyFn),
                 );
 
                 Ok(builder.create_rt_term(list_ty))
