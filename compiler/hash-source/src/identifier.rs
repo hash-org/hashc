@@ -27,7 +27,10 @@ impl Display for Identifier {
 
 impl Debug for Identifier {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("Identifier").field(&IDENTIFIER_MAP.get_ident(*self).to_owned()).finish()
+        f.debug_tuple("Identifier")
+            .field(&IDENTIFIER_MAP.get_ident(*self).to_owned())
+            .field(&self.0)
+            .finish()
     }
 }
 
@@ -78,8 +81,8 @@ lazy_static! {
 /// contains a identifier map and another map for reverse lookups.
 #[derive(Debug, Default)]
 pub struct IdentifierMap<'c> {
-    identifiers: DashMap<&'c str, Identifier, FnvBuildHasher>,
-    reverse_lookup: DashMap<Identifier, &'c str, FnvBuildHasher>,
+    reverse_identifiers: DashMap<&'c str, Identifier, FnvBuildHasher>,
+    identifiers: DashMap<Identifier, &'c str, FnvBuildHasher>,
 }
 
 /// Holds some default identifiers in order to avoid map lookups.
@@ -198,24 +201,23 @@ impl CoreIdentifiers {
 impl<'c> IdentifierMap<'c> {
     /// Function to create a new identifier map instance.
     pub fn new() -> Self {
-        IdentifierMap { identifiers: DashMap::default(), reverse_lookup: DashMap::default() }
+        IdentifierMap { reverse_identifiers: DashMap::default(), identifiers: DashMap::default() }
     }
 
     /// Function to create an identifier in the identifier map.
     pub fn create_ident(&self, ident_str: &str) -> Identifier {
-        if let Some(ident) = self.identifiers.get(ident_str) {
+        if let Some(ident) = self.reverse_identifiers.get(ident_str) {
             *ident
         } else {
             IDENTIFIER_STORAGE_WALL.with(|wall| {
-                let ident = Identifier::new();
-
                 // We need to copy over the string so that it can be inserted into
                 // the table
                 let ident_str_alloc = BrickString::new(ident_str, wall).into_str();
-
-                self.identifiers.insert(ident_str_alloc, ident);
-                self.reverse_lookup.insert(ident, ident_str_alloc);
-                ident
+                *self.reverse_identifiers.entry(ident_str_alloc).or_insert_with(|| {
+                    let ident = Identifier::new();
+                    self.identifiers.insert(ident, ident_str_alloc);
+                    ident
+                })
             })
         }
     }
@@ -223,7 +225,7 @@ impl<'c> IdentifierMap<'c> {
     /// Function to lookup an identifier by an [Identifier] value in the
     /// identifier map.
     pub fn get_ident(&self, ident: Identifier) -> &'c str {
-        self.reverse_lookup.get(&ident).unwrap().value()
+        self.identifiers.get(&ident).unwrap().value()
     }
 
     pub fn get_path(&self, path: impl Iterator<Item = impl Borrow<Identifier>>) -> String {

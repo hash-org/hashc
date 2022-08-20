@@ -357,8 +357,9 @@ impl<'tc> Simplifier<'tc> {
                         turn_unresolved_var_err_into_unresolved_in_value_err(access_term),
                     )?;
 
-                    if let Some(member) =
-                        this.scope_store().get(mod_def_scope).get(access_term.name)
+                    if let Some(member) = this
+                        .scope_store()
+                        .map_fast(mod_def_scope, |scope| scope.get(access_term.name))
                     {
                         if let Some(inner_term) = result {
                             this.location_store()
@@ -1305,7 +1306,8 @@ impl<'tc> Simplifier<'tc> {
                 // First resolve the name:
                 let scope_member =
                     self.scope_manager().resolve_name_in_scopes(var.name, term_id)?;
-                let scope_kind = self.scope_store().get(scope_member.scope_id).kind;
+                let scope_kind =
+                    self.scope_store().map_fast(scope_member.scope_id, |scope| scope.kind);
                 match scope_kind {
                     ScopeKind::Bound => {
                         // Create a bound var if it is part of a bound:

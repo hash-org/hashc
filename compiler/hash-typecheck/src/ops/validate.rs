@@ -2,7 +2,7 @@
 use std::{collections::HashSet, fmt::Display};
 
 use hash_ast::ast::{ParamOrigin, RangeEnd};
-use hash_utils::store::{SequenceStore, SequenceStoreCopy, SequenceStoreKey, Store};
+use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreCopy, SequenceStoreKey, Store};
 use itertools::Itertools;
 
 use super::{params::validate_param_list_unordered, AccessToOps};
@@ -150,7 +150,7 @@ impl<'tc> Validator<'tc> {
         let progressive_scope_id = self.scope_store().create(progressive_scope);
         self.scope_manager().enter_scope(progressive_scope_id, |this| {
             // @@Performance: sad that we have to clone here:
-            let scope = this.reader().get_scope(scope_id);
+            let scope = this.reader().get_scope_copy(scope_id);
             for member in scope.iter() {
                 // Add the member to the progressive scope so that this and next members can
                 // access it.
@@ -206,7 +206,7 @@ impl<'tc> Validator<'tc> {
         scope_originating_term_id: TermId,
         scope_id: ScopeId,
     ) -> TcResult<()> {
-        let scope = self.reader().get_scope(scope_id);
+        let scope = self.reader().get_scope_copy(scope_id);
 
         // Simplify the term and ensure it is a trait
         let simplified_trt_def_term_id =
@@ -228,7 +228,7 @@ impl<'tc> Validator<'tc> {
             Term::Level2(Level2Term::Trt(trt_def_id)) => {
                 let trt_def_members = self.reader().get_trt_def(trt_def_id).members;
                 // @@Performance: cloning :((
-                let trt_def_members = self.reader().get_scope(trt_def_members);
+                let trt_def_members = self.reader().get_scope_copy(trt_def_members);
 
                 // Ensure all members have been implemented:
                 for trt_member in trt_def_members.iter() {

@@ -108,7 +108,7 @@ fn read_tests_from_dir(
         let snake_name: String = base_name
             .into_iter()
             .chain(iter::once(entry_snake_name.as_str()))
-            .intersperse("_")
+            .intersperse("__")
             .collect();
 
         // Get the metadata for the current path...
@@ -139,7 +139,7 @@ fn read_tests_from_dir(
 /// below). Each generated test corresponds to the full path of each "wanted"
 /// (see `TEST_PATTERN` below) leaf node of the test folder structure, converted
 /// to snake case. For example, for a file path `number_tests/is_valid_number.
-/// hash`, a test function named `test_number_tests_is_valid_number`
+/// hash`, a test function named `test_number_tests__is_valid_number`
 /// will be generated.
 ///
 /// The format of this macro is as follows:
@@ -159,8 +159,8 @@ fn read_tests_from_dir(
 /// example, if the test folder structure is such that some test folder
 /// `test_foo/` contains files `case.hash` and `output`, specifying either of `"
 /// output"` or `"case.hash"` as `TEST_PATTERN` will result in a test case being
-/// generated for `test_foo`, but no further (i.e. not `test_foo_output` or
-/// `test_foo_case_hash`).
+/// generated for `test_foo`, but no further (i.e. not `test_foo__output` or
+/// `test_foo__case__hash`).
 ///
 /// - `FN_PREFIX` is a unique prefix for the generated function in case the
 ///   macro is used more than once

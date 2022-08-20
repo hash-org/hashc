@@ -30,7 +30,7 @@ use hash_source::{
     constant::InternedStr,
     location::{SourceLocation, Span},
 };
-use hash_utils::store::Store;
+use hash_utils::store::{CloneStore, Store};
 use smallvec::{smallvec, SmallVec};
 
 use super::{

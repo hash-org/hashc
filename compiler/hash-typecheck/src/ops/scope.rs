@@ -3,6 +3,7 @@
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::identifier::Identifier;
 use hash_utils::store::Store;
+use itertools::Itertools;
 
 use super::{params::pair_args_with_params, AccessToOps};
 use crate::{
@@ -49,12 +50,14 @@ impl<'tc> ScopeManager<'tc> {
         term: TermId,
     ) -> TcResult<ScopeMember> {
         // Here, we have to look in the scopes:
-        for scope_id in self.scopes().iter_up() {
-            match self.reader().get_scope(scope_id).get(name) {
+        for (_i, scope_id) in self.scopes().iter_up().enumerate() {
+            match self.scope_store().map_fast(scope_id, |scope| scope.get(name)) {
                 // Found in this scope, return the member.
                 Some((member, index)) => return Ok(ScopeMember { member, scope_id, index }),
                 // Continue to the next (higher) scope:
-                None => continue,
+                None => {
+                    println!("No good!");
+                }
             }
         }
 
@@ -64,8 +67,9 @@ impl<'tc> ScopeManager<'tc> {
 
     /// Get a [ScopeMember] from a [ScopeVar].
     pub(crate) fn get_scope_var_member(&self, scope_var: ScopeVar) -> ScopeMember {
-        let reader = self.reader();
-        let member = reader.get_scope(scope_var.scope).get_by_index(scope_var.index);
+        let member = self
+            .scope_store()
+            .map_fast(scope_var.scope, |scope| scope.get_by_index(scope_var.index));
         ScopeMember { member, scope_id: scope_var.scope, index: scope_var.index }
     }
 
@@ -81,17 +85,19 @@ impl<'tc> ScopeManager<'tc> {
     ) -> ScopeMember {
         match self.resolve_name_in_scopes(bound_var.name, originating_term) {
             Ok(scope_member) => {
-                let reader = self.reader();
-                let scope = reader.get_scope(scope_member.scope_id);
-                if scope.kind != ScopeKind::Bound && scope.kind != ScopeKind::SetBound {
-                    tc_panic!(
-                        originating_term,
-                        self,
-                        "Cannot get bound variable member from non-bound scope: {:?}",
-                        scope.kind
-                    );
-                }
-                scope_member
+                let _reader = self.reader();
+                self.scope_store().map_fast(scope_member.scope_id, |scope| {
+                    if scope.kind != ScopeKind::Bound && scope.kind != ScopeKind::SetBound {
+                        tc_panic!(
+                            originating_term,
+                            self,
+                            "Cannot get bound variable member from non-bound scope: {:?}",
+                            scope.kind
+                        )
+                    } else {
+                        scope_member
+                    }
+                })
             }
             Err(_) => {
                 tc_panic!(
@@ -131,17 +137,25 @@ impl<'tc> ScopeManager<'tc> {
     /// passing the test given by `include_member`.
     ///
     /// Retains scope kind.
+    ///
+    /// *Note*: `include_member` should not modify/create any scopes.
     pub(crate) fn filter_scope(
         &self,
         scope: ScopeId,
         mut include_member: impl FnMut(&Member) -> bool,
     ) -> ScopeId {
-        let original_scope = self.reader().get_scope(scope);
-        let new_scope = self.builder().create_scope(
-            original_scope.kind,
-            original_scope.members.iter().filter(|member| include_member(member)).copied(),
-        );
-        new_scope
+        let (kind, members) = self.scope_store().map_fast(scope, |original_scope| {
+            (
+                original_scope.kind,
+                original_scope
+                    .members
+                    .iter()
+                    .filter(|member| include_member(member))
+                    .copied()
+                    .collect_vec(),
+            )
+        });
+        self.builder().create_scope(kind, members)
     }
 
     /// Create a set bound scope, which is a scope that contains all the

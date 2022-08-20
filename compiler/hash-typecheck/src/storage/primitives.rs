@@ -294,7 +294,7 @@ pub enum ScopeKind {
 /// Stores a list of members, indexed by the members' names.
 ///
 /// Keeps insertion order.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Scope {
     pub kind: ScopeKind,
     pub members: Vec<Member>,
@@ -320,7 +320,6 @@ impl Scope {
     pub fn add(&mut self, member: Member) -> usize {
         self.members.push(member);
         let index = self.members.len() - 1;
-
         self.member_names.insert(member.name(), index);
         index
     }
@@ -328,7 +327,6 @@ impl Scope {
     /// Get a member by name.
     pub fn get(&self, member_name: Identifier) -> Option<(Member, usize)> {
         let index = self.member_names.get(&member_name).copied()?;
-
         Some((self.members[index], index))
     }
 
@@ -355,6 +353,17 @@ impl Scope {
     /// Iterate through all the distinct names in the scope.
     pub fn iter_names(&self) -> impl Iterator<Item = Identifier> + '_ {
         self.member_names.keys().copied()
+    }
+
+    /// Create a copy of this scope, with the same members.
+    ///
+    /// This will not be kept in sync with the original scope.
+    pub fn duplicate(&self) -> Self {
+        Self {
+            kind: self.kind,
+            members: self.members.clone(),
+            member_names: self.member_names.clone(),
+        }
     }
 }
 

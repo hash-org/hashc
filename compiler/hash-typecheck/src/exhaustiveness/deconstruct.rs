@@ -7,7 +7,7 @@
 //! parameter of the structure.
 use std::{cell::Cell, fmt::Debug};
 
-use hash_utils::store::Store;
+use hash_utils::store::{CloneStore, Store};
 use itertools::Itertools;
 use smallvec::SmallVec;
 

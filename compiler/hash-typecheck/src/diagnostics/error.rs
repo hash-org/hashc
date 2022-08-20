@@ -10,7 +10,7 @@ use hash_source::identifier::Identifier;
 use hash_utils::{
     pluralise,
     printing::{SequenceDisplay, SequenceDisplayOptions, SequenceJoinMode},
-    store::Store,
+    store::CloneStore,
 };
 use itertools::Itertools;
 

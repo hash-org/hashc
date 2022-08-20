@@ -120,7 +120,7 @@ macro_rules! new_sequence_store {
 ///
 /// *Warning*: The `Value`'s `Clone` implementation must not interact with the
 /// store, otherwise it might lead to a panic.
-pub trait Store<Key: StoreKey, Value: Clone> {
+pub trait Store<Key: StoreKey, Value> {
     /// Get a reference to the internal data of the store.
     ///
     /// This should only be used to implement new store methods, not to access
@@ -135,20 +135,6 @@ pub trait Store<Key: StoreKey, Value: Clone> {
         Key::from_index_unchecked(next_index)
     }
 
-    /// Get a value by its key.
-    fn get(&self, key: Key) -> Value {
-        self.internal_data().borrow().get(key.to_index()).unwrap().clone()
-    }
-
-    /// Set a key's value to a new value, returning the old value.
-    fn set(&self, key: Key, new_value: Value) -> Value {
-        let mut data = self.internal_data().borrow_mut();
-        let value_ref = data.get_mut(key.to_index()).unwrap();
-        let old_value = value_ref.clone();
-        *value_ref = new_value;
-        old_value
-    }
-
     /// Get a value by a key, and map it to another value given its reference.
     ///
     /// *Warning*: Do not call mutating store methods (`create` etc) in `f`
@@ -158,6 +144,25 @@ pub trait Store<Key: StoreKey, Value: Clone> {
         let data = self.internal_data().borrow();
         let value = data.get(key.to_index()).unwrap();
         f(value)
+    }
+
+    /// Modify a value by a key, possibly returning another value.
+    ///
+    /// *Warning*: Do not call mutating store methods (`create` etc) in `f`
+    /// otherwise there will be a panic. If you want to do this, consider using
+    /// [`Self::modify()`] instead.
+    fn modify_fast<T>(&self, key: Key, f: impl FnOnce(&mut Value) -> T) -> T {
+        let mut data = self.internal_data().borrow_mut();
+        let value = data.get_mut(key.to_index()).unwrap();
+        f(value)
+    }
+}
+
+/// Additional functionality for [`Store`] when the value implements [`Clone`].
+pub trait CloneStore<Key: StoreKey, Value: Clone>: Store<Key, Value> {
+    /// Get a value by its key.
+    fn get(&self, key: Key) -> Value {
+        self.internal_data().borrow().get(key.to_index()).unwrap().clone()
     }
 
     /// Get a value by a key, and map it to another value given its reference.
@@ -172,17 +177,6 @@ pub trait Store<Key: StoreKey, Value: Clone> {
 
     /// Modify a value by a key, possibly returning another value.
     ///
-    /// *Warning*: Do not call mutating store methods (`create` etc) in `f`
-    /// otherwise there will be a panic. If you want to do this, consider using
-    /// [`Self::modify()`] instead.
-    fn modify_fast<T>(&self, key: Key, f: impl FnOnce(&mut Value) -> T) -> T {
-        let mut data = self.internal_data().borrow_mut();
-        let value = data.get_mut(key.to_index()).unwrap();
-        f(value)
-    }
-
-    /// Modify a value by a key, possibly returning another value.
-    ///
     /// It is safe to provide a closure `f` to this function that modifies the
     /// store in some way (`create` etc). If you do not need to modify the
     /// store, consider using [`Self::modify_fast()`] instead.
@@ -192,7 +186,18 @@ pub trait Store<Key: StoreKey, Value: Clone> {
         self.set(key, value);
         ret
     }
+
+    /// Set a key's value to a new value, returning the old value.
+    fn set(&self, key: Key, new_value: Value) -> Value {
+        let mut data = self.internal_data().borrow_mut();
+        let value_ref = data.get_mut(key.to_index()).unwrap();
+        let old_value = value_ref.clone();
+        *value_ref = new_value;
+        old_value
+    }
 }
+
+impl<Key: StoreKey, Value: Clone, S: Store<Key, Value>> CloneStore<Key, Value> for S {}
 
 /// A default implementation of [`Store`].
 #[derive(Debug)]

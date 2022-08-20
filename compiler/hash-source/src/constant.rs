@@ -232,14 +232,14 @@ impl ConstantMap {
         if let Some(key) = self.reverse_string_table.get(value) {
             *key
         } else {
-            let ident = InternedStr::new();
-
+            // @@Memory: memory leaks could be avoided/masked by having a wall?
             // copy over the string so that we can insert it into the reverse lookup table
             let value_copy = Box::leak(value.to_owned().into_boxed_str());
-
-            self.reverse_string_table.insert(value_copy, ident);
-            self.string_table.insert(ident, value_copy);
-            ident
+            *self.reverse_string_table.entry(value_copy).or_insert_with(|| {
+                let interned = InternedStr::new();
+                self.string_table.insert(interned, value_copy);
+                interned
+            })
         }
     }
 

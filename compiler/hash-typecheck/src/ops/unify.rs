@@ -1,7 +1,7 @@
 //! Utilities related to type unification and substitution.
 use std::{borrow::Borrow, collections::HashSet};
 
-use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
+use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey};
 
 use super::{params::pair_args_with_params, AccessToOps};
 use crate::{
@@ -301,8 +301,8 @@ impl<'tc> Unifier<'tc> {
         }
 
         let reader = self.reader();
-        let scope_a = reader.get_scope(a);
-        let scope_b = reader.get_scope(b);
+        let scope_a = reader.get_scope_copy(a);
+        let scope_b = reader.get_scope_copy(b);
 
         // Ensure kinds are both [Scope::SetBound]
         if scope_a.kind != ScopeKind::SetBound || scope_b.kind != ScopeKind::SetBound {

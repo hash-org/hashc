@@ -3,7 +3,7 @@
 use core::fmt;
 use std::{cell::Cell, fmt::Display, rc::Rc};
 
-use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
+use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
 
 use crate::storage::{
     arguments::ArgsId,
@@ -129,12 +129,13 @@ impl<'gs> TcFormatter<'gs> {
 
     /// Format the given scope with the given formatter.
     pub fn fmt_scope(&self, f: &mut fmt::Formatter, scope_id: ScopeId) -> fmt::Result {
-        let scope = self.global_storage.scope_store.get(scope_id);
-        for member in scope.iter() {
-            self.fmt_member(f, member)?;
-            writeln!(f, ";")?;
-        }
-        Ok(())
+        self.global_storage.scope_store.map_fast(scope_id, |scope| {
+            for member in scope.iter() {
+                self.fmt_member(f, member)?;
+                writeln!(f, ";")?;
+            }
+            Ok(())
+        })
     }
 
     /// Format the given [Params](crate::storage::primitives::Params) with the
@@ -359,11 +360,13 @@ impl<'gs> TcFormatter<'gs> {
         term: TermId,
         opts: TcFormatOpts,
     ) -> fmt::Result {
+        let term = format!("{}", term.for_formatting_with_opts(self.global_storage, opts.clone()));
+
         if !opts.is_atomic.get() {
             write!(f, "(")?;
         }
 
-        self.fmt_term(f, term, opts.clone())?;
+        write!(f, "{}", term)?;
 
         if !opts.is_atomic.get() {
             write!(f, ")")?;
@@ -451,16 +454,18 @@ impl<'gs> TcFormatter<'gs> {
                 opts.is_atomic.set(false);
                 self.fmt_term_as_single(f, set_bound.term, opts.clone())?;
 
-                let members = &self.global_storage.scope_store.get(set_bound.scope).members;
-                write!(f, " where ")?;
-                for (i, member) in members.iter().enumerate() {
-                    write!(f, "{} = ", member.name())?;
-                    self.fmt_term_as_single(f, member.value().unwrap(), opts.clone())?;
-                    if i != members.len() - 1 {
-                        write!(f, ", ")?;
+                self.global_storage.scope_store.map_fast(set_bound.scope, |scope| {
+                    let members = &scope.members;
+                    write!(f, " where ")?;
+                    for (i, member) in members.iter().enumerate() {
+                        write!(f, "{} = ", member.name())?;
+                        self.fmt_term_as_single(f, member.value().unwrap(), opts.clone())?;
+                        if i != members.len() - 1 {
+                            write!(f, ", ")?;
+                        }
                     }
-                }
-                Ok(())
+                    Ok(())
+                })
             }
             Term::Level3(term) => self.fmt_level3_term(f, &term, opts),
             Term::Level2(term) => self.fmt_level2_term(f, &term, opts),
@@ -559,15 +564,15 @@ impl<'gs> TcFormatter<'gs> {
             }
             _ => match mod_def.origin {
                 ModDefOrigin::TrtImpl(trt_def_id) => {
-                    opts.is_atomic.set(false);
+                    opts.is_atomic.set(true);
                     write!(f, "impl {} {{..}}", trt_def_id.for_formatting(self.global_storage))
                 }
                 ModDefOrigin::AnonImpl => {
-                    opts.is_atomic.set(false);
+                    opts.is_atomic.set(true);
                     write!(f, "impl {{..}}")
                 }
                 ModDefOrigin::Mod => {
-                    opts.is_atomic.set(false);
+                    opts.is_atomic.set(true);
                     write!(f, "mod {{..}}")
                 }
                 ModDefOrigin::Source(_) => {

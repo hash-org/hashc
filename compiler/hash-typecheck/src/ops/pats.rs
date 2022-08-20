@@ -8,7 +8,7 @@ use std::{
 use hash_ast::ast::ParamOrigin;
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::identifier::Identifier;
-use hash_utils::store::Store;
+use hash_utils::store::{CloneStore, Store};
 use itertools::Itertools;
 
 use super::{params::validate_named_params_match, AccessToOps};
