@@ -327,6 +327,7 @@ impl Scope {
 
     /// Get a member by name.
     pub fn get(&self, member_name: Identifier) -> Option<(Member, usize)> {
+        println!("Trying to get {:?} in {:?}", member_name, self);
         let index = self.member_names.get(&member_name).copied()?;
 
         Some((self.members[index], index))
