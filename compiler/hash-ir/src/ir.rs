@@ -1,59 +1,65 @@
 //! Hash Compiler Intermediate Representation (IR) crate. This module is still
 //! under construction and is subject to change.
 
-use hash_source::{identifier::Identifier, location::Span};
-use hash_utils::counter;
+use hash_source::{
+    constant::{InternedFloat, InternedInt, InternedStr},
+    location::Span,
+};
 
-counter! {
-    name: IrId,
-    counter_name: IR_ID_COUNTER,
-    visibility: pub,
-    method_visibility: pub,
+/// Represents the type layout of a given expression.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Ty<'i> {
+    /// `usize` type, machine specific unsigned pointer
+    USize,
+    /// `u8` type, 8bit unsigned integer
+    U8,
+    /// `u16` type, 16bit unsigned integer
+    U16,
+    /// `u32` type, 32bit unsigned integer
+    U32,
+    /// `u64` type, 64bit unsigned integer
+    U64,
+    /// `isize` type, machine specific unsigned pointer
+    ISize,
+    /// `i8` type, 8bit signed integer
+    I8,
+    /// `i16` type, 16bit signed integer
+    I16,
+    /// `i32` type, 32bit signed integer
+    I32,
+    /// `i64` type, 64bit signed integer
+    I64,
+    /// `f32` type, 32bit float
+    F32,
+    /// `f64` type, 64bit float
+    F64,
+    /// `char` type, 32bit characters
+    Char,
+    /// A `void` type
+    Void,
+    /// Represents any collection of types in a specific order.
+    Structural(&'i [Ty<'i>]),
+    /// Essentially an enum representation
+    Union(&'i [Ty<'i>]),
+    /// Pointer that points to some type
+    Ptr(&'i Ty<'i>),
+    /// Raw Pointer that points to some type
+    RawPtr(&'i Ty<'i>),
 }
 
-// TODO: do we need namespaces, we could just de-sugar them into binds that are
-// associated       with symbols?
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum Const {
+    Char(char),
+    Int(InternedInt),
+    Float(InternedFloat),
 
-// TODO: We could just de-sugar guard patterns into:
-//
-// From:
-//
-// ```
-// match k {
-//    1 if x => ...
-//}
-// ```
-// 
-// Into:
-// ```
-// match k {
-//     1 => if x {
-//         ...
-//     }
-// }
-// ```
-// 
-// But, this means that we have to perform exhaustiveness checking before transforming into IR?
-
-#[derive(Debug, PartialEq, Eq)]
-pub enum PatKind<'i> {
-    Spread,
-    Wild,
-    Bind(Identifier),
-    Lit(Const),
-    Tuple(&'i [Pat<'i>]),
-    Constructor(&'i Pat<'i>, &'i [Pat<'i>]),
-    List(&'i [Pat<'i>]),
-    Union(&'i [Pat<'i>]),
-}
-
-/// A Pattern within IR
-#[derive(Debug, PartialEq, Eq)]
-pub struct Pat<'i> {
-    /// The kind of the pattern
-    kind: &'i PatKind<'i>,
-    /// The span of the pattern
-    span: Span,
+    /// String has to become a struct that has a pointer
+    /// to bytes and a length of bytes.
+    ///
+    /// ```ignore
+    /// str := struct(data: &raw u8, len: usize);
+    /// ```
+    Str(InternedStr),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -120,9 +126,23 @@ pub enum Mutability {
 /// An expression within the representation
 #[derive(Debug, PartialEq, Eq)]
 pub struct Expr<'i> {
-    ir_id: IrId,
     kind: ExprKind<'i>,
     span: Span,
+}
+
+/// Essentially a register for a value
+#[derive(Debug, PartialEq, Eq)]
+pub struct LocalDecl<'a> {
+    /// Mutability of the local
+    mutability: Mutability,
+
+    /// The type of the local
+    ty: Ty<'a>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct LocalIdx {
+    index: usize,
 }
 
 /// The kind of an expression
@@ -133,6 +153,10 @@ pub enum ExprKind<'i> {
     Nop,
     /// A constant value.
     Const(Const),
+
+    /// A local variable value
+    Local(LocalIdx),
+
     /// An identity expression, essentially wrapped with an inner expression.
     Identity(&'i Expr<'i>),
     /// A unary expression with a unary operator.
@@ -145,49 +169,30 @@ pub enum ExprKind<'i> {
     Index(&'i Expr<'i>, &'i Expr<'i>),
     /// An assignment expression, a right hand-side expression is assigned to a
     /// left hand-side pattern e.g. `x = 2`
-    Assign(&'i Pat<'i>, &'i Expr<'i>),
+    Assign(LocalIdx, &'i Expr<'i>),
     /// An expression which represents a re-assignment to a pattern with a right
     /// hand-side expression and a binary operator that combines assignment
     /// and an operator, e.g. `x += 2`
-    AssignOp(&'i Pat<'i>, BinOp, &'i Expr<'i>),
+    AssignOp(LocalIdx, BinOp, &'i Expr<'i>),
     /// An expression which is taking the address of another expression with an
     /// mutability modifier e.g. `&mut x`.
-    AddrOf(Mutability, &'i Expr<'i>),
+    AddrOf(Mutability, &'i Expr<'i>, AddressMode),
+
+    /// Essentially a `jump if <0> to <1> else go to <2>`
+    Conditional(&'i mut Expr<'i>, BlockIdx, BlockIdx),
 }
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum AddressMode {
+    Raw,
+    Smart,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct BlockIdx(usize);
 
 /// Essentially a block
 #[derive(Debug, PartialEq, Eq)]
-pub struct Body<'i> {
+pub struct BasicBlock<'i> {
     exprs: &'i [Expr<'i>],
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub enum Ty {
-    USize,
-    Bool,
-    U8,
-    U16,
-    U32,
-    U64,
-    ISize,
-    I8,
-    I16,
-    I32,
-    I64,
-    F32,
-    F64,
-    Char,
-    Void,
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct ConstData {
-    data: u64,
-    size: u8,
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct Const {
-    data: ConstData,
-    ty: Ty,
 }
