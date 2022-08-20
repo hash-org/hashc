@@ -1,0 +1,6 @@
+// run=fail
+
+// using types in argument position
+bong := (x: Type) -> i32 => {
+  3
+};

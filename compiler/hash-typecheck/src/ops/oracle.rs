@@ -4,7 +4,9 @@ use hash_ast::ast::{IntTy, ParamOrigin};
 
 use super::AccessToOps;
 use crate::storage::{
-    primitives::{EnumDef, Level0Term, Level1Term, NominalDef, ScopeVar, StructDef, Term, TupleTy},
+    primitives::{
+        EnumDef, FnTy, Level0Term, Level1Term, NominalDef, ScopeVar, StructDef, Term, TupleTy,
+    },
     terms::TermId,
     AccessToStorage, StorageRef,
 };
@@ -121,10 +123,18 @@ impl<'tc> Oracle<'tc> {
         self.term_as_enum_def(term).is_some()
     }
 
-    /// If the term is a `Term::TyOf`, return its inner type.
+    /// If the term is a [`Term::TyOf`], return its inner type.
     pub fn term_as_ty_of(&self, term: TermId) -> Option<TermId> {
         match self.reader().get_term(term) {
             Term::TyOf(inner) => Some(inner),
+            _ => None,
+        }
+    }
+
+    /// If the term is a function type, return it.
+    pub fn term_as_fn_ty(&self, term: TermId) -> Option<FnTy> {
+        match self.reader().get_term(term) {
+            Term::Level1(Level1Term::Fn(fn_ty)) => Some(fn_ty),
             _ => None,
         }
     }

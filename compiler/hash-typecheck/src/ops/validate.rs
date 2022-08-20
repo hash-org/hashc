@@ -737,13 +737,11 @@ impl<'tc> Validator<'tc> {
                     Ok(result)
                 }
                 Level0Term::FnLit(fn_lit) => {
+                    let fn_ty_validation = self.validate_term(fn_lit.fn_ty)?;
                     // Ensure the inner type is a function type, and get it:
-                    match self.term_is_fn_ty(fn_lit.fn_ty)? {
+                    match self.term_is_fn_ty(fn_ty_validation.simplified_term_id)? {
                         Some(fn_ty) => {
-                            // Validate constituents:
-                            let fn_ty = fn_ty;
-                            self.validate_params(fn_ty.params)?;
-                            let fn_return_ty_validation = self.validate_term(fn_ty.return_ty)?;
+                            // Validate return value:
                             let fn_return_value_validation =
                                 self.validate_term(fn_lit.return_value)?;
 
@@ -751,7 +749,7 @@ impl<'tc> Validator<'tc> {
                             // return value:
                             let _ = self.unifier().unify_terms(
                                 fn_return_value_validation.term_ty_id,
-                                fn_return_ty_validation.simplified_term_id,
+                                fn_ty.return_ty,
                             )?;
 
                             // @@Correctness: should we not apply the above substitution somewhere?
