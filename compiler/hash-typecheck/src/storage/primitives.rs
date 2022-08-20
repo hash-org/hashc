@@ -320,16 +320,13 @@ impl Scope {
     pub fn add(&mut self, member: Member) -> usize {
         self.members.push(member);
         let index = self.members.len() - 1;
-
         self.member_names.insert(member.name(), index);
         index
     }
 
     /// Get a member by name.
     pub fn get(&self, member_name: Identifier) -> Option<(Member, usize)> {
-        println!("Trying to get {:?} in {:?}", member_name, self);
         let index = self.member_names.get(&member_name).copied()?;
-
         Some((self.members[index], index))
     }
 

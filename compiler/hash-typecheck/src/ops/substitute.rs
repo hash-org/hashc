@@ -177,7 +177,6 @@ impl<'tc> Substituter<'tc> {
     /// This is only ever applied for
     /// [ScopeKind::SetBound](crate::storage::primitives::ScopeKind::SetBound).
     pub fn apply_sub_to_scope(&self, sub: &Sub, scope_id: ScopeId) -> ScopeId {
-        let _reader = self.reader();
         let mut new_members = vec![];
         let old_scope_kind = self.scope_store().map_fast(scope_id, |scope| {
             for old_member in scope.iter() {

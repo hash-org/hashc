@@ -49,14 +49,6 @@ impl<'tc> ScopeManager<'tc> {
         name: Identifier,
         term: TermId,
     ) -> TcResult<ScopeMember> {
-        println!("Trying to resolve `{}` in: ", name);
-        for (i, scope) in self.storage.scopes().iter_up().enumerate() {
-            println!("=== Scope {} ===", i);
-            println!("{}", self.for_fmt(scope));
-            println!("===");
-        }
-        println!("---");
-
         // Here, we have to look in the scopes:
         for (_i, scope_id) in self.scopes().iter_up().enumerate() {
             match self.scope_store().map_fast(scope_id, |scope| scope.get(name)) {
