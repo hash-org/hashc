@@ -525,6 +525,7 @@ dependencies = [
  "hash-reporting",
  "hash-testing-internal",
  "hash-utils",
+ "proc-macro-error",
  "quote",
  "regex",
  "syn",
