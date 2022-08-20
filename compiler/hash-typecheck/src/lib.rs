@@ -5,7 +5,14 @@
 //!
 //! @@Docs(kontheocharis): write docs about the stages of the typechecker.
 
-#![feature(generic_associated_types, decl_macro, slice_pattern, option_result_contains, let_else)]
+#![feature(
+    generic_associated_types,
+    decl_macro,
+    slice_pattern,
+    option_result_contains,
+    let_else,
+    if_let_guard
+)]
 
 use hash_pipeline::{traits::Tc, CompilerResult};
 use hash_reporting::diagnostic::Diagnostics;
