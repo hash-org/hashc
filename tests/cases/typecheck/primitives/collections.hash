@@ -1,1 +1,7 @@
 // run=pass
+
+ensure := <T> => (t: T) => {};
+
+main := () => {
+  ensure<List<i32>>([1, 2, 3]);
+};

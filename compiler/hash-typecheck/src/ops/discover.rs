@@ -329,7 +329,7 @@ impl<'tc> Discoverer<'tc> {
                 let trt_def_scope = self.reader().get_trt_def(*trt_def_id).members;
                 self.add_free_bound_vars_in_scope_to_set(trt_def_scope, result)
             }
-            Level2Term::AnyTy | Level2Term::SizedTy => todo!(),
+            Level2Term::AnyTy | Level2Term::SizedTy => {}
         }
     }
 

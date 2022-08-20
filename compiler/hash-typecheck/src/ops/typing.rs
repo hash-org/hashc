@@ -127,11 +127,8 @@ impl<'tc> Typer<'tc> {
                 // The type of a type function type is Root
                 Ok(self.builder().create_root_term())
             }
-            Term::Var(var) => {
-                // The type of a variable can be found by looking at the scopes to its
-                // declaration:
-                let var_member = self.scope_manager().resolve_name_in_scopes(var.name, term_id)?;
-                Ok(var_member.member.ty())
+            Term::Var(_) => {
+                tc_panic!(term_id, self, "Var should have already been simplified away!")
             }
             Term::TyFn(ty_fn) => {
                 // The type of a type function is a type function type:
