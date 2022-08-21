@@ -91,20 +91,20 @@ impl Tc<'_> for TcImpl {
 
         let result = tc_visitor.visit_source();
 
+        if let Err(err) = result {
+            tc_visitor.diagnostics().add_error(err);
+        } else {
+            // Print the result if no errors
+            if let Ok(source_term) = result {
+                println!("{}", source_term.for_formatting(storage.global_storage()));
+            }
+        }
+
         // If there are diagnostics that were generated or the result itself returned
         // an error, then we should return those errors, otherwise print the inferred
         // term.
-        if tc_visitor.diagnostics().has_diagnostics() || result.is_err() {
-            if let Err(err) = result {
-                tc_visitor.diagnostics().add_error(err);
-            }
-
+        if tc_visitor.diagnostics().has_diagnostics() {
             return Err(tc_visitor.diagnostics().into_reports());
-        }
-
-        // Print the result if it was ok
-        if let Ok(source_term) = result {
-            println!("{}", source_term.for_formatting(storage.global_storage()));
         }
 
         Ok(())

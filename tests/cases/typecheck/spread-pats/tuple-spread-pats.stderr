@@ -1,0 +1,7 @@
+warn: named tuple is coerced into an un-named tuple
+  --> $DIR/tuple-spread-pats.hash:29:5
+28 |   test_all_spread := (f: (name: str, bax: char)) -> (name: str, bax: char) => {
+29 |       (...t) := f;
+   |       ^^^^^^ the coercion occurs here
+30 |       t
+   = note: if a tuple type is declared as named, it's usually that field names are important and shouldn't be thrown away.
