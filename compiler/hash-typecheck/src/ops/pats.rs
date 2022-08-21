@@ -49,8 +49,8 @@ impl<'tc> PatMatcher<'tc> {
         Self { storage }
     }
 
-    /// Internal function to verify that the members that are produced from
-    /// traversing a pattern are only binded once.
+    /// Verify that the given set of members corresponding to the given
+    /// patterns, all bind distinct names.
     pub fn verify_members_are_bound_once(&self, members: &[(Member, PatId)]) -> TcResult<()> {
         let mut names: HashSet<Identifier> = HashSet::new();
 
@@ -94,28 +94,23 @@ impl<'tc> PatMatcher<'tc> {
 
         // Take the first member as we'll use it for our comparison
         let mut members = member_maps.iter();
-        let (first_map, first_pat_id) = members.next().unwrap();
+        let (first_map, _) = members.next().unwrap();
         let first_binds = first_map.keys().copied().collect::<HashSet<Identifier>>();
 
         // Compute the difference in `name` keys, if there exists a
         // difference then we can immediately report the error and abort...
         //
         // @@ErrorReporting: It would be nice to produce multiple errors here
-        for (member, cur_pat_id) in members {
+        for (member, &cur_pat_id) in members {
             // We want to find the largest member and report that that member doesn't
             // contain the binds...
             let cur_binds = member.keys().copied().collect::<HashSet<Identifier>>();
+            let mut diff = first_binds.symmetric_difference(&cur_binds).peekable();
 
-            let (mut diff, pat) = if first_binds.len() > cur_binds.len() {
-                (first_binds.difference(&cur_binds).peekable(), *cur_pat_id)
-            } else {
-                (cur_binds.difference(&first_binds).peekable(), *first_pat_id)
-            };
-
-            // If there is at-least one discrepancy, we want to generate the report already
+            // If there is at least one discrepancy, we want to generate the report already
             if diff.peek().is_some() {
                 return Err(TcError::MissingPatternBounds {
-                    pat: *pat,
+                    pat: cur_pat_id,
                     bounds: diff.copied().collect_vec(),
                 });
             }
@@ -126,7 +121,6 @@ impl<'tc> PatMatcher<'tc> {
         for bind in first_binds {
             let shared_terms =
                 member_maps.iter().map(|(map, _)| map.get(&bind).unwrap()).copied().collect_vec();
-
             self.unifier().unify_pat_terms(shared_terms)?;
         }
 
@@ -147,14 +141,11 @@ impl<'tc> PatMatcher<'tc> {
         name: Identifier,
         original_id: PatId,
     ) -> TcResult<Option<(Member, PatId)>> {
-        // If there is only one captured element, we turn this into a
-        // bind pattern rather than being a tuple...
-
-        // Now we also need to infer the type of the tuple
         let members = self.builder().create_args(
-            items
-                .iter()
-                .map(|(member, ty, value)| Arg { name: member.name, value: value.unwrap_or(*ty) }),
+            items.iter().map(|(member, ty, value)| Arg {
+                name: member.name,
+                value: value.unwrap_or(self.builder().create_rt_term(*ty)),
+            }),
             ParamOrigin::Tuple,
         );
 
@@ -279,6 +270,7 @@ impl<'tc> PatMatcher<'tc> {
             .builder()
             .create_pat_args(new_members.into_iter().map(|(arg, _)| arg), ParamOrigin::Tuple);
 
+        // @@Todo: remove this modification!
         self.pat_store()
             .set(pat, Pat::Constructor(ConstructorPat { subject, args: new_pat_members }));
 
@@ -345,6 +337,7 @@ impl<'tc> PatMatcher<'tc> {
             let new_pat_members =
                 self.builder().create_pat_args(filtered_members, ParamOrigin::Tuple);
 
+            // @@Todo: Remove this modification !
             self.pat_store().set(pat, Pat::Tuple(new_pat_members));
 
             return name.map_or(Ok(None), |name| {
@@ -494,6 +487,7 @@ impl<'tc> PatMatcher<'tc> {
             .builder()
             .create_pat_args(new_members.into_iter().map(|(arg, _)| arg), ParamOrigin::Tuple);
 
+        // @@Todo: remove this modification!
         self.pat_store().set(pat, Pat::Tuple(new_pat_members));
 
         // If the spread pattern has a bind, then we need to also create the new tuple

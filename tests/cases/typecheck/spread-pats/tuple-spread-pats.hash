@@ -24,3 +24,11 @@ test_spread_empty := () -> () => {
     (name, value, ...rest) := x;
     rest
 };
+
+ensure := <T> => (t: T) => {};
+
+test_all_spread := (f: (name: str, bax: char)) -> (name: str, bax: char) => {
+    (...t) := f;
+    ensure<(name: str, bax: char)>(t);
+    t
+};

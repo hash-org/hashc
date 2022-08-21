@@ -1,4 +1,4 @@
-// run=fail, stage=semantics
+// run=fail, stage=semantic
 Mux := struct(
     val,
 
@@ -12,7 +12,7 @@ Mux := struct(
 );
 
 
-// Function fields must either have a default value from which 
+// Function fields must either have a default value from which
 // a type can be inferred or a type annotation.
 bar := (val, max, bax = 4, bux: i32, mux: i32 = 7) -> () => {
     ()
