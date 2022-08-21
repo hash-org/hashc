@@ -1,0 +1,11 @@
+// run=pass
+
+Vote := enum(Left(usize), Right(usize), Abstain);
+
+ensure := <T> => (t: T) => {};
+
+main := () => {
+  ensure<Vote>(Vote::Left(1usize));
+  ensure<Vote>(Vote::Abstain);
+  // ensure<Vote>(Vote::Left);
+};
