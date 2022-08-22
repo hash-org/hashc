@@ -2,4 +2,4 @@ error: expected a type annotation
  --> $DIR/incomplete_tuple_literal_type_annotation.hash:3:32
 2 |   
 3 |   k : (str, bar: u8) -> u32 = (k: );
-  |                                  ^ here
+  |                                  ^ 

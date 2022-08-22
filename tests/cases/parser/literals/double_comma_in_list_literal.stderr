@@ -2,4 +2,4 @@ error: expected an expression, however received a `,`
  --> $DIR/double_comma_in_list_literal.hash:3:9
 2 |   
 3 |   k := [1,,];
-  |           ^ here
+  |           ^ 

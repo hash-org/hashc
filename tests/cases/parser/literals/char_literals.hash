@@ -15,5 +15,5 @@ b := '\b';
 f := '\f';
 v := '\v';
 slash := '\\';
-quote := '\''; // @@Fix: Junkie bug - syntax highlighting broken for escape codes
+quote := '\'';
 double_quote := '\"';

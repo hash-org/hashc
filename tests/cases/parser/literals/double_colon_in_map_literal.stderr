@@ -2,4 +2,4 @@ error: expected a name here
  --> $DIR/double_colon_in_map_literal.hash:3:15
 2 |   
 3 |   k := map!{ 1::2 };
-  |                 ^ here
+  |                 ^ 

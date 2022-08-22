@@ -1,3 +1,0 @@
-// run=fail, stage=parse
-
-k := 12e23.0;

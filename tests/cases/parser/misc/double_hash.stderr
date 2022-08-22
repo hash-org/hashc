@@ -2,4 +2,4 @@ error: expected a name here
  --> $DIR/double_hash.hash:3:7
 2 |   
 3 |   k := ##naughty_intrinsic();
-  |         ^ here
+  |         ^ 

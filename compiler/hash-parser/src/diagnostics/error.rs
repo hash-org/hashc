@@ -118,6 +118,9 @@ impl From<ParseError> for Report {
     fn from(err: ParseError) -> Self {
         let expected = err.expected;
 
+        // Default label used when marking where the error occurred
+        let mut span_label = "".to_string();
+
         // We can have multiple notes describing what could be done about the error.
         let mut help_notes = vec![];
 
@@ -206,7 +209,7 @@ impl From<ParseError> for Report {
         builder
             .with_kind(ReportKind::Error)
             .with_message(base_message)
-            .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(err.location, "here")));
+            .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(err.location, span_label)));
 
         // Add the `help` messages to the report
         for note in help_notes {
