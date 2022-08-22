@@ -284,7 +284,7 @@ impl<T> DerefMut for AstNode<T> {
 }
 
 /// A single name/symbol.
-#[derive(Hash, Debug, Clone, Copy)]
+#[derive(Hash, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Name {
     // The name of the symbol.
     pub ident: Identifier,
@@ -1634,13 +1634,24 @@ impl Display for AccessKind {
     }
 }
 
+/// The kind of property that's being accessed, either being
+/// named or numeric, e.g `foo.x`, `foo.1`, etc.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum PropertyKind {
+    /// A named field like
+    Field(Identifier),
+
+    /// The numeric value of the index that's being accessed
+    NumericField(usize),
+}
+
 /// A property access expression.
 #[derive(Debug, PartialEq, Clone)]
 pub struct AccessExpr {
     /// An expression which evaluates to a struct or tuple value.
     pub subject: AstNode<Expr>,
     /// The property of the subject to access.
-    pub property: AstNode<Name>,
+    pub property: AstNode<PropertyKind>,
     /// The kind of access, either namespacing or property
     pub kind: AccessKind,
 }

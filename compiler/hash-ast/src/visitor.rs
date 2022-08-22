@@ -176,6 +176,13 @@ pub trait AstVisitor: Sized {
         node: ast::AstNodeRef<ast::ConstructorCallExpr>,
     ) -> Result<Self::ConstructorCallExprRet, Self::Error>;
 
+    type PropertyKindRet;
+    fn visit_property_kind(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::PropertyKind>,
+    ) -> Result<Self::PropertyKindRet, Self::Error>;
+
     type AccessExprRet;
     fn visit_access_expr(
         &mut self,
@@ -863,6 +870,13 @@ pub trait AstVisitorMut: Sized {
         ctx: &Self::Ctx,
         node: ast::AstNodeRefMut<ast::ConstructorCallExpr>,
     ) -> Result<Self::ConstructorCallExprRet, Self::Error>;
+
+    type PropertyKindRet;
+    fn visit_property_kind(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::PropertyKind>,
+    ) -> Result<Self::PropertyKindRet, Self::Error>;
 
     type AccessExprRet;
     fn visit_access_expr(
@@ -1678,7 +1692,7 @@ pub mod walk {
 
     pub struct AccessExpr<V: AstVisitor> {
         pub subject: V::ExprRet,
-        pub property: V::NameRet,
+        pub property: V::PropertyKindRet,
         pub kind: V::AccessKindRet,
     }
 
@@ -1689,7 +1703,7 @@ pub mod walk {
     ) -> Result<AccessExpr<V>, V::Error> {
         Ok(AccessExpr {
             subject: visitor.visit_expr(ctx, node.subject.ast_ref())?,
-            property: visitor.visit_name(ctx, node.property.ast_ref())?,
+            property: visitor.visit_property_kind(ctx, node.property.ast_ref())?,
             kind: visitor.visit_access_kind(ctx, node.kind)?,
         })
     }
@@ -3323,7 +3337,7 @@ pub mod walk_mut {
 
     pub struct AccessExpr<V: AstVisitorMut> {
         pub subject: V::ExprRet,
-        pub property: V::NameRet,
+        pub property: V::PropertyKindRet,
     }
 
     pub fn walk_access_expr<V: AstVisitorMut>(
@@ -3333,7 +3347,7 @@ pub mod walk_mut {
     ) -> Result<AccessExpr<V>, V::Error> {
         Ok(AccessExpr {
             subject: visitor.visit_expr(ctx, node.subject.ast_ref_mut())?,
-            property: visitor.visit_name(ctx, node.property.ast_ref_mut())?,
+            property: visitor.visit_property_kind(ctx, node.property.ast_ref_mut())?,
         })
     }
 
