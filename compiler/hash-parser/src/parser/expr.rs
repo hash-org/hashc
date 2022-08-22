@@ -778,10 +778,41 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         debug_assert!(self.current_token().has_kind(TokenKind::Dot));
         let span = subject.span();
 
+        if let Some(token) = self.peek() && token.kind.is_numeric() {
+            // If the next token kind is a integer with no sign, then we can assume 
+            // that this is a numeric field access, otherwise we can say that 
+            // `-` was an unexpected token here... 
+            if let TokenKind::IntLit(sign, value) = token.kind && sign == Sign::None {
+                // Now read the value and verify that it has no numeric prefix
+                let interned_lit = CONSTANT_MAP.lookup_int_constant(value);
+
+                if let Some(suffix )= interned_lit.suffix {
+                    return self.err_with_location(ParseErrorKind::DisallowedSuffix(suffix), None, None, token.span)?;
+                }
+
+                self.skip_token();
+                let value = usize::try_from(interned_lit.to_big_int()).map_err(|_| {
+                    // @@Todo: deal with invalid numeric field access
+                    todo!()
+                })?;
+
+                let property = self.node_with_span(PropertyKind::NumericField(value), token.span);
+
+                return Ok(self.node_with_joined_span(
+                    Expr::new(ExprKind::Access(AccessExpr {
+                        subject,
+                        property,
+                        kind: AccessKind::Property,
+                    })),
+                    span,
+                ))
+            }
+        }
+
         Ok(self.node_with_joined_span(
             Expr::new(ExprKind::Access(AccessExpr {
                 subject,
-                property: self.parse_name_with_error(ParseErrorKind::ExpectedPropertyAccess)?,
+                property: self.parse_named_field(ParseErrorKind::ExpectedPropertyAccess)?,
                 kind: AccessKind::Property,
             })),
             span,
@@ -796,7 +827,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         Ok(self.node_with_joined_span(
             Expr::new(ExprKind::Access(AccessExpr {
                 subject,
-                property: self.parse_name()?,
+                property: self.parse_named_field(ParseErrorKind::ExpectedName)?,
                 kind: AccessKind::Namespace,
             })),
             span,

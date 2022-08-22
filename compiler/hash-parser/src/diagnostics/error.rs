@@ -111,6 +111,9 @@ pub enum ParseErrorKind {
     ExpectedLit,
     /// Invalid literal ascription for either `float` or `integer`
     InvalidLitSuffix(NumericLitKind, Identifier),
+    /// When a suffix is not allowed on a numeric literal, specifically
+    /// when it used as a property access field.
+    DisallowedSuffix(Identifier),
 }
 
 /// Conversion implementation from an AST Generator Error into a Parser Error.
@@ -180,6 +183,11 @@ impl From<ParseError> for Report {
                     .push(ReportElement::Note(ReportNote::new(ReportNoteKind::Info, suffix_note)));
 
                 format!("invalid suffix `{suffix}` for {kind} literal")
+            }
+            ParseErrorKind::DisallowedSuffix(suffix) => {
+                span_label = format!("disallowed suffix `{}`", suffix);
+
+                "suffixes on property access fields are disallowed".to_string()
             }
         };
 
