@@ -200,13 +200,18 @@ impl<'gs> PrimitiveBuilder<'gs> {
         })))
     }
 
+    /// Create an enum variant with no fields.
+    pub fn create_constant_enum_variant(&self, name: impl Into<Identifier>) -> EnumVariant {
+        EnumVariant { name: name.into(), fields: None }
+    }
+
     /// Create an enum variant.
     pub fn create_enum_variant(
         &self,
         name: impl Into<Identifier>,
         fields: ParamsId,
     ) -> EnumVariant {
-        EnumVariant { name: name.into(), fields }
+        EnumVariant { name: name.into(), fields: Some(fields) }
     }
 
     /// Create an enum with the given name and variants.

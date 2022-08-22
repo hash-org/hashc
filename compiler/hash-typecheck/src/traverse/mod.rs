@@ -1865,13 +1865,19 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let walk::EnumDefEntry { name, args } = walk::walk_enum_def_entry(self, ctx, node)?;
 
         // Create the enum variant parameters
-        let params = args
-            .iter()
-            .map(|arg| -> TcResult<_> { Ok(Param { name: None, ty: *arg, default_value: None }) })
-            .collect::<TcResult<Vec<_>>>()?;
-
-        let fields = self.builder().create_params(params, ParamOrigin::EnumVariant);
-
+        let params = if args.is_empty() {
+            None
+        } else {
+            Some(
+                args.iter()
+                    .map(|arg| -> TcResult<_> {
+                        Ok(Param { name: None, ty: *arg, default_value: None })
+                    })
+                    .collect::<TcResult<Vec<_>>>()?,
+            )
+        };
+        let fields =
+            params.map(|params| self.builder().create_params(params, ParamOrigin::EnumVariant));
         Ok(EnumVariant { name, fields })
     }
 

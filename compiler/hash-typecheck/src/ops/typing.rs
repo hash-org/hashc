@@ -210,8 +210,18 @@ impl<'tc> Typer<'tc> {
                         Ok(fn_lit.fn_ty)
                     }
                     Level0Term::EnumVariant(enum_variant) => {
-                        // The type of an enum variant is the enum
-                        Ok(self.builder().create_nominal_def_term(enum_variant.enum_def_id))
+                        // The type of an enum variant is the enum, with any data members as
+                        // function arguments:
+                        //
+                        // For an enum variant Foo::Bar(x: A, y: B), we create:
+                        // (x: A, y: B) -> Bar
+                        let variant = self.oracle().get_enum_variant_info(enum_variant);
+                        let enum_ty =
+                            self.builder().create_nominal_def_term(enum_variant.enum_def_id);
+                        match variant.fields {
+                            Some(fields) => Ok(self.builder().create_fn_ty_term(fields, enum_ty)),
+                            None => Ok(enum_ty),
+                        }
                     }
                     Level0Term::FnCall(_) => {
                         tc_panic!(term_id, self, "Function call should have been simplified away when trying to get the type of the term!")

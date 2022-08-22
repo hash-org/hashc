@@ -61,14 +61,8 @@ pub fn create_core_defs_in(global_storage: &GlobalStorage) {
     let bool_ty = builder.create_enum_def(
         Some(CORE_IDENTIFIERS.bool),
         [
-            builder.create_enum_variant(
-                CORE_IDENTIFIERS.r#true,
-                builder.create_params([], ParamOrigin::EnumVariant),
-            ),
-            builder.create_enum_variant(
-                CORE_IDENTIFIERS.r#false,
-                builder.create_params([], ParamOrigin::EnumVariant),
-            ),
+            builder.create_constant_enum_variant(CORE_IDENTIFIERS.r#true),
+            builder.create_constant_enum_variant(CORE_IDENTIFIERS.r#false),
         ],
     );
     let bool_ty_term = builder.create_nominal_def_term(bool_ty);

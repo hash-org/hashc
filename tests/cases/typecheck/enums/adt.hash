@@ -7,5 +7,5 @@ ensure := <T> => (t: T) => {};
 main := () => {
   ensure<Vote>(Vote::Left(1usize));
   ensure<Vote>(Vote::Abstain);
-  // ensure<Vote>(Vote::Left);
+  ensure<(usize) -> Vote>(Vote::Left);
 };

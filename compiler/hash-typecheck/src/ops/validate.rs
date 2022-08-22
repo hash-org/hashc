@@ -313,20 +313,22 @@ impl<'tc> Validator<'tc> {
             }
             NominalDef::Enum(enum_def) => {
                 for (_, variant) in enum_def.variants.iter() {
-                    let variant_fields = self.params_store().get_owned_param_list(variant.fields);
+                    if let Some(fields) = variant.fields {
+                        let variant_fields = self.params_store().get_owned_param_list(fields);
 
-                    // Validate the ordering and the number of times parameter field names
-                    // are specified, although the ordering shouldn't matter
-                    //
-                    // @@Unnecessary?
-                    validate_param_list(&variant_fields, ParamListKind::Params(variant.fields))?;
+                        // Validate the ordering and the number of times parameter field names
+                        // are specified, although the ordering shouldn't matter
+                        //
+                        // @@Unnecessary?
+                        validate_param_list(&variant_fields, ParamListKind::Params(fields))?;
 
-                    // Validate all fields of an struct def implement `SizedTy`
-                    let sized_ty = self.builder().create_sized_ty_term();
+                        // Validate all fields of an struct def implement `SizedTy`
+                        let sized_ty = self.builder().create_sized_ty_term();
 
-                    for field in variant_fields.positional().iter() {
-                        let field_ty = self.typer().infer_ty_of_term(field.ty)?;
-                        self.unifier().unify_terms(field_ty, sized_ty)?;
+                        for field in variant_fields.positional().iter() {
+                            let field_ty = self.typer().infer_ty_of_term(field.ty)?;
+                            self.unifier().unify_terms(field_ty, sized_ty)?;
+                        }
                     }
                 }
 
