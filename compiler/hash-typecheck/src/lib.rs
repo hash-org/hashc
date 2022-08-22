@@ -89,22 +89,22 @@ impl Tc<'_> for TcImpl {
         };
         let mut tc_visitor = TcVisitor::new_in_source(storage.storages(), workspace.node_map());
 
-        let result = tc_visitor.visit_source();
+        match tc_visitor.visit_source() {
+            Err(err) => {
+                tc_visitor.diagnostics().add_error(err);
+            }
+            Ok(source_term) if !tc_visitor.diagnostics().has_errors() => {
+                // Print the result if no errors
+                println!("{}", source_term.for_formatting(storage.global_storage()));
+            }
+            Ok(_) => {}
+        }
 
         // If there are diagnostics that were generated or the result itself returned
         // an error, then we should return those errors, otherwise print the inferred
         // term.
-        if tc_visitor.diagnostics().has_diagnostics() || result.is_err() {
-            if let Err(err) = result {
-                tc_visitor.diagnostics().add_error(err);
-            }
-
+        if tc_visitor.diagnostics().has_diagnostics() {
             return Err(tc_visitor.diagnostics().into_reports());
-        }
-
-        // Print the result if it was ok
-        if let Ok(source_term) = result {
-            println!("{}", source_term.for_formatting(storage.global_storage()));
         }
 
         Ok(())

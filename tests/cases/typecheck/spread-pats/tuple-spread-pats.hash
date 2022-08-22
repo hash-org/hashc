@@ -24,3 +24,8 @@ test_spread_empty := () -> () => {
     (name, value, ...rest) := x;
     rest
 };
+
+test_all_spread := (f: (name: str, bax: char)) -> (name: str, bax: char) => {
+    (...t) := f;
+    t
+};
