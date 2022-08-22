@@ -19,7 +19,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         Ok(self.node_with_span(
             match token.kind {
-                TokenKind::IntLit(value) => {
+                TokenKind::IntLit(_, value) => {
                     let IntConstant { suffix, .. } = CONSTANT_MAP.lookup_int_constant(value);
 
                     // Parse the provided suffix
@@ -29,7 +29,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
                     Lit::Int(IntLit { value, kind })
                 }
-                TokenKind::FloatLit(value) => {
+                TokenKind::FloatLit(_, value) => {
                     let suffix = CONSTANT_MAP.lookup_float_constant(value).suffix;
 
                     // Parse the provided suffix

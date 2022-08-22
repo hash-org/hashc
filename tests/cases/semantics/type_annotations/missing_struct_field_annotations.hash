@@ -4,7 +4,7 @@ Mux := struct(
 
     // Field must have either a default value from which a type
     // can be inferred or a type annotation.
-    bax = 4,
+    bax := 4,
     bux: i32,
     mux: i32 = 7,
 

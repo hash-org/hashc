@@ -15,7 +15,7 @@ use crate::storage::{
     pats::{PatArgsId, PatId},
     primitives::{
         AccessOp, AccessPat, AccessTerm, Arg, BindingPat, BoundVar, ConstPat, ConstructedTerm,
-        ConstructorPat, EnumDef, EnumVariant, EnumVariantValue, FnCall, FnLit, FnTy, IfPat,
+        ConstructorPat, EnumDef, EnumVariant, EnumVariantValue, Field, FnCall, FnLit, FnTy, IfPat,
         Level0Term, Level1Term, Level2Term, Level3Term, ListPat, LitTerm, Member, ModDef,
         ModDefOrigin, ModPat, Mutability, NominalDef, Param, Pat, PatArg, RangePat, Scope,
         ScopeKind, ScopeVar, SetBound, StructDef, StructFields, Term, TrtDef, TupleLit, TupleTy,
@@ -256,7 +256,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
     pub fn create_access(
         &self,
         subject_id: TermId,
-        name: impl Into<Identifier>,
+        name: impl Into<Field>,
         op: AccessOp,
     ) -> TermId {
         self.create_term(Term::Access(AccessTerm { subject: subject_id, name: name.into(), op }))
@@ -264,20 +264,20 @@ impl<'gs> PrimitiveBuilder<'gs> {
 
     /// Create a [Term::Access] with the given subject and name, and namespace
     /// operator.
-    pub fn create_ns_access(&self, subject_id: TermId, name: impl Into<Identifier>) -> TermId {
+    pub fn create_ns_access(&self, subject_id: TermId, field: impl Into<Field>) -> TermId {
         self.create_term(Term::Access(AccessTerm {
             subject: subject_id,
-            name: name.into(),
+            name: field.into(),
             op: AccessOp::Namespace,
         }))
     }
 
     /// Create a [Term::Access] with the given subject and name, and property
     /// operator.
-    pub fn create_prop_access(&self, subject_id: TermId, name: impl Into<Identifier>) -> TermId {
+    pub fn create_prop_access(&self, subject_id: TermId, field: impl Into<Field>) -> TermId {
         self.create_term(Term::Access(AccessTerm {
             subject: subject_id,
-            name: name.into(),
+            name: field.into(),
             op: AccessOp::Property,
         }))
     }

@@ -258,18 +258,32 @@ impl AstVisitor for AstTreeGenerator {
         Ok(TreeNode::branch("constructor", children))
     }
 
+    type PropertyKindRet = TreeNode;
+    fn visit_property_kind(
+        &mut self,
+        _: &Self::Ctx,
+        node: ast::AstNodeRef<ast::PropertyKind>,
+    ) -> Result<Self::PropertyKindRet, Self::Error> {
+        Ok(match node.body() {
+            ast::PropertyKind::NamedField(name) => TreeNode::leaf(labelled("property", name, "\"")),
+            ast::PropertyKind::NumericField(name) => {
+                TreeNode::leaf(labelled("numeric_property", name, "\""))
+            }
+        })
+    }
+
     type AccessExprRet = TreeNode;
     fn visit_access_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::AccessExpr>,
     ) -> Result<Self::AccessExprRet, Self::Error> {
-        let walk::AccessExpr { subject, .. } = walk::walk_access_expr(self, ctx, node)?;
+        let walk::AccessExpr { subject, property, .. } = walk::walk_access_expr(self, ctx, node)?;
         Ok(TreeNode::branch(
             "access",
             vec![
                 TreeNode::branch("subject", vec![subject]),
-                TreeNode::leaf(labelled("property", node.property.ident, "\"")),
+                TreeNode::branch("property", vec![property]),
                 TreeNode::leaf(labelled("kind", node.kind, "\"")),
             ],
         ))
@@ -630,7 +644,8 @@ impl AstVisitor for AstTreeGenerator {
         let walk::Param { name, ty, default } = walk::walk_param(self, ctx, node)?;
         Ok(TreeNode::branch(
             "param",
-            iter::once(TreeNode::branch("name", vec![name]))
+            iter::empty()
+                .chain(name.map(|t| TreeNode::branch("name", vec![t])))
                 .chain(ty.map(|t| TreeNode::branch("type", vec![t])))
                 .chain(default.map(|d| TreeNode::branch("default", vec![d])))
                 .collect(),
@@ -647,6 +662,7 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type MatchCaseRet = TreeNode;
+
     fn visit_match_case(
         &mut self,
         ctx: &Self::Ctx,
@@ -672,7 +688,6 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type LoopBlockRet = TreeNode;
-
     fn visit_loop_block(
         &mut self,
         ctx: &Self::Ctx,
@@ -820,6 +835,7 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type MutabilityRet = TreeNode;
+
     fn visit_mutability_modifier(
         &mut self,
         _: &Self::Ctx,
@@ -842,7 +858,6 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type DeclarationRet = TreeNode;
-
     fn visit_declaration(
         &mut self,
         ctx: &Self::Ctx,
@@ -914,6 +929,7 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type UnaryExprRet = TreeNode;
+
     fn visit_unary_expr(
         &mut self,
         ctx: &Self::Ctx,
@@ -925,7 +941,6 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type IndexExprRet = TreeNode;
-
     fn visit_index_expr(
         &mut self,
         ctx: &Self::Ctx,
@@ -961,10 +976,10 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::EnumDefEntry>,
     ) -> Result<Self::EnumDefEntryRet, Self::Error> {
-        let walk::EnumDefEntry { name, args } = walk::walk_enum_def_entry(self, ctx, node)?;
+        let walk::EnumDefEntry { name, fields } = walk::walk_enum_def_entry(self, ctx, node)?;
         Ok(TreeNode::branch(
             labelled("variant", name.label, "\""),
-            if args.is_empty() { vec![] } else { vec![TreeNode::branch("args", args)] },
+            if fields.is_empty() { vec![] } else { vec![TreeNode::branch("fields", fields)] },
         ))
     }
 
@@ -993,6 +1008,7 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type TraitImplRet = TreeNode;
+
     fn visit_trait_impl(
         &mut self,
         ctx: &Self::Ctx,
@@ -1007,7 +1023,6 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type PatRet = TreeNode;
-
     fn visit_pat(
         &mut self,
         ctx: &Self::Ctx,
@@ -1141,6 +1156,7 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type IfPatRet = TreeNode;
+
     fn visit_if_pat(
         &mut self,
         ctx: &Self::Ctx,

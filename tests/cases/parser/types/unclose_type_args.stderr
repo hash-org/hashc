@@ -2,5 +2,5 @@ error: expected an operator, however received a `:`
  --> $DIR/unclose_type_args.hash:3:5
 2 |   
 3 |   k<t := do_something();
-  |       ^ here
+  |       ^ 
   = help: consider adding either `.`, `=`, or `;`

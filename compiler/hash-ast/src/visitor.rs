@@ -176,6 +176,13 @@ pub trait AstVisitor: Sized {
         node: ast::AstNodeRef<ast::ConstructorCallExpr>,
     ) -> Result<Self::ConstructorCallExprRet, Self::Error>;
 
+    type PropertyKindRet;
+    fn visit_property_kind(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::PropertyKind>,
+    ) -> Result<Self::PropertyKindRet, Self::Error>;
+
     type AccessExprRet;
     fn visit_access_expr(
         &mut self,
@@ -864,6 +871,13 @@ pub trait AstVisitorMut: Sized {
         node: ast::AstNodeRefMut<ast::ConstructorCallExpr>,
     ) -> Result<Self::ConstructorCallExprRet, Self::Error>;
 
+    type PropertyKindRet;
+    fn visit_property_kind(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::PropertyKind>,
+    ) -> Result<Self::PropertyKindRet, Self::Error>;
+
     type AccessExprRet;
     fn visit_access_expr(
         &mut self,
@@ -1376,7 +1390,7 @@ pub mod walk {
     use super::{ast, AstVisitor};
 
     pub struct Param<V: AstVisitor> {
-        pub name: V::NameRet,
+        pub name: Option<V::NameRet>,
         pub ty: Option<V::TyRet>,
         pub default: Option<V::ExprRet>,
     }
@@ -1387,7 +1401,7 @@ pub mod walk {
         node: ast::AstNodeRef<ast::Param>,
     ) -> Result<Param<V>, V::Error> {
         Ok(Param {
-            name: visitor.visit_name(ctx, node.name.ast_ref())?,
+            name: node.name.as_ref().map(|t| visitor.visit_name(ctx, t.ast_ref())).transpose()?,
             ty: node.ty.as_ref().map(|t| visitor.visit_ty(ctx, t.ast_ref())).transpose()?,
             default: node
                 .default
@@ -1678,7 +1692,7 @@ pub mod walk {
 
     pub struct AccessExpr<V: AstVisitor> {
         pub subject: V::ExprRet,
-        pub property: V::NameRet,
+        pub property: V::PropertyKindRet,
         pub kind: V::AccessKindRet,
     }
 
@@ -1689,7 +1703,7 @@ pub mod walk {
     ) -> Result<AccessExpr<V>, V::Error> {
         Ok(AccessExpr {
             subject: visitor.visit_expr(ctx, node.subject.ast_ref())?,
-            property: visitor.visit_name(ctx, node.property.ast_ref())?,
+            property: visitor.visit_property_kind(ctx, node.property.ast_ref())?,
             kind: visitor.visit_access_kind(ctx, node.kind)?,
         })
     }
@@ -2894,7 +2908,7 @@ pub mod walk {
 
     pub struct EnumDefEntry<V: AstVisitor> {
         pub name: V::NameRet,
-        pub args: V::CollectionContainer<V::TyRet>,
+        pub fields: V::CollectionContainer<V::ParamRet>,
     }
     pub fn walk_enum_def_entry<V: AstVisitor>(
         visitor: &mut V,
@@ -2903,9 +2917,9 @@ pub mod walk {
     ) -> Result<EnumDefEntry<V>, V::Error> {
         Ok(EnumDefEntry {
             name: visitor.visit_name(ctx, node.name.ast_ref())?,
-            args: V::try_collect_items(
+            fields: V::try_collect_items(
                 ctx,
-                node.args.iter().map(|b| visitor.visit_ty(ctx, b.ast_ref())),
+                node.fields.iter().map(|b| visitor.visit_param(ctx, b.ast_ref())),
             )?,
         })
     }
@@ -3010,7 +3024,7 @@ pub mod walk_mut {
     use crate::ast::AstNodeRefMut;
 
     pub struct Param<V: AstVisitorMut> {
-        pub name: V::NameRet,
+        pub name: Option<V::NameRet>,
         pub ty: Option<V::TyRet>,
         pub default: Option<V::ExprRet>,
     }
@@ -3021,7 +3035,11 @@ pub mod walk_mut {
         mut node: ast::AstNodeRefMut<ast::Param>,
     ) -> Result<Param<V>, V::Error> {
         Ok(Param {
-            name: visitor.visit_name(ctx, node.name.ast_ref_mut())?,
+            name: node
+                .name
+                .as_mut()
+                .map(|t| visitor.visit_name(ctx, t.ast_ref_mut()))
+                .transpose()?,
             ty: node.ty.as_mut().map(|t| visitor.visit_ty(ctx, t.ast_ref_mut())).transpose()?,
             default: node
                 .default
@@ -3323,7 +3341,7 @@ pub mod walk_mut {
 
     pub struct AccessExpr<V: AstVisitorMut> {
         pub subject: V::ExprRet,
-        pub property: V::NameRet,
+        pub property: V::PropertyKindRet,
     }
 
     pub fn walk_access_expr<V: AstVisitorMut>(
@@ -3333,7 +3351,7 @@ pub mod walk_mut {
     ) -> Result<AccessExpr<V>, V::Error> {
         Ok(AccessExpr {
             subject: visitor.visit_expr(ctx, node.subject.ast_ref_mut())?,
-            property: visitor.visit_name(ctx, node.property.ast_ref_mut())?,
+            property: visitor.visit_property_kind(ctx, node.property.ast_ref_mut())?,
         })
     }
 
@@ -4604,7 +4622,7 @@ pub mod walk_mut {
 
     pub struct EnumDefEntry<V: AstVisitorMut> {
         pub name: V::NameRet,
-        pub args: V::CollectionContainer<V::TyRet>,
+        pub fields: V::CollectionContainer<V::ParamRet>,
     }
     pub fn walk_enum_def_entry<V: AstVisitorMut>(
         visitor: &mut V,
@@ -4613,9 +4631,9 @@ pub mod walk_mut {
     ) -> Result<EnumDefEntry<V>, V::Error> {
         Ok(EnumDefEntry {
             name: visitor.visit_name(ctx, node.name.ast_ref_mut())?,
-            args: V::try_collect_items(
+            fields: V::try_collect_items(
                 ctx,
-                node.args.iter_mut().map(|b| visitor.visit_ty(ctx, b.ast_ref_mut())),
+                node.fields.iter_mut().map(|p| visitor.visit_param(ctx, p.ast_ref_mut())),
             )?,
         })
     }

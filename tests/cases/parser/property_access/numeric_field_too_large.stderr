@@ -1,0 +1,6 @@
+error: invalid property access
+ --> $DIR/numeric_field_too_large.hash:5:7
+4 |       t := (1, 2);
+5 |       t.19238123912839213812938
+  |         ^^^^^^^^^^^^^^^^^^^^^^^ 
+6 |   };

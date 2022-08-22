@@ -1,5 +1,0 @@
-error: expected field name access or a method call
- --> $DIR/invalid_float_exponent.hash:3:12
-2 |   
-3 |   k := 12e23.0;
-  |              ^ here

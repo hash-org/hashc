@@ -15,10 +15,10 @@ use crate::{
 };
 
 impl<'tc> TcVisitor<'tc> {
-    /// Function that combines the logic between visiting struct
-    /// and function definition parameters/fields. The function
-    /// will perform the correct operations based on if there
-    /// is a present annotation type, and or default value.
+    /// Function that combines the logic between visiting struct, function and
+    /// enum definition parameters/fields. The function will perform the
+    /// correct operations based on if there is a present annotation type,
+    /// and or default value.
     pub(crate) fn visit_fn_or_struct_param(
         &mut self,
         node: ast::AstNodeRef<ast::Param>,
@@ -65,7 +65,7 @@ impl<'tc> TcVisitor<'tc> {
             self.location_store().add_location_to_target(ty, value_location);
         }
 
-        Ok(Param { name: Some(name), ty, default_value })
+        Ok(Param { name, ty, default_value })
     }
 
     /// Function that encapsulates the visiting logic for parameters of type
@@ -80,7 +80,10 @@ impl<'tc> TcVisitor<'tc> {
         // The location of the param type is either the bound or the name (since
         // <T>     // means <T: Type>):
         let location = self.source_location(
-            node.ty.as_ref().map(|ty| ty.span()).unwrap_or_else(|| node.name.span()),
+            node.ty
+                .as_ref()
+                .map(|ty| ty.span())
+                .unwrap_or_else(|| node.name.as_ref().unwrap().span()),
         );
 
         // The type of the param is the given bound, or Type if no bound was
@@ -90,6 +93,6 @@ impl<'tc> TcVisitor<'tc> {
 
         self.location_store().add_location_to_target(ty, location);
 
-        Ok(Param { ty, name: Some(name), default_value: default })
+        Ok(Param { ty, name, default_value: default })
     }
 }

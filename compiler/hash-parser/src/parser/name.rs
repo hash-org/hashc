@@ -32,4 +32,24 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             ),
         }
     }
+
+    /// Parse [PropertyKind::Field] which is used within [ExprKind::Access]
+    /// as a named field. This function does not parse the
+    /// [PropertyKind::NumericField] variant.
+    #[inline]
+    pub fn parse_named_field(&self, err: ParseErrorKind) -> ParseResult<AstNode<PropertyKind>> {
+        match self.next_token() {
+            Some(Token { kind: TokenKind::Ident(ident), span })
+                if *ident != CORE_IDENTIFIERS.underscore =>
+            {
+                Ok(self.node_with_span(PropertyKind::NamedField(*ident), *span))
+            }
+            token => self.err_with_location(
+                err,
+                None,
+                None,
+                token.map(|tok| tok.span).unwrap_or_else(|| self.next_location()),
+            ),
+        }
+    }
 }
