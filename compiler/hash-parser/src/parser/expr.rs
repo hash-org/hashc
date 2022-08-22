@@ -4,8 +4,8 @@ use std::{path::PathBuf, str::FromStr};
 
 use hash_ast::{ast::*, ast_nodes};
 use hash_reporting::diagnostic::Diagnostics;
-use hash_source::location::Span;
-use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
+use hash_source::{constant::CONSTANT_MAP, location::Span};
+use hash_token::{delimiter::Delimiter, keyword::Keyword, Sign, Token, TokenKind, TokenKindVector};
 use smallvec::smallvec;
 
 use super::AstGen;

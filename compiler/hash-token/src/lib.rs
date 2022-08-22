@@ -3,6 +3,8 @@
 pub mod delimiter;
 pub mod keyword;
 
+use std::fmt::Display;
+
 use delimiter::{Delimiter, DelimiterVariant};
 use hash_source::{
     constant::{InternedFloat, InternedInt, InternedStr},
@@ -112,8 +114,8 @@ impl TokenKind {
             self,
             TokenKind::Keyword(Keyword::False)
                 | TokenKind::Keyword(Keyword::True)
-                | TokenKind::IntLit(_)
-                | TokenKind::FloatLit(_)
+                | TokenKind::IntLit(_, _)
+                | TokenKind::FloatLit(_, _)
                 | TokenKind::CharLit(_)
                 | TokenKind::StrLit(_)
         )
@@ -121,12 +123,29 @@ impl TokenKind {
 
     /// Check if the [TokenKind] is a numeric literal
     pub fn is_numeric(&self) -> bool {
-        matches!(self, TokenKind::IntLit(_) | TokenKind::FloatLit(_))
+        matches!(self, TokenKind::IntLit(_, _) | TokenKind::FloatLit(_, _))
     }
 }
 
-/// An Atom represents all variants of a token that can be present in a source
-/// file. Atom token kinds can represent a single character, literal or an
+/// Whether or not a numeric [TokenKind] has a interpolated sign with
+/// it.
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+pub enum Sign {
+    Minus,
+    None,
+}
+
+impl Display for Sign {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Sign::Minus => write!(f, "-"),
+            Sign::None => Ok(()),
+        }
+    }
+}
+
+/// An [TokenKind] represents all variants of a token that can be present in a
+/// source file. [TokenKind]s can represent a single character, literal or an
 /// identifier.
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum TokenKind {
@@ -175,9 +194,9 @@ pub enum TokenKind {
     /// "'"
     SingleQuote,
     /// Integer Literal
-    IntLit(InternedInt),
+    IntLit(Sign, InternedInt),
     /// Float literal
-    FloatLit(InternedFloat),
+    FloatLit(Sign, InternedFloat),
     /// Character literal
     CharLit(char),
     /// StrLiteral,
@@ -211,18 +230,14 @@ impl TokenKind {
     /// context.
     pub fn as_error_string(&self) -> String {
         match self {
-            TokenKind::Unexpected(ch) => format!("an unknown character `{}`", ch),
-            TokenKind::IntLit(num) => format!("`{}`", num),
-            TokenKind::FloatLit(num) => format!("`{}`", num),
-            TokenKind::CharLit(ch) => format!("`{}`", ch),
-            TokenKind::StrLit(str) => {
-                format!("the string `{}`", *str)
-            }
-            TokenKind::Keyword(kwd) => format!("`{}`", kwd),
-            TokenKind::Ident(ident) => {
-                format!("the identifier `{}`", *ident)
-            }
-            kind => format!("a `{}`", kind),
+            TokenKind::Unexpected(atom) => format!("an unknown character `{}`", atom),
+            TokenKind::IntLit(_, lit) => format!("`{lit}`"),
+            TokenKind::FloatLit(_, lit) => format!("`{lit}`"),
+            TokenKind::CharLit(ch) => format!("`{ch}`"),
+            TokenKind::StrLit(str) => format!("the string `{}`", *str),
+            TokenKind::Keyword(kwd) => format!("`{kwd}`"),
+            TokenKind::Ident(ident) => format!("the identifier `{}`", *ident),
+            kind => format!("a `{kind}`"),
         }
     }
 }
@@ -252,10 +267,10 @@ impl std::fmt::Display for TokenKind {
             TokenKind::Comma => write!(f, ","),
             TokenKind::Quote => write!(f, "\""),
             TokenKind::SingleQuote => write!(f, "'"),
-            TokenKind::Unexpected(ch) => write!(f, "{}", ch),
-            TokenKind::IntLit(num) => write!(f, "{}", num),
-            TokenKind::FloatLit(num) => write!(f, "{}", num),
-            TokenKind::CharLit(ch) => write!(f, "'{}'", ch),
+            TokenKind::Unexpected(atom) => write!(f, "{atom}"),
+            TokenKind::IntLit(_, lit) => write!(f, "{lit}"),
+            TokenKind::FloatLit(_, lit) => write!(f, "{lit}"),
+            TokenKind::CharLit(ch) => write!(f, "'{ch}'"),
             TokenKind::Delimiter(delim, variant) => {
                 if *variant == DelimiterVariant::Left {
                     write!(f, "{}", delim.left())

@@ -15,7 +15,7 @@ use hash_source::{
 use hash_token::{
     delimiter::{Delimiter, DelimiterVariant},
     keyword::Keyword,
-    Token, TokenKind,
+    Sign, Token, TokenKind,
 };
 use num_bigint::BigInt;
 use num_traits::Num;
@@ -403,11 +403,11 @@ impl<'a> Lexer<'a> {
         //
         // @@Future: do this ourselves
         let parsed = BigInt::from_str_radix(chars, radix).unwrap();
-        let value = if negated { -parsed } else { parsed };
+        let (value, sign) = if negated { (-parsed, Sign::Minus) } else { (parsed, Sign::None) };
 
         // We need to create a interned constant here...
         let interned_const = CONSTANT_MAP.create_int_constant(value, ascription);
-        TokenKind::IntLit(interned_const)
+        TokenKind::IntLit(sign, interned_const)
     }
 
     /// Attempt to eat an identifier if the next token is one, otherwise don't
@@ -525,11 +525,12 @@ impl<'a> Lexer<'a> {
                             Span::new(start, self.offset.get()),
                         ),
                         Ok(parsed) => {
-                            let value = if negated { -parsed } else { parsed };
+                            let (value, sign) =
+                                if negated { (-parsed, Sign::Minus) } else { (parsed, Sign::None) };
 
                             // Create interned float constant
                             let float_const = CONSTANT_MAP.create_float_constant(value, suffix);
-                            TokenKind::FloatLit(float_const)
+                            TokenKind::FloatLit(sign, float_const)
                         }
                     }
                 } else {
@@ -558,14 +559,15 @@ impl<'a> Lexer<'a> {
                         // if an exponent was specified, as in it is non-zero, we need to apply the
                         // exponent to the float literal.
                         let value = if exp != 0 { value * 10f64.powi(exp) } else { value };
-                        let value = if negated { -value } else { value };
+                        let (value, sign) =
+                            if negated { (-value, Sign::Minus) } else { (value, Sign::None) };
 
                         // Get the type ascription if any...
                         let suffix = self.maybe_eat_identifier();
 
                         // Create interned float constant
                         let float_const = CONSTANT_MAP.create_float_constant(value, suffix);
-                        TokenKind::FloatLit(float_const)
+                        TokenKind::FloatLit(sign, float_const)
                     }
                     Err(err) => {
                         self.add_error(err);
