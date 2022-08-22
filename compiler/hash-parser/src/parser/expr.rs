@@ -792,8 +792,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
                 self.skip_token();
                 let value = usize::try_from(interned_lit.to_big_int()).map_err(|_| {
-                    // @@Todo: deal with invalid numeric field access
-                    todo!()
+                    self.make_err(ParseErrorKind::InvalidPropertyAccess, None, None, Some(token.span))
                 })?;
 
                 let property = self.node_with_span(PropertyKind::NumericField(value), token.span);

@@ -114,6 +114,10 @@ pub enum ParseErrorKind {
     /// When a suffix is not allowed on a numeric literal, specifically
     /// when it used as a property access field.
     DisallowedSuffix(Identifier),
+    /// When a property access is invalid: currently emitted when:
+    ///
+    /// - numeric fields attempt to access a field which is larger than [usize].
+    InvalidPropertyAccess,
 }
 
 /// Conversion implementation from an AST Generator Error into a Parser Error.
@@ -189,6 +193,7 @@ impl From<ParseError> for Report {
 
                 "suffixes on property access fields are disallowed".to_string()
             }
+            ParseErrorKind::InvalidPropertyAccess => "invalid property access".to_string(),
         };
 
         // `AstGenErrorKind::Expected` format the error message in their own way,
