@@ -29,8 +29,8 @@ use crate::{
         location::{IndexedLocationTarget, LocationTarget},
         pats::PatId,
         primitives::{
-            AccessOp, Arg, BindingPat, ConstPat, EnumVariant, Member, ModDefOrigin, Mutability,
-            Param, Pat, PatArg, RangePat, ScopeKind, SpreadPat, Sub, Visibility,
+            AccessOp, Arg, BindingPat, ConstPat, EnumVariant, Field, Member, ModDefOrigin,
+            Mutability, Param, Pat, PatArg, RangePat, ScopeKind, SpreadPat, Sub, Visibility,
         },
         terms::TermId,
         AccessToStorage, LocalStorage, StorageRef,
@@ -523,6 +523,19 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         self.copy_location_from_node_to_target(node, return_term);
 
         Ok(self.validator().validate_term(return_term)?.simplified_term_id)
+    }
+
+    type PropertyKindRet = Field;
+
+    fn visit_property_kind(
+        &mut self,
+        _: &Self::Ctx,
+        node: ast::AstNodeRef<ast::PropertyKind>,
+    ) -> Result<Self::PropertyKindRet, Self::Error> {
+        Ok(match node.body() {
+            ast::PropertyKind::Field(name) => Field::Named(*name),
+            ast::PropertyKind::NumericField(index) => Field::Numeric(*index),
+        })
     }
 
     type AccessExprRet = TermId;
@@ -1041,7 +1054,6 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     }
 
     type UnionTyRet = TermId;
-
     fn visit_union_ty(
         &mut self,
         ctx: &Self::Ctx,
@@ -1057,6 +1069,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     }
 
     type TyFnDefRet = TermId;
+
     fn visit_ty_fn_def(
         &mut self,
         ctx: &Self::Ctx,
@@ -1186,7 +1199,6 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     }
 
     type ParamRet = Param;
-
     fn visit_param(
         &mut self,
         ctx: &Self::Ctx,
@@ -1203,6 +1215,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     }
 
     type BlockRet = TermId;
+
     fn visit_block(
         &mut self,
         ctx: &Self::Ctx,
@@ -1496,7 +1509,6 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     }
 
     type ContinueStatementRet = TermId;
-
     fn visit_continue_statement(
         &mut self,
         _ctx: &Self::Ctx,
@@ -1511,6 +1523,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     }
 
     type VisibilityRet = Visibility;
+
     fn visit_visibility_modifier(
         &mut self,
         _ctx: &Self::Ctx,
@@ -1546,7 +1559,6 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     }
 
     type DeclarationRet = TermId;
-
     fn visit_declaration(
         &mut self,
         ctx: &Self::Ctx,
@@ -1649,6 +1661,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     }
 
     type MergeDeclarationRet = TermId;
+
     fn visit_merge_declaration(
         &mut self,
         _ctx: &Self::Ctx,
@@ -2119,7 +2132,6 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     }
 
     type OrPatRet = PatId;
-
     fn visit_or_pat(
         &mut self,
         ctx: &Self::Ctx,
@@ -2132,6 +2144,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     }
 
     type IfPatRet = PatId;
+
     fn visit_if_pat(
         &mut self,
         ctx: &Self::Ctx,

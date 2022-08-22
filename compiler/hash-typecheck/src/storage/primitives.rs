@@ -786,6 +786,40 @@ impl Display for AccessOp {
     }
 }
 
+/// Represents which kind of field is being accessed
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Field {
+    Named(Identifier),
+    Numeric(usize),
+}
+
+impl Display for Field {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Field::Named(name) => write!(f, "{name}"),
+            Field::Numeric(index) => write!(f, "{index}"),
+        }
+    }
+}
+
+impl From<&str> for Field {
+    fn from(index: &str) -> Self {
+        Field::Named(index.into())
+    }
+}
+
+impl From<Identifier> for Field {
+    fn from(index: Identifier) -> Self {
+        Field::Named(index)
+    }
+}
+
+impl From<usize> for Field {
+    fn from(ident: usize) -> Self {
+        Field::Numeric(ident)
+    }
+}
+
 /// An access term, which is of the form X::Y, where X is a term and Y is an
 /// identifier.
 ///
@@ -793,7 +827,7 @@ impl Display for AccessOp {
 #[derive(Debug, Clone, Copy)]
 pub struct AccessTerm {
     pub subject: TermId,
-    pub name: Identifier,
+    pub name: Field,
     pub op: AccessOp,
 }
 

@@ -2,7 +2,6 @@
 use std::iter;
 
 use hash_ast::ast::ParamOrigin;
-use hash_source::identifier::Identifier;
 use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
 use itertools::Itertools;
 
@@ -16,7 +15,7 @@ use crate::{
         arguments::ArgsId,
         params::ParamsId,
         primitives::{
-            AccessOp, AccessTerm, Arg, ConstructedTerm, FnLit, FnTy, Level0Term, Level1Term,
+            AccessOp, AccessTerm, Arg, ConstructedTerm, Field, FnLit, FnTy, Level0Term, Level1Term,
             Level2Term, Level3Term, Member, Mutability, NominalDef, Param, ScopeKind, StructFields,
             Term, TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
         },
@@ -46,7 +45,13 @@ fn does_not_support_access<T>(access_term: &AccessTerm) -> TcResult<T> {
 // support namespace access:
 fn does_not_support_prop_access(access_term: &AccessTerm) -> TcResult<()> {
     match access_term.op {
-        AccessOp::Namespace => Ok(()),
+        AccessOp::Namespace => match access_term.name {
+            Field::Named(_) => Ok(()),
+            _ => Err(TcError::UnsupportedPropertyAccess {
+                name: access_term.name,
+                value: access_term.subject,
+            }),
+        },
         AccessOp::Property => Err(TcError::UnsupportedPropertyAccess {
             name: access_term.name,
             value: access_term.subject,
@@ -81,8 +86,9 @@ fn name_not_found<T>(access_term: &AccessTerm) -> TcResult<T> {
 fn turn_unresolved_var_err_into_unresolved_in_value_err(
     access_term: &AccessTerm,
 ) -> impl Fn(TcError) -> TcError + '_ {
-    |err| match err {
-        TcError::UnresolvedVariable { name, value: _ } if name == access_term.name => {
+    |err| {
+        match err {
+        TcError::UnresolvedVariable { name, value: _ } if let Field::Named(field_name) = access_term.name && name == field_name => {
             TcError::UnresolvedNameInValue {
                 name: access_term.name,
                 value: access_term.subject,
@@ -90,6 +96,7 @@ fn turn_unresolved_var_err_into_unresolved_in_value_err(
             }
         }
         _ => err,
+    }
     }
 }
 
@@ -121,7 +128,7 @@ impl<'tc> Simplifier<'tc> {
         accessed_ty: TermId,
         subject_ty: TermId,
         initial_subject_term: TermId,
-        initial_property_name: Identifier,
+        initial_property_name: Field,
     ) -> TcResult<TermId> {
         // Invalid because it is not a method:
         let invalid_property_access = || {
@@ -176,15 +183,17 @@ impl<'tc> Simplifier<'tc> {
     fn access_struct_or_tuple_field(
         &self,
         rt_term_ty_id: TermId,
-        field_name: Identifier,
+        property: Field,
     ) -> TcResult<Option<TermId>> {
-        let reader = self.reader();
-        let term = reader.get_term(rt_term_ty_id);
-        match term {
+        // Invalid because it is not a method:
+        let invalid_property_access =
+            || Err(TcError::InvalidPropertyAccessOfNonMethod { subject: rt_term_ty_id, property });
+
+        match self.reader().get_term(rt_term_ty_id) {
             Term::SetBound(set_bound) => {
                 // Enter the bound and try access
                 let result = self.scope_manager().enter_scope(set_bound.scope, |this| {
-                    this.simplifier().access_struct_or_tuple_field(set_bound.term, field_name)
+                    this.simplifier().access_struct_or_tuple_field(set_bound.term, property)
                 })?;
                 match result {
                     Some(result) => Ok(Some(
@@ -199,7 +208,7 @@ impl<'tc> Simplifier<'tc> {
                 for idx in terms.to_index_range() {
                     let term = self.term_list_store().get_at_index(terms, idx);
 
-                    match self.access_struct_or_tuple_field(term, field_name)? {
+                    match self.access_struct_or_tuple_field(term, property)? {
                         Some(result) => return Ok(Some(result)),
                         None => continue,
                     }
@@ -210,23 +219,38 @@ impl<'tc> Simplifier<'tc> {
                 // If it is a struct or a tuple, and the name is resolved in the fields, return
                 // the (runtime) value of the field.
                 if let Level1Term::NominalDef(nominal_def_id) = level1_term {
-                    let nominal_def = reader.get_nominal_def(nominal_def_id);
+                    let nominal_def = self.reader().get_nominal_def(nominal_def_id);
+
                     if let NominalDef::Struct(struct_def) = nominal_def {
                         if let StructFields::Explicit(fields) = &struct_def.fields {
                             let reader = self.reader();
                             let fields = reader.get_params_owned(*fields);
-                            if let Some((_, param)) = fields.get_by_name(field_name) {
-                                let param_ty = param.ty;
-                                return Ok(Some(self.builder().create_rt_term(param_ty)));
+
+                            match property {
+                                Field::Named(name) => {
+                                    if let Some((_, param)) = fields.get_by_name(name) {
+                                        let param_ty = param.ty;
+                                        return Ok(Some(self.builder().create_rt_term(param_ty)));
+                                    }
+                                }
+                                Field::Numeric(_) => return invalid_property_access(),
                             }
                         }
                     }
-                } else if let Level1Term::Tuple(tuple_ty) = level1_term {
-                    if let Some((_, param)) =
-                        self.params_store().get_by_name(tuple_ty.members, field_name)
-                    {
-                        let param_ty = param.ty;
-                        return Ok(Some(self.builder().create_rt_term(param_ty)));
+                } else if let Level1Term::Tuple(TupleTy { members }) = level1_term {
+                    match property {
+                        Field::Named(name) => {
+                            if let Some((_, param)) = self.params_store().get_by_name(members, name)
+                            {
+                                return Ok(Some(self.builder().create_rt_term(param.ty)));
+                            }
+                        }
+                        Field::Numeric(index) => {
+                            if index < members.len() {
+                                let member = self.params_store().get_at_index(members, index);
+                                return Ok(Some(member.ty));
+                            }
+                        }
                     }
                 }
                 // Otherwise return none.
@@ -317,14 +341,23 @@ impl<'tc> Simplifier<'tc> {
                 )
             }
             Level0Term::Constructed(ConstructedTerm { members, .. })
-            | Level0Term::Tuple(TupleLit { members }) => {
-                if let Some((_, member)) = self.args_store().get_by_name(*members, access_term.name)
-                {
-                    Ok(Some(member.value))
-                } else {
-                    name_not_found(access_term)
+            | Level0Term::Tuple(TupleLit { members }) => match access_term.name {
+                Field::Named(name) => {
+                    if let Some((_, member)) = self.args_store().get_by_name(*members, name) {
+                        Ok(Some(member.value))
+                    } else {
+                        name_not_found(access_term)
+                    }
                 }
-            }
+                Field::Numeric(index) => {
+                    if index < members.len() {
+                        let member = self.args_store().get_at_index(*members, index);
+                        Ok(Some(member.value))
+                    } else {
+                        name_not_found(access_term)
+                    }
+                }
+            },
             Level0Term::Lit(_) => {
                 // Create an Rt(..) of the value wrapped, and use that as the subject.
                 let term_value = Level0Term::Rt(self.typer().infer_ty_of_term(originating_term)?);
@@ -348,18 +381,21 @@ impl<'tc> Simplifier<'tc> {
             Level1Term::ModDef(mod_def_id) => {
                 does_not_support_prop_access(access_term)?;
 
+                let Field::Named(name) = access_term.name else {
+                    unreachable!()
+                };
+
                 // Get the scope of the module.
                 let mod_def_scope = self.reader().get_mod_def(*mod_def_id).members;
                 self.scope_manager().enter_scope(mod_def_scope, |this| {
                     // Resolve the name:
-                    let name_var = this.builder().create_var_term(access_term.name);
+                    let name_var = this.builder().create_var_term(name);
                     let result = this.simplifier().simplify_term(name_var).map_err(
                         turn_unresolved_var_err_into_unresolved_in_value_err(access_term),
                     )?;
 
-                    if let Some(member) = this
-                        .scope_store()
-                        .map_fast(mod_def_scope, |scope| scope.get(access_term.name))
+                    if let Some(member) =
+                        this.scope_store().map_fast(mod_def_scope, |scope| scope.get(name))
                     {
                         if let Some(inner_term) = result {
                             this.location_store()
@@ -371,10 +407,8 @@ impl<'tc> Simplifier<'tc> {
             }
             // Nominals:
             Level1Term::NominalDef(nominal_def_id) => {
-                let reader = self.reader();
-                let nominal_def = reader.get_nominal_def(*nominal_def_id);
-                match nominal_def {
-                    NominalDef::Struct(_struct_def) => {
+                match self.reader().get_nominal_def(*nominal_def_id) {
+                    NominalDef::Struct(_) => {
                         // Struct type access is not valid.
                         does_not_support_access(access_term)
                     }
@@ -382,7 +416,12 @@ impl<'tc> Simplifier<'tc> {
                         // Enum type access results in the runtime value of the variant
                         // (namespace operation).
                         does_not_support_prop_access(access_term)?;
-                        match enum_def.variants.get(&access_term.name) {
+
+                        let Field::Named(name) = access_term.name else {
+                            unreachable!()
+                        };
+
+                        match enum_def.variants.get(&name) {
                             Some(enum_variant) => {
                                 // Return a term that refers to the variant (level 0)
                                 let name = enum_variant.name;
@@ -414,11 +453,15 @@ impl<'tc> Simplifier<'tc> {
             Level2Term::Trt(trt_def_id) => {
                 does_not_support_prop_access(access_term)?;
 
+                let Field::Named(name) = access_term.name else {
+                    unreachable!()
+                };
+
                 // Get the scope of the trait.
                 let trt_def_scope = self.reader().get_trt_def(*trt_def_id).members;
                 let result = self.scope_manager().enter_scope(trt_def_scope, |this| {
                     // Resolve the type of the name:
-                    let name_var = this.builder().create_var_term(access_term.name);
+                    let name_var = this.builder().create_var_term(name);
                     this.typer()
                         .infer_ty_of_term(name_var)
                         .map_err(turn_unresolved_var_err_into_unresolved_in_value_err(access_term))

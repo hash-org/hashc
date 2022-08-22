@@ -1,4 +1,4 @@
-// run=fail, stage=semantics
+// run=fail, stage=semantic
 Mux := struct(
     val,
 
