@@ -10,10 +10,18 @@ use std::fmt::Display;
 /// (hold multiple children patterns).
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum PatOrigin {
+    /// The parent is a tuple, i.e `(x, 1, 2)`
     Tuple,
+    /// The parent is a pseudo-pattern originating as a named field of some
+    /// other parent pattern. Named fields could occur within tuples or
+    /// constructor patterns, i.e `Bar(max = 123)`, where the `max` would be
+    /// the named field.
     NamedField,
+    /// The parent pattern is a constructor, i.e `Some(x)`
     Constructor,
+    /// The parent pattern is a list, i.e `[1, 2, 3, ...]`
     List,
+    /// The parent pattern is a namespace, i.e `{ alloc, core }`
     Namespace,
 }
 
@@ -43,9 +51,13 @@ impl Display for PatOrigin {
 /// occur from.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum BlockOrigin {
+    /// Root block of the file.
     Root,
+    /// The block is a `mod` block.
     Mod,
+    /// The block is an `impl` block.
     Impl,
+    /// Block is a body of some kind.
     Body,
 }
 

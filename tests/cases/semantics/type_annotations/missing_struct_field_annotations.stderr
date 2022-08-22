@@ -1,15 +1,23 @@
-error: `function` parameter does not have enough information
-  --> $DIR/missing_struct_field_annotations.hash:17:9
-16 |   // a type can be inferred or a type annotation.
-17 |   bar := (val, max, bax = 4, bux: i32, mux: i32 = 7) -> () => {
-   |           ^^^ this `function` parameter is missing both a type annotation and a default value
-18 |       ()
-   = help: consider giving this function field a type annotation
+error: mismatching naming convention of fields within a struct
+ --> $DIR/missing_struct_field_annotations.hash:7:5
+6 |       // can be inferred or a type annotation.
+7 |       bax := 4,
+  |       ^^^^^^^^ this is expected to be a un-named field
+8 |       bux: i32,
+  = note: fields of a {origin} should all be named, or un-named since mixing naming conventions leads to ambiguities
 
-error: `function` parameter does not have enough information
-  --> $DIR/missing_struct_field_annotations.hash:17:14
-16 |   // a type can be inferred or a type annotation.
-17 |   bar := (val, max, bax = 4, bux: i32, mux: i32 = 7) -> () => {
-   |                ^^^ this `function` parameter is missing both a type annotation and a default value
-18 |       ()
-   = help: consider giving this function field a type annotation
+error: mismatching naming convention of fields within a struct
+ --> $DIR/missing_struct_field_annotations.hash:8:5
+7 |       bax := 4,
+8 |       bux: i32,
+  |       ^^^^^^^^ this is expected to be a un-named field
+9 |       mux: i32 = 7,
+  = note: fields of a {origin} should all be named, or un-named since mixing naming conventions leads to ambiguities
+
+error: mismatching naming convention of fields within a struct
+  --> $DIR/missing_struct_field_annotations.hash:9:5
+ 8 |       bux: i32,
+ 9 |       mux: i32 = 7,
+   |       ^^^^^^^^^^^^ this is expected to be a un-named field
+10 |   
+   = note: fields of a {origin} should all be named, or un-named since mixing naming conventions leads to ambiguities

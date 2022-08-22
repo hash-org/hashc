@@ -1850,7 +1850,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let fields = self.builder().create_params(entries, ParamOrigin::Struct);
 
         // add the location of each parameter
-        self.copy_location_from_nodes_to_targets(node.entries.ast_ref_iter(), fields);
+        self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), fields);
 
         // take the declaration hint here...
         let name = self.state.declaration_name_hint.take();

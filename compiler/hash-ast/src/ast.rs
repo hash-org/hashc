@@ -1227,7 +1227,7 @@ pub struct AssignOpExpr {
 #[derive(Debug, PartialEq, Clone)]
 pub struct StructDef {
     /// The fields of the struct, in the form of [Param].
-    pub entries: AstNodes<Param>,
+    pub fields: AstNodes<Param>,
 }
 
 /// A variant of an enum definition, e.g. `Some(T)`.

@@ -27,7 +27,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         );
         self.consume_gen(gen);
 
-        Ok(StructDef { entries })
+        Ok(StructDef { fields: entries })
     }
 
     /// Parse an [EnumDef]. The keyword `enum` begins the construct and is
@@ -74,7 +74,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         &mut self,
         origin: ParamOrigin,
     ) -> ParseResult<AstNode<Param>> {
-        let start = self.current_location();
+        let start = self.next_location();
 
         // Try and parse the name and type
         let (name, ty) = match self.peek_second() {

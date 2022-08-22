@@ -1,0 +1,7 @@
+error: mismatching naming convention of fields within a struct
+ --> $DIR/naming_conventions.hash:4:5
+3 |       arg,
+4 |       max: i32,
+  |       ^^^^^^^^ this is expected to be a un-named field
+5 |   );
+  = note: fields of a {origin} should all be named, or un-named since mixing naming conventions leads to ambiguities
