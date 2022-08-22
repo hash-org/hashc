@@ -91,7 +91,7 @@ impl Tc<'_> for TcImpl {
 
         match tc_visitor.visit_source() {
             Err(err) => {
-                tc_visitor.diagnostics().add_error(err.clone());
+                tc_visitor.diagnostics().add_error(err);
             }
             Ok(source_term) if !tc_visitor.diagnostics().has_errors() => {
                 // Print the result if no errors
