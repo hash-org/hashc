@@ -939,24 +939,12 @@ impl<'tc> Simplifier<'tc> {
                         // @@PartiallyBroken: Merged impls on the enum would not carry
                         // forward here, we need to somehow carry them forward while doing
                         // the access.
-                        let reader = self.reader();
-                        let nominal_def = reader.get_nominal_def(enum_variant.enum_def_id);
-                        match nominal_def {
-                            NominalDef::Enum(enum_def) => {
-                                // For an enum variant Foo::Bar(x: A, y: B), we create:
-                                // (x: A, y: B) -> Bar
-                                let params = enum_def
-                                    .variants
-                                    .get(&enum_variant.variant_name)
-                                    .expect("Enum variant name not found in def!")
-                                    .fields;
-                                let enum_def_id = enum_variant.enum_def_id;
-                                let return_ty = self.builder().create_nominal_def_term(enum_def_id);
-                                Ok(FnTy { params, return_ty })
-                            }
-                            NominalDef::Struct(_) => {
-                                tc_panic!(term_id, self, "Got struct def ID in enum variant!")
-                            }
+                        let variant = self.oracle().get_enum_variant_info(enum_variant);
+                        let enum_ty =
+                            self.builder().create_nominal_def_term(enum_variant.enum_def_id);
+                        match variant.fields {
+                            Some(fields) => Ok(FnTy { params: fields, return_ty: enum_ty }),
+                            None => cannot_use_as_fn_call_subject(),
                         }
                     }
                     Level0Term::FnCall(_) => {

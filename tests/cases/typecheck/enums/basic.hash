@@ -1,0 +1,18 @@
+// run=pass
+
+PrimaryColour := enum(Red, Green, Blue);
+
+ensure := <T> => (t: T) => {};
+
+main := () => {
+  ensure<PrimaryColour>(PrimaryColour::Red);
+  ensure<PrimaryColour>(PrimaryColour::Green);
+  ensure<PrimaryColour>(PrimaryColour::Blue);
+
+  red := PrimaryColour::Red;
+  ensure<PrimaryColour>(red);
+
+  many := [PrimaryColour::Red, PrimaryColour::Blue, PrimaryColour::Green];
+  ensure<List<PrimaryColour>>(many);
+};
+

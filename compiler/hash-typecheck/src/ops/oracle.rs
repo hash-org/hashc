@@ -3,12 +3,16 @@
 use hash_ast::ast::{IntTy, ParamOrigin};
 
 use super::AccessToOps;
-use crate::storage::{
-    primitives::{
-        EnumDef, FnTy, Level0Term, Level1Term, NominalDef, ScopeVar, StructDef, Term, TupleTy,
+use crate::{
+    diagnostics::macros::tc_panic,
+    storage::{
+        primitives::{
+            EnumDef, EnumVariant, EnumVariantValue, FnTy, Level0Term, Level1Term, NominalDef,
+            ScopeVar, StructDef, Term, TupleTy,
+        },
+        terms::TermId,
+        AccessToStorage, StorageRef,
     },
-    terms::TermId,
-    AccessToStorage, StorageRef,
 };
 
 pub struct Oracle<'tc> {
@@ -167,5 +171,37 @@ impl<'tc> Oracle<'tc> {
             Term::Level1(Level1Term::NominalDef(def)) => Some(self.reader().get_nominal_def(def)),
             _ => None,
         }
+    }
+
+    /// Given an [`EnumVariantValue`], get its corresponding [`EnumVariant`].
+    pub fn get_enum_variant_info(&self, enum_variant: EnumVariantValue) -> EnumVariant {
+        let dummy_term =
+            || self.builder().create_term(Term::Level0(Level0Term::EnumVariant(enum_variant)));
+        match self.reader().get_nominal_def(enum_variant.enum_def_id) {
+            NominalDef::Enum(enum_def) => {
+                *enum_def.variants.get(&enum_variant.variant_name).unwrap_or_else(|| {
+                    tc_panic!(
+                        dummy_term(),
+                        self,
+                        "Enum variant name {} not found in enum def",
+                        enum_variant.variant_name
+                    )
+                })
+            }
+            _ => tc_panic!(dummy_term(), self, "Found non-enum in enum variant value"),
+        }
+    }
+
+    /// If the term is an eum variant value, get it.
+    pub fn term_as_enum_variant_value(&self, term: TermId) -> Option<EnumVariantValue> {
+        match self.reader().get_term(term) {
+            Term::Level0(Level0Term::EnumVariant(enum_variant)) => Some(enum_variant),
+            _ => None,
+        }
+    }
+
+    /// If the term is an eum variant term, get its data.
+    pub fn get_enum_variant_term_data(&self, term: TermId) -> bool {
+        self.term_as_enum_def(term).is_some()
     }
 }

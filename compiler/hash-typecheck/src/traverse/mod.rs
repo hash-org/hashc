@@ -1204,7 +1204,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::Param>,
     ) -> Result<Self::ParamRet, Self::Error> {
         match node.origin {
-            ast::ParamOrigin::Struct | ast::ParamOrigin::Fn => {
+            ast::ParamOrigin::Struct | ast::ParamOrigin::Fn | ast::ParamOrigin::EnumVariant => {
                 self.visit_fn_or_struct_param(node, ctx)
             }
             ast::ParamOrigin::TyFn => self.visit_ty_fn_param(node, ctx),
@@ -1878,15 +1878,21 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let walk::EnumDefEntry { name, fields } = walk::walk_enum_def_entry(self, ctx, node)?;
 
         // Create the enum variant parameters
-        let params = fields
-            .iter()
-            .map(|field| -> TcResult<_> {
-                Ok(Param { name: field.name, ty: field.ty, default_value: None })
-            })
-            .collect::<TcResult<Vec<_>>>()?;
+        let params = if fields.is_empty() {
+            None
+        } else {
+            Some(
+                fields
+                    .iter()
+                    .map(|field| -> TcResult<_> {
+                        Ok(Param { name: field.name, ty: field.ty, default_value: None })
+                    })
+                    .collect::<TcResult<Vec<_>>>()?,
+            )
+        };
 
-        let fields = self.builder().create_params(params, ParamOrigin::EnumVariant);
-
+        let fields =
+            params.map(|params| self.builder().create_params(params, ParamOrigin::EnumVariant));
         Ok(EnumVariant { name, fields })
     }
 

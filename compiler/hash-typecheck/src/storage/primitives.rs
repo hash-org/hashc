@@ -529,7 +529,7 @@ pub struct StructDef {
 #[derive(Debug, Clone, Copy)]
 pub struct EnumVariant {
     pub name: Identifier,
-    pub fields: ParamsId,
+    pub fields: Option<ParamsId>,
 }
 
 /// An enum definition, containing a binding name and a set of variants.

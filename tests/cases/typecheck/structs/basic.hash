@@ -1,0 +1,15 @@
+Bin := struct(bang: char);
+Foo := struct(foo: str, bar: i32, baz: i32 = 10, bin: Bin);
+
+ensure := <T> => (t: T) => {};
+
+main := () => {
+  b := Bin(bang='c');
+  f := Foo(foo="3", bar=45, bin=b);
+  ensure<Foo>(f);
+  ensure<str>(f.foo);
+  ensure<i32>(f.bar);
+  ensure<i32>(f.baz);
+  ensure<Bin>(f.bin);
+  ensure<char>(f.bin.bang);
+};

@@ -15,10 +15,10 @@ use crate::{
 };
 
 impl<'tc> TcVisitor<'tc> {
-    /// Function that combines the logic between visiting struct
-    /// and function definition parameters/fields. The function
-    /// will perform the correct operations based on if there
-    /// is a present annotation type, and or default value.
+    /// Function that combines the logic between visiting struct, function and
+    /// enum definition parameters/fields. The function will perform the
+    /// correct operations based on if there is a present annotation type,
+    /// and or default value.
     pub(crate) fn visit_fn_or_struct_param(
         &mut self,
         node: ast::AstNodeRef<ast::Param>,
