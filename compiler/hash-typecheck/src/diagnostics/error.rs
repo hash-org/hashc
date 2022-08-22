@@ -23,7 +23,7 @@ use crate::{
         location::LocationTarget,
         params::ParamsId,
         pats::PatId,
-        primitives::{AccessOp, AccessTerm, Arg, Param, PatArg, TyFnCase},
+        primitives::{AccessOp, AccessTerm, Arg, Field, Param, PatArg, TyFnCase},
         terms::TermId,
         AccessToStorage, StorageRef,
     },
@@ -82,7 +82,7 @@ pub enum TcError {
     UnresolvedNameInValue {
         // @@ErrorReporting: add more info about the term. Maybe we need a general way of
         // characterising terms as a string (i.e. "struct", "enum", "module", etc).
-        name: Identifier,
+        name: Field,
         op: AccessOp,
         value: TermId,
     },
@@ -92,9 +92,9 @@ pub enum TcError {
     UnsupportedAccess { name: Identifier, value: TermId },
     /// The given value does not support namespace accessing (of the given
     /// name).
-    UnsupportedNamespaceAccess { name: Identifier, value: TermId },
+    UnsupportedNamespaceAccess { name: Field, value: TermId },
     /// The given value does not support property accessing (of the given name).
-    UnsupportedPropertyAccess { name: Identifier, value: TermId },
+    UnsupportedPropertyAccess { name: Field, value: TermId },
     /// The given type function cannot be applied to the given arguments, due to
     /// the given errors.
     InvalidTyFnApplication {
@@ -138,7 +138,7 @@ pub enum TcError {
     /// Cannot use this as a function call or struct subject.
     InvalidCallSubject { term: TermId },
     /// The given access operation does not resolve to a method.
-    InvalidPropertyAccessOfNonMethod { subject: TermId, property: Identifier },
+    InvalidPropertyAccessOfNonMethod { subject: TermId, property: Field },
     /// The given member requires an initialisation in the current scope.
     /// @@ErrorReporting: add span of member.
     UninitialisedMemberNotAllowed { member_ty: TermId },

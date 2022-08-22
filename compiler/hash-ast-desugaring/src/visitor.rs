@@ -262,6 +262,16 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         Ok(())
     }
 
+    type PropertyKindRet = ();
+
+    fn visit_property_kind(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::PropertyKind>,
+    ) -> Result<Self::PropertyKindRet, Self::Error> {
+        Ok(())
+    }
+
     type AccessExprRet = ();
 
     fn visit_access_expr(
@@ -461,7 +471,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
     }
 
     type NamedTyRet = ();
-
     fn visit_named_ty(
         &mut self,
         _: &Self::Ctx,
@@ -471,6 +480,7 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
     }
 
     type AccessTyRet = ();
+
     fn visit_access_ty(
         &mut self,
         _: &Self::Ctx,

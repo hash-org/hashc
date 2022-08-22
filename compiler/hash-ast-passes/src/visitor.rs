@@ -293,6 +293,16 @@ impl AstVisitor for SemanticAnalyser<'_> {
         Ok(())
     }
 
+    type PropertyKindRet = ();
+
+    fn visit_property_kind(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRef<hash_ast::ast::PropertyKind>,
+    ) -> Result<Self::PropertyKindRet, Self::Error> {
+        Ok(())
+    }
+
     type AccessExprRet = ();
 
     fn visit_access_expr(

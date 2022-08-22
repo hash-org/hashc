@@ -4,8 +4,8 @@ use std::{path::PathBuf, str::FromStr};
 
 use hash_ast::{ast::*, ast_nodes};
 use hash_reporting::diagnostic::Diagnostics;
-use hash_source::location::Span;
-use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
+use hash_source::{constant::CONSTANT_MAP, location::Span};
+use hash_token::{delimiter::Delimiter, keyword::Keyword, Sign, Token, TokenKind, TokenKindVector};
 use smallvec::smallvec;
 
 use super::AstGen;
@@ -778,10 +778,40 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         debug_assert!(self.current_token().has_kind(TokenKind::Dot));
         let span = subject.span();
 
+        if let Some(token) = self.peek() && token.kind.is_numeric() {
+            // If the next token kind is a integer with no sign, then we can assume 
+            // that this is a numeric field access, otherwise we can say that 
+            // `-` was an unexpected token here... 
+            if let TokenKind::IntLit(sign, value) = token.kind && sign == Sign::None {
+                // Now read the value and verify that it has no numeric prefix
+                let interned_lit = CONSTANT_MAP.lookup_int_constant(value);
+
+                if let Some(suffix )= interned_lit.suffix {
+                    return self.err_with_location(ParseErrorKind::DisallowedSuffix(suffix), None, None, token.span)?;
+                }
+
+                self.skip_token();
+                let value = usize::try_from(interned_lit.to_big_int()).map_err(|_| {
+                    self.make_err(ParseErrorKind::InvalidPropertyAccess, None, None, Some(token.span))
+                })?;
+
+                let property = self.node_with_span(PropertyKind::NumericField(value), token.span);
+
+                return Ok(self.node_with_joined_span(
+                    Expr::new(ExprKind::Access(AccessExpr {
+                        subject,
+                        property,
+                        kind: AccessKind::Property,
+                    })),
+                    span,
+                ))
+            }
+        }
+
         Ok(self.node_with_joined_span(
             Expr::new(ExprKind::Access(AccessExpr {
                 subject,
-                property: self.parse_name_with_error(ParseErrorKind::ExpectedPropertyAccess)?,
+                property: self.parse_named_field(ParseErrorKind::ExpectedPropertyAccess)?,
                 kind: AccessKind::Property,
             })),
             span,
@@ -796,7 +826,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         Ok(self.node_with_joined_span(
             Expr::new(ExprKind::Access(AccessExpr {
                 subject,
-                property: self.parse_name()?,
+                property: self.parse_named_field(ParseErrorKind::ExpectedName)?,
                 kind: AccessKind::Namespace,
             })),
             span,
@@ -922,8 +952,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             _ => None,
         };
 
-        Ok(self
-            .node_with_joined_span(Param { name, ty, default, origin: ParamOrigin::Fn }, name_span))
+        Ok(self.node_with_joined_span(
+            Param { name: Some(name), ty, default, origin: ParamOrigin::Fn },
+            name_span,
+        ))
     }
 
     /// Parse a [FnDef]. Function literals are essentially definitions

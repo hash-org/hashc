@@ -31,8 +31,8 @@ use crate::{
         location::{IndexedLocationTarget, LocationTarget},
         pats::PatId,
         primitives::{
-            AccessOp, Arg, BindingPat, ConstPat, EnumVariant, Member, ModDefOrigin, Mutability,
-            Param, Pat, PatArg, RangePat, ScopeKind, SpreadPat, Sub, Visibility,
+            AccessOp, Arg, BindingPat, ConstPat, EnumVariant, Field, Member, ModDefOrigin,
+            Mutability, Param, Pat, PatArg, RangePat, ScopeKind, SpreadPat, Sub, Visibility,
         },
         terms::TermId,
         AccessToStorage, LocalStorage, StorageRef,
@@ -525,6 +525,19 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         self.copy_location_from_node_to_target(node, return_term);
 
         Ok(self.validator().validate_term(return_term)?.simplified_term_id)
+    }
+
+    type PropertyKindRet = Field;
+
+    fn visit_property_kind(
+        &mut self,
+        _: &Self::Ctx,
+        node: ast::AstNodeRef<ast::PropertyKind>,
+    ) -> Result<Self::PropertyKindRet, Self::Error> {
+        Ok(match node.body() {
+            ast::PropertyKind::NamedField(name) => Field::Named(*name),
+            ast::PropertyKind::NumericField(index) => Field::Numeric(*index),
+        })
     }
 
     type AccessExprRet = TermId;
@@ -1043,7 +1056,6 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     }
 
     type UnionTyRet = TermId;
-
     fn visit_union_ty(
         &mut self,
         ctx: &Self::Ctx,
@@ -1059,6 +1071,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     }
 
     type TyFnDefRet = TermId;
+
     fn visit_ty_fn_def(
         &mut self,
         ctx: &Self::Ctx,
@@ -1185,7 +1198,6 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     }
 
     type ParamRet = Param;
-
     fn visit_param(
         &mut self,
         ctx: &Self::Ctx,
@@ -1202,6 +1214,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     }
 
     type BlockRet = TermId;
+
     fn visit_block(
         &mut self,
         ctx: &Self::Ctx,
@@ -1495,7 +1508,6 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     }
 
     type ContinueStatementRet = TermId;
-
     fn visit_continue_statement(
         &mut self,
         _ctx: &Self::Ctx,
@@ -1510,6 +1522,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     }
 
     type VisibilityRet = Visibility;
+
     fn visit_visibility_modifier(
         &mut self,
         _ctx: &Self::Ctx,
@@ -1545,7 +1558,6 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     }
 
     type DeclarationRet = TermId;
-
     fn visit_declaration(
         &mut self,
         ctx: &Self::Ctx,
@@ -1648,6 +1660,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     }
 
     type MergeDeclarationRet = TermId;
+
     fn visit_merge_declaration(
         &mut self,
         _ctx: &Self::Ctx,
@@ -1862,12 +1875,14 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::EnumDefEntry>,
     ) -> Result<Self::EnumDefEntryRet, Self::Error> {
-        let walk::EnumDefEntry { name, args } = walk::walk_enum_def_entry(self, ctx, node)?;
+        let walk::EnumDefEntry { name, fields } = walk::walk_enum_def_entry(self, ctx, node)?;
 
         // Create the enum variant parameters
-        let params = args
+        let params = fields
             .iter()
-            .map(|arg| -> TcResult<_> { Ok(Param { name: None, ty: *arg, default_value: None }) })
+            .map(|field| -> TcResult<_> {
+                Ok(Param { name: field.name, ty: field.ty, default_value: None })
+            })
             .collect::<TcResult<Vec<_>>>()?;
 
         let fields = self.builder().create_params(params, ParamOrigin::EnumVariant);
@@ -2118,7 +2133,6 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     }
 
     type OrPatRet = PatId;
-
     fn visit_or_pat(
         &mut self,
         ctx: &Self::Ctx,
@@ -2131,6 +2145,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     }
 
     type IfPatRet = PatId;
+
     fn visit_if_pat(
         &mut self,
         ctx: &Self::Ctx,

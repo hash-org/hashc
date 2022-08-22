@@ -111,12 +111,22 @@ pub enum ParseErrorKind {
     ExpectedLit,
     /// Invalid literal ascription for either `float` or `integer`
     InvalidLitSuffix(NumericLitKind, Identifier),
+    /// When a suffix is not allowed on a numeric literal, specifically
+    /// when it used as a property access field.
+    DisallowedSuffix(Identifier),
+    /// When a property access is invalid: currently emitted when:
+    ///
+    /// - numeric fields attempt to access a field which is larger than [usize].
+    InvalidPropertyAccess,
 }
 
 /// Conversion implementation from an AST Generator Error into a Parser Error.
 impl From<ParseError> for Report {
     fn from(err: ParseError) -> Self {
         let expected = err.expected;
+
+        // Default label used when marking where the error occurred
+        let mut span_label = "".to_string();
 
         // We can have multiple notes describing what could be done about the error.
         let mut help_notes = vec![];
@@ -178,6 +188,12 @@ impl From<ParseError> for Report {
 
                 format!("invalid suffix `{suffix}` for {kind} literal")
             }
+            ParseErrorKind::DisallowedSuffix(suffix) => {
+                span_label = format!("disallowed suffix `{}`", suffix);
+
+                "suffixes on property access fields are disallowed".to_string()
+            }
+            ParseErrorKind::InvalidPropertyAccess => "invalid property access".to_string(),
         };
 
         // `AstGenErrorKind::Expected` format the error message in their own way,
@@ -206,7 +222,7 @@ impl From<ParseError> for Report {
         builder
             .with_kind(ReportKind::Error)
             .with_message(base_message)
-            .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(err.location, "here")));
+            .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(err.location, span_label)));
 
         // Add the `help` messages to the report
         for note in help_notes {

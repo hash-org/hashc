@@ -9,11 +9,11 @@ Point := struct(
 Triangle := struct(
     x: Point = Point (x = 0, y = 0),
     y: Point,
-    z = Point( x = 0, y = 0), // Type should be inferred from default value?
+    z := Point( x = 0, y = 0), // Type should be inferred from default value?
 );
 
 
 Rectangle := struct(
     x: Point = Point( x = 0, y = 0),
-    y = x + t_delta,
+    y := x + t_delta,
 );
