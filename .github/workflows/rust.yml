@@ -31,11 +31,7 @@ jobs:
         with:
           command: test
           args: --all --verbose
-      - name: Generate documentation
-        uses: actions-rs/cargo@v1
-        with:
-          command: doc
-          args: --all --verbose
+   
       - name: Run clippy
         uses: actions-rs/cargo@v1
         with:
