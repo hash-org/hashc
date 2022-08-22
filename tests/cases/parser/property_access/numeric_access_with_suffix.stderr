@@ -1,0 +1,6 @@
+error: suffixes on property access fields are disallowed
+ --> $DIR/numeric_access_with_suffix.hash:6:7
+5 |   
+6 |       t.1u32
+  |         ^^^^ disallowed suffix `u32`
+7 |   };
