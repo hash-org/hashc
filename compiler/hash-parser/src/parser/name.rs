@@ -42,7 +42,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             Some(Token { kind: TokenKind::Ident(ident), span })
                 if *ident != CORE_IDENTIFIERS.underscore =>
             {
-                Ok(self.node_with_span(PropertyKind::Field(*ident), *span))
+                Ok(self.node_with_span(PropertyKind::NamedField(*ident), *span))
             }
             token => self.err_with_location(
                 err,

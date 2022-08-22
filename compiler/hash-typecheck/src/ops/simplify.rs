@@ -2,6 +2,7 @@
 use std::iter;
 
 use hash_ast::ast::ParamOrigin;
+use hash_source::identifier::Identifier;
 use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
 use itertools::Itertools;
 
@@ -43,10 +44,10 @@ fn does_not_support_access<T>(access_term: &AccessTerm) -> TcResult<T> {
 
 // Helper for [Simplifier::apply_access_term] erroring for things that only
 // support namespace access:
-fn does_not_support_prop_access(access_term: &AccessTerm) -> TcResult<()> {
+fn does_not_support_prop_access(access_term: &AccessTerm) -> TcResult<Identifier> {
     match access_term.op {
         AccessOp::Namespace => match access_term.name {
-            Field::Named(_) => Ok(()),
+            Field::Named(name) => Ok(name),
             _ => Err(TcError::UnsupportedPropertyAccess {
                 name: access_term.name,
                 value: access_term.subject,
@@ -379,11 +380,7 @@ impl<'tc> Simplifier<'tc> {
         match term {
             // Modules:
             Level1Term::ModDef(mod_def_id) => {
-                does_not_support_prop_access(access_term)?;
-
-                let Field::Named(name) = access_term.name else {
-                    unreachable!()
-                };
+                let name = does_not_support_prop_access(access_term)?;
 
                 // Get the scope of the module.
                 let mod_def_scope = self.reader().get_mod_def(*mod_def_id).members;
@@ -415,11 +412,7 @@ impl<'tc> Simplifier<'tc> {
                     NominalDef::Enum(enum_def) => {
                         // Enum type access results in the runtime value of the variant
                         // (namespace operation).
-                        does_not_support_prop_access(access_term)?;
-
-                        let Field::Named(name) = access_term.name else {
-                            unreachable!()
-                        };
+                        let name = does_not_support_prop_access(access_term)?;
 
                         match enum_def.variants.get(&name) {
                             Some(enum_variant) => {
@@ -451,11 +444,7 @@ impl<'tc> Simplifier<'tc> {
         match term {
             // Traits:
             Level2Term::Trt(trt_def_id) => {
-                does_not_support_prop_access(access_term)?;
-
-                let Field::Named(name) = access_term.name else {
-                    unreachable!()
-                };
+                let name = does_not_support_prop_access(access_term)?;
 
                 // Get the scope of the trait.
                 let trt_def_scope = self.reader().get_trt_def(*trt_def_id).members;

@@ -1639,7 +1639,7 @@ impl Display for AccessKind {
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum PropertyKind {
     /// A named field like
-    Field(Identifier),
+    NamedField(Identifier),
 
     /// The numeric value of the index that's being accessed
     NumericField(usize),

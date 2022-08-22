@@ -533,7 +533,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         node: ast::AstNodeRef<ast::PropertyKind>,
     ) -> Result<Self::PropertyKindRet, Self::Error> {
         Ok(match node.body() {
-            ast::PropertyKind::Field(name) => Field::Named(*name),
+            ast::PropertyKind::NamedField(name) => Field::Named(*name),
             ast::PropertyKind::NumericField(index) => Field::Numeric(*index),
         })
     }

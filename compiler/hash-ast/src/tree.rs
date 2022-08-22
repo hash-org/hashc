@@ -265,7 +265,7 @@ impl AstVisitor for AstTreeGenerator {
         node: ast::AstNodeRef<ast::PropertyKind>,
     ) -> Result<Self::PropertyKindRet, Self::Error> {
         Ok(match node.body() {
-            ast::PropertyKind::Field(name) => TreeNode::leaf(labelled("property", name, "\"")),
+            ast::PropertyKind::NamedField(name) => TreeNode::leaf(labelled("property", name, "\"")),
             ast::PropertyKind::NumericField(name) => {
                 TreeNode::leaf(labelled("numeric_property", name, "\""))
             }
