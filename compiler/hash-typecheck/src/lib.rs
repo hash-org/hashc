@@ -89,15 +89,15 @@ impl Tc<'_> for TcImpl {
         };
         let mut tc_visitor = TcVisitor::new_in_source(storage.storages(), workspace.node_map());
 
-        let result = tc_visitor.visit_source();
-
-        if let Err(err) = result {
-            tc_visitor.diagnostics().add_error(err);
-        } else {
-            // Print the result if no errors
-            if let Ok(source_term) = result {
+        match tc_visitor.visit_source() {
+            Err(err) => {
+                tc_visitor.diagnostics().add_error(err.clone());
+            }
+            Ok(source_term) if !tc_visitor.diagnostics().has_errors() => {
+                // Print the result if no errors
                 println!("{}", source_term.for_formatting(storage.global_storage()));
             }
+            Ok(_) => {}
         }
 
         // If there are diagnostics that were generated or the result itself returned
