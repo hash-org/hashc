@@ -12,6 +12,7 @@ use super::{
     directives::DirectiveArgument,
     origins::{BlockOrigin, PatOrigin},
 };
+use crate::analysis::params::FieldNamingExpectation;
 
 /// An error that can occur during the semantic pass
 pub struct AnalysisError {
@@ -88,6 +89,14 @@ pub(crate) enum AnalysisErrorKind {
         name: Identifier,
         expected: DirectiveArgument,
         given: DirectiveArgument,
+    },
+    /// When fields of a `struct` or `enum` use inconsistent naming
+    InconsistentFieldNaming {
+        /// Whether the name is expected to be named or not.
+        naming_expectation: FieldNamingExpectation,
+
+        /// The origin of where the parameter came from.
+        origin: ParamOrigin,
     },
 }
 
@@ -258,6 +267,21 @@ impl From<AnalysisError> for Report {
                     .add_element(ReportElement::Note(ReportNote::new(
                         ReportNoteKind::Note,
                         "float-like literals are disallowed within patterns because performing comparisons is not possible",
+                    )));
+            }
+            AnalysisErrorKind::InconsistentFieldNaming { naming_expectation, origin } => {
+                builder.with_message(format!(
+                    "mismatching naming convention of fields within a {origin}"
+                ));
+
+                builder
+                    .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        err.location,
+                        format!("this is expected to be a {naming_expectation} field"),
+                    )))
+                    .add_element(ReportElement::Note(ReportNote::new(
+                        ReportNoteKind::Note,
+                        "fields of a {origin} should all be named, or un-named since mixing naming conventions leads to ambiguities",
                     )));
             }
         };

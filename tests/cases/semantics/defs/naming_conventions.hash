@@ -1,0 +1,30 @@
+// run=fail, stage=semantic
+Boo := struct(
+    arg,
+    max: i32,
+);
+
+Moo := struct(
+    arg,
+    max,
+);
+
+Foo := struct(
+    bax: i32,
+    max: i32,
+);
+
+Mux := enum(
+    Crux(
+        bax: i32,
+        max: i32,
+    ),
+    Tux(
+        bax,
+        max,
+    ),
+    Lux(
+        bax: i32,
+        max,
+    ),
+);

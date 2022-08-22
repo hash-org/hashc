@@ -2901,7 +2901,7 @@ pub mod walk {
         Ok(StructDef {
             entries: V::try_collect_items(
                 ctx,
-                node.entries.iter().map(|b| visitor.visit_param(ctx, b.ast_ref())),
+                node.fields.iter().map(|b| visitor.visit_param(ctx, b.ast_ref())),
             )?,
         })
     }
@@ -4615,7 +4615,7 @@ pub mod walk_mut {
         Ok(StructDef {
             entries: V::try_collect_items(
                 ctx,
-                node.entries.iter_mut().map(|b| visitor.visit_param(ctx, b.ast_ref_mut())),
+                node.fields.iter_mut().map(|b| visitor.visit_param(ctx, b.ast_ref_mut())),
             )?,
         })
     }

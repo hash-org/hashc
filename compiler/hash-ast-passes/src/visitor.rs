@@ -8,8 +8,8 @@ use std::{collections::HashSet, convert::Infallible, mem};
 use ::if_chain::if_chain;
 use hash_ast::{
     ast::{
-        BindingPat, Block, BlockExpr, ExprKind, LitExpr, ModulePatEntry, Mutability, ParamOrigin,
-        Pat, TuplePatEntry,
+        BindingPat, Block, BlockExpr, ExprKind, LitExpr, ModulePatEntry, Mutability, Pat,
+        TuplePatEntry,
     },
     visitor::{walk, AstVisitor},
 };
@@ -600,19 +600,6 @@ impl AstVisitor for SemanticAnalyser<'_> {
     ) -> Result<Self::ParamRet, Self::Error> {
         let _ = walk::walk_param(self, ctx, node);
 
-        // If both the type definition is missing and the default expression assignment
-        // to the struct-def field, then a type cannot be inferred and is thus
-        // ambiguous.
-        if matches!(node.origin, ParamOrigin::Struct | ParamOrigin::Fn)
-            && node.ty.is_none()
-            && node.default.is_none()
-        {
-            self.append_error(
-                AnalysisErrorKind::InsufficientTypeAnnotations { origin: node.origin },
-                node,
-            );
-        }
-
         Ok(())
     }
 
@@ -936,6 +923,10 @@ impl AstVisitor for SemanticAnalyser<'_> {
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::StructDef>,
     ) -> Result<Self::StructDefRet, Self::Error> {
         let _ = walk::walk_struct_def(self, ctx, node);
+
+        // Verify that all of the specified fields are either named, or all un-named!
+        self.check_field_naming(node.fields.ast_ref_iter());
+
         Ok(())
     }
 
@@ -944,8 +935,11 @@ impl AstVisitor for SemanticAnalyser<'_> {
     fn visit_enum_def_entry(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::EnumDefEntry>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::EnumDefEntry>,
     ) -> Result<Self::EnumDefEntryRet, Self::Error> {
+        // Verify that all of the specified fields are either named, or all un-named!
+        self.check_field_naming(node.fields.ast_ref_iter());
+
         Ok(())
     }
 

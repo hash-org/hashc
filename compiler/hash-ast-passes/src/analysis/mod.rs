@@ -1,6 +1,10 @@
 //! Hash semantic analyser definitions. This file holds the [SemanticAnalyser]
 //! definition with some shared functions to append diagnostics to the analyser.
 
+mod block;
+pub(crate) mod params;
+mod pat;
+
 use crossbeam_channel::Sender;
 use hash_ast::ast::AstNodeRef;
 use hash_reporting::diagnostic::Diagnostics;
@@ -15,9 +19,6 @@ use crate::diagnostics::{
     warning::{AnalysisWarning, AnalysisWarningKind},
     AnalyserDiagnostics, AnalysisDiagnostic,
 };
-
-mod block;
-mod pat;
 
 pub struct SemanticAnalyser<'s> {
     /// Whether the current visitor is within a loop construct.
