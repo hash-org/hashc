@@ -644,7 +644,8 @@ impl AstVisitor for AstTreeGenerator {
         let walk::Param { name, ty, default } = walk::walk_param(self, ctx, node)?;
         Ok(TreeNode::branch(
             "param",
-            iter::once(TreeNode::branch("name", vec![name]))
+            iter::empty()
+                .chain(name.map(|t| TreeNode::branch("name", vec![t])))
                 .chain(ty.map(|t| TreeNode::branch("type", vec![t])))
                 .chain(default.map(|d| TreeNode::branch("default", vec![d])))
                 .collect(),
@@ -975,10 +976,10 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::EnumDefEntry>,
     ) -> Result<Self::EnumDefEntryRet, Self::Error> {
-        let walk::EnumDefEntry { name, args } = walk::walk_enum_def_entry(self, ctx, node)?;
+        let walk::EnumDefEntry { name, fields } = walk::walk_enum_def_entry(self, ctx, node)?;
         Ok(TreeNode::branch(
             labelled("variant", name.label, "\""),
-            if args.is_empty() { vec![] } else { vec![TreeNode::branch("args", args)] },
+            if fields.is_empty() { vec![] } else { vec![TreeNode::branch("fields", fields)] },
         ))
     }
 

@@ -338,7 +338,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
             args.push(self.node_with_span(
                 Param {
-                    name,
+                    name: Some(name),
                     ty,
                     default: default.map(|node| {
                         let span = node.span();

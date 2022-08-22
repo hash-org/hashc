@@ -1876,12 +1876,14 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::EnumDefEntry>,
     ) -> Result<Self::EnumDefEntryRet, Self::Error> {
-        let walk::EnumDefEntry { name, args } = walk::walk_enum_def_entry(self, ctx, node)?;
+        let walk::EnumDefEntry { name, fields } = walk::walk_enum_def_entry(self, ctx, node)?;
 
         // Create the enum variant parameters
-        let params = args
+        let params = fields
             .iter()
-            .map(|arg| -> TcResult<_> { Ok(Param { name: None, ty: *arg, default_value: None }) })
+            .map(|field| -> TcResult<_> {
+                Ok(Param { name: field.name, ty: field.ty, default_value: None })
+            })
             .collect::<TcResult<Vec<_>>>()?;
 
         let fields = self.builder().create_params(params, ParamOrigin::EnumVariant);

@@ -953,8 +953,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             _ => None,
         };
 
-        Ok(self
-            .node_with_joined_span(Param { name, ty, default, origin: ParamOrigin::Fn }, name_span))
+        Ok(self.node_with_joined_span(
+            Param { name: Some(name), ty, default, origin: ParamOrigin::Fn },
+            name_span,
+        ))
     }
 
     /// Parse a [FnDef]. Function literals are essentially definitions

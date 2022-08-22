@@ -1390,7 +1390,7 @@ pub mod walk {
     use super::{ast, AstVisitor};
 
     pub struct Param<V: AstVisitor> {
-        pub name: V::NameRet,
+        pub name: Option<V::NameRet>,
         pub ty: Option<V::TyRet>,
         pub default: Option<V::ExprRet>,
     }
@@ -1401,7 +1401,7 @@ pub mod walk {
         node: ast::AstNodeRef<ast::Param>,
     ) -> Result<Param<V>, V::Error> {
         Ok(Param {
-            name: visitor.visit_name(ctx, node.name.ast_ref())?,
+            name: node.name.as_ref().map(|t| visitor.visit_name(ctx, t.ast_ref())).transpose()?,
             ty: node.ty.as_ref().map(|t| visitor.visit_ty(ctx, t.ast_ref())).transpose()?,
             default: node
                 .default
@@ -2908,7 +2908,7 @@ pub mod walk {
 
     pub struct EnumDefEntry<V: AstVisitor> {
         pub name: V::NameRet,
-        pub args: V::CollectionContainer<V::TyRet>,
+        pub fields: V::CollectionContainer<V::ParamRet>,
     }
     pub fn walk_enum_def_entry<V: AstVisitor>(
         visitor: &mut V,
@@ -2917,9 +2917,9 @@ pub mod walk {
     ) -> Result<EnumDefEntry<V>, V::Error> {
         Ok(EnumDefEntry {
             name: visitor.visit_name(ctx, node.name.ast_ref())?,
-            args: V::try_collect_items(
+            fields: V::try_collect_items(
                 ctx,
-                node.args.iter().map(|b| visitor.visit_ty(ctx, b.ast_ref())),
+                node.fields.iter().map(|b| visitor.visit_param(ctx, b.ast_ref())),
             )?,
         })
     }
@@ -3024,7 +3024,7 @@ pub mod walk_mut {
     use crate::ast::AstNodeRefMut;
 
     pub struct Param<V: AstVisitorMut> {
-        pub name: V::NameRet,
+        pub name: Option<V::NameRet>,
         pub ty: Option<V::TyRet>,
         pub default: Option<V::ExprRet>,
     }
@@ -3035,7 +3035,11 @@ pub mod walk_mut {
         mut node: ast::AstNodeRefMut<ast::Param>,
     ) -> Result<Param<V>, V::Error> {
         Ok(Param {
-            name: visitor.visit_name(ctx, node.name.ast_ref_mut())?,
+            name: node
+                .name
+                .as_mut()
+                .map(|t| visitor.visit_name(ctx, t.ast_ref_mut()))
+                .transpose()?,
             ty: node.ty.as_mut().map(|t| visitor.visit_ty(ctx, t.ast_ref_mut())).transpose()?,
             default: node
                 .default
@@ -4618,7 +4622,7 @@ pub mod walk_mut {
 
     pub struct EnumDefEntry<V: AstVisitorMut> {
         pub name: V::NameRet,
-        pub args: V::CollectionContainer<V::TyRet>,
+        pub fields: V::CollectionContainer<V::ParamRet>,
     }
     pub fn walk_enum_def_entry<V: AstVisitorMut>(
         visitor: &mut V,
@@ -4627,9 +4631,9 @@ pub mod walk_mut {
     ) -> Result<EnumDefEntry<V>, V::Error> {
         Ok(EnumDefEntry {
             name: visitor.visit_name(ctx, node.name.ast_ref_mut())?,
-            args: V::try_collect_items(
+            fields: V::try_collect_items(
                 ctx,
-                node.args.iter_mut().map(|b| visitor.visit_ty(ctx, b.ast_ref_mut())),
+                node.fields.iter_mut().map(|p| visitor.visit_param(ctx, p.ast_ref_mut())),
             )?,
         })
     }

@@ -1235,8 +1235,8 @@ pub struct StructDef {
 pub struct EnumDefEntry {
     /// The name of the enum variant.
     pub name: AstNode<Name>,
-    /// The arguments of the enum variant, if any.
-    pub args: AstNodes<Ty>,
+    /// The parameters of the enum variant, if any.
+    pub fields: AstNodes<Param>,
 }
 
 /// An enum definition, e.g. `enum Option = <T> => { Some(T); None; };`.
@@ -1561,7 +1561,7 @@ impl Display for ParamOrigin {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Param {
     /// The name of the argument.
-    pub name: AstNode<Name>,
+    pub name: Option<AstNode<Name>>,
     /// The type of the argument, if any.
     pub ty: Option<AstNode<Ty>>,
     /// Default value of the argument if provided.
