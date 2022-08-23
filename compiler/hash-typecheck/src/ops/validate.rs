@@ -2,6 +2,7 @@
 use std::{collections::HashSet, fmt::Display};
 
 use hash_ast::ast::{ParamOrigin, RangeEnd};
+use hash_reporting::diagnostic::Diagnostics;
 use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreCopy, SequenceStoreKey, Store};
 use itertools::Itertools;
 
@@ -206,8 +207,6 @@ impl<'tc> Validator<'tc> {
         scope_originating_term_id: TermId,
         scope_id: ScopeId,
     ) -> TcResult<()> {
-        let scope = self.reader().get_scope_copy(scope_id);
-
         // Simplify the term and ensure it is a trait
         let simplified_trt_def_term_id =
             self.simplifier().potentially_simplify_term(trt_def_term_id)?;
@@ -226,14 +225,19 @@ impl<'tc> Validator<'tc> {
                 })
             }
             Term::Level2(Level2Term::Trt(trt_def_id)) => {
-                let trt_def_members = self.reader().get_trt_def(trt_def_id).members;
-                // @@Performance: cloning :((
-                let trt_def_members = self.reader().get_scope_copy(trt_def_members);
+                let scope = self.reader().get_scope_copy(scope_id);
+                let mut member_map = vec![false; scope.members.len()];
+
+                let members_id = self.reader().get_trt_def(trt_def_id).members;
+                let trt_def_members = self.reader().get_scope_copy(members_id); // @@Performance: cloning :((
 
                 // Ensure all members have been implemented:
                 for trt_member in trt_def_members.iter() {
-                    if let Some((scope_member, _)) = scope.get(trt_member.name()) {
+                    if let Some((scope_member, index)) = scope.get(trt_member.name()) {
                         let _ = self.unifier().unify_terms(scope_member.ty(), trt_member.ty())?;
+
+                        // Mark this member as being used
+                        member_map[index] = true;
                     } else {
                         return Err(TcError::TraitImplMissingMember {
                             trt_def_term_id,
@@ -243,9 +247,36 @@ impl<'tc> Validator<'tc> {
                     }
                 }
 
-                // @@Design: do we want to block the implementation of members
-                // that are not in the trait definition?
-                Ok(())
+                let mut err = None;
+
+                // Check for any rogue functions that are attached on the impl block
+                for (index, used) in member_map.into_iter().enumerate() {
+                    if !used {
+                        let member = scope.get_by_index(index);
+
+                        // We want to join the declaration span and the value span in order to show
+                        // the whole member...
+                        let (name_loc, value_loc) = ((scope_id, index).into(), member.location());
+                        let member_span = self
+                            .location_store()
+                            .merge_locations([name_loc, value_loc].into_iter());
+
+                        let member_error = TcError::MethodNotAMemberOfTrait {
+                            trt_def_term_id,
+                            member: member_span,
+                            name: member.name(),
+                        };
+
+                        // Emit the error if we already have a recorded initial error...
+                        if err.is_some() {
+                            self.diagnostics().add_error(member_error);
+                        } else {
+                            err = Some(member_error);
+                        }
+                    }
+                }
+
+                err.map_or(Ok(()), Err)
             }
             _ => Err(TcError::CannotImplementNonTrait { term: simplified_trt_def_term_id }),
         }
