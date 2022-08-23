@@ -6,13 +6,13 @@ error[0017]: struct literal is missing the fields `age`, and `width`
 15 |   };
 
   --> $DIR/missing-fields.hash:3:8
- 2 |    
- 3 |    Dog := struct(
+2  |    
+3  |    Dog := struct(
    |  _________-
- 4 | |      name: str,
- 5 | |      age: i32,
- 6 | |      width: f32,
- 7 | |      height: f32,
- 8 | |  );
+4  | |      name: str,
+5  | |      age: i32,
+6  | |      width: f32,
+7  | |      height: f32,
+8  | |  );
    | |___- the struct is defined here
- 9 |    
+9  |    
