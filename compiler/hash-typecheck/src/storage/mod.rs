@@ -13,6 +13,7 @@ pub mod cache;
 pub mod deconstructed;
 pub mod location;
 pub mod mods;
+pub mod nodes;
 pub mod nominals;
 pub mod param_list;
 pub mod params;
@@ -34,6 +35,7 @@ use self::{
     deconstructed::{DeconstructedCtorStore, DeconstructedPatStore},
     location::LocationStore,
     mods::ModDefStore,
+    nodes::NodeInfoStore,
     nominals::NominalDefStore,
     params::ParamsStore,
     pats::{PatArgsStore, PatStore},
@@ -66,6 +68,7 @@ pub struct GlobalStorage {
     pub pat_store: PatStore,
     pub pat_args_store: PatArgsStore,
     pub checked_sources: CheckedSources,
+    pub node_info_store: NodeInfoStore,
 
     /// Storage for tc diagnostics
     pub diagnostics_store: DiagnosticsStore,
@@ -98,6 +101,7 @@ impl GlobalStorage {
             location_store: LocationStore::new(),
             term_store: TermStore::new(),
             term_list_store: TermListStore::new(),
+            node_info_store: NodeInfoStore::new(),
             scope_store,
             diagnostics_store: DiagnosticsStore::default(),
             trt_def_store: TrtDefStore::new(),
@@ -195,6 +199,10 @@ pub trait AccessToStorage {
 
     fn term_list_store(&self) -> &TermListStore {
         &self.global_storage().term_list_store
+    }
+
+    fn node_info_store(&self) -> &NodeInfoStore {
+        &self.global_storage().node_info_store
     }
 
     fn cache(&self) -> &Cache {
