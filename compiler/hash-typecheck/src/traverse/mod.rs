@@ -169,6 +169,18 @@ impl<'tc> TcVisitor<'tc> {
         self.copy_location_from_node_to_target(node, data.clone());
         self.node_info_store().insert(node.id(), data.into());
     }
+
+    /// Validate and register node info for the given term.
+    fn validate_and_register_simplified_term<T>(
+        &self,
+        node: AstNodeRef<T>,
+        term: TermId,
+    ) -> TcResult<TermId> {
+        self.copy_location_from_node_to_target(node, term);
+        let simplified_term_id = self.validator().validate_term(term)?.simplified_term_id;
+        self.node_info_store().insert(node.id(), NodeInfoTarget::Term(simplified_term_id));
+        Ok(simplified_term_id)
+    }
 }
 
 /// Implementation of [visitor::AstVisitor] for [TcVisitor], to traverse the AST
@@ -512,9 +524,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         // Create the function call term:
         let return_term = self.builder().create_fn_call_term(subject, args);
 
-        let term = self.validator().validate_term(return_term)?.simplified_term_id;
-        self.register_node_info(node, term);
-        Ok(term)
+        self.validate_and_register_simplified_term(node, return_term)
     }
 
     type PropertyKindRet = Field;
@@ -539,9 +549,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     ) -> Result<Self::AccessExprRet, Self::Error> {
         let walk::AccessExpr { subject, property, kind } = walk::walk_access_expr(self, ctx, node)?;
         let term = self.builder().create_access(subject, property, kind);
-        let term = self.validator().validate_term(term)?.simplified_term_id;
-        self.register_node_info(node, term);
-        Ok(term)
+        self.validate_and_register_simplified_term(node, term)
     }
 
     type AccessKindRet = AccessOp;
@@ -583,8 +591,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         let term = builder.create_rt_term(ref_ty);
 
-        self.register_node_info(node, term);
-        Ok(term)
+        self.validate_and_register_simplified_term(node, term)
     }
 
     type DerefExprRet = TermId;
@@ -640,8 +647,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         let term = self.builder().create_rt_term(inner_ty);
 
-        self.register_node_info(node, term);
-        Ok(term)
+        self.validate_and_register_simplified_term(node, term)
     }
 
     type UnsafeExprRet = TermId;
@@ -679,10 +685,9 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         // Ensure that the `expr` can be unified with the provided `ty`...
         let sub = self.unifier().unify_terms(expr_ty, ty)?;
-        let expr_sub = self.substituter().apply_sub_to_term(&sub, expr);
+        let expr_subbed = self.substituter().apply_sub_to_term(&sub, expr);
 
-        self.register_node_info(node, expr_sub);
-        Ok(expr_sub)
+        self.validate_and_register_simplified_term(node, expr_subbed)
     }
 
     type TyExprRet = TermId;
@@ -786,10 +791,9 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         let members = self.builder().create_params(entries, ParamOrigin::Tuple);
         self.copy_location_from_nodes_to_targets(node.entries.ast_ref_iter(), members);
-
         let term = self.builder().create_tuple_ty_term(members);
-        self.register_node_info(node, term);
-        Ok(term)
+
+        self.validate_and_register_simplified_term(node, term)
     }
 
     type ListTyRet = TermId;
@@ -809,8 +813,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
             builder.create_args([builder.create_arg("T", inner)], ParamOrigin::TyFn),
         );
 
-        self.register_node_info(node, term);
-        Ok(term)
+        self.validate_and_register_simplified_term(node, term)
     }
 
     type SetTyRet = TermId;
@@ -830,8 +833,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
             builder.create_args([builder.create_arg("T", inner)], ParamOrigin::TyFn),
         );
 
-        self.register_node_info(node, term);
-        Ok(term)
+        self.validate_and_register_simplified_term(node, term)
     }
 
     type MapTyRet = TermId;
@@ -854,8 +856,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
             ),
         );
 
-        self.register_node_info(node, term);
-        Ok(term)
+        self.validate_and_register_simplified_term(node, term)
     }
 
     type TyArgRet = Param;
@@ -886,9 +887,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         // Create the function type term:
         let fn_ty_term = self.builder().create_fn_ty_term(params, return_ty);
 
-        let simplified = self.validator().validate_term(fn_ty_term)?.simplified_term_id;
-        self.register_node_info(node, simplified);
-        Ok(simplified)
+        self.validate_and_register_simplified_term(node, fn_ty_term)
     }
 
     type TyFnRet = TermId;
@@ -915,9 +914,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         // Create the type function type term:
         let ty_fn_ty_term = self.builder().create_ty_fn_ty_term(params, return_value);
 
-        let simplified = self.validator().validate_term(ty_fn_ty_term)?.simplified_term_id;
-        self.register_node_info(node, simplified);
-        Ok(simplified)
+        self.validate_and_register_simplified_term(node, ty_fn_ty_term)
     }
 
     type TyFnCallRet = TermId;
@@ -941,9 +938,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         // Create the type function call term:
         let app_ty_fn_term = self.builder().create_app_ty_fn_term(subject, args);
 
-        let simplified = self.validator().validate_term(app_ty_fn_term)?.simplified_term_id;
-        self.register_node_info(node, simplified);
-        Ok(simplified)
+        self.validate_and_register_simplified_term(node, app_ty_fn_term)
     }
 
     type NamedTyRet = TermId;
@@ -961,9 +956,8 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         } else {
             self.builder().create_var_term(name)
         };
-        let term = self.validator().validate_term(term)?.simplified_term_id;
-        self.register_node_info(node, term);
-        Ok(term)
+
+        self.validate_and_register_simplified_term(node, term)
     }
 
     type AccessTyRet = TermId;
@@ -975,8 +969,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     ) -> Result<Self::AccessTyRet, Self::Error> {
         let walk::AccessTy { subject, property } = walk::walk_access_ty(self, ctx, node)?;
         let term = self.builder().create_access(subject, property, AccessOp::Namespace);
-        self.register_node_info(node, term);
-        Ok(term)
+        self.validate_and_register_simplified_term(node, term)
     }
 
     type RefTyRet = TermId;
@@ -1011,9 +1004,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         // Add locations:
         self.copy_location_from_node_to_target(node.inner.ast_ref(), (ref_args, 0));
 
-        let term = self.validator().validate_term(ref_ty)?.simplified_term_id;
-        self.register_node_info(node, term);
-        Ok(term)
+        self.validate_and_register_simplified_term(node, ref_ty)
     }
 
     type MergeTyRet = TermId;
@@ -1025,9 +1016,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     ) -> Result<Self::MergeTyRet, Self::Error> {
         let walk::MergeTy { lhs, rhs } = walk::walk_merge_ty(self, ctx, node)?;
         let merge_term = self.builder().create_merge_term(vec![lhs, rhs]);
-        let term = self.validator().validate_term(merge_term)?.simplified_term_id;
-        self.register_node_info(node, term);
-        Ok(term)
+        self.validate_and_register_simplified_term(node, merge_term)
     }
 
     type UnionTyRet = TermId;
@@ -1038,10 +1027,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     ) -> Result<Self::UnionTyRet, Self::Error> {
         let walk::UnionTy { lhs, rhs } = walk::walk_union_ty(self, ctx, node)?;
         let union_term = self.builder().create_union_term(vec![lhs, rhs]);
-
-        let term = self.validator().validate_term(union_term)?.simplified_term_id;
-        self.register_node_info(node, term);
-        Ok(term)
+        self.validate_and_register_simplified_term(node, union_term)
     }
 
     type TyFnDefRet = TermId;
@@ -1087,10 +1073,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
                 ty_fn_return_value,
             );
 
-            let simplified_ty_fn_term =
-                this.validator().validate_term(ty_fn_term)?.simplified_term_id;
-            this.register_node_info(node, simplified_ty_fn_term);
-            Ok(simplified_ty_fn_term)
+            this.validate_and_register_simplified_term(node, ty_fn_term)
         })
     }
 
@@ -1163,9 +1146,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         // Clear return type
         self.state.fn_def_return_ty = old_return_ty;
 
-        let term = self.validator().validate_term(fn_ty_term)?.simplified_term_id;
-        self.register_node_info(node, term);
-        Ok(term)
+        self.validate_and_register_simplified_term(node, fn_ty_term)
     }
 
     type ParamRet = Param;
@@ -1275,9 +1256,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let return_ty = self.builder().create_union_term(match_return_types);
         let return_term = self.builder().create_rt_term(return_ty);
 
-        let simplified_term = self.validator().validate_term(return_term)?.simplified_term_id;
-        self.register_node_info(node, simplified_term);
-        Ok(simplified_term)
+        self.validate_and_register_simplified_term(node, return_term)
     }
 
     type LoopBlockRet = TermId;
@@ -1289,8 +1268,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     ) -> Result<Self::LoopBlockRet, Self::Error> {
         let walk::LoopBlock(_) = walk::walk_loop_block(self, ctx, node)?;
         let void_term = self.builder().create_void_term();
-        self.register_node_info(node, void_term);
-        Ok(void_term)
+        self.validate_and_register_simplified_term(node, void_term)
     }
 
     type ForLoopBlockRet = TermId;
@@ -1411,17 +1389,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         // Traverse the ending expression, if any, or return void.
         let term = match &node.expr {
-            Some(expr) => {
-                let expr_id = self.visit_expr(ctx, expr.ast_ref())?;
-                self.validator().validate_term(expr_id)?.simplified_term_id
-            }
-            None => {
-                let builder = self.builder();
-                builder.create_void_term()
-            }
+            Some(expr) => self.visit_expr(ctx, expr.ast_ref())?,
+            None => self.builder().create_void_term(),
         };
-        self.register_node_info(node, term);
-        Ok(term)
+        self.validate_and_register_simplified_term(node, term)
     }
 
     type ReturnStatementRet = TermId;
@@ -1455,8 +1426,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let never_term = self.builder().create_never_ty();
         let term = self.builder().create_rt_term(never_term);
 
-        self.register_node_info(node, term);
-        Ok(term)
+        self.validate_and_register_simplified_term(node, term)
     }
 
     type BreakStatementRet = TermId;
@@ -1468,8 +1438,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     ) -> Result<Self::BreakStatementRet, Self::Error> {
         let builder = self.builder();
         let term = builder.create_void_term();
-        self.register_node_info(node, term);
-        Ok(term)
+        self.validate_and_register_simplified_term(node, term)
     }
 
     type ContinueStatementRet = TermId;
@@ -1480,8 +1449,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     ) -> Result<Self::ContinueStatementRet, Self::Error> {
         let builder = self.builder();
         let term = builder.create_void_term();
-        self.register_node_info(node, term);
-        Ok(term)
+        self.validate_and_register_simplified_term(node, term)
     }
 
     type VisibilityRet = Visibility;
@@ -1620,8 +1588,8 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
             // Void if no value:
             None => self.builder().create_void_term(),
         };
-        self.register_node_info(node, term);
-        Ok(term)
+
+        self.validate_and_register_simplified_term(node, term)
     }
 
     type MergeDeclarationRet = TermId;
@@ -1661,8 +1629,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         self.scope_manager().assign_member(member.scope_id, member.index, rhs)?;
 
         let term = self.builder().create_void_term();
-        self.register_node_info(node, term);
-        Ok(term)
+        self.validate_and_register_simplified_term(node, term)
     }
 
     type AssignOpExprRet = TermId;
@@ -1745,9 +1712,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
             BinOp::LtEq => lazy_operator_fn(self, "lt_eq")?,
         };
 
-        let simplified = self.validator().validate_term(term)?.simplified_term_id;
-        self.register_node_info(node, simplified);
-        Ok(simplified)
+        self.validate_and_register_simplified_term(node, term)
     }
 
     type UnaryExprRet = TermId;
@@ -1774,9 +1739,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
             UnOp::Neg => operator_fn("neg"),
         };
 
-        let term = self.validator().validate_term(term)?.simplified_term_id;
-        self.register_node_info(node, term);
-        Ok(term)
+        self.validate_and_register_simplified_term(node, term)
     }
 
     type IndexExprRet = TermId;
@@ -1801,9 +1764,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         self.copy_location_from_node_to_target(node.index_expr.ast_ref(), (index_fn_call_args, 0));
 
         // @@ErrorReporting: We could provide customised error reporting here.
-        let term = self.validator().validate_term(index_fn_call)?.simplified_term_id;
-        self.register_node_info(node, term);
-        Ok(term)
+        self.validate_and_register_simplified_term(node, index_fn_call)
     }
 
     type StructDefRet = TermId;
