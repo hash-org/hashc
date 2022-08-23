@@ -1,6 +1,6 @@
 //! Contains functions to traverse the AST and add types to it, while checking
 //! it for correctness.
-use std::mem;
+use std::{iter, mem};
 
 use hash_ast::{
     ast::{
@@ -1578,9 +1578,14 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         // Add the locations of all members:
         for member_idx in &member_indexes {
-            self.copy_location_from_node_to_target(
-                node.pat.ast_ref(),
+            let location = iter::once(node.pat.span())
+                .chain(node.ty.as_ref().map(|ty| ty.span()))
+                .chain(node.value.as_ref().map(|value| value.span()))
+                .reduce(|acc, span| acc.join(span))
+                .unwrap();
+            self.location_store().add_location_to_target(
                 (current_scope_id, *member_idx),
+                self.source_location(location),
             );
         }
 
@@ -1935,8 +1940,9 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let simplified = self.simplifier().potentially_simplify_term(subject)?;
 
         let constructor_pat = self.builder().create_constructor_pat(simplified, constructor_params);
-        self.validator().validate_constructor_pat(constructor_pat)?;
 
+        self.copy_location_from_node_to_target(node, constructor_pat);
+        self.validator().validate_constructor_pat(constructor_pat)?;
         self.register_node_info(node, constructor_pat);
         Ok(constructor_pat)
     }
@@ -1966,10 +1972,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         let members = self.builder().create_pat_args(elements, ParamOrigin::Tuple);
         self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), members);
-
-        self.validator().validate_tuple_pat(members)?;
         let tuple_pat = self.builder().create_tuple_pat(members);
 
+        self.copy_location_from_node_to_target(node, tuple_pat);
+        self.validator().validate_tuple_pat(members)?;
         self.register_node_info(node, tuple_pat);
         Ok(tuple_pat)
     }
@@ -2052,10 +2058,9 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         let range_pat = RangePat { lo, hi, end: node.body().end };
         let pat = self.builder().create_range_pat(range_pat);
+
         self.copy_location_from_node_to_target(node, pat);
-
         self.validator().validate_range_pat(&range_pat)?;
-
         self.register_node_info(node, pat);
         Ok(pat)
     }
@@ -2191,6 +2196,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let mod_def = self.builder().create_named_mod_def(name, ModDefOrigin::Source(id), scope_id);
 
         let term = self.builder().create_mod_def_term(mod_def);
+        self.copy_location_from_node_to_target(node, term);
         self.validator().validate_mod_def(mod_def, term, false)?;
 
         // Add location to the term
