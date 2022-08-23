@@ -176,7 +176,9 @@ impl<'tc> TcVisitor<'tc> {
         node: AstNodeRef<T>,
         term: TermId,
     ) -> TcResult<TermId> {
+        // Copy location before so that validation errors point to the right location:
         self.copy_location_from_node_to_target(node, term);
+
         let simplified_term_id = self.validator().validate_term(term)?.simplified_term_id;
         self.node_info_store().insert(node.id(), NodeInfoTarget::Term(simplified_term_id));
         Ok(simplified_term_id)
