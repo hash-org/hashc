@@ -33,6 +33,10 @@ impl<'tc> TcVisitor<'tc> {
         let scope_id =
             scope_to_use.unwrap_or_else(|| self.builder().create_scope(ScopeKind::Constant, []));
 
+        // Get the name of the scope from the surrounding declaration hint, if any.
+        // This is only useful for mod/impl/trait blocks
+        let scope_name = self.state.declaration_name_hint.take();
+
         ScopeManager::enter_scope_with(self, scope_id, |this| {
             // @@Todo: deal with recursive declarations
 
@@ -46,10 +50,6 @@ impl<'tc> TcVisitor<'tc> {
             }
             Ok(())
         })?;
-
-        // Get the name of the scope from the surrounding declaration hint, if any.
-        // This is only useful for mod/impl/trait blocks
-        let scope_name = self.state.declaration_name_hint.take();
 
         Ok(VisitConstantScope { scope_name, scope_id })
     }
