@@ -29,6 +29,7 @@ error_codes! {
     NonRuntimeInstantiable = 25,
     UnsupportedTyFnApplication = 26,
     TypeIsNotTrait = 27,
+    InvalidUnionElement = 28,
 
     // Errors in regard to parameter lists
     ParameterLengthMismatch = 35,
@@ -44,7 +45,7 @@ error_codes! {
     NoMatchingTraitImplementations = 53,
     InvalidPropertyAccessOfNonMethod = 54,
     TraitImplMissingMember = 55,
-    InvalidUnionElement = 56,
+    MethodNotAMemberOfTrait = 56,
 
     // Pattern errors
     IdentifierBoundMultipleTimes = 80,
