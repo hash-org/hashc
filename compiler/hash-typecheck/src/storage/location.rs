@@ -304,4 +304,27 @@ impl LocationStore {
             self.add_location_to_target(dest.into(), origin);
         }
     }
+
+    /// Merge the given [LocationTarget]s into a single [LocationTarget]
+    /// provided that they can be merged in terms of order. All `ids` of the
+    /// [SourceLocation]s must match.
+    ///
+    /// **Note**: At least one of the [LocationTarget]s must have an associated
+    /// [SourceLocation].
+    pub fn merge_locations(
+        &self,
+        locations: impl Iterator<Item = LocationTarget>,
+    ) -> LocationTarget {
+        let mut locations = locations.skip_while(|loc| self.get_location(loc).is_none());
+        let mut initial_span = locations.next().map(|loc| self.get_location(loc).unwrap()).unwrap();
+
+        // Iterate over the locations and then join them with the initial one
+        for location in locations {
+            if let Some(other) = self.get_location(location) {
+                initial_span = initial_span.join(other);
+            }
+        }
+
+        initial_span.into()
+    }
 }

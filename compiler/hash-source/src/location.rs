@@ -94,3 +94,14 @@ pub struct SourceLocation {
     /// The id of the source that the span is referencing.
     pub id: SourceId,
 }
+
+impl SourceLocation {
+    /// Join the span of a [SourceLocation] with another [SourceLocation].
+    ///
+    /// *Note*: the `id` of both [SourceLocation]s must be the same.
+    pub fn join(self, other: Self) -> Self {
+        assert!(self.id == other.id);
+
+        Self { id: self.id, span: self.span.join(other.span) }
+    }
+}
