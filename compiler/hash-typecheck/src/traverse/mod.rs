@@ -1663,10 +1663,16 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
     fn visit_merge_declaration(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::MergeDeclaration>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::MergeDeclaration>,
     ) -> Result<Self::MergeDeclarationRet, Self::Error> {
-        todo!()
+        let walk::MergeDeclaration { decl, value } = walk::walk_merge_declaration(self, ctx, node)?;
+
+        let merge_term = self.builder().create_merge_term(vec![decl, value]);
+
+        // Add location
+        self.copy_location_from_node_to_target(node, merge_term);
+        Ok(self.validator().validate_term(merge_term)?.simplified_term_id)
     }
 
     type AssignExprRet = TermId;
