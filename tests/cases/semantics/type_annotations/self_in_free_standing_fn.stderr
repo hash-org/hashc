@@ -1,0 +1,6 @@
+error: `self` parameter is only allowed in associated functions
+ --> $DIR/self_in_free_standing_fn.hash:3:9
+2 |   
+3 |   foo := (self) => {
+  |           ^^^^ `self` not semantically valid here
+4 |       

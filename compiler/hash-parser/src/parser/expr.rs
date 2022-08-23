@@ -155,10 +155,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 if self.peek().map_or(false, |tok| !tok.is_brace_tree()) =>
             {
                 let ty = self.parse_type()?;
-                let implementation = self.parse_exprs_from_braces()?;
+                let body = self.parse_exprs_from_braces()?;
 
                 self.node_with_joined_span(
-                    Expr::new(ExprKind::TraitImpl(TraitImpl { ty, implementation })),
+                    Expr::new(ExprKind::TraitImpl(TraitImpl { ty, body })),
                     token.span,
                 )
             }

@@ -2,7 +2,7 @@
 //! visitor pattern on the AST to perform semantic checking and analysis on the
 //! de-sugared AST.
 
-#![feature(generic_associated_types)]
+#![feature(let_chains)]
 
 pub mod analysis;
 pub(crate) mod diagnostics;

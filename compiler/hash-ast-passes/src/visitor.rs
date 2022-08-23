@@ -8,8 +8,8 @@ use std::{collections::HashSet, convert::Infallible, mem};
 use ::if_chain::if_chain;
 use hash_ast::{
     ast::{
-        BindingPat, Block, BlockExpr, ExprKind, LitExpr, ModulePatEntry, Mutability, Pat,
-        TuplePatEntry,
+        BindingPat, Block, BlockExpr, ExprKind, LitExpr, ModulePatEntry, Mutability, ParamOrigin,
+        Pat, TuplePatEntry,
     },
     visitor::{walk, AstVisitor},
 };
@@ -582,10 +582,7 @@ impl AstVisitor for SemanticAnalyser<'_> {
     ) -> Result<Self::FnDefRet, Self::Error> {
         // Swap the values with a new `true` and save the old state.
         let last_in_fn = mem::replace(&mut self.is_in_fn, true);
-
         let _ = walk::walk_fn_def(self, ctx, node);
-
-        // Reset the value to the old value
         self.is_in_fn = last_in_fn;
 
         Ok(())
@@ -599,6 +596,32 @@ impl AstVisitor for SemanticAnalyser<'_> {
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::Param>,
     ) -> Result<Self::ParamRet, Self::Error> {
         let _ = walk::walk_param(self, ctx, node);
+
+        if matches!(node.origin, ParamOrigin::Fn) {
+            match self.current_block {
+                // Check that `self` cannot be within a free standing functions
+                BlockOrigin::Root | BlockOrigin::Mod => {
+                    if let Some(name) = node.name.as_ref() && name.is(CORE_IDENTIFIERS.self_i) {
+                        self.append_error(AnalysisErrorKind::SelfInFreeStandingFn, node);
+                    }
+                }
+                BlockOrigin::Impl | BlockOrigin::Trait => {
+                    // If both the type definition is missing and the default expression assignment
+                    // to the struct-def field, then a type cannot be inferred and is thus
+                    // ambiguous.
+                    if let Some(name) = node.name.as_ref() && !name.is(CORE_IDENTIFIERS.self_i)
+                        && node.ty.is_none()
+                        && node.default.is_none()
+                    {
+                        self.append_error(
+                            AnalysisErrorKind::InsufficientTypeAnnotations { origin: node.origin },
+                            node,
+                        );
+                    }
+                }
+                _ => {}
+            }
+        }
 
         Ok(())
     }
@@ -960,7 +983,10 @@ impl AstVisitor for SemanticAnalyser<'_> {
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TraitDef>,
     ) -> Result<Self::TraitDefRet, Self::Error> {
+        let old_block_origin = mem::replace(&mut self.current_block, BlockOrigin::Trait);
         let _ = walk::walk_trait_def(self, ctx, node);
+        self.current_block = old_block_origin;
+
         Ok(())
     }
 
@@ -971,7 +997,14 @@ impl AstVisitor for SemanticAnalyser<'_> {
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TraitImpl>,
     ) -> Result<Self::TraitImplRet, Self::Error> {
+        self.check_members_are_declarative(node.body.ast_ref_iter(), BlockOrigin::Impl);
+
+        // Verify that the declarations in this implementation block adhere to the
+        // rules of constant blocks....
+        let old_block_origin = mem::replace(&mut self.current_block, BlockOrigin::Impl);
         let _ = walk::walk_trait_impl(self, ctx, node);
+        self.current_block = old_block_origin;
+
         Ok(())
     }
 

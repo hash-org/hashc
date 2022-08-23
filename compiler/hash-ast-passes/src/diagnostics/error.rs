@@ -81,6 +81,10 @@ pub(crate) enum AnalysisErrorKind {
     /// annotation and a default value, which means that there is not enough
     /// information at later stages to deduce the type of the field.
     InsufficientTypeAnnotations { origin: ParamOrigin },
+
+    /// Using `self` within free-standing functions
+    SelfInFreeStandingFn,
+
     /// When a directive is not allowed in the current module or context
     DisallowedDirective { name: Identifier, module_kind: Option<ModuleKind> },
     /// When a directive is expecting a particular expression, but received an
@@ -283,6 +287,14 @@ impl From<AnalysisError> for Report {
                         ReportNoteKind::Note,
                         "fields of a {origin} should all be named, or un-named since mixing naming conventions leads to ambiguities",
                     )));
+            }
+            AnalysisErrorKind::SelfInFreeStandingFn => {
+                builder.with_message("`self` parameter is only allowed in associated functions");
+
+                builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                    err.location,
+                    "`self` not semantically valid here",
+                )));
             }
         };
 

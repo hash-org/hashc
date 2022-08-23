@@ -1730,7 +1730,7 @@ pub struct TraitImpl {
     /// The referenced name to the trait
     pub ty: AstNode<Ty>,
     /// The implementation of the trait.
-    pub implementation: AstNodes<Expr>,
+    pub body: AstNodes<Expr>,
 }
 
 /// A binary expression `2 + 2`.
