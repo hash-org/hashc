@@ -1,4 +1,4 @@
-// run=pass
+// run=pass, stage=typecheck
 
 t := (1u32, 2);
 b := (name := "str", data := 'c');

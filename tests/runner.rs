@@ -28,6 +28,7 @@ use std::{fs, io};
 
 use hash_ast_desugaring::AstDesugarer;
 use hash_ast_passes::HashSemanticAnalysis;
+use hash_lower::IrLowerer;
 use hash_parser::HashParser;
 use hash_pipeline::{
     settings::{CompilerJobParams, CompilerSettings},
@@ -195,6 +196,7 @@ fn handle_test(input: TestingInput) {
     let desugarer = AstDesugarer;
     let semantic_analyser = HashSemanticAnalysis;
     let checker = TcImpl;
+    let lowerer = IrLowerer;
 
     // Create the vm
     let vm = Interpreter::new(InterpreterOptions::default());
@@ -213,8 +215,16 @@ fn handle_test(input: TestingInput) {
         .build()
         .unwrap();
 
-    let mut compiler =
-        Compiler::new(parser, desugarer, semantic_analyser, checker, vm, &pool, compiler_settings);
+    let mut compiler = Compiler::new(
+        parser,
+        desugarer,
+        semantic_analyser,
+        checker,
+        lowerer,
+        vm,
+        &pool,
+        compiler_settings,
+    );
     let mut compiler_state = compiler.bootstrap();
 
     // // Now parse the module and store the result

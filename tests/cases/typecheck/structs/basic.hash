@@ -1,3 +1,5 @@
+// stage=typecheck
+
 Bin := struct(bang: char);
 Foo := struct(foo: str, bar: i32, baz: i32 = 10, bin: Bin);
 

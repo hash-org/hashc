@@ -29,7 +29,7 @@ pub trait Parser<'pool> {
 pub trait Desugar<'pool> {
     type State;
 
-    /// Make [Self::State].
+    /// Initialise [Desugar::State].
     fn make_state(&mut self) -> CompilerResult<Self::State>;
 
     /// Perform a de-sugaring pass on the provided sources.
@@ -51,7 +51,7 @@ pub trait Desugar<'pool> {
 pub trait SemanticPass<'pool> {
     type State;
 
-    /// Make [Self::State].
+    /// Initialise [SemanticPass::State].
     fn make_state(&mut self) -> CompilerResult<Self::State>;
 
     /// Perform a de-sugaring pass on the provided sources.
@@ -73,12 +73,12 @@ pub trait SemanticPass<'pool> {
 /// them regardless of error, both states are considered to be the new states
 /// and should be set in the compiler pipeline.
 pub trait Tc<'c> {
-    /// The general [Tc] state. This is implementation specific to the
+    /// The [Tc] state. This is implementation specific to the
     /// typechecker that implements this trait. The pipeline should have no
     /// dealings with the actual state, except saving it.
     type State;
 
-    /// Make the general [Tc::State].
+    /// Initialise [Tc::State].
     fn make_state(&mut self) -> CompilerResult<Self::State>;
 
     /// Given a [InteractiveId], check the interactive statement with the
@@ -103,6 +103,37 @@ pub trait Tc<'c> {
     ) -> CompilerResult<()>;
 }
 
+/// The IR lowering trait, converting typed AST into Hash IR
+pub trait Lowering<'c> {
+    /// IR Lowering state, any temporary state that the IR Lowering requires
+    /// in order to lower the AST.
+    type State;
+
+    /// Initialise [Lowering::State].
+    fn make_state(&mut self) -> CompilerResult<Self::State>;
+
+    /// Given a [InteractiveId], perform a lowering on the provided typed
+    /// body block whilst keeping state on previously specified interactive
+    /// blocks.
+    fn lower_interactive_block<'pool>(
+        &'pool mut self,
+        interactive_id: InteractiveId,
+        workspace: &Workspace,
+        state: &mut Self::State,
+        job_params: &CompilerJobParams,
+    ) -> CompilerResult<()>;
+
+    /// Perform a IR lowering pass on a module specified by a [ModuleId]. The
+    /// result is written to the [Workspace] IR store.
+    fn lower_module(
+        &mut self,
+        module_id: ModuleId,
+        workspace: &Workspace,
+        state: &mut Self::State,
+        job_params: &CompilerJobParams,
+    ) -> CompilerResult<()>;
+}
+
 /// The virtual machine trait
 pub trait VirtualMachine<'c> {
     /// The general [VirtualMachine] state. This is implementation specific to
@@ -110,7 +141,7 @@ pub trait VirtualMachine<'c> {
     /// dealings with the actual state, except saving it.
     type State;
 
-    /// Make the general [VirtualMachine::State].
+    /// Initialise [VirtualMachine::State].
     fn make_state(&mut self) -> CompilerResult<Self::State>;
 
     /// Run the currently generated VM
