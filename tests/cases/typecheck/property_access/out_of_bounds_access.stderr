@@ -1,6 +1,6 @@
 error[0015]: the field `2` is not present within `(1_i32, 2_i32)`
- --> $DIR/out_of_bounds_access.hash:2:6
+ --> $DIR/out_of_bounds_access.hash:2:1
 1 |   // run=fail
 2 |   t := (1, 2);
-  |        ^^^^^^ `(1_i32, 2_i32)` does not contain the property `2`
+  |   ^ `(1_i32, 2_i32)` does not contain the property `2`
 3 |   

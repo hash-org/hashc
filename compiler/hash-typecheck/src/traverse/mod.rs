@@ -16,7 +16,7 @@ use hash_source::{
     location::{SourceLocation, Span},
     ModuleKind, SourceId,
 };
-use hash_utils::store::Store;
+use hash_utils::store::{PartialStore, Store};
 use itertools::Itertools;
 
 use self::scopes::VisitConstantScope;
@@ -29,6 +29,7 @@ use crate::{
     ops::{scope::ScopeManager, AccessToOps},
     storage::{
         location::{IndexedLocationTarget, LocationTarget},
+        nodes::NodeInfoTarget,
         pats::PatId,
         primitives::{
             AccessOp, Arg, BindingPat, ConstPat, EnumVariant, Field, Member, ModDefOrigin,
@@ -133,7 +134,7 @@ impl<'tc> TcVisitor<'tc> {
     /// Copy the [SourceLocation] of the given [hash_ast::ast::AstNode] to the
     /// given [LocationTarget].
     pub(crate) fn copy_location_from_node_to_target<N>(
-        &mut self,
+        &self,
         node: AstNodeRef<N>,
         target: impl Into<LocationTarget>,
     ) {
@@ -145,7 +146,7 @@ impl<'tc> TcVisitor<'tc> {
     /// the given [LocationTarget] list represented by a type `Target` where
     /// `(Target, usize)` implements [Into<LocationTarget>].
     pub(crate) fn copy_location_from_nodes_to_targets<'n, N: 'n>(
-        &mut self,
+        &self,
         nodes: impl IntoIterator<Item = AstNodeRef<'n, N>>,
         targets: impl Into<IndexedLocationTarget> + Clone,
     ) {
@@ -153,6 +154,20 @@ impl<'tc> TcVisitor<'tc> {
         for (index, param) in nodes.into_iter().enumerate() {
             self.copy_location_from_node_to_target(param, LocationTarget::from((targets, index)));
         }
+    }
+
+    /// Register the given [`TermId`] or [`PatId`] as describing the given
+    /// [AstNodeRef].
+    ///
+    /// This copies the node's location to the term, and adds the node-term pair
+    /// to [crate::storage::NodeInfoStore].
+    fn register_node_info<T>(
+        &self,
+        node: AstNodeRef<T>,
+        data: impl Into<NodeInfoTarget> + Into<LocationTarget> + Clone,
+    ) {
+        self.copy_location_from_node_to_target(node, data.clone());
+        self.node_info_store().insert(node.id(), data.into());
     }
 }
 
@@ -219,10 +234,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         );
 
         let term = builder.create_rt_term(map_ty);
-
-        // add the location of the term to the location storage
-        self.copy_location_from_node_to_target(node, term);
-
+        self.register_node_info(node, term);
         Ok(term)
     }
 
@@ -257,10 +269,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         );
 
         let term = builder.create_rt_term(list_ty);
-
-        // add the location of the term to the location storage
-        self.copy_location_from_node_to_target(node, term);
-
+        self.register_node_info(node, term);
         Ok(term)
     }
 
@@ -283,10 +292,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         );
 
         let term = builder.create_rt_term(set_ty);
-
-        // add the location of the term to the location storage
-        self.copy_location_from_node_to_target(node, term);
-
+        self.register_node_info(node, term);
         Ok(term)
     }
 
@@ -301,9 +307,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         let ty_or_unresolved = ty.unwrap_or_else(|| self.builder().create_unresolved_term());
         let value_ty = self.typer().infer_ty_of_term(value)?;
-
-        // Append location to value term
-        self.copy_location_from_node_to_target(node.value.ast_ref(), value_ty);
+        self.register_node_info(node.value.ast_ref(), value_ty);
 
         // Check that the type of the value and the type annotation match and then apply
         // the substitution onto ty
@@ -328,7 +332,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         // add the location of each parameter, and the term, to the location storage
         self.copy_location_from_nodes_to_targets(node.elements.ast_ref_iter(), params);
-        self.copy_location_from_node_to_target(node, term);
+        self.register_node_info(node, term);
 
         Ok(term)
     }
@@ -341,10 +345,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::StrLit>,
     ) -> Result<Self::StrLitRet, Self::Error> {
         let term = self.builder().create_lit_term(node.0.to_string());
-
-        // add the location of the term to the location storage
-        self.copy_location_from_node_to_target(node, term);
-
+        self.register_node_info(node, term);
         Ok(term)
     }
 
@@ -356,10 +357,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::CharLit>,
     ) -> Result<Self::CharLitRet, Self::Error> {
         let term = self.builder().create_lit_term(node.0);
-
-        // add the location of the term to the location storage
-        self.copy_location_from_node_to_target(node, term);
-
+        self.register_node_info(node, term);
         Ok(term)
     }
 
@@ -372,10 +370,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     ) -> Result<Self::FloatLitRet, Self::Error> {
         let f32_def = self.core_defs().f32_ty();
         let term = self.builder().create_rt_term(f32_def);
-
-        // add the location of the term to the location storage
-        self.copy_location_from_node_to_target(node, term);
-
+        self.register_node_info(node, term);
         Ok(term)
     }
 
@@ -391,11 +386,9 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         } else {
             CORE_IDENTIFIERS.r#false
         });
-
-        // add the location of the term to the location storage
-        self.copy_location_from_node_to_target(node, term);
-
-        Ok(self.validator().validate_term(term)?.simplified_term_id)
+        let term = self.validator().validate_term(term)?.simplified_term_id;
+        self.register_node_info(node, term);
+        Ok(term)
     }
 
     type IntLitRet = TermId;
@@ -406,10 +399,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::IntLit>,
     ) -> Result<Self::IntLitRet, Self::Error> {
         let term = self.builder().create_lit_term(node.body().clone());
-
-        // add the location of the term to the location storage
-        self.copy_location_from_node_to_target(node, term);
-
+        self.register_node_info(node, term);
         Ok(term)
     }
 
@@ -451,7 +441,6 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::VariableExpr>,
     ) -> Result<Self::VariableExprRet, Self::Error> {
         let walk::VariableExpr { name } = walk::walk_variable_expr(self, ctx, node)?;
-
         let term = self.builder().create_var_term(name);
 
         let simplified_term = self.validator().validate_term(term)?.simplified_term_id;
@@ -461,6 +450,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         if self.oracle().term_is_literal(simplified_term) {
             self.copy_location_from_node_to_target(node, simplified_term);
         }
+        self.node_info_store().insert(node.id(), NodeInfoTarget::Term(simplified_term));
 
         Ok(simplified_term)
     }
@@ -488,6 +478,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         self.state.within_intrinsics_directive = old_intrinsics_state;
 
+        self.register_node_info(node, subject);
         Ok(subject)
     }
 
@@ -521,10 +512,9 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         // Create the function call term:
         let return_term = self.builder().create_fn_call_term(subject, args);
 
-        // Set location:
-        self.copy_location_from_node_to_target(node, return_term);
-
-        Ok(self.validator().validate_term(return_term)?.simplified_term_id)
+        let term = self.validator().validate_term(return_term)?.simplified_term_id;
+        self.register_node_info(node, term);
+        Ok(term)
     }
 
     type PropertyKindRet = Field;
@@ -549,8 +539,9 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     ) -> Result<Self::AccessExprRet, Self::Error> {
         let walk::AccessExpr { subject, property, kind } = walk::walk_access_expr(self, ctx, node)?;
         let term = self.builder().create_access(subject, property, kind);
-        self.copy_location_from_node_to_target(node, term);
-        Ok(self.validator().validate_term(term)?.simplified_term_id)
+        let term = self.validator().validate_term(term)?.simplified_term_id;
+        self.register_node_info(node, term);
+        Ok(term)
     }
 
     type AccessKindRet = AccessOp;
@@ -592,9 +583,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         let term = builder.create_rt_term(ref_ty);
 
-        // Add location to the type:
-        self.copy_location_from_node_to_target(node, term);
-
+        self.register_node_info(node, term);
         Ok(term)
     }
 
@@ -651,9 +640,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         let term = self.builder().create_rt_term(inner_ty);
 
-        // Add the location to the type
-        self.copy_location_from_node_to_target(node, term);
-
+        self.register_node_info(node, term);
         Ok(term)
     }
 
@@ -694,8 +681,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let sub = self.unifier().unify_terms(expr_ty, ty)?;
         let expr_sub = self.substituter().apply_sub_to_term(&sub, expr);
 
-        self.copy_location_from_node_to_target(node, expr_sub);
-
+        self.register_node_info(node, expr_sub);
         Ok(expr_sub)
     }
 
@@ -759,7 +745,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
             None => {
                 // This should never happen because all modules should have been parsed by now.
                 let unresolved_import_term = self.builder().create_unresolved_term();
-                self.copy_location_from_node_to_target(node, unresolved_import_term);
+                self.register_node_info(node, unresolved_import_term);
                 tc_panic!(
                     unresolved_import_term,
                     self,
@@ -802,8 +788,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         self.copy_location_from_nodes_to_targets(node.entries.ast_ref_iter(), members);
 
         let term = self.builder().create_tuple_ty_term(members);
-        self.copy_location_from_node_to_target(node, term);
-
+        self.register_node_info(node, term);
         Ok(term)
     }
 
@@ -824,7 +809,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
             builder.create_args([builder.create_arg("T", inner)], ParamOrigin::TyFn),
         );
 
-        self.copy_location_from_node_to_target(node, term);
+        self.register_node_info(node, term);
         Ok(term)
     }
 
@@ -845,7 +830,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
             builder.create_args([builder.create_arg("T", inner)], ParamOrigin::TyFn),
         );
 
-        self.copy_location_from_node_to_target(node, term);
+        self.register_node_info(node, term);
         Ok(term)
     }
 
@@ -869,7 +854,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
             ),
         );
 
-        self.copy_location_from_node_to_target(node, term);
+        self.register_node_info(node, term);
         Ok(term)
     }
 
@@ -881,7 +866,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TyArg>,
     ) -> Result<Self::TyArgRet, Self::Error> {
         let walk::TyArg { ty, name } = walk::walk_ty_arg(self, ctx, node)?;
-        self.copy_location_from_node_to_target(node, ty);
+        self.register_node_info(node, ty);
         Ok(Param { ty, name, default_value: None })
     }
 
@@ -901,10 +886,9 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         // Create the function type term:
         let fn_ty_term = self.builder().create_fn_ty_term(params, return_ty);
 
-        // Add location to the type:
-        self.copy_location_from_node_to_target(node, fn_ty_term);
-
-        Ok(self.validator().validate_term(fn_ty_term)?.simplified_term_id)
+        let simplified = self.validator().validate_term(fn_ty_term)?.simplified_term_id;
+        self.register_node_info(node, simplified);
+        Ok(simplified)
     }
 
     type TyFnRet = TermId;
@@ -931,10 +915,9 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         // Create the type function type term:
         let ty_fn_ty_term = self.builder().create_ty_fn_ty_term(params, return_value);
 
-        // Add location to the type:
-        self.copy_location_from_node_to_target(node, ty_fn_ty_term);
-
-        Ok(self.validator().validate_term(ty_fn_ty_term)?.simplified_term_id)
+        let simplified = self.validator().validate_term(ty_fn_ty_term)?.simplified_term_id;
+        self.register_node_info(node, simplified);
+        Ok(simplified)
     }
 
     type TyFnCallRet = TermId;
@@ -958,10 +941,8 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         // Create the type function call term:
         let app_ty_fn_term = self.builder().create_app_ty_fn_term(subject, args);
 
-        // Add the location of the term to the location storage
-        self.copy_location_from_node_to_target(node, app_ty_fn_term);
-
         let simplified = self.validator().validate_term(app_ty_fn_term)?.simplified_term_id;
+        self.register_node_info(node, simplified);
         Ok(simplified)
     }
 
@@ -975,17 +956,14 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let walk::NamedTy { name } = walk::walk_named_ty(self, ctx, node)?;
 
         // Infer type if it is an underscore:
-        if name == CORE_IDENTIFIERS.underscore {
-            let infer_term = self.builder().create_unresolved_term();
-            self.copy_location_from_node_to_target(node, infer_term);
-
-            Ok(infer_term)
+        let term = if name == CORE_IDENTIFIERS.underscore {
+            self.builder().create_unresolved_term()
         } else {
-            let var = self.builder().create_var_term(name);
-            self.copy_location_from_node_to_target(node, var);
-
-            Ok(self.validator().validate_term(var)?.simplified_term_id)
-        }
+            self.builder().create_var_term(name)
+        };
+        let term = self.validator().validate_term(term)?.simplified_term_id;
+        self.register_node_info(node, term);
+        Ok(term)
     }
 
     type AccessTyRet = TermId;
@@ -996,10 +974,8 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         node: ast::AstNodeRef<ast::AccessTy>,
     ) -> Result<Self::AccessTyRet, Self::Error> {
         let walk::AccessTy { subject, property } = walk::walk_access_ty(self, ctx, node)?;
-
         let term = self.builder().create_access(subject, property, AccessOp::Namespace);
-        self.copy_location_from_node_to_target(node, term);
-
+        self.register_node_info(node, term);
         Ok(term)
     }
 
@@ -1033,10 +1009,11 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let ref_ty = builder.create_app_ty_fn_term(ref_def, ref_args);
 
         // Add locations:
-        self.copy_location_from_node_to_target(node, ref_ty);
         self.copy_location_from_node_to_target(node.inner.ast_ref(), (ref_args, 0));
 
-        Ok(self.validator().validate_term(ref_ty)?.simplified_term_id)
+        let term = self.validator().validate_term(ref_ty)?.simplified_term_id;
+        self.register_node_info(node, term);
+        Ok(term)
     }
 
     type MergeTyRet = TermId;
@@ -1048,11 +1025,9 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     ) -> Result<Self::MergeTyRet, Self::Error> {
         let walk::MergeTy { lhs, rhs } = walk::walk_merge_ty(self, ctx, node)?;
         let merge_term = self.builder().create_merge_term(vec![lhs, rhs]);
-
-        // Add location
-        self.copy_location_from_node_to_target(node, merge_term);
-
-        Ok(self.validator().validate_term(merge_term)?.simplified_term_id)
+        let term = self.validator().validate_term(merge_term)?.simplified_term_id;
+        self.register_node_info(node, term);
+        Ok(term)
     }
 
     type UnionTyRet = TermId;
@@ -1064,10 +1039,9 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let walk::UnionTy { lhs, rhs } = walk::walk_union_ty(self, ctx, node)?;
         let union_term = self.builder().create_union_term(vec![lhs, rhs]);
 
-        // Add location
-        self.copy_location_from_node_to_target(node, union_term);
-
-        Ok(self.validator().validate_term(union_term)?.simplified_term_id)
+        let term = self.validator().validate_term(union_term)?.simplified_term_id;
+        self.register_node_info(node, term);
+        Ok(term)
     }
 
     type TyFnDefRet = TermId;
@@ -1113,12 +1087,9 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
                 ty_fn_return_value,
             );
 
-            // Add location to the type function:
-            this.copy_location_from_node_to_target(node, ty_fn_term);
-
             let simplified_ty_fn_term =
                 this.validator().validate_term(ty_fn_term)?.simplified_term_id;
-
+            this.register_node_info(node, simplified_ty_fn_term);
             Ok(simplified_ty_fn_term)
         })
     }
@@ -1189,12 +1160,12 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let fn_ty_term =
             builder.create_fn_lit_term(builder.create_fn_ty_term(params, return_ty), return_value);
 
-        self.copy_location_from_node_to_target(node, fn_ty_term);
-
         // Clear return type
         self.state.fn_def_return_ty = old_return_ty;
 
-        Ok(self.validator().validate_term(fn_ty_term)?.simplified_term_id)
+        let term = self.validator().validate_term(fn_ty_term)?.simplified_term_id;
+        self.register_node_info(node, term);
+        Ok(term)
     }
 
     type ParamRet = Param;
@@ -1303,7 +1274,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
             .collect::<TcResult<_>>()?;
         let return_ty = self.builder().create_union_term(match_return_types);
         let return_term = self.builder().create_rt_term(return_ty);
-        Ok(self.validator().validate_term(return_term)?.simplified_term_id)
+
+        let simplified_term = self.validator().validate_term(return_term)?.simplified_term_id;
+        self.register_node_info(node, simplified_term);
+        Ok(simplified_term)
     }
 
     type LoopBlockRet = TermId;
@@ -1315,11 +1289,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     ) -> Result<Self::LoopBlockRet, Self::Error> {
         let walk::LoopBlock(_) = walk::walk_loop_block(self, ctx, node)?;
         let void_term = self.builder().create_void_term();
-
-        // Add the location of the type as the whole block
-        self.copy_location_from_node_to_target(node, void_term);
-        self.copy_location_from_node_to_target(node, void_term);
-
+        self.register_node_info(node, void_term);
         Ok(void_term)
     }
 
@@ -1370,9 +1340,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let is_within_intrinsics = self.state.within_intrinsics_directive;
         self.validator().validate_mod_def(mod_def, term, is_within_intrinsics)?;
 
-        // Add location to the term
-        self.copy_location_from_node_to_target(node, term);
-
+        self.register_node_info(node, term);
         Ok(term)
     }
 
@@ -1394,9 +1362,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         // Validate the definition
         self.validator().validate_mod_def(mod_def, term, false)?;
 
-        // Add location to the term
-        self.copy_location_from_node_to_target(node, term);
-
+        self.register_node_info(node, term);
         Ok(term)
     }
 
@@ -1444,17 +1410,18 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         }
 
         // Traverse the ending expression, if any, or return void.
-        match &node.expr {
+        let term = match &node.expr {
             Some(expr) => {
                 let expr_id = self.visit_expr(ctx, expr.ast_ref())?;
-
-                Ok(self.validator().validate_term(expr_id)?.simplified_term_id)
+                self.validator().validate_term(expr_id)?.simplified_term_id
             }
             None => {
                 let builder = self.builder();
-                Ok(builder.create_void_term())
+                builder.create_void_term()
             }
-        }
+        };
+        self.register_node_info(node, term);
+        Ok(term)
     }
 
     type ReturnStatementRet = TermId;
@@ -1488,7 +1455,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let never_term = self.builder().create_never_ty();
         let term = self.builder().create_rt_term(never_term);
 
-        self.copy_location_from_node_to_target(node, term);
+        self.register_node_info(node, term);
         Ok(term)
     }
 
@@ -1501,9 +1468,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     ) -> Result<Self::BreakStatementRet, Self::Error> {
         let builder = self.builder();
         let term = builder.create_void_term();
-
-        self.copy_location_from_node_to_target(node, term);
-
+        self.register_node_info(node, term);
         Ok(term)
     }
 
@@ -1515,9 +1480,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     ) -> Result<Self::ContinueStatementRet, Self::Error> {
         let builder = self.builder();
         let term = builder.create_void_term();
-
-        self.copy_location_from_node_to_target(node, term);
-
+        self.register_node_info(node, term);
         Ok(term)
     }
 
@@ -1652,11 +1615,13 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         }
 
         // Declaration should return its value if any:
-        match value {
-            Some(value) => Ok(value),
+        let term = match value {
+            Some(value) => value,
             // Void if no value:
-            None => Ok(self.builder().create_void_term()),
-        }
+            None => self.builder().create_void_term(),
+        };
+        self.register_node_info(node, term);
+        Ok(term)
     }
 
     type MergeDeclarationRet = TermId;
@@ -1695,7 +1660,9 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         // Set the value to the member:
         self.scope_manager().assign_member(member.scope_id, member.index, rhs)?;
 
-        Ok(self.builder().create_void_term())
+        let term = self.builder().create_void_term();
+        self.register_node_info(node, term);
+        Ok(term)
     }
 
     type AssignOpExprRet = TermId;
@@ -1717,7 +1684,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     ) -> Result<Self::BinaryExprRet, Self::Error> {
         let walk::BinaryExpr { lhs, rhs, .. } = walk::walk_binary_expr(self, ctx, node)?;
 
-        let mut operator_fn = |trait_fn_name: &str| {
+        let operator_fn = |trait_fn_name: &str| {
             let prop_access = self.builder().create_prop_access(lhs, trait_fn_name);
             self.copy_location_from_node_to_target(node.operator.ast_ref(), prop_access);
 
@@ -1777,10 +1744,9 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
             BinOp::Lt => lazy_operator_fn(self, "lt")?,
             BinOp::LtEq => lazy_operator_fn(self, "lt_eq")?,
         };
+
         let simplified = self.validator().validate_term(term)?.simplified_term_id;
-
-        self.copy_location_from_node_to_target(node, term);
-
+        self.register_node_info(node, simplified);
         Ok(simplified)
     }
 
@@ -1793,7 +1759,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     ) -> Result<Self::UnaryExprRet, Self::Error> {
         let walk::UnaryExpr { expr, .. } = walk::walk_unary_expr(self, ctx, node)?;
 
-        let mut operator_fn = |trait_fn_name: &str| {
+        let operator_fn = |trait_fn_name: &str| {
             let prop_access = self.builder().create_prop_access(expr, trait_fn_name);
             self.copy_location_from_node_to_target(node.operator.ast_ref(), prop_access);
 
@@ -1808,8 +1774,9 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
             UnOp::Neg => operator_fn("neg"),
         };
 
-        self.copy_location_from_node_to_target(node, term);
-        Ok(self.validator().validate_term(term)?.simplified_term_id)
+        let term = self.validator().validate_term(term)?.simplified_term_id;
+        self.register_node_info(node, term);
+        Ok(term)
     }
 
     type IndexExprRet = TermId;
@@ -1834,7 +1801,9 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         self.copy_location_from_node_to_target(node.index_expr.ast_ref(), (index_fn_call_args, 0));
 
         // @@ErrorReporting: We could provide customised error reporting here.
-        Ok(self.validator().validate_term(index_fn_call)?.simplified_term_id)
+        let term = self.validator().validate_term(index_fn_call)?.simplified_term_id;
+        self.register_node_info(node, term);
+        Ok(term)
     }
 
     type StructDefRet = TermId;
@@ -1862,9 +1831,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         // validate the constructed nominal def
         self.validator().validate_nominal_def(nominal_id)?;
 
-        // add location to the struct definition
-        self.copy_location_from_node_to_target(node, term);
-
+        self.register_node_info(node, term);
         Ok(term)
     }
 
@@ -1915,9 +1882,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         // validate the constructed nominal def
         self.validator().validate_nominal_def(nominal_id)?;
 
-        // add location to the struct definition
-        self.copy_location_from_node_to_target(node, term);
-
+        self.register_node_info(node, term);
         Ok(term)
     }
 
@@ -1939,9 +1904,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         // Validate the definition
         self.validator().validate_trt_def(trt_def)?;
 
-        // Add location to the term
-        self.copy_location_from_node_to_target(node, term);
-
+        self.register_node_info(node, term);
         Ok(term)
     }
 
@@ -1966,9 +1929,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         // Validate the definition
         self.validator().validate_mod_def(mod_def, term, false)?;
 
-        // Add location to the term
-        self.copy_location_from_node_to_target(node, term);
-
+        self.register_node_info(node, term);
         Ok(term)
     }
 
@@ -1990,9 +1951,8 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         node: ast::AstNodeRef<ast::AccessPat>,
     ) -> Result<Self::AccessPatRet, Self::Error> {
         let walk::AccessPat { subject, property } = walk::walk_access_pat(self, ctx, node)?;
-
         let access_pat = self.builder().create_access_pat(subject, property);
-
+        self.register_node_info(node, access_pat);
         Ok(access_pat)
     }
 
@@ -2012,9 +1972,9 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let simplified = self.simplifier().potentially_simplify_term(subject)?;
 
         let constructor_pat = self.builder().create_constructor_pat(simplified, constructor_params);
-        self.copy_location_from_node_to_target(node, constructor_pat);
-
         self.validator().validate_constructor_pat(constructor_pat)?;
+
+        self.register_node_info(node, constructor_pat);
         Ok(constructor_pat)
     }
 
@@ -2047,8 +2007,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         self.validator().validate_tuple_pat(members)?;
         let tuple_pat = self.builder().create_tuple_pat(members);
 
-        self.copy_location_from_node_to_target(node, tuple_pat);
-
+        self.register_node_info(node, tuple_pat);
         Ok(tuple_pat)
     }
 
@@ -2081,8 +2040,8 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let list_pat = self.builder().create_list_pat(list_term, members);
 
         self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), members);
-        self.copy_location_from_node_to_target(node, list_pat);
 
+        self.register_node_info(node, list_pat);
         Ok(list_pat)
     }
 
@@ -2097,7 +2056,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         let spread_pat = self.builder().create_pat(Pat::Spread(SpreadPat { name }));
 
-        self.copy_location_from_node_to_target(node, spread_pat);
+        self.register_node_info(node, spread_pat);
         Ok(spread_pat)
     }
 
@@ -2115,8 +2074,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
             _ => self.builder().create_lit_pat(lit),
         };
 
-        self.copy_location_from_node_to_target(node, pat);
-
+        self.register_node_info(node, pat);
         Ok(pat)
     }
 
@@ -2135,6 +2093,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         self.validator().validate_range_pat(&range_pat)?;
 
+        self.register_node_info(node, pat);
         Ok(pat)
     }
 
@@ -2146,7 +2105,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     ) -> Result<Self::OrPatRet, Self::Error> {
         let walk::OrPat { variants } = walk::walk_or_pat(self, ctx, node)?;
         let pat = self.builder().create_or_pat(variants);
-        self.copy_location_from_node_to_target(node, pat);
+        self.register_node_info(node, pat);
         Ok(pat)
     }
 
@@ -2159,7 +2118,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     ) -> Result<Self::IfPatRet, Self::Error> {
         let walk::IfPat { condition, pat } = walk::walk_if_pat(self, ctx, node)?;
         let pat = self.builder().create_if_pat(pat, condition);
-        self.copy_location_from_node_to_target(node, pat);
+        self.register_node_info(node, pat);
         Ok(pat)
     }
 
@@ -2183,7 +2142,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
                 self.location_store().copy_location(ty, var_term);
                 let pat = self.builder().create_pat(Pat::Const(ConstPat { term: var_term }));
 
-                self.copy_location_from_node_to_target(node, pat);
+                self.register_node_info(node, pat);
                 return Ok(pat);
             }
         }
@@ -2200,7 +2159,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
             },
         );
 
-        self.copy_location_from_node_to_target(node, pat);
+        self.register_node_info(node, pat);
         Ok(pat)
     }
 
@@ -2212,7 +2171,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::WildPat>,
     ) -> Result<Self::WildPatRet, Self::Error> {
         let pat = self.builder().create_wildcard_pat();
-        self.copy_location_from_node_to_target(node, pat);
+        self.register_node_info(node, pat);
         Ok(pat)
     }
 
@@ -2237,10 +2196,8 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let walk::ModulePat { fields } = walk::walk_module_pat(self, ctx, node)?;
         let members = self.builder().create_pat_args(fields, ParamOrigin::ModulePat);
         let module_pat = self.builder().create_mod_pat(members);
-
         self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), members);
-        self.copy_location_from_node_to_target(node, module_pat);
-
+        self.register_node_info(node, module_pat);
         Ok(module_pat)
     }
 
@@ -2274,7 +2231,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         self.validator().validate_mod_def(mod_def, term, false)?;
 
         // Add location to the term
-        self.copy_location_from_node_to_target(node, term);
+        self.register_node_info(node, term);
         Ok(term)
     }
 }
