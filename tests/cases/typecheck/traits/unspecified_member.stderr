@@ -1,0 +1,15 @@
+error[0056]: method `member_not_on_trt` is not a member of trait `Foo`
+  --> $DIR/unspecified_member.hash:28:3
+27 |    
+28 |      member_not_on_trt := (a: i32, b: char) -> Mux => {
+   |  ____-
+29 | |        match a {
+30 | |          0..10 => Mux(val = 1);
+31 | |          11..20 => Mux(val = 2);
+32 | |          21..30 => Mux(val = 3);
+33 | |          31..40 => Mux(val = 4);
+34 | |          _ => Mux(val = 17);
+35 | |        }
+36 | |    };
+   | |_____- not a member of trait `Foo`
+37 |    };
