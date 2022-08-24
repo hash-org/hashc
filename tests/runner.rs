@@ -86,6 +86,12 @@ fn compare_emitted_diagnostics(
         }
     }
 
+    // We want to delete the file if the contents are empty, and we are
+    // re-generating
+    if *REGENERATE_OUTPUT && stderr_path.exists() && report_contents.is_empty() {
+        fs::remove_file(&stderr_path)?;
+    }
+
     // Read the contents of the file, if we couldn't find the file then we assume
     // that the contents of `.stderr` are empty. We can assume this because the
     // only reason why the file wouldn't be written to is if it didn't exist

@@ -376,8 +376,13 @@ impl<'tc> PatMatcher<'tc> {
             pat_members
         };
 
-        let pat_members_named =
-            inferred_pat_members.positional().iter().any(|member| member.name.is_some());
+        // If the tuple pattern is a single spread pattern, it inherits the naming
+        // conventions of the type that is being matched.
+        let pat_members_named = if inferred_pat_members.len() == 1 {
+            ty_members_named
+        } else {
+            inferred_pat_members.positional().iter().any(|member| member.name.is_some())
+        };
 
         // Build a collection of members that are to be inserted into the new tuple term
         let mut new_members = vec![];
