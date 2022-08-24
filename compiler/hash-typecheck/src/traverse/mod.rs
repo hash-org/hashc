@@ -1566,14 +1566,15 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         // Add the locations of all members:
         for member_idx in &member_indexes {
-            let location = iter::once(node.pat.span())
+            let member_span = iter::once(node.pat.span())
                 .chain(node.ty.as_ref().map(|ty| ty.span()))
                 .chain(node.value.as_ref().map(|value| value.span()))
                 .reduce(|acc, span| acc.join(span))
                 .unwrap();
+
             self.location_store().add_location_to_target(
                 (current_scope_id, *member_idx),
-                self.source_location(location),
+                self.source_location(member_span),
             );
         }
 

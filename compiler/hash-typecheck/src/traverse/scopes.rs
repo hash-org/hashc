@@ -42,11 +42,8 @@ impl<'tc> TcVisitor<'tc> {
 
             // Invariant: It is already checked during semantics that only declarations are
             // present in constant scopes.
-            for (i, member) in members.enumerate() {
+            for member in members {
                 this.visit_expr(ctx, member)?;
-
-                // Add location to the declaration
-                this.copy_location_from_node_to_target(member, (scope_id, i));
             }
             Ok(())
         })?;
