@@ -30,6 +30,10 @@ const BLOCK_DIAGNOSTIC_MARKER: char = '-';
 /// Character used to connect block views
 const DIAGNOSTIC_CONNECTING_CHAR: &str = "|";
 
+/// The maximum number of lines a block display can use before the lines in the
+/// center of the block are skipped.
+const LINE_SKIP_THRESHOLD: usize = 6;
+
 /// Struct to represent the column and row offset produced from converting a
 /// [hash_source::location::Span].
 pub(crate) struct ColRowOffset {
@@ -275,6 +279,16 @@ impl ReportCodeBlock {
 
         let ReportCodeBlockInfo { start_row, end_row, start_col, end_col, .. } = self.info(modules);
 
+        // If the difference between the rows is longer than `LINE_SKIP_THRESHOLD`
+        // lines, then we essentially begin to collapse the view by using `...`
+        // as the filler for those lines...
+        let skip_lines_range = if end_row - start_row > LINE_SKIP_THRESHOLD {
+            let mid = LINE_SKIP_THRESHOLD / 2;
+            Some((start_row + mid)..=(end_row - mid))
+        } else {
+            None
+        };
+
         // So here, we want to iterate over all of the line and on the starting line, we
         // want to draw an arrow from the left hand-side up until the beginning
         // which then points up, on lines that are in the middle, we just want
@@ -282,7 +296,7 @@ impl ReportCodeBlock {
         // below the final line we want to draw an arrow leading up until
         // the end of the span.
         for (index, line) in error_view {
-            let index_str = format!("{:>pad_width$}", index + 1, pad_width = longest_indent_width);
+            let index_str = format!("{:<pad_width$}", index + 1, pad_width = longest_indent_width);
 
             let line_number = if (start_row..=end_row).contains(&index) {
                 highlight(report_kind.as_colour(), &index_str)
@@ -299,6 +313,31 @@ impl ReportCodeBlock {
             } else {
                 " "
             };
+
+            // So if we're at the start of the 'skip' range, use '...' instead
+            if let Some(range) = skip_lines_range.clone() {
+                if *range.start() == index {
+                    let range_line_number = format!(
+                        "{:<pad_width$}",
+                        ".".repeat(3),
+                        pad_width = longest_indent_width + 2
+                    );
+
+                    // Write the skipped lines as `...` and then the rest of the components that are
+                    // required for the error display
+                    writeln!(
+                        f,
+                        "{} {}",
+                        highlight(report_kind.as_colour(), range_line_number),
+                        highlight(report_kind.as_colour(), connector),
+                    )?;
+                }
+
+                // Skip the lines
+                if range.contains(&index) {
+                    continue;
+                }
+            }
 
             writeln!(
                 f,

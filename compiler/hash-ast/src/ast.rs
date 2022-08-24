@@ -1039,7 +1039,7 @@ pub struct Declaration {
 }
 
 /// A merge declaration (adding implementations to traits/structs), e.g. `x ~=
-/// impl { ... };`.
+/// impl T { ... };`.
 #[derive(Debug, PartialEq, Clone)]
 pub struct MergeDeclaration {
     /// The expression to bind the right-hand side to.
@@ -1808,7 +1808,7 @@ pub enum ExprKind {
     /// the application of a binary operator, such as `x += 3`.
     AssignOp(AssignOpExpr),
     /// A merge declaration is one that adds an implementation for a particular
-    /// trait/struct to an already declared item, such as `x ~= impl { ... }`
+    /// trait/struct to an already declared item, such as `x ~= impl T { ... }`
     MergeDeclaration(MergeDeclaration),
     /// Trait implementation e.g. `impl Clone { ... }`
     TraitImpl(TraitImpl),

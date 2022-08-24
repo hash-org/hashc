@@ -16,7 +16,7 @@ use itertools::Itertools;
 
 use super::params::{ParamListKind, ParamUnificationErrorReason};
 use crate::{
-    fmt::PrepareForFormatting,
+    fmt::{PrepareForFormatting, TcFormatOpts},
     ops::AccessToOps,
     storage::{
         arguments::ArgsId,
@@ -155,6 +155,9 @@ pub enum TcError {
         // "terms".
         trt_def_missing_member_term_id: TermId,
     },
+    /// When a member of an `impl` block that implements a trait is not present
+    /// within the trait definition, in other words a non-member.
+    MethodNotAMemberOfTrait { trt_def_term_id: TermId, member: LocationTarget, name: Identifier },
     /// Cannot use pattern matching in a declaration without an assignment
     CannotPatMatchWithoutAssignment { pat: PatId },
     /// Cannot use a non-name as an assign subject.
@@ -1221,6 +1224,30 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                         format!(
                             "missing member `{}` is defined here",
                             trt_def_missing_member_term_id.for_formatting(ctx.global_storage())
+                        ),
+                    )));
+                }
+            }
+            TcError::MethodNotAMemberOfTrait { trt_def_term_id, member, name } => {
+                builder.with_error_code(HashErrorCode::MethodNotAMemberOfTrait).with_message(
+                    format!(
+                        "method `{name}` is not a member of trait `{}`",
+                        trt_def_term_id.for_formatting_with_opts(
+                            ctx.global_storage(),
+                            TcFormatOpts { expand: false, ..TcFormatOpts::default() }
+                        ),
+                    ),
+                );
+
+                if let Some(location) = ctx.location_store().get_location(member) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        format!(
+                            "not a member of trait `{}`",
+                            trt_def_term_id.for_formatting_with_opts(
+                                ctx.global_storage(),
+                                TcFormatOpts { expand: false, ..TcFormatOpts::default() }
+                            ),
                         ),
                     )));
                 }

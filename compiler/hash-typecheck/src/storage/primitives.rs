@@ -16,6 +16,7 @@ use num_bigint::BigInt;
 
 use super::{
     arguments::ArgsId,
+    location::LocationTarget,
     mods::ModDefId,
     nominals::NominalDefId,
     params::ParamsId,
@@ -131,6 +132,12 @@ impl Member {
             | Member::Variable(VariableMember { name, .. })
             | Member::Constant(ConstantMember { name, .. }) => *name,
         }
+    }
+
+    /// Get [LocationTarget]s referencing to the
+    /// value of the declaration.
+    pub fn location(&self) -> LocationTarget {
+        self.value_or_ty().into()
     }
 
     /// Get the type of the member
@@ -324,15 +331,16 @@ impl Scope {
         index
     }
 
-    /// Get a member by name.
-    pub fn get(&self, member_name: Identifier) -> Option<(Member, usize)> {
-        let index = self.member_names.get(&member_name).copied()?;
+    /// Get a [Member] by name, returning the the [Member] and the index
+    /// of the [Member] in the scope.
+    pub fn get(&self, name: Identifier) -> Option<(Member, usize)> {
+        let index = self.member_names.get(&name).copied()?;
         Some((self.members[index], index))
     }
 
     /// Whether the scope contains a member with the given name.
-    pub fn contains(&self, member_name: Identifier) -> bool {
-        self.member_names.contains_key(&member_name)
+    pub fn contains(&self, name: Identifier) -> bool {
+        self.member_names.contains_key(&name)
     }
 
     /// Get a member by index, asserting that it exists.
