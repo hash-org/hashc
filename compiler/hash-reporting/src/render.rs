@@ -279,11 +279,12 @@ impl ReportCodeBlock {
 
         let ReportCodeBlockInfo { start_row, end_row, start_col, end_col, .. } = self.info(modules);
 
-        // If the difference between the rows is longer than 5 lines, then we
-        // essentially begin to collapse the view by using `...` as the filler
-        // for those lines...
+        // If the difference between the rows is longer than `LINE_SKIP_THRESHOLD`
+        // lines, then we essentially begin to collapse the view by using `...`
+        // as the filler for those lines...
         let skip_lines_range = if end_row - start_row > LINE_SKIP_THRESHOLD {
-            Some((start_row + 3)..=(end_row - 3))
+            let mid = LINE_SKIP_THRESHOLD / 2;
+            Some((start_row + mid)..=(end_row - mid))
         } else {
             None
         };
