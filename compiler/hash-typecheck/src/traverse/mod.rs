@@ -30,10 +30,11 @@ use crate::{
     storage::{
         location::{IndexedLocationTarget, LocationTarget},
         nodes::NodeInfoTarget,
+        nominals::NominalDefId,
         pats::PatId,
         primitives::{
-            AccessOp, Arg, BindingPat, ConstPat, EnumVariant, Field, Member, ModDefOrigin,
-            Mutability, Param, Pat, PatArg, RangePat, ScopeKind, SpreadPat, Sub, Visibility,
+            AccessOp, Arg, BindingPat, ConstPat, Field, Member, ModDefOrigin, Mutability, Param,
+            Pat, PatArg, RangePat, ScopeKind, SpreadPat, Sub, Visibility,
         },
         terms::TermId,
         AccessToStorage, LocalStorage, StorageRef,
@@ -1798,7 +1799,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         Ok(term)
     }
 
-    type EnumDefEntryRet = EnumVariant;
+    type EnumDefEntryRet = (Identifier, NominalDefId);
 
     fn visit_enum_def_entry(
         &mut self,
@@ -1808,22 +1809,26 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let walk::EnumDefEntry { name, fields } = walk::walk_enum_def_entry(self, ctx, node)?;
 
         // Create the enum variant parameters
-        let params = if fields.is_empty() {
-            None
+        if fields.is_empty() {
+            // This is a unit variant:
+            Ok((name, self.builder().create_named_unit_def(name)))
         } else {
-            Some(
-                fields
-                    .iter()
-                    .map(|field| -> TcResult<_> {
-                        Ok(Param { name: field.name, ty: field.ty, default_value: None })
-                    })
-                    .collect::<TcResult<Vec<_>>>()?,
-            )
-        };
-
-        let fields =
-            params.map(|params| self.builder().create_params(params, ParamOrigin::EnumVariant));
-        Ok(EnumVariant { name, fields })
+            // This is a struct variant:
+            Ok((
+                name,
+                self.builder().create_named_struct_def(
+                    name,
+                    self.builder().create_params(
+                        fields.iter().map(|field| Param {
+                            name: field.name,
+                            ty: field.ty,
+                            default_value: None,
+                        }),
+                        ParamOrigin::EnumVariant,
+                    ),
+                ),
+            ))
+        }
     }
 
     type EnumDefRet = TermId;
@@ -1834,19 +1839,27 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::EnumDef>,
     ) -> Result<Self::EnumDefRet, Self::Error> {
         let walk::EnumDef { entries } = walk::walk_enum_def(self, ctx, node)?;
-
-        // take the declaration hint here...
         let name = self.state.declaration_name_hint.take();
-
         let builder = self.builder();
-        let nominal_id = builder.create_enum_def(name, entries);
-        let term = builder.create_nominal_def_term(nominal_id);
-
-        // validate the constructed nominal def
-        self.validator().validate_nominal_def(nominal_id)?;
-
-        self.register_node_info(node, term);
-        Ok(term)
+        let enum_variant_union = builder.create_union_term(
+            entries.iter().map(|(_, entry)| builder.create_nominal_def_term(*entry)),
+        );
+        let enum_variant_members = entries
+            .iter()
+            .map(|(name, entry)| {
+                let entry_term = self.builder().create_nominal_def_term(*entry);
+                let entry_ty = self.typer().infer_ty_of_term(entry_term)?;
+                Ok(Member::closed_constant(*name, Visibility::Public, entry_ty, entry_term))
+            })
+            .collect::<TcResult<Vec<_>>>()?;
+        let enum_mod_def = builder.create_mod_def(
+            name,
+            ModDefOrigin::AnonImpl,
+            builder.create_scope(ScopeKind::Constant, enum_variant_members),
+        );
+        let enum_mod_def_term = builder.create_mod_def_term(enum_mod_def);
+        let enum_def = self.builder().create_merge_term([enum_variant_union, enum_mod_def_term]);
+        self.validate_and_register_simplified_term(node, enum_def)
     }
 
     type TraitDefRet = TermId;

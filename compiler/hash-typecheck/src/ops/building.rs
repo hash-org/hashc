@@ -19,7 +19,7 @@ use crate::storage::{
         Level0Term, Level1Term, Level2Term, Level3Term, ListPat, LitTerm, Member, ModDef,
         ModDefOrigin, ModPat, Mutability, NominalDef, Param, Pat, PatArg, RangePat, Scope,
         ScopeKind, ScopeVar, SetBound, StructDef, StructFields, Term, TrtDef, TupleLit, TupleTy,
-        TyFn, TyFnCall, TyFnCase, TyFnTy, UnresolvedTerm, Var, Visibility,
+        TyFn, TyFnCall, TyFnCase, TyFnTy, UnitDef, UnresolvedTerm, Var, Visibility,
     },
     scope::ScopeId,
     terms::TermId,
@@ -114,6 +114,25 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// Create a nameless module definition with the given members, and origin.
     pub fn create_nameless_mod_def(&self, origin: ModDefOrigin, members: ScopeId) -> ModDefId {
         self.create_mod_def(Option::<Identifier>::None, origin, members)
+    }
+
+    /// Create a unit definition with an optional name.
+    pub fn create_unit_def(&self, name: Option<Identifier>) -> NominalDefId {
+        let def_id = self.gs.nominal_def_store.create(NominalDef::Unit(UnitDef { name }));
+        if let Some(name) = name {
+            self.add_nominal_def_to_scope(name, def_id);
+        }
+        def_id
+    }
+
+    /// Create a named unit definition.
+    pub fn create_named_unit_def(&self, name: impl Into<Identifier>) -> NominalDefId {
+        self.create_unit_def(Some(name.into()))
+    }
+
+    /// Create a nameless unit definition.
+    pub fn create_nameless_unit_def(&self) -> NominalDefId {
+        self.create_unit_def(None)
     }
 
     /// Create a module definition with the given optional name, members, and
