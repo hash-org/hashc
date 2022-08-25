@@ -244,6 +244,10 @@ impl<'tc> Typer<'tc> {
                         };
                         Ok(self.simplifier().potentially_simplify_term(term)?)
                     }
+                    Level0Term::Unit(def_id) => {
+                        // The inner member stores the def ID of the unit
+                        Ok(self.builder().create_nominal_def_term(def_id))
+                    }
                 }
             }
             Term::BoundVar(bound_var) => {

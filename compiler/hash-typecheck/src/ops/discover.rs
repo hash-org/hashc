@@ -95,7 +95,7 @@ impl<'tc> Discoverer<'tc> {
                 self.add_free_sub_vars_in_term_to_set(constructed.subject, result);
                 self.add_free_sub_vars_in_args_to_set(constructed.members, result);
             }
-            Level0Term::EnumVariant(_) | Level0Term::Lit(_) => {}
+            Level0Term::EnumVariant(_) | Level0Term::Lit(_) | Level0Term::Unit(_) => {}
         }
     }
 
@@ -312,7 +312,7 @@ impl<'tc> Discoverer<'tc> {
                 self.add_free_bound_vars_in_term_to_set(constructed.subject, result);
                 self.add_free_bound_vars_in_args_to_set(constructed.members, result);
             }
-            Level0Term::EnumVariant(_) | Level0Term::Lit(_) => {}
+            Level0Term::EnumVariant(_) | Level0Term::Lit(_) | Level0Term::Unit(_) => {}
         }
     }
 
@@ -356,10 +356,9 @@ impl<'tc> Discoverer<'tc> {
                         ..
                     }) => self.add_free_bound_vars_in_params_to_set(fields, result),
                     // @@Todo: add bound vars to opaque structs
-                    NominalDef::Struct(_) => {}
-                    NominalDef::Enum(_) => {
-                        // @@Remove: enums will be removed anyway.
-                    }
+                    NominalDef::Struct(_) | NominalDef::Unit(_) => {}
+                    // @@Remove: enums will be removed anyway.
+                    NominalDef::Enum(_) => {}
                 }
             }
             Level1Term::Tuple(tuple_ty) => {
@@ -1046,6 +1045,7 @@ impl<'tc> Discoverer<'tc> {
                         Ok(Some(self.builder().create_constructed_term(subject, members)))
                     }
                 }
+                Level0Term::Unit(_) => Ok(None),
             },
             Term::Level1(Level1Term::ModDef(_))
             | Term::Level1(Level1Term::NominalDef(_))

@@ -365,6 +365,7 @@ impl<'tc> Validator<'tc> {
 
                 Ok(())
             }
+            NominalDef::Unit(_) => Ok(()), // nothing to do
         }
     }
 
@@ -837,6 +838,11 @@ impl<'tc> Validator<'tc> {
                     self.validate_term(term_ty_id)?;
                     Ok(result)
                 }
+                Level0Term::Unit(_) => {
+                    // Non-unit def ID inside here would be a compiler error,
+                    // not a user error, so we don't need to check it as part of validation.
+                    Ok(result)
+                }
             },
 
             // Access
@@ -1067,9 +1073,11 @@ impl<'tc> Validator<'tc> {
                         "Function call in checking for type function return validity should have been simplified!"
                     )
                     }
-                    Level0Term::Lit(_) | Level0Term::Tuple(_) | Level0Term::Constructed(_) => {
-                        Ok(false)
-                    }
+                    // @@Future: could support these in certain cases.
+                    Level0Term::Unit(_)
+                    | Level0Term::Lit(_)
+                    | Level0Term::Tuple(_)
+                    | Level0Term::Constructed(_) => Ok(false),
                 }
             }
             _ => Ok(true),
@@ -1351,6 +1359,7 @@ impl<'tc> Validator<'tc> {
                 StructFields::Explicit(fields) => (true, fields),
                 StructFields::Opaque => return Err(TcError::NoConstructorOnType { subject }),
             },
+            NominalDef::Unit(_) => return Err(TcError::NoCallableConstructorOnType { subject }),
             NominalDef::Enum(_) => unreachable!(),
         };
 

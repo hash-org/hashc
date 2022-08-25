@@ -137,7 +137,7 @@ impl<'tc> Substituter<'tc> {
         &self,
         sub: &Sub,
         term: Level0Term,
-        original_term: TermId,
+        _original_term: TermId,
     ) -> TermId {
         match term {
             Level0Term::Rt(ty_term_id) => {
@@ -167,7 +167,7 @@ impl<'tc> Substituter<'tc> {
 
                 self.builder().create_constructed_term(subbed_subject, subbed_args)
             }
-            Level0Term::Lit(_) | Level0Term::EnumVariant(_) => original_term,
+            Level0Term::Lit(_) | Level0Term::EnumVariant(_) | Level0Term::Unit(_) => todo!(),
         }
     }
 

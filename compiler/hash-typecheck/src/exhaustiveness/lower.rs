@@ -26,9 +26,9 @@ use crate::{
         params::ParamsId,
         pats::{PatArgsId, PatId},
         primitives::{
-            AccessPat, ConstructorPat, IfPat, Level0Term, Level1Term, ListPat, LitTerm, ModDef,
-            ModPat, NominalDef, Pat, PatArg, RangePat, ScopeKind, SpreadPat, StructFields, Term,
-            TupleTy,
+            AccessPat, ConstPat, ConstructorPat, IfPat, Level0Term, Level1Term, ListPat, LitTerm,
+            ModDef, ModPat, NominalDef, Pat, PatArg, RangePat, ScopeKind, SpreadPat, StructFields,
+            Term, TupleTy,
         },
         terms::TermId,
         AccessToStorage, StorageRef,
@@ -180,36 +180,40 @@ impl<'tc> LowerPatOps<'tc> {
             Pat::Constructor(ConstructorPat { args, .. }) => {
                 match reader.get_term(ty) {
                     Term::Level1(Level1Term::NominalDef(nominal_def)) => {
-                        let (ctor, members) = match reader.get_nominal_def(nominal_def) {
+                        // @@Todo: deal with variants
+                        match reader.get_nominal_def(nominal_def) {
                             NominalDef::Struct(struct_def) => match struct_def.fields {
                                 StructFields::Explicit(members) => {
-                                    (DeconstructedCtor::Single, members)
+                                    // Lower the fields by resolving what positions the actual
+                                    // fields are
+                                    // with the reference of the constructor's type...
+                                    let fields =
+                                        self.pat_lowerer().deconstruct_pat_fields(args, members);
+
+                                    let args = reader.get_params_owned(members);
+                                    let tys = args.positional().iter().map(|param| param.ty);
+
+                                    let mut wilds: SmallVec<[_; 2]> = tys
+                                        .map(|ty| self.deconstruct_pat_ops().wildcard(ty))
+                                        .collect();
+
+                                    // For each provided field, we want to recurse and lower the
+                                    // pattern further
+                                    for field in fields {
+                                        wilds[field.index] =
+                                            self.deconstruct_pat(wilds[field.index].ty, field.pat);
+                                    }
+
+                                    (DeconstructedCtor::Single, wilds.to_vec())
                                 }
                                 StructFields::Opaque => {
                                     panic!("got unexpected opaque struct-def here")
                                 }
                             },
+                            NominalDef::Unit(_) => (DeconstructedCtor::Single, vec![]),
                             // @@EnumToUnion: when enums aren't a thing, do this with a union
                             NominalDef::Enum(_) => unreachable!(),
-                        };
-
-                        // Lower the fields by resolving what positions the actual fields are
-                        // with the reference of the constructor's type...
-                        let fields = self.pat_lowerer().deconstruct_pat_fields(args, members);
-
-                        let args = reader.get_params_owned(members);
-                        let tys = args.positional().iter().map(|param| param.ty);
-
-                        let mut wilds: SmallVec<[_; 2]> =
-                            tys.map(|ty| self.deconstruct_pat_ops().wildcard(ty)).collect();
-
-                        // For each provided field, we want to recurse and lower the pattern further
-                        for field in fields {
-                            wilds[field.index] =
-                                self.deconstruct_pat(wilds[field.index].ty, field.pat);
                         }
-
-                        (ctor, wilds.to_vec())
                     }
                     _ => tc_panic!(
                         ty,
@@ -327,48 +331,51 @@ impl<'tc> LowerPatOps<'tc> {
                         Pat::Tuple(args)
                     }
                     Term::Level1(Level1Term::NominalDef(nom_def)) => {
-                        let tys = match reader.get_nominal_def(nom_def) {
+                        match reader.get_nominal_def(nom_def) {
                             NominalDef::Struct(struct_def) => {
-                                match struct_def.fields {
+                                let tys = match struct_def.fields {
                                     StructFields::Explicit(fields) => {
                                         reader.get_params_owned(fields)
                                     },
                                     StructFields::Opaque => unreachable!(),
-                                }
+                                };
+
+                                // Construct the inner arguments to the constructor by iterating over the
+                                // pattern fields within the pattern. If possible, lookup the name of the
+                                // field by using the nominal definition attached to the pattern.
+                                let children = pat.fields.iter_patterns().enumerate()
+                                    .filter(|(_, p)| {
+                                        !reader.get_deconstructed_pat_ctor(*p).is_wildcard()
+                                    })
+                                    .map(|(index, p)| {
+                                        PatArg {
+                                            name: tys.positional().get(index).and_then(|param| param.name),
+                                            pat: self.construct_pat(p)
+                                        }
+                                    }).collect_vec();
+
+                                // We collapse all fields that are specified as `wildcards` within
+                                // these construct patterns in order to represent them visually in a clearer
+                                // way. If a construct has 20 fields that 18 are specified as wildcards, and the
+                                // rest have user specified patterns, then we only want to print those and the
+                                // rest is denoted as `...`.
+                                let args = if pat.fields.len() != children.len() {
+                                    let dummy = Pat::Spread(SpreadPat { name: None  });
+                                    let arg = PatArg { pat: self.pat_store().create(dummy), name: None };
+
+                                    self.builder().create_pat_args(children.into_iter().chain(once(arg)), ParamOrigin::ListPat)
+                                }  else {
+                                    self.builder().create_pat_args(children, ParamOrigin::ListPat)
+                                };
+
+                                Pat::Constructor(ConstructorPat { subject: pat.ty, args })
                             },
+                            NominalDef::Unit(_) => {
+                                Pat::Const(ConstPat { term: self.builder().create_unit_term(nom_def) })
+                            }
                             NominalDef::Enum(_) => unreachable!(),
-                        };
+                        }
 
-
-                        // Construct the inner arguments to the constructor by iterating over the
-                        // pattern fields within the pattern. If possible, lookup the name of the
-                        // field by using the nominal definition attached to the pattern.
-                        let children = pat.fields.iter_patterns().enumerate()
-                            .filter(|(_, p)| {
-                                !reader.get_deconstructed_pat_ctor(*p).is_wildcard()
-                            })
-                            .map(|(index, p)| {
-                                PatArg {
-                                    name: tys.positional().get(index).and_then(|param| param.name),
-                                    pat: self.construct_pat(p)
-                                }
-                            }).collect_vec();
-
-                        // We collapse all fields that are specified as `wildcards` within
-                        // these construct patterns in order to represent them visually in a clearer
-                        // way. If a construct has 20 fields that 18 are specified as wildcards, and the
-                        // rest have user specified patterns, then we only want to print those and the
-                        // rest is denoted as `...`.
-                        let args = if pat.fields.len() != children.len() {
-                            let dummy = Pat::Spread(SpreadPat { name: None  });
-                            let arg = PatArg { pat: self.pat_store().create(dummy), name: None };
-
-                            self.builder().create_pat_args(children.into_iter().chain(once(arg)), ParamOrigin::ListPat)
-                        }  else {
-                            self.builder().create_pat_args(children, ParamOrigin::ListPat)
-                        };
-
-                        Pat::Constructor(ConstructorPat { subject: pat.ty, args })
                     }
                     _ => tc_panic!(
                         pat.ty,

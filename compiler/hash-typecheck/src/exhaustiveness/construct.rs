@@ -149,6 +149,7 @@ impl<'tc> ConstructorOps<'tc> {
                                 }
                                 StructFields::Opaque => 0,
                             },
+                            NominalDef::Unit(_) => 0,
                             // @@EnumToUnion: remove this
                             NominalDef::Enum(_) => unreachable!(),
                         }

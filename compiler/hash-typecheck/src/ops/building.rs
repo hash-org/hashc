@@ -319,6 +319,11 @@ impl<'gs> PrimitiveBuilder<'gs> {
         self.create_term(Term::Union(terms))
     }
 
+    /// Create a term [Level0Term::Unit] from the given nominal definition ID.
+    pub fn create_unit_term(&self, unit_id: NominalDefId) -> TermId {
+        self.create_term(Term::Level0(Level0Term::Unit(unit_id)))
+    }
+
     /// Create the void type term: [Level1Term::Tuple] with no members.
     pub fn create_void_ty_term(&self) -> TermId {
         self.create_term(Term::Level1(Level1Term::Tuple(TupleTy {
