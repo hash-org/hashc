@@ -181,41 +181,38 @@ impl<'tc> LowerPatOps<'tc> {
                 match reader.get_term(ty) {
                     Term::Level1(Level1Term::NominalDef(nominal_def)) => {
                         // @@Todo: deal with variants
-                        let (ctor, members) = match reader.get_nominal_def(nominal_def) {
+                        match reader.get_nominal_def(nominal_def) {
                             NominalDef::Struct(struct_def) => match struct_def.fields {
                                 StructFields::Explicit(members) => {
-                                    (DeconstructedCtor::Single, Some(members))
+                                    // Lower the fields by resolving what positions the actual
+                                    // fields are
+                                    // with the reference of the constructor's type...
+                                    let fields =
+                                        self.pat_lowerer().deconstruct_pat_fields(args, members);
+
+                                    let args = reader.get_params_owned(members);
+                                    let tys = args.positional().iter().map(|param| param.ty);
+
+                                    let mut wilds: SmallVec<[_; 2]> = tys
+                                        .map(|ty| self.deconstruct_pat_ops().wildcard(ty))
+                                        .collect();
+
+                                    // For each provided field, we want to recurse and lower the
+                                    // pattern further
+                                    for field in fields {
+                                        wilds[field.index] =
+                                            self.deconstruct_pat(wilds[field.index].ty, field.pat);
+                                    }
+
+                                    (DeconstructedCtor::Single, wilds.to_vec())
                                 }
                                 StructFields::Opaque => {
                                     panic!("got unexpected opaque struct-def here")
                                 }
                             },
-                            NominalDef::Unit(_) => (DeconstructedCtor::Single, None),
+                            NominalDef::Unit(_) => (DeconstructedCtor::Single, vec![]),
                             // @@EnumToUnion: when enums aren't a thing, do this with a union
                             NominalDef::Enum(_) => unreachable!(),
-                        };
-
-                        if let Some(members) = members {
-                            // Lower the fields by resolving what positions the actual fields are
-                            // with the reference of the constructor's type...
-                            let fields = self.pat_lowerer().deconstruct_pat_fields(args, members);
-
-                            let args = reader.get_params_owned(members);
-                            let tys = args.positional().iter().map(|param| param.ty);
-
-                            let mut wilds: SmallVec<[_; 2]> =
-                                tys.map(|ty| self.deconstruct_pat_ops().wildcard(ty)).collect();
-
-                            // For each provided field, we want to recurse and lower the pattern
-                            // further
-                            for field in fields {
-                                wilds[field.index] =
-                                    self.deconstruct_pat(wilds[field.index].ty, field.pat);
-                            }
-
-                            (ctor, wilds.to_vec())
-                        } else {
-                            (ctor, vec![])
                         }
                     }
                     _ => tc_panic!(
