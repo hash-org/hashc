@@ -14,7 +14,7 @@ use crate::storage::{
     primitives::{
         AccessOp, AccessPat, BoundVar, ConstPat, ConstructedTerm, EnumDef, Level0Term, Level1Term,
         Level2Term, Level3Term, ListPat, LitTerm, Member, ModDefOrigin, ModPat, Mutability,
-        NominalDef, Pat, RangePat, ScopeVar, SpreadPat, StructDef, Sub, SubVar, Term,
+        NominalDef, Pat, RangePat, ScopeVar, SpreadPat, StructDef, Sub, SubVar, Term, UnitDef,
         UnresolvedTerm, Var, Visibility,
     },
     scope::ScopeId,
@@ -287,6 +287,10 @@ impl<'gs> TcFormatter<'gs> {
                     members.for_formatting(self.global_storage)
                 )
             }
+            Level0Term::Unit(def_id) => {
+                opts.is_atomic.set(true);
+                write!(f, "{}", def_id.for_formatting(self.global_storage),)
+            }
         }
     }
 
@@ -532,6 +536,7 @@ impl<'gs> TcFormatter<'gs> {
         match self.global_storage.nominal_def_store.get(nominal_def_id) {
             NominalDef::Struct(StructDef { name: Some(name), .. })
             | NominalDef::Enum(EnumDef { name: Some(name), .. })
+            | NominalDef::Unit(UnitDef { name: Some(name) })
                 if !opts.expand =>
             {
                 write!(f, "{}", name)
@@ -544,6 +549,9 @@ impl<'gs> TcFormatter<'gs> {
             }
             NominalDef::Enum(_) => {
                 write!(f, "enum(..)")
+            }
+            NominalDef::Unit(_) => {
+                write!(f, "unit()")
             }
         }
     }

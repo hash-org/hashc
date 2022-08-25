@@ -240,6 +240,7 @@ impl<'tc> PatMatcher<'tc> {
         // @@Todo: deal with enum variants
         let subject_members = match self.oracle().term_as_struct_def(subject).unwrap().fields {
             StructFields::Explicit(fields) => fields,
+            // @@ErrorReporting: this should be a tc panic
             _ => unreachable!(),
         };
 

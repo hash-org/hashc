@@ -230,6 +230,11 @@ impl Debug for ForFormatting<'_, DeconstructedPatId> {
                                     write!(f, "{}", name)?;
                                 }
                             }
+                            NominalDef::Unit(unit_def) => {
+                                if let Some(name) = unit_def.name {
+                                    write!(f, "{}", name)?;
+                                }
+                            }
                             // @@EnumToUnion: remove and replace
                             NominalDef::Enum(_) => unreachable!(),
                         }

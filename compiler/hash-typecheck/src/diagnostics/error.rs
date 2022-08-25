@@ -166,6 +166,9 @@ pub enum TcError {
     /// Cannot find a constructor for the given type
     NoConstructorOnType { subject: TermId },
 
+    /// The subject does not have a callable constructor (i.e. it is constant).
+    NoCallableConstructorOnType { subject: TermId },
+
     /// When a bind within a pattern is declared more than one
     IdentifierBoundMultipleTimes { name: Identifier, pat: PatId },
 
@@ -1304,6 +1307,19 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 if let Some(location) = ctx.location_store().get_location(subject) {
                     builder
                         .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(location, "")));
+                }
+            }
+            TcError::NoCallableConstructorOnType { subject } => {
+                builder.with_message(format!(
+                    "type `{}` has a constant constructor, not a callable one",
+                    subject.for_formatting(ctx.global_storage())
+                ));
+
+                if let Some(location) = ctx.location_store().get_location(subject) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "try to remove the argument list here",
+                    )));
                 }
             }
             TcError::IdentifierBoundMultipleTimes { name, pat } => {

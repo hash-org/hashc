@@ -120,6 +120,9 @@ impl<'tc> FieldOps<'tc> {
                                     self.for_fmt(ctx.ty),
                                 ),
                             },
+                            NominalDef::Unit(_) => {
+                                Fields::empty()
+                            },
                             // @@EnumToUnion: when enums aren't represented as this anymore
                             NominalDef::Enum(_) => unreachable!(),
                         }

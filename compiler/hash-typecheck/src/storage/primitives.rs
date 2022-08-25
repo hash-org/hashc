@@ -513,7 +513,7 @@ pub struct ModDef {
 }
 
 /// The fields of a struct.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum StructFields {
     /// An explicit set of fields, as a set of parameters.
     Explicit(ParamsId),
@@ -525,7 +525,7 @@ pub enum StructFields {
 }
 
 /// A struct definition, containing a binding name and a set of fields.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct StructDef {
     pub name: Option<Identifier>,
     pub fields: StructFields,
@@ -550,17 +550,29 @@ pub struct EnumDef {
 }
 
 /// A trait definition, containing a binding name and a set of constant members.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct TrtDef {
     pub name: Option<Identifier>,
     pub members: ScopeId,
 }
 
-/// A nominal definition, which for now is either a struct or an enum.
+/// A unit definition.
+///
+/// This is a nominal type with a single constant constructor.
+#[derive(Debug, Clone, Copy)]
+pub struct UnitDef {
+    pub name: Option<Identifier>,
+}
+
+/// A nominal definition, which for now is either a struct, an enum, or a unit.
 #[derive(Debug, Clone)]
 pub enum NominalDef {
+    /// A struct definition.
     Struct(StructDef),
+    /// @@Todo: delete
     Enum(EnumDef),
+    /// A unit definition.
+    Unit(UnitDef),
 }
 
 impl NominalDef {
@@ -569,6 +581,7 @@ impl NominalDef {
         match self {
             NominalDef::Struct(def) => def.name,
             NominalDef::Enum(def) => def.name,
+            NominalDef::Unit(def) => def.name,
         }
     }
 }
@@ -978,6 +991,10 @@ pub enum Level0Term {
 
     /// An enum variant, which is either a constant term or a function value.
     EnumVariant(EnumVariantValue),
+
+    /// A unit value, of the given unit type definition (inner `NominalDefId`
+    /// should point to a unit).
+    Unit(NominalDefId),
 
     /// Tuple literal.
     Tuple(TupleLit),

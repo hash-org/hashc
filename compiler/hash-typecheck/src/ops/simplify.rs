@@ -359,7 +359,7 @@ impl<'tc> Simplifier<'tc> {
                     }
                 }
             },
-            Level0Term::Lit(_) => {
+            Level0Term::Unit(_) | Level0Term::Lit(_) => {
                 // Create an Rt(..) of the value wrapped, and use that as the subject.
                 let term_value = Level0Term::Rt(self.typer().infer_ty_of_term(originating_term)?);
                 let term = self.builder().create_term(Term::Level0(term_value.clone()));
@@ -426,6 +426,7 @@ impl<'tc> Simplifier<'tc> {
                             None => name_not_found(access_term),
                         }
                     }
+                    NominalDef::Unit(_) => todo!(),
                 }
             }
             Level1Term::Tuple(_tuple_ty) => does_not_support_access(access_term),
@@ -818,7 +819,9 @@ impl<'tc> Simplifier<'tc> {
 
                         Ok(ConstructedTerm { subject: term_id, members })
                     }
+                    // @@Remove
                     NominalDef::Enum(_) => cannot_use_as_call_subject(),
+                    NominalDef::Unit(_) => cannot_use_as_call_subject(),
                 }
             }
             _ => cannot_use_as_call_subject(),
@@ -953,6 +956,7 @@ impl<'tc> Simplifier<'tc> {
                     Level0Term::Lit(_) => cannot_use_as_fn_call_subject(),
                     Level0Term::Tuple(_) => cannot_use_as_fn_call_subject(),
                     Level0Term::Constructed(_) => cannot_use_as_fn_call_subject(),
+                    Level0Term::Unit(_) => cannot_use_as_fn_call_subject(),
                 }
             }
 
@@ -1066,6 +1070,7 @@ impl<'tc> Simplifier<'tc> {
                     Ok(None)
                 }
             }
+            Level0Term::Unit(_) => Ok(None),
         }
     }
 
