@@ -1839,7 +1839,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::EnumDef>,
     ) -> Result<Self::EnumDefRet, Self::Error> {
         let walk::EnumDef { entries } = walk::walk_enum_def(self, ctx, node)?;
-        let name = self.state.declaration_name_hint.take();
+        // let name = self.state.declaration_name_hint.take();
         let builder = self.builder();
         let enum_variant_union = builder.create_union_term(
             entries.iter().map(|(_, entry)| builder.create_nominal_def_term(*entry)),
@@ -1853,7 +1853,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
             })
             .collect::<TcResult<Vec<_>>>()?;
         let enum_mod_def = builder.create_mod_def(
-            name,
+            Option::<Identifier>::None,
             ModDefOrigin::AnonImpl,
             builder.create_scope(ScopeKind::Constant, enum_variant_members),
         );

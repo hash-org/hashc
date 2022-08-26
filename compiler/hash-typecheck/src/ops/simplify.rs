@@ -426,7 +426,7 @@ impl<'tc> Simplifier<'tc> {
                             None => name_not_found(access_term),
                         }
                     }
-                    NominalDef::Unit(_) => todo!(),
+                    NominalDef::Unit(_) => does_not_support_access(access_term),
                 }
             }
             Level1Term::Tuple(_tuple_ty) => does_not_support_access(access_term),
