@@ -8,9 +8,10 @@ use super::AccessToOps;
 use crate::{
     diagnostics::macros::tc_panic,
     storage::{
+        nominals::NominalDefId,
         primitives::{
             EnumDef, EnumVariant, EnumVariantValue, FnTy, Level0Term, Level1Term, NominalDef,
-            ScopeVar, StructDef, Term, TupleTy,
+            ScopeVar, StructDef, Term, TupleTy, UnitDef,
         },
         terms::TermId,
         AccessToStorage, StorageRef,
@@ -124,6 +125,11 @@ impl<'tc> Oracle<'tc> {
         self.term_as_struct_def(term).is_some()
     }
 
+    /// If the term is a [UnitDef] term.
+    pub fn term_is_unit_def(&self, term: TermId) -> bool {
+        self.term_as_unit_def(term).is_some()
+    }
+
     /// If the term is a literal term.
     pub fn term_is_enum_def(&self, term: TermId) -> bool {
         self.term_as_enum_def(term).is_some()
@@ -167,10 +173,29 @@ impl<'tc> Oracle<'tc> {
         }
     }
 
+    /// Get a [Term] as a [UnitDef].
+    pub fn term_as_unit_def(&self, term: TermId) -> Option<UnitDef> {
+        match self.reader().get_term(term) {
+            Term::Level1(Level1Term::NominalDef(def)) => match self.reader().get_nominal_def(def) {
+                NominalDef::Unit(unit_def) => Some(unit_def),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
     /// Get a [Term] as a [NominalDef].
     pub fn term_as_nominal_def(&self, term: TermId) -> Option<NominalDef> {
         match self.reader().get_term(term) {
             Term::Level1(Level1Term::NominalDef(def)) => Some(self.reader().get_nominal_def(def)),
+            _ => None,
+        }
+    }
+
+    /// Get a [Term] as a [NominalDefId].
+    pub fn term_as_nominal_def_id(&self, term: TermId) -> Option<NominalDefId> {
+        match self.reader().get_term(term) {
+            Term::Level1(Level1Term::NominalDef(def)) => Some(def),
             _ => None,
         }
     }
