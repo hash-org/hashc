@@ -7,8 +7,8 @@ use crate::{
     diagnostics::macros::tc_panic,
     storage::{
         primitives::{
-            EnumDef, EnumVariant, EnumVariantValue, FnTy, Level0Term, Level1Term, NominalDef,
-            ScopeVar, StructDef, Term, TupleTy,
+            EnumDef, EnumVariant, EnumVariantValue, FnTy, Level0Term, Level1Term, Level2Term,
+            NominalDef, ScopeVar, StructDef, Term, TrtDef, TupleTy,
         },
         terms::TermId,
         AccessToStorage, StorageRef,
@@ -169,6 +169,14 @@ impl<'tc> Oracle<'tc> {
     pub fn term_as_nominal_def(&self, term: TermId) -> Option<NominalDef> {
         match self.reader().get_term(term) {
             Term::Level1(Level1Term::NominalDef(def)) => Some(self.reader().get_nominal_def(def)),
+            _ => None,
+        }
+    }
+
+    /// Get a [Term] as a [TrtDef].
+    pub fn term_as_trt_def(&self, term: TermId) -> Option<TrtDef> {
+        match self.reader().get_term(term) {
+            Term::Level2(Level2Term::Trt(item)) => Some(self.reader().get_trt_def(item)),
             _ => None,
         }
     }

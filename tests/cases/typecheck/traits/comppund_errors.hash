@@ -1,0 +1,47 @@
+// run=fail, stage=typecheck
+Mux := struct(val := 3, bal := 'c');
+
+Foo := trait {
+  // Self: Type;
+  
+  bax : () -> u32;
+
+  bux : (a: i32) -> Mux; 
+
+  crux : (a: u32) -> Mux; 
+};
+
+Frobulate := struct(
+  data: i32,
+  other: char = 'c',
+);
+
+
+Frobulate ~= impl Foo {
+    bax := () -> u32 => {
+        1u32
+    };
+
+    //~ ERROR: `a` missing trait implementation 
+    //
+    // bux := (a: i32) -> Mux => {
+    //     Mux(bal = a)
+    // }; 
+
+    //~ ERROR: `a` parameter mis-matches
+    crux := (a: i32) -> Mux => {
+        Mux()
+    };
+
+    //~ ERROR: `method_not_on_trt` not a member of `Foo`
+    member_not_on_trt := (a: i32, b: char) -> Mux => {
+        match a {
+            0..10 => Mux(val = 1);
+            11..20 => Mux(val = 2);
+            21..30 => Mux(val = 3);
+            31..40 => Mux(val = 4);
+            _ => Mux(val = 17);
+        }
+    };
+};
+

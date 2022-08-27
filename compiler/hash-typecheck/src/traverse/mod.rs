@@ -1878,7 +1878,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TraitImpl>,
     ) -> Result<Self::TraitImplRet, Self::Error> {
-        let trait_term = self.visit_ty(ctx, node.ty.ast_ref())?;
+        let trt_term = self.visit_ty(ctx, node.ty.ast_ref())?;
 
         // create a scope for the module definition
         let VisitConstantScope { scope_name, scope_id, .. } =
@@ -1886,13 +1886,13 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         // @@Todo: bound variables
         let mod_def =
-            self.builder().create_mod_def(scope_name, ModDefOrigin::TrtImpl(trait_term), scope_id);
+            self.builder().create_mod_def(scope_name, ModDefOrigin::TrtImpl(trt_term), scope_id);
         let term = self.builder().create_mod_def_term(mod_def);
 
         // Validate the definition
+        self.register_node_info(node.ty.ast_ref(), term);
         self.validator().validate_mod_def(mod_def, term, false)?;
 
-        self.register_node_info(node, term);
         Ok(term)
     }
 
