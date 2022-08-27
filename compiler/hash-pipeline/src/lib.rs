@@ -5,6 +5,8 @@
 //! parser or typechecker and just use a common trait interface that can be
 //! used. This file also has definitions for how to access sources whether
 //! module or interactive.
+#![allow(clippy::too_many_arguments)]
+
 pub mod fs;
 pub mod settings;
 pub mod sources;
@@ -19,7 +21,7 @@ use hash_source::{ModuleKind, SourceId};
 use hash_utils::{path::adjust_canonicalisation, timing::timed, tree_writing::TreeWriter};
 use settings::{CompilerJobParams, CompilerMode, CompilerSettings};
 use sources::{Module, Workspace};
-use traits::{Desugar, Parser, SemanticPass, Tc, VirtualMachine};
+use traits::{Desugar, Lowering, Parser, SemanticPass, Tc, VirtualMachine};
 
 pub type CompilerResult<T> = Result<T, Vec<Report>>;
 
@@ -27,7 +29,7 @@ pub type CompilerResult<T> = Result<T, Vec<Report>>;
 /// [Compiler] with the specified components. This allows external tinkerers
 /// to add their own implementations of each compiler stage with relative ease
 /// instead of having to scratch their heads.
-pub struct Compiler<'pool, P, D, S, C, V> {
+pub struct Compiler<'pool, P, D, S, C, L, V> {
     /// The parser stage of the compiler.
     parser: P,
     /// De-sugar the AST
@@ -36,6 +38,8 @@ pub struct Compiler<'pool, P, D, S, C, V> {
     semantic_analyser: S,
     /// The typechecking stage of the compiler.
     checker: C,
+    /// The IR Lowerer.
+    lowerer: L,
     /// The current VM.
     vm: V,
     /// Various settings for the compiler.
@@ -57,6 +61,7 @@ pub struct CompilerState<
     D: Desugar<'pool>,
     S: SemanticPass<'pool>,
     C: Tc<'c>,
+    L: Lowering<'c>,
     V: VirtualMachine<'c>,
 > {
     /// The collected workspace sources for the current job.
@@ -69,17 +74,20 @@ pub struct CompilerState<
     pub semantic_analysis_state: S::State,
     /// The typechecker state.
     pub tc_state: C::State,
+    /// The IR Lowering state.
+    pub lowering_state: L::State,
     /// The State of the Virtual machine
     pub vm_state: V::State,
 }
 
-impl<'c, 'pool, P, D, S, C, V> Compiler<'pool, P, D, S, C, V>
+impl<'c, 'pool, P, D, S, C, L, V> Compiler<'pool, P, D, S, C, L, V>
 where
     'pool: 'c,
     P: Parser<'pool>,
     D: Desugar<'pool>,
     S: SemanticPass<'pool>,
     C: Tc<'c>,
+    L: Lowering<'c>,
     V: VirtualMachine<'c>,
 {
     /// Create a new instance of a [Compiler] with the provided parser and
@@ -89,6 +97,7 @@ where
         desugarer: D,
         semantic_analyser: S,
         checker: C,
+        lowerer: L,
         vm: V,
         pool: &'pool rayon::ThreadPool,
         settings: CompilerSettings,
@@ -98,8 +107,7 @@ where
             desugarer,
             semantic_analyser,
             checker,
-            /// monomorphisation + lowering
-            /// ir
+            lowerer,
             vm,
             settings,
             pool,
@@ -110,20 +118,22 @@ where
     /// Create a compiler state to accompany with compiler execution.
     /// Internally, this calls the [Tc] state making functions and saves it
     /// into the created [CompilerState].
-    pub fn create_state(&mut self) -> CompilerResult<CompilerState<'c, 'pool, D, S, C, V>> {
+    pub fn create_state(&mut self) -> CompilerResult<CompilerState<'c, 'pool, D, S, C, L, V>> {
         let workspace = Workspace::new();
 
-        let ds_state = self.desugarer.make_state()?;
+        let desugaring_state = self.desugarer.make_state()?;
         let semantic_analysis_state = self.semantic_analyser.make_state()?;
         let tc_state = self.checker.make_state()?;
+        let lowering_state = self.lowerer.make_state()?;
         let vm_state = self.vm.make_state()?;
 
         Ok(CompilerState {
             workspace,
             diagnostics: vec![],
+            ds_state: desugaring_state,
             semantic_analysis_state,
             tc_state,
-            ds_state,
+            lowering_state,
             vm_state,
         })
     }
@@ -232,7 +242,7 @@ where
     }
 
     /// Semantic pass stage within the pipeline.
-    fn perform_semantic_pass(
+    fn check_source_semantics(
         &mut self,
         entry_point: SourceId,
         workspace: &mut Workspace,
@@ -270,7 +280,7 @@ where
     /// ```text
     /// >>> :t foo(3);
     /// ```
-    fn typecheck_source(
+    fn typecheck_sources(
         &mut self,
         entry_point: SourceId,
         workspace: &mut Workspace,
@@ -301,6 +311,46 @@ where
         Ok(())
     }
 
+    /// Function to invoke the IR Lowering stage for the entry point denoted by
+    /// the passed [SourceId].
+    fn lower_sources(
+        &mut self,
+        entry_point: SourceId,
+        workspace: &mut Workspace,
+        lowering_state: &mut L::State,
+        job_params: &CompilerJobParams,
+    ) -> CompilerResult<()> {
+        match entry_point {
+            SourceId::Interactive(id) => {
+                timed(
+                    || {
+                        self.lowerer.lower_interactive_block(
+                            id,
+                            workspace,
+                            lowering_state,
+                            job_params,
+                        )
+                    },
+                    log::Level::Debug,
+                    |time| {
+                        self.metrics.insert(CompilerMode::IrGen, time);
+                    },
+                )?;
+            }
+            SourceId::Module(id) => {
+                timed(
+                    || self.lowerer.lower_module(id, workspace, lowering_state, job_params),
+                    log::Level::Debug,
+                    |time| {
+                        self.metrics.insert(CompilerMode::IrGen, time);
+                    },
+                )?;
+            }
+        };
+
+        Ok(())
+    }
+
     /// Helper function in order to check if the pipeline needs to terminate
     /// after any stage on the condition that the [CompilerJobParams]
     /// specify that this is the last stage, or if the previous stage had
@@ -308,7 +358,7 @@ where
     fn maybe_terminate(
         &self,
         result: CompilerResult<()>,
-        compiler_state: &mut CompilerState<'c, 'pool, D, S, C, V>,
+        compiler_state: &mut CompilerState<'c, 'pool, D, S, C, L, V>,
         job_params: &CompilerJobParams,
         // @@TODO(feds01): remove this parameter, it would be ideal that this parameter is stored
         // within the compiler state
@@ -338,7 +388,7 @@ where
     fn run_pipeline(
         &mut self,
         entry_point: SourceId,
-        compiler_state: &mut CompilerState<'c, 'pool, D, S, C, V>,
+        compiler_state: &mut CompilerState<'c, 'pool, D, S, C, L, V>,
         job_params: CompilerJobParams,
     ) -> Result<(), ()> {
         let result = self.parse_source(entry_point, &mut compiler_state.workspace, &job_params);
@@ -353,7 +403,7 @@ where
         self.maybe_terminate(result, compiler_state, &job_params, CompilerMode::DeSugar)?;
 
         // Now perform the semantic pass on the sources
-        let result = self.perform_semantic_pass(
+        let result = self.check_source_semantics(
             entry_point,
             &mut compiler_state.workspace,
             &mut compiler_state.semantic_analysis_state,
@@ -361,7 +411,7 @@ where
         );
         self.maybe_terminate(result, compiler_state, &job_params, CompilerMode::SemanticPass)?;
 
-        let result = self.typecheck_source(
+        let result = self.typecheck_sources(
             entry_point,
             &mut compiler_state.workspace,
             &mut compiler_state.tc_state,
@@ -369,12 +419,20 @@ where
         );
         self.maybe_terminate(result, compiler_state, &job_params, CompilerMode::Typecheck)?;
 
+        let result = self.lower_sources(
+            entry_point,
+            &mut compiler_state.workspace,
+            &mut compiler_state.lowering_state,
+            &job_params,
+        );
+        self.maybe_terminate(result, compiler_state, &job_params, CompilerMode::IrGen)?;
+
         Ok(())
     }
 
     /// Function to bootstrap the pipeline. This function invokes a job within
     /// the pipeline in order to load the prelude before any modules run.
-    pub fn bootstrap(&mut self) -> CompilerState<'c, 'pool, D, S, C, V> {
+    pub fn bootstrap(&mut self) -> CompilerState<'c, 'pool, D, S, C, L, V> {
         let mut compiler_state = self.create_state().unwrap();
 
         if !self.settings.skip_prelude {
@@ -402,9 +460,9 @@ where
     pub fn run(
         &mut self,
         entry_point: SourceId,
-        mut compiler_state: CompilerState<'c, 'pool, D, S, C, V>,
+        mut compiler_state: CompilerState<'c, 'pool, D, S, C, L, V>,
         job_params: CompilerJobParams,
-    ) -> CompilerState<'c, 'pool, D, S, C, V> {
+    ) -> CompilerState<'c, 'pool, D, S, C, L, V> {
         let result = self.run_pipeline(entry_point, &mut compiler_state, job_params);
 
         // we can print the diagnostics here
@@ -455,9 +513,9 @@ where
         &mut self,
         filename: impl Into<String>,
         kind: ModuleKind,
-        mut compiler_state: CompilerState<'c, 'pool, D, S, C, V>,
+        mut compiler_state: CompilerState<'c, 'pool, D, S, C, L, V>,
         job_params: CompilerJobParams,
-    ) -> CompilerState<'c, 'pool, D, S, C, V> {
+    ) -> CompilerState<'c, 'pool, D, S, C, L, V> {
         // First we have to work out if we need to transform the path
         let current_dir = env::current_dir().unwrap();
         let filename = resolve_path(filename.into(), current_dir, None);

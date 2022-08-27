@@ -1,3 +1,4 @@
+// stage=typecheck
 Dog := struct(
     age: i32,
     foo: i32,

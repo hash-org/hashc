@@ -4,9 +4,9 @@
 
 use hash_source::{
     constant::{InternedFloat, InternedInt, InternedStr},
-    location::{Span, SourceLocation},
+    location::{SourceLocation, Span},
 };
-use index_vec::{IndexVec, IndexSlice, index_vec};
+use index_vec::{index_vec, IndexSlice, IndexVec};
 
 /// Represents the type layout of a given expression.
 #[derive(Debug, PartialEq, Eq)]
@@ -183,7 +183,7 @@ pub enum StatementKind<'i> {
     /// mutability modifier e.g. `&mut x`.
     Ref(Mutability, &'i Statement<'i>, AddressMode),
 
-    /// Allocate some value on the the heap using reference 
+    /// Allocate some value on the the heap using reference
     /// counting.
     Alloc(Local),
 }
@@ -201,11 +201,10 @@ pub enum Terminator {
     /// Perform a function call
     Call {
         // op: todo!(),
-
         args: Vec<Local>,
 
         /// Where to return after completing the call
-        target: Option<BasicBlock>
+        target: Option<BasicBlock>,
     },
 
     /// Denotes that this terminator should never be reached, doing so will
@@ -216,7 +215,6 @@ pub enum Terminator {
     Switch(Local, Vec<(Const, BasicBlock)>, BasicBlock),
 }
 
-
 /// Essentially a block
 #[derive(Debug, PartialEq, Eq)]
 pub struct BasicBlockData<'i> {
@@ -226,7 +224,6 @@ pub struct BasicBlockData<'i> {
     /// after finishing execution of these statements.
     terminator: Option<Terminator>,
 }
-
 
 index_vec::define_index_type! {
     /// Index for [BasicBlockData] stores within generated [Body]s.
@@ -244,10 +241,9 @@ index_vec::define_index_type! {
     DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
 }
 
-
 pub enum FnSource {
     Item,
-    Intrinsic
+    Intrinsic,
 }
 
 pub struct Body<'i> {
@@ -255,13 +251,15 @@ pub struct Body<'i> {
     blocks: IndexVec<BasicBlock, BasicBlockData<'i>>,
 
     /// Declarations of local variables:
-    /// 
+    ///
     /// Not final:
-    /// 
-    /// - The first local is used a representation of the function return value if any.
-    /// 
-    /// - the next `arg_count` locals are used to represent the assigning of function arguments.
-    /// 
+    ///
+    /// - The first local is used a representation of the function return value
+    ///   if any.
+    ///
+    /// - the next `arg_count` locals are used to represent the assigning of
+    ///   function arguments.
+    ///
     /// - the remaining are temporaries that are used within the function.
     declarations: IndexVec<Local, LocalDecl<'i>>,
 
@@ -271,6 +269,6 @@ pub struct Body<'i> {
     /// The source of the function, is it a normal function, or an intrinsic
     source: FnSource,
 
-    /// The location of the function 
-    span: SourceLocation
+    /// The location of the function
+    span: SourceLocation,
 }

@@ -354,6 +354,7 @@ dependencies = [
  "hash-ast-desugaring",
  "hash-ast-passes",
  "hash-interactive",
+ "hash-lower",
  "hash-parser",
  "hash-pipeline",
  "hash-reporting",
@@ -449,6 +450,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "hash-lower"
+version = "0.1.0"
+dependencies = [
+ "hash-ast",
+ "hash-ir",
+ "hash-pipeline",
+ "hash-reporting",
+ "hash-source",
+]
+
+[[package]]
 name = "hash-parser"
 version = "0.1.0"
 dependencies = [
@@ -540,6 +552,7 @@ dependencies = [
  "hash-ast-desugaring",
  "hash-ast-passes",
  "hash-lexer",
+ "hash-lower",
  "hash-parser",
  "hash-pipeline",
  "hash-reporting",
