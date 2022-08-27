@@ -1208,7 +1208,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
 
                 builder.with_error_code(HashErrorCode::TraitImplMissingMember).with_message(
                     format!(
-                        "trait `{}` is missing the trait item{} {missing_members}",
+                        "trait `{}` is missing the member{} {missing_members}",
                         trt_def_term_id.for_formatting(ctx.global_storage()),
                         pluralise!(missing_trt_members.len())
                     ),

@@ -1,4 +1,4 @@
-error[0055]: trait `Foo` is missing the trait item `bux`
+error[0055]: trait `Foo` is missing the member `bux`
   --> $DIR/comppund_errors.hash:20:19
 19 |   
 20 |   Frobulate ~= impl Foo {
