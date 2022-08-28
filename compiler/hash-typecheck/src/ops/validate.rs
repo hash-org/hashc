@@ -226,31 +226,56 @@ impl<'tc> Validator<'tc> {
             }
             Term::Level2(Level2Term::Trt(trt_def_id)) => {
                 let scope = self.reader().get_scope_copy(scope_id);
-                let mut member_map = vec![false; scope.members.len()];
+                let mut scope_member_map = vec![false; scope.members.len()];
 
                 let members_id = self.reader().get_trt_def(trt_def_id).members;
                 let trt_def_members = self.reader().get_scope_copy(members_id); // @@Performance: cloning :((
 
                 // Ensure all members have been implemented:
-                for trt_member in trt_def_members.iter() {
+                let mut missing_trt_members = vec![];
+
+                let mut err = None;
+                let mut append_err = |tc_err| {
+                    if err.is_some() {
+                        self.diagnostics().add_error(tc_err);
+                    } else {
+                        err = Some(tc_err);
+                    }
+                };
+
+                for (trt_index, trt_member) in trt_def_members.iter().enumerate() {
                     if let Some((scope_member, index)) = scope.get(trt_member.name()) {
-                        let _ = self.unifier().unify_terms(scope_member.ty(), trt_member.ty())?;
+                        // Emit the error if we already have a recorded initial error...
+                        if let Err(ty_err) = self
+                            .unifier()
+                            .unify_terms(scope_member.ty(), trt_member.ty())
+                            .map_err(|_| TcError::CannotUnify {
+                                src: scope_member.ty(),
+                                target: trt_member.ty(),
+                            })
+                        {
+                            append_err(ty_err);
+                        }
 
                         // Mark this member as being used
-                        member_map[index] = true;
+                        scope_member_map[index] = true;
                     } else {
-                        return Err(TcError::TraitImplMissingMember {
-                            trt_def_term_id,
-                            trt_impl_term_id: scope_originating_term_id,
-                            trt_def_missing_member_term_id: trt_member.ty(),
-                        });
+                        missing_trt_members.push(trt_index);
                     }
                 }
 
-                let mut err = None;
+                // If the trait has missing members, we can report it and then also
+                // report any members that shouldn't be in the impl block
+                if !missing_trt_members.is_empty() {
+                    append_err(TcError::TraitImplMissingMember {
+                        trt_def_term_id,
+                        trt_impl_term_id: scope_originating_term_id,
+                        missing_trt_members,
+                    });
+                }
 
                 // Check for any rogue functions that are attached on the impl block
-                for (index, used) in member_map.into_iter().enumerate() {
+                for (index, used) in scope_member_map.into_iter().enumerate() {
                     if !used {
                         let member = scope.get_by_index(index);
 
@@ -261,18 +286,12 @@ impl<'tc> Validator<'tc> {
                             .location_store()
                             .merge_locations([name_loc, value_loc].into_iter());
 
-                        let member_error = TcError::MethodNotAMemberOfTrait {
+                        // Emit the error if we already have a recorded initial error...
+                        append_err(TcError::MethodNotAMemberOfTrait {
                             trt_def_term_id,
                             member: member_span,
                             name: member.name(),
-                        };
-
-                        // Emit the error if we already have a recorded initial error...
-                        if err.is_some() {
-                            self.diagnostics().add_error(member_error);
-                        } else {
-                            err = Some(member_error);
-                        }
+                        });
                     }
                 }
 

@@ -10,8 +10,8 @@ use crate::{
     storage::{
         nominals::NominalDefId,
         primitives::{
-            EnumDef, EnumVariant, EnumVariantValue, FnTy, Level0Term, Level1Term, NominalDef,
-            ScopeVar, StructDef, Term, TupleTy, UnitDef,
+            EnumDef, EnumVariant, EnumVariantValue, FnTy, Level0Term, Level1Term, Level2Term,
+            NominalDef, ScopeVar, StructDef, Term, TrtDef, TupleTy, UnitDef,
         },
         terms::TermId,
         AccessToStorage, StorageRef,
@@ -184,12 +184,17 @@ impl<'tc> Oracle<'tc> {
         }
     }
 
-    /// Get a [Term] as a [NominalDef].
-    pub fn term_as_nominal_def(&self, term: TermId) -> Option<NominalDef> {
+    /// Get a [Term] as a [TrtDef].
+    pub fn term_as_trt_def(&self, term: TermId) -> Option<TrtDef> {
         match self.reader().get_term(term) {
-            Term::Level1(Level1Term::NominalDef(def)) => Some(self.reader().get_nominal_def(def)),
+            Term::Level2(Level2Term::Trt(item)) => Some(self.reader().get_trt_def(item)),
             _ => None,
         }
+    }
+
+    /// Get a [Term] as a [NominalDef].
+    pub fn term_as_nominal_def(&self, term: TermId) -> Option<NominalDef> {
+        self.term_as_nominal_def_id(term).map(|id| self.reader().get_nominal_def(id))
     }
 
     /// Get a [Term] as a [NominalDefId].

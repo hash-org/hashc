@@ -23,7 +23,7 @@ use crate::{
         location::LocationTarget,
         params::ParamsId,
         pats::PatId,
-        primitives::{AccessOp, AccessTerm, Arg, Field, Param, PatArg, TyFnCase},
+        primitives::{AccessOp, AccessTerm, Arg, Field, Param, PatArg, TrtDef, TyFnCase},
         terms::TermId,
         AccessToStorage, StorageRef,
     },
@@ -146,14 +146,14 @@ pub enum TcError {
     CannotImplementNonTrait { term: TermId },
     /// The trait implementation `trt_impl_term_id` is missing the member
     /// `trt_def_missing_member_id` from the trait `trt_def_term_id`.
-    ///
-    /// @@ErrorReporting: identify all missing members
     TraitImplMissingMember {
+        /// The trait implementation block term.
         trt_impl_term_id: TermId,
+        /// The trait definition term.
         trt_def_term_id: TermId,
-        // @@ErrorReporting: Ideally we want to be able to identify whole members rather than just
-        // "terms".
-        trt_def_missing_member_term_id: TermId,
+        /// A list of trait items that were identified as missing from the trait
+        /// impl
+        missing_trt_members: Vec<usize>,
     },
     /// When a member of an `impl` block that implements a trait is not present
     /// within the trait definition, in other words a non-member.
@@ -1189,46 +1189,50 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
             TcError::TraitImplMissingMember {
                 trt_impl_term_id,
                 trt_def_term_id,
-                trt_def_missing_member_term_id,
+                missing_trt_members,
             } => {
+                let TrtDef { members, .. } =
+                    ctx.oracle().term_as_trt_def(*trt_def_term_id).expect("trait def term");
+                let trt_scope = ctx.reader().get_scope_copy(members);
+
+                let missing = missing_trt_members
+                    .iter()
+                    .map(|index| trt_scope.get_by_index(*index).name())
+                    .collect_vec();
+
+                // Create a sequence display for displaying member names
+                let missing_members = SequenceDisplay::new(
+                    &missing,
+                    SequenceDisplayOptions::with_limit(SequenceJoinMode::All, 6),
+                );
+
                 builder.with_error_code(HashErrorCode::TraitImplMissingMember).with_message(
                     format!(
-                        "trait `{}` is missing the member `{}`",
+                        "trait `{}` is missing the member{} {missing_members}",
                         trt_def_term_id.for_formatting(ctx.global_storage()),
-                        trt_def_missing_member_term_id.for_formatting(ctx.global_storage())
+                        pluralise!(missing_trt_members.len())
                     ),
                 );
 
                 if let Some(location) = ctx.location_store().get_location(trt_impl_term_id) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
-                        format!(
-                            "the implementation of trait `{}` is missing the member `{}`",
-                            trt_def_term_id.for_formatting(ctx.global_storage()),
-                            trt_def_missing_member_term_id.for_formatting(ctx.global_storage())
-                        ),
-                    )));
-                }
-
-                // Add the location of the trait definition
-                if let Some(location) = ctx.location_store().get_location(trt_def_term_id) {
-                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
-                        location,
-                        "trait defined here",
+                        format!("implementation is missing {missing_members}",),
                     )));
                 }
 
                 // Add the location of the missing member definition if possible
-                if let Some(location) =
-                    ctx.location_store().get_location(trt_def_missing_member_term_id)
-                {
-                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
-                        location,
-                        format!(
-                            "missing member `{}` is defined here",
-                            trt_def_missing_member_term_id.for_formatting(ctx.global_storage())
-                        ),
-                    )));
+                for missing_member_index in missing_trt_members.iter().copied() {
+                    if let Some(location) =
+                        ctx.location_store().get_location((members, missing_member_index))
+                    {
+                        let name = trt_scope.get_by_index(missing_member_index).name();
+
+                        builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                            location,
+                            format!("trait item `{name}` is defined here",),
+                        )));
+                    }
                 }
             }
             TcError::MethodNotAMemberOfTrait { trt_def_term_id, member, name } => {
