@@ -1840,27 +1840,12 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::EnumDef>,
     ) -> Result<Self::EnumDefRet, Self::Error> {
         let walk::EnumDef { entries } = walk::walk_enum_def(self, ctx, node)?;
-        // let name = self.state.declaration_name_hint.take();
+
         let builder = self.builder();
         let enum_variant_union = builder.create_union_term(
             entries.iter().map(|(_, entry)| builder.create_nominal_def_term(*entry)),
         );
-        // let enum_def = entries
-        //     .iter()
-        //     .map(|(name, entry)| {
-        //         let entry_term = self.builder().create_nominal_def_term(*entry);
-        //         let entry_ty = self.typer().infer_ty_of_term(entry_term)?;
-        //         Ok(Member::closed_constant(*name, Visibility::Public, entry_ty,
-        // entry_term))     })
-        //     .collect::<TcResult<Vec<_>>>()?;
-        // let enum_mod_def = builder.create_mod_def(
-        //     Option::<Identifier>::None,
-        //     ModDefOrigin::AnonImpl,
-        //     builder.create_scope(ScopeKind::Constant, enum_variant_members),
-        // );
-        // let enum_mod_def_term = builder.create_mod_def_term(enum_mod_def);
-        // let enum_def = self.builder().create_merge_term([enum_variant_union,
-        // enum_mod_def_term]);
+
         self.validate_and_register_simplified_term(node, enum_variant_union)
     }
 
