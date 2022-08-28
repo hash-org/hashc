@@ -5,14 +5,14 @@ PrimaryColour := enum(Red, Green, Blue);
 ensure := <T> => (t: T) => {};
 
 main := () => {
-  ensure<PrimaryColour>(PrimaryColour::Red);
-  ensure<PrimaryColour>(PrimaryColour::Green);
-  ensure<PrimaryColour>(PrimaryColour::Blue);
+  ensure<PrimaryColour>(PrimaryColour::Red());
+  ensure<PrimaryColour>(PrimaryColour::Green());
+  ensure<PrimaryColour>(PrimaryColour::Blue());
 
-  red := PrimaryColour::Red;
+  red := PrimaryColour::Red();
   ensure<PrimaryColour>(red);
 
-  many := [PrimaryColour::Red, PrimaryColour::Blue, PrimaryColour::Green];
+  many := [PrimaryColour::Red() as PrimaryColour, PrimaryColour::Blue() as PrimaryColour, PrimaryColour::Green() as PrimaryColour];
   ensure<List<PrimaryColour>>(many);
 };
 

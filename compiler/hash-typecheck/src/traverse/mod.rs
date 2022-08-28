@@ -676,9 +676,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         // Ensure that the `expr` can be unified with the provided `ty`...
         let sub = self.unifier().unify_terms(expr_ty, ty)?;
-        let expr_subbed = self.substituter().apply_sub_to_term(&sub, expr);
 
-        self.validate_and_register_simplified_term(node, expr_subbed)
+        // Return Rt(..) of the ty:
+        let term = self.substituter().apply_sub_to_term(&sub, self.builder().create_rt_term(ty));
+        self.validate_and_register_simplified_term(node, term)
     }
 
     type TyExprRet = TermId;
