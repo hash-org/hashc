@@ -7,7 +7,7 @@ use hash_ast::{
 };
 use hash_reporting::macros::panic_on_span;
 
-use super::TcVisitor;
+use super::visitor::TcVisitor;
 use crate::{
     diagnostics::error::TcResult,
     ops::AccessToOps,

@@ -577,14 +577,10 @@ impl<'tc> Validator<'tc> {
             Term::Unresolved(_) => {
                 Err(TcError::NeedMoreTypeAnnotationsToResolve { term: merge_element_term_id })
             }
-            // Union allowed if each inner term is allowed
-            Term::Union(terms) => {
-                let mut initial_merge_kind = *merge_kind;
-
-                for term_id in self.reader().get_term_list_owned(terms) {
-                    self.validate_merge_element(&mut initial_merge_kind, merge_term_id, term_id)?;
-                }
-                ensure_merge_is_level1(Some(merge_element_term_id))?;
+            Term::Union(_) => {
+                // For unions, we just treat it as a nominal, since it is a requirement of
+                // unions: @@Invariant: Unions only contain nominals.
+                *merge_kind = ensure_merge_is_level1(Some(merge_element_term_id))?;
                 Ok(())
             }
             // Level 3 terms are not allowed:
