@@ -19,7 +19,7 @@ use hash_reporting::diagnostic::Diagnostics;
 use hash_source::SourceId;
 use ops::AccessToOps;
 use storage::{AccessToStorage, GlobalStorage, LocalStorage, StorageRef};
-use traverse::TcVisitor;
+use traverse::visitor::TcVisitor;
 
 use crate::fmt::PrepareForFormatting;
 

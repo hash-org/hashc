@@ -11,7 +11,6 @@ use crate::{
     diagnostics::{
         error::{TcError, TcResult},
         macros::{tc_panic, tc_panic_on_many},
-        params::ParamListKind,
     },
     storage::{
         arguments::ArgsId,
@@ -820,23 +819,7 @@ impl<'tc> Simplifier<'tc> {
 
                         Ok(ConstructedTerm { subject: term_id, members })
                     }
-                    NominalDef::Unit(_) => {
-                        if !args.is_empty() {
-                            Err(TcError::MismatchingArgParamLength {
-                                args_kind: ParamListKind::Args(args),
-                                params_id: self.builder().create_params([], ParamOrigin::Struct),
-                                // @@ErrorReporting: Can be improved by giving the location of the
-                                // definition.
-                                params_location: term_id.into(),
-                                args_location: args_subject.into(),
-                            })
-                        } else {
-                            Ok(ConstructedTerm {
-                                subject: term_id,
-                                members: self.builder().create_args([], ParamOrigin::Struct),
-                            })
-                        }
-                    }
+                    NominalDef::Unit(_) => cannot_use_as_call_subject(),
                     // @@Remove
                     NominalDef::Enum(_) => cannot_use_as_call_subject(),
                 }
