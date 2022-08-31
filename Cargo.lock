@@ -603,6 +603,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "hash-types"
+version = "0.1.0"
+dependencies = [
+ "hash-utils",
+]
+
+[[package]]
 name = "hash-utils"
 version = "0.1.0"
 dependencies = [
