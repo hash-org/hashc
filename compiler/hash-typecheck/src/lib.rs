@@ -36,6 +36,7 @@ pub struct TcImpl;
 /// Contains global typechecker state, used for the [Tc] implementation below.
 #[derive(Debug)]
 pub struct TcState {
+    /// The shared typechecking context throughout the typechecking process.
     pub global_storage: GlobalStorage,
     pub prev_local_storage: LocalStorage,
 }
@@ -94,6 +95,7 @@ impl Tc<'_> for TcImpl {
                 tc_visitor.diagnostics().add_error(err);
             }
             Ok(source_term) if !tc_visitor.diagnostics().has_errors() => {
+                // @@Cmdline: make this a configurable behaviour through a cmd-arg.
                 // Print the result if no errors
                 println!("{}", source_term.for_formatting(storage.global_storage()));
             }
@@ -128,6 +130,8 @@ impl Tc<'_> for TcImpl {
         };
 
         let mut tc_visitor = TcVisitor::new_in_source(storage.storages(), sources.node_map());
+
+        println!("{:?}", local_storage);
 
         if let Err(err) = tc_visitor.visit_source() {
             tc_visitor.diagnostics().add_error(err);

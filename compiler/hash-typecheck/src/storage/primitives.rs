@@ -262,8 +262,13 @@ impl Member {
 /// originating scope.
 #[derive(Debug, Clone, Copy)]
 pub struct ScopeMember {
+    /// The represented member of this [ScopeMember]
     pub member: Member,
+
+    /// The index of this member within the scope.
     pub index: usize,
+
+    /// The [ScopeId] of this member.
     pub scope_id: ScopeId,
 }
 
@@ -303,8 +308,13 @@ pub enum ScopeKind {
 /// Keeps insertion order.
 #[derive(Debug)]
 pub struct Scope {
+    /// The kind of scope that is being represented.
     pub kind: ScopeKind,
+
+    /// All defined members within the scope.
     pub members: Vec<Member>,
+
+    /// Members names are defined within the scope.
     pub member_names: HashMap<Identifier, usize>,
 }
 

@@ -5,6 +5,7 @@
 use hash_source::{
     constant::{InternedFloat, InternedInt, InternedStr},
     location::{SourceLocation, Span},
+    SourceId,
 };
 use index_vec::{index_vec, IndexSlice, IndexVec};
 
@@ -128,20 +129,22 @@ pub enum Mutability {
     Immutable,
 }
 
-/// An expression within the representation
+/// A [Statement] is a intermediate transformation step within a [BasicBlock].
 #[derive(Debug, PartialEq, Eq)]
 pub struct Statement<'i> {
+    /// The kind of [Statement] that it is.
     kind: StatementKind<'i>,
+    /// The [Span] of the statement, relative to the [Body]
+    /// `source-id`.
     span: Span,
 }
 
 /// Essentially a register for a value
 #[derive(Debug, PartialEq, Eq)]
 pub struct LocalDecl<'a> {
-    /// Mutability of the local
+    /// Mutability of the local.
     mutability: Mutability,
-
-    /// The type of the local
+    /// The type of the local.
     ty: Ty<'a>,
 }
 
@@ -191,7 +194,16 @@ pub enum StatementKind<'i> {
 /// [Terminator] statements are essentially those that affect control
 /// flow.
 #[derive(Debug, PartialEq, Eq)]
-pub enum Terminator {
+pub struct Terminator {
+    /// The kind of [Terminator] that it is.
+    pub kind: TerminatorKind,
+    /// The [Span] of the statement, relative to the [Body]
+    /// `source-id`.
+    pub span: Span,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum TerminatorKind {
     /// A simple go to block directive.
     Goto(BasicBlock),
 
@@ -217,12 +229,21 @@ pub enum Terminator {
 
 /// Essentially a block
 #[derive(Debug, PartialEq, Eq)]
-pub struct BasicBlockData<'i> {
+pub struct BasicBlockData<'ir> {
     /// The statements that the block has.
-    statements: Vec<Statement<'i>>,
+    pub statements: Vec<Statement<'ir>>,
     /// An optional terminating statement, where the block goes
     /// after finishing execution of these statements.
-    terminator: Option<Terminator>,
+    pub terminator: Option<Terminator>,
+}
+
+impl<'ir> BasicBlockData<'ir> {
+    /// Create a new [BasicBlockData] with no statements and a provided
+    /// `terminator`. It is assumed that the statements are to be added
+    /// later to the block.
+    pub fn new(terminator: Option<Terminator>) -> Self {
+        Self { statements: vec![], terminator }
+    }
 }
 
 index_vec::define_index_type! {
@@ -268,7 +289,23 @@ pub struct Body<'i> {
 
     /// The source of the function, is it a normal function, or an intrinsic
     source: FnSource,
-
     /// The location of the function
-    span: SourceLocation,
+    span: Span,
+    /// The `source-id` of where this body originated from.
+    source_id: SourceId,
+}
+
+impl<'a> Body<'a> {
+    pub fn new_uninitialised(location: SourceLocation) -> Self {
+        let SourceLocation { span, id } = location;
+
+        Self {
+            blocks: index_vec![],
+            declarations: index_vec![],
+            arg_count: 0,
+            source: FnSource::Item,
+            span,
+            source_id: id,
+        }
+    }
 }

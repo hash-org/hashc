@@ -54,20 +54,47 @@ use crate::{
 /// Keeps track of typechecking information across all source files.
 #[derive(Debug)]
 pub struct GlobalStorage {
+    /// Scope storage
     pub scope_store: ScopeStore,
+
     /// Storage for terms
     pub term_store: TermStore,
+
     /// Store for grouped terms
     pub term_list_store: TermListStore,
+
+    /// Information about the locations of terms within the source
     pub location_store: LocationStore,
+
+    /// Store for function, tuple, struct, enum and other parametrised
+    /// constructs.
     pub params_store: ParamsStore,
+
+    /// Store for function calls, tuple, struct, enum and other constructs that
+    /// hold arguments.
     pub args_store: ArgsStore,
+
+    /// Store for trait definitions
     pub trt_def_store: TrtDefStore,
+
+    /// Store for module definitions
     pub mod_def_store: ModDefStore,
+
+    /// Nominal definition store
     pub nominal_def_store: NominalDefStore,
+
+    /// Store for typechecked patterns
     pub pat_store: PatStore,
+
+    /// Store for arguments that occur in parametrised patterns such as lists,
+    /// constructors and tuple patterns.
     pub pat_args_store: PatArgsStore,
+
+    /// Map representing a relation between the typechecked module and it's
+    /// relevant [SourceId].
     pub checked_sources: CheckedSources,
+
+    /// Map representing the relation between [TermId] and [AstNodeId].
     pub node_info_store: NodeInfoStore,
 
     /// Storage for tc diagnostics

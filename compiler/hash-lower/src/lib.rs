@@ -3,18 +3,46 @@
 //! the Hash IR builder crate contains implemented passes that will optimise the
 //! IR, performing optimisations such as constant folding or dead code
 //! elimination.
-
-use hash_pipeline::traits::Lowering;
+#![allow(unused)] // @@TODO: remove this when the builder is complete
 
 mod builder;
+mod visitor;
 
+use hash_ir::ir::Body;
+use hash_pipeline::traits::Lowering;
+use hash_source::{
+    location::{SourceLocation, Span},
+    SourceId,
+};
+
+/// The [IrLowerer] is used as a bootstrapping mechanism to kick off the
+/// [Builder] working on function that it discovers as the the lower traverses
+/// through the source files.
 pub struct IrLowerer;
 
+pub struct IrLoweringState<'ir> {
+    interactive_body: Body<'ir>,
+}
+
+impl<'ir> Default for IrLoweringState<'ir> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<'ir> IrLoweringState<'ir> {
+    pub fn new() -> Self {
+        let dummy_span = SourceLocation::new(Span::default(), SourceId::default());
+
+        Self { interactive_body: Body::new_uninitialised(dummy_span) }
+    }
+}
+
 impl<'c> Lowering<'c> for IrLowerer {
-    type State = ();
+    type State = IrLoweringState<'c>;
 
     fn make_state(&mut self) -> hash_pipeline::traits::CompilerResult<Self::State> {
-        Ok(())
+        Ok(IrLoweringState::new())
     }
 
     fn lower_interactive_block<'pool>(
@@ -24,7 +52,7 @@ impl<'c> Lowering<'c> for IrLowerer {
         _state: &mut Self::State,
         _job_params: &hash_pipeline::settings::CompilerJobParams,
     ) -> hash_pipeline::traits::CompilerResult<()> {
-        todo!()
+        Ok(())
     }
 
     fn lower_module(
@@ -34,6 +62,6 @@ impl<'c> Lowering<'c> for IrLowerer {
         _state: &mut Self::State,
         _job_params: &hash_pipeline::settings::CompilerJobParams,
     ) -> hash_pipeline::traits::CompilerResult<()> {
-        todo!()
+        Ok(())
     }
 }
