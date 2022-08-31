@@ -1,6 +1,6 @@
 //! Contains type definitions that the rest of the storage and the general
 //! typechecker use.
-#![feature(option_result_contains)]
+#![feature(option_result_contains, let_chains)]
 
 pub mod arguments;
 pub(crate) mod bootstrap;

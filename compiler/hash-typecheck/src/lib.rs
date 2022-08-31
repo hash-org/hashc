@@ -11,6 +11,7 @@
     slice_pattern,
     option_result_contains,
     let_else,
+    let_chains,
     if_let_guard
 )]
 
