@@ -2178,7 +2178,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         // global scope. If we're within the `prelude` module, we need to append
         // all members into the global scope rather than creating a new scope
         let members = if let Some(ModuleKind::Prelude) = self.source_map().module_kind_by_id(id) {
-            self.global_storage().root_scope
+            self.root_scope()
         } else {
             self.builder().create_scope(ScopeKind::Constant, vec![])
         };

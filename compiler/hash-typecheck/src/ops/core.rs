@@ -25,7 +25,8 @@ impl<'tc> CoreDefReader<'tc> {
     ///
     /// Panics if the core definition doesn't exist.
     pub fn resolve_core_def(&self, var_name: Identifier) -> TermId {
-        let root_scope = self.global_storage().root_scope;
+        let root_scope = self.root_scope();
+
         let (resolved, index) = self
             .scope_store()
             .map_fast(root_scope, |scope| scope.get(var_name))

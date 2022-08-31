@@ -2,7 +2,7 @@
 //!
 //! These are accessed during the AST traversal in order to type certain
 //! language primitives (for example `if`-block subjects). This is because a lot
-//! of the CORE_IDENTIFIERS.primitive Hash types aren't actually primitives as
+//! of the primitive Hash types aren't actually primitives as
 //! far as the typechecker is concerned. This includes: integers, floats,
 //! characters, strings, lists, maps, references, etc.
 //!

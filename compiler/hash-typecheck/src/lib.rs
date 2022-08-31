@@ -14,11 +14,12 @@
     if_let_guard
 )]
 
+use diagnostics::DiagnosticsStore;
 use hash_pipeline::{traits::Tc, CompilerResult};
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::SourceId;
 use ops::AccessToOps;
-use storage::{AccessToStorage, GlobalStorage, LocalStorage, StorageRef};
+use storage::{cache::Cache, AccessToStorage, GlobalStorage, LocalStorage, StorageRef};
 use traverse::visitor::TcVisitor;
 
 use crate::fmt::PrepareForFormatting;
@@ -39,16 +40,27 @@ pub struct TcState {
     /// The shared typechecking context throughout the typechecking process.
     pub global_storage: GlobalStorage,
     pub prev_local_storage: LocalStorage,
+
+    /// Share typechecking diagnostics
+    pub diagnostics_store: DiagnosticsStore,
+
+    /// Typechecking cache, contains useful mappings for a variety of
+    /// operations.
+    pub cache: Cache,
 }
 
 impl TcState {
     /// Create a new [TcState].
     pub fn new() -> Self {
         let source_id = SourceId::default();
-
         let global_storage = GlobalStorage::new();
         let local_storage = LocalStorage::new(&global_storage, source_id);
-        Self { global_storage, prev_local_storage: local_storage }
+        Self {
+            global_storage,
+            prev_local_storage: local_storage,
+            diagnostics_store: DiagnosticsStore::default(),
+            cache: Cache::new(),
+        }
     }
 }
 
@@ -87,6 +99,8 @@ impl Tc<'_> for TcImpl {
             global_storage: &state.global_storage,
             local_storage: &state.prev_local_storage,
             source_map: &workspace.source_map,
+            diagnostics_store: &state.diagnostics_store,
+            cache: &state.cache,
         };
         let mut tc_visitor = TcVisitor::new_in_source(storage.storages(), workspace.node_map());
 
@@ -127,11 +141,11 @@ impl Tc<'_> for TcImpl {
             global_storage: &state.global_storage,
             local_storage: &local_storage,
             source_map: &sources.source_map,
+            diagnostics_store: &state.diagnostics_store,
+            cache: &state.cache,
         };
 
         let mut tc_visitor = TcVisitor::new_in_source(storage.storages(), sources.node_map());
-
-        println!("{:?}", local_storage);
 
         if let Err(err) = tc_visitor.visit_source() {
             tc_visitor.diagnostics().add_error(err);

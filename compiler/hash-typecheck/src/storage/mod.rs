@@ -97,19 +97,12 @@ pub struct GlobalStorage {
     /// Map representing the relation between [TermId] and [AstNodeId].
     pub node_info_store: NodeInfoStore,
 
-    /// Storage for tc diagnostics
-    pub diagnostics_store: DiagnosticsStore,
-
     /// Pattern fields from
     /// [super::exhaustiveness::deconstruct::DeconstructedPat]
     pub deconstructed_pat_store: DeconstructedPatStore,
 
     /// The [super::exhaustiveness::construct::DeconstructedCtor] store.
     pub deconstructed_ctor_store: DeconstructedCtorStore,
-
-    /// The typechecking cache, contains cached simplification, validation
-    /// and unification results
-    pub cache: Cache,
 
     /// Used to create the first scope when creating a LocalStorage.
     ///
@@ -130,7 +123,6 @@ impl GlobalStorage {
             term_list_store: TermListStore::new(),
             node_info_store: NodeInfoStore::new(),
             scope_store,
-            diagnostics_store: DiagnosticsStore::default(),
             trt_def_store: TrtDefStore::new(),
             mod_def_store: ModDefStore::new(),
             nominal_def_store: NominalDefStore::new(),
@@ -142,7 +134,6 @@ impl GlobalStorage {
             root_scope,
             params_store: ParamsStore::new(),
             args_store: ArgsStore::new(),
-            cache: Cache::new(),
         };
         create_core_defs_in(&gs);
         gs
@@ -196,7 +187,15 @@ impl LocalStorage {
 pub struct StorageRef<'tc> {
     pub local_storage: &'tc LocalStorage,
     pub global_storage: &'tc GlobalStorage,
+    /// A map that represents the relationship between [SourceId]s and the
+    /// respective sources, paths, etc.
     pub source_map: &'tc SourceMap,
+    /// Storage for tc diagnostics.
+    pub diagnostics_store: &'tc DiagnosticsStore,
+
+    /// The typechecking cache, contains cached simplification, validation
+    /// and unification results.
+    pub cache: &'tc Cache,
 }
 
 /// Trait that provides convenient accessor methods to various parts of the
@@ -213,7 +212,7 @@ pub trait AccessToStorage {
     }
 
     fn diagnostic_store(&self) -> &DiagnosticsStore {
-        &self.storages().global_storage.diagnostics_store
+        self.storages().diagnostics_store
     }
 
     fn scope_store(&self) -> &ScopeStore {
@@ -233,7 +232,7 @@ pub trait AccessToStorage {
     }
 
     fn cache(&self) -> &Cache {
-        &self.global_storage().cache
+        self.storages().cache
     }
 
     fn location_store(&self) -> &LocationStore {
