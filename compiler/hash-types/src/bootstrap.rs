@@ -11,11 +11,7 @@ use hash_ast::ast::ParamOrigin;
 use hash_source::identifier::CORE_IDENTIFIERS;
 
 use crate::{
-    ops::building::PrimitiveBuilder,
-    storage::{
-        primitives::{Member, ModDefOrigin, ScopeKind, Visibility},
-        GlobalStorage,
-    },
+    builder::PrimitiveBuilder, storage::GlobalStorage, Member, ModDefOrigin, ScopeKind, Visibility,
 };
 
 /// Create the core language type and trait definitions in the given

@@ -1,5 +1,14 @@
 //! Contains operations to get the type of a term.
 use hash_ast::ast::ParamOrigin;
+use hash_types::{
+    arguments::ArgsId,
+    params::ParamsId,
+    pats::{PatArgsId, PatId},
+    terms::TermId,
+    AccessOp, AccessPat, Arg, ConstPat, ConstructedTerm, Level0Term, Level1Term, Level2Term,
+    Level3Term, ListPat, LitTerm, Member, ModDefOrigin, NominalDef, Param, Pat, RangePat,
+    StructFields, Term,
+};
 use itertools::Itertools;
 
 use super::{params::pair_args_with_params, AccessToOps};
@@ -8,19 +17,9 @@ use crate::{
         error::{TcError, TcResult},
         macros::tc_panic,
     },
-    storage::{
-        arguments::ArgsId,
-        params::ParamsId,
-        pats::{PatArgsId, PatId},
-        primitives::{
-            AccessOp, AccessPat, Arg, ConstPat, ConstructedTerm, Level0Term, Level1Term,
-            Level2Term, Level3Term, ListPat, LitTerm, Member, ModDefOrigin, NominalDef, Param, Pat,
-            RangePat, StructFields, Term,
-        },
-        terms::TermId,
-        AccessToStorage, StorageRef,
-    },
+    storage::{AccessToStorage, StorageRef},
 };
+
 /// Can resolve the type of a given term, as another term.
 pub struct Typer<'tc> {
     storage: StorageRef<'tc>,

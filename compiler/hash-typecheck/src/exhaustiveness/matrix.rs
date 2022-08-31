@@ -7,13 +7,12 @@ use std::fmt::Debug;
 
 use hash_utils::store::CloneStore;
 
-use super::{stack::PatStack, AccessToUsefulnessOps};
+use super::{stack::PatStack, AccessToUsefulnessOps, PatForFormatting, PreparePatForFormatting};
 use crate::{
     exhaustiveness::PatCtx,
-    fmt::{ForFormatting, PrepareForFormatting},
     ops::AccessToOps,
     storage::{
-        deconstructed::{DeconstructedCtorId, DeconstructedPatId},
+        exhaustiveness::{DeconstructedCtorId, DeconstructedPatId},
         AccessToStorage, StorageRef,
     },
 };
@@ -108,7 +107,7 @@ impl<'tc> MatrixOps<'tc> {
     }
 }
 
-impl PrepareForFormatting for Matrix {}
+impl PreparePatForFormatting for Matrix {}
 
 /// Pretty-printer for matrices of patterns, example:
 ///
@@ -119,19 +118,17 @@ impl PrepareForFormatting for Matrix {}
 /// | false | [_]               |
 /// | _     | [_, _, ...tail]   |
 /// ```
-impl Debug for ForFormatting<'_, Matrix> {
+impl Debug for PatForFormatting<'_, Matrix> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f)?;
 
-        let Matrix { patterns: m, .. } = &self.t;
+        let Matrix { patterns: m, .. } = &self.item;
 
         // Firstly, get all the patterns within the matrix as strings...
         let pretty_printed_matrix: Vec<Vec<String>> = m
             .iter()
             .map(|row| {
-                row.iter()
-                    .map(|pat| format!("{:?}", pat.for_formatting(self.global_storage)))
-                    .collect()
+                row.iter().map(|pat| format!("{:?}", pat.for_formatting(self.storage))).collect()
             })
             .collect();
 

@@ -37,6 +37,7 @@
 //! [exhaustiveness](crate::exhaustiveness) module.
 use hash_ast::ast::MatchOrigin;
 use hash_reporting::diagnostic::Diagnostics;
+use hash_types::{pats::PatId, terms::TermId, Pat};
 use hash_utils::store::Store;
 use itertools::Itertools;
 
@@ -50,7 +51,7 @@ use crate::{
         usefulness::{MatchArm, Reachability},
         AccessToUsefulnessOps,
     },
-    storage::{pats::PatId, primitives::Pat, terms::TermId, AccessToStorage, StorageRef},
+    storage::{AccessToStorage, StorageRef},
 };
 
 /// Contains actions related to pattern exhaustiveness and usefulness checking.

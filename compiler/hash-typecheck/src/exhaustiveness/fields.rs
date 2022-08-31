@@ -6,6 +6,7 @@
 //! from a provided [PatCtx]. [FieldOps] defines methods that operate on
 //! [Fields] with the typechecker context available for reading and creating
 //! [DeconstructedPat](super::deconstruct::DeconstructedPat)s.
+use hash_types::{terms::TermId, Level1Term, NominalDef, StructFields, Term, TupleTy};
 use hash_utils::store::Store;
 use itertools::Itertools;
 
@@ -15,9 +16,7 @@ use crate::{
     exhaustiveness::PatCtx,
     ops::AccessToOps,
     storage::{
-        deconstructed::{DeconstructedCtorId, DeconstructedPatId},
-        primitives::{Level1Term, NominalDef, StructFields, Term, TupleTy},
-        terms::TermId,
+        exhaustiveness::{DeconstructedCtorId, DeconstructedPatId},
         AccessToStorage, StorageRef,
     },
 };

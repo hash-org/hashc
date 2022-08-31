@@ -8,6 +8,13 @@ use std::{
 use hash_ast::ast::ParamOrigin;
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::identifier::Identifier;
+use hash_types::{
+    params::ParamsId,
+    pats::{PatArgsId, PatId},
+    terms::TermId,
+    AccessOp, AccessPat, Arg, ConstPat, ConstructorPat, IfPat, ListPat, Member, ModPat, Mutability,
+    Pat, PatArg, SpreadPat, StructFields,
+};
 use hash_utils::store::{CloneStore, Store};
 use itertools::Itertools;
 
@@ -20,16 +27,7 @@ use crate::{
         warning::TcWarning,
     },
     ops::validate::TermValidation,
-    storage::{
-        params::ParamsId,
-        pats::{PatArgsId, PatId},
-        primitives::{
-            AccessOp, AccessPat, Arg, ConstPat, ConstructorPat, IfPat, ListPat, Member, ModPat,
-            Mutability, Pat, PatArg, SpreadPat, StructFields,
-        },
-        terms::TermId,
-        AccessToStorage, StorageRef,
-    },
+    storage::{AccessToStorage, StorageRef},
 };
 
 /// Contains functions related to pattern matching.

@@ -3,12 +3,12 @@
 
 use hash_ast::{ast, visitor::AstVisitor};
 use hash_source::identifier::Identifier;
+use hash_types::{scope::ScopeId, ScopeKind};
 
 use super::visitor::TcVisitor;
 use crate::{
     diagnostics::error::TcResult,
     ops::{scope::ScopeManager, AccessToOps},
-    storage::{primitives::ScopeKind, scope::ScopeId},
 };
 
 pub(crate) struct VisitConstantScope {

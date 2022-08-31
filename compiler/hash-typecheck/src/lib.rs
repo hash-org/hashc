@@ -18,8 +18,12 @@ use diagnostics::DiagnosticsStore;
 use hash_pipeline::{traits::Tc, CompilerResult};
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::SourceId;
+use hash_types::storage::{GlobalStorage, LocalStorage};
 use ops::AccessToOps;
-use storage::{cache::Cache, AccessToStorage, GlobalStorage, LocalStorage, StorageRef};
+use storage::{
+    cache::Cache, exhaustiveness::ExhaustivenessStorage, sources::CheckedSources, AccessToStorage,
+    StorageRef,
+};
 use traverse::visitor::TcVisitor;
 
 use crate::fmt::PrepareForFormatting;
@@ -37,8 +41,16 @@ pub struct TcImpl;
 /// Contains global typechecker state, used for the [Tc] implementation below.
 #[derive(Debug)]
 pub struct TcState {
+    /// Map representing a relation between the typechecked module and it's
+    /// relevant [SourceId].
+    pub checked_sources: CheckedSources,
+
     /// The shared typechecking context throughout the typechecking process.
     pub global_storage: GlobalStorage,
+
+    /// The shared exhaustiveness checking data store.
+    pub exhaustiveness_storage: ExhaustivenessStorage,
+
     pub prev_local_storage: LocalStorage,
 
     /// Share typechecking diagnostics
@@ -56,7 +68,9 @@ impl TcState {
         let global_storage = GlobalStorage::new();
         let local_storage = LocalStorage::new(&global_storage, source_id);
         Self {
+            checked_sources: CheckedSources::new(),
             global_storage,
+            exhaustiveness_storage: ExhaustivenessStorage::default(),
             prev_local_storage: local_storage,
             diagnostics_store: DiagnosticsStore::default(),
             cache: Cache::new(),
@@ -97,6 +111,8 @@ impl Tc<'_> for TcImpl {
         // previous local storage.
         let storage = StorageRef {
             global_storage: &state.global_storage,
+            checked_sources: &state.checked_sources,
+            exhaustiveness_storage: &state.exhaustiveness_storage,
             local_storage: &state.prev_local_storage,
             source_map: &workspace.source_map,
             diagnostics_store: &state.diagnostics_store,
@@ -139,6 +155,8 @@ impl Tc<'_> for TcImpl {
 
         let storage = StorageRef {
             global_storage: &state.global_storage,
+            checked_sources: &state.checked_sources,
+            exhaustiveness_storage: &state.exhaustiveness_storage,
             local_storage: &local_storage,
             source_map: &sources.source_map,
             diagnostics_store: &state.diagnostics_store,

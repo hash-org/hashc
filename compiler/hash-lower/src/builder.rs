@@ -4,7 +4,7 @@
 use hash_ast::ast::{AstNodeRef, Expr, FnDef};
 use hash_ir::ir::{BasicBlock, BasicBlockData, Body, Terminator, TerminatorKind};
 use hash_source::location::{SourceLocation, Span};
-use hash_typecheck::storage::GlobalStorage;
+use hash_types::storage::GlobalStorage;
 use index_vec::IndexVec;
 
 pub struct Builder<'tcx> {

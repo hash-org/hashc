@@ -8,7 +8,7 @@ use hash_utils::store::{
     DefaultPartialStore, DefaultSequenceStore, PartialStore, SequenceStore, SequenceStoreKey,
 };
 
-use super::primitives::{GetNameOpt, ParamList};
+use crate::{GetNameOpt, ParamList};
 
 /// A store that contains parameter lists, indexed by a generic key.
 ///

@@ -30,12 +30,13 @@ use hash_source::{
     constant::InternedStr,
     location::{SourceLocation, Span},
 };
+use hash_types::{Level1Term, NominalDef, StructFields, Term, TupleTy};
 use hash_utils::store::{CloneStore, Store};
 use smallvec::{smallvec, SmallVec};
 
 use super::{
     range::{IntRange, SplitIntRange},
-    AccessToUsefulnessOps,
+    AccessToUsefulnessOps, PatForFormatting, PreparePatForFormatting,
 };
 use crate::{
     diagnostics::macros::tc_panic,
@@ -43,13 +44,8 @@ use crate::{
         list::{List, ListKind, SplitVarList},
         PatCtx,
     },
-    fmt::{ForFormatting, PrepareForFormatting},
     ops::AccessToOps,
-    storage::{
-        deconstructed::DeconstructedCtorId,
-        primitives::{Level1Term, NominalDef, StructFields, Term, TupleTy},
-        AccessToStorage, StorageRef,
-    },
+    storage::{exhaustiveness::DeconstructedCtorId, AccessToStorage, StorageRef},
 };
 
 /// The [DeconstructedCtor] represents the type of constructor that a pattern
@@ -324,11 +320,11 @@ impl<'tc> ConstructorOps<'tc> {
     }
 }
 
-impl PrepareForFormatting for DeconstructedCtorId {}
+impl PreparePatForFormatting for DeconstructedCtorId {}
 
-impl Debug for ForFormatting<'_, DeconstructedCtorId> {
+impl Debug for PatForFormatting<'_, DeconstructedCtorId> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let ctor = self.global_storage.deconstructed_ctor_store.get(self.t);
+        let ctor = self.storage.exhaustiveness_storage().deconstructed_ctor_store.get(self.item);
         write!(f, "{:?}", ctor)
     }
 }

@@ -2,6 +2,10 @@
 
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::identifier::Identifier;
+use hash_types::{
+    arguments::ArgsId, params::ParamsId, scope::ScopeId, terms::TermId, BoundVar, Member,
+    Mutability, ScopeKind, ScopeMember, ScopeVar,
+};
 use hash_utils::store::Store;
 use itertools::Itertools;
 
@@ -11,14 +15,7 @@ use crate::{
         error::{TcError, TcResult},
         macros::{tc_panic, tc_panic_on_many},
     },
-    storage::{
-        arguments::ArgsId,
-        params::ParamsId,
-        primitives::{BoundVar, Member, Mutability, ScopeKind, ScopeMember, ScopeVar},
-        scope::ScopeId,
-        terms::TermId,
-        AccessToStorage, StorageRef,
-    },
+    storage::{AccessToStorage, StorageRef},
 };
 
 /// Contains actions related to variable resolution.

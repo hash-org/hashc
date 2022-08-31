@@ -37,6 +37,7 @@ use std::{
 
 use hash_ast::ast::RangeEnd;
 use hash_reporting::diagnostic::Diagnostics;
+use hash_types::{pats::PatId, terms::TermId, Level0Term, LitTerm, RangePat, Term};
 use hash_utils::store::Store;
 
 use super::AccessToUsefulnessOps;
@@ -44,13 +45,7 @@ use crate::{
     diagnostics::{macros::tc_panic, warning::TcWarning},
     exhaustiveness::constant::Constant,
     ops::AccessToOps,
-    storage::{
-        deconstructed::DeconstructedPatId,
-        pats::PatId,
-        primitives::{Level0Term, LitTerm, RangePat, Term},
-        terms::TermId,
-        AccessToStorage, StorageRef,
-    },
+    storage::{exhaustiveness::DeconstructedPatId, AccessToStorage, StorageRef},
 };
 
 /// The [IntRange] is used as a structure to represent `integral` types like

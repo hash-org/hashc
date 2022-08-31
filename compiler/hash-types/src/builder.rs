@@ -6,29 +6,26 @@ use hash_ast::ast::ParamOrigin;
 use hash_source::{identifier::Identifier, location::SourceLocation};
 use hash_utils::store::{SequenceStore, Store};
 
-use crate::storage::{
+use crate::{
     arguments::ArgsId,
     location::LocationTarget,
     mods::ModDefId,
     nominals::NominalDefId,
     params::ParamsId,
     pats::{PatArgsId, PatId},
-    primitives::{
-        AccessOp, AccessPat, AccessTerm, Arg, BindingPat, BoundVar, ConstPat, ConstructedTerm,
-        ConstructorPat, EnumDef, EnumVariant, EnumVariantValue, Field, FnCall, FnLit, FnTy, IfPat,
-        Level0Term, Level1Term, Level2Term, Level3Term, ListPat, LitTerm, Member, ModDef,
-        ModDefOrigin, ModPat, Mutability, NominalDef, Param, Pat, PatArg, RangePat, Scope,
-        ScopeKind, ScopeVar, SetBound, StructDef, StructFields, Term, TrtDef, TupleLit, TupleTy,
-        TyFn, TyFnCall, TyFnCase, TyFnTy, UnitDef, UnresolvedTerm, Var, Visibility,
-    },
     scope::ScopeId,
+    storage::GlobalStorage,
     terms::TermId,
     trts::TrtDefId,
-    GlobalStorage,
+    AccessOp, AccessPat, AccessTerm, Arg, BindingPat, BoundVar, ConstPat, ConstructedTerm,
+    ConstructorPat, EnumDef, EnumVariant, EnumVariantValue, Field, FnCall, FnLit, FnTy, IfPat,
+    Level0Term, Level1Term, Level2Term, Level3Term, ListPat, LitTerm, Member, ModDef, ModDefOrigin,
+    ModPat, Mutability, NominalDef, Param, Pat, PatArg, RangePat, Scope, ScopeKind, ScopeVar,
+    SetBound, StructDef, StructFields, Term, TrtDef, TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase,
+    TyFnTy, UnitDef, UnresolvedTerm, Var, Visibility,
 };
 
-/// Helper to create various primitive constructions (from
-/// [crate::storage::primitives]).
+/// Helper to create various primitive constructions (from [crate]).
 ///
 /// Optionally adds the constructions to a scope, if given.
 pub struct PrimitiveBuilder<'gs> {

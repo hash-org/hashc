@@ -11,5 +11,5 @@ hash-ir = {path = "../hash-ir" }
 hash-ast = {path = "../hash-ast" }
 hash-source = {path = "../hash-source" }
 hash-pipeline = { path = "../hash-pipeline" }
-hash-typecheck = { path = "../hash-typecheck" }
+hash-types = { path = "../hash-types" }
 hash-reporting = {path = "../hash-reporting" }

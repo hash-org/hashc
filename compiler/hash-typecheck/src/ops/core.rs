@@ -1,10 +1,11 @@
 //! Functionality related to determining properties about terms and other
 //! constructs.
 use hash_source::identifier::{Identifier, CORE_IDENTIFIERS};
+use hash_types::{terms::TermId, Member};
 use hash_utils::store::Store;
 
 use super::AccessToOps;
-use crate::storage::{primitives::Member, terms::TermId, AccessToStorage, StorageRef};
+use crate::storage::{AccessToStorage, StorageRef};
 
 pub struct CoreDefReader<'tc> {
     storage: StorageRef<'tc>,

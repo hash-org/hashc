@@ -2,7 +2,7 @@
 //! them.
 use hash_utils::{new_store, new_store_key};
 
-use super::primitives::TrtDef;
+use crate::TrtDef;
 
 new_store_key!(pub TrtDefId);
 new_store!(pub TrtDefStore<TrtDefId, TrtDef>);

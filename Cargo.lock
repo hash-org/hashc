@@ -458,7 +458,7 @@ dependencies = [
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
- "hash-typecheck",
+ "hash-types",
  "index_vec",
 ]
 
@@ -593,6 +593,7 @@ dependencies = [
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
+ "hash-types",
  "hash-utils",
  "if_chain",
  "itertools",
@@ -606,7 +607,11 @@ dependencies = [
 name = "hash-types"
 version = "0.1.0"
 dependencies = [
+ "hash-ast",
+ "hash-source",
  "hash-utils",
+ "log",
+ "num-bigint",
 ]
 
 [[package]]

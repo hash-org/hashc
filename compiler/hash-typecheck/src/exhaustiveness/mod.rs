@@ -57,12 +57,18 @@ pub mod range;
 pub mod stack;
 pub mod usefulness;
 pub mod wildcard;
+
+use hash_types::terms::TermId;
+
 use self::{
     construct::ConstructorOps, deconstruct::DeconstructPatOps, fields::FieldOps,
     lower::LowerPatOps, matrix::MatrixOps, range::IntRangeOps, stack::StackOps,
     usefulness::UsefulnessOps, wildcard::SplitWildcardOps,
 };
-use crate::storage::{terms::TermId, AccessToStorage};
+use crate::{
+    fmt::TcFormatOpts,
+    storage::{AccessToStorage, StorageRef},
+};
 
 /// General exhaustiveness context that's used when performing
 /// splitting and specialisation operations.
@@ -132,3 +138,32 @@ pub(crate) trait AccessToUsefulnessOps: AccessToStorage {
 }
 
 impl<T: AccessToStorage> AccessToUsefulnessOps for T {}
+
+/// Wraps a type `T` in a structure that contains information to be able to
+/// format `T` using [TcFormatter].
+///
+/// This can wrap any type, but only types that have corresponding `fmt_*`
+/// methods in [TcFormatter] are useful with it.
+pub struct PatForFormatting<'tc, T> {
+    pub item: T,
+    pub storage: StorageRef<'tc>,
+    pub opts: TcFormatOpts,
+}
+
+/// Convenience trait to create a `ForFormatting<T>` given a `T`.
+pub trait PreparePatForFormatting: Sized {
+    /// Create a [PatForFormatting<T>] given a `T`.
+    fn for_formatting(self, storage: StorageRef<'_>) -> PatForFormatting<Self> {
+        PatForFormatting { item: self, storage, opts: TcFormatOpts::default() }
+    }
+
+    /// Create a [PatForFormatting<T>] given a `T`, and provide an out parameter
+    /// for the `is_atomic` check.
+    fn pat_for_formatting_with_opts(
+        self,
+        storage: StorageRef<'_>,
+        opts: TcFormatOpts,
+    ) -> PatForFormatting<Self> {
+        PatForFormatting { item: self, storage, opts }
+    }
+}

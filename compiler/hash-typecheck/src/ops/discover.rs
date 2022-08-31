@@ -1,22 +1,17 @@
 //! Functionality related to discovering variables in terms.
 use std::collections::HashSet;
 
+use hash_types::{
+    arguments::ArgsId, params::ParamsId, scope::ScopeId, terms::TermId, AccessTerm, Arg, BoundVar,
+    Level0Term, Level1Term, Level2Term, Level3Term, Member, NominalDef, Param, StructDef,
+    StructFields, Sub, SubVar, Term, TyFn, TyFnCase,
+};
 use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
 
 use super::AccessToOps;
 use crate::{
     diagnostics::{error::TcResult, macros::tc_panic},
-    storage::{
-        arguments::ArgsId,
-        params::ParamsId,
-        primitives::{
-            AccessTerm, Arg, BoundVar, Level0Term, Level1Term, Level2Term, Level3Term, Member,
-            NominalDef, Param, StructDef, StructFields, Sub, SubVar, Term, TyFn, TyFnCase,
-        },
-        scope::ScopeId,
-        terms::TermId,
-        AccessToStorage, StorageRef,
-    },
+    storage::{AccessToStorage, StorageRef},
 };
 
 /// Contains actions related to variable discovery.

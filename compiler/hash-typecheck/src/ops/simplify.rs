@@ -3,6 +3,14 @@ use std::iter;
 
 use hash_ast::ast::ParamOrigin;
 use hash_source::identifier::Identifier;
+use hash_types::{
+    arguments::ArgsId,
+    params::ParamsId,
+    terms::{TermId, TermListId},
+    AccessOp, AccessTerm, Arg, ConstructedTerm, Field, FnLit, FnTy, Level0Term, Level1Term,
+    Level2Term, Level3Term, Member, Mutability, NominalDef, Param, ScopeKind, StructFields, Term,
+    TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
+};
 use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
 use itertools::Itertools;
 
@@ -12,17 +20,7 @@ use crate::{
         error::{TcError, TcResult},
         macros::{tc_panic, tc_panic_on_many},
     },
-    storage::{
-        arguments::ArgsId,
-        params::ParamsId,
-        primitives::{
-            AccessOp, AccessTerm, Arg, ConstructedTerm, Field, FnLit, FnTy, Level0Term, Level1Term,
-            Level2Term, Level3Term, Member, Mutability, NominalDef, Param, ScopeKind, StructFields,
-            Term, TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
-        },
-        terms::{TermId, TermListId},
-        AccessToStorage, StorageRef,
-    },
+    storage::{AccessToStorage, StorageRef},
 };
 
 /// Can perform simplification on terms.

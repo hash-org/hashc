@@ -3,6 +3,13 @@
 use std::{iter::once, mem::size_of};
 
 use hash_ast::ast::{ParamOrigin, RangeEnd};
+use hash_types::{
+    params::ParamsId,
+    pats::{PatArgsId, PatId},
+    terms::TermId,
+    AccessPat, ConstPat, ConstructorPat, IfPat, Level0Term, Level1Term, ListPat, LitTerm, ModDef,
+    ModPat, NominalDef, Pat, PatArg, RangePat, ScopeKind, SpreadPat, StructFields, Term, TupleTy,
+};
 use hash_utils::store::Store;
 use if_chain::if_chain;
 use itertools::Itertools;
@@ -21,18 +28,7 @@ use super::{
 use crate::{
     diagnostics::macros::tc_panic,
     ops::AccessToOps,
-    storage::{
-        deconstructed::DeconstructedPatId,
-        params::ParamsId,
-        pats::{PatArgsId, PatId},
-        primitives::{
-            AccessPat, ConstPat, ConstructorPat, IfPat, Level0Term, Level1Term, ListPat, LitTerm,
-            ModDef, ModPat, NominalDef, Pat, PatArg, RangePat, ScopeKind, SpreadPat, StructFields,
-            Term, TupleTy,
-        },
-        terms::TermId,
-        AccessToStorage, StorageRef,
-    },
+    storage::{exhaustiveness::DeconstructedPatId, AccessToStorage, StorageRef},
 };
 
 /// Representation of a field within a collection of patterns.
