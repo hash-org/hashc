@@ -182,23 +182,23 @@ impl AstVisitor for SemanticAnalyser<'_> {
         Ok(())
     }
 
-    type BinaryOperatorRet = ();
+    type BinOpRet = ();
 
-    fn visit_binary_operator(
+    fn visit_bin_op(
         &mut self,
         _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRef<hash_ast::ast::BinOp>,
-    ) -> Result<Self::BinaryOperatorRet, Self::Error> {
+    ) -> Result<Self::BinOpRet, Self::Error> {
         Ok(())
     }
 
-    type UnaryOperatorRet = ();
+    type UnOpRet = ();
 
-    fn visit_unary_operator(
+    fn visit_un_op(
         &mut self,
         _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRef<hash_ast::ast::UnOp>,
-    ) -> Result<Self::UnaryOperatorRet, Self::Error> {
+    ) -> Result<Self::UnOpRet, Self::Error> {
         Ok(())
     }
 

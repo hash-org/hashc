@@ -4,1377 +4,704 @@ use std::convert::Infallible;
 
 use crate::ast;
 
-/// A visitor [crate::ast] nodes that takes `&mut self`.
-///
-/// This contains a method for each AST structure, as well as a dedicated return
-/// type for it. These can be implemented using the functions defined in [walk]
-/// that can traverse the children of each node.
-pub trait AstVisitor: Sized {
-    /// Context type immutably passed to each visitor method for separating
-    /// mutable from immutable context.
-    type Ctx;
+macro_rules! make_ast_visitor {
+    ($visitor_trait_name:ident, $($path:ident)::+) => {
+        /// A visitor [crate::ast] nodes that takes `&mut self`.
+        /// This contains a method for each AST structure, as well as a dedicated return
+        /// type for it. These can be implemented using the functions defined in [walk]
+        /// that can traverse the children of each node.
+        pub trait $visitor_trait_name: Sized {
+            /// Context type immutably passed to each visitor method for separating
+            /// mutable from immutable context.
+            type Ctx;
 
-    /// What container to use to collect multiple children, used by [walk].
-    type CollectionContainer<T>: Sized;
+            /// What container to use to collect multiple children, used by [walk].
+            type CollectionContainer<T>: Sized;
 
-    /// Try collect an iterator of results into a container specified by
-    /// [Self::CollectionContainer].
-    fn try_collect_items<T, E, I: Iterator<Item = Result<T, E>>>(
-        ctx: &Self::Ctx,
-        items: I,
-    ) -> Result<Self::CollectionContainer<T>, E>;
+            /// Try collect an iterator of results into a container specified by
+            /// [Self::CollectionContainer].
+            fn try_collect_items<T, E, I: Iterator<Item = Result<T, E>>>(
+                ctx: &Self::Ctx,
+                items: I,
+            ) -> Result<Self::CollectionContainer<T>, E>;
 
-    /// Collect an iterator of items into a container specified by
-    /// [Self::CollectionContainer].
-    fn collect_items<T, E, I: Iterator<Item = T>>(
-        ctx: &Self::Ctx,
-        items: I,
-    ) -> Self::CollectionContainer<T> {
-        Self::try_collect_items::<T, Infallible, _>(ctx, items.map(|item| Ok(item))).unwrap()
+            /// Collect an iterator of items into a container specified by
+            /// [Self::CollectionContainer].
+            fn collect_items<T, E, I: Iterator<Item = T>>(
+                ctx: &Self::Ctx,
+                items: I,
+            ) -> Self::CollectionContainer<T> {
+                Self::try_collect_items::<T, Infallible, _>(ctx, items.map(|item| Ok(item))).unwrap()
+            }
+
+            /// The error type to use for each visit method.
+            type Error;
+
+            type NameRet;
+            fn visit_name(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::Name>,
+            ) -> Result<Self::NameRet, Self::Error>;
+
+            type LitRet;
+            fn visit_lit(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::Lit>,
+            ) -> Result<Self::LitRet, Self::Error>;
+
+            type MapLitRet;
+            fn visit_map_lit(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::MapLit>,
+            ) -> Result<Self::MapLitRet, Self::Error>;
+
+            type MapLitEntryRet;
+            fn visit_map_lit_entry(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::MapLitEntry>,
+            ) -> Result<Self::MapLitEntryRet, Self::Error>;
+
+            type ListLitRet;
+            fn visit_list_lit(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::ListLit>,
+            ) -> Result<Self::ListLitRet, Self::Error>;
+
+            type SetLitRet;
+            fn visit_set_lit(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::SetLit>,
+            ) -> Result<Self::SetLitRet, Self::Error>;
+
+            type TupleLitEntryRet;
+            fn visit_tuple_lit_entry(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::TupleLitEntry>,
+            ) -> Result<Self::TupleLitEntryRet, Self::Error>;
+
+            type TupleLitRet;
+            fn visit_tuple_lit(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::TupleLit>,
+            ) -> Result<Self::TupleLitRet, Self::Error>;
+
+            type StrLitRet;
+            fn visit_str_lit(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::StrLit>,
+            ) -> Result<Self::StrLitRet, Self::Error>;
+
+            type CharLitRet;
+            fn visit_char_lit(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::CharLit>,
+            ) -> Result<Self::CharLitRet, Self::Error>;
+
+            type FloatLitRet;
+            fn visit_float_lit(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::FloatLit>,
+            ) -> Result<Self::FloatLitRet, Self::Error>;
+
+            type BoolLitRet;
+            fn visit_bool_lit(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::BoolLit>,
+            ) -> Result<Self::BoolLitRet, Self::Error>;
+
+            type IntLitRet;
+            fn visit_int_lit(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::IntLit>,
+            ) -> Result<Self::IntLitRet, Self::Error>;
+
+            type BinOpRet;
+            fn visit_bin_op(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::BinOp>,
+            ) -> Result<Self::BinOpRet, Self::Error>;
+
+            type UnOpRet;
+            fn visit_un_op(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::UnOp>,
+            ) -> Result<Self::UnOpRet, Self::Error>;
+
+            type ExprRet;
+            fn visit_expr(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::Expr>,
+            ) -> Result<Self::ExprRet, Self::Error>;
+
+            type VariableExprRet;
+            fn visit_variable_expr(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::VariableExpr>,
+            ) -> Result<Self::VariableExprRet, Self::Error>;
+
+            type DirectiveExprRet;
+            fn visit_directive_expr(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::DirectiveExpr>,
+            ) -> Result<Self::DirectiveExprRet, Self::Error>;
+
+            type ConstructorCallArgRet;
+            fn visit_constructor_call_arg(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::ConstructorCallArg>,
+            ) -> Result<Self::ConstructorCallArgRet, Self::Error>;
+
+            type ConstructorCallExprRet;
+            fn visit_constructor_call_expr(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::ConstructorCallExpr>,
+            ) -> Result<Self::ConstructorCallExprRet, Self::Error>;
+
+            type PropertyKindRet;
+            fn visit_property_kind(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::PropertyKind>,
+            ) -> Result<Self::PropertyKindRet, Self::Error>;
+
+            type AccessExprRet;
+            fn visit_access_expr(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::AccessExpr>,
+            ) -> Result<Self::AccessExprRet, Self::Error>;
+
+            type AccessKindRet;
+            fn visit_access_kind(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: ast::AccessKind,
+            ) -> Result<Self::AccessKindRet, Self::Error>;
+
+            type RefExprRet;
+            fn visit_ref_expr(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::RefExpr>,
+            ) -> Result<Self::RefExprRet, Self::Error>;
+
+            type DerefExprRet;
+            fn visit_deref_expr(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::DerefExpr>,
+            ) -> Result<Self::DerefExprRet, Self::Error>;
+
+            type UnsafeExprRet;
+            fn visit_unsafe_expr(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::UnsafeExpr>,
+            ) -> Result<Self::UnsafeExprRet, Self::Error>;
+
+            type LitExprRet;
+            fn visit_lit_expr(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::LitExpr>,
+            ) -> Result<Self::LitExprRet, Self::Error>;
+
+            type CastExprRet;
+            fn visit_cast_expr(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::CastExpr>,
+            ) -> Result<Self::CastExprRet, Self::Error>;
+
+            type TyExprRet;
+            fn visit_ty_expr(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::TyExpr>,
+            ) -> Result<Self::TyExprRet, Self::Error>;
+
+            type BlockExprRet;
+            fn visit_block_expr(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::BlockExpr>,
+            ) -> Result<Self::BlockExprRet, Self::Error>;
+
+            type ImportRet;
+            fn visit_import(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::Import>,
+            ) -> Result<Self::ImportRet, Self::Error>;
+
+            type ImportExprRet;
+            fn visit_import_expr(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::ImportExpr>,
+            ) -> Result<Self::ImportExprRet, Self::Error>;
+
+            type TyRet;
+            fn visit_ty(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::Ty>,
+            ) -> Result<Self::TyRet, Self::Error>;
+
+            type TupleTyRet;
+            fn visit_tuple_ty(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::TupleTy>,
+            ) -> Result<Self::TupleTyRet, Self::Error>;
+
+            type ListTyRet;
+            fn visit_list_ty(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::ListTy>,
+            ) -> Result<Self::ListTyRet, Self::Error>;
+
+            type SetTyRet;
+            fn visit_set_ty(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::SetTy>,
+            ) -> Result<Self::SetTyRet, Self::Error>;
+
+            type MapTyRet;
+            fn visit_map_ty(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::MapTy>,
+            ) -> Result<Self::MapTyRet, Self::Error>;
+
+            type TyArgRet;
+            fn visit_ty_arg(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::TyArg>,
+            ) -> Result<Self::TyArgRet, Self::Error>;
+
+            type FnTyRet;
+            fn visit_fn_ty(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::FnTy>,
+            ) -> Result<Self::FnTyRet, Self::Error>;
+
+            type TyFnRet;
+            fn visit_ty_fn_ty(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::TyFn>,
+            ) -> Result<Self::TyFnRet, Self::Error>;
+
+            type TyFnCallRet;
+            fn visit_ty_fn_call(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::TyFnCall>,
+            ) -> Result<Self::TyFnCallRet, Self::Error>;
+
+            type NamedTyRet;
+            fn visit_named_ty(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::NamedTy>,
+            ) -> Result<Self::NamedTyRet, Self::Error>;
+
+            type AccessTyRet;
+            fn visit_access_ty(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::AccessTy>,
+            ) -> Result<Self::AccessTyRet, Self::Error>;
+
+            type RefTyRet;
+            fn visit_ref_ty(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::RefTy>,
+            ) -> Result<Self::RefTyRet, Self::Error>;
+
+            type MergeTyRet;
+            fn visit_merge_ty(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::MergeTy>,
+            ) -> Result<Self::MergeTyRet, Self::Error>;
+
+            type UnionTyRet;
+            fn visit_union_ty(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::UnionTy>,
+            ) -> Result<Self::UnionTyRet, Self::Error>;
+
+            type TyFnDefRet;
+            fn visit_ty_fn_def(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::TyFnDef>,
+            ) -> Result<Self::TyFnDefRet, Self::Error>;
+
+            type FnDefRet;
+            fn visit_fn_def(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::FnDef>,
+            ) -> Result<Self::FnDefRet, Self::Error>;
+
+            type ParamRet;
+            fn visit_param(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::Param>,
+            ) -> Result<Self::ParamRet, Self::Error>;
+
+            type BlockRet;
+            fn visit_block(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::Block>,
+            ) -> Result<Self::BlockRet, Self::Error>;
+
+            type MatchCaseRet;
+            fn visit_match_case(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::MatchCase>,
+            ) -> Result<Self::MatchCaseRet, Self::Error>;
+
+            type MatchBlockRet;
+            fn visit_match_block(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::MatchBlock>,
+            ) -> Result<Self::MatchBlockRet, Self::Error>;
+
+            type LoopBlockRet;
+            fn visit_loop_block(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::LoopBlock>,
+            ) -> Result<Self::LoopBlockRet, Self::Error>;
+
+            type ForLoopBlockRet;
+            fn visit_for_loop_block(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::ForLoopBlock>,
+            ) -> Result<Self::ForLoopBlockRet, Self::Error>;
+
+            type WhileLoopBlockRet;
+            fn visit_while_loop_block(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::WhileLoopBlock>,
+            ) -> Result<Self::WhileLoopBlockRet, Self::Error>;
+
+            type ModBlockRet;
+            fn visit_mod_block(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::ModBlock>,
+            ) -> Result<Self::ModBlockRet, Self::Error>;
+
+            type ImplBlockRet;
+            fn visit_impl_block(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::ImplBlock>,
+            ) -> Result<Self::ImplBlockRet, Self::Error>;
+
+            type IfClauseRet;
+            fn visit_if_clause(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::IfClause>,
+            ) -> Result<Self::IfClauseRet, Self::Error>;
+
+            type IfBlockRet;
+            fn visit_if_block(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::IfBlock>,
+            ) -> Result<Self::IfBlockRet, Self::Error>;
+
+            type BodyBlockRet;
+            fn visit_body_block(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::BodyBlock>,
+            ) -> Result<Self::BodyBlockRet, Self::Error>;
+
+            type ReturnStatementRet;
+            fn visit_return_statement(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::ReturnStatement>,
+            ) -> Result<Self::ReturnStatementRet, Self::Error>;
+
+            type BreakStatementRet;
+            fn visit_break_statement(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::BreakStatement>,
+            ) -> Result<Self::BreakStatementRet, Self::Error>;
+
+            type ContinueStatementRet;
+            fn visit_continue_statement(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::ContinueStatement>,
+            ) -> Result<Self::ContinueStatementRet, Self::Error>;
+
+            type VisibilityRet;
+            fn visit_visibility_modifier(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::Visibility>,
+            ) -> Result<Self::VisibilityRet, Self::Error>;
+
+            type MutabilityRet;
+            fn visit_mutability_modifier(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::Mutability>,
+            ) -> Result<Self::MutabilityRet, Self::Error>;
+
+            type RefKindRet;
+            fn visit_ref_kind(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::RefKind>,
+            ) -> Result<Self::RefKindRet, Self::Error>;
+
+            type DeclarationRet;
+            fn visit_declaration(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::Declaration>,
+            ) -> Result<Self::DeclarationRet, Self::Error>;
+
+            type MergeDeclarationRet;
+            fn visit_merge_declaration(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::MergeDeclaration>,
+            ) -> Result<Self::MergeDeclarationRet, Self::Error>;
+
+            type AssignExprRet;
+            fn visit_assign_expr(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::AssignExpr>,
+            ) -> Result<Self::AssignExprRet, Self::Error>;
+
+            type AssignOpExprRet;
+            fn visit_assign_op_expr(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::AssignOpExpr>,
+            ) -> Result<Self::AssignOpExprRet, Self::Error>;
+
+            type BinaryExprRet;
+            fn visit_binary_expr(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::BinaryExpr>,
+            ) -> Result<Self::BinaryExprRet, Self::Error>;
+
+            type UnaryExprRet;
+            fn visit_unary_expr(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::UnaryExpr>,
+            ) -> Result<Self::UnaryExprRet, Self::Error>;
+
+            type IndexExprRet;
+            fn visit_index_expr(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::IndexExpr>,
+            ) -> Result<Self::IndexExprRet, Self::Error>;
+
+            type StructDefRet;
+            fn visit_struct_def(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::StructDef>,
+            ) -> Result<Self::StructDefRet, Self::Error>;
+
+            type EnumDefEntryRet;
+            fn visit_enum_def_entry(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::EnumDefEntry>,
+            ) -> Result<Self::EnumDefEntryRet, Self::Error>;
+
+            type EnumDefRet;
+            fn visit_enum_def(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::EnumDef>,
+            ) -> Result<Self::EnumDefRet, Self::Error>;
+
+            type TraitDefRet;
+            fn visit_trait_def(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::TraitDef>,
+            ) -> Result<Self::TraitDefRet, Self::Error>;
+
+            type TraitImplRet;
+            fn visit_trait_impl(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::TraitImpl>,
+            ) -> Result<Self::TraitImplRet, Self::Error>;
+
+            type PatRet;
+            fn visit_pat(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::Pat>,
+            ) -> Result<Self::PatRet, Self::Error>;
+
+            type AccessPatRet;
+            fn visit_access_pat(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::AccessPat>,
+            ) -> Result<Self::AccessPatRet, Self::Error>;
+
+            type ConstructorPatRet;
+            fn visit_constructor_pat(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::ConstructorPat>,
+            ) -> Result<Self::ConstructorPatRet, Self::Error>;
+
+            type TuplePatEntryRet;
+            fn visit_tuple_pat_entry(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::TuplePatEntry>,
+            ) -> Result<Self::TuplePatEntryRet, Self::Error>;
+
+            type TuplePatRet;
+            fn visit_tuple_pat(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::TuplePat>,
+            ) -> Result<Self::TuplePatRet, Self::Error>;
+
+            type ListPatRet;
+            fn visit_list_pat(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::ListPat>,
+            ) -> Result<Self::ListPatRet, Self::Error>;
+
+            type SpreadPatRet;
+            fn visit_spread_pat(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::SpreadPat>,
+            ) -> Result<Self::SpreadPatRet, Self::Error>;
+
+            type LitPatRet;
+            fn visit_lit_pat(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::LitPat>,
+            ) -> Result<Self::LitPatRet, Self::Error>;
+
+            type RangePatRet;
+            fn visit_range_pat(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::RangePat>,
+            ) -> Result<Self::RangePatRet, Self::Error>;
+
+            type OrPatRet;
+            fn visit_or_pat(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::OrPat>,
+            ) -> Result<Self::OrPatRet, Self::Error>;
+
+            type IfPatRet;
+            fn visit_if_pat(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::IfPat>,
+            ) -> Result<Self::IfPatRet, Self::Error>;
+
+            type BindingPatRet;
+            fn visit_binding_pat(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::BindingPat>,
+            ) -> Result<Self::BindingPatRet, Self::Error>;
+
+            type WildPatRet;
+            fn visit_wild_pat(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::WildPat>,
+            ) -> Result<Self::WildPatRet, Self::Error>;
+
+            type ModulePatEntryRet;
+            fn visit_module_pat_entry(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::ModulePatEntry>,
+            ) -> Result<Self::ModulePatEntryRet, Self::Error>;
+
+            type ModulePatRet;
+            fn visit_module_pat(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::ModulePat>,
+            ) -> Result<Self::ModulePatRet, Self::Error>;
+
+            type ModuleRet;
+            fn visit_module(
+                &mut self,
+                ctx: &Self::Ctx,
+                node: $($path)::+<ast::Module>,
+            ) -> Result<Self::ModuleRet, Self::Error>;
+        }
     }
-
-    /// The error type to use for each visit method.
-    type Error;
-
-    type NameRet;
-    fn visit_name(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::Name>,
-    ) -> Result<Self::NameRet, Self::Error>;
-
-    type LitRet;
-    fn visit_lit(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::Lit>,
-    ) -> Result<Self::LitRet, Self::Error>;
-
-    type MapLitRet;
-    fn visit_map_lit(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::MapLit>,
-    ) -> Result<Self::MapLitRet, Self::Error>;
-
-    type MapLitEntryRet;
-    fn visit_map_lit_entry(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::MapLitEntry>,
-    ) -> Result<Self::MapLitEntryRet, Self::Error>;
-
-    type ListLitRet;
-    fn visit_list_lit(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::ListLit>,
-    ) -> Result<Self::ListLitRet, Self::Error>;
-
-    type SetLitRet;
-    fn visit_set_lit(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::SetLit>,
-    ) -> Result<Self::SetLitRet, Self::Error>;
-
-    type TupleLitEntryRet;
-    fn visit_tuple_lit_entry(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TupleLitEntry>,
-    ) -> Result<Self::TupleLitEntryRet, Self::Error>;
-
-    type TupleLitRet;
-    fn visit_tuple_lit(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TupleLit>,
-    ) -> Result<Self::TupleLitRet, Self::Error>;
-
-    type StrLitRet;
-    fn visit_str_lit(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::StrLit>,
-    ) -> Result<Self::StrLitRet, Self::Error>;
-
-    type CharLitRet;
-    fn visit_char_lit(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::CharLit>,
-    ) -> Result<Self::CharLitRet, Self::Error>;
-
-    type FloatLitRet;
-    fn visit_float_lit(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::FloatLit>,
-    ) -> Result<Self::FloatLitRet, Self::Error>;
-
-    type BoolLitRet;
-    fn visit_bool_lit(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::BoolLit>,
-    ) -> Result<Self::BoolLitRet, Self::Error>;
-
-    type IntLitRet;
-    fn visit_int_lit(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::IntLit>,
-    ) -> Result<Self::IntLitRet, Self::Error>;
-
-    type BinaryOperatorRet;
-    fn visit_binary_operator(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::BinOp>,
-    ) -> Result<Self::BinaryOperatorRet, Self::Error>;
-
-    type UnaryOperatorRet;
-    fn visit_unary_operator(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::UnOp>,
-    ) -> Result<Self::UnaryOperatorRet, Self::Error>;
-
-    type ExprRet;
-    fn visit_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::Expr>,
-    ) -> Result<Self::ExprRet, Self::Error>;
-
-    type VariableExprRet;
-    fn visit_variable_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::VariableExpr>,
-    ) -> Result<Self::VariableExprRet, Self::Error>;
-
-    type DirectiveExprRet;
-    fn visit_directive_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::DirectiveExpr>,
-    ) -> Result<Self::DirectiveExprRet, Self::Error>;
-
-    type ConstructorCallArgRet;
-    fn visit_constructor_call_arg(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::ConstructorCallArg>,
-    ) -> Result<Self::ConstructorCallArgRet, Self::Error>;
-
-    type ConstructorCallExprRet;
-    fn visit_constructor_call_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::ConstructorCallExpr>,
-    ) -> Result<Self::ConstructorCallExprRet, Self::Error>;
-
-    type PropertyKindRet;
-    fn visit_property_kind(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::PropertyKind>,
-    ) -> Result<Self::PropertyKindRet, Self::Error>;
-
-    type AccessExprRet;
-    fn visit_access_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::AccessExpr>,
-    ) -> Result<Self::AccessExprRet, Self::Error>;
-
-    type AccessKindRet;
-    fn visit_access_kind(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AccessKind,
-    ) -> Result<Self::AccessKindRet, Self::Error>;
-
-    type RefExprRet;
-    fn visit_ref_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::RefExpr>,
-    ) -> Result<Self::RefExprRet, Self::Error>;
-
-    type DerefExprRet;
-    fn visit_deref_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::DerefExpr>,
-    ) -> Result<Self::DerefExprRet, Self::Error>;
-
-    type UnsafeExprRet;
-    fn visit_unsafe_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::UnsafeExpr>,
-    ) -> Result<Self::UnsafeExprRet, Self::Error>;
-
-    type LitExprRet;
-    fn visit_lit_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::LitExpr>,
-    ) -> Result<Self::LitExprRet, Self::Error>;
-
-    type CastExprRet;
-    fn visit_cast_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::CastExpr>,
-    ) -> Result<Self::CastExprRet, Self::Error>;
-
-    type TyExprRet;
-    fn visit_ty_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TyExpr>,
-    ) -> Result<Self::TyExprRet, Self::Error>;
-
-    type BlockExprRet;
-    fn visit_block_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::BlockExpr>,
-    ) -> Result<Self::BlockExprRet, Self::Error>;
-
-    type ImportRet;
-    fn visit_import(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::Import>,
-    ) -> Result<Self::ImportRet, Self::Error>;
-
-    type ImportExprRet;
-    fn visit_import_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::ImportExpr>,
-    ) -> Result<Self::ImportExprRet, Self::Error>;
-
-    type TyRet;
-    fn visit_ty(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::Ty>,
-    ) -> Result<Self::TyRet, Self::Error>;
-
-    type TupleTyRet;
-    fn visit_tuple_ty(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TupleTy>,
-    ) -> Result<Self::TupleTyRet, Self::Error>;
-
-    type ListTyRet;
-    fn visit_list_ty(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::ListTy>,
-    ) -> Result<Self::ListTyRet, Self::Error>;
-
-    type SetTyRet;
-    fn visit_set_ty(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::SetTy>,
-    ) -> Result<Self::SetTyRet, Self::Error>;
-
-    type MapTyRet;
-    fn visit_map_ty(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::MapTy>,
-    ) -> Result<Self::MapTyRet, Self::Error>;
-
-    type TyArgRet;
-    fn visit_ty_arg(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TyArg>,
-    ) -> Result<Self::TyArgRet, Self::Error>;
-
-    type FnTyRet;
-    fn visit_fn_ty(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::FnTy>,
-    ) -> Result<Self::FnTyRet, Self::Error>;
-
-    type TyFnRet;
-    fn visit_ty_fn_ty(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TyFn>,
-    ) -> Result<Self::TyFnRet, Self::Error>;
-
-    type TyFnCallRet;
-    fn visit_ty_fn_call(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TyFnCall>,
-    ) -> Result<Self::TyFnCallRet, Self::Error>;
-
-    type NamedTyRet;
-    fn visit_named_ty(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::NamedTy>,
-    ) -> Result<Self::NamedTyRet, Self::Error>;
-
-    type AccessTyRet;
-    fn visit_access_ty(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::AccessTy>,
-    ) -> Result<Self::AccessTyRet, Self::Error>;
-
-    type RefTyRet;
-    fn visit_ref_ty(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::RefTy>,
-    ) -> Result<Self::RefTyRet, Self::Error>;
-
-    type MergeTyRet;
-    fn visit_merge_ty(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::MergeTy>,
-    ) -> Result<Self::MergeTyRet, Self::Error>;
-
-    type UnionTyRet;
-    fn visit_union_ty(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::UnionTy>,
-    ) -> Result<Self::UnionTyRet, Self::Error>;
-
-    type TyFnDefRet;
-    fn visit_ty_fn_def(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TyFnDef>,
-    ) -> Result<Self::TyFnDefRet, Self::Error>;
-
-    type FnDefRet;
-    fn visit_fn_def(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::FnDef>,
-    ) -> Result<Self::FnDefRet, Self::Error>;
-
-    type ParamRet;
-    fn visit_param(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::Param>,
-    ) -> Result<Self::ParamRet, Self::Error>;
-
-    type BlockRet;
-    fn visit_block(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::Block>,
-    ) -> Result<Self::BlockRet, Self::Error>;
-
-    type MatchCaseRet;
-    fn visit_match_case(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::MatchCase>,
-    ) -> Result<Self::MatchCaseRet, Self::Error>;
-
-    type MatchBlockRet;
-    fn visit_match_block(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::MatchBlock>,
-    ) -> Result<Self::MatchBlockRet, Self::Error>;
-
-    type LoopBlockRet;
-    fn visit_loop_block(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::LoopBlock>,
-    ) -> Result<Self::LoopBlockRet, Self::Error>;
-
-    type ForLoopBlockRet;
-    fn visit_for_loop_block(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::ForLoopBlock>,
-    ) -> Result<Self::ForLoopBlockRet, Self::Error>;
-
-    type WhileLoopBlockRet;
-    fn visit_while_loop_block(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::WhileLoopBlock>,
-    ) -> Result<Self::WhileLoopBlockRet, Self::Error>;
-
-    type ModBlockRet;
-    fn visit_mod_block(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::ModBlock>,
-    ) -> Result<Self::ModBlockRet, Self::Error>;
-
-    type ImplBlockRet;
-    fn visit_impl_block(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::ImplBlock>,
-    ) -> Result<Self::ImplBlockRet, Self::Error>;
-
-    type IfClauseRet;
-    fn visit_if_clause(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::IfClause>,
-    ) -> Result<Self::IfClauseRet, Self::Error>;
-
-    type IfBlockRet;
-    fn visit_if_block(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::IfBlock>,
-    ) -> Result<Self::IfBlockRet, Self::Error>;
-
-    type BodyBlockRet;
-    fn visit_body_block(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::BodyBlock>,
-    ) -> Result<Self::BodyBlockRet, Self::Error>;
-
-    type ReturnStatementRet;
-    fn visit_return_statement(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::ReturnStatement>,
-    ) -> Result<Self::ReturnStatementRet, Self::Error>;
-
-    type BreakStatementRet;
-    fn visit_break_statement(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::BreakStatement>,
-    ) -> Result<Self::BreakStatementRet, Self::Error>;
-
-    type ContinueStatementRet;
-    fn visit_continue_statement(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::ContinueStatement>,
-    ) -> Result<Self::ContinueStatementRet, Self::Error>;
-
-    type VisibilityRet;
-    fn visit_visibility_modifier(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::Visibility>,
-    ) -> Result<Self::VisibilityRet, Self::Error>;
-
-    type MutabilityRet;
-    fn visit_mutability_modifier(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::Mutability>,
-    ) -> Result<Self::MutabilityRet, Self::Error>;
-
-    type RefKindRet;
-    fn visit_ref_kind(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::RefKind>,
-    ) -> Result<Self::RefKindRet, Self::Error>;
-
-    type DeclarationRet;
-    fn visit_declaration(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::Declaration>,
-    ) -> Result<Self::DeclarationRet, Self::Error>;
-
-    type MergeDeclarationRet;
-    fn visit_merge_declaration(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::MergeDeclaration>,
-    ) -> Result<Self::MergeDeclarationRet, Self::Error>;
-
-    type AssignExprRet;
-    fn visit_assign_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::AssignExpr>,
-    ) -> Result<Self::AssignExprRet, Self::Error>;
-
-    type AssignOpExprRet;
-    fn visit_assign_op_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::AssignOpExpr>,
-    ) -> Result<Self::AssignOpExprRet, Self::Error>;
-
-    type BinaryExprRet;
-    fn visit_binary_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::BinaryExpr>,
-    ) -> Result<Self::BinaryExprRet, Self::Error>;
-
-    type UnaryExprRet;
-    fn visit_unary_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::UnaryExpr>,
-    ) -> Result<Self::UnaryExprRet, Self::Error>;
-
-    type IndexExprRet;
-    fn visit_index_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::IndexExpr>,
-    ) -> Result<Self::IndexExprRet, Self::Error>;
-
-    type StructDefRet;
-    fn visit_struct_def(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::StructDef>,
-    ) -> Result<Self::StructDefRet, Self::Error>;
-
-    type EnumDefEntryRet;
-    fn visit_enum_def_entry(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::EnumDefEntry>,
-    ) -> Result<Self::EnumDefEntryRet, Self::Error>;
-
-    type EnumDefRet;
-    fn visit_enum_def(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::EnumDef>,
-    ) -> Result<Self::EnumDefRet, Self::Error>;
-
-    type TraitDefRet;
-    fn visit_trait_def(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TraitDef>,
-    ) -> Result<Self::TraitDefRet, Self::Error>;
-
-    type TraitImplRet;
-    fn visit_trait_impl(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TraitImpl>,
-    ) -> Result<Self::TraitImplRet, Self::Error>;
-
-    type PatRet;
-    fn visit_pat(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::Pat>,
-    ) -> Result<Self::PatRet, Self::Error>;
-
-    type AccessPatRet;
-    fn visit_access_pat(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::AccessPat>,
-    ) -> Result<Self::AccessPatRet, Self::Error>;
-
-    type ConstructorPatRet;
-    fn visit_constructor_pat(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::ConstructorPat>,
-    ) -> Result<Self::ConstructorPatRet, Self::Error>;
-
-    type TuplePatEntryRet;
-    fn visit_tuple_pat_entry(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TuplePatEntry>,
-    ) -> Result<Self::TuplePatEntryRet, Self::Error>;
-
-    type TuplePatRet;
-    fn visit_tuple_pat(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TuplePat>,
-    ) -> Result<Self::TuplePatRet, Self::Error>;
-
-    type ListPatRet;
-    fn visit_list_pat(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::ListPat>,
-    ) -> Result<Self::ListPatRet, Self::Error>;
-
-    type SpreadPatRet;
-    fn visit_spread_pat(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::SpreadPat>,
-    ) -> Result<Self::SpreadPatRet, Self::Error>;
-
-    type LitPatRet;
-    fn visit_lit_pat(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::LitPat>,
-    ) -> Result<Self::LitPatRet, Self::Error>;
-
-    type RangePatRet;
-    fn visit_range_pat(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::RangePat>,
-    ) -> Result<Self::RangePatRet, Self::Error>;
-
-    type OrPatRet;
-    fn visit_or_pat(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::OrPat>,
-    ) -> Result<Self::OrPatRet, Self::Error>;
-
-    type IfPatRet;
-    fn visit_if_pat(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::IfPat>,
-    ) -> Result<Self::IfPatRet, Self::Error>;
-
-    type BindingPatRet;
-    fn visit_binding_pat(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::BindingPat>,
-    ) -> Result<Self::BindingPatRet, Self::Error>;
-
-    type WildPatRet;
-    fn visit_wild_pat(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::WildPat>,
-    ) -> Result<Self::WildPatRet, Self::Error>;
-
-    type ModulePatEntryRet;
-    fn visit_module_pat_entry(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::ModulePatEntry>,
-    ) -> Result<Self::ModulePatEntryRet, Self::Error>;
-
-    type ModulePatRet;
-    fn visit_module_pat(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::ModulePat>,
-    ) -> Result<Self::ModulePatRet, Self::Error>;
-
-    type ModuleRet;
-    fn visit_module(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::Module>,
-    ) -> Result<Self::ModuleRet, Self::Error>;
 }
 
-/// A visitor [crate::ast] nodes that takes `&mut self` and mutable node
-/// references.
-pub trait AstVisitorMut: Sized {
-    /// Context type immutably passed to each visitor method for separating
-    /// mutable from immutable context.
-    type Ctx;
-
-    /// What container to use to collect multiple children, used by [walk].
-    type CollectionContainer<T>: Sized;
-
-    /// Try collect an iterator of results into a container specified by
-    /// [Self::CollectionContainer].
-    fn try_collect_items<T, E, I: Iterator<Item = Result<T, E>>>(
-        ctx: &Self::Ctx,
-        items: I,
-    ) -> Result<Self::CollectionContainer<T>, E>;
-
-    /// Collect an iterator of items into a container specified by
-    /// [Self::CollectionContainer].
-    fn collect_items<T, E, I: Iterator<Item = T>>(
-        ctx: &Self::Ctx,
-        items: I,
-    ) -> Self::CollectionContainer<T> {
-        Self::try_collect_items::<T, Infallible, _>(ctx, items.map(|item| Ok(item))).unwrap()
-    }
-
-    /// The error type to use for each visit method.
-    type Error;
-
-    type NameRet;
-    fn visit_name(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::Name>,
-    ) -> Result<Self::NameRet, Self::Error>;
-
-    type LitRet;
-    fn visit_lit(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::Lit>,
-    ) -> Result<Self::LitRet, Self::Error>;
-
-    type MapLitRet;
-    fn visit_map_lit(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::MapLit>,
-    ) -> Result<Self::MapLitRet, Self::Error>;
-
-    type MapLitEntryRet;
-    fn visit_map_lit_entry(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::MapLitEntry>,
-    ) -> Result<Self::MapLitEntryRet, Self::Error>;
-
-    type ListLitRet;
-    fn visit_list_lit(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::ListLit>,
-    ) -> Result<Self::ListLitRet, Self::Error>;
-
-    type SetLitRet;
-    fn visit_set_lit(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::SetLit>,
-    ) -> Result<Self::SetLitRet, Self::Error>;
-
-    type TupleLitEntryRet;
-    fn visit_tuple_lit_entry(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::TupleLitEntry>,
-    ) -> Result<Self::TupleLitEntryRet, Self::Error>;
-
-    type TupleLitRet;
-    fn visit_tuple_lit(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::TupleLit>,
-    ) -> Result<Self::TupleLitRet, Self::Error>;
-
-    type StrLitRet;
-    fn visit_str_lit(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::StrLit>,
-    ) -> Result<Self::StrLitRet, Self::Error>;
-
-    type CharLitRet;
-    fn visit_char_lit(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::CharLit>,
-    ) -> Result<Self::CharLitRet, Self::Error>;
-
-    type FloatLitRet;
-    fn visit_float_lit(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::FloatLit>,
-    ) -> Result<Self::FloatLitRet, Self::Error>;
-
-    type BoolLitRet;
-    fn visit_bool_lit(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::BoolLit>,
-    ) -> Result<Self::BoolLitRet, Self::Error>;
-
-    type IntLitRet;
-    fn visit_int_lit(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::IntLit>,
-    ) -> Result<Self::IntLitRet, Self::Error>;
-
-    type BinOpRet;
-    fn visit_bin_op(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::BinOp>,
-    ) -> Result<Self::BinOpRet, Self::Error>;
-
-    type UnOpRet;
-    fn visit_un_op(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::UnOp>,
-    ) -> Result<Self::UnOpRet, Self::Error>;
-
-    type ExprRet;
-    fn visit_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::Expr>,
-    ) -> Result<Self::ExprRet, Self::Error>;
-
-    type ImportRet;
-    fn visit_import(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::Import>,
-    ) -> Result<Self::ImportRet, Self::Error>;
-
-    type VariableExprRet;
-    fn visit_variable_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::VariableExpr>,
-    ) -> Result<Self::VariableExprRet, Self::Error>;
-
-    type DirectiveExprRet;
-    fn visit_directive_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::DirectiveExpr>,
-    ) -> Result<Self::DirectiveExprRet, Self::Error>;
-
-    type ConstructorCallArgRet;
-    fn visit_constructor_call_arg(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::ConstructorCallArg>,
-    ) -> Result<Self::ConstructorCallArgRet, Self::Error>;
-
-    type ConstructorCallExprRet;
-    fn visit_constructor_call_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::ConstructorCallExpr>,
-    ) -> Result<Self::ConstructorCallExprRet, Self::Error>;
-
-    type PropertyKindRet;
-    fn visit_property_kind(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::PropertyKind>,
-    ) -> Result<Self::PropertyKindRet, Self::Error>;
-
-    type AccessExprRet;
-    fn visit_access_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::AccessExpr>,
-    ) -> Result<Self::AccessExprRet, Self::Error>;
-
-    type AccessKindRet;
-    fn visit_access_kind(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AccessKind,
-    ) -> Result<Self::AccessKindRet, Self::Error>;
-
-    type RefExprRet;
-    fn visit_ref_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::RefExpr>,
-    ) -> Result<Self::RefExprRet, Self::Error>;
-
-    type DerefExprRet;
-    fn visit_deref_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::DerefExpr>,
-    ) -> Result<Self::DerefExprRet, Self::Error>;
-
-    type UnsafeExprRet;
-    fn visit_unsafe_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::UnsafeExpr>,
-    ) -> Result<Self::UnsafeExprRet, Self::Error>;
-
-    type LitExprRet;
-    fn visit_lit_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::LitExpr>,
-    ) -> Result<Self::LitExprRet, Self::Error>;
-
-    type CastExprRet;
-    fn visit_cast_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::CastExpr>,
-    ) -> Result<Self::CastExprRet, Self::Error>;
-
-    type TyExprRet;
-    fn visit_ty_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::TyExpr>,
-    ) -> Result<Self::TyExprRet, Self::Error>;
-
-    type BlockExprRet;
-    fn visit_block_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::BlockExpr>,
-    ) -> Result<Self::BlockExprRet, Self::Error>;
-
-    type ImportExprRet;
-    fn visit_import_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::ImportExpr>,
-    ) -> Result<Self::ImportExprRet, Self::Error>;
-
-    type TyRet;
-    fn visit_ty(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::Ty>,
-    ) -> Result<Self::TyRet, Self::Error>;
-
-    type TupleTyRet;
-    fn visit_tuple_ty(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::TupleTy>,
-    ) -> Result<Self::TupleTyRet, Self::Error>;
-
-    type ListTyRet;
-    fn visit_list_ty(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::ListTy>,
-    ) -> Result<Self::ListTyRet, Self::Error>;
-
-    type SetTyRet;
-    fn visit_set_ty(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::SetTy>,
-    ) -> Result<Self::SetTyRet, Self::Error>;
-
-    type MapTyRet;
-    fn visit_map_ty(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::MapTy>,
-    ) -> Result<Self::MapTyRet, Self::Error>;
-
-    type TyArgRet;
-    fn visit_ty_arg(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::TyArg>,
-    ) -> Result<Self::TyArgRet, Self::Error>;
-
-    type FnTyRet;
-    fn visit_fn_ty(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::FnTy>,
-    ) -> Result<Self::FnTyRet, Self::Error>;
-
-    type TyFnRet;
-    fn visit_ty_fn_ty(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::TyFn>,
-    ) -> Result<Self::TyFnRet, Self::Error>;
-
-    type TyFnCallRet;
-    fn visit_ty_fn_call(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::TyFnCall>,
-    ) -> Result<Self::TyFnCallRet, Self::Error>;
-
-    type NamedTyRet;
-    fn visit_named_ty(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::NamedTy>,
-    ) -> Result<Self::NamedTyRet, Self::Error>;
-
-    type AccessTyRet;
-    fn visit_access_ty(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::AccessTy>,
-    ) -> Result<Self::AccessTyRet, Self::Error>;
-
-    type RefTyRet;
-    fn visit_ref_ty(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::RefTy>,
-    ) -> Result<Self::RefTyRet, Self::Error>;
-
-    type MergeTyRet;
-    fn visit_merge_ty(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::MergeTy>,
-    ) -> Result<Self::MergeTyRet, Self::Error>;
-
-    type UnionTyRet;
-    fn visit_union_ty(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::UnionTy>,
-    ) -> Result<Self::UnionTyRet, Self::Error>;
-
-    type TyFnDefRet;
-    fn visit_ty_fn_def(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::TyFnDef>,
-    ) -> Result<Self::TyFnDefRet, Self::Error>;
-
-    type FnDefRet;
-    fn visit_fn_def(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::FnDef>,
-    ) -> Result<Self::FnDefRet, Self::Error>;
-
-    type ParamRet;
-    fn visit_param(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::Param>,
-    ) -> Result<Self::ParamRet, Self::Error>;
-
-    type BlockRet;
-    fn visit_block(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::Block>,
-    ) -> Result<Self::BlockRet, Self::Error>;
-
-    type MatchCaseRet;
-    fn visit_match_case(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::MatchCase>,
-    ) -> Result<Self::MatchCaseRet, Self::Error>;
-
-    type MatchBlockRet;
-    fn visit_match_block(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::MatchBlock>,
-    ) -> Result<Self::MatchBlockRet, Self::Error>;
-
-    type LoopBlockRet;
-    fn visit_loop_block(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::LoopBlock>,
-    ) -> Result<Self::LoopBlockRet, Self::Error>;
-
-    type ForLoopBlockRet;
-    fn visit_for_loop_block(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::ForLoopBlock>,
-    ) -> Result<Self::ForLoopBlockRet, Self::Error>;
-
-    type WhileLoopBlockRet;
-    fn visit_while_loop_block(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::WhileLoopBlock>,
-    ) -> Result<Self::WhileLoopBlockRet, Self::Error>;
-
-    type ModBlockRet;
-    fn visit_mod_block(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::ModBlock>,
-    ) -> Result<Self::ModBlockRet, Self::Error>;
-
-    type ImplBlockRet;
-    fn visit_impl_block(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::ImplBlock>,
-    ) -> Result<Self::ImplBlockRet, Self::Error>;
-
-    type IfClauseRet;
-    fn visit_if_clause(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::IfClause>,
-    ) -> Result<Self::IfClauseRet, Self::Error>;
-
-    type IfBlockRet;
-    fn visit_if_block(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::IfBlock>,
-    ) -> Result<Self::IfBlockRet, Self::Error>;
-
-    type BodyBlockRet;
-    fn visit_body_block(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::BodyBlock>,
-    ) -> Result<Self::BodyBlockRet, Self::Error>;
-
-    type ReturnStatementRet;
-    fn visit_return_statement(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::ReturnStatement>,
-    ) -> Result<Self::ReturnStatementRet, Self::Error>;
-
-    type BreakStatementRet;
-    fn visit_break_statement(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::BreakStatement>,
-    ) -> Result<Self::BreakStatementRet, Self::Error>;
-
-    type ContinueStatementRet;
-    fn visit_continue_statement(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::ContinueStatement>,
-    ) -> Result<Self::ContinueStatementRet, Self::Error>;
-
-    type VisibilityRet;
-    fn visit_visibility_modifier(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::Visibility>,
-    ) -> Result<Self::VisibilityRet, Self::Error>;
-
-    type MutabilityRet;
-    fn visit_mutability_modifier(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::Mutability>,
-    ) -> Result<Self::MutabilityRet, Self::Error>;
-
-    type DeclarationRet;
-    fn visit_declaration(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::Declaration>,
-    ) -> Result<Self::DeclarationRet, Self::Error>;
-
-    type MergeDeclarationRet;
-    fn visit_merge_declaration(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::MergeDeclaration>,
-    ) -> Result<Self::MergeDeclarationRet, Self::Error>;
-
-    type AssignExprRet;
-    fn visit_assign_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::AssignExpr>,
-    ) -> Result<Self::AssignExprRet, Self::Error>;
-
-    type AssignOpExprRet;
-    fn visit_assign_op_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::AssignOpExpr>,
-    ) -> Result<Self::AssignOpExprRet, Self::Error>;
-
-    type BinaryExprRet;
-    fn visit_binary_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::BinaryExpr>,
-    ) -> Result<Self::BinaryExprRet, Self::Error>;
-
-    type UnaryExprRet;
-    fn visit_unary_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::UnaryExpr>,
-    ) -> Result<Self::UnaryExprRet, Self::Error>;
-
-    type IndexExprRet;
-    fn visit_index_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::IndexExpr>,
-    ) -> Result<Self::IndexExprRet, Self::Error>;
-
-    type StructDefRet;
-    fn visit_struct_def(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::StructDef>,
-    ) -> Result<Self::StructDefRet, Self::Error>;
-
-    type EnumDefEntryRet;
-    fn visit_enum_def_entry(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::EnumDefEntry>,
-    ) -> Result<Self::EnumDefEntryRet, Self::Error>;
-
-    type EnumDefRet;
-    fn visit_enum_def(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::EnumDef>,
-    ) -> Result<Self::EnumDefRet, Self::Error>;
-
-    type TraitDefRet;
-    fn visit_trait_def(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::TraitDef>,
-    ) -> Result<Self::TraitDefRet, Self::Error>;
-
-    type TraitImplRet;
-    fn visit_trait_impl(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::TraitImpl>,
-    ) -> Result<Self::TraitImplRet, Self::Error>;
-
-    type PatRet;
-    fn visit_pat(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::Pat>,
-    ) -> Result<Self::PatRet, Self::Error>;
-
-    type AccessPatRet;
-    fn visit_access_pat(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::AccessPat>,
-    ) -> Result<Self::AccessPatRet, Self::Error>;
-
-    type ConstructorPatRet;
-    fn visit_constructor_pat(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::ConstructorPat>,
-    ) -> Result<Self::ConstructorPatRet, Self::Error>;
-
-    type TuplePatEntryRet;
-    fn visit_tuple_pat_entry(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::TuplePatEntry>,
-    ) -> Result<Self::TuplePatEntryRet, Self::Error>;
-
-    type TuplePatRet;
-    fn visit_tuple_pat(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::TuplePat>,
-    ) -> Result<Self::TuplePatRet, Self::Error>;
-
-    type ListPatRet;
-    fn visit_list_pat(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::ListPat>,
-    ) -> Result<Self::ListPatRet, Self::Error>;
-
-    type SpreadPatRet;
-    fn visit_spread_pat(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::SpreadPat>,
-    ) -> Result<Self::SpreadPatRet, Self::Error>;
-
-    type LitPatRet;
-    fn visit_lit_pat(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::LitPat>,
-    ) -> Result<Self::LitPatRet, Self::Error>;
-
-    type RangePatRet;
-    fn visit_range_pat(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::RangePat>,
-    ) -> Result<Self::RangePatRet, Self::Error>;
-
-    type OrPatRet;
-    fn visit_or_pat(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::OrPat>,
-    ) -> Result<Self::OrPatRet, Self::Error>;
-
-    type IfPatRet;
-    fn visit_if_pat(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::IfPat>,
-    ) -> Result<Self::IfPatRet, Self::Error>;
-
-    type BindingPatRet;
-    fn visit_binding_pat(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::BindingPat>,
-    ) -> Result<Self::BindingPatRet, Self::Error>;
-
-    type WildPatRet;
-    fn visit_wild_pat(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::WildPat>,
-    ) -> Result<Self::WildPatRet, Self::Error>;
-
-    type ModulePatEntryRet;
-    fn visit_module_pat_entry(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::ModulePatEntry>,
-    ) -> Result<Self::ModulePatEntryRet, Self::Error>;
-
-    type ModulePatRet;
-    fn visit_module_pat(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::ModulePat>,
-    ) -> Result<Self::ModulePatRet, Self::Error>;
-
-    type ModuleRet;
-    fn visit_module(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::Module>,
-    ) -> Result<Self::ModuleRet, Self::Error>;
-}
+// Derive both a `mutable` and `immutable` visitor which takes a
+// mutable or immutable reference to the body.
+make_ast_visitor!(AstVisitor, ast::AstNodeRef);
+make_ast_visitor!(AstVisitorMut, ast::AstNodeRefMut);
 
 /// Contains helper functions and structures to traverse AST nodes using a given
 /// visitor.
@@ -2827,7 +2154,7 @@ pub mod walk {
     pub struct AssignOpStatement<V: AstVisitor> {
         pub lhs: V::ExprRet,
         pub rhs: V::ExprRet,
-        pub operator: V::BinaryOperatorRet,
+        pub operator: V::BinOpRet,
     }
     pub fn walk_assign_op_statement<V: AstVisitor>(
         visitor: &mut V,
@@ -2837,14 +2164,14 @@ pub mod walk {
         Ok(AssignOpStatement {
             lhs: visitor.visit_expr(ctx, node.lhs.ast_ref())?,
             rhs: visitor.visit_expr(ctx, node.rhs.ast_ref())?,
-            operator: visitor.visit_binary_operator(ctx, node.operator.ast_ref())?,
+            operator: visitor.visit_bin_op(ctx, node.operator.ast_ref())?,
         })
     }
 
     pub struct BinaryExpr<V: AstVisitor> {
         pub lhs: V::ExprRet,
         pub rhs: V::ExprRet,
-        pub operator: V::BinaryOperatorRet,
+        pub operator: V::BinOpRet,
     }
     pub fn walk_binary_expr<V: AstVisitor>(
         visitor: &mut V,
@@ -2854,13 +2181,13 @@ pub mod walk {
         Ok(BinaryExpr {
             lhs: visitor.visit_expr(ctx, node.lhs.ast_ref())?,
             rhs: visitor.visit_expr(ctx, node.rhs.ast_ref())?,
-            operator: visitor.visit_binary_operator(ctx, node.operator.ast_ref())?,
+            operator: visitor.visit_bin_op(ctx, node.operator.ast_ref())?,
         })
     }
 
     pub struct UnaryExpr<V: AstVisitor> {
         pub expr: V::ExprRet,
-        pub operator: V::UnaryOperatorRet,
+        pub operator: V::UnOpRet,
     }
 
     pub fn walk_unary_expr<V: AstVisitor>(
@@ -2870,7 +2197,7 @@ pub mod walk {
     ) -> Result<UnaryExpr<V>, V::Error> {
         Ok(UnaryExpr {
             expr: visitor.visit_expr(ctx, node.expr.ast_ref())?,
-            operator: visitor.visit_unary_operator(ctx, node.operator.ast_ref())?,
+            operator: visitor.visit_un_op(ctx, node.operator.ast_ref())?,
         })
     }
 

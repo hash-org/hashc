@@ -209,16 +209,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         Ok(())
     }
 
-    type ImportRet = ();
-
-    fn visit_import(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Import>,
-    ) -> Result<Self::ImportRet, Self::Error> {
-        Ok(())
-    }
-
     type VariableExprRet = ();
 
     fn visit_variable_expr(
@@ -367,6 +357,16 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
     ) -> Result<Self::BlockExprRet, Self::Error> {
         let _ = walk_mut::walk_block_expr(self, ctx, node)?;
 
+        Ok(())
+    }
+
+    type ImportRet = ();
+
+    fn visit_import(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Import>,
+    ) -> Result<Self::ImportRet, Self::Error> {
         Ok(())
     }
 
@@ -741,6 +741,16 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Mutability>,
     ) -> Result<Self::MutabilityRet, Self::Error> {
+        Ok(())
+    }
+
+    type RefKindRet = ();
+
+    fn visit_ref_kind(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::RefKind>,
+    ) -> Result<Self::RefKindRet, Self::Error> {
         Ok(())
     }
 

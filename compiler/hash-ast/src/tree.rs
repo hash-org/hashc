@@ -172,21 +172,21 @@ impl AstVisitor for AstTreeGenerator {
         Ok(TreeNode::leaf(labelled("int", format!("{value}{kind}"), "")))
     }
 
-    type BinaryOperatorRet = TreeNode;
-    fn visit_binary_operator(
+    type BinOpRet = TreeNode;
+    fn visit_bin_op(
         &mut self,
         _: &Self::Ctx,
         node: ast::AstNodeRef<ast::BinOp>,
-    ) -> Result<Self::BinaryOperatorRet, Self::Error> {
+    ) -> Result<Self::BinOpRet, Self::Error> {
         Ok(TreeNode::leaf(format!("operator `{}`", node.body())))
     }
 
-    type UnaryOperatorRet = TreeNode;
-    fn visit_unary_operator(
+    type UnOpRet = TreeNode;
+    fn visit_un_op(
         &mut self,
         _: &Self::Ctx,
         node: ast::AstNodeRef<ast::UnOp>,
-    ) -> Result<Self::UnaryOperatorRet, Self::Error> {
+    ) -> Result<Self::UnOpRet, Self::Error> {
         Ok(TreeNode::leaf(format!("operator `{}`", node.body())))
     }
 
