@@ -10,9 +10,10 @@ main := () => {
   ensure<PrimaryColour>(PrimaryColour::Blue);
 
   red := PrimaryColour::Red;
+  ensure<PrimaryColour::Red>(red);
   ensure<PrimaryColour>(red);
 
-  many := [PrimaryColour::Red, PrimaryColour::Blue, PrimaryColour::Green];
+  many := [PrimaryColour::Red as PrimaryColour, PrimaryColour::Blue as PrimaryColour, PrimaryColour::Green as PrimaryColour];
   ensure<List<PrimaryColour>>(many);
 };
 

@@ -1,14 +1,17 @@
 //! Functionality related to determining properties about terms and other
 //! constructs.
 use hash_ast::ast::{IntTy, ParamOrigin};
+use hash_source::identifier::Identifier;
+use hash_utils::store::Store;
 
 use super::AccessToOps;
 use crate::{
     diagnostics::macros::tc_panic,
     storage::{
+        nominals::NominalDefId,
         primitives::{
             EnumDef, EnumVariant, EnumVariantValue, FnTy, Level0Term, Level1Term, Level2Term,
-            NominalDef, ScopeVar, StructDef, Term, TrtDef, TupleTy,
+            NominalDef, ScopeVar, StructDef, Term, TrtDef, TupleTy, UnitDef,
         },
         terms::TermId,
         AccessToStorage, StorageRef,
@@ -122,6 +125,11 @@ impl<'tc> Oracle<'tc> {
         self.term_as_struct_def(term).is_some()
     }
 
+    /// If the term is a [UnitDef] term.
+    pub fn term_is_unit_def(&self, term: TermId) -> bool {
+        self.term_as_unit_def(term).is_some()
+    }
+
     /// If the term is a literal term.
     pub fn term_is_enum_def(&self, term: TermId) -> bool {
         self.term_as_enum_def(term).is_some()
@@ -165,10 +173,13 @@ impl<'tc> Oracle<'tc> {
         }
     }
 
-    /// Get a [Term] as a [NominalDef].
-    pub fn term_as_nominal_def(&self, term: TermId) -> Option<NominalDef> {
+    /// Get a [Term] as a [UnitDef].
+    pub fn term_as_unit_def(&self, term: TermId) -> Option<UnitDef> {
         match self.reader().get_term(term) {
-            Term::Level1(Level1Term::NominalDef(def)) => Some(self.reader().get_nominal_def(def)),
+            Term::Level1(Level1Term::NominalDef(def)) => match self.reader().get_nominal_def(def) {
+                NominalDef::Unit(unit_def) => Some(unit_def),
+                _ => None,
+            },
             _ => None,
         }
     }
@@ -178,6 +189,33 @@ impl<'tc> Oracle<'tc> {
         match self.reader().get_term(term) {
             Term::Level2(Level2Term::Trt(item)) => Some(self.reader().get_trt_def(item)),
             _ => None,
+        }
+    }
+
+    /// Get a [Term] as a [NominalDef].
+    pub fn term_as_nominal_def(&self, term: TermId) -> Option<NominalDef> {
+        self.term_as_nominal_def_id(term).map(|id| self.reader().get_nominal_def(id))
+    }
+
+    /// Get a [Term] as a [NominalDefId].
+    pub fn term_as_nominal_def_id(&self, term: TermId) -> Option<NominalDefId> {
+        match self.reader().get_term(term) {
+            Term::Level1(Level1Term::NominalDef(def)) => Some(def),
+            _ => None,
+        }
+    }
+
+    /// Check if the given [Term] has the given name (in its definition).
+    pub fn term_is_named(&self, term: TermId, name: Identifier) -> bool {
+        match self.reader().get_term(term) {
+            Term::Level1(Level1Term::NominalDef(def)) => {
+                self.nominal_def_store().map_fast(def, |def| def.name().contains(&name))
+            }
+            Term::TyFn(ty_fn) => ty_fn.name.contains(&name),
+            Term::Level1(Level1Term::ModDef(def)) => {
+                self.mod_def_store().map_fast(def, |def| def.name.contains(&name))
+            }
+            _ => false,
         }
     }
 

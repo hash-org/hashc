@@ -426,7 +426,7 @@ impl<'tc> Simplifier<'tc> {
                             None => name_not_found(access_term),
                         }
                     }
-                    NominalDef::Unit(_) => todo!(),
+                    NominalDef::Unit(_) => does_not_support_access(access_term),
                 }
             }
             Level1Term::Tuple(_tuple_ty) => does_not_support_access(access_term),
@@ -484,21 +484,21 @@ impl<'tc> Simplifier<'tc> {
 
         match simplified_subject {
             Term::Union(terms) => {
-                // Try apply the access on each element, and if they all succeed then we get the
-                // union of the results:
-                let results: Vec<_> = self
-                    .reader()
-                    .get_term_list_owned(terms)
-                    .iter()
-                    .map(|term| {
-                        Ok(self
-                            .apply_access_term(&AccessTerm { subject: *term, ..*access_term })?
-                            .unwrap_or(*term))
+                // Here we try to access the nominal with the given name:
+                self.term_list_store().map_fast(terms, |terms| {
+                    if let Field::Named(name) = access_term.name {
+                        for term in terms {
+                            if self.oracle().term_is_named(*term, name) {
+                                return Ok(Some(*term));
+                            }
+                        }
+                    }
+                    Err(TcError::UnresolvedNameInValue {
+                        name: access_term.name,
+                        op: access_term.op,
+                        value: simplified_subject_id,
                     })
-                    .collect::<TcResult<_>>()?;
-
-                let union_term = self.builder().create_union_term(results);
-                Ok(Some(self.potentially_simplify_term(union_term)?))
+                })
             }
             Term::Merge(terms) => {
                 // Apply the access to each result. If there are multiple results, it means
@@ -819,9 +819,9 @@ impl<'tc> Simplifier<'tc> {
 
                         Ok(ConstructedTerm { subject: term_id, members })
                     }
+                    NominalDef::Unit(_) => cannot_use_as_call_subject(),
                     // @@Remove
                     NominalDef::Enum(_) => cannot_use_as_call_subject(),
-                    NominalDef::Unit(_) => cannot_use_as_call_subject(),
                 }
             }
             _ => cannot_use_as_call_subject(),
