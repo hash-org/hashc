@@ -1,3 +1,6 @@
 [build]
 rustdoc = "rustdoc"
 rustdocflags = ["--show-type-layout", "-Z", "unstable-options"]
+
+[unstable]
+sparse-registry = true
