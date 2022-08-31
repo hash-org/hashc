@@ -624,11 +624,11 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::FnDef>,
     ) -> Result<Self::FnDefRet, Self::Error> {
-        let walk::FnDef { args, fn_body, return_ty } = walk::walk_fn_def(self, ctx, node)?;
+        let walk::FnDef { params, fn_body, return_ty } = walk::walk_fn_def(self, ctx, node)?;
 
         Ok(TreeNode::branch(
             "function_def",
-            iter::once(TreeNode::branch("args", args))
+            iter::once(TreeNode::branch("params", params))
                 .chain(return_ty.map(|r| TreeNode::branch("return_type", vec![r])))
                 .chain(iter::once(TreeNode::branch("body", vec![fn_body])))
                 .collect(),
