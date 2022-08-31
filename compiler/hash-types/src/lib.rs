@@ -5,6 +5,7 @@
 pub mod arguments;
 pub(crate) mod bootstrap;
 pub mod builder;
+pub mod fmt;
 pub mod location;
 pub mod mods;
 pub mod nodes;

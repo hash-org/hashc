@@ -15,6 +15,7 @@ pub mod sources;
 use hash_source::SourceMap;
 use hash_types::{
     arguments::ArgsStore,
+    fmt::{ForFormatting, PrepareForFormatting},
     location::LocationStore,
     mods::ModDefStore,
     nodes::NodeInfoStore,
@@ -32,10 +33,7 @@ use self::{
     exhaustiveness::{DeconstructedCtorStore, DeconstructedPatStore, ExhaustivenessStorage},
     sources::CheckedSources,
 };
-use crate::{
-    diagnostics::DiagnosticsStore,
-    fmt::{ForFormatting, PrepareForFormatting},
-};
+use crate::diagnostics::DiagnosticsStore;
 
 /// A reference to the storage, which includes both local and global storage, as
 /// well as core definitions.

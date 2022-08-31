@@ -58,17 +58,14 @@ pub mod stack;
 pub mod usefulness;
 pub mod wildcard;
 
-use hash_types::terms::TermId;
+use hash_types::{fmt::TcFormatOpts, terms::TermId};
 
 use self::{
     construct::ConstructorOps, deconstruct::DeconstructPatOps, fields::FieldOps,
     lower::LowerPatOps, matrix::MatrixOps, range::IntRangeOps, stack::StackOps,
     usefulness::UsefulnessOps, wildcard::SplitWildcardOps,
 };
-use crate::{
-    fmt::TcFormatOpts,
-    storage::{AccessToStorage, StorageRef},
-};
+use crate::storage::{AccessToStorage, StorageRef};
 
 /// General exhaustiveness context that's used when performing
 /// splitting and specialisation operations.

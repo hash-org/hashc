@@ -7,7 +7,9 @@
 //! parameter of the structure.
 use std::{cell::Cell, fmt::Debug};
 
-use hash_types::{pats::PatId, terms::TermId, Level1Term, NominalDef, Term};
+use hash_types::{
+    fmt::PrepareForFormatting, pats::PatId, terms::TermId, Level1Term, NominalDef, Term,
+};
 use hash_utils::store::{CloneStore, Store};
 use itertools::Itertools;
 use smallvec::SmallVec;
@@ -18,7 +20,6 @@ use super::{
 };
 use crate::{
     exhaustiveness::{list::ListKind, PatCtx},
-    fmt::PrepareForFormatting,
     ops::AccessToOps,
     storage::{
         exhaustiveness::{DeconstructedCtorId, DeconstructedPatId},

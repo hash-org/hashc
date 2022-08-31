@@ -13,12 +13,9 @@ use hash_reporting::{
     builder::ReportBuilder,
     report::{Report, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind},
 };
-use hash_types::{location::LocationTarget, pats::PatId, terms::TermId};
+use hash_types::{fmt::PrepareForFormatting, location::LocationTarget, pats::PatId, terms::TermId};
 
-use crate::{
-    fmt::PrepareForFormatting,
-    storage::{AccessToStorage, StorageRef},
-};
+use crate::storage::{AccessToStorage, StorageRef};
 
 /// A warning that occurs during typechecking.
 #[derive(Debug, Clone)]

@@ -18,7 +18,10 @@ use diagnostics::DiagnosticsStore;
 use hash_pipeline::{traits::Tc, CompilerResult};
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::SourceId;
-use hash_types::storage::{GlobalStorage, LocalStorage};
+use hash_types::{
+    fmt::PrepareForFormatting,
+    storage::{GlobalStorage, LocalStorage},
+};
 use ops::AccessToOps;
 use storage::{
     cache::Cache, exhaustiveness::ExhaustivenessStorage, sources::CheckedSources, AccessToStorage,
@@ -26,11 +29,8 @@ use storage::{
 };
 use traverse::visitor::TcVisitor;
 
-use crate::fmt::PrepareForFormatting;
-
 pub mod diagnostics;
 pub mod exhaustiveness;
-pub mod fmt;
 pub mod ops;
 pub mod storage;
 pub mod traverse;

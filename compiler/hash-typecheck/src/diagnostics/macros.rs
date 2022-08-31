@@ -17,7 +17,7 @@ pub macro tc_panic {
     ($term: expr, $storage:expr, $fmt: expr) => {
         {
             use crate::storage::AccessToStorage;
-            use crate::fmt::PrepareForFormatting;
+            use hash_types::fmt::PrepareForFormatting;
             use hash_reporting::{report, builder, writer};
 
             let storages = $storage.storages();
@@ -68,7 +68,7 @@ pub macro tc_panic_on_many {
     ([$($terms:expr),*  $(,)?], $storage:expr, $fmt: expr) => {
         {
             use crate::storage::AccessToStorage;
-            use crate::fmt::PrepareForFormatting;
+            use hash_types::fmt::PrepareForFormatting;
             use hash_reporting::{report, builder, writer};
 
             let storages = $storage.storages();
@@ -130,7 +130,7 @@ pub macro tc_panic_on_many {
     ($terms:expr, $storage:expr, $fmt: expr) => {
         {
             use crate::storage::AccessToStorage;
-            use crate::fmt::PrepareForFormatting;
+            use hash_types::fmt::PrepareForFormatting;
             use hash_reporting::{report, builder, writer};
 
             let storages = $storage.storages();

@@ -8,7 +8,12 @@ use hash_reporting::{
 };
 use hash_source::identifier::Identifier;
 use hash_types::{
-    arguments::ArgsId, location::LocationTarget, params::ParamsId, pats::PatId, terms::TermId,
+    arguments::ArgsId,
+    fmt::{PrepareForFormatting, TcFormatOpts},
+    location::LocationTarget,
+    params::ParamsId,
+    pats::PatId,
+    terms::TermId,
     AccessOp, AccessTerm, Arg, Field, Param, PatArg, TrtDef, TyFnCase,
 };
 use hash_utils::{
@@ -20,7 +25,6 @@ use itertools::Itertools;
 
 use super::params::{ParamListKind, ParamUnificationErrorReason};
 use crate::{
-    fmt::{PrepareForFormatting, TcFormatOpts},
     ops::AccessToOps,
     storage::{AccessToStorage, StorageRef},
 };
