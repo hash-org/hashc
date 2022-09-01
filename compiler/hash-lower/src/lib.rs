@@ -16,7 +16,7 @@ use hash_source::{
 };
 
 /// The [IrLowerer] is used as a bootstrapping mechanism to kick off the
-/// [Builder] working on function that it discovers as the the lower traverses
+/// [Builder] working on functions that it discovers as the the lower traverses
 /// through the source files.
 pub struct IrLowerer;
 

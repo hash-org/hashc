@@ -36,17 +36,15 @@ pub enum Ty<'i> {
     F32,
     /// `f64` type, 64bit float
     F64,
-    /// `char` type, 32bit characters
-    Char,
     /// A `void` type
     Void,
     /// Represents any collection of types in a specific order.
     Structural(&'i [Ty<'i>]),
     /// Essentially an enum representation
     Union(&'i [Ty<'i>]),
-    /// Pointer that points to some type
+    /// Reference type
     Ptr(&'i Ty<'i>),
-    /// Raw Pointer that points to some type
+    /// Raw reference type
     RawPtr(&'i Ty<'i>),
 }
 
@@ -59,8 +57,9 @@ pub enum Const {
     /// Float constant that is defined within the program source.
     Float(InternedFloat),
 
-    /// String has to become a struct that has a pointer
-    /// to bytes and a length of bytes.
+    /// Static strings that are to be put within the resulting binary.
+    ///
+    /// Dynamic strings are represented as the following struct:
     ///
     /// ```ignore
     /// str := struct(data: &raw u8, len: usize);
@@ -118,8 +117,6 @@ pub enum BinOp {
     Div,
     /// '%'
     Mod,
-    /// 'as'
-    As,
 }
 
 /// Mutability
@@ -189,21 +186,24 @@ pub enum StatementKind<'i> {
     /// Allocate some value on the the heap using reference
     /// counting.
     Alloc(Local),
+
+    /// Allocate a value on the heap without reference counting
+    AllocRaw(Local),
 }
 
 /// [Terminator] statements are essentially those that affect control
 /// flow.
 #[derive(Debug, PartialEq, Eq)]
-pub struct Terminator {
+pub struct Terminator<'ir> {
     /// The kind of [Terminator] that it is.
-    pub kind: TerminatorKind,
+    pub kind: TerminatorKind<'ir>,
     /// The [Span] of the statement, relative to the [Body]
     /// `source-id`.
     pub span: Span,
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum TerminatorKind {
+pub enum TerminatorKind<'ir> {
     /// A simple go to block directive.
     Goto(BasicBlock),
 
@@ -224,7 +224,7 @@ pub enum TerminatorKind {
     Unreachable,
 
     /// Essentially a `jump if <0> to <1> else go to <2>`
-    Switch(Local, Vec<(Const, BasicBlock)>, BasicBlock),
+    Switch(Local, &'ir [(Const, BasicBlock)], BasicBlock),
 }
 
 /// Essentially a block
@@ -234,14 +234,14 @@ pub struct BasicBlockData<'ir> {
     pub statements: Vec<Statement<'ir>>,
     /// An optional terminating statement, where the block goes
     /// after finishing execution of these statements.
-    pub terminator: Option<Terminator>,
+    pub terminator: Option<Terminator<'ir>>,
 }
 
 impl<'ir> BasicBlockData<'ir> {
     /// Create a new [BasicBlockData] with no statements and a provided
     /// `terminator`. It is assumed that the statements are to be added
     /// later to the block.
-    pub fn new(terminator: Option<Terminator>) -> Self {
+    pub fn new(terminator: Option<Terminator<'ir>>) -> Self {
         Self { statements: vec![], terminator }
     }
 }

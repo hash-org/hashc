@@ -60,7 +60,7 @@ impl<'tcx> ControlFlowGraph<'tcx> {
 
     /// Function to terminate a particular [BasicBlock] provided that it has not
     /// been already terminated.
-    pub(crate) fn terminate(&mut self, block: BasicBlock, span: Span, kind: TerminatorKind) {
+    pub(crate) fn terminate(&mut self, block: BasicBlock, span: Span, kind: TerminatorKind<'tcx>) {
         debug_assert!(
             self.block_data(block).terminator.is_none(),
             "terminate: block {:?}={:?} already has a terminator set",
