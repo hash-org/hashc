@@ -18,7 +18,7 @@ use crate::{
     exhaustiveness::{construct::DeconstructedCtor, deconstruct::DeconstructedPat},
     storage::{
         exhaustiveness::{DeconstructedCtorId, DeconstructedPatId},
-        StorageRef,
+        AccessToStorage, StorageRef,
     },
 };
 
@@ -26,6 +26,12 @@ use crate::{
 /// [crate::storage::primitives]).
 pub struct PrimitiveReader<'tc> {
     storage: StorageRef<'tc>,
+}
+
+impl<'tc> AccessToStorage for PrimitiveReader<'tc> {
+    fn storages(&self) -> StorageRef {
+        self.storage.storages()
+    }
 }
 
 impl<'tc> PrimitiveReader<'tc> {
@@ -36,67 +42,67 @@ impl<'tc> PrimitiveReader<'tc> {
 
     /// Get the term with the given [TermId].
     pub fn get_term(&self, id: TermId) -> Term {
-        self.storage.global_storage.term_store.get(id)
+        self.term_store().get(id)
     }
 
     /// Get the pattern with the given [PatId].
     pub fn get_pat(&self, id: PatId) -> Pat {
-        self.storage.global_storage.pat_store.get(id)
+        self.pat_store().get(id)
     }
 
     /// Get the module definition with the given [ModDefId].
     pub fn get_mod_def(&self, id: ModDefId) -> ModDef {
-        self.storage.global_storage.mod_def_store.get(id)
+        self.mod_def_store().get(id)
     }
 
     /// Get the nominal definition with the given [NominalDefId].
     pub fn get_nominal_def(&self, id: NominalDefId) -> NominalDef {
-        self.storage.global_storage.nominal_def_store.get(id)
+        self.nominal_def_store().get(id)
     }
 
     /// Get the trait definition with the given [TrtDefId].
     pub fn get_trt_def(&self, id: TrtDefId) -> TrtDef {
-        self.storage.global_storage.trt_def_store.get(id)
+        self.trt_def_store().get(id)
     }
 
     /// Get an owned copy of the scope with the given [ScopeId].
     pub fn get_scope_copy(&self, id: ScopeId) -> Scope {
-        self.storage.global_storage.scope_store.map_fast(id, |scope| scope.duplicate())
+        self.scope_store().map_fast(id, |scope| scope.duplicate())
     }
 
     /// Get the args with the given [ArgsId].
     pub fn get_args_owned(&self, id: ArgsId) -> Args<'static> {
-        self.storage.global_storage.args_store.get_owned_param_list(id)
+        self.args_store().get_owned_param_list(id)
     }
 
     /// Get the associated terms with the given [TermListId].
     pub fn get_term_list_owned(&self, id: TermListId) -> Vec<TermId> {
-        self.storage.global_storage.term_list_store.get_vec(id)
+        self.term_list_store().get_vec(id)
     }
 
     /// Get the params with the given [ParamsId].
     pub fn get_params_owned(&self, id: ParamsId) -> Params<'static> {
-        self.storage.global_storage.params_store.get_owned_param_list(id)
+        self.params_store().get_owned_param_list(id)
     }
 
     /// Get the [PatArgs] with the given [PatArgsId].
     pub fn get_pat_args_owned(&self, id: PatArgsId) -> PatArgs<'static> {
-        self.storage.global_storage.pat_args_store.get_owned_param_list(id)
+        self.pat_args_store().get_owned_param_list(id)
     }
 
     /// Get the associated [DeconstructedPat] from [DeconstructedPatId].
     pub fn get_deconstructed_pat(&self, id: DeconstructedPatId) -> DeconstructedPat {
-        self.storage.exhaustiveness_storage.deconstructed_pat_store.get(id)
+        self.deconstructed_pat_store().get(id)
     }
 
     /// Get the associated [DeconstructedCtor] from [DeconstructedPatId].
     pub fn get_deconstructed_pat_ctor(&self, id: DeconstructedPatId) -> DeconstructedCtor {
-        let pat = self.storage.exhaustiveness_storage.deconstructed_pat_store.get(id);
-        self.storage.exhaustiveness_storage.deconstructed_ctor_store.get(pat.ctor)
+        let pat = self.deconstructed_pat_store().get(id);
+        self.constructor_store().get(pat.ctor)
     }
 
     /// Get the associated [DeconstructedCtor] from [DeconstructedCtorId].
     pub fn get_deconstructed_ctor(&self, id: DeconstructedCtorId) -> DeconstructedCtor {
-        self.storage.exhaustiveness_storage.deconstructed_ctor_store.get(id)
+        self.constructor_store().get(id)
     }
 }
