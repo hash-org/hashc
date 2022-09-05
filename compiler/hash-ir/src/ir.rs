@@ -210,7 +210,7 @@ pub enum RValue<'ir> {
     /// An expression which is taking the address of another expression with an
     /// mutability modifier e.g. `&mut x`.
     Ref(Mutability, &'ir Statement<'ir>, AddressMode),
-    /// Used for initialising structs, tuples and other aggregate 
+    /// Used for initialising structs, tuples and other aggregate
     /// data structures
     Aggregate,
 }

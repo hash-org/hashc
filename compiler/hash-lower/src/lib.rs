@@ -6,6 +6,7 @@
 #![allow(unused)] // @@TODO: remove this when the builder is complete
 
 mod builder;
+mod cfg;
 mod visitor;
 
 use hash_ir::ir::Body;
