@@ -11,7 +11,7 @@ use index_vec::{index_vec, IndexSlice, IndexVec};
 
 /// Represents the type layout of a given expression.
 #[derive(Debug, PartialEq, Eq)]
-pub enum Ty<'i> {
+pub enum Ty<'ir> {
     /// `usize` type, machine specific unsigned pointer
     USize,
     /// `u8` type, 8bit unsigned integer
@@ -39,13 +39,13 @@ pub enum Ty<'i> {
     /// A `void` type
     Void,
     /// Represents any collection of types in a specific order.
-    Structural(&'i [Ty<'i>]),
+    Structural(&'ir [Ty<'ir>]),
     /// Essentially an enum representation
-    Union(&'i [Ty<'i>]),
+    Union(&'ir [Ty<'ir>]),
     /// Reference type
-    Ptr(&'i Ty<'i>),
+    Ptr(&'ir Ty<'ir>),
     /// Raw reference type
-    RawPtr(&'i Ty<'i>),
+    RawPtr(&'ir Ty<'ir>),
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -67,6 +67,16 @@ pub enum Const {
     Str(InternedStr),
 }
 
+/// A collection of operations that are constant and must run during the
+/// compilation stage.
+#[derive(Debug, PartialEq, Eq)]
+pub enum ConstOp {
+    /// Yields the size of the given type.
+    SizeOf,
+    /// Yields the word alignment of the type.
+    AlignOf,
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum UnaryOp {
     // Bitwise logical inversion
@@ -77,6 +87,10 @@ pub enum UnaryOp {
     Neg,
 }
 
+/// Binary operations on [RValue]s that are typed as primitive, or have
+/// `intrinsic` implementations defined for them. Any time that does not
+/// implement these binary operations by default will create a function  
+/// call to the implementation of the binary operation.
 #[derive(Debug, PartialEq, Eq)]
 pub enum BinOp {
     /// '=='
@@ -126,23 +140,13 @@ pub enum Mutability {
     Immutable,
 }
 
-/// A [Statement] is a intermediate transformation step within a [BasicBlock].
-#[derive(Debug, PartialEq, Eq)]
-pub struct Statement<'i> {
-    /// The kind of [Statement] that it is.
-    kind: StatementKind<'i>,
-    /// The [Span] of the statement, relative to the [Body]
-    /// `source-id`.
-    span: Span,
-}
-
 /// Essentially a register for a value
 #[derive(Debug, PartialEq, Eq)]
-pub struct LocalDecl<'a> {
+pub struct LocalDecl<'ir> {
     /// Mutability of the local.
     mutability: Mutability,
     /// The type of the local.
-    ty: Ty<'a>,
+    ty: Ty<'ir>,
 }
 
 /// The addressing mode of the [Statement::AddrOf] IR statement.
@@ -155,33 +159,71 @@ pub enum AddressMode {
     Smart,
 }
 
-/// A defined statement within the IR
 #[derive(Debug, PartialEq, Eq)]
-pub enum StatementKind<'i> {
-    /// Filler kind when expressions are optimised out or removed for other
-    /// reasons.
-    Nop,
+pub enum PlaceProjection {
+    /// When we want to narrow down the union type to some specific
+    /// variant.
+    Downcast(usize),
+    /// A reference to a specific field within the place, at this stage they
+    /// are represented as indexes into the field store of the place type.
+    Field(usize),
+    /// Take the index of some specific place, the index does not need to be
+    /// constant
+    Index(Local),
+    /// We want to dereference the place
+    Deref,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct Place {
+    /// The original place of where this is referring to.
+    pub local: Local,
+    /// Any projections that are applied onto the `local` in
+    /// order to specify an exact location within the local.
+    pub projections: Vec<PlaceProjection>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum RValue<'ir> {
     /// A constant value.
     Const(Const),
 
     /// A local variable value
     Local(Local),
 
-    /// An identity expression, essentially wrapped with an inner expression.
-    Identity(&'i Statement<'i>),
-    /// A unary expression with a unary operator.
-    Unary(UnaryOp, &'i Statement<'i>),
-    /// A binary expression with a binary operator and two inner expressions.
-    Binary(BinOp, &'i Statement<'i>, &'i Statement<'i>),
-    /// An index expression e.g. `x[3]`
-    Index(&'i Statement<'i>, &'i Statement<'i>),
-    /// An assignment expression, a right hand-side expression is assigned to a
-    /// left hand-side pattern e.g. `x = 2`
-    Assign(Local, &'i Statement<'i>),
+    /// Compiler intrinsic operation, this will be computed in place and
+    /// replaced by a constant.
+    ///
+    /// @@Future: maybe in the future this should be replaced by a compile-time
+    /// API variant which will just run some kind of operation and return the
+    /// constant.
+    ConstOp(ConstOp, &'ir RValue<'ir>),
 
+    /// A unary expression with a unary operator.
+    UnaryOp(UnaryOp, &'ir RValue<'ir>),
+
+    /// A binary expression with a binary operator and two inner expressions.
+    BinaryOp(BinOp, &'ir RValue<'ir>, &'ir RValue<'ir>),
+
+    /// An index expression e.g. `x[3]`
+    Index(&'ir RValue<'ir>, &'ir RValue<'ir>),
     /// An expression which is taking the address of another expression with an
     /// mutability modifier e.g. `&mut x`.
-    Ref(Mutability, &'i Statement<'i>, AddressMode),
+    Ref(Mutability, &'ir Statement<'ir>, AddressMode),
+    /// Used for initialising structs, tuples and other aggregate 
+    /// data structures
+    Aggregate,
+}
+
+/// A defined statement within the IR
+#[derive(Debug, PartialEq, Eq)]
+pub enum StatementKind<'ir> {
+    /// Filler kind when expressions are optimised out or removed for other
+    /// reasons.
+    Nop,
+    /// An assignment expression, a right hand-side expression is assigned to a
+    /// left hand-side pattern e.g. `x = 2`
+    Assign(Place, RValue<'ir>),
 
     /// Allocate some value on the the heap using reference
     /// counting.
@@ -189,6 +231,16 @@ pub enum StatementKind<'i> {
 
     /// Allocate a value on the heap without reference counting
     AllocRaw(Local),
+}
+
+/// A [Statement] is a intermediate transformation step within a [BasicBlock].
+#[derive(Debug, PartialEq, Eq)]
+pub struct Statement<'ir> {
+    /// The kind of [Statement] that it is.
+    pub kind: StatementKind<'ir>,
+    /// The [Span] of the statement, relative to the [Body]
+    /// `source-id`.
+    pub span: Span,
 }
 
 /// [Terminator] statements are essentially those that affect control
@@ -291,7 +343,7 @@ pub struct Body<'i> {
     source: FnSource,
     /// The location of the function
     span: Span,
-    /// The `source-id` of where this body originated from.
+    /// The id of the source of where this body originates from.
     source_id: SourceId,
 }
 
