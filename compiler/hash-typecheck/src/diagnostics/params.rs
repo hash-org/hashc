@@ -3,9 +3,8 @@
 
 use std::fmt::Display;
 
+use hash_types::{arguments::ArgsId, params::ParamsId, pats::PatArgsId};
 use hash_utils::store::SequenceStoreKey;
-
-use crate::storage::{arguments::ArgsId, params::ParamsId, pats::PatArgsId};
 
 /// Particular reason why parameters couldn't be unified, either argument
 /// length mis-match or that a name mismatched between the two given parameters.

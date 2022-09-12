@@ -1,4 +1,4 @@
-// run=pass
+// run=pass, stage=typecheck
 
 main := () => {
     t := ("Alex", 21, 183.7);

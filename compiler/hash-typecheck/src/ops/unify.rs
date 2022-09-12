@@ -1,6 +1,11 @@
 //! Utilities related to type unification and substitution.
 use std::{borrow::Borrow, collections::HashSet};
 
+use hash_types::{
+    arguments::ArgsId, location::LocationTarget, params::ParamsId, pats::PatId, scope::ScopeId,
+    terms::TermId, Arg, Level0Term, Level1Term, Level2Term, Level3Term, Param, ScopeKind, Sub,
+    Term,
+};
 use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey};
 
 use super::{params::pair_args_with_params, AccessToOps};
@@ -10,18 +15,7 @@ use crate::{
         macros::{tc_panic, tc_panic_on_many},
         params::ParamUnificationErrorReason,
     },
-    storage::{
-        arguments::ArgsId,
-        location::LocationTarget,
-        params::ParamsId,
-        pats::PatId,
-        primitives::{
-            Arg, Level0Term, Level1Term, Level2Term, Level3Term, Param, ScopeKind, Sub, Term,
-        },
-        scope::ScopeId,
-        terms::TermId,
-        AccessToStorage, StorageRef,
-    },
+    storage::{AccessToStorage, StorageRef},
 };
 
 /// Options that are received by the unifier when unifying types.

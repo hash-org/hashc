@@ -4,17 +4,14 @@
 //! the whole range of all possible values by the associated type
 //! to the constructor.
 use hash_ast::ast::{IntTy, RangeEnd};
+use hash_types::{Level1Term, NominalDef, Term};
 use hash_utils::store::Store;
 use smallvec::{smallvec, SmallVec};
 
 use crate::{
     exhaustiveness::PatCtx,
     ops::AccessToOps,
-    storage::{
-        deconstructed::DeconstructedCtorId,
-        primitives::{Level1Term, NominalDef, Term},
-        AccessToStorage, StorageRef,
-    },
+    storage::{exhaustiveness::DeconstructedCtorId, AccessToStorage, StorageRef},
 };
 
 /// A [DeconstructedCtor::Wildcard] that we split relative to the constructors

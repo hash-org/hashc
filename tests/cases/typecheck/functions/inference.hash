@@ -1,3 +1,4 @@
+// stage=typecheck
 ensure := <T> => (t: T) => {};
 
 foo := (a: str) => 3;

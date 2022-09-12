@@ -1,59 +1,70 @@
 //! Hash Compiler Intermediate Representation (IR) crate. This module is still
 //! under construction and is subject to change.
+#![allow(unused)]
 
-use hash_source::{identifier::Identifier, location::Span};
-use hash_utils::counter;
+use hash_source::{
+    constant::{InternedFloat, InternedInt, InternedStr},
+    location::{SourceLocation, Span},
+    SourceId,
+};
+use index_vec::{index_vec, IndexSlice, IndexVec};
 
-counter! {
-    name: IrId,
-    counter_name: IR_ID_COUNTER,
-    visibility: pub,
-    method_visibility: pub,
+/// Represents the type layout of a given expression.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Ty<'i> {
+    /// `usize` type, machine specific unsigned pointer
+    USize,
+    /// `u8` type, 8bit unsigned integer
+    U8,
+    /// `u16` type, 16bit unsigned integer
+    U16,
+    /// `u32` type, 32bit unsigned integer
+    U32,
+    /// `u64` type, 64bit unsigned integer
+    U64,
+    /// `isize` type, machine specific unsigned pointer
+    ISize,
+    /// `i8` type, 8bit signed integer
+    I8,
+    /// `i16` type, 16bit signed integer
+    I16,
+    /// `i32` type, 32bit signed integer
+    I32,
+    /// `i64` type, 64bit signed integer
+    I64,
+    /// `f32` type, 32bit float
+    F32,
+    /// `f64` type, 64bit float
+    F64,
+    /// A `void` type
+    Void,
+    /// Represents any collection of types in a specific order.
+    Structural(&'i [Ty<'i>]),
+    /// Essentially an enum representation
+    Union(&'i [Ty<'i>]),
+    /// Reference type
+    Ptr(&'i Ty<'i>),
+    /// Raw reference type
+    RawPtr(&'i Ty<'i>),
 }
 
-// TODO: do we need namespaces, we could just de-sugar them into binds that are
-// associated       with symbols?
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum Const {
+    /// Character constant
+    Char(char),
+    /// Integer constant that is defined within the program source.
+    Int(InternedInt),
+    /// Float constant that is defined within the program source.
+    Float(InternedFloat),
 
-// TODO: We could just de-sugar guard patterns into:
-//
-// From:
-//
-// ```
-// match k {
-//    1 if x => ...
-//}
-// ```
-// 
-// Into:
-// ```
-// match k {
-//     1 => if x {
-//         ...
-//     }
-// }
-// ```
-// 
-// But, this means that we have to perform exhaustiveness checking before transforming into IR?
-
-#[derive(Debug, PartialEq, Eq)]
-pub enum PatKind<'i> {
-    Spread,
-    Wild,
-    Bind(Identifier),
-    Lit(Const),
-    Tuple(&'i [Pat<'i>]),
-    Constructor(&'i Pat<'i>, &'i [Pat<'i>]),
-    List(&'i [Pat<'i>]),
-    Union(&'i [Pat<'i>]),
-}
-
-/// A Pattern within IR
-#[derive(Debug, PartialEq, Eq)]
-pub struct Pat<'i> {
-    /// The kind of the pattern
-    kind: &'i PatKind<'i>,
-    /// The span of the pattern
-    span: Span,
+    /// Static strings that are to be put within the resulting binary.
+    ///
+    /// Dynamic strings are represented as the following struct:
+    ///
+    /// ```ignore
+    /// str := struct(data: &raw u8, len: usize);
+    /// ```
+    Str(InternedStr),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -106,8 +117,6 @@ pub enum BinOp {
     Div,
     /// '%'
     Mod,
-    /// 'as'
-    As,
 }
 
 /// Mutability
@@ -117,77 +126,186 @@ pub enum Mutability {
     Immutable,
 }
 
-/// An expression within the representation
+/// A [Statement] is a intermediate transformation step within a [BasicBlock].
 #[derive(Debug, PartialEq, Eq)]
-pub struct Expr<'i> {
-    ir_id: IrId,
-    kind: ExprKind<'i>,
+pub struct Statement<'i> {
+    /// The kind of [Statement] that it is.
+    kind: StatementKind<'i>,
+    /// The [Span] of the statement, relative to the [Body]
+    /// `source-id`.
     span: Span,
 }
 
-/// The kind of an expression
+/// Essentially a register for a value
 #[derive(Debug, PartialEq, Eq)]
-pub enum ExprKind<'i> {
+pub struct LocalDecl<'a> {
+    /// Mutability of the local.
+    mutability: Mutability,
+    /// The type of the local.
+    ty: Ty<'a>,
+}
+
+/// The addressing mode of the [Statement::AddrOf] IR statement.
+#[derive(Debug, PartialEq, Eq)]
+pub enum AddressMode {
+    /// Take the `&raw` reference of something.
+    Raw,
+    /// Take the `&` reference of something, meaning that it is reference
+    /// counted.
+    Smart,
+}
+
+/// A defined statement within the IR
+#[derive(Debug, PartialEq, Eq)]
+pub enum StatementKind<'i> {
     /// Filler kind when expressions are optimised out or removed for other
     /// reasons.
     Nop,
     /// A constant value.
     Const(Const),
+
+    /// A local variable value
+    Local(Local),
+
     /// An identity expression, essentially wrapped with an inner expression.
-    Identity(&'i Expr<'i>),
+    Identity(&'i Statement<'i>),
     /// A unary expression with a unary operator.
-    Unary(UnaryOp, &'i Expr<'i>),
+    Unary(UnaryOp, &'i Statement<'i>),
     /// A binary expression with a binary operator and two inner expressions.
-    Binary(BinOp, &'i Expr<'i>, &'i Expr<'i>),
-    /// A function call with a number of specified arguments.
-    Call(&'i Expr<'i>, &'i [Expr<'i>]),
+    Binary(BinOp, &'i Statement<'i>, &'i Statement<'i>),
     /// An index expression e.g. `x[3]`
-    Index(&'i Expr<'i>, &'i Expr<'i>),
+    Index(&'i Statement<'i>, &'i Statement<'i>),
     /// An assignment expression, a right hand-side expression is assigned to a
     /// left hand-side pattern e.g. `x = 2`
-    Assign(&'i Pat<'i>, &'i Expr<'i>),
-    /// An expression which represents a re-assignment to a pattern with a right
-    /// hand-side expression and a binary operator that combines assignment
-    /// and an operator, e.g. `x += 2`
-    AssignOp(&'i Pat<'i>, BinOp, &'i Expr<'i>),
+    Assign(Local, &'i Statement<'i>),
+
     /// An expression which is taking the address of another expression with an
     /// mutability modifier e.g. `&mut x`.
-    AddrOf(Mutability, &'i Expr<'i>),
+    Ref(Mutability, &'i Statement<'i>, AddressMode),
+
+    /// Allocate some value on the the heap using reference
+    /// counting.
+    Alloc(Local),
+
+    /// Allocate a value on the heap without reference counting
+    AllocRaw(Local),
+}
+
+/// [Terminator] statements are essentially those that affect control
+/// flow.
+#[derive(Debug, PartialEq, Eq)]
+pub struct Terminator<'ir> {
+    /// The kind of [Terminator] that it is.
+    pub kind: TerminatorKind<'ir>,
+    /// The [Span] of the statement, relative to the [Body]
+    /// `source-id`.
+    pub span: Span,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum TerminatorKind<'ir> {
+    /// A simple go to block directive.
+    Goto(BasicBlock),
+
+    /// Return from the parent function
+    Return,
+
+    /// Perform a function call
+    Call {
+        // op: todo!(),
+        args: Vec<Local>,
+
+        /// Where to return after completing the call
+        target: Option<BasicBlock>,
+    },
+
+    /// Denotes that this terminator should never be reached, doing so will
+    /// break IR control flow invariants.
+    Unreachable,
+
+    /// Essentially a `jump if <0> to <1> else go to <2>`
+    Switch(Local, &'ir [(Const, BasicBlock)], BasicBlock),
 }
 
 /// Essentially a block
 #[derive(Debug, PartialEq, Eq)]
+pub struct BasicBlockData<'ir> {
+    /// The statements that the block has.
+    pub statements: Vec<Statement<'ir>>,
+    /// An optional terminating statement, where the block goes
+    /// after finishing execution of these statements.
+    pub terminator: Option<Terminator<'ir>>,
+}
+
+impl<'ir> BasicBlockData<'ir> {
+    /// Create a new [BasicBlockData] with no statements and a provided
+    /// `terminator`. It is assumed that the statements are to be added
+    /// later to the block.
+    pub fn new(terminator: Option<Terminator<'ir>>) -> Self {
+        Self { statements: vec![], terminator }
+    }
+}
+
+index_vec::define_index_type! {
+    /// Index for [BasicBlockData] stores within generated [Body]s.
+    pub struct BasicBlock = u32;
+
+    MAX_INDEX = i32::max_value() as usize;
+    DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
+}
+
+index_vec::define_index_type! {
+    /// Index for [LocalDecl] stores within generated [Body]s.
+    pub struct Local = u32;
+
+    MAX_INDEX = i32::max_value() as usize;
+    DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
+}
+
+pub enum FnSource {
+    Item,
+    Intrinsic,
+}
+
 pub struct Body<'i> {
-    exprs: &'i [Expr<'i>],
+    /// The blocks that the function is represented with
+    blocks: IndexVec<BasicBlock, BasicBlockData<'i>>,
+
+    /// Declarations of local variables:
+    ///
+    /// Not final:
+    ///
+    /// - The first local is used a representation of the function return value
+    ///   if any.
+    ///
+    /// - the next `arg_count` locals are used to represent the assigning of
+    ///   function arguments.
+    ///
+    /// - the remaining are temporaries that are used within the function.
+    declarations: IndexVec<Local, LocalDecl<'i>>,
+
+    /// Number of arguments to the function
+    arg_count: usize,
+
+    /// The source of the function, is it a normal function, or an intrinsic
+    source: FnSource,
+    /// The location of the function
+    span: Span,
+    /// The `source-id` of where this body originated from.
+    source_id: SourceId,
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub enum Ty {
-    USize,
-    Bool,
-    U8,
-    U16,
-    U32,
-    U64,
-    ISize,
-    I8,
-    I16,
-    I32,
-    I64,
-    F32,
-    F64,
-    Char,
-    Void,
-}
+impl<'a> Body<'a> {
+    pub fn new_uninitialised(location: SourceLocation) -> Self {
+        let SourceLocation { span, id } = location;
 
-#[derive(Debug, PartialEq, Eq)]
-pub struct ConstData {
-    data: u64,
-    size: u8,
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct Const {
-    data: ConstData,
-    ty: Ty,
+        Self {
+            blocks: index_vec![],
+            declarations: index_vec![],
+            arg_count: 0,
+            source: FnSource::Item,
+            span,
+            source_id: id,
+        }
+    }
 }

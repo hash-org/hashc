@@ -1,4 +1,4 @@
-// run=pass
+// run=pass, stage=typecheck
 
 ensure := <T> => (t: T) => {};
 

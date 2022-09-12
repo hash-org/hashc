@@ -1,10 +1,11 @@
 //! Utilities related to value/type coercion in the language.
 
 use hash_ast::ast::{self, AstNodeRef};
+use hash_types::terms::TermId;
 
 use crate::{
     ops::AccessToOps,
-    storage::{terms::TermId, AccessToStorage, StorageRef},
+    storage::{AccessToStorage, StorageRef},
 };
 
 pub struct Coercing<'tc> {

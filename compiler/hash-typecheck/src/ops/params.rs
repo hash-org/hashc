@@ -4,6 +4,10 @@ use std::{borrow::Cow, collections::HashSet};
 
 use hash_ast::ast::ParamOrigin;
 use hash_source::{identifier::Identifier, location::SourceLocation};
+use hash_types::{
+    arguments::ArgsId, location::LocationTarget, params::ParamsId, GetNameOpt, Param, ParamList,
+    Params,
+};
 use itertools::Itertools;
 
 use crate::{
@@ -11,13 +15,7 @@ use crate::{
         error::{TcError, TcResult},
         params::ParamListKind,
     },
-    storage::{
-        arguments::ArgsId,
-        location::LocationTarget,
-        params::ParamsId,
-        primitives::{GetNameOpt, Param, ParamList, Params},
-        AccessToStorage, StorageRef,
-    },
+    storage::{AccessToStorage, StorageRef},
 };
 
 /// Pair the given parameters with the given parameter list (either args, or

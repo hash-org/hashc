@@ -17,6 +17,16 @@ use hash_source::{
     location::{SourceLocation, Span},
     ModuleKind, SourceId,
 };
+use hash_types::{
+    location::{IndexedLocationTarget, LocationTarget},
+    nodes::NodeInfoTarget,
+    nominals::NominalDefId,
+    pats::PatId,
+    storage::LocalStorage,
+    terms::TermId,
+    AccessOp, Arg, BindingPat, ConstPat, Field, Member, ModDefOrigin, Mutability, Param, Pat,
+    PatArg, RangePat, ScopeKind, SpreadPat, Sub, Visibility,
+};
 use hash_utils::store::{PartialStore, Store};
 use itertools::Itertools;
 
@@ -28,18 +38,7 @@ use crate::{
         warning::TcWarning,
     },
     ops::{scope::ScopeManager, AccessToOps},
-    storage::{
-        location::{IndexedLocationTarget, LocationTarget},
-        nodes::NodeInfoTarget,
-        nominals::NominalDefId,
-        pats::PatId,
-        primitives::{
-            AccessOp, Arg, BindingPat, ConstPat, Field, Member, ModDefOrigin, Mutability, Param,
-            Pat, PatArg, RangePat, ScopeKind, SpreadPat, Sub, Visibility,
-        },
-        terms::TermId,
-        AccessToStorage, LocalStorage, StorageRef,
-    },
+    storage::{AccessToStorage, StorageRef},
 };
 
 /// Internal state that the [TcVisitor] uses when traversing the
@@ -414,23 +413,23 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         Ok(term)
     }
 
-    type BinaryOperatorRet = ();
+    type BinOpRet = ();
 
-    fn visit_binary_operator(
+    fn visit_bin_op(
         &mut self,
         _ctx: &Self::Ctx,
         _node: hash_ast::ast::AstNodeRef<hash_ast::ast::BinOp>,
-    ) -> Result<Self::BinaryOperatorRet, Self::Error> {
+    ) -> Result<Self::BinOpRet, Self::Error> {
         Ok(())
     }
 
-    type UnaryOperatorRet = ();
+    type UnOpRet = ();
 
-    fn visit_unary_operator(
+    fn visit_un_op(
         &mut self,
         _ctx: &Self::Ctx,
         _node: hash_ast::ast::AstNodeRef<hash_ast::ast::UnOp>,
-    ) -> Result<Self::UnaryOperatorRet, Self::Error> {
+    ) -> Result<Self::UnOpRet, Self::Error> {
         Ok(())
     }
 
@@ -2178,7 +2177,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         // global scope. If we're within the `prelude` module, we need to append
         // all members into the global scope rather than creating a new scope
         let members = if let Some(ModuleKind::Prelude) = self.source_map().module_kind_by_id(id) {
-            self.global_storage().root_scope
+            self.root_scope()
         } else {
             self.builder().create_scope(ScopeKind::Constant, vec![])
         };

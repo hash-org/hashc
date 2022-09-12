@@ -8,10 +8,10 @@ use std::{
     hash::Hash,
 };
 
+use hash_types::{terms::TermId, Sub};
 use hash_utils::store::{DefaultPartialStore, PartialStore};
 use log::log_enabled;
 
-use super::{primitives::Sub, terms::TermId};
 use crate::ops::validate::TermValidation;
 
 #[derive(Debug)]

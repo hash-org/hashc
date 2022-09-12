@@ -1,18 +1,13 @@
 //! Functionality related to variable substitution inside terms/types.
+use hash_types::{
+    arguments::ArgsId, params::ParamsId, scope::ScopeId, terms::TermId, Arg, ConstructedTerm, FnTy,
+    Level0Term, Level1Term, Level2Term, Level3Term, Param, Sub, SubVar, Term, TupleTy, TyFn,
+    TyFnCall, TyFnCase, TyFnTy,
+};
 use hash_utils::store::Store;
 
 use super::AccessToOps;
-use crate::storage::{
-    arguments::ArgsId,
-    params::ParamsId,
-    primitives::{
-        Arg, ConstructedTerm, FnTy, Level0Term, Level1Term, Level2Term, Level3Term, Param, Sub,
-        SubVar, Term, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
-    },
-    scope::ScopeId,
-    terms::TermId,
-    AccessToStorage, StorageRef,
-};
+use crate::storage::{AccessToStorage, StorageRef};
 
 /// Can perform substitutions (see [Sub]) on terms.
 pub struct Substituter<'tc> {

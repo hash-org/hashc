@@ -1,5 +1,23 @@
 //! Contains type definitions that the rest of the storage and the general
 //! typechecker use.
+#![feature(option_result_contains, let_chains)]
+
+pub mod arguments;
+pub(crate) mod bootstrap;
+pub mod builder;
+pub mod fmt;
+pub mod location;
+pub mod mods;
+pub mod nodes;
+pub mod nominals;
+pub mod param_list;
+pub mod params;
+pub mod pats;
+pub mod scope;
+pub mod storage;
+pub mod terms;
+pub mod trts;
+
 use std::{
     borrow::Cow,
     collections::{HashMap, HashSet},
@@ -14,7 +32,7 @@ use hash_source::{
 };
 use num_bigint::BigInt;
 
-use super::{
+use crate::{
     arguments::ArgsId,
     location::LocationTarget,
     mods::ModDefId,
@@ -91,12 +109,12 @@ pub struct ConstantMember {
 
 impl ConstantMember {
     /// Get the value of the constant member
-    pub(crate) fn value(&self) -> Option<TermId> {
+    pub fn value(&self) -> Option<TermId> {
         self.value_and_is_closed.map(|(value, _)| value)
     }
 
     /// Get the given property of the constant member if it is closed
-    pub(crate) fn if_closed<T>(&self, f: impl FnOnce(TermId) -> Option<T>) -> Option<T> {
+    pub fn if_closed<T>(&self, f: impl FnOnce(TermId) -> Option<T>) -> Option<T> {
         match self.value_and_is_closed {
             Some((value, true)) => f(value),
             _ => None,
@@ -104,12 +122,12 @@ impl ConstantMember {
     }
 
     /// Set the value of the constant member
-    pub(crate) fn set_value(&mut self, new_value: TermId) {
+    pub fn set_value(&mut self, new_value: TermId) {
         let _ = self.value_and_is_closed.insert((new_value, false));
     }
 
     /// Whether the constant member is closed.
-    pub(crate) fn is_closed(&self) -> bool {
+    pub fn is_closed(&self) -> bool {
         matches!(self.value_and_is_closed, Some((_, true)))
     }
 }
@@ -262,8 +280,13 @@ impl Member {
 /// originating scope.
 #[derive(Debug, Clone, Copy)]
 pub struct ScopeMember {
+    /// The represented member of this [ScopeMember]
     pub member: Member,
+
+    /// The index of this member within the scope.
     pub index: usize,
+
+    /// The [ScopeId] of this member.
     pub scope_id: ScopeId,
 }
 
@@ -303,8 +326,13 @@ pub enum ScopeKind {
 /// Keeps insertion order.
 #[derive(Debug)]
 pub struct Scope {
+    /// The kind of scope that is being represented.
     pub kind: ScopeKind,
+
+    /// All defined members within the scope.
     pub members: Vec<Member>,
+
+    /// Members names are defined within the scope.
     pub member_names: HashMap<Identifier, usize>,
 }
 
@@ -1350,7 +1378,7 @@ impl Pat {
 /// IDs are generated for its members) the identity of the unknown variables
 /// remains the same as in the original type.
 #[derive(Debug, Eq, PartialEq, PartialOrd, Ord, Clone, Copy, Hash)]
-pub struct ResolutionId(pub(super) usize);
+pub struct ResolutionId(pub usize);
 
 impl Display for ResolutionId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

@@ -2,10 +2,7 @@
 //! them.
 use hash_utils::{new_sequence_store_key, new_store, new_store_key};
 
-use super::{
-    param_list::ParamListStore,
-    primitives::{Pat, PatArg},
-};
+use crate::{param_list::ParamListStore, Pat, PatArg};
 
 new_store_key!(pub PatId);
 new_store!(pub PatStore<PatId, Pat>);

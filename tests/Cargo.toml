@@ -20,12 +20,15 @@ hash-ast = {path = "../compiler/hash-ast" }
 hash-source = {path = "../compiler/hash-source" }
 hash-utils = {path = "../compiler/hash-utils" }
 hash-pipeline = {path = "../compiler/hash-pipeline" }
-hash-parser = {path = "../compiler/hash-parser" }
 hash-reporting = {path = "../compiler/hash-reporting" }
+
+# Various stages that the pipeline interfaces with...
 hash-lexer = {path = "../compiler/hash-lexer" }
+hash-parser = {path = "../compiler/hash-parser" }
 hash-ast-desugaring = { path = "../compiler/hash-ast-desugaring" }
 hash-ast-passes = { path = "../compiler/hash-ast-passes" }
 hash-typecheck = { path = "../compiler/hash-typecheck" }
+hash-lower = { path = "../compiler/hash-lower" }
 hash-vm = { path = "../compiler/hash-vm" }
 
 # Internal macros the that the tester uses

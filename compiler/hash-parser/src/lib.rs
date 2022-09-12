@@ -1,6 +1,6 @@
 //! Self hosted hash parser, this function contains the implementations for
 //! `hash-ast` which provides a general interface to write a parser.
-#![feature(cell_update, is_some_with)]
+#![feature(cell_update, is_some_with, let_chains)]
 
 mod diagnostics;
 mod import_resolver;

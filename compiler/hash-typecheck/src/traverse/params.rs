@@ -6,13 +6,10 @@ use hash_ast::{
     visitor::{walk, AstVisitor},
 };
 use hash_reporting::macros::panic_on_span;
+use hash_types::Param;
 
 use super::visitor::TcVisitor;
-use crate::{
-    diagnostics::error::TcResult,
-    ops::AccessToOps,
-    storage::{primitives::Param, AccessToStorage},
-};
+use crate::{diagnostics::error::TcResult, ops::AccessToOps, storage::AccessToStorage};
 
 impl<'tc> TcVisitor<'tc> {
     /// Function that combines the logic between visiting struct, function and

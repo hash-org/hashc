@@ -5,22 +5,20 @@ use std::{cell::Cell, fmt::Display, rc::Rc};
 
 use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
 
-use crate::storage::{
+use crate::{
     arguments::ArgsId,
     mods::ModDefId,
     nominals::NominalDefId,
     params::ParamsId,
     pats::{PatArgsId, PatId},
-    primitives::{
-        AccessOp, AccessPat, BoundVar, ConstPat, ConstructedTerm, EnumDef, Level0Term, Level1Term,
-        Level2Term, Level3Term, ListPat, LitTerm, Member, ModDefOrigin, ModPat, Mutability,
-        NominalDef, Pat, RangePat, ScopeVar, SpreadPat, StructDef, Sub, SubVar, Term, UnitDef,
-        UnresolvedTerm, Var, Visibility,
-    },
     scope::ScopeId,
+    storage::GlobalStorage,
     terms::{TermId, TermListId},
     trts::TrtDefId,
-    GlobalStorage,
+    AccessOp, AccessPat, BoundVar, ConstPat, ConstructedTerm, EnumDef, Level0Term, Level1Term,
+    Level2Term, Level3Term, ListPat, LitTerm, Member, ModDefOrigin, ModPat, Mutability, NominalDef,
+    Pat, RangePat, ScopeVar, SpreadPat, StructDef, Sub, SubVar, Term, UnitDef, UnresolvedTerm, Var,
+    Visibility,
 };
 
 // Contains various options regarding the formatting of terms.

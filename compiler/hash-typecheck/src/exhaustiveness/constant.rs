@@ -3,9 +3,8 @@
 //! used within the exhaustiveness sub-system to represent these values within
 //! a single data type.
 use hash_ast::ast::IntTy;
+use hash_types::terms::TermId;
 use num_bigint::BigInt;
-
-use crate::storage::terms::TermId;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Constant {

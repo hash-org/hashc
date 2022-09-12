@@ -1,10 +1,11 @@
 //! Functionality related to determining properties about terms and other
 //! constructs.
 use hash_source::identifier::{Identifier, CORE_IDENTIFIERS};
+use hash_types::{terms::TermId, Member};
 use hash_utils::store::Store;
 
 use super::AccessToOps;
-use crate::storage::{primitives::Member, terms::TermId, AccessToStorage, StorageRef};
+use crate::storage::{AccessToStorage, StorageRef};
 
 pub struct CoreDefReader<'tc> {
     storage: StorageRef<'tc>,
@@ -25,7 +26,8 @@ impl<'tc> CoreDefReader<'tc> {
     ///
     /// Panics if the core definition doesn't exist.
     pub fn resolve_core_def(&self, var_name: Identifier) -> TermId {
-        let root_scope = self.global_storage().root_scope;
+        let root_scope = self.root_scope();
+
         let (resolved, index) = self
             .scope_store()
             .map_fast(root_scope, |scope| scope.get(var_name))

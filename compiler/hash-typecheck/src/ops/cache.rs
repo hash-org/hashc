@@ -1,9 +1,10 @@
 //! Typechecking cache manager
 
+use hash_types::{terms::TermId, Sub};
 use hash_utils::store::PartialStore;
 
 use super::validate::TermValidation;
-use crate::storage::{primitives::Sub, terms::TermId, AccessToStorage, StorageRef};
+use crate::storage::{AccessToStorage, StorageRef};
 
 /// The typechecking cache manager. Allows for recording results from
 /// simplification, unification, validation, and inference operations.

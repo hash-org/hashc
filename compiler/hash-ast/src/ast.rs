@@ -53,6 +53,7 @@ impl<T> AstNode<T> {
         self.body.as_ref()
     }
 
+    /// Convert the [AstNode<T>] into it's body.
     pub fn into_body(self) -> T {
         *self.body
     }
@@ -96,7 +97,7 @@ impl<T> AstNode<T> {
 
 #[derive(Debug)]
 pub struct AstNodeRef<'t, T> {
-    /// A reference to the body of the node.
+    /// A reference to the body of the [AstNode].
     body: &'t T,
     /// The [Span] of the node.
     span: Span,
@@ -114,21 +115,28 @@ impl<T> Clone for AstNodeRef<'_, T> {
 impl<T> Copy for AstNodeRef<'_, T> {}
 
 impl<'t, T> AstNodeRef<'t, T> {
-    /// Get a reference to the reference contained within this node.
+    /// Create a new [AstNodeRef<T>].
+    pub fn new(body: &'t T, span: Span, id: AstNodeId) -> Self {
+        AstNodeRef { body, span, id }
+    }
+
+    /// Get a reference to body of the [AstNodeRef].
     pub fn body(&self) -> &T {
         self.body
     }
 
+    /// Utility function to copy over the [Span] and [AstNodeId] from
+    /// another [AstNodeRef] with a provided body.
     pub fn with_body<'u, U>(&self, body: &'u U) -> AstNodeRef<'u, U> {
         AstNodeRef { body, span: self.span, id: self.id }
     }
 
-    /// Get the [Span] of this node in the input.
+    /// Get the [Span] of this [AstNodeRef].
     pub fn span(&self) -> Span {
         self.span
     }
 
-    /// Get the ID of this node.
+    /// Get the [AstNodeId] of this [AstNodeRef].
     pub fn id(&self) -> AstNodeId {
         self.id
     }
@@ -144,41 +152,42 @@ impl<T> Deref for AstNodeRef<'_, T> {
 
 #[derive(Debug)]
 pub struct AstNodeRefMut<'t, T> {
+    /// A mutable reference to the body of the [AstNode].
     body: &'t mut T,
+    /// The [Span] of the [AstNode].
     pub span: Span,
+    /// The [AstNodeId] of the [AstNode], representing a unique identifier
+    /// within the AST, useful for performing fast comparisons of trees.
     pub id: AstNodeId,
 }
 
 impl<'t, T> AstNodeRefMut<'t, T> {
+    /// Create a new [AstNodeRefMut<T>].
     pub fn new(body: &'t mut T, span: Span, id: AstNodeId) -> Self {
         AstNodeRefMut { body, span, id }
     }
 
-    /// Get a reference to the reference contained within this node.
+    /// Get a reference to body of the [AstNodeRefMut].
     pub fn body(&self) -> &T {
         self.body
     }
 
-    pub fn with_body<'u, U>(&self, body: &'u mut U) -> AstNodeRefMut<'u, U> {
-        AstNodeRefMut { body, span: self.span, id: self.id }
-    }
-
-    /// Function to replace the body of the node with a newly generated body
+    /// Replace the body of the [AstNodeRefMut] with another body.
     pub fn replace(&mut self, f: impl FnOnce(T) -> T) {
         replace_with_or_abort(self.body, f);
     }
 
-    /// Get a mutable reference to the reference contained within this node.
+    /// Get a mutable reference to the body.
     pub fn body_mut(&mut self) -> &mut T {
         self.body
     }
 
-    /// Get the [Span] of this node in the input.
+    /// Get the [Span] of this [AstNodeRefMut].
     pub fn span(&self) -> Span {
         self.span
     }
 
-    /// Get the ID of this node.
+    /// Get the [AstNodeId] of this [AstNodeRefMut].
     pub fn id(&self) -> AstNodeId {
         self.id
     }

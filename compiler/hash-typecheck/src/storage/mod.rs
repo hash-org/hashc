@@ -8,168 +8,55 @@
 //! be in [GlobalStorage] because it can be accessed from any file (with the
 //! appropriate import).
 
-pub mod arguments;
 pub mod cache;
-pub mod deconstructed;
-pub mod location;
-pub mod mods;
-pub mod nodes;
-pub mod nominals;
-pub mod param_list;
-pub mod params;
-pub mod pats;
-pub mod primitives;
-pub mod scope;
+pub mod exhaustiveness;
 pub mod sources;
-pub mod terms;
-pub mod trts;
 
-use std::cell::Cell;
-
-use hash_source::{SourceId, SourceMap};
-use hash_utils::store::Store;
-
-use self::{
+use hash_source::SourceMap;
+use hash_types::{
     arguments::ArgsStore,
-    cache::Cache,
-    deconstructed::{DeconstructedCtorStore, DeconstructedPatStore},
+    fmt::{ForFormatting, PrepareForFormatting},
     location::LocationStore,
     mods::ModDefStore,
     nodes::NodeInfoStore,
     nominals::NominalDefStore,
     params::ParamsStore,
     pats::{PatArgsStore, PatStore},
-    primitives::{Scope, ScopeKind},
     scope::{ScopeId, ScopeStack, ScopeStore},
-    sources::CheckedSources,
+    storage::{GlobalStorage, LocalStorage},
     terms::{TermListStore, TermStore},
     trts::TrtDefStore,
 };
-use crate::{
-    diagnostics::DiagnosticsStore,
-    fmt::{ForFormatting, PrepareForFormatting},
-    ops::bootstrap::create_core_defs_in,
+
+use self::{
+    cache::Cache,
+    exhaustiveness::{DeconstructedCtorStore, DeconstructedPatStore, ExhaustivenessStorage},
+    sources::CheckedSources,
 };
-
-/// Keeps track of typechecking information across all source files.
-#[derive(Debug)]
-pub struct GlobalStorage {
-    pub scope_store: ScopeStore,
-    /// Storage for terms
-    pub term_store: TermStore,
-    /// Store for grouped terms
-    pub term_list_store: TermListStore,
-    pub location_store: LocationStore,
-    pub params_store: ParamsStore,
-    pub args_store: ArgsStore,
-    pub trt_def_store: TrtDefStore,
-    pub mod_def_store: ModDefStore,
-    pub nominal_def_store: NominalDefStore,
-    pub pat_store: PatStore,
-    pub pat_args_store: PatArgsStore,
-    pub checked_sources: CheckedSources,
-    pub node_info_store: NodeInfoStore,
-
-    /// Storage for tc diagnostics
-    pub diagnostics_store: DiagnosticsStore,
-
-    /// Pattern fields from
-    /// [super::exhaustiveness::deconstruct::DeconstructedPat]
-    pub deconstructed_pat_store: DeconstructedPatStore,
-
-    /// The [super::exhaustiveness::construct::DeconstructedCtor] store.
-    pub deconstructed_ctor_store: DeconstructedCtorStore,
-
-    /// The typechecking cache, contains cached simplification, validation
-    /// and unification results
-    pub cache: Cache,
-
-    /// Used to create the first scope when creating a LocalStorage.
-    ///
-    /// This includes all the core language definitions; it shouldn't be
-    /// directly queried, but rather the [LocalStorage] scopes should be
-    /// queried.
-    pub root_scope: ScopeId,
-}
-
-impl GlobalStorage {
-    /// Create a new, empty [GlobalStorage].
-    pub fn new() -> Self {
-        let scope_store = ScopeStore::new();
-        let root_scope = scope_store.create(Scope::empty(ScopeKind::Constant));
-        let gs = Self {
-            location_store: LocationStore::new(),
-            term_store: TermStore::new(),
-            term_list_store: TermListStore::new(),
-            node_info_store: NodeInfoStore::new(),
-            scope_store,
-            diagnostics_store: DiagnosticsStore::default(),
-            trt_def_store: TrtDefStore::new(),
-            mod_def_store: ModDefStore::new(),
-            nominal_def_store: NominalDefStore::new(),
-            pat_store: PatStore::new(),
-            pat_args_store: PatArgsStore::new(),
-            deconstructed_pat_store: DeconstructedPatStore::new(),
-            deconstructed_ctor_store: DeconstructedCtorStore::new(),
-            checked_sources: CheckedSources::new(),
-            root_scope,
-            params_store: ParamsStore::new(),
-            args_store: ArgsStore::new(),
-            cache: Cache::new(),
-        };
-        create_core_defs_in(&gs);
-        gs
-    }
-}
-
-impl Default for GlobalStorage {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-/// Keeps track of typechecking information specific to a given source file.
-#[derive(Debug)]
-pub struct LocalStorage {
-    /// All the scopes in a given source.
-    pub scopes: ScopeStack,
-    /// The current [SourceId]
-    pub id: Cell<SourceId>,
-}
-
-impl LocalStorage {
-    /// Create a new, empty [LocalStorage] for the given source.
-    pub fn new(gs: &GlobalStorage, id: SourceId) -> Self {
-        Self {
-            scopes: ScopeStack::many([
-                // First the root scope
-                gs.root_scope,
-                // Then the scope for the source
-                gs.scope_store.create(Scope::empty(ScopeKind::Constant)),
-            ]),
-            id: Cell::new(id),
-        }
-    }
-
-    /// Get the current [SourceId]
-    pub fn current_source(&self) -> SourceId {
-        self.id.get()
-    }
-
-    /// Set the current [SourceId], it does not matter whether
-    /// this is a [SourceId::Module] or [SourceId::Interactive]
-    pub fn set_current_source(&self, id: SourceId) {
-        self.id.set(id);
-    }
-}
+use crate::diagnostics::DiagnosticsStore;
 
 /// A reference to the storage, which includes both local and global storage, as
 /// well as core definitions.
 #[derive(Debug, Clone, Copy)]
 pub struct StorageRef<'tc> {
+    /// Map containing about which source have been typechecked.
+    pub checked_sources: &'tc CheckedSources,
+
     pub local_storage: &'tc LocalStorage,
     pub global_storage: &'tc GlobalStorage,
+
+    /// Data stored for exhaustiveness checking
+    pub exhaustiveness_storage: &'tc ExhaustivenessStorage,
+
+    /// A map that represents the relationship between [SourceId]s and the
+    /// respective sources, paths, etc.
     pub source_map: &'tc SourceMap,
+    /// Storage for tc diagnostics.
+    pub diagnostics_store: &'tc DiagnosticsStore,
+
+    /// The typechecking cache, contains cached simplification, validation
+    /// and unification results.
+    pub cache: &'tc Cache,
 }
 
 /// Trait that provides convenient accessor methods to various parts of the
@@ -181,12 +68,16 @@ pub trait AccessToStorage {
         self.storages().global_storage
     }
 
+    fn exhaustiveness_storage(&self) -> &ExhaustivenessStorage {
+        self.storages().exhaustiveness_storage
+    }
+
     fn local_storage(&self) -> &LocalStorage {
         self.storages().local_storage
     }
 
     fn diagnostic_store(&self) -> &DiagnosticsStore {
-        &self.storages().global_storage.diagnostics_store
+        self.storages().diagnostics_store
     }
 
     fn scope_store(&self) -> &ScopeStore {
@@ -206,7 +97,7 @@ pub trait AccessToStorage {
     }
 
     fn cache(&self) -> &Cache {
-        &self.global_storage().cache
+        self.storages().cache
     }
 
     fn location_store(&self) -> &LocationStore {
@@ -238,11 +129,11 @@ pub trait AccessToStorage {
     }
 
     fn constructor_store(&self) -> &DeconstructedCtorStore {
-        &self.global_storage().deconstructed_ctor_store
+        &self.exhaustiveness_storage().deconstructed_ctor_store
     }
 
     fn deconstructed_pat_store(&self) -> &DeconstructedPatStore {
-        &self.global_storage().deconstructed_pat_store
+        &self.exhaustiveness_storage().deconstructed_pat_store
     }
 
     fn pat_args_store(&self) -> &PatArgsStore {
@@ -250,7 +141,7 @@ pub trait AccessToStorage {
     }
 
     fn checked_sources(&self) -> &CheckedSources {
-        &self.global_storage().checked_sources
+        self.storages().checked_sources
     }
 
     fn root_scope(&self) -> ScopeId {

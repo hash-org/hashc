@@ -7,20 +7,22 @@
 //! parameter of the structure.
 use std::{cell::Cell, fmt::Debug};
 
+use hash_types::{
+    fmt::PrepareForFormatting, pats::PatId, terms::TermId, Level1Term, NominalDef, Term,
+};
 use hash_utils::store::{CloneStore, Store};
 use itertools::Itertools;
 use smallvec::SmallVec;
 
-use super::{construct::DeconstructedCtor, fields::Fields, AccessToUsefulnessOps};
+use super::{
+    construct::DeconstructedCtor, fields::Fields, AccessToUsefulnessOps, PatForFormatting,
+    PreparePatForFormatting,
+};
 use crate::{
     exhaustiveness::{list::ListKind, PatCtx},
-    fmt::{ForFormatting, PrepareForFormatting},
     ops::AccessToOps,
     storage::{
-        deconstructed::{DeconstructedCtorId, DeconstructedPatId},
-        pats::PatId,
-        primitives::{Level1Term, NominalDef, Term},
-        terms::TermId,
+        exhaustiveness::{DeconstructedCtorId, DeconstructedPatId},
         AccessToStorage, StorageRef,
     },
 };
@@ -198,12 +200,12 @@ impl<'tc> DeconstructPatOps<'tc> {
     }
 }
 
-impl PrepareForFormatting for DeconstructedPatId {}
+impl PreparePatForFormatting for DeconstructedPatId {}
 
-impl Debug for ForFormatting<'_, DeconstructedPatId> {
+impl Debug for PatForFormatting<'_, DeconstructedPatId> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let pat = self.global_storage.deconstructed_pat_store.get(self.t);
-        let ctor = self.global_storage.deconstructed_ctor_store.get(pat.ctor);
+        let pat = self.storage.exhaustiveness_storage.deconstructed_pat_store.get(self.item);
+        let ctor = self.storage.exhaustiveness_storage.deconstructed_ctor_store.get(pat.ctor);
 
         // Utility for printing a joined list of things...
         let mut first = true;
@@ -218,13 +220,13 @@ impl Debug for ForFormatting<'_, DeconstructedPatId> {
 
         match ctor {
             DeconstructedCtor::Single | DeconstructedCtor::Variant(_) => {
-                let term = self.global_storage.term_store.get(pat.ty);
+                let term = self.storage.term_store().get(pat.ty);
 
                 // If it is a `struct` or an `enum` then try and get the
                 // variant name...
                 match term {
                     Term::Level1(Level1Term::NominalDef(nominal_def)) => {
-                        match self.global_storage.nominal_def_store.get(nominal_def) {
+                        match self.storage.nominal_def_store().get(nominal_def) {
                             NominalDef::Struct(struct_def) => {
                                 if let Some(name) = struct_def.name {
                                     write!(f, "{}", name)?;
@@ -241,7 +243,7 @@ impl Debug for ForFormatting<'_, DeconstructedPatId> {
                     }
                     _ => panic!(
                         "Unexpected ty `{}` when printing deconstructed pat",
-                        pat.ty.for_formatting(self.global_storage)
+                        pat.ty.for_formatting(self.storage.global_storage)
                     ),
                 };
 
@@ -249,7 +251,7 @@ impl Debug for ForFormatting<'_, DeconstructedPatId> {
 
                 for p in pat.fields.iter_patterns() {
                     write!(f, "{}", start_or_continue(", "))?;
-                    write!(f, "{:?}", p.for_formatting(self.global_storage))?;
+                    write!(f, "{:?}", p.for_formatting(self.storage))?;
                 }
                 write!(f, ")")
             }
@@ -272,7 +274,7 @@ impl Debug for ForFormatting<'_, DeconstructedPatId> {
                                 f,
                                 "{}{:?}",
                                 start_or_continue(", "),
-                                p.for_formatting(self.global_storage)
+                                p.for_formatting(self.storage)
                             )?;
                         }
                         write!(f, "{}", start_or_continue(", "))?;
@@ -282,7 +284,7 @@ impl Debug for ForFormatting<'_, DeconstructedPatId> {
                                 f,
                                 "{}{:?}",
                                 start_or_continue(", "),
-                                p.for_formatting(self.global_storage)
+                                p.for_formatting(self.storage)
                             )?;
                         }
                     }
@@ -296,7 +298,7 @@ impl Debug for ForFormatting<'_, DeconstructedPatId> {
                         f,
                         "{}{:?}",
                         start_or_continue(" | "),
-                        pat.for_formatting(self.global_storage)
+                        pat.for_formatting(self.storage)
                     )?;
                 }
                 Ok(())
@@ -313,7 +315,7 @@ impl Debug for ForFormatting<'_, DeconstructedPatId> {
                     _ => unreachable!(),
                 };
 
-                write!(f, "{}_ : {}", prefix, pat.ty.for_formatting(self.global_storage))
+                write!(f, "{}_ : {}", prefix, pat.ty.for_formatting(self.storage.global_storage))
             }
         }
     }

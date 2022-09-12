@@ -354,6 +354,7 @@ dependencies = [
  "hash-ast-desugaring",
  "hash-ast-passes",
  "hash-interactive",
+ "hash-lower",
  "hash-parser",
  "hash-pipeline",
  "hash-reporting",
@@ -432,6 +433,7 @@ dependencies = [
  "hash-alloc",
  "hash-source",
  "hash-utils",
+ "index_vec",
 ]
 
 [[package]]
@@ -445,6 +447,19 @@ dependencies = [
  "num-bigint",
  "num-traits",
  "thiserror",
+]
+
+[[package]]
+name = "hash-lower"
+version = "0.1.0"
+dependencies = [
+ "hash-ast",
+ "hash-ir",
+ "hash-pipeline",
+ "hash-reporting",
+ "hash-source",
+ "hash-types",
+ "index_vec",
 ]
 
 [[package]]
@@ -539,6 +554,7 @@ dependencies = [
  "hash-ast-desugaring",
  "hash-ast-passes",
  "hash-lexer",
+ "hash-lower",
  "hash-parser",
  "hash-pipeline",
  "hash-reporting",
@@ -577,6 +593,7 @@ dependencies = [
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
+ "hash-types",
  "hash-utils",
  "if_chain",
  "itertools",
@@ -584,6 +601,17 @@ dependencies = [
  "num-bigint",
  "slotmap",
  "smallvec",
+]
+
+[[package]]
+name = "hash-types"
+version = "0.1.0"
+dependencies = [
+ "hash-ast",
+ "hash-source",
+ "hash-utils",
+ "log",
+ "num-bigint",
 ]
 
 [[package]]
@@ -640,6 +668,12 @@ name = "if_chain"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cb56e1aa765b4b4f3aadfab769793b7087bb03a4ea4920644a6d238e2df5b9ed"
+
+[[package]]
+name = "index_vec"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "74086667896a940438f2118212f313abba4aff3831fef6f4b17d02add5c8bb60"
 
 [[package]]
 name = "indexmap"

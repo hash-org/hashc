@@ -7,6 +7,7 @@
 //! is detailed within [super].
 use std::iter::once;
 
+use hash_types::{pats::PatId, terms::TermId};
 use hash_utils::{stack::ensure_sufficient_stack, store::Store};
 use itertools::Itertools;
 
@@ -18,9 +19,7 @@ use crate::{
     exhaustiveness::PatCtx,
     ops::AccessToOps,
     storage::{
-        deconstructed::{DeconstructedCtorId, DeconstructedPatId},
-        pats::PatId,
-        terms::TermId,
+        exhaustiveness::{DeconstructedCtorId, DeconstructedPatId},
         AccessToStorage, StorageRef,
     },
 };

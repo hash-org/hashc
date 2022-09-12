@@ -1,4 +1,4 @@
-// run=pass
+// run=pass, stage=typecheck
 
 PrimaryColour := enum(Red, Green, Blue);
 

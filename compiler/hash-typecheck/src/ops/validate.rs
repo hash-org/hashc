@@ -1,8 +1,21 @@
 //! Contains utilities to validate terms.
-use std::{collections::HashSet, fmt::Display};
+use std::collections::HashSet;
 
 use hash_ast::ast::{ParamOrigin, RangeEnd};
 use hash_reporting::diagnostic::Diagnostics;
+use hash_types::{
+    arguments::ArgsId,
+    mods::ModDefId,
+    nominals::NominalDefId,
+    params::ParamsId,
+    pats::{PatArgsId, PatId},
+    scope::ScopeId,
+    terms::TermId,
+    trts::TrtDefId,
+    BindingPat, ConstructedTerm, ConstructorPat, FnTy, Level0Term, Level1Term, Level2Term, LitTerm,
+    Member, ModDefOrigin, NominalDef, ParamList, Pat, RangePat, Scope, ScopeKind, StructFields,
+    Term,
+};
 use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreCopy, SequenceStoreKey, Store};
 use itertools::Itertools;
 
@@ -14,83 +27,8 @@ use crate::{
         params::ParamListKind,
     },
     ops::params::{validate_named_params_match, validate_param_list},
-    storage::{
-        arguments::ArgsId,
-        mods::ModDefId,
-        nominals::NominalDefId,
-        params::ParamsId,
-        pats::{PatArgsId, PatId},
-        primitives::{
-            BindingPat, ConstructedTerm, ConstructorPat, FnTy, Level0Term, Level1Term, Level2Term,
-            LitTerm, Member, ModDefOrigin, NominalDef, ParamList, Pat, RangePat, Scope, ScopeKind,
-            StructFields, Term,
-        },
-        scope::ScopeId,
-        terms::{TermId, TermStore},
-        trts::TrtDefId,
-        AccessToStorage, StorageRef,
-    },
+    storage::{AccessToStorage, StorageRef},
 };
-
-/// Represents the level of a term.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-/// A enumeration of the level kinds that terms can be.
-pub enum TermLevel {
-    /// Couldn't be determined and thus labelled as unknown
-    Unknown,
-    /// Level 0 terms
-    Level0,
-    /// Level 1 terms
-    Level1,
-    /// Level 2 terms
-    Level2,
-    /// Level 3 terms
-    Level3,
-    /// Level 4 terms, specifically [Term::Root]
-    Level4,
-}
-
-impl Display for TermLevel {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TermLevel::Unknown => write!(f, "unknown"),
-            TermLevel::Level0 => write!(f, "level-0"),
-            TermLevel::Level1 => write!(f, "level-1"),
-            TermLevel::Level2 => write!(f, "level-2"),
-            TermLevel::Level3 => write!(f, "level-3"),
-            TermLevel::Level4 => write!(f, "level-4"),
-        }
-    }
-}
-
-impl Term {
-    /// Compute the level of the term. This is a primitive computation
-    /// and does not attempt to compute the true level of the [Term]
-    /// by looking at the inner children of the [Term].
-    pub fn get_term_level(&self, _store: &TermStore) -> TermLevel {
-        // @@Todo(feds01): implement the other variants by recursing into them.
-        // This should be done on a struct with access to storage
-        match self {
-            Term::Access(_)
-            | Term::Var(_)
-            | Term::Merge(_)
-            | Term::TyFn(_)
-            | Term::TyOf(_)
-            | Term::Union(_)
-            | Term::SetBound(_)
-            | Term::ScopeVar(_)
-            | Term::BoundVar(_)
-            | Term::TyFnTy(_)
-            | Term::TyFnCall(_) => TermLevel::Unknown,
-            Term::Unresolved(_) => TermLevel::Unknown,
-            Term::Root => TermLevel::Level4,
-            Term::Level3(_) => TermLevel::Level3,
-            Term::Level2(_) => TermLevel::Level2,
-            Term::Level1(_) => TermLevel::Level1,
-            Term::Level0(_) => TermLevel::Level0,
-        }
-    }
-}
 
 /// Can resolve the type of a given term, as another term.
 pub struct Validator<'tc> {

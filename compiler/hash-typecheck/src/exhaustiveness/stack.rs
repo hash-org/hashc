@@ -8,13 +8,12 @@ use std::fmt::Debug;
 
 use smallvec::{smallvec, SmallVec};
 
-use super::AccessToUsefulnessOps;
+use super::{AccessToUsefulnessOps, PatForFormatting, PreparePatForFormatting};
 use crate::{
     exhaustiveness::PatCtx,
-    fmt::{ForFormatting, PrepareForFormatting},
     ops::AccessToOps,
     storage::{
-        deconstructed::{DeconstructedCtorId, DeconstructedPatId},
+        exhaustiveness::{DeconstructedCtorId, DeconstructedPatId},
         AccessToStorage, StorageRef,
     },
 };
@@ -119,18 +118,18 @@ impl<'tc> StackOps<'tc> {
     }
 }
 
-impl PrepareForFormatting for PatStack {}
+impl PreparePatForFormatting for PatStack {}
 
-impl Debug for ForFormatting<'_, PatStack> {
+impl Debug for PatForFormatting<'_, PatStack> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "|")?;
 
-        for pat in self.t.iter() {
-            write!(f, " {:?} |", pat.for_formatting(self.global_storage))?;
+        for pat in self.item.iter() {
+            write!(f, " {:?} |", pat.for_formatting(self.storage))?;
         }
 
         // Just in case if the pattern stack was empty
-        if self.t.is_empty() {
+        if self.item.is_empty() {
             write!(f, "|")?;
         }
 

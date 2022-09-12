@@ -7,6 +7,15 @@ use hash_reporting::{
     report::{Report, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind},
 };
 use hash_source::identifier::Identifier;
+use hash_types::{
+    arguments::ArgsId,
+    fmt::{PrepareForFormatting, TcFormatOpts},
+    location::LocationTarget,
+    params::ParamsId,
+    pats::PatId,
+    terms::TermId,
+    AccessOp, AccessTerm, Arg, Field, Param, PatArg, TrtDef, TyFnCase,
+};
 use hash_utils::{
     pluralise,
     printing::{SequenceDisplay, SequenceDisplayOptions, SequenceJoinMode},
@@ -16,17 +25,8 @@ use itertools::Itertools;
 
 use super::params::{ParamListKind, ParamUnificationErrorReason};
 use crate::{
-    fmt::{PrepareForFormatting, TcFormatOpts},
     ops::AccessToOps,
-    storage::{
-        arguments::ArgsId,
-        location::LocationTarget,
-        params::ParamsId,
-        pats::PatId,
-        primitives::{AccessOp, AccessTerm, Arg, Field, Param, PatArg, TrtDef, TyFnCase},
-        terms::TermId,
-        AccessToStorage, StorageRef,
-    },
+    storage::{AccessToStorage, StorageRef},
 };
 
 /// Convenient type alias for a result with a [TcError] as the error type.

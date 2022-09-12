@@ -8,7 +8,7 @@ use command::InteractiveCommand;
 use hash_pipeline::{
     settings::CompilerJobParams,
     sources::InteractiveBlock,
-    traits::{Desugar, Parser, SemanticPass, Tc, VirtualMachine},
+    traits::{Desugar, Lowering, Parser, SemanticPass, Tc, VirtualMachine},
     Compiler, CompilerState,
 };
 use hash_reporting::errors::{CompilerError, InteractiveCommandError};
@@ -35,9 +35,9 @@ pub fn goodbye() {
 /// Function that initialises the interactive mode. Setup all the resources
 /// required to perform execution of provided statements and then initiate the
 /// REPL.
-pub fn init<'c, 'pool, P, D, S, C, V>(
-    mut compiler: Compiler<'pool, P, D, S, C, V>,
-    mut compiler_state: CompilerState<'c, 'pool, D, S, C, V>,
+pub fn init<'c, 'pool, P, D, S, C, L, V>(
+    mut compiler: Compiler<'pool, P, D, S, C, L, V>,
+    mut compiler_state: CompilerState<'c, 'pool, D, S, C, L, V>,
 ) -> CompilerResult<()>
 where
     'pool: 'c,
@@ -45,6 +45,7 @@ where
     D: Desugar<'pool>,
     S: SemanticPass<'pool>,
     C: Tc<'c>,
+    L: Lowering<'c>,
     V: VirtualMachine<'c>,
 {
     // Display the version on start-up
@@ -78,17 +79,18 @@ where
 }
 
 /// Function to process a single line of input from the REPL instance.
-fn execute<'c, 'pool, P, D, S, C, V>(
+fn execute<'c, 'pool, P, D, S, C, L, V>(
     input: &str,
-    compiler: &mut Compiler<'pool, P, D, S, C, V>,
-    mut compiler_state: CompilerState<'c, 'pool, D, S, C, V>,
-) -> CompilerState<'c, 'pool, D, S, C, V>
+    compiler: &mut Compiler<'pool, P, D, S, C, L, V>,
+    mut compiler_state: CompilerState<'c, 'pool, D, S, C, L, V>,
+) -> CompilerState<'c, 'pool, D, S, C, L, V>
 where
     'pool: 'c,
     P: Parser<'pool>,
     D: Desugar<'pool>,
     S: SemanticPass<'pool>,
     C: Tc<'c>,
+    L: Lowering<'c>,
     V: VirtualMachine<'c>,
 {
     if input.is_empty() {

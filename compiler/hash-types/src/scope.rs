@@ -4,7 +4,7 @@ use std::cell::RefCell;
 
 use hash_utils::{new_store, new_store_key};
 
-use super::primitives::Scope;
+use crate::Scope;
 
 new_store_key!(pub ScopeId);
 new_store!(pub ScopeStore<ScopeId, Scope>);

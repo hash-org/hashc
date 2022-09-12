@@ -3,8 +3,7 @@
 //!
 //! Code from this module is to be used while traversing and typing the AST, in
 //! order to unify types and ensure correctness.
-pub mod bootstrap;
-pub mod building;
+
 pub mod cache;
 pub mod core;
 pub mod discover;
@@ -20,23 +19,22 @@ pub mod typing;
 pub mod unify;
 pub mod validate;
 
+use hash_types::{builder::PrimitiveBuilder, scope::ScopeId};
+
 use self::{
-    building::PrimitiveBuilder, cache::CacheManager, core::CoreDefReader, discover::Discoverer,
+    cache::CacheManager, core::CoreDefReader, discover::Discoverer,
     exhaustiveness::ExhaustivenessChecker, oracle::Oracle, params::ParamOps, pats::PatMatcher,
     reader::PrimitiveReader, scope::ScopeManager, simplify::Simplifier, substitute::Substituter,
     typing::Typer, unify::Unifier, validate::Validator,
 };
-use crate::{
-    diagnostics::TcDiagnostics,
-    storage::{scope::ScopeId, AccessToStorage},
-};
+use crate::{diagnostics::TcDiagnostics, storage::AccessToStorage};
 
 /// Trait to access various structures that can perform typechecking queries,
 /// by a reference to a [StorageRef](crate::storage::StorageRef).
 pub trait AccessToOps: AccessToStorage {
     /// Create an instance of [PrimitiveReader].
     fn reader(&self) -> PrimitiveReader {
-        PrimitiveReader::new(self.global_storage())
+        PrimitiveReader::new(self.storages())
     }
 
     /// Create an instance of an [Oracle]
