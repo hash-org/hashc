@@ -1,7 +1,6 @@
 //! Hash AST semantic passes crate. This crate holds an implementation for the
 //! visitor pattern on the AST to perform semantic checking and analysis on the
 //! de-sugared AST.
-
 #![feature(let_chains)]
 
 pub mod analysis;

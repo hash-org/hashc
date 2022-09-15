@@ -210,7 +210,7 @@ pub struct ParsedMetadata {
 /// [CompilerMode::Parse].
 pub fn parse_test_case_metadata(path: &PathBuf) -> Result<ParsedMetadata, io::Error> {
     // Read the first line of the file into `title`.
-    let file = fs::File::open(&path)?;
+    let file = fs::File::open(path)?;
 
     let mut buffer = BufReader::new(file);
     let mut config = String::new();
