@@ -2,7 +2,6 @@
 //! visitor pattern on the AST in order to `lower` it to a simpler version so
 //! that later stages can work on it without having to operate on similar
 //! constructs and duplicating logic.
-#![feature(generic_associated_types)]
 
 use std::collections::HashSet;
 
