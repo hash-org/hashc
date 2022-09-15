@@ -13,10 +13,9 @@ new_store!(pub DeconstructedCtorStore<DeconstructedCtorId, DeconstructedCtor>);
 /// exhaustiveness checking as intermediate representations of patterns.
 #[derive(Debug, Default)]
 pub struct ExhaustivenessStorage {
-    /// Pattern fields from
-    /// [super::exhaustiveness::deconstruct::DeconstructedPat]
+    /// The [crate::exhaustiveness::deconstruct::DeconstructedPat] store.
     pub deconstructed_pat_store: DeconstructedPatStore,
 
-    /// The [super::exhaustiveness::construct::DeconstructedCtor] store.
+    /// The [crate::exhaustiveness::construct::DeconstructedCtor] store.
     pub deconstructed_ctor_store: DeconstructedCtorStore,
 }

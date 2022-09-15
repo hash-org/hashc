@@ -22,8 +22,7 @@ use crate::{
     },
 };
 
-/// Helper to read various primitive constructions (from
-/// [crate::storage::primitives]).
+/// Helper to read data structures that are used across the typechecker.
 pub struct PrimitiveReader<'tc> {
     storage: StorageRef<'tc>,
 }

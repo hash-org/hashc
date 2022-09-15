@@ -565,8 +565,8 @@ impl<'tc> Discoverer<'tc> {
         Ok(new_params)
     }
 
-    /// Apply the given [Scope] of kind [Scope::SetBound] to the given params,
-    /// at the lowest level possible.
+    /// Apply the given [hash_types::Scope] of kind [hash_types::Term::SetBound]
+    /// to the given params, at the lowest level possible.
     pub(crate) fn apply_set_bound_to_params(
         &self,
         set_bound_scope_id: ScopeId,
@@ -610,8 +610,8 @@ impl<'tc> Discoverer<'tc> {
         Ok(new_args)
     }
 
-    /// Apply the given [Scope] of kind [Scope::SetBound] to the given args, at
-    /// the lowest level possible.
+    /// Apply the given [hash_types::Scope] of kind [hash_types::Term::SetBound]
+    /// to the given args, at the lowest level possible.
     pub(crate) fn apply_set_bound_to_args(
         &self,
         set_bound_scope_id: ScopeId,
@@ -625,8 +625,8 @@ impl<'tc> Discoverer<'tc> {
         )
     }
 
-    /// Apply the given [Scope] of kind [Scope::SetBound] to the given term, at
-    /// the lowest level possible.
+    /// Apply the given [hash_types::Scope] of kind [hash_types::Term::SetBound]
+    /// to the given term, at the lowest level possible.
     pub(crate) fn potentially_apply_set_bound_to_term(
         &self,
         set_bound_scope_id: ScopeId,
@@ -637,8 +637,9 @@ impl<'tc> Discoverer<'tc> {
             .unwrap_or(term_id))
     }
 
-    /// Apply the given [Scope] of kind [Scope::SetBound] to the given term, at
-    /// the lowest level possible. Returns None if no application occurred.
+    /// Apply the given [hash_types::Scope] of kind [hash_types::Term::SetBound]
+    /// to the given term, at the lowest level possible. Returns None if no
+    /// application occurred.
     pub(crate) fn apply_set_bound_to_term(
         &self,
         set_bound_scope_id: ScopeId,
@@ -666,8 +667,9 @@ impl<'tc> Discoverer<'tc> {
             .unwrap_or(term_id))
     }
 
-    /// Apply the given [Scope] of kind [Scope::SetBound] to the given term, at
-    /// the lowest level possible. Returns None if no application occurred.
+    /// Apply the given [hash_types::Scope] of kind [hash_types::Term::SetBound]
+    /// to the given term, at the lowest level possible. Returns None if no
+    /// application occurred.
     ///
     /// This checks each child of the term, and only wraps it in a set bound if
     /// the free variables are present.
@@ -680,9 +682,7 @@ impl<'tc> Discoverer<'tc> {
         term_id: TermId,
         ignore_bound_vars: &HashSet<BoundVar>,
     ) -> TcResult<Option<TermId>> {
-        let reader = self.reader();
-        let term = reader.get_term(term_id);
-        let result = match term {
+        let result = match self.reader().get_term(term_id) {
             Term::BoundVar(var) => {
                 if ignore_bound_vars.contains(&var) {
                     Ok(None)

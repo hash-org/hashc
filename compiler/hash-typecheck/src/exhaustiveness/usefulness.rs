@@ -116,7 +116,7 @@ pub(crate) struct MatchArm {
     pub(crate) deconstructed_pat: DeconstructedPatId,
     /// Whether the arm has an `if-guard`
     pub(crate) has_guard: bool,
-    /// The corresponding [primitives::Pat] with this
+    /// The corresponding [hash_types::Pat] with this
     /// match arm
     pub(crate) id: PatId,
 }

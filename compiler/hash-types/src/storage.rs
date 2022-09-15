@@ -62,7 +62,7 @@ pub struct GlobalStorage {
     /// constructors and tuple patterns.
     pub pat_args_store: PatArgsStore,
 
-    /// Map representing the relation between [TermId] and [AstNodeId].
+    /// Map representing the relation between terms and AST nodes.
     pub node_info_store: NodeInfoStore,
 
     /// Used to create the first scope when creating a LocalStorage.
