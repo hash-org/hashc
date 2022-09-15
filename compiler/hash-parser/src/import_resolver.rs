@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use crossbeam_channel::Sender;
 use hash_pipeline::fs::{read_in_path, resolve_path, ImportError};
-use hash_source::{location::SourceLocation, SourceId};
+use hash_source::{constant::InternedStr, SourceId};
 
 use crate::ParserAction;
 
@@ -40,14 +40,10 @@ impl<'p> ImportResolver<'p> {
     /// contents of the provided `import_path`, resolve the contents of the
     /// module, and then proceed to send a [ParserAction::ParseImport]
     /// through the message queue.
-    pub(crate) fn resolve_import(
-        &self,
-        import_path: &Path,
-        source_location: SourceLocation,
-    ) -> Result<PathBuf, ImportError> {
+    pub(crate) fn resolve_import(&self, path: InternedStr) -> Result<PathBuf, ImportError> {
         // Read the contents of the file
-        let resolved_path = resolve_path(import_path, &self.root_dir, Some(source_location))?;
-        let contents = read_in_path(&resolved_path)?;
+        let resolved_path = resolve_path(path, self.root_dir)?;
+        let contents = read_in_path(resolved_path.as_path())?;
 
         // Send over the resolved path and the contents of the file
         self.sender
