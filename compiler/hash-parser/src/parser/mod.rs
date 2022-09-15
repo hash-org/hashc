@@ -1,6 +1,8 @@
 //! Hash Compiler parser. The parser will take a generated token stream
 //! and its accompanying token trees and will convert the stream into
 //! an AST.
+#![allow(clippy::result_large_err)] //@@Temporary
+
 mod block;
 mod definitions;
 mod expr;
