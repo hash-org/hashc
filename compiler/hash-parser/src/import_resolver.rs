@@ -46,7 +46,7 @@ impl<'p> ImportResolver<'p> {
         source_location: SourceLocation,
     ) -> Result<PathBuf, ImportError> {
         // Read the contents of the file
-        let resolved_path = resolve_path(import_path, &self.root_dir, Some(source_location))?;
+        let resolved_path = resolve_path(import_path, self.root_dir, Some(source_location))?;
         let contents = read_in_path(&resolved_path)?;
 
         // Send over the resolved path and the contents of the file

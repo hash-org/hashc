@@ -98,7 +98,7 @@ fn get_stdlib_modules(dir: impl AsRef<Path>) -> Vec<PathBuf> {
 /// Function to read in the contents of a file specified by a [Path]. If
 /// reading the file fails, an [ImportError] is returned.
 pub fn read_in_path(path: &Path) -> Result<String, ImportError> {
-    fs::read_to_string(&path).map_err(|_| ImportError {
+    fs::read_to_string(path).map_err(|_| ImportError {
         location: None,
         message: format!("Cannot read file: {}", path.to_string_lossy()),
         filename: path.to_owned(),
