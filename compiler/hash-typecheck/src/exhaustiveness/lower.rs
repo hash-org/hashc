@@ -384,7 +384,7 @@ impl<'tc> LowerPatOps<'tc> {
             DeconstructedCtor::IntRange(range) => self.construct_pat_from_range(pat.ty, range),
             DeconstructedCtor::Str(_) => Pat::Lit(pat.ty),
             DeconstructedCtor::List(List { kind }) => {
-                let children = pat.fields.iter_patterns().map(|p| PatArg { pat: self.construct_pat(p), name: None });
+                let mut children = pat.fields.iter_patterns().map(|p| PatArg { pat: self.construct_pat(p), name: None });
 
                 match kind {
                     ListKind::Fixed(_) => {
@@ -395,8 +395,6 @@ impl<'tc> LowerPatOps<'tc> {
                     }
                     #[allow(clippy::needless_collect)]
                     ListKind::Var(prefix, _) => {
-                        let mut children = children.into_iter().peekable();
-
                         // build the prefix and suffix components
                         let prefix: Vec<_> = children.by_ref().take(prefix).collect();
                         let suffix: Vec<_> = children.collect();
