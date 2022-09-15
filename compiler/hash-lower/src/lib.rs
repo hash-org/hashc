@@ -5,7 +5,7 @@
 //! elimination.
 #![allow(unused)] // @@TODO: remove this when the builder is complete
 
-mod builder;
+pub mod builder;
 mod cfg;
 mod visitor;
 
@@ -15,6 +15,8 @@ use hash_source::{
     location::{SourceLocation, Span},
     SourceId,
 };
+
+use self::builder::Builder;
 
 /// The [IrLowerer] is used as a bootstrapping mechanism to kick off the
 /// [Builder] working on functions that it discovers as the the lower traverses
@@ -63,6 +65,9 @@ impl<'c> Lowering<'c> for IrLowerer {
         _state: &mut Self::State,
         _job_params: &hash_pipeline::settings::CompilerJobParams,
     ) -> hash_pipeline::traits::CompilerResult<()> {
+        // We need to iterate all of the modules and essentially perform
+        // a discovery process for what needs to be lowered...
+
         Ok(())
     }
 }
