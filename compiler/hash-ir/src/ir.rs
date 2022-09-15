@@ -7,6 +7,7 @@ use hash_source::{
     location::{SourceLocation, Span},
     SourceId,
 };
+use hash_types::{nominals::NominalDefId, terms::TermId};
 use index_vec::{index_vec, IndexSlice, IndexVec};
 
 /// Represents the type layout of a given expression.
@@ -149,7 +150,7 @@ pub struct LocalDecl<'ir> {
     ty: Ty<'ir>,
 }
 
-/// The addressing mode of the [Statement::AddrOf] IR statement.
+/// The addressing mode of the [RValue::Ref].
 #[derive(Debug, PartialEq, Eq)]
 pub enum AddressMode {
     /// Take the `&raw` reference of something.
@@ -184,12 +185,21 @@ pub struct Place {
 }
 
 #[derive(Debug, PartialEq, Eq)]
+pub enum AggregateKind {
+    Tuple,
+    Array(TermId),
+    Enum(NominalDefId, usize),
+    Struct(NominalDefId),
+}
+
+#[derive(Debug, PartialEq, Eq)]
 pub enum RValue<'ir> {
     /// A constant value.
     Const(Const),
 
-    /// A local variable value
-    Local(Local),
+    /// A local variable value, do we need to denote whether this is a
+    /// copy/move?
+    Use(Place),
 
     /// Compiler intrinsic operation, this will be computed in place and
     /// replaced by a constant.
@@ -204,15 +214,12 @@ pub enum RValue<'ir> {
 
     /// A binary expression with a binary operator and two inner expressions.
     BinaryOp(BinOp, &'ir RValue<'ir>, &'ir RValue<'ir>),
-
-    /// An index expression e.g. `x[3]`
-    Index(&'ir RValue<'ir>, &'ir RValue<'ir>),
     /// An expression which is taking the address of another expression with an
     /// mutability modifier e.g. `&mut x`.
     Ref(Mutability, &'ir Statement<'ir>, AddressMode),
     /// Used for initialising structs, tuples and other aggregate
     /// data structures
-    Aggregate,
+    Aggregate(AggregateKind, Vec<Place>),
 }
 
 /// A defined statement within the IR
@@ -243,6 +250,18 @@ pub struct Statement<'ir> {
     pub span: Span,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum AssertKind {
+    DivisionByZero,
+    /// Occurs when an attempt to take the remainder of some operand with zero.
+    RemainderByZero,
+    /// Performing an arithmetic operation has caused the operation to overflow
+    Overflow,
+    /// Performing an arithmetic operation has caused the operation to overflow
+    /// whilst subtracting or terms that are signed
+    NegativeOverflow,
+}
+
 /// [Terminator] statements are essentially those that affect control
 /// flow.
 #[derive(Debug, PartialEq, Eq)]
@@ -264,7 +283,9 @@ pub enum TerminatorKind<'ir> {
 
     /// Perform a function call
     Call {
-        // op: todo!(),
+        /// The layout of the function type that is to be called.
+        op: TermId,
+        /// Arguments to the function.
         args: Vec<Local>,
 
         /// Where to return after completing the call
@@ -277,6 +298,22 @@ pub enum TerminatorKind<'ir> {
 
     /// Essentially a `jump if <0> to <1> else go to <2>`
     Switch(Local, &'ir [(Const, BasicBlock)], BasicBlock),
+
+    /// This terminator is used to verify that the result of some operation has
+    /// no violated a some condition. Usually, this is combined with operations
+    /// that perform a `checked` operation and sets some flag in the form of a
+    /// [Place] and expects it to be equal to the `expected` boolean value.
+    Assert {
+        /// The condition that is to be checked against the `expected value
+        condition: Place,
+        /// What the assert terminator expects the `condition` to be
+        expected: bool,
+        /// What condition is the assert verifying that it holds
+        kind: AssertKind,
+        /// If the `condition` was verified, this is where the program should
+        /// continue to.
+        target: BasicBlock,
+    },
 }
 
 /// Essentially a block
