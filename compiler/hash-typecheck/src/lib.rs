@@ -5,14 +5,7 @@
 //!
 //! @@Docs(kontheocharis): write docs about the stages of the typechecker.
 
-#![feature(
-    decl_macro,
-    slice_pattern,
-    option_result_contains,
-    let_else,
-    let_chains,
-    if_let_guard
-)]
+#![feature(decl_macro, slice_pattern, option_result_contains, let_else, let_chains, if_let_guard)]
 
 use diagnostics::DiagnosticsStore;
 use hash_pipeline::{traits::Tc, CompilerResult};
