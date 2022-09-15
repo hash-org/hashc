@@ -325,6 +325,7 @@ impl<'a> Lexer<'a> {
             Some(delim) if delim == delimiter.right() => {
                 // push this to the token_trees and get the current index to use instead...
                 self.token_trees.push(children_tokens);
+                self.previous_delimiter.set(None);
 
                 TokenKind::Tree(delimiter, (self.token_trees.len() - 1) as u32)
             }
