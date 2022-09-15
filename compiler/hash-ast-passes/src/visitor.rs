@@ -915,6 +915,16 @@ impl AstVisitor for SemanticAnalyser<'_> {
         Ok(())
     }
 
+    type EmptyExprRet = ();
+
+    fn visit_empty_expr(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRef<hash_ast::ast::EmptyExpr>,
+    ) -> Result<Self::EmptyExprRet, Self::Error> {
+        todo!()
+    }
+
     type StructDefRet = ();
 
     fn visit_struct_def(

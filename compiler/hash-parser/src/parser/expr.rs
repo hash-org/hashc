@@ -13,7 +13,8 @@ use crate::diagnostics::{
 };
 
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
-    /// Parse a top level [Expr] that are terminated with a semi-colon.
+    /// Parse a top level [Expr] that are optionally terminated with a
+    /// semi-colon.
     #[profiling::function]
     pub fn parse_top_level_expr(
         &mut self,
@@ -40,6 +41,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let expr = match decl {
             Some(statement) => Ok(statement),
             None => {
+                // Handle trailing semi-colons...
+                if let Some(Token { kind: TokenKind::Semi, .. }) = self.peek() {
+                    self.skip_token();
+                    return Ok((true, self.eat_trailing_semis()));
+                }
+
                 let (expr, re_assigned) = self.parse_expr_with_re_assignment()?;
 
                 if re_assigned {
@@ -89,6 +96,31 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         };
 
         Ok((has_semi, expr))
+    }
+
+    /// Function to eat a collection of trailing semi-colons and produce
+    /// a resultant [ExprKind::Empty].
+    pub(crate) fn eat_trailing_semis(&mut self) -> AstNode<Expr> {
+        let tok = self.current_token();
+        debug_assert!(tok.has_kind(TokenKind::Semi));
+
+        // @@Design: should this try and eat all of the tokens or should it
+        // generate a `Empty` for each encountered semi? Both have their
+        // advantages and disadvantages... the main problem with the current
+        // approach is that it could make the formatter ignore these tokens
+        // entirely and just remove them entirely. If this is a problem, then
+        // we should switch to emitting a `Empty` per encountered semi. However
+        // this might make it difficult to elegantly report a bunch of semis
+        // that shouldn't be there.
+        while let Some(Token { kind: TokenKind::Semi, .. }) = self.peek() {
+            self.skip_token();
+        }
+
+        // Emit trailing semis diagnostic
+        let span = tok.span.join(self.current_location());
+        self.add_warning(ParseWarning::new(WarningKind::TrailingSemis(span.len()), span));
+
+        self.node_with_span(Expr::new(ExprKind::Empty(EmptyExpr)), span)
     }
 
     /// Parse an expression which can be compound.
@@ -984,7 +1016,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // @@ErrorRecovery: don't bail immediately...
         while gen.has_token() {
             let (_, expr) = gen.parse_top_level_expr(true)?;
-            exprs.push(expr);
+
+            // Don't push empty expressions...
+            if !expr.body().is_empty() {
+                exprs.push(expr);
+            }
         }
 
         let span = gen.parent_span;

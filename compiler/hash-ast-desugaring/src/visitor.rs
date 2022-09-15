@@ -832,6 +832,16 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         Ok(())
     }
 
+    type EmptyExprRet = ();
+
+    fn visit_empty_expr(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::EmptyExpr>,
+    ) -> Result<Self::EmptyExprRet, Self::Error> {
+        Ok(())
+    }
+
     type StructDefRet = ();
 
     fn visit_struct_def(

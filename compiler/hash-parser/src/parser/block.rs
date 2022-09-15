@@ -55,6 +55,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 }
             };
 
+            // Don't push empty statements...
+            if has_semi && expr.is_empty() {
+                continue;
+            }
+
             match (has_semi, self.peek()) {
                 (true, _) => block.statements.nodes.push(expr),
                 (false, Some(token)) => {

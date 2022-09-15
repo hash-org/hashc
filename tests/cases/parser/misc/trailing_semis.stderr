@@ -1,0 +1,19 @@
+warn: unnecessary trailing semicolon
+ --> $DIR/trailing_semis.hash:4:12
+3 |   main := () -> i32 => {
+4 |       b := 1;;
+  |              ^ remove this semicolon
+5 |   
+
+warn: unnecessary trailing semicolons
+ --> $DIR/trailing_semis.hash:7:5
+6 |       a := 2;
+7 |       ;;;;a
+  |       ^^^^ remove these semicolons
+8 |   };;;;
+
+warn: unnecessary trailing semicolons
+ --> $DIR/trailing_semis.hash:8:3
+7 |       ;;;;a
+8 |   };;;;
+  |     ^^^ remove these semicolons

@@ -13,6 +13,7 @@ use hash_source::{
     location::{SourceLocation, Span},
     SourceId,
 };
+use hash_utils::pluralise;
 
 /// Represents a generated warning from within [AstGen]
 #[derive(Constructor)]
@@ -63,6 +64,10 @@ pub enum WarningKind {
     /// allows this operator, it has no effect on the expression
     /// and so could be omitted.
     UselessUnaryOperator(SubjectKind),
+
+    /// When the parser encounters a collection of trailing semi-colons
+    /// that are unecesary
+    TrailingSemis(usize),
 }
 
 pub(crate) struct ParseWarningWrapper(pub ParseWarning, pub SourceId);
@@ -70,6 +75,7 @@ pub(crate) struct ParseWarningWrapper(pub ParseWarning, pub SourceId);
 impl From<ParseWarningWrapper> for Report {
     fn from(ParseWarningWrapper(warning, id): ParseWarningWrapper) -> Self {
         let mut builder = ReportBuilder::new();
+        let mut span_label = "".to_string();
 
         let message = match warning.kind {
             WarningKind::RedundantParenthesis(subject) => {
@@ -78,12 +84,21 @@ impl From<ParseWarningWrapper> for Report {
             WarningKind::UselessUnaryOperator(subject) => {
                 format!("unary operator `+` has no effect on this {subject}")
             }
+            WarningKind::TrailingSemis(length) => {
+                span_label = format!(
+                    "remove {} semicolon{}",
+                    pluralise!("this", length),
+                    pluralise!(length)
+                );
+
+                format!("unnecessary trailing semicolon{}", pluralise!(length))
+            }
         };
 
         builder.with_kind(ReportKind::Warning).with_message(message).add_element(
             ReportElement::CodeBlock(ReportCodeBlock::new(
                 SourceLocation { span: warning.location, id },
-                "here",
+                span_label,
             )),
         );
 

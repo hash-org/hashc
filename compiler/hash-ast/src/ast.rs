@@ -1753,6 +1753,10 @@ pub struct UnaryExpr {
     pub operator: AstNode<UnOp>,
 }
 
+/// A unary expression `!a`.
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct EmptyExpr;
+
 /// An index expression `arr[x]`.
 #[derive(Debug, PartialEq, Clone)]
 pub struct IndexExpr {
@@ -1826,6 +1830,8 @@ pub enum ExprKind {
     BinaryExpr(BinaryExpr),
     /// Unary Expression composed of a unary operator and an expression
     UnaryExpr(UnaryExpr),
+    /// Empty expression, just an expression that is a trailing semi-colon
+    Empty(EmptyExpr),
 }
 
 /// An expression.
@@ -1854,6 +1860,11 @@ impl Expr {
     /// Get the [ExprKind] of the expression
     pub fn kind_mut(&mut self) -> &mut ExprKind {
         &mut self.kind
+    }
+
+    /// Check if the `kind` is [ExprKind::Empty].
+    pub fn is_empty(&self) -> bool {
+        matches!(self.kind, ExprKind::Empty(_))
     }
 }
 

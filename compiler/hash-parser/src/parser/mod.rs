@@ -504,8 +504,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let mut contents = vec![];
 
         while self.has_token() {
-            match self.parse_top_level_expr(true).map(|(_, statement)| statement) {
-                Ok(statement) => contents.push(statement),
+            match self.parse_top_level_expr(true).map(|(_, expr)| expr) {
+                Ok(expr) if expr.body().is_empty() => {}
+                Ok(expr) => contents.push(expr),
                 Err(err) => {
                     // @@Future: attempt error recovery here...
                     self.add_error(err);
