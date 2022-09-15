@@ -11,8 +11,9 @@ const TC_FATAL_ERROR_MESSAGE: &str =
 /// traversing the sources.
 ///
 /// The `storage` argument to the macro is used to access the storage in order
-/// to resolve the [hash_source::SourceMap] and [crate::storage::GlobalStorage]
-/// so that the term location can be fetched.
+/// to resolve the [hash_source::SourceMap] and
+/// [hash_types::storage::GlobalStorage] so that the term location can be
+/// fetched.
 pub macro tc_panic {
     ($term: expr, $storage:expr, $fmt: expr) => {
         {

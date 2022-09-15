@@ -136,8 +136,7 @@ impl<'gs> TcFormatter<'gs> {
         })
     }
 
-    /// Format the given [Params](crate::storage::primitives::Params) with the
-    /// given formatter.
+    /// Format the given [Params](crate::Params) with the given formatter.
     pub fn fmt_params(&self, f: &mut fmt::Formatter, params_id: ParamsId) -> fmt::Result {
         self.global_storage.params_store.map_as_param_list_fast(params_id, |params| {
             for (i, param) in params.positional().iter().enumerate() {
@@ -163,8 +162,7 @@ impl<'gs> TcFormatter<'gs> {
         })
     }
 
-    /// Format the given [Args](crate::storage::primitives::Args) with the given
-    /// formatter.
+    /// Format the given [Args](crate::Args) with the given formatter.
     pub fn fmt_args(&self, f: &mut fmt::Formatter, args_id: ArgsId) -> fmt::Result {
         self.global_storage.args_store.map_as_param_list_fast(args_id, |args| {
             for (i, arg) in args.positional().iter().enumerate() {
@@ -190,8 +188,8 @@ impl<'gs> TcFormatter<'gs> {
         })
     }
 
-    /// Format the [TrtDef](crate::storage::primitives::TrtDef) indexed by the
-    /// given [TrtDefId] with the given formatter.
+    /// Format the [TrtDef](crate::TrtDef) indexed by the given [TrtDefId] with
+    /// the given formatter.
     pub fn fmt_trt_def(
         &self,
         f: &mut fmt::Formatter,
@@ -554,8 +552,7 @@ impl<'gs> TcFormatter<'gs> {
         }
     }
 
-    /// Format a [ModDef](crate::storage::primitives::ModDef) indexed by the
-    /// given [ModDefId].
+    /// Format a [ModDef][crate::ModDef] indexed by the given [ModDefId].
     pub fn fmt_mod_def(
         &self,
         f: &mut fmt::Formatter,
@@ -590,8 +587,7 @@ impl<'gs> TcFormatter<'gs> {
         }
     }
 
-    /// Format the given [PatArgs](crate::storage::primitives::PatArgs) with the
-    /// given formatter.
+    /// Format the given [PatArgsId] with the given formatter.
     pub fn fmt_pat_params(&self, f: &mut fmt::Formatter, pat_args_id: PatArgsId) -> fmt::Result {
         self.global_storage.pat_args_store.map_as_param_list_fast(pat_args_id, |pat_args| {
             for (i, arg) in pat_args.positional().iter().enumerate() {
@@ -635,8 +631,7 @@ impl<'gs> TcFormatter<'gs> {
         Ok(())
     }
 
-    /// Format a [Pat](crate::storage::primitives::Pat) indexed by the
-    /// given [PatId].
+    /// Format a [Pat] indexed by the given [PatId].
     pub fn fmt_pat(&self, f: &mut fmt::Formatter, pat: PatId, opts: TcFormatOpts) -> fmt::Result {
         let pat = self.global_storage.pat_store.get(pat);
         match pat {

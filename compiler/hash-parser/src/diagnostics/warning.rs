@@ -14,7 +14,7 @@ use hash_source::{
     SourceId,
 };
 
-/// Represents a generated warning from within [AstGen]
+/// Represents a generated warning from within [AstGen][crate::parser::AstGen]
 #[derive(Constructor)]
 pub struct ParseWarning {
     /// The kind of warning that is generated, stores relevant information
