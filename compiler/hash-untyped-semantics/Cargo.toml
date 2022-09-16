@@ -1,5 +1,5 @@
 [package]
-name = "hash-ast-passes"
+name = "hash-untyped-semantics"
 version = "0.1.0"
 authors = ["The Hash Language authors"]
 edition = "2021"

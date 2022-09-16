@@ -9,7 +9,6 @@ use std::{num::NonZeroUsize, panic};
 
 use clap::Parser as ClapParser;
 use hash_ast_desugaring::AstDesugarer;
-use hash_ast_passes::HashSemanticAnalysis;
 use hash_lower::IrLowerer;
 use hash_parser::HashParser;
 use hash_pipeline::{
@@ -19,6 +18,7 @@ use hash_pipeline::{
 use hash_reporting::errors::CompilerError;
 use hash_source::ModuleKind;
 use hash_typecheck::TcImpl;
+use hash_untyped_semantics::HashSemanticAnalysis;
 use hash_vm::vm::{Interpreter, InterpreterOptions};
 use log::LevelFilter;
 use logger::CompilerLogger;
