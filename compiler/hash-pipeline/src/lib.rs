@@ -17,7 +17,7 @@ use std::{collections::HashMap, env, time::Duration};
 use fs::{read_in_path, resolve_path, PRELUDE};
 use hash_ast::{ast::OwnsAstNode, tree::AstTreeGenerator, visitor::AstVisitor};
 use hash_reporting::{report::Report, writer::ReportWriter};
-use hash_source::{ModuleKind, SourceId};
+use hash_source::{constant::CONSTANT_MAP, ModuleKind, SourceId};
 use hash_utils::{path::adjust_canonicalisation, timing::timed, tree_writing::TreeWriter};
 use settings::{CompilerJobParams, CompilerMode, CompilerSettings};
 use sources::{Module, Workspace};
@@ -518,7 +518,9 @@ where
     ) -> CompilerState<'c, 'pool, D, S, C, L, V> {
         // First we have to work out if we need to transform the path
         let current_dir = env::current_dir().unwrap();
-        let filename = resolve_path(filename.into(), current_dir, None);
+
+        let path = CONSTANT_MAP.create_string(filename.into().as_str());
+        let filename = resolve_path(path, current_dir);
 
         if let Err(err) = filename {
             compiler_state.diagnostics.push(err.create_report());

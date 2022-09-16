@@ -418,6 +418,7 @@ version = "0.1.0"
 dependencies = [
  "hash-alloc",
  "hash-source",
+ "hash-types",
  "hash-utils",
  "index_vec",
 ]

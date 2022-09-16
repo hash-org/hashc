@@ -342,7 +342,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Function to peek ahead and match some parsing function that returns a
     /// [Option<T>]. If The result is an error, the function wil reset the
     /// current offset of the token stream to where it was the function was
-    /// peeked. This is essentially a convertor from a [AstGenResult<T>]
+    /// peeked. This is essentially a convertor from a [ParseResult<T>]
     /// into an [Option<T>] with the side effect of resetting the parser state
     /// back to it's original settings.
     pub(crate) fn peek_resultant_fn<T, E>(
@@ -363,7 +363,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Function to peek ahead and match some parsing function that returns a
     /// [Option<T>]. If The result is an error, the function wil reset the
     /// current offset of the token stream to where it was the function was
-    /// peeked. This is essentially a convertor from a [AstGenResult<T>]
+    /// peeked. This is essentially a convertor from a [ParseResult<T>]
     /// into an [Option<T>] with the side effect of resetting the parser state
     /// back to it's original settings.
     pub(crate) fn peek_resultant_fn_mut<T, E>(

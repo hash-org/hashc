@@ -1,7 +1,5 @@
 //! Hash Compiler AST generation sources. This file contains the sources to the
 //! logic that transforms tokens into an AST.
-use std::{path::PathBuf, str::FromStr};
-
 use hash_ast::{ast::*, ast_nodes};
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::{constant::CONSTANT_MAP, location::Span};
@@ -452,51 +450,35 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// call that have a single argument in the form of a string literal.
     /// The syntax is as follows:
     ///
+    /// ```ignore
     /// import("./relative/path/to/module")
+    /// ```
     ///
     /// The path argument to imports automatically assumes that the path you
     /// provide is references '.hash' extension file or a directory with a
-    /// 'index.hash' file contained within the directory.
-    pub(crate) fn parse_import(&self) -> ParseResult<AstNode<Expr>> {
-        let pre = self.current_token().span;
+    /// `index.hash` file contained within the directory.
+    pub(crate) fn parse_import(&mut self) -> ParseResult<AstNode<Expr>> {
         let start = self.current_location();
-
         let gen = self.parse_delim_tree(Delimiter::Paren, None)?;
 
-        let (raw, path, span) = match gen.peek() {
-            Some(Token { kind: TokenKind::StrLit(str), span }) => (str, *str, span),
+        let (path, span) = match gen.next_token().copied() {
+            Some(Token { kind: TokenKind::StrLit(path), span }) => (path, span),
             _ => gen.err(ParseErrorKind::ImportPath, None, None)?,
         };
 
-        gen.skip_token(); // eat the string argument
-
-        // @@ErrorRecovery: it would be quite easy to implement error recovery, but is
-        // it the right thing to do here, assuming that imports could be changed in the
-        // future, we might want to bail early since more tokens may change the queried
-        // import.
-        if gen.has_token() {
-            return gen.expected_eof();
-        }
+        self.consume_gen(gen);
 
         // Attempt to add the module via the resolver
-        let import_path = PathBuf::from_str(path.into()).unwrap();
-        let resolved_import_path =
-            self.resolver.resolve_import(&import_path, self.source_location(span));
-
-        match resolved_import_path {
-            Ok(resolved_import_path) => Ok(self.node_with_joined_span(
-                Expr::new(ExprKind::Import(ImportExpr(self.node_with_joined_span(
-                    Import { path: *raw, resolved_path: resolved_import_path },
-                    start,
-                )))),
+        match self.resolver.resolve_import(path) {
+            Ok(resolved_path) => Ok(self.node_with_joined_span(
+                Expr::new(ExprKind::Import(ImportExpr(
+                    self.node_with_joined_span(Import { path, resolved_path }, start),
+                ))),
                 start,
             )),
-            Err(err) => self.err_with_location(
-                ParseErrorKind::ErroneousImport(err),
-                None,
-                None,
-                pre.join(self.current_location()),
-            ),
+            Err(err) => {
+                self.err_with_location(ParseErrorKind::ErroneousImport(err), None, None, span)
+            }
         }
     }
 

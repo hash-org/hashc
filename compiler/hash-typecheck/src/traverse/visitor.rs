@@ -158,7 +158,7 @@ impl<'tc> TcVisitor<'tc> {
     /// [AstNodeRef].
     ///
     /// This copies the node's location to the term, and adds the node-term pair
-    /// to [crate::storage::NodeInfoStore].
+    /// to [hash_types::nodes::NodeInfoStore].
     fn register_node_info<T>(
         &self,
         node: AstNodeRef<T>,

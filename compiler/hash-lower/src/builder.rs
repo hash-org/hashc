@@ -7,6 +7,8 @@ use hash_source::location::{SourceLocation, Span};
 use hash_types::storage::GlobalStorage;
 use index_vec::IndexVec;
 
+use crate::cfg::ControlFlowGraph;
+
 pub struct Builder<'tcx> {
     /// The [Span] of the function and the function body
     span: SourceLocation,
@@ -35,38 +37,5 @@ impl<'tcx> Builder<'tcx> {
     /// will allow compile time expressions to run any arbitrary code.
     fn build_const(&mut self, _node: AstNodeRef<Expr>) -> Body<'tcx> {
         todo!()
-    }
-}
-
-pub struct ControlFlowGraph<'tcx> {
-    basic_blocks: IndexVec<BasicBlock, BasicBlockData<'tcx>>,
-}
-
-impl<'tcx> ControlFlowGraph<'tcx> {
-    /// Get a reference to a [BasicBlock] inner [BasicBlockData].
-    pub(crate) fn block_data(&self, blk: BasicBlock) -> &BasicBlockData<'tcx> {
-        &self.basic_blocks[blk]
-    }
-
-    /// Get a mutable reference to a [BasicBlock] inner [BasicBlockData].
-    pub(crate) fn block_data_mut(&mut self, blk: BasicBlock) -> &mut BasicBlockData<'tcx> {
-        &mut self.basic_blocks[blk]
-    }
-
-    /// Create a new [BasicBlock]
-    pub(crate) fn start_new_block(&mut self) -> BasicBlock {
-        self.basic_blocks.push(BasicBlockData::new(None))
-    }
-
-    /// Function to terminate a particular [BasicBlock] provided that it has not
-    /// been already terminated.
-    pub(crate) fn terminate(&mut self, block: BasicBlock, span: Span, kind: TerminatorKind<'tcx>) {
-        debug_assert!(
-            self.block_data(block).terminator.is_none(),
-            "terminate: block {:?}={:?} already has a terminator set",
-            block,
-            self.block_data(block)
-        );
-        self.block_data_mut(block).terminator = Some(Terminator { span, kind });
     }
 }
