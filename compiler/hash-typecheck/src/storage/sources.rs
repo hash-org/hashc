@@ -4,7 +4,7 @@ use hash_types::terms::TermId;
 use hash_utils::store::{DefaultPartialStore, PartialStore};
 
 /// Contains a record of all the sources which have been typechecked, and maps
-/// them to (ModDefId)[crate::storage::mods::ModDefId]s.
+/// them to (ModDefId)[hash_types::mods::ModDefId]s.
 #[derive(Debug, Default)]
 pub struct CheckedSources {
     /// A map between [SourceId] and the module definition.

@@ -139,7 +139,7 @@ pub trait Store<Key: StoreKey, Value> {
     ///
     /// *Warning*: Do not call mutating store methods (`create` etc) in `f`
     /// otherwise there will be a panic. If you want to do this, consider using
-    /// [`Self::map()`] instead.
+    /// [`CloneStore::map()`] instead.
     fn map_fast<T>(&self, key: Key, f: impl FnOnce(&Value) -> T) -> T {
         let data = self.internal_data().borrow();
         let value = data.get(key.to_index()).unwrap();
@@ -150,7 +150,7 @@ pub trait Store<Key: StoreKey, Value> {
     ///
     /// *Warning*: Do not call mutating store methods (`create` etc) in `f`
     /// otherwise there will be a panic. If you want to do this, consider using
-    /// [`Self::modify()`] instead.
+    /// [`CloneStore::modify()`] instead.
     fn modify_fast<T>(&self, key: Key, f: impl FnOnce(&mut Value) -> T) -> T {
         let mut data = self.internal_data().borrow_mut();
         let value = data.get_mut(key.to_index()).unwrap();
@@ -169,7 +169,7 @@ pub trait CloneStore<Key: StoreKey, Value: Clone>: Store<Key, Value> {
     ///
     /// It is safe to provide a closure `f` to this function that modifies the
     /// store in some way (`create` etc). If you do not need to modify the
-    /// store, consider using [`Self::map_fast()`] instead.
+    /// store, consider using [`Store::map_fast()`] instead.
     fn map<T>(&self, key: Key, f: impl FnOnce(&Value) -> T) -> T {
         let value = self.get(key);
         f(&value)
@@ -179,7 +179,7 @@ pub trait CloneStore<Key: StoreKey, Value: Clone>: Store<Key, Value> {
     ///
     /// It is safe to provide a closure `f` to this function that modifies the
     /// store in some way (`create` etc). If you do not need to modify the
-    /// store, consider using [`Self::modify_fast()`] instead.
+    /// store, consider using [`Store::modify_fast()`] instead.
     fn modify<T>(&self, key: Key, f: impl FnOnce(&mut Value) -> T) -> T {
         let mut value = self.get(key);
         let ret = f(&mut value);

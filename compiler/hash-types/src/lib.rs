@@ -1324,7 +1324,7 @@ pub struct RangePat {
     pub end: RangeEnd,
 }
 
-/// Represents a pattern in the language.
+/// Represents a pattern at the typechecking stage.
 #[derive(Clone, Debug)]
 pub enum Pat {
     /// Binding pattern.
@@ -1372,7 +1372,7 @@ impl Pat {
 }
 
 /// The ID of a [UnresolvedTerm], separate from its [TermId], stored in
-/// [super::terms::TermStore].
+/// [terms::TermStore].
 ///
 /// This needs to be separate from [TermId] so that if a type is copied (and new
 /// IDs are generated for its members) the identity of the unknown variables

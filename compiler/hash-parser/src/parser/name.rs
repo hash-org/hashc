@@ -33,7 +33,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
     }
 
-    /// Parse [PropertyKind::Field] which is used within [ExprKind::Access]
+    /// Parse [PropertyKind::NamedField] which is used within [ExprKind::Access]
     /// as a named field. This function does not parse the
     /// [PropertyKind::NumericField] variant.
     #[inline]

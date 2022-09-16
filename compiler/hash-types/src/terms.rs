@@ -40,8 +40,8 @@ impl TermStore {
     /// Get a new [ResolutionId] for a new [Term::Unresolved].
     ///
     /// This shouldn't be directly used in inference code, rather call the
-    /// appropriate
-    /// [PrimitiveBuilder](crate::ops::building::PrimitiveBuilder) function.
+    /// appropriate [PrimitiveBuilder](crate::builder::PrimitiveBuilder)
+    /// function.
     pub fn new_resolution_id(&self) -> ResolutionId {
         let new_id = self.last_resolution_id.get() + 1;
         self.last_resolution_id.set(new_id);
