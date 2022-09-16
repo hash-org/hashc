@@ -5,8 +5,6 @@
 //! of the primitive Hash types aren't actually primitives as
 //! far as the typechecker is concerned. This includes: integers, floats,
 //! characters, strings, lists, maps, references, etc.
-//!
-//! This accessing is done through [crate::ops::core::CoreDefReader].
 use hash_ast::ast::ParamOrigin;
 use hash_source::identifier::CORE_IDENTIFIERS;
 
