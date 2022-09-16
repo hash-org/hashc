@@ -957,15 +957,6 @@ impl AstVisitor for AstTreeGenerator {
         ))
     }
 
-    type EmptyExprRet = TreeNode;
-    fn visit_empty_expr(
-        &mut self,
-        _: &Self::Ctx,
-        _: ast::AstNodeRef<ast::EmptyExpr>,
-    ) -> Result<Self::EmptyExprRet, Self::Error> {
-        Ok(TreeNode::leaf("empty"))
-    }
-
     type StructDefRet = TreeNode;
     fn visit_struct_def(
         &mut self,

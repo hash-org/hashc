@@ -19,7 +19,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub fn parse_top_level_expr(
         &mut self,
         semi_required: bool,
-    ) -> ParseResult<(bool, AstNode<Expr>)> {
+    ) -> ParseResult<Option<(bool, AstNode<Expr>)>> {
         let start = self.next_location();
 
         // So here we want to check that the next token(s) could make up a singular
@@ -44,7 +44,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 // Handle trailing semi-colons...
                 if let Some(Token { kind: TokenKind::Semi, .. }) = self.peek() {
                     self.skip_token();
-                    return Ok((true, self.eat_trailing_semis()));
+                    self.eat_trailing_semis();
+
+                    return Ok(None);
                 }
 
                 let (expr, re_assigned) = self.parse_expr_with_re_assignment()?;
@@ -95,23 +97,16 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             self.parse_token_fast(TokenKind::Semi).is_some()
         };
 
-        Ok((has_semi, expr))
+        Ok(Some((has_semi, expr)))
     }
 
     /// Function to eat a collection of trailing semi-colons and produce
     /// a resultant [ExprKind::Empty].
-    pub(crate) fn eat_trailing_semis(&mut self) -> AstNode<Expr> {
+    pub(crate) fn eat_trailing_semis(&mut self) {
         let tok = self.current_token();
         debug_assert!(tok.has_kind(TokenKind::Semi));
 
-        // @@Design: should this try and eat all of the tokens or should it
-        // generate a `Empty` for each encountered semi? Both have their
-        // advantages and disadvantages... the main problem with the current
-        // approach is that it could make the formatter ignore these tokens
-        // entirely and just remove them entirely. If this is a problem, then
-        // we should switch to emitting a `Empty` per encountered semi. However
-        // this might make it difficult to elegantly report a bunch of semis
-        // that shouldn't be there.
+        // Collect any additional trailing semis with the one that was encountered
         while let Some(Token { kind: TokenKind::Semi, .. }) = self.peek() {
             self.skip_token();
         }
@@ -119,8 +114,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // Emit trailing semis diagnostic
         let span = tok.span.join(self.current_location());
         self.add_warning(ParseWarning::new(WarningKind::TrailingSemis(span.len()), span));
-
-        self.node_with_span(Expr::new(ExprKind::Empty(EmptyExpr)), span)
     }
 
     /// Parse an expression which can be compound.
@@ -1015,10 +1008,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         //
         // @@ErrorRecovery: don't bail immediately...
         while gen.has_token() {
-            let (_, expr) = gen.parse_top_level_expr(true)?;
-
-            // Don't push empty expressions...
-            if !expr.body().is_empty() {
+            if let Some((_, expr)) = gen.parse_top_level_expr(true)? {
                 exprs.push(expr);
             }
         }

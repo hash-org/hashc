@@ -17,3 +17,11 @@ warn: unnecessary trailing semicolons
 7 |       ;;;;a
 8 |   };;;;
   |     ^^^ remove these semicolons
+9 |   
+
+warn: unnecessary trailing semicolon
+  --> $DIR/trailing_semis.hash:11:5
+10 |   foo := () => {
+11 |       ;
+   |       ^ remove this semicolon
+12 |   };

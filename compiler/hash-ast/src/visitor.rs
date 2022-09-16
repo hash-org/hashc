@@ -548,13 +548,6 @@ macro_rules! make_ast_visitor {
                 node: $($path)::+<ast::IndexExpr>,
             ) -> Result<Self::IndexExprRet, Self::Error>;
 
-            type EmptyExprRet;
-            fn visit_empty_expr(
-                &mut self,
-                ctx: &Self::Ctx,
-                node: $($path)::+<ast::EmptyExpr>,
-            ) -> Result<Self::EmptyExprRet, Self::Error>;
-
             type StructDefRet;
             fn visit_struct_def(
                 &mut self,
@@ -809,7 +802,6 @@ macro_rules! make_ast_walker {
                 BinaryExpr(V::BinaryExprRet),
                 UnaryExpr(V::UnaryExprRet),
                 Index(V::IndexExprRet),
-                Empty(V::EmptyExprRet)
             }
 
             pub fn walk_expr<V: $visitor>(
@@ -904,9 +896,6 @@ macro_rules! make_ast_walker {
                     ast::ExprKind::Index(r) => {
                         Expr::Index(visitor.visit_index_expr(ctx, $($path)::+::new(r, span, id))?)
                     }
-                    ast::ExprKind::Empty(r) => {
-                        Expr::Empty(visitor.visit_empty_expr(ctx, $($path)::+::new(r, span, id))?)
-                    }
                 })
             }
 
@@ -945,7 +934,6 @@ macro_rules! make_ast_walker {
                     BinaryExprRet = Ret,
                     UnaryExprRet = Ret,
                     IndexExprRet = Ret,
-                    EmptyExprRet = Ret
                 >,
             {
                 Ok(match walk_expr(visitor, ctx, node)? {
@@ -977,7 +965,6 @@ macro_rules! make_ast_walker {
                     Expr::BinaryExpr(r) => r,
                     Expr::UnaryExpr(r) => r,
                     Expr::Index(r) => r,
-                    Expr::Empty(r) => r,
                 })
             }
 

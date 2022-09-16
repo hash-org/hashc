@@ -1771,20 +1771,6 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         self.validate_and_register_simplified_term(node, index_fn_call)
     }
 
-    type EmptyExprRet = TermId;
-
-    fn visit_empty_expr(
-        &mut self,
-        _: &Self::Ctx,
-        node: ast::AstNodeRef<ast::EmptyExpr>,
-    ) -> Result<Self::EmptyExprRet, Self::Error> {
-        panic_on_span!(
-            self.source_location_at_node(node),
-            self.source_map(),
-            "hit empty expression whilst performing typechecking"
-        );
-    }
-
     type StructDefRet = TermId;
 
     fn visit_struct_def(

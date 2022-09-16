@@ -47,18 +47,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // tell this by checking for keywords that must begin a statement...
         while self.has_token() {
             let (has_semi, expr) = match self.parse_top_level_expr(false) {
-                Ok(res) => res,
+                Ok(Some(res)) => res,
+                Ok(_) => continue,
                 // @@Future: attempt to recover here to see if we can get a semi, and then reset
                 Err(err) => {
                     self.add_error(err);
                     break;
                 }
             };
-
-            // Don't push empty statements...
-            if has_semi && expr.is_empty() {
-                continue;
-            }
 
             match (has_semi, self.peek()) {
                 (true, _) => block.statements.nodes.push(expr),
