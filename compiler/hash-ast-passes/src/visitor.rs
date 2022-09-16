@@ -600,12 +600,12 @@ impl AstVisitor for SemanticAnalyser<'_> {
         if matches!(node.origin, ParamOrigin::Fn) {
             match self.current_block {
                 // Check that `self` cannot be within a free standing functions
-                BlockOrigin::Root | BlockOrigin::Mod => {
+                BlockOrigin::Root => {
                     if let Some(name) = node.name.as_ref() && name.is(CORE_IDENTIFIERS.self_i) {
                         self.append_error(AnalysisErrorKind::SelfInFreeStandingFn, node);
                     }
                 }
-                BlockOrigin::Impl | BlockOrigin::Trait => {
+                BlockOrigin::Impl | BlockOrigin::Trait | BlockOrigin::Mod  => {
                     // If both the type definition is missing and the default expression assignment
                     // to the struct-def field, then a type cannot be inferred and is thus
                     // ambiguous.
