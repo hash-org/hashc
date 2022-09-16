@@ -2383,7 +2383,7 @@ macro_rules! make_ast_walker {
 
             pub struct TraitImpl<V: $visitor> {
                 pub ty: V::TyRet,
-                pub implementation: V::CollectionContainer<V::ExprRet>,
+                pub body: V::CollectionContainer<V::ExprRet>,
             }
 
             pub fn walk_trait_impl<V: $visitor>(
@@ -2393,9 +2393,9 @@ macro_rules! make_ast_walker {
             ) -> Result<TraitImpl<V>, V::Error> {
                 Ok(TraitImpl {
                     ty: visitor.visit_ty(ctx, node.ty.$ast_ref())?,
-                    implementation: V::try_collect_items(
+                    body: V::try_collect_items(
                         ctx,
-                        node.implementation.$iter_ref().map(|t| visitor.visit_expr(ctx, t.$ast_ref())),
+                        node.body.$iter_ref().map(|t| visitor.visit_expr(ctx, t.$ast_ref())),
                     )?,
                 })
             }

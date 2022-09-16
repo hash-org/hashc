@@ -1014,14 +1014,11 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::TraitImpl>,
     ) -> Result<Self::TraitImplRet, Self::Error> {
-        let walk::TraitImpl { implementation, ty } = walk::walk_trait_impl(self, ctx, node)?;
+        let walk::TraitImpl { body, ty } = walk::walk_trait_impl(self, ctx, node)?;
 
         Ok(TreeNode::branch(
             "trait_impl",
-            vec![
-                TreeNode::branch("ty", vec![ty]),
-                TreeNode::branch("implementation", implementation),
-            ],
+            vec![TreeNode::branch("ty", vec![ty]), TreeNode::branch("body", body)],
         ))
     }
 

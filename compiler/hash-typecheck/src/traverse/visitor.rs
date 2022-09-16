@@ -1882,7 +1882,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         // create a scope for the module definition
         let VisitConstantScope { scope_name, scope_id, .. } =
-            self.visit_constant_scope(ctx, node.implementation.ast_ref_iter(), None)?;
+            self.visit_constant_scope(ctx, node.body.ast_ref_iter(), None)?;
 
         // @@Todo: bound variables
         let mod_def =
