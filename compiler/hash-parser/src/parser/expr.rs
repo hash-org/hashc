@@ -13,12 +13,13 @@ use crate::diagnostics::{
 };
 
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
-    /// Parse a top level [Expr] that are terminated with a semi-colon.
+    /// Parse a top level [Expr] that are optionally terminated with a
+    /// semi-colon.
     #[profiling::function]
     pub fn parse_top_level_expr(
         &mut self,
         semi_required: bool,
-    ) -> ParseResult<(bool, AstNode<Expr>)> {
+    ) -> ParseResult<Option<(bool, AstNode<Expr>)>> {
         let start = self.next_location();
 
         // So here we want to check that the next token(s) could make up a singular
@@ -40,6 +41,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let expr = match decl {
             Some(statement) => Ok(statement),
             None => {
+                // Handle trailing semi-colons...
+                if let Some(Token { kind: TokenKind::Semi, .. }) = self.peek() {
+                    self.skip_token();
+                    self.eat_trailing_semis();
+
+                    return Ok(None);
+                }
+
                 let (expr, re_assigned) = self.parse_expr_with_re_assignment()?;
 
                 if re_assigned {
@@ -88,7 +97,23 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             self.parse_token_fast(TokenKind::Semi).is_some()
         };
 
-        Ok((has_semi, expr))
+        Ok(Some((has_semi, expr)))
+    }
+
+    /// Function to eat a collection of trailing semi-colons and produce
+    /// a resultant [ExprKind::Empty].
+    pub(crate) fn eat_trailing_semis(&mut self) {
+        let tok = self.current_token();
+        debug_assert!(tok.has_kind(TokenKind::Semi));
+
+        // Collect any additional trailing semis with the one that was encountered
+        while let Some(Token { kind: TokenKind::Semi, .. }) = self.peek() {
+            self.skip_token();
+        }
+
+        // Emit trailing semis diagnostic
+        let span = tok.span.join(self.current_location());
+        self.add_warning(ParseWarning::new(WarningKind::TrailingSemis(span.len()), span));
     }
 
     /// Parse an expression which can be compound.
@@ -983,8 +1008,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         //
         // @@ErrorRecovery: don't bail immediately...
         while gen.has_token() {
-            let (_, expr) = gen.parse_top_level_expr(true)?;
-            exprs.push(expr);
+            if let Some((_, expr)) = gen.parse_top_level_expr(true)? {
+                exprs.push(expr);
+            }
         }
 
         let span = gen.parent_span;

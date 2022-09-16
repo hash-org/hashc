@@ -2043,7 +2043,6 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     }
 
     type RangePatRet = PatId;
-
     fn visit_range_pat(
         &mut self,
         ctx: &Self::Ctx,
@@ -2061,6 +2060,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     }
 
     type OrPatRet = PatId;
+
     fn visit_or_pat(
         &mut self,
         ctx: &Self::Ctx,
