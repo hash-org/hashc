@@ -1,0 +1,5 @@
+// run=fail, stage=parse
+
+t := () => {
+    ((a)
+};
