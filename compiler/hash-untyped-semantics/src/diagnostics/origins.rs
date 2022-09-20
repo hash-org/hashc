@@ -49,12 +49,14 @@ impl Display for PatOrigin {
 /// when giving more context about errors such as
 /// [crate::diagnostics::error::AnalysisErrorKind::NonDeclarativeExpression]
 /// occur from.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum BlockOrigin {
     /// Root block of the file.
     Root,
     /// The block is a `mod` block.
     Mod,
+    /// The block is from a `trait` definition.
+    Trait,
     /// The block is an `impl` block.
     Impl,
     /// Block is a body of some kind.
@@ -69,6 +71,7 @@ impl BlockOrigin {
             BlockOrigin::Root | BlockOrigin::Mod => "module",
             BlockOrigin::Impl => "impl",
             BlockOrigin::Body => "body",
+            BlockOrigin::Trait => "trait",
         }
     }
 }

@@ -179,7 +179,8 @@ impl<'tc> PatMatcher<'tc> {
 
     /// Function that will `erase` a spread pattern from the given constructor
     /// based on the arguments in the constructor. The constructor can
-    /// either be a struct or an [EnumVariant] or a [ConstructedTerm].
+    /// either be a struct or an [hash_types::EnumVariant] or a
+    /// [hash_types::ConstructedTerm].
     ///
     /// In the case of the struct literal, all of the field names should have
     /// been resolved since this happens when the struct field is validated.

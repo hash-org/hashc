@@ -1,15 +1,15 @@
 //! Hash Compiler filesystem utility functions.
 use std::{
+    fmt::Display,
     fs,
     path::{Path, PathBuf},
 };
 
 use hash_reporting::{
     builder::ReportBuilder,
-    report::{Report, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind},
+    report::{Report, ReportKind},
 };
-use hash_source::location::SourceLocation;
-use thiserror::Error;
+use hash_source::constant::{InternedStr, CONSTANT_MAP};
 
 /// The location of a build directory of this package, this used to resolve
 /// where the standard library is located at.
@@ -18,34 +18,49 @@ static STDLIB: &str = env!("STDLIB_PATH");
 /// Name of the prelude module
 pub static PRELUDE: &str = concat!(env!("STDLIB_PATH"), "/", "prelude");
 
+#[derive(Debug, Clone)]
+pub enum ImportErrorKind {
+    /// If the file cannot be read by the current session.
+    UnreadableFile,
+    /// If the path is referencing a directory, but the directory does not
+    /// have a `index.hash`.
+    MissingIndex,
+    /// When the module file is not found in the file system.
+    NotFound,
+}
+
+impl Display for ImportErrorKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ImportErrorKind::UnreadableFile => write!(f, "unable to read file"),
+            ImportErrorKind::MissingIndex => write!(
+                f,
+                "this directory likely doesn't have a `index.hash` module, consider creating one"
+            ),
+            ImportErrorKind::NotFound => write!(f, "module not found"),
+        }
+    }
+}
+
 /// Import error is an abstraction to represent errors that are in relevance to
 /// IO operations rather than parsing operations.
-#[derive(Debug, Clone, Error)]
-#[error("couldn't import `{filename}`, {message}")]
+#[derive(Debug, Clone)]
 pub struct ImportError {
-    pub filename: PathBuf,
-    pub message: String,
-    pub location: Option<SourceLocation>,
+    pub path: InternedStr,
+    pub kind: ImportErrorKind,
+}
+
+impl Display for ImportError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "couldn't import `{}`, {}", self.path, self.kind)
+    }
 }
 
 impl ImportError {
     /// Create a [Report] from the [ImportError].
     pub fn create_report(&self) -> Report {
         let mut builder = ReportBuilder::new();
-        builder.with_kind(ReportKind::Error).with_message("Failed to import");
-
-        if let Some(src) = self.location {
-            builder
-                .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(src, "here")))
-                .add_element(ReportElement::Note(ReportNote::new(
-                    ReportNoteKind::Note,
-                    &self.message,
-                )));
-        } else {
-            builder.with_message(format!("Failed to import: {}", self.message));
-        }
-
-        builder.build()
+        builder.with_kind(ReportKind::Error).with_message(format!("{self}")).build()
     }
 }
 
@@ -97,12 +112,12 @@ fn get_stdlib_modules(dir: impl AsRef<Path>) -> Vec<PathBuf> {
 
 /// Function to read in the contents of a file specified by a [Path]. If
 /// reading the file fails, an [ImportError] is returned.
-pub fn read_in_path(path: &Path) -> Result<String, ImportError> {
-    fs::read_to_string(path).map_err(|_| ImportError {
-        location: None,
-        message: format!("Cannot read file: {}", path.to_string_lossy()),
-        filename: path.to_owned(),
-    })
+pub fn read_in_path(import_path: impl AsRef<Path>) -> Result<String, ImportError> {
+    // Create a interned string to represent the path
+    let path = CONSTANT_MAP.create_string(import_path.as_ref().to_str().unwrap());
+
+    fs::read_to_string(import_path)
+        .map_err(|_| ImportError { kind: ImportErrorKind::UnreadableFile, path })
 }
 
 /// Function used to resolve the path of a module according to the language
@@ -130,24 +145,20 @@ pub fn read_in_path(path: &Path) -> Result<String, ImportError> {
 /// ## Errors
 /// - If the path to the module couldn't be resolved, an [ImportError] is
 ///   raised.
-pub fn resolve_path(
-    path: impl AsRef<Path>,
-    wd: impl AsRef<Path>,
-    location: Option<SourceLocation>,
-) -> Result<PathBuf, ImportError> {
-    let path = path.as_ref();
+pub fn resolve_path(path: InternedStr, wd: impl AsRef<Path>) -> Result<PathBuf, ImportError> {
+    let import_path = Path::new(path.into());
     let wd = wd.as_ref();
 
     let modules = get_stdlib_modules(STDLIB);
 
     // check if the given path is equal to any of the standard library paths
-    if modules.contains(&path.to_path_buf()) {
-        return Ok(path.to_path_buf());
+    if modules.contains(&import_path.to_path_buf()) {
+        return Ok(import_path.to_path_buf());
     }
 
     // otherwise, we have to resolve the module path based on the working directory
     let work_dir = wd.canonicalize().unwrap();
-    let raw_path = work_dir.join(path);
+    let raw_path = work_dir.join(import_path);
 
     // If the provided path is a directory, we assume that the user is referencing
     // an index module that is located within the given directory. This takes
@@ -167,13 +178,7 @@ pub fn resolve_path(
         }
 
         // @@Copied
-        Err(ImportError {
-            filename: path.to_path_buf(),
-            message:
-                "This directory likely doesn't have a `index.hash` module, consider creating one."
-                    .to_string(),
-            location,
-        })
+        Err(ImportError { path, kind: ImportErrorKind::MissingIndex })
     } else {
         // we don't need to anything if the given raw_path already has a extension
         // '.hash', since we don't disallow someone to import a module and
@@ -198,11 +203,7 @@ pub fn resolve_path(
                 if raw_path.extension().is_none() && raw_path_hash.exists() {
                     Ok(raw_path_hash)
                 } else {
-                    Err(ImportError {
-                        filename: path.to_path_buf(),
-                        message: "module couldn't be found".to_string(),
-                        location,
-                    })
+                    Err(ImportError { path, kind: ImportErrorKind::NotFound })
                 }
             }
         }

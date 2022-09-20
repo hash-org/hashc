@@ -1,8 +1,8 @@
 //! Hash Error code library file.
 
-/// Error code macro is used to generate the [HashErrorCode] macro.
 macro_rules! error_codes {
     ($($name:ident = $code:expr,)*) => (
+        /// Error code macro is used to generate the [HashErrorCode] macro.
         #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
         #[allow(dead_code)]
         pub enum HashErrorCode {

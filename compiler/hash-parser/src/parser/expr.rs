@@ -1,7 +1,5 @@
 //! Hash Compiler AST generation sources. This file contains the sources to the
 //! logic that transforms tokens into an AST.
-use std::{path::PathBuf, str::FromStr};
-
 use hash_ast::{ast::*, ast_nodes};
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::{constant::CONSTANT_MAP, location::Span};
@@ -15,12 +13,13 @@ use crate::diagnostics::{
 };
 
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
-    /// Parse a top level [Expr] that are terminated with a semi-colon.
+    /// Parse a top level [Expr] that are optionally terminated with a
+    /// semi-colon.
     #[profiling::function]
     pub fn parse_top_level_expr(
         &mut self,
         semi_required: bool,
-    ) -> ParseResult<(bool, AstNode<Expr>)> {
+    ) -> ParseResult<Option<(bool, AstNode<Expr>)>> {
         let start = self.next_location();
 
         // So here we want to check that the next token(s) could make up a singular
@@ -42,6 +41,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let expr = match decl {
             Some(statement) => Ok(statement),
             None => {
+                // Handle trailing semi-colons...
+                if let Some(Token { kind: TokenKind::Semi, .. }) = self.peek() {
+                    self.skip_token();
+                    self.eat_trailing_semis();
+
+                    return Ok(None);
+                }
+
                 let (expr, re_assigned) = self.parse_expr_with_re_assignment()?;
 
                 if re_assigned {
@@ -90,7 +97,23 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             self.parse_token_fast(TokenKind::Semi).is_some()
         };
 
-        Ok((has_semi, expr))
+        Ok(Some((has_semi, expr)))
+    }
+
+    /// Function to eat a collection of trailing semi-colons and produce
+    /// a resultant [ExprKind::Empty].
+    pub(crate) fn eat_trailing_semis(&mut self) {
+        let tok = self.current_token();
+        debug_assert!(tok.has_kind(TokenKind::Semi));
+
+        // Collect any additional trailing semis with the one that was encountered
+        while let Some(Token { kind: TokenKind::Semi, .. }) = self.peek() {
+            self.skip_token();
+        }
+
+        // Emit trailing semis diagnostic
+        let span = tok.span.join(self.current_location());
+        self.add_warning(ParseWarning::new(WarningKind::TrailingSemis(span.len()), span));
     }
 
     /// Parse an expression which can be compound.
@@ -155,10 +178,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 if self.peek().map_or(false, |tok| !tok.is_brace_tree()) =>
             {
                 let ty = self.parse_type()?;
-                let implementation = self.parse_exprs_from_braces()?;
+                let body = self.parse_exprs_from_braces()?;
 
                 self.node_with_joined_span(
-                    Expr::new(ExprKind::TraitImpl(TraitImpl { ty, implementation })),
+                    Expr::new(ExprKind::TraitImpl(TraitImpl { ty, body })),
                     token.span,
                 )
             }
@@ -452,51 +475,35 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// call that have a single argument in the form of a string literal.
     /// The syntax is as follows:
     ///
+    /// ```ignore
     /// import("./relative/path/to/module")
+    /// ```
     ///
     /// The path argument to imports automatically assumes that the path you
     /// provide is references '.hash' extension file or a directory with a
-    /// 'index.hash' file contained within the directory.
-    pub(crate) fn parse_import(&self) -> ParseResult<AstNode<Expr>> {
-        let pre = self.current_token().span;
+    /// `index.hash` file contained within the directory.
+    pub(crate) fn parse_import(&mut self) -> ParseResult<AstNode<Expr>> {
         let start = self.current_location();
-
         let gen = self.parse_delim_tree(Delimiter::Paren, None)?;
 
-        let (raw, path, span) = match gen.peek() {
-            Some(Token { kind: TokenKind::StrLit(str), span }) => (str, *str, span),
+        let (path, span) = match gen.next_token().copied() {
+            Some(Token { kind: TokenKind::StrLit(path), span }) => (path, span),
             _ => gen.err(ParseErrorKind::ImportPath, None, None)?,
         };
 
-        gen.skip_token(); // eat the string argument
-
-        // @@ErrorRecovery: it would be quite easy to implement error recovery, but is
-        // it the right thing to do here, assuming that imports could be changed in the
-        // future, we might want to bail early since more tokens may change the queried
-        // import.
-        if gen.has_token() {
-            return gen.expected_eof();
-        }
+        self.consume_gen(gen);
 
         // Attempt to add the module via the resolver
-        let import_path = PathBuf::from_str(path.into()).unwrap();
-        let resolved_import_path =
-            self.resolver.resolve_import(&import_path, self.source_location(span));
-
-        match resolved_import_path {
-            Ok(resolved_import_path) => Ok(self.node_with_joined_span(
-                Expr::new(ExprKind::Import(ImportExpr(self.node_with_joined_span(
-                    Import { path: *raw, resolved_path: resolved_import_path },
-                    start,
-                )))),
+        match self.resolver.resolve_import(path) {
+            Ok(resolved_path) => Ok(self.node_with_joined_span(
+                Expr::new(ExprKind::Import(ImportExpr(
+                    self.node_with_joined_span(Import { path, resolved_path }, start),
+                ))),
                 start,
             )),
-            Err(err) => self.err_with_location(
-                ParseErrorKind::ErroneousImport(err),
-                None,
-                None,
-                pre.join(self.current_location()),
-            ),
+            Err(err) => {
+                self.err_with_location(ParseErrorKind::ErroneousImport(err), None, None, span)
+            }
         }
     }
 
@@ -1001,8 +1008,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         //
         // @@ErrorRecovery: don't bail immediately...
         while gen.has_token() {
-            let (_, expr) = gen.parse_top_level_expr(true)?;
-            exprs.push(expr);
+            if let Some((_, expr)) = gen.parse_top_level_expr(true)? {
+                exprs.push(expr);
+            }
         }
 
         let span = gen.parent_span;

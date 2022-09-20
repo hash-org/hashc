@@ -48,8 +48,7 @@ pub struct StorageRef<'tc> {
     /// Data stored for exhaustiveness checking
     pub exhaustiveness_storage: &'tc ExhaustivenessStorage,
 
-    /// A map that represents the relationship between [SourceId]s and the
-    /// respective sources, paths, etc.
+    /// Current session sourcemap
     pub source_map: &'tc SourceMap,
     /// Storage for tc diagnostics.
     pub diagnostics_store: &'tc DiagnosticsStore,

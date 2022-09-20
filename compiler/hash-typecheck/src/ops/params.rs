@@ -269,7 +269,8 @@ impl<'tc> ParamOps<'tc> {
     }
 
     /// Convert a [ParamListKind] and a field index into a [SourceLocation] by
-    /// looking up the inner id within the [LocationStore].
+    /// looking up the inner id within the
+    /// [LocationStore][hash_types::location::LocationStore].
     pub(crate) fn field_location(
         &self,
         param: &ParamListKind,

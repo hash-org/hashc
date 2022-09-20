@@ -1,0 +1,5 @@
+// run=fail, stage=semantic
+
+foo := (self) => {
+    
+};

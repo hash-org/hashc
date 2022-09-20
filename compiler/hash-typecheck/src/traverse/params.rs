@@ -5,7 +5,6 @@ use hash_ast::{
     ast::{self},
     visitor::{walk, AstVisitor},
 };
-use hash_reporting::macros::panic_on_span;
 use hash_types::Param;
 
 use super::visitor::TcVisitor;
@@ -41,12 +40,7 @@ impl<'tc> TcVisitor<'tc> {
                 (default_ty, Some(default_value))
             }
             (Some(annot_ty), None) => (annot_ty, None),
-            (None, None) => panic_on_span!(
-                self.source_location(node.span()),
-                self.source_map(),
-                "tc: found {} field/parameter with no value and type annotation",
-                node.origin
-            ),
+            (None, None) => (self.builder().create_unresolved_term(), None),
         };
 
         // Append location to value term

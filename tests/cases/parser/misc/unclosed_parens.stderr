@@ -1,0 +1,6 @@
+error: encountered unclosed delimiter `(`, add a `)` after the inner expression
+ --> $DIR/unclosed_parens.hash:4:5
+3 |   t := () => {
+4 |       ((a)
+  |       ^ here
+5 |   };

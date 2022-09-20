@@ -473,9 +473,9 @@ impl<'gs> PrimitiveBuilder<'gs> {
         self.create_term(Term::TyFnTy(ty_fn))
     }
 
-    /// Create a [ParamsId] from an iterator of [Param]. This function wil
-    /// create a [Params](crate::storage::primitives::Params), append it to the
-    /// store and return  the created id.
+    /// Create a [ParamsId] from an iterator of [Param]. This function will
+    /// create a [Params](crate::Params), append it to the store and return the
+    /// created id.
     pub fn create_params(
         &self,
         params: impl IntoIterator<Item = Param>,
@@ -487,8 +487,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
     }
 
     /// Create a [ArgsId] from an iterator of [Arg]. This function wil create a
-    /// [Args](crate::storage::primitives::Args), append it to the store and
-    /// return  the created id.
+    /// [Args](crate::Args), append it to the store and return  the created id.
     pub fn create_args(&self, args: impl IntoIterator<Item = Arg>, origin: ParamOrigin) -> ArgsId {
         let args_id = self.gs.args_store.create_from_iter(args);
         self.gs.args_store.set_origin(args_id, origin);

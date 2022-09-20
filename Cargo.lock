@@ -352,7 +352,6 @@ dependencies = [
  "clap",
  "hash-alloc",
  "hash-ast-desugaring",
- "hash-ast-passes",
  "hash-interactive",
  "hash-lower",
  "hash-parser",
@@ -360,6 +359,7 @@ dependencies = [
  "hash-reporting",
  "hash-source",
  "hash-typecheck",
+ "hash-untyped-semantics",
  "hash-vm",
  "log",
  "num_cpus",
@@ -395,20 +395,6 @@ dependencies = [
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
- "rayon",
-]
-
-[[package]]
-name = "hash-ast-passes"
-version = "0.1.0"
-dependencies = [
- "crossbeam-channel",
- "hash-ast",
- "hash-error-codes",
- "hash-pipeline",
- "hash-reporting",
- "hash-source",
- "if_chain",
  "rayon",
 ]
 
@@ -553,7 +539,6 @@ version = "0.1.0"
 dependencies = [
  "hash-ast",
  "hash-ast-desugaring",
- "hash-ast-passes",
  "hash-lexer",
  "hash-lower",
  "hash-parser",
@@ -563,6 +548,7 @@ dependencies = [
  "hash-testing-internal",
  "hash-testing-macros",
  "hash-typecheck",
+ "hash-untyped-semantics",
  "hash-utils",
  "hash-vm",
  "lazy_static",
@@ -613,6 +599,20 @@ dependencies = [
  "hash-utils",
  "log",
  "num-bigint",
+]
+
+[[package]]
+name = "hash-untyped-semantics"
+version = "0.1.0"
+dependencies = [
+ "crossbeam-channel",
+ "hash-ast",
+ "hash-error-codes",
+ "hash-pipeline",
+ "hash-reporting",
+ "hash-source",
+ "if_chain",
+ "rayon",
 ]
 
 [[package]]

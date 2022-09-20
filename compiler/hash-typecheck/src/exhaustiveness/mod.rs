@@ -137,10 +137,10 @@ pub(crate) trait AccessToUsefulnessOps: AccessToStorage {
 impl<T: AccessToStorage> AccessToUsefulnessOps for T {}
 
 /// Wraps a type `T` in a structure that contains information to be able to
-/// format `T` using [TcFormatter].
+/// format `T` using [TcFormatter][hash_types::fmt::TcFormatter].
 ///
 /// This can wrap any type, but only types that have corresponding `fmt_*`
-/// methods in [TcFormatter] are useful with it.
+/// methods in [TcFormatter][hash_types::fmt::TcFormatter] are useful with it.
 pub struct PatForFormatting<'tc, T> {
     pub item: T,
     pub storage: StorageRef<'tc>,

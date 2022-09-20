@@ -158,7 +158,7 @@ impl<'tc> TcVisitor<'tc> {
     /// [AstNodeRef].
     ///
     /// This copies the node's location to the term, and adds the node-term pair
-    /// to [crate::storage::NodeInfoStore].
+    /// to [hash_types::nodes::NodeInfoStore].
     fn register_node_info<T>(
         &self,
         node: AstNodeRef<T>,
@@ -1882,7 +1882,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         // create a scope for the module definition
         let VisitConstantScope { scope_name, scope_id, .. } =
-            self.visit_constant_scope(ctx, node.implementation.ast_ref_iter(), None)?;
+            self.visit_constant_scope(ctx, node.body.ast_ref_iter(), None)?;
 
         // @@Todo: bound variables
         let mod_def =
@@ -2043,7 +2043,6 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     }
 
     type RangePatRet = PatId;
-
     fn visit_range_pat(
         &mut self,
         ctx: &Self::Ctx,
@@ -2061,6 +2060,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     }
 
     type OrPatRet = PatId;
+
     fn visit_or_pat(
         &mut self,
         ctx: &Self::Ctx,
