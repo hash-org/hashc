@@ -225,8 +225,11 @@ impl TryFrom<&Item> for MaybeTreeDefOpts {
         match value {
             Item::Macro(ItemMacro { mac, .. }) if mac.path.is_ident(OPTS_MACRO_NAME) => {
                 let opts = syn::parse2::<FieldsNamed>(mac.tokens.clone())?;
+
+                // Parse each option:
                 let node_type_name = parse_ident_field(&opts, NODE_TYPE_NAME_OPTS_FIELD)?;
                 let nodes_type_name = parse_ident_field(&opts, NODES_TYPE_NAME_OPTS_FIELD)?;
+
                 Ok(MaybeTreeDefOpts(Some(TreeDefOpts { node_type_name, nodes_type_name })))
             }
             _ => Ok(MaybeTreeDefOpts(None)),

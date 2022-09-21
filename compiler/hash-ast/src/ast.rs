@@ -23,23 +23,6 @@ counter! {
     method_visibility: pub,
 }
 
-// define_tree! {
-//     tree_opts! {{
-//         node_type_name: AstNode,
-//         nodes_type_name: AstNodes,
-//     }}
-
-//     #[tree_node]
-//     pub struct Foo {
-//         bar: Node<Bar>
-//     }
-
-//     #[tree_node]
-//     pub struct Bar {
-//         baz: Nodes<Foo>
-//     }
-// }
-
 /// Represents an abstract syntax tree node.
 ///
 /// Contains an inner type, as well as begin and end positions in the input.
