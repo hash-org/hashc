@@ -207,7 +207,7 @@ pub enum RValue<'ir> {
     /// @@Future: maybe in the future this should be replaced by a compile-time
     /// API variant which will just run some kind of operation and return the
     /// constant.
-    ConstOp(ConstOp, &'ir RValue<'ir>),
+    ConstOp(ConstOp, TermId),
 
     /// A unary expression with a unary operator.
     UnaryOp(UnaryOp, &'ir RValue<'ir>),
