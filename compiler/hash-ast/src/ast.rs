@@ -32,8 +32,9 @@ counter! {
 //     }
 
 //     #[tree_node]
-//     pub struct Baz {
+//     pub enum Baz {
 //     }
+
 //     #[tree_node]
 //     pub enum Ban {
 //     }
