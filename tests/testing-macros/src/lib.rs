@@ -157,8 +157,7 @@ fn read_tests_from_dir(
 }
 
 /// Generate test cases based on a directory structure.
-///
-/// Test cases are generated based on a given test folder path (see `TEST_DIR`
+
 /// below). Each generated test corresponds to the full path of each "wanted"
 /// (see `TEST_PATTERN` below) leaf node of the test folder structure, converted
 /// to snake case. For example, for a file path `number_tests/is_valid_number.

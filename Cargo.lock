@@ -358,6 +358,7 @@ dependencies = [
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
+ "hash-tree-def",
  "hash-typecheck",
  "hash-untyped-semantics",
  "hash-vm",
@@ -382,6 +383,7 @@ name = "hash-ast"
 version = "0.1.0"
 dependencies = [
  "hash-source",
+ "hash-tree-def",
  "hash-utils",
  "num-bigint",
  "replace_with",
@@ -566,6 +568,16 @@ dependencies = [
  "hash-source",
  "smallvec",
  "strum_macros",
+]
+
+[[package]]
+name = "hash-tree-def"
+version = "0.1.0"
+dependencies = [
+ "convert_case",
+ "proc-macro-error",
+ "quote",
+ "syn",
 ]
 
 [[package]]

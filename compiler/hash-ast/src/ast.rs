@@ -23,6 +23,22 @@ counter! {
     method_visibility: pub,
 }
 
+// define_tree! {
+
+//     pub struct Foo {
+//     }
+
+//     pub struct Bar {
+//     }
+
+//     #[tree_node]
+//     pub struct Baz {
+//     }
+//     #[tree_node]
+//     pub enum Ban {
+//     }
+// }
+
 /// Represents an abstract syntax tree node.
 ///
 /// Contains an inner type, as well as begin and end positions in the input.
