@@ -1,3 +1,6 @@
+//! Data types for storing the parsed tree definition given to the
+//! [`super::define_tree`] macro.
+
 use std::collections::HashMap;
 
 /// An enum node variant, which has to point to another struct.

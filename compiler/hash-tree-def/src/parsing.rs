@@ -1,3 +1,6 @@
+//! Utilities for parsing the structures defined in [`super::definitions`] using
+//! the [`syn`] crate.
+
 use std::collections::HashMap;
 
 use syn::{
