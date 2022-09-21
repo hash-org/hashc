@@ -66,10 +66,22 @@ impl TreeNodeDef {
     }
 }
 
+/// A set of auxiliary options given to the tree definition macro.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct TreeDefOpts {
+    /// The type name of the tree node wrapper type. This type must take a
+    /// single type argument.
+    pub(crate) node_type_name: syn::Ident,
+    /// The type name of the tree node list wrapper type. This type must take a
+    /// single type argument.
+    pub(crate) nodes_type_name: syn::Ident,
+}
+
 /// The definition of a tree of nodes, as well as other items that might have
 /// been defined alongside it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct TreeDef {
     pub(crate) nodes: HashMap<syn::Ident, TreeNodeDef>,
     pub(crate) other_items: Vec<syn::Item>,
+    pub(crate) opts: TreeDefOpts,
 }

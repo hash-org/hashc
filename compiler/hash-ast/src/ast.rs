@@ -24,19 +24,19 @@ counter! {
 }
 
 // define_tree! {
+//     tree_opts! {{
+//         node_type_name: AstNode,
+//         nodes_type_name: AstNodes,
+//     }}
 
+//     #[tree_node]
 //     pub struct Foo {
+//         bar: Node<Bar>
 //     }
 
+//     #[tree_node]
 //     pub struct Bar {
-//     }
-
-//     #[tree_node]
-//     pub enum Baz {
-//     }
-
-//     #[tree_node]
-//     pub enum Ban {
+//         baz: Nodes<Foo>
 //     }
 // }
 
