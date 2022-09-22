@@ -152,6 +152,14 @@ impl Member {
         }
     }
 
+    /// Get the mutability of the particular member, if any.
+    pub fn mutability(&self) -> Mutability {
+        match self {
+            Member::Variable(VariableMember { mutability, .. }) => *mutability,
+            _ => Mutability::Immutable,
+        }
+    }
+
     /// Get [LocationTarget]s referencing to the
     /// value of the declaration.
     pub fn location(&self) -> LocationTarget {

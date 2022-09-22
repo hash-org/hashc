@@ -4,6 +4,7 @@ use self::coerce::Coercing;
 use crate::storage::AccessToStorage;
 
 pub mod coerce;
+pub(crate) mod operators;
 pub mod params;
 pub mod scopes;
 pub mod visitor;

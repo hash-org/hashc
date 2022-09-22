@@ -13,6 +13,7 @@ use hash_types::{
     location::LocationTarget,
     params::ParamsId,
     pats::PatId,
+    scope::ScopeId,
     terms::TermId,
     AccessOp, AccessTerm, Arg, Field, Param, PatArg, TrtDef, TyFnCase,
 };
@@ -209,6 +210,17 @@ pub enum TcError {
     /// is currently not supported because the exhaustiveness checking
     /// cannot currently deal with this kind of range.
     UnsupportedRangePatTy { term: TermId },
+
+    /// When a particular scope member is declared as `immutable` but an
+    /// attempt was made to perform a mutable operation on this item.
+    MemberIsImmutable {
+        /// The name of the member
+        name: Identifier,
+        /// The location of where the modification was being made.
+        site: LocationTarget,
+        /// The location of the declaration.
+        decl: (ScopeId, usize),
+    },
 }
 
 /// A [TcError] with attached typechecker storage.
@@ -1437,6 +1449,30 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     .add_element(ReportElement::Note(ReportNote::new(
                         ReportNoteKind::Note,
                         "this type is not yet supported because it is an un-sized integer type."
+                    )));
+                }
+            }
+            TcError::MemberIsImmutable { name, site, decl } => {
+                builder
+                    .with_error_code(HashErrorCode::ItemIsImmutable)
+                    .with_message(format!("cannot assign twice to immutable variable `{name}`"));
+
+                if let Some(location) = ctx.location_store().get_location(decl) {
+                    builder
+                        .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                            location,
+                            format!("first assignment to `{name}`"),
+                        )))
+                        .add_element(ReportElement::Note(ReportNote::new(
+                            ReportNoteKind::Help,
+                            format!("consider declaring this variable as mutable: `mut {name}`"),
+                        )));
+                }
+
+                if let Some(location) = ctx.location_store().get_location(site) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "cannot assign twice to immutable variable",
                     )));
                 }
             }

@@ -25,7 +25,7 @@ use hash_types::{
     storage::LocalStorage,
     terms::TermId,
     AccessOp, Arg, BindingPat, ConstPat, Field, Member, ModDefOrigin, Mutability, Param, Pat,
-    PatArg, RangePat, ScopeKind, SpreadPat, Sub, Visibility,
+    PatArg, RangePat, ScopeKind, ScopeMember, SpreadPat, Sub, Visibility,
 };
 use hash_utils::store::{PartialStore, Store};
 use itertools::Itertools;
@@ -1614,23 +1614,23 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::AssignExpr>,
     ) -> Result<Self::AssignExprRet, Self::Error> {
         let rhs = self.visit_expr(ctx, node.rhs.ast_ref())?;
+        let site: LocationTarget = self.source_location_at_node(node).into();
 
         // Try to resolve the variable in scopes; if it is not found, it is an error. If
         // it is found, then set it to its new term.
         let name = match node.lhs.kind() {
             ast::ExprKind::Variable(name) => name.name.ident,
             _ => {
-                return Err(TcError::InvalidAssignSubject {
-                    location: self.source_location_at_node(node).into(),
-                });
+                return Err(TcError::InvalidAssignSubject { location: site });
             }
         };
+
         let var_term = self.builder().create_var_term(name);
         self.copy_location_from_node_to_target(node, var_term);
-        let member = self.scope_manager().resolve_name_in_scopes(name, var_term)?;
+        let scope_item = self.scope_manager().resolve_name_in_scopes(name, var_term)?;
 
         // Set the value to the member:
-        self.scope_manager().assign_member(member.scope_id, member.index, rhs)?;
+        self.scope_manager().assign_member(scope_item.scope_id, scope_item.index, rhs, site)?;
 
         let term = self.builder().create_void_term();
         self.validate_and_register_simplified_term(node, term)
@@ -1640,10 +1640,48 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
     fn visit_assign_op_expr(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::AssignOpExpr>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::AssignOpExpr>,
     ) -> Result<Self::AssignOpExprRet, Self::Error> {
-        todo!()
+        debug_assert!(node.operator.is_re_assignable());
+
+        let rhs = self.visit_expr(ctx, node.rhs.ast_ref())?;
+
+        let name = match node.lhs.kind() {
+            ast::ExprKind::Variable(name) => name.name.ident,
+            // @@Incomplete: what about tuples, or array indices?
+            _ => {
+                return Err(TcError::InvalidAssignSubject {
+                    location: self.source_location_at_node(node).into(),
+                });
+            }
+        };
+
+        let var_term = self.builder().create_var_term(name);
+        self.copy_location_from_node_to_target(node, var_term);
+
+        let ScopeMember { member, scope_id, index } =
+            self.scope_manager().resolve_name_in_scopes(name, var_term)?;
+
+        // We want to create the type that represents this operation, and then
+        // ensure that it typechecks...
+        let ty = self.create_operator_fn(member.ty(), rhs, node.operator.ast_ref(), true);
+        let _ = self.validate_and_register_simplified_term(node, ty)?;
+
+        // Now check that the declared local item is declared as mutable
+
+        let site: LocationTarget = self.source_location_at_node(node).into();
+
+        if matches!(member.mutability(), Mutability::Immutable) {
+            self.diagnostics().add_error(TcError::MemberIsImmutable {
+                name: member.name(),
+                site,
+                decl: (scope_id, index),
+            })
+        }
+
+        let term = self.builder().create_void_term();
+        self.validate_and_register_simplified_term(node, term)
     }
 
     type BinaryExprRet = TermId;
@@ -1655,65 +1693,12 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     ) -> Result<Self::BinaryExprRet, Self::Error> {
         let walk::BinaryExpr { lhs, rhs, .. } = walk::walk_binary_expr(self, ctx, node)?;
 
-        let operator_fn = |trait_fn_name: &str| {
-            let prop_access = self.builder().create_prop_access(lhs, trait_fn_name);
-            self.copy_location_from_node_to_target(node.operator.ast_ref(), prop_access);
-
-            let builder = self.builder();
-            builder.create_fn_call_term(
-                prop_access,
-                builder.create_args([builder.create_nameless_arg(rhs)], ParamOrigin::Fn),
-            )
-        };
-
-        let lazy_operator_fn = |visitor: &mut Self, trait_name: &str| -> TcResult<TermId> {
-            let lhs_ty = visitor.typer().infer_ty_of_term(lhs)?;
-            let rhs_ty = visitor.typer().infer_ty_of_term(rhs)?;
-
-            let builder = visitor.builder();
-
-            // () => lhs
-            let fn_ty =
-                builder.create_fn_ty_term(builder.create_params([], ParamOrigin::Fn), lhs_ty);
-            let lhs = builder.create_fn_lit_term(fn_ty, lhs);
-
-            // () => rhs
-            let fn_ty =
-                builder.create_fn_ty_term(builder.create_params([], ParamOrigin::Fn), rhs_ty);
-            let rhs = builder.create_fn_lit_term(fn_ty, rhs);
-
-            // (() => lhs).trait_name()
-            let prop_access = builder.create_prop_access(lhs, trait_name);
-
-            // (() => lhs).trait_name(() => rhs)
-            Ok(builder.create_fn_call_term(
-                prop_access,
-                builder.create_args([builder.create_nameless_arg(rhs)], ParamOrigin::Fn),
-            ))
-        };
-
-        let term = match node.operator.body() {
-            BinOp::Merge => self.builder().create_merge_term([lhs, rhs]),
-            BinOp::As => unreachable!(),
-            BinOp::EqEq => operator_fn("eq"),
-            BinOp::NotEq => operator_fn("not_eq"),
-            BinOp::BitOr => operator_fn("bit_or"),
-            BinOp::Or => operator_fn("or"),
-            BinOp::BitAnd => operator_fn("bit_and"),
-            BinOp::And => operator_fn("and"),
-            BinOp::BitXor => operator_fn("bit_xor"),
-            BinOp::Exp => operator_fn("exp"),
-            BinOp::Shr => operator_fn("bit_shr"),
-            BinOp::Shl => operator_fn("bit_shl"),
-            BinOp::Add => operator_fn("add"),
-            BinOp::Sub => operator_fn("sub"),
-            BinOp::Mul => operator_fn("mul"),
-            BinOp::Div => operator_fn("div"),
-            BinOp::Mod => operator_fn("modulo"),
-            BinOp::Gt => lazy_operator_fn(self, "gt")?,
-            BinOp::GtEq => lazy_operator_fn(self, "gt_eq")?,
-            BinOp::Lt => lazy_operator_fn(self, "lt")?,
-            BinOp::LtEq => lazy_operator_fn(self, "lt_eq")?,
+        let term = if matches!(node.operator.body(), BinOp::Merge) {
+            self.builder().create_merge_term([lhs, rhs])
+        } else if node.operator.is_lazy() {
+            self.create_lazy_operator_fn(lhs, rhs, *node.operator.body())?
+        } else {
+            self.create_operator_fn(lhs, rhs, node.operator.ast_ref(), false)
         };
 
         self.validate_and_register_simplified_term(node, term)
