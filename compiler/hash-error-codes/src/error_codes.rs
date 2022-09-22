@@ -7,6 +7,7 @@ error_codes! {
     UsingContinueOutsideLoop = 3,
     UsingReturnOutsideFn = 4,
     ItemIsImmutable = 5,
+    ItemMustBeImmutable = 6,
 
     // Name spacing and symbol errors
     UnresolvedSymbol = 10,

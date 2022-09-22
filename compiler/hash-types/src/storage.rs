@@ -77,7 +77,7 @@ impl GlobalStorage {
     /// Create a new, empty [GlobalStorage].
     pub fn new() -> Self {
         let scope_store = ScopeStore::new();
-        let root_scope = scope_store.create(Scope::empty(ScopeKind::Constant));
+        let root_scope = scope_store.create(Scope::empty(ScopeKind::Mod));
         let gs = Self {
             location_store: LocationStore::new(),
             term_store: TermStore::new(),
@@ -121,7 +121,7 @@ impl LocalStorage {
                 // First the root scope
                 gs.root_scope,
                 // Then the scope for the source
-                gs.scope_store.create(Scope::empty(ScopeKind::Constant)),
+                gs.scope_store.create(Scope::empty(ScopeKind::Mod)),
             ]),
             id: Cell::new(id),
         }

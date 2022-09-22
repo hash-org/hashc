@@ -456,7 +456,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
 
     /// Create a trait definition with no name, and the given members.
     pub fn create_nameless_trt_def(&self, members: impl Iterator<Item = Member>) -> TrtDefId {
-        let members = self.create_scope(ScopeKind::Constant, members);
+        let members = self.create_scope(ScopeKind::Trait, members);
 
         self.gs.trt_def_store.create(TrtDef { name: None, members })
     }

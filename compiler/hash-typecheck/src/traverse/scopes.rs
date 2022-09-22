@@ -28,10 +28,10 @@ impl<'tc> TcVisitor<'tc> {
         ctx: &<Self as AstVisitor>::Ctx,
         members: impl Iterator<Item = ast::AstNodeRef<'m, ast::Expr>>,
         scope_to_use: Option<ScopeId>,
+        scope_kind: ScopeKind,
     ) -> TcResult<VisitConstantScope> {
         // Create a scope and enter it, for adding all the members:
-        let scope_id =
-            scope_to_use.unwrap_or_else(|| self.builder().create_scope(ScopeKind::Constant, []));
+        let scope_id = scope_to_use.unwrap_or_else(|| self.builder().create_scope(scope_kind, []));
 
         // Get the name of the scope from the surrounding declaration hint, if any.
         // This is only useful for mod/impl/trait blocks

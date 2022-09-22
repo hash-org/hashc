@@ -80,17 +80,19 @@ impl<'tc> Validator<'tc> {
         &self,
         scope_id: ScopeId,
         allow_uninitialised: bool,
+        kind: ScopeKind,
     ) -> TcResult<()> {
         // @@Design: when do we insert each member into the scope? As we go or all at
         // once? For now, we insert as we go.
 
         // Enter the progressive scope:
-        let progressive_scope = Scope::new(ScopeKind::Constant, []);
+        let progressive_scope = Scope::new(kind, []);
         let progressive_scope_id = self.scope_store().create(progressive_scope);
+
         self.scope_manager().enter_scope(progressive_scope_id, |this| {
             // @@Performance: sad that we have to clone here:
             let scope = this.reader().get_scope_copy(scope_id);
-            for member in scope.iter() {
+            for (index, member) in scope.iter().enumerate() {
                 // Add the member to the progressive scope so that this and next members can
                 // access it.
                 this.scope_store().modify_fast(progressive_scope_id, |scope| scope.add(member));
@@ -100,7 +102,7 @@ impl<'tc> Validator<'tc> {
                     match member {
                         Member::Constant(constant_member) if constant_member.value().is_none() => {
                             return Err(TcError::UninitialisedMemberNotAllowed {
-                                member_ty: member.ty(),
+                                member: (scope_id, index).into(),
                             });
                         }
                         _ => {}
@@ -254,7 +256,7 @@ impl<'tc> Validator<'tc> {
 
         // Validate all members:
         // Bound vars should already be in scope.
-        self.validate_constant_scope(mod_def_members, allow_uninitialised)?;
+        self.validate_constant_scope(mod_def_members, allow_uninitialised, ScopeKind::Mod)?;
 
         // Ensure if it is a trait impl it implements all the trait members.
         if let ModDefOrigin::TrtImpl(trt_def_term_id) = mod_def_origin {
@@ -272,7 +274,7 @@ impl<'tc> Validator<'tc> {
     pub(crate) fn validate_trt_def(&self, trt_def_id: TrtDefId) -> TcResult<()> {
         // @@Design: do we allow traits without self?
         let trt_def = self.reader().get_trt_def(trt_def_id);
-        self.validate_constant_scope(trt_def.members, true)
+        self.validate_constant_scope(trt_def.members, true, ScopeKind::Trait)
     }
 
     /// Validate the nominal definition of the given [NominalDefId]

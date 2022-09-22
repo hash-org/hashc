@@ -142,7 +142,7 @@ pub enum TcError {
     InvalidPropertyAccessOfNonMethod { subject: TermId, property: Field },
     /// The given member requires an initialisation in the current scope.
     /// @@ErrorReporting: add span of member.
-    UninitialisedMemberNotAllowed { member_ty: TermId },
+    UninitialisedMemberNotAllowed { member: LocationTarget },
     /// Cannot implement something that isn't a trait.
     CannotImplementNonTrait { term: TermId },
     /// The trait implementation `trt_impl_term_id` is missing the member
@@ -220,6 +220,12 @@ pub enum TcError {
         site: LocationTarget,
         /// The location of the declaration.
         decl: (ScopeId, usize),
+    },
+    MemberMustBeImmutable {
+        /// The name of the member
+        name: Identifier,
+        /// The location of where the modification was being made.
+        site: LocationTarget,
     },
 }
 
@@ -1173,12 +1179,12 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     )));
                 }
             }
-            TcError::UninitialisedMemberNotAllowed { member_ty } => {
+            TcError::UninitialisedMemberNotAllowed { member } => {
                 builder
                     .with_error_code(HashErrorCode::UninitialisedMember)
                     .with_message("members must be initialised in the current scope");
 
-                if let Some(location) = ctx.location_store().get_location(member_ty) {
+                if let Some(location) = ctx.location_store().get_location(member) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "this declaration must be initialised",
@@ -1473,6 +1479,18 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "cannot assign twice to immutable variable",
+                    )));
+                }
+            }
+            TcError::MemberMustBeImmutable { name, site } => {
+                builder.with_error_code(HashErrorCode::ItemMustBeImmutable).with_message(format!(
+                    "`{name}` must be declared as immutable in a constant scope"
+                ));
+
+                if let Some(location) = ctx.location_store().get_location(site) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "this member cannot be declared as mutable: remove `mut`",
                     )));
                 }
             }

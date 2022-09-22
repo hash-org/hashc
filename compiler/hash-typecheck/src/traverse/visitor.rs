@@ -1300,7 +1300,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     ) -> Result<Self::ModBlockRet, Self::Error> {
         // create a scope for the module definition
         let VisitConstantScope { scope_name, scope_id, .. } =
-            self.visit_constant_scope(ctx, node.0.members(), None)?;
+            self.visit_constant_scope(ctx, node.0.members(), None, ScopeKind::Mod)?;
 
         // @@Todo: bound variables
         let mod_def = self.builder().create_mod_def(scope_name, ModDefOrigin::Mod, scope_id);
@@ -1323,7 +1323,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     ) -> Result<Self::ImplBlockRet, Self::Error> {
         // create a scope for the module definition
         let VisitConstantScope { scope_name, scope_id, .. } =
-            self.visit_constant_scope(ctx, node.0.members(), None)?;
+            self.visit_constant_scope(ctx, node.0.members(), None, ScopeKind::Impl)?;
 
         // @@Todo: bound variables
         let mod_def = self.builder().create_mod_def(scope_name, ModDefOrigin::AnonImpl, scope_id);
@@ -1542,14 +1542,28 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
                 members
             }
             None => {
-                if let Pat::Binding(BindingPat { name, mutability: _, visibility }) = pat {
-                    // Add the member without a value:
+                let kind = self.scope_manager().current_scope_kind();
 
-                    // @@Todo: differentiate between different kinds of members more appropriately:
-                    vec![Member::uninitialised_constant(
-                        name, visibility, // mutability,
-                        ty,
-                    )]
+                // Verify that we are in a trait definition if it has no value, as all other
+                // cases are invalid.
+                if !matches!(kind, ScopeKind::Trait) {
+                    return Err(TcError::UninitialisedMemberNotAllowed {
+                        member: self.source_location_at_node(node).into(),
+                    });
+                }
+
+                // If the member is a binding, and within a trait definition we will allow
+                // to become an `uninitialised constant`
+                if let Pat::Binding(BindingPat { name, mutability, visibility }) = pat {
+                    // Disallow constant members being declared as immutable...
+                    if mutability == Mutability::Mutable {
+                        self.diagnostics().add_error(TcError::MemberMustBeImmutable {
+                            name,
+                            site: self.source_location_at_node(node.pat.ast_ref()).into(),
+                        });
+                    }
+
+                    vec![Member::uninitialised_constant(name, visibility, ty)]
                 } else {
                     // If there is no value, one cannot use pattern matching!
                     return Err(TcError::CannotPatMatchWithoutAssignment { pat: pat_id });
@@ -1843,7 +1857,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     ) -> Result<Self::TraitDefRet, Self::Error> {
         // create a scope for the module definition
         let VisitConstantScope { scope_name, scope_id, .. } =
-            self.visit_constant_scope(ctx, node.members.ast_ref_iter(), None)?;
+            self.visit_constant_scope(ctx, node.members.ast_ref_iter(), None, ScopeKind::Trait)?;
 
         // @@Todo: bound variables
         let trt_def = self.builder().create_trt_def(scope_name, scope_id);
@@ -1867,7 +1881,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         // create a scope for the module definition
         let VisitConstantScope { scope_name, scope_id, .. } =
-            self.visit_constant_scope(ctx, node.body.ast_ref_iter(), None)?;
+            self.visit_constant_scope(ctx, node.body.ast_ref_iter(), None, ScopeKind::Impl)?;
 
         // @@Todo: bound variables
         let mod_def =
@@ -2164,14 +2178,18 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let members = if let Some(ModuleKind::Prelude) = self.source_map().module_kind_by_id(id) {
             self.root_scope()
         } else {
-            self.builder().create_scope(ScopeKind::Constant, vec![])
+            self.builder().create_scope(ScopeKind::Mod, vec![])
         };
 
         // Get the end of the filename for the module and use this as the name of the
         // module
         let name = self.source_map().source_name(id).to_owned();
-        let VisitConstantScope { scope_id, .. } =
-            self.visit_constant_scope(ctx, node.contents.ast_ref_iter(), Some(members))?;
+        let VisitConstantScope { scope_id, .. } = self.visit_constant_scope(
+            ctx,
+            node.contents.ast_ref_iter(),
+            Some(members),
+            ScopeKind::Mod,
+        )?;
 
         let mod_def = self.builder().create_named_mod_def(name, ModDefOrigin::Source(id), scope_id);
 
