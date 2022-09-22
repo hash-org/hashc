@@ -8,5 +8,6 @@ edition = "2021"
 replace_with = "0.1.7"
 num-bigint = "0.4"
 
-hash-utils = { path = "../hash-utils" } 
+hash-utils = { path = "../hash-utils" }
 hash-source = { path = "../hash-source" }
+hash-tree-def = { path = "../hash-tree-def" }
