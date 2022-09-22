@@ -12,6 +12,7 @@ use hash_source::{
     identifier::Identifier,
     location::Span,
 };
+use hash_tree_def::define_tree;
 use hash_utils::counter;
 use num_bigint::BigInt;
 use replace_with::replace_with_or_abort;
@@ -231,13 +232,13 @@ pub struct AstNodes<T> {
 
 #[macro_export]
 macro_rules! ast_nodes {
-    ($($item:expr),*) => {
-        $crate::ast::AstNodes::new(vec![$($item,)*], None)
-    };
-    ($($item:expr,)*) => {
-        $crate::ast::AstNodes::new(vec![$($item,)*], None)
-    };
-}
+        ($($item:expr),*) => {
+            $crate::ast::AstNodes::new(vec![$($item,)*], None)
+        };
+        ($($item:expr,)*) => {
+            $crate::ast::AstNodes::new(vec![$($item,)*], None)
+        };
+    }
 
 impl<T> AstNodes<T> {
     pub fn empty() -> Self {
@@ -289,6 +290,18 @@ impl<T> Deref for AstNode<T> {
 impl<T> DerefMut for AstNode<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.body_mut()
+    }
+}
+
+define_tree! {
+    tree_opts! {{
+        node_type_name: AstNode,
+        nodes_type_name: AstNodes,
+    }}
+
+    #[tree_node]
+    enum FooBar {
+        Foo
     }
 }
 

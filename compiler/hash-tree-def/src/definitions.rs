@@ -3,12 +3,21 @@
 
 use std::collections::HashMap;
 
+pub(crate) const NODE_DEF_ATTR_NAME: &str = "tree_node";
+pub(crate) const NODE_TYPE_NAME: &str = "Node";
+pub(crate) const NODES_TYPE_NAME: &str = "Nodes";
+pub(crate) const OPTIONAL_NODE_TYPE_NAME: &str = "OptionalNode";
+
+pub(crate) const OPTS_MACRO_NAME: &str = "tree_opts";
+pub(crate) const NODE_TYPE_NAME_OPTS_FIELD: &str = "node_type_name";
+pub(crate) const NODES_TYPE_NAME_OPTS_FIELD: &str = "nodes_type_name";
+
 /// An enum node variant, which has to point to another struct.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct EnumNodeVariant {
     pub(crate) attrs: Vec<syn::Attribute>,
     pub(crate) name: syn::Ident,
-    pub(crate) variant_struct_name: syn::Ident,
+    pub(crate) variant_data: Option<Vec<NodeFieldData>>,
 }
 
 /// A node definition that is an enum, containing a set of variants with single
@@ -21,13 +30,15 @@ pub(crate) struct EnumNodeDef {
     pub(crate) variants: Vec<EnumNodeVariant>,
 }
 
-/// The data type of a struct node field.
+/// The data type of a node field.
 ///
-/// This is either another node, a list of nodes, or some other type.
+/// This is either another node, a list of nodes, an optional node, or some
+/// other type.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum StructNodeFieldData {
+pub(crate) enum NodeFieldData {
     Child { node_name: syn::Ident },
     ChildList { node_name: syn::Ident },
+    OptionalChild { node_name: syn::Ident },
     Other { ty: syn::Type },
 }
 
@@ -37,7 +48,7 @@ pub(crate) struct StructNodeField {
     pub(crate) visibility: syn::Visibility,
     pub(crate) attrs: Vec<syn::Attribute>,
     pub(crate) name: syn::Ident,
-    pub(crate) data: StructNodeFieldData,
+    pub(crate) data: NodeFieldData,
 }
 
 /// A node definition that is a struct, containing a set of field members.
