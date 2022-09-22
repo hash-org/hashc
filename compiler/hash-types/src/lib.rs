@@ -152,6 +152,14 @@ impl Member {
         }
     }
 
+    /// Get the mutability of the particular member, if any.
+    pub fn mutability(&self) -> Mutability {
+        match self {
+            Member::Variable(VariableMember { mutability, .. }) => *mutability,
+            _ => Mutability::Immutable,
+        }
+    }
+
     /// Get [LocationTarget]s referencing to the
     /// value of the declaration.
     pub fn location(&self) -> LocationTarget {
@@ -301,14 +309,20 @@ pub enum ScopeKind {
     /// - Block expression scope
     /// - Function parameter scope
     Variable,
-    /// A constant scope.
+
+    /// Module scope is a constant scope.
     ///
-    /// Can be:
+    /// Could be:
     /// - The root scope
     /// - Module block scope
-    /// - Trait block scope
-    /// - Impl block scope
-    Constant,
+    Mod,
+
+    /// An `impl` scope kind.
+    Impl,
+
+    /// A trait scope is a constant scope,
+    Trait,
+
     /// A bound scope.
     ///
     /// Can be:
@@ -319,6 +333,12 @@ pub enum ScopeKind {
     /// Can be:
     /// - Type function "argument" scope.
     SetBound,
+}
+
+impl ScopeKind {
+    pub fn is_constant(&self) -> bool {
+        matches!(self, ScopeKind::Mod | ScopeKind::Trait | ScopeKind::Impl)
+    }
 }
 
 /// Stores a list of members, indexed by the members' names.

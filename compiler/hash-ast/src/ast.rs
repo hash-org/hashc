@@ -1081,7 +1081,7 @@ impl Display for UnOp {
 }
 
 /// Binary operators that are defined within the core of the language.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BinOp {
     /// '=='
     EqEq,
@@ -1197,6 +1197,20 @@ impl BinOp {
                 | BinOp::Div
                 | BinOp::Mod
         )
+    }
+
+    /// Checks whether this operator is a ordering comparison operator, i.e. `<`
+    /// `<=`, `>`, etc.
+    pub fn is_ordering_comparator(&self) -> bool {
+        matches!(self, BinOp::Gt | BinOp::GtEq | BinOp::Lt | BinOp::LtEq)
+    }
+
+    /// Checks whether this operator is a `lazy` operator, as in it is possible
+    /// that only the first operand is evaluated before ever evaluating the
+    /// second operand. Lazy operators are the logical operators `&&` and `||`
+    /// that short-circuit.
+    pub fn is_lazy(&self) -> bool {
+        matches!(self, BinOp::And | BinOp::Or)
     }
 }
 

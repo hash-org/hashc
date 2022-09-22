@@ -86,6 +86,9 @@ pub struct IdentifierMap<'c> {
 }
 
 /// Holds some default identifiers in order to avoid map lookups.
+///
+/// @@Todo: Create a macro that creates a mod block with all of these
+/// as constants.
 #[allow(non_snake_case)]
 pub struct CoreIdentifiers {
     pub underscore: Identifier,
@@ -139,6 +142,41 @@ pub struct CoreIdentifiers {
     pub b: Identifier,
     pub K: Identifier,
     pub V: Identifier,
+
+    /// Operator traits
+    pub trt_eq: Identifier,
+    pub trt_neq: Identifier,
+    pub trt_ord: Identifier,
+    pub trt_gt: Identifier,
+    pub trt_gt_eq: Identifier,
+    pub trt_lt: Identifier,
+    pub trt_lt_eq: Identifier,
+
+    /// Arithmetic operator traits
+    pub trt_bit_or_eq: Identifier,
+    pub trt_bit_or: Identifier,
+    pub trt_or: Identifier,
+    pub trt_bit_and_eq: Identifier,
+    pub trt_bit_and: Identifier,
+    pub trt_and: Identifier,
+    pub trt_bit_xor_eq: Identifier,
+    pub trt_bit_xor: Identifier,
+    pub trt_bit_exp_eq: Identifier,
+    pub trt_bit_exp: Identifier,
+    pub trt_shr_eq: Identifier,
+    pub trt_shr: Identifier,
+    pub trt_shl_eq: Identifier,
+    pub trt_shl: Identifier,
+    pub trt_add_eq: Identifier,
+    pub trt_add: Identifier,
+    pub trt_sub: Identifier,
+    pub trt_sub_eq: Identifier,
+    pub trt_mul_eq: Identifier,
+    pub trt_mul: Identifier,
+    pub trt_div_eq: Identifier,
+    pub trt_div: Identifier,
+    pub trt_mod_eq: Identifier,
+    pub trt_mod: Identifier,
 }
 
 impl CoreIdentifiers {
@@ -194,6 +232,40 @@ impl CoreIdentifiers {
             b: ident_map.create_ident("b"),
             isize: ident_map.create_ident("isize"),
             usize: ident_map.create_ident("usize"),
+
+            trt_eq: ident_map.create_ident("eq"),
+            trt_ord: ident_map.create_ident("ord"),
+            trt_neq: ident_map.create_ident("neq"),
+            trt_gt: ident_map.create_ident("trt_gt"),
+            trt_gt_eq: ident_map.create_ident("trt_gt_eq"),
+            trt_lt: ident_map.create_ident("trt_lt"),
+            trt_lt_eq: ident_map.create_ident("trt_lt_eq"),
+
+            /// Arithmetic trait operators
+            trt_bit_or_eq: ident_map.create_ident("bit_or_eq"),
+            trt_bit_or: ident_map.create_ident("bit_or"),
+            trt_or: ident_map.create_ident("or"),
+            trt_bit_and_eq: ident_map.create_ident("bit_and_eq"),
+            trt_bit_and: ident_map.create_ident("bit_and"),
+            trt_and: ident_map.create_ident("and"),
+            trt_bit_xor_eq: ident_map.create_ident("bit_xor_eq"),
+            trt_bit_xor: ident_map.create_ident("bit_xor"),
+            trt_bit_exp_eq: ident_map.create_ident("bit_exp_eq"),
+            trt_bit_exp: ident_map.create_ident("bit_exp"),
+            trt_shr_eq: ident_map.create_ident("shr_eq"),
+            trt_shr: ident_map.create_ident("shr"),
+            trt_shl_eq: ident_map.create_ident("shl_eq"),
+            trt_shl: ident_map.create_ident("shl"),
+            trt_add_eq: ident_map.create_ident("add_eq"),
+            trt_add: ident_map.create_ident("add"),
+            trt_sub: ident_map.create_ident("sub"),
+            trt_sub_eq: ident_map.create_ident("sub_eq"),
+            trt_mul_eq: ident_map.create_ident("mul_eq"),
+            trt_mul: ident_map.create_ident("mul"),
+            trt_div_eq: ident_map.create_ident("div_eq"),
+            trt_div: ident_map.create_ident("div"),
+            trt_mod_eq: ident_map.create_ident("mod_eq"),
+            trt_mod: ident_map.create_ident("mod"),
         }
     }
 }

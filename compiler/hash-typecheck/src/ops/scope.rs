@@ -3,8 +3,8 @@
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::identifier::Identifier;
 use hash_types::{
-    arguments::ArgsId, params::ParamsId, scope::ScopeId, terms::TermId, BoundVar, Member,
-    Mutability, ScopeKind, ScopeMember, ScopeVar,
+    arguments::ArgsId, location::LocationTarget, params::ParamsId, scope::ScopeId, terms::TermId,
+    BoundVar, Member, Mutability, ScopeKind, ScopeMember, ScopeVar,
 };
 use hash_utils::store::Store;
 use itertools::Itertools;
@@ -240,15 +240,35 @@ impl<'tc> ScopeManager<'tc> {
     /// This will unify the value with the index, decrement the
     /// `assignments_until_closed` counter for the member, and will panic if
     /// the counter is zero already.
-    pub fn assign_member(&self, scope_id: ScopeId, index: usize, value: TermId) -> TcResult<()> {
+    pub fn assign_member(
+        &self,
+        scope_id: ScopeId,
+        index: usize,
+        value: TermId,
+        site: impl Into<LocationTarget>,
+    ) -> TcResult<()> {
         let member = self.scope_store().map_fast(scope_id, |scope| scope.get_by_index(index));
 
         // Unify types:
         let rhs_ty = self.typer().infer_ty_of_term(value)?;
-        let _ = self.unifier().unify_terms(rhs_ty, member.ty())?;
+
+        let mut err = None;
+
+        if let Err(tc_err) = self.unifier().unify_terms(rhs_ty, member.ty()) {
+            err = Some(tc_err);
+        }
 
         self.scope_store().modify_fast(scope_id, |scope| {
             let member = scope.get_mut_by_index(index);
+            let member_name = member.name();
+
+            let mut append_err = |tc_err| {
+                if err.is_some() {
+                    self.diagnostics().add_error(tc_err);
+                } else {
+                    err = Some(tc_err);
+                }
+            };
 
             // @@Todo: add back once this is property implemented
             // if member.is_closed() {
@@ -257,20 +277,34 @@ impl<'tc> ScopeManager<'tc> {
             match member {
                 Member::Bound(_) | Member::SetBound(_) => {
                     // @@Todo: refine this error
-                    Err(TcError::InvalidAssignSubject { location: (scope_id, index).into() })
+                    append_err(TcError::InvalidAssignSubject { location: (scope_id, index).into() })
                 }
                 Member::Variable(variable) => {
-                    // Assign
-                    // @@Todo: check if mutable
-                    variable.value = value;
-                    Ok(())
+                    // Check that the member is declared as being mutable...
+                    if matches!(variable.mutability, Mutability::Immutable) {
+                        append_err(TcError::MemberIsImmutable {
+                            name: member_name,
+                            site: site.into(),
+                            decl: (scope_id, index),
+                        });
+                    } else {
+                        // Assign
+                        variable.value = value;
+                    }
                 }
                 Member::Constant(constant) => {
                     // @@Todo implement this properly
                     constant.set_value(value);
-                    Ok(())
                 }
-            }
+            };
+
+            err.map_or(Ok(()), Err)
         })
+    }
+
+    /// Get the [ScopeKind] of the current [Scope]
+    pub fn current_scope_kind(&self) -> ScopeKind {
+        let id = self.scopes().current_scope();
+        self.scope_store().map_fast(id, |scope| scope.kind)
     }
 }

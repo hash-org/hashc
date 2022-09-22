@@ -140,7 +140,7 @@ pub fn create_core_defs_in(global_storage: &GlobalStorage) {
     let hash_trt = builder.create_trt_def(
         Some(CORE_IDENTIFIERS.Hash),
         builder.create_scope(
-            ScopeKind::Constant,
+            ScopeKind::Trait,
             [
                 Member::uninitialised_constant(
                     CORE_IDENTIFIERS.Self_i,
@@ -167,7 +167,7 @@ pub fn create_core_defs_in(global_storage: &GlobalStorage) {
     let eq_trt = builder.create_trt_def(
         Some(CORE_IDENTIFIERS.Eq),
         builder.create_scope(
-            ScopeKind::Constant,
+            ScopeKind::Trait,
             [
                 Member::uninitialised_constant(
                     CORE_IDENTIFIERS.Self_i,
@@ -202,7 +202,7 @@ pub fn create_core_defs_in(global_storage: &GlobalStorage) {
     let index_trt = builder.create_trt_def(
         Some(CORE_IDENTIFIERS.Index),
         builder.create_scope(
-            ScopeKind::Constant,
+            ScopeKind::Trait,
             [
                 Member::uninitialised_constant(
                     CORE_IDENTIFIERS.Self_i,
@@ -248,7 +248,7 @@ pub fn create_core_defs_in(global_storage: &GlobalStorage) {
     let list_index_impl = builder.create_nameless_mod_def(
         ModDefOrigin::TrtImpl(index_trt_term),
         builder.create_scope(
-            ScopeKind::Constant,
+            ScopeKind::Impl,
             [
                 Member::open_constant(
                     CORE_IDENTIFIERS.Self_i,

@@ -8,7 +8,7 @@ use hash_types::{
     pats::{PatArgsId, PatId},
     terms::TermId,
     AccessPat, ConstPat, ConstructorPat, IfPat, Level0Term, Level1Term, ListPat, LitTerm, ModDef,
-    ModPat, NominalDef, Pat, PatArg, RangePat, ScopeKind, SpreadPat, StructFields, Term, TupleTy,
+    ModPat, NominalDef, Pat, PatArg, RangePat, SpreadPat, StructFields, Term, TupleTy,
 };
 use hash_utils::store::Store;
 use if_chain::if_chain;
@@ -79,7 +79,7 @@ impl<'tc> LowerPatOps<'tc> {
                         let ModDef { members, .. } = reader.get_mod_def(id);
                         self.scope_store().map_fast(members, |scope| {
                             // We should be in a constant scope
-                            assert!(scope.kind == ScopeKind::Constant);
+                            assert!(scope.kind.is_constant());
                             (
                                 members,
                                 scope
