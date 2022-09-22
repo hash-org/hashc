@@ -1679,7 +1679,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         // We want to create the type that represents this operation, and then
         // ensure that it typechecks...
-        let ty = self.create_operator_fn(member.ty(), rhs, node.operator.ast_ref(), true);
+        let ty = self.create_operator_fn(var_term, rhs, node.operator.ast_ref(), true);
         let _ = self.validate_and_register_simplified_term(node, ty)?;
 
         // Now check that the declared local item is declared as mutable
