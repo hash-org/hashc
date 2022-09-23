@@ -207,14 +207,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     }
                     TokenKind::Keyword(Keyword::If) => self.parse_if_block()?,
                     TokenKind::Keyword(Keyword::Match) => self.parse_match_block()?,
-                    TokenKind::Keyword(Keyword::Mod) => {
-                        let block = self.parse_body_block()?;
-                        self.node_with_joined_span(Block::Mod(ModBlock(block)), start)
-                    }
-                    TokenKind::Keyword(Keyword::Impl) => {
-                        let block = self.parse_body_block()?;
-                        self.node_with_joined_span(Block::Impl(ImplBlock(block)), start)
-                    }
+                    TokenKind::Keyword(Keyword::Mod) => self.parse_mod_block()?,
+                    TokenKind::Keyword(Keyword::Impl) => self.parse_impl_block()?,
                     _ => unreachable!(),
                 };
 

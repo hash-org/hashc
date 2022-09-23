@@ -141,26 +141,29 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         ))
     }
 
-    /// we transpile if-else blocks into match blocks in order to simplify
-    /// the typechecking process and optimisation efforts.
-    ///
-    /// Firstly, since we always want to check each case, we convert the
-    /// if statement into a series of and-patterns, where the right hand-side
-    /// pattern is the condition to execute the branch...
-    ///
-    /// For example:
-    /// >>> if a {a_branch} else if b {b_branch} else {c_branch}
-    /// will be transpiled into...
-    /// >>> match true {
-    ///      _ if a => a_branch
-    ///      _ if b => b_branch
-    ///      _ => c_branch
-    ///     }
-    ///
-    /// Additionally, if no 'else' clause is specified, we fill it with an
-    /// empty block since an if-block could be assigned to any variable and
-    /// therefore we need to know the outcome of all branches for
-    /// typechecking.
+    /// Parse a `mod` block, with optional type parameters.
+    pub(crate) fn parse_mod_block(&mut self) -> ParseResult<AstNode<Block>> {
+        debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Mod)));
+        let start = self.current_location();
+
+        let ty_params = self.parse_optional_ty_params()?;
+        let block = self.parse_body_block()?;
+
+        Ok(self.node_with_joined_span(Block::Mod(ModBlock { block, ty_params }), start))
+    }
+
+    /// Parse a `impl` block, with optional type parameters.
+    pub(crate) fn parse_impl_block(&mut self) -> ParseResult<AstNode<Block>> {
+        debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Impl)));
+        let start = self.current_location();
+
+        let ty_params = self.parse_optional_ty_params()?;
+        let block = self.parse_body_block()?;
+
+        Ok(self.node_with_joined_span(Block::Impl(ImplBlock { block, ty_params }), start))
+    }
+
+    /// Parse an `if-block` collection.
     pub(crate) fn parse_if_block(&mut self) -> ParseResult<AstNode<Block>> {
         debug_assert!(matches!(self.current_token().kind, TokenKind::Keyword(Keyword::If)));
 

@@ -713,7 +713,7 @@ impl AstVisitor for SemanticAnalyser<'_> {
         _: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ModBlock>,
     ) -> Result<Self::ModBlockRet, Self::Error> {
-        self.check_constant_body_block(&node.body().0, BlockOrigin::Mod);
+        self.check_constant_body_block(&node.body().block, BlockOrigin::Mod);
         Ok(())
     }
 
@@ -724,7 +724,7 @@ impl AstVisitor for SemanticAnalyser<'_> {
         _: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ImplBlock>,
     ) -> Result<Self::ImplBlockRet, Self::Error> {
-        self.check_constant_body_block(&node.body().0, BlockOrigin::Impl);
+        self.check_constant_body_block(&node.body().block, BlockOrigin::Impl);
         Ok(())
     }
 

@@ -727,8 +727,17 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::ModBlock>,
     ) -> Result<Self::ModBlockRet, Self::Error> {
-        let walk::ModBlock(inner) = walk::walk_mod_block(self, ctx, node)?;
-        Ok(TreeNode::branch("module", inner.children))
+        let walk::ModBlock { block, ty_params } = walk::walk_mod_block(self, ctx, node)?;
+
+        let children = {
+            if ty_params.is_empty() {
+                vec![block]
+            } else {
+                vec![TreeNode::branch("ty_params", ty_params), block]
+            }
+        };
+
+        Ok(TreeNode::branch("mod", children))
     }
 
     type ImplBlockRet = TreeNode;
@@ -737,8 +746,17 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::ImplBlock>,
     ) -> Result<Self::ImplBlockRet, Self::Error> {
-        let walk::ImplBlock(inner) = walk::walk_impl_block(self, ctx, node)?;
-        Ok(TreeNode::branch("impl", inner.children))
+        let walk::ImplBlock { block, ty_params } = walk::walk_impl_block(self, ctx, node)?;
+
+        let children = {
+            if ty_params.is_empty() {
+                vec![block]
+            } else {
+                vec![TreeNode::branch("ty_params", ty_params), block]
+            }
+        };
+
+        Ok(TreeNode::branch("impl", children))
     }
 
     type IfClauseRet = TreeNode;
@@ -963,11 +981,17 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::StructDef>,
     ) -> Result<Self::StructDefRet, Self::Error> {
-        let walk::StructDef { entries } = walk::walk_struct_def(self, ctx, node)?;
-        Ok(TreeNode::branch(
-            "struct_def",
-            iter::once(TreeNode::branch("fields", entries)).collect(),
-        ))
+        let walk::StructDef { fields, ty_params } = walk::walk_struct_def(self, ctx, node)?;
+
+        let children = {
+            if ty_params.is_empty() {
+                vec![TreeNode::branch("fields", fields)]
+            } else {
+                vec![TreeNode::branch("ty_params", ty_params), TreeNode::branch("fields", fields)]
+            }
+        };
+
+        Ok(TreeNode::branch("struct_def", children))
     }
 
     type EnumDefEntryRet = TreeNode;
@@ -989,11 +1013,20 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::EnumDef>,
     ) -> Result<Self::EnumDefRet, Self::Error> {
-        let walk::EnumDef { entries } = walk::walk_enum_def(self, ctx, node)?;
-        Ok(TreeNode::branch(
-            "enum_def",
-            iter::once(TreeNode::branch("variants", entries)).collect(),
-        ))
+        let walk::EnumDef { entries, ty_params } = walk::walk_enum_def(self, ctx, node)?;
+
+        let children = {
+            if ty_params.is_empty() {
+                vec![TreeNode::branch("variants", entries)]
+            } else {
+                vec![
+                    TreeNode::branch("ty_params", ty_params),
+                    TreeNode::branch("variants", entries),
+                ]
+            }
+        };
+
+        Ok(TreeNode::branch("enum_def", children))
     }
 
     type TraitDefRet = TreeNode;

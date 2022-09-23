@@ -209,23 +209,32 @@ impl<T> DerefMut for AstNodeRefMut<'_, T> {
 
 /// Helper trait to access a node from a structure that contains one.
 pub trait OwnsAstNode<T> {
+    /// Get a reference to [AstNode<T>].
     fn node(&self) -> &AstNode<T>;
+
+    /// Get a mutable reference to [AstNode<T>].
     fn node_mut(&mut self) -> &mut AstNode<T>;
 
+    /// Get a [AstNodeRef<T>].
     fn node_ref(&self) -> AstNodeRef<T> {
         self.node().ast_ref()
     }
 
+    /// Get a [AstNodeRefMut<T>].
     fn node_ref_mut(&mut self) -> AstNodeRefMut<T> {
         self.node_mut().ast_ref_mut()
     }
 }
 
+/// A collection of [AstNode]s with an optional shared
+/// span. This is often used to represent collections
+/// of [AstNode]s when they are wrapped within some kind
+/// of delimiter.
 #[derive(Debug, PartialEq, Clone)]
 pub struct AstNodes<T> {
+    /// The nodes that the [AstNodes] holds.
     pub nodes: Vec<AstNode<T>>,
-
-    /// The span of the AST nodes if one is available,
+    /// The span of the AST nodes if one is available.
     pub span: Option<Span>,
 }
 
@@ -1249,9 +1258,14 @@ pub struct AssignOpExpr {
     pub operator: AstNode<BinOp>,
 }
 
-/// A struct definition, e.g. `struct Foo = { bar: int; };`.
+/// A struct definition, e.g:
+/// ```ignore
+/// Foo := struct<T>( index: i32, val: T );
+/// ```
 #[derive(Debug, PartialEq, Clone)]
 pub struct StructDef {
+    /// Type parameters that are attached to the definition.
+    pub ty_params: AstNodes<Param>,
     /// The fields of the struct, in the form of [Param].
     pub fields: AstNodes<Param>,
 }
@@ -1265,16 +1279,31 @@ pub struct EnumDefEntry {
     pub fields: AstNodes<Param>,
 }
 
-/// An enum definition, e.g. `enum Option = <T> => { Some(T); None; };`.
+/// An enum definition, e.g.
+/// ```ignore
+/// enum<T> (
+///     Some(T),
+///     None
+/// )
+/// ```
 #[derive(Debug, PartialEq, Clone)]
 pub struct EnumDef {
+    /// Type parameters that are attached to the definition.
+    pub ty_params: AstNodes<Param>,
     /// The variants of the enum, in the form of [EnumDefEntry].
     pub entries: AstNodes<EnumDefEntry>,
 }
 
-/// A trait definition, e.g. `add := <T> => trait { add: (T, T) -> T; }`.
+/// A trait definition, e.g.
+/// ```ignore
+/// trait<T> {
+///     add: (T, T) -> T;
+/// }
+/// ```
 #[derive(Debug, PartialEq, Clone)]
 pub struct TraitDef {
+    /// Type parameters that are attached to the definition.
+    pub ty_params: AstNodes<Param>,
     /// Members of the trait definition, which are constricted to
     /// constant-block only allowed [Expr]s.
     pub members: AstNodes<Expr>,
@@ -1390,11 +1419,37 @@ pub struct IfBlock {
     pub otherwise: Option<AstNode<Block>>,
 }
 
+/// A `mod` block, e.g.
+///
+/// ```ignore
+/// mod {
+///     foo := () -> char => {
+///     };
+/// }
+/// ```
 #[derive(Debug, PartialEq, Clone)]
-pub struct ModBlock(pub AstNode<BodyBlock>);
+pub struct ModBlock {
+    /// Any type parameters that are applied to the `mod` block.
+    pub ty_params: AstNodes<Param>,
+    /// The actual contents of the block.
+    pub block: AstNode<BodyBlock>,
+}
 
+/// An `impl` block, e.g.
+///
+/// ```ignore
+/// impl<T> {
+///     into := () -> T => {
+///     };
+/// };
+/// ```
 #[derive(Debug, PartialEq, Clone)]
-pub struct ImplBlock(pub AstNode<BodyBlock>);
+pub struct ImplBlock {
+    /// Any type parameters that are applied to the `mod` block.
+    pub ty_params: AstNodes<Param>,
+    /// The actual contents of the block.
+    pub block: AstNode<BodyBlock>,
+}
 
 /// A block.
 #[derive(Debug, PartialEq, Clone)]
@@ -1492,11 +1547,11 @@ pub enum Block {
     /// therefore we need to know the outcome of all branches for
     /// typechecking.
     If(IfBlock),
+    /// A body block.
+    Body(BodyBlock),
     /// A module block. The inner block becomes an inner module of the current
     /// module.
     Mod(ModBlock),
-    /// A body block.
-    Body(BodyBlock),
     /// An implementation block
     Impl(ImplBlock),
 }
