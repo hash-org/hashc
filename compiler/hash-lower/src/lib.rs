@@ -53,7 +53,6 @@ impl<'c> Lowering<'c> for IrLowerer {
         _interactive_id: hash_source::InteractiveId,
         _workspace: &hash_pipeline::sources::Workspace,
         _state: &mut Self::State,
-        _job_params: &hash_pipeline::settings::CompilerJobParams,
     ) -> hash_pipeline::traits::CompilerResult<()> {
         Ok(())
     }
@@ -63,7 +62,6 @@ impl<'c> Lowering<'c> for IrLowerer {
         _module_id: hash_source::ModuleId,
         _workspace: &hash_pipeline::sources::Workspace,
         _state: &mut Self::State,
-        _job_params: &hash_pipeline::settings::CompilerJobParams,
     ) -> hash_pipeline::traits::CompilerResult<()> {
         // We need to iterate all of the modules and essentially perform
         // a discovery process for what needs to be lowered...

@@ -6,7 +6,6 @@ use std::{env, process::exit};
 
 use command::InteractiveCommand;
 use hash_pipeline::{
-    settings::CompilerJobParams,
     sources::InteractiveBlock,
     traits::{Desugar, Lowering, Parser, SemanticPass, Tc, VirtualMachine},
     Compiler, CompilerState,
@@ -112,7 +111,7 @@ where
         }
         Ok(InteractiveCommand::Version) => print_version(),
         Ok(
-            ref inner @ (InteractiveCommand::Type(expr)
+            ref _inner @ (InteractiveCommand::Type(expr)
             | InteractiveCommand::Display(expr)
             | InteractiveCommand::Code(expr)),
         ) => {
@@ -121,15 +120,10 @@ where
                 .workspace
                 .add_interactive_block(expr.to_string(), InteractiveBlock::new());
 
-            // Compute the mode of the job based on provided arguments via the interactive
-            // command
-            let settings: CompilerJobParams = inner.into();
-
             // We don't want the old diagnostics
             // @@Refactor: we don't want to leak the diagnostics here..
             compiler_state.diagnostics.clear();
-            let new_state =
-                compiler.run(SourceId::Interactive(interactive_id), compiler_state, settings);
+            let new_state = compiler.run(SourceId::Interactive(interactive_id), compiler_state);
             return new_state;
         }
         Err(e) => CompilerError::from(e).report(),

@@ -12,23 +12,7 @@ use crate::{
     stack::Stack,
 };
 
-/// Options specified to the Interpreter
-pub struct InterpreterOptions {
-    /// The stack size of the interpreter
-    stack_size: usize,
-}
-
-impl InterpreterOptions {
-    pub fn new(stack_size: usize) -> Self {
-        Self { stack_size }
-    }
-}
-
-impl Default for InterpreterOptions {
-    fn default() -> Self {
-        Self { stack_size: 10000 }
-    }
-}
+const DEFAULT_STACK_SIZE: usize = 10_000;
 
 /// Interpreter flags represent generated context from the current
 /// execution. This flags store information about the last executed
@@ -62,11 +46,17 @@ pub struct Interpreter {
     // stack heap: Heap,
 }
 
+impl Default for Interpreter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Interpreter {
     #[must_use]
-    pub fn new(options: InterpreterOptions) -> Self {
+    pub fn new() -> Self {
         Self {
-            stack: Stack::new(options.stack_size),
+            stack: Stack::new(DEFAULT_STACK_SIZE),
             instructions: Vec::new(),
             registers: RegisterSet::default(),
             flags: InterpreterFlags::default(),
