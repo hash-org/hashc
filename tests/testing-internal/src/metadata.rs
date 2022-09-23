@@ -209,34 +209,41 @@ pub struct ParsedMetadata {
 /// specifies that this test should `pass` and should only run up until the
 /// [CompilerMode::Parse].
 pub fn parse_test_case_metadata(path: &PathBuf) -> Result<ParsedMetadata, io::Error> {
+    let mut source = String::new();
+
     // Read the first line of the file into `title`.
     let file = fs::File::open(path)?;
-
     let mut buffer = BufReader::new(file);
-    let mut config = String::new();
-    let _ = buffer.read_line(&mut config)?;
+    let _ = buffer.read_line(&mut source)?;
+
+    // We need to strip the shebang line, if it starts with `#!` then
+    // it should skip the current line and read the next line
+    if source.starts_with("#!") {
+        source.clear();
+        let _ = buffer.read_line(&mut source)?;
+    }
 
     let mut warnings = vec![];
 
     // Now we begin the parsing of the line...
-    if config.starts_with("//") {
+    if source.starts_with("//") {
         let mut builder = TestMetadataBuilder::new();
 
         // Turn the line into chars, strip all white-spaces and start after `//`
-        let mut source = peek_nth(config.chars().filter(|c| !c.is_whitespace()).skip(2));
+        let mut config = peek_nth(source.chars().filter(|c| !c.is_whitespace()).skip(2));
 
         // Continue eating `key=value` pairs until we reach the end of the input
-        while source.peek().is_some() {
+        while config.peek().is_some() {
             // Try and parse a key...
-            let key = source.take_while_ref(|c| *c != '=').collect::<String>();
+            let key = config.take_while_ref(|c| *c != '=').collect::<String>();
 
             // Parse the `=`
-            if matches!(source.peek(), Some('=')) {
-                source.advance_by(1).unwrap();
+            if matches!(config.peek(), Some('=')) {
+                config.advance_by(1).unwrap();
             }
 
             // Parse the `value` of the key
-            let value = source.take_while_ref(|c| *c != ',').collect::<String>();
+            let value = config.take_while_ref(|c| *c != ',').collect::<String>();
 
             match key.as_str() {
                 "run" => {
@@ -287,8 +294,8 @@ pub fn parse_test_case_metadata(path: &PathBuf) -> Result<ParsedMetadata, io::Er
             }
 
             // Parse an optional comma `,`
-            if source.peek_nth(2).is_some() && matches!(source.peek(), Some(',')) {
-                source.advance_by(1).unwrap();
+            if config.peek_nth(2).is_some() && matches!(config.peek(), Some(',')) {
+                config.advance_by(1).unwrap();
             }
         }
 

@@ -1,0 +1,6 @@
+error: expected an expression, however received a `=`
+ --> $DIR/typeof_missing_expr.hash:4:16
+3 |   main := () => {
+4 |       if (typeof == str) {
+  |                  ^ 
+5 |           print("t is a string!");

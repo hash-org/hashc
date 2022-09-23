@@ -1,6 +1,5 @@
 //! Hash Compiler Lexer crate.
-
-#![feature(cell_update)]
+#![feature(cell_update, let_chains)]
 
 use std::{cell::Cell, iter};
 
@@ -121,6 +120,9 @@ impl<'a> Lexer<'a> {
 
     /// Tokenise the given input stream
     pub fn tokenise(&mut self) -> Vec<Token> {
+        // Avoid shebang at the start of the source...
+        self.strip_shebang();
+
         std::iter::from_fn(|| self.advance_token()).collect::<Vec<_>>()
     }
 
@@ -180,6 +182,14 @@ impl<'a> Lexer<'a> {
     /// Checks if there is nothing more to consume.
     fn is_eof(&self) -> bool {
         self.contents.len() == self.len_consumed()
+    }
+
+    /// Strip the shebang, e.g. "#!/usr/bin/hashc", from a source assuming that
+    /// this is the start of the file.
+    fn strip_shebang(&mut self) {
+        if self.peek() == '#' && self.peek_second() == '!' {
+            self.eat_while_and_discard(|c| c != '\n');
+        }
     }
 
     /// Parses a token from the input string.
