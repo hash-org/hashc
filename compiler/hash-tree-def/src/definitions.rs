@@ -11,6 +11,9 @@ pub(crate) const OPTIONAL_NODE_TYPE_NAME: &str = "OptionalNode";
 pub(crate) const OPTS_MACRO_NAME: &str = "tree_opts";
 pub(crate) const NODE_TYPE_NAME_OPTS_FIELD: &str = "node_type_name";
 pub(crate) const NODES_TYPE_NAME_OPTS_FIELD: &str = "nodes_type_name";
+pub(crate) const VISITOR_TRAIT_BASE_NAME_OPTS_FIELD: &str = "visitor_trait_base_name";
+pub(crate) const VISITOR_NODE_REF_BASE_TYPE_NAME_OPTS_FIELD: &str =
+    "visitor_node_ref_base_type_name";
 
 /// An enum node variant, which has to point to another struct.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -86,6 +89,10 @@ pub(crate) struct TreeDefOpts {
     /// The type name of the tree node list wrapper type. This type must take a
     /// single type argument.
     pub(crate) nodes_type_name: syn::Ident,
+    /// The base name to use for the created visitor
+    pub(crate) visitor_trait_base_name: syn::Ident,
+    /// The base name to use for the created visitor's node reference types
+    pub(crate) visitor_node_ref_base_type_name: syn::Ident,
 }
 
 /// The definition of a tree of nodes, as well as other items that might have

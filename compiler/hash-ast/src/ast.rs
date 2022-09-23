@@ -26,7 +26,7 @@ counter! {
 mod tree_gen {
     use hash_tree_def::define_tree;
 
-    use super::{AstNodeRef, AstNodeRefMut};
+    use super::{AstNode, AstNodeRef, AstNodeRefMut};
 
     define_tree! {
         tree_opts! {{
@@ -37,15 +37,19 @@ mod tree_gen {
         }}
 
         #[tree_node]
-        pub struct Foo { }
+        pub struct Foo {
+            bar: Node!(Bar),
+        }
 
         #[tree_node]
-        pub struct Bar { }
+        pub struct Bar {
+            foo: Node!(Foo),
+        }
 
         #[tree_node]
         pub enum Baz {
-            Foo(Foo),
-            Bar(Bar),
+            Foo(Node!(Foo)),
+            Bar(Node!(Bar)),
         }
     }
 }
