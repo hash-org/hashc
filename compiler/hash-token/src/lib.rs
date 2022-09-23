@@ -83,6 +83,7 @@ impl TokenKind {
                     | TokenKind::Tilde
                     | TokenKind::Exclamation
                     | TokenKind::Keyword(Keyword::Unsafe)
+                    | TokenKind::Keyword(Keyword::TypeOf)
         )
     }
 

@@ -31,6 +31,7 @@ pub enum Keyword {
     Mod,
     Impl,
     Type,
+    TypeOf,
     Map,
     Set,
 }
