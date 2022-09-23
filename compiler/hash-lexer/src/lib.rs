@@ -376,6 +376,7 @@ impl<'a> Lexer<'a> {
             "mod" => TokenKind::Keyword(Keyword::Mod),
             "impl" => TokenKind::Keyword(Keyword::Impl),
             "type" => TokenKind::Keyword(Keyword::Type),
+            "typeof" => TokenKind::Keyword(Keyword::TypeOf),
             // @@TODO: in the future, we want to make these macros or some similar syntax
             "map" if self.peek() == '!' => {
                 self.skip();

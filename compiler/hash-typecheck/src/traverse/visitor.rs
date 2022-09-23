@@ -1740,6 +1740,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
             UnOp::BitNot => operator_fn("bit_not"),
             UnOp::Not => operator_fn("not"),
             UnOp::Neg => operator_fn("neg"),
+            UnOp::TypeOf => self.builder().create_ty_of_term(expr),
         };
 
         self.validate_and_register_simplified_term(node, term)

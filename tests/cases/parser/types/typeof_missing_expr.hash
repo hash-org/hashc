@@ -1,0 +1,9 @@
+// run=fail
+
+main := () => {
+    if (typeof == str) {
+        print("t is a string!");
+    };
+
+    typeof
+};
