@@ -12,7 +12,6 @@ use hash_source::{
     identifier::Identifier,
     location::Span,
 };
-use hash_tree_def::define_tree;
 use hash_utils::counter;
 use num_bigint::BigInt;
 use replace_with::replace_with_or_abort;
@@ -22,6 +21,33 @@ counter! {
     counter_name: AST_NODE_ID_COUNTER,
     visibility: pub,
     method_visibility: pub,
+}
+
+mod tree_gen {
+    use hash_tree_def::define_tree;
+
+    use super::{AstNodeRef, AstNodeRefMut};
+
+    define_tree! {
+        tree_opts! {{
+            node_type_name: AstNode,
+            nodes_type_name: AstNodes,
+            visitor_trait_base_name: AstVisitor,
+            visitor_node_ref_base_type_name: AstNodeRef,
+        }}
+
+        #[tree_node]
+        pub struct Foo { }
+
+        #[tree_node]
+        pub struct Bar { }
+
+        #[tree_node]
+        pub enum Baz {
+            Foo(Foo),
+            Bar(Bar),
+        }
+    }
 }
 
 /// Represents an abstract syntax tree node.
@@ -232,13 +258,13 @@ pub struct AstNodes<T> {
 
 #[macro_export]
 macro_rules! ast_nodes {
-        ($($item:expr),*) => {
-            $crate::ast::AstNodes::new(vec![$($item,)*], None)
-        };
-        ($($item:expr,)*) => {
-            $crate::ast::AstNodes::new(vec![$($item,)*], None)
-        };
-    }
+    ($($item:expr),*) => {
+        $crate::ast::AstNodes::new(vec![$($item,)*], None)
+    };
+    ($($item:expr,)*) => {
+        $crate::ast::AstNodes::new(vec![$($item,)*], None)
+    };
+}
 
 impl<T> AstNodes<T> {
     pub fn empty() -> Self {
@@ -290,18 +316,6 @@ impl<T> Deref for AstNode<T> {
 impl<T> DerefMut for AstNode<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.body_mut()
-    }
-}
-
-define_tree! {
-    tree_opts! {{
-        node_type_name: AstNode,
-        nodes_type_name: AstNodes,
-    }}
-
-    #[tree_node]
-    enum FooBar {
-        Foo
     }
 }
 
