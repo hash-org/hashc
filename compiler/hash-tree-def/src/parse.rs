@@ -15,7 +15,8 @@ use super::definitions::{
     NODE_TYPE_NAME_OPTS_FIELD, OPTS_MACRO_NAME,
 };
 use crate::definitions::{
-    TreeDefOpts, NODES_TYPE_NAME, OPTIONAL_NODE_TYPE_NAME,
+    TreeDefOpts, GET_REF_FROM_NODE_FUNCTION_BASE_NAME_OPTS_FIELD, NODES_TYPE_NAME,
+    OPTIONAL_NODE_TYPE_NAME, REF_CHANGE_BODY_FUNCTION_BASE_NAME_OPTS_FIELD,
     VISITOR_NODE_REF_BASE_TYPE_NAME_OPTS_FIELD, VISITOR_TRAIT_BASE_NAME_OPTS_FIELD,
 };
 
@@ -219,12 +220,18 @@ impl TryFrom<&Item> for MaybeTreeDefOpts {
                     parse_ident_field(&opts, VISITOR_TRAIT_BASE_NAME_OPTS_FIELD)?;
                 let visitor_node_ref_base_type_name =
                     parse_ident_field(&opts, VISITOR_NODE_REF_BASE_TYPE_NAME_OPTS_FIELD)?;
+                let get_ref_from_node_function_base_name =
+                    parse_ident_field(&opts, GET_REF_FROM_NODE_FUNCTION_BASE_NAME_OPTS_FIELD)?;
+                let ref_change_body_function_base_name =
+                    parse_ident_field(&opts, REF_CHANGE_BODY_FUNCTION_BASE_NAME_OPTS_FIELD)?;
 
                 Ok(MaybeTreeDefOpts(Some(TreeDefOpts {
                     node_type_name,
                     nodes_type_name,
                     visitor_node_ref_base_type_name,
                     visitor_trait_base_name,
+                    get_ref_from_node_function_base_name,
+                    ref_change_body_function_base_name,
                 })))
             }
             _ => Ok(MaybeTreeDefOpts(None)),

@@ -3,17 +3,21 @@
 
 use std::collections::HashMap;
 
-pub(crate) const NODE_DEF_ATTR_NAME: &str = "tree_node";
-pub(crate) const NODE_TYPE_NAME: &str = "Node";
-pub(crate) const NODES_TYPE_NAME: &str = "Nodes";
-pub(crate) const OPTIONAL_NODE_TYPE_NAME: &str = "OptionalNode";
+pub(crate) const NODE_DEF_ATTR_NAME: &str = "node";
+pub(crate) const NODE_TYPE_NAME: &str = "Child";
+pub(crate) const NODES_TYPE_NAME: &str = "Children";
+pub(crate) const OPTIONAL_NODE_TYPE_NAME: &str = "OptionalChild";
 
-pub(crate) const OPTS_MACRO_NAME: &str = "tree_opts";
+pub(crate) const OPTS_MACRO_NAME: &str = "opts";
 pub(crate) const NODE_TYPE_NAME_OPTS_FIELD: &str = "node_type_name";
 pub(crate) const NODES_TYPE_NAME_OPTS_FIELD: &str = "nodes_type_name";
 pub(crate) const VISITOR_TRAIT_BASE_NAME_OPTS_FIELD: &str = "visitor_trait_base_name";
 pub(crate) const VISITOR_NODE_REF_BASE_TYPE_NAME_OPTS_FIELD: &str =
     "visitor_node_ref_base_type_name";
+pub(crate) const GET_REF_FROM_NODE_FUNCTION_BASE_NAME_OPTS_FIELD: &str =
+    "get_ref_from_node_function_base_name";
+pub(crate) const REF_CHANGE_BODY_FUNCTION_BASE_NAME_OPTS_FIELD: &str =
+    "ref_change_body_function_base_name";
 
 /// An enum node variant, which has to point to another struct.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -43,6 +47,17 @@ pub(crate) enum NodeFieldData {
     ChildList { node_name: syn::Ident },
     OptionalChild { node_name: syn::Ident },
     Other { ty: syn::Type },
+}
+
+impl NodeFieldData {
+    pub(crate) fn node_name(&self) -> Option<&syn::Ident> {
+        match self {
+            NodeFieldData::Child { node_name } => Some(node_name),
+            NodeFieldData::ChildList { node_name } => Some(node_name),
+            NodeFieldData::OptionalChild { node_name } => Some(node_name),
+            NodeFieldData::Other { .. } => None,
+        }
+    }
 }
 
 /// The field of a struct node definition.
@@ -93,6 +108,8 @@ pub(crate) struct TreeDefOpts {
     pub(crate) visitor_trait_base_name: syn::Ident,
     /// The base name to use for the created visitor's node reference types
     pub(crate) visitor_node_ref_base_type_name: syn::Ident,
+    pub(crate) get_ref_from_node_function_base_name: syn::Ident,
+    pub(crate) ref_change_body_function_base_name: syn::Ident,
 }
 
 /// The definition of a tree of nodes, as well as other items that might have

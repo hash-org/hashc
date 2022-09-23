@@ -26,30 +26,32 @@ counter! {
 mod tree_gen {
     use hash_tree_def::define_tree;
 
-    use super::{AstNode, AstNodeRef, AstNodeRefMut};
+    use super::{AstNode, AstNodeRef, AstNodeRefMut, AstNodes};
 
     define_tree! {
-        tree_opts! {{
+        opts! {{
             node_type_name: AstNode,
             nodes_type_name: AstNodes,
             visitor_trait_base_name: AstVisitor,
             visitor_node_ref_base_type_name: AstNodeRef,
+            get_ref_from_node_function_base_name: ast_ref,
+            ref_change_body_function_base_name: with_body,
         }}
 
-        #[tree_node]
+        #[node]
         pub struct Foo {
-            bar: Node!(Bar),
+            bar: OptionalChild!(Bar),
         }
 
-        #[tree_node]
+        #[node]
         pub struct Bar {
-            foo: Node!(Foo),
+            foo: Children!(Foo),
         }
 
-        #[tree_node]
+        #[node]
         pub enum Baz {
-            Foo(Node!(Foo)),
-            Bar(Node!(Bar)),
+            Foo(Bar),
+            Bar(Foo),
         }
     }
 }
@@ -201,6 +203,12 @@ impl<'t, T> AstNodeRefMut<'t, T> {
     /// Get a reference to body of the [AstNodeRefMut].
     pub fn body(&self) -> &T {
         self.body
+    }
+
+    /// Utility function to copy over the [Span] and [AstNodeId] from
+    /// another [AstNodeRefMut] with a provided body.
+    pub fn with_body<'u, U>(&self, body: &'u mut U) -> AstNodeRefMut<'u, U> {
+        AstNodeRefMut { body, span: self.span, id: self.id }
     }
 
     /// Replace the body of the [AstNodeRefMut] with another body.
