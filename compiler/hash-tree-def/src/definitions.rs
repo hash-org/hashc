@@ -1,5 +1,5 @@
 //! Data types for storing the parsed tree definition given to the
-//! [`super::define_tree`] macro.
+//! [`super::define_tree!`] macro.
 
 use std::collections::HashMap;
 

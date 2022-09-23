@@ -100,8 +100,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         Ok(Some((has_semi, expr)))
     }
 
-    /// Function to eat a collection of trailing semi-colons and produce
-    /// a resultant [ExprKind::Empty].
+    /// Function to eat a collection of trailing semi-colons.
     pub(crate) fn eat_trailing_semis(&mut self) {
         let tok = self.current_token();
         debug_assert!(tok.has_kind(TokenKind::Semi));

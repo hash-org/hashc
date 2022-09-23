@@ -93,7 +93,7 @@ pub struct VariableMember {
 
 /// A constant scope member.
 ///
-/// Should be part of a [ScopeKind::Constant] or [ScopeKind::Variable].
+/// Should be part of a constant [ScopeKind] or [ScopeKind::Variable].
 ///
 /// Has a flag as to whether the member is closed (can be substituted by its
 /// value -- think referential transparency).

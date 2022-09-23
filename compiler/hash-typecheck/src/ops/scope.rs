@@ -302,7 +302,7 @@ impl<'tc> ScopeManager<'tc> {
         })
     }
 
-    /// Get the [ScopeKind] of the current [Scope]
+    /// Get the [ScopeKind] of the current scope.
     pub fn current_scope_kind(&self) -> ScopeKind {
         let id = self.scopes().current_scope();
         self.scope_store().map_fast(id, |scope| scope.kind)
