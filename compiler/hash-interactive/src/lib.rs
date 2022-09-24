@@ -6,6 +6,7 @@ use std::{env, process::exit};
 
 use command::InteractiveCommand;
 use hash_pipeline::{
+    settings::CompilerMode,
     sources::InteractiveBlock,
     traits::{Desugar, Lowering, Parser, SemanticPass, Tc, VirtualMachine},
     Compiler, CompilerState,
@@ -111,7 +112,7 @@ where
         }
         Ok(InteractiveCommand::Version) => print_version(),
         Ok(
-            ref _inner @ (InteractiveCommand::Type(expr)
+            ref inner @ (InteractiveCommand::Type(expr)
             | InteractiveCommand::Display(expr)
             | InteractiveCommand::Code(expr)),
         ) => {
@@ -119,6 +120,25 @@ where
             let interactive_id = compiler_state
                 .workspace
                 .add_interactive_block(expr.to_string(), InteractiveBlock::new());
+
+            // if the mode is specified to emit the type `:t` of the expr or the dump tree
+            // `:d`
+            match inner {
+                InteractiveCommand::Type(_) => {
+                    // @@Hack: if display is previously set `:d`, then this interferes with this
+                    // mode.
+                    compiler.settings.dump_ast = false;
+                    compiler.settings.set_stage(CompilerMode::Typecheck)
+                }
+                InteractiveCommand::Display(_) => {
+                    compiler.settings.dump_ast = true;
+                    compiler.settings.set_stage(CompilerMode::Parse)
+                }
+                _ => {
+                    compiler.settings.dump_ast = false;
+                    compiler.settings.set_stage(CompilerMode::Full)
+                }
+            }
 
             // We don't want the old diagnostics
             // @@Refactor: we don't want to leak the diagnostics here..
