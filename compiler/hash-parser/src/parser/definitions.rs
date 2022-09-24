@@ -16,24 +16,28 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub fn parse_struct_def(&mut self) -> ParseResult<StructDef> {
         debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Struct)));
 
+        let ty_params = self.parse_optional_ty_params()?;
+
         let mut gen = self.parse_delim_tree(
             Delimiter::Paren,
             Some(ParseErrorKind::TypeDefinition(TyArgumentKind::Struct)),
         )?;
 
-        let entries = gen.parse_separated_fn(
+        let fields = gen.parse_separated_fn(
             |g| g.parse_nominal_def_param(ParamOrigin::Struct),
             |g| g.parse_token(TokenKind::Comma),
         );
         self.consume_gen(gen);
 
-        Ok(StructDef { fields: entries })
+        Ok(StructDef { ty_params, fields })
     }
 
     /// Parse an [EnumDef]. The keyword `enum` begins the construct and is
     /// followed by parentheses with inner enum fields defined.
     pub fn parse_enum_def(&mut self) -> ParseResult<EnumDef> {
         debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Enum)));
+
+        let ty_params = self.parse_optional_ty_params()?;
 
         let mut gen = self.parse_delim_tree(
             Delimiter::Paren,
@@ -44,7 +48,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             .parse_separated_fn(|g| g.parse_enum_def_entry(), |g| g.parse_token(TokenKind::Comma));
         self.consume_gen(gen);
 
-        Ok(EnumDef { entries })
+        Ok(EnumDef { ty_params, entries })
     }
 
     /// Parse an [EnumDefEntry].
@@ -114,42 +118,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// level on expressions such as struct, enum, function, and trait
     /// definitions.
     pub fn parse_ty_fn_def(&mut self) -> ParseResult<TyFnDef> {
-        let mut params = AstNodes::empty();
+        debug_assert!(self.current_token().has_kind(TokenKind::Lt));
 
-        // Flag denoting that we were able to parse the ending `>` within the function
-        // def arg
-        let mut arg_ending = false;
-
-        while let Some(param) = self.peek_resultant_fn_mut(|g| g.parse_ty_fn_def_param()) {
-            params.nodes.push(param);
-
-            match self.peek() {
-                Some(token) if token.has_kind(TokenKind::Comma) => {
-                    self.skip_token();
-                }
-                Some(token) if token.has_kind(TokenKind::Gt) => {
-                    self.skip_token();
-                    arg_ending = true;
-                    break;
-                }
-                token => self.err_with_location(
-                    ParseErrorKind::Expected,
-                    Some(TokenKindVector::from_vec(smallvec![TokenKind::Comma, TokenKind::Gt])),
-                    token.map(|t| t.kind),
-                    token.map_or_else(|| self.next_location(), |t| t.span),
-                )?,
-            }
-        }
-
-        // So if we failed to parse even a `>` we should report this...
-        if !arg_ending {
-            self.err_with_location(
-                ParseErrorKind::Expected,
-                Some(TokenKindVector::singleton(TokenKind::Gt)),
-                self.peek().map(|tok| tok.kind),
-                self.next_location(),
-            )?;
-        }
+        let params = self.parse_ty_params()?;
 
         // see if we need to add a return ty...
         let return_ty = match self.peek_resultant_fn(|g| g.parse_thin_arrow()) {
@@ -206,6 +177,70 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub fn parse_trait_def(&mut self) -> ParseResult<TraitDef> {
         debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Trait)));
 
-        Ok(TraitDef { members: self.parse_exprs_from_braces()? })
+        let ty_params = self.parse_optional_ty_params()?;
+
+        Ok(TraitDef { members: self.parse_exprs_from_braces()?, ty_params })
+    }
+
+    /// Parse optional type [Param]s, if the next token is not a
+    /// `<`, the function will return an empty [AstNodes<Param>].
+    #[inline]
+    pub(crate) fn parse_optional_ty_params(&mut self) -> ParseResult<AstNodes<Param>> {
+        match self.peek() {
+            Some(tok) if tok.has_kind(TokenKind::Lt) => {
+                self.skip_token();
+                self.parse_ty_params()
+            }
+            _ => Ok(AstNodes::new(vec![], None)),
+        }
+    }
+
+    /// Parse a collection of type [Param]s which can appear on nominal
+    /// definitions, and trait definitions.
+    fn parse_ty_params(&mut self) -> ParseResult<AstNodes<Param>> {
+        let mut params = AstNodes::empty();
+
+        // Flag denoting that we were able to parse the ending `>` within the function
+        // def arg
+        let mut param_ending = false;
+
+        while let Some(param) = self.peek_resultant_fn_mut(|g| g.parse_ty_fn_def_param()) {
+            params.nodes.push(param);
+
+            match self.peek() {
+                Some(token) if token.has_kind(TokenKind::Comma) => {
+                    self.skip_token();
+                }
+                Some(token) if token.has_kind(TokenKind::Gt) => {
+                    self.skip_token();
+                    param_ending = true;
+                    break;
+                }
+                token => self.err_with_location(
+                    ParseErrorKind::Expected,
+                    Some(TokenKindVector::from_vec(smallvec![TokenKind::Comma, TokenKind::Gt])),
+                    token.map(|t| t.kind),
+                    token.map_or_else(|| self.next_location(), |t| t.span),
+                )?,
+            }
+        }
+
+        // So if we failed to parse even a `>` we should report this...
+        if !param_ending {
+            // Here we encountered a trailing comma, so now we have to account for
+            // the `>` being after
+            if matches!(self.peek(), Some(tok) if tok.has_kind(TokenKind::Gt)) {
+                self.skip_token();
+            } else {
+                self.err_with_location(
+                    ParseErrorKind::Expected,
+                    Some(TokenKindVector::singleton(TokenKind::Gt)),
+                    self.peek().map(|tok| tok.kind),
+                    self.next_location(),
+                )?;
+            }
+        }
+
+        Ok(params)
     }
 }

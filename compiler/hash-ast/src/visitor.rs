@@ -1297,24 +1297,42 @@ macro_rules! make_ast_walker {
                 })
             }
 
-            pub struct ModBlock<V: $visitor>(pub V::BodyBlockRet);
+            pub struct ModBlock<V: $visitor> {
+                pub ty_params: V::CollectionContainer<V::ParamRet>,
+                pub block: V::BodyBlockRet,
+            }
 
             pub fn walk_mod_block<V: $visitor>(
                 visitor: &mut V,
                 ctx: &V::Ctx,
                 $($mutability)? node: $($path)::+<ast::ModBlock>,
             ) -> Result<ModBlock<V>, V::Error> {
-                Ok(ModBlock(visitor.visit_body_block(ctx, node.0.$ast_ref())?))
+                Ok(ModBlock {
+                    ty_params: V::try_collect_items(
+                        ctx,
+                        node.ty_params.$iter_ref().map(|param| visitor.visit_param(ctx, param.$ast_ref())),
+                    )?,
+                    block: visitor.visit_body_block(ctx, node.block.$ast_ref())?
+                })
             }
 
-            pub struct ImplBlock<V: $visitor>(pub V::BodyBlockRet);
+            pub struct ImplBlock<V: $visitor> {
+                pub ty_params: V::CollectionContainer<V::ParamRet>,
+                pub block: V::BodyBlockRet,
+            }
 
             pub fn walk_impl_block<V: $visitor>(
                 visitor: &mut V,
                 ctx: &V::Ctx,
                 $($mutability)? node: $($path)::+<ast::ImplBlock>,
             ) -> Result<ImplBlock<V>, V::Error> {
-                Ok(ImplBlock(visitor.visit_body_block(ctx, node.0.$ast_ref())?))
+                Ok(ImplBlock {
+                    ty_params: V::try_collect_items(
+                        ctx,
+                        node.ty_params.$iter_ref().map(|param| visitor.visit_param(ctx, param.$ast_ref())),
+                    )?,
+                    block: visitor.visit_body_block(ctx, node.block.$ast_ref())?
+                })
             }
 
             pub struct IfClause<V: $visitor> {
@@ -2290,7 +2308,8 @@ macro_rules! make_ast_walker {
             }
 
             pub struct StructDef<V: $visitor> {
-                pub entries: V::CollectionContainer<V::ParamRet>,
+                pub ty_params: V::CollectionContainer<V::ParamRet>,
+                pub fields: V::CollectionContainer<V::ParamRet>,
             }
             pub fn walk_struct_def<V: $visitor>(
                 visitor: &mut V,
@@ -2298,7 +2317,11 @@ macro_rules! make_ast_walker {
                 $($mutability)? node: $($path)::+<ast::StructDef>,
             ) -> Result<StructDef<V>, V::Error> {
                 Ok(StructDef {
-                    entries: V::try_collect_items(
+                    ty_params: V::try_collect_items(
+                        ctx,
+                        node.ty_params.$iter_ref().map(|b| visitor.visit_param(ctx, b.$ast_ref())),
+                    )?,
+                    fields: V::try_collect_items(
                         ctx,
                         node.fields.$iter_ref().map(|b| visitor.visit_param(ctx, b.$ast_ref())),
                     )?,
@@ -2324,6 +2347,7 @@ macro_rules! make_ast_walker {
             }
 
             pub struct EnumDef<V: $visitor> {
+                pub ty_params: V::CollectionContainer<V::ParamRet>,
                 pub entries: V::CollectionContainer<V::EnumDefEntryRet>,
             }
             pub fn walk_enum_def<V: $visitor>(
@@ -2332,6 +2356,10 @@ macro_rules! make_ast_walker {
                 $($mutability)? node: $($path)::+<ast::EnumDef>,
             ) -> Result<EnumDef<V>, V::Error> {
                 Ok(EnumDef {
+                    ty_params: V::try_collect_items(
+                        ctx,
+                        node.ty_params.$iter_ref().map(|b| visitor.visit_param(ctx, b.$ast_ref())),
+                    )?,
                     entries: V::try_collect_items(
                         ctx,
                         node.entries.$iter_ref().map(|b| visitor.visit_enum_def_entry(ctx, b.$ast_ref())),

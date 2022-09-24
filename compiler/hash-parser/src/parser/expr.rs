@@ -100,8 +100,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         Ok(Some((has_semi, expr)))
     }
 
-    /// Function to eat a collection of trailing semi-colons and produce
-    /// a resultant [ExprKind::Empty].
+    /// Function to eat a collection of trailing semi-colons.
     pub(crate) fn eat_trailing_semis(&mut self) {
         let tok = self.current_token();
         debug_assert!(tok.has_kind(TokenKind::Semi));
@@ -208,14 +207,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     }
                     TokenKind::Keyword(Keyword::If) => self.parse_if_block()?,
                     TokenKind::Keyword(Keyword::Match) => self.parse_match_block()?,
-                    TokenKind::Keyword(Keyword::Mod) => {
-                        let block = self.parse_body_block()?;
-                        self.node_with_joined_span(Block::Mod(ModBlock(block)), start)
-                    }
-                    TokenKind::Keyword(Keyword::Impl) => {
-                        let block = self.parse_body_block()?;
-                        self.node_with_joined_span(Block::Impl(ImplBlock(block)), start)
-                    }
+                    TokenKind::Keyword(Keyword::Mod) => self.parse_mod_block()?,
+                    TokenKind::Keyword(Keyword::Impl) => self.parse_impl_block()?,
                     _ => unreachable!(),
                 };
 

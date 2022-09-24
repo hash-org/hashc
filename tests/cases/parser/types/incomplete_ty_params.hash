@@ -1,0 +1,32 @@
+// run=fail, stage=parse
+
+{
+    T := struct<U, (
+        beep: T,
+    );
+};
+
+{
+    T := struct U,> (
+        beep: T,
+    );
+};
+
+{
+    T := enum <,> (
+        beep: T,
+    );
+};
+
+{
+    // @@Todo: make a warning
+    T := trait <> {
+        mux: () -> char;
+    };
+};
+
+{
+    T := trait < { // missing `>`
+        mux: () -> char;
+    };
+};

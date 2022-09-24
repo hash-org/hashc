@@ -1300,7 +1300,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     ) -> Result<Self::ModBlockRet, Self::Error> {
         // create a scope for the module definition
         let VisitConstantScope { scope_name, scope_id, .. } =
-            self.visit_constant_scope(ctx, node.0.members(), None, ScopeKind::Mod)?;
+            self.visit_constant_scope(ctx, node.block.members(), None, ScopeKind::Mod)?;
 
         // @@Todo: bound variables
         let mod_def = self.builder().create_mod_def(scope_name, ModDefOrigin::Mod, scope_id);
@@ -1323,7 +1323,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     ) -> Result<Self::ImplBlockRet, Self::Error> {
         // create a scope for the module definition
         let VisitConstantScope { scope_name, scope_id, .. } =
-            self.visit_constant_scope(ctx, node.0.members(), None, ScopeKind::Impl)?;
+            self.visit_constant_scope(ctx, node.block.members(), None, ScopeKind::Impl)?;
 
         // @@Todo: bound variables
         let mod_def = self.builder().create_mod_def(scope_name, ModDefOrigin::AnonImpl, scope_id);
@@ -1778,10 +1778,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::StructDef>,
     ) -> Result<Self::StructDefRet, Self::Error> {
-        let walk::StructDef { entries } = walk::walk_struct_def(self, ctx, node)?;
+        let walk::StructDef { fields, .. } = walk::walk_struct_def(self, ctx, node)?;
 
         // create the params
-        let fields = self.builder().create_params(entries, ParamOrigin::Struct);
+        let fields = self.builder().create_params(fields, ParamOrigin::Struct);
 
         // add the location of each parameter
         self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), fields);
@@ -1839,7 +1839,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::EnumDef>,
     ) -> Result<Self::EnumDefRet, Self::Error> {
-        let walk::EnumDef { entries } = walk::walk_enum_def(self, ctx, node)?;
+        let walk::EnumDef { entries, .. } = walk::walk_enum_def(self, ctx, node)?;
 
         let builder = self.builder();
         let enum_variant_union = builder.create_union_term(

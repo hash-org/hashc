@@ -1,0 +1,31 @@
+// run=pass, stage=parse
+
+Foo := enum<T, U, Mux> (
+    One(
+        foo: U,
+        bar: T,
+        mu: Mux
+    )
+);
+
+T := enum<U,> (
+     Beep(T),
+     Name(T, char),
+     Traverse(T, str, u32, Vec<f32>),
+
+     // @@Todo: the syntax `T -> U` should be allowed
+     Transcend((T) -> U),
+);
+
+Foo := enum<T = i32, U, Mux: Hash ~ Eq> (
+    ContaintorOf(U), 
+    DetainorOf(T), 
+    MapOf(
+        items: { Mux: T }
+    )
+);
+
+Foo := enum<T = i32, K := Mux ~ Universe, U: Type, Mux: Hash ~ Eq> (
+    With(U), 
+    Or(T), 
+);
