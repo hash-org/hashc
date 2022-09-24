@@ -81,8 +81,8 @@ impl TryFrom<&ItemEnum> for EnumNodeDef {
     }
 }
 
-/// Ensure that the given path segments are in the form <A> for some type A,
-/// returning the name of the type.
+/// Ensure that the given token stream is in the form some identifier returning
+/// the name of the identifier.
 fn ensure_single_macro_ident_argument(tokens: TokenStream) -> Result<syn::Ident, syn::Error> {
     let token_span = tokens.span();
     syn::parse2::<syn::Ident>(tokens).map_err(|_| {
@@ -96,8 +96,8 @@ fn ensure_single_macro_ident_argument(tokens: TokenStream) -> Result<syn::Ident,
 impl TryFrom<&Type> for NodeFieldData {
     type Error = syn::Error;
     fn try_from(value: &Type) -> Result<Self, Self::Error> {
-        // Try to match a type in the form Node<A> or Nodes<A> for some identifier A,
-        // and if so it is a child node(s).
+        // Try to match a type in the form Child!(A)/Children!(A)/OptionalChild!(A) for
+        // some identifier A, and if so it is a child node(s).
         // Otherwise it is some other data.
         match value {
             Type::Macro(type_macro) => {
@@ -154,7 +154,7 @@ struct MaybeTreeNodeDef(Option<TreeNodeDef>);
 impl TryFrom<&Item> for MaybeTreeNodeDef {
     type Error = syn::Error;
     fn try_from(value: &Item) -> Result<Self, Self::Error> {
-        // Something is a node if it is annotated with #[tree_node]
+        // Something is a node if it is annotated with #[node]
         let has_tree_node =
             |attrs: &[Attribute]| attrs.iter().any(|attr| attr.path.is_ident(NODE_DEF_ATTR_NAME));
 
@@ -170,7 +170,7 @@ impl TryFrom<&Item> for MaybeTreeNodeDef {
     }
 }
 
-/// Parse a field in the form `<ident_name>: A` for some identifier A, returning
+/// Parse a field in the form `ident_name: A` for some identifier A, returning
 /// the identifier A.
 fn parse_ident_field(fields: &FieldsNamed, ident_name: &str) -> Result<Ident, syn::Error> {
     fields
@@ -208,7 +208,7 @@ struct MaybeTreeDefOpts(Option<TreeDefOpts>);
 impl TryFrom<&Item> for MaybeTreeDefOpts {
     type Error = syn::Error;
     fn try_from(value: &Item) -> Result<Self, Self::Error> {
-        // Options are given by a macro define_tree_opts! { ... }
+        // Options are given by a macro opts! { ... }
         match value {
             Item::Macro(ItemMacro { mac, .. }) if mac.path.is_ident(OPTS_MACRO_NAME) => {
                 let opts = syn::parse2::<FieldsNamed>(mac.tokens.clone())?;
