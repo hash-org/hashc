@@ -11,7 +11,7 @@ use hash_source::{identifier::Identifier, location::SourceLocation};
 use hash_token::{TokenKind, TokenKindVector};
 use hash_utils::printing::SequenceDisplay;
 
-use super::TyArgumentKind;
+use crate::parser::DefinitionKind;
 
 /// Utility wrapper type for [ParseError] in [Result]
 pub type ParseResult<T> = Result<T, ParseError>;
@@ -70,7 +70,7 @@ pub enum ParseErrorKind {
     /// it can either be 'struct' or 'enum' type arguments. The reason why
     /// there are two variants is to add additional information in the error
     /// message.
-    TypeDefinition(TyArgumentKind),
+    TypeDefinition(DefinitionKind),
     /// Expected a name here.
     ExpectedName,
     /// Expected a binary operator that ties two expressions together to create

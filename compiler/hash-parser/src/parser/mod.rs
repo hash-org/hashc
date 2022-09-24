@@ -12,7 +12,7 @@ mod operator;
 mod pat;
 mod ty;
 
-use std::cell::Cell;
+use std::{cell::Cell, fmt::Display};
 
 use hash_ast::ast::*;
 use hash_reporting::diagnostic::Diagnostics;
@@ -68,6 +68,38 @@ macro_rules! disable_flag {
         $statement
         $gen.$flag.set(value);
     };
+}
+
+/// Represents what the origin of a definition is. This is useful
+/// for when emitting warnings that might occur in the same way
+/// as the ret of these constructs.
+#[derive(Debug, Clone, Copy)]
+pub enum DefinitionKind {
+    /// This is a type function definition,
+    TyFn,
+    /// The definition is a `struct`.
+    Struct,
+    /// The definition is a `enum`.
+    Enum,
+    /// The definition is a `trait`.
+    Trait,
+    /// The definition is a `impl` block.
+    Impl,
+    /// The definition is a `mod` block.
+    Mod,
+}
+
+impl Display for DefinitionKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DefinitionKind::TyFn => write!(f, "type function"),
+            DefinitionKind::Struct => write!(f, "struct"),
+            DefinitionKind::Enum => write!(f, "enum"),
+            DefinitionKind::Trait => write!(f, "trait"),
+            DefinitionKind::Impl => write!(f, "impl"),
+            DefinitionKind::Mod => write!(f, "mod"),
+        }
+    }
 }
 
 pub struct AstGen<'stream, 'resolver> {
