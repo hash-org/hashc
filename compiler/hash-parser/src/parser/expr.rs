@@ -162,7 +162,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 self.node_with_joined_span(Expr::new(ExprKind::TraitDef(def)), token.span)
             }
             TokenKind::Keyword(Keyword::Type) => {
-                let ty = self.parse_type()?;
+                let ty = self.parse_ty()?;
                 self.node_with_joined_span(Expr::new(ExprKind::Ty(TyExpr(ty))), token.span)
             }
             TokenKind::Keyword(Keyword::Set) => {
@@ -176,7 +176,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             TokenKind::Keyword(Keyword::Impl)
                 if self.peek().map_or(false, |tok| !tok.is_brace_tree()) =>
             {
-                let ty = self.parse_type()?;
+                let ty = self.parse_ty()?;
                 let body = self.parse_exprs_from_braces()?;
 
                 self.node_with_joined_span(
@@ -306,10 +306,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     }
 
     /// Parse a [TyFnCall] wrapped within a [TyExpr]. This function tries to
-    /// parse `type_args` by using `parse_type_args`. If this parsing fails,
+    /// parse `ty_args` by using `parse_ty_args`. If this parsing fails,
     /// it could be that this isn't a type function call, but rather a
     /// simple binary expression which uses the `<` operator.
-    fn maybe_parse_type_fn_call(&mut self, subject: AstNode<Expr>) -> (AstNode<Expr>, bool) {
+    fn maybe_parse_ty_fn_call(&mut self, subject: AstNode<Expr>) -> (AstNode<Expr>, bool) {
         let span = subject.span();
 
         // @@Speed: so here we want to be efficient about type_args, we'll just try to
@@ -385,7 +385,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     // conversion where we transform the AstNode into a
                     // different
                     if op == BinOp::As {
-                        let ty = self.parse_type()?;
+                        let ty = self.parse_ty()?;
                         lhs = self.node_with_joined_span(
                             Expr::new(ExprKind::Cast(CastExpr { expr: lhs, ty })),
                             op_span,
@@ -438,7 +438,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     self.offset.update(|offset| offset + 2);
                     self.parse_ns_access(subject)?
                 }
-                TokenKind::Lt => match self.maybe_parse_type_fn_call(subject) {
+                TokenKind::Lt => match self.maybe_parse_ty_fn_call(subject) {
                     (subject, true) => subject,
                     // Essentially break because the type_args failed
                     (subject, false) => return Ok(subject),
@@ -705,7 +705,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // Attempt to parse an optional type...
         let ty = match self.peek() {
             Some(token) if token.has_kind(TokenKind::Eq) => None,
-            _ => Some(self.parse_type()?),
+            _ => Some(self.parse_ty()?),
         };
 
         // Now parse the value after the assignment
@@ -947,7 +947,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let ty = match self.peek() {
             Some(token) if token.has_kind(TokenKind::Colon) => {
                 self.skip_token();
-                Some(self.parse_type()?)
+                Some(self.parse_ty()?)
             }
             _ => None,
         };
@@ -979,7 +979,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         // check if there is a return type
         let return_ty = match self.peek_resultant_fn(|g| g.parse_thin_arrow()) {
-            Some(_) => Some(self.parse_type()?),
+            Some(_) => Some(self.parse_ty()?),
             _ => None,
         };
 

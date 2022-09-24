@@ -91,14 +91,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                         Some(token) if matches!(token.kind, TokenKind::Eq | TokenKind::Comma) => {
                             None
                         }
-                        _ => Some(self.parse_type()?),
+                        _ => Some(self.parse_ty()?),
                     },
                     None => None,
                 };
 
                 (name, ty)
             }
-            _ => (None, Some(self.parse_type()?)),
+            _ => (None, Some(self.parse_ty()?)),
         };
 
         // If `name` and or `type` is followed by an `=`. we disallow default values
@@ -124,7 +124,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         // see if we need to add a return ty...
         let return_ty = match self.peek_resultant_fn(|g| g.parse_thin_arrow()) {
-            Some(_) => Some(self.parse_type()?),
+            Some(_) => Some(self.parse_ty()?),
             None => None,
         };
 
@@ -147,14 +147,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let ty = match self.parse_token_fast(TokenKind::Colon) {
             Some(_) => match self.peek() {
                 Some(tok) if tok.has_kind(TokenKind::Eq) => None,
-                _ => Some(self.parse_type()?),
+                _ => Some(self.parse_ty()?),
             },
             None => None,
         };
 
         // Parse a default type
         let default = match self.parse_token_fast(TokenKind::Eq) {
-            Some(_) => Some(self.parse_type()?),
+            Some(_) => Some(self.parse_ty()?),
             None => None,
         };
 

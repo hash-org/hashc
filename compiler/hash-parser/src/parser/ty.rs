@@ -1,6 +1,6 @@
 //! Hash Compiler AST generation sources. This file contains the sources to the
 //! logic that transforms tokens into an AST.
-use hash_ast::ast::*;
+use hash_ast::{ast::*, ast_nodes};
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
 use smallvec::smallvec;
 
@@ -11,20 +11,20 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a [Ty]. This includes all forms of a [Ty]. This function
     /// does not deal with any kind of [Ty] annotation or [TyFnDef]
     /// syntax.
-    pub(crate) fn parse_type(&mut self) -> ParseResult<AstNode<Ty>> {
-        self.parse_type_with_precedence(0)
+    pub(crate) fn parse_ty(&mut self) -> ParseResult<AstNode<Ty>> {
+        self.parse_ty_with_precedence(0)
     }
 
     /// Parse a [Ty] with precedence in mind. The type notation contains
     /// [BinTyOp] operators which are binary operators for type terms. This
     /// function implements the same precedence algorithm for correctly
     /// forming binary type expressions.
-    fn parse_type_with_precedence(&mut self, min_prec: u8) -> ParseResult<AstNode<Ty>> {
-        let mut lhs = self.parse_singular_type()?;
+    fn parse_ty_with_precedence(&mut self, min_prec: u8) -> ParseResult<AstNode<Ty>> {
+        let mut lhs = self.parse_singular_ty()?;
         let lhs_span = lhs.span();
 
         loop {
-            let (op, consumed_tokens) = self.parse_type_operator();
+            let (op, consumed_tokens) = self.parse_ty_op();
 
             match op {
                 Some(op) => {
@@ -39,7 +39,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     self.offset.update(|x| x + consumed_tokens as usize);
 
                     // Now recurse and get the `rhs` of the operator.
-                    let rhs = self.parse_type_with_precedence(r_prec)?;
+                    let rhs = self.parse_ty_with_precedence(r_prec)?;
 
                     // transform the operator into an `UnaryTy` or `MergeTy` based on the operator
                     lhs =
@@ -58,7 +58,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     }
 
     /// Parse a [Ty]. This includes only singular forms of a type.
-    fn parse_singular_type(&mut self) -> ParseResult<AstNode<Ty>> {
+    fn parse_singular_ty(&mut self) -> ParseResult<AstNode<Ty>> {
         let token = self.peek().ok_or_else(|| {
             self.make_err(ParseErrorKind::ExpectedType, None, None, Some(self.next_location()))
         })?;
@@ -81,7 +81,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     .parse_token_fast(TokenKind::Keyword(Keyword::Mut))
                     .map(|_| self.node_with_span(Mutability::Mutable, self.current_location()));
 
-                Ty::Ref(RefTy { inner: self.parse_type()?, kind, mutability })
+                Ty::Ref(RefTy { inner: self.parse_ty()?, kind, mutability })
             }
             TokenKind::Ident(id) => {
                 self.skip_token();
@@ -96,7 +96,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 let tree = self.token_trees.get(*tree_index as usize).unwrap();
                 let mut gen = self.from_stream(tree, token.span);
 
-                let key_ty = gen.parse_type()?;
+                let key_ty = gen.parse_ty()?;
 
                 match gen.peek() {
                     // This must be a map
@@ -104,7 +104,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                         gen.skip_token();
 
                         // @@ErrorRecovery: Investigate introducing `Err` variant into types...
-                        let value_ty = gen.parse_type()?;
+                        let value_ty = gen.parse_ty()?;
                         self.consume_gen(gen);
 
                         Ty::Map(MapTy { key: key_ty, value: value_ty })
@@ -122,7 +122,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 let mut gen = self.from_stream(tree, token.span);
 
                 // @@ErrorRecovery: Investigate introducing `Err` variant into types...
-                let inner_type = gen.parse_type()?;
+                let inner_type = gen.parse_ty()?;
                 self.consume_gen(gen);
 
                 Ty::List(ListTy { inner: inner_type })
@@ -160,6 +160,22 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                         args: self.parse_ty_args(true)?,
                     })
                 }
+                // Function syntax which allow to express `U -> T` whilst implying `(U -> T)`
+                TokenKind::Minus if matches!(self.peek_second(), Some(token) if token.has_kind(TokenKind::Gt)) => {
+                    self.offset.update(|offset| offset + 2);
+                    let return_ty = self.parse_ty()?;
+
+                    let ty_arg = self.node_with_span(TyArg {
+                        name: None,
+                        ty: self.node_with_joined_span(ty, span)
+                    }, span);
+
+                    Ty::Fn(FnTy {
+                        params: ast_nodes![ty_arg],
+                        return_ty,
+                    })
+                }
+
                 TokenKind::Colon if matches!(self.peek_second(), Some(token) if token.has_kind(TokenKind::Colon)) => {
                     self.offset.update(|offset| offset + 2);
 
@@ -176,12 +192,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     }
 
     /// This parses type arguments, however due to the nature of the language
-    /// grammar, since the [Token
-    ///Kind] could be a [`TokenKind::Lt`] or `<`, it could also be a comp
-    ///arison rather than the beginning of a type argument. Therefore, we
-    /// have to lookahead to see if there is another type followed by
-    ///either a comma (which locks the `type_args`) or a
-    /// closing [`TokenKind::Gt`].
+    /// grammar, since the [TokenKind] could be a [`TokenKind::Lt`] or `<`, it
+    /// could also be a comparison rather than the beginning of a type argument.
+    /// Therefore, we have to lookahead to see if there is   type followed
+    /// by either a comma (which locks the closing [`TokenKind::Gt`].
     pub(crate) fn parse_ty_args(&mut self, lt_eaten: bool) -> ParseResult<AstNodes<TyArg>> {
         // Only parse is if the caller specifies that they haven't eaten an `lt`
         if !lt_eaten {
@@ -189,7 +203,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
 
         let start = self.current_location();
-        let mut type_args = vec![];
+        let mut ty_args = vec![];
 
         loop {
             // The name part of the `NamedFieldTypeEntry` is an identifier followed by an
@@ -209,14 +223,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
             // Either way, even if the name is not specified, we still want to parse a name
             // here and hard-error if we don't encounter a type.
-            let ty = self.parse_type()?;
+            let ty = self.parse_ty()?;
 
             // Here, we want to use either a joined span between the name or just the span
             // of the parsed type
             let arg_span =
                 name.as_ref().map_or_else(|| ty.span(), |node| node.span().join(ty.span()));
 
-            type_args.push(self.node_with_span(TyArg { name, ty }, arg_span));
+            ty_args.push(self.node_with_span(TyArg { name, ty }, arg_span));
 
             // Now consider if the bound is closing or continuing with a comma...
             match self.peek() {
@@ -238,7 +252,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         // Update the location of the type bound to reflect the '<' and '>' tokens...
         // type_args.set_span(start.join(self.current_location()));
-        Ok(AstNodes::new(type_args, Some(start.join(self.current_location()))))
+        Ok(AstNodes::new(ty_args, Some(start.join(self.current_location()))))
     }
 
     /// Parses a [Ty::Fn] which involves a parenthesis token tree with some
@@ -270,9 +284,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                                 let ident = g.parse_name()?;
                                 g.skip_token(); // :
 
-                                (Some(ident), g.parse_type()?)
+                                (Some(ident), g.parse_ty()?)
                             }
-                            _ => (None, g.parse_type()?),
+                            _ => (None, g.parse_ty()?),
                         };
 
                         Ok(g.node_with_joined_span(TyArg { name, ty }, start))
@@ -292,7 +306,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         match self.peek_resultant_fn(|g| g.parse_thin_arrow()) {
             Some(_) => {
                 // Parse the return type here, and then give the function name
-                Ok(Ty::Fn(FnTy { params, return_ty: self.parse_type()? }))
+                Ok(Ty::Fn(FnTy { params, return_ty: self.parse_ty()? }))
             }
             None => {
                 // If there is only one entry in the params, and the last token in the entry is
@@ -326,13 +340,13 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 Some(_) => match self.peek() {
                     // Don't try and parse a type if an '=' is followed straight after
                     Some(tok) if tok.has_kind(TokenKind::Eq) => None,
-                    _ => Some(self.parse_type()?),
+                    _ => Some(self.parse_ty()?),
                 },
                 None => None,
             };
 
             let default = match self.parse_token_fast(TokenKind::Eq) {
-                Some(_) => Some(self.parse_type()?),
+                Some(_) => Some(self.parse_ty()?),
                 None => None,
             };
 
@@ -371,7 +385,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         // Now pass the return type
         self.parse_thin_arrow()?;
-        let return_ty = self.parse_type()?;
+        let return_ty = self.parse_ty()?;
 
         Ok(Ty::TyFn(TyFn { params: AstNodes::new(args, Some(arg_span)), return_ty }))
     }

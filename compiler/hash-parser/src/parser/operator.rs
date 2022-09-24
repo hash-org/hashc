@@ -71,7 +71,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Function to parse a [BinTyOp] which returns a type operator if one is
     /// present, and the number of tokens consumed. If no type operator follows,
     /// then the consumed tokens count will be 0.
-    pub(crate) fn parse_type_operator(&self) -> (Option<BinTyOp>, u8) {
+    pub(crate) fn parse_ty_op(&self) -> (Option<BinTyOp>, u8) {
         match self.peek() {
             Some(token) if token.has_kind(TokenKind::Pipe) => (Some(BinTyOp::Union), 1),
             Some(token) if token.has_kind(TokenKind::Tilde) => (Some(BinTyOp::Merge), 1),
