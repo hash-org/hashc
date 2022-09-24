@@ -1,6 +1,6 @@
 //! Hash Compiler AST generation sources. This file contains the sources to the
 //! logic that transforms tokens into an AST.
-use hash_ast::ast::*;
+use hash_ast::{ast::*, ast_nodes};
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
 use smallvec::smallvec;
 
@@ -160,6 +160,22 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                         args: self.parse_ty_args(true)?,
                     })
                 }
+                // Function syntax which allow to express `U -> T` whilst implying `(U -> T)`
+                TokenKind::Minus if matches!(self.peek_second(), Some(token) if token.has_kind(TokenKind::Gt)) => {
+                    self.offset.update(|offset| offset + 2);
+                    let return_ty = self.parse_ty()?;
+
+                    let ty_arg = self.node_with_span(TyArg {
+                        name: None,
+                        ty: self.node_with_joined_span(ty, span)
+                    }, span);
+
+                    Ty::Fn(FnTy {
+                        params: ast_nodes![ty_arg],
+                        return_ty,
+                    })
+                }
+
                 TokenKind::Colon if matches!(self.peek_second(), Some(token) if token.has_kind(TokenKind::Colon)) => {
                     self.offset.update(|offset| offset + 2);
 
@@ -176,12 +192,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     }
 
     /// This parses type arguments, however due to the nature of the language
-    /// grammar, since the [Token
-    ///Kind] could be a [`TokenKind::Lt`] or `<`, it could also be a comp
-    ///arison rather than the beginning of a type argument. Therefore, we
-    /// have to lookahead to see if there is another type followed by
-    ///either a comma (which locks the `type_args`) or a
-    /// closing [`TokenKind::Gt`].
+    /// grammar, since the [TokenKind] could be a [`TokenKind::Lt`] or `<`, it
+    /// could also be a comparison rather than the beginning of a type argument.
+    /// Therefore, we have to lookahead to see if there is   type followed
+    /// by either a comma (which locks the closing [`TokenKind::Gt`].
     pub(crate) fn parse_ty_args(&mut self, lt_eaten: bool) -> ParseResult<AstNodes<TyArg>> {
         // Only parse is if the caller specifies that they haven't eaten an `lt`
         if !lt_eaten {

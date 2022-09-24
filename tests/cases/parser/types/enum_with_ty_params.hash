@@ -12,9 +12,7 @@ T := enum<U,> (
      Beep(T),
      Name(T, char),
      Traverse(T, str, u32, Vec<f32>),
-
-     // @@Todo: the syntax `T -> U` should be allowed
-     Transcend((T) -> U),
+     Transcend(T -> U),
 );
 
 Foo := enum<T = i32, U, Mux: Hash ~ Eq> (
