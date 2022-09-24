@@ -158,7 +158,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
                         match self.peek() {
                             Some(token) if token.has_kind(TokenKind::Eq) => None,
-                            _ => Some(self.parse_type()?),
+                            _ => Some(self.parse_ty()?),
                         }
                     }
                     _ => None,
