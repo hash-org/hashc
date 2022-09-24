@@ -227,12 +227,18 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         // So if we failed to parse even a `>` we should report this...
         if !param_ending {
-            self.err_with_location(
-                ParseErrorKind::Expected,
-                Some(TokenKindVector::singleton(TokenKind::Gt)),
-                self.peek().map(|tok| tok.kind),
-                self.next_location(),
-            )?;
+            // Here we encountered a trailing comma, so now we have to account for
+            // the `>` being after
+            if matches!(self.peek(), Some(tok) if tok.has_kind(TokenKind::Gt)) {
+                self.skip_token();
+            } else {
+                self.err_with_location(
+                    ParseErrorKind::Expected,
+                    Some(TokenKindVector::singleton(TokenKind::Gt)),
+                    self.peek().map(|tok| tok.kind),
+                    self.next_location(),
+                )?;
+            }
         }
 
         Ok(params)
