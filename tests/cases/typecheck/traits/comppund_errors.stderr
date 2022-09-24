@@ -22,7 +22,7 @@ error[0056]: method `member_not_on_trt` is not a member of trait `Foo`
 43 | |              _ => Mux(val = 17);
 44 | |          }
 45 | |      };
-   | |_______- not a member of trait `Foo`
+   | |______- not a member of trait `Foo`
 46 |    };
 
 error[0020]: types mismatch, wanted `(a: u32) -> Mux`, but got `(a: i32) -> Mux`
@@ -39,6 +39,6 @@ error[0020]: types mismatch, wanted `(a: u32) -> Mux`, but got `(a: i32) -> Mux`
    |  ______________-
 33 | |          Mux()
 34 | |      };
-   | |_______- ...but this is of type `(a: i32) -> Mux`
+   | |______- ...but this is of type `(a: i32) -> Mux`
 35 |    
 36 |        //~ ERROR: `method_not_on_trt` not a member of `Foo`

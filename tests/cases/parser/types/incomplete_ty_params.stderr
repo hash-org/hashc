@@ -6,7 +6,7 @@ error: unexpectedly encountered a `(...)`
   |  _____________________-
 5 | |          beep: T,
 6 | |      );
-  | |_______- 
+  | |______- 
 7 |    };
 8 |    
   = help: consider adding a `>`
@@ -35,6 +35,6 @@ error: unexpectedly encountered a `{...}`
    |  ___________________-
 30 | |          mux: () -> char;
 31 | |      };
-   | |_______- 
+   | |______- 
 32 |    };
    = help: consider adding a `>`

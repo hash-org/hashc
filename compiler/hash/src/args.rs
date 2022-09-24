@@ -65,7 +65,7 @@ impl From<CompilerOptions> for CompilerSettings {
             output_metrics: options.output_metrics,
             worker_count: options.worker_count,
             skip_prelude: false,
-            emit_errors: false,
+            emit_errors: true,
             dump_ast: options.dump_ast,
             stage,
         }
