@@ -214,18 +214,28 @@ fn emit_walked_struct_type(
     visitor_name: &syn::Ident,
 ) -> Result<TokenStream, syn::Error> {
     let node_name = &struct_node.name;
-    let fields = struct_node.fields.iter().filter_map(|field| {
-        let field_name = &field.name;
-        let (field_type, is_node) = emit_walked_node_field_type(&field.data, tree_def);
-        // Only emit the fields which have nodes in them.
-        if is_node {
-            Some(quote! {
-               pub #field_name: #field_type
-            })
-        } else {
-            None
-        }
-    });
+    let fields = struct_node
+        .fields
+        .iter()
+        .filter_map(|field| {
+            let field_name = &field.name;
+            let (field_type, is_node) = emit_walked_node_field_type(&field.data, tree_def);
+            // Only emit the fields which have nodes in them.
+            if is_node {
+                Some(quote! {
+                   pub #field_name: #field_type
+                })
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+
+    // Skip if empty
+    if fields.is_empty() {
+        return Ok(quote! {});
+    }
+
     Ok(quote! {
         pub struct #node_name<V: super::#visitor_name> {
             #(#fields),*
@@ -492,7 +502,7 @@ fn emit_walk_node_field(
                 }
             } else {
                 // Unrelated field, we skip it
-                Ok(Some(quote! {}))
+                Ok(None)
             }
         }
     }
@@ -577,6 +587,12 @@ fn emit_walker_struct_function(
                 })
         })
         .collect::<Result<Vec<_>, _>>()?;
+
+    // Skip if empty
+    if walk_fields.is_empty() {
+        return Ok(quote! {});
+    }
+
     emit_walker_function(
         &struct_node.name,
         tree_def,
@@ -644,8 +660,8 @@ fn emit_walker(tree_def: &TreeDef, emit_mut: bool) -> Result<TokenStream, syn::E
 /// Emit the tree definition as Rust syntax.
 pub(crate) fn emit_tree(tree_def: &TreeDef) -> Result<TokenStream, syn::Error> {
     Ok([
-        emit_node_defs(tree_def),
         emit_other_items(tree_def),
+        emit_node_defs(tree_def),
         // Generate mut and non-mut versions of the walker and visitor
         emit_visitor(tree_def, true),
         emit_visitor(tree_def, false),
