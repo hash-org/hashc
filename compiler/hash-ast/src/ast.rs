@@ -23,6 +23,39 @@ counter! {
     method_visibility: pub,
 }
 
+mod tree_gen {
+    use hash_tree_def::define_tree;
+
+    use super::{AstNode, AstNodeRef, AstNodeRefMut, AstNodes};
+
+    define_tree! {
+        opts! {{
+            node_type_name: AstNode,
+            nodes_type_name: AstNodes,
+            visitor_trait_base_name: AstVisitor,
+            visitor_node_ref_base_type_name: AstNodeRef,
+            get_ref_from_node_function_base_name: ast_ref,
+            ref_change_body_function_base_name: with_body,
+        }}
+
+        #[node]
+        pub struct Foo {
+            bar: OptionalChild!(Bar),
+        }
+
+        #[node]
+        pub struct Bar {
+            foo: Children!(Foo),
+        }
+
+        #[node]
+        pub enum Baz {
+            Foo(Bar),
+            Bar(Foo),
+        }
+    }
+}
+
 /// Represents an abstract syntax tree node.
 ///
 /// Contains an inner type, as well as begin and end positions in the input.

@@ -3,12 +3,24 @@
 
 use std::collections::HashMap;
 
+/// The name of the macro to declare node definition
+pub(crate) const NODE_DEF_ATTR_NAME: &str = "node";
+
+/// The name of the macro to declare a child node in type position
+pub(crate) const NODE_TYPE_NAME: &str = "Child";
+
+/// The name of the macro to declare children nodes in type position
+pub(crate) const NODES_TYPE_NAME: &str = "Children";
+
+/// The name of the macro to declare an optional node in type position
+pub(crate) const OPTIONAL_NODE_TYPE_NAME: &str = "OptionalChild";
+
 /// An enum node variant, which has to point to another struct.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct EnumNodeVariant {
     pub(crate) attrs: Vec<syn::Attribute>,
     pub(crate) name: syn::Ident,
-    pub(crate) variant_struct_name: syn::Ident,
+    pub(crate) variant_data: Option<Vec<NodeFieldData>>,
 }
 
 /// A node definition that is an enum, containing a set of variants with single
@@ -21,14 +33,28 @@ pub(crate) struct EnumNodeDef {
     pub(crate) variants: Vec<EnumNodeVariant>,
 }
 
-/// The data type of a struct node field.
+/// The data type of a node field.
 ///
-/// This is either another node, a list of nodes, or some other type.
+/// This is either another node, a list of nodes, an optional node, or some
+/// other type.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum StructNodeFieldData {
+pub(crate) enum NodeFieldData {
     Child { node_name: syn::Ident },
     ChildList { node_name: syn::Ident },
+    OptionalChild { node_name: syn::Ident },
     Other { ty: syn::Type },
+}
+
+impl NodeFieldData {
+    #[allow(unused)]
+    pub(crate) fn node_name(&self) -> Option<&syn::Ident> {
+        match self {
+            NodeFieldData::Child { node_name } => Some(node_name),
+            NodeFieldData::ChildList { node_name } => Some(node_name),
+            NodeFieldData::OptionalChild { node_name } => Some(node_name),
+            NodeFieldData::Other { .. } => None,
+        }
+    }
 }
 
 /// The field of a struct node definition.
@@ -37,7 +63,7 @@ pub(crate) struct StructNodeField {
     pub(crate) visibility: syn::Visibility,
     pub(crate) attrs: Vec<syn::Attribute>,
     pub(crate) name: syn::Ident,
-    pub(crate) data: StructNodeFieldData,
+    pub(crate) data: NodeFieldData,
 }
 
 /// A node definition that is a struct, containing a set of field members.
@@ -66,6 +92,17 @@ impl TreeNodeDef {
     }
 }
 
+pub(crate) const OPTS_MACRO_NAME: &str = "opts";
+pub(crate) const NODE_TYPE_NAME_OPTS_FIELD: &str = "node_type_name";
+pub(crate) const NODES_TYPE_NAME_OPTS_FIELD: &str = "nodes_type_name";
+pub(crate) const VISITOR_TRAIT_BASE_NAME_OPTS_FIELD: &str = "visitor_trait_base_name";
+pub(crate) const VISITOR_NODE_REF_BASE_TYPE_NAME_OPTS_FIELD: &str =
+    "visitor_node_ref_base_type_name";
+pub(crate) const GET_REF_FROM_NODE_FUNCTION_BASE_NAME_OPTS_FIELD: &str =
+    "get_ref_from_node_function_base_name";
+pub(crate) const REF_CHANGE_BODY_FUNCTION_BASE_NAME_OPTS_FIELD: &str =
+    "ref_change_body_function_base_name";
+
 /// A set of auxiliary options given to the tree definition macro.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct TreeDefOpts {
@@ -75,6 +112,16 @@ pub(crate) struct TreeDefOpts {
     /// The type name of the tree node list wrapper type. This type must take a
     /// single type argument.
     pub(crate) nodes_type_name: syn::Ident,
+    /// The base name to use for the created visitor
+    pub(crate) visitor_trait_base_name: syn::Ident,
+    /// The base name to use for the created visitor's node reference types
+    pub(crate) visitor_node_ref_base_type_name: syn::Ident,
+    /// The base method name to use for getting a reference to a node from a
+    /// node
+    pub(crate) get_ref_from_node_function_base_name: syn::Ident,
+    /// The base method name to use for changing a node reference's body from
+    /// one value to another.
+    pub(crate) ref_change_body_function_base_name: syn::Ident,
 }
 
 /// The definition of a tree of nodes, as well as other items that might have
