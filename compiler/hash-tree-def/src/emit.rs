@@ -147,7 +147,7 @@ fn emit_visitor(tree_def: &TreeDef, emit_mut: bool) -> TokenStream {
         tree_def.opts.visitor_node_ref_base_type_name.clone()
     };
 
-    let node_visitor_methods = tree_def.nodes.iter().map(|(node_name, _)| {
+    let node_visitor_methods = tree_def.nodes.keys().map(|node_name| {
         let node_ret = format_ident!("{}Ret", node_name.to_string().to_case(Case::Pascal));
         let visit_node = format_ident!("visit_{}", node_name.to_string().to_case(Case::Snake));
         let self_param = if emit_mut { quote!(&mut self) } else { quote!(&self) };
@@ -291,15 +291,13 @@ fn emit_walked_types(tree_def: &TreeDef, emit_mut: bool) -> Result<TokenStream, 
         suffix_ident_mut(&tree_def.opts.visitor_trait_base_name, emit_mut, Case::Pascal);
     let walker_types = tree_def
         .nodes
-        .iter()
-        .map(|(_, node)| -> Result<_, syn::Error> {
-            match node {
-                TreeNodeDef::EnumNodeDef(enum_node) => {
-                    emit_walked_enum_type(enum_node, tree_def, &visitor_name)
-                }
-                TreeNodeDef::StructNodeDef(struct_node) => {
-                    emit_walked_struct_type(struct_node, tree_def, &visitor_name)
-                }
+        .values()
+        .map(|node| match node {
+            TreeNodeDef::EnumNodeDef(enum_node) => {
+                emit_walked_enum_type(enum_node, tree_def, &visitor_name)
+            }
+            TreeNodeDef::StructNodeDef(struct_node) => {
+                emit_walked_struct_type(struct_node, tree_def, &visitor_name)
             }
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -598,8 +596,8 @@ fn emit_walker_functions(tree_def: &TreeDef, emit_mut: bool) -> Result<TokenStre
         suffix_ident_mut(&tree_def.opts.visitor_trait_base_name, emit_mut, Case::Pascal);
     let walker_functions = tree_def
         .nodes
-        .iter()
-        .map(|(_, node)| -> Result<_, syn::Error> {
+        .values()
+        .map(|node| {
             match &node {
                 TreeNodeDef::EnumNodeDef(enum_node) => {
                     // Potentially emit walk_*_same_children
