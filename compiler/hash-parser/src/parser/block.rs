@@ -5,7 +5,7 @@ use hash_reporting::diagnostic::Diagnostics;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, TokenKind, TokenKindVector};
 
 use super::{AstGen, ParseResult};
-use crate::diagnostics::error::ParseErrorKind;
+use crate::{diagnostics::error::ParseErrorKind, parser::DefinitionKind};
 
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a block.
@@ -146,7 +146,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Mod)));
         let start = self.current_location();
 
-        let ty_params = self.parse_optional_ty_params()?;
+        let ty_params = self.parse_optional_ty_params(DefinitionKind::Mod)?;
         let block = self.parse_body_block()?;
 
         Ok(self.node_with_joined_span(Block::Mod(ModBlock { block, ty_params }), start))
@@ -157,7 +157,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Impl)));
         let start = self.current_location();
 
-        let ty_params = self.parse_optional_ty_params()?;
+        let ty_params = self.parse_optional_ty_params(DefinitionKind::Impl)?;
         let block = self.parse_body_block()?;
 
         Ok(self.node_with_joined_span(Block::Impl(ImplBlock { block, ty_params }), start))

@@ -19,7 +19,6 @@
 };
 
 {
-    // @@Todo: make a warning
     T := trait <> {
         mux: () -> char;
     };
