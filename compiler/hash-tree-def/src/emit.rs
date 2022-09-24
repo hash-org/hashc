@@ -289,6 +289,88 @@ fn ref_or_mut_ref(emit_mut: bool) -> TokenStream {
     }
 }
 
+struct EnumSameChildren {
+    children_names: Vec<syn::Ident>,
+}
+
+fn enum_variants_as_same_children(
+    enum_def: &EnumNodeDef,
+    tree_def: &TreeDef,
+) -> Option<EnumSameChildren> {
+    let children_names = enum_def
+        .variants
+        .iter()
+        .filter_map(|variant| {
+            let data = variant.variant_data.as_ref()?;
+            if data.len() != 1 {
+                return None;
+            }
+            let member = &data.get(0).unwrap();
+            match member {
+                NodeFieldData::Child { node_name } => Some(node_name.clone()),
+                NodeFieldData::Other { ty } => is_node_ty(ty, tree_def),
+                _ => None,
+            }
+        })
+        .collect::<Vec<_>>();
+
+    if children_names.len() != enum_def.variants.len() {
+        None
+    } else {
+        Some(EnumSameChildren { children_names })
+    }
+}
+
+fn emit_walker_function_same_children(
+    enum_node: &EnumNodeDef,
+    tree_def: &TreeDef,
+    visitor_name: &syn::Ident,
+    emit_mut: bool,
+) -> Result<Option<TokenStream>, syn::Error> {
+    let children = match enum_variants_as_same_children(enum_node, tree_def) {
+        Some(children) => children,
+        None => return Ok(None),
+    };
+
+    let node_name = &enum_node.name;
+    let conditions = children.children_names.iter().map(|child_name| {
+        let child_ret = format_ident!("{}Ret", child_name);
+        quote! {
+            #child_ret = Ret
+        }
+    });
+
+    let match_arms = children.children_names.iter().map(|child_name| {
+        quote! {
+            #node_name::#child_name(r) => r
+        }
+    });
+
+    let ref_or_mut = ref_or_mut_ref(emit_mut);
+    let mut_var = maybe_mut_prefix(emit_mut);
+    let node_ref_name =
+        suffix_ident_mut(&tree_def.opts.visitor_node_ref_base_type_name, emit_mut, Case::Pascal);
+    let walk_node_fn_name_same_children =
+        format_ident!("walk_{}_same_children", node_name.to_string().to_case(Case::Snake),);
+    let walk_node_fn_name = format_ident!("walk_{}", node_name.to_string().to_case(Case::Snake),);
+
+    Ok(Some(quote! {
+        pub fn #walk_node_fn_name_same_children<V: super::#visitor_name, Ret>(
+            visitor: #ref_or_mut V,
+            #mut_var node: super::#node_ref_name<super::#node_name>,
+        ) -> Result<Ret, V::Error>
+            where
+                V: super::#visitor_name<
+                    #(#conditions),*
+                >,
+        {
+            Ok(match #walk_node_fn_name(visitor, node)? {
+                #(#match_arms),*
+            })
+        }
+    }))
+}
+
 fn emit_walker_function(
     node_name: &syn::Ident,
     tree_def: &TreeDef,
@@ -300,7 +382,7 @@ fn emit_walker_function(
     let mut_var = maybe_mut_prefix(emit_mut);
     let node_ref_name =
         suffix_ident_mut(&tree_def.opts.visitor_node_ref_base_type_name, emit_mut, Case::Pascal);
-    let walk_node_fn_name = format_ident!("walk_{}", node_name.to_string().to_case(Case::Snake));
+    let walk_node_fn_name = format_ident!("walk_{}", node_name.to_string().to_case(Case::Snake),);
 
     Ok(quote! {
         pub fn #walk_node_fn_name<V: super::#visitor_name>(
@@ -418,7 +500,10 @@ fn emit_walker_enum_function(
         })
         .collect::<Result<Vec<_>, _>>()?;
 
-    emit_walker_function(
+    let same_children_function =
+        emit_walker_function_same_children(enum_node, tree_def, visitor_name, emit_mut)?
+            .unwrap_or_else(|| quote! {});
+    let base_function = emit_walker_function(
         &enum_node.name,
         tree_def,
         visitor_name,
@@ -429,7 +514,12 @@ fn emit_walker_enum_function(
                #(#cases),*
            })
         },
-    )
+    )?;
+
+    Ok(quote! {
+        #same_children_function
+        #base_function
+    })
 }
 
 fn emit_walker_struct_function(
