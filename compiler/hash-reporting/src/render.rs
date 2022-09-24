@@ -367,7 +367,7 @@ impl ReportCodeBlock {
             // and of course we write the note at the end of the span.
             if index == end_row {
                 let arrow: String = once('|')
-                    .chain(repeat('_').take(end_col + 2))
+                    .chain(repeat('_').take(end_col + 1))
                     .chain(format!("{BLOCK_DIAGNOSTIC_MARKER} ").chars())
                     .chain(self.code_message.as_str().chars())
                     .collect();
