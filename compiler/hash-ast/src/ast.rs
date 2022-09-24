@@ -330,22 +330,25 @@ define_tree! {
 
     /// A concrete/"named" type.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct NamedTy {
         /// The name of the type.
-        pub name: AstNode<Name>,
+        pub name: Children!(Name),
     }
 
     /// Access type denotes the access of a property of some inner type.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct AccessTy {
         /// The subject of the access
-        pub subject: AstNode<Ty>,
+        pub subject: Child!(Ty),
         /// the property that is access of the `subject` type
-        pub property: AstNode<Name>,
+        pub property: Child!(Name),
     }
 
     /// Reference kind representing either a raw reference or a normal reference.
     #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+    #[node]
     pub enum RefKind {
         /// Raw reference type
         Raw,
@@ -355,101 +358,112 @@ define_tree! {
 
     /// A reference type.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct RefTy {
         /// Inner type of the reference type
-        pub inner: AstNode<Ty>,
+        pub inner: Child!(Ty),
         /// Whether this reference is a `raw` reference or normal reference (normal
         /// by default).
-        pub kind: Option<AstNode<RefKind>>,
+        pub kind: OptionalChild!(RefKind),
         /// Mutability of the reference (immutable by default)
-        pub mutability: Option<AstNode<Mutability>>,
+        pub mutability: OptionalChild!(Mutability),
     }
 
     /// A type argument `<T: u32>`
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct TyArg {
         /// An optional name to the argument
-        pub name: Option<AstNode<Name>>,
+        pub name: OptionalChild!(Name),
         /// The assigned value of the type argument
-        pub ty: AstNode<Ty>,
+        pub ty: Child!(Ty),
     }
 
     /// The tuple type.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct TupleTy {
         /// inner types of the tuple type
-        pub entries: AstNodes<TyArg>,
+        pub entries: Children!(TyArg),
     }
 
     /// The list type, , e.g. `{str}`.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct ListTy {
         /// Inner type of the list
-        pub inner: AstNode<Ty>,
+        pub inner: Child!(Ty),
     }
 
     /// The set type, , e.g. `{str}`.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct SetTy {
         /// Inner type of the set
-        pub inner: AstNode<Ty>,
+        pub inner: Child!(Ty),
     }
 
     /// The map type, e.g. `{str: u32}`.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct MapTy {
         /// The `key` type of the map type
-        pub key: AstNode<Ty>,
+        pub key: Child!(Ty),
         /// The `value` type of the map type
-        pub value: AstNode<Ty>,
+        pub value: Child!(Ty),
     }
 
     /// The function type.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct FnTy {
         /// Any defined parameters for the function type
-        pub params: AstNodes<TyArg>,
+        pub params: Children!(TyArg),
         /// Optional return type
-        pub return_ty: AstNode<Ty>,
+        pub return_ty: Child!(Ty),
     }
 
     /// A type function e.g. `<T = u32, E: Conv ~ Eq> -> Result<T, E>`
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct TyFn {
         /// The parameters of the type function
-        pub params: AstNodes<Param>,
+        pub params: Children!(Param),
         /// Return type of the function
-        pub return_ty: AstNode<Ty>,
+        pub return_ty: Child!(Ty),
     }
 
     /// A type function call specifies a call to a type function with the specified
     /// function name in the form of a [Ty] (which can only be a [NamedTy] then
     /// followed by arguments. For example: `Conv<u32>` or `(Foo<bar>)<baz>`
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct TyFnCall {
         /// The subject of the type function call
-        pub subject: AstNode<Expr>,
+        pub subject: Child!(Expr),
         /// Arguments that are applied to the type function call
-        pub args: AstNodes<TyArg>,
+        pub args: Children!(TyArg),
     }
 
     /// A merge type meaning that multiple types are considered to be
     /// specified in place of one, e.g. `Conv ~ Eq`
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct MergeTy {
         /// left hand-side of the merge type
-        pub lhs: AstNode<Ty>,
+        pub lhs: Child!(Ty),
         /// right hand-side of the merge type
-        pub rhs: AstNode<Ty>,
+        pub rhs: Child!(Ty),
     }
 
     /// A union type meaning that multiple types are accepted, e.g. `f64 | i64`
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct UnionTy {
         /// left hand-side of the union type
-        pub lhs: AstNode<Ty>,
+        pub lhs: Child!(Ty),
         /// right hand-side of the union type
-        pub rhs: AstNode<Ty>,
+        pub rhs: Child!(Ty),
     }
 
     /// Binary type operators enumeration.
@@ -473,6 +487,7 @@ define_tree! {
 
     /// A type.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub enum Ty {
         /// Access type, access the property of some inner type
         Access(AccessTy),
@@ -502,16 +517,18 @@ define_tree! {
 
     /// A set literal, e.g. `{1, 2, 3}`.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct SetLit {
         /// The elements of the set literal.
-        pub elements: AstNodes<Expr>,
+        pub elements: Children!(Expr),
     }
 
     /// A list literal, e.g. `[1, 2, 3]`.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct ListLit {
         /// The elements of the list literal.
-        pub elements: AstNodes<Expr>,
+        pub elements: Children!(Expr),
     }
 
     /// An entry within a tuple type, which may contain an optional name
@@ -523,45 +540,55 @@ define_tree! {
     /// name   type  value
     /// ```
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct TupleLitEntry {
         /// If the entry has a bounded name
-        pub name: Option<AstNode<Name>>,
+        pub name: OptionalChild!(Name),
         /// Optional type annotation on the tuple entry
-        pub ty: Option<AstNode<Ty>>,
+        pub ty: OptionalChild!(Ty),
         /// Value of the tuple literal entry
-        pub value: AstNode<Expr>,
+        pub value: Child!(Expr),
     }
 
     /// A tuple literal, e.g. `(1, 'A', "foo")`.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct TupleLit {
         /// The elements of the tuple literal.
-        pub elements: AstNodes<TupleLitEntry>,
+        pub elements: Children!(TupleLitEntry),
     }
 
     /// A map literal entry, e.g. `"foo": 1`.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct MapLitEntry {
         /// The key of the map entry
-        pub key: AstNode<Expr>,
+        pub key: Child!(Expr),
         /// The value of the map entry
-        pub value: AstNode<Expr>,
+        pub value: Child!(Expr),
     }
 
     /// A map literal, e.g. `{"foo": 1, "bar": 2}`.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct MapLit {
         /// The elements of the map literal (key-value pairs).
-        pub elements: AstNodes<MapLitEntry>,
+        pub elements: Children!(MapLitEntry),
     }
 
     /// A string literal.
     #[derive(Debug, PartialEq, Eq, Clone)]
-    pub struct StrLit(pub InternedStr);
+    #[node]
+    pub struct StrLit {
+        pub data: InternedStr
+    }
 
     /// A character literal.
     #[derive(Debug, PartialEq, Eq, Clone)]
-    pub struct CharLit(pub char);
+    #[node]
+    pub struct CharLit {
+        pub data: char
+    }
 
     #[derive(Debug, PartialEq, Eq, Clone, Copy)]
     pub enum IntTy {
@@ -707,6 +734,7 @@ define_tree! {
 
     /// An integer literal.
     #[derive(Debug, PartialEq, Eq, Clone)]
+    #[node]
     pub struct IntLit {
         /// The raw value of the literal
         pub value: InternedInt,
@@ -750,6 +778,7 @@ define_tree! {
 
     /// A float literal.
     #[derive(Debug, PartialEq, Eq, Clone)]
+    #[node]
     pub struct FloatLit {
         /// Raw value of the literal
         pub value: InternedFloat,
@@ -759,10 +788,14 @@ define_tree! {
 
     /// A boolean literal.
     #[derive(Debug, PartialEq, Eq, Clone)]
-    pub struct BoolLit(pub bool);
+    #[node]
+    pub struct BoolLit {
+        pub data: bool
+    }
 
     /// A literal.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub enum Lit {
         /// String literals, e.g. `"Viktor"`
         Str(StrLit),
@@ -793,7 +826,7 @@ define_tree! {
         pub fn is_constant(&self) -> bool {
             let is_expr_lit_and_const = |expr: &AstNode<Expr>| -> bool {
                 match expr.kind() {
-                    ExprKind::LitExpr(LitExpr(lit)) => lit.is_constant(),
+                    ExprKind::LitExpr(LitExpr { data: lit }) => lit.is_constant(),
                     _ => false,
                 }
             };
@@ -818,60 +851,67 @@ define_tree! {
 
     /// An alternative pattern, e.g. `Red | Blue`.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct OrPat {
         /// The variants of the "or" pattern
-        pub variants: AstNodes<Pat>,
+        pub variants: Children!(Pat),
     }
 
     /// A conditional pattern, e.g. `x if x == 42`.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct IfPat {
         /// The pattern part of the conditional.
-        pub pat: AstNode<Pat>,
+        pub pat: Child!(Pat),
         /// The expression part of the conditional.
-        pub condition: AstNode<Expr>,
+        pub condition: Child!(Expr),
     }
 
     /// An construct pattern, e.g. `Some((x, y)), animals::Dog(name = "viktor", age
     /// = 3)`.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct ConstructorPat {
         /// The subject of the constructor pattern.
-        pub subject: AstNode<Pat>,
+        pub subject: Child!(Pat),
         /// The arguments of the constructor pattern.
-        pub fields: AstNodes<TuplePatEntry>,
+        pub fields: Children!(TuplePatEntry),
     }
 
     /// A module pattern entry, e.g. `{..., name as (fst, snd), ...}`.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct ModulePatEntry {
         /// The name of the field.
-        pub name: AstNode<Name>,
+        pub name: Child!(Name),
         /// The pattern to match the field's value with.
-        pub pat: AstNode<Pat>,
+        pub pat: Child!(Pat),
     }
 
     /// A module pattern, e.g. `{ fgets, fputs, }`
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct ModulePat {
         /// The entries of a module pattern
-        pub fields: AstNodes<ModulePatEntry>,
+        pub fields: Children!(ModulePatEntry),
     }
 
     /// A tuple pattern entry
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct TuplePatEntry {
         /// If the tuple pattern entry binds a name to the pattern
-        pub name: Option<AstNode<Name>>,
+        pub name: OptionalChild!(Name),
         /// The pattern that is being applied on the tuple entry
-        pub pat: AstNode<Pat>,
+        pub pat: Child!(Pat),
     }
 
     /// A tuple pattern, e.g. `(1, 2, x)`
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct TuplePat {
         /// The element of the tuple, as patterns.
-        pub fields: AstNodes<TuplePatEntry>,
+        pub fields: Children!(TuplePatEntry),
     }
 
     impl TuplePat {
@@ -885,45 +925,54 @@ define_tree! {
 
     /// A list pattern, e.g. `[x, 1, ..]`
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct ListPat {
         /// The element of the tuple, as patterns.
-        pub fields: AstNodes<Pat>,
+        pub fields: Children!(Pat),
     }
 
     /// A literal pattern, limited to strings, character, floats, and integers, e.g.
     /// `3`, `c`
     #[derive(Debug, PartialEq, Clone)]
-    pub struct LitPat(pub AstNode<Lit>);
+    #[node]
+    pub struct LitPat {
+        pub data: Child!(Lit)
+    }
+
     /// An access pattern, denoting the access of a property from
     /// another pattern.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct AccessPat {
         /// The subject of the access pattern
-        pub subject: AstNode<Pat>,
+        pub subject: Child!(Pat),
         /// The property of the subject to access.
-        pub property: AstNode<Name>,
+        pub property: Child!(Name),
     }
 
     /// A pattern name binding.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct BindingPat {
         /// The identifier that the name bind is using
-        pub name: AstNode<Name>,
+        pub name: Child!(Name),
         /// Visibility of the binding (`priv` by default)
-        pub visibility: Option<AstNode<Visibility>>,
+        pub visibility: OptionalChild!(Visibility),
         /// Mutability of the binding (immutable by default)
-        pub mutability: Option<AstNode<Mutability>>,
+        pub mutability: OptionalChild!(Mutability),
     }
 
     /// A pattern spread
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct SpreadPat {
         /// If the spread pattern binds the selected range
-        pub name: Option<AstNode<Name>>,
+        pub name: OptionalChild!(Name),
     }
 
     /// The wildcard pattern.
     #[derive(Debug, PartialEq, Eq, Clone)]
+    #[node]
     pub struct WildPat;
 
     /// Represents what kind of [RangePat] is being
@@ -950,17 +999,19 @@ define_tree! {
     /// `end` which specifies if the range is open or closed
     /// interval, e.g. `'a'..<'g'`
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct RangePat {
         /// Initial bound of the range
-        pub lo: AstNode<Lit>,
+        pub lo: Child!(Lit),
         /// Upper bound of the range
-        pub hi: AstNode<Lit>,
+        pub hi: Child!(Lit),
         /// Whether the `end` is included or not
         pub end: RangeEnd,
     }
 
     /// A pattern. e.g. `Ok(Dog(props = (1, x)))`.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub enum Pat {
         /// An access pattern is one that denotes the access of a property from
         /// another pattern. This is used to denote namespace accesses like
@@ -1004,6 +1055,7 @@ define_tree! {
     /// Enum representing whether a declaration is public or private
     /// within module scope.
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    #[node]
     pub enum Visibility {
         /// The binding is private to outer scopes. This is assumed by default.
         Private,
@@ -1024,6 +1076,7 @@ define_tree! {
     /// Enum representing whether a [BindingPat] is declared as being mutable
     /// or immutable.
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    #[node]
     pub enum Mutability {
         /// Declare that the binding can be re-assigned.
         Mutable,
@@ -1045,43 +1098,47 @@ define_tree! {
     ///
     /// Used in struct, enum, trait, and function definitions.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct TyFnDef {
         /// The type arguments of the function.
-        pub params: AstNodes<Param>,
+        pub params: Children!(Param),
         /// Optional return type of the type function
-        pub return_ty: Option<AstNode<Ty>>,
+        pub return_ty: OptionalChild!(Ty),
         /// The body of the type function,
-        pub body: AstNode<Expr>,
+        pub ty_fn_body: Child!(Expr),
     }
 
     /// A declaration, e.g. `x := 3;`.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct Declaration {
         /// The pattern to bind the right-hand side to.
-        pub pat: AstNode<Pat>,
+        pub pat: Child!(Pat),
 
         /// Any associated type with the expression
-        pub ty: Option<AstNode<Ty>>,
+        pub ty: OptionalChild!(Ty),
 
         /// Any value that is assigned to the binding, simply
         /// an expression.
-        pub value: Option<AstNode<Expr>>,
+        pub value: OptionalChild!(Expr),
     }
 
     /// A merge declaration (adding implementations to traits/structs), e.g. `x ~=
     /// impl T { ... };`.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct MergeDeclaration {
         /// The expression to bind the right-hand side to.
-        pub decl: AstNode<Expr>,
+        pub decl: Child!(Expr),
 
         /// Any value that is assigned to the binding, simply
         /// an expression.
-        pub value: AstNode<Expr>,
+        pub value: Child!(Expr),
     }
 
     /// Unary operators that are defined within the core of the language.
     #[derive(Debug, Clone)]
+    #[node]
     pub enum UnOp {
         // Bitwise logical inversion
         BitNot,
@@ -1106,6 +1163,7 @@ define_tree! {
 
     /// Binary operators that are defined within the core of the language.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    #[node]
     pub enum BinOp {
         /// '=='
         EqEq,
@@ -1240,34 +1298,36 @@ define_tree! {
 
     /// An assign expression, e.g. `x = 4;`.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct AssignExpr {
         /// The left-hand side of the assignment.
         ///
         /// This should resolve to either a variable or a struct field.
-        pub lhs: AstNode<Expr>,
+        pub lhs: Child!(Expr),
         /// The right-hand side of the assignment.
         ///
         /// The value will be assigned to the left-hand side.
-        pub rhs: AstNode<Expr>,
+        pub rhs: Child!(Expr),
     }
 
     /// An assign expression, e.g. `x += 4;`.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct AssignOpExpr {
         /// The left-hand side of the assignment.
         ///
         /// This should resolve to either a variable or a struct field.
-        pub lhs: AstNode<Expr>,
+        pub lhs: Child!(Expr),
         /// The right-hand side of the assignment.
         ///
         /// The value will be assigned to the left-hand side.
-        pub rhs: AstNode<Expr>,
+        pub rhs: Child!(Expr),
 
         /// Operator that is applied with the assignment on the lhs with the rhs
         /// value.
         ///
         /// Note: Some binary operators are not allowed to be in the location.
-        pub operator: AstNode<BinOp>,
+        pub operator: Child!(BinOp),
     }
 
     /// A struct definition, e.g:
@@ -1275,20 +1335,22 @@ define_tree! {
     /// Foo := struct<T>( index: i32, val: T );
     /// ```
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct StructDef {
         /// Type parameters that are attached to the definition.
-        pub ty_params: AstNodes<Param>,
+        pub ty_params: Children!(Param),
         /// The fields of the struct, in the form of [Param].
-        pub fields: AstNodes<Param>,
+        pub fields: Children!(Param),
     }
 
     /// A variant of an enum definition, e.g. `Some(T)`.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct EnumDefEntry {
         /// The name of the enum variant.
-        pub name: AstNode<Name>,
+        pub name: Child!(Name),
         /// The parameters of the enum variant, if any.
-        pub fields: AstNodes<Param>,
+        pub fields: Children!(Param),
     }
 
     /// An enum definition, e.g.
@@ -1299,11 +1361,12 @@ define_tree! {
     /// )
     /// ```
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct EnumDef {
         /// Type parameters that are attached to the definition.
-        pub ty_params: AstNodes<Param>,
+        pub ty_params: Children!(Param),
         /// The variants of the enum, in the form of [EnumDefEntry].
-        pub entries: AstNodes<EnumDefEntry>,
+        pub entries: Children!(EnumDefEntry),
     }
 
     /// A trait definition, e.g.
@@ -1313,37 +1376,44 @@ define_tree! {
     /// }
     /// ```
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct TraitDef {
         /// Type parameters that are attached to the definition.
-        pub ty_params: AstNodes<Param>,
+        pub ty_params: Children!(Param),
         /// Members of the trait definition, which are constricted to
         /// constant-block only allowed [Expr]s.
-        pub members: AstNodes<Expr>,
+        pub members: Children!(Expr),
     }
 
     /// A return statement.
     ///
     /// Has an optional return expression, which becomes `void` if [None] is given.
     #[derive(Debug, PartialEq, Clone)]
-    pub struct ReturnStatement(pub Option<AstNode<Expr>>);
+    #[node]
+    pub struct ReturnStatement {
+        pub expr: OptionalChild!(Expr)
+    }
 
     /// Break statement (only in loop context).
     #[derive(Debug, PartialEq, Eq, Clone)]
+    #[node]
     pub struct BreakStatement;
 
     /// Continue statement (only in loop context).
     #[derive(Debug, PartialEq, Eq, Clone)]
+    #[node]
     pub struct ContinueStatement;
 
     /// A branch/"case" of a `match` block.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct MatchCase {
         /// The pattern of the `match` case.
-        pub pat: AstNode<Pat>,
+        pub pat: Child!(Pat),
         /// The expression corresponding to the match case.
         ///
         /// Will be executed if the pattern succeeds.
-        pub expr: AstNode<Expr>,
+        pub expr: Child!(Expr),
     }
 
     /// The origin of a match block when the AST is
@@ -1364,22 +1434,24 @@ define_tree! {
 
     /// A `match` block.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct MatchBlock {
         /// The expression to match on.
-        pub subject: AstNode<Expr>,
+        pub subject: Child!(Expr),
         /// The match cases to execute.
-        pub cases: AstNodes<MatchCase>,
+        pub cases: Children!(MatchCase),
         /// Whether the match block represents a for, while, if or match statement
         pub origin: MatchOrigin,
     }
 
     /// A body block.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct BodyBlock {
         /// Zero or more statements.
-        pub statements: AstNodes<Expr>,
+        pub statements: Children!(Expr),
         /// Zero or one expression.
-        pub expr: Option<AstNode<Expr>>,
+        pub expr: OptionalChild!(Expr),
     }
 
     impl BodyBlock {
@@ -1392,43 +1464,50 @@ define_tree! {
 
     /// Loop block e.g. `loop { ... }`
     #[derive(Debug, PartialEq, Clone)]
-    pub struct LoopBlock(pub AstNode<Block>);
+    #[node]
+    pub struct LoopBlock {
+        pub contents: Child!(Block)
+    }
 
     /// A for-loop block e.g. `for pat in iterator { ...body... }`
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct ForLoopBlock {
         /// The pattern that de-structures the operator
-        pub pat: AstNode<Pat>,
+        pub pat: Child!(Pat),
         /// The iterator of the for loop, goes after the `in`
-        pub iterator: AstNode<Expr>,
+        pub iterator: Child!(Expr),
         /// The body of the for-loop
-        pub body: AstNode<Block>,
+        pub for_body: Child!(Block),
     }
 
     /// A `while` loop, e.g. `while x > 2 { ... }`
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct WhileLoopBlock {
         /// The condition of the the `while` loop.
-        pub condition: AstNode<Expr>,
+        pub condition: Child!(Expr),
         /// The body of the `while` loop.
-        pub body: AstNode<Block>,
+        pub while_body: Child!(Block),
     }
 
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct IfClause {
         /// The condition of the `if` block.
-        pub condition: AstNode<Expr>,
+        pub condition: Child!(Expr),
         /// The body of the `if-statement`
-        pub body: AstNode<Block>,
+        pub if_body: Child!(Block),
     }
 
     /// An `if` block consisting of the condition, block and an optional else clause
     /// e.g. `if x { ... } else { y }`
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct IfBlock {
-        pub clauses: AstNodes<IfClause>,
+        pub clauses: Children!(IfClause),
         /// The else clause.
-        pub otherwise: Option<AstNode<Block>>,
+        pub otherwise: OptionalChild!(Block),
     }
 
     /// A `mod` block, e.g.
@@ -1440,11 +1519,12 @@ define_tree! {
     /// }
     /// ```
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct ModBlock {
         /// Any type parameters that are applied to the `mod` block.
-        pub ty_params: AstNodes<Param>,
+        pub ty_params: Children!(Param),
         /// The actual contents of the block.
-        pub block: AstNode<BodyBlock>,
+        pub block: Child!(BodyBlock),
     }
 
     /// An `impl` block, e.g.
@@ -1456,15 +1536,17 @@ define_tree! {
     /// };
     /// ```
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct ImplBlock {
         /// Any type parameters that are applied to the `mod` block.
-        pub ty_params: AstNodes<Param>,
+        pub ty_params: Children!(Param),
         /// The actual contents of the block.
-        pub block: AstNode<BodyBlock>,
+        pub block: Child!(BodyBlock),
     }
 
     /// A block.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub enum Block {
         /// A match block.
         Match(MatchBlock),
@@ -1652,17 +1734,18 @@ define_tree! {
 
     /// A function definition parameter.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct Param {
         /// The name of the argument.
-        pub name: Option<AstNode<Name>>,
+        pub name: OptionalChild!(Name),
         /// The type of the argument, if any.
-        pub ty: Option<AstNode<Ty>>,
+        pub ty: OptionalChild!(Ty),
         /// Default value of the argument if provided.
         ///
         /// If the value is provided, this makes it a named argument
         /// which means that they can be specified by putting the name of the
         /// argument.
-        pub default: Option<AstNode<Expr>>,
+        pub default: OptionalChild!(Expr),
         /// The origin of the parameter, whether it is from a struct field, function
         /// def, type function def, etc.
         pub origin: ParamOrigin,
@@ -1670,47 +1753,52 @@ define_tree! {
 
     /// A function definition.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct FnDef {
         /// The parameters of the function definition.
-        pub params: AstNodes<Param>,
+        pub params: Children!(Param),
         /// The return type of the function definition.
         ///
         /// Will be inferred if [None].
-        pub return_ty: Option<AstNode<Ty>>,
+        pub return_ty: OptionalChild!(Ty),
         /// The body/contents of the function, in the form of an expression.
-        pub fn_body: AstNode<Expr>,
+        pub fn_body: Child!(Expr),
     }
 
     /// Function call argument.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct ConstructorCallArg {
         /// Optional name for the function argument, e.g `f(x = 3);`.
-        pub name: Option<AstNode<Name>>,
+        pub name: OptionalChild!(Name),
         /// Each argument of the function call, as an expression.
-        pub value: AstNode<Expr>,
+        pub value: Child!(Expr),
     }
 
     /// A constructor call expression. This can either be a function
     /// call, a struct instantiation or a enum variant instantiation.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct ConstructorCallExpr {
         /// An expression which evaluates to a function value.
-        pub subject: AstNode<Expr>,
+        pub subject: Child!(Expr),
         /// Arguments to the function, a list of [ConstructorCallArg]s.
-        pub args: AstNodes<ConstructorCallArg>,
+        pub args: Children!(ConstructorCallArg),
     }
 
     /// An directive expression.
     #[derive(PartialEq, Debug, Clone)]
+    #[node]
     pub struct DirectiveExpr {
         /// The name of the directive (without the "#").
-        pub name: AstNode<Name>,
+        pub name: Child!(Name),
         /// An expression which is referenced in the directive
-        pub subject: AstNode<Expr>,
+        pub subject: Child!(Expr),
     }
 
     /// A the kind of access an [AccessExpr] has
     #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+    #[node]
     pub enum AccessKind {
         /// A namespace access, i.e. `a::b`
         Namespace,
@@ -1730,6 +1818,7 @@ define_tree! {
     /// The kind of property that's being accessed, either being
     /// named or numeric, e.g `foo.x`, `foo.1`, etc.
     #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+    #[node]
     pub enum PropertyKind {
         /// A named field like
         NamedField(Identifier),
@@ -1740,27 +1829,30 @@ define_tree! {
 
     /// A property access expression.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct AccessExpr {
         /// An expression which evaluates to a struct or tuple value.
-        pub subject: AstNode<Expr>,
+        pub subject: Child!(Expr),
         /// The property of the subject to access.
-        pub property: AstNode<PropertyKind>,
+        pub property: Child!(PropertyKind),
         /// The kind of access, either namespacing or property
         pub kind: AccessKind,
     }
 
     /// A typed expression, e.g. `foo as int`.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct CastExpr {
         /// The annotated type of the expression.
-        pub ty: AstNode<Ty>,
+        pub ty: Child!(Ty),
         /// The expression being typed.
-        pub expr: AstNode<Expr>,
+        pub expr: Child!(Expr),
     }
 
     /// Represents a path to a module, given as a string literal to an `import`
     /// call.
     #[derive(Debug, PartialEq, Eq, Clone)]
+    #[node]
     pub struct Import {
         pub path: InternedStr,
         pub resolved_path: PathBuf,
@@ -1768,86 +1860,111 @@ define_tree! {
 
     /// A variable expression.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct VariableExpr {
         /// The name of the variable.
-        pub name: AstNode<Name>,
+        pub name: Child!(Name),
     }
 
     /// A reference expression with a flag denoting whether it is a raw ref or not
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct RefExpr {
-        pub inner_expr: AstNode<Expr>,
+        pub inner_expr: Child!(Expr),
         /// The kind of reference, either being a normal reference or a `raw`
         /// reference
         pub kind: RefKind,
         /// Mutability modifier on the expression.
-        pub mutability: Option<AstNode<Mutability>>,
+        pub mutability: OptionalChild!(Mutability),
     }
 
     /// A dereference expression.
     #[derive(Debug, PartialEq, Clone)]
-    pub struct TyExpr(pub AstNode<Ty>);
+    #[node]
+    pub struct TyExpr {
+        pub ty: Child!(Ty)
+    }
 
     /// A dereference expression.
     #[derive(Debug, PartialEq, Clone)]
-    pub struct DerefExpr(pub AstNode<Expr>);
+    #[node]
+    pub struct DerefExpr {
+        pub data: Child!(Expr)
+    }
 
     /// An unsafe expression.
     #[derive(Debug, PartialEq, Clone)]
-    pub struct UnsafeExpr(pub AstNode<Expr>);
+    #[node]
+    pub struct UnsafeExpr {
+        pub data: Child!(Expr)
+    }
 
     /// A literal.
     #[derive(Debug, PartialEq, Clone)]
-    pub struct LitExpr(pub AstNode<Lit>);
+    #[node]
+    pub struct LitExpr {
+        pub data: Child!(Lit)
+    }
 
     /// A block.
     #[derive(Debug, PartialEq, Clone)]
-    pub struct BlockExpr(pub AstNode<Block>);
+    #[node]
+    pub struct BlockExpr {
+        pub data: Child!(Block)
+    }
 
     /// An `import` call.
     #[derive(Debug, PartialEq, Clone)]
-    pub struct ImportExpr(pub AstNode<Import>);
+    #[node]
+    pub struct ImportExpr {
+        pub data: Child!(Import)
+    }
 
     /// A trait implementation.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct TraitImpl {
         /// The referenced name to the trait
-        pub ty: AstNode<Ty>,
+        pub ty: Child!(Ty),
         /// The implementation of the trait.
-        pub body: AstNodes<Expr>,
+        pub trait_body: Children!(Expr),
     }
 
     /// A binary expression `2 + 2`.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct BinaryExpr {
         /// left hand-side of the binary expression
-        pub lhs: AstNode<Expr>,
+        pub lhs: Child!(Expr),
         /// right hand-side of the binary expression
-        pub rhs: AstNode<Expr>,
+        pub rhs: Child!(Expr),
         /// The unary operator of the [BinaryExpr]
-        pub operator: AstNode<BinOp>,
+        pub operator: Child!(BinOp),
     }
 
     /// A unary expression `!a`.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct UnaryExpr {
         /// The expression that the unary operator is applied to
-        pub expr: AstNode<Expr>,
+        pub expr: Child!(Expr),
         /// The unary operator of the [UnaryExpr]
-        pub operator: AstNode<UnOp>,
+        pub operator: Child!(UnOp),
     }
 
     /// An index expression `arr[x]`.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct IndexExpr {
         /// The subject that is being indexed.
-        pub subject: AstNode<Expr>,
+        pub subject: Child!(Expr),
         /// The expression that is the index.
-        pub index_expr: AstNode<Expr>,
+        pub index_expr: Child!(Expr),
     }
 
     /// The kind of an expression.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub enum ExprKind {
         /// A constructor call which could be a struct/enum initialisation or a
         /// function call e.g. `foo(5)`.
@@ -1914,6 +2031,7 @@ define_tree! {
 
     /// An expression.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct Expr {
         /// The kind of the expression
         pub kind: ExprKind,
@@ -1945,9 +2063,10 @@ define_tree! {
     ///
     /// Represents a parsed `.hash` file.
     #[derive(Debug, PartialEq, Clone)]
+    #[node]
     pub struct Module {
         /// The contents of the module, as a list of expressions terminated with a
         /// semi-colon.
-        pub contents: AstNodes<Expr>,
+        pub contents: Children!(Expr),
     }
 }

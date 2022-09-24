@@ -4,4 +4,6 @@
 
 pub mod ast;
 pub mod tree;
-pub mod visitor;
+pub mod visitor {
+  pub use super::ast::{AstVisitor, AstVisitorMut, walk, walk_mut};
+}
