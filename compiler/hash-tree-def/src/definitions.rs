@@ -50,6 +50,7 @@ pub(crate) enum NodeFieldData {
 }
 
 impl NodeFieldData {
+    #[allow(unused)]
     pub(crate) fn node_name(&self) -> Option<&syn::Ident> {
         match self {
             NodeFieldData::Child { node_name } => Some(node_name),

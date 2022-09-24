@@ -205,12 +205,6 @@ impl<'t, T> AstNodeRefMut<'t, T> {
         self.body
     }
 
-    /// Utility function to copy over the [Span] and [AstNodeId] from
-    /// another [AstNodeRefMut] with a provided body.
-    pub fn with_body<'u, U>(&self, body: &'u mut U) -> AstNodeRefMut<'u, U> {
-        AstNodeRefMut { body, span: self.span, id: self.id }
-    }
-
     /// Replace the body of the [AstNodeRefMut] with another body.
     pub fn replace(&mut self, f: impl FnOnce(T) -> T) {
         replace_with_or_abort(self.body, f);
