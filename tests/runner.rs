@@ -29,11 +29,7 @@ use std::{fs, io};
 use hash_ast_desugaring::AstDesugarer;
 use hash_lower::IrLowerer;
 use hash_parser::HashParser;
-use hash_pipeline::{
-    settings::{CompilerJobParams, CompilerSettings},
-    sources::Workspace,
-    Compiler,
-};
+use hash_pipeline::{settings::CompilerSettings, sources::Workspace, Compiler};
 use hash_reporting::{report::Report, writer::ReportWriter};
 use hash_source::ModuleKind;
 use hash_testing_internal::{
@@ -43,7 +39,7 @@ use hash_testing_internal::{
 use hash_testing_macros::generate_tests;
 use hash_typecheck::TcImpl;
 use hash_untyped_semantics::HashSemanticAnalysis;
-use hash_vm::vm::{Interpreter, InterpreterOptions};
+use hash_vm::vm::Interpreter;
 use regex::Regex;
 
 use crate::{ANSI_REGEX, REGENERATE_OUTPUT};
@@ -205,12 +201,13 @@ fn handle_test(input: TestingInput) {
     let lowerer = IrLowerer;
 
     // Create the vm
-    let vm = Interpreter::new(InterpreterOptions::default());
+    let vm = Interpreter::new();
 
     let worker_count = 2;
-    let mut compiler_settings = CompilerSettings::new(false, worker_count);
+    let mut compiler_settings = CompilerSettings::new(worker_count);
     compiler_settings.set_skip_prelude(true);
     compiler_settings.set_emit_errors(false);
+    compiler_settings.set_stage(input.metadata.stage);
 
     // We need at least 2 workers for the parsing loop in order so that the job
     // queue can run within a worker and any other jobs can run inside another
@@ -234,12 +231,8 @@ fn handle_test(input: TestingInput) {
     let mut compiler_state = compiler.bootstrap();
 
     // // Now parse the module and store the result
-    compiler_state = compiler.run_on_filename(
-        input.path.to_str().unwrap(),
-        ModuleKind::Normal,
-        compiler_state,
-        CompilerJobParams::new(input.metadata.stage, false),
-    );
+    compiler_state =
+        compiler.run_on_filename(input.path.to_str().unwrap(), ModuleKind::Normal, compiler_state);
 
     let diagnostics = compiler_state.diagnostics;
 

@@ -19,7 +19,7 @@ use hash_ast::{ast::OwnsAstNode, tree::AstTreeGenerator, visitor::AstVisitor};
 use hash_reporting::{report::Report, writer::ReportWriter};
 use hash_source::{constant::CONSTANT_MAP, ModuleKind, SourceId};
 use hash_utils::{path::adjust_canonicalisation, timing::timed, tree_writing::TreeWriter};
-use settings::{CompilerJobParams, CompilerMode, CompilerSettings};
+use settings::{CompilerMode, CompilerSettings};
 use sources::{Module, Workspace};
 use traits::{Desugar, Lowering, Parser, SemanticPass, Tc, VirtualMachine};
 
@@ -197,7 +197,6 @@ where
         &mut self,
         entry_point: SourceId,
         workspace: &mut Workspace,
-        job_params: &CompilerJobParams,
     ) -> CompilerResult<()> {
         timed(
             || self.parser.parse(entry_point, workspace, self.pool),
@@ -207,9 +206,8 @@ where
             },
         )?;
 
-        // We want to loop through all of the generated modules and print
-        // the resultant AST
-        if job_params.mode == CompilerMode::Parse && job_params.output_stage_result {
+        // Any other stage than `semantic_pass` is valid when `--dump-ast` is specified.
+        if self.settings.stage < CompilerMode::SemanticPass && self.settings.dump_ast {
             self.print_sources(workspace, entry_point);
         }
 
@@ -222,7 +220,6 @@ where
         entry_point: SourceId,
         workspace: &mut Workspace,
         desugar_state: &mut D::State,
-        job_params: &CompilerJobParams,
     ) -> CompilerResult<()> {
         timed(
             || self.desugarer.desugar(entry_point, workspace, desugar_state, self.pool),
@@ -232,9 +229,9 @@ where
             },
         )?;
 
-        // We want to loop through all of the generated modules and print
-        // the resultant AST
-        if job_params.mode == CompilerMode::DeSugar && job_params.output_stage_result {
+        // When `dump_ast` is specified, and the stage is not parse, we should emit
+        // the sources after this stage.
+        if self.settings.stage > CompilerMode::Parse && self.settings.dump_ast {
             self.print_sources(workspace, entry_point);
         }
 
@@ -247,7 +244,6 @@ where
         entry_point: SourceId,
         workspace: &mut Workspace,
         semantic_analyser_state: &mut S::State,
-        _job_params: &CompilerJobParams,
     ) -> Result<(), Vec<Report>> {
         timed(
             || {
@@ -285,12 +281,11 @@ where
         entry_point: SourceId,
         workspace: &mut Workspace,
         checker_state: &mut C::State,
-        job_params: &CompilerJobParams,
     ) -> CompilerResult<()> {
         match entry_point {
             SourceId::Interactive(id) => {
                 timed(
-                    || self.checker.check_interactive(id, workspace, checker_state, job_params),
+                    || self.checker.check_interactive(id, workspace, checker_state),
                     log::Level::Debug,
                     |time| {
                         self.metrics.insert(CompilerMode::Typecheck, time);
@@ -299,7 +294,7 @@ where
             }
             SourceId::Module(id) => {
                 timed(
-                    || self.checker.check_module(id, workspace, checker_state, job_params),
+                    || self.checker.check_module(id, workspace, checker_state),
                     log::Level::Debug,
                     |time| {
                         self.metrics.insert(CompilerMode::Typecheck, time);
@@ -318,19 +313,11 @@ where
         entry_point: SourceId,
         workspace: &mut Workspace,
         lowering_state: &mut L::State,
-        job_params: &CompilerJobParams,
     ) -> CompilerResult<()> {
         match entry_point {
             SourceId::Interactive(id) => {
                 timed(
-                    || {
-                        self.lowerer.lower_interactive_block(
-                            id,
-                            workspace,
-                            lowering_state,
-                            job_params,
-                        )
-                    },
+                    || self.lowerer.lower_interactive_block(id, workspace, lowering_state),
                     log::Level::Debug,
                     |time| {
                         self.metrics.insert(CompilerMode::IrGen, time);
@@ -339,7 +326,7 @@ where
             }
             SourceId::Module(id) => {
                 timed(
-                    || self.lowerer.lower_module(id, workspace, lowering_state, job_params),
+                    || self.lowerer.lower_module(id, workspace, lowering_state),
                     log::Level::Debug,
                     |time| {
                         self.metrics.insert(CompilerMode::IrGen, time);
@@ -352,14 +339,11 @@ where
     }
 
     /// Helper function in order to check if the pipeline needs to terminate
-    /// after any stage on the condition that the [CompilerJobParams]
-    /// specify that this is the last stage, or if the previous stage had
-    /// generated any errors that are fatal and an abort is necessary.
+    /// after any stage that is specified within the settings of the compiler.
     fn maybe_terminate(
         &self,
         result: CompilerResult<()>,
         compiler_state: &mut CompilerState<'c, 'pool, D, S, C, L, V>,
-        job_params: &CompilerJobParams,
         // @@TODO(feds01): remove this parameter, it would be ideal that this parameter is stored
         // within the compiler state
         current_stage: CompilerMode,
@@ -375,7 +359,7 @@ where
         }
 
         // Terminate the pipeline if we have reached the stage regardless of error state
-        if job_params.mode == current_stage {
+        if self.settings.stage == current_stage {
             return Err(());
         }
 
@@ -389,43 +373,38 @@ where
         &mut self,
         entry_point: SourceId,
         compiler_state: &mut CompilerState<'c, 'pool, D, S, C, L, V>,
-        job_params: CompilerJobParams,
     ) -> Result<(), ()> {
-        let result = self.parse_source(entry_point, &mut compiler_state.workspace, &job_params);
-        self.maybe_terminate(result, compiler_state, &job_params, CompilerMode::Parse)?;
+        let result = self.parse_source(entry_point, &mut compiler_state.workspace);
+        self.maybe_terminate(result, compiler_state, CompilerMode::Parse)?;
 
         let result = self.desugar_sources(
             entry_point,
             &mut compiler_state.workspace,
             &mut compiler_state.ds_state,
-            &job_params,
         );
-        self.maybe_terminate(result, compiler_state, &job_params, CompilerMode::DeSugar)?;
+        self.maybe_terminate(result, compiler_state, CompilerMode::DeSugar)?;
 
         // Now perform the semantic pass on the sources
         let result = self.check_source_semantics(
             entry_point,
             &mut compiler_state.workspace,
             &mut compiler_state.semantic_analysis_state,
-            &job_params,
         );
-        self.maybe_terminate(result, compiler_state, &job_params, CompilerMode::SemanticPass)?;
+        self.maybe_terminate(result, compiler_state, CompilerMode::SemanticPass)?;
 
         let result = self.typecheck_sources(
             entry_point,
             &mut compiler_state.workspace,
             &mut compiler_state.tc_state,
-            &job_params,
         );
-        self.maybe_terminate(result, compiler_state, &job_params, CompilerMode::Typecheck)?;
+        self.maybe_terminate(result, compiler_state, CompilerMode::Typecheck)?;
 
         let result = self.lower_sources(
             entry_point,
             &mut compiler_state.workspace,
             &mut compiler_state.lowering_state,
-            &job_params,
         );
-        self.maybe_terminate(result, compiler_state, &job_params, CompilerMode::IrGen)?;
+        self.maybe_terminate(result, compiler_state, CompilerMode::IrGen)?;
 
         Ok(())
     }
@@ -436,14 +415,17 @@ where
         let mut compiler_state = self.create_state().unwrap();
 
         if !self.settings.skip_prelude {
+            // Temporarily swap the settings with a patched settings in order
+            // for the prelude bootstrap to run
+            let old_settings = std::mem::take(&mut self.settings);
+
             // we need to load in the `prelude` module and have it ready for any other
             // sources
-            compiler_state = self.run_on_filename(
-                PRELUDE.to_string(),
-                ModuleKind::Prelude,
-                compiler_state,
-                CompilerJobParams::default(),
-            );
+            compiler_state =
+                self.run_on_filename(PRELUDE.to_string(), ModuleKind::Prelude, compiler_state);
+
+            // Reset the settings
+            self.settings = old_settings;
 
             // The prelude shouldn't generate any errors, otherwise we just failed to
             // bootstrap
@@ -461,9 +443,8 @@ where
         &mut self,
         entry_point: SourceId,
         mut compiler_state: CompilerState<'c, 'pool, D, S, C, L, V>,
-        job_params: CompilerJobParams,
     ) -> CompilerState<'c, 'pool, D, S, C, L, V> {
-        let result = self.run_pipeline(entry_point, &mut compiler_state, job_params);
+        let result = self.run_pipeline(entry_point, &mut compiler_state);
 
         // we can print the diagnostics here
         if self.settings.emit_errors && (!compiler_state.diagnostics.is_empty() || result.is_err())
@@ -498,7 +479,7 @@ where
         }
 
         // Print compiler stage metrics if specified in the settings.
-        if self.settings.display_metrics {
+        if self.settings.output_metrics {
             self.report_metrics();
         }
 
@@ -514,7 +495,6 @@ where
         filename: impl Into<String>,
         kind: ModuleKind,
         mut compiler_state: CompilerState<'c, 'pool, D, S, C, L, V>,
-        job_params: CompilerJobParams,
     ) -> CompilerState<'c, 'pool, D, S, C, L, V> {
         // First we have to work out if we need to transform the path
         let current_dir = env::current_dir().unwrap();
@@ -557,6 +537,6 @@ where
         let entry_point =
             compiler_state.workspace.add_module(contents.unwrap(), Module::new(filename), kind);
 
-        self.run(SourceId::Module(entry_point), compiler_state, job_params)
+        self.run(SourceId::Module(entry_point), compiler_state)
     }
 }

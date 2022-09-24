@@ -1,9 +1,6 @@
 //! Hash Compiler VM tests.
 use hash_vm::{
-    bytecode::Instruction,
-    bytecode_builder::BytecodeBuilder,
-    register::Register,
-    vm::{Interpreter, InterpreterOptions},
+    bytecode::Instruction, bytecode_builder::BytecodeBuilder, register::Register, vm::Interpreter,
 };
 
 #[test]
@@ -15,7 +12,7 @@ fn push_two_and_add() {
 
     builder.add_instruction(Instruction::Add16 { l1, l2 });
 
-    let mut vm = Interpreter::new(InterpreterOptions::default());
+    let mut vm = Interpreter::new();
     vm.set_program(builder.into());
 
     // set registers l1 and l2 to appropriate values...

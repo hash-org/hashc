@@ -11,7 +11,10 @@ pub struct CompilerSettings {
     ///
     /// N.B: This flag has no effect if the compiler is not specified to run in
     ///       debug mode!
-    pub display_metrics: bool,
+    pub output_metrics: bool,
+
+    /// Whether to output of each stage result.
+    pub output_stage_results: bool,
 
     /// The number of workers that the compiler pipeline should have access to.
     /// This value is used to determine the thread pool size that is then shared
@@ -20,16 +23,27 @@ pub struct CompilerSettings {
 
     /// Whether the compiler should skip bootstrapping the prelude, this
     /// is set for testing purposes.
-    pub(crate) skip_prelude: bool,
+    pub skip_prelude: bool,
 
     /// Whether the pipeline should output errors and warnings to
     /// standard error
-    pub(crate) emit_errors: bool,
+    pub emit_errors: bool,
+
+    /// If the compiler should emit generated `ast` for all parsed modules
+    ///
+    /// @@Future: add the possibility of specifying which modules should be
+    /// dumped, or this could be achieved with using some kind of directive to
+    /// dump the ast for a particular expression.
+    pub dump_ast: bool,
+
+    /// To what should the compiler run to, anywhere from parsing, typecheck, to
+    /// code generation.
+    pub stage: CompilerMode,
 }
 
 impl CompilerSettings {
-    pub fn new(display_metrics: bool, worker_count: usize) -> Self {
-        Self { display_metrics, worker_count, skip_prelude: false, emit_errors: true }
+    pub fn new(worker_count: usize) -> Self {
+        Self { worker_count, ..Default::default() }
     }
 
     /// Specify whether the compiler pipeline should skip running
@@ -44,15 +58,23 @@ impl CompilerSettings {
     pub fn set_emit_errors(&mut self, value: bool) {
         self.emit_errors = value;
     }
+
+    /// Specify the [CompilerMode] the compiler should run to.
+    pub fn set_stage(&mut self, stage: CompilerMode) {
+        self.stage = stage;
+    }
 }
 
 impl Default for CompilerSettings {
     fn default() -> Self {
         Self {
-            display_metrics: false, // @@TODO: determine this by the mode of operation
+            output_stage_results: false,
+            output_metrics: false,
             worker_count: num_cpus::get(),
             skip_prelude: false,
             emit_errors: true,
+            dump_ast: false,
+            stage: CompilerMode::Full,
         }
     }
 }
@@ -87,30 +109,5 @@ impl Display for CompilerMode {
             CompilerMode::IrGen => write!(f, "ir"),
             CompilerMode::Full => write!(f, "total"),
         }
-    }
-}
-
-pub struct CompilerJobParams {
-    /// Denoting to what stage the pipeline should get before terminating.
-    pub mode: CompilerMode,
-
-    /// Flag used to denote whether at a certain stage the compiler should
-    /// output a result from the operation. This flag is not used by the
-    /// [CompilerMode::Full] to denote whether the pipeline should
-    /// output the result of any computation to standard output. This flag
-    /// is only used by stages that might print debug information about what
-    /// happened during the stage.
-    pub output_stage_result: bool,
-}
-
-impl CompilerJobParams {
-    pub fn new(mode: CompilerMode, output_stage_result: bool) -> Self {
-        Self { mode, output_stage_result }
-    }
-}
-
-impl Default for CompilerJobParams {
-    fn default() -> Self {
-        Self { mode: CompilerMode::Full, output_stage_result: false }
     }
 }

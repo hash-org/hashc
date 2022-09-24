@@ -11,15 +11,12 @@ use clap::Parser as ClapParser;
 use hash_ast_desugaring::AstDesugarer;
 use hash_lower::IrLowerer;
 use hash_parser::HashParser;
-use hash_pipeline::{
-    settings::{CompilerJobParams, CompilerMode, CompilerSettings},
-    Compiler,
-};
+use hash_pipeline::{settings::CompilerSettings, Compiler};
 use hash_reporting::errors::CompilerError;
 use hash_source::ModuleKind;
 use hash_typecheck::TcImpl;
 use hash_untyped_semantics::HashSemanticAnalysis;
-use hash_vm::vm::{Interpreter, InterpreterOptions};
+use hash_vm::vm::Interpreter;
 use log::LevelFilter;
 use logger::CompilerLogger;
 
@@ -65,11 +62,11 @@ fn main() {
         Some(SubCmd::DeSugar(DeSugarMode { filename })) => Some(filename.clone()),
         Some(SubCmd::IrGen(IrGenMode { filename })) => Some(filename.clone()),
         Some(SubCmd::Check(CheckMode { filename })) => Some(filename.clone()),
-        None => opts.filename,
+        None => opts.filename.clone(),
     };
 
     // check that the job count is valid...
-    let worker_count = NonZeroUsize::new(opts.worker_count)
+    let worker_count: usize = NonZeroUsize::new(opts.worker_count)
         .unwrap_or_else(|| {
             (CompilerError::ArgumentError {
                 message: "Invalid number of worker threads".to_owned(),
@@ -86,8 +83,8 @@ fn main() {
     let lowerer = IrLowerer;
 
     // Create the vm
-    let vm = Interpreter::new(InterpreterOptions::new(opts.stack_size));
-    let compiler_settings = CompilerSettings::new(opts.debug, worker_count);
+    let vm = Interpreter::new();
+    let compiler_settings: CompilerSettings = opts.into();
 
     // We need at least 2 workers for the parsing loop in order so that the job
     // queue can run within a worker and any other jobs can run inside another
@@ -110,32 +107,18 @@ fn main() {
     );
     let compiler_state = compiler.bootstrap();
 
-    execute(|| {
-        match entry_point {
-            Some(path) => {
-                let job_settings = match opts.mode {
-                    Some(SubCmd::AstGen { .. }) => {
-                        CompilerJobParams::new(CompilerMode::Parse, opts.debug)
-                    }
-                    Some(SubCmd::DeSugar { .. }) => {
-                        CompilerJobParams::new(CompilerMode::DeSugar, opts.debug)
-                    }
-                    Some(SubCmd::Check { .. }) => {
-                        CompilerJobParams::new(CompilerMode::Typecheck, opts.debug)
-                    }
-                    Some(SubCmd::IrGen { .. }) => {
-                        CompilerJobParams::new(CompilerMode::IrGen, opts.debug)
-                    }
-                    _ => CompilerJobParams::default(),
-                };
-
-                compiler.run_on_filename(path, ModuleKind::Normal, compiler_state, job_settings);
-            }
-            None => {
+    match entry_point {
+        Some(path) => {
+            execute(|| {
+                compiler.run_on_filename(path, ModuleKind::Normal, compiler_state);
+                Ok(())
+            });
+        }
+        None => {
+            execute(|| {
                 hash_interactive::init(compiler, compiler_state)?;
-            }
-        };
-
-        Ok(())
-    })
+                Ok(())
+            });
+        }
+    };
 }

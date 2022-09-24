@@ -5,7 +5,7 @@
 use hash_reporting::report::Report;
 use hash_source::{InteractiveId, ModuleId, SourceId};
 
-use crate::{settings::CompilerJobParams, sources::Workspace};
+use crate::sources::Workspace;
 
 pub type CompilerResult<T> = Result<T, Vec<Report>>;
 
@@ -89,7 +89,6 @@ pub trait Tc<'c> {
         interactive_id: InteractiveId,
         workspace: &Workspace,
         state: &mut Self::State,
-        job_params: &CompilerJobParams,
     ) -> CompilerResult<()>;
 
     /// Given a [ModuleId], check the module. The function accepts the previous
@@ -99,7 +98,6 @@ pub trait Tc<'c> {
         module_id: ModuleId,
         workspace: &Workspace,
         state: &mut Self::State,
-        job_params: &CompilerJobParams,
     ) -> CompilerResult<()>;
 }
 
@@ -120,7 +118,6 @@ pub trait Lowering<'c> {
         interactive_id: InteractiveId,
         workspace: &Workspace,
         state: &mut Self::State,
-        job_params: &CompilerJobParams,
     ) -> CompilerResult<()>;
 
     /// Perform a IR lowering pass on a module specified by a [ModuleId]. The
@@ -130,7 +127,6 @@ pub trait Lowering<'c> {
         module_id: ModuleId,
         workspace: &Workspace,
         state: &mut Self::State,
-        job_params: &CompilerJobParams,
     ) -> CompilerResult<()>;
 }
 

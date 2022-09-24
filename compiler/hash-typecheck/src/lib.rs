@@ -94,7 +94,6 @@ impl Tc<'_> for TcImpl {
         id: hash_source::InteractiveId,
         workspace: &hash_pipeline::sources::Workspace,
         state: &mut Self::State,
-        _job_params: &hash_pipeline::settings::CompilerJobParams,
     ) -> CompilerResult<()> {
         // We need to set the interactive-id to update the current local-storage `id`
         // value
@@ -140,7 +139,6 @@ impl Tc<'_> for TcImpl {
         id: hash_source::ModuleId,
         sources: &hash_pipeline::sources::Workspace,
         state: &mut Self::State,
-        _job_params: &hash_pipeline::settings::CompilerJobParams,
     ) -> CompilerResult<()> {
         // Instantiate a visitor with the source and visit the source, using a new local
         // storage.
