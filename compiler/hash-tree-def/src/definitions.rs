@@ -3,21 +3,17 @@
 
 use std::collections::HashMap;
 
+/// The name of the macro to declare node definition
 pub(crate) const NODE_DEF_ATTR_NAME: &str = "node";
-pub(crate) const NODE_TYPE_NAME: &str = "Child";
-pub(crate) const NODES_TYPE_NAME: &str = "Children";
-pub(crate) const OPTIONAL_NODE_TYPE_NAME: &str = "OptionalChild";
 
-pub(crate) const OPTS_MACRO_NAME: &str = "opts";
-pub(crate) const NODE_TYPE_NAME_OPTS_FIELD: &str = "node_type_name";
-pub(crate) const NODES_TYPE_NAME_OPTS_FIELD: &str = "nodes_type_name";
-pub(crate) const VISITOR_TRAIT_BASE_NAME_OPTS_FIELD: &str = "visitor_trait_base_name";
-pub(crate) const VISITOR_NODE_REF_BASE_TYPE_NAME_OPTS_FIELD: &str =
-    "visitor_node_ref_base_type_name";
-pub(crate) const GET_REF_FROM_NODE_FUNCTION_BASE_NAME_OPTS_FIELD: &str =
-    "get_ref_from_node_function_base_name";
-pub(crate) const REF_CHANGE_BODY_FUNCTION_BASE_NAME_OPTS_FIELD: &str =
-    "ref_change_body_function_base_name";
+/// The name of the macro to declare a child node in type position
+pub(crate) const NODE_TYPE_NAME: &str = "Child";
+
+/// The name of the macro to declare children nodes in type position
+pub(crate) const NODES_TYPE_NAME: &str = "Children";
+
+/// The name of the macro to declare an optional node in type position
+pub(crate) const OPTIONAL_NODE_TYPE_NAME: &str = "OptionalChild";
 
 /// An enum node variant, which has to point to another struct.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -96,6 +92,17 @@ impl TreeNodeDef {
     }
 }
 
+pub(crate) const OPTS_MACRO_NAME: &str = "opts";
+pub(crate) const NODE_TYPE_NAME_OPTS_FIELD: &str = "node_type_name";
+pub(crate) const NODES_TYPE_NAME_OPTS_FIELD: &str = "nodes_type_name";
+pub(crate) const VISITOR_TRAIT_BASE_NAME_OPTS_FIELD: &str = "visitor_trait_base_name";
+pub(crate) const VISITOR_NODE_REF_BASE_TYPE_NAME_OPTS_FIELD: &str =
+    "visitor_node_ref_base_type_name";
+pub(crate) const GET_REF_FROM_NODE_FUNCTION_BASE_NAME_OPTS_FIELD: &str =
+    "get_ref_from_node_function_base_name";
+pub(crate) const REF_CHANGE_BODY_FUNCTION_BASE_NAME_OPTS_FIELD: &str =
+    "ref_change_body_function_base_name";
+
 /// A set of auxiliary options given to the tree definition macro.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct TreeDefOpts {
@@ -109,7 +116,11 @@ pub(crate) struct TreeDefOpts {
     pub(crate) visitor_trait_base_name: syn::Ident,
     /// The base name to use for the created visitor's node reference types
     pub(crate) visitor_node_ref_base_type_name: syn::Ident,
+    /// The base method name to use for getting a reference to a node from a
+    /// node
     pub(crate) get_ref_from_node_function_base_name: syn::Ident,
+    /// The base method name to use for changing a node reference's body from
+    /// one value to another.
     pub(crate) ref_change_body_function_base_name: syn::Ident,
 }
 
