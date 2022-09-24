@@ -1,0 +1,23 @@
+// run=pass, stage=parse
+
+Foo := struct<T, U, Mux> (
+    foo: U,
+    bar: T,
+    mu: Mux
+);
+
+T := struct<U,> (
+     beep: T,
+);
+
+Foo := struct<T = i32, U, Mux: Hash ~ Eq> (
+    U, 
+    T, 
+    { Mux: T }
+);
+
+Foo := struct<T = i32, K := Mux ~ Universe, U: Type, Mux: Hash ~ Eq> (
+    U, 
+    T, 
+    { Mux: T }
+);

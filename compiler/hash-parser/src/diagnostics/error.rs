@@ -145,7 +145,7 @@ impl From<ParseError> for Report {
             ParseErrorKind::Block => "expected block body, which begins with a `{`".to_string(),
             ParseErrorKind::ReAssignmentOp => "expected a re-assignment operator".to_string(),
             ParseErrorKind::TypeDefinition(ty) => {
-                format!("expected {ty} definition entries here which begin with a `(`")
+                format!("expected {ty} definition entries here which begin with a `<` or `(`")
             }
             ParseErrorKind::ExpectedValueAfterTyAnnotation => {
                 "expected value assignment after type annotation within named tuple".to_string()

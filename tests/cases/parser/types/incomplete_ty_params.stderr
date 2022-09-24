@@ -1,0 +1,40 @@
+error: unexpectedly encountered a `(...)`
+ --> $DIR/incomplete_ty_params.hash:4:20
+2 |    
+3 |    {
+4 |        T := struct<U, (
+  |  _____________________-
+5 | |          beep: T,
+6 | |      );
+  | |_______- 
+7 |    };
+8 |    
+  = help: consider adding a `>`
+
+error: expected struct definition entries here which begin with a `<` or `(`, however received the identifier `U`
+  --> $DIR/incomplete_ty_params.hash:10:17
+ 9 |   {
+10 |       T := struct U,> (
+   |                   ^ 
+11 |           beep: T,
+   = help: consider adding a `(`
+
+error: unexpectedly encountered a `,`
+  --> $DIR/incomplete_ty_params.hash:16:16
+15 |   {
+16 |       T := enum <,> (
+   |                  ^ 
+17 |           beep: T,
+   = help: consider adding a `>`
+
+error: unexpectedly encountered a `{...}`
+  --> $DIR/incomplete_ty_params.hash:29:18
+27 |    
+28 |    {
+29 |        T := trait < { // missing `>`
+   |  ___________________-
+30 | |          mux: () -> char;
+31 | |      };
+   | |_______- 
+32 |    };
+   = help: consider adding a `>`
