@@ -268,7 +268,10 @@ impl<'a> Lexer<'a> {
 
             // Negated numeric literal, immediately negate it rather than
             // deferring the transformation...
-            '-' if matches!(self.peek(), '0'..='9') => self.number(self.peek(), true),
+            '-' if matches!(self.peek(), '0'..='9') => {
+                let digit = self.next().unwrap();
+                self.number(digit, true)
+            }
 
             // If the next character is not a digit, then we just stop.
             '-' => TokenKind::Minus,
