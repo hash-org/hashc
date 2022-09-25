@@ -39,10 +39,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
                     Lit::Float(FloatLit { value, kind })
                 }
-                TokenKind::CharLit(value) => Lit::Char(CharLit(value)),
-                TokenKind::StrLit(value) => Lit::Str(StrLit(value)),
-                TokenKind::Keyword(Keyword::False) => Lit::Bool(BoolLit(false)),
-                TokenKind::Keyword(Keyword::True) => Lit::Bool(BoolLit(true)),
+                TokenKind::CharLit(value) => Lit::Char(CharLit { data: value }),
+                TokenKind::StrLit(value) => Lit::Str(StrLit { data: value }),
+                TokenKind::Keyword(Keyword::False) => Lit::Bool(BoolLit { data: false }),
+                TokenKind::Keyword(Keyword::True) => Lit::Bool(BoolLit { data: true }),
                 _ => self.err_with_location(
                     ParseErrorKind::ExpectedLit,
                     None,
@@ -228,9 +228,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
 
         Ok(gen.node_with_span(
-            Expr::new(ExprKind::LitExpr(LitExpr(
-                gen.node_with_span(Lit::List(ListLit { elements }), span),
-            ))),
+            Expr::new(ExprKind::LitExpr(LitExpr {
+                data: gen.node_with_span(Lit::List(ListLit { elements }), span),
+            })),
             span,
         ))
     }

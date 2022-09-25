@@ -89,7 +89,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let body = self.parse_block()?;
 
         Ok(self.node_with_joined_span(
-            Block::For(ForLoopBlock { pat: pattern, iterator, body }),
+            Block::For(ForLoopBlock { pat: pattern, iterator, for_body: body }),
             start,
         ))
     }
@@ -103,7 +103,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let condition = self.parse_expr_with_precedence(0)?;
         let body = self.parse_block()?;
 
-        Ok(self.node_with_joined_span(Block::While(WhileLoopBlock { condition, body }), start))
+        Ok(self.node_with_joined_span(
+            Block::While(WhileLoopBlock { condition, while_body: body }),
+            start,
+        ))
     }
 
     /// Parse a match case. A match case involves handling the pattern and the
@@ -178,7 +181,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             let condition = self.parse_expr_with_precedence(0)?;
             let body = self.parse_block()?;
 
-            clauses.push(self.node_with_joined_span(IfClause { condition, body }, if_span));
+            clauses
+                .push(self.node_with_joined_span(IfClause { condition, if_body: body }, if_span));
 
             // Now check if there is another branch after the else or if, and loop
             // onwards...

@@ -127,7 +127,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 if *ident == CORE_IDENTIFIERS.underscore =>
             {
                 self.skip_token();
-                Pat::Wild(WildPat)
+                Pat::Wild(WildPat {})
             }
             // A name bind that has visibility/mutability modifiers
             Token {
@@ -142,7 +142,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             // Literal patterns
             token if token.kind.is_lit() => {
                 self.skip_token();
-                Pat::Lit(LitPat(self.parse_primitive_lit()?))
+                Pat::Lit(LitPat { data: self.parse_primitive_lit()? })
             }
             // Tuple patterns
             Token { kind: TokenKind::Tree(Delimiter::Paren, tree_index), span } => {
@@ -178,7 +178,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // The only valid `range` pattern prefixes are either a bind, or a numeric
         // literal, bindings are later reported as erroneous anyway, but it's better
         // for error-reporting to defer this until later
-        let (pat, can_continue) = if let Pat::Lit(LitPat(lit)) = &pat {
+        let (pat, can_continue) = if let Pat::Lit(LitPat { data: lit }) = &pat {
             match self.peek() {
                 Some(token) if token.has_kind(TokenKind::Dot) => {
                     match self.maybe_parse_range_pat(lit.clone()) {

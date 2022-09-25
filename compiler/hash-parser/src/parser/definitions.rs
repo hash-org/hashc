@@ -133,7 +133,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         self.parse_arrow()?;
         let body = self.parse_expr_with_precedence(0)?;
 
-        Ok(TyFnDef { params, return_ty, body })
+        Ok(TyFnDef { params, return_ty, ty_fn_body: body })
     }
 
     // Parse a [Param] which consists the name of the argument and
@@ -164,7 +164,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 ty,
                 default: default.map(|node| {
                     let span = node.span();
-                    self.node_with_span(Expr::new(ExprKind::Ty(TyExpr(node))), span)
+                    self.node_with_span(Expr::new(ExprKind::Ty(TyExpr { ty: node })), span)
                 }),
                 origin: ParamOrigin::TyFn,
             },
