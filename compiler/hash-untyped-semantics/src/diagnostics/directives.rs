@@ -58,7 +58,7 @@ impl From<&ExprKind> for DirectiveArgument {
             ExprKind::Unsafe(_) => DirectiveArgument::Unsafe,
             ExprKind::LitExpr(_) => DirectiveArgument::LitExpr,
             ExprKind::Cast(_) => DirectiveArgument::Cast,
-            ExprKind::Block(BlockExpr(block)) => match block.body() {
+            ExprKind::Block(BlockExpr { data: block }) => match block.body() {
                 Block::Loop(_) | Block::While(_) | Block::For(_) => DirectiveArgument::Loop,
                 Block::Match(_) | Block::If(_) => DirectiveArgument::Match,
                 Block::Mod(_) => DirectiveArgument::ModBlock,

@@ -192,6 +192,11 @@ impl<'t, T> AstNodeRefMut<'t, T> {
     pub fn id(&self) -> AstNodeId {
         self.id
     }
+
+    /// Get this node as an immutable reference
+    pub fn immutable(&self) -> AstNodeRef<T> {
+        AstNodeRef::new(self.body, self.span, self.id)
+    }
 }
 
 impl<T> Deref for AstNodeRefMut<'_, T> {

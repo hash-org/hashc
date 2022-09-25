@@ -59,7 +59,7 @@ impl SemanticAnalyser<'_> {
         // statements.
         for (index, statement) in body.statements.iter().enumerate() {
             if errors.contains(&index) {
-                self.visit_expr(&(), statement.ast_ref()).unwrap();
+                self.visit_expr(statement.ast_ref()).unwrap();
             }
         }
 
