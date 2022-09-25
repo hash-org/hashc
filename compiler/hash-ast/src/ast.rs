@@ -333,7 +333,7 @@ define_tree! {
     #[node]
     pub struct NamedTy {
         /// The name of the type.
-        pub name: Children!(Name),
+        pub name: Child!(Name),
     }
 
     /// Access type denotes the access of a property of some inner type.
