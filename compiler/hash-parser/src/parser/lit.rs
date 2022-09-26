@@ -19,7 +19,39 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         Ok(self.node_with_span(
             match token.kind {
-                TokenKind::IntLit(_, value) => {
+                TokenKind::IntLit(_) | TokenKind::FloatLit(_) => {
+                    return self.parse_numeric_lit(false)
+                }
+                TokenKind::CharLit(value) => Lit::Char(CharLit { data: value }),
+                TokenKind::StrLit(value) => Lit::Str(StrLit { data: value }),
+                TokenKind::Keyword(Keyword::False) => Lit::Bool(BoolLit { data: false }),
+                TokenKind::Keyword(Keyword::True) => Lit::Bool(BoolLit { data: true }),
+
+                _ => self.err_with_location(
+                    ParseErrorKind::ExpectedLit,
+                    None,
+                    Some(token.kind),
+                    token.span,
+                )?,
+            },
+            token.span,
+        ))
+    }
+
+    /// Function to parse a primitive numeric lit with the option of negating
+    /// the value immediately.
+    pub(crate) fn parse_numeric_lit(&self, negate: bool) -> ParseResult<AstNode<Lit>> {
+        let token = self.current_token();
+
+        Ok(self.node_with_span(
+            match token.kind {
+                TokenKind::IntLit(value) => {
+                    // If it is specified that we should negate this constant, then we modify the
+                    // literal that is stored within the constant map with the modified value.
+                    if negate {
+                        CONSTANT_MAP.negate_int_constant(value);
+                    }
+
                     let IntConstant { suffix, .. } = CONSTANT_MAP.lookup_int_constant(value);
 
                     // Parse the provided suffix
@@ -29,8 +61,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
                     Lit::Int(IntLit { value, kind })
                 }
-                TokenKind::FloatLit(_, value) => {
+                TokenKind::FloatLit(value) => {
                     let suffix = CONSTANT_MAP.lookup_float_constant(value).suffix;
+
+                    // If it is specified that we should negate this constant, then we modify the
+                    // literal that is stored within the constant map with the modified value.
+                    if negate {
+                        CONSTANT_MAP.negate_float_constant(value);
+                    }
 
                     // Parse the provided suffix
                     let kind = suffix.map_or(Ok(FloatLitKind::Unsuffixed), |s| {
@@ -39,16 +77,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
                     Lit::Float(FloatLit { value, kind })
                 }
-                TokenKind::CharLit(value) => Lit::Char(CharLit { data: value }),
-                TokenKind::StrLit(value) => Lit::Str(StrLit { data: value }),
-                TokenKind::Keyword(Keyword::False) => Lit::Bool(BoolLit { data: false }),
-                TokenKind::Keyword(Keyword::True) => Lit::Bool(BoolLit { data: true }),
-                _ => self.err_with_location(
-                    ParseErrorKind::ExpectedLit,
-                    None,
-                    Some(token.kind),
-                    token.span,
-                )?,
+                _ => panic!("expected numeric token in parse_numeric_lit()"),
             },
             token.span,
         ))

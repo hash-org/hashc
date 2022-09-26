@@ -1,5 +1,5 @@
 //! Hash Compiler source location definitions.
-#![feature(path_file_prefix)]
+#![feature(path_file_prefix, let_chains)]
 
 use std::{
     collections::HashMap,

@@ -3,8 +3,6 @@
 pub mod delimiter;
 pub mod keyword;
 
-use std::fmt::Display;
-
 use delimiter::{Delimiter, DelimiterVariant};
 use hash_source::{
     constant::{InternedFloat, InternedInt, InternedStr},
@@ -115,8 +113,8 @@ impl TokenKind {
             self,
             TokenKind::Keyword(Keyword::False)
                 | TokenKind::Keyword(Keyword::True)
-                | TokenKind::IntLit(_, _)
-                | TokenKind::FloatLit(_, _)
+                | TokenKind::IntLit(_)
+                | TokenKind::FloatLit(_)
                 | TokenKind::CharLit(_)
                 | TokenKind::StrLit(_)
         )
@@ -124,24 +122,7 @@ impl TokenKind {
 
     /// Check if the [TokenKind] is a numeric literal
     pub fn is_numeric(&self) -> bool {
-        matches!(self, TokenKind::IntLit(_, _) | TokenKind::FloatLit(_, _))
-    }
-}
-
-/// Whether or not a numeric [TokenKind] has a interpolated sign with
-/// it.
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
-pub enum Sign {
-    Minus,
-    None,
-}
-
-impl Display for Sign {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Sign::Minus => write!(f, "-"),
-            Sign::None => Ok(()),
-        }
+        matches!(self, TokenKind::IntLit(_) | TokenKind::FloatLit(_))
     }
 }
 
@@ -195,9 +176,9 @@ pub enum TokenKind {
     /// "'"
     SingleQuote,
     /// Integer Literal
-    IntLit(Sign, InternedInt),
+    IntLit(InternedInt),
     /// Float literal
-    FloatLit(Sign, InternedFloat),
+    FloatLit(InternedFloat),
     /// Character literal
     CharLit(char),
     /// StrLiteral,
@@ -232,8 +213,8 @@ impl TokenKind {
     pub fn as_error_string(&self) -> String {
         match self {
             TokenKind::Unexpected(atom) => format!("an unknown character `{}`", atom),
-            TokenKind::IntLit(_, lit) => format!("`{lit}`"),
-            TokenKind::FloatLit(_, lit) => format!("`{lit}`"),
+            TokenKind::IntLit(lit) => format!("`{lit}`"),
+            TokenKind::FloatLit(lit) => format!("`{lit}`"),
             TokenKind::CharLit(ch) => format!("`{ch}`"),
             TokenKind::StrLit(str) => format!("the string `{}`", *str),
             TokenKind::Keyword(kwd) => format!("`{kwd}`"),
@@ -269,8 +250,8 @@ impl std::fmt::Display for TokenKind {
             TokenKind::Quote => write!(f, "\""),
             TokenKind::SingleQuote => write!(f, "'"),
             TokenKind::Unexpected(atom) => write!(f, "{atom}"),
-            TokenKind::IntLit(_, lit) => write!(f, "{lit}"),
-            TokenKind::FloatLit(_, lit) => write!(f, "{lit}"),
+            TokenKind::IntLit(lit) => write!(f, "{lit}"),
+            TokenKind::FloatLit(lit) => write!(f, "{lit}"),
             TokenKind::CharLit(ch) => write!(f, "'{ch}'"),
             TokenKind::Delimiter(delim, variant) => {
                 if *variant == DelimiterVariant::Left {

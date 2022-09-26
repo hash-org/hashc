@@ -140,6 +140,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             token if token.has_kind(TokenKind::Dot) => Pat::Spread(self.parse_spread_pat()?),
 
             // Literal patterns
+            token
+                if token.has_kind(TokenKind::Minus)
+                    && matches!(self.peek_second(), Some(token) if token.kind.is_numeric()) =>
+            {
+                self.offset.update(|x| x + 2); // skip the minus and set current token to the numeric literal
+                Pat::Lit(LitPat { data: self.parse_numeric_lit(true)? })
+            }
+
             token if token.kind.is_lit() => {
                 self.skip_token();
                 Pat::Lit(LitPat { data: self.parse_primitive_lit()? })
@@ -450,6 +458,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// create any kind of patterns whilst traversing the token tree.
     pub(crate) fn begins_pat(&self) -> bool {
         let check_lit = |offset| match self.peek_nth(offset) {
+            Some(token) if token.has_kind(TokenKind::Minus) => match self.peek_nth(offset + 1) {
+                Some(token) if token.kind.is_numeric() => 2,
+                _ => 0,
+            },
             Some(token) if token.kind.is_lit() => 1,
             _ => 0,
         };
