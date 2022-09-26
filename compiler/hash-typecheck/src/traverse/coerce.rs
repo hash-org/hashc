@@ -28,7 +28,7 @@ impl<'tc> Coercing<'tc> {
     pub fn potentially_coerce_as_value(
         &self,
         term_id: TermId,
-        originating_node: AstNodeRef<ast::Expr>,
+        originating_node: AstNodeRef<ast::ExprKind>,
     ) -> TermId {
         self.coerce_as_value(term_id, originating_node).unwrap_or(term_id)
     }
@@ -40,7 +40,7 @@ impl<'tc> Coercing<'tc> {
     pub fn coerce_as_value(
         &self,
         term_id: TermId,
-        originating_node: AstNodeRef<ast::Expr>,
+        originating_node: AstNodeRef<ast::ExprKind>,
     ) -> Option<TermId> {
         // @@Future: Currently the only purpose of this function is to coerce
         // unit types into unit values, but in the future it can be used to wrap
@@ -49,7 +49,7 @@ impl<'tc> Coercing<'tc> {
         if let (Some(nominal_def_id), true) =
             (self.oracle().term_as_nominal_def_id(term_id), self.oracle().term_is_unit_def(term_id))
         {
-            if let ast::ExprKind::Cast(_) = originating_node.kind() {
+            if let ast::ExprKind::Cast(_) = originating_node.body() {
                 // We don't want to do this if the unit expression is directly cast as a type
                 None
             } else {

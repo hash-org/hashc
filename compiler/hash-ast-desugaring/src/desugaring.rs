@@ -54,7 +54,7 @@ impl<'s> AstDesugaring<'s> {
             ),
         };
 
-        let ForLoopBlock { pat, iterator, body } = block;
+        let ForLoopBlock { pat, iterator, for_body: body } = block;
         let (iter_span, pat_span, body_span) = (iterator.span(), pat.span(), body.span());
 
         // Utility to create binding patterns for when de-sugaring the result of the
@@ -85,7 +85,10 @@ impl<'s> AstDesugaring<'s> {
             AstNode::new(
                 MatchCase {
                     pat,
-                    expr: AstNode::new(Expr::new(ExprKind::Block(BlockExpr(body))), body_span)
+                    expr: AstNode::new(
+                        Expr::new(ExprKind::Block(BlockExpr { data: body })),
+                        body_span
+                    )
                 },
                 pat_span
             ),
@@ -98,35 +101,37 @@ impl<'s> AstDesugaring<'s> {
                         },),
                         pat_span
                     ),
-                    expr: AstNode::new(Expr::new(ExprKind::Break(BreakStatement)), body_span),
+                    expr: AstNode::new(Expr::new(ExprKind::Break(BreakStatement {})), body_span),
                 },
                 pat_span
             ),
         ];
 
         // Here want to transform the for-loop into just a loop block
-        Block::Loop(LoopBlock(AstNode::new(
-            Block::Match(MatchBlock {
-                subject: AstNode::new(
-                    Expr::new(ExprKind::ConstructorCall(ConstructorCallExpr {
-                        subject: AstNode::new(
-                            Expr::new(ExprKind::Variable(VariableExpr {
-                                name: AstNode::new(Name { ident: "next".into() }, iter_span),
-                            })),
-                            iter_span,
-                        ),
-                        args: ast_nodes![AstNode::new(
-                            ConstructorCallArg { name: None, value: iterator },
-                            iter_span
-                        )],
-                    })),
-                    body_span,
-                ),
-                cases: match_cases,
-                origin: MatchOrigin::For,
-            }),
-            parent_span,
-        )))
+        Block::Loop(LoopBlock {
+            contents: AstNode::new(
+                Block::Match(MatchBlock {
+                    subject: AstNode::new(
+                        Expr::new(ExprKind::ConstructorCall(ConstructorCallExpr {
+                            subject: AstNode::new(
+                                Expr::new(ExprKind::Variable(VariableExpr {
+                                    name: AstNode::new(Name { ident: "next".into() }, iter_span),
+                                })),
+                                iter_span,
+                            ),
+                            args: ast_nodes![AstNode::new(
+                                ConstructorCallArg { name: None, value: iterator },
+                                iter_span
+                            )],
+                        })),
+                        body_span,
+                    ),
+                    cases: match_cases,
+                    origin: MatchOrigin::For,
+                }),
+                parent_span,
+            ),
+        })
     }
 
     /// This function is responsible for converting a [WhileLoopBlock] into a
@@ -171,50 +176,56 @@ impl<'s> AstDesugaring<'s> {
             ),
         };
 
-        let WhileLoopBlock { condition, body } = block;
+        let WhileLoopBlock { condition, while_body: body } = block;
         let (body_span, condition_span) = (body.span(), condition.span());
 
-        Block::Loop(LoopBlock(AstNode::new(
-            Block::Match(MatchBlock {
-                subject: condition,
-                cases: ast_nodes![
-                    AstNode::new(
-                        MatchCase {
-                            pat: AstNode::new(
-                                Pat::Lit(LitPat(AstNode::new(
-                                    Lit::Bool(BoolLit(true)),
+        Block::Loop(LoopBlock {
+            contents: AstNode::new(
+                Block::Match(MatchBlock {
+                    subject: condition,
+                    cases: ast_nodes![
+                        AstNode::new(
+                            MatchCase {
+                                pat: AstNode::new(
+                                    Pat::Lit(LitPat {
+                                        data: AstNode::new(
+                                            Lit::Bool(BoolLit { data: true }),
+                                            condition_span
+                                        )
+                                    }),
                                     condition_span
-                                ))),
-                                condition_span
-                            ),
-                            expr: AstNode::new(
-                                Expr::new(ExprKind::Block(BlockExpr(body))),
-                                body_span
-                            ),
-                        },
-                        condition_span
-                    ),
-                    AstNode::new(
-                        MatchCase {
-                            pat: AstNode::new(
-                                Pat::Lit(LitPat(AstNode::new(
-                                    Lit::Bool(BoolLit(false)),
+                                ),
+                                expr: AstNode::new(
+                                    Expr::new(ExprKind::Block(BlockExpr { data: body })),
+                                    body_span
+                                ),
+                            },
+                            condition_span
+                        ),
+                        AstNode::new(
+                            MatchCase {
+                                pat: AstNode::new(
+                                    Pat::Lit(LitPat {
+                                        data: AstNode::new(
+                                            Lit::Bool(BoolLit { data: false }),
+                                            condition_span
+                                        )
+                                    }),
                                     condition_span
-                                ))),
-                                condition_span
-                            ),
-                            expr: AstNode::new(
-                                Expr::new(ExprKind::Break(BreakStatement)),
-                                condition_span
-                            )
-                        },
-                        condition_span
-                    ),
-                ],
-                origin: MatchOrigin::While,
-            }),
-            parent_span,
-        )))
+                                ),
+                                expr: AstNode::new(
+                                    Expr::new(ExprKind::Break(BreakStatement {})),
+                                    condition_span
+                                )
+                            },
+                            condition_span
+                        ),
+                    ],
+                    origin: MatchOrigin::While,
+                }),
+                parent_span,
+            ),
+        })
     }
 
     /// This function converts a [AstNode<IfClause>] into a
@@ -242,19 +253,19 @@ impl<'s> AstDesugaring<'s> {
     fn desugar_if_clause(&self, node: AstNode<IfClause>) -> AstNode<MatchCase> {
         let branch_span = node.span();
 
-        let IfClause { condition, body } = node.into_body();
+        let IfClause { condition, if_body: body } = node.into_body();
         let (body_span, condition_span) = (body.span(), condition.span());
 
         AstNode::new(
             MatchCase {
                 pat: AstNode::new(
                     Pat::If(IfPat {
-                        pat: AstNode::new(Pat::Wild(WildPat), condition_span),
+                        pat: AstNode::new(Pat::Wild(WildPat {}), condition_span),
                         condition,
                     }),
                     branch_span,
                 ),
-                expr: AstNode::new(Expr::new(ExprKind::Block(BlockExpr(body))), body_span),
+                expr: AstNode::new(Expr::new(ExprKind::Block(BlockExpr { data: body })), body_span),
             },
             branch_span,
         )
@@ -354,9 +365,9 @@ impl<'s> AstDesugaring<'s> {
 
             AstNode::new(
                 MatchCase {
-                    pat: AstNode::new(Pat::Wild(WildPat), else_block_span),
+                    pat: AstNode::new(Pat::Wild(WildPat {}), else_block_span),
                     expr: AstNode::new(
-                        Expr::new(ExprKind::Block(BlockExpr(block))),
+                        Expr::new(ExprKind::Block(BlockExpr { data: block })),
                         else_block_span,
                     ),
                 },
@@ -371,12 +382,17 @@ impl<'s> AstDesugaring<'s> {
             // use for generating the else-branch.
             AstNode::new(
                 MatchCase {
-                    pat: AstNode::new(Pat::Wild(WildPat), parent_span),
+                    pat: AstNode::new(Pat::Wild(WildPat {}), parent_span),
                     expr: AstNode::new(
-                        Expr::new(ExprKind::Block(BlockExpr(AstNode::new(
-                            Block::Body(BodyBlock { statements: AstNodes::empty(), expr: None }),
-                            parent_span,
-                        )))),
+                        Expr::new(ExprKind::Block(BlockExpr {
+                            data: AstNode::new(
+                                Block::Body(BodyBlock {
+                                    statements: AstNodes::empty(),
+                                    expr: None,
+                                }),
+                                parent_span,
+                            ),
+                        })),
                         parent_span,
                     ),
                 },
@@ -390,10 +406,9 @@ impl<'s> AstDesugaring<'s> {
 
         Block::Match(MatchBlock {
             subject: AstNode::new(
-                Expr::new(ExprKind::LitExpr(LitExpr(AstNode::new(
-                    Lit::Bool(BoolLit(true)),
-                    parent_span,
-                )))),
+                Expr::new(ExprKind::LitExpr(LitExpr {
+                    data: AstNode::new(Lit::Bool(BoolLit { data: true }), parent_span),
+                })),
                 parent_span,
             ),
             cases: AstNodes::new(clauses, clauses_span),

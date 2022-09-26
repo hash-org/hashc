@@ -5,7 +5,7 @@ use std::{collections::HashSet, mem};
 
 use hash_ast::{
     ast::{AstNodeRef, BodyBlock, Expr, ExprKind},
-    visitor::AstVisitor,
+    visitor::AstVisitorMutSelf,
 };
 
 use super::SemanticAnalyser;
@@ -59,7 +59,7 @@ impl SemanticAnalyser<'_> {
         // statements.
         for (index, statement) in body.statements.iter().enumerate() {
             if errors.contains(&index) {
-                self.visit_expr(&(), statement.ast_ref()).unwrap();
+                self.visit_expr(statement.ast_ref()).unwrap();
             }
         }
 

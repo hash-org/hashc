@@ -171,7 +171,7 @@ where
                 // If this is an interactive statement, we want to print the statement that was
                 // just parsed.
                 let source = workspace.node_map().get_interactive_block(id);
-                let tree = AstTreeGenerator.visit_body_block(&(), source.node_ref()).unwrap();
+                let tree = AstTreeGenerator.visit_body_block(source.node_ref()).unwrap();
 
                 println!("{}", TreeWriter::new(&tree));
             }
@@ -179,8 +179,7 @@ where
                 // If this is a module, we want to print all of the generated modules from the
                 // parsing stage
                 for (_, generated_module) in workspace.node_map().iter_modules() {
-                    let tree =
-                        AstTreeGenerator.visit_module(&(), generated_module.node_ref()).unwrap();
+                    let tree = AstTreeGenerator.visit_module(generated_module.node_ref()).unwrap();
 
                     println!(
                         "Tree for `{}`:\n{}",

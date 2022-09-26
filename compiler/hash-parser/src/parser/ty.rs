@@ -154,7 +154,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
                     Ty::TyFnCall(TyFnCall {
                         subject: self.node_with_joined_span(
-                            Expr::new(ExprKind::Ty(TyExpr(self.node_with_joined_span(ty, span)))),
+                            Expr::new(ExprKind::Ty(TyExpr { ty: self.node_with_joined_span(ty, span) })),
                             span,
                         ),
                         args: self.parse_ty_args(true)?,
@@ -356,7 +356,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     ty,
                     default: default.map(|node| {
                         let span = node.span();
-                        self.node_with_span(Expr::new(ExprKind::Ty(TyExpr(node))), span)
+                        self.node_with_span(Expr::new(ExprKind::Ty(TyExpr { ty: node })), span)
                     }),
                     origin: ParamOrigin::TyFn,
                 },

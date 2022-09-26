@@ -29,24 +29,11 @@ impl<'s> AstDesugaring<'s> {
 }
 
 impl<'s> AstVisitorMut for AstDesugaring<'s> {
-    type Ctx = ();
-
-    type CollectionContainer<T> = Vec<T>;
-
-    fn try_collect_items<T, E, I: Iterator<Item = Result<T, E>>>(
-        _: &Self::Ctx,
-        items: I,
-    ) -> Result<Self::CollectionContainer<T>, E> {
-        items.collect()
-    }
-
     type Error = Infallible;
-
     type NameRet = ();
 
     fn visit_name(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Name>,
     ) -> Result<Self::NameRet, Self::Error> {
         Ok(())
@@ -56,7 +43,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_lit(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Lit>,
     ) -> Result<Self::LitRet, Self::Error> {
         Ok(())
@@ -66,10 +52,9 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_map_lit(
         &mut self,
-        ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MapLit>,
     ) -> Result<Self::MapLitRet, Self::Error> {
-        let _ = walk_mut::walk_map_lit(self, ctx, node);
+        let _ = walk_mut::walk_map_lit(self, node);
         Ok(())
     }
 
@@ -77,10 +62,9 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_map_lit_entry(
         &mut self,
-        ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MapLitEntry>,
     ) -> Result<Self::MapLitEntryRet, Self::Error> {
-        let _ = walk_mut::walk_map_lit_entry(self, ctx, node);
+        let _ = walk_mut::walk_map_lit_entry(self, node);
         Ok(())
     }
 
@@ -88,10 +72,9 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_list_lit(
         &mut self,
-        ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ListLit>,
     ) -> Result<Self::ListLitRet, Self::Error> {
-        let _ = walk_mut::walk_list_lit(self, ctx, node);
+        let _ = walk_mut::walk_list_lit(self, node);
         Ok(())
     }
 
@@ -99,10 +82,9 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_set_lit(
         &mut self,
-        ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::SetLit>,
     ) -> Result<Self::SetLitRet, Self::Error> {
-        let _ = walk_mut::walk_set_lit(self, ctx, node);
+        let _ = walk_mut::walk_set_lit(self, node);
         Ok(())
     }
 
@@ -110,10 +92,9 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_tuple_lit_entry(
         &mut self,
-        ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TupleLitEntry>,
     ) -> Result<Self::TupleLitEntryRet, Self::Error> {
-        let _ = walk_mut::walk_tuple_lit_entry(self, ctx, node);
+        let _ = walk_mut::walk_tuple_lit_entry(self, node);
         Ok(())
     }
 
@@ -121,10 +102,9 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_tuple_lit(
         &mut self,
-        ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TupleLit>,
     ) -> Result<Self::TupleLitRet, Self::Error> {
-        let _ = walk_mut::walk_tuple_lit(self, ctx, node);
+        let _ = walk_mut::walk_tuple_lit(self, node);
         Ok(())
     }
 
@@ -132,7 +112,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_str_lit(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::StrLit>,
     ) -> Result<Self::StrLitRet, Self::Error> {
         Ok(())
@@ -142,7 +121,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_char_lit(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::CharLit>,
     ) -> Result<Self::CharLitRet, Self::Error> {
         Ok(())
@@ -152,7 +130,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_float_lit(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::FloatLit>,
     ) -> Result<Self::FloatLitRet, Self::Error> {
         Ok(())
@@ -162,7 +139,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_bool_lit(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::BoolLit>,
     ) -> Result<Self::BoolLitRet, Self::Error> {
         Ok(())
@@ -172,7 +148,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_int_lit(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::IntLit>,
     ) -> Result<Self::IntLitRet, Self::Error> {
         Ok(())
@@ -182,7 +157,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_bin_op(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::BinOp>,
     ) -> Result<Self::BinOpRet, Self::Error> {
         Ok(())
@@ -192,7 +166,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_un_op(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::UnOp>,
     ) -> Result<Self::UnOpRet, Self::Error> {
         Ok(())
@@ -202,18 +175,25 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_expr(
         &mut self,
-        ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Expr>,
     ) -> Result<Self::ExprRet, Self::Error> {
-        let _ = walk_mut::walk_expr(self, ctx, node);
+        let _ = walk_mut::walk_expr(self, node);
         Ok(())
+    }
+
+    type ExprKindRet = ();
+
+    fn visit_expr_kind(
+        &mut self,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ExprKind>,
+    ) -> Result<Self::ExprKindRet, Self::Error> {
+        walk_mut::walk_expr_kind_same_children(self, node)
     }
 
     type VariableExprRet = ();
 
     fn visit_variable_expr(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::VariableExpr>,
     ) -> Result<Self::VariableExprRet, Self::Error> {
         Ok(())
@@ -223,10 +203,9 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_directive_expr(
         &mut self,
-        ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::DirectiveExpr>,
     ) -> Result<Self::DirectiveExprRet, Self::Error> {
-        let _ = walk_mut::walk_directive_expr(self, ctx, node);
+        let _ = walk_mut::walk_directive_expr(self, node);
         Ok(())
     }
 
@@ -234,10 +213,9 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_constructor_call_arg(
         &mut self,
-        ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ConstructorCallArg>,
     ) -> Result<Self::ConstructorCallArgRet, Self::Error> {
-        let _ = walk_mut::walk_constructor_call_arg(self, ctx, node);
+        let _ = walk_mut::walk_constructor_call_arg(self, node);
         Ok(())
     }
 
@@ -245,10 +223,9 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_constructor_call_expr(
         &mut self,
-        ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ConstructorCallExpr>,
     ) -> Result<Self::ConstructorCallExprRet, Self::Error> {
-        let _ = walk_mut::walk_constructor_call_expr(self, ctx, node);
+        let _ = walk_mut::walk_constructor_call_expr(self, node);
         Ok(())
     }
 
@@ -256,7 +233,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_property_kind(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::PropertyKind>,
     ) -> Result<Self::PropertyKindRet, Self::Error> {
         Ok(())
@@ -266,10 +242,9 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_access_expr(
         &mut self,
-        ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::AccessExpr>,
     ) -> Result<Self::AccessExprRet, Self::Error> {
-        let _ = walk_mut::walk_access_expr(self, ctx, node);
+        let _ = walk_mut::walk_access_expr(self, node);
         Ok(())
     }
 
@@ -277,8 +252,7 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_access_kind(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AccessKind,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::AccessKind>,
     ) -> Result<Self::AccessKindRet, Self::Error> {
         Ok(())
     }
@@ -287,10 +261,9 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_ref_expr(
         &mut self,
-        ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::RefExpr>,
     ) -> Result<Self::RefExprRet, Self::Error> {
-        let _ = walk_mut::walk_ref_expr(self, ctx, node);
+        let _ = walk_mut::walk_ref_expr(self, node);
         Ok(())
     }
 
@@ -298,10 +271,9 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_deref_expr(
         &mut self,
-        ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::DerefExpr>,
     ) -> Result<Self::DerefExprRet, Self::Error> {
-        let _ = walk_mut::walk_deref_expr(self, ctx, node);
+        let _ = walk_mut::walk_deref_expr(self, node);
         Ok(())
     }
 
@@ -309,10 +281,9 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_unsafe_expr(
         &mut self,
-        ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::UnsafeExpr>,
     ) -> Result<Self::UnsafeExprRet, Self::Error> {
-        let _ = walk_mut::walk_unsafe_expr(self, ctx, node);
+        let _ = walk_mut::walk_unsafe_expr(self, node);
         Ok(())
     }
 
@@ -320,7 +291,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_lit_expr(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::LitExpr>,
     ) -> Result<Self::LitExprRet, Self::Error> {
         Ok(())
@@ -330,10 +300,9 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_cast_expr(
         &mut self,
-        ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::CastExpr>,
     ) -> Result<Self::CastExprRet, Self::Error> {
-        let _ = walk_mut::walk_cast_expr(self, ctx, node);
+        let _ = walk_mut::walk_cast_expr(self, node);
         Ok(())
     }
 
@@ -341,7 +310,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_ty_expr(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TyExpr>,
     ) -> Result<Self::TyExprRet, Self::Error> {
         Ok(())
@@ -352,10 +320,9 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
     #[inline]
     fn visit_block_expr(
         &mut self,
-        ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::BlockExpr>,
     ) -> Result<Self::BlockExprRet, Self::Error> {
-        let _ = walk_mut::walk_block_expr(self, ctx, node)?;
+        let _ = walk_mut::walk_block_expr(self, node)?;
 
         Ok(())
     }
@@ -364,7 +331,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_import(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Import>,
     ) -> Result<Self::ImportRet, Self::Error> {
         Ok(())
@@ -374,7 +340,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_import_expr(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ImportExpr>,
     ) -> Result<Self::ImportExprRet, Self::Error> {
         Ok(())
@@ -384,7 +349,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_ty(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Ty>,
     ) -> Result<Self::TyRet, Self::Error> {
         Ok(())
@@ -394,7 +358,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_tuple_ty(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TupleTy>,
     ) -> Result<Self::TupleTyRet, Self::Error> {
         Ok(())
@@ -404,7 +367,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_list_ty(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ListTy>,
     ) -> Result<Self::ListTyRet, Self::Error> {
         Ok(())
@@ -414,7 +376,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_set_ty(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::SetTy>,
     ) -> Result<Self::SetTyRet, Self::Error> {
         Ok(())
@@ -424,7 +385,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_map_ty(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MapTy>,
     ) -> Result<Self::MapTyRet, Self::Error> {
         Ok(())
@@ -434,7 +394,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_ty_arg(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TyArg>,
     ) -> Result<Self::TyArgRet, Self::Error> {
         Ok(())
@@ -444,7 +403,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_fn_ty(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::FnTy>,
     ) -> Result<Self::FnTyRet, Self::Error> {
         Ok(())
@@ -452,9 +410,8 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     type TyFnRet = ();
 
-    fn visit_ty_fn_ty(
+    fn visit_ty_fn(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TyFn>,
     ) -> Result<Self::TyFnRet, Self::Error> {
         Ok(())
@@ -464,7 +421,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_ty_fn_call(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TyFnCall>,
     ) -> Result<Self::TyFnCallRet, Self::Error> {
         Ok(())
@@ -473,7 +429,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
     type NamedTyRet = ();
     fn visit_named_ty(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::NamedTy>,
     ) -> Result<Self::NamedTyRet, Self::Error> {
         Ok(())
@@ -483,7 +438,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_access_ty(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::AccessTy>,
     ) -> Result<Self::AccessTyRet, Self::Error> {
         Ok(())
@@ -493,7 +447,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_ref_ty(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::RefTy>,
     ) -> Result<Self::RefTyRet, Self::Error> {
         Ok(())
@@ -503,7 +456,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_merge_ty(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MergeTy>,
     ) -> Result<Self::MergeTyRet, Self::Error> {
         Ok(())
@@ -513,7 +465,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_union_ty(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::UnionTy>,
     ) -> Result<Self::UnionTyRet, Self::Error> {
         Ok(())
@@ -523,10 +474,9 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_ty_fn_def(
         &mut self,
-        ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TyFnDef>,
     ) -> Result<Self::TyFnDefRet, Self::Error> {
-        let _ = walk_mut::walk_ty_fn_def(self, ctx, node);
+        let _ = walk_mut::walk_ty_fn_def(self, node);
         Ok(())
     }
 
@@ -534,10 +484,9 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_fn_def(
         &mut self,
-        ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::FnDef>,
     ) -> Result<Self::FnDefRet, Self::Error> {
-        let _ = walk_mut::walk_fn_def(self, ctx, node);
+        let _ = walk_mut::walk_fn_def(self, node);
         Ok(())
     }
 
@@ -545,10 +494,9 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_param(
         &mut self,
-        ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Param>,
     ) -> Result<Self::ParamRet, Self::Error> {
-        let _ = walk_mut::walk_param(self, ctx, node);
+        let _ = walk_mut::walk_param(self, node);
         Ok(())
     }
 
@@ -556,7 +504,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_block(
         &mut self,
-        ctx: &Self::Ctx,
         mut node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Block>,
     ) -> Result<Self::BlockRet, Self::Error> {
         let parent_span = node.span();
@@ -577,7 +524,7 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         };
 
         // We still need to walk the block now
-        let _ = walk_mut::walk_block(self, ctx, node);
+        let _ = walk_mut::walk_block(self, node);
 
         Ok(())
     }
@@ -586,10 +533,9 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_match_case(
         &mut self,
-        ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MatchCase>,
     ) -> Result<Self::MatchCaseRet, Self::Error> {
-        let _ = walk_mut::walk_match_case(self, ctx, node);
+        let _ = walk_mut::walk_match_case(self, node);
         Ok(())
     }
 
@@ -597,10 +543,9 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_match_block(
         &mut self,
-        ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MatchBlock>,
     ) -> Result<Self::MatchBlockRet, Self::Error> {
-        let _ = walk_mut::walk_match_block(self, ctx, node);
+        let _ = walk_mut::walk_match_block(self, node);
         Ok(())
     }
 
@@ -608,10 +553,9 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_loop_block(
         &mut self,
-        ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::LoopBlock>,
     ) -> Result<Self::LoopBlockRet, Self::Error> {
-        let _ = walk_mut::walk_loop_block(self, ctx, node);
+        let _ = walk_mut::walk_loop_block(self, node);
 
         Ok(())
     }
@@ -620,7 +564,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_for_loop_block(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ForLoopBlock>,
     ) -> Result<Self::ForLoopBlockRet, Self::Error> {
         // Specifically left empty since this should never fire!
@@ -631,7 +574,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_while_loop_block(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::WhileLoopBlock>,
     ) -> Result<Self::WhileLoopBlockRet, Self::Error> {
         // Specifically left empty since this should never fire!
@@ -642,10 +584,9 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_mod_block(
         &mut self,
-        ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ModBlock>,
     ) -> Result<Self::ModBlockRet, Self::Error> {
-        let _ = walk_mut::walk_mod_block(self, ctx, node);
+        let _ = walk_mut::walk_mod_block(self, node);
         Ok(())
     }
 
@@ -653,10 +594,9 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_impl_block(
         &mut self,
-        ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ImplBlock>,
     ) -> Result<Self::ImplBlockRet, Self::Error> {
-        let _ = walk_mut::walk_impl_block(self, ctx, node);
+        let _ = walk_mut::walk_impl_block(self, node);
         Ok(())
     }
 
@@ -664,7 +604,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_if_clause(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::IfClause>,
     ) -> Result<Self::IfClauseRet, Self::Error> {
         // Specifically left empty since this should never fire!
@@ -675,7 +614,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_if_block(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::IfBlock>,
     ) -> Result<Self::IfBlockRet, Self::Error> {
         // Specifically left empty since this should never fire!
@@ -686,10 +624,9 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_body_block(
         &mut self,
-        ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::BodyBlock>,
     ) -> Result<Self::BodyBlockRet, Self::Error> {
-        let _ = walk_mut::walk_body_block(self, ctx, node);
+        let _ = walk_mut::walk_body_block(self, node);
         Ok(())
     }
 
@@ -697,10 +634,9 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_return_statement(
         &mut self,
-        ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ReturnStatement>,
     ) -> Result<Self::ReturnStatementRet, Self::Error> {
-        let _ = walk_mut::walk_return_statement(self, ctx, node);
+        let _ = walk_mut::walk_return_statement(self, node);
         Ok(())
     }
 
@@ -708,7 +644,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_break_statement(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::BreakStatement>,
     ) -> Result<Self::BreakStatementRet, Self::Error> {
         Ok(())
@@ -718,7 +653,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_continue_statement(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ContinueStatement>,
     ) -> Result<Self::ContinueStatementRet, Self::Error> {
         Ok(())
@@ -726,9 +660,8 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     type VisibilityRet = ();
 
-    fn visit_visibility_modifier(
+    fn visit_visibility(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Visibility>,
     ) -> Result<Self::VisibilityRet, Self::Error> {
         Ok(())
@@ -736,9 +669,8 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     type MutabilityRet = ();
 
-    fn visit_mutability_modifier(
+    fn visit_mutability(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Mutability>,
     ) -> Result<Self::MutabilityRet, Self::Error> {
         Ok(())
@@ -748,7 +680,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_ref_kind(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::RefKind>,
     ) -> Result<Self::RefKindRet, Self::Error> {
         Ok(())
@@ -758,10 +689,9 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_declaration(
         &mut self,
-        ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Declaration>,
     ) -> Result<Self::DeclarationRet, Self::Error> {
-        let _ = walk_mut::walk_declaration(self, ctx, node);
+        let _ = walk_mut::walk_declaration(self, node);
         Ok(())
     }
 
@@ -769,11 +699,10 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_merge_declaration(
         &mut self,
-        ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MergeDeclaration>,
     ) -> Result<Self::MergeDeclarationRet, Self::Error> {
         // @@Note: We probably don't have to walk this??
-        let _ = walk_mut::walk_merge_declaration(self, ctx, node);
+        let _ = walk_mut::walk_merge_declaration(self, node);
         Ok(())
     }
 
@@ -781,10 +710,9 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_assign_expr(
         &mut self,
-        ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::AssignExpr>,
     ) -> Result<Self::AssignExprRet, Self::Error> {
-        let _ = walk_mut::walk_assign_expr(self, ctx, node);
+        let _ = walk_mut::walk_assign_expr(self, node);
         Ok(())
     }
 
@@ -792,10 +720,9 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_assign_op_expr(
         &mut self,
-        ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::AssignOpExpr>,
     ) -> Result<Self::AssignOpExprRet, Self::Error> {
-        let _ = walk_mut::walk_assign_op_statement(self, ctx, node);
+        let _ = walk_mut::walk_assign_op_expr(self, node);
         Ok(())
     }
 
@@ -803,10 +730,9 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_binary_expr(
         &mut self,
-        ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::BinaryExpr>,
     ) -> Result<Self::BinaryExprRet, Self::Error> {
-        let _ = walk_mut::walk_binary_expr(self, ctx, node);
+        let _ = walk_mut::walk_binary_expr(self, node);
         Ok(())
     }
 
@@ -814,10 +740,9 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_unary_expr(
         &mut self,
-        ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::UnaryExpr>,
     ) -> Result<Self::UnaryExprRet, Self::Error> {
-        let _ = walk_mut::walk_unary_expr(self, ctx, node);
+        let _ = walk_mut::walk_unary_expr(self, node);
         Ok(())
     }
 
@@ -825,10 +750,9 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_index_expr(
         &mut self,
-        ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::IndexExpr>,
     ) -> Result<Self::IndexExprRet, Self::Error> {
-        let _ = walk_mut::walk_index_expr(self, ctx, node);
+        let _ = walk_mut::walk_index_expr(self, node);
         Ok(())
     }
 
@@ -836,10 +760,9 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_struct_def(
         &mut self,
-        ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::StructDef>,
     ) -> Result<Self::StructDefRet, Self::Error> {
-        let _ = walk_mut::walk_struct_def(self, ctx, node);
+        let _ = walk_mut::walk_struct_def(self, node);
         Ok(())
     }
 
@@ -847,7 +770,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_enum_def_entry(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::EnumDefEntry>,
     ) -> Result<Self::EnumDefEntryRet, Self::Error> {
         Ok(())
@@ -857,7 +779,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_enum_def(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::EnumDef>,
     ) -> Result<Self::EnumDefRet, Self::Error> {
         Ok(())
@@ -867,10 +788,9 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_trait_def(
         &mut self,
-        ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TraitDef>,
     ) -> Result<Self::TraitDefRet, Self::Error> {
-        let _ = walk_mut::walk_trait_def(self, ctx, node);
+        let _ = walk_mut::walk_trait_def(self, node);
         Ok(())
     }
 
@@ -878,10 +798,9 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_trait_impl(
         &mut self,
-        ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TraitImpl>,
     ) -> Result<Self::TraitImplRet, Self::Error> {
-        let _ = walk_mut::walk_trait_impl(self, ctx, node);
+        let _ = walk_mut::walk_trait_impl(self, node);
         Ok(())
     }
 
@@ -889,7 +808,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_pat(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Pat>,
     ) -> Result<Self::PatRet, Self::Error> {
         Ok(())
@@ -899,7 +817,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_access_pat(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::AccessPat>,
     ) -> Result<Self::AccessPatRet, Self::Error> {
         Ok(())
@@ -909,7 +826,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_constructor_pat(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ConstructorPat>,
     ) -> Result<Self::ConstructorPatRet, Self::Error> {
         Ok(())
@@ -919,7 +835,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_tuple_pat_entry(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TuplePatEntry>,
     ) -> Result<Self::TuplePatEntryRet, Self::Error> {
         Ok(())
@@ -929,7 +844,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_tuple_pat(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TuplePat>,
     ) -> Result<Self::TuplePatRet, Self::Error> {
         Ok(())
@@ -939,7 +853,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_list_pat(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ListPat>,
     ) -> Result<Self::ListPatRet, Self::Error> {
         Ok(())
@@ -949,7 +862,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_spread_pat(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::SpreadPat>,
     ) -> Result<Self::SpreadPatRet, Self::Error> {
         Ok(())
@@ -959,7 +871,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_lit_pat(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::LitPat>,
     ) -> Result<Self::LitPatRet, Self::Error> {
         Ok(())
@@ -969,7 +880,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_range_pat(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::RangePat>,
     ) -> Result<Self::RangePatRet, Self::Error> {
         Ok(())
@@ -979,7 +889,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_or_pat(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::OrPat>,
     ) -> Result<Self::OrPatRet, Self::Error> {
         Ok(())
@@ -989,10 +898,9 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_if_pat(
         &mut self,
-        ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::IfPat>,
     ) -> Result<Self::IfPatRet, Self::Error> {
-        let _ = walk_mut::walk_if_pat(self, ctx, node);
+        let _ = walk_mut::walk_if_pat(self, node);
         Ok(())
     }
 
@@ -1000,7 +908,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_binding_pat(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::BindingPat>,
     ) -> Result<Self::BindingPatRet, Self::Error> {
         Ok(())
@@ -1010,7 +917,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_wild_pat(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::WildPat>,
     ) -> Result<Self::WildPatRet, Self::Error> {
         Ok(())
@@ -1020,7 +926,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_module_pat_entry(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ModulePatEntry>,
     ) -> Result<Self::ModulePatEntryRet, Self::Error> {
         Ok(())
@@ -1030,7 +935,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_module_pat(
         &mut self,
-        _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ModulePat>,
     ) -> Result<Self::ModulePatRet, Self::Error> {
         Ok(())
@@ -1040,10 +944,9 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     fn visit_module(
         &mut self,
-        ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Module>,
     ) -> Result<Self::ModuleRet, Self::Error> {
-        let _ = walk_mut::walk_module(self, ctx, node);
+        let _ = walk_mut::walk_module(self, node);
         Ok(())
     }
 }
