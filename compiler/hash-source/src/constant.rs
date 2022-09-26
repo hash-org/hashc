@@ -14,13 +14,29 @@ use num_bigint::BigInt;
 
 use crate::identifier::{Identifier, CORE_IDENTIFIERS};
 
+/// The inner stored value of a [FloatConstant].
+#[derive(Debug, Clone, Copy)]
+pub enum FloatConstantValue {
+    F64(f64),
+    F32(f32),
+}
+
+impl Display for FloatConstantValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FloatConstantValue::F64(inner) => write!(f, "{inner}"),
+            FloatConstantValue::F32(inner) => write!(f, "{inner}"),
+        }
+    }
+}
+
 /// Interned float constant which stores the value of the float, and
 /// an optional `type ascription` which is a suffix on the literal
 /// describing which float kind it is, either being `f32` or `f64`.
 #[derive(Debug, Clone, Copy)]
 pub struct FloatConstant {
     /// Raw value of the float
-    pub value: [u8; 8],
+    pub value: FloatConstantValue,
     /// If the constant contains a type ascription, as specified
     /// when the constant is declared, e.g. `32.4f64`
     pub suffix: Option<Identifier>,
@@ -29,10 +45,12 @@ pub struct FloatConstant {
 impl FloatConstant {
     /// Perform a negation operation on the [FloatConstant].
     pub fn negate(self) -> Self {
-        // @@Todo: handle the case when the variable is typed as a `f32`
-        let value = -f64::from_be_bytes(self.value);
+        let value = match self.value {
+            FloatConstantValue::F64(inner) => FloatConstantValue::F64(-inner),
+            FloatConstantValue::F32(inner) => FloatConstantValue::F32(-inner),
+        };
 
-        Self { value: value.to_be_bytes(), suffix: self.suffix }
+        Self { value, suffix: self.suffix }
     }
 }
 
@@ -45,12 +63,7 @@ counter! {
 
 impl Display for FloatConstant {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if let Some(suffix) = self.suffix && suffix == CORE_IDENTIFIERS.f64 {
-            write!(f, "{}", f64::from_be_bytes(self.value))?;    
-        } else {
-            let value = self.value[4..].try_into().unwrap();
-            write!(f, "{}", f32::from_be_bytes(value))?;    
-        }
+        write!(f, "{}", self.value)?;
 
         if let Some(suffix) = self.suffix {
             write!(f, "{suffix}")?;
@@ -289,13 +302,29 @@ impl ConstantMap {
         self.string_table.get(&ident).unwrap().value()
     }
 
-    /// Create a [FloatConstant] within the [ConstantMap]
-    pub fn create_float_constant(&self, value: f64, suffix: Option<Identifier>) -> InternedFloat {
+    /// Create a `f64` [FloatConstant] within the [ConstantMap]
+    pub fn create_f64_float_constant(
+        &self,
+        value: f64,
+        suffix: Option<Identifier>,
+    ) -> InternedFloat {
         let ident = InternedFloat::new();
-        let constant = FloatConstant { value: value.to_be_bytes(), suffix };
+        let constant = FloatConstant { value: FloatConstantValue::F64(value), suffix };
 
         self.float_table.insert(ident, constant);
+        ident
+    }
 
+    /// Create a `f32` [FloatConstant] within the [ConstantMap]
+    pub fn create_f32_float_constant(
+        &self,
+        value: f32,
+        suffix: Option<Identifier>,
+    ) -> InternedFloat {
+        let ident = InternedFloat::new();
+        let constant = FloatConstant { value: FloatConstantValue::F32(value), suffix };
+
+        self.float_table.insert(ident, constant);
         ident
     }
 

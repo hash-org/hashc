@@ -531,7 +531,12 @@ impl<'a> Lexer<'a> {
                         ),
                         Ok(parsed) => {
                             // Create interned float constant
-                            let float_const = CONSTANT_MAP.create_float_constant(parsed, suffix);
+                            let float_const = if let Some(suffix_ident) = suffix && suffix_ident == CORE_IDENTIFIERS.f32 {
+                                CONSTANT_MAP.create_f32_float_constant(parsed as f32, suffix)
+                            } else {
+                                CONSTANT_MAP.create_f64_float_constant(parsed, suffix)
+                            };
+
                             TokenKind::FloatLit(float_const)
                         }
                     }
@@ -561,7 +566,12 @@ impl<'a> Lexer<'a> {
                         let suffix = self.maybe_eat_identifier();
 
                         // Create interned float constant
-                        let float_const = CONSTANT_MAP.create_float_constant(value, suffix);
+                        let float_const = if let Some(suffix_ident) = suffix && suffix_ident == CORE_IDENTIFIERS.f32 {
+                            CONSTANT_MAP.create_f32_float_constant(value as f32, suffix)
+                        } else {
+                            CONSTANT_MAP.create_f64_float_constant(value, suffix)
+                        };
+
                         TokenKind::FloatLit(float_const)
                     }
                     Err(err) => {
