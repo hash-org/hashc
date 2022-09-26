@@ -1,4 +1,4 @@
-//! Visitor pattern for the semantic analysis stage. This file implements
+//! Visitor pattern for thedataanalysis stage. This file implements
 //! the [AstVisitor] pattern on the AST for [SemanticAnalyser]. During
 //! traversal, the visitor calls various functions that are defined on the
 //! analyser to perform a variety of semantic checks.
@@ -219,8 +219,8 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
             // expression must be a `mod` block since otherwise the directive
             // wouldn't make sense...
             if_chain! {
-                if let Expr::Block(BlockExpr { data: block }) = node.subject.body();
-                if matches!(block.body(), Block::Mod(_));
+                if let Expr::Block(BlockExpr { data }) = node.subject.body();
+                if matches!(data.body(), Block::Mod(_));
                 then {}
                 else {
                     self.append_error(
@@ -693,7 +693,7 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
         // constant literals
         for statement in node.statements.iter() {
             match statement.body() {
-                Expr::LitExpr(LitExpr { data: lit }) if lit.body().is_constant() => {
+                Expr::LitExpr(LitExpr { data }) if data.body().is_constant() => {
                     self.append_warning(
                         AnalysisWarningKind::UselessExpression,
                         statement.ast_ref(),

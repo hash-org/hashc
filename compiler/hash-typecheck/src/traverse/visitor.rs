@@ -216,12 +216,12 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::MapLit>,
     ) -> Result<Self::MapLitRet, Self::Error> {
-        let walk::MapLit { elements: entries } = walk::walk_map_lit(self, node)?;
+        let walk::MapLit { elements } = walk::walk_map_lit(self, node)?;
         let map_inner_ty = self.core_defs().map_ty_fn();
 
         // Unify the key and value types...
-        let key_ty = self.unifier().unify_rt_term_sequence(entries.iter().map(|(k, _)| *k))?;
-        let val_ty = self.unifier().unify_rt_term_sequence(entries.iter().map(|(v, _)| *v))?;
+        let key_ty = self.unifier().unify_rt_term_sequence(elements.iter().map(|(k, _)| *k))?;
+        let val_ty = self.unifier().unify_rt_term_sequence(elements.iter().map(|(v, _)| *v))?;
 
         let builder = self.builder();
         let map_ty = builder.create_app_ty_fn_term(
@@ -557,8 +557,8 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::DerefExpr>,
     ) -> Result<Self::DerefExprRet, Self::Error> {
-        let walk::DerefExpr { data: inner } = walk::walk_deref_expr(self, node)?;
-        let inner_ty = self.typer().infer_ty_of_term(inner)?;
+        let walk::DerefExpr { data } = walk::walk_deref_expr(self, node)?;
+        let inner_ty = self.typer().infer_ty_of_term(data)?;
 
         // Create a `Ref<T>` dummy type for unification...
         let ap_ref_ty = {
@@ -614,8 +614,8 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     ) -> Result<Self::UnsafeExprRet, Self::Error> {
         // @@UnsafeExprs: Decide on what to do with unsafe expressions, but for now walk
         // the inner types...
-        let walk::UnsafeExpr { data: subject } = walk::walk_unsafe_expr(self, node)?;
-        Ok(subject)
+        let walk::UnsafeExpr { data } = walk::walk_unsafe_expr(self, node)?;
+        Ok(data)
     }
 
     type LitExprRet = TermId;
@@ -1320,11 +1320,11 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ReturnStatement>,
     ) -> Result<Self::ReturnStatementRet, Self::Error> {
-        let walk::ReturnStatement { expr: return_term } = walk::walk_return_statement(self, node)?;
+        let walk::ReturnStatement { expr } = walk::walk_return_statement(self, node)?;
 
         // Add the given return value's type to the return type hint.
         // Return term is either given or void.
-        let return_term = return_term.unwrap_or_else(|| {
+        let return_term = expr.unwrap_or_else(|| {
             let builder = self.builder();
             let term = builder.create_void_term();
             self.copy_location_from_node_to_target(node, term);
@@ -1871,9 +1871,9 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TuplePat>,
     ) -> Result<Self::TuplePatRet, Self::Error> {
-        let walk::TuplePat { fields: elements } = walk::walk_tuple_pat(self, node)?;
+        let walk::TuplePat { fields } = walk::walk_tuple_pat(self, node)?;
 
-        let members = self.builder().create_pat_args(elements, ParamOrigin::Tuple);
+        let members = self.builder().create_pat_args(fields, ParamOrigin::Tuple);
         self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), members);
         let tuple_pat = self.builder().create_tuple_pat(members);
 
@@ -1889,12 +1889,12 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ListPat>,
     ) -> Result<Self::ListPatRet, Self::Error> {
-        let walk::ListPat { fields: elements } = walk::walk_list_pat(self, node)?;
+        let walk::ListPat { fields } = walk::walk_list_pat(self, node)?;
 
         // We need to collect all of the terms within the inner pattern, but we need
         // have a special case for `spread patterns` because they will return `[term]`
         // rather than `term`...
-        let inner_terms = elements
+        let inner_terms = fields
             .iter()
             .zip(node.fields.iter())
             .filter(|(_, node)| !matches!(node.body(), hash_ast::ast::Pat::Spread(_)))
@@ -1904,7 +1904,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let list_term = self.unifier().unify_rt_term_sequence(inner_terms)?;
 
         let members = self.builder().create_pat_args(
-            elements.into_iter().map(|pat| PatArg { name: None, pat }),
+            fields.into_iter().map(|pat| PatArg { name: None, pat }),
             ParamOrigin::ListPat,
         );
 
@@ -1936,11 +1936,11 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::LitPat>,
     ) -> Result<Self::LitPatRet, Self::Error> {
-        let walk::LitPat { data: lit } = walk::walk_lit_pat(self, node)?;
+        let walk::LitPat { data } = walk::walk_lit_pat(self, node)?;
 
         let pat = match node.body().data.body() {
-            Lit::Bool(_) => self.builder().create_constant_pat(lit),
-            _ => self.builder().create_lit_pat(lit),
+            Lit::Bool(_) => self.builder().create_constant_pat(data),
+            _ => self.builder().create_lit_pat(data),
         };
 
         self.register_node_info(node, pat);
