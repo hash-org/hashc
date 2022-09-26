@@ -2,7 +2,7 @@
 //! logic that transforms tokens into an AST.
 use hash_ast::ast::*;
 use hash_reporting::diagnostic::Diagnostics;
-use hash_token::{delimiter::Delimiter, keyword::Keyword, TokenKind, TokenKindVector};
+use hash_token::{delimiter::Delimiter, keyword::Keyword, TokenKind};
 
 use super::{AstGen, ParseResult};
 use crate::{diagnostics::error::ParseErrorKind, parser::DefinitionKind};
@@ -46,7 +46,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // firstly check if the first token signals a beginning of a statement, we can
         // tell this by checking for keywords that must begin a statement...
         while self.has_token() {
-            let (has_semi, expr) = match self.parse_top_level_expr(false) {
+            let (has_semi, expr) = match self.parse_top_level_expr() {
                 Ok(Some(res)) => res,
                 Ok(_) => continue,
                 // @@Future: attempt to recover here to see if we can get a semi, and then reset
@@ -58,16 +58,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
             match (has_semi, self.peek()) {
                 (true, _) => block.statements.nodes.push(expr),
-                (false, Some(token)) => {
-                    self.emit_err(
-                        ParseErrorKind::Expected,
-                        Some(TokenKindVector::singleton(TokenKind::Semi)),
-                        Some(token.kind),
-                    );
-
-                    break;
-                }
-                (false, None) => block.expr = Some(expr),
+                (false, _) => block.expr = Some(expr),
             }
         }
 

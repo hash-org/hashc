@@ -4,7 +4,6 @@ use hash_ast::{ast::*, ast_nodes};
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::{constant::CONSTANT_MAP, location::Span};
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
-use smallvec::smallvec;
 
 use super::AstGen;
 use crate::diagnostics::{
@@ -16,10 +15,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a top level [Expr] that are optionally terminated with a
     /// semi-colon.
     #[profiling::function]
-    pub fn parse_top_level_expr(
-        &mut self,
-        semi_required: bool,
-    ) -> ParseResult<Option<(bool, AstNode<Expr>)>> {
+    pub fn parse_top_level_expr(&mut self) -> ParseResult<Option<(bool, AstNode<Expr>)>> {
         let start = self.next_location();
 
         // So here we want to check that the next token(s) could make up a singular
@@ -57,7 +53,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     match self.peek() {
                         // We don't skip here because it is handled after the statement has been
                         // generated.
-                        Some(token) if token.has_kind(TokenKind::Semi) => Ok(expr),
                         Some(token) if token.has_kind(TokenKind::Eq) => {
                             self.skip_token();
 
@@ -69,32 +64,30 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                                 start,
                             ))
                         }
-                        Some(token) => self.err_with_location(
-                            ParseErrorKind::ExpectedOperator,
-                            Some(TokenKindVector::from_vec(smallvec![
-                                TokenKind::Dot,
-                                TokenKind::Eq,
-                                TokenKind::Semi,
-                            ])),
-                            Some(token.kind),
-                            self.next_location(),
-                        ),
+                        // Some(token) => self.err_with_location(
+                        //     ParseErrorKind::ExpectedOperator,
+                        //     Some(TokenKindVector::from_vec(smallvec![
+                        //         TokenKind::Dot,
+                        //         TokenKind::Eq,
+                        //         TokenKind::Semi,
+                        //     ])),
+                        //     Some(token.kind),
+                        //     self.next_location(),
+                        // ),
                         // Special case where there is a expression at the end of the stream and
                         // therefore it is signifying that it is returning
                         // the expression value here
-                        None => Ok(expr),
+                        _ => Ok(expr),
                     }
                 }
             }
         }?;
 
-        // Depending on whether it's expected of the expression to have a semi-colon, we
-        // try and parse one anyway, if so
-        let has_semi = if semi_required {
-            self.parse_token(TokenKind::Semi)?;
+        let has_semi = if let Some(Token { kind: TokenKind::Semi, .. }) = self.peek() {
+            self.skip_token();
             true
         } else {
-            self.parse_token_fast(TokenKind::Semi).is_some()
+            false
         };
 
         Ok(Some((has_semi, expr)))
@@ -273,16 +266,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 self.node_with_span(Expr::Break(BreakStatement {}), token.span)
             }
             TokenKind::Keyword(Keyword::Return) => {
-                // @@Hack: check if the next token is a semi-colon, if so the return statement
-                // has no returned expression...
                 let return_expr = match self.peek().copied() {
-                    Some(token) if token.has_kind(TokenKind::Semi) => {
-                        Expr::Return(ReturnStatement { expr: None })
-                    }
-                    Some(_) => Expr::Return(ReturnStatement {
+                    Some(tok) if !tok.has_kind(TokenKind::Semi) => Expr::Return(ReturnStatement {
                         expr: Some(self.parse_expr_with_precedence(0)?),
                     }),
-                    None => Expr::Return(ReturnStatement { expr: None }),
+                    _ => Expr::Return(ReturnStatement { expr: None }),
                 };
 
                 self.node_with_joined_span(return_expr, token.span)
@@ -1008,7 +996,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         //
         // @@ErrorRecovery: don't bail immediately...
         while gen.has_token() {
-            if let Some((_, expr)) = gen.parse_top_level_expr(true)? {
+            if let Some((_, expr)) = gen.parse_top_level_expr()? {
                 exprs.push(expr);
             }
         }
