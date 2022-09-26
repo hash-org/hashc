@@ -14,7 +14,7 @@ use hash_source::{
 use hash_token::{
     delimiter::{Delimiter, DelimiterVariant},
     keyword::Keyword,
-    Sign, Token, TokenKind,
+    Token, TokenKind,
 };
 use num_bigint::BigInt;
 use num_traits::Num;
@@ -265,18 +265,10 @@ impl<'a> Lexer<'a> {
             // Identifier (this should be checked after other variant that can
             // start as identifier).
             ch if is_id_start(ch) => self.ident(ch),
-
-            // Negated numeric literal, immediately negate it rather than
-            // deferring the transformation...
-            '-' if matches!(self.peek(), '0'..='9') => {
-                let digit = self.next().unwrap();
-                self.number(digit, true)
-            }
-
             // If the next character is not a digit, then we just stop.
             '-' => TokenKind::Minus,
             // Numeric literal.
-            ch @ '0'..='9' => self.number(ch, false),
+            ch @ '0'..='9' => self.number(ch),
             // character literal.
             '\'' => self.char(),
             // String literal.
@@ -409,7 +401,6 @@ impl<'a> Lexer<'a> {
     fn create_int_const(
         &self,
         chars: &str,
-        negated: bool,
         radix: u32,
         ascription: Option<Identifier>,
     ) -> TokenKind {
@@ -418,11 +409,10 @@ impl<'a> Lexer<'a> {
         //
         // @@Future: do this ourselves
         let parsed = BigInt::from_str_radix(chars, radix).unwrap();
-        let (value, sign) = if negated { (-parsed, Sign::Minus) } else { (parsed, Sign::None) };
 
         // We need to create a interned constant here...
-        let interned_const = CONSTANT_MAP.create_int_constant(value, ascription);
-        TokenKind::IntLit(sign, interned_const)
+        let interned_const = CONSTANT_MAP.create_int_constant(parsed, ascription);
+        TokenKind::IntLit(interned_const)
     }
 
     /// Attempt to eat an identifier if the next token is one, otherwise don't
@@ -445,7 +435,7 @@ impl<'a> Lexer<'a> {
     /// Consume a number literal, either float or integer. The function expects
     /// that the first character of the numeric literal is consumed when the
     /// function is called.
-    fn number(&mut self, prev: char, negated: bool) -> TokenKind {
+    fn number(&mut self, prev: char) -> TokenKind {
         // record the start location of the literal
         let start = self.offset.get() - 1;
 
@@ -492,7 +482,7 @@ impl<'a> Lexer<'a> {
                         Span::new(start, self.offset.get()),
                     );
                 } else {
-                    return self.create_int_const(chars, negated, radix, suffix);
+                    return self.create_int_const(chars, radix, suffix);
                 }
             }
         }
@@ -522,10 +512,10 @@ impl<'a> Lexer<'a> {
                     .chain(after_digits.chars().filter(|c| *c != '_'))
                     .collect::<String>();
 
-                self.eat_float_lit(num.chars(), negated, start)
+                self.eat_float_lit(num.chars(), start)
             }
             // Immediate exponent
-            'e' | 'E' => self.eat_float_lit(pre_digits.chars(), negated, start),
+            'e' | 'E' => self.eat_float_lit(pre_digits.chars(), start),
             _ => {
                 let suffix = self.maybe_eat_identifier();
 
@@ -540,28 +530,20 @@ impl<'a> Lexer<'a> {
                             Span::new(start, self.offset.get()),
                         ),
                         Ok(parsed) => {
-                            let (value, sign) =
-                                if negated { (-parsed, Sign::Minus) } else { (parsed, Sign::None) };
-
                             // Create interned float constant
-                            let float_const = CONSTANT_MAP.create_float_constant(value, suffix);
-                            TokenKind::FloatLit(sign, float_const)
+                            let float_const = CONSTANT_MAP.create_float_constant(parsed, suffix);
+                            TokenKind::FloatLit(float_const)
                         }
                     }
                 } else {
-                    self.create_int_const(pre_digits.as_str(), negated, 10, suffix)
+                    self.create_int_const(pre_digits.as_str(), 10, suffix)
                 }
             }
         }
     }
 
     /// Function to apply an exponent to a floating point literal.
-    fn eat_float_lit(
-        &mut self,
-        num: impl Iterator<Item = char>,
-        negated: bool,
-        start: usize,
-    ) -> TokenKind {
+    fn eat_float_lit(&mut self, num: impl Iterator<Item = char>, start: usize) -> TokenKind {
         match num.collect::<String>().parse::<f64>() {
             Err(err) => self.emit_error(
                 Some(format!("{}.", err)),
@@ -574,15 +556,13 @@ impl<'a> Lexer<'a> {
                         // if an exponent was specified, as in it is non-zero, we need to apply the
                         // exponent to the float literal.
                         let value = if exp != 0 { value * 10f64.powi(exp) } else { value };
-                        let (value, sign) =
-                            if negated { (-value, Sign::Minus) } else { (value, Sign::None) };
 
                         // Get the type ascription if any...
                         let suffix = self.maybe_eat_identifier();
 
                         // Create interned float constant
                         let float_const = CONSTANT_MAP.create_float_constant(value, suffix);
-                        TokenKind::FloatLit(sign, float_const)
+                        TokenKind::FloatLit(float_const)
                     }
                     Err(err) => {
                         self.add_error(err);

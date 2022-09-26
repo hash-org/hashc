@@ -4,7 +4,7 @@
 //! be passed around each stage of the compiler and can just
 //! be interned, and accessed when needed.
 
-use std::fmt::Display;
+use std::{fmt::Display, ops::Neg};
 
 use dashmap::DashMap;
 use fnv::FnvBuildHasher;
@@ -20,10 +20,20 @@ use crate::identifier::{Identifier, CORE_IDENTIFIERS};
 #[derive(Debug, Clone, Copy)]
 pub struct FloatConstant {
     /// Raw value of the float
-    pub value: f64,
+    pub value: [u8; 8],
     /// If the constant contains a type ascription, as specified
     /// when the constant is declared, e.g. `32.4f64`
     pub suffix: Option<Identifier>,
+}
+
+impl FloatConstant {
+    /// Perform a negation operation on the [FloatConstant].
+    pub fn negate(self) -> Self {
+        // @@Todo: handle the case when the variable is typed as a `f32`
+        let value = -f64::from_be_bytes(self.value);
+
+        Self { value: value.to_be_bytes(), suffix: self.suffix }
+    }
 }
 
 counter! {
@@ -35,7 +45,12 @@ counter! {
 
 impl Display for FloatConstant {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.value)?;
+        if let Some(suffix) = self.suffix && suffix == CORE_IDENTIFIERS.f64 {
+            write!(f, "{}", f64::from_be_bytes(self.value))?;    
+        } else {
+            let value = self.value[4..].try_into().unwrap();
+            write!(f, "{}", f32::from_be_bytes(value))?;    
+        }
 
         if let Some(suffix) = self.suffix {
             write!(f, "{suffix}")?;
@@ -52,9 +67,9 @@ impl Display for InternedFloat {
 }
 
 /// Value of the [IntConstant], this kind be either the `inlined`
-/// variant where we just fallback to using `u128` for small sized
+/// variant where we just fallback to using `u64` for small sized
 /// integer constants, and then in the unlikely scenario of needing
-/// more than a [u128] to represent the constant, we will then
+/// more than a [u64] to represent the constant, we will then
 /// fallback to [BigInt].
 #[derive(Debug, Eq, PartialEq, Hash)]
 pub enum IntConstantValue {
@@ -103,12 +118,52 @@ impl IntConstant {
         }
     }
 
-    /// Convert the constant into a [BigInt]
+    /// Convert the constant into a [BigInt].
     pub fn to_big_int(self) -> BigInt {
         match self.value {
             IntConstantValue::Small(inner) => BigInt::from_signed_bytes_be(&inner),
             IntConstantValue::Big(inner) => *inner,
         }
+    }
+
+    /// Check if the [IntConstant] is `signed` by checking if the specified
+    /// suffix matches one of the available signed integer suffixes. If no
+    /// suffix is specified, the assumed type of the integer constant is `i32`
+    /// and therefore this follows the same assumption.
+    pub fn is_signed(&self) -> bool {
+        match self.suffix {
+            Some(suffix) => match suffix {
+                i if CORE_IDENTIFIERS.i8 == i => true,
+                i if CORE_IDENTIFIERS.i16 == i => true,
+                i if CORE_IDENTIFIERS.i32 == i => true,
+                i if CORE_IDENTIFIERS.i64 == i => true,
+                i if CORE_IDENTIFIERS.i128 == i => true,
+                i if CORE_IDENTIFIERS.isize == i => true,
+                i if CORE_IDENTIFIERS.ibig == i => true,
+                _ => false,
+            },
+            None => true,
+        }
+    }
+
+    /// Negate the [IntConstant] provided that the constant is signed. If
+    /// the constant is not signed, then no negation operation is applied.
+    pub fn negate(self) -> Self {
+        // Do nothing if this constant is not signed.
+        if !self.is_signed() {
+            return self;
+        }
+
+        let value = match self.value {
+            IntConstantValue::Small(inner) => {
+                // Flip the sign, and the convert back to `be` bytes
+                let value = -i64::from_be_bytes(inner);
+                IntConstantValue::Small(value.to_be_bytes())
+            }
+            IntConstantValue::Big(inner) => IntConstantValue::Big(Box::new(inner.neg())),
+        };
+
+        Self { value, suffix: self.suffix }
     }
 }
 
@@ -125,21 +180,7 @@ impl Display for IntConstant {
             // We want to snip the value from the `total` value since we don't care about the
             // rest...
             IntConstantValue::Small(value) => {
-                let is_signed = match self.suffix {
-                    Some(ty) => match ty {
-                        i if CORE_IDENTIFIERS.i8 == i => true,
-                        i if CORE_IDENTIFIERS.i16 == i => true,
-                        i if CORE_IDENTIFIERS.i32 == i => true,
-                        i if CORE_IDENTIFIERS.i64 == i => true,
-                        i if CORE_IDENTIFIERS.i128 == i => true,
-                        i if CORE_IDENTIFIERS.isize == i => true,
-                        i if CORE_IDENTIFIERS.ibig == i => true,
-                        _ => false,
-                    },
-                    None => true,
-                };
-
-                if is_signed {
+                if self.is_signed() {
                     write!(f, "{}", i64::from_be_bytes(*value))?;
                 } else {
                     write!(f, "{}", u64::from_be_bytes(*value))?;
@@ -251,7 +292,7 @@ impl ConstantMap {
     /// Create a [FloatConstant] within the [ConstantMap]
     pub fn create_float_constant(&self, value: f64, suffix: Option<Identifier>) -> InternedFloat {
         let ident = InternedFloat::new();
-        let constant = FloatConstant { value, suffix };
+        let constant = FloatConstant { value: value.to_be_bytes(), suffix };
 
         self.float_table.insert(ident, constant);
 
@@ -261,6 +302,11 @@ impl ConstantMap {
     /// Get the [FloatConstant] behind the [InternedFloat]
     pub fn lookup_float_constant(&self, id: InternedFloat) -> FloatConstant {
         *self.float_table.get(&id).unwrap().value()
+    }
+
+    /// Perform a negation operation on an [InternedFloat].
+    pub fn negate_float_constant(&self, id: InternedFloat) {
+        self.float_table.alter(&id, |_, value| value.negate());
     }
 
     /// Create a [IntConstant] within the [ConstantMap].
@@ -276,7 +322,7 @@ impl ConstantMap {
         ident
     }
 
-    /// Get the [FloatConstant] behind the [InternedFloat]
+    /// Get the [IntConstant] behind the [InternedInt]
     pub fn lookup_int_constant(&self, id: InternedInt) -> IntConstant {
         let lookup_value = self.int_table.get(&id).unwrap();
         let IntConstant { value, suffix } = lookup_value.value();
@@ -287,5 +333,13 @@ impl ConstantMap {
         };
 
         IntConstant { value, suffix: *suffix }
+    }
+
+    /// Perform a negation operation on an [InternedInt].
+    ///
+    /// N.B: This function has no effect on the stored constant if it is not
+    /// signed.
+    pub fn negate_int_constant(&self, id: InternedInt) {
+        self.int_table.alter(&id, |_, value| value.negate());
     }
 }
