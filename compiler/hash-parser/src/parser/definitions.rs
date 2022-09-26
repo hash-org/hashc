@@ -1,13 +1,17 @@
 //! Hash Compiler AST generation sources. This file contains the sources to the
 //! logic that transforms tokens into an AST.
 use hash_ast::ast::*;
+use hash_reporting::diagnostic::Diagnostics;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, TokenKind, TokenKindVector};
 use smallvec::smallvec;
 
 use super::AstGen;
-use crate::diagnostics::{
-    error::{ParseErrorKind, ParseResult},
-    TyArgumentKind,
+use crate::{
+    diagnostics::{
+        error::{ParseErrorKind, ParseResult},
+        warning::{ParseWarning, WarningKind},
+    },
+    parser::DefinitionKind,
 };
 
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
@@ -16,12 +20,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub fn parse_struct_def(&mut self) -> ParseResult<StructDef> {
         debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Struct)));
 
-        let ty_params = self.parse_optional_ty_params()?;
+        let def_kind = DefinitionKind::Struct;
+        let ty_params = self.parse_optional_ty_params(def_kind)?;
 
-        let mut gen = self.parse_delim_tree(
-            Delimiter::Paren,
-            Some(ParseErrorKind::TypeDefinition(TyArgumentKind::Struct)),
-        )?;
+        let mut gen = self
+            .parse_delim_tree(Delimiter::Paren, Some(ParseErrorKind::TypeDefinition(def_kind)))?;
 
         let fields = gen.parse_separated_fn(
             |g| g.parse_nominal_def_param(ParamOrigin::Struct),
@@ -37,12 +40,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub fn parse_enum_def(&mut self) -> ParseResult<EnumDef> {
         debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Enum)));
 
-        let ty_params = self.parse_optional_ty_params()?;
+        let def_kind = DefinitionKind::Enum;
+        let ty_params = self.parse_optional_ty_params(def_kind)?;
 
-        let mut gen = self.parse_delim_tree(
-            Delimiter::Paren,
-            Some(ParseErrorKind::TypeDefinition(TyArgumentKind::Enum)),
-        )?;
+        let mut gen = self
+            .parse_delim_tree(Delimiter::Paren, Some(ParseErrorKind::TypeDefinition(def_kind)))?;
 
         let entries = gen
             .parse_separated_fn(|g| g.parse_enum_def_entry(), |g| g.parse_token(TokenKind::Comma));
@@ -120,7 +122,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub fn parse_ty_fn_def(&mut self) -> ParseResult<TyFnDef> {
         debug_assert!(self.current_token().has_kind(TokenKind::Lt));
 
-        let params = self.parse_ty_params()?;
+        let params = self.parse_ty_params(DefinitionKind::TyFn)?;
 
         // see if we need to add a return ty...
         let return_ty = match self.peek_resultant_fn(|g| g.parse_thin_arrow()) {
@@ -177,7 +179,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub fn parse_trait_def(&mut self) -> ParseResult<TraitDef> {
         debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Trait)));
 
-        let ty_params = self.parse_optional_ty_params()?;
+        let ty_params = self.parse_optional_ty_params(DefinitionKind::Trait)?;
 
         Ok(TraitDef { members: self.parse_exprs_from_braces()?, ty_params })
     }
@@ -185,11 +187,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse optional type [Param]s, if the next token is not a
     /// `<`, the function will return an empty [AstNodes<Param>].
     #[inline]
-    pub(crate) fn parse_optional_ty_params(&mut self) -> ParseResult<AstNodes<Param>> {
+    pub(crate) fn parse_optional_ty_params(
+        &mut self,
+        def_kind: DefinitionKind,
+    ) -> ParseResult<AstNodes<Param>> {
         match self.peek() {
             Some(tok) if tok.has_kind(TokenKind::Lt) => {
                 self.skip_token();
-                self.parse_ty_params()
+                self.parse_ty_params(def_kind)
             }
             _ => Ok(AstNodes::new(vec![], None)),
         }
@@ -197,7 +202,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Parse a collection of type [Param]s which can appear on nominal
     /// definitions, and trait definitions.
-    fn parse_ty_params(&mut self) -> ParseResult<AstNodes<Param>> {
+    fn parse_ty_params(&mut self, def_kind: DefinitionKind) -> ParseResult<AstNodes<Param>> {
+        let start_span = self.current_location();
         let mut params = AstNodes::empty();
 
         // Flag denoting that we were able to parse the ending `>` within the function
@@ -239,6 +245,17 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     self.next_location(),
                 )?;
             }
+        }
+
+        // Update the ast_nodes span to contain
+        params.set_span(start_span.join(self.current_location()));
+
+        // Emit a warning here if there were no params
+        if params.is_empty() {
+            self.add_warning(ParseWarning::new(
+                WarningKind::UselessTyParams { def_kind },
+                params.span().unwrap(),
+            ))
         }
 
         Ok(params)

@@ -9,5 +9,5 @@ error[0056]: method `member_not_on_trt` is not a member of trait `Foo`
 34 | |          _ => Mux(val = 17);
 35 | |        }
 36 | |    };
-   | |_____- not a member of trait `Foo`
+   | |____- not a member of trait `Foo`
 37 |    };

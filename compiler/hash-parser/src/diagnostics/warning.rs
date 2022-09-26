@@ -15,8 +15,10 @@ use hash_source::{
 };
 use hash_utils::pluralise;
 
+use crate::parser::DefinitionKind;
+
 /// Represents a generated warning from within [AstGen][crate::parser::AstGen]
-#[derive(Constructor)]
+#[derive(Constructor, Debug)]
 pub struct ParseWarning {
     /// The kind of warning that is generated, stores relevant information
     /// about the warning.
@@ -27,6 +29,7 @@ pub struct ParseWarning {
 
 /// When warnings describe that a subject could be being applied
 /// on a particular kind like `literal` or `block`... etc.
+#[derive(Debug)]
 pub enum SubjectKind {
     /// When the subject is a literal
     Lit,
@@ -57,6 +60,7 @@ impl Display for SubjectKind {
     }
 }
 
+#[derive(Debug)]
 pub enum WarningKind {
     /// When an expression is wrapped within redundant parentheses.
     RedundantParenthesis(SubjectKind),
@@ -66,8 +70,12 @@ pub enum WarningKind {
     UselessUnaryOperator(SubjectKind),
 
     /// When the parser encounters a collection of trailing semi-colons
-    /// that are unecesary
+    /// that are unnecessary.
     TrailingSemis(usize),
+
+    UselessTyParams {
+        def_kind: DefinitionKind,
+    },
 }
 
 pub(crate) struct ParseWarningWrapper(pub ParseWarning, pub SourceId);
@@ -92,6 +100,17 @@ impl From<ParseWarningWrapper> for Report {
                 );
 
                 format!("unnecessary trailing semicolon{}", pluralise!(length))
+            }
+            WarningKind::UselessTyParams { def_kind } => {
+                span_label = "remove this `<>`".to_string();
+
+                let label = if matches!(def_kind, DefinitionKind::Mod | DefinitionKind::Mod) {
+                    "block"
+                } else {
+                    "definition"
+                };
+
+                format!("useless type parameters on this `{def_kind}` {label}")
             }
         };
 
