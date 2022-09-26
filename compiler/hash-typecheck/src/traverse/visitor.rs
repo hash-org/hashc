@@ -408,24 +408,16 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         Ok(())
     }
 
-    type ExprKindRet = TermId;
-
-    fn visit_expr_kind(
-        &self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ExprKind>,
-    ) -> Result<Self::ExprKindRet, Self::Error> {
-        let term_id = walk::walk_expr_kind_same_children(self, node)?;
-        // Since this is an expression, we want to coerce the term to a value if
-        // applicable:
-        Ok(self.coercing().potentially_coerce_as_value(term_id, node))
-    }
-
     type ExprRet = TermId;
+
     fn visit_expr(
         &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::Expr>,
     ) -> Result<Self::ExprRet, Self::Error> {
-        Ok(walk::walk_expr(self, node)?.kind)
+        let term_id = walk::walk_expr_same_children(self, node)?;
+        // Since this is an expression, we want to coerce the term to a value if
+        // applicable:
+        Ok(self.coercing().potentially_coerce_as_value(term_id, node))
     }
 
     type VariableExprRet = TermId;
@@ -1561,8 +1553,8 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         // Try to resolve the variable in scopes; if it is not found, it is an error. If
         // it is found, then set it to its new term.
-        let name = match node.lhs.kind() {
-            ast::ExprKind::Variable(name) => name.name.ident,
+        let name = match node.lhs.body() {
+            ast::Expr::Variable(name) => name.name.ident,
             _ => {
                 return Err(TcError::InvalidAssignSubject { location: site });
             }
@@ -1589,8 +1581,8 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         let rhs = self.visit_expr(node.rhs.ast_ref())?;
 
-        let name = match node.lhs.kind() {
-            ast::ExprKind::Variable(name) => name.name.ident,
+        let name = match node.lhs.body() {
+            ast::Expr::Variable(name) => name.name.ident,
             // @@Incomplete: what about tuples, or array indices?
             _ => {
                 return Err(TcError::InvalidAssignSubject {

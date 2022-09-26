@@ -177,17 +177,7 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         &mut self,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Expr>,
     ) -> Result<Self::ExprRet, Self::Error> {
-        let _ = walk_mut::walk_expr(self, node);
-        Ok(())
-    }
-
-    type ExprKindRet = ();
-
-    fn visit_expr_kind(
-        &mut self,
-        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ExprKind>,
-    ) -> Result<Self::ExprKindRet, Self::Error> {
-        walk_mut::walk_expr_kind_same_children(self, node)
+        walk_mut::walk_expr_same_children(self, node)
     }
 
     type VariableExprRet = ();

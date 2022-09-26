@@ -830,8 +830,8 @@ define_tree! {
         /// literal is constant in the minimal time possible.
         pub fn is_constant(&self) -> bool {
             let is_expr_lit_and_const = |expr: &AstNode<Expr>| -> bool {
-                match expr.kind() {
-                    ExprKind::LitExpr(LitExpr { data: lit }) => lit.is_constant(),
+                match expr.body() {
+                    Expr::LitExpr(LitExpr { data: lit }) => lit.is_constant(),
                     _ => false,
                 }
             };
@@ -1967,10 +1967,10 @@ define_tree! {
         pub index_expr: Child!(Expr),
     }
 
-    /// The kind of an expression.
+    /// An expression.
     #[derive(Debug, PartialEq, Clone)]
     #[node]
-    pub enum ExprKind {
+    pub enum Expr {
         /// A constructor call which could be a struct/enum initialisation or a
         /// function call e.g. `foo(5)`.
         ConstructorCall(ConstructorCallExpr),
@@ -2032,36 +2032,6 @@ define_tree! {
         BinaryExpr(BinaryExpr),
         /// Unary Expression composed of a unary operator and an expression
         UnaryExpr(UnaryExpr),
-    }
-
-    /// An expression.
-    #[derive(Debug, PartialEq, Clone)]
-    #[node]
-    pub struct Expr {
-        /// The kind of the expression
-        pub kind: ExprKind,
-    }
-
-    impl Expr {
-        /// Create a new [Expr] with a specific [ExprKind].
-        pub fn new(kind: ExprKind) -> Self {
-            Self { kind }
-        }
-
-        /// Convert the [Expr] into an [ExprKind]
-        pub fn into_kind(self) -> ExprKind {
-            self.kind
-        }
-
-        /// Get the [ExprKind] of the expression
-        pub fn kind(&self) -> &ExprKind {
-            &self.kind
-        }
-
-        /// Get the [ExprKind] of the expression
-        pub fn kind_mut(&mut self) -> &mut ExprKind {
-            &mut self.kind
-        }
     }
 
     /// A module.

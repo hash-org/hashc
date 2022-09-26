@@ -3,15 +3,15 @@
 
 use std::fmt::Display;
 
-use hash_ast::ast::{Block, BlockExpr, ExprKind};
+use hash_ast::ast::{Block, BlockExpr, Expr};
 
-/// [DirectiveArgument] is a mapping between [ExprKind] to a simplified
+/// [DirectiveArgument] is a mapping between [Expr] to a simplified
 /// version for reporting on if a directive received the 'wrong' kind of
-/// argument. Some variants of [ExprKind] are collapsed into the general
+/// argument. Some variants of [Expr] are collapsed into the general
 /// [DirectiveArgument::Expr] because it is irrelevant from the context of
 /// directive what the expression is.
 ///
-/// Additionally, some of the inner variants of [ExprKind::Block] are
+/// Additionally, some of the inner variants of [Expr::Block] are
 /// expanded into the [DirectiveArgument] variants as their own standalone
 /// variants.
 pub enum DirectiveArgument {
@@ -49,34 +49,34 @@ pub enum DirectiveArgument {
     Expr,
 }
 
-impl From<&ExprKind> for DirectiveArgument {
-    fn from(expr: &ExprKind) -> Self {
+impl From<&Expr> for DirectiveArgument {
+    fn from(expr: &Expr) -> Self {
         match expr {
-            ExprKind::ConstructorCall(_) => DirectiveArgument::ConstructorCall,
-            ExprKind::Directive(_) => DirectiveArgument::Directive,
-            ExprKind::Declaration(_) => DirectiveArgument::Declaration,
-            ExprKind::Unsafe(_) => DirectiveArgument::Unsafe,
-            ExprKind::LitExpr(_) => DirectiveArgument::LitExpr,
-            ExprKind::Cast(_) => DirectiveArgument::Cast,
-            ExprKind::Block(BlockExpr { data: block }) => match block.body() {
+            Expr::ConstructorCall(_) => DirectiveArgument::ConstructorCall,
+            Expr::Directive(_) => DirectiveArgument::Directive,
+            Expr::Declaration(_) => DirectiveArgument::Declaration,
+            Expr::Unsafe(_) => DirectiveArgument::Unsafe,
+            Expr::LitExpr(_) => DirectiveArgument::LitExpr,
+            Expr::Cast(_) => DirectiveArgument::Cast,
+            Expr::Block(BlockExpr { data: block }) => match block.body() {
                 Block::Loop(_) | Block::While(_) | Block::For(_) => DirectiveArgument::Loop,
                 Block::Match(_) | Block::If(_) => DirectiveArgument::Match,
                 Block::Mod(_) => DirectiveArgument::ModBlock,
                 Block::Body(_) => DirectiveArgument::Block,
                 Block::Impl(_) => DirectiveArgument::ImplBlock,
             },
-            ExprKind::Import(_) => DirectiveArgument::Import,
-            ExprKind::StructDef(_) => DirectiveArgument::StructDef,
-            ExprKind::EnumDef(_) => DirectiveArgument::EnumDef,
-            ExprKind::TyFnDef(_) => DirectiveArgument::TyFnDef,
-            ExprKind::TraitDef(_) => DirectiveArgument::TraitDef,
-            ExprKind::FnDef(_) => DirectiveArgument::FnDef,
-            ExprKind::Ty(_) => DirectiveArgument::Ty,
-            ExprKind::Return(_) => DirectiveArgument::Return,
-            ExprKind::Break(_) => DirectiveArgument::Break,
-            ExprKind::Continue(_) => DirectiveArgument::Continue,
-            ExprKind::MergeDeclaration(_) => DirectiveArgument::MergeDeclaration,
-            ExprKind::TraitImpl(_) => DirectiveArgument::TraitImpl,
+            Expr::Import(_) => DirectiveArgument::Import,
+            Expr::StructDef(_) => DirectiveArgument::StructDef,
+            Expr::EnumDef(_) => DirectiveArgument::EnumDef,
+            Expr::TyFnDef(_) => DirectiveArgument::TyFnDef,
+            Expr::TraitDef(_) => DirectiveArgument::TraitDef,
+            Expr::FnDef(_) => DirectiveArgument::FnDef,
+            Expr::Ty(_) => DirectiveArgument::Ty,
+            Expr::Return(_) => DirectiveArgument::Return,
+            Expr::Break(_) => DirectiveArgument::Break,
+            Expr::Continue(_) => DirectiveArgument::Continue,
+            Expr::MergeDeclaration(_) => DirectiveArgument::MergeDeclaration,
+            Expr::TraitImpl(_) => DirectiveArgument::TraitImpl,
             _ => DirectiveArgument::Expr,
         }
     }

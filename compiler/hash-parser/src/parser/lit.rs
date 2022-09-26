@@ -228,9 +228,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
 
         Ok(gen.node_with_span(
-            Expr::new(ExprKind::LitExpr(LitExpr {
+            Expr::LitExpr(LitExpr {
                 data: gen.node_with_span(Lit::List(ListLit { elements }), span),
-            })),
+            }),
             span,
         ))
     }
