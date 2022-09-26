@@ -1,6 +1,5 @@
-error: unexpectedly encountered a `)`
+error: expected an expression, however received a `)`
  --> $DIR/dangling_parenthesis.hash:3:17
 2 |   
 3 |   k := (a) + ((b)));
   |                   ^ 
-  = help: consider adding a `;`

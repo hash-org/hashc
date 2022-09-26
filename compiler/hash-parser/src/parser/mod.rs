@@ -306,18 +306,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         )
     }
 
-    /// Create an error at the current location and push it into the
-    /// diagnostics.
-    pub(crate) fn emit_err(
-        &mut self,
-        kind: ParseErrorKind,
-        expected: Option<TokenKindVector>,
-        received: Option<TokenKind>,
-    ) {
-        let err = self.make_err(kind, expected, received, None);
-        self.add_error(err);
-    }
-
     /// Create an error at the current location.
     pub(crate) fn err<T>(
         &self,
@@ -536,7 +524,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let mut contents = vec![];
 
         while self.has_token() {
-            match self.parse_top_level_expr(true) {
+            match self.parse_top_level_expr() {
                 Ok(Some((_, expr))) => contents.push(expr),
                 Ok(_) => continue,
                 Err(err) => {
