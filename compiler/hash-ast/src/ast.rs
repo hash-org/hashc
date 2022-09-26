@@ -831,7 +831,7 @@ define_tree! {
         pub fn is_constant(&self) -> bool {
             let is_expr_lit_and_const = |expr: &AstNode<Expr>| -> bool {
                 match expr.body() {
-                    Expr::LitExpr(LitExpr { data: lit }) => lit.is_constant(),
+                    Expr::LitExpr(LitExpr { data }) => data.is_constant(),
                     _ => false,
                 }
             };

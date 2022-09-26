@@ -133,9 +133,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // Now that we parse the bound, we're expecting a fat-arrow and then some
         // expression
         self.parse_arrow()?;
-        let body = self.parse_expr_with_precedence(0)?;
+        let ty_fn_body = self.parse_expr_with_precedence(0)?;
 
-        Ok(TyFnDef { params, return_ty, ty_fn_body: body })
+        Ok(TyFnDef { params, return_ty, ty_fn_body })
     }
 
     // Parse a [Param] which consists the name of the argument and

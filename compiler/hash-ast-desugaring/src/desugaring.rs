@@ -54,8 +54,8 @@ impl<'s> AstDesugaring<'s> {
             ),
         };
 
-        let ForLoopBlock { pat, iterator, for_body: body } = block;
-        let (iter_span, pat_span, body_span) = (iterator.span(), pat.span(), body.span());
+        let ForLoopBlock { pat, iterator, for_body } = block;
+        let (iter_span, pat_span, body_span) = (iterator.span(), pat.span(), for_body.span());
 
         // Utility to create binding patterns for when de-sugaring the result of the
         // iterator.
@@ -85,7 +85,7 @@ impl<'s> AstDesugaring<'s> {
             AstNode::new(
                 MatchCase {
                     pat,
-                    expr: AstNode::new(Expr::Block(BlockExpr { data: body }), body_span)
+                    expr: AstNode::new(Expr::Block(BlockExpr { data: for_body }), body_span)
                 },
                 pat_span
             ),
@@ -173,8 +173,8 @@ impl<'s> AstDesugaring<'s> {
             ),
         };
 
-        let WhileLoopBlock { condition, while_body: body } = block;
-        let (body_span, condition_span) = (body.span(), condition.span());
+        let WhileLoopBlock { condition, while_body } = block;
+        let (body_span, condition_span) = (while_body.span(), condition.span());
 
         Block::Loop(LoopBlock {
             contents: AstNode::new(
@@ -193,7 +193,7 @@ impl<'s> AstDesugaring<'s> {
                                     condition_span
                                 ),
                                 expr: AstNode::new(
-                                    Expr::Block(BlockExpr { data: body }),
+                                    Expr::Block(BlockExpr { data: while_body }),
                                     body_span
                                 ),
                             },
@@ -247,8 +247,8 @@ impl<'s> AstDesugaring<'s> {
     fn desugar_if_clause(&self, node: AstNode<IfClause>) -> AstNode<MatchCase> {
         let branch_span = node.span();
 
-        let IfClause { condition, if_body: body } = node.into_body();
-        let (body_span, condition_span) = (body.span(), condition.span());
+        let IfClause { condition, if_body } = node.into_body();
+        let (body_span, condition_span) = (if_body.span(), condition.span());
 
         AstNode::new(
             MatchCase {
@@ -259,7 +259,7 @@ impl<'s> AstDesugaring<'s> {
                     }),
                     branch_span,
                 ),
-                expr: AstNode::new(Expr::Block(BlockExpr { data: body }), body_span),
+                expr: AstNode::new(Expr::Block(BlockExpr { data: if_body }), body_span),
             },
             branch_span,
         )

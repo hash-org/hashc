@@ -101,12 +101,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let start = self.current_location();
 
         let condition = self.parse_expr_with_precedence(0)?;
-        let body = self.parse_block()?;
+        let while_body = self.parse_block()?;
 
-        Ok(self.node_with_joined_span(
-            Block::While(WhileLoopBlock { condition, while_body: body }),
-            start,
-        ))
+        Ok(self
+            .node_with_joined_span(Block::While(WhileLoopBlock { condition, while_body }), start))
     }
 
     /// Parse a match case. A match case involves handling the pattern and the
