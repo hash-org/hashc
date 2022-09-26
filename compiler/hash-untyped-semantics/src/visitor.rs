@@ -6,11 +6,9 @@
 use std::{collections::HashSet, convert::Infallible, mem};
 
 use ::if_chain::if_chain;
-use hash_ast::{
-    ast::{
-        walk_mut_self, AstVisitorMutSelf, BindingPat, Block, BlockExpr, ExprKind, LitExpr,
-        ModulePatEntry, Mutability, ParamOrigin, Pat, TuplePatEntry,
-    },
+use hash_ast::ast::{
+    walk_mut_self, AstVisitorMutSelf, BindingPat, Block, BlockExpr, ExprKind, LitExpr,
+    ModulePatEntry, Mutability, ParamOrigin, Pat, TuplePatEntry,
 };
 use hash_reporting::macros::panic_on_span;
 use hash_source::{identifier::CORE_IDENTIFIERS, ModuleKind};

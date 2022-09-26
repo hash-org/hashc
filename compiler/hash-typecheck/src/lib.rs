@@ -110,7 +110,7 @@ impl Tc<'_> for TcImpl {
             diagnostics_store: &state.diagnostics_store,
             cache: &state.cache,
         };
-        let mut tc_visitor = TcVisitor::new_in_source(storage.storages(), workspace.node_map());
+        let tc_visitor = TcVisitor::new_in_source(storage.storages(), workspace.node_map());
 
         match tc_visitor.visit_source() {
             Err(err) => {
@@ -154,7 +154,7 @@ impl Tc<'_> for TcImpl {
             cache: &state.cache,
         };
 
-        let mut tc_visitor = TcVisitor::new_in_source(storage.storages(), sources.node_map());
+        let tc_visitor = TcVisitor::new_in_source(storage.storages(), sources.node_map());
 
         if let Err(err) = tc_visitor.visit_source() {
             tc_visitor.diagnostics().add_error(err);

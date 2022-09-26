@@ -6,10 +6,7 @@ use hash_source::identifier::Identifier;
 use hash_types::{scope::ScopeId, ScopeKind};
 
 use super::visitor::TcVisitor;
-use crate::{
-    diagnostics::error::TcResult,
-    ops::{scope::ScopeManager, AccessToOps},
-};
+use crate::{diagnostics::error::TcResult, ops::AccessToOps};
 
 pub(crate) struct VisitConstantScope {
     pub(crate) scope_name: Option<Identifier>,
@@ -24,8 +21,7 @@ impl<'tc> TcVisitor<'tc> {
     /// scope that is used to append all the members into. If not given, a new
     /// constant scope is created and used.
     pub(crate) fn visit_constant_scope<'m>(
-        &mut self,
-        ctx: &<Self as AstVisitor>::Ctx,
+        &self,
         members: impl Iterator<Item = ast::AstNodeRef<'m, ast::Expr>>,
         scope_to_use: Option<ScopeId>,
         scope_kind: ScopeKind,
@@ -37,13 +33,13 @@ impl<'tc> TcVisitor<'tc> {
         // This is only useful for mod/impl/trait blocks
         let scope_name = self.state.declaration_name_hint.take();
 
-        ScopeManager::enter_scope_with(self, scope_id, |this| {
+        self.scope_manager().enter_scope(scope_id, |_| {
             // @@Todo: deal with recursive declarations
 
             // Invariant: It is already checked during semantics that only declarations are
             // present in constant scopes.
             for member in members {
-                this.visit_expr(ctx, member)?;
+                self.visit_expr(member)?;
             }
             Ok(())
         })?;

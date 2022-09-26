@@ -1,7 +1,7 @@
 //! Contains functions to traverse the AST and add types to it, while checking
 //! it for correctness.
 
-use std::{iter, mem};
+use std::{cell::Cell, iter};
 
 use hash_ast::{
     ast::{
@@ -37,7 +37,7 @@ use crate::{
         macros::tc_panic,
         warning::TcWarning,
     },
-    ops::{scope::ScopeManager, AccessToOps},
+    ops::AccessToOps,
     storage::{AccessToStorage, StorageRef},
 };
 
@@ -46,14 +46,14 @@ use crate::{
 #[derive(Default)]
 pub struct TcVisitorState {
     /// Pattern hint from declaration
-    pub declaration_name_hint: Option<Identifier>,
+    pub declaration_name_hint: Cell<Option<Identifier>>,
     /// Return type for functions with return statements
-    pub fn_def_return_ty: Option<TermId>,
+    pub fn_def_return_ty: Cell<Option<TermId>>,
     /// If the current traversal is within the intrinsic directive scope.
-    pub within_intrinsics_directive: bool,
+    pub within_intrinsics_directive: Cell<bool>,
     /// If traversing a declaration, what to set for the
     /// `assignments_until_closed` field.
-    pub declaration_assignments_until_closed: usize,
+    pub declaration_assignments_until_closed: Cell<usize>,
 }
 
 impl TcVisitorState {
@@ -87,15 +87,15 @@ impl<'tc> TcVisitor<'tc> {
 
     /// Visits the source passed in as an argument to [Self::new_in_source], and
     /// returns the term of the module that corresponds to the source.
-    pub fn visit_source(&mut self) -> TcResult<TermId> {
+    pub fn visit_source(&self) -> TcResult<TermId> {
         let source_id = self.local_storage().current_source();
         let source = self.node_map.get_source(source_id);
 
         let result = match source {
             SourceRef::Interactive(interactive_source) => {
-                self.visit_body_block(&(), interactive_source.node_ref())
+                self.visit_body_block(interactive_source.node_ref())
             }
-            SourceRef::Module(module_source) => self.visit_module(&(), module_source.node_ref()),
+            SourceRef::Module(module_source) => self.visit_module(module_source.node_ref()),
         }?;
 
         // Add the result to the checked sources.
@@ -190,23 +190,12 @@ impl<'tc> TcVisitor<'tc> {
 /// - Terms derived from expressions are always validated, in order to ensure
 ///   they are correct. The same goes for types.
 impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
-    type Ctx = ();
-    type CollectionContainer<T> = Vec<T>;
-
-    fn try_collect_items<T, E, I: Iterator<Item = Result<T, E>>>(
-        _: &Self::Ctx,
-        items: I,
-    ) -> Result<Self::CollectionContainer<T>, E> {
-        items.collect()
-    }
-
     type Error = TcError;
 
     type NameRet = Identifier;
 
     fn visit_name(
-        &mut self,
-        _: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::Name>,
     ) -> Result<Self::NameRet, Self::Error> {
         Ok(node.ident)
@@ -215,21 +204,19 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type LitRet = TermId;
 
     fn visit_lit(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::Lit>,
     ) -> Result<Self::LitRet, Self::Error> {
-        walk::walk_lit_same_children(self, ctx, node)
+        walk::walk_lit_same_children(self, node)
     }
 
     type MapLitRet = TermId;
 
     fn visit_map_lit(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::MapLit>,
     ) -> Result<Self::MapLitRet, Self::Error> {
-        let walk::MapLit { entries } = walk::walk_map_lit(self, ctx, node)?;
+        let walk::MapLit { elements: entries } = walk::walk_map_lit(self, node)?;
         let map_inner_ty = self.core_defs().map_ty_fn();
 
         // Unify the key and value types...
@@ -253,11 +240,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type MapLitEntryRet = (TermId, TermId);
 
     fn visit_map_lit_entry(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::MapLitEntry>,
     ) -> Result<Self::MapLitEntryRet, Self::Error> {
-        let walk::MapLitEntry { key, value } = walk::walk_map_lit_entry(self, ctx, node)?;
+        let walk::MapLitEntry { key, value } = walk::walk_map_lit_entry(self, node)?;
 
         Ok((key, value))
     }
@@ -265,11 +251,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type ListLitRet = TermId;
 
     fn visit_list_lit(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ListLit>,
     ) -> Result<Self::ListLitRet, Self::Error> {
-        let walk::ListLit { elements } = walk::walk_list_lit(self, ctx, node)?;
+        let walk::ListLit { elements } = walk::walk_list_lit(self, node)?;
 
         let list_inner_ty = self.core_defs().list_ty_fn();
         let element_ty = self.unifier().unify_rt_term_sequence(elements)?;
@@ -288,11 +273,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type SetLitRet = TermId;
 
     fn visit_set_lit(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::SetLit>,
     ) -> Result<Self::SetLitRet, Self::Error> {
-        let walk::SetLit { elements } = walk::walk_set_lit(self, ctx, node)?;
+        let walk::SetLit { elements } = walk::walk_set_lit(self, node)?;
 
         let set_inner_ty = self.core_defs().set_ty_fn();
         let element_ty = self.unifier().unify_rt_term_sequence(elements)?;
@@ -311,11 +295,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type TupleLitEntryRet = Arg;
 
     fn visit_tuple_lit_entry(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TupleLitEntry>,
     ) -> Result<Self::TupleLitEntryRet, Self::Error> {
-        let walk::TupleLitEntry { name, value, ty } = walk::walk_tuple_lit_entry(self, ctx, node)?;
+        let walk::TupleLitEntry { name, value, ty } = walk::walk_tuple_lit_entry(self, node)?;
 
         let ty_or_unresolved = ty.unwrap_or_else(|| self.builder().create_unresolved_term());
         let value_ty = self.typer().infer_ty_of_term(value)?;
@@ -332,11 +315,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type TupleLitRet = TermId;
 
     fn visit_tuple_lit(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TupleLit>,
     ) -> Result<Self::TupleLitRet, Self::Error> {
-        let walk::TupleLit { elements } = walk::walk_tuple_lit(self, ctx, node)?;
+        let walk::TupleLit { elements } = walk::walk_tuple_lit(self, node)?;
         let builder = self.builder();
 
         let params = builder.create_args(elements, ParamOrigin::Tuple);
@@ -352,11 +334,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type StrLitRet = TermId;
 
     fn visit_str_lit(
-        &mut self,
-        _ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::StrLit>,
     ) -> Result<Self::StrLitRet, Self::Error> {
-        let term = self.builder().create_lit_term(node.0.to_string());
+        let term = self.builder().create_lit_term(node.data.to_string());
         self.register_node_info(node, term);
         Ok(term)
     }
@@ -364,11 +345,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type CharLitRet = TermId;
 
     fn visit_char_lit(
-        &mut self,
-        _ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::CharLit>,
     ) -> Result<Self::CharLitRet, Self::Error> {
-        let term = self.builder().create_lit_term(node.0);
+        let term = self.builder().create_lit_term(node.data);
         self.register_node_info(node, term);
         Ok(term)
     }
@@ -376,8 +356,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type FloatLitRet = TermId;
 
     fn visit_float_lit(
-        &mut self,
-        _ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::FloatLit>,
     ) -> Result<Self::FloatLitRet, Self::Error> {
         let f32_def = self.core_defs().f32_ty();
@@ -389,11 +368,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type BoolLitRet = TermId;
 
     fn visit_bool_lit(
-        &mut self,
-        _ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::BoolLit>,
     ) -> Result<Self::BoolLitRet, Self::Error> {
-        let term = self.builder().create_var_term(if node.0 {
+        let term = self.builder().create_var_term(if node.data {
             CORE_IDENTIFIERS.r#true
         } else {
             CORE_IDENTIFIERS.r#false
@@ -404,8 +382,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type IntLitRet = TermId;
 
     fn visit_int_lit(
-        &mut self,
-        _: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::IntLit>,
     ) -> Result<Self::IntLitRet, Self::Error> {
         let term = self.builder().create_lit_term(node.body().clone());
@@ -416,8 +393,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type BinOpRet = ();
 
     fn visit_bin_op(
-        &mut self,
-        _ctx: &Self::Ctx,
+        &self,
         _node: hash_ast::ast::AstNodeRef<hash_ast::ast::BinOp>,
     ) -> Result<Self::BinOpRet, Self::Error> {
         Ok(())
@@ -426,34 +402,39 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type UnOpRet = ();
 
     fn visit_un_op(
-        &mut self,
-        _ctx: &Self::Ctx,
+        &self,
         _node: hash_ast::ast::AstNodeRef<hash_ast::ast::UnOp>,
     ) -> Result<Self::UnOpRet, Self::Error> {
         Ok(())
     }
 
-    type ExprRet = TermId;
+    type ExprKindRet = TermId;
 
-    fn visit_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Expr>,
-    ) -> Result<Self::ExprRet, Self::Error> {
-        let term_id = walk::walk_expr_same_children(self, ctx, node)?;
+    fn visit_expr_kind(
+        &self,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ExprKind>,
+    ) -> Result<Self::ExprKindRet, Self::Error> {
+        let term_id = walk::walk_expr_kind_same_children(self, node)?;
         // Since this is an expression, we want to coerce the term to a value if
         // applicable:
         Ok(self.coercing().potentially_coerce_as_value(term_id, node))
     }
 
+    type ExprRet = TermId;
+    fn visit_expr(
+        &self,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Expr>,
+    ) -> Result<Self::ExprRet, Self::Error> {
+        Ok(walk::walk_expr(self, node)?.kind)
+    }
+
     type VariableExprRet = TermId;
 
     fn visit_variable_expr(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::VariableExpr>,
     ) -> Result<Self::VariableExprRet, Self::Error> {
-        let walk::VariableExpr { name } = walk::walk_variable_expr(self, ctx, node)?;
+        let walk::VariableExpr { name } = walk::walk_variable_expr(self, node)?;
         let term = self.builder().create_var_term(name);
         self.validate_and_register_simplified_term(node, term)
     }
@@ -461,25 +442,24 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type DirectiveExprRet = TermId;
 
     fn visit_directive_expr(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::DirectiveExpr>,
     ) -> Result<Self::DirectiveExprRet, Self::Error> {
-        let old_intrinsics_state = self.state.within_intrinsics_directive;
+        let old_intrinsics_state = self.state.within_intrinsics_directive.get();
 
         // If the current specified directive is `intrinsics`, then we have to enable
         // the flag `within_intrinsics_directive` which changes the way that `mod`
         // blocks are validated and changes the parsing of the declarations inside the
         // mod block.
         if node.name.is(CORE_IDENTIFIERS.intrinsics) {
-            self.state.within_intrinsics_directive = true;
+            self.state.within_intrinsics_directive.set(true);
         }
 
         // @@Directives: Decide on what to do with directives, but for now walk the
         // inner types...
-        let walk::DirectiveExpr { subject, .. } = walk::walk_directive_expr(self, ctx, node)?;
+        let walk::DirectiveExpr { subject, .. } = walk::walk_directive_expr(self, node)?;
 
-        self.state.within_intrinsics_directive = old_intrinsics_state;
+        self.state.within_intrinsics_directive.set(old_intrinsics_state);
 
         self.register_node_info(node, subject);
         Ok(subject)
@@ -488,24 +468,21 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type ConstructorCallArgRet = Arg;
 
     fn visit_constructor_call_arg(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ConstructorCallArg>,
     ) -> Result<Self::ConstructorCallArgRet, Self::Error> {
-        let walk::ConstructorCallArg { name, value } =
-            walk::walk_constructor_call_arg(self, ctx, node)?;
+        let walk::ConstructorCallArg { name, value } = walk::walk_constructor_call_arg(self, node)?;
         Ok(Arg { name, value })
     }
 
     type ConstructorCallExprRet = TermId;
 
     fn visit_constructor_call_expr(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ConstructorCallExpr>,
     ) -> Result<Self::ConstructorCallExprRet, Self::Error> {
         let walk::ConstructorCallExpr { args, subject } =
-            walk::walk_constructor_call_expr(self, ctx, node)?;
+            walk::walk_constructor_call_expr(self, node)?;
 
         // Create the args with origin as `FnCall`, although it might be altered
         // when the term is simplified into `Struct` or `Enum` variant.
@@ -521,8 +498,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type PropertyKindRet = Field;
 
     fn visit_property_kind(
-        &mut self,
-        _: &Self::Ctx,
+        &self,
         node: ast::AstNodeRef<ast::PropertyKind>,
     ) -> Result<Self::PropertyKindRet, Self::Error> {
         Ok(match node.body() {
@@ -534,11 +510,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type AccessExprRet = TermId;
 
     fn visit_access_expr(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::AccessExpr>,
     ) -> Result<Self::AccessExprRet, Self::Error> {
-        let walk::AccessExpr { subject, property, kind } = walk::walk_access_expr(self, ctx, node)?;
+        let walk::AccessExpr { subject, property, kind } = walk::walk_access_expr(self, node)?;
         let term = self.builder().create_access(subject, property, kind);
         self.validate_and_register_simplified_term(node, term)
     }
@@ -546,11 +521,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type AccessKindRet = AccessOp;
 
     fn visit_access_kind(
-        &mut self,
-        _: &Self::Ctx,
-        node: hash_ast::ast::AccessKind,
+        &self,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::AccessKind>,
     ) -> Result<Self::AccessKindRet, Self::Error> {
-        match node {
+        match node.body() {
             AccessKind::Namespace => Ok(AccessOp::Namespace),
             AccessKind::Property => Ok(AccessOp::Property),
         }
@@ -559,11 +533,11 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type RefExprRet = TermId;
 
     fn visit_ref_expr(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::RefExpr>,
     ) -> Result<Self::RefExprRet, Self::Error> {
-        let walk::RefExpr { inner_expr, mutability } = walk::walk_ref_expr(self, ctx, node)?;
+        // @@Todo: ref kind
+        let walk::RefExpr { inner_expr, mutability, kind: _ } = walk::walk_ref_expr(self, node)?;
 
         // Depending on the `mutability` of the reference, create the relevant type
         // function application
@@ -588,11 +562,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type DerefExprRet = TermId;
 
     fn visit_deref_expr(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::DerefExpr>,
     ) -> Result<Self::DerefExprRet, Self::Error> {
-        let walk::DerefExpr(inner) = walk::walk_deref_expr(self, ctx, node)?;
+        let walk::DerefExpr { data: inner } = walk::walk_deref_expr(self, node)?;
         let inner_ty = self.typer().infer_ty_of_term(inner)?;
 
         // Create a `Ref<T>` dummy type for unification...
@@ -644,34 +617,31 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type UnsafeExprRet = TermId;
 
     fn visit_unsafe_expr(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::UnsafeExpr>,
     ) -> Result<Self::UnsafeExprRet, Self::Error> {
         // @@UnsafeExprs: Decide on what to do with unsafe expressions, but for now walk
         // the inner types...
-        let walk::UnsafeExpr(subject) = walk::walk_unsafe_expr(self, ctx, node)?;
+        let walk::UnsafeExpr { data: subject } = walk::walk_unsafe_expr(self, node)?;
         Ok(subject)
     }
 
     type LitExprRet = TermId;
 
     fn visit_lit_expr(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::LitExpr>,
     ) -> Result<Self::LitExprRet, Self::Error> {
-        Ok(walk::walk_lit_expr(self, ctx, node)?.0)
+        Ok(walk::walk_lit_expr(self, node)?.data)
     }
 
     type CastExprRet = TermId;
 
     fn visit_cast_expr(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::CastExpr>,
     ) -> Result<Self::CastExprRet, Self::Error> {
-        let walk::CastExpr { expr, ty } = walk::walk_cast_expr(self, ctx, node)?;
+        let walk::CastExpr { expr, ty } = walk::walk_cast_expr(self, node)?;
         let expr_ty = self.typer().infer_ty_of_term(expr)?;
 
         // Ensure that the `expr` can be unified with the provided `ty`...
@@ -685,28 +655,25 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type TyExprRet = TermId;
 
     fn visit_ty_expr(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TyExpr>,
     ) -> Result<Self::TyExprRet, Self::Error> {
-        Ok(walk::walk_ty_expr(self, ctx, node)?.0)
+        Ok(walk::walk_ty_expr(self, node)?.ty)
     }
 
     type BlockExprRet = TermId;
 
     fn visit_block_expr(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::BlockExpr>,
     ) -> Result<Self::BlockExprRet, Self::Error> {
-        Ok(walk::walk_block_expr(self, ctx, node)?.0)
+        Ok(walk::walk_block_expr(self, node)?.data)
     }
 
     type ImportRet = TermId;
 
     fn visit_import(
-        &mut self,
-        _: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::Import>,
     ) -> Result<Self::ImportRet, Self::Error> {
         // Try resolve the path of the import to a SourceId:
@@ -732,8 +699,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
                             StorageRef { local_storage: &child_local_storage, ..storage_ref };
 
                         // Visit the child module
-                        let mut child_visitor =
-                            TcVisitor::new_in_source(child_storage_ref, node_map);
+                        let child_visitor = TcVisitor::new_in_source(child_storage_ref, node_map);
                         let module_term = child_visitor.visit_source()?;
                         Ok(module_term)
                     }
@@ -755,31 +721,28 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type ImportExprRet = TermId;
 
     fn visit_import_expr(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ImportExpr>,
     ) -> Result<Self::ImportExprRet, Self::Error> {
-        Ok(walk::walk_import_expr(self, ctx, node)?.0)
+        Ok(walk::walk_import_expr(self, node)?.data)
     }
 
     type TyRet = TermId;
 
     fn visit_ty(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::Ty>,
     ) -> Result<Self::TyRet, Self::Error> {
-        walk::walk_ty_same_children(self, ctx, node)
+        walk::walk_ty_same_children(self, node)
     }
 
     type TupleTyRet = TermId;
 
     fn visit_tuple_ty(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TupleTy>,
     ) -> Result<Self::TupleTyRet, Self::Error> {
-        let walk::TupleTy { entries } = walk::walk_tuple_ty(self, ctx, node)?;
+        let walk::TupleTy { entries } = walk::walk_tuple_ty(self, node)?;
 
         let members = self.builder().create_params(entries, ParamOrigin::Tuple);
         self.copy_location_from_nodes_to_targets(node.entries.ast_ref_iter(), members);
@@ -791,11 +754,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type ListTyRet = TermId;
 
     fn visit_list_ty(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ListTy>,
     ) -> Result<Self::ListTyRet, Self::Error> {
-        let walk::ListTy { inner } = walk::walk_list_ty(self, ctx, node)?;
+        let walk::ListTy { inner } = walk::walk_list_ty(self, node)?;
 
         let inner_ty = self.core_defs().list_ty_fn();
         let builder = self.builder();
@@ -811,11 +773,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type SetTyRet = TermId;
 
     fn visit_set_ty(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::SetTy>,
     ) -> Result<Self::SetTyRet, Self::Error> {
-        let walk::SetTy { inner } = walk::walk_set_ty(self, ctx, node)?;
+        let walk::SetTy { inner } = walk::walk_set_ty(self, node)?;
 
         let inner_ty = self.core_defs().set_ty_fn();
         let builder = self.builder();
@@ -831,11 +792,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type MapTyRet = TermId;
 
     fn visit_map_ty(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::MapTy>,
     ) -> Result<Self::MapTyRet, Self::Error> {
-        let walk::MapTy { key, value } = walk::walk_map_ty(self, ctx, node)?;
+        let walk::MapTy { key, value } = walk::walk_map_ty(self, node)?;
 
         let inner_ty = self.core_defs().map_ty_fn();
         let builder = self.builder();
@@ -854,11 +814,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type TyArgRet = Param;
 
     fn visit_ty_arg(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TyArg>,
     ) -> Result<Self::TyArgRet, Self::Error> {
-        let walk::TyArg { ty, name } = walk::walk_ty_arg(self, ctx, node)?;
+        let walk::TyArg { ty, name } = walk::walk_ty_arg(self, node)?;
         self.register_node_info(node, ty);
         Ok(Param { ty, name, default_value: None })
     }
@@ -866,11 +825,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type FnTyRet = TermId;
 
     fn visit_fn_ty(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::FnTy>,
     ) -> Result<Self::FnTyRet, Self::Error> {
-        let walk::FnTy { params, return_ty } = walk::walk_fn_ty(self, ctx, node)?;
+        let walk::FnTy { params, return_ty } = walk::walk_fn_ty(self, node)?;
         let params = self.builder().create_params(params, ParamOrigin::Fn);
 
         // Add all the locations to the parameters:
@@ -884,21 +842,21 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
     type TyFnRet = TermId;
 
-    fn visit_ty_fn_ty(
-        &mut self,
-        ctx: &Self::Ctx,
+    fn visit_ty_fn(
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TyFn>,
     ) -> Result<Self::TyFnRet, Self::Error> {
-        let params = Self::try_collect_items(
-            ctx,
-            node.params.iter().map(|a| self.visit_param(ctx, a.ast_ref())),
-        )?;
+        let params = node
+            .params
+            .iter()
+            .map(|a| self.visit_param(a.ast_ref()))
+            .collect::<Result<Vec<_>, _>>()?;
         let params = self.builder().create_params(params, ParamOrigin::TyFn);
 
         let param_scope = self.scope_manager().make_bound_scope(params);
-        let return_value = ScopeManager::enter_scope_with(self, param_scope, |this| {
-            this.visit_ty(ctx, node.return_ty.ast_ref())
-        })?;
+        let return_value = self
+            .scope_manager()
+            .enter_scope(param_scope, |_| self.visit_ty(node.return_ty.ast_ref()))?;
 
         // Add all the locations to the parameters:
         self.copy_location_from_nodes_to_targets(node.params.ast_ref_iter(), params);
@@ -912,11 +870,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type TyFnCallRet = TermId;
 
     fn visit_ty_fn_call(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TyFnCall>,
     ) -> Result<Self::TyFnCallRet, Self::Error> {
-        let walk::TyFnCall { args, subject } = walk::walk_ty_fn_call(self, ctx, node)?;
+        let walk::TyFnCall { args, subject } = walk::walk_ty_fn_call(self, node)?;
 
         // These should be converted to args
         let args = self.builder().create_args(
@@ -936,11 +893,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type NamedTyRet = TermId;
 
     fn visit_named_ty(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::NamedTy>,
     ) -> Result<Self::NamedTyRet, Self::Error> {
-        let walk::NamedTy { name } = walk::walk_named_ty(self, ctx, node)?;
+        let walk::NamedTy { name } = walk::walk_named_ty(self, node)?;
 
         // Infer type if it is an underscore:
         let term = if name == CORE_IDENTIFIERS.underscore {
@@ -955,11 +911,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type AccessTyRet = TermId;
 
     fn visit_access_ty(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: ast::AstNodeRef<ast::AccessTy>,
     ) -> Result<Self::AccessTyRet, Self::Error> {
-        let walk::AccessTy { subject, property } = walk::walk_access_ty(self, ctx, node)?;
+        let walk::AccessTy { subject, property } = walk::walk_access_ty(self, node)?;
         let term = self.builder().create_access(subject, property, AccessOp::Namespace);
         self.validate_and_register_simplified_term(node, term)
     }
@@ -967,11 +922,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type RefTyRet = TermId;
 
     fn visit_ref_ty(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::RefTy>,
     ) -> Result<Self::RefTyRet, Self::Error> {
-        let walk::RefTy { inner, mutability, kind } = walk::walk_ref_ty(self, ctx, node)?;
+        let walk::RefTy { inner, mutability, kind } = walk::walk_ref_ty(self, node)?;
 
         // Either mutable or immutable, raw or normal, depending on what was given:
         let ref_def = match (kind, mutability) {
@@ -1002,22 +956,20 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type MergeTyRet = TermId;
 
     fn visit_merge_ty(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::MergeTy>,
     ) -> Result<Self::MergeTyRet, Self::Error> {
-        let walk::MergeTy { lhs, rhs } = walk::walk_merge_ty(self, ctx, node)?;
+        let walk::MergeTy { lhs, rhs } = walk::walk_merge_ty(self, node)?;
         let merge_term = self.builder().create_merge_term(vec![lhs, rhs]);
         self.validate_and_register_simplified_term(node, merge_term)
     }
 
     type UnionTyRet = TermId;
     fn visit_union_ty(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::UnionTy>,
     ) -> Result<Self::UnionTyRet, Self::Error> {
-        let walk::UnionTy { lhs, rhs } = walk::walk_union_ty(self, ctx, node)?;
+        let walk::UnionTy { lhs, rhs } = walk::walk_union_ty(self, node)?;
         let union_term = self.builder().create_union_term(vec![lhs, rhs]);
         self.validate_and_register_simplified_term(node, union_term)
     }
@@ -1025,17 +977,17 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type TyFnDefRet = TermId;
 
     fn visit_ty_fn_def(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TyFnDef>,
     ) -> Result<Self::TyFnDefRet, Self::Error> {
         let declaration_hint = self.state.declaration_name_hint.take();
 
         // Traverse the parameters:
-        let param_elements = Self::try_collect_items(
-            ctx,
-            node.params.iter().map(|t| self.visit_param(ctx, t.ast_ref())),
-        )?;
+        let param_elements = node
+            .params
+            .iter()
+            .map(|t| self.visit_param(t.ast_ref()))
+            .collect::<Result<Vec<_>, _>>()?;
         let params = self.builder().create_params(param_elements, ParamOrigin::TyFn);
 
         // Add all the locations to the parameters:
@@ -1043,89 +995,84 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         // Enter parameter scope:
         let param_scope = self.scope_manager().make_bound_scope(params);
-        ScopeManager::enter_scope_with(self, param_scope, |this| {
+        self.scope_manager().enter_scope(param_scope, |_| {
             // Traverse return type and return value:
             let return_ty =
-                node.return_ty.as_ref().map(|t| this.visit_ty(ctx, t.ast_ref())).transpose()?;
-            let body = this.visit_expr(ctx, node.body.ast_ref())?;
+                node.return_ty.as_ref().map(|t| self.visit_ty(t.ast_ref())).transpose()?;
+            let body = self.visit_expr(node.ty_fn_body.ast_ref())?;
 
             // Create the type function type term:
-            let ty_fn_return_ty = this.builder().or_unresolved_term(return_ty);
-            let ty_of_ty_fn_return_value = this.typer().infer_ty_of_term(body)?;
+            let ty_fn_return_ty = self.builder().or_unresolved_term(return_ty);
+            let ty_of_ty_fn_return_value = self.typer().infer_ty_of_term(body)?;
             let return_ty_sub =
-                this.unifier().unify_terms(ty_of_ty_fn_return_value, ty_fn_return_ty)?;
+                self.unifier().unify_terms(ty_of_ty_fn_return_value, ty_fn_return_ty)?;
             let ty_fn_return_ty =
-                this.substituter().apply_sub_to_term(&return_ty_sub, ty_fn_return_ty);
-            let ty_fn_return_value = this.substituter().apply_sub_to_term(&return_ty_sub, body);
+                self.substituter().apply_sub_to_term(&return_ty_sub, ty_fn_return_ty);
+            let ty_fn_return_value = self.substituter().apply_sub_to_term(&return_ty_sub, body);
 
-            let ty_fn_term = this.builder().create_ty_fn_term(
+            let ty_fn_term = self.builder().create_ty_fn_term(
                 declaration_hint,
                 params,
                 ty_fn_return_ty,
                 ty_fn_return_value,
             );
 
-            this.validate_and_register_simplified_term(node, ty_fn_term)
+            self.validate_and_register_simplified_term(node, ty_fn_term)
         })
     }
 
     type FnDefRet = TermId;
 
     fn visit_fn_def(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::FnDef>,
     ) -> Result<Self::FnDefRet, Self::Error> {
-        let params: Vec<_> = node
-            .params
-            .iter()
-            .map(|a| self.visit_param(ctx, a.ast_ref()))
-            .collect::<TcResult<_>>()?;
+        let params: Vec<_> =
+            node.params.iter().map(|a| self.visit_param(a.ast_ref())).collect::<TcResult<_>>()?;
 
-        let return_ty =
-            node.return_ty.as_ref().map(|t| self.visit_ty(ctx, t.ast_ref())).transpose()?;
+        let return_ty = node.return_ty.as_ref().map(|t| self.visit_ty(t.ast_ref())).transpose()?;
 
         // Set return type to hint if given
-        let old_return_ty = mem::replace(&mut self.state.fn_def_return_ty, return_ty);
+        let old_return_ty = self.state.fn_def_return_ty.replace(return_ty);
         let params_potentially_unresolved = self.builder().create_params(params, ParamOrigin::Fn);
         let param_scope = self.scope_manager().make_rt_param_scope(params_potentially_unresolved);
 
         let (params, return_ty, return_value) =
-            ScopeManager::enter_scope_with(self, param_scope, |this| {
-                let fn_body = this.visit_expr(ctx, node.fn_body.ast_ref())?;
+            self.scope_manager().enter_scope(param_scope, |_| {
+                let fn_body = self.visit_expr(node.fn_body.ast_ref())?;
 
-                let hint_return_ty = this.state.fn_def_return_ty;
-                let return_ty_or_unresolved = this.builder().or_unresolved_term(hint_return_ty);
+                let hint_return_ty = self.state.fn_def_return_ty.get();
+                let return_ty_or_unresolved = self.builder().or_unresolved_term(hint_return_ty);
 
                 let body_sub = {
-                    let ty_of_body = this.typer().infer_ty_of_term(fn_body)?;
+                    let ty_of_body = self.typer().infer_ty_of_term(fn_body)?;
                     match hint_return_ty {
                         Some(_) => {
                             // Try to unify ty_of_body with void, and if so, then ty of
                             // body should be unresolved:
-                            let void = this.builder().create_void_ty_term();
-                            match this.unifier().unify_terms(ty_of_body, void) {
+                            let void = self.builder().create_void_ty_term();
+                            match self.unifier().unify_terms(ty_of_body, void) {
                                 Ok(_) => Sub::empty(),
                                 Err(_) => {
                                     // Must be returning the same type:
-                                    this.unifier()
+                                    self.unifier()
                                         .unify_terms(ty_of_body, return_ty_or_unresolved)?
                                 }
                             }
                         }
-                        None => this.unifier().unify_terms(ty_of_body, return_ty_or_unresolved)?,
+                        None => self.unifier().unify_terms(ty_of_body, return_ty_or_unresolved)?,
                     }
                 };
 
-                let return_value = this.substituter().apply_sub_to_term(&body_sub, fn_body);
+                let return_value = self.substituter().apply_sub_to_term(&body_sub, fn_body);
                 let return_ty =
-                    this.substituter().apply_sub_to_term(&body_sub, return_ty_or_unresolved);
-                let params = this
+                    self.substituter().apply_sub_to_term(&body_sub, return_ty_or_unresolved);
+                let params = self
                     .substituter()
                     .apply_sub_to_params(&body_sub, params_potentially_unresolved);
 
                 // Add all the locations to the parameters
-                this.copy_location_from_nodes_to_targets(node.params.ast_ref_iter(), params);
+                self.copy_location_from_nodes_to_targets(node.params.ast_ref_iter(), params);
 
                 Ok((params, return_ty, return_value))
             })?;
@@ -1136,22 +1083,21 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
             builder.create_fn_lit_term(builder.create_fn_ty_term(params, return_ty), return_value);
 
         // Clear return type
-        self.state.fn_def_return_ty = old_return_ty;
+        self.state.fn_def_return_ty.set(old_return_ty);
 
         self.validate_and_register_simplified_term(node, fn_ty_term)
     }
 
     type ParamRet = Param;
     fn visit_param(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::Param>,
     ) -> Result<Self::ParamRet, Self::Error> {
         match node.origin {
             ast::ParamOrigin::Struct | ast::ParamOrigin::Fn | ast::ParamOrigin::EnumVariant => {
-                self.visit_fn_or_struct_param(node, ctx)
+                self.visit_fn_or_struct_param(node)
             }
-            ast::ParamOrigin::TyFn => self.visit_ty_fn_param(node, ctx),
+            ast::ParamOrigin::TyFn => self.visit_ty_fn_param(node),
             // Any other `origin` does not occur within `Param`
             _ => unreachable!(),
         }
@@ -1160,18 +1106,16 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type BlockRet = TermId;
 
     fn visit_block(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::Block>,
     ) -> Result<Self::BlockRet, Self::Error> {
-        walk::walk_block_same_children(self, ctx, node)
+        walk::walk_block_same_children(self, node)
     }
 
     type MatchCaseRet = ();
 
     fn visit_match_case(
-        &mut self,
-        _: &Self::Ctx,
+        &self,
         _: hash_ast::ast::AstNodeRef<hash_ast::ast::MatchCase>,
     ) -> Result<Self::MatchCaseRet, Self::Error> {
         // Handled in match
@@ -1181,11 +1125,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type MatchBlockRet = TermId;
 
     fn visit_match_block(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::MatchBlock>,
     ) -> Result<Self::MatchBlockRet, Self::Error> {
-        let walk::MatchBlock { subject, .. } = walk::walk_match_block(self, ctx, node)?;
+        let walk::MatchBlock { subject, .. } = walk::walk_match_block(self, node)?;
 
         let mut branches = vec![];
 
@@ -1194,7 +1137,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
             .ast_ref_iter()
             .map(|case| {
                 // Try to match the pattern with the case
-                let case_pat = self.visit_pat(ctx, case.pat.ast_ref())?;
+                let case_pat = self.visit_pat(case.pat.ast_ref())?;
                 branches.push(case_pat);
 
                 let case_match = self.pat_matcher().match_pat_with_term(case_pat, subject)?;
@@ -1203,9 +1146,9 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
                         // Enter a new scope and add the members
                         let match_case_scope =
                             self.builder().create_scope(ScopeKind::Variable, members_to_add);
-                        ScopeManager::enter_scope_with(self, match_case_scope, |this| {
+                        self.scope_manager().enter_scope(match_case_scope, |_| {
                             // Traverse the body with the bound variables:
-                            let case_body = this.visit_expr(ctx, case.expr.ast_ref())?;
+                            let case_body = self.visit_expr(case.expr.ast_ref())?;
                             Ok(Some(case_body))
                         })
                     }
@@ -1254,11 +1197,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type LoopBlockRet = TermId;
 
     fn visit_loop_block(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::LoopBlock>,
     ) -> Result<Self::LoopBlockRet, Self::Error> {
-        let walk::LoopBlock(_) = walk::walk_loop_block(self, ctx, node)?;
+        let walk::LoopBlock { contents: _ } = walk::walk_loop_block(self, node)?;
         let void_term = self.builder().create_void_term();
         self.validate_and_register_simplified_term(node, void_term)
     }
@@ -1266,8 +1208,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type ForLoopBlockRet = TermId;
 
     fn visit_for_loop_block(
-        &mut self,
-        _ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ForLoopBlock>,
     ) -> Result<Self::ForLoopBlockRet, Self::Error> {
         panic_on_span!(
@@ -1280,8 +1221,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type WhileLoopBlockRet = TermId;
 
     fn visit_while_loop_block(
-        &mut self,
-        _ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::WhileLoopBlock>,
     ) -> Result<Self::WhileLoopBlockRet, Self::Error> {
         panic_on_span!(
@@ -1294,20 +1234,19 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type ModBlockRet = TermId;
 
     fn visit_mod_block(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ModBlock>,
     ) -> Result<Self::ModBlockRet, Self::Error> {
         // create a scope for the module definition
         let VisitConstantScope { scope_name, scope_id, .. } =
-            self.visit_constant_scope(ctx, node.block.members(), None, ScopeKind::Mod)?;
+            self.visit_constant_scope(node.block.members(), None, ScopeKind::Mod)?;
 
         // @@Todo: bound variables
         let mod_def = self.builder().create_mod_def(scope_name, ModDefOrigin::Mod, scope_id);
         let term = self.builder().create_mod_def_term(mod_def);
 
         // Validate the definition
-        let is_within_intrinsics = self.state.within_intrinsics_directive;
+        let is_within_intrinsics = self.state.within_intrinsics_directive.get();
         self.validator().validate_mod_def(mod_def, term, is_within_intrinsics)?;
 
         self.register_node_info(node, term);
@@ -1317,13 +1256,12 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type ImplBlockRet = TermId;
 
     fn visit_impl_block(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ImplBlock>,
     ) -> Result<Self::ImplBlockRet, Self::Error> {
         // create a scope for the module definition
         let VisitConstantScope { scope_name, scope_id, .. } =
-            self.visit_constant_scope(ctx, node.block.members(), None, ScopeKind::Impl)?;
+            self.visit_constant_scope(node.block.members(), None, ScopeKind::Impl)?;
 
         // @@Todo: bound variables
         let mod_def = self.builder().create_mod_def(scope_name, ModDefOrigin::AnonImpl, scope_id);
@@ -1339,8 +1277,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type IfClauseRet = TermId;
 
     fn visit_if_clause(
-        &mut self,
-        _ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::IfClause>,
     ) -> Result<Self::IfClauseRet, Self::Error> {
         panic_on_span!(
@@ -1353,8 +1290,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type IfBlockRet = TermId;
 
     fn visit_if_block(
-        &mut self,
-        _ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::IfBlock>,
     ) -> Result<Self::IfBlockRet, Self::Error> {
         panic_on_span!(
@@ -1367,13 +1303,12 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type BodyBlockRet = TermId;
 
     fn visit_body_block(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::BodyBlock>,
     ) -> Result<Self::BodyBlockRet, Self::Error> {
         // Traverse each statement
         for statement in node.statements.iter() {
-            let statement_id = self.visit_expr(ctx, statement.ast_ref())?;
+            let statement_id = self.visit_expr(statement.ast_ref())?;
             self.validator().validate_term(statement_id)?;
             // @@Design: do we check that the return type is void? Should we
             // warn if it isn't?
@@ -1381,7 +1316,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         // Traverse the ending expression, if any, or return void.
         let term = match &node.expr {
-            Some(expr) => self.visit_expr(ctx, expr.ast_ref())?,
+            Some(expr) => self.visit_expr(expr.ast_ref())?,
             None => self.builder().create_void_term(),
         };
         self.validate_and_register_simplified_term(node, term)
@@ -1390,11 +1325,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type ReturnStatementRet = TermId;
 
     fn visit_return_statement(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ReturnStatement>,
     ) -> Result<Self::ReturnStatementRet, Self::Error> {
-        let walk::ReturnStatement(return_term) = walk::walk_return_statement(self, ctx, node)?;
+        let walk::ReturnStatement { expr: return_term } = walk::walk_return_statement(self, node)?;
 
         // Add the given return value's type to the return type hint.
         // Return term is either given or void.
@@ -1406,13 +1340,16 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         });
 
         let return_ty = self.typer().infer_ty_of_term(return_term)?;
-        let already_given_return_ty =
-            self.state.fn_def_return_ty.unwrap_or_else(|| self.builder().create_unresolved_term());
+        let already_given_return_ty = self
+            .state
+            .fn_def_return_ty
+            .get()
+            .unwrap_or_else(|| self.builder().create_unresolved_term());
 
         let return_ty_sub = self.unifier().unify_terms(return_ty, already_given_return_ty)?;
         let unified_return_ty =
             self.substituter().apply_sub_to_term(&return_ty_sub, already_given_return_ty);
-        let _ = self.state.fn_def_return_ty.insert(unified_return_ty);
+        self.state.fn_def_return_ty.set(Some(unified_return_ty));
 
         // Return never as the return expression shouldn't evaluate to anything.
         let never_term = self.builder().create_never_ty();
@@ -1424,8 +1361,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type BreakStatementRet = TermId;
 
     fn visit_break_statement(
-        &mut self,
-        _ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::BreakStatement>,
     ) -> Result<Self::BreakStatementRet, Self::Error> {
         let builder = self.builder();
@@ -1435,8 +1371,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
     type ContinueStatementRet = TermId;
     fn visit_continue_statement(
-        &mut self,
-        _ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ContinueStatement>,
     ) -> Result<Self::ContinueStatementRet, Self::Error> {
         let builder = self.builder();
@@ -1446,9 +1381,8 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
     type VisibilityRet = Visibility;
 
-    fn visit_visibility_modifier(
-        &mut self,
-        _ctx: &Self::Ctx,
+    fn visit_visibility(
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::Visibility>,
     ) -> Result<Self::VisibilityRet, Self::Error> {
         Ok(match node.body() {
@@ -1459,9 +1393,8 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
     type MutabilityRet = Mutability;
 
-    fn visit_mutability_modifier(
-        &mut self,
-        _ctx: &Self::Ctx,
+    fn visit_mutability(
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::Mutability>,
     ) -> Result<Self::MutabilityRet, Self::Error> {
         Ok(match node.body() {
@@ -1473,8 +1406,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type RefKindRet = RefKind;
 
     fn visit_ref_kind(
-        &mut self,
-        _: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<RefKind>,
     ) -> Result<Self::RefKindRet, Self::Error> {
         Ok(*node.body())
@@ -1482,20 +1414,19 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
     type DeclarationRet = TermId;
     fn visit_declaration(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::Declaration>,
     ) -> Result<Self::DeclarationRet, Self::Error> {
-        let pat_id = self.visit_pat(ctx, node.pat.ast_ref())?;
+        let pat_id = self.visit_pat(node.pat.ast_ref())?;
         let pat = self.reader().get_pat(pat_id);
 
         // Set the declaration hit if it is just a binding pattern:
         if let Pat::Binding(BindingPat { name, .. }) = pat {
-            self.state.declaration_name_hint = Some(name);
+            self.state.declaration_name_hint.set(Some(name));
         };
 
-        let ty = node.ty.as_ref().map(|t| self.visit_ty(ctx, t.ast_ref())).transpose()?;
-        let value = node.value.as_ref().map(|t| self.visit_expr(ctx, t.ast_ref())).transpose()?;
+        let ty = node.ty.as_ref().map(|t| self.visit_ty(t.ast_ref())).transpose()?;
+        let value = node.value.as_ref().map(|t| self.visit_expr(t.ast_ref())).transpose()?;
 
         // Clear the declaration hint
         self.state.declaration_name_hint.take();
@@ -1515,7 +1446,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let mut value = value.map(|value| self.substituter().apply_sub_to_term(&sub, value));
         let ty = self.substituter().apply_sub_to_term(&sub, ty_or_unresolved);
 
-        if value.is_none() && self.state.within_intrinsics_directive {
+        if value.is_none() && self.state.within_intrinsics_directive.get() {
             // @@Todo: see #391
             value = Some(self.builder().create_rt_term(ty));
         }
@@ -1607,11 +1538,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type MergeDeclarationRet = TermId;
 
     fn visit_merge_declaration(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::MergeDeclaration>,
     ) -> Result<Self::MergeDeclarationRet, Self::Error> {
-        let walk::MergeDeclaration { decl, value } = walk::walk_merge_declaration(self, ctx, node)?;
+        let walk::MergeDeclaration { decl, value } = walk::walk_merge_declaration(self, node)?;
 
         let merge_term = self.builder().create_merge_term(vec![decl, value]);
 
@@ -1623,11 +1553,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type AssignExprRet = TermId;
 
     fn visit_assign_expr(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::AssignExpr>,
     ) -> Result<Self::AssignExprRet, Self::Error> {
-        let rhs = self.visit_expr(ctx, node.rhs.ast_ref())?;
+        let rhs = self.visit_expr(node.rhs.ast_ref())?;
         let site: LocationTarget = self.source_location_at_node(node).into();
 
         // Try to resolve the variable in scopes; if it is not found, it is an error. If
@@ -1653,13 +1582,12 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type AssignOpExprRet = TermId;
 
     fn visit_assign_op_expr(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::AssignOpExpr>,
     ) -> Result<Self::AssignOpExprRet, Self::Error> {
         debug_assert!(node.operator.is_re_assignable());
 
-        let rhs = self.visit_expr(ctx, node.rhs.ast_ref())?;
+        let rhs = self.visit_expr(node.rhs.ast_ref())?;
 
         let name = match node.lhs.kind() {
             ast::ExprKind::Variable(name) => name.name.ident,
@@ -1701,11 +1629,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type BinaryExprRet = TermId;
 
     fn visit_binary_expr(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::BinaryExpr>,
     ) -> Result<Self::BinaryExprRet, Self::Error> {
-        let walk::BinaryExpr { lhs, rhs, .. } = walk::walk_binary_expr(self, ctx, node)?;
+        let walk::BinaryExpr { lhs, rhs, .. } = walk::walk_binary_expr(self, node)?;
 
         let term = if matches!(node.operator.body(), BinOp::Merge) {
             self.builder().create_merge_term([lhs, rhs])
@@ -1721,11 +1648,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type UnaryExprRet = TermId;
 
     fn visit_unary_expr(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::UnaryExpr>,
     ) -> Result<Self::UnaryExprRet, Self::Error> {
-        let walk::UnaryExpr { expr, .. } = walk::walk_unary_expr(self, ctx, node)?;
+        let walk::UnaryExpr { expr, .. } = walk::walk_unary_expr(self, node)?;
 
         let operator_fn = |trait_fn_name: &str| {
             let prop_access = self.builder().create_prop_access(expr, trait_fn_name);
@@ -1749,11 +1675,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type IndexExprRet = TermId;
 
     fn visit_index_expr(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::IndexExpr>,
     ) -> Result<Self::IndexExprRet, Self::Error> {
-        let walk::IndexExpr { index_expr, subject } = walk::walk_index_expr(self, ctx, node)?;
+        let walk::IndexExpr { index_expr, subject } = walk::walk_index_expr(self, node)?;
 
         // We just translate this to a function call:
         let builder = self.builder();
@@ -1774,11 +1699,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type StructDefRet = TermId;
 
     fn visit_struct_def(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::StructDef>,
     ) -> Result<Self::StructDefRet, Self::Error> {
-        let walk::StructDef { fields, .. } = walk::walk_struct_def(self, ctx, node)?;
+        let walk::StructDef { fields, .. } = walk::walk_struct_def(self, node)?;
 
         // create the params
         let fields = self.builder().create_params(fields, ParamOrigin::Struct);
@@ -1803,11 +1727,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type EnumDefEntryRet = (Identifier, NominalDefId);
 
     fn visit_enum_def_entry(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::EnumDefEntry>,
     ) -> Result<Self::EnumDefEntryRet, Self::Error> {
-        let walk::EnumDefEntry { name, fields } = walk::walk_enum_def_entry(self, ctx, node)?;
+        let walk::EnumDefEntry { name, fields } = walk::walk_enum_def_entry(self, node)?;
 
         // Create the enum variant parameters
         if fields.is_empty() {
@@ -1835,11 +1758,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type EnumDefRet = TermId;
 
     fn visit_enum_def(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::EnumDef>,
     ) -> Result<Self::EnumDefRet, Self::Error> {
-        let walk::EnumDef { entries, .. } = walk::walk_enum_def(self, ctx, node)?;
+        let walk::EnumDef { entries, .. } = walk::walk_enum_def(self, node)?;
 
         let builder = self.builder();
         let enum_variant_union = builder.create_union_term(
@@ -1852,13 +1774,12 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type TraitDefRet = TermId;
 
     fn visit_trait_def(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TraitDef>,
     ) -> Result<Self::TraitDefRet, Self::Error> {
         // create a scope for the module definition
         let VisitConstantScope { scope_name, scope_id, .. } =
-            self.visit_constant_scope(ctx, node.members.ast_ref_iter(), None, ScopeKind::Trait)?;
+            self.visit_constant_scope(node.members.ast_ref_iter(), None, ScopeKind::Trait)?;
 
         // @@Todo: bound variables
         let trt_def = self.builder().create_trt_def(scope_name, scope_id);
@@ -1874,15 +1795,14 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type TraitImplRet = TermId;
 
     fn visit_trait_impl(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TraitImpl>,
     ) -> Result<Self::TraitImplRet, Self::Error> {
-        let trt_term = self.visit_ty(ctx, node.ty.ast_ref())?;
+        let trt_term = self.visit_ty(node.ty.ast_ref())?;
 
         // create a scope for the module definition
         let VisitConstantScope { scope_name, scope_id, .. } =
-            self.visit_constant_scope(ctx, node.body.ast_ref_iter(), None, ScopeKind::Impl)?;
+            self.visit_constant_scope(node.trait_body.ast_ref_iter(), None, ScopeKind::Impl)?;
 
         // @@Todo: bound variables
         let mod_def =
@@ -1899,21 +1819,19 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type PatRet = PatId;
 
     fn visit_pat(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::Pat>,
     ) -> Result<Self::PatRet, Self::Error> {
-        walk::walk_pat_same_children(self, ctx, node)
+        walk::walk_pat_same_children(self, node)
     }
 
     type AccessPatRet = PatId;
 
     fn visit_access_pat(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: ast::AstNodeRef<ast::AccessPat>,
     ) -> Result<Self::AccessPatRet, Self::Error> {
-        let walk::AccessPat { subject, property } = walk::walk_access_pat(self, ctx, node)?;
+        let walk::AccessPat { subject, property } = walk::walk_access_pat(self, node)?;
         let access_pat = self.builder().create_access_pat(subject, property);
         self.register_node_info(node, access_pat);
         Ok(access_pat)
@@ -1922,11 +1840,11 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type ConstructorPatRet = PatId;
 
     fn visit_constructor_pat(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ConstructorPat>,
     ) -> Result<Self::ConstructorPatRet, Self::Error> {
-        let walk::ConstructorPat { args, subject } = walk::walk_constructor_pat(self, ctx, node)?;
+        let walk::ConstructorPat { fields: args, subject } =
+            walk::walk_constructor_pat(self, node)?;
 
         let constructor_params = self.builder().create_pat_args(args, ParamOrigin::ConstructorPat);
         self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), constructor_params);
@@ -1945,13 +1863,12 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type TuplePatEntryRet = PatArg;
 
     fn visit_tuple_pat_entry(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TuplePatEntry>,
     ) -> Result<Self::TuplePatEntryRet, Self::Error> {
         // Here we set the `in_pat_fields` as true since we're currently within
         // some kind of pattern fields...
-        let walk::TuplePatEntry { name, pat } = walk::walk_tuple_pat_entry(self, ctx, node)?;
+        let walk::TuplePatEntry { name, pat } = walk::walk_tuple_pat_entry(self, node)?;
 
         Ok(PatArg { name, pat })
     }
@@ -1959,11 +1876,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type TuplePatRet = PatId;
 
     fn visit_tuple_pat(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TuplePat>,
     ) -> Result<Self::TuplePatRet, Self::Error> {
-        let walk::TuplePat { elements } = walk::walk_tuple_pat(self, ctx, node)?;
+        let walk::TuplePat { fields: elements } = walk::walk_tuple_pat(self, node)?;
 
         let members = self.builder().create_pat_args(elements, ParamOrigin::Tuple);
         self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), members);
@@ -1978,11 +1894,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type ListPatRet = PatId;
 
     fn visit_list_pat(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ListPat>,
     ) -> Result<Self::ListPatRet, Self::Error> {
-        let walk::ListPat { elements } = walk::walk_list_pat(self, ctx, node)?;
+        let walk::ListPat { fields: elements } = walk::walk_list_pat(self, node)?;
 
         // We need to collect all of the terms within the inner pattern, but we need
         // have a special case for `spread patterns` because they will return `[term]`
@@ -2012,11 +1927,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type SpreadPatRet = PatId;
 
     fn visit_spread_pat(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::SpreadPat>,
     ) -> Result<Self::SpreadPatRet, Self::Error> {
-        let walk::SpreadPat { name } = walk::walk_spread_pat(self, ctx, node)?;
+        let walk::SpreadPat { name } = walk::walk_spread_pat(self, node)?;
 
         let spread_pat = self.builder().create_pat(Pat::Spread(SpreadPat { name }));
 
@@ -2027,13 +1941,12 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type LitPatRet = PatId;
 
     fn visit_lit_pat(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::LitPat>,
     ) -> Result<Self::LitPatRet, Self::Error> {
-        let walk::LitPat(lit) = walk::walk_lit_pat(self, ctx, node)?;
+        let walk::LitPat { data: lit } = walk::walk_lit_pat(self, node)?;
 
-        let pat = match node.body().0.body() {
+        let pat = match node.body().data.body() {
             Lit::Bool(_) => self.builder().create_constant_pat(lit),
             _ => self.builder().create_lit_pat(lit),
         };
@@ -2044,11 +1957,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
     type RangePatRet = PatId;
     fn visit_range_pat(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: ast::AstNodeRef<ast::RangePat>,
     ) -> Result<Self::RangePatRet, Self::Error> {
-        let walk::RangePat { lo, hi } = walk::walk_range_pat(self, ctx, node)?;
+        let walk::RangePat { lo, hi } = walk::walk_range_pat(self, node)?;
 
         let range_pat = RangePat { lo, hi, end: node.body().end };
         let pat = self.builder().create_range_pat(range_pat);
@@ -2062,11 +1974,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type OrPatRet = PatId;
 
     fn visit_or_pat(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::OrPat>,
     ) -> Result<Self::OrPatRet, Self::Error> {
-        let walk::OrPat { variants } = walk::walk_or_pat(self, ctx, node)?;
+        let walk::OrPat { variants } = walk::walk_or_pat(self, node)?;
         let pat = self.builder().create_or_pat(variants);
         self.register_node_info(node, pat);
         Ok(pat)
@@ -2075,11 +1986,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type IfPatRet = PatId;
 
     fn visit_if_pat(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::IfPat>,
     ) -> Result<Self::IfPatRet, Self::Error> {
-        let walk::IfPat { condition, pat } = walk::walk_if_pat(self, ctx, node)?;
+        let walk::IfPat { condition, pat } = walk::walk_if_pat(self, node)?;
         let pat = self.builder().create_if_pat(pat, condition);
         self.register_node_info(node, pat);
         Ok(pat)
@@ -2088,8 +1998,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type BindingPatRet = PatId;
 
     fn visit_binding_pat(
-        &mut self,
-        _: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::BindingPat>,
     ) -> Result<Self::BindingPatRet, Self::Error> {
         let name = node.name.ident;
@@ -2129,8 +2038,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type WildPatRet = PatId;
 
     fn visit_wild_pat(
-        &mut self,
-        _ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::WildPat>,
     ) -> Result<Self::WildPatRet, Self::Error> {
         let pat = self.builder().create_wildcard_pat();
@@ -2141,22 +2049,20 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type ModulePatEntryRet = PatArg;
 
     fn visit_module_pat_entry(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ModulePatEntry>,
     ) -> Result<Self::ModulePatEntryRet, Self::Error> {
-        let walk::ModulePatEntry { name, pat } = walk::walk_module_pat_entry(self, ctx, node)?;
+        let walk::ModulePatEntry { name, pat } = walk::walk_module_pat_entry(self, node)?;
         Ok(self.builder().create_pat_arg(name, pat))
     }
 
     type ModulePatRet = PatId;
 
     fn visit_module_pat(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ModulePat>,
     ) -> Result<Self::ModulePatRet, Self::Error> {
-        let walk::ModulePat { fields } = walk::walk_module_pat(self, ctx, node)?;
+        let walk::ModulePat { fields } = walk::walk_module_pat(self, node)?;
         let members = self.builder().create_pat_args(fields, ParamOrigin::ModulePat);
         let module_pat = self.builder().create_mod_pat(members);
         self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), members);
@@ -2167,8 +2073,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     type ModuleRet = TermId;
 
     fn visit_module(
-        &mut self,
-        ctx: &Self::Ctx,
+        &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::Module>,
     ) -> Result<Self::ModuleRet, Self::Error> {
         let id = self.local_storage().current_source();
@@ -2185,12 +2090,8 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         // Get the end of the filename for the module and use this as the name of the
         // module
         let name = self.source_map().source_name(id).to_owned();
-        let VisitConstantScope { scope_id, .. } = self.visit_constant_scope(
-            ctx,
-            node.contents.ast_ref_iter(),
-            Some(members),
-            ScopeKind::Mod,
-        )?;
+        let VisitConstantScope { scope_id, .. } =
+            self.visit_constant_scope(node.contents.ast_ref_iter(), Some(members), ScopeKind::Mod)?;
 
         let mod_def = self.builder().create_named_mod_def(name, ModDefOrigin::Source(id), scope_id);
 

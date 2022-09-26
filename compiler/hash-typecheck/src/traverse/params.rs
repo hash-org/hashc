@@ -3,7 +3,7 @@
 
 use hash_ast::{
     ast::{self},
-    visitor::{walk, AstVisitor},
+    visitor::walk,
 };
 use hash_types::Param;
 
@@ -16,11 +16,10 @@ impl<'tc> TcVisitor<'tc> {
     /// correct operations based on if there is a present annotation type,
     /// and or default value.
     pub(crate) fn visit_fn_or_struct_param(
-        &mut self,
+        &self,
         node: ast::AstNodeRef<ast::Param>,
-        ctx: &<Self as AstVisitor>::Ctx,
     ) -> TcResult<Param> {
-        let walk::Param { name, ty, default } = walk::walk_param(self, ctx, node)?;
+        let walk::Param { name, ty, default } = walk::walk_param(self, node)?;
 
         // Try and figure out a known term...
         let (ty, default_value) = match (ty, default) {
@@ -61,12 +60,8 @@ impl<'tc> TcVisitor<'tc> {
 
     /// Function that encapsulates the visiting logic for parameters of type
     /// functions.
-    pub(crate) fn visit_ty_fn_param(
-        &mut self,
-        node: ast::AstNodeRef<ast::Param>,
-        ctx: &<Self as AstVisitor>::Ctx,
-    ) -> TcResult<Param> {
-        let walk::Param { name, ty, default } = walk::walk_param(self, ctx, node)?;
+    pub(crate) fn visit_ty_fn_param(&self, node: ast::AstNodeRef<ast::Param>) -> TcResult<Param> {
+        let walk::Param { name, ty, default } = walk::walk_param(self, node)?;
 
         // The location of the param type is either the bound or the name (since
         // <T>     // means <T: Type>):
