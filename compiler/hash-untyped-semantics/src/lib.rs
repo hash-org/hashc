@@ -12,10 +12,7 @@ use std::collections::HashSet;
 use analysis::SemanticAnalyser;
 use crossbeam_channel::unbounded;
 use diagnostics::AnalysisDiagnostic;
-use hash_ast::{
-    ast::OwnsAstNode,
-    visitor::{AstVisitor, AstVisitorMut},
-};
+use hash_ast::{ast::OwnsAstNode, visitor::AstVisitorMutSelf};
 use hash_pipeline::{sources::Workspace, traits::SemanticPass, CompilerResult};
 use hash_reporting::report::Report;
 use hash_source::SourceId;

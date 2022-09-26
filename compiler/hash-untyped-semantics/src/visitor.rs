@@ -11,7 +11,6 @@ use hash_ast::{
         walk_mut_self, AstVisitorMutSelf, BindingPat, Block, BlockExpr, ExprKind, LitExpr,
         ModulePatEntry, Mutability, ParamOrigin, Pat, TuplePatEntry,
     },
-    visitor::{walk, AstVisitor, AstVisitorMut},
 };
 use hash_reporting::macros::panic_on_span;
 use hash_source::{identifier::CORE_IDENTIFIERS, ModuleKind};
@@ -706,7 +705,7 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
         // constant literals
         for statement in node.statements.iter() {
             match statement.kind() {
-                ExprKind::LitExpr(LitExpr(lit)) if lit.body().is_constant() => {
+                ExprKind::LitExpr(LitExpr { data: lit }) if lit.body().is_constant() => {
                     self.append_warning(
                         AnalysisWarningKind::UselessExpression,
                         statement.ast_ref(),
@@ -829,7 +828,7 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
         &mut self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::AssignOpExpr>,
     ) -> Result<Self::AssignOpExprRet, Self::Error> {
-        let _ = walk_mut_self::walk_assign_op_statement(self, node);
+        let _ = walk_mut_self::walk_assign_op_expr(self, node);
         Ok(())
     }
 
@@ -917,7 +916,7 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
         &mut self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TraitImpl>,
     ) -> Result<Self::TraitImplRet, Self::Error> {
-        self.check_members_are_declarative(node.body.ast_ref_iter(), BlockOrigin::Impl);
+        self.check_members_are_declarative(node.trait_body.ast_ref_iter(), BlockOrigin::Impl);
 
         // Verify that the declarations in this implementation block adhere to the
         // rules of constant blocks....

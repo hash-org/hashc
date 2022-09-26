@@ -5,5 +5,7 @@
 pub mod ast;
 pub mod tree;
 pub mod visitor {
-    pub use super::ast::{walk, walk_mut, AstVisitor, AstVisitorMut};
+    pub use super::ast::{
+        walk, walk_mut, walk_mut_self, AstVisitor, AstVisitorMut, AstVisitorMutSelf,
+    };
 }

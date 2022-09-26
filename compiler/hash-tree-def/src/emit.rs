@@ -12,13 +12,32 @@ use crate::definitions::{
 
 /// Suffix the given identifier with "Mut"/"_mut" etc as appropriate depending
 /// on the flag `nodes_mut` and casing `case`.
-fn suffix_ident_mut(ident: impl ToString, nodes_mut: bool, case: Case) -> syn::Ident {
-    if nodes_mut {
+fn suffix_ident_mut(ident: impl ToString, emit_mut: bool, case: Case) -> syn::Ident {
+    if emit_mut {
         let word = format!("{}_mut", ident.to_string());
         format_ident!("{}", word.to_case(case))
     } else {
         format_ident!("{}", ident.to_string().to_case(case))
     }
+}
+
+/// Suffix the given identifier as appropriate depending
+/// on the flag `nodes_mut`/`self_mut` and casing `case`.
+fn suffix_visitor_like_mut(
+    ident: impl ToString,
+    nodes_mut: bool,
+    self_mut: bool,
+    case: Case,
+) -> syn::Ident {
+    let suffix = match (nodes_mut, self_mut) {
+        (false, false) => "",
+        (false, true) => "MutSelf",
+        (true, false) => "MutNodes",
+        (true, true) => "Mut",
+    };
+
+    let word = format!("{}{}", ident.to_string(), suffix);
+    format_ident!("{}", word.to_case(case))
 }
 
 /// Emit a `mut` if the flag is on.
@@ -136,24 +155,15 @@ fn emit_node_defs(tree_def: &TreeDef) -> TokenStream {
 
 /// Emit the visitor trait, depending on options and the `nodes_mut` flag.
 fn emit_visitor(tree_def: &TreeDef, nodes_mut: bool, self_mut: bool) -> TokenStream {
-    let visitor_name = match (nodes_mut, self_mut) {
-        (false, false) => tree_def.opts.visitor_trait_base_name.clone(),
-        (false, true) => {
-            format_ident!("{}MutSelf", &tree_def.opts.visitor_trait_base_name)
-        }
-        (true, false) => {
-            format_ident!("{}MutNodes", &tree_def.opts.visitor_trait_base_name)
-        }
-        (true, true) => {
-            format_ident!("{}Mut", &tree_def.opts.visitor_trait_base_name)
-        }
-    };
+    let visitor_name = suffix_visitor_like_mut(
+        tree_def.opts.visitor_trait_base_name.clone(),
+        nodes_mut,
+        self_mut,
+        Case::Pascal,
+    );
 
-    let node_ref_name = if nodes_mut {
-        format_ident!("{}Mut", &tree_def.opts.visitor_node_ref_base_type_name)
-    } else {
-        tree_def.opts.visitor_node_ref_base_type_name.clone()
-    };
+    let node_ref_name =
+        suffix_ident_mut(&tree_def.opts.visitor_node_ref_base_type_name, nodes_mut, Case::Pascal);
 
     let node_visitor_methods = tree_def.nodes.keys().map(|node_name| {
         let node_ret = format_ident!("{}Ret", node_name.to_string().to_case(Case::Pascal));
@@ -325,9 +335,17 @@ fn emit_walked_enum_type(
 }
 
 /// Emit all walked types for the tree definition.
-fn emit_walked_types(tree_def: &TreeDef, nodes_mut: bool) -> Result<TokenStream, syn::Error> {
-    let visitor_name =
-        suffix_ident_mut(&tree_def.opts.visitor_trait_base_name, nodes_mut, Case::Pascal);
+fn emit_walked_types(
+    tree_def: &TreeDef,
+    nodes_mut: bool,
+    self_mut: bool,
+) -> Result<TokenStream, syn::Error> {
+    let visitor_name = suffix_visitor_like_mut(
+        &tree_def.opts.visitor_trait_base_name,
+        nodes_mut,
+        self_mut,
+        Case::Pascal,
+    );
     let walker_types = tree_def
         .nodes
         .values()
@@ -667,8 +685,12 @@ fn emit_walker_functions(
     nodes_mut: bool,
     self_mut: bool,
 ) -> Result<TokenStream, syn::Error> {
-    let visitor_name =
-        suffix_ident_mut(&tree_def.opts.visitor_trait_base_name, nodes_mut, Case::Pascal);
+    let visitor_name = suffix_visitor_like_mut(
+        &tree_def.opts.visitor_trait_base_name,
+        nodes_mut,
+        self_mut,
+        Case::Pascal,
+    );
     let walker_functions = tree_def
         .nodes
         .values()
@@ -718,7 +740,7 @@ fn emit_walker(
     nodes_mut: bool,
     self_mut: bool,
 ) -> Result<TokenStream, syn::Error> {
-    let walker_types = emit_walked_types(tree_def, nodes_mut)?;
+    let walker_types = emit_walked_types(tree_def, nodes_mut, self_mut)?;
     let walker_functions = emit_walker_functions(tree_def, nodes_mut, self_mut)?;
     let walk_mod_name = format_ident!(
         "{}",

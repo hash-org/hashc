@@ -5,7 +5,7 @@ use std::{collections::HashSet, mem};
 
 use hash_ast::{
     ast::{AstNodeRef, BodyBlock, Expr, ExprKind},
-    visitor::AstVisitor,
+    visitor::AstVisitorMutSelf,
 };
 
 use super::SemanticAnalyser;
