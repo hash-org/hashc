@@ -4,7 +4,7 @@
 use std::{collections::HashSet, mem};
 
 use hash_ast::{
-    ast::{AstNodeRef, BodyBlock, Expr, ExprKind},
+    ast::{AstNodeRef, BodyBlock, Expr},
     visitor::AstVisitorMutSelf,
 };
 
@@ -29,8 +29,7 @@ impl SemanticAnalyser<'_> {
         let mut error_indices = HashSet::new();
 
         for (index, statement) in members.enumerate() {
-            if !matches!(statement.kind(), ExprKind::Declaration(_) | ExprKind::MergeDeclaration(_))
-            {
+            if !matches!(statement.body(), Expr::Declaration(_) | Expr::MergeDeclaration(_)) {
                 self.append_error(
                     AnalysisErrorKind::NonDeclarativeExpression { origin },
                     statement,

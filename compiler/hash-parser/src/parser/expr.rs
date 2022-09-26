@@ -33,7 +33,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
                 let decl = self.parse_declaration(pat)?;
 
-                Some(self.node_with_span(Expr::new(ExprKind::Declaration(decl)), start))
+                Some(self.node_with_span(Expr::Declaration(decl), start))
             }
             false => None,
         };
@@ -65,7 +65,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                             let rhs = self.parse_expr_with_precedence(0)?;
 
                             Ok(self.node_with_joined_span(
-                                Expr::new(ExprKind::Assign(AssignExpr { lhs: expr, rhs })),
+                                Expr::Assign(AssignExpr { lhs: expr, rhs }),
                                 start,
                             ))
                         }
@@ -133,51 +133,45 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
             // Handle primitive literals
             kind if kind.is_lit() => self.node_with_span(
-                Expr::new(ExprKind::LitExpr(LitExpr { data: self.parse_primitive_lit()? })),
+                Expr::LitExpr(LitExpr { data: self.parse_primitive_lit()? }),
                 token.span,
             ),
             TokenKind::Ident(ident) => {
                 // Create the variable expr
                 self.node_with_span(
-                    Expr::new(ExprKind::Variable(VariableExpr {
+                    Expr::Variable(VariableExpr {
                         name: self.node_with_span(Name { ident }, token.span),
-                    })),
+                    }),
                     token.span,
                 )
             }
             TokenKind::Lt => {
                 let def = self.parse_ty_fn_def()?;
-                self.node_with_joined_span(Expr::new(ExprKind::TyFnDef(def)), token.span)
+                self.node_with_joined_span(Expr::TyFnDef(def), token.span)
             }
             TokenKind::Keyword(Keyword::Struct) => {
                 let def = self.parse_struct_def()?;
-                self.node_with_joined_span(Expr::new(ExprKind::StructDef(def)), token.span)
+                self.node_with_joined_span(Expr::StructDef(def), token.span)
             }
             TokenKind::Keyword(Keyword::Enum) => {
                 let def = self.parse_enum_def()?;
-                self.node_with_joined_span(Expr::new(ExprKind::EnumDef(def)), token.span)
+                self.node_with_joined_span(Expr::EnumDef(def), token.span)
             }
             TokenKind::Keyword(Keyword::Trait) => {
                 let def = self.parse_trait_def()?;
-                self.node_with_joined_span(Expr::new(ExprKind::TraitDef(def)), token.span)
+                self.node_with_joined_span(Expr::TraitDef(def), token.span)
             }
             TokenKind::Keyword(Keyword::Type) => {
                 let ty = self.parse_ty()?;
-                self.node_with_joined_span(Expr::new(ExprKind::Ty(TyExpr { ty })), token.span)
+                self.node_with_joined_span(Expr::Ty(TyExpr { ty }), token.span)
             }
             TokenKind::Keyword(Keyword::Set) => {
                 let lit = self.parse_set_lit()?;
-                self.node_with_joined_span(
-                    Expr::new(ExprKind::LitExpr(LitExpr { data: lit })),
-                    token.span,
-                )
+                self.node_with_joined_span(Expr::LitExpr(LitExpr { data: lit }), token.span)
             }
             TokenKind::Keyword(Keyword::Map) => {
                 let lit = self.parse_map_lit()?;
-                self.node_with_joined_span(
-                    Expr::new(ExprKind::LitExpr(LitExpr { data: lit })),
-                    token.span,
-                )
+                self.node_with_joined_span(Expr::LitExpr(LitExpr { data: lit }), token.span)
             }
             TokenKind::Keyword(Keyword::Impl)
                 if self.peek().map_or(false, |tok| !tok.is_brace_tree()) =>
@@ -186,7 +180,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 let body = self.parse_exprs_from_braces()?;
 
                 self.node_with_joined_span(
-                    Expr::new(ExprKind::TraitImpl(TraitImpl { ty, trait_body: body })),
+                    Expr::TraitImpl(TraitImpl { ty, trait_body: body }),
                     token.span,
                 )
             }
@@ -198,10 +192,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
                 let block = self.parse_block()?;
 
-                self.node_with_joined_span(
-                    Expr::new(ExprKind::Block(BlockExpr { data: block })),
-                    token.span,
-                )
+                self.node_with_joined_span(Expr::Block(BlockExpr { data: block }), token.span)
             }
             // Non-body blocks
             kind if kind.begins_block() => {
@@ -224,10 +215,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     _ => unreachable!(),
                 };
 
-                self.node_with_joined_span(
-                    Expr::new(ExprKind::Block(BlockExpr { data: block })),
-                    start,
-                )
+                self.node_with_joined_span(Expr::Block(BlockExpr { data: block }), start)
             }
             // Import
             TokenKind::Keyword(Keyword::Import) => self.parse_import()?,
@@ -279,25 +267,25 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 }
             }
             TokenKind::Keyword(Keyword::Continue) => {
-                self.node_with_span(Expr::new(ExprKind::Continue(ContinueStatement {})), token.span)
+                self.node_with_span(Expr::Continue(ContinueStatement {}), token.span)
             }
             TokenKind::Keyword(Keyword::Break) => {
-                self.node_with_span(Expr::new(ExprKind::Break(BreakStatement {})), token.span)
+                self.node_with_span(Expr::Break(BreakStatement {}), token.span)
             }
             TokenKind::Keyword(Keyword::Return) => {
                 // @@Hack: check if the next token is a semi-colon, if so the return statement
                 // has no returned expression...
                 let return_expr = match self.peek().copied() {
                     Some(token) if token.has_kind(TokenKind::Semi) => {
-                        ExprKind::Return(ReturnStatement { expr: None })
+                        Expr::Return(ReturnStatement { expr: None })
                     }
-                    Some(_) => ExprKind::Return(ReturnStatement {
+                    Some(_) => Expr::Return(ReturnStatement {
                         expr: Some(self.parse_expr_with_precedence(0)?),
                     }),
-                    None => ExprKind::Return(ReturnStatement { expr: None }),
+                    None => Expr::Return(ReturnStatement { expr: None }),
                 };
 
-                self.node_with_joined_span(Expr::new(return_expr), token.span)
+                self.node_with_joined_span(return_expr, token.span)
             }
             kind @ TokenKind::Keyword(_) => {
                 return self.err_with_location(
@@ -336,12 +324,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 match self.peek_resultant_fn_mut(|g| g.parse_ty_args(false)) {
                     Some(args) => (
                         self.node_with_joined_span(
-                            Expr::new(ExprKind::Ty(TyExpr {
+                            Expr::Ty(TyExpr {
                                 ty: self.node_with_joined_span(
                                     Ty::TyFnCall(TyFnCall { subject, args }),
                                     span,
                                 ),
-                            })),
+                            }),
                             span,
                         ),
                         true,
@@ -403,10 +391,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     // different
                     if op == BinOp::As {
                         let ty = self.parse_ty()?;
-                        lhs = self.node_with_joined_span(
-                            Expr::new(ExprKind::Cast(CastExpr { expr: lhs, ty })),
-                            op_span,
-                        );
+                        lhs = self
+                            .node_with_joined_span(Expr::Cast(CastExpr { expr: lhs, ty }), op_span);
 
                         // since we don't descend, we still need to update the precedence to
                         // being `r_prec`.
@@ -417,11 +403,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
                         //v transform the operator into an `BinaryExpr`
                         lhs = self.node_with_joined_span(
-                            Expr::new(ExprKind::BinaryExpr(BinaryExpr {
+                            Expr::BinaryExpr(BinaryExpr {
                                 lhs,
                                 rhs,
                                 operator: self.node_with_span(op, op_span),
-                            })),
+                            }),
                             lhs_span,
                         );
                     }
@@ -506,9 +492,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // Attempt to add the module via the resolver
         match self.resolver.resolve_import(path) {
             Ok(resolved_path) => Ok(self.node_with_joined_span(
-                Expr::new(ExprKind::Import(ImportExpr {
+                Expr::Import(ImportExpr {
                     data: self.node_with_joined_span(Import { path, resolved_path }, start),
-                })),
+                }),
                 start,
             )),
             Err(err) => {
@@ -568,10 +554,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let subject_span = subject.span();
 
         Ok(self.node_with_joined_span(
-            Expr::new(ExprKind::ConstructorCall(ConstructorCallExpr {
+            Expr::ConstructorCall(ConstructorCallExpr {
                 subject,
                 args: AstNodes::new(args, Some(span)),
-            })),
+            }),
             subject_span,
         ))
     }
@@ -597,10 +583,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // unexpected_token
         self.consume_gen(gen);
 
-        Ok(self.node_with_joined_span(
-            Expr::new(ExprKind::Index(IndexExpr { subject, index_expr })),
-            start,
-        ))
+        Ok(self.node_with_joined_span(Expr::Index(IndexExpr { subject, index_expr }), start))
     }
 
     /// Parses a unary operator or expression modifier followed by a singular
@@ -611,8 +594,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let token = *self.current_token();
         let start = self.current_location();
 
-        let expr_kind = match &token.kind {
-            TokenKind::Star => ExprKind::Deref(DerefExpr { data: self.parse_expr()? }),
+        let expr = match &token.kind {
+            TokenKind::Star => Expr::Deref(DerefExpr { data: self.parse_expr()? }),
             TokenKind::Amp => {
                 // Check if this reference is raw...
                 match self.peek().copied() {
@@ -625,7 +608,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                                 self.node_with_span(Mutability::Mutable, self.current_location())
                             });
 
-                        ExprKind::Ref(RefExpr {
+                        Expr::Ref(RefExpr {
                             inner_expr: self.parse_expr()?,
                             kind: RefKind::Raw,
                             mutability,
@@ -636,13 +619,13 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
                         let inner_expr = self.parse_expr()?;
 
-                        ExprKind::Ref(RefExpr {
+                        Expr::Ref(RefExpr {
                             inner_expr,
                             kind: RefKind::Raw,
                             mutability: Some(self.node_with_span(Mutability::Mutable, span)),
                         })
                     }
-                    _ => ExprKind::Ref(RefExpr {
+                    _ => Expr::Ref(RefExpr {
                         inner_expr: self.parse_expr()?,
                         kind: RefKind::Normal,
                         mutability: None,
@@ -654,7 +637,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
                 // Emit a warning for the unnecessary `+` operator
                 self.add_warning(ParseWarning::new(
-                    WarningKind::UselessUnaryOperator(inner_expr.kind().into()),
+                    WarningKind::UselessUnaryOperator(inner_expr.body().into()),
                     inner_expr.span(),
                 ));
 
@@ -673,7 +656,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     start,
                 );
 
-                ExprKind::UnaryExpr(UnaryExpr { expr, operator })
+                Expr::UnaryExpr(UnaryExpr { expr, operator })
             }
             TokenKind::Hash => {
                 // First get the directive subject, and expect a possible singular expression
@@ -683,17 +666,17 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
                 // create the subject node
                 return Ok(self.node_with_joined_span(
-                    Expr::new(ExprKind::Directive(DirectiveExpr { name, subject })),
+                    Expr::Directive(DirectiveExpr { name, subject }),
                     start,
                 ));
             }
             TokenKind::Keyword(Keyword::Unsafe) => {
                 let arg = self.parse_expr()?;
-                ExprKind::Unsafe(UnsafeExpr { data: arg })
+                Expr::Unsafe(UnsafeExpr { data: arg })
             }
             TokenKind::Keyword(Keyword::TypeOf) => {
                 let expr = self.parse_expr()?;
-                ExprKind::UnaryExpr(UnaryExpr {
+                Expr::UnaryExpr(UnaryExpr {
                     expr,
                     operator: self.node_with_span(UnOp::TypeOf, start),
                 })
@@ -702,7 +685,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             kind => panic!("Expected token to be a unary operator, but got '{}'", kind),
         };
 
-        Ok(self.node_with_joined_span(Expr::new(expr_kind), start))
+        Ok(self.node_with_joined_span(expr, start))
     }
 
     /// Parse a declaration.
@@ -749,7 +732,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let decl_span = decl.span();
 
         Ok(self.node_with_joined_span(
-            Expr::new(ExprKind::MergeDeclaration(MergeDeclaration { decl, value })),
+            Expr::MergeDeclaration(MergeDeclaration { decl, value }),
             decl_span,
         ))
     }
@@ -784,7 +767,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 // Now we need to transform the re-assignment operator into a function call
                 Ok((
                     self.node_with_span(
-                        Expr::new(ExprKind::AssignOp(AssignOpExpr { lhs, rhs, operator })),
+                        Expr::AssignOp(AssignOpExpr { lhs, rhs, operator }),
                         lhs_span,
                     ),
                     false,
@@ -823,22 +806,22 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 let property = self.node_with_span(PropertyKind::NumericField(value), token.span);
 
                 return Ok(self.node_with_joined_span(
-                    Expr::new(ExprKind::Access(AccessExpr {
+                    Expr::Access(AccessExpr {
                         subject,
                         property,
                         kind: AccessKind::Property,
-                    })),
+                    }),
                     span,
                 ))
             }
         }
 
         Ok(self.node_with_joined_span(
-            Expr::new(ExprKind::Access(AccessExpr {
+            Expr::Access(AccessExpr {
                 subject,
                 property: self.parse_named_field(ParseErrorKind::ExpectedPropertyAccess)?,
                 kind: AccessKind::Property,
-            })),
+            }),
             span,
         ))
     }
@@ -849,11 +832,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let span = subject.span();
 
         Ok(self.node_with_joined_span(
-            Expr::new(ExprKind::Access(AccessExpr {
+            Expr::Access(AccessExpr {
                 subject,
                 property: self.parse_named_field(ParseErrorKind::ExpectedName)?,
                 kind: AccessKind::Namespace,
-            })),
+            }),
             span,
         ))
     }
@@ -885,12 +868,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // Handle the empty tuple case
         if gen.stream.len() < 2 {
             let tuple = gen.node_with_joined_span(
-                Expr::new(ExprKind::LitExpr(LitExpr {
+                Expr::LitExpr(LitExpr {
                     data: gen.node_with_joined_span(
                         Lit::Tuple(TupleLit { elements: ast_nodes![] }),
                         start,
                     ),
-                })),
+                }),
                 start,
             );
 
@@ -915,9 +898,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
             // We want to emit a redundant parentheses warning if it is not a binary-like
             // expression since it does not affect the precedence...
-            if !matches!(expr.kind(), ExprKind::BinaryExpr(_) | ExprKind::Cast(_)) {
+            if !matches!(expr.body(), Expr::BinaryExpr(_) | Expr::Cast(_)) {
                 self.add_warning(ParseWarning::new(
-                    WarningKind::RedundantParenthesis(expr.kind().into()),
+                    WarningKind::RedundantParenthesis(expr.body().into()),
                     expr.span(),
                 ));
             }
@@ -950,9 +933,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
 
         Ok(gen.node_with_joined_span(
-            Expr::new(ExprKind::LitExpr(LitExpr {
+            Expr::LitExpr(LitExpr {
                 data: gen.node_with_joined_span(Lit::Tuple(TupleLit { elements }), start),
-            })),
+            }),
             start,
         ))
     }
@@ -1009,10 +992,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             None => self.err(ParseErrorKind::ExpectedFnBody, None, None)?,
         };
 
-        Ok(self.node_with_joined_span(
-            Expr::new(ExprKind::FnDef(FnDef { params, return_ty, fn_body })),
-            start,
-        ))
+        Ok(self.node_with_joined_span(Expr::FnDef(FnDef { params, return_ty, fn_body }), start))
     }
 
     /// Function to parse a sequence of top-level [Expr]s from a

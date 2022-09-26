@@ -7,8 +7,8 @@ use std::{collections::HashSet, convert::Infallible, mem};
 
 use ::if_chain::if_chain;
 use hash_ast::ast::{
-    walk_mut_self, AstVisitorMutSelf, BindingPat, Block, BlockExpr, ExprKind, LitExpr,
-    ModulePatEntry, Mutability, ParamOrigin, Pat, TuplePatEntry,
+    walk_mut_self, AstVisitorMutSelf, BindingPat, Block, BlockExpr, Expr, LitExpr, ModulePatEntry,
+    Mutability, ParamOrigin, Pat, TuplePatEntry,
 };
 use hash_reporting::macros::panic_on_span;
 use hash_source::{identifier::CORE_IDENTIFIERS, ModuleKind};
@@ -179,17 +179,7 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
         &mut self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::Expr>,
     ) -> Result<Self::ExprRet, Self::Error> {
-        let _ = walk_mut_self::walk_expr(self, node);
-        Ok(())
-    }
-
-    type ExprKindRet = ();
-
-    fn visit_expr_kind(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ExprKind>,
-    ) -> Result<Self::ExprKindRet, Self::Error> {
-        walk_mut_self::walk_expr_kind_same_children(self, node)
+        walk_mut_self::walk_expr_same_children(self, node)
     }
 
     type VariableExprRet = ();
@@ -229,7 +219,7 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
             // expression must be a `mod` block since otherwise the directive
             // wouldn't make sense...
             if_chain! {
-                if let ExprKind::Block(BlockExpr { data: block }) = node.subject.kind();
+                if let Expr::Block(BlockExpr { data: block }) = node.subject.body();
                 if matches!(block.body(), Block::Mod(_));
                 then {}
                 else {
@@ -237,7 +227,7 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
                         AnalysisErrorKind::InvalidDirectiveArgument {
                             name: node.name.ident,
                             expected: DirectiveArgument::ModBlock,
-                            given: node.subject.kind().into()
+                            given: node.subject.body().into()
                         },
                         node.subject.ast_ref(),
                     );
@@ -702,8 +692,8 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
         // 'useless' expressions... a literal that is constant of made of other
         // constant literals
         for statement in node.statements.iter() {
-            match statement.kind() {
-                ExprKind::LitExpr(LitExpr { data: lit }) if lit.body().is_constant() => {
+            match statement.body() {
+                Expr::LitExpr(LitExpr { data: lit }) if lit.body().is_constant() => {
                     self.append_warning(
                         AnalysisWarningKind::UselessExpression,
                         statement.ast_ref(),

@@ -166,7 +166,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 ty,
                 default: default.map(|node| {
                     let span = node.span();
-                    self.node_with_span(Expr::new(ExprKind::Ty(TyExpr { ty: node })), span)
+                    self.node_with_span(Expr::Ty(TyExpr { ty: node }), span)
                 }),
                 origin: ParamOrigin::TyFn,
             },

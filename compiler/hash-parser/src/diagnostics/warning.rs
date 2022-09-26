@@ -4,7 +4,7 @@
 use std::fmt::Display;
 
 use derive_more::Constructor;
-use hash_ast::ast::ExprKind;
+use hash_ast::ast::Expr;
 use hash_reporting::{
     builder::ReportBuilder,
     report::{Report, ReportCodeBlock, ReportElement, ReportKind},
@@ -40,11 +40,11 @@ pub enum SubjectKind {
     Expr,
 }
 
-impl From<&ExprKind> for SubjectKind {
-    fn from(kind: &ExprKind) -> Self {
+impl From<&Expr> for SubjectKind {
+    fn from(kind: &Expr) -> Self {
         match kind {
-            ExprKind::LitExpr(_) => SubjectKind::Lit,
-            ExprKind::Block(_) => SubjectKind::Block,
+            Expr::LitExpr(_) => SubjectKind::Lit,
+            Expr::Block(_) => SubjectKind::Block,
             _ => SubjectKind::Expr,
         }
     }

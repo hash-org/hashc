@@ -156,7 +156,7 @@ impl AstVisitor for AstTreeGenerator {
 
     type ExprRet = TreeNode;
     fn visit_expr(&self, node: ast::AstNodeRef<ast::Expr>) -> Result<Self::ExprRet, Self::Error> {
-        Ok(walk::walk_expr(self, node)?.kind)
+        walk::walk_expr_same_children(self, node)
     }
 
     type VariableExprRet = TreeNode;
@@ -1151,13 +1151,5 @@ impl AstVisitor for AstTreeGenerator {
     ) -> Result<Self::ModuleRet, Self::Error> {
         let walk::Module { contents } = walk::walk_module(self, node)?;
         Ok(TreeNode::branch("module", contents))
-    }
-
-    type ExprKindRet = TreeNode;
-    fn visit_expr_kind(
-        &self,
-        node: ast::AstNodeRef<ast::ExprKind>,
-    ) -> Result<Self::ExprKindRet, Self::Error> {
-        walk::walk_expr_kind_same_children(self, node)
     }
 }

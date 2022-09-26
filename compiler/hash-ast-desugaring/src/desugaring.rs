@@ -3,9 +3,9 @@
 use hash_ast::{
     ast::{
         AstNode, AstNodes, BindingPat, Block, BlockExpr, BodyBlock, BoolLit, BreakStatement,
-        ConstructorCallArg, ConstructorCallExpr, ConstructorPat, Expr, ExprKind, ForLoopBlock,
-        IfBlock, IfClause, IfPat, Lit, LitExpr, LitPat, LoopBlock, MatchBlock, MatchCase,
-        MatchOrigin, Name, Pat, TuplePatEntry, VariableExpr, WhileLoopBlock, WildPat,
+        ConstructorCallArg, ConstructorCallExpr, ConstructorPat, Expr, ForLoopBlock, IfBlock,
+        IfClause, IfPat, Lit, LitExpr, LitPat, LoopBlock, MatchBlock, MatchCase, MatchOrigin, Name,
+        Pat, TuplePatEntry, VariableExpr, WhileLoopBlock, WildPat,
     },
     ast_nodes,
 };
@@ -85,10 +85,7 @@ impl<'s> AstDesugaring<'s> {
             AstNode::new(
                 MatchCase {
                     pat,
-                    expr: AstNode::new(
-                        Expr::new(ExprKind::Block(BlockExpr { data: body })),
-                        body_span
-                    )
+                    expr: AstNode::new(Expr::Block(BlockExpr { data: body }), body_span)
                 },
                 pat_span
             ),
@@ -101,7 +98,7 @@ impl<'s> AstDesugaring<'s> {
                         },),
                         pat_span
                     ),
-                    expr: AstNode::new(Expr::new(ExprKind::Break(BreakStatement {})), body_span),
+                    expr: AstNode::new(Expr::Break(BreakStatement {}), body_span),
                 },
                 pat_span
             ),
@@ -112,18 +109,18 @@ impl<'s> AstDesugaring<'s> {
             contents: AstNode::new(
                 Block::Match(MatchBlock {
                     subject: AstNode::new(
-                        Expr::new(ExprKind::ConstructorCall(ConstructorCallExpr {
+                        Expr::ConstructorCall(ConstructorCallExpr {
                             subject: AstNode::new(
-                                Expr::new(ExprKind::Variable(VariableExpr {
+                                Expr::Variable(VariableExpr {
                                     name: AstNode::new(Name { ident: "next".into() }, iter_span),
-                                })),
+                                }),
                                 iter_span,
                             ),
                             args: ast_nodes![AstNode::new(
                                 ConstructorCallArg { name: None, value: iterator },
                                 iter_span
                             )],
-                        })),
+                        }),
                         body_span,
                     ),
                     cases: match_cases,
@@ -196,7 +193,7 @@ impl<'s> AstDesugaring<'s> {
                                     condition_span
                                 ),
                                 expr: AstNode::new(
-                                    Expr::new(ExprKind::Block(BlockExpr { data: body })),
+                                    Expr::Block(BlockExpr { data: body }),
                                     body_span
                                 ),
                             },
@@ -213,10 +210,7 @@ impl<'s> AstDesugaring<'s> {
                                     }),
                                     condition_span
                                 ),
-                                expr: AstNode::new(
-                                    Expr::new(ExprKind::Break(BreakStatement {})),
-                                    condition_span
-                                )
+                                expr: AstNode::new(Expr::Break(BreakStatement {}), condition_span)
                             },
                             condition_span
                         ),
@@ -265,7 +259,7 @@ impl<'s> AstDesugaring<'s> {
                     }),
                     branch_span,
                 ),
-                expr: AstNode::new(Expr::new(ExprKind::Block(BlockExpr { data: body })), body_span),
+                expr: AstNode::new(Expr::Block(BlockExpr { data: body }), body_span),
             },
             branch_span,
         )
@@ -366,10 +360,7 @@ impl<'s> AstDesugaring<'s> {
             AstNode::new(
                 MatchCase {
                     pat: AstNode::new(Pat::Wild(WildPat {}), else_block_span),
-                    expr: AstNode::new(
-                        Expr::new(ExprKind::Block(BlockExpr { data: block })),
-                        else_block_span,
-                    ),
+                    expr: AstNode::new(Expr::Block(BlockExpr { data: block }), else_block_span),
                 },
                 else_block_span,
             )
@@ -384,7 +375,7 @@ impl<'s> AstDesugaring<'s> {
                 MatchCase {
                     pat: AstNode::new(Pat::Wild(WildPat {}), parent_span),
                     expr: AstNode::new(
-                        Expr::new(ExprKind::Block(BlockExpr {
+                        Expr::Block(BlockExpr {
                             data: AstNode::new(
                                 Block::Body(BodyBlock {
                                     statements: AstNodes::empty(),
@@ -392,7 +383,7 @@ impl<'s> AstDesugaring<'s> {
                                 }),
                                 parent_span,
                             ),
-                        })),
+                        }),
                         parent_span,
                     ),
                 },
@@ -406,9 +397,9 @@ impl<'s> AstDesugaring<'s> {
 
         Block::Match(MatchBlock {
             subject: AstNode::new(
-                Expr::new(ExprKind::LitExpr(LitExpr {
+                Expr::LitExpr(LitExpr {
                     data: AstNode::new(Lit::Bool(BoolLit { data: true }), parent_span),
-                })),
+                }),
                 parent_span,
             ),
             cases: AstNodes::new(clauses, clauses_span),
