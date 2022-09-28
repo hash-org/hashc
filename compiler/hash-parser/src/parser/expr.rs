@@ -15,7 +15,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a top level [Expr] that are optionally terminated with a
     /// semi-colon.
     #[profiling::function]
-    pub fn parse_top_level_expr(&mut self) -> ParseResult<Option<(bool, AstNode<Expr>)>> {
+    pub fn parse_top_level_expr(&mut self) -> ParseResult<Option<AstNode<Expr>>> {
         let start = self.next_location();
 
         // So here we want to check that the next token(s) could make up a singular
@@ -83,14 +83,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
         }?;
 
-        let has_semi = if let Some(Token { kind: TokenKind::Semi, .. }) = self.peek() {
+        if let Some(Token { kind: TokenKind::Semi, .. }) = self.peek() {
             self.skip_token();
-            true
-        } else {
-            false
         };
 
-        Ok(Some((has_semi, expr)))
+        Ok(Some(expr))
     }
 
     /// Function to eat a collection of trailing semi-colons.
@@ -996,7 +993,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         //
         // @@ErrorRecovery: don't bail immediately...
         while gen.has_token() {
-            if let Some((_, expr)) = gen.parse_top_level_expr()? {
+            if let Some(expr) = gen.parse_top_level_expr()? {
                 exprs.push(expr);
             }
         }

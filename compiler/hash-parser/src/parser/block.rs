@@ -46,7 +46,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // firstly check if the first token signals a beginning of a statement, we can
         // tell this by checking for keywords that must begin a statement...
         while self.has_token() {
-            let (has_semi, expr) = match self.parse_top_level_expr() {
+            let expr = match self.parse_top_level_expr() {
                 Ok(Some(res)) => res,
                 Ok(_) => continue,
                 // @@Future: attempt to recover here to see if we can get a semi, and then reset
@@ -56,9 +56,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 }
             };
 
-            match (has_semi, self.peek()) {
-                (true, _) => block.statements.nodes.push(expr),
-                (false, _) => block.expr = Some(expr),
+            if self.peek().is_some() {
+                block.statements.nodes.push(expr)
+            } else {
+                block.expr = Some(expr)
             }
         }
 
