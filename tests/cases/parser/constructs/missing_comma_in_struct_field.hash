@@ -5,4 +5,4 @@ viktor := Dog(
     has_brother = true // <--- Error should be reported here since there is no comma....
     age = 12, 
     gender = false
-);
+)

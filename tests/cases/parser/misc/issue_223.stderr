@@ -3,5 +3,5 @@ error: expected value assignment after type annotation within named tuple
 2 |   
 3 |   wrap := (res: Result<T, (int, str)>): Result<T, IoError> => match res {
   |                                      ^ 
-4 |   };
+4 |   }
   = help: consider adding a `=`

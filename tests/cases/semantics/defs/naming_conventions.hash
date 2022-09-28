@@ -2,17 +2,17 @@
 Boo := struct(
     arg,
     max: i32,
-);
+)
 
 Moo := struct(
     arg,
     max,
-);
+)
 
 Foo := struct(
     bax: i32,
     max: i32,
-);
+)
 
 Mux := enum(
     Crux(
@@ -27,4 +27,4 @@ Mux := enum(
         bax: i32,
         max,
     ),
-);
+)

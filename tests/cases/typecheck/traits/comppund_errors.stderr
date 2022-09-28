@@ -7,7 +7,7 @@ error[0055]: trait `Foo` is missing the member `bux`
 
   --> $DIR/comppund_errors.hash:9:3
  8 |   
- 9 |     bux : (a: i32) -> Mux; 
+ 9 |     bux : (a: i32) -> Mux
    |     ^^^^^^^^^^^^^^^^^^^^^ trait item `bux` is defined here
 10 |   
 
@@ -21,16 +21,16 @@ error[0056]: method `member_not_on_trt` is not a member of trait `Foo`
 ...  |
 43 | |              _ => Mux(val = 17);
 44 | |          }
-45 | |      };
+45 | |      }
    | |______- not a member of trait `Foo`
-46 |    };
+46 |    }
 
 error[0020]: types mismatch, wanted `(a: u32) -> Mux`, but got `(a: i32) -> Mux`
   --> $DIR/comppund_errors.hash:11:10
 10 |   
-11 |     crux : (a: u32) -> Mux; 
+11 |     crux : (a: u32) -> Mux
    |            ^^^^^^^^^^^^^^^ this expects the type `(a: u32) -> Mux`
-12 |   };
+12 |   }
 
   --> $DIR/comppund_errors.hash:32:13
 30 |    
@@ -38,7 +38,7 @@ error[0020]: types mismatch, wanted `(a: u32) -> Mux`, but got `(a: i32) -> Mux`
 32 |        crux := (a: i32) -> Mux => {
    |  ______________-
 33 | |          Mux()
-34 | |      };
+34 | |      }
    | |______- ...but this is of type `(a: i32) -> Mux`
 35 |    
 36 |        //~ ERROR: `method_not_on_trt` not a member of `Foo`

@@ -13,4 +13,4 @@ other_func := (t: str) => {
     };
 
     return alpha;
-};
+}

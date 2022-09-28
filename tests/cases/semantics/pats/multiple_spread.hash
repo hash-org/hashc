@@ -1,11 +1,11 @@
 // run=fail, stage=semantic
 
 main := () => {
-    [...x, t, ...] := a;    
+    [...x, t, ...] := a
 
     match t {
         [...a, [...l, t, ..., c], t] => {};
         _ => {};
-    };
-};
+    }
+}
 

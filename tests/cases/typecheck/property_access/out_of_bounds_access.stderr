@@ -3,4 +3,4 @@ error[0015]: the field `2` is not present within `(1_i32, 2_i32)`
 5 |   main := () -> i32 => {
 6 |     t.2
   |     ^ `(1_i32, 2_i32)` does not contain the property `2`
-7 |   };
+7 |   }

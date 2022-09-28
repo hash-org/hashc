@@ -1,4 +1,4 @@
 // run=fail, stage=parse
 
 wrap := (res: Result<T, (int, str)>): Result<T, IoError> => match res {
-};
+}

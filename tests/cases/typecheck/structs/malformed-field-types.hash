@@ -1,4 +1,4 @@
 // run=fail
 
 
-Foo := struct(bar: Type);
+Foo := struct(bar: Type)
