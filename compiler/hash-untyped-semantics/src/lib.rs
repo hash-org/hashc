@@ -7,27 +7,17 @@ pub mod analysis;
 pub(crate) mod diagnostics;
 pub mod visitor;
 
-use std::collections::HashSet;
-
 use analysis::SemanticAnalyser;
 use crossbeam_channel::unbounded;
 use diagnostics::AnalysisDiagnostic;
 use hash_ast::{ast::OwnsAstNode, visitor::AstVisitorMutSelf};
-use hash_pipeline::{sources::Workspace, traits::SemanticPass, CompilerResult};
+use hash_pipeline::{sources::Workspace, traits::SemanticPass};
 use hash_reporting::report::Report;
 use hash_source::SourceId;
 
 pub struct HashSemanticAnalysis;
 
 impl<'pool> SemanticPass<'pool> for HashSemanticAnalysis {
-    /// A store representing modules that have already been analysed in the
-    /// current pipeline.
-    type State = HashSet<SourceId>;
-
-    fn make_state(&mut self) -> CompilerResult<Self::State> {
-        Ok(HashSet::default())
-    }
-
     /// This will perform a pass on the AST by checking the semantic rules that
     /// are within the language specification. The function will attempt to
     /// perform a pass on the `entry_point` which happens on the main
@@ -41,17 +31,17 @@ impl<'pool> SemanticPass<'pool> for HashSemanticAnalysis {
         &mut self,
         entry_point: SourceId,
         workspace: &mut Workspace,
-        state: &mut Self::State,
         pool: &'pool rayon::ThreadPool,
     ) -> Result<(), Vec<Report>> {
         let (sender, receiver) = unbounded::<AnalysisDiagnostic>();
 
         let source_map = &workspace.source_map;
         let node_map = &mut workspace.node_map;
+        let checked_modules = &mut workspace.semantically_checked_modules;
 
         pool.scope(|scope| {
             // De-sugar the target if it isn't already de-sugared
-            if !state.contains(&entry_point) {
+            if !checked_modules.contains(&entry_point) {
                 if let SourceId::Interactive(id) = entry_point {
                     let source = node_map.get_interactive_block_mut(id);
 
@@ -69,7 +59,7 @@ impl<'pool> SemanticPass<'pool> for HashSemanticAnalysis {
                 let source_id = SourceId::Module(*id);
 
                 // Skip any modules that have already been de-sugared
-                if state.contains(&source_id) {
+                if checked_modules.contains(&source_id) {
                     continue;
                 }
 
@@ -100,8 +90,8 @@ impl<'pool> SemanticPass<'pool> for HashSemanticAnalysis {
         });
 
         // Add all of the ids into the cache
-        state.insert(entry_point);
-        state.extend(workspace.node_map().iter_modules().map(|(id, _)| SourceId::Module(*id)));
+        checked_modules.insert(entry_point);
+        checked_modules.extend(node_map.iter_modules().map(|(id, _)| SourceId::Module(*id)));
 
         // Collect all of the errors
         drop(sender);

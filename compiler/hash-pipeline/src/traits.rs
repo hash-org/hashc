@@ -49,17 +49,11 @@ pub trait Desugar<'pool> {
 /// that this stage should perform will be detailed within the specification of
 /// the language.
 pub trait SemanticPass<'pool> {
-    type State;
-
-    /// Initialise [SemanticPass::State].
-    fn make_state(&mut self) -> CompilerResult<Self::State>;
-
     /// Perform a de-sugaring pass on the provided sources.
     fn perform_pass(
         &mut self,
         entry_point: SourceId,
         workspace: &mut Workspace,
-        state: &mut Self::State,
         pool: &'pool rayon::ThreadPool,
     ) -> Result<(), Vec<Report>>;
 }

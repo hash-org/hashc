@@ -37,7 +37,7 @@ pub fn goodbye() {
 /// REPL.
 pub fn init<'c, 'pool, P, D, S, C, L, V>(
     mut compiler: Compiler<'pool, P, D, S, C, L, V>,
-    mut compiler_state: CompilerState<'c, 'pool, D, S, C, L, V>,
+    mut compiler_state: CompilerState<'c, 'pool, D, C, L, V>,
 ) -> CompilerResult<()>
 where
     'pool: 'c,
@@ -82,8 +82,8 @@ where
 fn execute<'c, 'pool, P, D, S, C, L, V>(
     input: &str,
     compiler: &mut Compiler<'pool, P, D, S, C, L, V>,
-    mut compiler_state: CompilerState<'c, 'pool, D, S, C, L, V>,
-) -> CompilerState<'c, 'pool, D, S, C, L, V>
+    mut compiler_state: CompilerState<'c, 'pool, D, C, L, V>,
+) -> CompilerState<'c, 'pool, D, C, L, V>
 where
     'pool: 'c,
     P: Parser<'pool>,

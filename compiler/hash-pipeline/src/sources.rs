@@ -195,6 +195,10 @@ pub struct Workspace {
     pub source_map: SourceMap,
     /// Stores all of the generated AST for modules and nodes
     pub node_map: NodeMap,
+
+    /// Modules that have already been semantically checked. This is needed in
+    /// order to avoid re-checking modules on re-evaluations of a workspace.
+    pub semantically_checked_modules: HashSet<SourceId>,
 }
 
 impl Workspace {
@@ -204,6 +208,7 @@ impl Workspace {
             node_map: NodeMap::new(),
             source_map: SourceMap::new(),
             dependencies: HashMap::new(),
+            semantically_checked_modules: HashSet::new(),
         }
     }
 
