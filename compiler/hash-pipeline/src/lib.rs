@@ -55,13 +55,11 @@ pub struct Compiler<'pool, P, D, S, C, L, V> {
 /// instance. Each stage of the compiler contains a `State` type parameter which
 /// the compiler stores so that incremental executions of the compiler are
 /// possible.
-pub struct CompilerState<'c, C: Tc<'c>> {
+pub struct CompilerState {
     /// The collected workspace sources for the current job.
     pub workspace: Workspace,
     /// Any diagnostics that were collected from any stage
     pub diagnostics: Vec<Report>,
-    /// The typechecker state.
-    pub tc_state: C::State,
 }
 
 impl<'c, 'pool, P, D, S, C, L, V> Compiler<'pool, P, D, S, C, L, V>
@@ -102,12 +100,10 @@ where
     /// Create a compiler state to accompany with compiler execution.
     /// Internally, this calls the [Tc] state making functions and saves it
     /// into the created [CompilerState].
-    pub fn create_state(&mut self) -> CompilerResult<CompilerState<'c, C>> {
+    pub fn create_state(&mut self) -> CompilerResult<CompilerState> {
         let workspace = Workspace::new();
 
-        let tc_state = self.checker.make_state()?;
-
-        Ok(CompilerState { workspace, diagnostics: vec![], tc_state })
+        Ok(CompilerState { workspace, diagnostics: vec![] })
     }
 
     /// Function to report the collected metrics on the stages within the
@@ -242,12 +238,11 @@ where
         &mut self,
         entry_point: SourceId,
         workspace: &mut Workspace,
-        checker_state: &mut C::State,
     ) -> CompilerResult<()> {
         match entry_point {
             SourceId::Interactive(id) => {
                 timed(
-                    || self.checker.check_interactive(id, workspace, checker_state),
+                    || self.checker.check_interactive(id, workspace),
                     log::Level::Debug,
                     |time| {
                         self.metrics.insert(CompilerMode::Typecheck, time);
@@ -256,7 +251,7 @@ where
             }
             SourceId::Module(id) => {
                 timed(
-                    || self.checker.check_module(id, workspace, checker_state),
+                    || self.checker.check_module(id, workspace),
                     log::Level::Debug,
                     |time| {
                         self.metrics.insert(CompilerMode::Typecheck, time);
@@ -304,7 +299,7 @@ where
     fn maybe_terminate(
         &self,
         result: CompilerResult<()>,
-        compiler_state: &mut CompilerState<'c, C>,
+        compiler_state: &mut CompilerState,
         // @@TODO(feds01): remove this parameter, it would be ideal that this parameter is stored
         // within the compiler state
         current_stage: CompilerMode,
@@ -333,7 +328,7 @@ where
     fn run_pipeline(
         &mut self,
         entry_point: SourceId,
-        compiler_state: &mut CompilerState<'c, C>,
+        compiler_state: &mut CompilerState,
     ) -> Result<(), ()> {
         let result = self.parse_source(entry_point, &mut compiler_state.workspace);
         self.maybe_terminate(result, compiler_state, CompilerMode::Parse)?;
@@ -345,11 +340,7 @@ where
         let result = self.check_source_semantics(entry_point, &mut compiler_state.workspace);
         self.maybe_terminate(result, compiler_state, CompilerMode::SemanticPass)?;
 
-        let result = self.typecheck_sources(
-            entry_point,
-            &mut compiler_state.workspace,
-            &mut compiler_state.tc_state,
-        );
+        let result = self.typecheck_sources(entry_point, &mut compiler_state.workspace);
         self.maybe_terminate(result, compiler_state, CompilerMode::Typecheck)?;
 
         let result = self.lower_sources(entry_point, &mut compiler_state.workspace);
@@ -360,7 +351,7 @@ where
 
     /// Function to bootstrap the pipeline. This function invokes a job within
     /// the pipeline in order to load the prelude before any modules run.
-    pub fn bootstrap(&mut self) -> CompilerState<'c, C> {
+    pub fn bootstrap(&mut self) -> CompilerState {
         let mut compiler_state = self.create_state().unwrap();
 
         if !self.settings.skip_prelude {
@@ -391,8 +382,8 @@ where
     pub fn run(
         &mut self,
         entry_point: SourceId,
-        mut compiler_state: CompilerState<'c, C>,
-    ) -> CompilerState<'c, C> {
+        mut compiler_state: CompilerState,
+    ) -> CompilerState {
         let result = self.run_pipeline(entry_point, &mut compiler_state);
 
         // we can print the diagnostics here
@@ -443,8 +434,8 @@ where
         &mut self,
         filename: impl Into<String>,
         kind: ModuleKind,
-        mut compiler_state: CompilerState<'c, C>,
-    ) -> CompilerState<'c, C> {
+        mut compiler_state: CompilerState,
+    ) -> CompilerState {
         // First we have to work out if we need to transform the path
         let current_dir = env::current_dir().unwrap();
 

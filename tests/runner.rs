@@ -37,7 +37,7 @@ use hash_testing_internal::{
     TestingInput,
 };
 use hash_testing_macros::generate_tests;
-use hash_typecheck::TcImpl;
+use hash_typecheck::Typechecker;
 use hash_untyped_semantics::HashSemanticAnalysis;
 use hash_vm::vm::Interpreter;
 use regex::Regex;
@@ -197,7 +197,7 @@ fn handle_test(input: TestingInput) {
     let parser = HashParser::new();
     let desugarer = AstDesugarer;
     let semantic_analyser = HashSemanticAnalysis;
-    let checker = TcImpl;
+    let checker = Typechecker::new();
     let lowerer = IrLowerer;
 
     // Create the vm

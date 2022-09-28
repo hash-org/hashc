@@ -10,6 +10,7 @@ use std::{
 
 use hash_ast::ast;
 use hash_source::{InteractiveId, ModuleId, ModuleKind, SourceId, SourceMap};
+use hash_types::storage::{GlobalStorage, LocalStorage};
 
 /// Data structure which holds information and compiler stage results for a
 /// particular interactive block. Currently, this only stores the generated
@@ -182,11 +183,24 @@ impl NodeMap {
     }
 }
 
+/// Storage that is used by stages that need to access type information about
+/// modules in the current workspace.
+#[derive(Debug)]
+pub struct TyStorage {
+    /// Storage that is used by the typechecker to resolve local items
+    /// within certain contexts.
+    pub local: LocalStorage,
+
+    /// Persistent storage of all data structures that is emitted by the
+    /// typechecking stage, and possibly further stages.
+    pub global: GlobalStorage,
+}
+
 /// Data structure representing the current pipeline workflow. The [Workspace]
 /// contains produced data and metadata from all the various stages within the
 /// compiler. The [Workspace] represents a shared work space for stages to
 /// access information about the current job.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Workspace {
     /// Dependency map between sources and modules.
     dependencies: HashMap<SourceId, HashSet<ModuleId>>,
@@ -201,12 +215,24 @@ pub struct Workspace {
     /// Modules that have already been semantically checked. This is needed in
     /// order to avoid re-checking modules on re-evaluations of a workspace.
     pub semantically_checked_modules: HashSet<SourceId>,
+
+    pub ty_storage: TyStorage,
+}
+
+impl Default for Workspace {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Workspace {
     /// Create a new [Workspace], initialising all members to be empty.
     pub fn new() -> Self {
+        let global = GlobalStorage::new();
+        let local = LocalStorage::new(&global, SourceId::default());
+
         Self {
+            ty_storage: TyStorage { global, local },
             node_map: NodeMap::new(),
             source_map: SourceMap::new(),
             dependencies: HashMap::new(),
@@ -255,6 +281,11 @@ impl Workspace {
         &self.source_map
     }
 
+    /// Get a mutable reference to [SourceMap]
+    pub fn source_map_mut(&mut self) -> &mut SourceMap {
+        &mut self.source_map
+    }
+
     /// Get a reference to [NodeMap]
     pub fn node_map(&self) -> &NodeMap {
         &self.node_map
@@ -263,5 +294,10 @@ impl Workspace {
     /// Get a mutable reference to [NodeMap]
     pub fn node_map_mut(&mut self) -> &mut NodeMap {
         &mut self.node_map
+    }
+
+    /// Get the [TyStorage] stored within the [Workspace].
+    pub fn ty_storage(&self) -> &TyStorage {
+        &self.ty_storage
     }
 }

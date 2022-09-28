@@ -14,7 +14,7 @@ use hash_parser::HashParser;
 use hash_pipeline::{settings::CompilerSettings, Compiler};
 use hash_reporting::errors::CompilerError;
 use hash_source::ModuleKind;
-use hash_typecheck::TcImpl;
+use hash_typecheck::Typechecker;
 use hash_untyped_semantics::HashSemanticAnalysis;
 use hash_vm::vm::Interpreter;
 use log::LevelFilter;
@@ -79,7 +79,7 @@ fn main() {
     let parser = HashParser::new();
     let desugarer = AstDesugarer;
     let semantic_analyser = HashSemanticAnalysis;
-    let checker = TcImpl;
+    let checker = Typechecker::new();
     let lowerer = IrLowerer;
 
     // Create the vm

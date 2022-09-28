@@ -8,13 +8,10 @@
 #![feature(decl_macro, slice_pattern, option_result_contains, let_chains, if_let_guard)]
 
 use diagnostics::DiagnosticsStore;
-use hash_pipeline::{traits::Tc, CompilerResult};
+use hash_pipeline::{sources::TyStorage, traits::Tc, CompilerResult};
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::SourceId;
-use hash_types::{
-    fmt::PrepareForFormatting,
-    storage::{GlobalStorage, LocalStorage},
-};
+use hash_types::{fmt::PrepareForFormatting, storage::LocalStorage};
 use ops::AccessToOps;
 use storage::{
     cache::Cache, exhaustiveness::ExhaustivenessStorage, sources::CheckedSources, AccessToStorage,
@@ -29,22 +26,13 @@ pub mod storage;
 pub mod traverse;
 
 /// The entry point of the typechecker.
-pub struct TcImpl;
-
-/// Contains global typechecker state, used for the [Tc] implementation below.
-#[derive(Debug)]
-pub struct TcState {
+pub struct Typechecker {
     /// Map representing a relation between the typechecked module and it's
     /// relevant [SourceId].
     pub checked_sources: CheckedSources,
 
-    /// The shared typechecking context throughout the typechecking process.
-    pub global_storage: GlobalStorage,
-
     /// The shared exhaustiveness checking data store.
     pub exhaustiveness_storage: ExhaustivenessStorage,
-
-    pub prev_local_storage: LocalStorage,
 
     /// Share typechecking diagnostics
     pub diagnostics_store: DiagnosticsStore,
@@ -54,61 +42,45 @@ pub struct TcState {
     pub cache: Cache,
 }
 
-impl TcState {
-    /// Create a new [TcState].
+impl Typechecker {
     pub fn new() -> Self {
-        let source_id = SourceId::default();
-        let global_storage = GlobalStorage::new();
-        let local_storage = LocalStorage::new(&global_storage, source_id);
         Self {
             checked_sources: CheckedSources::new(),
-            global_storage,
             exhaustiveness_storage: ExhaustivenessStorage::default(),
-            prev_local_storage: local_storage,
             diagnostics_store: DiagnosticsStore::default(),
             cache: Cache::new(),
         }
     }
 }
 
-impl Default for TcState {
+impl Default for Typechecker {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Tc<'_> for TcImpl {
-    type State = TcState;
-
-    /// Make a [Self::State] for [TcImpl]. Internally, this creates
-    /// a new [GlobalStorage] and [LocalStorage] with a default
-    /// [SourceId]. This is safe because both methods that are used
-    /// to visit any source kind, will overwrite the stored [SourceId]
-    /// to the `entry_point`.
-    fn make_state(&mut self) -> CompilerResult<Self::State> {
-        Ok(TcState::new())
-    }
-
+impl Tc<'_> for Typechecker {
     fn check_interactive(
         &mut self,
         id: hash_source::InteractiveId,
-        workspace: &hash_pipeline::sources::Workspace,
-        state: &mut Self::State,
+        workspace: &mut hash_pipeline::sources::Workspace,
     ) -> CompilerResult<()> {
         // We need to set the interactive-id to update the current local-storage `id`
         // value
-        state.prev_local_storage.set_current_source(SourceId::Interactive(id));
+        workspace.ty_storage.local.set_current_source(SourceId::Interactive(id));
+
+        let TyStorage { local, global } = workspace.ty_storage();
 
         // Instantiate a visitor with the source and visit the source, using the
         // previous local storage.
         let storage = StorageRef {
-            global_storage: &state.global_storage,
-            checked_sources: &state.checked_sources,
-            exhaustiveness_storage: &state.exhaustiveness_storage,
-            local_storage: &state.prev_local_storage,
+            global_storage: global,
+            local_storage: local,
+            checked_sources: &self.checked_sources,
+            exhaustiveness_storage: &self.exhaustiveness_storage,
             source_map: &workspace.source_map,
-            diagnostics_store: &state.diagnostics_store,
-            cache: &state.cache,
+            diagnostics_store: &self.diagnostics_store,
+            cache: &self.cache,
         };
         let tc_visitor = TcVisitor::new_in_source(storage.storages(), workspace.node_map());
 
@@ -137,24 +109,24 @@ impl Tc<'_> for TcImpl {
     fn check_module(
         &mut self,
         id: hash_source::ModuleId,
-        sources: &hash_pipeline::sources::Workspace,
-        state: &mut Self::State,
+        workspace: &mut hash_pipeline::sources::Workspace,
     ) -> CompilerResult<()> {
         // Instantiate a visitor with the source and visit the source, using a new local
         // storage.
-        let local_storage = LocalStorage::new(&state.global_storage, SourceId::Module(id));
+        workspace.ty_storage.local =
+            LocalStorage::new(&workspace.ty_storage.global, SourceId::Module(id));
 
         let storage = StorageRef {
-            global_storage: &state.global_storage,
-            checked_sources: &state.checked_sources,
-            exhaustiveness_storage: &state.exhaustiveness_storage,
-            local_storage: &local_storage,
-            source_map: &sources.source_map,
-            diagnostics_store: &state.diagnostics_store,
-            cache: &state.cache,
+            global_storage: &workspace.ty_storage.global,
+            local_storage: &workspace.ty_storage.local,
+            checked_sources: &self.checked_sources,
+            exhaustiveness_storage: &self.exhaustiveness_storage,
+            source_map: &workspace.source_map,
+            diagnostics_store: &self.diagnostics_store,
+            cache: &self.cache,
         };
 
-        let tc_visitor = TcVisitor::new_in_source(storage.storages(), sources.node_map());
+        let tc_visitor = TcVisitor::new_in_source(storage.storages(), workspace.node_map());
 
         if let Err(err) = tc_visitor.visit_source() {
             tc_visitor.diagnostics().add_error(err);

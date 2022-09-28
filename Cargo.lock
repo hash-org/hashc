@@ -479,6 +479,7 @@ dependencies = [
  "hash-ast",
  "hash-reporting",
  "hash-source",
+ "hash-types",
  "hash-utils",
  "log",
  "num_cpus",

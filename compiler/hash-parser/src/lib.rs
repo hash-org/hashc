@@ -130,8 +130,12 @@ impl<'pool> HashParser {
 
         assert!(pool.current_num_threads() > 1, "Parser loop requires at least 2 workers");
 
+        let node_map = &mut workspace.node_map;
+        let source_map = &mut workspace.source_map;
+
         // Parse the entry point
-        let entry_source_kind = ParseSource::from_source(entry_point_id, workspace, current_dir);
+        let entry_source_kind =
+            ParseSource::from_source(entry_point_id, node_map, source_map, current_dir);
         parse_source(entry_source_kind, sender);
 
         pool.scope(|scope| {
@@ -140,28 +144,28 @@ impl<'pool> HashParser {
                     ParserAction::SetInteractiveNode { interactive_id, node, diagnostics } => {
                         collected_diagnostics.extend(diagnostics);
 
-                        workspace
-                            .node_map_mut()
-                            .get_interactive_block_mut(interactive_id)
-                            .set_node(node);
+                        node_map.get_interactive_block_mut(interactive_id).set_node(node);
                     }
                     ParserAction::SetModuleNode { module_id, node, diagnostics } => {
                         collected_diagnostics.extend(diagnostics);
 
-                        workspace.node_map_mut().get_module_mut(module_id).set_node(node);
+                        node_map.get_module_mut(module_id).set_node(node);
                     }
                     ParserAction::ParseImport { resolved_path, contents, sender } => {
-                        if workspace.get_module_id_by_path(&resolved_path).is_some() {
+                        if source_map.get_module_id_by_path(&resolved_path).is_some() {
                             continue;
                         }
 
-                        let module_id = workspace.add_module(
+                        let module_id = source_map.add_module(
+                            resolved_path.clone(),
                             contents,
-                            Module::new(resolved_path.clone()),
                             ModuleKind::Normal,
                         );
 
-                        let source = ParseSource::from_module(module_id, workspace);
+                        let module = Module::new(resolved_path);
+                        node_map.add_module(module_id, module);
+
+                        let source = ParseSource::from_module(module_id, node_map, source_map);
                         scope.spawn(move |_| parse_source(source, sender));
                     }
                     ParserAction::Error(err) => {

@@ -61,31 +61,19 @@ pub trait SemanticPass<'pool> {
 /// them regardless of error, both states are considered to be the new states
 /// and should be set in the compiler pipeline.
 pub trait Tc<'c> {
-    /// The [Tc] state. This is implementation specific to the
-    /// typechecker that implements this trait. The pipeline should have no
-    /// dealings with the actual state, except saving it.
-    type State;
-
-    /// Initialise [Tc::State].
-    fn make_state(&mut self) -> CompilerResult<Self::State>;
-
     /// Given a [InteractiveId], check the interactive statement with the
-    /// specific rules that are applied in interactive rules. The function
-    /// accepts the previous [Tc::State].
-    fn check_interactive<'pool>(
-        &'pool mut self,
+    /// specific rules that are applied in interactive rules.
+    fn check_interactive(
+        &mut self,
         interactive_id: InteractiveId,
-        workspace: &Workspace,
-        state: &mut Self::State,
+        workspace: &mut Workspace,
     ) -> CompilerResult<()>;
 
-    /// Given a [ModuleId], check the module. The function accepts the previous
-    /// [Tc::State].
+    /// Given a [ModuleId], check the module.
     fn check_module(
         &mut self,
         module_id: ModuleId,
-        workspace: &Workspace,
-        state: &mut Self::State,
+        workspace: &mut Workspace,
     ) -> CompilerResult<()>;
 }
 
