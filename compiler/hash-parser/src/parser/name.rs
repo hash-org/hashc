@@ -1,7 +1,7 @@
 //! Hash Compiler AST generation sources. This file contains the sources to the
 //! logic that transforms tokens into an AST.
 use hash_ast::ast::*;
-use hash_source::identifier::CORE_IDENTIFIERS;
+use hash_source::identifier::IDENTS;
 use hash_token::{Token, TokenKind};
 
 use super::AstGen;
@@ -19,9 +19,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     #[inline]
     pub fn parse_name_with_error(&self, err: ParseErrorKind) -> ParseResult<AstNode<Name>> {
         match self.next_token() {
-            Some(Token { kind: TokenKind::Ident(ident), span })
-                if *ident != CORE_IDENTIFIERS.underscore =>
-            {
+            Some(Token { kind: TokenKind::Ident(ident), span }) if *ident != IDENTS.underscore => {
                 Ok(self.node_with_span(Name { ident: *ident }, *span))
             }
             token => self.err_with_location(
@@ -39,9 +37,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     #[inline]
     pub fn parse_named_field(&self, err: ParseErrorKind) -> ParseResult<AstNode<PropertyKind>> {
         match self.next_token() {
-            Some(Token { kind: TokenKind::Ident(ident), span })
-                if *ident != CORE_IDENTIFIERS.underscore =>
-            {
+            Some(Token { kind: TokenKind::Ident(ident), span }) if *ident != IDENTS.underscore => {
                 Ok(self.node_with_span(PropertyKind::NamedField(*ident), *span))
             }
             token => self.err_with_location(

@@ -3,7 +3,7 @@
 use hash_ast::ast::*;
 use hash_source::{
     constant::{IntConstant, CONSTANT_MAP},
-    identifier::{Identifier, CORE_IDENTIFIERS},
+    identifier::{Identifier, IDENTS},
     location::Span,
 };
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
@@ -86,20 +86,20 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse an integer literal suffix.
     fn parse_integer_suffix(&self, suffix: Identifier, span: Span) -> ParseResult<IntLitKind> {
         let ty = match suffix {
-            id if CORE_IDENTIFIERS.i8 == id => IntTy::I8,
-            id if CORE_IDENTIFIERS.i16 == id => IntTy::I16,
-            id if CORE_IDENTIFIERS.i32 == id => IntTy::I32,
-            id if CORE_IDENTIFIERS.i64 == id => IntTy::I64,
-            id if CORE_IDENTIFIERS.i128 == id => IntTy::I128,
-            id if CORE_IDENTIFIERS.isize == id => IntTy::ISize,
-            id if CORE_IDENTIFIERS.ibig == id => IntTy::IBig,
-            id if CORE_IDENTIFIERS.u8 == id => IntTy::U8,
-            id if CORE_IDENTIFIERS.u16 == id => IntTy::U16,
-            id if CORE_IDENTIFIERS.u32 == id => IntTy::U32,
-            id if CORE_IDENTIFIERS.u64 == id => IntTy::U64,
-            id if CORE_IDENTIFIERS.u128 == id => IntTy::U128,
-            id if CORE_IDENTIFIERS.usize == id => IntTy::USize,
-            id if CORE_IDENTIFIERS.ubig == id => IntTy::UBig,
+            id if IDENTS.i8 == id => IntTy::I8,
+            id if IDENTS.i16 == id => IntTy::I16,
+            id if IDENTS.i32 == id => IntTy::I32,
+            id if IDENTS.i64 == id => IntTy::I64,
+            id if IDENTS.i128 == id => IntTy::I128,
+            id if IDENTS.isize == id => IntTy::ISize,
+            id if IDENTS.ibig == id => IntTy::IBig,
+            id if IDENTS.u8 == id => IntTy::U8,
+            id if IDENTS.u16 == id => IntTy::U16,
+            id if IDENTS.u32 == id => IntTy::U32,
+            id if IDENTS.u64 == id => IntTy::U64,
+            id if IDENTS.u128 == id => IntTy::U128,
+            id if IDENTS.usize == id => IntTy::USize,
+            id if IDENTS.ubig == id => IntTy::UBig,
             id => self.err_with_location(
                 ParseErrorKind::InvalidLitSuffix(NumericLitKind::Integer, id),
                 None,
@@ -114,8 +114,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse an integer literal suffix.
     fn parse_float_suffix(&self, suffix: Identifier, span: Span) -> ParseResult<FloatLitKind> {
         match suffix {
-            id if CORE_IDENTIFIERS.f32 == id => Ok(FloatLitKind::Suffixed(FloatTy::F32)),
-            id if CORE_IDENTIFIERS.f64 == id => Ok(FloatLitKind::Suffixed(FloatTy::F64)),
+            id if IDENTS.f32 == id => Ok(FloatLitKind::Suffixed(FloatTy::F32)),
+            id if IDENTS.f64 == id => Ok(FloatLitKind::Suffixed(FloatTy::F64)),
             id => self.err_with_location(
                 ParseErrorKind::InvalidLitSuffix(NumericLitKind::Float, id),
                 None,

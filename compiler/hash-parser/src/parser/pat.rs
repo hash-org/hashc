@@ -1,7 +1,7 @@
 //! Hash Compiler AST generation sources. This file contains the sources to the
 //! logic that transforms tokens into an AST.
 use hash_ast::{ast::*, ast_nodes};
-use hash_source::{identifier::CORE_IDENTIFIERS, location::Span};
+use hash_source::{identifier::IDENTS, location::Span};
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind};
 
 use super::AstGen;
@@ -123,9 +123,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             self.peek().ok_or_else(|| self.make_err(ParseErrorKind::Expected, None, None, None))?;
 
         let pat = match token {
-            Token { kind: TokenKind::Ident(ident), .. }
-                if *ident == CORE_IDENTIFIERS.underscore =>
-            {
+            Token { kind: TokenKind::Ident(ident), .. } if *ident == IDENTS.underscore => {
                 self.skip_token();
                 Pat::Wild(WildPat {})
             }

@@ -13,7 +13,7 @@ use hash_ast::{
 use hash_pipeline::sources::{NodeMap, SourceRef};
 use hash_reporting::{diagnostic::Diagnostics, macros::panic_on_span};
 use hash_source::{
-    identifier::{Identifier, CORE_IDENTIFIERS},
+    identifier::{Identifier, IDENTS},
     location::{SourceLocation, Span},
     ModuleKind, SourceId,
 };
@@ -371,11 +371,8 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::BoolLit>,
     ) -> Result<Self::BoolLitRet, Self::Error> {
-        let term = self.builder().create_var_term(if node.data {
-            CORE_IDENTIFIERS.r#true
-        } else {
-            CORE_IDENTIFIERS.r#false
-        });
+        let term =
+            self.builder().create_var_term(if node.data { IDENTS.r#true } else { IDENTS.r#false });
         self.validate_and_register_simplified_term(node, term)
     }
 
@@ -443,7 +440,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         // the flag `within_intrinsics_directive` which changes the way that `mod`
         // blocks are validated and changes the parsing of the declarations inside the
         // mod block.
-        if node.name.is(CORE_IDENTIFIERS.intrinsics) {
+        if node.name.is(IDENTS.intrinsics) {
             self.state.within_intrinsics_directive.set(true);
         }
 
@@ -891,7 +888,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let walk::NamedTy { name } = walk::walk_named_ty(self, node)?;
 
         // Infer type if it is an underscore:
-        let term = if name == CORE_IDENTIFIERS.underscore {
+        let term = if name == IDENTS.underscore {
             self.builder().create_unresolved_term()
         } else {
             self.builder().create_var_term(name)
