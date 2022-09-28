@@ -11,7 +11,7 @@ use hash_ast::ast::{
     Mutability, ParamOrigin, Pat, TuplePatEntry,
 };
 use hash_reporting::macros::panic_on_span;
-use hash_source::{identifier::CORE_IDENTIFIERS, ModuleKind};
+use hash_source::{identifier::IDENTS, ModuleKind};
 
 use crate::{
     analysis::SemanticAnalyser,
@@ -203,7 +203,7 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
 
         // Here we should check if in the event that an `intrinsics` directive
         // is being used only within the `prelude` module.
-        if node.name.is(CORE_IDENTIFIERS.intrinsics) {
+        if node.name.is(IDENTS.intrinsics) {
             if !matches!(module_kind, Some(ModuleKind::Prelude)) {
                 self.append_error(
                     AnalysisErrorKind::DisallowedDirective { name: node.name.ident, module_kind },
@@ -537,7 +537,7 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
             match self.current_block {
                 // Check that `self` cannot be within a free standing functions
                 BlockOrigin::Root => {
-                    if let Some(name) = node.name.as_ref() && name.is(CORE_IDENTIFIERS.self_i) {
+                    if let Some(name) = node.name.as_ref() && name.is(IDENTS.self_i) {
                         self.append_error(AnalysisErrorKind::SelfInFreeStandingFn, node);
                     }
                 }
@@ -545,7 +545,7 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
                     // If both the type definition is missing and the default expression assignment
                     // to the struct-def field, then a type cannot be inferred and is thus
                     // ambiguous.
-                    if let Some(name) = node.name.as_ref() && !name.is(CORE_IDENTIFIERS.self_i)
+                    if let Some(name) = node.name.as_ref() && !name.is(IDENTS.self_i)
                         && node.ty.is_none()
                         && node.default.is_none()
                     {

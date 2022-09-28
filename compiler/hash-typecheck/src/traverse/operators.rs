@@ -1,5 +1,5 @@
 use hash_ast::ast::{AstNodeRef, BinOp, ParamOrigin};
-use hash_source::identifier::{Identifier, CORE_IDENTIFIERS};
+use hash_source::identifier::{Identifier, IDENTS};
 use hash_types::terms::TermId;
 
 use super::visitor::TcVisitor;
@@ -82,40 +82,40 @@ impl<'tc> TcVisitor<'tc> {
         match (op, assigning) {
             // Equality, ordering operators don't have assigning variants
             // so no need to handle this case
-            (BinOp::EqEq, _) => CORE_IDENTIFIERS.trt_eq,
-            (BinOp::NotEq, _) => CORE_IDENTIFIERS.trt_neq,
-            (BinOp::Gt, _) => CORE_IDENTIFIERS.trt_gt,
-            (BinOp::GtEq, _) => CORE_IDENTIFIERS.trt_gt_eq,
-            (BinOp::Lt, _) => CORE_IDENTIFIERS.trt_lt,
-            (BinOp::LtEq, _) => CORE_IDENTIFIERS.trt_lt_eq,
+            (BinOp::EqEq, _) => IDENTS.trt_eq,
+            (BinOp::NotEq, _) => IDENTS.trt_neq,
+            (BinOp::Gt, _) => IDENTS.trt_gt,
+            (BinOp::GtEq, _) => IDENTS.trt_gt_eq,
+            (BinOp::Lt, _) => IDENTS.trt_lt,
+            (BinOp::LtEq, _) => IDENTS.trt_lt_eq,
 
             // Lazy operators don't have assigning variants
-            (BinOp::Or, _) => CORE_IDENTIFIERS.trt_or,
-            (BinOp::And, _) => CORE_IDENTIFIERS.trt_and,
+            (BinOp::Or, _) => IDENTS.trt_or,
+            (BinOp::And, _) => IDENTS.trt_and,
 
             // Arithmetic operators
-            (BinOp::BitOr, true) => CORE_IDENTIFIERS.trt_bit_or_eq,
-            (BinOp::BitOr, false) => CORE_IDENTIFIERS.trt_bit_or,
-            (BinOp::BitAnd, true) => CORE_IDENTIFIERS.trt_bit_and_eq,
-            (BinOp::BitAnd, false) => CORE_IDENTIFIERS.trt_bit_and,
-            (BinOp::BitXor, true) => CORE_IDENTIFIERS.trt_bit_xor_eq,
-            (BinOp::BitXor, false) => CORE_IDENTIFIERS.trt_bit_xor,
-            (BinOp::Exp, true) => CORE_IDENTIFIERS.trt_bit_exp_eq,
-            (BinOp::Exp, false) => CORE_IDENTIFIERS.trt_bit_exp,
-            (BinOp::Shr, true) => CORE_IDENTIFIERS.trt_shr_eq,
-            (BinOp::Shr, false) => CORE_IDENTIFIERS.trt_shr,
-            (BinOp::Shl, true) => CORE_IDENTIFIERS.trt_shl_eq,
-            (BinOp::Shl, false) => CORE_IDENTIFIERS.trt_shl,
-            (BinOp::Add, true) => CORE_IDENTIFIERS.trt_add_eq,
-            (BinOp::Add, false) => CORE_IDENTIFIERS.trt_add,
-            (BinOp::Sub, true) => CORE_IDENTIFIERS.trt_sub,
-            (BinOp::Sub, false) => CORE_IDENTIFIERS.trt_sub_eq,
-            (BinOp::Mul, true) => CORE_IDENTIFIERS.trt_mul_eq,
-            (BinOp::Mul, false) => CORE_IDENTIFIERS.trt_mul,
-            (BinOp::Div, true) => CORE_IDENTIFIERS.trt_div_eq,
-            (BinOp::Div, false) => CORE_IDENTIFIERS.trt_div,
-            (BinOp::Mod, true) => CORE_IDENTIFIERS.trt_mod_eq,
-            (BinOp::Mod, false) => CORE_IDENTIFIERS.trt_mod,
+            (BinOp::BitOr, true) => IDENTS.trt_bit_or_eq,
+            (BinOp::BitOr, false) => IDENTS.trt_bit_or,
+            (BinOp::BitAnd, true) => IDENTS.trt_bit_and_eq,
+            (BinOp::BitAnd, false) => IDENTS.trt_bit_and,
+            (BinOp::BitXor, true) => IDENTS.trt_bit_xor_eq,
+            (BinOp::BitXor, false) => IDENTS.trt_bit_xor,
+            (BinOp::Exp, true) => IDENTS.trt_bit_exp_eq,
+            (BinOp::Exp, false) => IDENTS.trt_bit_exp,
+            (BinOp::Shr, true) => IDENTS.trt_shr_eq,
+            (BinOp::Shr, false) => IDENTS.trt_shr,
+            (BinOp::Shl, true) => IDENTS.trt_shl_eq,
+            (BinOp::Shl, false) => IDENTS.trt_shl,
+            (BinOp::Add, true) => IDENTS.trt_add_eq,
+            (BinOp::Add, false) => IDENTS.trt_add,
+            (BinOp::Sub, true) => IDENTS.trt_sub,
+            (BinOp::Sub, false) => IDENTS.trt_sub_eq,
+            (BinOp::Mul, true) => IDENTS.trt_mul_eq,
+            (BinOp::Mul, false) => IDENTS.trt_mul,
+            (BinOp::Div, true) => IDENTS.trt_div_eq,
+            (BinOp::Div, false) => IDENTS.trt_div,
+            (BinOp::Mod, true) => IDENTS.trt_mod_eq,
+            (BinOp::Mod, false) => IDENTS.trt_mod,
 
             // These should be dealt with before or completely erased at this
             // point.

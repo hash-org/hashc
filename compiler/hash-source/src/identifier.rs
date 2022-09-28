@@ -73,8 +73,6 @@ thread_local! {
 lazy_static! {
     static ref IDENTIFIER_STORAGE_CASTLE: Castle = Castle::new();
     pub static ref IDENTIFIER_MAP: IdentifierMap<'static> = IdentifierMap::new();
-    pub static ref CORE_IDENTIFIERS: CoreIdentifiers =
-        CoreIdentifiers::from_ident_map(&IDENTIFIER_MAP);
 }
 
 /// Struct representing a globally accessible identifier map. The struct
@@ -83,191 +81,6 @@ lazy_static! {
 pub struct IdentifierMap<'c> {
     reverse_identifiers: DashMap<&'c str, Identifier, FnvBuildHasher>,
     identifiers: DashMap<Identifier, &'c str, FnvBuildHasher>,
-}
-
-/// Holds some default identifiers in order to avoid map lookups.
-///
-/// @@Todo: Create a macro that creates a mod block with all of these
-/// as constants.
-#[allow(non_snake_case)]
-pub struct CoreIdentifiers {
-    pub underscore: Identifier,
-    pub intrinsics: Identifier,
-
-    // TC:
-    pub i8: Identifier,
-    pub i16: Identifier,
-    pub i32: Identifier,
-    pub i64: Identifier,
-    pub i128: Identifier,
-    pub isize: Identifier,
-    pub ibig: Identifier,
-    pub u8: Identifier,
-    pub u16: Identifier,
-    pub u32: Identifier,
-    pub u64: Identifier,
-    pub u128: Identifier,
-    pub usize: Identifier,
-    pub ubig: Identifier,
-    pub f32: Identifier,
-    pub f64: Identifier,
-    pub str: Identifier,
-    pub char: Identifier,
-    pub bool: Identifier,
-    pub r#true: Identifier,
-    pub r#false: Identifier,
-    pub AnyType: Identifier,
-    pub Type: Identifier,
-    pub never: Identifier,
-    pub void: Identifier,
-    pub T: Identifier,
-    pub Ref: Identifier,
-    pub RefMut: Identifier,
-    pub RawRef: Identifier,
-    pub RawRefMut: Identifier,
-    pub Hash: Identifier,
-    pub Eq: Identifier,
-    pub List: Identifier,
-    pub Set: Identifier,
-    pub Map: Identifier,
-    pub Index: Identifier,
-    pub Self_i: Identifier,
-    pub self_i: Identifier,
-    pub Output: Identifier,
-    pub index: Identifier,
-    pub hash: Identifier,
-    pub value: Identifier,
-    pub eq: Identifier,
-    pub a: Identifier,
-    pub b: Identifier,
-    pub K: Identifier,
-    pub V: Identifier,
-
-    /// Operator traits
-    pub trt_eq: Identifier,
-    pub trt_neq: Identifier,
-    pub trt_ord: Identifier,
-    pub trt_gt: Identifier,
-    pub trt_gt_eq: Identifier,
-    pub trt_lt: Identifier,
-    pub trt_lt_eq: Identifier,
-
-    /// Arithmetic operator traits
-    pub trt_bit_or_eq: Identifier,
-    pub trt_bit_or: Identifier,
-    pub trt_or: Identifier,
-    pub trt_bit_and_eq: Identifier,
-    pub trt_bit_and: Identifier,
-    pub trt_and: Identifier,
-    pub trt_bit_xor_eq: Identifier,
-    pub trt_bit_xor: Identifier,
-    pub trt_bit_exp_eq: Identifier,
-    pub trt_bit_exp: Identifier,
-    pub trt_shr_eq: Identifier,
-    pub trt_shr: Identifier,
-    pub trt_shl_eq: Identifier,
-    pub trt_shl: Identifier,
-    pub trt_add_eq: Identifier,
-    pub trt_add: Identifier,
-    pub trt_sub: Identifier,
-    pub trt_sub_eq: Identifier,
-    pub trt_mul_eq: Identifier,
-    pub trt_mul: Identifier,
-    pub trt_div_eq: Identifier,
-    pub trt_div: Identifier,
-    pub trt_mod_eq: Identifier,
-    pub trt_mod: Identifier,
-}
-
-impl CoreIdentifiers {
-    /// Create the core identifiers inside the given [IdentifierMap].
-    pub fn from_ident_map(ident_map: &IdentifierMap) -> Self {
-        Self {
-            underscore: ident_map.create_ident("_"),
-            intrinsics: ident_map.create_ident("intrinsics"),
-            i8: ident_map.create_ident("i8"),
-            i16: ident_map.create_ident("i16"),
-            i32: ident_map.create_ident("i32"),
-            i64: ident_map.create_ident("i64"),
-            i128: ident_map.create_ident("i128"),
-            ibig: ident_map.create_ident("ibig"),
-            u8: ident_map.create_ident("u8"),
-            u16: ident_map.create_ident("u16"),
-            u32: ident_map.create_ident("u32"),
-            u64: ident_map.create_ident("u64"),
-            u128: ident_map.create_ident("u128"),
-            ubig: ident_map.create_ident("ubig"),
-            f32: ident_map.create_ident("f32"),
-            f64: ident_map.create_ident("f64"),
-            str: ident_map.create_ident("str"),
-            char: ident_map.create_ident("char"),
-            bool: ident_map.create_ident("bool"),
-            r#true: ident_map.create_ident("true"),
-            r#false: ident_map.create_ident("false"),
-            AnyType: ident_map.create_ident("AnyType"),
-            Type: ident_map.create_ident("Type"),
-            never: ident_map.create_ident("never"),
-            void: ident_map.create_ident("void"),
-            T: ident_map.create_ident("T"),
-            Ref: ident_map.create_ident("Ref"),
-            RefMut: ident_map.create_ident("RefMut"),
-            RawRef: ident_map.create_ident("RawRef"),
-            RawRefMut: ident_map.create_ident("RawRefMut"),
-            Hash: ident_map.create_ident("Hash"),
-            Eq: ident_map.create_ident("Eq"),
-            List: ident_map.create_ident("List"),
-            Set: ident_map.create_ident("Set"),
-            Map: ident_map.create_ident("Map"),
-            Index: ident_map.create_ident("Index"),
-            Self_i: ident_map.create_ident("Self"),
-            self_i: ident_map.create_ident("self"),
-            Output: ident_map.create_ident("Output"),
-            index: ident_map.create_ident("index"),
-            hash: ident_map.create_ident("hash"),
-            value: ident_map.create_ident("value"),
-            K: ident_map.create_ident("K"),
-            V: ident_map.create_ident("V"),
-            eq: ident_map.create_ident("eq"),
-            a: ident_map.create_ident("a"),
-            b: ident_map.create_ident("b"),
-            isize: ident_map.create_ident("isize"),
-            usize: ident_map.create_ident("usize"),
-
-            trt_eq: ident_map.create_ident("eq"),
-            trt_ord: ident_map.create_ident("ord"),
-            trt_neq: ident_map.create_ident("neq"),
-            trt_gt: ident_map.create_ident("trt_gt"),
-            trt_gt_eq: ident_map.create_ident("trt_gt_eq"),
-            trt_lt: ident_map.create_ident("trt_lt"),
-            trt_lt_eq: ident_map.create_ident("trt_lt_eq"),
-
-            /// Arithmetic trait operators
-            trt_bit_or_eq: ident_map.create_ident("bit_or_eq"),
-            trt_bit_or: ident_map.create_ident("bit_or"),
-            trt_or: ident_map.create_ident("or"),
-            trt_bit_and_eq: ident_map.create_ident("bit_and_eq"),
-            trt_bit_and: ident_map.create_ident("bit_and"),
-            trt_and: ident_map.create_ident("and"),
-            trt_bit_xor_eq: ident_map.create_ident("bit_xor_eq"),
-            trt_bit_xor: ident_map.create_ident("bit_xor"),
-            trt_bit_exp_eq: ident_map.create_ident("bit_exp_eq"),
-            trt_bit_exp: ident_map.create_ident("bit_exp"),
-            trt_shr_eq: ident_map.create_ident("shr_eq"),
-            trt_shr: ident_map.create_ident("shr"),
-            trt_shl_eq: ident_map.create_ident("shl_eq"),
-            trt_shl: ident_map.create_ident("shl"),
-            trt_add_eq: ident_map.create_ident("add_eq"),
-            trt_add: ident_map.create_ident("add"),
-            trt_sub: ident_map.create_ident("sub"),
-            trt_sub_eq: ident_map.create_ident("sub_eq"),
-            trt_mul_eq: ident_map.create_ident("mul_eq"),
-            trt_mul: ident_map.create_ident("mul"),
-            trt_div_eq: ident_map.create_ident("div_eq"),
-            trt_div: ident_map.create_ident("div"),
-            trt_mod_eq: ident_map.create_ident("mod_eq"),
-            trt_mod: ident_map.create_ident("mod"),
-        }
-    }
 }
 
 impl<'c> IdentifierMap<'c> {
@@ -303,4 +116,112 @@ impl<'c> IdentifierMap<'c> {
     pub fn get_path(&self, path: impl Iterator<Item = impl Borrow<Identifier>>) -> String {
         path.map(|ident| self.get_ident(*ident.borrow())).collect::<Vec<&'_ str>>().join("::")
     }
+}
+
+macro_rules! core_idents {
+    ($($name:ident ($value: expr)),* $(,)?) => {
+        #[allow(non_camel_case_types, non_snake_case)]
+        pub struct idents_generated {
+             $(pub $name: Identifier, )*
+        }
+
+        impl idents_generated {
+            pub fn from_ident_map(ident_map: &IdentifierMap) -> Self {
+                Self {
+                    $($name: ident_map.create_ident($value), )*
+                }
+            }
+        }
+
+        // @@Future: when lazy_static actually fixes the problem with idents, we can use lower
+        // case `idents`
+        lazy_static! {
+            #[allow(non_upper_case_globals)]
+            pub static ref IDENTS: idents_generated = idents_generated::from_ident_map(&IDENTIFIER_MAP);
+        }
+    };
+}
+
+// Prefill the `IdentifierMap` with commonly used/accessed identifiers.
+core_idents! {
+    a("a"),
+    AnyType("AnyType"),
+    b("b"),
+    bool("bool"),
+    char("char"),
+    eq("eq"),
+    Eq("Eq"),
+    f32("f32"),
+    f64("f64"),
+    hash("hash"),
+    Hash("Hash"),
+    i128("i128"),
+    i16("i16"),
+    i32("i32"),
+    i64("i64"),
+    i8("i8"),
+    ibig("ibig"),
+    Index("index"),
+    index("Index"),
+    intrinsics("intrinsics"),
+    isize("isize"),
+    K("K"),
+    List("List"),
+    Map("Map"),
+    never("never"),
+    Output("Output"),
+    r#false("false"),
+    r#true("true"),
+    RawRef("RawRef"),
+    RawRefMut("RawRefMut"),
+    Ref("Ref"),
+    RefMut("RefMut"),
+    self_i("self"),
+    Self_i("Self"),
+    Set("Set"),
+    str("str"),
+    T("T"),
+    trt_add_eq("add_eq"),
+    trt_add("add"),
+    trt_and("and"),
+    trt_bit_and_eq("bit_and_eq"),
+    trt_bit_and("bit_and"),
+    trt_bit_exp_eq("bit_exp_eq"),
+    trt_bit_exp("bit_exp"),
+    trt_bit_or_eq("bit_or_eq"),
+    trt_bit_or("bit_or"),
+    trt_bit_xor_eq("bit_xor_eq"),
+    trt_bit_xor("bit_xor"),
+    trt_div_eq("div_eq"),
+    trt_div("div"),
+    trt_eq("eq"),
+    trt_gt_eq("trt_gt_eq"),
+    trt_gt("trt_gt"),
+    trt_lt_eq("trt_lt_eq"),
+    trt_lt("trt_lt"),
+    trt_mod_eq("mod_eq"),
+    trt_mod("mod"),
+    trt_mul_eq("mul_eq"),
+    trt_mul("mul"),
+    trt_neq("neq"),
+    trt_or("or"),
+    trt_ord("ord"),
+    trt_shl_eq("shl_eq"),
+    trt_shl("shl"),
+    trt_shr_eq("shr_eq"),
+    trt_shr("shr"),
+    trt_sub_eq("sub_eq"),
+    trt_sub("sub"),
+    Type("Type"),
+    u128("u128"),
+    u16("u16"),
+    u32("u32"),
+    u64("u64"),
+    u8("u8"),
+    ubig("ubig"),
+    underscore("_"),
+    usize("usize"),
+    V("V"),
+    value("value"),
+    void("void"),
 }

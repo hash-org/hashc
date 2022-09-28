@@ -12,7 +12,7 @@ use hash_utils::counter;
 use lazy_static::lazy_static;
 use num_bigint::BigInt;
 
-use crate::identifier::{Identifier, CORE_IDENTIFIERS};
+use crate::identifier::{Identifier, IDENTS};
 
 /// The inner stored value of a [FloatConstant].
 #[derive(Debug, Clone, Copy)]
@@ -146,13 +146,13 @@ impl IntConstant {
     pub fn is_signed(&self) -> bool {
         match self.suffix {
             Some(suffix) => match suffix {
-                i if CORE_IDENTIFIERS.i8 == i => true,
-                i if CORE_IDENTIFIERS.i16 == i => true,
-                i if CORE_IDENTIFIERS.i32 == i => true,
-                i if CORE_IDENTIFIERS.i64 == i => true,
-                i if CORE_IDENTIFIERS.i128 == i => true,
-                i if CORE_IDENTIFIERS.isize == i => true,
-                i if CORE_IDENTIFIERS.ibig == i => true,
+                i if IDENTS.i8 == i => true,
+                i if IDENTS.i16 == i => true,
+                i if IDENTS.i32 == i => true,
+                i if IDENTS.i64 == i => true,
+                i if IDENTS.i128 == i => true,
+                i if IDENTS.isize == i => true,
+                i if IDENTS.ibig == i => true,
                 _ => false,
             },
             None => true,

@@ -1,7 +1,7 @@
 //! Hash Error code library file.
 
 macro_rules! error_codes {
-    ($($name:ident = $code:expr,)*) => (
+    ($($name:ident = $code:expr),* $(,)?) => (
         /// Error code macro is used to generate the [HashErrorCode] macro.
         #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
         #[allow(dead_code)]

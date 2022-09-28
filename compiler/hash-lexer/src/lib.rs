@@ -7,7 +7,7 @@ use error::{LexerDiagnostics, LexerError, LexerErrorKind, LexerResult};
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::{
     constant::CONSTANT_MAP,
-    identifier::{Identifier, CORE_IDENTIFIERS},
+    identifier::{Identifier, IDENTS},
     location::{SourceLocation, Span},
     SourceId,
 };
@@ -391,7 +391,7 @@ impl<'a> Lexer<'a> {
                 self.skip();
                 TokenKind::Keyword(Keyword::Set)
             }
-            "_" => TokenKind::Ident(CORE_IDENTIFIERS.underscore),
+            "_" => TokenKind::Ident(IDENTS.underscore),
             _ => TokenKind::Ident(name.into()),
         }
     }
@@ -471,9 +471,7 @@ impl<'a> Lexer<'a> {
                 // If this specifies a radix, and then also has a suffix which denotes
                 // that this literal is a `float`, then we error since we don't support
                 // non-decimal float literals.
-                if matches!(suffix, Some(s) if s == CORE_IDENTIFIERS.f32 || s == CORE_IDENTIFIERS.f64)
-                    && radix != 10
-                {
+                if matches!(suffix, Some(s) if s == IDENTS.f32 || s == IDENTS.f64) && radix != 10 {
                     // @@Future: we want to return a `IntLit` token, and recover since this is not a
                     // fatal error...
                     return self.emit_error(
@@ -521,8 +519,7 @@ impl<'a> Lexer<'a> {
 
                 // If the suffix is equal to a float-like one, convert this token into
                 // a `float`...
-                if matches!(suffix, Some(s) if s == CORE_IDENTIFIERS.f32 || s == CORE_IDENTIFIERS.f64)
-                {
+                if matches!(suffix, Some(s) if s == IDENTS.f32 || s == IDENTS.f64) {
                     match pre_digits.parse::<f64>() {
                         Err(err) => self.emit_error(
                             Some(format!("{}.", err)),
@@ -531,7 +528,7 @@ impl<'a> Lexer<'a> {
                         ),
                         Ok(parsed) => {
                             // Create interned float constant
-                            let float_const = if let Some(suffix_ident) = suffix && suffix_ident == CORE_IDENTIFIERS.f32 {
+                            let float_const = if let Some(suffix_ident) = suffix && suffix_ident == IDENTS.f32 {
                                 CONSTANT_MAP.create_f32_float_constant(parsed as f32, suffix)
                             } else {
                                 CONSTANT_MAP.create_f64_float_constant(parsed, suffix)
@@ -566,7 +563,7 @@ impl<'a> Lexer<'a> {
                         let suffix = self.maybe_eat_identifier();
 
                         // Create interned float constant
-                        let float_const = if let Some(suffix_ident) = suffix && suffix_ident == CORE_IDENTIFIERS.f32 {
+                        let float_const = if let Some(suffix_ident) = suffix && suffix_ident == IDENTS.f32 {
                             CONSTANT_MAP.create_f32_float_constant(value as f32, suffix)
                         } else {
                             CONSTANT_MAP.create_f64_float_constant(value, suffix)
