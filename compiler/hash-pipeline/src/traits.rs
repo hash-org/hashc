@@ -90,32 +90,19 @@ pub trait Tc<'c> {
 }
 
 /// The IR lowering trait, converting typed AST into Hash IR
-pub trait Lowering<'c> {
-    /// IR Lowering state, any temporary state that the IR Lowering requires
-    /// in order to lower the AST.
-    type State;
-
-    /// Initialise [Lowering::State].
-    fn make_state(&mut self) -> CompilerResult<Self::State>;
-
+pub trait Lowering {
     /// Given a [InteractiveId], perform a lowering on the provided typed
     /// body block whilst keeping state on previously specified interactive
     /// blocks.
-    fn lower_interactive_block<'pool>(
-        &'pool mut self,
+    fn lower_interactive_block(
+        &mut self,
         interactive_id: InteractiveId,
         workspace: &Workspace,
-        state: &mut Self::State,
     ) -> CompilerResult<()>;
 
     /// Perform a IR lowering pass on a module specified by a [ModuleId]. The
     /// result is written to the [Workspace] IR store.
-    fn lower_module(
-        &mut self,
-        module_id: ModuleId,
-        workspace: &Workspace,
-        state: &mut Self::State,
-    ) -> CompilerResult<()>;
+    fn lower_module(&mut self, module_id: ModuleId, workspace: &Workspace) -> CompilerResult<()>;
 }
 
 /// The virtual machine trait

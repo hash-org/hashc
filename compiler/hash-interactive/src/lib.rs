@@ -37,7 +37,7 @@ pub fn goodbye() {
 /// REPL.
 pub fn init<'c, 'pool, P, D, S, C, L, V>(
     mut compiler: Compiler<'pool, P, D, S, C, L, V>,
-    mut compiler_state: CompilerState<'c, C, L, V>,
+    mut compiler_state: CompilerState<'c, C, V>,
 ) -> CompilerResult<()>
 where
     'pool: 'c,
@@ -45,7 +45,7 @@ where
     D: Desugar<'pool>,
     S: SemanticPass<'pool>,
     C: Tc<'c>,
-    L: Lowering<'c>,
+    L: Lowering,
     V: VirtualMachine<'c>,
 {
     // Display the version on start-up
@@ -82,15 +82,15 @@ where
 fn execute<'c, 'pool, P, D, S, C, L, V>(
     input: &str,
     compiler: &mut Compiler<'pool, P, D, S, C, L, V>,
-    mut compiler_state: CompilerState<'c, C, L, V>,
-) -> CompilerState<'c, C, L, V>
+    mut compiler_state: CompilerState<'c, C, V>,
+) -> CompilerState<'c, C, V>
 where
     'pool: 'c,
     P: Parser<'pool>,
     D: Desugar<'pool>,
     S: SemanticPass<'pool>,
     C: Tc<'c>,
-    L: Lowering<'c>,
+    L: Lowering,
     V: VirtualMachine<'c>,
 {
     if input.is_empty() {
