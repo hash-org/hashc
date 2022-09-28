@@ -10,7 +10,7 @@ mod cfg;
 mod visitor;
 
 use hash_ir::ir::Body;
-use hash_pipeline::traits::{Lowering, CompilerResult};
+use hash_pipeline::traits::{CompilerResult, Lowering};
 use hash_source::{
     location::{SourceLocation, Span},
     SourceId,

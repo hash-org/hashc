@@ -41,7 +41,7 @@ pub struct Compiler<'pool, P, D, S, C, L, V> {
     /// The IR Lowerer.
     lowerer: L,
     /// The current VM.
-    vm: V,
+    _vm: V,
     /// Various settings for the compiler.
     pub settings: CompilerSettings,
     /// The pipeline shared thread pool.
@@ -55,15 +55,13 @@ pub struct Compiler<'pool, P, D, S, C, L, V> {
 /// instance. Each stage of the compiler contains a `State` type parameter which
 /// the compiler stores so that incremental executions of the compiler are
 /// possible.
-pub struct CompilerState<'c, C: Tc<'c>, V: VirtualMachine<'c>> {
+pub struct CompilerState<'c, C: Tc<'c>> {
     /// The collected workspace sources for the current job.
     pub workspace: Workspace,
     /// Any diagnostics that were collected from any stage
     pub diagnostics: Vec<Report>,
     /// The typechecker state.
     pub tc_state: C::State,
-    /// The State of the Virtual machine
-    pub vm_state: V::State,
 }
 
 impl<'c, 'pool, P, D, S, C, L, V> Compiler<'pool, P, D, S, C, L, V>
@@ -74,7 +72,7 @@ where
     S: SemanticPass<'pool>,
     C: Tc<'c>,
     L: Lowering,
-    V: VirtualMachine<'c>,
+    V: VirtualMachine,
 {
     /// Create a new instance of a [Compiler] with the provided parser and
     /// typechecker implementations.
@@ -94,7 +92,7 @@ where
             semantic_analyser,
             checker,
             lowerer,
-            vm,
+            _vm: vm,
             settings,
             pool,
             metrics: HashMap::new(),
@@ -104,13 +102,12 @@ where
     /// Create a compiler state to accompany with compiler execution.
     /// Internally, this calls the [Tc] state making functions and saves it
     /// into the created [CompilerState].
-    pub fn create_state(&mut self) -> CompilerResult<CompilerState<'c, C, V>> {
+    pub fn create_state(&mut self) -> CompilerResult<CompilerState<'c, C>> {
         let workspace = Workspace::new();
 
         let tc_state = self.checker.make_state()?;
-        let vm_state = self.vm.make_state()?;
 
-        Ok(CompilerState { workspace, diagnostics: vec![], tc_state, vm_state })
+        Ok(CompilerState { workspace, diagnostics: vec![], tc_state })
     }
 
     /// Function to report the collected metrics on the stages within the
@@ -307,7 +304,7 @@ where
     fn maybe_terminate(
         &self,
         result: CompilerResult<()>,
-        compiler_state: &mut CompilerState<'c, C, V>,
+        compiler_state: &mut CompilerState<'c, C>,
         // @@TODO(feds01): remove this parameter, it would be ideal that this parameter is stored
         // within the compiler state
         current_stage: CompilerMode,
@@ -336,7 +333,7 @@ where
     fn run_pipeline(
         &mut self,
         entry_point: SourceId,
-        compiler_state: &mut CompilerState<'c, C, V>,
+        compiler_state: &mut CompilerState<'c, C>,
     ) -> Result<(), ()> {
         let result = self.parse_source(entry_point, &mut compiler_state.workspace);
         self.maybe_terminate(result, compiler_state, CompilerMode::Parse)?;
@@ -363,7 +360,7 @@ where
 
     /// Function to bootstrap the pipeline. This function invokes a job within
     /// the pipeline in order to load the prelude before any modules run.
-    pub fn bootstrap(&mut self) -> CompilerState<'c, C, V> {
+    pub fn bootstrap(&mut self) -> CompilerState<'c, C> {
         let mut compiler_state = self.create_state().unwrap();
 
         if !self.settings.skip_prelude {
@@ -394,8 +391,8 @@ where
     pub fn run(
         &mut self,
         entry_point: SourceId,
-        mut compiler_state: CompilerState<'c, C, V>,
-    ) -> CompilerState<'c, C, V> {
+        mut compiler_state: CompilerState<'c, C>,
+    ) -> CompilerState<'c, C> {
         let result = self.run_pipeline(entry_point, &mut compiler_state);
 
         // we can print the diagnostics here
@@ -446,8 +443,8 @@ where
         &mut self,
         filename: impl Into<String>,
         kind: ModuleKind,
-        mut compiler_state: CompilerState<'c, C, V>,
-    ) -> CompilerState<'c, C, V> {
+        mut compiler_state: CompilerState<'c, C>,
+    ) -> CompilerState<'c, C> {
         // First we have to work out if we need to transform the path
         let current_dir = env::current_dir().unwrap();
 

@@ -106,15 +106,7 @@ pub trait Lowering {
 }
 
 /// The virtual machine trait
-pub trait VirtualMachine<'c> {
-    /// The general [VirtualMachine] state. This is implementation specific to
-    /// the VM that implements this trait. The pipeline should have no
-    /// dealings with the actual state, except saving it.
-    type State;
-
-    /// Initialise [VirtualMachine::State].
-    fn make_state(&mut self) -> CompilerResult<Self::State>;
-
+pub trait VirtualMachine {
     /// Run the currently generated VM
-    fn run(&mut self, state: &mut Self::State) -> CompilerResult<()>;
+    fn run(&mut self, workspace: &Workspace) -> CompilerResult<()>;
 }
