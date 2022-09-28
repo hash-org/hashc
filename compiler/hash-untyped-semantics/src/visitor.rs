@@ -1,4 +1,4 @@
-//! Visitor pattern for thedataanalysis stage. This file implements
+//! Visitor pattern for the semantic analysis stage. This file implements
 //! the [AstVisitor] pattern on the AST for [SemanticAnalyser]. During
 //! traversal, the visitor calls various functions that are defined on the
 //! analyser to perform a variety of semantic checks.
@@ -7,8 +7,8 @@ use std::{collections::HashSet, convert::Infallible, mem};
 
 use ::if_chain::if_chain;
 use hash_ast::ast::{
-    walk_mut_self, AstVisitorMutSelf, BindingPat, Block, BlockExpr, Expr, LitExpr, ModulePatEntry,
-    Mutability, ParamOrigin, Pat, TuplePatEntry,
+    walk_mut_self, AstVisitorMutSelf, BindingPat, Block, BlockExpr, DirectiveExpr, Expr, LitExpr,
+    ModulePatEntry, Mutability, ParamOrigin, Pat, TuplePatEntry,
 };
 use hash_reporting::macros::panic_on_span;
 use hash_source::{identifier::IDENTS, ModuleKind};
@@ -197,17 +197,18 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
         &mut self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::DirectiveExpr>,
     ) -> Result<Self::DirectiveExprRet, Self::Error> {
+        let DirectiveExpr { name, .. } = node.body();
         let _ = walk_mut_self::walk_directive_expr(self, node);
 
         let module_kind = self.source_map.module_kind_by_id(self.source_id);
 
         // Here we should check if in the event that an `intrinsics` directive
         // is being used only within the `prelude` module.
-        if node.name.is(IDENTS.intrinsics) {
+        if name.is(IDENTS.intrinsics) {
             if !matches!(module_kind, Some(ModuleKind::Prelude)) {
                 self.append_error(
-                    AnalysisErrorKind::DisallowedDirective { name: node.name.ident, module_kind },
-                    node.name.ast_ref(),
+                    AnalysisErrorKind::DisallowedDirective { name: name.ident, module_kind },
+                    name.ast_ref(),
                 );
 
                 // exit early as we don't care about if the arguments of the directive are
@@ -233,6 +234,13 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
                     );
                 }
             }
+        } else if !node.name.is(IDENTS.dump_ast) || !node.name.is(IDENTS.dump_ir) {
+            // @@Future: use some kind of scope validation in order to verify that
+            // the used directives are valid
+            self.append_warning(
+                AnalysisWarningKind::UnknownDirective { name: name.ident },
+                node.name.ast_ref(),
+            )
         }
 
         Ok(())
