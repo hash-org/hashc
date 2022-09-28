@@ -196,6 +196,8 @@ pub struct Workspace {
     /// Stores all of the generated AST for modules and nodes
     pub node_map: NodeMap,
 
+    pub desugared_modules: HashSet<SourceId>,
+
     /// Modules that have already been semantically checked. This is needed in
     /// order to avoid re-checking modules on re-evaluations of a workspace.
     pub semantically_checked_modules: HashSet<SourceId>,
@@ -208,6 +210,7 @@ impl Workspace {
             node_map: NodeMap::new(),
             source_map: SourceMap::new(),
             dependencies: HashMap::new(),
+            desugared_modules: HashSet::new(),
             semantically_checked_modules: HashSet::new(),
         }
     }

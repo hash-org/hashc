@@ -55,20 +55,11 @@ pub struct Compiler<'pool, P, D, S, C, L, V> {
 /// instance. Each stage of the compiler contains a `State` type parameter which
 /// the compiler stores so that incremental executions of the compiler are
 /// possible.
-pub struct CompilerState<
-    'c,
-    'pool,
-    D: Desugar<'pool>,
-    C: Tc<'c>,
-    L: Lowering<'c>,
-    V: VirtualMachine<'c>,
-> {
+pub struct CompilerState<'c, C: Tc<'c>, L: Lowering<'c>, V: VirtualMachine<'c>> {
     /// The collected workspace sources for the current job.
     pub workspace: Workspace,
     /// Any diagnostics that were collected from any stage
     pub diagnostics: Vec<Report>,
-    /// The typechecker state.
-    pub ds_state: D::State,
     /// The typechecker state.
     pub tc_state: C::State,
     /// The IR Lowering state.
@@ -115,22 +106,14 @@ where
     /// Create a compiler state to accompany with compiler execution.
     /// Internally, this calls the [Tc] state making functions and saves it
     /// into the created [CompilerState].
-    pub fn create_state(&mut self) -> CompilerResult<CompilerState<'c, 'pool, D, C, L, V>> {
+    pub fn create_state(&mut self) -> CompilerResult<CompilerState<'c, C, L, V>> {
         let workspace = Workspace::new();
 
-        let desugaring_state = self.desugarer.make_state()?;
         let tc_state = self.checker.make_state()?;
         let lowering_state = self.lowerer.make_state()?;
         let vm_state = self.vm.make_state()?;
 
-        Ok(CompilerState {
-            workspace,
-            diagnostics: vec![],
-            ds_state: desugaring_state,
-            tc_state,
-            lowering_state,
-            vm_state,
-        })
+        Ok(CompilerState { workspace, diagnostics: vec![], tc_state, lowering_state, vm_state })
     }
 
     /// Function to report the collected metrics on the stages within the
@@ -213,10 +196,9 @@ where
         &mut self,
         entry_point: SourceId,
         workspace: &mut Workspace,
-        desugar_state: &mut D::State,
     ) -> CompilerResult<()> {
         timed(
-            || self.desugarer.desugar(entry_point, workspace, desugar_state, self.pool),
+            || self.desugarer.desugar(entry_point, workspace, self.pool),
             log::Level::Debug,
             |time| {
                 self.metrics.insert(CompilerMode::DeSugar, time);
@@ -329,7 +311,7 @@ where
     fn maybe_terminate(
         &self,
         result: CompilerResult<()>,
-        compiler_state: &mut CompilerState<'c, 'pool, D, C, L, V>,
+        compiler_state: &mut CompilerState<'c, C, L, V>,
         // @@TODO(feds01): remove this parameter, it would be ideal that this parameter is stored
         // within the compiler state
         current_stage: CompilerMode,
@@ -358,16 +340,12 @@ where
     fn run_pipeline(
         &mut self,
         entry_point: SourceId,
-        compiler_state: &mut CompilerState<'c, 'pool, D, C, L, V>,
+        compiler_state: &mut CompilerState<'c, C, L, V>,
     ) -> Result<(), ()> {
         let result = self.parse_source(entry_point, &mut compiler_state.workspace);
         self.maybe_terminate(result, compiler_state, CompilerMode::Parse)?;
 
-        let result = self.desugar_sources(
-            entry_point,
-            &mut compiler_state.workspace,
-            &mut compiler_state.ds_state,
-        );
+        let result = self.desugar_sources(entry_point, &mut compiler_state.workspace);
         self.maybe_terminate(result, compiler_state, CompilerMode::DeSugar)?;
 
         // Now perform the semantic pass on the sources
@@ -393,7 +371,7 @@ where
 
     /// Function to bootstrap the pipeline. This function invokes a job within
     /// the pipeline in order to load the prelude before any modules run.
-    pub fn bootstrap(&mut self) -> CompilerState<'c, 'pool, D, C, L, V> {
+    pub fn bootstrap(&mut self) -> CompilerState<'c, C, L, V> {
         let mut compiler_state = self.create_state().unwrap();
 
         if !self.settings.skip_prelude {
@@ -424,8 +402,8 @@ where
     pub fn run(
         &mut self,
         entry_point: SourceId,
-        mut compiler_state: CompilerState<'c, 'pool, D, C, L, V>,
-    ) -> CompilerState<'c, 'pool, D, C, L, V> {
+        mut compiler_state: CompilerState<'c, C, L, V>,
+    ) -> CompilerState<'c, C, L, V> {
         let result = self.run_pipeline(entry_point, &mut compiler_state);
 
         // we can print the diagnostics here
@@ -476,8 +454,8 @@ where
         &mut self,
         filename: impl Into<String>,
         kind: ModuleKind,
-        mut compiler_state: CompilerState<'c, 'pool, D, C, L, V>,
-    ) -> CompilerState<'c, 'pool, D, C, L, V> {
+        mut compiler_state: CompilerState<'c, C, L, V>,
+    ) -> CompilerState<'c, C, L, V> {
         // First we have to work out if we need to transform the path
         let current_dir = env::current_dir().unwrap();
 

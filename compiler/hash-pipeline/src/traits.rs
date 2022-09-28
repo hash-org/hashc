@@ -27,17 +27,11 @@ pub trait Parser<'pool> {
 /// The [Desugar] represents an abstract parser that can parse all aspects of
 /// the Hash programming language.
 pub trait Desugar<'pool> {
-    type State;
-
-    /// Initialise [Desugar::State].
-    fn make_state(&mut self) -> CompilerResult<Self::State>;
-
     /// Perform a de-sugaring pass on the provided sources.
     fn desugar(
         &mut self,
         entry_point: SourceId,
         workspace: &mut Workspace,
-        state: &mut Self::State,
         pool: &'pool rayon::ThreadPool,
     ) -> CompilerResult<()>;
 }
