@@ -1,5 +1,5 @@
 // run=fail
-Mux := struct(val := 3, bal := 'c');
+Mux := struct(val := 3, bal := 'c')
 
 Foo := trait {
   // Self: Type;
@@ -7,23 +7,23 @@ Foo := trait {
   bax : () -> u32;
 
   bux : (a: i32) -> Mux; 
-};
+}
 
 Frobulate := struct(
   data: i32,
   other: char = 'c',
-);
+)
 
 
 Frobulate ~= impl Foo {
   bax := () -> u32 => {
     1u32
-  };
+  }
 
   // So: also change type annotation checking in functions 
   bux := (a: i32) -> Mux => {
       Mux(val = a)
-  }; 
+  } 
 
   member_not_on_trt := (a: i32, b: char) -> Mux => {
       match a {
@@ -33,6 +33,6 @@ Frobulate ~= impl Foo {
         31..40 => Mux(val = 4);
         _ => Mux(val = 17);
       }
-  };
-};
+  }
+}
 

@@ -3,29 +3,29 @@
 {
     T := struct<U, (
         beep: T,
-    );
-};
+    )
+}
 
 {
     T := struct U,> (
         beep: T,
-    );
-};
+    )
+}
 
 {
     T := enum <,> (
         beep: T,
-    );
-};
+    )
+}
 
 {
     T := trait <> {
         mux: () -> char;
-    };
-};
+    }
+}
 
 {
     T := trait < { // missing `>`
         mux: () -> char;
-    };
-};
+    }
+}

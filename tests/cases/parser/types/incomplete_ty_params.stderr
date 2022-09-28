@@ -5,9 +5,9 @@ error: unexpectedly encountered a `(...)`
 4 |        T := struct<U, (
   |  _____________________-
 5 | |          beep: T,
-6 | |      );
+6 | |      )
   | |______- 
-7 |    };
+7 |    }
 8 |    
   = help: consider adding a `>`
 
@@ -34,9 +34,9 @@ error: unexpectedly encountered a `{...}`
 28 |        T := trait < { // missing `>`
    |  ___________________-
 29 | |          mux: () -> char;
-30 | |      };
+30 | |      }
    | |______- 
-31 |    };
+31 |    }
    = help: consider adding a `>`
 
 warn: useless type parameters on this `trait` definition

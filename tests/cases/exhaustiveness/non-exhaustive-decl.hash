@@ -2,7 +2,7 @@
 
 get_name := () -> str => {
     "a name"
-};
+}
 
-a := get_name();
-"str" := a;
+a := get_name()
+"str" := a
