@@ -5,8 +5,6 @@
 //! parser or typechecker and just use a common trait interface that can be
 //! used. This file also has definitions for how to access sources whether
 //! module or interactive.
-#![allow(clippy::too_many_arguments)]
-
 pub mod fs;
 pub mod settings;
 pub mod sources;
@@ -15,13 +13,12 @@ pub mod traits;
 use std::{collections::HashMap, env, time::Duration};
 
 use fs::{read_in_path, resolve_path, PRELUDE};
-use hash_ast::{ast::OwnsAstNode, tree::AstTreeGenerator, visitor::AstVisitor};
 use hash_reporting::{report::Report, writer::ReportWriter};
 use hash_source::{constant::CONSTANT_MAP, ModuleKind, SourceId};
-use hash_utils::{path::adjust_canonicalisation, timing::timed, tree_writing::TreeWriter};
-use settings::{CompilerMode, CompilerSettings};
+use hash_utils::timing::timed;
+use settings::{CompilerSettings, CompilerStageKind};
 use sources::{Module, Workspace};
-use traits::{Desugar, Lowering, Parser, SemanticPass, Tc, VirtualMachine};
+use traits::CompilerStage;
 
 pub type CompilerResult<T> = Result<T, Vec<Report>>;
 
@@ -29,113 +26,58 @@ pub type CompilerResult<T> = Result<T, Vec<Report>>;
 /// [Compiler] with the specified components. This allows external tinkerers
 /// to add their own implementations of each compiler stage with relative ease
 /// instead of having to scratch their heads.
-pub struct Compiler<'pool, P, D, S, C, L, V> {
-    /// The parser stage of the compiler.
-    parser: P,
-    /// De-sugar the AST
-    desugarer: D,
-    /// Perform semantic analysis on the AST.
-    semantic_analyser: S,
-    /// The typechecking stage of the compiler.
-    checker: C,
-    /// The IR Lowerer.
-    lowerer: L,
-    /// The current VM.
-    vm: V,
+pub struct Compiler<'pool> {
+    /// The attached stages of the compiler pipeline.
+    stages: Vec<Box<dyn CompilerStage<'pool>>>,
+
     /// Various settings for the compiler.
     pub settings: CompilerSettings,
     /// The pipeline shared thread pool.
     pool: &'pool rayon::ThreadPool,
 
     /// A record of all of the stage metrics
-    metrics: HashMap<CompilerMode, Duration>,
+    metrics: HashMap<CompilerStageKind, Duration>,
 }
 
 /// The [CompilerState] holds all the information and state of the compiler
 /// instance. Each stage of the compiler contains a `State` type parameter which
 /// the compiler stores so that incremental executions of the compiler are
 /// possible.
-pub struct CompilerState<
-    'c,
-    'pool,
-    D: Desugar<'pool>,
-    S: SemanticPass<'pool>,
-    C: Tc<'c>,
-    L: Lowering<'c>,
-    V: VirtualMachine<'c>,
-> {
+pub struct CompilerState {
     /// The collected workspace sources for the current job.
     pub workspace: Workspace,
     /// Any diagnostics that were collected from any stage
     pub diagnostics: Vec<Report>,
-    /// The typechecker state.
-    pub ds_state: D::State,
-    /// The semantic analysis state.
-    pub semantic_analysis_state: S::State,
-    /// The typechecker state.
-    pub tc_state: C::State,
-    /// The IR Lowering state.
-    pub lowering_state: L::State,
-    /// The State of the Virtual machine
-    pub vm_state: V::State,
 }
 
-impl<'c, 'pool, P, D, S, C, L, V> Compiler<'pool, P, D, S, C, L, V>
-where
-    'pool: 'c,
-    P: Parser<'pool>,
-    D: Desugar<'pool>,
-    S: SemanticPass<'pool>,
-    C: Tc<'c>,
-    L: Lowering<'c>,
-    V: VirtualMachine<'c>,
-{
+impl<'pool> Compiler<'pool> {
     /// Create a new instance of a [Compiler] with the provided parser and
-    /// typechecker implementations.
+    /// typechecker implementations. The provided [CompilerStage]s to the
+    /// compiler must be provided in an ascending ord
+    ///er of the [CompilerStageKind]. Stages
+    ///are allowed to have the same[CompilerStageKind]s,
+    ///but this will mean that they are treated as if
+    /// they are one stage in some operations.
     pub fn new(
-        parser: P,
-        desugarer: D,
-        semantic_analyser: S,
-        checker: C,
-        lowerer: L,
-        vm: V,
+        stages: Vec<Box<dyn CompilerStage<'pool>>>,
         pool: &'pool rayon::ThreadPool,
         settings: CompilerSettings,
     ) -> Self {
-        Self {
-            parser,
-            desugarer,
-            semantic_analyser,
-            checker,
-            lowerer,
-            vm,
-            settings,
-            pool,
-            metrics: HashMap::new(),
-        }
+        // Assert that all the provided stages have a correct stage order, as in
+        // each stage has the same level or a higher order stage than the previous
+        // stage.
+        assert!(stages.windows(2).all(|w| w[0].stage_kind() <= w[1].stage_kind()));
+
+        Self { stages, settings, pool, metrics: HashMap::new() }
     }
 
     /// Create a compiler state to accompany with compiler execution.
     /// Internally, this calls the [Tc] state making functions and saves it
     /// into the created [CompilerState].
-    pub fn create_state(&mut self) -> CompilerResult<CompilerState<'c, 'pool, D, S, C, L, V>> {
+    pub fn create_state(&mut self) -> CompilerResult<CompilerState> {
         let workspace = Workspace::new();
 
-        let desugaring_state = self.desugarer.make_state()?;
-        let semantic_analysis_state = self.semantic_analyser.make_state()?;
-        let tc_state = self.checker.make_state()?;
-        let lowering_state = self.lowerer.make_state()?;
-        let vm_state = self.vm.make_state()?;
-
-        Ok(CompilerState {
-            workspace,
-            diagnostics: vec![],
-            ds_state: desugaring_state,
-            semantic_analysis_state,
-            tc_state,
-            lowering_state,
-            vm_state,
-        })
+        Ok(CompilerState { workspace, diagnostics: vec![] })
     }
 
     /// Function to report the collected metrics on the stages within the
@@ -151,7 +93,7 @@ where
 
         for (stage, duration) in timings {
             // This shouldn't occur as we don't record this metric in this way
-            if *stage == CompilerMode::Full {
+            if *stage == CompilerStageKind::Full {
                 continue;
             }
             total += *duration;
@@ -160,180 +102,33 @@ where
         }
 
         // Now print the total
-        eprintln!("{: <12}: {total:?}\n", format!("{}", CompilerMode::Full));
+        eprintln!("{: <12}: {total:?}\n", format!("{}", CompilerStageKind::Full));
     }
 
-    /// Utility function used by AST-like stages in order to print the
-    /// current [self::sources::NodeMap].
-    fn print_sources(&self, workspace: &Workspace, entry_point: SourceId) {
-        match entry_point {
-            SourceId::Interactive(id) => {
-                // If this is an interactive statement, we want to print the statement that was
-                // just parsed.
-                let source = workspace.node_map().get_interactive_block(id);
-                let tree = AstTreeGenerator.visit_body_block(source.node_ref()).unwrap();
-
-                println!("{}", TreeWriter::new(&tree));
-            }
-            SourceId::Module(_) => {
-                // If this is a module, we want to print all of the generated modules from the
-                // parsing stage
-                for (_, generated_module) in workspace.node_map().iter_modules() {
-                    let tree = AstTreeGenerator.visit_module(generated_module.node_ref()).unwrap();
-
-                    println!(
-                        "Tree for `{}`:\n{}",
-                        adjust_canonicalisation(generated_module.path()),
-                        TreeWriter::new(&tree)
-                    );
-                }
-            }
-        }
-    }
-
-    /// Function to invoke a parsing job of a specified [SourceId].
-    fn parse_source(
+    fn run_stage(
         &mut self,
         entry_point: SourceId,
         workspace: &mut Workspace,
+        index: usize,
     ) -> CompilerResult<()> {
+        let stage = &mut self.stages[index];
+        let stage_kind = stage.stage_kind();
+
         timed(
-            || self.parser.parse(entry_point, workspace, self.pool),
+            || stage.run_stage(entry_point, workspace, self.pool),
             log::Level::Debug,
             |time| {
-                self.metrics.insert(CompilerMode::Parse, time);
+                self.metrics
+                    .entry(stage_kind)
+                    .and_modify(|prev_time| {
+                        *prev_time += time;
+                    })
+                    .or_insert(time);
             },
         )?;
 
-        // Any other stage than `semantic_pass` is valid when `--dump-ast` is specified.
-        if self.settings.stage < CompilerMode::SemanticPass && self.settings.dump_ast {
-            self.print_sources(workspace, entry_point);
-        }
-
-        Ok(())
-    }
-
-    /// De-sugaring stage within the pipeline.
-    fn desugar_sources(
-        &mut self,
-        entry_point: SourceId,
-        workspace: &mut Workspace,
-        desugar_state: &mut D::State,
-    ) -> CompilerResult<()> {
-        timed(
-            || self.desugarer.desugar(entry_point, workspace, desugar_state, self.pool),
-            log::Level::Debug,
-            |time| {
-                self.metrics.insert(CompilerMode::DeSugar, time);
-            },
-        )?;
-
-        // When `dump_ast` is specified, and the stage is not parse, we should emit
-        // the sources after this stage.
-        if self.settings.stage > CompilerMode::Parse && self.settings.dump_ast {
-            self.print_sources(workspace, entry_point);
-        }
-
-        Ok(())
-    }
-
-    /// Semantic pass stage within the pipeline.
-    fn check_source_semantics(
-        &mut self,
-        entry_point: SourceId,
-        workspace: &mut Workspace,
-        semantic_analyser_state: &mut S::State,
-    ) -> Result<(), Vec<Report>> {
-        timed(
-            || {
-                self.semantic_analyser.perform_pass(
-                    entry_point,
-                    workspace,
-                    semantic_analyser_state,
-                    self.pool,
-                )
-            },
-            log::Level::Debug,
-            |time| {
-                self.metrics.insert(CompilerMode::SemanticPass, time);
-            },
-        )?;
-
-        Ok(())
-    }
-
-    /// Function to invoke the typechecking stage for the entry point denoted by
-    /// the passed [SourceId].
-    ///
-    /// This function also expects the [CompilerSettings] for the current pass
-    /// in order to determine if it should output the result from the
-    /// operation. This is only relevant when the [SourceId] is interactive
-    /// as it might be specified that the pipeline output the type of the
-    /// current expression. This directly comes from a user using the `:t`
-    /// mode in the REPL as so:
-    ///
-    /// ```text
-    /// >>> :t foo(3);
-    /// ```
-    fn typecheck_sources(
-        &mut self,
-        entry_point: SourceId,
-        workspace: &mut Workspace,
-        checker_state: &mut C::State,
-    ) -> CompilerResult<()> {
-        match entry_point {
-            SourceId::Interactive(id) => {
-                timed(
-                    || self.checker.check_interactive(id, workspace, checker_state),
-                    log::Level::Debug,
-                    |time| {
-                        self.metrics.insert(CompilerMode::Typecheck, time);
-                    },
-                )?;
-            }
-            SourceId::Module(id) => {
-                timed(
-                    || self.checker.check_module(id, workspace, checker_state),
-                    log::Level::Debug,
-                    |time| {
-                        self.metrics.insert(CompilerMode::Typecheck, time);
-                    },
-                )?;
-            }
-        };
-
-        Ok(())
-    }
-
-    /// Function to invoke the IR Lowering stage for the entry point denoted by
-    /// the passed [SourceId].
-    fn lower_sources(
-        &mut self,
-        entry_point: SourceId,
-        workspace: &mut Workspace,
-        lowering_state: &mut L::State,
-    ) -> CompilerResult<()> {
-        match entry_point {
-            SourceId::Interactive(id) => {
-                timed(
-                    || self.lowerer.lower_interactive_block(id, workspace, lowering_state),
-                    log::Level::Debug,
-                    |time| {
-                        self.metrics.insert(CompilerMode::IrGen, time);
-                    },
-                )?;
-            }
-            SourceId::Module(id) => {
-                timed(
-                    || self.lowerer.lower_module(id, workspace, lowering_state),
-                    log::Level::Debug,
-                    |time| {
-                        self.metrics.insert(CompilerMode::IrGen, time);
-                    },
-                )?;
-            }
-        };
-
+        // run the cleanup function
+        stage.cleanup(entry_point, workspace, &self.settings);
         Ok(())
     }
 
@@ -342,10 +137,8 @@ where
     fn maybe_terminate(
         &self,
         result: CompilerResult<()>,
-        compiler_state: &mut CompilerState<'c, 'pool, D, S, C, L, V>,
-        // @@TODO(feds01): remove this parameter, it would be ideal that this parameter is stored
-        // within the compiler state
-        current_stage: CompilerMode,
+        compiler_state: &mut CompilerState,
+        current_stage: CompilerStageKind,
     ) -> Result<(), ()> {
         if let Err(diagnostics) = result {
             compiler_state.diagnostics.extend(diagnostics.into_iter());
@@ -371,46 +164,22 @@ where
     fn run_pipeline(
         &mut self,
         entry_point: SourceId,
-        compiler_state: &mut CompilerState<'c, 'pool, D, S, C, L, V>,
+        compiler_state: &mut CompilerState,
     ) -> Result<(), ()> {
-        let result = self.parse_source(entry_point, &mut compiler_state.workspace);
-        self.maybe_terminate(result, compiler_state, CompilerMode::Parse)?;
+        for stage in 0..self.stages.len() {
+            let kind = self.stages[stage].stage_kind();
+            let workspace = &mut compiler_state.workspace;
 
-        let result = self.desugar_sources(
-            entry_point,
-            &mut compiler_state.workspace,
-            &mut compiler_state.ds_state,
-        );
-        self.maybe_terminate(result, compiler_state, CompilerMode::DeSugar)?;
-
-        // Now perform the semantic pass on the sources
-        let result = self.check_source_semantics(
-            entry_point,
-            &mut compiler_state.workspace,
-            &mut compiler_state.semantic_analysis_state,
-        );
-        self.maybe_terminate(result, compiler_state, CompilerMode::SemanticPass)?;
-
-        let result = self.typecheck_sources(
-            entry_point,
-            &mut compiler_state.workspace,
-            &mut compiler_state.tc_state,
-        );
-        self.maybe_terminate(result, compiler_state, CompilerMode::Typecheck)?;
-
-        let result = self.lower_sources(
-            entry_point,
-            &mut compiler_state.workspace,
-            &mut compiler_state.lowering_state,
-        );
-        self.maybe_terminate(result, compiler_state, CompilerMode::IrGen)?;
+            let result = self.run_stage(entry_point, workspace, stage);
+            self.maybe_terminate(result, compiler_state, kind)?;
+        }
 
         Ok(())
     }
 
     /// Function to bootstrap the pipeline. This function invokes a job within
     /// the pipeline in order to load the prelude before any modules run.
-    pub fn bootstrap(&mut self) -> CompilerState<'c, 'pool, D, S, C, L, V> {
+    pub fn bootstrap(&mut self) -> CompilerState {
         let mut compiler_state = self.create_state().unwrap();
 
         if !self.settings.skip_prelude {
@@ -441,8 +210,8 @@ where
     pub fn run(
         &mut self,
         entry_point: SourceId,
-        mut compiler_state: CompilerState<'c, 'pool, D, S, C, L, V>,
-    ) -> CompilerState<'c, 'pool, D, S, C, L, V> {
+        mut compiler_state: CompilerState,
+    ) -> CompilerState {
         let result = self.run_pipeline(entry_point, &mut compiler_state);
 
         // we can print the diagnostics here
@@ -463,7 +232,7 @@ where
 
                 eprintln!(
                     "{}",
-                    ReportWriter::new(diagnostic, compiler_state.workspace.source_map())
+                    ReportWriter::new(diagnostic, &compiler_state.workspace.source_map)
                 );
             }
 
@@ -493,8 +262,8 @@ where
         &mut self,
         filename: impl Into<String>,
         kind: ModuleKind,
-        mut compiler_state: CompilerState<'c, 'pool, D, S, C, L, V>,
-    ) -> CompilerState<'c, 'pool, D, S, C, L, V> {
+        mut compiler_state: CompilerState,
+    ) -> CompilerState {
         // First we have to work out if we need to transform the path
         let current_dir = env::current_dir().unwrap();
 
@@ -508,7 +277,7 @@ where
             if self.settings.emit_errors {
                 eprintln!(
                     "{}",
-                    ReportWriter::new(err.create_report(), compiler_state.workspace.source_map())
+                    ReportWriter::new(err.create_report(), &compiler_state.workspace.source_map)
                 );
             }
 
@@ -525,7 +294,7 @@ where
             if self.settings.emit_errors {
                 eprintln!(
                     "{}",
-                    ReportWriter::new(err.create_report(), compiler_state.workspace.source_map())
+                    ReportWriter::new(err.create_report(), &compiler_state.workspace.source_map)
                 );
             }
 

@@ -13,9 +13,9 @@ use crossbeam_channel::{unbounded, Sender};
 use hash_ast::ast::{self};
 use hash_lexer::Lexer;
 use hash_pipeline::{
+    settings::CompilerStageKind,
     sources::{Module, Workspace},
-    traits::Parser,
-    CompilerResult,
+    traits::CompilerStage,
 };
 use hash_reporting::{diagnostic::Diagnostics, report::Report};
 use hash_source::{InteractiveId, ModuleId, ModuleKind, SourceId};
@@ -104,9 +104,9 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
 
 /// Implementation structure for the parser.
 #[derive(Debug, Default)]
-pub struct HashParser;
+pub struct Parser;
 
-impl<'pool> HashParser {
+impl<'pool> Parser {
     /// Create a new [HashParser].
     pub fn new() -> Self {
         Self
@@ -119,7 +119,7 @@ impl<'pool> HashParser {
     /// channel, and other workers set the parsed contents of the modules.
     /// When all message senders go out of scope, the parser finishes executing
     pub fn begin(
-        &mut self,
+        &self,
         entry_point_id: SourceId,
         current_dir: PathBuf,
         workspace: &mut Workspace,
@@ -130,8 +130,12 @@ impl<'pool> HashParser {
 
         assert!(pool.current_num_threads() > 1, "Parser loop requires at least 2 workers");
 
+        let node_map = &mut workspace.node_map;
+        let source_map = &mut workspace.source_map;
+
         // Parse the entry point
-        let entry_source_kind = ParseSource::from_source(entry_point_id, workspace, current_dir);
+        let entry_source_kind =
+            ParseSource::from_source(entry_point_id, node_map, source_map, current_dir);
         parse_source(entry_source_kind, sender);
 
         pool.scope(|scope| {
@@ -140,28 +144,28 @@ impl<'pool> HashParser {
                     ParserAction::SetInteractiveNode { interactive_id, node, diagnostics } => {
                         collected_diagnostics.extend(diagnostics);
 
-                        workspace
-                            .node_map_mut()
-                            .get_interactive_block_mut(interactive_id)
-                            .set_node(node);
+                        node_map.get_interactive_block_mut(interactive_id).set_node(node);
                     }
                     ParserAction::SetModuleNode { module_id, node, diagnostics } => {
                         collected_diagnostics.extend(diagnostics);
 
-                        workspace.node_map_mut().get_module_mut(module_id).set_node(node);
+                        node_map.get_module_mut(module_id).set_node(node);
                     }
                     ParserAction::ParseImport { resolved_path, contents, sender } => {
-                        if workspace.get_module_id_by_path(&resolved_path).is_some() {
+                        if source_map.get_module_id_by_path(&resolved_path).is_some() {
                             continue;
                         }
 
-                        let module_id = workspace.add_module(
+                        let module_id = source_map.add_module(
+                            resolved_path.clone(),
                             contents,
-                            Module::new(resolved_path.clone()),
                             ModuleKind::Normal,
                         );
 
-                        let source = ParseSource::from_module(module_id, workspace);
+                        let module = Module::new(resolved_path);
+                        node_map.add_module(module_id, module);
+
+                        let source = ParseSource::from_module(module_id, node_map, source_map);
                         scope.spawn(move |_| parse_source(source, sender));
                     }
                     ParserAction::Error(err) => {
@@ -175,22 +179,38 @@ impl<'pool> HashParser {
     }
 }
 
-impl<'pool> Parser<'pool> for HashParser {
+impl<'pool> CompilerStage<'pool> for Parser {
+    fn stage_kind(&self) -> CompilerStageKind {
+        CompilerStageKind::Parse
+    }
+
     /// Entry point of the parser. Initialises a job from the specified
     /// `entry_point`, and calls [HashParser::begin].
-    fn parse(
+    fn run_stage(
         &mut self,
-        target: SourceId,
+        entry_point: SourceId,
         workspace: &mut Workspace,
         pool: &'pool rayon::ThreadPool,
-    ) -> CompilerResult<()> {
+    ) -> hash_pipeline::traits::CompilerResult<()> {
         let current_dir = env::current_dir().map_err(|err| vec![err.into()])?;
 
-        let errors = self.begin(target, current_dir, workspace, pool);
+        let errors = self.begin(entry_point, current_dir, workspace, pool);
         if errors.is_empty() {
             Ok(())
         } else {
             Err(errors)
+        }
+    }
+
+    fn cleanup(
+        &self,
+        entry_point: SourceId,
+        workspace: &mut Workspace,
+        settings: &hash_pipeline::settings::CompilerSettings,
+    ) {
+        // Any other stage than `semantic_pass` is valid when `--dump-ast` is specified.
+        if settings.stage < CompilerStageKind::SemanticPass && settings.dump_ast {
+            workspace.print_sources(entry_point);
         }
     }
 }

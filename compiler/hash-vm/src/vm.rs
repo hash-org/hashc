@@ -2,8 +2,9 @@
 
 use std::cell::Cell;
 
-use hash_pipeline::traits::VirtualMachine;
+use hash_pipeline::{settings::CompilerStageKind, sources::Workspace, traits::CompilerStage};
 use hash_reporting::report::Report;
+use hash_source::SourceId;
 
 use crate::{
     bytecode::Instruction,
@@ -885,14 +886,17 @@ impl Interpreter {
     }
 }
 
-impl VirtualMachine<'_> for Interpreter {
-    type State = ();
-
-    fn make_state(&mut self) -> hash_pipeline::CompilerResult<Self::State> {
-        Ok(())
+impl<'pool> CompilerStage<'pool> for Interpreter {
+    fn run_stage(
+        &mut self,
+        _entry_point: SourceId,
+        _workspace: &mut Workspace,
+        _pool: &'pool rayon::ThreadPool,
+    ) -> hash_pipeline::traits::CompilerResult<()> {
+        self.run().map_err(|err| vec![Report::from(err)])
     }
 
-    fn run(&mut self, _state: &mut Self::State) -> hash_pipeline::CompilerResult<()> {
-        self.run().map_err(|err| vec![Report::from(err)])
+    fn stage_kind(&self) -> CompilerStageKind {
+        CompilerStageKind::Full
     }
 }

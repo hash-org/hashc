@@ -3,10 +3,8 @@
 //! that later stages can work on it without having to operate on similar
 //! constructs and duplicating logic.
 
-use std::collections::HashSet;
-
 use hash_ast::{ast::OwnsAstNode, visitor::AstVisitorMut};
-use hash_pipeline::{sources::Workspace, traits::Desugar, CompilerResult};
+use hash_pipeline::{settings::CompilerStageKind, sources::Workspace, traits::CompilerStage};
 use hash_source::SourceId;
 use visitor::AstDesugaring;
 
@@ -15,11 +13,9 @@ mod visitor;
 
 pub struct AstDesugarer;
 
-impl<'pool> Desugar<'pool> for AstDesugarer {
-    type State = HashSet<SourceId>;
-
-    fn make_state(&mut self) -> CompilerResult<Self::State> {
-        Ok(HashSet::default())
+impl<'pool> CompilerStage<'pool> for AstDesugarer {
+    fn stage_kind(&self) -> CompilerStageKind {
+        CompilerStageKind::DeSugar
     }
 
     /// This function is used to lower all of the AST that is present within
@@ -43,19 +39,20 @@ impl<'pool> Desugar<'pool> for AstDesugarer {
     /// This function utilised the pipeline thread pool in order to make the
     /// transformations as parallel as possible. There is a queue that is
     /// queues all of the expressions within each [hash_ast::ast::Module].
-    fn desugar(
+    fn run_stage(
         &mut self,
         entry_point: SourceId,
         workspace: &mut Workspace,
-        state: &mut Self::State,
         pool: &'pool rayon::ThreadPool,
     ) -> hash_pipeline::traits::CompilerResult<()> {
+        let desugared_modules = &mut workspace.desugared_modules;
+        let node_map = &mut workspace.node_map;
+
         pool.scope(|scope| {
             let source_map = &workspace.source_map;
-            let node_map = &mut workspace.node_map;
 
             // De-sugar the target if it isn't already de-sugared
-            if !state.contains(&entry_point) {
+            if !desugared_modules.contains(&entry_point) {
                 if let SourceId::Interactive(id) = entry_point {
                     let source = node_map.get_interactive_block_mut(id);
                     let mut desugarer = AstDesugaring::new(source_map, entry_point);
@@ -68,7 +65,7 @@ impl<'pool> Desugar<'pool> for AstDesugarer {
             // to the queue so it can be distributed over the threads
             for (id, module) in node_map.iter_mut_modules() {
                 // Skip any modules that have already been de-sugared
-                if state.contains(&SourceId::Module(*id)) {
+                if desugared_modules.contains(&SourceId::Module(*id)) {
                     continue;
                 }
 
@@ -90,9 +87,20 @@ impl<'pool> Desugar<'pool> for AstDesugarer {
         });
 
         // Add all of the ids into the cache
-        state.insert(entry_point);
-        state.extend(workspace.node_map().iter_modules().map(|(id, _)| SourceId::Module(*id)));
+        desugared_modules.insert(entry_point);
+        desugared_modules.extend(node_map.iter_modules().map(|(id, _)| SourceId::Module(*id)));
 
         Ok(())
+    }
+
+    fn cleanup(
+        &self,
+        entry_point: SourceId,
+        workspace: &mut Workspace,
+        settings: &hash_pipeline::settings::CompilerSettings,
+    ) {
+        if settings.stage > CompilerStageKind::Parse && settings.dump_ast {
+            workspace.print_sources(entry_point);
+        }
     }
 }

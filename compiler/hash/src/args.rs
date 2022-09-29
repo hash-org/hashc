@@ -1,7 +1,7 @@
 //! Hash Compiler arguments management.
 
 use clap::Parser as ClapParser;
-use hash_pipeline::settings::{CompilerMode, CompilerSettings};
+use hash_pipeline::settings::{CompilerSettings, CompilerStageKind};
 
 /// CompilerOptions is a structural representation of what arguments the
 /// compiler can take when running. Compiler options are well documented on the
@@ -52,12 +52,12 @@ pub(crate) struct CompilerOptions {
 impl From<CompilerOptions> for CompilerSettings {
     fn from(options: CompilerOptions) -> Self {
         let stage = match options.mode {
-            Some(SubCmd::AstGen { .. }) => CompilerMode::Parse,
-            Some(SubCmd::DeSugar { .. }) => CompilerMode::DeSugar,
+            Some(SubCmd::AstGen { .. }) => CompilerStageKind::Parse,
+            Some(SubCmd::DeSugar { .. }) => CompilerStageKind::DeSugar,
 
-            Some(SubCmd::Check { .. }) => CompilerMode::Typecheck,
-            Some(SubCmd::IrGen { .. }) => CompilerMode::IrGen,
-            _ => CompilerMode::Full,
+            Some(SubCmd::Check { .. }) => CompilerStageKind::Typecheck,
+            Some(SubCmd::IrGen { .. }) => CompilerStageKind::IrGen,
+            _ => CompilerStageKind::Full,
         };
 
         Self {

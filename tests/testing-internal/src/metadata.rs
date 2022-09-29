@@ -8,7 +8,7 @@ use std::{
     path::PathBuf,
 };
 
-use hash_pipeline::settings::CompilerMode;
+use hash_pipeline::settings::CompilerStageKind;
 use itertools::{peek_nth, Itertools};
 use quote::{quote, ToTokens};
 
@@ -85,7 +85,7 @@ impl ToTokens for HandleWarnings {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct TestMetadata {
     /// The compiler stage should the test reach before stopping.
-    pub stage: CompilerMode,
+    pub stage: CompilerStageKind,
     /// How should the test complete, pass or fail.
     pub completion: TestResult,
     /// If the test should ignore any emitted warnings.
@@ -108,7 +108,7 @@ impl ToTokens for TestMetadata {
 
         // Convert the stage into the `tokenised` stage...
         let stage: quote::__private::TokenStream =
-            format!("CompilerMode::{:?}", stage).parse().unwrap();
+            format!("CompilerStageKind::{:?}", stage).parse().unwrap();
 
         tokens.extend(
             quote! ( TestMetadata { completion: #completion, stage: #stage, warnings: #warnings  }),
@@ -119,7 +119,7 @@ impl ToTokens for TestMetadata {
 #[derive(Debug, Default)]
 pub struct TestMetadataBuilder {
     /// Stage that the test should run to
-    stage: Option<CompilerMode>,
+    stage: Option<CompilerStageKind>,
 
     /// Whether the test is expected to pass or fail.
     completion: Option<TestResult>,
@@ -135,7 +135,7 @@ impl TestMetadataBuilder {
     }
 
     /// Add a stage value to the test.
-    pub fn with_stage(&mut self, stage: CompilerMode) -> &mut Self {
+    pub fn with_stage(&mut self, stage: CompilerStageKind) -> &mut Self {
         self.stage = Some(stage);
         self
     }
@@ -207,7 +207,7 @@ pub struct ParsedMetadata {
 /// ```
 /// From the above example, this function will produce a [TestMetadata] that
 /// specifies that this test should `pass` and should only run up until the
-/// [CompilerMode::Parse].
+/// [CompilerStageKind::Parse].
 pub fn parse_test_case_metadata(path: &PathBuf) -> Result<ParsedMetadata, io::Error> {
     let mut source = String::new();
 
@@ -261,15 +261,15 @@ pub fn parse_test_case_metadata(path: &PathBuf) -> Result<ParsedMetadata, io::Er
                 }
                 "stage" => {
                     let stage = match value.as_str() {
-                        "parse" => CompilerMode::Parse,
-                        "semantic" => CompilerMode::SemanticPass,
-                        "typecheck" => CompilerMode::Typecheck,
-                        "ir" => CompilerMode::IrGen,
-                        "full" => CompilerMode::Full,
+                        "parse" => CompilerStageKind::Parse,
+                        "semantic" => CompilerStageKind::SemanticPass,
+                        "typecheck" => CompilerStageKind::Typecheck,
+                        "ir" => CompilerStageKind::IrGen,
+                        "full" => CompilerStageKind::Full,
                         // We always default to `full` here
                         _ => {
                             warnings.push(ParseWarning::new_unrecognised_value(key, value));
-                            CompilerMode::Full
+                            CompilerStageKind::Full
                         }
                     };
 

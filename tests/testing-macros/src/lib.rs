@@ -234,7 +234,7 @@ pub fn generate_tests(input: TokenStream) -> TokenStream {
             #[test]
             fn #test_names() {
                 use hash_testing_internal::metadata::TestMetadata;
-                use hash_pipeline::settings::CompilerMode;
+                use hash_pipeline::settings::CompilerStageKind;
 
                 #test_func(TestingInput {
                     path: #paths.into(),

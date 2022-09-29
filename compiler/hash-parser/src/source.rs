@@ -3,8 +3,8 @@
 
 use std::{borrow::Cow, path::PathBuf};
 
-use hash_pipeline::sources::Workspace;
-use hash_source::{InteractiveId, ModuleId, SourceId};
+use hash_pipeline::sources::NodeMap;
+use hash_source::{InteractiveId, ModuleId, SourceId, SourceMap};
 
 /// A [ParseSource] represents the pre-processed information before a module
 /// or an interactive block gets lexed and parsed. Logic related to
@@ -22,10 +22,9 @@ pub struct ParseSource {
 
 impl ParseSource {
     /// Create a new [ParseSource] from a [ModuleId].
-    pub fn from_module(module_id: ModuleId, workspace: &Workspace) -> Self {
-        let module = workspace.node_map().get_module(module_id);
-        let contents =
-            workspace.source_map().contents_by_id(SourceId::Module(module_id)).to_owned();
+    pub fn from_module(module_id: ModuleId, node_map: &NodeMap, source_map: &SourceMap) -> Self {
+        let module = node_map.get_module(module_id);
+        let contents = source_map.contents_by_id(SourceId::Module(module_id)).to_owned();
 
         Self {
             id: SourceId::Module(module_id),
@@ -36,22 +35,26 @@ impl ParseSource {
     /// Create a new [ParseSource] from a [InteractiveId].
     pub fn from_interactive(
         interactive_id: InteractiveId,
-        workspace: &Workspace,
+        source_map: &SourceMap,
         current_dir: PathBuf,
     ) -> Self {
-        let contents =
-            workspace.source_map().contents_by_id(SourceId::Interactive(interactive_id)).to_owned();
+        let contents = source_map.contents_by_id(SourceId::Interactive(interactive_id)).to_owned();
 
         Self { id: SourceId::Interactive(interactive_id), contents, path: current_dir }
     }
 
     /// Create a [ParseSource] from a general [SourceId]
-    pub fn from_source(source_id: SourceId, workspace: &Workspace, current_dir: PathBuf) -> Self {
+    pub fn from_source(
+        source_id: SourceId,
+        node_map: &NodeMap,
+        source_map: &SourceMap,
+        current_dir: PathBuf,
+    ) -> Self {
         match source_id {
             SourceId::Interactive(interactive_id) => {
-                Self::from_interactive(interactive_id, workspace, current_dir)
+                Self::from_interactive(interactive_id, source_map, current_dir)
             }
-            SourceId::Module(module_id) => Self::from_module(module_id, workspace),
+            SourceId::Module(module_id) => Self::from_module(module_id, node_map, source_map),
         }
     }
 

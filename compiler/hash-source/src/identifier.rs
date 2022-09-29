@@ -163,7 +163,6 @@ core_idents! {
     ibig("ibig"),
     Index("index"),
     index("Index"),
-    intrinsics("intrinsics"),
     isize("isize"),
     K("K"),
     List("List"),
@@ -224,4 +223,9 @@ core_idents! {
     V("V"),
     value("value"),
     void("void"),
+
+    // Directives that are pre-defined within the language.
+    dump_ast("dump_ast"),
+    dump_ir("dump_ast"),
+    intrinsics("intrinsics"),
 }

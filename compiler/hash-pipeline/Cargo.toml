@@ -12,6 +12,7 @@ rayon = "1.5.0"
 num_cpus = "1.13.0"
 
 hash-ast = { path = "../hash-ast" }
+hash-types = { path = "../hash-types" }
 hash-utils = { path = "../hash-utils" }
 hash-source = { path = "../hash-source" }
 hash-reporting = { path = "../hash-reporting" }

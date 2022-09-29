@@ -450,6 +450,7 @@ dependencies = [
  "hash-source",
  "hash-types",
  "index_vec",
+ "rayon",
 ]
 
 [[package]]
@@ -479,6 +480,7 @@ dependencies = [
  "hash-ast",
  "hash-reporting",
  "hash-source",
+ "hash-types",
  "hash-utils",
  "log",
  "num_cpus",
@@ -600,6 +602,7 @@ dependencies = [
  "itertools",
  "log",
  "num-bigint",
+ "rayon",
  "slotmap",
  "smallvec",
 ]
@@ -645,7 +648,9 @@ dependencies = [
  "hash-ast",
  "hash-pipeline",
  "hash-reporting",
+ "hash-source",
  "hash-utils",
+ "rayon",
 ]
 
 [[package]]

@@ -28,8 +28,10 @@ use std::{fs, io};
 
 use hash_ast_desugaring::AstDesugarer;
 use hash_lower::IrLowerer;
-use hash_parser::HashParser;
-use hash_pipeline::{settings::CompilerSettings, sources::Workspace, Compiler};
+use hash_parser::Parser;
+use hash_pipeline::{
+    settings::CompilerSettings, sources::Workspace, traits::CompilerStage, Compiler,
+};
 use hash_reporting::{report::Report, writer::ReportWriter};
 use hash_source::ModuleKind;
 use hash_testing_internal::{
@@ -37,12 +39,14 @@ use hash_testing_internal::{
     TestingInput,
 };
 use hash_testing_macros::generate_tests;
-use hash_typecheck::TcImpl;
-use hash_untyped_semantics::HashSemanticAnalysis;
+use hash_typecheck::Typechecker;
+use hash_untyped_semantics::SemanticAnalysis;
 use hash_vm::vm::Interpreter;
 use regex::Regex;
 
 use crate::{ANSI_REGEX, REGENERATE_OUTPUT};
+
+const WORKER_COUNT: usize = 2;
 
 /// Given the testing input, and a pre-filtered [Vec<Report>] based on
 /// the testing input parameters, render the reports and compare them
@@ -56,7 +60,7 @@ fn compare_emitted_diagnostics(
 ) -> std::io::Result<()> {
     let contents = diagnostics
         .into_iter()
-        .map(|report| format!("{}", ReportWriter::new(report, sources.source_map())))
+        .map(|report| format!("{}", ReportWriter::new(report, &sources.source_map)))
         .collect::<Vec<_>>()
         .join("\n");
 
@@ -177,7 +181,7 @@ fn handle_pass_case(
             "\ntest case did not pass:\n{}",
             diagnostics
                 .into_iter()
-                .map(|report| format!("{}", ReportWriter::new(report, sources.source_map())))
+                .map(|report| format!("{}", ReportWriter::new(report, &sources.source_map)))
                 .collect::<Vec<_>>()
                 .join("\n")
         );
@@ -193,18 +197,7 @@ fn handle_pass_case(
 
 /// Generic test handler in the event whether a case should pass or fail.
 fn handle_test(input: TestingInput) {
-    // Initialise the compiler pipeline
-    let parser = HashParser::new();
-    let desugarer = AstDesugarer;
-    let semantic_analyser = HashSemanticAnalysis;
-    let checker = TcImpl;
-    let lowerer = IrLowerer;
-
-    // Create the vm
-    let vm = Interpreter::new();
-
-    let worker_count = 2;
-    let mut compiler_settings = CompilerSettings::new(worker_count);
+    let mut compiler_settings = CompilerSettings::new(WORKER_COUNT);
     compiler_settings.set_skip_prelude(true);
     compiler_settings.set_emit_errors(false);
     compiler_settings.set_stage(input.metadata.stage);
@@ -213,21 +206,21 @@ fn handle_test(input: TestingInput) {
     // queue can run within a worker and any other jobs can run inside another
     // worker or workers.
     let pool = rayon::ThreadPoolBuilder::new()
-        .num_threads(worker_count)
+        .num_threads(WORKER_COUNT)
         .thread_name(|id| format!("compiler-worker-{}", id))
         .build()
         .unwrap();
 
-    let mut compiler = Compiler::new(
-        parser,
-        desugarer,
-        semantic_analyser,
-        checker,
-        lowerer,
-        vm,
-        &pool,
-        compiler_settings,
-    );
+    let compiler_stages: Vec<Box<dyn CompilerStage>> = vec![
+        Box::new(Parser::new()),
+        Box::new(AstDesugarer),
+        Box::new(SemanticAnalysis),
+        Box::new(Typechecker::new()),
+        Box::new(IrLowerer),
+        Box::new(Interpreter::new()),
+    ];
+
+    let mut compiler = Compiler::new(compiler_stages, &pool, compiler_settings);
     let mut compiler_state = compiler.bootstrap();
 
     // // Now parse the module and store the result

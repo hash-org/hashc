@@ -6,6 +6,7 @@ edition = "2021"
 
 [dependencies]
 index_vec = "0.1.3"
+rayon = "1.5.0"
 
 hash-ir = {path = "../hash-ir" }
 hash-ast = {path = "../hash-ast" }

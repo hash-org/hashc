@@ -8,8 +8,14 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use hash_ast::ast;
+use hash_ast::{
+    ast,
+    ast::{AstVisitor, OwnsAstNode},
+    tree::AstTreeGenerator,
+};
 use hash_source::{InteractiveId, ModuleId, ModuleKind, SourceId, SourceMap};
+use hash_types::storage::{GlobalStorage, LocalStorage};
+use hash_utils::{path::adjust_canonicalisation, tree_writing::TreeWriter};
 
 /// Data structure which holds information and compiler stage results for a
 /// particular interactive block. Currently, this only stores the generated
@@ -182,11 +188,24 @@ impl NodeMap {
     }
 }
 
+/// Storage that is used by stages that need to access type information about
+/// modules in the current workspace.
+#[derive(Debug)]
+pub struct TyStorage {
+    /// Storage that is used by the typechecker to resolve local items
+    /// within certain contexts.
+    pub local: LocalStorage,
+
+    /// Persistent storage of all data structures that is emitted by the
+    /// typechecking stage, and possibly further stages.
+    pub global: GlobalStorage,
+}
+
 /// Data structure representing the current pipeline workflow. The [Workspace]
 /// contains produced data and metadata from all the various stages within the
 /// compiler. The [Workspace] represents a shared work space for stages to
 /// access information about the current job.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Workspace {
     /// Dependency map between sources and modules.
     dependencies: HashMap<SourceId, HashSet<ModuleId>>,
@@ -195,15 +214,35 @@ pub struct Workspace {
     pub source_map: SourceMap,
     /// Stores all of the generated AST for modules and nodes
     pub node_map: NodeMap,
+
+    pub desugared_modules: HashSet<SourceId>,
+
+    /// Modules that have already been semantically checked. This is needed in
+    /// order to avoid re-checking modules on re-evaluations of a workspace.
+    pub semantically_checked_modules: HashSet<SourceId>,
+
+    pub ty_storage: TyStorage,
+}
+
+impl Default for Workspace {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Workspace {
     /// Create a new [Workspace], initialising all members to be empty.
     pub fn new() -> Self {
+        let global = GlobalStorage::new();
+        let local = LocalStorage::new(&global, SourceId::default());
+
         Self {
+            ty_storage: TyStorage { global, local },
             node_map: NodeMap::new(),
             source_map: SourceMap::new(),
             dependencies: HashMap::new(),
+            desugared_modules: HashSet::new(),
+            semantically_checked_modules: HashSet::new(),
         }
     }
 
@@ -242,18 +281,31 @@ impl Workspace {
         self.dependencies.entry(source_id).or_insert_with(HashSet::new).insert(dependency);
     }
 
-    /// Get a reference to [SourceMap]
-    pub fn source_map(&self) -> &SourceMap {
-        &self.source_map
-    }
+    /// Utility function used by AST-like stages in order to print the
+    /// current [self::sources::NodeMap].
+    pub fn print_sources(&self, entry_point: SourceId) {
+        match entry_point {
+            SourceId::Interactive(id) => {
+                // If this is an interactive statement, we want to print the statement that was
+                // just parsed.
+                let source = self.node_map.get_interactive_block(id);
+                let tree = AstTreeGenerator.visit_body_block(source.node_ref()).unwrap();
 
-    /// Get a reference to [NodeMap]
-    pub fn node_map(&self) -> &NodeMap {
-        &self.node_map
-    }
+                println!("{}", TreeWriter::new(&tree));
+            }
+            SourceId::Module(_) => {
+                // If this is a module, we want to print all of the generated modules from the
+                // parsing stage
+                for (_, generated_module) in self.node_map.iter_modules() {
+                    let tree = AstTreeGenerator.visit_module(generated_module.node_ref()).unwrap();
 
-    /// Get a mutable reference to [NodeMap]
-    pub fn node_map_mut(&mut self) -> &mut NodeMap {
-        &mut self.node_map
+                    println!(
+                        "Tree for `{}`:\n{}",
+                        adjust_canonicalisation(generated_module.path()),
+                        TreeWriter::new(&tree)
+                    );
+                }
+            }
+        }
     }
 }
