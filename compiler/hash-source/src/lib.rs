@@ -100,6 +100,16 @@ impl SourceMap {
         }
     }
 
+    /// Get a canonicalised version of a [Path] for a [SourceId]. If it is
+    /// interactive, the path is always set as `<interactive>`. The function
+    /// automatically converts the value into a string.
+    pub fn canonicalised_path_by_id(&self, source_id: SourceId) -> String {
+        match source_id {
+            SourceId::Interactive(_) => String::from("<interactive>"),
+            SourceId::Module(_) => adjust_canonicalisation(self.path_by_id(source_id)),
+        }
+    }
+
     /// Get the name of a [SourceId] by extracting the path and further
     /// retrieving the stem of the filename as the name of the module. This
     /// function adheres to the rules of module naming conventions which are

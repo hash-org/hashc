@@ -405,12 +405,7 @@ impl ReportCodeBlock {
             highlight(Colour::Blue, "-->"),
             highlight(
                 Modifier::Underline,
-                format!(
-                    "{}:{}:{}",
-                    adjust_canonicalisation(modules.path_by_id(source_id)),
-                    start_row + 1,
-                    start_col + 1,
-                )
+                format!("{}:{}", source_map.canonicalised_path_by_id(source_id), span.start)
             )
         )?;
 

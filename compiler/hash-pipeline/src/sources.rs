@@ -78,6 +78,11 @@ impl Module {
         &self.path
     }
 
+    /// Get the canonicalised `path` from the [Module].
+    pub fn canonicalised_path(&self) -> String {
+        adjust_canonicalisation(self.path())
+    }
+
     /// Set the `node` for given [Module]
     pub fn set_node(&mut self, node: ast::AstNode<ast::Module>) {
         self.node = Some(node);
@@ -215,6 +220,12 @@ pub struct Workspace {
     /// Stores all of the generated AST for modules and nodes
     pub node_map: NodeMap,
 
+    /// Sources that have passed from the `expansion` stage of the compiler.
+    /// @@Todo: Use bit-flags to represent which module has been
+    /// expanded/desugared/semantically checked/type checked.
+    pub expanded_sources: HashSet<SourceId>,
+
+    /// Sources that have passed from the `desugaring` stage of the compiler.
     pub desugared_modules: HashSet<SourceId>,
 
     /// Modules that have already been semantically checked. This is needed in
@@ -240,6 +251,7 @@ impl Workspace {
             ty_storage: TyStorage { global, local },
             node_map: NodeMap::new(),
             source_map: SourceMap::new(),
+            expanded_sources: HashSet::new(),
             dependencies: HashMap::new(),
             desugared_modules: HashSet::new(),
             semantically_checked_modules: HashSet::new(),
@@ -300,8 +312,8 @@ impl Workspace {
                     let tree = AstTreeGenerator.visit_module(generated_module.node_ref()).unwrap();
 
                     println!(
-                        "Tree for `{}`:\n{}",
-                        adjust_canonicalisation(generated_module.path()),
+                        "AST for `{}`:\n{}",
+                        generated_module.canonicalised_path(),
                         TreeWriter::new(&tree)
                     );
                 }
