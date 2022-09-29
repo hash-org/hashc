@@ -3,7 +3,7 @@ warn: `erase` is not a known directive
 2 |   
 3 |   Bar := #erase trait<T> {
   |           ^^^^^ 
-4 |       into_bar: (T) -> Self;
+4 |       into_bar: (T) -> Self
   = note: unknown directives are currently 'invisible' to the compiler and are treated as if they were just the inner expression. However, in the future this will become a hard error.
 
 warn: `memoise` is not a known directive
@@ -11,5 +11,5 @@ warn: `memoise` is not a known directive
 7 |   
 8 |   Bar := #memoise () -> u32 => {
   |           ^^^^^^^ 
-9 |       into_bar: (T) -> Self;
+9 |       into_bar: (T) -> Self
   = note: unknown directives are currently 'invisible' to the compiler and are treated as if they were just the inner expression. However, in the future this will become a hard error.

@@ -1,12 +1,12 @@
 // run=pass, stage=semantic
 
 Bar := #erase trait<T> {
-    into_bar: (T) -> Self;
+    into_bar: (T) -> Self
 }
 
 
 Bar := #memoise () -> u32 => {
-    into_bar: (T) -> Self;
+    into_bar: (T) -> Self
 }
 
 main := () => {
