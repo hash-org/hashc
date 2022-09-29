@@ -177,7 +177,12 @@ pub fn compute_row_col_from_offset(offset: usize, source: &str, non_inclusive: b
 
     let mut line_index = None;
     for (line_idx, line) in source_lines.enumerate() {
-        // One byte for the newline
+        // @@Future: rather than *assuming* that the newline will always be a single
+        // byte, we should perform a `normalisation` operation when the source
+        // file is first read, so that we can deal with any line ending
+        // regardless of the current environment.
+        //
+        // Add a single byte for the `\n`...
         let skip_width = line.len() + 1;
 
         // Here, we don't want an inclusive range because we don't want to get the last
