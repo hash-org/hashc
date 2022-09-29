@@ -1,5 +1,8 @@
 //! Hash Compiler source locations utilities and definitions.
-use std::{convert::TryInto, fmt};
+use std::{
+    convert::TryInto,
+    fmt::{self, Display},
+};
 
 use derive_more::Constructor;
 
@@ -103,5 +106,119 @@ impl SourceLocation {
         assert!(self.id == other.id);
 
         Self { id: self.id, span: self.span.join(other.span) }
+    }
+}
+
+/// Represents a position within a source using a `row` and `column`  
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub struct RowCol {
+    /// The row number, indexing starts from `0`, but when printed, one is
+    /// always added as most editors display rows beginning from `1`.
+    pub row: usize,
+    /// The column number, indexing starts from `0`, but when printed, one is
+    /// always added as most editors display rows beginning from `1`.
+    pub column: usize,
+}
+
+impl Display for RowCol {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}:{}", self.row + 1, self.column + 1)
+    }
+}
+
+/// [RowColSpan] is a data structure that is equivalent to [Span] but uses rows
+/// and columns to denote offsets within the source file. [RowColSpan] is only
+/// re-used when specific line numbers need to be reported, this shouldn't be
+/// used for general purpose storage of positions of source items.
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub struct RowColSpan {
+    /// The starting position of the [RowColSpan].
+    pub start: RowCol,
+    /// The end position of the [RowColSpan].
+    pub end: RowCol,
+}
+
+impl RowColSpan {
+    /// Create a new [RowColSpan] from a `start` and `end`.
+    pub fn new(start: RowCol, end: RowCol) -> Self {
+        Self { start, end }
+    }
+
+    /// Get the associated rows with the start and end of the [RowColSpan].
+    pub fn rows(&self) -> (usize, usize) {
+        (self.start.row, self.end.row)
+    }
+
+    pub fn columns(&self) -> (usize, usize) {
+        (self.start.column, self.end.column)
+    }
+}
+
+impl Display for RowColSpan {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.start == self.end {
+            write!(f, "{}", self.start)
+        } else {
+            write!(f, "{}-{}", self.start, self.end)
+        }
+    }
+}
+
+/// Function to compute a row and column number from a given source string
+/// and an offset within the source. This will take into account the number
+/// of encountered newlines and characters per line in order to compute
+/// precise row and column numbers of the span.
+pub fn compute_row_col_from_offset(offset: usize, source: &str, non_inclusive: bool) -> RowCol {
+    let source_lines = source.split('\n');
+
+    let mut bytes_skipped = 0;
+    let mut total_lines: usize = 0;
+    let mut last_line_len = 0;
+
+    let mut line_index = None;
+    for (line_idx, line) in source_lines.enumerate() {
+        // One byte for the newline
+        let skip_width = line.len() + 1;
+
+        // Here, we don't want an inclusive range because we don't want to get the last
+        // byte because that will always point to the newline character and this
+        // isn't necessary to be included when selecting a span for printing.
+        let range = if non_inclusive {
+            bytes_skipped..bytes_skipped + skip_width
+        } else {
+            bytes_skipped..bytes_skipped + skip_width + 1
+        };
+
+        if range.contains(&offset) {
+            line_index = Some(RowCol { column: offset - bytes_skipped, row: line_idx });
+            break;
+        }
+
+        bytes_skipped += skip_width;
+        total_lines += 1;
+        last_line_len = line.len();
+    }
+
+    line_index.unwrap_or(RowCol {
+        column: last_line_len.saturating_sub(1),
+        row: total_lines.saturating_sub(1),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn offset_test() {
+        let contents = "Hello, world!\nGoodbye, world, it has been fun.";
+
+        let RowCol { column, row } =
+            compute_row_col_from_offset(contents.len() - 1, contents, false);
+        assert_eq!((column, row), (31, 1));
+
+        let RowCol { column, row } =
+            compute_row_col_from_offset(contents.len() + 3, contents, false);
+        assert_eq!((column, row), (31, 1));
     }
 }

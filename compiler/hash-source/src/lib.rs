@@ -7,6 +7,8 @@ use std::{
 };
 
 use bimap::BiMap;
+use hash_utils::path::adjust_canonicalisation;
+use location::{compute_row_col_from_offset, RowColSpan, SourceLocation};
 use slotmap::{new_key_type, Key, SlotMap};
 
 pub mod constant;
@@ -176,5 +178,16 @@ impl SourceMap {
     /// Add an interactive block to the [SourceMap]
     pub fn add_interactive_block(&mut self, contents: String) -> InteractiveId {
         self.interactive_content_map.insert(contents)
+    }
+
+    /// Function to get a friendly representation of the [SourceLocation] in
+    /// terms of row and column positions.
+    pub fn get_column_row_span_for(&self, location: SourceLocation) -> RowColSpan {
+        let source = self.contents_by_id(location.id);
+
+        let start = compute_row_col_from_offset(location.span.start(), source, true);
+        let end = compute_row_col_from_offset(location.span.end(), source, false);
+
+        RowColSpan { start, end }
     }
 }
