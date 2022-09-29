@@ -2,7 +2,7 @@
 use std::{cell::Cell, convert::Infallible, fmt, io};
 
 use hash_error_codes::error_codes::HashErrorCode;
-use hash_source::location::SourceLocation;
+use hash_source::location::{RowColSpan, SourceLocation};
 
 use crate::{
     builder::ReportBuilder,
@@ -15,14 +15,9 @@ use crate::{
 pub struct ReportCodeBlockInfo {
     /// How many characters should be used for line numbers on the side.
     pub indent_width: usize,
-    /// The beginning column of the code block.
-    pub start_col: usize,
-    /// The beginning row of the code block.
-    pub start_row: usize,
-    /// The end column of the code block.
-    pub end_col: usize,
-    /// The end row of the code block.
-    pub end_row: usize,
+
+    /// The span of the code block but using row and column indices.
+    pub span: RowColSpan,
 }
 
 /// Enumeration describing the kind of [Report]; either being a warning, info or

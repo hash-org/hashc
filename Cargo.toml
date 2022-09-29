@@ -2,6 +2,7 @@
 members = [
   "compiler/hash-alloc",
   "compiler/hash-ast-desugaring",
+  "compiler/hash-ast-expand",
   "compiler/hash-ast",
   "compiler/hash-error-codes",
   "compiler/hash-interactive",

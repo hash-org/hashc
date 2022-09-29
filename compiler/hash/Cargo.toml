@@ -26,6 +26,7 @@ hash-tree-def = { path = "../hash-tree-def" }
 # Various stages that the pipeline interfaces with...
 hash-parser = { path = "../hash-parser" }
 hash-ast-desugaring = { path = "../hash-ast-desugaring" }
+hash-ast-expand = { path = "../hash-ast-expand" }
 hash-untyped-semantics = { path = "../hash-untyped-semantics" }
 hash-typecheck = { path = "../hash-typecheck" }
 hash-lower = { path = "../hash-lower" }

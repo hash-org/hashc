@@ -13,8 +13,10 @@ use std::{
     iter::{once, repeat},
 };
 
-use hash_source::{location::SourceLocation, SourceMap};
-use hash_utils::path::adjust_canonicalisation;
+use hash_source::{
+    location::{compute_row_col_from_offset, RowCol, RowColSpan, SourceLocation},
+    SourceMap,
+};
 
 use crate::{
     highlight::{highlight, Colour, Modifier},
@@ -33,56 +35,6 @@ const DIAGNOSTIC_CONNECTING_CHAR: &str = "|";
 /// The maximum number of lines a block display can use before the lines in the
 /// center of the block are skipped.
 const LINE_SKIP_THRESHOLD: usize = 6;
-
-/// Struct to represent the column and row offset produced from converting a
-/// [hash_source::location::Span].
-pub(crate) struct ColRowOffset {
-    /// The column offset.
-    col: usize,
-    /// The row offset.
-    row: usize,
-}
-
-/// Function to compute a row and column number from a given source string
-/// and an offset within the source. This will take into account the number
-/// of encountered newlines and characters per line in order to compute
-/// precise row and column numbers of the span.
-pub(crate) fn offset_col_row(offset: usize, source: &str, non_inclusive: bool) -> ColRowOffset {
-    let source_lines = source.split('\n');
-
-    let mut bytes_skipped = 0;
-    let mut total_lines: usize = 0;
-    let mut last_line_len = 0;
-
-    let mut line_index = None;
-    for (line_idx, line) in source_lines.enumerate() {
-        // One byte for the newline
-        let skip_width = line.len() + 1;
-
-        // Here, we don't want an inclusive range because we don't want to get the last
-        // byte because that will always point to the newline character and this
-        // isn't necessary to be included when selecting a span for printing.
-        let range = if non_inclusive {
-            bytes_skipped..bytes_skipped + skip_width
-        } else {
-            bytes_skipped..bytes_skipped + skip_width + 1
-        };
-
-        if range.contains(&offset) {
-            line_index = Some(ColRowOffset { col: offset - bytes_skipped, row: line_idx });
-            break;
-        }
-
-        bytes_skipped += skip_width;
-        total_lines += 1;
-        last_line_len = line.len();
-    }
-
-    line_index.unwrap_or(ColRowOffset {
-        col: last_line_len.saturating_sub(1),
-        row: total_lines.saturating_sub(1),
-    })
-}
 
 /// This function holds inner rules for calculating what the selected top
 /// and bottom buffer sizes should be.
@@ -121,14 +73,14 @@ impl ReportCodeBlock {
                 let source = sources.contents_by_id(source_id);
 
                 // Compute offset rows and columns from the provided span
-                let ColRowOffset { col: start_col, row: start_row } =
-                    offset_col_row(span.start(), source, true);
+                let start @ RowCol { row: start_row, .. } =
+                    compute_row_col_from_offset(span.start(), source, true);
 
-                let ColRowOffset { col: end_col, row: end_row } =
-                    offset_col_row(span.end(), source, false);
+                let end @ RowCol { row: end_row, .. } =
+                    compute_row_col_from_offset(span.end(), source, false);
 
-                let ColRowOffset { row: last_row, .. } =
-                    offset_col_row(source.len(), source, false);
+                let RowCol { row: last_row, .. } =
+                    compute_row_col_from_offset(source.len(), source, false);
 
                 // Compute the selected span outside of the diagnostic span
                 let (top_buf, bottom_buf) = compute_buffers(start_row, end_row);
@@ -140,8 +92,8 @@ impl ReportCodeBlock {
                     .chars()
                     .count();
 
-                let info =
-                    ReportCodeBlockInfo { indent_width, start_col, start_row, end_col, end_row };
+                let span = RowColSpan::new(start, end);
+                let info = ReportCodeBlockInfo { indent_width, span };
 
                 self.info.replace(Some(info));
                 info
@@ -159,7 +111,8 @@ impl ReportCodeBlock {
         let source_id = self.source_location.id;
         let source = modules.contents_by_id(source_id);
 
-        let ReportCodeBlockInfo { start_row, end_row, .. } = self.info(modules);
+        let ReportCodeBlockInfo { span, .. } = self.info(modules);
+        let (start_row, end_row) = span.rows();
 
         let (top_buffer, bottom_buffer) = compute_buffers(start_row, end_row);
 
@@ -194,7 +147,10 @@ impl ReportCodeBlock {
     ) -> fmt::Result {
         let error_view = self.get_source_view(modules);
 
-        let ReportCodeBlockInfo { start_row, end_row, start_col, end_col, .. } = self.info(modules);
+        let ReportCodeBlockInfo { span, .. } = self.info(modules);
+
+        let (start_row, end_row) = span.rows();
+        let (start_column, end_column) = span.columns();
 
         // Print each selected line with the line number
         for (index, line) in error_view {
@@ -211,18 +167,18 @@ impl ReportCodeBlock {
             if (start_row..=end_row).contains(&index) && !line.is_empty() {
                 let dashes: String = repeat(LINE_DIAGNOSTIC_MARKER)
                     .take(if index == start_row && start_row == end_row {
-                        end_col - start_col
+                        end_column - start_column
                     } else if index == start_row {
-                        line.len().saturating_sub(start_col)
+                        line.len().saturating_sub(start_column)
                     } else if index == end_row {
-                        end_col
+                        end_column
                     } else {
                         line.len()
                     })
                     .collect();
 
                 let mut code_note: String = repeat(" ")
-                    .take(if index == start_row { start_col } else { 0 })
+                    .take(if index == start_row { start_column } else { 0 })
                     .chain(once(dashes.as_str()))
                     .collect();
 
@@ -277,11 +233,14 @@ impl ReportCodeBlock {
     ) -> fmt::Result {
         let error_view = self.get_source_view(modules);
 
-        let ReportCodeBlockInfo { start_row, end_row, start_col, end_col, .. } = self.info(modules);
+        let ReportCodeBlockInfo { span, .. } = self.info(modules);
 
         // If the difference between the rows is longer than `LINE_SKIP_THRESHOLD`
         // lines, then we essentially begin to collapse the view by using `...`
         // as the filler for those lines...
+        let (start_row, end_row) = span.rows();
+        let (start_column, end_column) = span.columns();
+
         let skip_lines_range = if end_row - start_row > LINE_SKIP_THRESHOLD {
             let mid = LINE_SKIP_THRESHOLD / 2;
             Some((start_row + mid)..=(end_row - mid))
@@ -351,8 +310,10 @@ impl ReportCodeBlock {
             // If this is th first row of the diagnostic span, then we want to draw an arrow
             // leading up to it
             if index == start_row {
-                let arrow: String =
-                    repeat('_').take(start_col + 2).chain(once(BLOCK_DIAGNOSTIC_MARKER)).collect();
+                let arrow: String = repeat('_')
+                    .take(start_column + 2)
+                    .chain(once(BLOCK_DIAGNOSTIC_MARKER))
+                    .collect();
 
                 writeln!(
                     f,
@@ -367,7 +328,7 @@ impl ReportCodeBlock {
             // and of course we write the note at the end of the span.
             if index == end_row {
                 let arrow: String = once('|')
-                    .chain(repeat('_').take(end_col + 1))
+                    .chain(repeat('_').take(end_column + 1))
                     .chain(format!("{BLOCK_DIAGNOSTIC_MARKER} ").chars())
                     .chain(self.code_message.as_str().chars())
                     .collect();
@@ -390,12 +351,12 @@ impl ReportCodeBlock {
     pub(crate) fn render(
         &self,
         f: &mut fmt::Formatter,
-        modules: &SourceMap,
+        source_map: &SourceMap,
         longest_indent_width: usize,
         report_kind: ReportKind,
     ) -> fmt::Result {
         let source_id = self.source_location.id;
-        let ReportCodeBlockInfo { start_row, end_row, start_col, .. } = self.info(modules);
+        let ReportCodeBlockInfo { span, .. } = self.info(source_map);
 
         // Print the filename of the code block...
         writeln!(
@@ -405,22 +366,19 @@ impl ReportCodeBlock {
             highlight(Colour::Blue, "-->"),
             highlight(
                 Modifier::Underline,
-                format!(
-                    "{}:{}:{}",
-                    adjust_canonicalisation(modules.path_by_id(source_id)),
-                    start_row + 1,
-                    start_col + 1,
-                )
+                format!("{}:{}", source_map.canonicalised_path_by_id(source_id), span.start)
             )
         )?;
 
         // Now we can determine whether we want to use the `block` or the `line` view.
         // The block view is for displaying large spans for multiple lines,
         // whilst the line view is for a single line span.
+        let (start_row, end_row) = span.rows();
+
         if start_row == end_row {
-            self.render_line_view(f, modules, longest_indent_width, report_kind)
+            self.render_line_view(f, source_map, longest_indent_width, report_kind)
         } else {
-            self.render_block_view(f, modules, longest_indent_width, report_kind)
+            self.render_block_view(f, source_map, longest_indent_width, report_kind)
         }
     }
 }
@@ -458,21 +416,5 @@ impl ReportElement {
             }
             ReportElement::Note(note) => note.render(f, longest_indent_width),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn offset_test() {
-        let contents = "Hello, world!\nGoodbye, world, it has been fun.";
-
-        let ColRowOffset { col, row } = offset_col_row(contents.len() - 1, contents, false);
-        assert_eq!((col, row), (31, 1));
-
-        let ColRowOffset { col, row } = offset_col_row(contents.len() + 3, contents, false);
-        assert_eq!((col, row), (31, 1));
     }
 }

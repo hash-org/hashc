@@ -9,6 +9,7 @@ use std::{num::NonZeroUsize, panic};
 
 use clap::Parser as ClapParser;
 use hash_ast_desugaring::AstDesugarer;
+use hash_ast_expand::AstExpansionPass;
 use hash_lower::IrLowerer;
 use hash_parser::Parser;
 use hash_pipeline::{settings::CompilerSettings, traits::CompilerStage, Compiler};
@@ -87,6 +88,7 @@ fn main() {
     let compiler_settings: CompilerSettings = opts.into();
     let compiler_stages: Vec<Box<dyn CompilerStage>> = vec![
         Box::new(Parser::new()),
+        Box::new(AstExpansionPass),
         Box::new(AstDesugarer),
         Box::new(SemanticAnalysis),
         Box::new(Typechecker::new()),

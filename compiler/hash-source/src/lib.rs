@@ -7,6 +7,8 @@ use std::{
 };
 
 use bimap::BiMap;
+use hash_utils::path::adjust_canonicalisation;
+use location::{compute_row_col_from_offset, RowColSpan, SourceLocation};
 use slotmap::{new_key_type, Key, SlotMap};
 
 pub mod constant;
@@ -100,6 +102,16 @@ impl SourceMap {
         }
     }
 
+    /// Get a canonicalised version of a [Path] for a [SourceId]. If it is
+    /// interactive, the path is always set as `<interactive>`. The function
+    /// automatically converts the value into a string.
+    pub fn canonicalised_path_by_id(&self, source_id: SourceId) -> String {
+        match source_id {
+            SourceId::Interactive(_) => String::from("<interactive>"),
+            SourceId::Module(_) => adjust_canonicalisation(self.path_by_id(source_id)),
+        }
+    }
+
     /// Get the name of a [SourceId] by extracting the path and further
     /// retrieving the stem of the filename as the name of the module. This
     /// function adheres to the rules of module naming conventions which are
@@ -166,5 +178,16 @@ impl SourceMap {
     /// Add an interactive block to the [SourceMap]
     pub fn add_interactive_block(&mut self, contents: String) -> InteractiveId {
         self.interactive_content_map.insert(contents)
+    }
+
+    /// Function to get a friendly representation of the [SourceLocation] in
+    /// terms of row and column positions.
+    pub fn get_column_row_span_for(&self, location: SourceLocation) -> RowColSpan {
+        let source = self.contents_by_id(location.id);
+
+        let start = compute_row_col_from_offset(location.span.start(), source, true);
+        let end = compute_row_col_from_offset(location.span.end(), source, false);
+
+        RowColSpan { start, end }
     }
 }
