@@ -52,12 +52,22 @@ pub struct CompilerState {
 
 impl<'pool> Compiler<'pool> {
     /// Create a new instance of a [Compiler] with the provided parser and
-    /// typechecker implementations.
+    /// typechecker implementations. The provided [CompilerStage]s to the
+    /// compiler must be provided in an ascending ord
+    ///er of the [CompilerStageKind]. Stages
+    ///are allowed to have the same[CompilerStageKind]s,
+    ///but this will mean that they are treated as if
+    /// they are one stage in some operations.
     pub fn new(
         stages: Vec<Box<dyn CompilerStage<'pool>>>,
         pool: &'pool rayon::ThreadPool,
         settings: CompilerSettings,
     ) -> Self {
+        // Assert that all the provided stages have a correct stage order, as in
+        // each stage has the same level or a higher order stage than the previous
+        // stage.
+        assert!(stages.windows(2).all(|w| w[0].stage_kind() <= w[1].stage_kind()));
+
         Self { stages, settings, pool, metrics: HashMap::new() }
     }
 
@@ -108,7 +118,12 @@ impl<'pool> Compiler<'pool> {
             || stage.run_stage(entry_point, workspace, self.pool),
             log::Level::Debug,
             |time| {
-                self.metrics.insert(stage_kind, time);
+                self.metrics
+                    .entry(stage_kind)
+                    .and_modify(|prev_time| {
+                        *prev_time += time;
+                    })
+                    .or_insert(time);
             },
         )?;
 
