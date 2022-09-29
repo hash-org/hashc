@@ -11,13 +11,14 @@ use analysis::SemanticAnalyser;
 use crossbeam_channel::unbounded;
 use diagnostics::AnalysisDiagnostic;
 use hash_ast::{ast::OwnsAstNode, visitor::AstVisitorMutSelf};
-use hash_pipeline::{sources::Workspace, traits::SemanticPass};
-use hash_reporting::report::Report;
+use hash_pipeline::{
+    settings::CompilerStageKind, sources::Workspace, traits::CompilerStage, CompilerResult,
+};
 use hash_source::SourceId;
 
-pub struct HashSemanticAnalysis;
+pub struct SemanticAnalysis;
 
-impl<'pool> SemanticPass<'pool> for HashSemanticAnalysis {
+impl<'pool> CompilerStage<'pool> for SemanticAnalysis {
     /// This will perform a pass on the AST by checking the semantic rules that
     /// are within the language specification. The function will attempt to
     /// perform a pass on the `entry_point` which happens on the main
@@ -27,12 +28,12 @@ impl<'pool> SemanticPass<'pool> for HashSemanticAnalysis {
     /// it always considers the `entry_point` which might not always occur
     /// within the modules map. Each time the pipeline runs (in the
     /// interactive case), the most recent block is always passed.
-    fn perform_pass(
+    fn run_stage(
         &mut self,
         entry_point: SourceId,
         workspace: &mut Workspace,
         pool: &'pool rayon::ThreadPool,
-    ) -> Result<(), Vec<Report>> {
+    ) -> CompilerResult<()> {
         let (sender, receiver) = unbounded::<AnalysisDiagnostic>();
 
         let source_map = &workspace.source_map;
@@ -106,5 +107,9 @@ impl<'pool> SemanticPass<'pool> for HashSemanticAnalysis {
 
             Err(messages.into_iter().map(|item| item.into()).collect())
         }
+    }
+
+    fn stage_kind(&self) -> CompilerStageKind {
+        CompilerStageKind::SemanticPass
     }
 }

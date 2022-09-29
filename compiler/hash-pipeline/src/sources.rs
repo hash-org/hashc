@@ -8,9 +8,14 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use hash_ast::ast;
+use hash_ast::{
+    ast,
+    ast::{AstVisitor, OwnsAstNode},
+    tree::AstTreeGenerator,
+};
 use hash_source::{InteractiveId, ModuleId, ModuleKind, SourceId, SourceMap};
 use hash_types::storage::{GlobalStorage, LocalStorage};
+use hash_utils::{path::adjust_canonicalisation, tree_writing::TreeWriter};
 
 /// Data structure which holds information and compiler stage results for a
 /// particular interactive block. Currently, this only stores the generated
@@ -299,5 +304,33 @@ impl Workspace {
     /// Get the [TyStorage] stored within the [Workspace].
     pub fn ty_storage(&self) -> &TyStorage {
         &self.ty_storage
+    }
+
+    /// Utility function used by AST-like stages in order to print the
+    /// current [self::sources::NodeMap].
+    pub fn print_sources(&self, entry_point: SourceId) {
+        match entry_point {
+            SourceId::Interactive(id) => {
+                // If this is an interactive statement, we want to print the statement that was
+                // just parsed.
+                let source = self.node_map().get_interactive_block(id);
+                let tree = AstTreeGenerator.visit_body_block(source.node_ref()).unwrap();
+
+                println!("{}", TreeWriter::new(&tree));
+            }
+            SourceId::Module(_) => {
+                // If this is a module, we want to print all of the generated modules from the
+                // parsing stage
+                for (_, generated_module) in self.node_map().iter_modules() {
+                    let tree = AstTreeGenerator.visit_module(generated_module.node_ref()).unwrap();
+
+                    println!(
+                        "Tree for `{}`:\n{}",
+                        adjust_canonicalisation(generated_module.path()),
+                        TreeWriter::new(&tree)
+                    );
+                }
+            }
+        }
     }
 }

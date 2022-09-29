@@ -6,10 +6,7 @@ use std::{env, process::exit};
 
 use command::InteractiveCommand;
 use hash_pipeline::{
-    settings::CompilerMode,
-    sources::InteractiveBlock,
-    traits::{Desugar, Lowering, Parser, SemanticPass, Tc, VirtualMachine},
-    Compiler, CompilerState,
+    settings::CompilerStageKind, sources::InteractiveBlock, Compiler, CompilerState,
 };
 use hash_reporting::errors::{CompilerError, InteractiveCommandError};
 use hash_source::SourceId;
@@ -35,19 +32,7 @@ pub fn goodbye() {
 /// Function that initialises the interactive mode. Setup all the resources
 /// required to perform execution of provided statements and then initiate the
 /// REPL.
-pub fn init<'c, 'pool, P, D, S, C, L, V>(
-    mut compiler: Compiler<'pool, P, D, S, C, L, V>,
-    mut compiler_state: CompilerState,
-) -> CompilerResult<()>
-where
-    'pool: 'c,
-    P: Parser<'pool>,
-    D: Desugar<'pool>,
-    S: SemanticPass<'pool>,
-    C: Tc<'c>,
-    L: Lowering,
-    V: VirtualMachine,
-{
+pub fn init(mut compiler: Compiler<'_>, mut compiler_state: CompilerState) -> CompilerResult<()> {
     // Display the version on start-up
     print_version();
 
@@ -79,20 +64,11 @@ where
 }
 
 /// Function to process a single line of input from the REPL instance.
-fn execute<'c, 'pool, P, D, S, C, L, V>(
+fn execute<'compiler>(
     input: &str,
-    compiler: &mut Compiler<'pool, P, D, S, C, L, V>,
+    compiler: &mut Compiler<'compiler>,
     mut compiler_state: CompilerState,
-) -> CompilerState
-where
-    'pool: 'c,
-    P: Parser<'pool>,
-    D: Desugar<'pool>,
-    S: SemanticPass<'pool>,
-    C: Tc<'c>,
-    L: Lowering,
-    V: VirtualMachine,
-{
+) -> CompilerState {
     if input.is_empty() {
         return compiler_state;
     }
@@ -128,15 +104,15 @@ where
                     // @@Hack: if display is previously set `:d`, then this interferes with this
                     // mode.
                     compiler.settings.dump_ast = false;
-                    compiler.settings.set_stage(CompilerMode::Typecheck)
+                    compiler.settings.set_stage(CompilerStageKind::Typecheck)
                 }
                 InteractiveCommand::Display(_) => {
                     compiler.settings.dump_ast = true;
-                    compiler.settings.set_stage(CompilerMode::Parse)
+                    compiler.settings.set_stage(CompilerStageKind::Parse)
                 }
                 _ => {
                     compiler.settings.dump_ast = false;
-                    compiler.settings.set_stage(CompilerMode::Full)
+                    compiler.settings.set_stage(CompilerStageKind::Full)
                 }
             }
 

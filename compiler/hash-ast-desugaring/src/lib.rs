@@ -4,7 +4,7 @@
 //! constructs and duplicating logic.
 
 use hash_ast::{ast::OwnsAstNode, visitor::AstVisitorMut};
-use hash_pipeline::{sources::Workspace, traits::Desugar};
+use hash_pipeline::{settings::CompilerStageKind, sources::Workspace, traits::CompilerStage};
 use hash_source::SourceId;
 use visitor::AstDesugaring;
 
@@ -13,7 +13,11 @@ mod visitor;
 
 pub struct AstDesugarer;
 
-impl<'pool> Desugar<'pool> for AstDesugarer {
+impl<'pool> CompilerStage<'pool> for AstDesugarer {
+    fn stage_kind(&self) -> CompilerStageKind {
+        CompilerStageKind::DeSugar
+    }
+
     /// This function is used to lower all of the AST that is present within
     /// the modules to be compatible with the typechecking stage. This is
     /// essentially a pass that will transform the following structures
@@ -35,7 +39,7 @@ impl<'pool> Desugar<'pool> for AstDesugarer {
     /// This function utilised the pipeline thread pool in order to make the
     /// transformations as parallel as possible. There is a queue that is
     /// queues all of the expressions within each [hash_ast::ast::Module].
-    fn desugar(
+    fn run_stage(
         &mut self,
         entry_point: SourceId,
         workspace: &mut Workspace,
@@ -87,5 +91,16 @@ impl<'pool> Desugar<'pool> for AstDesugarer {
         desugared_modules.extend(node_map.iter_modules().map(|(id, _)| SourceId::Module(*id)));
 
         Ok(())
+    }
+
+    fn cleanup(
+        &self,
+        entry_point: SourceId,
+        workspace: &mut Workspace,
+        settings: &hash_pipeline::settings::CompilerSettings,
+    ) {
+        if settings.stage > CompilerStageKind::Parse && settings.dump_ast {
+            workspace.print_sources(entry_point);
+        }
     }
 }

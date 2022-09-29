@@ -10,12 +10,12 @@ use std::{num::NonZeroUsize, panic};
 use clap::Parser as ClapParser;
 use hash_ast_desugaring::AstDesugarer;
 use hash_lower::IrLowerer;
-use hash_parser::HashParser;
-use hash_pipeline::{settings::CompilerSettings, Compiler};
+use hash_parser::Parser;
+use hash_pipeline::{settings::CompilerSettings, traits::CompilerStage, Compiler};
 use hash_reporting::errors::CompilerError;
 use hash_source::ModuleKind;
 use hash_typecheck::Typechecker;
-use hash_untyped_semantics::HashSemanticAnalysis;
+use hash_untyped_semantics::SemanticAnalysis;
 use hash_vm::vm::Interpreter;
 use log::LevelFilter;
 use logger::CompilerLogger;
@@ -75,17 +75,6 @@ fn main() {
         })
         .into();
 
-    // @@Naming: think about naming here!
-    let parser = HashParser::new();
-    let desugarer = AstDesugarer;
-    let semantic_analyser = HashSemanticAnalysis;
-    let checker = Typechecker::new();
-    let lowerer = IrLowerer;
-
-    // Create the vm
-    let vm = Interpreter::new();
-    let compiler_settings: CompilerSettings = opts.into();
-
     // We need at least 2 workers for the parsing loop in order so that the job
     // queue can run within a worker and any other jobs can run inside another
     // worker or workers.
@@ -95,16 +84,17 @@ fn main() {
         .build()
         .unwrap();
 
-    let mut compiler = Compiler::new(
-        parser,
-        desugarer,
-        semantic_analyser,
-        checker,
-        lowerer,
-        vm,
-        &pool,
-        compiler_settings,
-    );
+    let compiler_settings: CompilerSettings = opts.into();
+    let compiler_stages: Vec<Box<dyn CompilerStage>> = vec![
+        Box::new(Parser::new()),
+        Box::new(AstDesugarer),
+        Box::new(SemanticAnalysis),
+        Box::new(Typechecker::new()),
+        Box::new(IrLowerer),
+        Box::new(Interpreter::new()),
+    ];
+
+    let mut compiler = Compiler::new(compiler_stages, &pool, compiler_settings);
     let compiler_state = compiler.bootstrap();
 
     match entry_point {

@@ -13,9 +13,9 @@ use crossbeam_channel::{unbounded, Sender};
 use hash_ast::ast::{self};
 use hash_lexer::Lexer;
 use hash_pipeline::{
+    settings::CompilerStageKind,
     sources::{Module, Workspace},
-    traits::Parser,
-    CompilerResult,
+    traits::CompilerStage,
 };
 use hash_reporting::{diagnostic::Diagnostics, report::Report};
 use hash_source::{InteractiveId, ModuleId, ModuleKind, SourceId};
@@ -104,9 +104,9 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
 
 /// Implementation structure for the parser.
 #[derive(Debug, Default)]
-pub struct HashParser;
+pub struct Parser;
 
-impl<'pool> HashParser {
+impl<'pool> Parser {
     /// Create a new [HashParser].
     pub fn new() -> Self {
         Self
@@ -119,7 +119,7 @@ impl<'pool> HashParser {
     /// channel, and other workers set the parsed contents of the modules.
     /// When all message senders go out of scope, the parser finishes executing
     pub fn begin(
-        &mut self,
+        &self,
         entry_point_id: SourceId,
         current_dir: PathBuf,
         workspace: &mut Workspace,
@@ -179,22 +179,38 @@ impl<'pool> HashParser {
     }
 }
 
-impl<'pool> Parser<'pool> for HashParser {
+impl<'pool> CompilerStage<'pool> for Parser {
+    fn stage_kind(&self) -> CompilerStageKind {
+        CompilerStageKind::Parse
+    }
+
     /// Entry point of the parser. Initialises a job from the specified
     /// `entry_point`, and calls [HashParser::begin].
-    fn parse(
+    fn run_stage(
         &mut self,
-        target: SourceId,
+        entry_point: SourceId,
         workspace: &mut Workspace,
         pool: &'pool rayon::ThreadPool,
-    ) -> CompilerResult<()> {
+    ) -> hash_pipeline::traits::CompilerResult<()> {
         let current_dir = env::current_dir().map_err(|err| vec![err.into()])?;
 
-        let errors = self.begin(target, current_dir, workspace, pool);
+        let errors = self.begin(entry_point, current_dir, workspace, pool);
         if errors.is_empty() {
             Ok(())
         } else {
             Err(errors)
+        }
+    }
+
+    fn cleanup(
+        &self,
+        entry_point: SourceId,
+        workspace: &mut Workspace,
+        settings: &hash_pipeline::settings::CompilerSettings,
+    ) {
+        // Any other stage than `semantic_pass` is valid when `--dump-ast` is specified.
+        if settings.stage < CompilerStageKind::SemanticPass && settings.dump_ast {
+            workspace.print_sources(entry_point);
         }
     }
 }

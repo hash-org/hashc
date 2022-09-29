@@ -8,7 +8,9 @@
 #![feature(decl_macro, slice_pattern, option_result_contains, let_chains, if_let_guard)]
 
 use diagnostics::DiagnosticsStore;
-use hash_pipeline::{sources::TyStorage, traits::Tc, CompilerResult};
+use hash_pipeline::{
+    settings::CompilerStageKind, sources::TyStorage, traits::CompilerStage, CompilerResult,
+};
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::SourceId;
 use hash_types::{fmt::PrepareForFormatting, storage::LocalStorage};
@@ -59,15 +61,25 @@ impl Default for Typechecker {
     }
 }
 
-impl Tc<'_> for Typechecker {
-    fn check_interactive(
+impl<'pool> CompilerStage<'pool> for Typechecker {
+    fn stage_kind(&self) -> CompilerStageKind {
+        CompilerStageKind::Typecheck
+    }
+
+    fn run_stage(
         &mut self,
-        id: hash_source::InteractiveId,
+        entry_point: SourceId,
         workspace: &mut hash_pipeline::sources::Workspace,
+        _pool: &'pool rayon::ThreadPool,
     ) -> CompilerResult<()> {
         // We need to set the interactive-id to update the current local-storage `id`
-        // value
-        workspace.ty_storage.local.set_current_source(SourceId::Interactive(id));
+        // value, but for modules, we create a new local storage.
+        if entry_point.is_interactive() {
+            workspace.ty_storage.local.set_current_source(entry_point);
+        } else {
+            workspace.ty_storage.local =
+                LocalStorage::new(&workspace.ty_storage.global, entry_point);
+        }
 
         let TyStorage { local, global } = workspace.ty_storage();
 
@@ -104,38 +116,5 @@ impl Tc<'_> for Typechecker {
         }
 
         Ok(())
-    }
-
-    fn check_module(
-        &mut self,
-        id: hash_source::ModuleId,
-        workspace: &mut hash_pipeline::sources::Workspace,
-    ) -> CompilerResult<()> {
-        // Instantiate a visitor with the source and visit the source, using a new local
-        // storage.
-        workspace.ty_storage.local =
-            LocalStorage::new(&workspace.ty_storage.global, SourceId::Module(id));
-
-        let storage = StorageRef {
-            global_storage: &workspace.ty_storage.global,
-            local_storage: &workspace.ty_storage.local,
-            checked_sources: &self.checked_sources,
-            exhaustiveness_storage: &self.exhaustiveness_storage,
-            source_map: &workspace.source_map,
-            diagnostics_store: &self.diagnostics_store,
-            cache: &self.cache,
-        };
-
-        let tc_visitor = TcVisitor::new_in_source(storage.storages(), workspace.node_map());
-
-        if let Err(err) = tc_visitor.visit_source() {
-            tc_visitor.diagnostics().add_error(err);
-        }
-
-        if tc_visitor.diagnostics().has_diagnostics() {
-            Err(tc_visitor.diagnostics().into_reports())
-        } else {
-            Ok(())
-        }
     }
 }

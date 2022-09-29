@@ -10,7 +10,10 @@ mod cfg;
 mod visitor;
 
 use hash_ir::ir::Body;
-use hash_pipeline::traits::{CompilerResult, Lowering};
+use hash_pipeline::{
+    settings::CompilerStageKind,
+    traits::{CompilerResult, CompilerStage},
+};
 use hash_source::{
     location::{SourceLocation, Span},
     SourceId,
@@ -23,41 +26,28 @@ use self::builder::Builder;
 /// through the source files.
 pub struct IrLowerer;
 
-pub struct IrLoweringState<'ir> {
-    interactive_body: Body<'ir>,
-}
-
-impl<'ir> Default for IrLoweringState<'ir> {
-    fn default() -> Self {
-        Self::new()
+impl<'pool> CompilerStage<'pool> for IrLowerer {
+    fn stage_kind(&self) -> CompilerStageKind {
+        CompilerStageKind::IrGen
     }
-}
 
-impl<'ir> IrLoweringState<'ir> {
-    pub fn new() -> Self {
-        let dummy_span = SourceLocation::new(Span::default(), SourceId::default());
-
-        Self { interactive_body: Body::new_uninitialised(dummy_span) }
-    }
-}
-
-impl Lowering for IrLowerer {
-    fn lower_interactive_block(
+    fn run_stage(
         &mut self,
-        _interactive_id: hash_source::InteractiveId,
-        _workspace: &hash_pipeline::sources::Workspace,
-    ) -> CompilerResult<()> {
-        Ok(())
-    }
-
-    fn lower_module(
-        &mut self,
-        _module_id: hash_source::ModuleId,
-        _workspace: &hash_pipeline::sources::Workspace,
+        entry_point: SourceId,
+        workspace: &mut hash_pipeline::sources::Workspace,
+        pool: &'pool rayon::ThreadPool,
     ) -> CompilerResult<()> {
         // We need to iterate all of the modules and essentially perform
         // a discovery process for what needs to be lowered...
 
         Ok(())
+    }
+
+    fn cleanup(
+        &self,
+        entry_point: SourceId,
+        workspace: &mut hash_pipeline::sources::Workspace,
+        settings: &hash_pipeline::settings::CompilerSettings,
+    ) {
     }
 }

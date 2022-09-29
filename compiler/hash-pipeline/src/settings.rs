@@ -38,7 +38,7 @@ pub struct CompilerSettings {
 
     /// To what should the compiler run to, anywhere from parsing, typecheck, to
     /// code generation.
-    pub stage: CompilerMode,
+    pub stage: CompilerStageKind,
 }
 
 impl CompilerSettings {
@@ -59,8 +59,8 @@ impl CompilerSettings {
         self.emit_errors = value;
     }
 
-    /// Specify the [CompilerMode] the compiler should run to.
-    pub fn set_stage(&mut self, stage: CompilerMode) {
+    /// Specify the [CompilerStageKind] the compiler should run to.
+    pub fn set_stage(&mut self, stage: CompilerStageKind) {
         self.stage = stage;
     }
 }
@@ -74,7 +74,7 @@ impl Default for CompilerSettings {
             skip_prelude: false,
             emit_errors: true,
             dump_ast: false,
-            stage: CompilerMode::Full,
+            stage: CompilerStageKind::Full,
         }
     }
 }
@@ -82,7 +82,7 @@ impl Default for CompilerSettings {
 /// Enum representing what mode the compiler should run in. Specifically, if the
 /// compiler should only run up to a particular stage within the pipeline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum CompilerMode {
+pub enum CompilerStageKind {
     Parse,
     DeSugar,
     SemanticPass,
@@ -92,22 +92,22 @@ pub enum CompilerMode {
     Full,
 }
 
-impl Default for CompilerMode {
+impl Default for CompilerStageKind {
     fn default() -> Self {
-        CompilerMode::Full
+        CompilerStageKind::Full
     }
 }
 
-impl Display for CompilerMode {
+impl Display for CompilerStageKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            CompilerMode::Parse => write!(f, "parsing"),
-            CompilerMode::DeSugar => write!(f, "de-sugaring"),
-            CompilerMode::SemanticPass => write!(f, "semantic"),
-            CompilerMode::Typecheck => write!(f, "typecheck"),
-            CompilerMode::Lower => write!(f, "lowering"),
-            CompilerMode::IrGen => write!(f, "ir"),
-            CompilerMode::Full => write!(f, "total"),
+            CompilerStageKind::Parse => write!(f, "parsing"),
+            CompilerStageKind::DeSugar => write!(f, "de-sugaring"),
+            CompilerStageKind::SemanticPass => write!(f, "semantic"),
+            CompilerStageKind::Typecheck => write!(f, "typecheck"),
+            CompilerStageKind::Lower => write!(f, "lowering"),
+            CompilerStageKind::IrGen => write!(f, "ir"),
+            CompilerStageKind::Full => write!(f, "total"),
         }
     }
 }
