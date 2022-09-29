@@ -281,31 +281,6 @@ impl Workspace {
         self.dependencies.entry(source_id).or_insert_with(HashSet::new).insert(dependency);
     }
 
-    /// Get a reference to [SourceMap]
-    pub fn source_map(&self) -> &SourceMap {
-        &self.source_map
-    }
-
-    /// Get a mutable reference to [SourceMap]
-    pub fn source_map_mut(&mut self) -> &mut SourceMap {
-        &mut self.source_map
-    }
-
-    /// Get a reference to [NodeMap]
-    pub fn node_map(&self) -> &NodeMap {
-        &self.node_map
-    }
-
-    /// Get a mutable reference to [NodeMap]
-    pub fn node_map_mut(&mut self) -> &mut NodeMap {
-        &mut self.node_map
-    }
-
-    /// Get the [TyStorage] stored within the [Workspace].
-    pub fn ty_storage(&self) -> &TyStorage {
-        &self.ty_storage
-    }
-
     /// Utility function used by AST-like stages in order to print the
     /// current [self::sources::NodeMap].
     pub fn print_sources(&self, entry_point: SourceId) {
@@ -313,7 +288,7 @@ impl Workspace {
             SourceId::Interactive(id) => {
                 // If this is an interactive statement, we want to print the statement that was
                 // just parsed.
-                let source = self.node_map().get_interactive_block(id);
+                let source = self.node_map.get_interactive_block(id);
                 let tree = AstTreeGenerator.visit_body_block(source.node_ref()).unwrap();
 
                 println!("{}", TreeWriter::new(&tree));
@@ -321,7 +296,7 @@ impl Workspace {
             SourceId::Module(_) => {
                 // If this is a module, we want to print all of the generated modules from the
                 // parsing stage
-                for (_, generated_module) in self.node_map().iter_modules() {
+                for (_, generated_module) in self.node_map.iter_modules() {
                     let tree = AstTreeGenerator.visit_module(generated_module.node_ref()).unwrap();
 
                     println!(

@@ -81,7 +81,7 @@ impl<'pool> CompilerStage<'pool> for Typechecker {
                 LocalStorage::new(&workspace.ty_storage.global, entry_point);
         }
 
-        let TyStorage { local, global } = workspace.ty_storage();
+        let TyStorage { local, global } = &workspace.ty_storage;
 
         // Instantiate a visitor with the source and visit the source, using the
         // previous local storage.
@@ -94,7 +94,7 @@ impl<'pool> CompilerStage<'pool> for Typechecker {
             diagnostics_store: &self.diagnostics_store,
             cache: &self.cache,
         };
-        let tc_visitor = TcVisitor::new_in_source(storage.storages(), workspace.node_map());
+        let tc_visitor = TcVisitor::new_in_source(storage.storages(), &workspace.node_map);
 
         match tc_visitor.visit_source() {
             Err(err) => {

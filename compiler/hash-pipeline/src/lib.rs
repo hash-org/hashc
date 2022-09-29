@@ -217,7 +217,7 @@ impl<'pool> Compiler<'pool> {
 
                 eprintln!(
                     "{}",
-                    ReportWriter::new(diagnostic, compiler_state.workspace.source_map())
+                    ReportWriter::new(diagnostic, &compiler_state.workspace.source_map)
                 );
             }
 
@@ -262,7 +262,7 @@ impl<'pool> Compiler<'pool> {
             if self.settings.emit_errors {
                 eprintln!(
                     "{}",
-                    ReportWriter::new(err.create_report(), compiler_state.workspace.source_map())
+                    ReportWriter::new(err.create_report(), &compiler_state.workspace.source_map)
                 );
             }
 
@@ -279,7 +279,7 @@ impl<'pool> Compiler<'pool> {
             if self.settings.emit_errors {
                 eprintln!(
                     "{}",
-                    ReportWriter::new(err.create_report(), compiler_state.workspace.source_map())
+                    ReportWriter::new(err.create_report(), &compiler_state.workspace.source_map)
                 );
             }
 
