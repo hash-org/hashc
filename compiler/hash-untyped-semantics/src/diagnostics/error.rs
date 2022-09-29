@@ -92,8 +92,10 @@ pub(crate) enum AnalysisErrorKind {
     InvalidDirectiveArgument {
         name: Identifier,
         expected: DirectiveArgument,
-        given: DirectiveArgument,
+        received: DirectiveArgument,
     },
+    /// When a directive is used within an un-expected scope,
+    InvalidDirectiveScope { name: Identifier, expected: BlockOrigin, received: BlockOrigin },
     /// When fields of a `struct` or `enum` use inconsistent naming
     InconsistentFieldNaming {
         /// Whether the name is expected to be named or not.
@@ -251,7 +253,19 @@ impl From<AnalysisError> for Report {
                     format!("`{}` cannot be used within {} context", name, origin),
                 )));
             }
-            AnalysisErrorKind::InvalidDirectiveArgument { name, expected, given } => {
+            AnalysisErrorKind::InvalidDirectiveScope { name, expected, received } => {
+                builder.with_message(format!(
+                    "the `{}` directive is must be within a {} block",
+                    name, expected
+                ));
+
+                // Show the location where the directive is being used...
+                builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                    err.location,
+                    format!("`{}` cannot be used within {} block", name, received),
+                )));
+            }
+            AnalysisErrorKind::InvalidDirectiveArgument { name, expected, received: given } => {
                 builder.with_message(format!(
                     "the `{}` directive expects a {} as an argument",
                     name, expected

@@ -61,6 +61,9 @@ pub(crate) enum BlockOrigin {
     Impl,
     /// Block is a body of some kind.
     Body,
+    /// A dummy [BlockOrigin] kind, only used for error
+    /// reporting and grouping `constant` blocks together.
+    Const,
 }
 
 impl BlockOrigin {
@@ -72,6 +75,7 @@ impl BlockOrigin {
             BlockOrigin::Impl => "impl",
             BlockOrigin::Body => "body",
             BlockOrigin::Trait => "trait",
+            BlockOrigin::Const => "constant",
         }
     }
 }

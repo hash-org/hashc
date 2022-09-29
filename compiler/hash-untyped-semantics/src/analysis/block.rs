@@ -4,7 +4,7 @@
 use std::{collections::HashSet, mem};
 
 use hash_ast::{
-    ast::{AstNodeRef, BodyBlock, Expr},
+    ast::{AstNodeRef, BodyBlock, DirectiveExpr, Expr},
     visitor::AstVisitorMutSelf,
 };
 
@@ -28,14 +28,31 @@ impl SemanticAnalyser<'_> {
     ) -> HashSet<usize> {
         let mut error_indices = HashSet::new();
 
+        let allowed_top_level_expr = |statement: AstNodeRef<Expr>| {
+            matches!(statement.body(), Expr::Declaration(_) | Expr::MergeDeclaration(_))
+        };
+
         for (index, statement) in members.enumerate() {
-            if !matches!(statement.body(), Expr::Declaration(_) | Expr::MergeDeclaration(_)) {
+            let mut emit_err = || {
                 self.append_error(
                     AnalysisErrorKind::NonDeclarativeExpression { origin },
                     statement,
                 );
 
                 error_indices.insert(index);
+            };
+
+            // Since directives are allowed at the level because they apply onto
+            // the child declaration, we actually need to check the child of the
+            // directive, not the directive itself.
+            //
+            // @@Fixme: this should allow multiple chained directives at the top level
+            if let Expr::Directive(DirectiveExpr { subject, .. }) = statement.body() {
+                if !allowed_top_level_expr(subject.ast_ref()) {
+                    emit_err()
+                }
+            } else if !allowed_top_level_expr(statement) {
+                emit_err()
             }
         }
 

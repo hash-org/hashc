@@ -42,12 +42,4 @@ impl<'pool> CompilerStage<'pool> for IrLowerer {
 
         Ok(())
     }
-
-    fn cleanup(
-        &self,
-        entry_point: SourceId,
-        workspace: &mut hash_pipeline::sources::Workspace,
-        settings: &hash_pipeline::settings::CompilerSettings,
-    ) {
-    }
 }

@@ -1,0 +1,16 @@
+// run=fail, stage=semantic
+
+#dump_ir foo := 2
+
+// FAIL: `#dump_ir` only accepts declarations as an argument.
+mux := #dump_ir 2
+
+
+#dump_ir bux := () => {
+
+    // FAIL: This is not allowed since `#dump_ir` calls should be within constant 
+    // blocks only, not body blocks...
+
+    #dump_ir m := 2
+}
+

@@ -226,15 +226,40 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
                 else {
                     self.append_error(
                         AnalysisErrorKind::InvalidDirectiveArgument {
-                            name: node.name.ident,
+                            name: name.ident,
                             expected: DirectiveArgument::ModBlock,
-                            given: node.subject.body().into()
+                            received: node.subject.body().into()
                         },
                         node.subject.ast_ref(),
                     );
                 }
             }
-        } else if !node.name.is(IDENTS.dump_ast) || !node.name.is(IDENTS.dump_ir) {
+        } else if name.is(IDENTS.dump_ir) {
+            // For the `#dump_ir` directive, we are expecting that it takes either a
+            // function definition and be within a constant scope
+
+            if let Expr::Declaration(_) = node.subject.body() {
+                if !self.is_in_constant_block() {
+                    self.append_error(
+                        AnalysisErrorKind::InvalidDirectiveScope {
+                            name: name.ident,
+                            expected: BlockOrigin::Const,
+                            received: self.current_block,
+                        },
+                        node.subject.ast_ref(),
+                    );
+                }
+            } else {
+                self.append_error(
+                    AnalysisErrorKind::InvalidDirectiveArgument {
+                        name: name.ident,
+                        expected: DirectiveArgument::Declaration,
+                        received: node.subject.body().into(),
+                    },
+                    node.subject.ast_ref(),
+                );
+            }
+        } else if !name.is(IDENTS.dump_ast) {
             // @@Future: use some kind of scope validation in order to verify that
             // the used directives are valid
             self.append_warning(

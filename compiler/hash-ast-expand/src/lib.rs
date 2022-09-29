@@ -49,15 +49,4 @@ impl<'pool> CompilerStage<'pool> for AstExpansionPass {
 
         Ok(())
     }
-
-    fn cleanup(
-        &self,
-        entry_point: SourceId,
-        workspace: &mut Workspace,
-        settings: &hash_pipeline::settings::CompilerSettings,
-    ) {
-        if settings.stage > CompilerStageKind::Parse && settings.dump_ast {
-            workspace.print_sources(entry_point);
-        }
-    }
 }

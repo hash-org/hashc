@@ -15,10 +15,15 @@ use hash_ast::ast::{Block, BlockExpr, Expr};
 /// expanded into the [DirectiveArgument] variants as their own standalone
 /// variants.
 pub enum DirectiveArgument {
+    /// Some function call, or a constructor initialisation.
     ConstructorCall,
+    /// A directive expression.
     Directive,
+    /// A declaration.
     Declaration,
+    /// Unsafe block expression
     Unsafe,
+    /// Literal expression.
     LitExpr,
     Cast,
     /// Since the AST is de-sugared at this point, it should be that `for`,
@@ -33,19 +38,32 @@ pub enum DirectiveArgument {
     ModBlock,
     /// The [hash_ast::ast::Block::Body] variant
     Block,
+    /// An `import` statement.
     Import,
+    /// A `struct` definition.
     StructDef,
+    /// An `enum` definition.
     EnumDef,
+    /// A type function definition.
     TyFnDef,
+    /// A `trait` definition as the argument to the function.
     TraitDef,
+    /// A function definition, regardless of the position.
     FnDef,
+    /// A type.
     Ty,
+    /// A `return` expression.
     Return,
+    /// A `break` expression.
     Break,
+    /// A `continue` expression.
     Continue,
+    /// A merge declaration.
     MergeDeclaration,
+    /// A trait implementation block e.g. `impl T {}`.
     TraitImpl,
-    /// General expression
+    /// General expression, this is used when it expected any variant of an
+    /// expression, but did not receive one.
     Expr,
 }
 
