@@ -26,6 +26,7 @@ hash-reporting = {path = "../compiler/hash-reporting" }
 hash-lexer = {path = "../compiler/hash-lexer" }
 hash-parser = {path = "../compiler/hash-parser" }
 hash-ast-desugaring = { path = "../compiler/hash-ast-desugaring" }
+hash-ast-expand = { path = "../compiler/hash-ast-expand" }
 hash-untyped-semantics = { path = "../compiler/hash-untyped-semantics" }
 hash-typecheck = { path = "../compiler/hash-typecheck" }
 hash-lower = { path = "../compiler/hash-lower" }

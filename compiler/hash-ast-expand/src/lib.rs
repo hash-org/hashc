@@ -1,6 +1,6 @@
 //! Hash AST expanding passes crate. This crate holds an implementation for the
-//! visitor pattern on the AST in order to expand any directives or macros that need
-//! to run after the parsing stage. Currently this function does not have 
+//! visitor pattern on the AST in order to expand any directives or macros that
+//! need to run after the parsing stage. Currently this function does not have
 
 use hash_ast::ast::{AstVisitor, OwnsAstNode};
 use hash_pipeline::{settings::CompilerStageKind, sources::Workspace, traits::CompilerStage};
@@ -9,9 +9,9 @@ use visitor::AstExpander;
 
 mod visitor;
 
-pub struct AstExpansionStage;
+pub struct AstExpansionPass;
 
-impl<'pool> CompilerStage<'pool> for AstExpansionStage {
+impl<'pool> CompilerStage<'pool> for AstExpansionPass {
     fn stage_kind(&self) -> CompilerStageKind {
         CompilerStageKind::DeSugar
     }
@@ -35,10 +35,9 @@ impl<'pool> CompilerStage<'pool> for AstExpansionStage {
             }
         }
 
-
         for (id, module) in node_map.iter_modules() {
             let module_id = SourceId::Module(*id);
-            
+
             // Skip any modules that have already been de-sugared
             if desugared_modules.contains(&module_id) {
                 continue;

@@ -353,6 +353,7 @@ dependencies = [
  "clap",
  "hash-alloc",
  "hash-ast-desugaring",
+ "hash-ast-expand",
  "hash-interactive",
  "hash-lower",
  "hash-parser",
@@ -398,6 +399,18 @@ dependencies = [
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
+ "rayon",
+]
+
+[[package]]
+name = "hash-ast-expand"
+version = "0.1.0"
+dependencies = [
+ "hash-ast",
+ "hash-pipeline",
+ "hash-reporting",
+ "hash-source",
+ "hash-utils",
  "rayon",
 ]
 
@@ -544,6 +557,7 @@ version = "0.1.0"
 dependencies = [
  "hash-ast",
  "hash-ast-desugaring",
+ "hash-ast-expand",
  "hash-lexer",
  "hash-lower",
  "hash-parser",
@@ -591,7 +605,6 @@ dependencies = [
  "dashmap",
  "hash-alloc",
  "hash-ast",
- "hash-ast-desugaring",
  "hash-error-codes",
  "hash-pipeline",
  "hash-reporting",

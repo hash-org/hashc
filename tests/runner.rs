@@ -27,6 +27,7 @@
 use std::{fs, io};
 
 use hash_ast_desugaring::AstDesugarer;
+use hash_ast_expand::AstExpansionPass;
 use hash_lower::IrLowerer;
 use hash_parser::Parser;
 use hash_pipeline::{
@@ -214,6 +215,7 @@ fn handle_test(input: TestingInput) {
     let compiler_stages: Vec<Box<dyn CompilerStage>> = vec![
         Box::new(Parser::new()),
         Box::new(AstDesugarer),
+        Box::new(AstExpansionPass),
         Box::new(SemanticAnalysis),
         Box::new(Typechecker::new()),
         Box::new(IrLowerer),
