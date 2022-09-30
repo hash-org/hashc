@@ -1,7 +1,7 @@
 //! Hash semantic analysis module for validating various constructs relating to
 //! blocks within the AST.
 
-use std::{collections::HashSet, mem};
+use std::{cell::Cell, collections::HashSet, mem};
 
 use hash_ast::{
     ast::{AstNodeRef, BodyBlock, DirectiveExpr, Expr},
@@ -33,26 +33,27 @@ impl SemanticAnalyser<'_> {
         };
 
         for (index, statement) in members.enumerate() {
-            let mut emit_err = || {
-                self.append_error(
-                    AnalysisErrorKind::NonDeclarativeExpression { origin },
-                    statement,
-                );
-
-                error_indices.insert(index);
-            };
+            let current = Cell::new(statement);
 
             // Since directives are allowed at the level because they apply onto
             // the child declaration, we actually need to check the child of the
             // directive, not the directive itself.
-            //
-            // @@Fixme: this should allow multiple chained directives at the top level
-            if let Expr::Directive(DirectiveExpr { subject, .. }) = statement.body() {
-                if !allowed_top_level_expr(subject.ast_ref()) {
-                    emit_err()
+            loop {
+                let current_value = current.get();
+                if let Expr::Directive(DirectiveExpr { subject, .. }) = current_value.body {
+                    current.set(subject.ast_ref());
+                    continue;
+                } else if !allowed_top_level_expr(current_value) {
+                    self.append_error(
+                        AnalysisErrorKind::NonDeclarativeExpression { origin },
+                        statement,
+                    );
+
+                    error_indices.insert(index);
+                    break;
+                } else {
+                    break;
                 }
-            } else if !allowed_top_level_expr(statement) {
-                emit_err()
             }
         }
 
