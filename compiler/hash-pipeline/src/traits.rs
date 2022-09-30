@@ -15,7 +15,7 @@ pub type CompilerResult<T> = Result<T, Vec<Report>>;
 /// [CompilerStage] represents an abstract stage within the compiler pipeline.
 /// Each stage has an associated [CompilerStageKind] which can be used by
 /// the pipeline which stages to run.
-pub trait CompilerStage<'pool> {
+pub trait CompilerStage {
     /// Run the stage, with an initial `entry_point` module. For most
     /// stages this is irrelevant since the module dependency graph
     /// is not relevant for the stage.
@@ -23,7 +23,7 @@ pub trait CompilerStage<'pool> {
         &mut self,
         entry_point: SourceId,
         workspace: &mut Workspace,
-        pool: &'pool rayon::ThreadPool,
+        pool: &rayon::ThreadPool,
     ) -> CompilerResult<()>;
 
     /// A function that is invoked after the stage completes successfully, this

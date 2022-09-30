@@ -18,7 +18,7 @@ use hash_source::SourceId;
 
 pub struct SemanticAnalysis;
 
-impl<'pool> CompilerStage<'pool> for SemanticAnalysis {
+impl CompilerStage for SemanticAnalysis {
     /// This will perform a pass on the AST by checking the semantic rules that
     /// are within the language specification. The function will attempt to
     /// perform a pass on the `entry_point` which happens on the main
@@ -32,7 +32,7 @@ impl<'pool> CompilerStage<'pool> for SemanticAnalysis {
         &mut self,
         entry_point: SourceId,
         workspace: &mut Workspace,
-        pool: &'pool rayon::ThreadPool,
+        pool: &rayon::ThreadPool,
     ) -> CompilerResult<()> {
         let (sender, receiver) = unbounded::<AnalysisDiagnostic>();
 

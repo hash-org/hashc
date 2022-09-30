@@ -32,7 +32,7 @@ pub fn goodbye() {
 /// Function that initialises the interactive mode. Setup all the resources
 /// required to perform execution of provided statements and then initiate the
 /// REPL.
-pub fn init(mut compiler: Compiler<'_>, mut compiler_state: CompilerState) -> CompilerResult<()> {
+pub fn init(mut compiler: Compiler, mut compiler_state: CompilerState) -> CompilerResult<()> {
     // Display the version on start-up
     print_version();
 
@@ -64,9 +64,9 @@ pub fn init(mut compiler: Compiler<'_>, mut compiler_state: CompilerState) -> Co
 }
 
 /// Function to process a single line of input from the REPL instance.
-fn execute<'compiler>(
+fn execute(
     input: &str,
-    compiler: &mut Compiler<'compiler>,
+    compiler: &mut Compiler,
     mut compiler_state: CompilerState,
 ) -> CompilerState {
     if input.is_empty() {

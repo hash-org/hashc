@@ -26,14 +26,14 @@ pub type CompilerResult<T> = Result<T, Vec<Report>>;
 /// [Compiler] with the specified components. This allows external tinkerers
 /// to add their own implementations of each compiler stage with relative ease
 /// instead of having to scratch their heads.
-pub struct Compiler<'pool> {
+pub struct Compiler {
     /// The attached stages of the compiler pipeline.
-    stages: Vec<Box<dyn CompilerStage<'pool>>>,
+    stages: Vec<Box<dyn CompilerStage>>,
 
     /// Various settings for the compiler.
     pub settings: CompilerSettings,
     /// The pipeline shared thread pool.
-    pool: &'pool rayon::ThreadPool,
+    pool: rayon::ThreadPool,
 
     /// A record of all of the stage metrics
     metrics: HashMap<CompilerStageKind, Duration>,
@@ -50,7 +50,7 @@ pub struct CompilerState {
     pub diagnostics: Vec<Report>,
 }
 
-impl<'pool> Compiler<'pool> {
+impl Compiler {
     /// Create a new instance of a [Compiler] with the provided parser and
     /// typechecker implementations. The provided [CompilerStage]s to the
     /// compiler must be provided in an ascending ord
@@ -59,8 +59,8 @@ impl<'pool> Compiler<'pool> {
     ///but this will mean that they are treated as if
     /// they are one stage in some operations.
     pub fn new(
-        stages: Vec<Box<dyn CompilerStage<'pool>>>,
-        pool: &'pool rayon::ThreadPool,
+        stages: Vec<Box<dyn CompilerStage>>,
+        pool: rayon::ThreadPool,
         settings: CompilerSettings,
     ) -> Self {
         // Assert that all the provided stages have a correct stage order, as in
@@ -115,7 +115,7 @@ impl<'pool> Compiler<'pool> {
         let stage_kind = stage.stage_kind();
 
         timed(
-            || stage.run_stage(entry_point, workspace, self.pool),
+            || stage.run_stage(entry_point, workspace, &self.pool),
             log::Level::Debug,
             |time| {
                 self.metrics

@@ -8,7 +8,7 @@ mod logger;
 use std::{num::NonZeroUsize, panic};
 
 use clap::Parser as ClapParser;
-use hash_ast_desugaring::AstDesugarer;
+use hash_ast_desugaring::AstDesugaringPass;
 use hash_ast_expand::AstExpansionPass;
 use hash_lower::IrLowerer;
 use hash_parser::Parser;
@@ -89,14 +89,14 @@ fn main() {
     let compiler_stages: Vec<Box<dyn CompilerStage>> = vec![
         Box::new(Parser::new()),
         Box::new(AstExpansionPass),
-        Box::new(AstDesugarer),
+        Box::new(AstDesugaringPass),
         Box::new(SemanticAnalysis),
         Box::new(Typechecker::new()),
-        Box::new(IrLowerer),
+        Box::new(IrLowerer::new()),
         Box::new(Interpreter::new()),
     ];
 
-    let mut compiler = Compiler::new(compiler_stages, &pool, compiler_settings);
+    let mut compiler = Compiler::new(compiler_stages, pool, compiler_settings);
     let compiler_state = compiler.bootstrap();
 
     match entry_point {

@@ -11,9 +11,9 @@ use visitor::AstDesugaring;
 pub mod desugaring;
 mod visitor;
 
-pub struct AstDesugarer;
+pub struct AstDesugaringPass;
 
-impl<'pool> CompilerStage<'pool> for AstDesugarer {
+impl CompilerStage for AstDesugaringPass {
     fn stage_kind(&self) -> CompilerStageKind {
         CompilerStageKind::DeSugar
     }
@@ -43,7 +43,7 @@ impl<'pool> CompilerStage<'pool> for AstDesugarer {
         &mut self,
         entry_point: SourceId,
         workspace: &mut Workspace,
-        pool: &'pool rayon::ThreadPool,
+        pool: &rayon::ThreadPool,
     ) -> hash_pipeline::traits::CompilerResult<()> {
         let desugared_modules = &mut workspace.desugared_modules;
         let node_map = &mut workspace.node_map;

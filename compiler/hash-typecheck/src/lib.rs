@@ -61,7 +61,7 @@ impl Default for Typechecker {
     }
 }
 
-impl<'pool> CompilerStage<'pool> for Typechecker {
+impl CompilerStage for Typechecker {
     fn stage_kind(&self) -> CompilerStageKind {
         CompilerStageKind::Typecheck
     }
@@ -70,7 +70,7 @@ impl<'pool> CompilerStage<'pool> for Typechecker {
         &mut self,
         entry_point: SourceId,
         workspace: &mut hash_pipeline::sources::Workspace,
-        _pool: &'pool rayon::ThreadPool,
+        _pool: &rayon::ThreadPool,
     ) -> CompilerResult<()> {
         // We need to set the interactive-id to update the current local-storage `id`
         // value, but for modules, we create a new local storage.

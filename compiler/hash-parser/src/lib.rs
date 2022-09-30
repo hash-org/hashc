@@ -106,8 +106,8 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
 #[derive(Debug, Default)]
 pub struct Parser;
 
-impl<'pool> Parser {
-    /// Create a new [HashParser].
+impl Parser {
+    /// Create a new [Parser].
     pub fn new() -> Self {
         Self
     }
@@ -123,7 +123,7 @@ impl<'pool> Parser {
         entry_point_id: SourceId,
         current_dir: PathBuf,
         workspace: &mut Workspace,
-        pool: &'pool rayon::ThreadPool,
+        pool: &rayon::ThreadPool,
     ) -> Vec<Report> {
         let mut collected_diagnostics = Vec::new();
         let (sender, receiver) = unbounded::<ParserAction>();
@@ -179,7 +179,7 @@ impl<'pool> Parser {
     }
 }
 
-impl<'pool> CompilerStage<'pool> for Parser {
+impl CompilerStage for Parser {
     fn stage_kind(&self) -> CompilerStageKind {
         CompilerStageKind::Parse
     }
@@ -190,7 +190,7 @@ impl<'pool> CompilerStage<'pool> for Parser {
         &mut self,
         entry_point: SourceId,
         workspace: &mut Workspace,
-        pool: &'pool rayon::ThreadPool,
+        pool: &rayon::ThreadPool,
     ) -> hash_pipeline::traits::CompilerResult<()> {
         let current_dir = env::current_dir().map_err(|err| vec![err.into()])?;
 

@@ -26,7 +26,7 @@
 
 use std::{fs, io};
 
-use hash_ast_desugaring::AstDesugarer;
+use hash_ast_desugaring::AstDesugaringPass;
 use hash_ast_expand::AstExpansionPass;
 use hash_lower::IrLowerer;
 use hash_parser::Parser;
@@ -214,15 +214,15 @@ fn handle_test(input: TestingInput) {
 
     let compiler_stages: Vec<Box<dyn CompilerStage>> = vec![
         Box::new(Parser::new()),
-        Box::new(AstDesugarer),
+        Box::new(AstDesugaringPass),
         Box::new(AstExpansionPass),
         Box::new(SemanticAnalysis),
         Box::new(Typechecker::new()),
-        Box::new(IrLowerer),
+        Box::new(IrLowerer::new()),
         Box::new(Interpreter::new()),
     ];
 
-    let mut compiler = Compiler::new(compiler_stages, &pool, compiler_settings);
+    let mut compiler = Compiler::new(compiler_stages, pool, compiler_settings);
     let mut compiler_state = compiler.bootstrap();
 
     // // Now parse the module and store the result

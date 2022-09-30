@@ -11,7 +11,7 @@ mod visitor;
 
 pub struct AstExpansionPass;
 
-impl<'pool> CompilerStage<'pool> for AstExpansionPass {
+impl CompilerStage for AstExpansionPass {
     fn stage_kind(&self) -> CompilerStageKind {
         CompilerStageKind::DeSugar
     }
@@ -20,7 +20,7 @@ impl<'pool> CompilerStage<'pool> for AstExpansionPass {
         &mut self,
         entry_point: SourceId,
         workspace: &mut Workspace,
-        _: &'pool rayon::ThreadPool,
+        _: &rayon::ThreadPool,
     ) -> hash_pipeline::traits::CompilerResult<()> {
         let desugared_modules = &mut workspace.desugared_modules;
         let node_map = &mut workspace.node_map;
