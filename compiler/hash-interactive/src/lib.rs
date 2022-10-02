@@ -66,13 +66,10 @@ pub fn init<W: CompilerInterface>(
 }
 
 /// Function to process a single line of input from the REPL instance.
-fn execute<W: CompilerInterface>(
-    input: &str,
-    compiler: &mut Compiler<W>,
-    mut compiler_state: W,
-) -> W {
+fn execute<I: CompilerInterface>(input: &str, compiler: &mut Compiler<I>, mut ctx: I) -> I {
+    // If the entered line has no content, just skip even evaluating it.
     if input.is_empty() {
-        return compiler_state;
+        return ctx;
     }
 
     let command = InteractiveCommand::from(input);
@@ -96,7 +93,8 @@ fn execute<W: CompilerInterface>(
         ) => {
             // Add the interactive block to the state
             let interactive_id =
-                compiler_state.add_interactive_block(expr.to_string(), InteractiveBlock::new());
+                ctx.add_interactive_block(expr.to_string(), InteractiveBlock::new());
+            let settings = ctx.settings_mut();
 
             // if the mode is specified to emit the type `:t` of the expr or the dump tree
             // `:d`
@@ -104,27 +102,27 @@ fn execute<W: CompilerInterface>(
                 InteractiveCommand::Type(_) => {
                     // @@Hack: if display is previously set `:d`, then this interferes with this
                     // mode.
-                    compiler.settings.dump_ast = false;
-                    compiler.settings.set_stage(CompilerStageKind::Typecheck)
+                    settings.dump_ast = false;
+                    settings.set_stage(CompilerStageKind::Typecheck)
                 }
                 InteractiveCommand::Display(_) => {
-                    compiler.settings.dump_ast = true;
-                    compiler.settings.set_stage(CompilerStageKind::Parse)
+                    settings.dump_ast = true;
+                    settings.set_stage(CompilerStageKind::Parse)
                 }
                 _ => {
-                    compiler.settings.dump_ast = false;
-                    compiler.settings.set_stage(CompilerStageKind::Full)
+                    settings.dump_ast = false;
+                    settings.set_stage(CompilerStageKind::Full)
                 }
             }
 
             // We don't want the old diagnostics
             // @@Refactor: we don't want to leak the diagnostics here..
-            compiler_state.diagnostics_mut().clear();
-            let new_state = compiler.run(SourceId::Interactive(interactive_id), compiler_state);
+            ctx.diagnostics_mut().clear();
+            let new_state = compiler.run(SourceId::Interactive(interactive_id), ctx);
             return new_state;
         }
         Err(e) => CompilerError::from(e).report(),
     }
 
-    compiler_state
+    ctx
 }

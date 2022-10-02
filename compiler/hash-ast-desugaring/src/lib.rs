@@ -102,11 +102,11 @@ impl<Ctx: AstDesugaringCtx> CompilerStage<Ctx> for AstDesugaringPass {
         Ok(())
     }
 
-    fn cleanup(&self, entry_point: SourceId, ctx: &mut Ctx) {
+    fn cleanup(&mut self, entry_point: SourceId, ctx: &mut Ctx) {
         let settings = ctx.settings();
 
         if settings.stage > CompilerStageKind::Parse && settings.dump_ast {
-            ctx.workspace_mut().print_sources(entry_point);
+            ctx.workspace().print_sources(entry_point);
         }
     }
 }

@@ -11,19 +11,34 @@
 use std::collections::HashSet;
 
 use hash_ast::node_map::NodeMap;
-use hash_ast_desugaring::AstDesugaringCtx;
-use hash_ast_expand::AstExpansionCtx;
-use hash_lower::IrLoweringCtx;
-use hash_parser::ParserCtx;
+use hash_ast_desugaring::{AstDesugaringCtx, AstDesugaringPass};
+use hash_ast_expand::{AstExpansionCtx, AstExpansionPass};
+use hash_lower::{IrLowerer, IrLoweringCtx};
+use hash_parser::{Parser, ParserCtx};
 use hash_pipeline::{
-    interface::CompilerInterface, settings::CompilerSettings, workspace::Workspace,
+    interface::{CompilerInterface, CompilerStage},
+    settings::CompilerSettings,
+    workspace::Workspace,
 };
 use hash_reporting::report::Report;
 use hash_source::{SourceId, SourceMap};
-use hash_typecheck::TypecheckingCtx;
+use hash_typecheck::{Typechecker, TypecheckingCtx};
 use hash_types::storage::{GlobalStorage, LocalStorage, TyStorage};
-use hash_untyped_semantics::SemanticAnalysisCtx;
-use hash_vm::InterpreterCtx;
+use hash_untyped_semantics::{SemanticAnalysis, SemanticAnalysisCtx};
+use hash_vm::{vm::Interpreter, InterpreterCtx};
+
+/// Function to make all of the stages a nominal compiler pipeline accepts.
+pub fn make_stages() -> Vec<Box<dyn CompilerStage<CompilerSession>>> {
+    vec![
+        Box::new(Parser::new()),
+        Box::new(AstExpansionPass),
+        Box::new(AstDesugaringPass),
+        Box::new(SemanticAnalysis),
+        Box::new(Typechecker::new()),
+        Box::new(IrLowerer::new()),
+        Box::new(Interpreter::new()),
+    ]
+}
 
 /// The [CompilerSession] holds all the information and state of the compiler
 /// instance. Each stage of the compiler contains a `State` type parameter which
@@ -80,6 +95,10 @@ impl CompilerSession {
 impl CompilerInterface for CompilerSession {
     fn settings(&self) -> &CompilerSettings {
         &self.settings
+    }
+
+    fn settings_mut(&mut self) -> &mut CompilerSettings {
+        &mut self.settings
     }
 
     fn diagnostics(&self) -> &[Report] {

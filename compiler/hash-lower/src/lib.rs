@@ -48,8 +48,8 @@ impl<Ctx: IrLoweringCtx> CompilerStage<Ctx> for IrLowerer {
     }
 
     fn run_stage(&mut self, entry_point: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
-        let _node_map = ctx.node_map();
-
+        // We need to iterate all of the modules and essentially perform
+        // a discovery process for what needs to be lowered...
         Ok(())
     }
 }

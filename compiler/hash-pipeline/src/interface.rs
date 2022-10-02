@@ -33,7 +33,7 @@ pub trait CompilerStage<StageCtx> {
     /// emit the parsed AST. The parser does this by checking this condition
     /// and then invoking a function to emit all of the ASTs for each module
     /// within the workspace.
-    fn cleanup(&self, _entry_point: SourceId, _stage_data: &mut StageCtx) {}
+    fn cleanup(&mut self, _entry_point: SourceId, _stage_data: &mut StageCtx) {}
 
     /// This function is used to to return the `stage` kind of
     /// this [CompilerStage].
@@ -52,6 +52,9 @@ pub trait CompilerInterface {
     /// Get the [CompilerSettings]. The settings represent any commandline
     /// arguments that were passed into the [CompilerSession].
     fn settings(&self) -> &CompilerSettings;
+
+    /// Get a mutable reference to the current [CompilerSettings].
+    fn settings_mut(&mut self) -> &mut CompilerSettings;
 
     /// Get the current [Report]s that have been collected by the compiler.
     fn diagnostics(&self) -> &[Report];

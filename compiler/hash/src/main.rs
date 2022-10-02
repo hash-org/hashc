@@ -8,19 +8,10 @@ mod logger;
 use std::{num::NonZeroUsize, panic};
 
 use clap::Parser as ClapParser;
-use hash_ast_desugaring::AstDesugaringPass;
-use hash_ast_expand::AstExpansionPass;
-use hash_lower::IrLowerer;
-use hash_parser::Parser;
-use hash_pipeline::{
-    interface::CompilerStage, settings::CompilerSettings, workspace::Workspace, Compiler,
-};
+use hash_pipeline::{settings::CompilerSettings, workspace::Workspace, Compiler};
 use hash_reporting::errors::CompilerError;
-use hash_session::CompilerSession;
+use hash_session::{make_stages, CompilerSession};
 use hash_source::ModuleKind;
-use hash_typecheck::Typechecker;
-use hash_untyped_semantics::SemanticAnalysis;
-use hash_vm::vm::Interpreter;
 use log::LevelFilter;
 use logger::CompilerLogger;
 
@@ -93,17 +84,7 @@ fn main() {
     let workspace = Workspace::new();
     let session = CompilerSession::new(workspace, pool, compiler_settings);
 
-    let compiler_stages: Vec<Box<dyn CompilerStage<CompilerSession>>> = vec![
-        Box::new(Parser::new()),
-        Box::new(AstExpansionPass),
-        Box::new(AstDesugaringPass),
-        Box::new(SemanticAnalysis),
-        Box::new(Typechecker::new()),
-        Box::new(IrLowerer::new()),
-        Box::new(Interpreter::new()),
-    ];
-
-    let mut compiler = Compiler::new(compiler_stages, compiler_settings);
+    let mut compiler = Compiler::new(make_stages());
     let compiler_state = compiler.bootstrap(session);
 
     match entry_point {
