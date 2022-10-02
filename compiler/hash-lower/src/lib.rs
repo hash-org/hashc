@@ -12,8 +12,9 @@ mod visitor;
 use hash_ast::ast::{AstNodeRef, Expr, OwnsAstNode};
 use hash_ir::ir::Body;
 use hash_pipeline::{
+    interface::{CompilerInterface, CompilerResult, CompilerStage},
     settings::CompilerStageKind,
-    traits::{CompilerResult, CompilerStage},
+    workspace::Workspace,
 };
 use hash_source::{
     location::{SourceLocation, Span},
@@ -25,16 +26,11 @@ use self::builder::Builder;
 /// The [IrLowerer] is used as a bootstrapping mechanism to kick off the
 /// [Builder] working on functions that it discovers as the the lower traverses
 /// through the source files.
-pub struct IrLowerer {
-    //<'ir> {
-    // items_to_lower: Vec<AstNodeRef<'ir, Expr>>
-}
+pub struct IrLowerer;
 
 impl IrLowerer {
     pub fn new() -> Self {
-        Self {
-            // items_to_lower: vec![]
-        }
+        Self
     }
 }
 
@@ -44,27 +40,15 @@ impl Default for IrLowerer {
     }
 }
 
-impl CompilerStage for IrLowerer {
+pub trait IrLoweringCtx: CompilerInterface {}
+
+impl<Ctx: IrLoweringCtx> CompilerStage<Ctx> for IrLowerer {
     fn stage_kind(&self) -> CompilerStageKind {
         CompilerStageKind::IrGen
     }
 
-    fn run_stage(
-        &mut self,
-        entry_point: SourceId,
-        workspace: &mut hash_pipeline::sources::Workspace,
-        pool: &rayon::ThreadPool,
-    ) -> CompilerResult<()> {
-        // We need to iterate all of the modules and essentially perform
-        // a discovery process for what needs to be lowered...
-
-        if let SourceId::Module(id) = entry_point {
-            let module = workspace.node_map.get_module(id);
-
-            for expr in module.node().contents.iter() {
-                // self.items_to_lower.push(expr.ast_ref());
-            }
-        }
+    fn run_stage(&mut self, entry_point: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
+        let _node_map = ctx.node_map();
 
         Ok(())
     }

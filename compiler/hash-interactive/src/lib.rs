@@ -5,9 +5,8 @@ mod command;
 use std::{env, process::exit};
 
 use command::InteractiveCommand;
-use hash_pipeline::{
-    settings::CompilerStageKind, sources::InteractiveBlock, Compiler, CompilerState,
-};
+use hash_ast::node_map::InteractiveBlock;
+use hash_pipeline::{interface::CompilerInterface, settings::CompilerStageKind, Compiler};
 use hash_reporting::errors::{CompilerError, InteractiveCommandError};
 use hash_source::SourceId;
 use rustyline::{error::ReadlineError, Editor};
@@ -32,7 +31,10 @@ pub fn goodbye() {
 /// Function that initialises the interactive mode. Setup all the resources
 /// required to perform execution of provided statements and then initiate the
 /// REPL.
-pub fn init(mut compiler: Compiler, mut compiler_state: CompilerState) -> CompilerResult<()> {
+pub fn init<W: CompilerInterface>(
+    mut compiler: Compiler<W>,
+    mut compiler_state: W,
+) -> CompilerResult<()> {
     // Display the version on start-up
     print_version();
 
@@ -64,11 +66,11 @@ pub fn init(mut compiler: Compiler, mut compiler_state: CompilerState) -> Compil
 }
 
 /// Function to process a single line of input from the REPL instance.
-fn execute(
+fn execute<W: CompilerInterface>(
     input: &str,
-    compiler: &mut Compiler,
-    mut compiler_state: CompilerState,
-) -> CompilerState {
+    compiler: &mut Compiler<W>,
+    mut compiler_state: W,
+) -> W {
     if input.is_empty() {
         return compiler_state;
     }
@@ -93,9 +95,8 @@ fn execute(
             | InteractiveCommand::Code(expr)),
         ) => {
             // Add the interactive block to the state
-            let interactive_id = compiler_state
-                .workspace
-                .add_interactive_block(expr.to_string(), InteractiveBlock::new());
+            let interactive_id =
+                compiler_state.add_interactive_block(expr.to_string(), InteractiveBlock::new());
 
             // if the mode is specified to emit the type `:t` of the expr or the dump tree
             // `:d`
@@ -118,7 +119,7 @@ fn execute(
 
             // We don't want the old diagnostics
             // @@Refactor: we don't want to leak the diagnostics here..
-            compiler_state.diagnostics.clear();
+            compiler_state.diagnostics_mut().clear();
             let new_state = compiler.run(SourceId::Interactive(interactive_id), compiler_state);
             return new_state;
         }

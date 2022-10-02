@@ -31,9 +31,10 @@ use hash_ast_expand::AstExpansionPass;
 use hash_lower::IrLowerer;
 use hash_parser::Parser;
 use hash_pipeline::{
-    settings::CompilerSettings, sources::Workspace, traits::CompilerStage, Compiler,
+    interface::CompilerStage, settings::CompilerSettings, workspace::Workspace, Compiler,
 };
 use hash_reporting::{report::Report, writer::ReportWriter};
+use hash_session::CompilerSession;
 use hash_source::ModuleKind;
 use hash_testing_internal::{
     metadata::{HandleWarnings, TestResult},
@@ -212,7 +213,10 @@ fn handle_test(input: TestingInput) {
         .build()
         .unwrap();
 
-    let compiler_stages: Vec<Box<dyn CompilerStage>> = vec![
+    let workspace = Workspace::new();
+    let session = CompilerSession::new(workspace, pool, compiler_settings);
+
+    let compiler_stages: Vec<Box<dyn CompilerStage<CompilerSession>>> = vec![
         Box::new(Parser::new()),
         Box::new(AstDesugaringPass),
         Box::new(AstExpansionPass),
@@ -222,8 +226,8 @@ fn handle_test(input: TestingInput) {
         Box::new(Interpreter::new()),
     ];
 
-    let mut compiler = Compiler::new(compiler_stages, pool, compiler_settings);
-    let mut compiler_state = compiler.bootstrap();
+    let mut compiler = Compiler::new(compiler_stages, compiler_settings);
+    let mut compiler_state = compiler.bootstrap(session);
 
     // // Now parse the module and store the result
     compiler_state =

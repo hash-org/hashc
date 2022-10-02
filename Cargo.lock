@@ -352,6 +352,7 @@ dependencies = [
  "cargo-husky",
  "clap",
  "hash-alloc",
+ "hash-ast",
  "hash-ast-desugaring",
  "hash-ast-expand",
  "hash-interactive",
@@ -359,6 +360,7 @@ dependencies = [
  "hash-parser",
  "hash-pipeline",
  "hash-reporting",
+ "hash-session",
  "hash-source",
  "hash-tree-def",
  "hash-typecheck",
@@ -368,7 +370,6 @@ dependencies = [
  "num_cpus",
  "profiling",
  "rayon",
- "thiserror",
  "tracy-client",
 ]
 
@@ -422,9 +423,18 @@ version = "0.1.0"
 name = "hash-interactive"
 version = "0.1.0"
 dependencies = [
+ "hash-ast",
+ "hash-ast-desugaring",
+ "hash-ast-expand",
+ "hash-lower",
+ "hash-parser",
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
+ "hash-typecheck",
+ "hash-untyped-semantics",
+ "hash-vm",
+ "rayon",
  "rustyline",
 ]
 
@@ -483,7 +493,6 @@ dependencies = [
  "profiling",
  "rayon",
  "smallvec",
- "thiserror",
 ]
 
 [[package]]
@@ -499,7 +508,6 @@ dependencies = [
  "num_cpus",
  "rayon",
  "slotmap",
- "thiserror",
 ]
 
 [[package]]
@@ -510,6 +518,30 @@ dependencies = [
  "hash-source",
  "hash-utils",
  "thiserror",
+]
+
+[[package]]
+name = "hash-session"
+version = "0.1.0"
+dependencies = [
+ "hash-alloc",
+ "hash-ast",
+ "hash-ast-desugaring",
+ "hash-ast-expand",
+ "hash-interactive",
+ "hash-lower",
+ "hash-parser",
+ "hash-pipeline",
+ "hash-reporting",
+ "hash-source",
+ "hash-tree-def",
+ "hash-typecheck",
+ "hash-types",
+ "hash-untyped-semantics",
+ "hash-vm",
+ "log",
+ "num_cpus",
+ "rayon",
 ]
 
 [[package]]
@@ -563,6 +595,7 @@ dependencies = [
  "hash-parser",
  "hash-pipeline",
  "hash-reporting",
+ "hash-session",
  "hash-source",
  "hash-testing-internal",
  "hash-testing-macros",

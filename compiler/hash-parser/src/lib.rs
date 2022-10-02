@@ -10,12 +10,15 @@ mod source;
 use std::{env, path::PathBuf};
 
 use crossbeam_channel::{unbounded, Sender};
-use hash_ast::ast::{self};
+use hash_ast::{
+    ast::{self},
+    node_map::ModuleEntry,
+};
 use hash_lexer::Lexer;
 use hash_pipeline::{
+    interface::{CompilerInterface, CompilerStage},
     settings::CompilerStageKind,
-    sources::{Module, Workspace},
-    traits::CompilerStage,
+    workspace::Workspace,
 };
 use hash_reporting::{diagnostic::Diagnostics, report::Report};
 use hash_source::{InteractiveId, ModuleId, ModuleKind, SourceId};
@@ -162,7 +165,7 @@ impl Parser {
                             ModuleKind::Normal,
                         );
 
-                        let module = Module::new(resolved_path);
+                        let module = ModuleEntry::new(resolved_path);
                         node_map.add_module(module_id, module);
 
                         let source = ParseSource::from_module(module_id, node_map, source_map);
@@ -179,22 +182,28 @@ impl Parser {
     }
 }
 
-impl CompilerStage for Parser {
+pub trait ParserCtx: CompilerInterface {
+    fn data(&mut self) -> (&mut Workspace, &rayon::ThreadPool);
+}
+
+impl<Ctx: ParserCtx> CompilerStage<Ctx> for Parser {
+    /// Return the [CompilerStageKind] of the parser.
     fn stage_kind(&self) -> CompilerStageKind {
         CompilerStageKind::Parse
     }
 
     /// Entry point of the parser. Initialises a job from the specified
-    /// `entry_point`, and calls [HashParser::begin].
+    /// `entry_point`, and calls [Self::begin].
     fn run_stage(
         &mut self,
         entry_point: SourceId,
-        workspace: &mut Workspace,
-        pool: &rayon::ThreadPool,
-    ) -> hash_pipeline::traits::CompilerResult<()> {
+        ctx: &mut Ctx,
+    ) -> hash_pipeline::interface::CompilerResult<()> {
+        let (workspace, pool) = ctx.data();
         let current_dir = env::current_dir().map_err(|err| vec![err.into()])?;
 
         let errors = self.begin(entry_point, current_dir, workspace, pool);
+
         if errors.is_empty() {
             Ok(())
         } else {
@@ -202,15 +211,13 @@ impl CompilerStage for Parser {
         }
     }
 
-    fn cleanup(
-        &self,
-        entry_point: SourceId,
-        workspace: &mut Workspace,
-        settings: &hash_pipeline::settings::CompilerSettings,
-    ) {
-        // Any other stage than `semantic_pass` is valid when `--dump-ast` is specified.
+    /// Any other stage than `semantic_pass` is valid when `--dump-ast` is
+    /// specified.
+    fn cleanup(&self, entry_point: SourceId, ctx: &mut Ctx) {
+        let settings = ctx.settings();
+
         if settings.stage < CompilerStageKind::SemanticPass && settings.dump_ast {
-            workspace.print_sources(entry_point);
+            ctx.workspace_mut().print_sources(entry_point);
         }
     }
 }
