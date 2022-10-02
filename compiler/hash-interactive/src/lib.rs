@@ -5,9 +5,8 @@ mod command;
 use std::{env, process::exit};
 
 use command::InteractiveCommand;
-use hash_pipeline::{
-    settings::CompilerStageKind, sources::InteractiveBlock, Compiler, CompilerState,
-};
+use hash_ast::node_map::InteractiveBlock;
+use hash_pipeline::{interface::CompilerInterface, settings::CompilerStageKind, Compiler};
 use hash_reporting::errors::{CompilerError, InteractiveCommandError};
 use hash_source::SourceId;
 use rustyline::{error::ReadlineError, Editor};
@@ -32,7 +31,10 @@ pub fn goodbye() {
 /// Function that initialises the interactive mode. Setup all the resources
 /// required to perform execution of provided statements and then initiate the
 /// REPL.
-pub fn init(mut compiler: Compiler<'_>, mut compiler_state: CompilerState) -> CompilerResult<()> {
+pub fn init<W: CompilerInterface>(
+    mut compiler: Compiler<W>,
+    mut compiler_state: W,
+) -> CompilerResult<()> {
     // Display the version on start-up
     print_version();
 
@@ -64,13 +66,10 @@ pub fn init(mut compiler: Compiler<'_>, mut compiler_state: CompilerState) -> Co
 }
 
 /// Function to process a single line of input from the REPL instance.
-fn execute<'compiler>(
-    input: &str,
-    compiler: &mut Compiler<'compiler>,
-    mut compiler_state: CompilerState,
-) -> CompilerState {
+fn execute<I: CompilerInterface>(input: &str, compiler: &mut Compiler<I>, mut ctx: I) -> I {
+    // If the entered line has no content, just skip even evaluating it.
     if input.is_empty() {
-        return compiler_state;
+        return ctx;
     }
 
     let command = InteractiveCommand::from(input);
@@ -93,9 +92,9 @@ fn execute<'compiler>(
             | InteractiveCommand::Code(expr)),
         ) => {
             // Add the interactive block to the state
-            let interactive_id = compiler_state
-                .workspace
-                .add_interactive_block(expr.to_string(), InteractiveBlock::new());
+            let interactive_id =
+                ctx.add_interactive_block(expr.to_string(), InteractiveBlock::new());
+            let settings = ctx.settings_mut();
 
             // if the mode is specified to emit the type `:t` of the expr or the dump tree
             // `:d`
@@ -103,27 +102,27 @@ fn execute<'compiler>(
                 InteractiveCommand::Type(_) => {
                     // @@Hack: if display is previously set `:d`, then this interferes with this
                     // mode.
-                    compiler.settings.dump_ast = false;
-                    compiler.settings.set_stage(CompilerStageKind::Typecheck)
+                    settings.dump_ast = false;
+                    settings.set_stage(CompilerStageKind::Typecheck)
                 }
                 InteractiveCommand::Display(_) => {
-                    compiler.settings.dump_ast = true;
-                    compiler.settings.set_stage(CompilerStageKind::Parse)
+                    settings.dump_ast = true;
+                    settings.set_stage(CompilerStageKind::Parse)
                 }
                 _ => {
-                    compiler.settings.dump_ast = false;
-                    compiler.settings.set_stage(CompilerStageKind::Full)
+                    settings.dump_ast = false;
+                    settings.set_stage(CompilerStageKind::Full)
                 }
             }
 
             // We don't want the old diagnostics
             // @@Refactor: we don't want to leak the diagnostics here..
-            compiler_state.diagnostics.clear();
-            let new_state = compiler.run(SourceId::Interactive(interactive_id), compiler_state);
+            ctx.diagnostics_mut().clear();
+            let new_state = compiler.run(SourceId::Interactive(interactive_id), ctx);
             return new_state;
         }
         Err(e) => CompilerError::from(e).report(),
     }
 
-    compiler_state
+    ctx
 }

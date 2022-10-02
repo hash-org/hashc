@@ -3,7 +3,7 @@
 
 use std::{borrow::Cow, path::PathBuf};
 
-use hash_pipeline::sources::NodeMap;
+use hash_ast::node_map::NodeMap;
 use hash_source::{InteractiveId, ModuleId, SourceId, SourceMap};
 
 /// A [ParseSource] represents the pre-processed information before a module

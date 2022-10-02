@@ -3,17 +3,27 @@
 //! that later stages can work on it without having to operate on similar
 //! constructs and duplicating logic.
 
+use std::collections::HashSet;
+
 use hash_ast::{ast::OwnsAstNode, visitor::AstVisitorMut};
-use hash_pipeline::{settings::CompilerStageKind, sources::Workspace, traits::CompilerStage};
+use hash_pipeline::{
+    interface::{CompilerInterface, CompilerStage},
+    settings::CompilerStageKind,
+    workspace::Workspace,
+};
 use hash_source::SourceId;
 use visitor::AstDesugaring;
 
 pub mod desugaring;
 mod visitor;
 
-pub struct AstDesugarer;
+pub struct AstDesugaringPass;
 
-impl<'pool> CompilerStage<'pool> for AstDesugarer {
+pub trait AstDesugaringCtx: CompilerInterface {
+    fn data(&mut self) -> (&mut Workspace, &mut HashSet<SourceId>, &rayon::ThreadPool);
+}
+
+impl<Ctx: AstDesugaringCtx> CompilerStage<Ctx> for AstDesugaringPass {
     fn stage_kind(&self) -> CompilerStageKind {
         CompilerStageKind::DeSugar
     }
@@ -42,15 +52,14 @@ impl<'pool> CompilerStage<'pool> for AstDesugarer {
     fn run_stage(
         &mut self,
         entry_point: SourceId,
-        workspace: &mut Workspace,
-        pool: &'pool rayon::ThreadPool,
-    ) -> hash_pipeline::traits::CompilerResult<()> {
-        let desugared_modules = &mut workspace.desugared_modules;
+        ctx: &mut Ctx,
+    ) -> hash_pipeline::interface::CompilerResult<()> {
+        let (workspace, desugared_modules, pool) = &mut ctx.data();
+
         let node_map = &mut workspace.node_map;
+        let source_map = &workspace.source_map;
 
         pool.scope(|scope| {
-            let source_map = &workspace.source_map;
-
             // De-sugar the target if it isn't already de-sugared
             if !desugared_modules.contains(&entry_point) {
                 if let SourceId::Interactive(id) = entry_point {
@@ -93,14 +102,11 @@ impl<'pool> CompilerStage<'pool> for AstDesugarer {
         Ok(())
     }
 
-    fn cleanup(
-        &self,
-        entry_point: SourceId,
-        workspace: &mut Workspace,
-        settings: &hash_pipeline::settings::CompilerSettings,
-    ) {
+    fn cleanup(&mut self, entry_point: SourceId, ctx: &mut Ctx) {
+        let settings = ctx.settings();
+
         if settings.stage > CompilerStageKind::Parse && settings.dump_ast {
-            workspace.print_sources(entry_point);
+            ctx.workspace().print_sources(entry_point);
         }
     }
 }

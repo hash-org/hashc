@@ -12,6 +12,7 @@ members = [
   "compiler/hash-parser",
   "compiler/hash-pipeline",
   "compiler/hash-reporting",
+  "compiler/hash-session",
   "compiler/hash-source",
   "compiler/hash-token",
   "compiler/hash-typecheck",

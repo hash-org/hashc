@@ -8,9 +8,9 @@ use hash_ast::{
         self, AccessKind, AstNodeRef, BinOp, Lit, MatchOrigin, OwnsAstNode, ParamOrigin, RefKind,
         UnOp,
     },
+    node_map::{NodeMap, SourceRef},
     visitor::{self, walk, AstVisitor},
 };
-use hash_pipeline::sources::{NodeMap, SourceRef};
 use hash_reporting::{diagnostic::Diagnostics, macros::panic_on_span};
 use hash_source::{
     identifier::{Identifier, IDENTS},

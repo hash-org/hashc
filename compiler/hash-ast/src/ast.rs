@@ -315,6 +315,7 @@ define_tree! {
         visitor_node_ref_base_type_name: AstNodeRef,
         get_ref_from_node_function_base_name: ast_ref,
         ref_change_body_function_base_name: with_body,
+        root_module: hash_ast::ast,
     }}
 
     /// A single name/symbol.

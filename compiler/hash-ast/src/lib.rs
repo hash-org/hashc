@@ -3,6 +3,7 @@
 #![feature(box_into_inner, iter_intersperse)]
 
 pub mod ast;
+pub mod node_map;
 pub mod tree;
 pub mod visitor {
     pub use super::ast::{

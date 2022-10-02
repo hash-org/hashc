@@ -26,23 +26,15 @@
 
 use std::{fs, io};
 
-use hash_ast_desugaring::AstDesugarer;
-use hash_ast_expand::AstExpansionPass;
-use hash_lower::IrLowerer;
-use hash_parser::Parser;
-use hash_pipeline::{
-    settings::CompilerSettings, sources::Workspace, traits::CompilerStage, Compiler,
-};
+use hash_pipeline::{settings::CompilerSettings, workspace::Workspace, Compiler};
 use hash_reporting::{report::Report, writer::ReportWriter};
+use hash_session::{make_stages, CompilerSession};
 use hash_source::ModuleKind;
 use hash_testing_internal::{
     metadata::{HandleWarnings, TestResult},
     TestingInput,
 };
 use hash_testing_macros::generate_tests;
-use hash_typecheck::Typechecker;
-use hash_untyped_semantics::SemanticAnalysis;
-use hash_vm::vm::Interpreter;
 use regex::Regex;
 
 use crate::{ANSI_REGEX, REGENERATE_OUTPUT};
@@ -212,18 +204,11 @@ fn handle_test(input: TestingInput) {
         .build()
         .unwrap();
 
-    let compiler_stages: Vec<Box<dyn CompilerStage>> = vec![
-        Box::new(Parser::new()),
-        Box::new(AstDesugarer),
-        Box::new(AstExpansionPass),
-        Box::new(SemanticAnalysis),
-        Box::new(Typechecker::new()),
-        Box::new(IrLowerer),
-        Box::new(Interpreter::new()),
-    ];
+    let workspace = Workspace::new();
+    let session = CompilerSession::new(workspace, pool, compiler_settings);
 
-    let mut compiler = Compiler::new(compiler_stages, &pool, compiler_settings);
-    let mut compiler_state = compiler.bootstrap();
+    let mut compiler = Compiler::new(make_stages());
+    let mut compiler_state = compiler.bootstrap(session);
 
     // // Now parse the module and store the result
     compiler_state =

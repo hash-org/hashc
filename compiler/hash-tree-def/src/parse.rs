@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use proc_macro2::TokenStream;
 use syn::{
     parse::Parse, spanned::Spanned, Attribute, Field, FieldsNamed, Ident, Item, ItemEnum,
-    ItemMacro, ItemStruct, Type, Variant,
+    ItemMacro, ItemStruct, Path, Type, Variant,
 };
 
 use super::definitions::{
@@ -16,7 +16,7 @@ use super::definitions::{
 };
 use crate::definitions::{
     TreeDefOpts, GET_REF_FROM_NODE_FUNCTION_BASE_NAME_OPTS_FIELD, NODES_TYPE_NAME,
-    OPTIONAL_NODE_TYPE_NAME, REF_CHANGE_BODY_FUNCTION_BASE_NAME_OPTS_FIELD,
+    OPTIONAL_NODE_TYPE_NAME, REF_CHANGE_BODY_FUNCTION_BASE_NAME_OPTS_FIELD, ROOT_MODULE_OPTS_FIELD,
     VISITOR_NODE_REF_BASE_TYPE_NAME_OPTS_FIELD, VISITOR_TRAIT_BASE_NAME_OPTS_FIELD,
 };
 
@@ -170,15 +170,39 @@ impl TryFrom<&Item> for MaybeTreeNodeDef {
     }
 }
 
-/// Parse a field in the form `ident_name: A` for some identifier A, returning
-/// the identifier A.
-fn parse_ident_field(fields: &FieldsNamed, ident_name: &str) -> Result<Ident, syn::Error> {
+/// Parse a field in the form `ident_name: a::b::c::...` the path `a::b::c::...`
+fn parse_path_field(fields: &FieldsNamed, field_name: &str) -> Result<Path, syn::Error> {
     fields
         .named
         .iter()
         .find_map(|field| {
             if let Some(ident) = &field.ident {
-                if ident == ident_name {
+                if ident == field_name {
+                    if let Type::Path(path) = &field.ty {
+                        return Some(Ok(path.path.clone()));
+                    }
+                    return Some(Err(syn::Error::new(field.ty.span(), "Expected a path")));
+                }
+            }
+            None
+        })
+        .unwrap_or_else(|| {
+            Err(syn::Error::new(
+                fields.named.span(),
+                format!("Expected a field named `{field_name}`"),
+            ))
+        })
+}
+
+/// Parse a field in the form `ident_name: A` for some identifier A, returning
+/// the identifier A.
+fn parse_ident_field(fields: &FieldsNamed, field_name: &str) -> Result<Ident, syn::Error> {
+    fields
+        .named
+        .iter()
+        .find_map(|field| {
+            if let Some(ident) = &field.ident {
+                if ident == field_name {
                     if let Type::Path(path) = &field.ty {
                         if let Some(name) = path.path.get_ident() {
                             return Some(Ok(name.clone()));
@@ -195,7 +219,7 @@ fn parse_ident_field(fields: &FieldsNamed, ident_name: &str) -> Result<Ident, sy
         .unwrap_or_else(|| {
             Err(syn::Error::new(
                 fields.named.span(),
-                format!("Expected a field named `{ident_name}`"),
+                format!("Expected a field named `{field_name}`"),
             ))
         })
 }
@@ -224,6 +248,7 @@ impl TryFrom<&Item> for MaybeTreeDefOpts {
                     parse_ident_field(&opts, GET_REF_FROM_NODE_FUNCTION_BASE_NAME_OPTS_FIELD)?;
                 let ref_change_body_function_base_name =
                     parse_ident_field(&opts, REF_CHANGE_BODY_FUNCTION_BASE_NAME_OPTS_FIELD)?;
+                let root_module = parse_path_field(&opts, ROOT_MODULE_OPTS_FIELD)?;
 
                 Ok(MaybeTreeDefOpts(Some(TreeDefOpts {
                     node_type_name,
@@ -232,6 +257,7 @@ impl TryFrom<&Item> for MaybeTreeDefOpts {
                     visitor_trait_base_name,
                     get_ref_from_node_function_base_name,
                     ref_change_body_function_base_name,
+                    root_module,
                 })))
             }
             _ => Ok(MaybeTreeDefOpts(None)),

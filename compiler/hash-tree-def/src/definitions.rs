@@ -102,6 +102,7 @@ pub(crate) const GET_REF_FROM_NODE_FUNCTION_BASE_NAME_OPTS_FIELD: &str =
     "get_ref_from_node_function_base_name";
 pub(crate) const REF_CHANGE_BODY_FUNCTION_BASE_NAME_OPTS_FIELD: &str =
     "ref_change_body_function_base_name";
+pub(crate) const ROOT_MODULE_OPTS_FIELD: &str = "root_module";
 
 /// A set of auxiliary options given to the tree definition macro.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -122,6 +123,9 @@ pub(crate) struct TreeDefOpts {
     /// The base method name to use for changing a node reference's body from
     /// one value to another.
     pub(crate) ref_change_body_function_base_name: syn::Ident,
+    /// The full path of the module in which the `define_tree` macro is being
+    /// invoked. Needed to be able to generate macro definitions.
+    pub(crate) root_module: syn::Path,
 }
 
 /// The definition of a tree of nodes, as well as other items that might have

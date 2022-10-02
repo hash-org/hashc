@@ -40,6 +40,7 @@ macro_rules! try_syn_err {
 ///         visitor_node_ref_base_type_name: AstNodeRef,
 ///         get_ref_from_node_function_base_name: ast_ref,
 ///         ref_change_body_function_base_name: with_body,
+///         root_module: hash_ast::ast,
 ///     }}
 ///     #[node]
 ///     pub struct Foo {
@@ -76,6 +77,6 @@ macro_rules! try_syn_err {
 pub fn define_tree(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let def = parse_macro_input!(input as TreeDef);
     try_syn_err!(validate_tree_def(&def));
-    let result = { try_syn_err!(emit_tree(&def)) };
+    let result = try_syn_err!(emit_tree(&def));
     proc_macro::TokenStream::from(result)
 }

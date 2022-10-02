@@ -18,6 +18,7 @@ lazy_static = "1.4.0"
 
 hash-ast = {path = "../compiler/hash-ast" }
 hash-source = {path = "../compiler/hash-source" }
+hash-session = { path = "../compiler/hash-session" }
 hash-utils = {path = "../compiler/hash-utils" }
 hash-pipeline = {path = "../compiler/hash-pipeline" }
 hash-reporting = {path = "../compiler/hash-reporting" }

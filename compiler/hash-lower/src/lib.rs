@@ -9,10 +9,12 @@ pub mod builder;
 mod cfg;
 mod visitor;
 
+use hash_ast::ast::{AstNodeRef, Expr, OwnsAstNode};
 use hash_ir::ir::Body;
 use hash_pipeline::{
+    interface::{CompilerInterface, CompilerResult, CompilerStage},
     settings::CompilerStageKind,
-    traits::{CompilerResult, CompilerStage},
+    workspace::Workspace,
 };
 use hash_source::{
     location::{SourceLocation, Span},
@@ -26,20 +28,28 @@ use self::builder::Builder;
 /// through the source files.
 pub struct IrLowerer;
 
-impl<'pool> CompilerStage<'pool> for IrLowerer {
+impl IrLowerer {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Default for IrLowerer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+pub trait IrLoweringCtx: CompilerInterface {}
+
+impl<Ctx: IrLoweringCtx> CompilerStage<Ctx> for IrLowerer {
     fn stage_kind(&self) -> CompilerStageKind {
         CompilerStageKind::IrGen
     }
 
-    fn run_stage(
-        &mut self,
-        entry_point: SourceId,
-        workspace: &mut hash_pipeline::sources::Workspace,
-        pool: &'pool rayon::ThreadPool,
-    ) -> CompilerResult<()> {
+    fn run_stage(&mut self, entry_point: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
         // We need to iterate all of the modules and essentially perform
         // a discovery process for what needs to be lowered...
-
         Ok(())
     }
 }

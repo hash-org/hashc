@@ -138,3 +138,16 @@ impl LocalStorage {
         self.id.set(id);
     }
 }
+
+/// Storage that is used by stages that need to access type information about
+/// modules in the current workspace.
+#[derive(Debug)]
+pub struct TyStorage {
+    /// Storage that is used by the typechecker to resolve local items
+    /// within certain contexts.
+    pub local: LocalStorage,
+
+    /// Persistent storage of all data structures that is emitted by the
+    /// typechecking stage, and possibly further stages.
+    pub global: GlobalStorage,
+}

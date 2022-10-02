@@ -40,6 +40,11 @@ fn suffix_visitor_like_mut(
     format_ident!("{}", word.to_case(case))
 }
 
+/// Get the name of the walker module with the given mutability flags.
+fn get_walker_module_name(nodes_mut: bool, self_mut: bool) -> syn::Ident {
+    suffix_visitor_like_mut("walk", nodes_mut, self_mut, Case::Snake)
+}
+
 /// Emit a `mut` if the flag is on.
 fn maybe_mut_prefix(nodes_mut: bool) -> TokenStream {
     if nodes_mut {
@@ -742,15 +747,7 @@ fn emit_walker(
 ) -> Result<TokenStream, syn::Error> {
     let walker_types = emit_walked_types(tree_def, nodes_mut, self_mut)?;
     let walker_functions = emit_walker_functions(tree_def, nodes_mut, self_mut)?;
-    let walk_mod_name = format_ident!(
-        "{}",
-        match (nodes_mut, self_mut) {
-            (true, true) => "walk_mut",
-            (true, false) => "walk_mut_nodes",
-            (false, true) => "walk_mut_self",
-            (false, false) => "walk",
-        }
-    );
+    let walk_mod_name = get_walker_module_name(nodes_mut, self_mut);
 
     Ok(quote! {
         pub mod #walk_mod_name {
@@ -760,19 +757,113 @@ fn emit_walker(
     })
 }
 
+/// Emit macros to default-impl visitor methods
+fn emit_default_impl_macros(
+    tree_def: &TreeDef,
+    nodes_mut: bool,
+    self_mut: bool,
+) -> Result<TokenStream, syn::Error> {
+    let walk_mod_name = get_walker_module_name(nodes_mut, self_mut);
+    let default_impl_name = format_ident!(
+        "{}_default_impl",
+        suffix_visitor_like_mut(
+            &tree_def.opts.visitor_trait_base_name,
+            nodes_mut,
+            self_mut,
+            Case::Snake,
+        )
+    );
+    let node_ref_name =
+        suffix_ident_mut(&tree_def.opts.visitor_node_ref_base_type_name, nodes_mut, Case::Pascal);
+
+    let root_module = tree_def.opts.root_module.clone();
+
+    // We have one macro case prefixed with `@@` for each node type.
+    let default_impl_macro_cases = tree_def.nodes.keys().map(|node_name| {
+        let node_ret = format_ident!("{}Ret", node_name.to_string().to_case(Case::Pascal));
+        let node_name = format_ident!("{}", node_name.to_string().to_case(Case::Pascal));
+        let visit_node = format_ident!("visit_{}", node_name.to_string().to_case(Case::Snake));
+        let self_param = if self_mut { quote!(&mut self) } else { quote!(&self) };
+        let walk_node_fn_name =
+            format_ident!("walk_{}", node_name.to_string().to_case(Case::Snake),);
+
+        let impl_body = if is_leaf_node(&node_name, tree_def) {
+            quote! {
+                Ok(())
+            }
+        } else {
+            quote! {
+                let _ = #root_module::#walk_mod_name::#walk_node_fn_name(self, node)?;
+                Ok(())
+            }
+        };
+
+        quote! {
+            (@@ #node_name) => {
+                type #node_ret = ();
+                fn #visit_node(
+                    #self_param,
+                    node: #root_module::#node_ref_name<#root_module::#node_name>
+                ) -> Result<Self::#node_ret, Self::Error> {
+                    #impl_body
+                }
+            };
+        }
+    });
+
+    // @@Todo: hiding variant
+    // let all_nodes = tree_def
+    //     .nodes
+    //     .keys()
+    //     .map(|node_name| {
+    //         let node_name = format_ident!("{}",
+    // node_name.to_string().to_case(Case::Pascal));         quote! {
+    // #node_name, }     })
+    //     .collect::<TokenStream>();
+
+    // For each node name given, emit a default impl by calling the appropriate `@@`
+    // node case.
+    let result = quote! {
+        #[macro_export]
+        macro_rules! #default_impl_name {
+            ($($node:ident),* $(,)?) => {
+                $(
+                    #default_impl_name!(@@ $node);
+                )*
+            };
+            #(#default_impl_macro_cases)*
+            (@@ $node:ident) => {
+                compile_error!(concat!(
+                    "No such node type `",
+                    stringify!($node),
+                    "`",
+                ));
+            };
+        }
+    };
+
+    Ok(result)
+}
+
 /// Emit the tree definition as Rust syntax.
 pub(crate) fn emit_tree(tree_def: &TreeDef) -> Result<TokenStream, syn::Error> {
-    Ok([
-        emit_other_items(tree_def),
-        emit_node_defs(tree_def),
-        // Generate mut and non-mut versions of the walker and visitor
-        emit_visitor(tree_def, true, true),
-        emit_visitor(tree_def, false, true),
-        emit_visitor(tree_def, false, false),
-        emit_walker(tree_def, true, true)?,
-        emit_walker(tree_def, false, true)?,
-        emit_walker(tree_def, false, false)?,
-    ]
-    .into_iter()
-    .collect())
+    let mutability_combinations = [(true, true), (false, true), (false, false)];
+
+    let mut streams = vec![];
+    streams.push(emit_other_items(tree_def));
+    streams.push(emit_node_defs(tree_def));
+    streams.extend(
+        mutability_combinations
+            .iter()
+            .flat_map(|(nodes_mut, self_mut)| {
+                [
+                    Ok(emit_visitor(tree_def, *nodes_mut, *self_mut)),
+                    emit_walker(tree_def, *nodes_mut, *self_mut),
+                    emit_default_impl_macros(tree_def, *nodes_mut, *self_mut),
+                ]
+            })
+            .collect::<Result<Vec<_>, _>>()?,
+    );
+
+    Ok(streams.into_iter().collect())
 }
