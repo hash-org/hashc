@@ -7,18 +7,27 @@ pub mod analysis;
 pub(crate) mod diagnostics;
 pub mod visitor;
 
+use std::collections::HashSet;
+
 use analysis::SemanticAnalyser;
 use crossbeam_channel::unbounded;
 use diagnostics::AnalysisDiagnostic;
 use hash_ast::{ast::OwnsAstNode, visitor::AstVisitorMutSelf};
 use hash_pipeline::{
-    settings::CompilerStageKind, sources::Workspace, traits::CompilerStage, CompilerResult,
+    interface::{CompilerInterface, CompilerStage},
+    settings::CompilerStageKind,
+    workspace::Workspace,
+    CompilerResult,
 };
 use hash_source::SourceId;
 
 pub struct SemanticAnalysis;
 
-impl<'pool> CompilerStage<'pool> for SemanticAnalysis {
+pub trait SemanticAnalysisCtx: CompilerInterface {
+    fn data(&mut self) -> (&mut Workspace, &mut HashSet<SourceId>, &rayon::ThreadPool);
+}
+
+impl<Ctx: SemanticAnalysisCtx> CompilerStage<Ctx> for SemanticAnalysis {
     /// This will perform a pass on the AST by checking the semantic rules that
     /// are within the language specification. The function will attempt to
     /// perform a pass on the `entry_point` which happens on the main
@@ -28,23 +37,17 @@ impl<'pool> CompilerStage<'pool> for SemanticAnalysis {
     /// it always considers the `entry_point` which might not always occur
     /// within the modules map. Each time the pipeline runs (in the
     /// interactive case), the most recent block is always passed.
-    fn run_stage(
-        &mut self,
-        entry_point: SourceId,
-        workspace: &mut Workspace,
-        pool: &'pool rayon::ThreadPool,
-    ) -> CompilerResult<()> {
+    fn run_stage(&mut self, entry_point: SourceId, stage_data: &mut Ctx) -> CompilerResult<()> {
         let (sender, receiver) = unbounded::<AnalysisDiagnostic>();
+        let (workspace, checked_modules, pool) = stage_data.data();
 
         let source_map = &workspace.source_map;
         let node_map = &mut workspace.node_map;
-        let checked_modules = &mut workspace.semantically_checked_modules;
 
         pool.scope(|scope| {
-            // De-sugar the target if it isn't already de-sugared
             if !checked_modules.contains(&entry_point) {
                 if let SourceId::Interactive(id) = entry_point {
-                    let source = node_map.get_interactive_block_mut(id);
+                    let source = node_map.get_interactive_block(id);
 
                     // setup a visitor and the context
                     let mut visitor = SemanticAnalyser::new(source_map, entry_point);

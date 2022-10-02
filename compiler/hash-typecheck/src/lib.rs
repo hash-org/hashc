@@ -9,11 +9,17 @@
 
 use diagnostics::DiagnosticsStore;
 use hash_pipeline::{
-    settings::CompilerStageKind, sources::TyStorage, traits::CompilerStage, CompilerResult,
+    interface::{CompilerInterface, CompilerStage},
+    settings::CompilerStageKind,
+    workspace::Workspace,
+    CompilerResult,
 };
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::SourceId;
-use hash_types::{fmt::PrepareForFormatting, storage::LocalStorage};
+use hash_types::{
+    fmt::PrepareForFormatting,
+    storage::{LocalStorage, TyStorage},
+};
 use ops::AccessToOps;
 use storage::{
     cache::Cache, exhaustiveness::ExhaustivenessStorage, sources::CheckedSources, AccessToStorage,
@@ -61,27 +67,27 @@ impl Default for Typechecker {
     }
 }
 
-impl<'pool> CompilerStage<'pool> for Typechecker {
+pub trait TypecheckingCtx: CompilerInterface {
+    fn data(&mut self) -> (&Workspace, &mut TyStorage);
+}
+
+impl<Ctx: TypecheckingCtx> CompilerStage<Ctx> for Typechecker {
     fn stage_kind(&self) -> CompilerStageKind {
         CompilerStageKind::Typecheck
     }
 
-    fn run_stage(
-        &mut self,
-        entry_point: SourceId,
-        workspace: &mut hash_pipeline::sources::Workspace,
-        _pool: &'pool rayon::ThreadPool,
-    ) -> CompilerResult<()> {
+    fn run_stage(&mut self, entry_point: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
+        let (workspace, ty_storage) = ctx.data();
+
         // We need to set the interactive-id to update the current local-storage `id`
         // value, but for modules, we create a new local storage.
         if entry_point.is_interactive() {
-            workspace.ty_storage.local.set_current_source(entry_point);
+            ty_storage.local.set_current_source(entry_point);
         } else {
-            workspace.ty_storage.local =
-                LocalStorage::new(&workspace.ty_storage.global, entry_point);
+            ty_storage.local = LocalStorage::new(&ty_storage.global, entry_point);
         }
 
-        let TyStorage { local, global } = &workspace.ty_storage;
+        let TyStorage { local, global } = &ty_storage;
 
         // Instantiate a visitor with the source and visit the source, using the
         // previous local storage.
