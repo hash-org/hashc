@@ -99,12 +99,12 @@ impl<T> AstNode<T> {
 #[derive(Debug)]
 pub struct AstNodeRef<'t, T> {
     /// A reference to the body of the [AstNode].
-    body: &'t T,
+    pub body: &'t T,
     /// The [Span] of the node.
-    span: Span,
+    pub span: Span,
     /// The [AstNodeId] of the node, representing a unique identifier within
     /// the AST, useful for performing fast comparisons of trees.
-    id: AstNodeId,
+    pub id: AstNodeId,
 }
 
 impl<T> Clone for AstNodeRef<'_, T> {

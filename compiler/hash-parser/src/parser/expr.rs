@@ -647,13 +647,22 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 // First get the directive subject, and expect a possible singular expression
                 // followed by the directive.
                 let name = self.parse_name()?;
-                let subject = self.parse_expr()?;
 
-                // create the subject node
-                return Ok(self.node_with_joined_span(
-                    Expr::Directive(DirectiveExpr { name, subject }),
-                    start,
-                ));
+                // Continue attempting to parse a 'top level' expression since directives
+                // can accept the whole set of expressions.
+                loop {
+                    let expr = self.parse_top_level_expr()?;
+
+                    if let Some(subject) = expr {
+                        // create the subject node
+                        return Ok(self.node_with_joined_span(
+                            Expr::Directive(DirectiveExpr { name, subject }),
+                            start,
+                        ));
+                    }
+
+                    continue;
+                }
             }
             TokenKind::Keyword(Keyword::Unsafe) => {
                 let arg = self.parse_expr()?;

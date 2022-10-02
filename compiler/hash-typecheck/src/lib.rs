@@ -100,7 +100,9 @@ impl<'pool> CompilerStage<'pool> for Typechecker {
             Err(err) => {
                 tc_visitor.diagnostics().add_error(err);
             }
-            Ok(source_term) if !tc_visitor.diagnostics().has_errors() => {
+            Ok(source_term)
+                if !tc_visitor.diagnostics().has_errors() && entry_point.is_interactive() =>
+            {
                 // @@Cmdline: make this a configurable behaviour through a cmd-arg.
                 // Print the result if no errors
                 println!("{}", source_term.for_formatting(storage.global_storage()));

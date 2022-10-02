@@ -1,10 +1,10 @@
 //! Hash semantic analysis module for validating various constructs relating to
 //! blocks within the AST.
 
-use std::{collections::HashSet, mem};
+use std::{cell::Cell, collections::HashSet, mem};
 
 use hash_ast::{
-    ast::{AstNodeRef, BodyBlock, Expr},
+    ast::{AstNodeRef, BodyBlock, DirectiveExpr, Expr},
     visitor::AstVisitorMutSelf,
 };
 
@@ -28,14 +28,32 @@ impl SemanticAnalyser<'_> {
     ) -> HashSet<usize> {
         let mut error_indices = HashSet::new();
 
-        for (index, statement) in members.enumerate() {
-            if !matches!(statement.body(), Expr::Declaration(_) | Expr::MergeDeclaration(_)) {
-                self.append_error(
-                    AnalysisErrorKind::NonDeclarativeExpression { origin },
-                    statement,
-                );
+        let allowed_top_level_expr = |statement: AstNodeRef<Expr>| {
+            matches!(statement.body(), Expr::Declaration(_) | Expr::MergeDeclaration(_))
+        };
 
-                error_indices.insert(index);
+        for (index, statement) in members.enumerate() {
+            let current = Cell::new(statement);
+
+            // Since directives are allowed at the level because they apply onto
+            // the child declaration, we actually need to check the child of the
+            // directive, not the directive itself.
+            loop {
+                let current_value = current.get();
+                if let Expr::Directive(DirectiveExpr { subject, .. }) = current_value.body {
+                    current.set(subject.ast_ref());
+                    continue;
+                } else if !allowed_top_level_expr(current_value) {
+                    self.append_error(
+                        AnalysisErrorKind::NonDeclarativeExpression { origin },
+                        statement,
+                    );
+
+                    error_indices.insert(index);
+                    break;
+                } else {
+                    break;
+                }
             }
         }
 

@@ -302,6 +302,7 @@ impl<'pool> Compiler<'pool> {
         };
 
         // Create the entry point and run!
+
         let entry_point =
             compiler_state.workspace.add_module(contents.unwrap(), Module::new(filename), kind);
 

@@ -226,6 +226,6 @@ core_idents! {
 
     // Directives that are pre-defined within the language.
     dump_ast("dump_ast"),
-    dump_ir("dump_ast"),
+    dump_ir("dump_ir"),
     intrinsics("intrinsics"),
 }
