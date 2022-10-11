@@ -7,8 +7,6 @@ pub mod analysis;
 pub(crate) mod diagnostics;
 pub mod visitor;
 
-use std::collections::HashSet;
-
 use analysis::SemanticAnalyser;
 use crossbeam_channel::unbounded;
 use diagnostics::AnalysisDiagnostic;
@@ -16,7 +14,7 @@ use hash_ast::{ast::OwnsAstNode, visitor::AstVisitorMutSelf};
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerStage},
     settings::CompilerStageKind,
-    workspace::Workspace,
+    workspace::{SourceStageInfo, Workspace},
     CompilerResult,
 };
 use hash_source::SourceId;
@@ -24,7 +22,7 @@ use hash_source::SourceId;
 pub struct SemanticAnalysis;
 
 pub trait SemanticAnalysisCtx: CompilerInterface {
-    fn data(&mut self) -> (&mut Workspace, &mut HashSet<SourceId>, &rayon::ThreadPool);
+    fn data(&mut self) -> (&mut Workspace, &rayon::ThreadPool);
 }
 
 impl<Ctx: SemanticAnalysisCtx> CompilerStage<Ctx> for SemanticAnalysis {
@@ -39,13 +37,14 @@ impl<Ctx: SemanticAnalysisCtx> CompilerStage<Ctx> for SemanticAnalysis {
     /// interactive case), the most recent block is always passed.
     fn run_stage(&mut self, entry_point: SourceId, stage_data: &mut Ctx) -> CompilerResult<()> {
         let (sender, receiver) = unbounded::<AnalysisDiagnostic>();
-        let (workspace, checked_modules, pool) = stage_data.data();
+        let (workspace, pool) = stage_data.data();
 
         let source_map = &workspace.source_map;
         let node_map = &mut workspace.node_map;
+        let source_stage_info = &mut workspace.source_stage_info;
 
         pool.scope(|scope| {
-            if !checked_modules.contains(&entry_point) {
+            if !source_stage_info.get(entry_point).is_semantics_checked() {
                 if let SourceId::Interactive(id) = entry_point {
                     let source = node_map.get_interactive_block(id);
 
@@ -61,9 +60,10 @@ impl<Ctx: SemanticAnalysisCtx> CompilerStage<Ctx> for SemanticAnalysis {
             // to the queue so it can be distributed over the threads
             for (id, module) in node_map.iter_modules() {
                 let source_id = SourceId::Module(*id);
+                let stage_info = source_stage_info.get(source_id);
 
-                // Skip any modules that have already been de-sugared
-                if checked_modules.contains(&source_id) {
+                // Skip any modules that have already been checked
+                if stage_info.is_semantics_checked() {
                     continue;
                 }
 
@@ -93,9 +93,8 @@ impl<Ctx: SemanticAnalysisCtx> CompilerStage<Ctx> for SemanticAnalysis {
             }
         });
 
-        // Add all of the ids into the cache
-        checked_modules.insert(entry_point);
-        checked_modules.extend(node_map.iter_modules().map(|(id, _)| SourceId::Module(*id)));
+        // Mark all modules now as semantically checked
+        source_stage_info.set_all(SourceStageInfo::CHECKED_SEMANTICS);
 
         // Collect all of the errors
         drop(sender);
