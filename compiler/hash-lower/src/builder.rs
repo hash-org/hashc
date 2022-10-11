@@ -24,6 +24,10 @@ pub struct Builder<'tcx> {
 }
 
 impl<'tcx> Builder<'tcx> {
+    fn new(tcx: &'tcx GlobalStorage, span: SourceLocation) -> Self {
+        Self { span, arg_count: 0, tcx, control_flow_graph: ControlFlowGraph::new() }
+    }
+
     fn build_fn(&mut self, _node: AstNodeRef<FnDef>) -> Body<'tcx> {
         todo!()
     }

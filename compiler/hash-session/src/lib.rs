@@ -132,9 +132,6 @@ impl ParserCtx for CompilerSession {
     }
 }
 
-impl IrLoweringCtx for CompilerSession {}
-impl InterpreterCtx for CompilerSession {}
-
 impl AstDesugaringCtx for CompilerSession {
     fn data(&mut self) -> (&mut Workspace, &mut HashSet<SourceId>, &rayon::ThreadPool) {
         (&mut self.workspace, &mut self.desugared_modules, &self.pool)
@@ -158,3 +155,11 @@ impl TypecheckingCtx for CompilerSession {
         (&self.workspace, &mut self.ty_storage)
     }
 }
+
+impl IrLoweringCtx for CompilerSession {
+    fn data(&mut self) -> (&Workspace, &mut TyStorage) {
+        (&self.workspace, &mut self.ty_storage)
+    }
+}
+
+impl InterpreterCtx for CompilerSession {}

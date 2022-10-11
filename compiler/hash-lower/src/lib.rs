@@ -9,7 +9,7 @@ pub mod builder;
 mod cfg;
 mod visitor;
 
-use hash_ast::ast::{AstNodeRef, Expr, OwnsAstNode};
+use hash_ast::ast::{AstNodeRef, AstVisitor, Expr, OwnsAstNode};
 use hash_ir::ir::Body;
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerResult, CompilerStage},
@@ -20,6 +20,8 @@ use hash_source::{
     location::{SourceLocation, Span},
     SourceId,
 };
+use hash_types::storage::TyStorage;
+use visitor::LoweringVisitor;
 
 use self::builder::Builder;
 
@@ -40,7 +42,9 @@ impl Default for IrLowerer {
     }
 }
 
-pub trait IrLoweringCtx: CompilerInterface {}
+pub trait IrLoweringCtx: CompilerInterface {
+    fn data(&mut self) -> (&Workspace, &mut TyStorage);
+}
 
 impl<Ctx: IrLoweringCtx> CompilerStage<Ctx> for IrLowerer {
     fn stage_kind(&self) -> CompilerStageKind {
@@ -48,8 +52,18 @@ impl<Ctx: IrLoweringCtx> CompilerStage<Ctx> for IrLowerer {
     }
 
     fn run_stage(&mut self, entry_point: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
+        let (workspace, ty_storage) = ctx.data();
+
         // We need to iterate all of the modules and essentially perform
         // a discovery process for what needs to be lowered...
+        let discoverer = LoweringVisitor::new(&ty_storage.global);
+
+        // We need to visit all of the modules in the workspace and discover
+        // what needs to be lowered.
+        for (module_id, module) in workspace.node_map.iter_modules() {
+            discoverer.visit_module(module.node_ref());
+        }
+
         Ok(())
     }
 }

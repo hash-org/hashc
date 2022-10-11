@@ -12,6 +12,11 @@ pub struct ControlFlowGraph<'tcx> {
 }
 
 impl<'tcx> ControlFlowGraph<'tcx> {
+    /// Create a new empty control-flow graph
+    pub fn new() -> Self {
+        Self { basic_blocks: IndexVec::new() }
+    }
+
     /// Get a reference to a [BasicBlock] inner [BasicBlockData].
     pub(crate) fn block_data(&self, block: BasicBlock) -> &BasicBlockData<'tcx> {
         &self.basic_blocks[block]
