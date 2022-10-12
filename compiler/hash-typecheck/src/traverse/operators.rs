@@ -40,8 +40,8 @@ impl<'tc> TcVisitor<'tc> {
         op: BinOp,
     ) -> TcResult<TermId> {
         let trt_name = match op {
-            BinOp::And => "and",
-            BinOp::Or => "or",
+            BinOp::And => IDENTS.trt_and,
+            BinOp::Or => IDENTS.trt_or,
             // All other operators are not lazy and thus should not be used here...
             _ => unreachable!(),
         };
@@ -53,11 +53,11 @@ impl<'tc> TcVisitor<'tc> {
 
         // () => lhs
         let fn_ty = builder.create_fn_ty_term(builder.create_params([], ParamOrigin::Fn), lhs_ty);
-        let lhs = builder.create_fn_lit_term(fn_ty, lhs);
+        let lhs = builder.create_fn_lit_term(None, fn_ty, lhs);
 
         // () => rhs
         let fn_ty = builder.create_fn_ty_term(builder.create_params([], ParamOrigin::Fn), rhs_ty);
-        let rhs = builder.create_fn_lit_term(fn_ty, rhs);
+        let rhs = builder.create_fn_lit_term(None, fn_ty, rhs);
 
         // (() => lhs).trait_name()
         let prop_access = builder.create_prop_access(lhs, trt_name);

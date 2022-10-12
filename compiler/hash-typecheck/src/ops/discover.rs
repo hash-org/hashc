@@ -998,7 +998,11 @@ impl<'tc> Discoverer<'tc> {
                     if !applied_once {
                         Ok(None)
                     } else {
-                        Ok(Some(self.builder().create_fn_lit_term(fn_ty, return_value)))
+                        Ok(Some(self.builder().create_fn_lit_term(
+                            fn_lit.name,
+                            fn_ty,
+                            return_value,
+                        )))
                     }
                 }
                 Level0Term::EnumVariant(_) => {

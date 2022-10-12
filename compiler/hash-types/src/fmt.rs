@@ -220,6 +220,11 @@ impl<'gs> TcFormatter<'gs> {
             }
             Level0Term::FnLit(fn_lit) => {
                 opts.is_atomic.set(true);
+
+                if let Some(name) = fn_lit.name {
+                    write!(f, "{}", name)?;
+                }
+
                 write!(
                     f,
                     "{} => {}",

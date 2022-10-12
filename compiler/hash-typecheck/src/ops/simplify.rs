@@ -1003,11 +1003,13 @@ impl<'tc> Simplifier<'tc> {
 
                 match simplified_fn_ty {
                     None => Ok(None),
-                    Some(simplified_fn_ty) => {
-                        Ok(Some(self.builder().create_term(Term::Level0(Level0Term::FnLit(
-                            FnLit { fn_ty: simplified_fn_ty, return_value: fn_lit.return_value },
-                        )))))
-                    }
+                    Some(simplified_fn_ty) => Ok(Some(self.builder().create_term(Term::Level0(
+                        Level0Term::FnLit(FnLit {
+                            name: fn_lit.name,
+                            fn_ty: simplified_fn_ty,
+                            return_value: fn_lit.return_value,
+                        }),
+                    )))),
                 }
             }
             Level0Term::EnumVariant(_) => Ok(None),

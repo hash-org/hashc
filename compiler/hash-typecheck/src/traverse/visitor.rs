@@ -1016,6 +1016,12 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::FnDef>,
     ) -> Result<Self::FnDefRet, Self::Error> {
+        // @@Temporary: try and get the name of the function declaration
+        // if possible, in the event of the lhs of the declaration being
+        // more complicated than `foo := ...`, we will need to figure
+        // out a way of getting the name of the declaration.
+        let name = self.state.declaration_name_hint.get();
+
         let params: Vec<_> =
             node.params.iter().map(|a| self.visit_param(a.ast_ref())).collect::<TcResult<_>>()?;
 
@@ -1068,8 +1074,11 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         let builder = self.builder();
 
-        let fn_ty_term =
-            builder.create_fn_lit_term(builder.create_fn_ty_term(params, return_ty), return_value);
+        let fn_ty_term = builder.create_fn_lit_term(
+            name,
+            builder.create_fn_ty_term(params, return_ty),
+            return_value,
+        );
 
         // Clear return type
         self.state.fn_def_return_ty.set(old_return_ty);

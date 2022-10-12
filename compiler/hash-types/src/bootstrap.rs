@@ -252,6 +252,7 @@ pub fn create_core_defs_in(global_storage: &GlobalStorage) {
                         builder.create_var_term(IDENTS.Output),
                     ),
                     builder.create_fn_lit_term(
+                        Some(IDENTS.index),
                         builder.create_fn_ty_term(
                             builder.create_params(
                                 [
