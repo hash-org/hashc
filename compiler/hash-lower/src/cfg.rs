@@ -8,7 +8,8 @@ use hash_source::location::Span;
 use index_vec::IndexVec;
 
 pub struct ControlFlowGraph<'tcx> {
-    basic_blocks: IndexVec<BasicBlock, BasicBlockData<'tcx>>,
+    /// The basic blocks that this control flow graph contains.
+    pub(crate) basic_blocks: IndexVec<BasicBlock, BasicBlockData<'tcx>>,
 }
 
 impl<'tcx> ControlFlowGraph<'tcx> {

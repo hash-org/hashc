@@ -21,10 +21,10 @@ use hash_utils::tree_writing::TreeWriter;
 
 bitflags! {
     /// Defines the flags that can be used to control the compiler pipeline.
+    ///
+    /// If no flags are defined on [SourceStageInfo], this means that the particular
+    /// source has been parsed and has been added to the workspace.
     pub struct SourceStageInfo: u32 {
-        /// Indicates the source has not undergone any stages after parsing.
-        const NONE = 0;
-
         /// If set, the compiler will no perform desugaring on the module.
         const DESUGARED = 0b00000001;
 
@@ -111,13 +111,17 @@ impl StageInfo {
     }
 
     /// Update the [SourceStageInfo] for a particular module.
-    pub fn update(&mut self, source: SourceId, info: fn(SourceStageInfo) -> SourceStageInfo) {
+    pub fn update(
+        &mut self,
+        source: SourceId,
+        info: impl FnOnce(SourceStageInfo) -> SourceStageInfo,
+    ) {
         self.0.entry(source).and_modify(|i| *i = info(*i));
     }
 
     /// Get the [SourceStageInfo] for a particular module.
     pub fn get(&self, source: SourceId) -> SourceStageInfo {
-        self.0.get(&source).copied().unwrap_or(SourceStageInfo::NONE)
+        self.0.get(&source).copied().unwrap_or(SourceStageInfo::empty())
     }
 
     /// Set a particular flag for all sources.
@@ -182,7 +186,7 @@ impl Workspace {
 
         // Add this source to the node map, and to the stage info
         self.node_map.add_interactive_block(id, block);
-        self.source_stage_info.add(SourceId::Interactive(id), SourceStageInfo::NONE);
+        self.source_stage_info.add(SourceId::Interactive(id), SourceStageInfo::empty());
 
         id
     }
@@ -200,7 +204,7 @@ impl Workspace {
 
         // Add this source to the node map, and to the stage info
         self.node_map.add_module(id, module);
-        self.source_stage_info.add(SourceId::Module(id), SourceStageInfo::NONE);
+        self.source_stage_info.add(SourceId::Module(id), SourceStageInfo::empty());
 
         id
     }

@@ -1,4 +1,6 @@
 //! Hash Compiler error and warning reporting module.
+//!
+//! @@Todo: clean this up, it's a mess.
 use std::{io, process::exit};
 
 use thiserror::Error;

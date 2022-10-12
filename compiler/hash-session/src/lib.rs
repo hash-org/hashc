@@ -11,7 +11,7 @@
 use hash_ast::node_map::NodeMap;
 use hash_ast_desugaring::{AstDesugaringCtx, AstDesugaringPass};
 use hash_ast_expand::{AstExpansionCtx, AstExpansionPass};
-use hash_lower::{IrLowerer, IrLoweringCtx};
+use hash_lower::{AstLowerer, IrLoweringCtx};
 use hash_parser::{Parser, ParserCtx};
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerStage},
@@ -33,7 +33,7 @@ pub fn make_stages() -> Vec<Box<dyn CompilerStage<CompilerSession>>> {
         Box::new(AstDesugaringPass),
         Box::new(SemanticAnalysis),
         Box::new(Typechecker::new()),
-        Box::new(IrLowerer::new()),
+        Box::new(AstLowerer::new()),
         Box::new(Interpreter::new()),
     ]
 }

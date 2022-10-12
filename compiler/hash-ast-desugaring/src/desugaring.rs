@@ -397,7 +397,7 @@ impl<'s> AstDesugaring<'s> {
 
         Block::Match(MatchBlock {
             subject: AstNode::new(
-                Expr::LitExpr(LitExpr {
+                Expr::Lit(LitExpr {
                     data: AstNode::new(Lit::Bool(BoolLit { data: true }), parent_span),
                 }),
                 parent_span,

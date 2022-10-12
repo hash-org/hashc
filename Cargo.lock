@@ -472,6 +472,7 @@ dependencies = [
  "hash-reporting",
  "hash-source",
  "hash-types",
+ "hash-utils",
  "index_vec",
  "rayon",
 ]

@@ -21,28 +21,14 @@ pub enum BlockOrigin {
     Const,
 }
 
-impl BlockOrigin {
-    /// Convert the [BlockOrigin] into a string which can be used for displaying
-    /// within error messages.
-    fn to_str(self) -> &'static str {
-        match self {
-            BlockOrigin::Root | BlockOrigin::Mod => "module",
-            BlockOrigin::Impl => "impl",
-            BlockOrigin::Body => "body",
-            BlockOrigin::Trait => "trait",
-            BlockOrigin::Const => "constant",
-        }
-    }
-}
-
-impl Default for BlockOrigin {
-    fn default() -> Self {
-        BlockOrigin::Root
-    }
-}
-
 impl Display for BlockOrigin {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.to_str())
+        match self {
+            BlockOrigin::Root | BlockOrigin::Mod => write!(f, "module"),
+            BlockOrigin::Impl => write!(f, "impl"),
+            BlockOrigin::Body => write!(f, "body"),
+            BlockOrigin::Trait => write!(f, "trait"),
+            BlockOrigin::Const => write!(f, "constant"),
+        }
     }
 }
