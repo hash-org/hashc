@@ -1,6 +1,9 @@
 //! Hash AST semantic analysis error diagnostic definitions.
 
-use hash_ast::ast::{AstNodeId, AstNodeRef, ParamOrigin, Visibility};
+use hash_ast::{
+    ast::{AstNodeId, AstNodeRef, ParamOrigin, Visibility},
+    origin::BlockOrigin,
+};
 use hash_error_codes::error_codes::HashErrorCode;
 use hash_reporting::{
     builder::ReportBuilder,
@@ -8,10 +11,7 @@ use hash_reporting::{
 };
 use hash_source::{identifier::Identifier, location::SourceLocation, ModuleKind, SourceId};
 
-use super::{
-    directives::DirectiveArgument,
-    origins::{BlockOrigin, PatOrigin},
-};
+use super::{directives::DirectiveArgument, origins::PatOrigin};
 use crate::analysis::params::FieldNamingExpectation;
 
 /// An error that can occur during the semantic pass

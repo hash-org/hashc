@@ -6,9 +6,12 @@
 use std::{collections::HashSet, convert::Infallible, mem};
 
 use ::if_chain::if_chain;
-use hash_ast::ast::{
-    walk_mut_self, AstVisitorMutSelf, BindingPat, Block, BlockExpr, DirectiveExpr, Expr, LitExpr,
-    ModulePatEntry, Mutability, ParamOrigin, Pat, TuplePatEntry,
+use hash_ast::{
+    ast::{
+        walk_mut_self, AstVisitorMutSelf, BindingPat, Block, BlockExpr, DirectiveExpr, Expr,
+        LitExpr, ModulePatEntry, Mutability, ParamOrigin, Pat, TuplePatEntry,
+    },
+    origin::BlockOrigin,
 };
 use hash_reporting::macros::panic_on_span;
 use hash_source::{identifier::IDENTS, ModuleKind};
@@ -16,9 +19,7 @@ use hash_source::{identifier::IDENTS, ModuleKind};
 use crate::{
     analysis::SemanticAnalyser,
     diagnostics::{
-        directives::DirectiveArgument,
-        error::AnalysisErrorKind,
-        origins::{BlockOrigin, PatOrigin},
+        directives::DirectiveArgument, error::AnalysisErrorKind, origins::PatOrigin,
         warning::AnalysisWarningKind,
     },
 };
@@ -726,7 +727,7 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
         // constant literals
         for statement in node.statements.iter() {
             match statement.body() {
-                Expr::LitExpr(LitExpr { data }) if data.body().is_constant() => {
+                Expr::Lit(LitExpr { data }) if data.body().is_constant() => {
                     self.append_warning(
                         AnalysisWarningKind::UselessExpression,
                         statement.ast_ref(),

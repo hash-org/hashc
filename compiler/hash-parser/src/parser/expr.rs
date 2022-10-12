@@ -123,7 +123,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
             // Handle primitive literals
             kind if kind.is_lit() => self.node_with_span(
-                Expr::LitExpr(LitExpr { data: self.parse_primitive_lit()? }),
+                Expr::Lit(LitExpr { data: self.parse_primitive_lit()? }),
                 token.span,
             ),
             TokenKind::Ident(ident) => {
@@ -157,11 +157,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
             TokenKind::Keyword(Keyword::Set) => {
                 let lit = self.parse_set_lit()?;
-                self.node_with_joined_span(Expr::LitExpr(LitExpr { data: lit }), token.span)
+                self.node_with_joined_span(Expr::Lit(LitExpr { data: lit }), token.span)
             }
             TokenKind::Keyword(Keyword::Map) => {
                 let lit = self.parse_map_lit()?;
-                self.node_with_joined_span(Expr::LitExpr(LitExpr { data: lit }), token.span)
+                self.node_with_joined_span(Expr::Lit(LitExpr { data: lit }), token.span)
             }
             TokenKind::Keyword(Keyword::Impl)
                 if self.peek().map_or(false, |tok| !tok.is_brace_tree()) =>
@@ -862,7 +862,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // Handle the empty tuple case
         if gen.stream.len() < 2 {
             let tuple = gen.node_with_joined_span(
-                Expr::LitExpr(LitExpr {
+                Expr::Lit(LitExpr {
                     data: gen.node_with_joined_span(
                         Lit::Tuple(TupleLit { elements: ast_nodes![] }),
                         start,
@@ -927,7 +927,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
 
         Ok(gen.node_with_joined_span(
-            Expr::LitExpr(LitExpr {
+            Expr::Lit(LitExpr {
                 data: gen.node_with_joined_span(Lit::Tuple(TupleLit { elements }), start),
             }),
             start,
