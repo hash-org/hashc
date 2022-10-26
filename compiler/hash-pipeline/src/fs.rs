@@ -102,7 +102,7 @@ fn get_stdlib_modules(dir: impl AsRef<Path>) -> Vec<PathBuf> {
                         paths.push(PathBuf::from(file_name));
                     }
                 }
-                Err(e) => panic!("Unable to read standard library folder: {}", e),
+                Err(e) => panic!("Unable to read standard library folder: {e}"),
             }
         }
     }

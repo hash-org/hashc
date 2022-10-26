@@ -19,7 +19,7 @@ pub const VERSION: &str = env!("EXECUTABLE_VERSION");
 /// Utility to print the version of the current interactive backend
 #[inline(always)]
 pub fn print_version() {
-    println!("Version {}", VERSION);
+    println!("Version {VERSION}");
 }
 
 /// Function that is called on a graceful interpreter exit

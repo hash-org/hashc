@@ -17,7 +17,7 @@ pub struct AstTreeGenerator;
 /// Easy way to format a [TreeNode] label with a main label as well as short
 /// contents, and a quoting string.
 fn labelled(label: impl ToString, contents: impl ToString, quote_str: &str) -> String {
-    format!("{} {}{}{}", label.to_string(), quote_str, contents.to_string(), quote_str)
+    format!("{} {quote_str}{}{quote_str}", label.to_string(), contents.to_string())
 }
 
 impl AstVisitor for AstTreeGenerator {

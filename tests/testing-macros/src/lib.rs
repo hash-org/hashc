@@ -137,15 +137,15 @@ fn read_tests_from_dir(
             for warning in warnings {
                 let message = match warning {
                     ParseWarning::UnrecognisedValue { key, value } => {
-                        format!("invalid value `{}` for key `{}`", value, key)
+                        format!("invalid value `{value}` for key `{key}`")
                     }
                     ParseWarning::UnrecognisedKey { key } => {
-                        format!("unrecognised configuration `{}`", key)
+                        format!("unrecognised configuration `{key}`")
                     }
                 };
 
                 Diagnostic::new(Level::Warning, message)
-                    .help(format!("occurred at file: {:?}", path))
+                    .help(format!("occurred at file: {path:?}"))
                     .emit();
             }
 

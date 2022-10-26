@@ -158,7 +158,7 @@ impl<'a, 'tcx> Builder<'a, 'tcx> {
         // Verify that all basic blocks have a terminator
         for (index, block) in self.control_flow_graph.basic_blocks.iter().enumerate() {
             if block.terminator.is_none() {
-                panic!("Basic block {} does not have a terminator", index);
+                panic!("Basic block {index} does not have a terminator");
             }
         }
 

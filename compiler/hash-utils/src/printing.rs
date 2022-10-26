@@ -151,12 +151,12 @@ impl<'a, T: fmt::Display + 'a> fmt::Display for SequenceDisplay<'a, T> {
                 while let Some(item) = items.next() {
                     if items.peek().is_some() {
                         if count == len - 2 && !overflow {
-                            write!(f, "`{}`, {} ", item, self.options.mode.as_conjunctive())?;
+                            write!(f, "`{item}`, {} ", self.options.mode.as_conjunctive())?;
                         } else {
-                            write!(f, "`{}`, ", item)?;
+                            write!(f, "`{item}`, ")?;
                         }
                     } else {
-                        write!(f, "`{}`", item)?;
+                        write!(f, "`{item}`")?;
                     };
                     count += 1;
                 }

@@ -140,7 +140,7 @@ impl fmt::Display for TreeWriter<'_, '_> {
 
             let child_writer = self.next_depth(child, index);
 
-            write!(f, "{}{}{}{}", self.pad, pipe_char, self.config.child_prefix, child_writer,)?;
+            write!(f, "{}{pipe_char}{}{child_writer}", self.pad, self.config.child_prefix,)?;
         }
 
         Ok(())

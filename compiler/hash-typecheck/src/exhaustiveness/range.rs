@@ -136,9 +136,9 @@ impl fmt::Debug for IntRange {
         let bias = self.bias;
         let (lo, hi) = (lo ^ bias, hi ^ bias);
 
-        write!(f, "{}", lo)?;
+        write!(f, "{lo}")?;
         write!(f, "{}", RangeEnd::Included)?;
-        write!(f, "{}", hi)
+        write!(f, "{hi}")
     }
 }
 
@@ -293,7 +293,7 @@ impl<'tc> IntRangeOps<'tc> {
         let (lo, hi) = (lo ^ bias, hi ^ bias);
         let offset = (*end == RangeEnd::Excluded) as u128;
         if lo > hi || (lo == hi && *end == RangeEnd::Excluded) {
-            panic!("malformed range pattern: {}..{}", lo, (hi - offset));
+            panic!("malformed range pattern: {lo}..{}", (hi - offset));
         }
 
         IntRange { start: lo, end: hi - offset, bias }

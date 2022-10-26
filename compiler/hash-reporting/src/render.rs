@@ -154,7 +154,7 @@ impl ReportCodeBlock {
 
         // Print each selected line with the line number
         for (index, line) in error_view {
-            let index_str = format!("{:>pad_width$}", index + 1, pad_width = longest_indent_width);
+            let index_str = format!("{:>longest_indent_width$}", index + 1);
 
             let line_number = if (start_row..=end_row).contains(&index) {
                 highlight(report_kind.as_colour(), &index_str)
@@ -162,7 +162,7 @@ impl ReportCodeBlock {
                 index_str
             };
 
-            writeln!(f, "{} {}   {}", line_number, highlight(Colour::Blue, "|"), line)?;
+            writeln!(f, "{line_number} {}   {line}", highlight(Colour::Blue, "|"))?;
 
             if (start_row..=end_row).contains(&index) && !line.is_empty() {
                 let dashes: String = repeat(LINE_DIAGNOSTIC_MARKER)
@@ -255,7 +255,7 @@ impl ReportCodeBlock {
         // below the final line we want to draw an arrow leading up until
         // the end of the span.
         for (index, line) in error_view {
-            let index_str = format!("{:<pad_width$}", index + 1, pad_width = longest_indent_width);
+            let index_str = format!("{:<longest_indent_width$}", index + 1);
 
             let line_number = if (start_row..=end_row).contains(&index) {
                 highlight(report_kind.as_colour(), &index_str)

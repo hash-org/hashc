@@ -161,7 +161,7 @@ impl From<AnalysisError> for Report {
             AnalysisErrorKind::AmbiguousPatFieldOrder { origin } => {
                 builder
                     .with_error_code(HashErrorCode::AmbiguousFieldOrder)
-                    .with_message(format!("ambiguous field order in `{}` pattern", origin));
+                    .with_message(format!("ambiguous field order in `{origin}` pattern"));
 
                 builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                     err.location,
@@ -201,7 +201,7 @@ impl From<AnalysisError> for Report {
                 builder
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         err.location,
-                        format!("{} blocks cannot have `{}` explicit visibility", origin, modifier),
+                        format!("{origin} blocks cannot have `{modifier}` explicit visibility"),
                     )))
                     .add_element(ReportElement::Note(ReportNote::new(
                         ReportNoteKind::Note,
@@ -233,7 +233,7 @@ impl From<AnalysisError> for Report {
                     )))
                     .add_element(ReportElement::Note(ReportNote::new(
                         ReportNoteKind::Help,
-                        format!("consider giving this {} field a type annotation", origin),
+                        format!("consider giving this {origin} field a type annotation"),
                     )));
             }
             AnalysisErrorKind::DisallowedDirective { name, module_kind } => {
@@ -250,7 +250,7 @@ impl From<AnalysisError> for Report {
                 // Show the location where the directive is being used...
                 builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                     err.location,
-                    format!("`{}` cannot be used within {} context", name, origin),
+                    format!("`{name}` cannot be used within {origin} context"),
                 )));
             }
             AnalysisErrorKind::InvalidDirectiveScope { name, expected, received } => {
@@ -262,7 +262,7 @@ impl From<AnalysisError> for Report {
                 // Show the location where the directive is being used...
                 builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                     err.location,
-                    format!("`{}` cannot be used within {} block", name, received),
+                    format!("`{name}` cannot be used within {received} block"),
                 )));
             }
             AnalysisErrorKind::InvalidDirectiveArgument { name, expected, received: given } => {
@@ -274,7 +274,7 @@ impl From<AnalysisError> for Report {
                 // Show the location where the directive is being used...
                 builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                     err.location,
-                    format!("a {} cannot be given to the `{}` directive", given, name),
+                    format!("a {given} cannot be given to the `{name}` directive"),
                 )));
             }
             AnalysisErrorKind::DisallowedFloatPat => {

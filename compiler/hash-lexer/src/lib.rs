@@ -522,7 +522,7 @@ impl<'a> Lexer<'a> {
                 if matches!(suffix, Some(s) if s == IDENTS.f32 || s == IDENTS.f64) {
                     match pre_digits.parse::<f64>() {
                         Err(err) => self.emit_error(
-                            Some(format!("{}.", err)),
+                            Some(format!("{err}.")),
                             LexerErrorKind::MalformedNumericalLit,
                             Span::new(start, self.offset.get()),
                         ),
@@ -548,7 +548,7 @@ impl<'a> Lexer<'a> {
     fn eat_float_lit(&mut self, num: impl Iterator<Item = char>, start: usize) -> TokenKind {
         match num.collect::<String>().parse::<f64>() {
             Err(err) => self.emit_error(
-                Some(format!("{}.", err)),
+                Some(format!("{err}.")),
                 LexerErrorKind::MalformedNumericalLit,
                 Span::new(start, self.offset.get()),
             ),
@@ -724,7 +724,7 @@ impl<'a> Lexer<'a> {
             '"' => Ok('\"'),
             '\'' => Ok('\''),
             ch => self.error(
-                Some(format!("unknown escape sequence `{}`", ch)),
+                Some(format!("unknown escape sequence `{ch}`")),
                 LexerErrorKind::BadEscapeSequence,
                 Span::new(start, start + 1),
             ),

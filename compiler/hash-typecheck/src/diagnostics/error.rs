@@ -334,7 +334,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                         // lists.
                         builder
                             .with_error_code(HashErrorCode::ParameterLengthMismatch)
-                            .with_message(format!("{} argument names are mis-matching", origin,));
+                            .with_message(format!("{origin} argument names are mis-matching",));
 
                         let src_arg = &src_args.positional()[*index];
                         let target_arg = &target_args.positional()[*index];
@@ -344,7 +344,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                         let (src_message, target_message, suggestion) =
                             match (src_arg.name, target_arg.name) {
                                 (Some(src_name), Some(target_name)) => (
-                                    format!("this argument should be named `{}`", target_name),
+                                    format!("this argument should be named `{target_name}`"),
                                     "argument is specified as being named".to_string(),
                                     format!(
                                         "consider renaming `{}` to `{}`",
@@ -352,12 +352,12 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                                     ),
                                 ),
                                 (Some(src_name), None) => (
-                                    format!("this argument shouldn't be named `{}`", src_name),
+                                    format!("this argument shouldn't be named `{src_name}`"),
                                     "argument is not named".to_string(),
                                     "consider removing the name from the argument".to_string(),
                                 ),
                                 (None, Some(target_name)) => (
-                                    format!("this argument should be named `{}`", target_name),
+                                    format!("this argument should be named `{target_name}`"),
                                     "argument is specified as being named".to_string(),
                                     format!(
                                         "consider adding `{}` as the name to the argument",
@@ -458,7 +458,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                         // lists.
                         builder
                             .with_error_code(HashErrorCode::ParameterNameMismatch)
-                            .with_message(format!("{} parameter names are mis-matching", origin,));
+                            .with_message(format!("{origin} parameter names are mis-matching",));
 
                         let src_param = &src_params.positional()[*index];
                         let target_param = &target_params.positional()[*index];
@@ -468,7 +468,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                         let (src_message, target_message, suggestion) =
                             match (src_param.name, target_param.name) {
                                 (Some(src_name), Some(target_name)) => (
-                                    format!("this parameter should be named `{}`", target_name),
+                                    format!("this parameter should be named `{target_name}`"),
                                     "parameter is specified as being named".to_string(),
                                     format!(
                                         "consider renaming `{}` to `{}`",
@@ -476,12 +476,12 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                                     ),
                                 ),
                                 (Some(src_name), None) => (
-                                    format!("this parameter shouldn't be named `{}`", src_name),
+                                    format!("this parameter shouldn't be named `{src_name}`"),
                                     "parameter is not named".to_string(),
                                     "consider removing the name from the parameter".to_string(),
                                 ),
                                 (None, Some(target_name)) => (
-                                    format!("this parameter should be named `{}`", target_name),
+                                    format!("this parameter should be named `{target_name}`"),
                                     "parameter is specified as being named".to_string(),
                                     format!(
                                         "consider adding `{}` as the name to the parameter",
@@ -688,7 +688,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
             TcError::ParamNotFound { args_kind, params_subject, name } => {
                 builder
                     .with_error_code(HashErrorCode::UnresolvedNameInValue)
-                    .with_message(format!("{} `{}` is not defined", args_kind.as_noun(), name));
+                    .with_message(format!("{} `{name}` is not defined", args_kind.as_noun()));
 
                 // find the parameter and report the location
                 let id = ctx.param_ops().get_name_by_index(args_kind, *name).unwrap();
@@ -697,7 +697,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 if let Some(location) = ctx.param_ops().field_location(args_kind, id) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
-                        format!("{} `{}` not defined", args_kind.as_noun(), name),
+                        format!("{} `{name}` not defined", args_kind.as_noun()),
                     )));
                 }
 
@@ -777,7 +777,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 if let Some(location) = ctx.param_ops().field_location(param_kind, *index) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
-                        format!("parameter `{}` has already been used", name),
+                        format!("parameter `{name}` has already been used"),
                     )));
                 }
 
@@ -793,7 +793,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
 
                 builder
                     .with_error_code(HashErrorCode::AmbiguousFieldOrder)
-                    .with_message(format!("ambiguous parameter ordering within a {}", origin));
+                    .with_message(format!("ambiguous parameter ordering within a {origin}"));
 
                 // Add the location of the
                 if let Some(location) = ctx.param_ops().field_location(param_kind, *index) {
@@ -1346,7 +1346,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
             }
             TcError::IdentifierBoundMultipleTimes { name, pat } => {
                 builder.with_error_code(HashErrorCode::IdentifierBoundMultipleTimes).with_message(
-                    format!("identifier `{}` is bound multiple times in the same pattern", name),
+                    format!("identifier `{name}` is bound multiple times in the same pattern"),
                 );
 
                 if let Some(location) = ctx.location_store().get_location(pat) {
@@ -1413,12 +1413,12 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
 
                 builder
                     .with_error_code(HashErrorCode::NonExhaustiveMatch)
-                    .with_message(format!("non-exhaustive patterns: {} not covered", pats));
+                    .with_message(format!("non-exhaustive patterns: {pats} not covered"));
 
                 if let Some(location) = ctx.location_store().get_location(term) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
-                        format!("pattern{} {} not covered", pluralise!(uncovered.len()), pats),
+                        format!("pattern{} {pats} not covered", pluralise!(uncovered.len())),
                     )));
                 }
             }

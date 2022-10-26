@@ -19,9 +19,9 @@ pub(crate) fn panic_handler(info: &PanicInfo) {
         let _ = write!(&mut stdout, "Sorry :^(\nInternal Compiler Error");
 
         if let Some(s) = info.payload().downcast_ref::<&str>() {
-            let _ = writeln!(&mut stdout, ": {}\n", s);
+            let _ = writeln!(&mut stdout, ": {s}\n");
         } else if let Some(s) = info.message() {
-            let _ = writeln!(&mut stdout, ": {}\n", s);
+            let _ = writeln!(&mut stdout, ": {s}\n");
         } else {
             let _ = writeln!(&mut stdout, "\n");
         }
@@ -41,9 +41,9 @@ pub(crate) fn panic_handler(info: &PanicInfo) {
 
         // Print backtrace and thread name if available
         if let Some(name) = thread::current().name() {
-            let _ = writeln!(&mut stdout, "Backtrace for thread \"{}\":\n{:?}", name, backtrace);
+            let _ = writeln!(&mut stdout, "Backtrace for thread \"{name}\":\n{backtrace:?}");
         } else {
-            let _ = writeln!(&mut stdout, "Backtrace:\n{:?}", backtrace);
+            let _ = writeln!(&mut stdout, "Backtrace:\n{backtrace:?}");
         }
 
         let _ = writeln!(

@@ -75,7 +75,7 @@ fn main() {
     // worker or workers.
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(worker_count + 1)
-        .thread_name(|id| format!("compiler-worker-{}", id))
+        .thread_name(|id| format!("compiler-worker-{id}"))
         .build()
         .unwrap();
 

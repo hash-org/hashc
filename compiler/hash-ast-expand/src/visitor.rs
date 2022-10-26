@@ -211,7 +211,7 @@ impl<'s> AstVisitor for AstExpander<'s> {
             let location = self.source_location(node.subject.span());
             let span = self.source_map.get_column_row_span_for(location);
 
-            println!("AST for {}:{}\n{}", name, span, TreeWriter::new(&tree));
+            println!("AST for {name}:{span}\n{}", TreeWriter::new(&tree));
         }
 
         Ok(())

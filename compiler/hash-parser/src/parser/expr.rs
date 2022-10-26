@@ -676,7 +676,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 })
             }
 
-            kind => panic!("Expected token to be a unary operator, but got '{}'", kind),
+            kind => panic!("Expected token to be a unary operator, but got '{kind}'"),
         };
 
         Ok(self.node_with_joined_span(expr, start))

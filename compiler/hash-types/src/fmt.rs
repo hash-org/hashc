@@ -198,7 +198,7 @@ impl<'gs> TcFormatter<'gs> {
     ) -> fmt::Result {
         match self.global_storage.trt_def_store.get(trt_def_id).name {
             Some(name) if !opts.expand => {
-                write!(f, "{}", name)
+                write!(f, "{name}")
             }
             _ => {
                 write!(f, "trait {{..}}")
@@ -222,7 +222,7 @@ impl<'gs> TcFormatter<'gs> {
                 opts.is_atomic.set(true);
 
                 if let Some(name) = fn_lit.name {
-                    write!(f, "{}", name)?;
+                    write!(f, "{name}")?;
                 }
 
                 write!(
@@ -251,7 +251,7 @@ impl<'gs> TcFormatter<'gs> {
                 opts.is_atomic.set(true);
                 match lit_term {
                     LitTerm::Str(str) => {
-                        write!(f, "\"{}\"", str)
+                        write!(f, "\"{str}\"")
                     }
                     LitTerm::Int { value, kind } => {
                         // It's often the case that users don't include the range of the entire
@@ -270,7 +270,7 @@ impl<'gs> TcFormatter<'gs> {
                     LitTerm::Char(char) => {
                         // Use debug implementation since we want to display the `literal` value
                         // rather than the actual glyph
-                        write!(f, "{:?}", char)
+                        write!(f, "{char:?}")
                     }
                 }
             }
@@ -371,7 +371,7 @@ impl<'gs> TcFormatter<'gs> {
             write!(f, "(")?;
         }
 
-        write!(f, "{}", term)?;
+        write!(f, "{term}")?;
 
         if !opts.is_atomic.get() {
             write!(f, ")")?;
@@ -395,14 +395,14 @@ impl<'gs> TcFormatter<'gs> {
                     AccessOp::Namespace => "::",
                     AccessOp::Property => ".",
                 };
-                write!(f, "{}{}", op, access_term.name)?;
+                write!(f, "{op}{}", access_term.name)?;
                 Ok(())
             }
             Term::Var(Var { name })
             | Term::BoundVar(BoundVar { name })
             | Term::ScopeVar(ScopeVar { name, .. }) => {
                 opts.is_atomic.set(true);
-                write!(f, "{}", name)
+                write!(f, "{name}")
             }
             Term::Merge(terms) => self.fmt_term_list(f, terms, "~", opts),
             Term::Union(terms) => {
@@ -417,7 +417,7 @@ impl<'gs> TcFormatter<'gs> {
                 match ty_fn.name {
                     Some(name) if !opts.expand => {
                         opts.is_atomic.set(true);
-                        write!(f, "{}", name)?;
+                        write!(f, "{name}")?;
                         Ok(())
                     }
                     _ => {
@@ -523,7 +523,7 @@ impl<'gs> TcFormatter<'gs> {
         f: &mut fmt::Formatter,
         UnresolvedTerm { resolution_id }: &UnresolvedTerm,
     ) -> fmt::Result {
-        write!(f, "U_{}", resolution_id)
+        write!(f, "U_{resolution_id}")
     }
 
     /// Format a [NominalDef] indexed by the given [NominalDefId].
@@ -540,7 +540,7 @@ impl<'gs> TcFormatter<'gs> {
             | NominalDef::Unit(UnitDef { name: Some(name) })
                 if !opts.expand =>
             {
-                write!(f, "{}", name)
+                write!(f, "{name}")
             }
             // @@Future: we can actually print out the location of these definitions, which might
             // help with debugging.
@@ -568,7 +568,7 @@ impl<'gs> TcFormatter<'gs> {
         match mod_def.name {
             Some(name) if !opts.expand => {
                 opts.is_atomic.set(true);
-                write!(f, "{}", name)
+                write!(f, "{name}")
             }
             _ => match mod_def.origin {
                 ModDefOrigin::TrtImpl(trt_def_id) => {
@@ -629,7 +629,7 @@ impl<'gs> TcFormatter<'gs> {
         if !opts.is_atomic.get() {
             write!(f, "(")?;
         }
-        write!(f, "{}", pat_fmt)?;
+        write!(f, "{pat_fmt}")?;
         if !opts.is_atomic.get() {
             write!(f, ")")?;
         }
@@ -651,16 +651,16 @@ impl<'gs> TcFormatter<'gs> {
                 };
                 let name = binding.name;
                 opts.is_atomic.set(false);
-                write!(f, "{}{}{}", visibility, mutability, name)
+                write!(f, "{visibility}{mutability}{name}")
             }
             Pat::Access(AccessPat { subject, property }) => {
-                write!(f, "{}::{}", property, subject.for_formatting(self.global_storage))
+                write!(f, "{property}::{}", subject.for_formatting(self.global_storage))
             }
             Pat::Const(ConstPat { term }) => self.fmt_term(f, term, opts),
             Pat::Range(RangePat { lo, hi, end }) => {
                 // write the `lo`, then the range end, and finally the `hi`
                 self.fmt_term(f, lo, opts.clone())?;
-                write!(f, "{}", end)?;
+                write!(f, "{end}")?;
 
                 self.fmt_term(f, hi, opts)
             }
@@ -737,7 +737,7 @@ impl<'gs> TcFormatter<'gs> {
 
                 // Write the name bind, if it exists
                 if let Some(name) = name {
-                    write!(f, "{}", name)?;
+                    write!(f, "{name}")?;
                 }
 
                 Ok(())

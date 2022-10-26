@@ -271,7 +271,7 @@ impl<'tc> ConstructorOps<'tc> {
             }
             (DeconstructedCtor::NonExhaustive, _) => false,
             _ => {
-                panic!("trying to compare incompatible constructors `{:?}` and `{:?}`", ctor, other)
+                panic!("trying to compare incompatible constructors `{ctor:?}` and `{other:?}`")
             }
         }
     }
@@ -325,6 +325,6 @@ impl PreparePatForFormatting for DeconstructedCtorId {}
 impl Debug for PatForFormatting<'_, DeconstructedCtorId> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let ctor = self.storage.exhaustiveness_storage().deconstructed_ctor_store.get(self.item);
-        write!(f, "{:?}", ctor)
+        write!(f, "{ctor:?}")
     }
 }
