@@ -799,7 +799,7 @@ fn emit_default_impl_macros(
         };
 
         quote! {
-            (@@ #node_name) => {
+            (@node #node_name) => {
                 type #node_ret = ();
                 fn #visit_node(
                     #self_param,
@@ -821,18 +821,19 @@ fn emit_default_impl_macros(
     // #node_name, }     })
     //     .collect::<TokenStream>();
 
-    // For each node name given, emit a default impl by calling the appropriate `@@`
-    // node case.
+    // For each node name given, emit a default impl by calling its appropriate
+    // `@node` case recursively.
     let result = quote! {
         #[macro_export]
         macro_rules! #default_impl_name {
             ($($node:ident),* $(,)?) => {
                 $(
-                    #default_impl_name!(@@ $node);
+                    #default_impl_name!(@node $node);
                 )*
             };
             #(#default_impl_macro_cases)*
-            (@@ $node:ident) => {
+            // Last case is error
+            (@node $node:ident) => {
                 compile_error!(concat!(
                     "No such node type `",
                     stringify!($node),
