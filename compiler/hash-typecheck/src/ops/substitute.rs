@@ -144,7 +144,7 @@ impl<'tc> Substituter<'tc> {
                 // Apply to the function type and return value
                 let subbed_fn_ty = self.apply_sub_to_term(sub, fn_lit.fn_ty);
                 let subbed_return_value = self.apply_sub_to_term(sub, fn_lit.return_value);
-                self.builder().create_fn_lit_term(subbed_fn_ty, subbed_return_value)
+                self.builder().create_fn_lit_term(fn_lit.name, subbed_fn_ty, subbed_return_value)
             }
             Level0Term::FnCall(fn_call) => {
                 // Apply to subject and args

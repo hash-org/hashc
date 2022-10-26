@@ -20,7 +20,7 @@ impl log::Log for CompilerLogger {
                 Level::Trace => highlight(Colour::Magenta | Modifier::Bold, "trace"),
             };
 
-            println!("{}: {}", level_prefix, record.args());
+            println!("{level_prefix}: {}", record.args());
         }
     }
 

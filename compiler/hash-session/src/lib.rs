@@ -8,12 +8,10 @@
 //! This creates a clear separation between the stages and the global state,
 //! keeping the crate dependency graph clean.
 
-use std::collections::HashSet;
-
 use hash_ast::node_map::NodeMap;
 use hash_ast_desugaring::{AstDesugaringCtx, AstDesugaringPass};
 use hash_ast_expand::{AstExpansionCtx, AstExpansionPass};
-use hash_lower::{IrLowerer, IrLoweringCtx};
+use hash_lower::{AstLowerer, IrLoweringCtx};
 use hash_parser::{Parser, ParserCtx};
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerStage},
@@ -35,7 +33,7 @@ pub fn make_stages() -> Vec<Box<dyn CompilerStage<CompilerSession>>> {
         Box::new(AstDesugaringPass),
         Box::new(SemanticAnalysis),
         Box::new(Typechecker::new()),
-        Box::new(IrLowerer::new()),
+        Box::new(AstLowerer::new()),
         Box::new(Interpreter::new()),
     ]
 }
@@ -56,18 +54,6 @@ pub struct CompilerSession {
     /// Compiler settings that are stored.
     pub settings: CompilerSettings,
 
-    /// Sources that have passed from the `expansion` stage of the compiler.
-    /// @@Todo: Use bit-flags to represent which module has been
-    /// expanded/desugared/semantically checked/type checked.
-    pub expanded_sources: HashSet<SourceId>,
-
-    /// Sources that have passed from the `desugaring` stage of the compiler.
-    pub desugared_modules: HashSet<SourceId>,
-
-    /// Modules that have already been semantically checked. This is needed in
-    /// order to avoid re-checking modules on re-evaluations of a workspace.
-    pub semantically_checked_modules: HashSet<SourceId>,
-
     /// Compiler type storage. Stores all the types that are created during
     /// the typechecking stage, which is used for later stages during code
     /// generation.
@@ -85,9 +71,6 @@ impl CompilerSession {
             pool,
             settings,
             ty_storage: TyStorage { global, local },
-            expanded_sources: HashSet::new(),
-            desugared_modules: HashSet::new(),
-            semantically_checked_modules: HashSet::new(),
         }
     }
 }
@@ -132,24 +115,21 @@ impl ParserCtx for CompilerSession {
     }
 }
 
-impl IrLoweringCtx for CompilerSession {}
-impl InterpreterCtx for CompilerSession {}
-
 impl AstDesugaringCtx for CompilerSession {
-    fn data(&mut self) -> (&mut Workspace, &mut HashSet<SourceId>, &rayon::ThreadPool) {
-        (&mut self.workspace, &mut self.desugared_modules, &self.pool)
+    fn data(&mut self) -> (&mut Workspace, &rayon::ThreadPool) {
+        (&mut self.workspace, &self.pool)
     }
 }
 
 impl SemanticAnalysisCtx for CompilerSession {
-    fn data(&mut self) -> (&mut Workspace, &mut HashSet<SourceId>, &rayon::ThreadPool) {
-        (&mut self.workspace, &mut self.semantically_checked_modules, &self.pool)
+    fn data(&mut self) -> (&mut Workspace, &rayon::ThreadPool) {
+        (&mut self.workspace, &self.pool)
     }
 }
 
 impl AstExpansionCtx for CompilerSession {
-    fn data(&mut self) -> (&mut Workspace, &mut HashSet<SourceId>) {
-        (&mut self.workspace, &mut self.expanded_sources)
+    fn data(&mut self) -> &mut Workspace {
+        &mut self.workspace
     }
 }
 
@@ -158,3 +138,11 @@ impl TypecheckingCtx for CompilerSession {
         (&self.workspace, &mut self.ty_storage)
     }
 }
+
+impl IrLoweringCtx for CompilerSession {
+    fn data(&mut self) -> (&Workspace, &mut TyStorage) {
+        (&self.workspace, &mut self.ty_storage)
+    }
+}
+
+impl InterpreterCtx for CompilerSession {}

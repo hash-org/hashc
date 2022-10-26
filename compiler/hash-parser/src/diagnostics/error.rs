@@ -189,7 +189,7 @@ impl From<ParseError> for Report {
                 format!("invalid suffix `{suffix}` for {kind} literal")
             }
             ParseErrorKind::DisallowedSuffix(suffix) => {
-                span_label = format!("disallowed suffix `{}`", suffix);
+                span_label = format!("disallowed suffix `{suffix}`");
 
                 "suffixes on property access fields are disallowed".to_string()
             }

@@ -3,13 +3,11 @@
 //! that later stages can work on it without having to operate on similar
 //! constructs and duplicating logic.
 
-use std::collections::HashSet;
-
 use hash_ast::{ast::OwnsAstNode, visitor::AstVisitorMut};
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerStage},
     settings::CompilerStageKind,
-    workspace::Workspace,
+    workspace::{SourceStageInfo, Workspace},
 };
 use hash_source::SourceId;
 use visitor::AstDesugaring;
@@ -20,7 +18,7 @@ mod visitor;
 pub struct AstDesugaringPass;
 
 pub trait AstDesugaringCtx: CompilerInterface {
-    fn data(&mut self) -> (&mut Workspace, &mut HashSet<SourceId>, &rayon::ThreadPool);
+    fn data(&mut self) -> (&mut Workspace, &rayon::ThreadPool);
 }
 
 impl<Ctx: AstDesugaringCtx> CompilerStage<Ctx> for AstDesugaringPass {
@@ -54,14 +52,15 @@ impl<Ctx: AstDesugaringCtx> CompilerStage<Ctx> for AstDesugaringPass {
         entry_point: SourceId,
         ctx: &mut Ctx,
     ) -> hash_pipeline::interface::CompilerResult<()> {
-        let (workspace, desugared_modules, pool) = &mut ctx.data();
+        let (workspace, pool) = &mut ctx.data();
 
         let node_map = &mut workspace.node_map;
         let source_map = &workspace.source_map;
+        let source_stage_info = &mut workspace.source_stage_info;
 
         pool.scope(|scope| {
             // De-sugar the target if it isn't already de-sugared
-            if !desugared_modules.contains(&entry_point) {
+            if !source_stage_info.get(entry_point).is_desugared() {
                 if let SourceId::Interactive(id) = entry_point {
                     let source = node_map.get_interactive_block_mut(id);
                     let mut desugarer = AstDesugaring::new(source_map, entry_point);
@@ -73,8 +72,11 @@ impl<Ctx: AstDesugaringCtx> CompilerStage<Ctx> for AstDesugaringPass {
             // Iterate over all of the modules and add the expressions
             // to the queue so it can be distributed over the threads
             for (id, module) in node_map.iter_mut_modules() {
+                let source_id = SourceId::Module(*id);
+                let stage_info = source_stage_info.get(source_id);
+
                 // Skip any modules that have already been de-sugared
-                if desugared_modules.contains(&SourceId::Module(*id)) {
+                if stage_info.is_desugared() {
                     continue;
                 }
 
@@ -95,9 +97,8 @@ impl<Ctx: AstDesugaringCtx> CompilerStage<Ctx> for AstDesugaringPass {
             }
         });
 
-        // Add all of the ids into the cache
-        desugared_modules.insert(entry_point);
-        desugared_modules.extend(node_map.iter_modules().map(|(id, _)| SourceId::Module(*id)));
+        // Set all modules as ast-desugared
+        source_stage_info.set_all(SourceStageInfo::DESUGARED);
 
         Ok(())
     }

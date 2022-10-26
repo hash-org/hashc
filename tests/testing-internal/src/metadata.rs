@@ -33,8 +33,7 @@ impl Default for TestResult {
 
 impl ToTokens for TestResult {
     fn to_tokens(&self, tokens: &mut quote::__private::TokenStream) {
-        let item: quote::__private::TokenStream =
-            format!("TestResult::{:?}", self).parse().unwrap();
+        let item: quote::__private::TokenStream = format!("TestResult::{self:?}").parse().unwrap();
         tokens.extend(item)
     }
 }
@@ -69,7 +68,7 @@ impl Default for HandleWarnings {
 impl ToTokens for HandleWarnings {
     fn to_tokens(&self, tokens: &mut quote::__private::TokenStream) {
         let item: quote::__private::TokenStream =
-            format!("HandleWarnings::{:?}", self).parse().unwrap();
+            format!("HandleWarnings::{self:?}").parse().unwrap();
         tokens.extend(item)
     }
 }
@@ -108,7 +107,7 @@ impl ToTokens for TestMetadata {
 
         // Convert the stage into the `tokenised` stage...
         let stage: quote::__private::TokenStream =
-            format!("CompilerStageKind::{:?}", stage).parse().unwrap();
+            format!("CompilerStageKind::{stage:?}").parse().unwrap();
 
         tokens.extend(
             quote! ( TestMetadata { completion: #completion, stage: #stage, warnings: #warnings  }),

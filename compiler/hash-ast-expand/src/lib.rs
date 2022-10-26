@@ -2,13 +2,11 @@
 //! visitor pattern on the AST in order to expand any directives or macros that
 //! need to run after the parsing stage. Currently this function does not have
 
-use std::collections::HashSet;
-
 use hash_ast::ast::{AstVisitor, OwnsAstNode};
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerStage},
     settings::CompilerStageKind,
-    workspace::Workspace,
+    workspace::{SourceStageInfo, Workspace},
 };
 use hash_source::SourceId;
 use visitor::AstExpander;
@@ -18,7 +16,7 @@ mod visitor;
 pub struct AstExpansionPass;
 
 pub trait AstExpansionCtx: CompilerInterface {
-    fn data(&mut self) -> (&mut Workspace, &mut HashSet<SourceId>);
+    fn data(&mut self) -> &mut Workspace;
 }
 
 impl<Ctx: AstExpansionCtx> CompilerStage<Ctx> for AstExpansionPass {
@@ -31,13 +29,16 @@ impl<Ctx: AstExpansionCtx> CompilerStage<Ctx> for AstExpansionPass {
         entry_point: SourceId,
         ctx: &mut Ctx,
     ) -> hash_pipeline::interface::CompilerResult<()> {
-        let (workspace, expanded_modules) = ctx.data();
+        let workspace = ctx.data();
 
         let node_map = &mut workspace.node_map;
         let source_map = &workspace.source_map;
+        let source_stage_info = &mut workspace.source_stage_info;
+
+        let source_info = source_stage_info.get(entry_point);
 
         // De-sugar the target if it isn't already de-sugared
-        if !expanded_modules.contains(&entry_point) {
+        if source_info.is_expanded() {
             if let SourceId::Interactive(id) = entry_point {
                 let expander = AstExpander::new(source_map, entry_point);
                 let source = node_map.get_interactive_block(id);
@@ -48,15 +49,19 @@ impl<Ctx: AstExpansionCtx> CompilerStage<Ctx> for AstExpansionPass {
 
         for (id, module) in node_map.iter_modules() {
             let module_id = SourceId::Module(*id);
+            let stage_info = source_stage_info.get(module_id);
 
             // Skip any modules that have already been de-sugared
-            if expanded_modules.contains(&module_id) {
+            if stage_info.is_expanded() {
                 continue;
             }
 
             let expander = AstExpander::new(source_map, module_id);
             expander.visit_module(module.node_ref()).unwrap();
         }
+
+        // Update all entries that they have been expanded
+        source_stage_info.set_all(SourceStageInfo::EXPANDED);
 
         Ok(())
     }

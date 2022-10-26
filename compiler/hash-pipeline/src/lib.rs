@@ -69,7 +69,7 @@ impl<I: CompilerInterface> Compiler<I> {
             }
             total += *duration;
 
-            eprintln!("{: <12}: {duration:?}", format!("{}", stage));
+            eprintln!("{: <12}: {duration:?}", format!("{stage}"));
         }
 
         // Now print the total

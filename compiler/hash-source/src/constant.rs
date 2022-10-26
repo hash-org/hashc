@@ -199,7 +199,7 @@ impl Display for IntConstant {
                     write!(f, "{}", u64::from_be_bytes(*value))?;
                 }
             }
-            IntConstantValue::Big(value) => write!(f, "{}", value)?,
+            IntConstantValue::Big(value) => write!(f, "{value}")?,
         }
 
         if let Some(suffix) = self.suffix {

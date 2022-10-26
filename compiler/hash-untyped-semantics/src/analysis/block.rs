@@ -5,11 +5,12 @@ use std::{cell::Cell, collections::HashSet, mem};
 
 use hash_ast::{
     ast::{AstNodeRef, BodyBlock, DirectiveExpr, Expr},
+    origin::BlockOrigin,
     visitor::AstVisitorMutSelf,
 };
 
 use super::SemanticAnalyser;
-use crate::diagnostics::{error::AnalysisErrorKind, origins::BlockOrigin};
+use crate::diagnostics::error::AnalysisErrorKind;
 
 impl SemanticAnalyser<'_> {
     /// This function will verify that all of the given expressions are

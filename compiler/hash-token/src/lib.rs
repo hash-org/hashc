@@ -59,9 +59,9 @@ impl std::fmt::Display for Token {
             }
             // We want to print the actual character, instead of a potential escape code
             TokenKind::CharLit(ch) => {
-                write!(f, "Char ('{}')", ch)
+                write!(f, "Char ('{ch}')")
             }
-            kind => write!(f, "{:?}", kind),
+            kind => write!(f, "{kind:?}"),
         }
     }
 }
@@ -212,7 +212,7 @@ impl TokenKind {
     /// context.
     pub fn as_error_string(&self) -> String {
         match self {
-            TokenKind::Unexpected(atom) => format!("an unknown character `{}`", atom),
+            TokenKind::Unexpected(atom) => format!("an unknown character `{atom}`"),
             TokenKind::IntLit(lit) => format!("`{lit}`"),
             TokenKind::FloatLit(lit) => format!("`{lit}`"),
             TokenKind::CharLit(ch) => format!("`{ch}`"),

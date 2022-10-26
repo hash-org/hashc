@@ -43,7 +43,7 @@ pub enum SubjectKind {
 impl From<&Expr> for SubjectKind {
     fn from(kind: &Expr) -> Self {
         match kind {
-            Expr::LitExpr(_) => SubjectKind::Lit,
+            Expr::Lit(_) => SubjectKind::Lit,
             Expr::Block(_) => SubjectKind::Block,
             _ => SubjectKind::Expr,
         }

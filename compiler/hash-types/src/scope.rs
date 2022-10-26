@@ -63,7 +63,7 @@ impl ScopeStack {
     /// Panics if the last scope is not the same as the given ID.
     pub fn pop_the_scope(&self, expected_id: ScopeId) -> ScopeId {
         let popped = self.pop_scope();
-        assert!(popped == expected_id, "Expected scope ID {:?} but got {:?}", expected_id, popped);
+        assert!(popped == expected_id, "Expected scope ID {expected_id:?} but got {popped:?}");
         popped
     }
 }

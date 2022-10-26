@@ -149,7 +149,7 @@ impl<'tc> DeconstructPatOps<'tc> {
                 // So when specialising, we will fill the middle part of the `this_list` to
                 // match the arity of the `other_list`.
                 match this_list.kind {
-                    ListKind::Fixed(_) => panic!("{:?} cannot cover {:?}", this_list, other_list),
+                    ListKind::Fixed(_) => panic!("{this_list:?} cannot cover {other_list:?}"),
                     ListKind::Var(prefix, suffix) => {
                         // we will need to get the inner `ty` of the list
                         let Some(inner_ty) = self.oracle().term_as_list_ty(ctx.ty) else {
@@ -228,12 +228,12 @@ impl Debug for PatForFormatting<'_, DeconstructedPatId> {
                         match self.storage.nominal_def_store().get(nominal_def) {
                             NominalDef::Struct(struct_def) => {
                                 if let Some(name) = struct_def.name {
-                                    write!(f, "{}", name)?;
+                                    write!(f, "{name}")?;
                                 }
                             }
                             NominalDef::Unit(unit_def) => {
                                 if let Some(name) = unit_def.name {
-                                    write!(f, "{}", name)?;
+                                    write!(f, "{name}")?;
                                 }
                             }
                             // @@EnumToUnion: remove and replace
@@ -254,8 +254,8 @@ impl Debug for PatForFormatting<'_, DeconstructedPatId> {
                 }
                 write!(f, ")")
             }
-            DeconstructedCtor::IntRange(range) => write!(f, "{:?}", range),
-            DeconstructedCtor::Str(value) => write!(f, "{}", value),
+            DeconstructedCtor::IntRange(range) => write!(f, "{range:?}"),
+            DeconstructedCtor::Str(value) => write!(f, "{value}"),
             DeconstructedCtor::List(list) => {
                 let mut subpatterns = pat.fields.iter_patterns();
 
@@ -264,7 +264,7 @@ impl Debug for PatForFormatting<'_, DeconstructedPatId> {
                 match list.kind {
                     ListKind::Fixed(_) => {
                         for p in subpatterns {
-                            write!(f, "{}{:?}", start_or_continue(", "), p)?;
+                            write!(f, "{}{p:?}", start_or_continue(", "))?;
                         }
                     }
                     ListKind::Var(prefix, _) => {
@@ -314,7 +314,7 @@ impl Debug for PatForFormatting<'_, DeconstructedPatId> {
                     _ => unreachable!(),
                 };
 
-                write!(f, "{}_ : {}", prefix, pat.ty.for_formatting(self.storage.global_storage))
+                write!(f, "{prefix}_ : {}", pat.ty.for_formatting(self.storage.global_storage))
             }
         }
     }

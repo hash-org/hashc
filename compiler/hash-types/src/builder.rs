@@ -390,8 +390,13 @@ impl<'gs> PrimitiveBuilder<'gs> {
 
     /// Create a [Level0Term::FnLit] of the given function type and return
     /// value.
-    pub fn create_fn_lit_term(&self, fn_ty: TermId, return_value: TermId) -> TermId {
-        self.create_term(Term::Level0(Level0Term::FnLit(FnLit { fn_ty, return_value })))
+    pub fn create_fn_lit_term(
+        &self,
+        name: Option<Identifier>,
+        fn_ty: TermId,
+        return_value: TermId,
+    ) -> TermId {
+        self.create_term(Term::Level0(Level0Term::FnLit(FnLit { name, fn_ty, return_value })))
     }
 
     /// Create a [Level0Term::FnCall] term with the given subject and arguments.

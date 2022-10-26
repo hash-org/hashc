@@ -1002,7 +1002,13 @@ pub struct FnCall {
 /// value.
 #[derive(Debug, Clone, Copy)]
 pub struct FnLit {
+    /// A name associated with this function literal.
+    pub name: Option<Identifier>,
+
+    /// The type of the function.
     pub fn_ty: TermId,
+
+    /// The type of the return value.
     pub return_value: TermId,
 }
 

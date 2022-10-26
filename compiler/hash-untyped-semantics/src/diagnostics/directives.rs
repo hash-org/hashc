@@ -24,7 +24,8 @@ pub enum DirectiveArgument {
     /// Unsafe block expression
     Unsafe,
     /// Literal expression.
-    LitExpr,
+    Lit,
+    /// A cast expression, casting the lhs to the rhs type.
     Cast,
     /// Since the AST is de-sugared at this point, it should be that `for`,
     /// `while` and `loop` blocks end up here...
@@ -74,7 +75,7 @@ impl From<&Expr> for DirectiveArgument {
             Expr::Directive(_) => DirectiveArgument::Directive,
             Expr::Declaration(_) => DirectiveArgument::Declaration,
             Expr::Unsafe(_) => DirectiveArgument::Unsafe,
-            Expr::LitExpr(_) => DirectiveArgument::LitExpr,
+            Expr::Lit(_) => DirectiveArgument::Lit,
             Expr::Cast(_) => DirectiveArgument::Cast,
             Expr::Block(BlockExpr { data: block }) => match block.body() {
                 Block::Loop(_) | Block::While(_) | Block::For(_) => DirectiveArgument::Loop,
@@ -108,7 +109,7 @@ impl Display for DirectiveArgument {
             DirectiveArgument::Declaration => write!(f, "declaration"),
             DirectiveArgument::MergeDeclaration => write!(f, "merge declaration"),
             DirectiveArgument::Unsafe => write!(f, "unsafe expression"),
-            DirectiveArgument::LitExpr => write!(f, "literal"),
+            DirectiveArgument::Lit => write!(f, "literal"),
             DirectiveArgument::Cast => write!(f, "type cast"),
             DirectiveArgument::Loop => write!(f, "`loop` block"),
             DirectiveArgument::Match => write!(f, "`match` block"),

@@ -31,13 +31,13 @@ impl<'tc> CoreDefReader<'tc> {
         let (resolved, index) = self
             .scope_store()
             .map_fast(root_scope, |scope| scope.get(var_name))
-            .unwrap_or_else(|| panic!("Failed to find core def: {}", var_name));
+            .unwrap_or_else(|| panic!("Failed to find core def: {var_name}"));
         match resolved {
             Member::Constant(_) | Member::Variable(_) => {
                 self.builder().create_scope_var_term(var_name, root_scope, index)
             }
             Member::Bound(_) | Member::SetBound(_) => {
-                panic!("Core def {} found to be invalid member: {:?}", var_name, resolved)
+                panic!("Core def {var_name} found to be invalid member: {resolved:?}")
             }
         }
     }

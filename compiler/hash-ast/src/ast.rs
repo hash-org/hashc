@@ -831,7 +831,7 @@ define_tree! {
         pub fn is_constant(&self) -> bool {
             let is_expr_lit_and_const = |expr: &AstNode<Expr>| -> bool {
                 match expr.body() {
-                    Expr::LitExpr(LitExpr { data }) => data.is_constant(),
+                    Expr::Lit(LitExpr { data }) => data.is_constant(),
                     _ => false,
                 }
             };
@@ -1989,7 +1989,7 @@ define_tree! {
         /// Unsafe block expression e.g. `unsafe { *(&raw bytes) }`
         Unsafe(UnsafeExpr),
         /// Literal expression e.g. `5`
-        LitExpr(LitExpr),
+        Lit(LitExpr),
         /// Cast expression e.g. `x as u32`
         Cast(CastExpr),
         /// Block expression

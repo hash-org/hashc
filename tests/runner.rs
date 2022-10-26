@@ -200,7 +200,7 @@ fn handle_test(input: TestingInput) {
     // worker or workers.
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(WORKER_COUNT)
-        .thread_name(|id| format!("compiler-worker-{}", id))
+        .thread_name(|id| format!("compiler-worker-{id}"))
         .build()
         .unwrap();
 

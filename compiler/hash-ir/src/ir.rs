@@ -7,47 +7,47 @@ use hash_source::{
     location::{SourceLocation, Span},
     SourceId,
 };
-use hash_types::{nominals::NominalDefId, terms::TermId};
+use hash_types::{nominals::NominalDefId, terms::TermId, Mutability};
 use index_vec::{index_vec, IndexSlice, IndexVec};
 
-/// Represents the type layout of a given expression.
-#[derive(Debug, PartialEq, Eq)]
-pub enum Ty<'ir> {
-    /// `usize` type, machine specific unsigned pointer
-    USize,
-    /// `u8` type, 8bit unsigned integer
-    U8,
-    /// `u16` type, 16bit unsigned integer
-    U16,
-    /// `u32` type, 32bit unsigned integer
-    U32,
-    /// `u64` type, 64bit unsigned integer
-    U64,
-    /// `isize` type, machine specific unsigned pointer
-    ISize,
-    /// `i8` type, 8bit signed integer
-    I8,
-    /// `i16` type, 16bit signed integer
-    I16,
-    /// `i32` type, 32bit signed integer
-    I32,
-    /// `i64` type, 64bit signed integer
-    I64,
-    /// `f32` type, 32bit float
-    F32,
-    /// `f64` type, 64bit float
-    F64,
-    /// A `void` type
-    Void,
-    /// Represents any collection of types in a specific order.
-    Structural(&'ir [Ty<'ir>]),
-    /// Essentially an enum representation
-    Union(&'ir [Ty<'ir>]),
-    /// Reference type
-    Ptr(&'ir Ty<'ir>),
-    /// Raw reference type
-    RawPtr(&'ir Ty<'ir>),
-}
+// /// Represents the type layout of a given expression.
+// #[derive(Debug, PartialEq, Eq)]
+// pub enum Ty<'ir> {
+//     /// `usize` type, machine specific unsigned pointer
+//     USize,
+//     /// `u8` type, 8bit unsigned integer
+//     U8,
+//     /// `u16` type, 16bit unsigned integer
+//     U16,
+//     /// `u32` type, 32bit unsigned integer
+//     U32,
+//     /// `u64` type, 64bit unsigned integer
+//     U64,
+//     /// `isize` type, machine specific unsigned pointer
+//     ISize,
+//     /// `i8` type, 8bit signed integer
+//     I8,
+//     /// `i16` type, 16bit signed integer
+//     I16,
+//     /// `i32` type, 32bit signed integer
+//     I32,
+//     /// `i64` type, 64bit signed integer
+//     I64,
+//     /// `f32` type, 32bit float
+//     F32,
+//     /// `f64` type, 64bit float
+//     F64,
+//     /// A `void` type
+//     Void,
+//     /// Represents any collection of types in a specific order.
+//     Structural(&'ir [Ty<'ir>]),
+//     /// Essentially an enum representation
+//     Union(&'ir [Ty<'ir>]),
+//     /// Reference type
+//     Ptr(&'ir Ty<'ir>),
+//     /// Raw reference type
+//     RawPtr(&'ir Ty<'ir>),
+// }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Const {
@@ -134,20 +134,35 @@ pub enum BinOp {
     Mod,
 }
 
-/// Mutability
-#[derive(Debug, PartialEq, Eq)]
-pub enum Mutability {
-    Mutable,
-    Immutable,
-}
-
 /// Essentially a register for a value
 #[derive(Debug, PartialEq, Eq)]
-pub struct LocalDecl<'ir> {
+pub struct LocalDecl {
     /// Mutability of the local.
     mutability: Mutability,
     /// The type of the local.
-    ty: Ty<'ir>,
+    ty: TermId,
+}
+
+impl LocalDecl {
+    /// Create a new [LocalDecl].
+    pub fn new(mutability: Mutability, ty: TermId) -> Self {
+        Self { mutability, ty }
+    }
+
+    /// Create a new mutable [LocalDecl].
+    pub fn new_mutable(ty: TermId) -> Self {
+        Self::new(Mutability::Mutable, ty)
+    }
+
+    /// Create a new immutable [LocalDecl].
+    pub fn new_immutable(ty: TermId) -> Self {
+        Self::new(Mutability::Immutable, ty)
+    }
+
+    /// Returns the type of the local.
+    pub fn ty(&self) -> TermId {
+        self.ty
+    }
 }
 
 /// The addressing mode of the [RValue::Ref].
@@ -182,6 +197,13 @@ pub struct Place {
     /// Any projections that are applied onto the `local` in
     /// order to specify an exact location within the local.
     pub projections: Vec<PlaceProjection>,
+}
+
+impl Place {
+    /// Create a [Place] that points to the return `place` of a lowered  body.
+    pub fn return_place() -> Self {
+        Self { local: RETURN_PLACE, projections: Vec::new() }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -341,7 +363,12 @@ index_vec::define_index_type! {
 
     MAX_INDEX = i32::max_value() as usize;
     DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
+
+    DEBUG_FORMAT = "bb{}";
 }
+
+/// `0` is used as the starting block of any lowered body.
+pub const START_BLOCK: BasicBlock = BasicBlock { _raw: 0 };
 
 index_vec::define_index_type! {
     /// Index for [LocalDecl] stores within generated [Body]s.
@@ -349,16 +376,24 @@ index_vec::define_index_type! {
 
     MAX_INDEX = i32::max_value() as usize;
     DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
+
+    DEBUG_FORMAT = "l{}";
 }
 
+/// `0` is used as the return place of any lowered body.
+pub const RETURN_PLACE: Local = Local { _raw: 0 };
+
+/// The origin of a lowered function body.
 pub enum FnSource {
+    /// The item is a normal function.
     Item,
+    /// The item is an intrinsic function.
     Intrinsic,
 }
 
-pub struct Body<'i> {
+pub struct Body<'ir> {
     /// The blocks that the function is represented with
-    blocks: IndexVec<BasicBlock, BasicBlockData<'i>>,
+    blocks: IndexVec<BasicBlock, BasicBlockData<'ir>>,
 
     /// Declarations of local variables:
     ///
@@ -371,7 +406,7 @@ pub struct Body<'i> {
     ///   function arguments.
     ///
     /// - the remaining are temporaries that are used within the function.
-    declarations: IndexVec<Local, LocalDecl<'i>>,
+    declarations: IndexVec<Local, LocalDecl>,
 
     /// Number of arguments to the function
     arg_count: usize,
@@ -384,17 +419,15 @@ pub struct Body<'i> {
     source_id: SourceId,
 }
 
-impl<'a> Body<'a> {
-    pub fn new_uninitialised(location: SourceLocation) -> Self {
-        let SourceLocation { span, id } = location;
-
-        Self {
-            blocks: index_vec![],
-            declarations: index_vec![],
-            arg_count: 0,
-            source: FnSource::Item,
-            span,
-            source_id: id,
-        }
+impl<'ir> Body<'ir> {
+    pub fn new(
+        blocks: IndexVec<BasicBlock, BasicBlockData<'ir>>,
+        declarations: IndexVec<Local, LocalDecl>,
+        arg_count: usize,
+        source: FnSource,
+        span: Span,
+        source_id: SourceId,
+    ) -> Self {
+        Self { blocks, declarations, arg_count, source, span, source_id }
     }
 }

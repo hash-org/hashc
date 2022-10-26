@@ -8,10 +8,16 @@ use hash_source::location::Span;
 use index_vec::IndexVec;
 
 pub struct ControlFlowGraph<'tcx> {
-    basic_blocks: IndexVec<BasicBlock, BasicBlockData<'tcx>>,
+    /// The basic blocks that this control flow graph contains.
+    pub(crate) basic_blocks: IndexVec<BasicBlock, BasicBlockData<'tcx>>,
 }
 
 impl<'tcx> ControlFlowGraph<'tcx> {
+    /// Create a new empty control-flow graph
+    pub fn new() -> Self {
+        Self { basic_blocks: IndexVec::new() }
+    }
+
     /// Get a reference to a [BasicBlock] inner [BasicBlockData].
     pub(crate) fn block_data(&self, block: BasicBlock) -> &BasicBlockData<'tcx> {
         &self.basic_blocks[block]

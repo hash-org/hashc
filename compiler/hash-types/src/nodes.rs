@@ -15,6 +15,24 @@ pub enum NodeInfoTarget {
     Pat(PatId),
 }
 
+impl NodeInfoTarget {
+    /// Returns the [`TermId`] associated with this node, if any.
+    pub fn term_id(self) -> TermId {
+        match self {
+            NodeInfoTarget::Term(term_id) => term_id,
+            NodeInfoTarget::Pat(_) => unreachable!(),
+        }
+    }
+
+    /// Returns the [`PatId`] associated with this node, if any.
+    pub fn pat_id(self) -> PatId {
+        match self {
+            NodeInfoTarget::Pat(pat_id) => pat_id,
+            NodeInfoTarget::Term(_) => unreachable!(),
+        }
+    }
+}
+
 impl From<TermId> for NodeInfoTarget {
     fn from(term: TermId) -> Self {
         Self::Term(term)

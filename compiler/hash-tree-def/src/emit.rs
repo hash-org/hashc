@@ -36,7 +36,7 @@ fn suffix_visitor_like_mut(
         (true, true) => "Mut",
     };
 
-    let word = format!("{}{}", ident.to_string(), suffix);
+    let word = format!("{}{suffix}", ident.to_string());
     format_ident!("{}", word.to_case(case))
 }
 
