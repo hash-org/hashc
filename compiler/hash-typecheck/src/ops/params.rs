@@ -5,8 +5,9 @@ use std::{borrow::Cow, collections::HashSet};
 use hash_ast::ast::ParamOrigin;
 use hash_source::{identifier::Identifier, location::SourceLocation};
 use hash_types::{
-    arguments::ArgsId, location::LocationTarget, params::ParamsId, GetNameOpt, Param, ParamList,
-    Params,
+    arguments::ArgsId,
+    location::LocationTarget,
+    params::{GetNameOpt, Param, ParamList, Params, ParamsId},
 };
 use itertools::Itertools;
 

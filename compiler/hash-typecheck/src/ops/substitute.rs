@@ -1,8 +1,12 @@
 //! Functionality related to variable substitution inside terms/types.
 use hash_types::{
-    arguments::ArgsId, params::ParamsId, scope::ScopeId, terms::TermId, Arg, ConstructedTerm, FnTy,
-    Level0Term, Level1Term, Level2Term, Level3Term, Param, Sub, SubVar, Term, TupleTy, TyFn,
-    TyFnCall, TyFnCase, TyFnTy,
+    arguments::{Arg, ArgsId},
+    params::{Param, ParamsId},
+    scope::ScopeId,
+    terms::{
+        ConstructedTerm, FnTy, Level0Term, Level1Term, Level2Term, Level3Term, Sub, SubVar, Term,
+        TermId, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
+    },
 };
 use hash_utils::store::Store;
 

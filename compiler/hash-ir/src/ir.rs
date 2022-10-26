@@ -7,7 +7,7 @@ use hash_source::{
     location::{SourceLocation, Span},
     SourceId,
 };
-use hash_types::{nominals::NominalDefId, terms::TermId, Mutability};
+use hash_types::{nominals::NominalDefId, scope::Mutability, terms::TermId};
 use index_vec::{index_vec, IndexSlice, IndexVec};
 
 // /// Represents the type layout of a given expression.

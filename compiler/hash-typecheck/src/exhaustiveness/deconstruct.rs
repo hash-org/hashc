@@ -7,7 +7,10 @@
 use std::{cell::Cell, fmt::Debug};
 
 use hash_types::{
-    fmt::PrepareForFormatting, pats::PatId, terms::TermId, Level1Term, NominalDef, Term,
+    fmt::PrepareForFormatting,
+    nominals::NominalDef,
+    pats::PatId,
+    terms::{Level1Term, Term, TermId},
 };
 use hash_utils::store::{CloneStore, Store};
 use itertools::Itertools;

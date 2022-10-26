@@ -4,11 +4,14 @@ use std::{iter::once, mem::size_of};
 
 use hash_ast::ast::{ParamOrigin, RangeEnd};
 use hash_types::{
+    mods::ModDef,
+    nominals::{NominalDef, StructFields},
     params::ParamsId,
-    pats::{PatArgsId, PatId},
-    terms::TermId,
-    AccessPat, ConstPat, ConstructorPat, IfPat, Level0Term, Level1Term, ListPat, LitTerm, ModDef,
-    ModPat, NominalDef, Pat, PatArg, RangePat, SpreadPat, StructFields, Term, TupleTy,
+    pats::{
+        AccessPat, ConstPat, ConstructorPat, IfPat, ListPat, ModPat, Pat, PatArg, PatArgsId, PatId,
+        RangePat, SpreadPat,
+    },
+    terms::{Level0Term, Level1Term, LitTerm, Term, TermId, TupleTy},
 };
 use hash_utils::store::Store;
 use if_chain::if_chain;

@@ -15,8 +15,10 @@ use hash_source::{
     SourceId,
 };
 use hash_types::{
-    fmt::PrepareForFormatting, nodes::NodeInfoTarget, storage::GlobalStorage, terms::TermId, FnLit,
-    FnTy, Level0Term, Level1Term, Term,
+    fmt::PrepareForFormatting,
+    nodes::NodeInfoTarget,
+    storage::GlobalStorage,
+    terms::{FnLit, FnTy, Level0Term, Level1Term, Term, TermId},
 };
 use hash_utils::store::{CloneStore, PartialStore, SequenceStoreKey};
 use index_vec::IndexVec;

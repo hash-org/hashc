@@ -5,16 +5,13 @@ use hash_ast::ast::{ParamOrigin, RangeEnd};
 use hash_reporting::diagnostic::Diagnostics;
 use hash_types::{
     arguments::ArgsId,
-    mods::ModDefId,
-    nominals::NominalDefId,
-    params::ParamsId,
-    pats::{PatArgsId, PatId},
-    scope::ScopeId,
-    terms::TermId,
+    mods::{ModDefId, ModDefOrigin},
+    nominals::{NominalDef, NominalDefId, StructFields},
+    params::{ParamList, ParamsId},
+    pats::{BindingPat, ConstructorPat, Pat, PatArgsId, PatId, RangePat},
+    scope::{Member, Scope, ScopeId, ScopeKind},
+    terms::{ConstructedTerm, FnTy, Level0Term, Level1Term, Level2Term, LitTerm, Term, TermId},
     trts::TrtDefId,
-    BindingPat, ConstructedTerm, ConstructorPat, FnTy, Level0Term, Level1Term, Level2Term, LitTerm,
-    Member, ModDefOrigin, NominalDef, ParamList, Pat, RangePat, Scope, ScopeKind, StructFields,
-    Term,
 };
 use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreCopy, SequenceStoreKey, Store};
 use itertools::Itertools;

@@ -2,9 +2,12 @@
 use std::{borrow::Borrow, collections::HashSet};
 
 use hash_types::{
-    arguments::ArgsId, location::LocationTarget, params::ParamsId, pats::PatId, scope::ScopeId,
-    terms::TermId, Arg, Level0Term, Level1Term, Level2Term, Level3Term, Param, ScopeKind, Sub,
-    Term,
+    arguments::{Arg, ArgsId},
+    location::LocationTarget,
+    params::{Param, ParamsId},
+    pats::PatId,
+    scope::{ScopeId, ScopeKind},
+    terms::{Level0Term, Level1Term, Level2Term, Level3Term, Sub, Term, TermId},
 };
 use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey};
 

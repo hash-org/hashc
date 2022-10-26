@@ -18,14 +18,16 @@ use hash_source::{
     ModuleKind, SourceId,
 };
 use hash_types::{
+    arguments::Arg,
     location::{IndexedLocationTarget, LocationTarget},
+    mods::ModDefOrigin,
     nodes::NodeInfoTarget,
     nominals::NominalDefId,
-    pats::PatId,
+    params::{AccessOp, Field, Param},
+    pats::{BindingPat, ConstPat, Pat, PatArg, PatId, RangePat, SpreadPat},
+    scope::{Member, Mutability, ScopeKind, ScopeMember, Visibility},
     storage::LocalStorage,
-    terms::TermId,
-    AccessOp, Arg, BindingPat, ConstPat, Field, Member, ModDefOrigin, Mutability, Param, Pat,
-    PatArg, RangePat, ScopeKind, ScopeMember, SpreadPat, Sub, Visibility,
+    terms::{Sub, TermId},
 };
 use hash_utils::store::{PartialStore, Store};
 use itertools::Itertools;

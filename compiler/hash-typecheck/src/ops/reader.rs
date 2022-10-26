@@ -2,15 +2,14 @@
 //! ease.
 
 use hash_types::{
-    arguments::ArgsId,
-    mods::ModDefId,
-    nominals::NominalDefId,
-    params::ParamsId,
-    pats::{PatArgsId, PatId},
-    scope::ScopeId,
-    terms::{TermId, TermListId},
-    trts::TrtDefId,
-    Args, ModDef, NominalDef, Params, Pat, PatArgs, Scope, Term, TrtDef,
+    arguments::{Args, ArgsId},
+    mods::{ModDef, ModDefId},
+    nominals::{NominalDef, NominalDefId},
+    params::{Params, ParamsId},
+    pats::{Pat, PatArgs, PatArgsId, PatId},
+    scope::{Scope, ScopeId},
+    terms::{Term, TermId, TermListId},
+    trts::{TrtDef, TrtDefId},
 };
 use hash_utils::store::{CloneStore, SequenceStore, Store};
 

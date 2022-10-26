@@ -3,9 +3,12 @@
 use hash_ast::ast::{IntTy, ParamOrigin};
 use hash_source::identifier::Identifier;
 use hash_types::{
-    nominals::NominalDefId, terms::TermId, EnumDef, EnumVariant, EnumVariantValue, FnTy,
-    Level0Term, Level1Term, Level2Term, NominalDef, ScopeVar, StructDef, Term, TrtDef, TupleTy,
-    UnitDef,
+    nominals::{
+        EnumDef, EnumVariant, EnumVariantValue, NominalDef, NominalDefId, StructDef, UnitDef,
+    },
+    scope::ScopeVar,
+    terms::{FnTy, Level0Term, Level1Term, Level2Term, Term, TermId, TupleTy},
+    trts::TrtDef,
 };
 use hash_utils::store::Store;
 

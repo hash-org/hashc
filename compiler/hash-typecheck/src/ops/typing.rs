@@ -1,13 +1,15 @@
 //! Contains operations to get the type of a term.
 use hash_ast::ast::ParamOrigin;
 use hash_types::{
-    arguments::ArgsId,
-    params::ParamsId,
-    pats::{PatArgsId, PatId},
-    terms::TermId,
-    AccessOp, AccessPat, Arg, ConstPat, ConstructedTerm, Level0Term, Level1Term, Level2Term,
-    Level3Term, ListPat, LitTerm, Member, ModDefOrigin, NominalDef, Param, Pat, RangePat,
-    StructFields, Term,
+    arguments::{Arg, ArgsId},
+    mods::ModDefOrigin,
+    nominals::{NominalDef, StructFields},
+    params::{AccessOp, Param, ParamsId},
+    pats::{AccessPat, ConstPat, ListPat, Pat, PatArgsId, PatId, RangePat},
+    scope::Member,
+    terms::{
+        ConstructedTerm, Level0Term, Level1Term, Level2Term, Level3Term, LitTerm, Term, TermId,
+    },
 };
 use itertools::Itertools;
 

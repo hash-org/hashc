@@ -2,9 +2,14 @@
 use std::collections::HashSet;
 
 use hash_types::{
-    arguments::ArgsId, params::ParamsId, scope::ScopeId, terms::TermId, AccessTerm, Arg, BoundVar,
-    Level0Term, Level1Term, Level2Term, Level3Term, Member, NominalDef, Param, StructDef,
-    StructFields, Sub, SubVar, Term, TyFn, TyFnCase,
+    arguments::{Arg, ArgsId},
+    nominals::{NominalDef, StructDef, StructFields},
+    params::{Param, ParamsId},
+    scope::{BoundVar, Member, ScopeId},
+    terms::{
+        AccessTerm, Level0Term, Level1Term, Level2Term, Level3Term, Sub, SubVar, Term, TermId,
+        TyFn, TyFnCase,
+    },
 };
 use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
 

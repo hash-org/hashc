@@ -3,8 +3,11 @@
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::identifier::Identifier;
 use hash_types::{
-    arguments::ArgsId, location::LocationTarget, params::ParamsId, scope::ScopeId, terms::TermId,
-    BoundVar, Member, Mutability, ScopeKind, ScopeMember, ScopeVar,
+    arguments::ArgsId,
+    location::LocationTarget,
+    params::ParamsId,
+    scope::{BoundVar, Member, Mutability, ScopeId, ScopeKind, ScopeMember, ScopeVar},
+    terms::TermId,
 };
 use hash_utils::store::Store;
 use itertools::Itertools;

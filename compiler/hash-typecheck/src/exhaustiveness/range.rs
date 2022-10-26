@@ -37,7 +37,10 @@ use std::{
 
 use hash_ast::ast::RangeEnd;
 use hash_reporting::diagnostic::Diagnostics;
-use hash_types::{pats::PatId, terms::TermId, Level0Term, LitTerm, RangePat, Term};
+use hash_types::{
+    pats::{PatId, RangePat},
+    terms::{Level0Term, LitTerm, Term, TermId},
+};
 use hash_utils::store::Store;
 
 use super::AccessToUsefulnessOps;
