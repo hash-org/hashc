@@ -1,6 +1,6 @@
 //! Typechecking cache manager
 
-use hash_types::{terms::TermId, Sub};
+use hash_types::terms::{Sub, TermId};
 use hash_utils::store::PartialStore;
 
 use super::validate::TermValidation;

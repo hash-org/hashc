@@ -9,11 +9,15 @@ use hash_ast::ast::ParamOrigin;
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::identifier::Identifier;
 use hash_types::{
-    params::ParamsId,
-    pats::{PatArgsId, PatId},
+    arguments::Arg,
+    nominals::StructFields,
+    params::{AccessOp, ParamsId},
+    pats::{
+        AccessPat, ConstPat, ConstructorPat, IfPat, ListPat, ModPat, Pat, PatArg, PatArgsId, PatId,
+        SpreadPat,
+    },
+    scope::{Member, Mutability},
     terms::TermId,
-    AccessOp, AccessPat, Arg, ConstPat, ConstructorPat, IfPat, ListPat, Member, ModPat, Mutability,
-    Pat, PatArg, SpreadPat, StructFields,
 };
 use hash_utils::store::{CloneStore, Store};
 use itertools::Itertools;

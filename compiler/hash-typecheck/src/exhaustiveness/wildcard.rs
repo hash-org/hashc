@@ -4,7 +4,10 @@
 //! the whole range of all possible values by the associated type
 //! to the constructor.
 use hash_ast::ast::{IntTy, RangeEnd};
-use hash_types::{Level1Term, NominalDef, Term};
+use hash_types::{
+    nominals::NominalDef,
+    terms::{Level1Term, Term},
+};
 use hash_utils::store::Store;
 use smallvec::{smallvec, SmallVec};
 

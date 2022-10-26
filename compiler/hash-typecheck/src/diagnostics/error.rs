@@ -8,14 +8,14 @@ use hash_reporting::{
 };
 use hash_source::identifier::Identifier;
 use hash_types::{
-    arguments::ArgsId,
+    arguments::{Arg, ArgsId},
     fmt::{PrepareForFormatting, TcFormatOpts},
     location::LocationTarget,
-    params::ParamsId,
-    pats::PatId,
+    params::{AccessOp, Field, Param, ParamsId},
+    pats::{PatArg, PatId},
     scope::ScopeId,
-    terms::TermId,
-    AccessOp, AccessTerm, Arg, Field, Param, PatArg, TrtDef, TyFnCase,
+    terms::{AccessTerm, TermId, TyFnCase},
+    trts::TrtDef,
 };
 use hash_utils::{
     pluralise,
@@ -1259,7 +1259,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                         "method `{name}` is not a member of trait `{}`",
                         trt_def_term_id.for_formatting_with_opts(
                             ctx.global_storage(),
-                            TcFormatOpts { expand: false, ..TcFormatOpts::default() }
+                            TcFormatOpts { expand: false }
                         ),
                     ),
                 );
@@ -1271,7 +1271,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                             "not a member of trait `{}`",
                             trt_def_term_id.for_formatting_with_opts(
                                 ctx.global_storage(),
-                                TcFormatOpts { expand: false, ..TcFormatOpts::default() }
+                                TcFormatOpts { expand: false }
                             ),
                         ),
                     )));

@@ -27,6 +27,14 @@ pub struct DiagnosticsStore {
     pub(super) warnings: RefCell<Vec<TcWarning>>,
 }
 
+impl DiagnosticsStore {
+    /// Clear the [DiagnosticStore] of all errors and warnings.
+    pub(crate) fn clear(&mut self) {
+        self.errors.borrow_mut().clear();
+        self.warnings.borrow_mut().clear();
+    }
+}
+
 pub struct TcDiagnostics<'tc, T: ?Sized>(pub(crate) &'tc T);
 
 impl<'tc, T: AccessToStorage> Diagnostics<TcError, TcWarning> for TcDiagnostics<'tc, T> {

@@ -7,22 +7,29 @@ use hash_source::{identifier::Identifier, location::SourceLocation};
 use hash_utils::store::{SequenceStore, Store};
 
 use crate::{
-    arguments::ArgsId,
+    arguments::{Arg, ArgsId},
     location::LocationTarget,
-    mods::ModDefId,
-    nominals::NominalDefId,
-    params::ParamsId,
-    pats::{PatArgsId, PatId},
-    scope::ScopeId,
+    mods::{ModDef, ModDefId, ModDefOrigin},
+    nominals::{
+        EnumDef, EnumVariant, EnumVariantValue, NominalDef, NominalDefId, StructDef, StructFields,
+        UnitDef,
+    },
+    params::{AccessOp, Field, Param, ParamsId},
+    pats::{
+        AccessPat, BindingPat, ConstPat, ConstructorPat, IfPat, ListPat, ModPat, Pat, PatArg,
+        PatArgsId, PatId, RangePat,
+    },
+    scope::{
+        BoundVar, Member, Mutability, Scope, ScopeId, ScopeKind, ScopeVar, SetBound, Var,
+        Visibility,
+    },
     storage::GlobalStorage,
-    terms::TermId,
-    trts::TrtDefId,
-    AccessOp, AccessPat, AccessTerm, Arg, BindingPat, BoundVar, ConstPat, ConstructedTerm,
-    ConstructorPat, EnumDef, EnumVariant, EnumVariantValue, Field, FnCall, FnLit, FnTy, IfPat,
-    Level0Term, Level1Term, Level2Term, Level3Term, ListPat, LitTerm, Member, ModDef, ModDefOrigin,
-    ModPat, Mutability, NominalDef, Param, Pat, PatArg, RangePat, Scope, ScopeKind, ScopeVar,
-    SetBound, StructDef, StructFields, Term, TrtDef, TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase,
-    TyFnTy, UnitDef, UnresolvedTerm, Var, Visibility,
+    terms::{
+        AccessTerm, ConstructedTerm, FnCall, FnLit, FnTy, Level0Term, Level1Term, Level2Term,
+        Level3Term, LitTerm, Term, TermId, TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
+        UnresolvedTerm,
+    },
+    trts::{TrtDef, TrtDefId},
 };
 
 /// Helper to create various primitive constructions (from [crate]).

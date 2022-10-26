@@ -30,7 +30,10 @@ use hash_source::{
     constant::InternedStr,
     location::{SourceLocation, Span},
 };
-use hash_types::{Level1Term, NominalDef, StructFields, Term, TupleTy};
+use hash_types::{
+    nominals::{NominalDef, StructFields},
+    terms::{Level1Term, Term, TupleTy},
+};
 use hash_utils::store::{CloneStore, Store};
 use smallvec::{smallvec, SmallVec};
 

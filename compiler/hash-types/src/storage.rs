@@ -17,10 +17,9 @@ use crate::{
     nominals::NominalDefStore,
     params::ParamsStore,
     pats::{PatArgsStore, PatStore},
-    scope::{ScopeId, ScopeStack, ScopeStore},
+    scope::{Scope, ScopeId, ScopeKind, ScopeStack, ScopeStore},
     terms::{TermListStore, TermStore},
     trts::TrtDefStore,
-    Scope, ScopeKind,
 };
 
 /// Keeps track of typechecking information across all source files.

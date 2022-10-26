@@ -4,12 +4,14 @@ use std::iter;
 use hash_ast::ast::ParamOrigin;
 use hash_source::identifier::Identifier;
 use hash_types::{
-    arguments::ArgsId,
-    params::ParamsId,
-    terms::{TermId, TermListId},
-    AccessOp, AccessTerm, Arg, ConstructedTerm, Field, FnLit, FnTy, Level0Term, Level1Term,
-    Level2Term, Level3Term, Member, Mutability, NominalDef, Param, ScopeKind, StructFields, Term,
-    TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
+    arguments::{Arg, ArgsId},
+    nominals::{NominalDef, StructFields},
+    params::{AccessOp, Field, Param, ParamsId},
+    scope::{Member, Mutability, ScopeKind},
+    terms::{
+        AccessTerm, ConstructedTerm, FnLit, FnTy, Level0Term, Level1Term, Level2Term, Level3Term,
+        Term, TermId, TermListId, TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
+    },
 };
 use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
 use itertools::Itertools;

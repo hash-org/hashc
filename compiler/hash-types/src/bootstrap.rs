@@ -9,7 +9,10 @@ use hash_ast::ast::ParamOrigin;
 use hash_source::identifier::IDENTS;
 
 use crate::{
-    builder::PrimitiveBuilder, storage::GlobalStorage, Member, ModDefOrigin, ScopeKind, Visibility,
+    builder::PrimitiveBuilder,
+    mods::ModDefOrigin,
+    scope::{Member, ScopeKind, Visibility},
+    storage::GlobalStorage,
 };
 
 /// Create the core language type and trait definitions in the given

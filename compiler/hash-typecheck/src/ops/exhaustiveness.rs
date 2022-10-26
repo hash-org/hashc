@@ -37,7 +37,10 @@
 //! [exhaustiveness](crate::exhaustiveness) module.
 use hash_ast::ast::MatchOrigin;
 use hash_reporting::diagnostic::Diagnostics;
-use hash_types::{pats::PatId, terms::TermId, Pat};
+use hash_types::{
+    pats::{Pat, PatId},
+    terms::TermId,
+};
 use hash_utils::store::Store;
 use itertools::Itertools;
 

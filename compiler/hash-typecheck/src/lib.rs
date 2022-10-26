@@ -79,6 +79,11 @@ impl<Ctx: TypecheckingCtx> CompilerStage<Ctx> for Typechecker {
     fn run_stage(&mut self, entry_point: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
         let (workspace, ty_storage) = ctx.data();
 
+        // Clear the diagnostics store of any previous errors and warnings. This needs
+        // to be done for both the `interactive` pipeline and the `module`
+        // pipeline.
+        self.diagnostics_store.clear();
+
         // We need to set the interactive-id to update the current local-storage `id`
         // value, but for modules, we create a new local storage.
         if entry_point.is_interactive() {
