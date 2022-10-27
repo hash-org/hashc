@@ -99,23 +99,37 @@ impl<'tc> PatMatcher<'tc> {
         let (first_map, _) = members.next().unwrap();
         let first_binds = first_map.keys().copied().collect::<HashSet<Identifier>>();
 
+        let mut err = None;
+
+        // @@Todo: make this a macro
+        let mut append_err = |tc_err| {
+            if err.is_some() {
+                self.diagnostics().add_error(tc_err);
+            } else {
+                err = Some(tc_err);
+            }
+        };
+
         // Compute the difference in `name` keys, if there exists a
-        // difference then we can immediately report the error and abort...
-        //
-        // @@ErrorReporting: It would be nice to produce multiple errors here
+        // difference then we add this as an error on the pattern.
         for (member, &cur_pat_id) in members {
             // We want to find the largest member and report that that member doesn't
             // contain the binds...
             let cur_binds = member.keys().copied().collect::<HashSet<Identifier>>();
-            let mut diff = first_binds.symmetric_difference(&cur_binds).peekable();
+            let mut diff = first_binds.difference(&cur_binds).peekable();
 
             // If there is at least one discrepancy, we want to generate the report already
             if diff.peek().is_some() {
-                return Err(TcError::MissingPatternBounds {
+                append_err(TcError::MissingPatternBounds {
                     pat: cur_pat_id,
                     bounds: diff.copied().collect_vec(),
                 });
             }
+        }
+
+        // If at least one error occurred, then we return the error
+        if let Some(err) = err {
+            return Err(err);
         }
 
         // Now we need to verify that all of the member binds are of the
