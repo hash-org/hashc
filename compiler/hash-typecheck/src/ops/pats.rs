@@ -108,11 +108,6 @@ impl<'tc> PatMatcher<'tc> {
             .map(|(members, pat)| (self.map_variables_to_terms(members), pat))
             .collect_vec();
 
-        // Take the first member as we'll use it for our comparison
-        let mut members = member_maps.iter();
-        let (first_map, _) = members.next().unwrap();
-        let first_binds = first_map.keys().copied().collect::<HashSet<Identifier>>();
-
         let mut err = None;
 
         // @@Todo: make this a macro
@@ -124,20 +119,32 @@ impl<'tc> PatMatcher<'tc> {
             }
         };
 
-        // Compute the difference in `name` keys, if there exists a
-        // difference then we add this as an error on the pattern.
-        for (member, &cur_pat_id) in members {
-            // We want to find the largest member and report that that member doesn't
-            // contain the binds...
-            let cur_binds = member.keys().copied().collect::<HashSet<Identifier>>();
-            let mut diff = first_binds.difference(&cur_binds).peekable();
+        // Take the first member as we'll use it for our comparison
+        let mut member_binds = HashSet::new();
 
-            // If there is at least one discrepancy, we want to generate the report already
-            if diff.peek().is_some() {
-                append_err(TcError::MissingPatternBounds {
-                    pat: cur_pat_id,
-                    bounds: diff.copied().collect_vec(),
-                });
+        for (lhs_members, lhs_pat) in member_maps.clone().iter() {
+            member_binds = lhs_members.keys().copied().collect::<HashSet<Identifier>>();
+
+            // Compute the difference in `name` keys, if there exists a
+            // difference then we add this as an error on the pattern.
+            for (rhs_members, rhs_pat) in member_maps.iter() {
+                // Skip comparing the same pattern
+                if lhs_pat == rhs_pat {
+                    continue;
+                }
+
+                // We want to find the largest member and report that that member doesn't
+                // contain the binds...
+                let cur_binds = rhs_members.keys().copied().collect::<HashSet<Identifier>>();
+                let mut diff = member_binds.difference(&cur_binds).peekable();
+
+                // If there is at least one discrepancy, we want to generate the report already
+                if diff.peek().is_some() {
+                    append_err(TcError::MissingPatternBounds {
+                        pat: **rhs_pat,
+                        bounds: diff.copied().collect_vec(),
+                    });
+                }
             }
         }
 
@@ -148,7 +155,7 @@ impl<'tc> PatMatcher<'tc> {
 
         // Now we need to verify that all of the member binds are of the
         // same type...
-        for bind in first_binds {
+        for bind in member_binds {
             let shared_terms =
                 member_maps.iter().map(|(map, _)| map.get(&bind).unwrap()).copied().collect_vec();
             self.unifier().unify_pat_terms(shared_terms)?;
