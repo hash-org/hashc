@@ -1,0 +1,7 @@
+// run=fail, stage=typecheck
+
+main := () => {
+    // ~ERROR: variable `c` not declared in all patterns
+    // ~ERROR: variable `d` not declared in all patterns
+    (c | d) := 2;    
+}
