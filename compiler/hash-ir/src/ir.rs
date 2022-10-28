@@ -4,6 +4,7 @@
 
 use hash_source::{
     constant::{InternedFloat, InternedInt, InternedStr},
+    identifier::Identifier,
     location::{SourceLocation, Span},
     SourceId,
 };

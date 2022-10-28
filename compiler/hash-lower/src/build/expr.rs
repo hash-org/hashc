@@ -1,5 +1,6 @@
 use hash_ast::ast::{AstNodeRef, BlockExpr, Expr, UnsafeExpr};
 use hash_ir::ir::{BasicBlock, Place};
+use hash_utils::store::PartialStore;
 
 use super::{BlockAnd, BlockAndExtend, Builder};
 
@@ -15,7 +16,12 @@ impl<'a, 'tcx> Builder<'a, 'tcx> {
             // a constructor call, we should do this somewhere else
             Expr::ConstructorCall(..) => todo!(),
             Expr::Directive(expr) => self.expr_into_dest(place, block, expr.subject.ast_ref()),
-            Expr::Variable(..) => todo!(),
+            Expr::Variable(variable) => {
+                let term = self.tcx.node_info_store.get(body.id()).map(|f| f.term_id()).unwrap();
+                println!("term: {term:?}");
+
+                block.unit()
+            }
             Expr::Access(..) => todo!(),
             Expr::Ref(..) => todo!(),
             Expr::Deref(..) => todo!(),
@@ -27,7 +33,7 @@ impl<'a, 'tcx> Builder<'a, 'tcx> {
             // For declarations, we have to perform some bookkeeping in regards
             // to locals..., but this expression should never return any value
             // so we should just return a unit block here
-            Expr::Declaration(..) => todo!(),
+            Expr::Declaration(decl) => self.handle_expr_declaration(place, block, body),
 
             // Traverse the lhs of the cast, and then apply the cast
             // to the result... although this should be a no-op?
@@ -67,5 +73,19 @@ impl<'a, 'tcx> Builder<'a, 'tcx> {
         };
 
         block_and
+    }
+
+    ///
+    pub(crate) fn handle_expr_declaration(
+        &mut self,
+        place: Place,
+        block: BasicBlock,
+        body: AstNodeRef<'a, Expr>,
+    ) -> BlockAnd<()> {
+        // We need to declare all of the bindings within this declaration
+
+        // if the declaration has an initialiser, then we need to deal with
+        // the initialisation block.
+        block.unit()
     }
 }

@@ -4,8 +4,9 @@
 mod block;
 mod expr;
 mod matches;
+mod pat;
 
-use hash_ast::ast::{AstNodeRef, Expr, FnDef};
+use hash_ast::ast::{AstNodeId, AstNodeRef, Expr, FnDef};
 use hash_ir::ir::{
     BasicBlock, BasicBlockData, Body, FnSource, Local, LocalDecl, Place, Terminator,
     TerminatorKind, START_BLOCK,
@@ -17,6 +18,7 @@ use hash_source::{
 use hash_types::{
     fmt::PrepareForFormatting,
     nodes::NodeInfoTarget,
+    pats::{Pat, PatId},
     storage::GlobalStorage,
     terms::{FnLit, FnTy, Level0Term, Level1Term, Term, TermId},
 };
@@ -175,15 +177,20 @@ impl<'a, 'tcx> Builder<'a, 'tcx> {
         )
     }
 
-    fn get_term_of_item(&self) -> TermId {
-        match self.item {
-            BuildItem::FnDef(node) => {
-                self.tcx.node_info_store.get(node.id()).map(|f| f.term_id()).unwrap()
-            }
-            BuildItem::Expr(node) => {
-                self.tcx.node_info_store.get(node.id()).map(|f| f.term_id()).unwrap()
-            }
-        }
+    /// Function to get the associated [TermId] with the
+    /// provided [AstNodeId].
+    #[inline]
+    fn get_term_id_of_ast_node(&self, id: AstNodeId) -> TermId {
+        self.tcx.node_info_store.get(id).map(|f| f.term_id()).unwrap()
+    }
+
+    /// Function to get the associated [PatId] with the
+    /// provided [AstNodeId].
+    #[inline]
+    fn get_pat_of_ast_node(&self, id: AstNodeId) -> Pat {
+        let pat_id = self.tcx.node_info_store.get(id).map(|f| f.pat_id()).unwrap();
+
+        self.tcx.pat_store.get(pat_id)
     }
 
     pub(crate) fn build_fn(&mut self) {
@@ -193,7 +200,11 @@ impl<'a, 'tcx> Builder<'a, 'tcx> {
             BuildItem::Expr(_) => unreachable!(),
         };
 
-        let term = self.get_term_of_item();
+        let term = match self.item {
+            BuildItem::FnDef(node) => self.get_term_id_of_ast_node(node.id()),
+            BuildItem::Expr(node) => self.get_term_id_of_ast_node(node.id()),
+        };
+
         let fn_ty = get_fn_ty_from_term(term, self.tcx);
 
         // The first local declaration is used as the return type. The return local
