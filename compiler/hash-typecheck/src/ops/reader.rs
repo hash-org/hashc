@@ -3,7 +3,7 @@
 
 use hash_types::{
     arguments::{Args, ArgsId},
-    mods::{ModDef, ModDefId},
+    mods::{ModDefIdOld, ModDefOld},
     nominals::{NominalDef, NominalDefId},
     params::{Params, ParamsId},
     pats::{Pat, PatArgs, PatArgsId, PatId},
@@ -49,7 +49,7 @@ impl<'tc> PrimitiveReader<'tc> {
     }
 
     /// Get the module definition with the given [ModDefId].
-    pub fn get_mod_def(&self, id: ModDefId) -> ModDef {
+    pub fn get_mod_def(&self, id: ModDefIdOld) -> ModDefOld {
         self.mod_def_store().get(id)
     }
 

@@ -17,7 +17,7 @@ use hash_types::{
     arguments::ArgsStore,
     fmt::{ForFormatting, PrepareForFormatting},
     location::LocationStore,
-    mods::ModDefStore,
+    mods::ModDefStoreOld,
     nodes::NodeInfoStore,
     nominals::NominalDefStore,
     params::ParamsStore,
@@ -119,7 +119,7 @@ pub trait AccessToStorage {
         &self.global_storage().params_store
     }
 
-    fn mod_def_store(&self) -> &ModDefStore {
+    fn mod_def_store(&self) -> &ModDefStoreOld {
         &self.global_storage().mod_def_store
     }
 

@@ -5,7 +5,7 @@ use hash_ast::ast::{ParamOrigin, RangeEnd};
 use hash_reporting::diagnostic::Diagnostics;
 use hash_types::{
     arguments::ArgsId,
-    mods::{ModDefId, ModDefOrigin},
+    mods::{ModDefIdOld, ModDefOriginOld},
     nominals::{NominalDef, NominalDefId, StructFields},
     params::{ParamList, ParamsId},
     pats::{BindingPat, ConstructorPat, Pat, PatArgsId, PatId, RangePat},
@@ -242,7 +242,7 @@ impl<'tc> Validator<'tc> {
     /// `originating_term_id`.
     pub(crate) fn validate_mod_def(
         &self,
-        mod_def_id: ModDefId,
+        mod_def_id: ModDefIdOld,
         originating_term_id: TermId,
         allow_uninitialised: bool,
     ) -> TcResult<()> {
@@ -256,7 +256,7 @@ impl<'tc> Validator<'tc> {
         self.validate_constant_scope(mod_def_members, allow_uninitialised, ScopeKind::Mod)?;
 
         // Ensure if it is a trait impl it implements all the trait members.
-        if let ModDefOrigin::TrtImpl(trt_def_term_id) = mod_def_origin {
+        if let ModDefOriginOld::TrtImpl(trt_def_term_id) = mod_def_origin {
             self.ensure_scope_implements_trt(
                 trt_def_term_id,
                 originating_term_id,

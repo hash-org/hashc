@@ -2,7 +2,7 @@
 use hash_ast::ast::ParamOrigin;
 use hash_types::{
     arguments::{Arg, ArgsId},
-    mods::ModDefOrigin,
+    mods::ModDefOriginOld,
     nominals::{NominalDef, StructFields},
     params::{AccessOp, Param, ParamsId},
     pats::{AccessPat, ConstPat, ListPat, Pat, PatArgsId, PatId, RangePat},
@@ -183,11 +183,13 @@ impl<'tc> Typer<'tc> {
                     let reader = self.reader();
                     let mod_def = reader.get_mod_def(mod_def_id);
                     match mod_def.origin {
-                        ModDefOrigin::TrtImpl(trt_impl) => {
+                        ModDefOriginOld::TrtImpl(trt_impl) => {
                             // The type is the trait impl:
                             Ok(trt_impl)
                         }
-                        ModDefOrigin::AnonImpl | ModDefOrigin::Mod | ModDefOrigin::Source(_) => {
+                        ModDefOriginOld::AnonImpl
+                        | ModDefOriginOld::Mod
+                        | ModDefOriginOld::Source(_) => {
                             // The rest is just "Type"
                             Ok(self.builder().create_any_ty_term())
                         }

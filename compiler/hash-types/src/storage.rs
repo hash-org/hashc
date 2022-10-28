@@ -12,7 +12,7 @@ use crate::{
     arguments::ArgsStore,
     bootstrap::create_core_defs_in,
     location::LocationStore,
-    mods::ModDefStore,
+    mods::ModDefStoreOld,
     nodes::NodeInfoStore,
     nominals::NominalDefStore,
     params::ParamsStore,
@@ -49,7 +49,7 @@ pub struct GlobalStorage {
     pub trt_def_store: TrtDefStoreOld,
 
     /// Store for module definitions
-    pub mod_def_store: ModDefStore,
+    pub mod_def_store: ModDefStoreOld,
 
     /// Nominal definition store
     pub nominal_def_store: NominalDefStore,
@@ -84,7 +84,7 @@ impl GlobalStorage {
             node_info_store: NodeInfoStore::new(),
             scope_store,
             trt_def_store: TrtDefStoreOld::new(),
-            mod_def_store: ModDefStore::new(),
+            mod_def_store: ModDefStoreOld::new(),
             nominal_def_store: NominalDefStore::new(),
             pat_store: PatStore::new(),
             pat_args_store: PatArgsStore::new(),

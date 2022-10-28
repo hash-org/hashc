@@ -21,7 +21,7 @@ use num_bigint::BigInt;
 use crate::{
     arguments::ArgsId,
     fmt::{fmt_as_single, ForFormatting, PrepareForFormatting},
-    mods::ModDefId,
+    mods::ModDefIdOld,
     nominals::{EnumVariantValue, NominalDefId},
     params::{AccessOp, Field, ParamsId},
     scope::{BoundVar, ScopeVar, SetBound, Var},
@@ -332,7 +332,7 @@ pub enum Level1Term {
     ///
     /// Information about the origin of each module definition can be found in
     /// its corresponding [ModDef] struct.
-    ModDef(ModDefId),
+    ModDef(ModDefIdOld),
 
     /// A nominal type definition, either a struct or an enum.
     NominalDef(NominalDefId),

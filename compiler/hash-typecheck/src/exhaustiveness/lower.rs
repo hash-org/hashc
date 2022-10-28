@@ -4,7 +4,7 @@ use std::{iter::once, mem::size_of};
 
 use hash_ast::ast::{ParamOrigin, RangeEnd};
 use hash_types::{
-    mods::ModDef,
+    mods::ModDefOld,
     nominals::{NominalDef, StructFields},
     params::ParamsId,
     pats::{
@@ -79,7 +79,7 @@ impl<'tc> LowerPatOps<'tc> {
 
                 let (scope_id, mut scope_members) = match reader.get_term(ty) {
                     Term::Level1(Level1Term::ModDef(id)) => {
-                        let ModDef { members, .. } = reader.get_mod_def(id);
+                        let ModDefOld { members, .. } = reader.get_mod_def(id);
                         self.scope_store().map_fast(members, |scope| {
                             // We should be in a constant scope
                             assert!(scope.kind.is_constant());

@@ -10,7 +10,7 @@ use hash_source::identifier::IDENTS;
 
 use crate::{
     builder::PrimitiveBuilder,
-    mods::ModDefOrigin,
+    mods::ModDefOriginOld,
     scope::{Member, ScopeKind, Visibility},
     storage::GlobalStorage,
 };
@@ -205,7 +205,7 @@ pub fn create_core_defs_in(global_storage: &GlobalStorage) {
     // Collection types
     let index_trt_term = builder.create_trt_term(index_trt);
     let list_index_impl = builder.create_nameless_mod_def(
-        ModDefOrigin::TrtImpl(index_trt_term),
+        ModDefOriginOld::TrtImpl(index_trt_term),
         builder.create_scope(
             ScopeKind::Impl,
             [

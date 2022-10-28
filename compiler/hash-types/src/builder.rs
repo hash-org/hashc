@@ -9,7 +9,7 @@ use hash_utils::store::{SequenceStore, Store};
 use crate::{
     arguments::{Arg, ArgsId},
     location::LocationTarget,
-    mods::{ModDef, ModDefId, ModDefOrigin},
+    mods::{ModDefIdOld, ModDefOld, ModDefOriginOld},
     nominals::{
         EnumDef, EnumVariant, EnumVariantValue, NominalDef, NominalDefId, StructDef, StructFields,
         UnitDef,
@@ -93,9 +93,9 @@ impl<'gs> PrimitiveBuilder<'gs> {
     }
 
     /// Add the given module definition to the scope.
-    fn add_mod_def_to_scope(&self, name: Identifier, def_id: ModDefId, origin: ModDefOrigin) {
+    fn add_mod_def_to_scope(&self, name: Identifier, def_id: ModDefIdOld, origin: ModDefOriginOld) {
         let def_ty = match origin {
-            ModDefOrigin::TrtImpl(trt_id) => trt_id,
+            ModDefOriginOld::TrtImpl(trt_id) => trt_id,
             _ => self.create_any_ty_term(),
         };
         let def_value = self.create_term(Term::Level1(Level1Term::ModDef(def_id)));
@@ -109,14 +109,18 @@ impl<'gs> PrimitiveBuilder<'gs> {
     pub fn create_named_mod_def(
         &self,
         name: impl Into<Identifier>,
-        origin: ModDefOrigin,
+        origin: ModDefOriginOld,
         members: ScopeId,
-    ) -> ModDefId {
+    ) -> ModDefIdOld {
         self.create_mod_def(Some(name), origin, members)
     }
 
     /// Create a nameless module definition with the given members, and origin.
-    pub fn create_nameless_mod_def(&self, origin: ModDefOrigin, members: ScopeId) -> ModDefId {
+    pub fn create_nameless_mod_def(
+        &self,
+        origin: ModDefOriginOld,
+        members: ScopeId,
+    ) -> ModDefIdOld {
         self.create_mod_def(Option::<Identifier>::None, origin, members)
     }
 
@@ -144,11 +148,11 @@ impl<'gs> PrimitiveBuilder<'gs> {
     pub fn create_mod_def(
         &self,
         name: Option<impl Into<Identifier>>,
-        origin: ModDefOrigin,
+        origin: ModDefOriginOld,
         members: ScopeId,
-    ) -> ModDefId {
+    ) -> ModDefIdOld {
         let name = name.map(Into::into);
-        let def_id = self.gs.mod_def_store.create(ModDef { name, members, origin });
+        let def_id = self.gs.mod_def_store.create(ModDefOld { name, members, origin });
         if let Some(name) = name {
             self.add_mod_def_to_scope(name, def_id, origin);
         }
@@ -474,7 +478,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
     }
 
     /// Create [Level1Term::ModDef] with the given [ModDefId].
-    pub fn create_mod_def_term(&self, mod_def_id: ModDefId) -> TermId {
+    pub fn create_mod_def_term(&self, mod_def_id: ModDefIdOld) -> TermId {
         self.create_term(Term::Level1(Level1Term::ModDef(mod_def_id)))
     }
 

@@ -20,7 +20,7 @@ use hash_source::{
 use hash_types::{
     arguments::Arg,
     location::{IndexedLocationTarget, LocationTarget},
-    mods::ModDefOrigin,
+    mods::ModDefOriginOld,
     nodes::NodeInfoTarget,
     nominals::NominalDefId,
     params::{AccessOp, Field, Param},
@@ -1242,7 +1242,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
             self.visit_constant_scope(node.block.members(), None, ScopeKind::Mod)?;
 
         // @@Todo: bound variables
-        let mod_def = self.builder().create_mod_def(scope_name, ModDefOrigin::Mod, scope_id);
+        let mod_def = self.builder().create_mod_def(scope_name, ModDefOriginOld::Mod, scope_id);
         let term = self.builder().create_mod_def_term(mod_def);
 
         // Validate the definition
@@ -1264,7 +1264,8 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
             self.visit_constant_scope(node.block.members(), None, ScopeKind::Impl)?;
 
         // @@Todo: bound variables
-        let mod_def = self.builder().create_mod_def(scope_name, ModDefOrigin::AnonImpl, scope_id);
+        let mod_def =
+            self.builder().create_mod_def(scope_name, ModDefOriginOld::AnonImpl, scope_id);
         let term = self.builder().create_mod_def_term(mod_def);
 
         // Validate the definition
@@ -1806,7 +1807,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         // @@Todo: bound variables
         let mod_def =
-            self.builder().create_mod_def(scope_name, ModDefOrigin::TrtImpl(trt_term), scope_id);
+            self.builder().create_mod_def(scope_name, ModDefOriginOld::TrtImpl(trt_term), scope_id);
         let term = self.builder().create_mod_def_term(mod_def);
 
         // Validate the definition
@@ -2093,7 +2094,8 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let VisitConstantScope { scope_id, .. } =
             self.visit_constant_scope(node.contents.ast_ref_iter(), Some(members), ScopeKind::Mod)?;
 
-        let mod_def = self.builder().create_named_mod_def(name, ModDefOrigin::Source(id), scope_id);
+        let mod_def =
+            self.builder().create_named_mod_def(name, ModDefOriginOld::Source(id), scope_id);
 
         let term = self.builder().create_mod_def_term(mod_def);
         self.copy_location_from_node_to_target(node, term);
