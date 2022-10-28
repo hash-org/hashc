@@ -29,7 +29,7 @@ use crate::{
         Level3Term, LitTerm, Term, TermId, TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
         UnresolvedTerm,
     },
-    trts::{TrtDef, TrtDefId},
+    trts::{TrtDefIdOld, TrtDefOld},
 };
 
 /// Helper to create various primitive constructions (from [crate]).
@@ -326,7 +326,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
     }
 
     /// Create a term [Level2Term::Trt] with the given [TrtDefId].
-    pub fn create_trt_term(&self, trt_def_id: TrtDefId) -> TermId {
+    pub fn create_trt_term(&self, trt_def_id: TrtDefIdOld) -> TermId {
         self.create_term(Term::Level2(Level2Term::Trt(trt_def_id)))
     }
 
@@ -452,10 +452,10 @@ impl<'gs> PrimitiveBuilder<'gs> {
         &self,
         trait_name: Option<impl Into<Identifier>>,
         members: ScopeId,
-    ) -> TrtDefId {
+    ) -> TrtDefIdOld {
         let name = trait_name.map(|t| t.into());
 
-        let trt_def_id = self.gs.trt_def_store.create(TrtDef { name, members });
+        let trt_def_id = self.gs.trt_def_store.create(TrtDefOld { name, members });
         let trt_def_ty = self.create_trt_kind_term();
         let trt_def_value = self.create_trt_term(trt_def_id);
 
@@ -467,10 +467,10 @@ impl<'gs> PrimitiveBuilder<'gs> {
     }
 
     /// Create a trait definition with no name, and the given members.
-    pub fn create_nameless_trt_def(&self, members: impl Iterator<Item = Member>) -> TrtDefId {
+    pub fn create_nameless_trt_def(&self, members: impl Iterator<Item = Member>) -> TrtDefIdOld {
         let members = self.create_scope(ScopeKind::Trait, members);
 
-        self.gs.trt_def_store.create(TrtDef { name: None, members })
+        self.gs.trt_def_store.create(TrtDefOld { name: None, members })
     }
 
     /// Create [Level1Term::ModDef] with the given [ModDefId].

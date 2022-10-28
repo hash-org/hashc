@@ -8,7 +8,7 @@ use hash_types::{
     },
     scope::ScopeVar,
     terms::{FnTy, Level0Term, Level1Term, Level2Term, Term, TermId, TupleTy},
-    trts::TrtDef,
+    trts::TrtDefOld,
 };
 use hash_utils::store::Store;
 
@@ -185,7 +185,7 @@ impl<'tc> Oracle<'tc> {
     }
 
     /// Get a [Term] as a [TrtDef].
-    pub fn term_as_trt_def(&self, term: TermId) -> Option<TrtDef> {
+    pub fn term_as_trt_def(&self, term: TermId) -> Option<TrtDefOld> {
         match self.reader().get_term(term) {
             Term::Level2(Level2Term::Trt(item)) => Some(self.reader().get_trt_def(item)),
             _ => None,

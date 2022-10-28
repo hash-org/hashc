@@ -25,7 +25,7 @@ use crate::{
     nominals::{EnumVariantValue, NominalDefId},
     params::{AccessOp, Field, ParamsId},
     scope::{BoundVar, ScopeVar, SetBound, Var},
-    trts::TrtDefId,
+    trts::TrtDefIdOld,
 };
 
 /// A tuple type, containing parameters as members.
@@ -310,7 +310,7 @@ pub enum Level3Term {
 pub enum Level2Term {
     // ---- Level 2 ---- the term that is a return term of trait(..)
     /// A trait term.
-    Trt(TrtDefId),
+    Trt(TrtDefIdOld),
     /// A type that is runtime instantiable, i.e. sized.
     SizedTy,
     /// Basically a trait term that all types implement, i.e. the trait that is

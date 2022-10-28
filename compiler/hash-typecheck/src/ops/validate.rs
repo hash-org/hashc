@@ -11,7 +11,7 @@ use hash_types::{
     pats::{BindingPat, ConstructorPat, Pat, PatArgsId, PatId, RangePat},
     scope::{Member, Scope, ScopeId, ScopeKind},
     terms::{ConstructedTerm, FnTy, Level0Term, Level1Term, Level2Term, LitTerm, Term, TermId},
-    trts::TrtDefId,
+    trts::TrtDefIdOld,
 };
 use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreCopy, SequenceStoreKey, Store};
 use itertools::Itertools;
@@ -268,7 +268,7 @@ impl<'tc> Validator<'tc> {
     }
 
     /// Validate the trait definition of the given [TrtDefId]
-    pub(crate) fn validate_trt_def(&self, trt_def_id: TrtDefId) -> TcResult<()> {
+    pub(crate) fn validate_trt_def(&self, trt_def_id: TrtDefIdOld) -> TcResult<()> {
         // @@Design: do we allow traits without self?
         let trt_def = self.reader().get_trt_def(trt_def_id);
         self.validate_constant_scope(trt_def.members, true, ScopeKind::Trait)

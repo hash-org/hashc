@@ -25,7 +25,7 @@ use hash_types::{
     scope::{ScopeId, ScopeStack, ScopeStore},
     storage::{GlobalStorage, LocalStorage},
     terms::{TermListStore, TermStore},
-    trts::TrtDefStore,
+    trts::TrtDefStoreOld,
 };
 
 use self::{
@@ -107,7 +107,7 @@ pub trait AccessToStorage {
         &self.global_storage().nominal_def_store
     }
 
-    fn trt_def_store(&self) -> &TrtDefStore {
+    fn trt_def_store(&self) -> &TrtDefStoreOld {
         &self.global_storage().trt_def_store
     }
 

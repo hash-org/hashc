@@ -15,7 +15,7 @@ use hash_types::{
     pats::{PatArg, PatId},
     scope::ScopeId,
     terms::{AccessTerm, TermId, TyFnCase},
-    trts::TrtDef,
+    trts::TrtDefOld,
 };
 use hash_utils::{
     pluralise,
@@ -1209,7 +1209,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 trt_def_term_id,
                 missing_trt_members,
             } => {
-                let TrtDef { members, .. } =
+                let TrtDefOld { members, .. } =
                     ctx.oracle().term_as_trt_def(*trt_def_term_id).expect("trait def term");
                 let trt_scope = ctx.reader().get_scope_copy(members);
 

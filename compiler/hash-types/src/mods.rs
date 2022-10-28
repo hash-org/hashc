@@ -11,6 +11,8 @@ use crate::{
     terms::TermId,
 };
 
+// -- OLD --
+
 /// The origin of a module: was it defined in a `mod` block, an anonymous `impl`
 /// block, or an `impl Trait` block?
 #[derive(Debug, Clone, Copy, Hash)]

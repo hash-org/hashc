@@ -19,7 +19,7 @@ use crate::{
     pats::{PatArgsStore, PatStore},
     scope::{Scope, ScopeId, ScopeKind, ScopeStack, ScopeStore},
     terms::{TermListStore, TermStore},
-    trts::TrtDefStore,
+    trts::TrtDefStoreOld,
 };
 
 /// Keeps track of typechecking information across all source files.
@@ -46,7 +46,7 @@ pub struct GlobalStorage {
     pub args_store: ArgsStore,
 
     /// Store for trait definitions
-    pub trt_def_store: TrtDefStore,
+    pub trt_def_store: TrtDefStoreOld,
 
     /// Store for module definitions
     pub mod_def_store: ModDefStore,
@@ -83,7 +83,7 @@ impl GlobalStorage {
             term_list_store: TermListStore::new(),
             node_info_store: NodeInfoStore::new(),
             scope_store,
-            trt_def_store: TrtDefStore::new(),
+            trt_def_store: TrtDefStoreOld::new(),
             mod_def_store: ModDefStore::new(),
             nominal_def_store: NominalDefStore::new(),
             pat_store: PatStore::new(),

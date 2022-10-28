@@ -9,7 +9,7 @@ use hash_types::{
     pats::{Pat, PatArgs, PatArgsId, PatId},
     scope::{Scope, ScopeId},
     terms::{Term, TermId, TermListId},
-    trts::{TrtDef, TrtDefId},
+    trts::{TrtDefIdOld, TrtDefOld},
 };
 use hash_utils::store::{CloneStore, SequenceStore, Store};
 
@@ -59,7 +59,7 @@ impl<'tc> PrimitiveReader<'tc> {
     }
 
     /// Get the trait definition with the given [TrtDefId].
-    pub fn get_trt_def(&self, id: TrtDefId) -> TrtDef {
+    pub fn get_trt_def(&self, id: TrtDefIdOld) -> TrtDefOld {
         self.trt_def_store().get(id)
     }
 
