@@ -3,19 +3,46 @@
 use hash_source::SourceId;
 use hash_utils::{new_sequence_store_key, new_store, new_store_key, store::DefaultSequenceStore};
 
+use super::{data::DataTy, trts::TrtBound};
 use crate::new::{
     defs::{DefMember, DefParamsId},
     symbols::Symbol,
-    trts::TrtImplData,
 };
 
+/// The subject of an implementation block.
+#[derive(Debug, Clone, Copy)]
+pub enum ImplSubject {
+    Data(DataTy),
+    // @@Todo: add some primitives here
+}
+
+/// A trait implementation
+///
+/// Contains a trait bound to implement, as well as the subject to implement
+/// it on.
+#[derive(Debug, Clone, Copy)]
+pub struct TrtImpl {
+    pub subject: ImplSubject,
+    pub trt: TrtBound,
+}
+
+/// An anonymous implementation
+///
+/// Contains the subject to implement members on.
+#[derive(Debug, Clone, Copy)]
+pub struct AnonImpl {
+    pub subject: ImplSubject,
+}
+
 /// The kind of a module.
+///
+/// Might reference parameters in the mod def.
 #[derive(Debug, Clone, Copy)]
 pub enum ModKind {
     /// Defined as a trait implementation.
-    ///
-    /// Might reference parameters in the mod def.
-    TrtImpl(TrtImplData),
+    TrtImpl(TrtImpl),
+    /// Defined as an anonymous implementation on a datatype.
+    AnonImpl(AnonImpl),
     /// Defined as a module (`mod` block).
     ModBlock,
     /// Defined as a file module or interactive.
@@ -33,11 +60,15 @@ pub type ModMemberId = (ModMembersId, usize);
 pub struct ModDef {
     pub name: Symbol,
     pub params: DefParamsId,
+
+    /// The kind is parametrised over `params`.
     pub kind: ModKind,
+
     pub members: ModMembersId,
 
-    /// The name of the "Self" type in the scope of the trait definition.
-    pub self_type_name: Symbol,
+    /// The name of the "Self" type in the scope of the trait definition, if
+    /// present.
+    pub self_type_name: Option<Symbol>,
 }
 
 new_store_key!(pub ModDefId);
