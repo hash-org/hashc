@@ -7,7 +7,7 @@ use hash_utils::{new_store_key, store::DefaultStore};
 ///
 /// This is basically just a name identifier.
 ///
-/// This is used to avid needing to perform alpha-conversion on terms.
+/// This is used to avoid needing to perform alpha-conversion on terms.
 pub struct SymbolData {
     pub name: Identifier,
 }
