@@ -4,19 +4,25 @@
 mod block;
 mod expr;
 mod matches;
+mod pat;
 
-use hash_ast::ast::{AstNodeRef, Expr, FnDef};
-use hash_ir::ir::{
-    BasicBlock, BasicBlockData, Body, FnSource, Local, LocalDecl, Place, Terminator,
-    TerminatorKind, START_BLOCK,
+use hash_ast::ast::{AstNodeId, AstNodeRef, Expr, FnDef};
+use hash_ir::{
+    ir::{
+        BasicBlock, BasicBlockData, Body, FnSource, Local, LocalDecl, Place, Terminator,
+        TerminatorKind, START_BLOCK,
+    },
+    IrStorage,
 };
 use hash_source::{
+    identifier::Identifier,
     location::{SourceLocation, Span},
     SourceId,
 };
 use hash_types::{
     fmt::PrepareForFormatting,
     nodes::NodeInfoTarget,
+    pats::{Pat, PatId},
     storage::GlobalStorage,
     terms::{FnLit, FnTy, Level0Term, Level1Term, Term, TermId},
 };
@@ -108,12 +114,18 @@ macro_rules! unpack {
 
 /// The builder is responsible for lowering a body into the associated IR.
 
-pub(crate) struct Builder<'a, 'tcx> {
+pub(crate) struct Builder<'tcx> {
     /// The type storage needed for accessing the types of the traversed terms
     tcx: &'tcx GlobalStorage,
 
+    /// The IR storage needed for storing all of the created values and bodies
+    storage: &'tcx mut IrStorage,
+
+    /// The name with the associated body that this is building.
+    name: Identifier,
+
     /// The item that is being lowered.
-    item: BuildItem<'a>,
+    item: BuildItem<'tcx>,
 
     /// The originating module of where this item is defined.
     source_id: SourceId,
@@ -123,14 +135,25 @@ pub(crate) struct Builder<'a, 'tcx> {
     arg_count: usize,
 
     /// The body control-flow graph.
-    control_flow_graph: ControlFlowGraph<'tcx>,
+    control_flow_graph: ControlFlowGraph,
 
     /// Any local declarations that have been made
     declarations: IndexVec<Local, LocalDecl>,
+
+    /// If the body that is being built will need to be
+    /// dumped.
+    needs_dumping: bool,
 }
 
-impl<'a, 'tcx> Builder<'a, 'tcx> {
-    pub(crate) fn new(item: BuildItem<'a>, source_id: SourceId, tcx: &'tcx GlobalStorage) -> Self {
+impl<'tcx> Builder<'tcx> {
+    pub(crate) fn new(
+        name: Identifier,
+        item: BuildItem<'tcx>,
+        source_id: SourceId,
+        tcx: &'tcx GlobalStorage,
+        storage: &'tcx mut IrStorage,
+        needs_dumping: bool,
+    ) -> Self {
         let arg_count = match item {
             BuildItem::FnDef(node) => {
                 // Get the type of this function definition, we need to
@@ -148,15 +171,18 @@ impl<'a, 'tcx> Builder<'a, 'tcx> {
         Self {
             item,
             tcx,
+            storage,
+            name,
             arg_count,
             source_id,
             control_flow_graph: ControlFlowGraph::new(),
             declarations: IndexVec::new(),
+            needs_dumping,
         }
     }
 
     /// Convert the [Builder] into the [Body].
-    pub(crate) fn finish(self) -> Body<'tcx> {
+    pub(crate) fn finish(self) -> Body {
         // Verify that all basic blocks have a terminator
         for (index, block) in self.control_flow_graph.basic_blocks.iter().enumerate() {
             if block.terminator.is_none() {
@@ -167,23 +193,30 @@ impl<'a, 'tcx> Builder<'a, 'tcx> {
         Body::new(
             self.control_flow_graph.basic_blocks,
             self.declarations,
+            self.name,
             self.arg_count,
             // @@Todo: actually determine this properly
             FnSource::Item,
             self.item.span(),
             self.source_id,
+            self.needs_dumping,
         )
     }
 
-    fn get_term_of_item(&self) -> TermId {
-        match self.item {
-            BuildItem::FnDef(node) => {
-                self.tcx.node_info_store.get(node.id()).map(|f| f.term_id()).unwrap()
-            }
-            BuildItem::Expr(node) => {
-                self.tcx.node_info_store.get(node.id()).map(|f| f.term_id()).unwrap()
-            }
-        }
+    /// Function to get the associated [TermId] with the
+    /// provided [AstNodeId].
+    #[inline]
+    fn get_term_id_of_ast_node(&self, id: AstNodeId) -> TermId {
+        self.tcx.node_info_store.get(id).map(|f| f.term_id()).unwrap()
+    }
+
+    /// Function to get the associated [PatId] with the
+    /// provided [AstNodeId].
+    #[inline]
+    fn get_pat_of_ast_node(&self, id: AstNodeId) -> Pat {
+        let pat_id = self.tcx.node_info_store.get(id).map(|f| f.pat_id()).unwrap();
+
+        self.tcx.pat_store.get(pat_id)
     }
 
     pub(crate) fn build_fn(&mut self) {
@@ -193,7 +226,11 @@ impl<'a, 'tcx> Builder<'a, 'tcx> {
             BuildItem::Expr(_) => unreachable!(),
         };
 
-        let term = self.get_term_of_item();
+        let term = match self.item {
+            BuildItem::FnDef(node) => self.get_term_id_of_ast_node(node.id()),
+            BuildItem::Expr(node) => self.get_term_id_of_ast_node(node.id()),
+        };
+
         let fn_ty = get_fn_ty_from_term(term, self.tcx);
 
         // The first local declaration is used as the return type. The return local

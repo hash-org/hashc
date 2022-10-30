@@ -520,6 +520,7 @@ dependencies = [
  "hash-ast-desugaring",
  "hash-ast-expand",
  "hash-interactive",
+ "hash-ir",
  "hash-lower",
  "hash-parser",
  "hash-pipeline",

@@ -16,8 +16,15 @@ use crate::{
 /// A binding pattern, which is essentially a declaration left-hand side.
 #[derive(Clone, Debug, Copy)]
 pub struct BindingPat {
+    /// The name that is associated with the binding.
     pub name: Identifier,
+
+    /// The associated [Mutability] with this pattern bind. If the pattern does
+    /// not specify a mutability, then this will be [Mutability::Immutable].
     pub mutability: Mutability,
+
+    /// The associated [Visibility] with this pattern bind. If the pattern does
+    /// specify the `visibility` in source, it is determined by the context.
     pub visibility: Visibility,
 }
 
@@ -155,6 +162,14 @@ impl Pat {
     /// Check if the pattern is of the [Pat::Spread] variant.
     pub fn is_bind(&self) -> bool {
         matches!(self, Pat::Binding(_))
+    }
+
+    /// Convert the pattern into a binding pattern, if it is one.
+    pub fn into_bind(self) -> Option<BindingPat> {
+        match self {
+            Pat::Binding(pat) => Some(pat),
+            _ => None,
+        }
     }
 }
 
@@ -320,4 +335,13 @@ impl fmt::Display for ForFormatting<'_, PatArgsId> {
             Ok(())
         })
     }
+}
+
+#[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
+mod size_asserts {
+    use hash_utils::assert::static_assert_size;
+
+    use super::*;
+
+    static_assert_size!(Pat, 32);
 }

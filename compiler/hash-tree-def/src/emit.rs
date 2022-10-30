@@ -63,7 +63,7 @@ fn ref_or_mut_ref(nodes_mut: bool) -> TokenStream {
     }
 }
 
-/// Emit other items given in the [define_tree!](crate::define_tree) macro.
+/// Emit other items given in the [define_tree!](crate::define_tree!) macro.
 fn emit_other_items(def: &TreeDef) -> TokenStream {
     def.other_items.iter().map(|item| -> TokenStream { quote!(#item) }).collect()
 }

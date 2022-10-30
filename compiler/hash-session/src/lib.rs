@@ -11,6 +11,7 @@
 use hash_ast::node_map::NodeMap;
 use hash_ast_desugaring::{AstDesugaringCtx, AstDesugaringPass};
 use hash_ast_expand::{AstExpansionCtx, AstExpansionPass};
+use hash_ir::IrStorage;
 use hash_lower::{AstLowerer, IrLoweringCtx};
 use hash_parser::{Parser, ParserCtx};
 use hash_pipeline::{
@@ -58,6 +59,10 @@ pub struct CompilerSession {
     /// the typechecking stage, which is used for later stages during code
     /// generation.
     pub ty_storage: TyStorage,
+
+    /// Compiler IR storage. Stores all the IR that is created during the
+    /// lowering stage, which is used for later stages during code generation.
+    pub ir_storage: IrStorage,
 }
 
 impl CompilerSession {
@@ -71,6 +76,7 @@ impl CompilerSession {
             pool,
             settings,
             ty_storage: TyStorage { global, local },
+            ir_storage: IrStorage::new(),
         }
     }
 }
@@ -140,8 +146,8 @@ impl TypecheckingCtx for CompilerSession {
 }
 
 impl IrLoweringCtx for CompilerSession {
-    fn data(&mut self) -> (&Workspace, &mut TyStorage) {
-        (&self.workspace, &mut self.ty_storage)
+    fn data(&mut self) -> (&mut Workspace, &TyStorage, &mut IrStorage) {
+        (&mut self.workspace, &self.ty_storage, &mut self.ir_storage)
     }
 }
 
