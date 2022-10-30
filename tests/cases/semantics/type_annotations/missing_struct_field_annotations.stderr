@@ -4,7 +4,7 @@ error: mismatching naming convention of fields within a struct
 8 |       bax := 4,
   |       ^^^^^^^^ this is expected to be a un-named field
 9 |       bux: i32,
-  = note: fields of a {origin} should all be named, or un-named since mixing naming conventions leads to ambiguities
+  = note: fields of a struct should all be named or all un-named
 
 error: mismatching naming convention of fields within a struct
   --> $DIR/missing_struct_field_annotations.hash:9:5
@@ -12,7 +12,7 @@ error: mismatching naming convention of fields within a struct
  9 |       bux: i32,
    |       ^^^^^^^^ this is expected to be a un-named field
 10 |       mux: i32 = 7,
-   = note: fields of a {origin} should all be named, or un-named since mixing naming conventions leads to ambiguities
+   = note: fields of a struct should all be named or all un-named
 
 error: mismatching naming convention of fields within a struct
   --> $DIR/missing_struct_field_annotations.hash:10:5
@@ -20,4 +20,4 @@ error: mismatching naming convention of fields within a struct
 10 |       mux: i32 = 7,
    |       ^^^^^^^^^^^^ this is expected to be a un-named field
 11 |   
-   = note: fields of a {origin} should all be named, or un-named since mixing naming conventions leads to ambiguities
+   = note: fields of a struct should all be named or all un-named

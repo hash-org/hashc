@@ -11,6 +11,7 @@ use hash_ast::{
         walk_mut_self, AstVisitorMutSelf, BindingPat, Block, BlockExpr, DirectiveExpr, Expr,
         LitExpr, ModulePatEntry, Mutability, ParamOrigin, Pat, TuplePatEntry,
     },
+    ast_visitor_mut_self_default_impl,
     origin::BlockOrigin,
 };
 use hash_reporting::macros::panic_on_span;
@@ -27,102 +28,74 @@ use crate::{
 impl AstVisitorMutSelf for SemanticAnalyser<'_> {
     type Error = Infallible;
 
-    type NameRet = ();
-
-    fn visit_name(
-        &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::Name>,
-    ) -> Result<Self::NameRet, Self::Error> {
-        Ok(())
-    }
-
-    type LitRet = ();
-
-    fn visit_lit(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Lit>,
-    ) -> Result<Self::LitRet, Self::Error> {
-        let _ = walk_mut_self::walk_lit_same_children(self, node);
-        Ok(())
-    }
-
-    type MapLitRet = ();
-
-    fn visit_map_lit(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::MapLit>,
-    ) -> Result<Self::MapLitRet, Self::Error> {
-        let _ = walk_mut_self::walk_map_lit(self, node);
-        Ok(())
-    }
-
-    type MapLitEntryRet = ();
-
-    fn visit_map_lit_entry(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::MapLitEntry>,
-    ) -> Result<Self::MapLitEntryRet, Self::Error> {
-        let _ = walk_mut_self::walk_map_lit_entry(self, node);
-        Ok(())
-    }
-
-    type ListLitRet = ();
-
-    fn visit_list_lit(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ListLit>,
-    ) -> Result<Self::ListLitRet, Self::Error> {
-        let _ = walk_mut_self::walk_list_lit(self, node);
-        Ok(())
-    }
-
-    type SetLitRet = ();
-
-    fn visit_set_lit(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::SetLit>,
-    ) -> Result<Self::SetLitRet, Self::Error> {
-        let _ = walk_mut_self::walk_set_lit(self, node);
-        Ok(())
-    }
-
-    type TupleLitEntryRet = ();
-
-    fn visit_tuple_lit_entry(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TupleLitEntry>,
-    ) -> Result<Self::TupleLitEntryRet, Self::Error> {
-        let _ = walk_mut_self::walk_tuple_lit_entry(self, node);
-        Ok(())
-    }
-
-    type TupleLitRet = ();
-
-    fn visit_tuple_lit(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TupleLit>,
-    ) -> Result<Self::TupleLitRet, Self::Error> {
-        let _ = walk_mut_self::walk_tuple_lit(self, node);
-        Ok(())
-    }
-
-    type StrLitRet = ();
-
-    fn visit_str_lit(
-        &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::StrLit>,
-    ) -> Result<Self::StrLitRet, Self::Error> {
-        Ok(())
-    }
-
-    type CharLitRet = ();
-
-    fn visit_char_lit(
-        &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::CharLit>,
-    ) -> Result<Self::CharLitRet, Self::Error> {
-        Ok(())
-    }
+    ast_visitor_mut_self_default_impl!(
+        Name,
+        Lit,
+        MapLit,
+        MapLitEntry,
+        ListLit,
+        SetLit,
+        TupleLitEntry,
+        TupleLit,
+        StrLit,
+        CharLit,
+        BoolLit,
+        IntLit,
+        BinOp,
+        UnOp,
+        Expr,
+        VariableExpr,
+        Declaration,
+        ConstructorCallArg,
+        ConstructorCallExpr,
+        PropertyKind,
+        ImportExpr,
+        UnaryExpr,
+        BinaryExpr,
+        IndexExpr,
+        RefExpr,
+        RefKind,
+        DerefExpr,
+        EnumDef,
+        AccessExpr,
+        AccessKind,
+        AssignOpExpr,
+        AssignExpr,
+        LitExpr,
+        CastExpr,
+        Import,
+        TyFnCall,
+        UnsafeExpr,
+        TyFn,
+        TyFnDef,
+        TyExpr,
+        BlockExpr,
+        MatchBlock,
+        MatchCase,
+        Block,
+        Visibility,
+        Mutability,
+        Ty,
+        AccessTy,
+        TyArg,
+        NamedTy,
+        TupleTy,
+        UnionTy,
+        MapTy,
+        SetTy,
+        ListTy,
+        RefTy,
+        FnTy,
+        MergeTy,
+        Pat,
+        WildPat,
+        AccessPat,
+        OrPat,
+        IfPat,
+        SpreadPat,
+        RangePat,
+        ModulePat,
+    );
 
     type FloatLitRet = ();
 
@@ -135,60 +108,6 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
             self.append_error(AnalysisErrorKind::DisallowedFloatPat, node);
         }
 
-        Ok(())
-    }
-
-    type BoolLitRet = ();
-
-    fn visit_bool_lit(
-        &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::BoolLit>,
-    ) -> Result<Self::BoolLitRet, Self::Error> {
-        Ok(())
-    }
-
-    type IntLitRet = ();
-
-    fn visit_int_lit(
-        &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::IntLit>,
-    ) -> Result<Self::IntLitRet, Self::Error> {
-        Ok(())
-    }
-
-    type BinOpRet = ();
-
-    fn visit_bin_op(
-        &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::BinOp>,
-    ) -> Result<Self::BinOpRet, Self::Error> {
-        Ok(())
-    }
-
-    type UnOpRet = ();
-
-    fn visit_un_op(
-        &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::UnOp>,
-    ) -> Result<Self::UnOpRet, Self::Error> {
-        Ok(())
-    }
-
-    type ExprRet = ();
-
-    fn visit_expr(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Expr>,
-    ) -> Result<Self::ExprRet, Self::Error> {
-        walk_mut_self::walk_expr_same_children(self, node)
-    }
-
-    type VariableExprRet = ();
-
-    fn visit_variable_expr(
-        &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::VariableExpr>,
-    ) -> Result<Self::VariableExprRet, Self::Error> {
         Ok(())
     }
 
@@ -272,279 +191,6 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
         Ok(())
     }
 
-    type ConstructorCallArgRet = ();
-
-    fn visit_constructor_call_arg(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ConstructorCallArg>,
-    ) -> Result<Self::ConstructorCallArgRet, Self::Error> {
-        let _ = walk_mut_self::walk_constructor_call_arg(self, node);
-        Ok(())
-    }
-
-    type ConstructorCallExprRet = ();
-
-    fn visit_constructor_call_expr(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ConstructorCallExpr>,
-    ) -> Result<Self::ConstructorCallExprRet, Self::Error> {
-        let _ = walk_mut_self::walk_constructor_call_expr(self, node);
-        Ok(())
-    }
-
-    type PropertyKindRet = ();
-
-    fn visit_property_kind(
-        &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::PropertyKind>,
-    ) -> Result<Self::PropertyKindRet, Self::Error> {
-        Ok(())
-    }
-
-    type AccessExprRet = ();
-
-    fn visit_access_expr(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::AccessExpr>,
-    ) -> Result<Self::AccessExprRet, Self::Error> {
-        let _ = walk_mut_self::walk_access_expr(self, node);
-        Ok(())
-    }
-
-    type AccessKindRet = ();
-
-    fn visit_access_kind(
-        &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::AccessKind>,
-    ) -> Result<Self::AccessKindRet, Self::Error> {
-        Ok(())
-    }
-
-    type RefExprRet = ();
-
-    fn visit_ref_expr(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::RefExpr>,
-    ) -> Result<Self::RefExprRet, Self::Error> {
-        let _ = walk_mut_self::walk_ref_expr(self, node);
-        Ok(())
-    }
-
-    type DerefExprRet = ();
-
-    fn visit_deref_expr(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::DerefExpr>,
-    ) -> Result<Self::DerefExprRet, Self::Error> {
-        let _ = walk_mut_self::walk_deref_expr(self, node);
-        Ok(())
-    }
-
-    type UnsafeExprRet = ();
-
-    fn visit_unsafe_expr(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::UnsafeExpr>,
-    ) -> Result<Self::UnsafeExprRet, Self::Error> {
-        let _ = walk_mut_self::walk_unsafe_expr(self, node);
-        Ok(())
-    }
-
-    type LitExprRet = ();
-
-    fn visit_lit_expr(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::LitExpr>,
-    ) -> Result<Self::LitExprRet, Self::Error> {
-        let _ = walk_mut_self::walk_lit_expr(self, node);
-        Ok(())
-    }
-
-    type CastExprRet = ();
-
-    fn visit_cast_expr(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::CastExpr>,
-    ) -> Result<Self::CastExprRet, Self::Error> {
-        let _ = walk_mut_self::walk_cast_expr(self, node);
-        Ok(())
-    }
-
-    type TyExprRet = ();
-
-    fn visit_ty_expr(
-        &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::TyExpr>,
-    ) -> Result<Self::TyExprRet, Self::Error> {
-        Ok(())
-    }
-
-    type BlockExprRet = ();
-
-    #[inline]
-    fn visit_block_expr(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::BlockExpr>,
-    ) -> Result<Self::BlockExprRet, Self::Error> {
-        let _ = walk_mut_self::walk_block_expr(self, node)?;
-
-        Ok(())
-    }
-
-    type ImportRet = ();
-
-    fn visit_import(
-        &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::Import>,
-    ) -> Result<Self::ImportRet, Self::Error> {
-        Ok(())
-    }
-
-    type ImportExprRet = ();
-
-    fn visit_import_expr(
-        &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::ImportExpr>,
-    ) -> Result<Self::ImportExprRet, Self::Error> {
-        Ok(())
-    }
-
-    type TyRet = ();
-
-    fn visit_ty(
-        &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::Ty>,
-    ) -> Result<Self::TyRet, Self::Error> {
-        Ok(())
-    }
-
-    type TupleTyRet = ();
-
-    fn visit_tuple_ty(
-        &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::TupleTy>,
-    ) -> Result<Self::TupleTyRet, Self::Error> {
-        Ok(())
-    }
-
-    type ListTyRet = ();
-
-    fn visit_list_ty(
-        &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::ListTy>,
-    ) -> Result<Self::ListTyRet, Self::Error> {
-        Ok(())
-    }
-
-    type SetTyRet = ();
-
-    fn visit_set_ty(
-        &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::SetTy>,
-    ) -> Result<Self::SetTyRet, Self::Error> {
-        Ok(())
-    }
-
-    type MapTyRet = ();
-
-    fn visit_map_ty(
-        &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::MapTy>,
-    ) -> Result<Self::MapTyRet, Self::Error> {
-        Ok(())
-    }
-
-    type TyArgRet = ();
-
-    fn visit_ty_arg(
-        &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::TyArg>,
-    ) -> Result<Self::TyArgRet, Self::Error> {
-        Ok(())
-    }
-
-    type FnTyRet = ();
-
-    fn visit_fn_ty(
-        &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::FnTy>,
-    ) -> Result<Self::FnTyRet, Self::Error> {
-        Ok(())
-    }
-
-    type TyFnRet = ();
-
-    fn visit_ty_fn(
-        &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::TyFn>,
-    ) -> Result<Self::TyFnRet, Self::Error> {
-        Ok(())
-    }
-
-    type TyFnCallRet = ();
-
-    fn visit_ty_fn_call(
-        &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::TyFnCall>,
-    ) -> Result<Self::TyFnCallRet, Self::Error> {
-        Ok(())
-    }
-
-    type NamedTyRet = ();
-
-    fn visit_named_ty(
-        &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::NamedTy>,
-    ) -> Result<Self::NamedTyRet, Self::Error> {
-        Ok(())
-    }
-
-    type AccessTyRet = ();
-
-    fn visit_access_ty(
-        &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::AccessTy>,
-    ) -> Result<Self::AccessTyRet, Self::Error> {
-        Ok(())
-    }
-
-    type RefTyRet = ();
-
-    fn visit_ref_ty(
-        &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::RefTy>,
-    ) -> Result<Self::RefTyRet, Self::Error> {
-        Ok(())
-    }
-
-    type MergeTyRet = ();
-
-    fn visit_merge_ty(
-        &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::MergeTy>,
-    ) -> Result<Self::MergeTyRet, Self::Error> {
-        Ok(())
-    }
-
-    type UnionTyRet = ();
-
-    fn visit_union_ty(
-        &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::UnionTy>,
-    ) -> Result<Self::UnionTyRet, Self::Error> {
-        Ok(())
-    }
-
-    type TyFnDefRet = ();
-
-    fn visit_ty_fn_def(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TyFnDef>,
-    ) -> Result<Self::TyFnDefRet, Self::Error> {
-        let _ = walk_mut_self::walk_ty_fn_def(self, node);
-        Ok(())
-    }
-
     type FnDefRet = ();
 
     fn visit_fn_def(
@@ -593,37 +239,6 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
             }
         }
 
-        Ok(())
-    }
-
-    type BlockRet = ();
-
-    fn visit_block(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Block>,
-    ) -> Result<Self::BlockRet, Self::Error> {
-        let _ = walk_mut_self::walk_block(self, node);
-
-        Ok(())
-    }
-
-    type MatchCaseRet = ();
-
-    fn visit_match_case(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::MatchCase>,
-    ) -> Result<Self::MatchCaseRet, Self::Error> {
-        let _ = walk_mut_self::walk_match_case(self, node);
-        Ok(())
-    }
-
-    type MatchBlockRet = ();
-
-    fn visit_match_block(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::MatchBlock>,
-    ) -> Result<Self::MatchBlockRet, Self::Error> {
-        let _ = walk_mut_self::walk_match_block(self, node);
         Ok(())
     }
 
@@ -786,43 +401,6 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
         Ok(())
     }
 
-    type VisibilityRet = ();
-
-    fn visit_visibility(
-        &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::Visibility>,
-    ) -> Result<Self::VisibilityRet, Self::Error> {
-        Ok(())
-    }
-
-    type MutabilityRet = ();
-
-    fn visit_mutability(
-        &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::Mutability>,
-    ) -> Result<Self::MutabilityRet, Self::Error> {
-        Ok(())
-    }
-
-    type RefKindRet = ();
-
-    fn visit_ref_kind(
-        &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::RefKind>,
-    ) -> Result<Self::RefKindRet, Self::Error> {
-        Ok(())
-    }
-
-    type DeclarationRet = ();
-
-    fn visit_declaration(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Declaration>,
-    ) -> Result<Self::DeclarationRet, Self::Error> {
-        let _ = walk_mut_self::walk_declaration(self, node);
-        Ok(())
-    }
-
     type MergeDeclarationRet = ();
 
     fn visit_merge_declaration(
@@ -831,56 +409,6 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
     ) -> Result<Self::MergeDeclarationRet, Self::Error> {
         // @@Note: We probably don't have to walk this??
         let _ = walk_mut_self::walk_merge_declaration(self, node);
-        Ok(())
-    }
-
-    type AssignExprRet = ();
-
-    fn visit_assign_expr(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::AssignExpr>,
-    ) -> Result<Self::AssignExprRet, Self::Error> {
-        let _ = walk_mut_self::walk_assign_expr(self, node);
-        Ok(())
-    }
-
-    type AssignOpExprRet = ();
-
-    fn visit_assign_op_expr(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::AssignOpExpr>,
-    ) -> Result<Self::AssignOpExprRet, Self::Error> {
-        let _ = walk_mut_self::walk_assign_op_expr(self, node);
-        Ok(())
-    }
-
-    type BinaryExprRet = ();
-
-    fn visit_binary_expr(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::BinaryExpr>,
-    ) -> Result<Self::BinaryExprRet, Self::Error> {
-        let _ = walk_mut_self::walk_binary_expr(self, node);
-        Ok(())
-    }
-
-    type UnaryExprRet = ();
-
-    fn visit_unary_expr(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::UnaryExpr>,
-    ) -> Result<Self::UnaryExprRet, Self::Error> {
-        let _ = walk_mut_self::walk_unary_expr(self, node);
-        Ok(())
-    }
-
-    type IndexExprRet = ();
-
-    fn visit_index_expr(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::IndexExpr>,
-    ) -> Result<Self::IndexExprRet, Self::Error> {
-        let _ = walk_mut_self::walk_index_expr(self, node);
         Ok(())
     }
 
@@ -907,15 +435,6 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
         // Verify that all of the specified fields are either named, or all un-named!
         self.check_field_naming(node.fields.ast_ref_iter());
 
-        Ok(())
-    }
-
-    type EnumDefRet = ();
-
-    fn visit_enum_def(
-        &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::EnumDef>,
-    ) -> Result<Self::EnumDefRet, Self::Error> {
         Ok(())
     }
 
@@ -946,27 +465,6 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
         let _ = walk_mut_self::walk_trait_impl(self, node);
         self.current_block = old_block_origin;
 
-        Ok(())
-    }
-
-    type PatRet = ();
-
-    fn visit_pat(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Pat>,
-    ) -> Result<Self::PatRet, Self::Error> {
-        let _ = walk_mut_self::walk_pat(self, node);
-
-        Ok(())
-    }
-
-    type AccessPatRet = ();
-
-    fn visit_access_pat(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::AccessPat>,
-    ) -> Result<Self::AccessPatRet, Self::Error> {
-        let _ = walk_mut_self::walk_access_pat(self, node);
         Ok(())
     }
 
@@ -1042,15 +540,6 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
         Ok(())
     }
 
-    type SpreadPatRet = ();
-
-    fn visit_spread_pat(
-        &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::SpreadPat>,
-    ) -> Result<Self::SpreadPatRet, Self::Error> {
-        Ok(())
-    }
-
     type LitPatRet = ();
 
     fn visit_lit_pat(
@@ -1062,37 +551,6 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
         let _ = walk_mut_self::walk_lit_pat(self, node);
 
         self.is_in_lit_pat = last_in_lit_pat;
-        Ok(())
-    }
-
-    type RangePatRet = ();
-
-    fn visit_range_pat(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::RangePat>,
-    ) -> Result<Self::RangePatRet, Self::Error> {
-        let _ = walk_mut_self::walk_range_pat(self, node)?;
-
-        Ok(())
-    }
-
-    type OrPatRet = ();
-
-    fn visit_or_pat(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::OrPat>,
-    ) -> Result<Self::OrPatRet, Self::Error> {
-        let _ = walk_mut_self::walk_or_pat(self, node);
-        Ok(())
-    }
-
-    type IfPatRet = ();
-
-    fn visit_if_pat(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::IfPat>,
-    ) -> Result<Self::IfPatRet, Self::Error> {
-        let _ = walk_mut_self::walk_if_pat(self, node);
         Ok(())
     }
 
@@ -1130,15 +588,6 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
         Ok(())
     }
 
-    type WildPatRet = ();
-
-    fn visit_wild_pat(
-        &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::WildPat>,
-    ) -> Result<Self::WildPatRet, Self::Error> {
-        Ok(())
-    }
-
     type ModulePatEntryRet = ();
 
     fn visit_module_pat_entry(
@@ -1158,16 +607,6 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
             let _ = walk_mut_self::walk_module_pat_entry(self, node);
         }
 
-        Ok(())
-    }
-
-    type ModulePatRet = ();
-
-    fn visit_module_pat(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ModulePat>,
-    ) -> Result<Self::ModulePatRet, Self::Error> {
-        let _ = walk_mut_self::walk_module_pat(self, node);
         Ok(())
     }
 

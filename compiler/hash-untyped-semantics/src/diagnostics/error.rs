@@ -299,7 +299,7 @@ impl From<AnalysisError> for Report {
                     )))
                     .add_element(ReportElement::Note(ReportNote::new(
                         ReportNoteKind::Note,
-                        "fields of a {origin} should all be named, or un-named since mixing naming conventions leads to ambiguities",
+                        format!("fields of a {origin} should all be named or all un-named"),
                     )));
             }
             AnalysisErrorKind::SelfInFreeStandingFn => {
