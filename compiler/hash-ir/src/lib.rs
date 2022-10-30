@@ -11,7 +11,6 @@ pub mod ir;
 pub mod visitor;
 pub mod write;
 
-new_store_key!(pub StatementId);
 new_store_key!(pub RValueId);
 
 /// Stores all the used [RValue]s.

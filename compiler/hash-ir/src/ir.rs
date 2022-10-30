@@ -13,7 +13,7 @@ use hash_source::{
 use hash_types::{nominals::NominalDefId, scope::Mutability, terms::TermId};
 use index_vec::{index_vec, IndexSlice, IndexVec};
 
-use crate::{RValueId, StatementId};
+use crate::RValueId;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Const {
@@ -206,7 +206,7 @@ pub enum RValue {
     BinaryOp(BinOp, RValueId, RValueId),
     /// An expression which is taking the address of another expression with an
     /// mutability modifier e.g. `&mut x`.
-    Ref(Mutability, StatementId, AddressMode),
+    Ref(Mutability, Statement, AddressMode),
     /// Used for initialising structs, tuples and other aggregate
     /// data structures
     Aggregate(AggregateKind, Vec<Place>),
@@ -217,7 +217,7 @@ pub enum RValue {
 }
 
 /// A defined statement within the IR
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum StatementKind {
     /// Filler kind when expressions are optimised out or removed for other
     /// reasons.
@@ -235,7 +235,7 @@ pub enum StatementKind {
 }
 
 /// A [Statement] is a intermediate transformation step within a [BasicBlock].
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Statement {
     /// The kind of [Statement] that it is.
     pub kind: StatementKind,
