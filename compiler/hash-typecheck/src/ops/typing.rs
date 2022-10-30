@@ -1,14 +1,14 @@
 //! Contains operations to get the type of a term.
 use hash_ast::ast::ParamOrigin;
 use hash_types::{
-    arguments::{ArgOld, ArgsIdOld},
-    mods::ModDefOriginOld,
+    args::{Arg, ArgsId},
+    mods::ModDefOrigin,
     nominals::{NominalDef, StructFields},
     params::{AccessOp, Param, ParamsId},
     pats::{AccessPat, ConstPat, ListPat, Pat, PatArgsId, PatId, RangePat},
     scope::Member,
     terms::{
-        ConstructedTerm, Level0Term, Level1Term, Level2Term, Level3Term, LitTerm, TermId, TermOld,
+        ConstructedTerm, Level0Term, Level1Term, Level2Term, Level3Term, LitTerm, Term, TermId,
     },
 };
 use itertools::Itertools;
@@ -73,7 +73,7 @@ impl<'tc> Typer<'tc> {
     pub(crate) fn infer_ty_of_simplified_term(&self, term_id: TermId) -> TcResult<TermId> {
         let term = self.reader().get_term(term_id);
         let new_term = match term {
-            TermOld::Access(access_term) => {
+            Term::Access(access_term) => {
                 // Here we want to get the type of the subject, and ensure it contains this
                 // property, and if so return it.
                 let ty_id_of_subject = self.infer_ty_of_term(access_term.subject)?;
@@ -93,14 +93,14 @@ impl<'tc> Typer<'tc> {
                     }
                 }
             }
-            TermOld::TyFnCall(app_ty_fn) => {
+            Term::TyFnCall(app_ty_fn) => {
                 // Here we want to get the type of the subject, and ensure it is a TyFnTy.
                 // Then, we just apply the args to the type function:
                 let ty_id_of_subject = self.infer_ty_of_term(app_ty_fn.subject)?;
                 let reader = self.reader();
                 let ty_of_subject = reader.get_term(ty_id_of_subject);
                 match ty_of_subject {
-                    TermOld::TyFnTy(ty_fn_ty) => {
+                    Term::TyFnTy(ty_fn_ty) => {
                         // Unify the type function type params with the given args:
                         let ty_fn_ty = ty_fn_ty;
                         let _ = self.unifier().unify_params_with_args(
@@ -124,20 +124,20 @@ impl<'tc> Typer<'tc> {
                     _ => Err(TcError::UnsupportedTyFnApplication { subject_id: app_ty_fn.subject }),
                 }
             }
-            TermOld::TyFnTy(_) => {
+            Term::TyFnTy(_) => {
                 // The type of a type function type is Root
                 Ok(self.builder().create_root_term())
             }
-            TermOld::Var(_) => {
+            Term::Var(_) => {
                 tc_panic!(term_id, self, "Var should have already been simplified away!")
             }
-            TermOld::TyFn(ty_fn) => {
+            Term::TyFn(ty_fn) => {
                 // The type of a type function is a type function type:
                 Ok(self
                     .builder()
                     .create_ty_fn_ty_term(ty_fn.general_params, ty_fn.general_return_ty))
             }
-            TermOld::Merge(terms) => {
+            Term::Merge(terms) => {
                 // The type of a merge is a merge of the inner terms:
                 let tys_of_terms: Vec<_> = self
                     .reader()
@@ -148,48 +148,46 @@ impl<'tc> Typer<'tc> {
 
                 Ok(self.builder().create_merge_term(tys_of_terms))
             }
-            TermOld::Union(_) => {
+            Term::Union(_) => {
                 // The type of a union is "SizedTy":
                 // @@Future: relax this
                 let rt_instantiable_def = self.builder().create_sized_ty_term();
                 Ok(rt_instantiable_def)
             }
-            TermOld::SetBound(set_bound) => {
+            Term::SetBound(set_bound) => {
                 // Get the type inside the scope, and then apply it again if necessary
                 let result = self.scope_manager().enter_scope(set_bound.scope, |this| {
                     this.typer().infer_ty_of_simplified_term(set_bound.term)
                 })?;
                 self.discoverer().potentially_apply_set_bound_to_term(set_bound.scope, result)
             }
-            TermOld::Unresolved(_) => {
+            Term::Unresolved(_) => {
                 // The type of an unresolved variable X is typeof(X):
                 Ok(self.builder().create_ty_of_term(term_id))
             }
-            TermOld::Level3(level3_term) => match level3_term {
+            Term::Level3(level3_term) => match level3_term {
                 Level3Term::TrtKind => {
                     // The type of TraitKind, is Root
                     Ok(self.builder().create_root_term())
                 }
             },
-            TermOld::Level2(level2_term) => match level2_term {
+            Term::Level2(level2_term) => match level2_term {
                 // The type of any trait, or the "Type" trait, is just TraitKind:
                 Level2Term::Trt(_) | Level2Term::AnyTy | Level2Term::SizedTy => {
                     Ok(self.builder().create_trt_kind_term())
                 }
             },
-            TermOld::Level1(level1_term) => match level1_term {
+            Term::Level1(level1_term) => match level1_term {
                 Level1Term::ModDef(mod_def_id) => {
                     // The type of a mod def depends on its origin:
                     let reader = self.reader();
                     let mod_def = reader.get_mod_def(mod_def_id);
                     match mod_def.origin {
-                        ModDefOriginOld::TrtImpl(trt_impl) => {
+                        ModDefOrigin::TrtImpl(trt_impl) => {
                             // The type is the trait impl:
                             Ok(trt_impl)
                         }
-                        ModDefOriginOld::AnonImpl
-                        | ModDefOriginOld::Mod
-                        | ModDefOriginOld::Source(_) => {
+                        ModDefOrigin::AnonImpl | ModDefOrigin::Mod | ModDefOrigin::Source(_) => {
                             // The rest is just "Type"
                             Ok(self.builder().create_any_ty_term())
                         }
@@ -202,7 +200,7 @@ impl<'tc> Typer<'tc> {
                     Ok(rt_instantiable_def)
                 }
             },
-            TermOld::Level0(level0_term) => {
+            Term::Level0(level0_term) => {
                 match level0_term {
                     Level0Term::Rt(inner_ty) => {
                         // The type of a Rt(X) is X
@@ -253,14 +251,14 @@ impl<'tc> Typer<'tc> {
                     }
                 }
             }
-            TermOld::BoundVar(bound_var) => {
+            Term::BoundVar(bound_var) => {
                 // Get its type from the surrounding context:
                 // @@Correctness: is there a point here when we should default to typeof()
                 // wrapping instead?
                 let member = self.scope_manager().get_bound_var_member(bound_var, term_id);
                 Ok(member.member.ty())
             }
-            TermOld::ScopeVar(scope_var) => {
+            Term::ScopeVar(scope_var) => {
                 let scope_member = self.scope_manager().get_scope_var_member(scope_var);
                 match scope_member.member {
                     Member::Bound(_) => Ok(self.builder().create_ty_of_term(term_id)),
@@ -271,7 +269,7 @@ impl<'tc> Typer<'tc> {
                     Member::Variable(variable) => Ok(variable.ty),
                 }
             }
-            TermOld::Root | TermOld::TyOf(_) => {
+            Term::Root | Term::TyOf(_) => {
                 // Since these are simplified already, all we can do is wrap it again..
                 Ok(self.builder().create_ty_of_term(term_id))
             }
@@ -288,7 +286,7 @@ impl<'tc> Typer<'tc> {
     /// `populate_defaults` is true.
     pub(crate) fn infer_params_of_args(
         &self,
-        args_id: ArgsIdOld,
+        args_id: ArgsId,
         populate_defaults: bool,
     ) -> TcResult<ParamsId> {
         self.args_store().map_as_param_list(args_id, |args| {
@@ -322,8 +320,8 @@ impl<'tc> Typer<'tc> {
     /// default value from the parameter.
     ///
     /// *Note*: This expects that the parameter has a default value.
-    pub(crate) fn infer_arg_from_param(&self, param: &Param) -> ArgOld {
-        ArgOld { name: param.name, value: param.default_value.unwrap() }
+    pub(crate) fn infer_arg_from_param(&self, param: &Param) -> Arg {
+        Arg { name: param.name, value: param.default_value.unwrap() }
     }
 
     /// From the given [ParamsId], infer an [ArgsId] by populating any field
@@ -332,11 +330,11 @@ impl<'tc> Typer<'tc> {
     /// arguments with default values of the parameters.
     pub(crate) fn infer_args_from_params(
         &self,
-        args_id: ArgsIdOld,
+        args_id: ArgsId,
         params_id: ParamsId,
         params_subject: TermId,
         args_subject: TermId,
-    ) -> TcResult<ArgsIdOld> {
+    ) -> TcResult<ArgsId> {
         self.params_store().map_as_param_list(params_id, |params| {
             self.args_store().map_as_param_list(args_id, |args| {
                 // Pair parameters and arguments, then extract the resultant arguments...
@@ -364,15 +362,13 @@ impl<'tc> Typer<'tc> {
 
     /// From the given [PatArgsId], infer a [ArgsId] describing the the
     /// arguments.
-    pub(crate) fn infer_args_of_pat_args(&self, id: PatArgsId) -> TcResult<ArgsIdOld> {
+    pub(crate) fn infer_args_of_pat_args(&self, id: PatArgsId) -> TcResult<ArgsId> {
         self.pat_args_store().map_as_param_list(id, |pat_args| {
             let arg_tys: Vec<_> = pat_args
                 .borrowed()
                 .into_positional()
                 .into_iter()
-                .map(|param| {
-                    Ok(ArgOld { name: param.name, value: self.get_term_of_pat(param.pat)? })
-                })
+                .map(|param| Ok(Arg { name: param.name, value: self.get_term_of_pat(param.pat)? }))
                 .collect::<TcResult<_>>()?;
 
             let args_id = self.builder().create_args(arg_tys.iter().copied(), pat_args.origin());
@@ -507,7 +503,7 @@ impl<'tc> Typer<'tc> {
         // First, try to read the value as a tuple literal:
         let tuple_term = self.reader().get_term(tuple_term_id);
         match tuple_term {
-            TermOld::Level0(Level0Term::Tuple(tuple_lit)) => {
+            Term::Level0(Level0Term::Tuple(tuple_lit)) => {
                 Ok(Some(self.infer_params_of_args(tuple_lit.members, true)?))
             }
             _ => {
@@ -516,7 +512,7 @@ impl<'tc> Typer<'tc> {
                 // Otherwise, get the type and try to get the parameters that way:
                 let tuple_ty = self.reader().get_term(tuple_ty_id);
                 match tuple_ty {
-                    TermOld::Merge(terms) => {
+                    Term::Merge(terms) => {
                         // Try each term:
                         self.reader()
                             .get_term_list_owned(terms)
@@ -527,7 +523,7 @@ impl<'tc> Typer<'tc> {
                             .transpose()
                     }
                     // @@Todo: remove default members:
-                    TermOld::Level1(Level1Term::Tuple(tuple_ty)) => Ok(Some(tuple_ty.members)),
+                    Term::Level1(Level1Term::Tuple(tuple_ty)) => Ok(Some(tuple_ty.members)),
                     _ => Ok(None),
                 }
             }
@@ -549,11 +545,11 @@ impl<'tc> Typer<'tc> {
         term: TermId,
     ) -> TcResult<Vec<(TermId, ParamsId)>> {
         match self.reader().get_term(term) {
-            TermOld::Level0(Level0Term::Constructed(ConstructedTerm { subject, members })) => {
+            Term::Level0(Level0Term::Constructed(ConstructedTerm { subject, members })) => {
                 let members = self.infer_params_of_args(members, true)?;
                 Ok(vec![(subject, members)])
             }
-            TermOld::Level1(Level1Term::NominalDef(nominal_id)) => {
+            Term::Level1(Level1Term::NominalDef(nominal_id)) => {
                 match self.reader().get_nominal_def(nominal_id) {
                     NominalDef::Struct(struct_def) => match struct_def.fields {
                         StructFields::Explicit(params) => Ok(vec![(term, params)]),
@@ -566,7 +562,7 @@ impl<'tc> Typer<'tc> {
                 let constructed_ty_id = self.infer_ty_of_simplified_term(term)?;
 
                 match self.reader().get_term(constructed_ty_id) {
-                    TermOld::Union(terms) => {
+                    Term::Union(terms) => {
                         // Accumulate all terms
                         self.reader()
                             .get_term_list_owned(terms)
@@ -575,7 +571,7 @@ impl<'tc> Typer<'tc> {
                             .flatten_ok()
                             .collect()
                     }
-                    TermOld::SetBound(set_bound) => {
+                    Term::SetBound(set_bound) => {
                         // Recurse to inner and then apply the set bound on the results
                         let result = self.scope_manager().enter_scope(set_bound.scope, |this| {
                             this.typer().infer_constructor_of_nominal_term(set_bound.term)
@@ -594,7 +590,7 @@ impl<'tc> Typer<'tc> {
                             })
                             .collect()
                     }
-                    TermOld::Merge(terms) => {
+                    Term::Merge(terms) => {
                         // Try each term:
                         self.reader()
                             .get_term_list_owned(terms)
@@ -603,7 +599,7 @@ impl<'tc> Typer<'tc> {
                             .flatten_ok()
                             .collect()
                     }
-                    TermOld::Level1(Level1Term::NominalDef(nominal_id)) => {
+                    Term::Level1(Level1Term::NominalDef(nominal_id)) => {
                         match self.reader().get_nominal_def(nominal_id) {
                             NominalDef::Struct(struct_def) => match struct_def.fields {
                                 // @@Todo: remove default members:

@@ -2,12 +2,12 @@
 use std::{borrow::Borrow, collections::HashSet};
 
 use hash_types::{
-    arguments::{ArgOld, ArgsIdOld},
+    args::{Arg, ArgsId},
     location::LocationTarget,
     params::{Param, ParamsId},
     pats::PatId,
     scope::{ScopeId, ScopeKind},
-    terms::{Level0Term, Level1Term, Level2Term, Level3Term, Sub, TermId, TermOld},
+    terms::{Level0Term, Level1Term, Level2Term, Level3Term, Sub, Term, TermId},
 };
 use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey};
 
@@ -119,7 +119,7 @@ impl<'tc> Unifier<'tc> {
     pub(crate) fn unify_params_with_args(
         &self,
         params_id: ParamsId,
-        args_id: ArgsIdOld,
+        args_id: ArgsId,
         params_subject: TermId,
         args_subject: TermId,
     ) -> TcResult<Sub> {
@@ -146,7 +146,7 @@ impl<'tc> Unifier<'tc> {
     /// from each parameter to each argument value.
     pub(crate) fn unify_param_arg_pairs(
         &self,
-        pairs: impl IntoIterator<Item = (impl Borrow<Param>, impl Borrow<ArgOld>)>,
+        pairs: impl IntoIterator<Item = (impl Borrow<Param>, impl Borrow<Arg>)>,
     ) -> TcResult<Sub> {
         let mut sub = Sub::empty();
 
@@ -166,8 +166,8 @@ impl<'tc> Unifier<'tc> {
     /// terms in order to give meaningful error messages.
     pub(crate) fn unify_args(
         &self,
-        src_args_id: ArgsIdOld,
-        target_args_id: ArgsIdOld,
+        src_args_id: ArgsId,
+        target_args_id: ArgsId,
         src_id: TermId,
         target_id: TermId,
     ) -> TcResult<Sub> {
@@ -368,20 +368,20 @@ impl<'tc> Unifier<'tc> {
 
         let sub = match (simplified_src, simplified_target) {
             // Unresolved
-            (TermOld::Unresolved(unresolved_src), _) => {
+            (Term::Unresolved(unresolved_src), _) => {
                 // Substitute target for source
                 Ok(Sub::from_pairs([(unresolved_src, simplified_target_id)]))
             }
-            (_, TermOld::Unresolved(unresolved_target)) => {
+            (_, Term::Unresolved(unresolved_target)) => {
                 // Substitute source for target
                 Ok(Sub::from_pairs([(unresolved_target, simplified_src_id)]))
             }
 
             // Typeof unifies if the inner terms unify.
-            (TermOld::TyOf(src_inner), TermOld::TyOf(dest_inner)) => {
+            (Term::TyOf(src_inner), Term::TyOf(dest_inner)) => {
                 self.unify_terms(src_inner, dest_inner)
             }
-            (TermOld::TyOf(src_inner), _) => {
+            (Term::TyOf(src_inner), _) => {
                 if let Some(src_scope_var) = self.oracle().term_as_scope_var(src_inner) {
                     // If it is a scope var, try to just forward to its type
                     self.unify_terms(
@@ -394,7 +394,7 @@ impl<'tc> Unifier<'tc> {
                         // target will yield a substitution `unresolved` ->
                         // `Rt(inner)`, so we need to verify that the inner
                         // term is runtime instantiable...
-                        TermOld::Unresolved(inner)
+                        Term::Unresolved(inner)
                             if self
                                 .validator()
                                 .term_is_runtime_instantiable(simplified_target_id)? =>
@@ -406,28 +406,27 @@ impl<'tc> Unifier<'tc> {
                         }
                         // If the inner is not runtime instantiable, it succeeds but with no
                         // substitution.
-                        TermOld::Unresolved(_) => Ok(Sub::empty()),
+                        Term::Unresolved(_) => Ok(Sub::empty()),
 
                         // If it is a double TyOf (no more), then it should be equivalent to Sized
                         //
                         // @@Inconsistent,@@Todo: this is not always valid, but it would be
                         // fixed by having more information in case of
                         // unresolved variables.
-                        TermOld::TyOf(inner) if self.oracle().term_as_ty_of(inner).is_none() => {
-                            self.unify_terms(
+                        Term::TyOf(inner) if self.oracle().term_as_ty_of(inner).is_none() => self
+                            .unify_terms(
                                 self.builder().create_sized_ty_term(),
                                 simplified_target_id,
-                            )
-                        }
+                            ),
                         _ => cannot_unify(),
                     }
                 }
             }
-            (_, TermOld::TyOf(target_inner)) => match self.term_store().get(target_inner) {
+            (_, Term::TyOf(target_inner)) => match self.term_store().get(target_inner) {
                 // When the `target_inner` is an unresolved term, the unification between the target
                 // will yield a substitution `unresolved` -> `Rt(inner)`, so we need to verify
                 // that the inner term is runtime instantiable...
-                TermOld::Unresolved(inner)
+                Term::Unresolved(inner)
                     if self.validator().term_is_runtime_instantiable(simplified_src_id)? =>
                 {
                     let instantiated_source = self.builder().create_rt_term(simplified_src_id);
@@ -435,12 +434,12 @@ impl<'tc> Unifier<'tc> {
                     Ok(Sub::from_pairs([(inner, instantiated_source)]))
                 }
                 // If the inner is not runtime instantiable, it succeeds but with no substitution.
-                TermOld::Unresolved(_) => Ok(Sub::empty()),
+                Term::Unresolved(_) => Ok(Sub::empty()),
                 _ => cannot_unify(),
             },
 
             // Merging:
-            (_, TermOld::Merge(inner_target)) => {
+            (_, Term::Merge(inner_target)) => {
                 // Try to merge source with each individual term in target. If all succeed,
                 // then the whole thing should succeed.
                 let mut subs = Sub::empty();
@@ -457,7 +456,7 @@ impl<'tc> Unifier<'tc> {
                 }
                 Ok(subs)
             }
-            (TermOld::Merge(inner_src), _) => {
+            (Term::Merge(inner_src), _) => {
                 // Try to merge each individual term in source, with target. If any one
                 // succeeds, then the whole thing should succeed.
                 let mut first_error = None;
@@ -477,7 +476,7 @@ impl<'tc> Unifier<'tc> {
             }
 
             // Union:
-            (_, TermOld::Union(inner_target)) => {
+            (_, Term::Union(inner_target)) => {
                 // Try to merge each individual term in source, with target. If any one
                 // succeeds, then the whole thing should succeed.
                 let mut first_error = None;
@@ -494,7 +493,7 @@ impl<'tc> Unifier<'tc> {
                     None => cannot_unify(),
                 }
             }
-            (TermOld::Union(inner_src), _) => {
+            (Term::Union(inner_src), _) => {
                 // Try to merge source with each individual term in target. If all succeed,
                 // then the whole thing should succeed.
                 let mut subs = Sub::empty();
@@ -513,52 +512,50 @@ impl<'tc> Unifier<'tc> {
             }
 
             // Access:
-            (TermOld::Access(src_access), TermOld::Access(target_access))
+            (Term::Access(src_access), Term::Access(target_access))
                 if src_access.name == target_access.name =>
             {
                 // Unify the subjects
                 self.unify_terms(src_access.subject, target_access.subject)
             }
-            (TermOld::Access(_), _) | (_, TermOld::Access(_)) => {
+            (Term::Access(_), _) | (_, Term::Access(_)) => {
                 // Since these cannot be simplified further, we don't know if they can be
                 // unified:
                 cannot_unify()
             }
 
             // Variables:
-            (TermOld::Var(src_var), TermOld::Var(target_var))
-                if src_var.name == target_var.name =>
-            {
+            (Term::Var(src_var), Term::Var(target_var)) if src_var.name == target_var.name => {
                 // Same variables unify
                 Ok(Sub::empty())
             }
-            (TermOld::Var(_), _) | (_, TermOld::Var(_)) => {
+            (Term::Var(_), _) | (_, Term::Var(_)) => {
                 // Different variables do not unify (since they cannot be simplified)
                 cannot_unify()
             }
-            (TermOld::BoundVar(src_var), TermOld::BoundVar(target_var))
+            (Term::BoundVar(src_var), Term::BoundVar(target_var))
                 if src_var.name == target_var.name =>
             {
                 // Same bound variables unify
                 Ok(Sub::empty())
             }
-            (TermOld::BoundVar(_), _) | (_, TermOld::BoundVar(_)) => {
+            (Term::BoundVar(_), _) | (_, Term::BoundVar(_)) => {
                 // Different bound variables do not unify (since they cannot be simplified)
                 cannot_unify()
             }
-            (TermOld::ScopeVar(src_var), TermOld::ScopeVar(target_var))
+            (Term::ScopeVar(src_var), Term::ScopeVar(target_var))
                 if (src_var.scope, src_var.index) == (target_var.scope, target_var.index) =>
             {
                 // Same scope variables unify (i.e. same member, not necessarily same name)
                 Ok(Sub::empty())
             }
-            (TermOld::ScopeVar(_), _) | (_, TermOld::ScopeVar(_)) => {
+            (Term::ScopeVar(_), _) | (_, Term::ScopeVar(_)) => {
                 // Different scope variables do not unify
                 cannot_unify()
             }
 
             // Apply substitution:
-            (TermOld::SetBound(src_set_bound), TermOld::SetBound(target_set_bound))
+            (Term::SetBound(src_set_bound), Term::SetBound(target_set_bound))
                 if self.set_bound_scopes_are_equivalent(
                     src_set_bound.scope,
                     target_set_bound.scope,
@@ -583,13 +580,13 @@ impl<'tc> Unifier<'tc> {
                 }
                 Ok(sub)
             }
-            (TermOld::SetBound(_), _) | (_, TermOld::SetBound(_)) => {
+            (Term::SetBound(_), _) | (_, Term::SetBound(_)) => {
                 // Otherwise they don't unify (since we start with simplified terms)
                 cannot_unify()
             }
 
             // Type functions:
-            (TermOld::TyFn(_), _) | (_, TermOld::TyFn(_)) => {
+            (Term::TyFn(_), _) | (_, Term::TyFn(_)) => {
                 // For now, type functions never unify, because unifying them would require a
                 // lot of work to match each of the cases.
                 //  @@Enhancement: in principle this is possible, though unclear if useful.
@@ -597,7 +594,7 @@ impl<'tc> Unifier<'tc> {
             }
 
             // Type function application:
-            (TermOld::TyFnCall(src_app_ty_fn), TermOld::TyFnCall(target_app_ty_fn)) => {
+            (Term::TyFnCall(src_app_ty_fn), Term::TyFnCall(target_app_ty_fn)) => {
                 // This case would be hit if the subject is a variable, for example.
 
                 // Unify the subjects to ensure they are compatible:
@@ -614,7 +611,7 @@ impl<'tc> Unifier<'tc> {
                 let reader = self.reader();
                 let subject_ty = reader.get_term(subject_ty_id);
                 match subject_ty {
-                    TermOld::TyFnTy(_) => {
+                    Term::TyFnTy(_) => {
                         // Match the two args:
                         let sub = self.unify_args(
                             src_app_ty_fn.args,
@@ -629,13 +626,13 @@ impl<'tc> Unifier<'tc> {
                     _ => Err(TcError::UnsupportedTyFnApplication { subject_id: subject }),
                 }
             }
-            (TermOld::TyFnCall(_), _) | (_, TermOld::TyFnCall(_)) => {
+            (Term::TyFnCall(_), _) | (_, Term::TyFnCall(_)) => {
                 // Any other type function application (asymmetric) doesn't unify
                 cannot_unify()
             }
 
             // Type function type:
-            (TermOld::TyFnTy(src_ty_fn_ty), TermOld::TyFnTy(target_ty_fn_ty)) => {
+            (Term::TyFnTy(src_ty_fn_ty), Term::TyFnTy(target_ty_fn_ty)) => {
                 // Unify params and return:
 
                 // Params need to be unified inversely.
@@ -653,22 +650,22 @@ impl<'tc> Unifier<'tc> {
                 // Merge the subs
                 self.unify_subs(&params_sub, &return_sub)
             }
-            (TermOld::TyFnTy(_), _) | (_, TermOld::TyFnTy(_)) => cannot_unify(),
+            (Term::TyFnTy(_), _) | (_, Term::TyFnTy(_)) => cannot_unify(),
 
             // Level 3 terms:
-            (TermOld::Level3(src_level3_term), TermOld::Level3(target_level3_term)) => {
+            (Term::Level3(src_level3_term), Term::Level3(target_level3_term)) => {
                 match (src_level3_term, target_level3_term) {
                     // "TraitKind" always unifies:
                     (Level3Term::TrtKind, Level3Term::TrtKind) => Ok(Sub::empty()),
                 }
             }
-            (TermOld::Level3(_), _) | (_, TermOld::Level3(_)) => {
+            (Term::Level3(_), _) | (_, Term::Level3(_)) => {
                 // Mismatching level:
                 cannot_unify()
             }
 
             // Level 2 terms:
-            (TermOld::Level2(src_level2_term), TermOld::Level2(target_level2_term)) => {
+            (Term::Level2(src_level2_term), Term::Level2(target_level2_term)) => {
                 match (src_level2_term, target_level2_term) {
                     // Traits only unify if the IDs are the same:
                     (Level2Term::Trt(src_id), Level2Term::Trt(target_id)) => {
@@ -688,13 +685,13 @@ impl<'tc> Unifier<'tc> {
                     | (Level2Term::SizedTy, Level2Term::Trt(_)) => cannot_unify(),
                 }
             }
-            (TermOld::Level2(_), _) | (_, TermOld::Level2(_)) => {
+            (Term::Level2(_), _) | (_, Term::Level2(_)) => {
                 // Mismatching level:
                 cannot_unify()
             }
 
             // Level 1 terms:
-            (TermOld::Level1(src_level1_term), TermOld::Level1(target_level1_term)) => {
+            (Term::Level1(src_level1_term), Term::Level1(target_level1_term)) => {
                 match (src_level1_term, target_level1_term) {
                     // Mod defs only unify if their IDs are the same
                     (Level1Term::ModDef(src_id), Level1Term::ModDef(target_id)) => {
@@ -735,13 +732,13 @@ impl<'tc> Unifier<'tc> {
                     _ => cannot_unify(),
                 }
             }
-            (TermOld::Level1(_), _) | (_, TermOld::Level1(_)) => {
+            (Term::Level1(_), _) | (_, Term::Level1(_)) => {
                 // Mismatching level:
                 cannot_unify()
             }
 
             // Level 0 terms:
-            (TermOld::Level0(src_level0_term), TermOld::Level0(target_level0_term)) => {
+            (Term::Level0(src_level0_term), Term::Level0(target_level0_term)) => {
                 match (src_level0_term, target_level0_term) {
                     (
                         Level0Term::EnumVariant(src_enum_variant),
@@ -812,8 +809,8 @@ impl<'tc> Unifier<'tc> {
             }
 
             // Root unifies with root and nothing else:
-            (TermOld::Root, TermOld::Root) => Ok(Sub::empty()),
-            (_, TermOld::Root) | (TermOld::Root, _) => cannot_unify(),
+            (Term::Root, Term::Root) => Ok(Sub::empty()),
+            (_, Term::Root) | (Term::Root, _) => cannot_unify(),
         }?;
 
         self.cacher().add_unification_entry((src_id, target_id), &sub);

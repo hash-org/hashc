@@ -5,7 +5,7 @@ use hash_utils::{
     store::{DefaultSequenceStore, DefaultStore},
 };
 
-use crate::{
+use crate::new::{
     defs::{DefArgsId, DefParamsId},
     symbols::Symbol,
 };

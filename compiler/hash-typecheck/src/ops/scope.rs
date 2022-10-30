@@ -3,7 +3,7 @@
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::identifier::Identifier;
 use hash_types::{
-    arguments::ArgsIdOld,
+    args::ArgsId,
     location::LocationTarget,
     params::ParamsId,
     scope::{BoundVar, Member, Mutability, ScopeId, ScopeKind, ScopeMember, ScopeVar},
@@ -164,7 +164,7 @@ impl<'tc> ScopeManager<'tc> {
     pub(crate) fn make_set_bound_scope(
         &self,
         params_id: ParamsId,
-        args_id: ArgsIdOld,
+        args_id: ArgsId,
         params_subject: TermId,
         args_subject: TermId,
     ) -> ScopeId {

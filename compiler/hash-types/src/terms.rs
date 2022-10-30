@@ -19,23 +19,13 @@ use hash_utils::{
 use num_bigint::BigInt;
 
 use crate::{
-    arguments::ArgsIdOld,
-    control_flow::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
-    data::{CtorTerm, DataDefId},
+    args::ArgsId,
     fmt::{fmt_as_single, ForFormatting, PrepareForFormatting},
-    fns::{FnCallTerm, FnDefId},
-    mods::{ModDefId, ModDefIdOld},
+    mods::ModDefId,
     nominals::{EnumVariantValue, NominalDefId},
     params::{AccessOp, Field, ParamsId},
-    refs::{DerefTerm, RefTerm},
-    scope::{
-        AccessTerm, AssignTerm, BlockTerm, BoundVar, DeclStackMemberTerm, ScopeVar, SetBound, Var,
-    },
-    trts::{TrtDefId, TrtDefIdOld},
-    tuples::TupleTerm,
-    types::TyId,
-    unions::UnionTerm,
-    vars::{ResolvedVarTerm, SymbolicVarTerm},
+    scope::{BoundVar, ScopeVar, SetBound, Var},
+    trts::TrtDefId,
 };
 
 /// A tuple type, containing parameters as members.
@@ -191,7 +181,7 @@ pub struct UnresolvedTerm {
 #[derive(Debug, Clone)]
 pub struct TyFnCall {
     pub subject: TermId,
-    pub args: ArgsIdOld,
+    pub args: ArgsId,
 }
 
 /// The type of a type function, for example:
@@ -220,7 +210,7 @@ new_store_key!(pub TermId);
 /// terms are accessed by an ID, of type [TermId].
 #[derive(Debug, Default)]
 pub struct TermStore {
-    data: DefaultStore<TermId, TermOld>,
+    data: DefaultStore<TermId, Term>,
     /// Keeps track of the last ID used for unresolved terms.
     /// This will be incremented every time a [Term::Unresolved] is created.
     ///
@@ -231,8 +221,8 @@ pub struct TermStore {
     last_resolution_id: Cell<usize>,
 }
 
-impl Store<TermId, TermOld> for TermStore {
-    fn internal_data(&self) -> &std::cell::RefCell<Vec<TermOld>> {
+impl Store<TermId, Term> for TermStore {
+    fn internal_data(&self) -> &std::cell::RefCell<Vec<Term>> {
         self.data.internal_data()
     }
 }
@@ -259,7 +249,7 @@ impl TermStore {
 ///
 /// Has level N where N is the level of the Y property of X.
 #[derive(Debug, Clone, Copy)]
-pub struct AccessTermOld {
+pub struct AccessTerm {
     pub subject: TermId,
     pub name: Field,
     pub op: AccessOp,
@@ -320,7 +310,7 @@ pub enum Level3Term {
 pub enum Level2Term {
     // ---- Level 2 ---- the term that is a return term of trait(..)
     /// A trait term.
-    Trt(TrtDefIdOld),
+    Trt(TrtDefId),
     /// A type that is runtime instantiable, i.e. sized.
     SizedTy,
     /// Basically a trait term that all types implement, i.e. the trait that is
@@ -342,7 +332,7 @@ pub enum Level1Term {
     ///
     /// Information about the origin of each module definition can be found in
     /// its corresponding [ModDef] struct.
-    ModDef(ModDefIdOld),
+    ModDef(ModDefId),
 
     /// A nominal type definition, either a struct or an enum.
     NominalDef(NominalDefId),
@@ -360,7 +350,7 @@ pub enum Level1Term {
 #[derive(Debug, Clone, Copy)]
 pub struct FnCall {
     pub subject: TermId,
-    pub args: ArgsIdOld,
+    pub args: ArgsId,
 }
 
 /// Represents a function literal, with a function type, as well as a return
@@ -380,7 +370,7 @@ pub struct FnLit {
 /// A tuple literal, containing arguments as members.
 #[derive(Debug, Clone, Copy)]
 pub struct TupleLit {
-    pub members: ArgsIdOld,
+    pub members: ArgsId,
 }
 
 /// A constructed term represents a constructed value that is some constructed
@@ -390,7 +380,7 @@ pub struct ConstructedTerm {
     /// The term of the subject within the constructed term
     pub subject: TermId,
     /// The constructor arguments
-    pub members: ArgsIdOld,
+    pub members: ArgsId,
 }
 
 /// A level 0 term.
@@ -437,10 +427,10 @@ impl From<UnresolvedTerm> for SubVar {
     }
 }
 
-impl From<SubVar> for TermOld {
+impl From<SubVar> for Term {
     fn from(subject: SubVar) -> Self {
         match subject {
-            SubVar::Unresolved(unresolved) => TermOld::Unresolved(unresolved),
+            SubVar::Unresolved(unresolved) => Term::Unresolved(unresolved),
         }
     }
 }
@@ -528,12 +518,12 @@ pub struct AppSub {
 
 /// The basic data structure of a compile-time term.
 #[derive(Debug, Clone)]
-pub enum TermOld {
+pub enum Term {
     // ---- Derived ----
     /// Access a member of a term.
     ///
     /// Is level N, where N is the level of the resultant access.
-    Access(AccessTermOld),
+    Access(AccessTerm),
 
     /// A variable, referencing either a scope variable or a bound variable.
     ///
@@ -617,7 +607,7 @@ pub enum TermOld {
     Root,
 }
 
-impl TermOld {
+impl Term {
     /// Compute the level of the term. This is a primitive computation
     /// and does not attempt to compute the true level of the [Term]
     /// by looking at the inner children of the [Term].
@@ -625,23 +615,23 @@ impl TermOld {
         // @@Todo(feds01): implement the other variants by recursing into them.
         // This should be done on a struct with access to storage
         match self {
-            TermOld::Access(_)
-            | TermOld::Var(_)
-            | TermOld::Merge(_)
-            | TermOld::TyFn(_)
-            | TermOld::TyOf(_)
-            | TermOld::Union(_)
-            | TermOld::SetBound(_)
-            | TermOld::ScopeVar(_)
-            | TermOld::BoundVar(_)
-            | TermOld::TyFnTy(_)
-            | TermOld::TyFnCall(_) => TermLevel::Unknown,
-            TermOld::Unresolved(_) => TermLevel::Unknown,
-            TermOld::Root => TermLevel::Level4,
-            TermOld::Level3(_) => TermLevel::Level3,
-            TermOld::Level2(_) => TermLevel::Level2,
-            TermOld::Level1(_) => TermLevel::Level1,
-            TermOld::Level0(_) => TermLevel::Level0,
+            Term::Access(_)
+            | Term::Var(_)
+            | Term::Merge(_)
+            | Term::TyFn(_)
+            | Term::TyOf(_)
+            | Term::Union(_)
+            | Term::SetBound(_)
+            | Term::ScopeVar(_)
+            | Term::BoundVar(_)
+            | Term::TyFnTy(_)
+            | Term::TyFnCall(_) => TermLevel::Unknown,
+            Term::Unresolved(_) => TermLevel::Unknown,
+            Term::Root => TermLevel::Level4,
+            Term::Level3(_) => TermLevel::Level3,
+            Term::Level2(_) => TermLevel::Level2,
+            Term::Level1(_) => TermLevel::Level1,
+            Term::Level0(_) => TermLevel::Level0,
         }
     }
 }
@@ -848,7 +838,7 @@ impl fmt::Display for ForFormatting<'_, &Level3Term> {
 impl fmt::Display for ForFormatting<'_, TermId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.global_storage.term_store.get(self.t) {
-            TermOld::Access(access_term) => {
+            Term::Access(access_term) => {
                 access_term.subject.for_formatting(self.global_storage).fmt(f)?;
 
                 let op = match access_term.op {
@@ -858,22 +848,22 @@ impl fmt::Display for ForFormatting<'_, TermId> {
                 write!(f, "{op}{}", access_term.name)?;
                 Ok(())
             }
-            TermOld::Var(Var { name })
-            | TermOld::BoundVar(BoundVar { name })
-            | TermOld::ScopeVar(ScopeVar { name, .. }) => {
+            Term::Var(Var { name })
+            | Term::BoundVar(BoundVar { name })
+            | Term::ScopeVar(ScopeVar { name, .. }) => {
                 write!(f, "{name}")
             }
-            TermOld::Merge(terms) => {
+            Term::Merge(terms) => {
                 ("~", terms).for_formatting_with_opts(self.global_storage, self.opts).fmt(f)
             }
-            TermOld::Union(terms) => {
+            Term::Union(terms) => {
                 if terms.is_empty() {
                     write!(f, "never")
                 } else {
                     ("|", terms).for_formatting_with_opts(self.global_storage, self.opts).fmt(f)
                 }
             }
-            TermOld::TyFn(ty_fn) => {
+            Term::TyFn(ty_fn) => {
                 match ty_fn.name {
                     Some(name) if !self.opts.expand => {
                         write!(f, "{name}")?;
@@ -904,7 +894,7 @@ impl fmt::Display for ForFormatting<'_, TermId> {
                     }
                 }
             }
-            TermOld::TyFnTy(ty_fn_ty) => {
+            Term::TyFnTy(ty_fn_ty) => {
                 write!(f, "<")?;
                 ty_fn_ty.params.for_formatting_with_opts(self.global_storage, self.opts).fmt(f)?;
                 write!(f, "> -> ")?;
@@ -914,7 +904,7 @@ impl fmt::Display for ForFormatting<'_, TermId> {
                     .fmt(f)?;
                 Ok(())
             }
-            TermOld::TyFnCall(app_ty_fn) => {
+            Term::TyFnCall(app_ty_fn) => {
                 write!(
                     f,
                     "{}<{}>",
@@ -923,10 +913,10 @@ impl fmt::Display for ForFormatting<'_, TermId> {
                 )?;
                 Ok(())
             }
-            TermOld::Unresolved(unresolved_term) => {
+            Term::Unresolved(unresolved_term) => {
                 unresolved_term.for_formatting_with_opts(self.global_storage, self.opts).fmt(f)
             }
-            TermOld::SetBound(set_bound) => {
+            Term::SetBound(set_bound) => {
                 write!(f, "({})", set_bound.term.for_formatting(self.global_storage))?;
 
                 self.global_storage.scope_store.map_fast(set_bound.scope, |scope| {
@@ -947,22 +937,22 @@ impl fmt::Display for ForFormatting<'_, TermId> {
                     Ok(())
                 })
             }
-            TermOld::Level3(term) => {
+            Term::Level3(term) => {
                 term.for_formatting_with_opts(self.global_storage, self.opts).fmt(f)
             }
-            TermOld::Level2(term) => {
+            Term::Level2(term) => {
                 term.for_formatting_with_opts(self.global_storage, self.opts).fmt(f)
             }
-            TermOld::Level1(term) => {
+            Term::Level1(term) => {
                 term.for_formatting_with_opts(self.global_storage, self.opts).fmt(f)
             }
-            TermOld::Level0(term) => {
+            Term::Level0(term) => {
                 term.for_formatting_with_opts(self.global_storage, self.opts).fmt(f)
             }
-            TermOld::Root => {
+            Term::Root => {
                 write!(f, "Root")
             }
-            TermOld::TyOf(term) => {
+            Term::TyOf(term) => {
                 write!(
                     f,
                     "typeof({})",
@@ -994,88 +984,4 @@ impl fmt::Display for ForFormatting<'_, (&'static str, TermListId)> {
 
         Ok(())
     }
-}
-
-// -- NEW --
-
-/// A term that can contain unsafe operations.
-#[derive(Debug, Clone, Copy)]
-pub struct UnsafeTerm {
-    pub inner: TermId,
-}
-
-/// Cast a given term to a given type.
-#[derive(Debug, Clone, Copy)]
-pub struct CastTerm {
-    pub subject: TermId,
-    pub ty: TyId,
-}
-
-/// Infer the type of the given term, returning its type.
-#[derive(Debug, Clone, Copy)]
-pub struct TypeOfTerm {
-    pub term: TermId,
-}
-
-/// A term whose value is only known at runtime.
-#[derive(Debug, Clone, Copy)]
-pub struct RuntimeTerm {
-    pub term_ty: TyId,
-}
-
-/// A term in a Hash program.
-///
-/// This is a narrowed down version of the AST whose structure is more suitable
-/// for typechecking and compile-time evaluation.
-///
-/// Some terms have their own IDs, such as traits, modules, datatypes,
-/// constructors, etc. This is because they might have extra data attached to
-/// them; for example, function definitions might have AST node IDs attached to
-/// them through some secondary map.
-#[derive(Debug, Clone, Copy)]
-pub enum Term {
-    // Primitives
-    Ty(TyId),
-    Cast(CastTerm),
-    Runtime(RuntimeTerm),
-    Union(UnionTerm),
-    Tuple(TupleTerm),
-    TypeOfTerm(TypeOfTerm),
-
-    // Functions
-    FnCall(FnCallTerm),
-    FnDef(FnDefId),
-
-    // Scopes
-    Access(AccessTerm),
-    Block(BlockTerm),
-
-    // Definitions
-    TrtDef(TrtDefId),
-    DataDef(DataDefId),
-    ModDef(ModDefId),
-    Ctor(CtorTerm),
-
-    // Variables
-    SymbolicVar(SymbolicVarTerm),
-    ResolvedVar(ResolvedVarTerm),
-
-    // Loops
-    Loop(LoopTerm),
-    LoopControl(LoopControlTerm),
-
-    // Control flow
-    Match(MatchTerm),
-    Return(ReturnTerm),
-
-    // Declarations and assignments
-    DeclStackMember(DeclStackMemberTerm),
-    Assign(AssignTerm),
-
-    // Unsafe
-    Unsafe(UnsafeTerm),
-
-    // References
-    Ref(RefTerm),
-    Deref(DerefTerm),
 }

@@ -1,6 +1,6 @@
 //! Definitions related to reference types.
 
-use crate::{terms::TermId, types::TyId};
+use crate::new::{terms::TermId, types::TyId};
 
 /// The kind of a reference.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -9,17 +9,17 @@ use hash_source::SourceId;
 use hash_utils::store::Store;
 
 use crate::{
-    arguments::ArgsStoreOld,
+    args::ArgsStore,
     bootstrap::create_core_defs_in,
     location::LocationStore,
-    mods::ModDefStoreOld,
+    mods::ModDefStore,
     nodes::NodeInfoStore,
     nominals::NominalDefStore,
     params::ParamsStore,
     pats::{PatArgsStore, PatStore},
     scope::{Scope, ScopeId, ScopeKind, ScopeStack, ScopeStore},
     terms::{TermListStore, TermStore},
-    trts::TrtDefStoreOld,
+    trts::TrtDefStore,
 };
 
 /// Keeps track of typechecking information across all source files.
@@ -43,13 +43,13 @@ pub struct GlobalStorage {
 
     /// Store for function calls, tuple, struct, enum and other constructs that
     /// hold arguments.
-    pub args_store: ArgsStoreOld,
+    pub args_store: ArgsStore,
 
     /// Store for trait definitions
-    pub trt_def_store: TrtDefStoreOld,
+    pub trt_def_store: TrtDefStore,
 
     /// Store for module definitions
-    pub mod_def_store: ModDefStoreOld,
+    pub mod_def_store: ModDefStore,
 
     /// Nominal definition store
     pub nominal_def_store: NominalDefStore,
@@ -83,14 +83,14 @@ impl GlobalStorage {
             term_list_store: TermListStore::new(),
             node_info_store: NodeInfoStore::new(),
             scope_store,
-            trt_def_store: TrtDefStoreOld::new(),
-            mod_def_store: ModDefStoreOld::new(),
+            trt_def_store: TrtDefStore::new(),
+            mod_def_store: ModDefStore::new(),
             nominal_def_store: NominalDefStore::new(),
             pat_store: PatStore::new(),
             pat_args_store: PatArgsStore::new(),
             root_scope,
             params_store: ParamsStore::new(),
-            args_store: ArgsStoreOld::new(),
+            args_store: ArgsStore::new(),
         };
         create_core_defs_in(&gs);
         gs

@@ -1,6 +1,6 @@
 use hash_utils::{new_store_key, store::DefaultStore};
 
-use crate::{
+use crate::new::{
     data::DataTy, fns::FnTy, refs::RefTy, terms::TermId, trts::TrtBoundsId, tuples::TupleTy,
     unions::UnionTy,
 };

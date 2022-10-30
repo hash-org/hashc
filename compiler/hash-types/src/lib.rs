@@ -5,27 +5,17 @@
 
 pub(crate) mod bootstrap;
 
-pub mod arguments;
+pub mod args;
 pub mod builder;
-pub mod control_flow;
-pub mod data;
-pub mod defs;
 pub mod fmt;
-pub mod fns;
-pub mod hole;
 pub mod location;
 pub mod mods;
+pub mod new;
 pub mod nodes;
 pub mod nominals;
 pub mod params;
 pub mod pats;
-pub mod refs;
 pub mod scope;
 pub mod storage;
-pub mod symbols;
 pub mod terms;
 pub mod trts;
-pub mod tuples;
-pub mod types;
-pub mod unions;
-pub mod vars;

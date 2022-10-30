@@ -6,7 +6,7 @@
 use hash_ast::ast::{IntTy, RangeEnd};
 use hash_types::{
     nominals::NominalDef,
-    terms::{Level1Term, TermOld},
+    terms::{Level1Term, Term},
 };
 use hash_utils::store::Store;
 use smallvec::{smallvec, SmallVec};
@@ -143,7 +143,7 @@ impl<'tc> SplitWildcardOps<'tc> {
                     smallvec![DeconstructedCtor::NonExhaustive]
                 }
                 ty => match reader.get_term(ty) {
-                    TermOld::Level1(Level1Term::NominalDef(def)) => {
+                    Term::Level1(Level1Term::NominalDef(def)) => {
                         match reader.get_nominal_def(def) {
                             NominalDef::Struct(_) => smallvec![DeconstructedCtor::Single],
                             NominalDef::Enum(enum_def) => {
@@ -171,7 +171,7 @@ impl<'tc> SplitWildcardOps<'tc> {
                             }
                         }
                     }
-                    TermOld::Level1(Level1Term::Tuple(_)) => smallvec![DeconstructedCtor::Single],
+                    Term::Level1(Level1Term::Tuple(_)) => smallvec![DeconstructedCtor::Single],
                     _ => smallvec![DeconstructedCtor::NonExhaustive],
                 },
             }

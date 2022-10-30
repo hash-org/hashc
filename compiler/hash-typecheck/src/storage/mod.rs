@@ -14,10 +14,10 @@ pub mod sources;
 
 use hash_source::SourceMap;
 use hash_types::{
-    arguments::ArgsStoreOld,
+    args::ArgsStore,
     fmt::{ForFormatting, PrepareForFormatting},
     location::LocationStore,
-    mods::ModDefStoreOld,
+    mods::ModDefStore,
     nodes::NodeInfoStore,
     nominals::NominalDefStore,
     params::ParamsStore,
@@ -25,7 +25,7 @@ use hash_types::{
     scope::{ScopeId, ScopeStack, ScopeStore},
     storage::{GlobalStorage, LocalStorage},
     terms::{TermListStore, TermStore},
-    trts::TrtDefStoreOld,
+    trts::TrtDefStore,
 };
 
 use self::{
@@ -107,11 +107,11 @@ pub trait AccessToStorage {
         &self.global_storage().nominal_def_store
     }
 
-    fn trt_def_store(&self) -> &TrtDefStoreOld {
+    fn trt_def_store(&self) -> &TrtDefStore {
         &self.global_storage().trt_def_store
     }
 
-    fn args_store(&self) -> &ArgsStoreOld {
+    fn args_store(&self) -> &ArgsStore {
         &self.global_storage().args_store
     }
 
@@ -119,7 +119,7 @@ pub trait AccessToStorage {
         &self.global_storage().params_store
     }
 
-    fn mod_def_store(&self) -> &ModDefStoreOld {
+    fn mod_def_store(&self) -> &ModDefStore {
         &self.global_storage().mod_def_store
     }
 

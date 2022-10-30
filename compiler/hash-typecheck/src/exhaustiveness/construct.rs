@@ -32,7 +32,7 @@ use hash_source::{
 };
 use hash_types::{
     nominals::{NominalDef, StructFields},
-    terms::{Level1Term, TermOld, TupleTy},
+    terms::{Level1Term, Term, TupleTy},
 };
 use hash_utils::store::{CloneStore, Store};
 use smallvec::{smallvec, SmallVec};
@@ -137,10 +137,10 @@ impl<'tc> ConstructorOps<'tc> {
                 let reader = self.reader();
 
                 match reader.get_term(ctx.ty) {
-                    TermOld::Level1(Level1Term::Tuple(TupleTy { members })) => {
+                    Term::Level1(Level1Term::Tuple(TupleTy { members })) => {
                         reader.get_params_owned(members).len()
                     }
-                    TermOld::Level1(Level1Term::NominalDef(def)) => {
+                    Term::Level1(Level1Term::NominalDef(def)) => {
                         match reader.get_nominal_def(def) {
                             NominalDef::Struct(struct_def) => match struct_def.fields {
                                 StructFields::Explicit(params) => {

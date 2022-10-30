@@ -18,9 +18,9 @@ use hash_source::{
     ModuleKind, SourceId,
 };
 use hash_types::{
-    arguments::ArgOld,
+    args::Arg,
     location::{IndexedLocationTarget, LocationTarget},
-    mods::ModDefOriginOld,
+    mods::ModDefOrigin,
     nodes::NodeInfoTarget,
     nominals::NominalDefId,
     params::{AccessOp, Field, Param},
@@ -294,7 +294,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         Ok(term)
     }
 
-    type TupleLitEntryRet = ArgOld;
+    type TupleLitEntryRet = Arg;
 
     fn visit_tuple_lit_entry(
         &self,
@@ -311,7 +311,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let ty_sub = self.unifier().unify_terms(value_ty, ty_or_unresolved)?;
         let value = self.substituter().apply_sub_to_term(&ty_sub, value);
 
-        Ok(ArgOld { name, value })
+        Ok(Arg { name, value })
     }
 
     type TupleLitRet = TermId;
@@ -456,14 +456,14 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         Ok(subject)
     }
 
-    type ConstructorCallArgRet = ArgOld;
+    type ConstructorCallArgRet = Arg;
 
     fn visit_constructor_call_arg(
         &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ConstructorCallArg>,
     ) -> Result<Self::ConstructorCallArgRet, Self::Error> {
         let walk::ConstructorCallArg { name, value } = walk::walk_constructor_call_arg(self, node)?;
-        Ok(ArgOld { name, value })
+        Ok(Arg { name, value })
     }
 
     type ConstructorCallExprRet = TermId;
@@ -868,7 +868,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         // These should be converted to args
         let args = self.builder().create_args(
-            args.iter().map(|param_arg| ArgOld { name: param_arg.name, value: param_arg.ty }),
+            args.iter().map(|param_arg| Arg { name: param_arg.name, value: param_arg.ty }),
             ParamOrigin::TyFn,
         );
 
@@ -1242,7 +1242,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
             self.visit_constant_scope(node.block.members(), None, ScopeKind::Mod)?;
 
         // @@Todo: bound variables
-        let mod_def = self.builder().create_mod_def(scope_name, ModDefOriginOld::Mod, scope_id);
+        let mod_def = self.builder().create_mod_def(scope_name, ModDefOrigin::Mod, scope_id);
         let term = self.builder().create_mod_def_term(mod_def);
 
         // Validate the definition
@@ -1264,8 +1264,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
             self.visit_constant_scope(node.block.members(), None, ScopeKind::Impl)?;
 
         // @@Todo: bound variables
-        let mod_def =
-            self.builder().create_mod_def(scope_name, ModDefOriginOld::AnonImpl, scope_id);
+        let mod_def = self.builder().create_mod_def(scope_name, ModDefOrigin::AnonImpl, scope_id);
         let term = self.builder().create_mod_def_term(mod_def);
 
         // Validate the definition
@@ -1807,7 +1806,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         // @@Todo: bound variables
         let mod_def =
-            self.builder().create_mod_def(scope_name, ModDefOriginOld::TrtImpl(trt_term), scope_id);
+            self.builder().create_mod_def(scope_name, ModDefOrigin::TrtImpl(trt_term), scope_id);
         let term = self.builder().create_mod_def_term(mod_def);
 
         // Validate the definition
@@ -2094,8 +2093,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let VisitConstantScope { scope_id, .. } =
             self.visit_constant_scope(node.contents.ast_ref_iter(), Some(members), ScopeKind::Mod)?;
 
-        let mod_def =
-            self.builder().create_named_mod_def(name, ModDefOriginOld::Source(id), scope_id);
+        let mod_def = self.builder().create_named_mod_def(name, ModDefOrigin::Source(id), scope_id);
 
         let term = self.builder().create_mod_def_term(mod_def);
         self.copy_location_from_node_to_target(node, term);

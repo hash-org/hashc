@@ -9,7 +9,7 @@ use hash_source::location::{SourceLocation, Span};
 use hash_utils::store::{DefaultPartialStore, PartialStore};
 
 use crate::{
-    arguments::ArgsIdOld,
+    args::ArgsId,
     params::ParamsId,
     pats::{PatArgsId, PatId},
     scope::ScopeId,
@@ -26,7 +26,7 @@ pub enum LocationTarget {
     Param(ParamsId, usize),
     /// A argument key includes the parent [ArgsId] and an index to which
     /// argument
-    Arg(ArgsIdOld, usize),
+    Arg(ArgsId, usize),
     /// A declaration key includes the parent [ScopeId] and an index to which
     /// declaration
     Declaration(ScopeId, usize),
@@ -66,8 +66,8 @@ impl From<(ParamsId, usize)> for LocationTarget {
     }
 }
 
-impl From<(ArgsIdOld, usize)> for LocationTarget {
-    fn from((id, index): (ArgsIdOld, usize)) -> Self {
+impl From<(ArgsId, usize)> for LocationTarget {
+    fn from((id, index): (ArgsId, usize)) -> Self {
         Self::Arg(id, index)
     }
 }
@@ -94,7 +94,7 @@ impl From<SourceLocation> for LocationTarget {
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum IndexedLocationTarget {
     Params(ParamsId),
-    Args(ArgsIdOld),
+    Args(ArgsId),
     Scope(ScopeId),
     PatArgs(PatArgsId),
 }
@@ -105,8 +105,8 @@ impl From<ParamsId> for IndexedLocationTarget {
     }
 }
 
-impl From<ArgsIdOld> for IndexedLocationTarget {
-    fn from(id: ArgsIdOld) -> Self {
+impl From<ArgsId> for IndexedLocationTarget {
+    fn from(id: ArgsId) -> Self {
         IndexedLocationTarget::Args(id)
     }
 }
@@ -155,7 +155,7 @@ pub struct LocationStore {
     param_map: DefaultPartialStore<ParamsId, Rc<RefCell<HashMap<usize, SourceLocation>>>>,
     /// A map between [ArgsId] and all of the [SourceLocation]s indexed by the
     /// inner offset.
-    arg_map: DefaultPartialStore<ArgsIdOld, Rc<RefCell<HashMap<usize, SourceLocation>>>>,
+    arg_map: DefaultPartialStore<ArgsId, Rc<RefCell<HashMap<usize, SourceLocation>>>>,
     /// A map between [ScopeId] and all of the [SourceLocation]s indexed by the
     /// inner offset.
     declaration_map: DefaultPartialStore<ScopeId, Rc<RefCell<HashMap<usize, SourceLocation>>>>,

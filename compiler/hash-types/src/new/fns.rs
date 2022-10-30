@@ -1,6 +1,7 @@
+///! Contains definitions related to functions.
 use hash_utils::{new_store_key, store::DefaultStore};
 
-use crate::{arguments::ArgsIdOld, params::ParamsId, symbols::Symbol, terms::TermId, types::TyId};
+use crate::new::{args::ArgsId, params::ParamsId, symbols::Symbol, terms::TermId, types::TyId};
 
 /// A function type.
 #[derive(Debug, Clone, Copy)]
@@ -30,8 +31,8 @@ pub type FnDefStore = DefaultStore<FnDefId, FnDef>;
 /// A function call.
 #[derive(Debug, Clone, Copy)]
 pub struct FnCallTerm {
-    pub subject: TermId,
-    pub args: ArgsIdOld,
-    /// The parameters of the function subject, if known.
-    pub params: Option<ParamsId>,
+    /// The function being called
+    pub subject: FnDefId,
+    // The arguments to the function, sorted by the parameters of the function
+    pub args: ArgsId,
 }

@@ -2,14 +2,14 @@
 //! ease.
 
 use hash_types::{
-    arguments::{ArgsIdOld, ArgsOld},
-    mods::{ModDefIdOld, ModDefOld},
+    args::{Args, ArgsId},
+    mods::{ModDef, ModDefId},
     nominals::{NominalDef, NominalDefId},
     params::{Params, ParamsId},
     pats::{Pat, PatArgs, PatArgsId, PatId},
     scope::{Scope, ScopeId},
-    terms::{TermId, TermListId, TermOld},
-    trts::{TrtDefIdOld, TrtDefOld},
+    terms::{Term, TermId, TermListId},
+    trts::{TrtDef, TrtDefId},
 };
 use hash_utils::store::{CloneStore, SequenceStore, Store};
 
@@ -39,7 +39,7 @@ impl<'tc> PrimitiveReader<'tc> {
     }
 
     /// Get the term with the given [TermId].
-    pub fn get_term(&self, id: TermId) -> TermOld {
+    pub fn get_term(&self, id: TermId) -> Term {
         self.term_store().get(id)
     }
 
@@ -49,7 +49,7 @@ impl<'tc> PrimitiveReader<'tc> {
     }
 
     /// Get the module definition with the given [ModDefId].
-    pub fn get_mod_def(&self, id: ModDefIdOld) -> ModDefOld {
+    pub fn get_mod_def(&self, id: ModDefId) -> ModDef {
         self.mod_def_store().get(id)
     }
 
@@ -59,7 +59,7 @@ impl<'tc> PrimitiveReader<'tc> {
     }
 
     /// Get the trait definition with the given [TrtDefId].
-    pub fn get_trt_def(&self, id: TrtDefIdOld) -> TrtDefOld {
+    pub fn get_trt_def(&self, id: TrtDefId) -> TrtDef {
         self.trt_def_store().get(id)
     }
 
@@ -69,7 +69,7 @@ impl<'tc> PrimitiveReader<'tc> {
     }
 
     /// Get the args with the given [ArgsId].
-    pub fn get_args_owned(&self, id: ArgsIdOld) -> ArgsOld<'static> {
+    pub fn get_args_owned(&self, id: ArgsId) -> Args<'static> {
         self.args_store().get_owned_param_list(id)
     }
 

@@ -1,4 +1,4 @@
-use crate::{params::ParamsId, terms::TermId};
+use crate::new::{params::ParamsId, terms::TermId};
 
 /// A union type.
 #[derive(Debug, Clone, Copy)]

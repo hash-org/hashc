@@ -1,5 +1,6 @@
-use crate::{
-    scope::BlockTerm,
+///! Contains structures related to control flow.
+use crate::new::{
+    scopes::BlockTerm,
     terms::{TermId, TermListId},
 };
 

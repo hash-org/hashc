@@ -1,5 +1,5 @@
-use crate::{
-    data::CtorDefId, mods::ModMemberId, scope::StackMemberId, symbols::Symbol, trts::TrtMemberId,
+use crate::new::{
+    data::CtorDefId, mods::ModMemberId, scopes::StackMemberId, symbols::Symbol, trts::TrtMemberId,
 };
 
 /// A variable by name, which will be resolved to a more concrete variable term.

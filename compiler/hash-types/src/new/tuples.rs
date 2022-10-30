@@ -1,4 +1,5 @@
-use crate::{arguments::ArgsIdOld, params::ParamsId};
+//! Contains structures relating to tuples.
+use crate::new::{args::ArgsId, params::ParamsId};
 
 /// A tuple type.
 #[derive(Debug, Clone, Copy)]
@@ -15,8 +16,8 @@ pub struct TupleTerm {
 
     /// If params is present, then this is sorted in the order of the
     /// parameters.
-    pub data: ArgsIdOld,
-
-    /// Condition arguments, if given.
-    pub conditions: ArgsIdOld,
+    pub data: ArgsId,
+    // /// Condition arguments, if given.
+    // @@Todo: should we provide this?
+    // pub conditions: ArgsIdOld,
 }

@@ -8,7 +8,7 @@
 //! [DeconstructedPat](super::deconstruct::DeconstructedPat)s.
 use hash_types::{
     nominals::{NominalDef, StructFields},
-    terms::{Level1Term, TermId, TermOld, TupleTy},
+    terms::{Level1Term, Term, TermId, TupleTy},
 };
 use hash_utils::store::Store;
 use itertools::Itertools;
@@ -96,13 +96,13 @@ impl<'tc> FieldOps<'tc> {
                 let reader = self.reader();
 
                 match reader.get_term(ctx.ty) {
-                    TermOld::Level1(Level1Term::Tuple(TupleTy { members })) => {
+                    Term::Level1(Level1Term::Tuple(TupleTy { members })) => {
                         let members = reader.get_params_owned(members);
                         let tys = members.positional().iter().map(|member| member.ty).collect_vec();
 
                         self.wildcards_from_tys(tys)
                     }
-                    TermOld::Level1(Level1Term::NominalDef(def)) => {
+                    Term::Level1(Level1Term::NominalDef(def)) => {
                         match reader.get_nominal_def(def) {
                             NominalDef::Struct(struct_def) => match struct_def.fields {
                                 StructFields::Explicit(params) => {

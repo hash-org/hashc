@@ -1,0 +1,19 @@
+//! Definition of [Arg] data structure, which is the representation of a
+//! an argument to some function, data type, and other constructs that
+//! can take arguments.
+
+use hash_utils::{new_sequence_store_key, store::DefaultSequenceStore};
+
+use crate::new::{symbols::Symbol, terms::TermId};
+
+/// An argument to a parameter.
+#[derive(Debug, Clone, Hash, Copy)]
+pub struct Arg {
+    /// Optional name that is attached to the argument.
+    pub name: Option<Symbol>,
+    /// The term that is the value of the argument.
+    pub value: TermId,
+}
+
+new_sequence_store_key!(pub ArgsId);
+pub type ArgsStore = DefaultSequenceStore<ArgsId, Arg>;

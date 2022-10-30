@@ -24,7 +24,7 @@ use hash_types::{
     nodes::NodeInfoTarget,
     pats::{Pat, PatId},
     storage::GlobalStorage,
-    terms::{FnLit, FnTy, Level0Term, Level1Term, TermId, TermOld},
+    terms::{FnLit, FnTy, Level0Term, Level1Term, Term, TermId},
 };
 use hash_utils::store::{CloneStore, PartialStore, SequenceStoreKey};
 use index_vec::IndexVec;
@@ -67,8 +67,8 @@ fn get_fn_ty_from_term(term: TermId, tcx: &GlobalStorage) -> FnTy {
     let term = tcx.term_store.get(term);
 
     match term {
-        TermOld::Level0(Level0Term::FnLit(FnLit { fn_ty, .. })) => get_fn_ty_from_term(fn_ty, tcx),
-        TermOld::Level1(Level1Term::Fn(fn_ty)) => fn_ty,
+        Term::Level0(Level0Term::FnLit(FnLit { fn_ty, .. })) => get_fn_ty_from_term(fn_ty, tcx),
+        Term::Level1(Level1Term::Fn(fn_ty)) => fn_ty,
         _ => unreachable!(),
     }
 }

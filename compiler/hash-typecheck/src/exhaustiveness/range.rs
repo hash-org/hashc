@@ -39,7 +39,7 @@ use hash_ast::ast::RangeEnd;
 use hash_reporting::diagnostic::Diagnostics;
 use hash_types::{
     pats::{PatId, RangePat},
-    terms::{Level0Term, LitTerm, TermId, TermOld},
+    terms::{Level0Term, LitTerm, Term, TermId},
 };
 use hash_utils::store::Store;
 
@@ -267,7 +267,7 @@ impl<'tc> IntRangeOps<'tc> {
         let reader = self.reader();
 
         let bias: u128 = match reader.get_term(constant.ty) {
-            TermOld::Level0(Level0Term::Lit(lit)) => match lit {
+            Term::Level0(Level0Term::Lit(lit)) => match lit {
                 LitTerm::Int { kind, .. } if kind.is_signed() => {
                     let size = kind.size().unwrap();
                     1u128 << (size * 8 - 1)

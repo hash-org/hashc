@@ -8,14 +8,14 @@ use hash_reporting::{
 };
 use hash_source::identifier::Identifier;
 use hash_types::{
-    arguments::{ArgOld, ArgsIdOld},
+    args::{Arg, ArgsId},
     fmt::{PrepareForFormatting, TcFormatOpts},
     location::LocationTarget,
     params::{AccessOp, Field, Param, ParamsId},
     pats::{PatArg, PatId},
     scope::ScopeId,
-    terms::{AccessTermOld, TermId, TyFnCase},
-    trts::TrtDefOld,
+    terms::{AccessTerm, TermId, TyFnCase},
+    trts::TrtDef,
 };
 use hash_utils::{
     pluralise,
@@ -44,8 +44,8 @@ pub enum TcError {
     /// don't match of the arguments or if the number of arguments isn't the
     /// same.
     CannotUnifyArgs {
-        src_args_id: ArgsIdOld,
-        target_args_id: ArgsIdOld,
+        src_args_id: ArgsId,
+        target_args_id: ArgsId,
         src: TermId,
         target: TermId,
         reason: ParamUnificationErrorReason,
@@ -101,7 +101,7 @@ pub enum TcError {
     InvalidTyFnApplication {
         type_fn: TermId,
         cases: Vec<TyFnCase>,
-        args: ArgsIdOld,
+        args: ArgsId,
         unification_errors: Vec<TcError>,
     },
     /// The given term cannot be used in a merge operation.
@@ -135,7 +135,7 @@ pub enum TcError {
     /// application.
     UnsupportedTyFnApplication { subject_id: TermId },
     /// The given access operation results in more than one result.
-    AmbiguousAccess { access: AccessTermOld, results: Vec<TermId> },
+    AmbiguousAccess { access: AccessTerm, results: Vec<TermId> },
     /// Cannot use this as a function call or struct subject.
     InvalidCallSubject { term: TermId },
     /// The given access operation does not resolve to a method.
@@ -738,7 +738,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                         let args = ctx.args_store().get_owned_param_list(*id);
 
                         // Extract the name from the argument
-                        let ArgOld { name, .. } = args.positional()[*index];
+                        let Arg { name, .. } = args.positional()[*index];
                         let name = name.unwrap();
 
                         // find the index of the first name
@@ -1209,7 +1209,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 trt_def_term_id,
                 missing_trt_members,
             } => {
-                let TrtDefOld { members, .. } =
+                let TrtDef { members, .. } =
                     ctx.oracle().term_as_trt_def(*trt_def_term_id).expect("trait def term");
                 let trt_scope = ctx.reader().get_scope_copy(members);
 
