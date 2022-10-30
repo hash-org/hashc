@@ -12,6 +12,7 @@ use hash_ir::ir::{
     TerminatorKind, START_BLOCK,
 };
 use hash_source::{
+    identifier::Identifier,
     location::{SourceLocation, Span},
     SourceId,
 };
@@ -114,6 +115,9 @@ pub(crate) struct Builder<'a, 'tcx> {
     /// The type storage needed for accessing the types of the traversed terms
     tcx: &'tcx GlobalStorage,
 
+    /// The name with the associated body that this is building.
+    name: Identifier,
+
     /// The item that is being lowered.
     item: BuildItem<'a>,
 
@@ -132,7 +136,12 @@ pub(crate) struct Builder<'a, 'tcx> {
 }
 
 impl<'a, 'tcx> Builder<'a, 'tcx> {
-    pub(crate) fn new(item: BuildItem<'a>, source_id: SourceId, tcx: &'tcx GlobalStorage) -> Self {
+    pub(crate) fn new(
+        name: Identifier,
+        item: BuildItem<'a>,
+        source_id: SourceId,
+        tcx: &'tcx GlobalStorage,
+    ) -> Self {
         let arg_count = match item {
             BuildItem::FnDef(node) => {
                 // Get the type of this function definition, we need to
@@ -150,6 +159,7 @@ impl<'a, 'tcx> Builder<'a, 'tcx> {
         Self {
             item,
             tcx,
+            name,
             arg_count,
             source_id,
             control_flow_graph: ControlFlowGraph::new(),
@@ -169,6 +179,7 @@ impl<'a, 'tcx> Builder<'a, 'tcx> {
         Body::new(
             self.control_flow_graph.basic_blocks,
             self.declarations,
+            self.name,
             self.arg_count,
             // @@Todo: actually determine this properly
             FnSource::Item,

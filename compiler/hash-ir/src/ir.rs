@@ -2,6 +2,8 @@
 //! under construction and is subject to change.
 #![allow(unused)]
 
+use core::fmt;
+
 use hash_source::{
     constant::{InternedFloat, InternedInt, InternedStr},
     identifier::Identifier,
@@ -10,45 +12,6 @@ use hash_source::{
 };
 use hash_types::{nominals::NominalDefId, scope::Mutability, terms::TermId};
 use index_vec::{index_vec, IndexSlice, IndexVec};
-
-// /// Represents the type layout of a given expression.
-// #[derive(Debug, PartialEq, Eq)]
-// pub enum Ty<'ir> {
-//     /// `usize` type, machine specific unsigned pointer
-//     USize,
-//     /// `u8` type, 8bit unsigned integer
-//     U8,
-//     /// `u16` type, 16bit unsigned integer
-//     U16,
-//     /// `u32` type, 32bit unsigned integer
-//     U32,
-//     /// `u64` type, 64bit unsigned integer
-//     U64,
-//     /// `isize` type, machine specific unsigned pointer
-//     ISize,
-//     /// `i8` type, 8bit signed integer
-//     I8,
-//     /// `i16` type, 16bit signed integer
-//     I16,
-//     /// `i32` type, 32bit signed integer
-//     I32,
-//     /// `i64` type, 64bit signed integer
-//     I64,
-//     /// `f32` type, 32bit float
-//     F32,
-//     /// `f64` type, 64bit float
-//     F64,
-//     /// A `void` type
-//     Void,
-//     /// Represents any collection of types in a specific order.
-//     Structural(&'ir [Ty<'ir>]),
-//     /// Essentially an enum representation
-//     Union(&'ir [Ty<'ir>]),
-//     /// Reference type
-//     Ptr(&'ir Ty<'ir>),
-//     /// Raw reference type
-//     RawPtr(&'ir Ty<'ir>),
-// }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Const {
@@ -215,6 +178,8 @@ pub enum AggregateKind {
     Struct(NominalDefId),
 }
 
+/// The representation of values that occur on the right-hand side of an
+/// assignment.
 #[derive(Debug, PartialEq, Eq)]
 pub enum RValue<'ir> {
     /// A constant value.
@@ -243,6 +208,10 @@ pub enum RValue<'ir> {
     /// Used for initialising structs, tuples and other aggregate
     /// data structures
     Aggregate(AggregateKind, Vec<Place>),
+    /// Compute the discriminant of a [Place], this is essentially checking
+    /// which variant a union is. For types that don't have a discriminant
+    /// (non-union types ) this will return the value as 0.
+    Discriminant(Place),
 }
 
 /// A defined statement within the IR
@@ -285,8 +254,10 @@ pub enum AssertKind {
     NegativeOverflow,
 }
 
-/// [Terminator] statements are essentially those that affect control
-/// flow.
+/// [Terminator] statements are those that affect control
+/// flow. All [BasicBlock]s must be terminated with a
+/// [Terminator] statement that instructs where the program
+/// flow is to go next.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Terminator<'ir> {
     /// The kind of [Terminator] that it is.
@@ -296,6 +267,10 @@ pub struct Terminator<'ir> {
     pub span: Span,
 }
 
+/// The kind of [Terminator] that it is.
+///
+/// @@Future: does this need an `Intrinsic(...)` variant for substituting
+/// expressions for intrinsic functions?
 #[derive(Debug, PartialEq, Eq)]
 pub enum TerminatorKind<'ir> {
     /// A simple go to block directive.
@@ -310,7 +285,6 @@ pub enum TerminatorKind<'ir> {
         op: TermId,
         /// Arguments to the function.
         args: Vec<Local>,
-
         /// Where to return after completing the call
         target: Option<BasicBlock>,
     },
@@ -319,7 +293,8 @@ pub enum TerminatorKind<'ir> {
     /// break IR control flow invariants.
     Unreachable,
 
-    /// Essentially a `jump if <0> to <1> else go to <2>`
+    /// Essentially a `jump if <0> to <1> else go to <2>`. The last argument is
+    /// the `otherwise` condition.
     Switch(Local, &'ir [(Const, BasicBlock)], BasicBlock),
 
     /// This terminator is used to verify that the result of some operation has
@@ -345,7 +320,8 @@ pub struct BasicBlockData<'ir> {
     /// The statements that the block has.
     pub statements: Vec<Statement<'ir>>,
     /// An optional terminating statement, where the block goes
-    /// after finishing execution of these statements.
+    /// after finishing execution of these statements. When a
+    /// [BasicBlock] is finalised, it must always have a terminator.
     pub terminator: Option<Terminator<'ir>>,
 }
 
@@ -378,7 +354,7 @@ index_vec::define_index_type! {
     MAX_INDEX = i32::max_value() as usize;
     DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
 
-    DEBUG_FORMAT = "l{}";
+    DEBUG_FORMAT = "_{}";
 }
 
 /// `0` is used as the return place of any lowered body.
@@ -394,7 +370,7 @@ pub enum FnSource {
 
 pub struct Body<'ir> {
     /// The blocks that the function is represented with
-    blocks: IndexVec<BasicBlock, BasicBlockData<'ir>>,
+    pub blocks: IndexVec<BasicBlock, BasicBlockData<'ir>>,
 
     /// Declarations of local variables:
     ///
@@ -407,10 +383,13 @@ pub struct Body<'ir> {
     ///   function arguments.
     ///
     /// - the remaining are temporaries that are used within the function.
-    declarations: IndexVec<Local, LocalDecl>,
+    pub declarations: IndexVec<Local, LocalDecl>,
+
+    /// The name of the body
+    pub name: Identifier,
 
     /// Number of arguments to the function
-    arg_count: usize,
+    pub arg_count: usize,
 
     /// The source of the function, is it a normal function, or an intrinsic
     source: FnSource,
@@ -424,11 +403,12 @@ impl<'ir> Body<'ir> {
     pub fn new(
         blocks: IndexVec<BasicBlock, BasicBlockData<'ir>>,
         declarations: IndexVec<Local, LocalDecl>,
+        name: Identifier,
         arg_count: usize,
         source: FnSource,
         span: Span,
         source_id: SourceId,
     ) -> Self {
-        Self { blocks, declarations, arg_count, source, span, source_id }
+        Self { blocks, name, declarations, arg_count, source, span, source_id }
     }
 }

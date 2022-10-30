@@ -6,11 +6,13 @@
 use std::{convert::Infallible, mem};
 
 use hash_ast::{
+    ast,
     origin::BlockOrigin,
     visitor::{walk_mut_self, AstVisitorMutSelf},
 };
 use hash_ir::ir::Body;
 use hash_source::{
+    identifier::{Identifier, IDENTS},
     location::{SourceLocation, Span},
     SourceId,
 };
@@ -18,6 +20,58 @@ use hash_types::{fmt::PrepareForFormatting, nodes::NodeInfoTarget, storage::Glob
 use hash_utils::store::{CloneStore, PartialStore};
 
 use crate::build::Builder;
+
+fn extract_binds_from_bind(pat: ast::AstNodeRef<ast::Pat>, binds: &mut Vec<Identifier>) {
+    match &pat.body() {
+        ast::Pat::Binding(ast::BindingPat { name, .. }) => {
+            binds.push(name.ident);
+        }
+        ast::Pat::Wild(_) => {
+            // @@Weirdness: what should happen to a function body if it bound to
+            // a pattern that ignores the result, i.e. `_`? Should we just ignore
+            // it, or should we lower the function anyway. This is a weird case,
+            // because the function can never be invoked because it is not bound,
+            // so should we not do anything here?
+            binds.push(IDENTS.underscore);
+        }
+        ast::Pat::Tuple(ast::TuplePat { fields }) => {
+            for entry in fields.iter() {
+                let ast::TuplePatEntry { name, pat } = entry.body();
+
+                // If the entry has a name, then use it otherwise we traverse
+                // down to find more binds. @@Verify: is this checked within the
+                // typechecker.
+                if let Some(entry_name) = name {
+                    binds.push(entry_name.ident);
+                } else {
+                    extract_binds_from_bind(pat.ast_ref(), binds);
+                }
+            }
+        }
+        ast::Pat::List(ast::ListPat { fields }) => {
+            for entry in fields.iter() {
+                extract_binds_from_bind(pat, binds);
+            }
+        }
+        ast::Pat::Or(ast::OrPat { variants }) => {
+            debug_assert!(variants.len() > 1);
+
+            // Look at the left most pattern and extract all of the binds, since
+            // we have already checked that each pattern has the same binds
+            // present in it.
+            extract_binds_from_bind(variants[0].ast_ref(), binds)
+        }
+        ast::Pat::If(ast::IfPat { pat, .. }) => extract_binds_from_bind(pat.ast_ref(), binds),
+
+        // These never bind anything, so we can just ignore them.
+        ast::Pat::Constructor(_)
+        | ast::Pat::Access(_)
+        | ast::Pat::Module(_)
+        | ast::Pat::Spread(_)
+        | ast::Pat::Range(_)
+        | ast::Pat::Lit(_) => {}
+    };
+}
 
 /// The [LoweringVisitor] is a struct that is used to implement
 /// the discovery process for what needs to be lowered. This is
@@ -33,6 +87,14 @@ pub(crate) struct LoweringVisitor<'a> {
     /// lowered.
     source_id: SourceId,
 
+    /// Declaration binds stack, this is used to resolve the name of
+    /// the declared function or functions. It is made to be a stack
+    /// because a single declaration can bind multiple functions, e.g.
+    /// ```ignore
+    /// (a, b) := (() => 1, () => 2);
+    /// ```
+    pub(crate) bind_stack: Vec<Identifier>,
+
     /// The current scope of the traversal, representing which block the
     /// analyser is walking.
     pub(crate) current_block: BlockOrigin,
@@ -44,7 +106,13 @@ pub(crate) struct LoweringVisitor<'a> {
 
 impl<'a> LoweringVisitor<'a> {
     pub fn new(tcx: &'a GlobalStorage, source_id: SourceId) -> Self {
-        Self { tcx, current_block: BlockOrigin::Const, source_id, bodies: Vec::new() }
+        Self {
+            tcx,
+            current_block: BlockOrigin::Const,
+            source_id,
+            bodies: Vec::new(),
+            bind_stack: Vec::new(),
+        }
     }
 
     /// Create a [SourceLocation] from a given span using the current
@@ -61,19 +129,13 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
     type Error = Infallible;
     type NameRet = ();
 
-    fn visit_name(
-        &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::Name>,
-    ) -> Result<Self::NameRet, Self::Error> {
+    fn visit_name(&mut self, _: ast::AstNodeRef<ast::Name>) -> Result<Self::NameRet, Self::Error> {
         Ok(())
     }
 
     type LitRet = ();
 
-    fn visit_lit(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Lit>,
-    ) -> Result<Self::LitRet, Self::Error> {
+    fn visit_lit(&mut self, node: ast::AstNodeRef<ast::Lit>) -> Result<Self::LitRet, Self::Error> {
         let _ = walk_mut_self::walk_lit(self, node);
         Ok(())
     }
@@ -82,7 +144,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_map_lit(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::MapLit>,
+        node: ast::AstNodeRef<ast::MapLit>,
     ) -> Result<Self::MapLitRet, Self::Error> {
         let _ = walk_mut_self::walk_map_lit(self, node);
         Ok(())
@@ -92,7 +154,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_map_lit_entry(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::MapLitEntry>,
+        node: ast::AstNodeRef<ast::MapLitEntry>,
     ) -> Result<Self::MapLitEntryRet, Self::Error> {
         let _ = walk_mut_self::walk_map_lit_entry(self, node);
         Ok(())
@@ -102,7 +164,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_list_lit(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ListLit>,
+        node: ast::AstNodeRef<ast::ListLit>,
     ) -> Result<Self::ListLitRet, Self::Error> {
         let _ = walk_mut_self::walk_list_lit(self, node);
         Ok(())
@@ -112,7 +174,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_set_lit(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::SetLit>,
+        node: ast::AstNodeRef<ast::SetLit>,
     ) -> Result<Self::SetLitRet, Self::Error> {
         let _ = walk_mut_self::walk_set_lit(self, node);
         Ok(())
@@ -122,7 +184,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_tuple_lit_entry(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TupleLitEntry>,
+        node: ast::AstNodeRef<ast::TupleLitEntry>,
     ) -> Result<Self::TupleLitEntryRet, Self::Error> {
         let _ = walk_mut_self::walk_tuple_lit_entry(self, node);
         Ok(())
@@ -132,7 +194,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_tuple_lit(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TupleLit>,
+        node: ast::AstNodeRef<ast::TupleLit>,
     ) -> Result<Self::TupleLitRet, Self::Error> {
         let _ = walk_mut_self::walk_tuple_lit(self, node);
         Ok(())
@@ -142,7 +204,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_str_lit(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::StrLit>,
+        _: ast::AstNodeRef<ast::StrLit>,
     ) -> Result<Self::StrLitRet, Self::Error> {
         Ok(())
     }
@@ -151,7 +213,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_char_lit(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::CharLit>,
+        _: ast::AstNodeRef<ast::CharLit>,
     ) -> Result<Self::CharLitRet, Self::Error> {
         Ok(())
     }
@@ -160,7 +222,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_float_lit(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::FloatLit>,
+        _: ast::AstNodeRef<ast::FloatLit>,
     ) -> Result<Self::FloatLitRet, Self::Error> {
         Ok(())
     }
@@ -169,7 +231,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_bool_lit(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::BoolLit>,
+        _: ast::AstNodeRef<ast::BoolLit>,
     ) -> Result<Self::BoolLitRet, Self::Error> {
         Ok(())
     }
@@ -178,7 +240,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_int_lit(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::IntLit>,
+        _: ast::AstNodeRef<ast::IntLit>,
     ) -> Result<Self::IntLitRet, Self::Error> {
         Ok(())
     }
@@ -187,17 +249,14 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_bin_op(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::BinOp>,
+        _: ast::AstNodeRef<ast::BinOp>,
     ) -> Result<Self::BinOpRet, Self::Error> {
         Ok(())
     }
 
     type UnOpRet = ();
 
-    fn visit_un_op(
-        &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::UnOp>,
-    ) -> Result<Self::UnOpRet, Self::Error> {
+    fn visit_un_op(&mut self, _: ast::AstNodeRef<ast::UnOp>) -> Result<Self::UnOpRet, Self::Error> {
         Ok(())
     }
 
@@ -205,7 +264,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_expr(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Expr>,
+        node: ast::AstNodeRef<ast::Expr>,
     ) -> Result<Self::ExprRet, Self::Error> {
         // We don't walk the inner bodies of expressions, as they are
         // not top-level definitions.
@@ -220,7 +279,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_variable_expr(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::VariableExpr>,
+        _: ast::AstNodeRef<ast::VariableExpr>,
     ) -> Result<Self::VariableExprRet, Self::Error> {
         Ok(())
     }
@@ -229,7 +288,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_directive_expr(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::DirectiveExpr>,
+        node: ast::AstNodeRef<ast::DirectiveExpr>,
     ) -> Result<Self::DirectiveExprRet, Self::Error> {
         let _ = walk_mut_self::walk_directive_expr(self, node);
         Ok(())
@@ -239,7 +298,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_constructor_call_arg(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ConstructorCallArg>,
+        node: ast::AstNodeRef<ast::ConstructorCallArg>,
     ) -> Result<Self::ConstructorCallArgRet, Self::Error> {
         let _ = walk_mut_self::walk_constructor_call_arg(self, node);
         Ok(())
@@ -249,7 +308,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_constructor_call_expr(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ConstructorCallExpr>,
+        node: ast::AstNodeRef<ast::ConstructorCallExpr>,
     ) -> Result<Self::ConstructorCallExprRet, Self::Error> {
         let _ = walk_mut_self::walk_constructor_call_expr(self, node);
         Ok(())
@@ -259,7 +318,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_property_kind(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::PropertyKind>,
+        _: ast::AstNodeRef<ast::PropertyKind>,
     ) -> Result<Self::PropertyKindRet, Self::Error> {
         Ok(())
     }
@@ -268,7 +327,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_access_expr(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::AccessExpr>,
+        node: ast::AstNodeRef<ast::AccessExpr>,
     ) -> Result<Self::AccessExprRet, Self::Error> {
         let _ = walk_mut_self::walk_access_expr(self, node);
         Ok(())
@@ -278,7 +337,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_access_kind(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::AccessKind>,
+        _: ast::AstNodeRef<ast::AccessKind>,
     ) -> Result<Self::AccessKindRet, Self::Error> {
         Ok(())
     }
@@ -287,7 +346,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_ref_expr(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::RefExpr>,
+        node: ast::AstNodeRef<ast::RefExpr>,
     ) -> Result<Self::RefExprRet, Self::Error> {
         let _ = walk_mut_self::walk_ref_expr(self, node);
         Ok(())
@@ -297,7 +356,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_deref_expr(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::DerefExpr>,
+        node: ast::AstNodeRef<ast::DerefExpr>,
     ) -> Result<Self::DerefExprRet, Self::Error> {
         let _ = walk_mut_self::walk_deref_expr(self, node);
         Ok(())
@@ -307,7 +366,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_unsafe_expr(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::UnsafeExpr>,
+        node: ast::AstNodeRef<ast::UnsafeExpr>,
     ) -> Result<Self::UnsafeExprRet, Self::Error> {
         let _ = walk_mut_self::walk_unsafe_expr(self, node);
         Ok(())
@@ -317,7 +376,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_lit_expr(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::LitExpr>,
+        node: ast::AstNodeRef<ast::LitExpr>,
     ) -> Result<Self::LitExprRet, Self::Error> {
         let _ = walk_mut_self::walk_lit_expr(self, node);
         Ok(())
@@ -327,7 +386,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_cast_expr(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::CastExpr>,
+        node: ast::AstNodeRef<ast::CastExpr>,
     ) -> Result<Self::CastExprRet, Self::Error> {
         let _ = walk_mut_self::walk_cast_expr(self, node);
         Ok(())
@@ -337,7 +396,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_ty_expr(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::TyExpr>,
+        _: ast::AstNodeRef<ast::TyExpr>,
     ) -> Result<Self::TyExprRet, Self::Error> {
         Ok(())
     }
@@ -347,7 +406,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
     #[inline]
     fn visit_block_expr(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::BlockExpr>,
+        node: ast::AstNodeRef<ast::BlockExpr>,
     ) -> Result<Self::BlockExprRet, Self::Error> {
         let _ = walk_mut_self::walk_block_expr(self, node)?;
 
@@ -358,7 +417,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_import(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::Import>,
+        _: ast::AstNodeRef<ast::Import>,
     ) -> Result<Self::ImportRet, Self::Error> {
         Ok(())
     }
@@ -367,17 +426,14 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_import_expr(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::ImportExpr>,
+        _: ast::AstNodeRef<ast::ImportExpr>,
     ) -> Result<Self::ImportExprRet, Self::Error> {
         Ok(())
     }
 
     type TyRet = ();
 
-    fn visit_ty(
-        &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::Ty>,
-    ) -> Result<Self::TyRet, Self::Error> {
+    fn visit_ty(&mut self, _: ast::AstNodeRef<ast::Ty>) -> Result<Self::TyRet, Self::Error> {
         Ok(())
     }
 
@@ -385,7 +441,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_tuple_ty(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::TupleTy>,
+        _: ast::AstNodeRef<ast::TupleTy>,
     ) -> Result<Self::TupleTyRet, Self::Error> {
         Ok(())
     }
@@ -394,7 +450,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_list_ty(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::ListTy>,
+        _: ast::AstNodeRef<ast::ListTy>,
     ) -> Result<Self::ListTyRet, Self::Error> {
         Ok(())
     }
@@ -403,7 +459,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_set_ty(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::SetTy>,
+        _: ast::AstNodeRef<ast::SetTy>,
     ) -> Result<Self::SetTyRet, Self::Error> {
         Ok(())
     }
@@ -412,7 +468,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_map_ty(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::MapTy>,
+        _: ast::AstNodeRef<ast::MapTy>,
     ) -> Result<Self::MapTyRet, Self::Error> {
         Ok(())
     }
@@ -421,26 +477,20 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_ty_arg(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::TyArg>,
+        _: ast::AstNodeRef<ast::TyArg>,
     ) -> Result<Self::TyArgRet, Self::Error> {
         Ok(())
     }
 
     type FnTyRet = ();
 
-    fn visit_fn_ty(
-        &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::FnTy>,
-    ) -> Result<Self::FnTyRet, Self::Error> {
+    fn visit_fn_ty(&mut self, _: ast::AstNodeRef<ast::FnTy>) -> Result<Self::FnTyRet, Self::Error> {
         Ok(())
     }
 
     type TyFnRet = ();
 
-    fn visit_ty_fn(
-        &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::TyFn>,
-    ) -> Result<Self::TyFnRet, Self::Error> {
+    fn visit_ty_fn(&mut self, _: ast::AstNodeRef<ast::TyFn>) -> Result<Self::TyFnRet, Self::Error> {
         Ok(())
     }
 
@@ -448,7 +498,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_ty_fn_call(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::TyFnCall>,
+        _: ast::AstNodeRef<ast::TyFnCall>,
     ) -> Result<Self::TyFnCallRet, Self::Error> {
         Ok(())
     }
@@ -456,7 +506,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
     type NamedTyRet = ();
     fn visit_named_ty(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::NamedTy>,
+        _: ast::AstNodeRef<ast::NamedTy>,
     ) -> Result<Self::NamedTyRet, Self::Error> {
         Ok(())
     }
@@ -465,7 +515,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_access_ty(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::AccessTy>,
+        _: ast::AstNodeRef<ast::AccessTy>,
     ) -> Result<Self::AccessTyRet, Self::Error> {
         Ok(())
     }
@@ -474,7 +524,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_ref_ty(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::RefTy>,
+        _: ast::AstNodeRef<ast::RefTy>,
     ) -> Result<Self::RefTyRet, Self::Error> {
         Ok(())
     }
@@ -483,7 +533,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_merge_ty(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::MergeTy>,
+        _: ast::AstNodeRef<ast::MergeTy>,
     ) -> Result<Self::MergeTyRet, Self::Error> {
         Ok(())
     }
@@ -492,7 +542,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_union_ty(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::UnionTy>,
+        _: ast::AstNodeRef<ast::UnionTy>,
     ) -> Result<Self::UnionTyRet, Self::Error> {
         Ok(())
     }
@@ -501,7 +551,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_ty_fn_def(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TyFnDef>,
+        node: ast::AstNodeRef<ast::TyFnDef>,
     ) -> Result<Self::TyFnDefRet, Self::Error> {
         let _ = walk_mut_self::walk_ty_fn_def(self, node);
         Ok(())
@@ -511,11 +561,16 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_fn_def(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::FnDef>,
+        node: ast::AstNodeRef<ast::FnDef>,
     ) -> Result<Self::FnDefRet, Self::Error> {
+        // Pop off the top bind from the top of the stack, if no item is present
+        // then we should just use `_` (it is an invariant if there is no name when we
+        // reach a function definition with no assigned name).
+        let name = self.bind_stack.pop().unwrap_or(IDENTS.underscore);
+
         // Create the builder here, and then proceed to emit the generated function
         // body!
-        let mut builder = Builder::new(node.into(), self.source_id, self.tcx);
+        let mut builder = Builder::new(name, node.into(), self.source_id, self.tcx);
         builder.build_fn();
         self.bodies.push(builder.finish());
 
@@ -526,7 +581,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_param(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Param>,
+        node: ast::AstNodeRef<ast::Param>,
     ) -> Result<Self::ParamRet, Self::Error> {
         let _ = walk_mut_self::walk_param(self, node);
         Ok(())
@@ -536,7 +591,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_block(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Block>,
+        node: ast::AstNodeRef<ast::Block>,
     ) -> Result<Self::BlockRet, Self::Error> {
         // We still need to walk the block now
         let _ = walk_mut_self::walk_block(self, node);
@@ -548,7 +603,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_match_case(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::MatchCase>,
+        node: ast::AstNodeRef<ast::MatchCase>,
     ) -> Result<Self::MatchCaseRet, Self::Error> {
         let _ = walk_mut_self::walk_match_case(self, node);
         Ok(())
@@ -558,7 +613,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_match_block(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::MatchBlock>,
+        node: ast::AstNodeRef<ast::MatchBlock>,
     ) -> Result<Self::MatchBlockRet, Self::Error> {
         let _ = walk_mut_self::walk_match_block(self, node);
         Ok(())
@@ -568,7 +623,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_loop_block(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::LoopBlock>,
+        node: ast::AstNodeRef<ast::LoopBlock>,
     ) -> Result<Self::LoopBlockRet, Self::Error> {
         let _ = walk_mut_self::walk_loop_block(self, node);
 
@@ -579,7 +634,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_for_loop_block(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::ForLoopBlock>,
+        _: ast::AstNodeRef<ast::ForLoopBlock>,
     ) -> Result<Self::ForLoopBlockRet, Self::Error> {
         // Specifically left empty since this should never fire!
         Ok(())
@@ -589,7 +644,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_while_loop_block(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::WhileLoopBlock>,
+        _: ast::AstNodeRef<ast::WhileLoopBlock>,
     ) -> Result<Self::WhileLoopBlockRet, Self::Error> {
         // Specifically left empty since this should never fire!
         Ok(())
@@ -599,7 +654,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_mod_block(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ModBlock>,
+        node: ast::AstNodeRef<ast::ModBlock>,
     ) -> Result<Self::ModBlockRet, Self::Error> {
         let old_block_origin = mem::replace(&mut self.current_block, BlockOrigin::Mod);
         let _ = walk_mut_self::walk_mod_block(self, node);
@@ -612,7 +667,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_impl_block(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ImplBlock>,
+        node: ast::AstNodeRef<ast::ImplBlock>,
     ) -> Result<Self::ImplBlockRet, Self::Error> {
         let old_block_origin = mem::replace(&mut self.current_block, BlockOrigin::Impl);
         let _ = walk_mut_self::walk_impl_block(self, node);
@@ -624,7 +679,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_if_clause(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::IfClause>,
+        _: ast::AstNodeRef<ast::IfClause>,
     ) -> Result<Self::IfClauseRet, Self::Error> {
         // Specifically left empty since this should never fire!
         Ok(())
@@ -634,7 +689,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_if_block(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::IfBlock>,
+        _: ast::AstNodeRef<ast::IfBlock>,
     ) -> Result<Self::IfBlockRet, Self::Error> {
         Ok(())
     }
@@ -643,7 +698,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_body_block(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::BodyBlock>,
+        node: ast::AstNodeRef<ast::BodyBlock>,
     ) -> Result<Self::BodyBlockRet, Self::Error> {
         let old_block_origin = mem::replace(&mut self.current_block, BlockOrigin::Body);
 
@@ -657,7 +712,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_return_statement(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ReturnStatement>,
+        node: ast::AstNodeRef<ast::ReturnStatement>,
     ) -> Result<Self::ReturnStatementRet, Self::Error> {
         let _ = walk_mut_self::walk_return_statement(self, node);
         Ok(())
@@ -667,7 +722,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_break_statement(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::BreakStatement>,
+        _: ast::AstNodeRef<ast::BreakStatement>,
     ) -> Result<Self::BreakStatementRet, Self::Error> {
         Ok(())
     }
@@ -676,7 +731,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_continue_statement(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::ContinueStatement>,
+        _: ast::AstNodeRef<ast::ContinueStatement>,
     ) -> Result<Self::ContinueStatementRet, Self::Error> {
         Ok(())
     }
@@ -685,7 +740,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_visibility(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::Visibility>,
+        _: ast::AstNodeRef<ast::Visibility>,
     ) -> Result<Self::VisibilityRet, Self::Error> {
         Ok(())
     }
@@ -694,7 +749,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_mutability(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::Mutability>,
+        _: ast::AstNodeRef<ast::Mutability>,
     ) -> Result<Self::MutabilityRet, Self::Error> {
         Ok(())
     }
@@ -703,7 +758,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_ref_kind(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::RefKind>,
+        _: ast::AstNodeRef<ast::RefKind>,
     ) -> Result<Self::RefKindRet, Self::Error> {
         Ok(())
     }
@@ -712,8 +767,16 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_declaration(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Declaration>,
+        node: ast::AstNodeRef<ast::Declaration>,
     ) -> Result<Self::DeclarationRet, Self::Error> {
+        // Here, we need to inspect the declaration and extract all of the binds that
+        // it makes. Once this is done, we need to push all of the declarations onto
+        // the `bind_stack` in reverse order, since this is how the functions will be
+        // traversed.
+        let mut binds = Vec::new();
+        extract_binds_from_bind(node.pat.ast_ref(), &mut binds);
+
+        self.bind_stack.extend(binds.into_iter().rev());
         let _ = walk_mut_self::walk_declaration(self, node);
 
         Ok(())
@@ -723,7 +786,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_merge_declaration(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::MergeDeclaration>,
+        node: ast::AstNodeRef<ast::MergeDeclaration>,
     ) -> Result<Self::MergeDeclarationRet, Self::Error> {
         // @@Note: We probably don't have to walk this??
         let _ = walk_mut_self::walk_merge_declaration(self, node);
@@ -734,7 +797,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_assign_expr(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::AssignExpr>,
+        node: ast::AstNodeRef<ast::AssignExpr>,
     ) -> Result<Self::AssignExprRet, Self::Error> {
         let _ = walk_mut_self::walk_assign_expr(self, node);
         Ok(())
@@ -744,7 +807,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_assign_op_expr(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::AssignOpExpr>,
+        node: ast::AstNodeRef<ast::AssignOpExpr>,
     ) -> Result<Self::AssignOpExprRet, Self::Error> {
         let _ = walk_mut_self::walk_assign_op_expr(self, node);
         Ok(())
@@ -754,7 +817,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_binary_expr(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::BinaryExpr>,
+        node: ast::AstNodeRef<ast::BinaryExpr>,
     ) -> Result<Self::BinaryExprRet, Self::Error> {
         let _ = walk_mut_self::walk_binary_expr(self, node);
         Ok(())
@@ -764,7 +827,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_unary_expr(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::UnaryExpr>,
+        node: ast::AstNodeRef<ast::UnaryExpr>,
     ) -> Result<Self::UnaryExprRet, Self::Error> {
         let _ = walk_mut_self::walk_unary_expr(self, node);
         Ok(())
@@ -774,7 +837,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_index_expr(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::IndexExpr>,
+        node: ast::AstNodeRef<ast::IndexExpr>,
     ) -> Result<Self::IndexExprRet, Self::Error> {
         let _ = walk_mut_self::walk_index_expr(self, node);
         Ok(())
@@ -784,7 +847,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_struct_def(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::StructDef>,
+        node: ast::AstNodeRef<ast::StructDef>,
     ) -> Result<Self::StructDefRet, Self::Error> {
         let _ = walk_mut_self::walk_struct_def(self, node);
         Ok(())
@@ -794,7 +857,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_enum_def_entry(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::EnumDefEntry>,
+        _: ast::AstNodeRef<ast::EnumDefEntry>,
     ) -> Result<Self::EnumDefEntryRet, Self::Error> {
         Ok(())
     }
@@ -803,7 +866,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_enum_def(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::EnumDef>,
+        _: ast::AstNodeRef<ast::EnumDef>,
     ) -> Result<Self::EnumDefRet, Self::Error> {
         Ok(())
     }
@@ -812,7 +875,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_trait_def(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TraitDef>,
+        node: ast::AstNodeRef<ast::TraitDef>,
     ) -> Result<Self::TraitDefRet, Self::Error> {
         let old_block_origin = mem::replace(&mut self.current_block, BlockOrigin::Trait);
         let _ = walk_mut_self::walk_trait_def(self, node);
@@ -824,7 +887,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_trait_impl(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TraitImpl>,
+        node: ast::AstNodeRef<ast::TraitImpl>,
     ) -> Result<Self::TraitImplRet, Self::Error> {
         let old_block_origin = mem::replace(&mut self.current_block, BlockOrigin::Impl);
         let _ = walk_mut_self::walk_trait_impl(self, node);
@@ -834,10 +897,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     type PatRet = ();
 
-    fn visit_pat(
-        &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::Pat>,
-    ) -> Result<Self::PatRet, Self::Error> {
+    fn visit_pat(&mut self, _: ast::AstNodeRef<ast::Pat>) -> Result<Self::PatRet, Self::Error> {
         Ok(())
     }
 
@@ -845,7 +905,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_access_pat(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::AccessPat>,
+        _: ast::AstNodeRef<ast::AccessPat>,
     ) -> Result<Self::AccessPatRet, Self::Error> {
         Ok(())
     }
@@ -854,7 +914,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_constructor_pat(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::ConstructorPat>,
+        _: ast::AstNodeRef<ast::ConstructorPat>,
     ) -> Result<Self::ConstructorPatRet, Self::Error> {
         Ok(())
     }
@@ -863,7 +923,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_tuple_pat_entry(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::TuplePatEntry>,
+        _: ast::AstNodeRef<ast::TuplePatEntry>,
     ) -> Result<Self::TuplePatEntryRet, Self::Error> {
         Ok(())
     }
@@ -872,7 +932,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_tuple_pat(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::TuplePat>,
+        _: ast::AstNodeRef<ast::TuplePat>,
     ) -> Result<Self::TuplePatRet, Self::Error> {
         Ok(())
     }
@@ -881,7 +941,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_list_pat(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::ListPat>,
+        _: ast::AstNodeRef<ast::ListPat>,
     ) -> Result<Self::ListPatRet, Self::Error> {
         Ok(())
     }
@@ -890,7 +950,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_spread_pat(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::SpreadPat>,
+        _: ast::AstNodeRef<ast::SpreadPat>,
     ) -> Result<Self::SpreadPatRet, Self::Error> {
         Ok(())
     }
@@ -899,7 +959,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_lit_pat(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::LitPat>,
+        _: ast::AstNodeRef<ast::LitPat>,
     ) -> Result<Self::LitPatRet, Self::Error> {
         Ok(())
     }
@@ -908,7 +968,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_range_pat(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::RangePat>,
+        _: ast::AstNodeRef<ast::RangePat>,
     ) -> Result<Self::RangePatRet, Self::Error> {
         Ok(())
     }
@@ -917,7 +977,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_or_pat(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::OrPat>,
+        _: ast::AstNodeRef<ast::OrPat>,
     ) -> Result<Self::OrPatRet, Self::Error> {
         Ok(())
     }
@@ -926,7 +986,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_if_pat(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::IfPat>,
+        node: ast::AstNodeRef<ast::IfPat>,
     ) -> Result<Self::IfPatRet, Self::Error> {
         let _ = walk_mut_self::walk_if_pat(self, node);
         Ok(())
@@ -936,7 +996,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_binding_pat(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::BindingPat>,
+        _: ast::AstNodeRef<ast::BindingPat>,
     ) -> Result<Self::BindingPatRet, Self::Error> {
         Ok(())
     }
@@ -945,7 +1005,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_wild_pat(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::WildPat>,
+        _: ast::AstNodeRef<ast::WildPat>,
     ) -> Result<Self::WildPatRet, Self::Error> {
         Ok(())
     }
@@ -954,7 +1014,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_module_pat_entry(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::ModulePatEntry>,
+        _: ast::AstNodeRef<ast::ModulePatEntry>,
     ) -> Result<Self::ModulePatEntryRet, Self::Error> {
         Ok(())
     }
@@ -963,7 +1023,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_module_pat(
         &mut self,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::ModulePat>,
+        _: ast::AstNodeRef<ast::ModulePat>,
     ) -> Result<Self::ModulePatRet, Self::Error> {
         Ok(())
     }
@@ -972,7 +1032,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
     fn visit_module(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Module>,
+        node: ast::AstNodeRef<ast::Module>,
     ) -> Result<Self::ModuleRet, Self::Error> {
         self.current_block = BlockOrigin::Root;
         let _ = walk_mut_self::walk_module(self, node);
