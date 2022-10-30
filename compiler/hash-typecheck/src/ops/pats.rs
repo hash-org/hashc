@@ -45,6 +45,17 @@ impl<'tc> AccessToStorage for PatMatcher<'tc> {
     }
 }
 
+/// A pattern that occurs in a position within a declaration or some
+/// other binding structure. The [PatMember] represents the relation
+/// between the underlying [Pat] and the scope [Member].
+#[derive(Debug, Clone)]
+struct PatMember {
+    /// The id of the pattern.
+    pat: PatId,
+    /// The member that the pattern is bound to.
+    member: Member,
+}
+
 impl<'tc> PatMatcher<'tc> {
     /// Create a new [PatMatcher].
     pub fn new(storage: StorageRef<'tc>) -> Self {
@@ -53,10 +64,10 @@ impl<'tc> PatMatcher<'tc> {
 
     /// Verify that the given set of members corresponding to the given
     /// patterns, all bind distinct names.
-    pub fn verify_members_are_bound_once(&self, members: &[(Member, PatId)]) -> TcResult<()> {
+    fn verify_members_are_bound_once(&self, members: &[PatMember]) -> TcResult<()> {
         let mut names: HashSet<Identifier> = HashSet::new();
 
-        for (member, pat) in members.iter() {
+        for PatMember { member, pat } in members.iter() {
             if names.contains(&member.name()) {
                 return Err(TcError::IdentifierBoundMultipleTimes {
                     name: member.name(),
@@ -78,9 +89,12 @@ impl<'tc> PatMatcher<'tc> {
     /// been checked before creating the map.
     fn map_variables_to_terms(
         &self,
-        members: &[(Member, PatId)],
+        members: &[PatMember],
     ) -> HashMap<Identifier, (TermId, PatId)> {
-        members.iter().map(|(member, pat)| (member.name(), (member.ty(), *pat))).collect()
+        members
+            .iter()
+            .map(|PatMember { member, pat }| (member.name(), (member.ty(), *pat)))
+            .collect()
     }
 
     /// Function to check that the inner patterns of a [Pat::Or] adhere to the
@@ -88,39 +102,60 @@ impl<'tc> PatMatcher<'tc> {
     ///
     /// - For every inner pattern, the resultant members must be equivalent in
     ///   terms of name and type.
-    fn pat_members_match(&self, members: &[(Vec<(Member, PatId)>, PatId)]) -> TcResult<()> {
+    fn pat_members_match(&self, members: &[(Vec<PatMember>, PatId)]) -> TcResult<()> {
         let member_maps = members
             .iter()
             .map(|(members, pat)| (self.map_variables_to_terms(members), pat))
             .collect_vec();
 
-        // Take the first member as we'll use it for our comparison
-        let mut members = member_maps.iter();
-        let (first_map, _) = members.next().unwrap();
-        let first_binds = first_map.keys().copied().collect::<HashSet<Identifier>>();
+        let mut err = None;
 
-        // Compute the difference in `name` keys, if there exists a
-        // difference then we can immediately report the error and abort...
-        //
-        // @@ErrorReporting: It would be nice to produce multiple errors here
-        for (member, &cur_pat_id) in members {
-            // We want to find the largest member and report that that member doesn't
-            // contain the binds...
-            let cur_binds = member.keys().copied().collect::<HashSet<Identifier>>();
-            let mut diff = first_binds.symmetric_difference(&cur_binds).peekable();
-
-            // If there is at least one discrepancy, we want to generate the report already
-            if diff.peek().is_some() {
-                return Err(TcError::MissingPatternBounds {
-                    pat: cur_pat_id,
-                    bounds: diff.copied().collect_vec(),
-                });
+        // @@Todo: make this a macro
+        let mut append_err = |tc_err| {
+            if err.is_some() {
+                self.diagnostics().add_error(tc_err);
+            } else {
+                err = Some(tc_err);
             }
+        };
+
+        // Take the first member as we'll use it for our comparison
+        let mut member_binds = HashSet::new();
+
+        for (lhs_members, lhs_pat) in member_maps.clone().iter() {
+            member_binds = lhs_members.keys().copied().collect::<HashSet<Identifier>>();
+
+            // Compute the difference in `name` keys, if there exists a
+            // difference then we add this as an error on the pattern.
+            for (rhs_members, rhs_pat) in member_maps.iter() {
+                // Skip comparing the same pattern
+                if lhs_pat == rhs_pat {
+                    continue;
+                }
+
+                // We want to find the largest member and report that that member doesn't
+                // contain the binds...
+                let cur_binds = rhs_members.keys().copied().collect::<HashSet<Identifier>>();
+                let mut diff = member_binds.difference(&cur_binds).peekable();
+
+                // If there is at least one discrepancy, we want to generate the report already
+                if diff.peek().is_some() {
+                    append_err(TcError::MissingPatternBounds {
+                        pat: **rhs_pat,
+                        bounds: diff.copied().collect_vec(),
+                    });
+                }
+            }
+        }
+
+        // If at least one error occurred, then we return the error
+        if let Some(err) = err {
+            return Err(err);
         }
 
         // Now we need to verify that all of the member binds are of the
         // same type...
-        for bind in first_binds {
+        for bind in member_binds {
             let shared_terms =
                 member_maps.iter().map(|(map, _)| map.get(&bind).unwrap()).copied().collect_vec();
             self.unifier().unify_pat_terms(shared_terms)?;
@@ -142,7 +177,7 @@ impl<'tc> PatMatcher<'tc> {
         items: Vec<(PatArg, TermId, Option<TermId>)>,
         name: Identifier,
         original_id: PatId,
-    ) -> TcResult<Option<(Member, PatId)>> {
+    ) -> TcResult<Option<PatMember>> {
         let members = self.builder().create_args(
             items.iter().map(|(member, ty, value)| ArgOld {
                 name: member.name,
@@ -162,7 +197,10 @@ impl<'tc> PatMatcher<'tc> {
         // this one so in-case it is used for error reporting purposes...
         self.location_store().copy_location(original_id, id);
 
-        Ok(Some((Member::variable(name, Mutability::Immutable, inferred_term, inferred_term), id)))
+        Ok(Some(PatMember {
+            member: Member::variable(name, Mutability::Immutable, inferred_term, inferred_term),
+            pat: id,
+        }))
     }
 
     /// Find a spread pattern within the provided [PatArgsId].
@@ -227,7 +265,7 @@ impl<'tc> PatMatcher<'tc> {
         &self,
         pat: PatId,
         ConstructorPat { args, subject }: ConstructorPat,
-    ) -> TcResult<Option<(Member, PatId)>> {
+    ) -> TcResult<Option<PatMember>> {
         let reader = self.reader();
 
         // Utility for creating a wildcard pattern since this is a
@@ -301,7 +339,7 @@ impl<'tc> PatMatcher<'tc> {
         pat: PatId,
         members: PatArgsId,
         subject: TermId,
-    ) -> TcResult<Option<(Member, PatId)>> {
+    ) -> TcResult<Option<PatMember>> {
         let reader = self.reader();
 
         // Utility for creating a wildcard pattern since this is a
@@ -516,7 +554,7 @@ impl<'tc> PatMatcher<'tc> {
         pat: PatId,
         members: PatArgsId,
         subject: TermId,
-    ) -> TcResult<Option<Vec<(Member, PatId)>>> {
+    ) -> TcResult<Option<Vec<PatMember>>> {
         // Get the term of the tuple and try to unify it with the subject:
         let tuple_term = self.typer().get_term_of_pat(pat)?;
 
@@ -537,7 +575,7 @@ impl<'tc> PatMatcher<'tc> {
     fn match_constructor_pat_with_term(
         &self,
         ConstructorPat { args, subject }: ConstructorPat,
-    ) -> TcResult<Option<Vec<(Member, PatId)>>> {
+    ) -> TcResult<Option<Vec<PatMember>>> {
         // get the subject params
         let possible_subject_params = self.typer().infer_constructor_of_nominal_term(subject)?;
 
@@ -556,7 +594,7 @@ impl<'tc> PatMatcher<'tc> {
         &self,
         pat_args_id: PatArgsId,
         subject_params_id: ParamsId,
-    ) -> TcResult<Option<Vec<(Member, PatId)>>> {
+    ) -> TcResult<Option<Vec<PatMember>>> {
         let subject_params = self.reader().get_params_owned(subject_params_id);
         let pat_args = self.reader().get_pat_args_owned(pat_args_id);
 
@@ -581,10 +619,10 @@ impl<'tc> PatMatcher<'tc> {
             // setting the name, so that we don't add it twice then add the name
             // to the scope.
             if let Some(name) = arg.name && !self.reader().get_pat(arg.pat).is_bind() {
-                bound_members.push((
-                    Member::variable(name, Mutability::Immutable, param.ty, param_value),
-                    arg.pat,
-                ));
+                bound_members.push(PatMember {
+                    member: Member::variable(name, Mutability::Immutable, param.ty, param_value),
+                    pat: arg.pat,
+                });
             }
 
             bound_members.extend(
@@ -606,7 +644,7 @@ impl<'tc> PatMatcher<'tc> {
     fn match_list_pat_with_term(
         &self,
         ListPat { list_element_ty, element_pats }: ListPat,
-    ) -> TcResult<Option<Vec<(Member, PatId)>>> {
+    ) -> TcResult<Option<Vec<PatMember>>> {
         // We need to collect all of the binds from the inner patterns of
         // the list
         let params = self.reader().get_pat_args_owned(element_pats).clone();
@@ -635,7 +673,7 @@ impl<'tc> PatMatcher<'tc> {
         id: PatId,
         SpreadPat { name }: SpreadPat,
         subject_ty: TermId,
-    ) -> TcResult<Option<Vec<(Member, PatId)>>> {
+    ) -> TcResult<Option<Vec<PatMember>>> {
         match name {
             Some(name) => {
                 // Since `pat_ty` will be `List<T = Unresolved>`, we need to create a new
@@ -654,10 +692,15 @@ impl<'tc> PatMatcher<'tc> {
                 let TermValidation { simplified_term_id, term_ty_id } =
                     self.validator().validate_term(rt_term)?;
 
-                Ok(Some(vec![(
-                    Member::variable(name, Mutability::Immutable, term_ty_id, simplified_term_id),
-                    id,
-                )]))
+                Ok(Some(vec![PatMember {
+                    member: Member::variable(
+                        name,
+                        Mutability::Immutable,
+                        term_ty_id,
+                        simplified_term_id,
+                    ),
+                    pat: id,
+                }]))
             }
             _ => Ok(Some(vec![])),
         }
@@ -669,7 +712,7 @@ impl<'tc> PatMatcher<'tc> {
         &self,
         ModPat { members }: ModPat,
         subject: TermId,
-    ) -> TcResult<Option<Vec<(Member, PatId)>>> {
+    ) -> TcResult<Option<Vec<PatMember>>> {
         let members = self.reader().get_pat_args_owned(members).clone();
 
         let mut bound_members = vec![];
@@ -700,7 +743,7 @@ impl<'tc> PatMatcher<'tc> {
         &self,
         pats: &[PatId],
         subject: TermId,
-    ) -> TcResult<Option<Vec<(Member, PatId)>>> {
+    ) -> TcResult<Option<Vec<PatMember>>> {
         // Traverse all of the inner patterns within the `or` pattern, create a
         // map between the member names that are produced and the type of the
         // pattern... Then we want to ensure all of them are equal
@@ -736,7 +779,7 @@ impl<'tc> PatMatcher<'tc> {
         &self,
         pat_id: PatId,
         term_id: TermId,
-    ) -> TcResult<Option<Vec<(Member, PatId)>>> {
+    ) -> TcResult<Option<Vec<PatMember>>> {
         let TermValidation { simplified_term_id, term_ty_id } =
             self.validator().validate_term(term_id)?;
 
@@ -761,10 +804,15 @@ impl<'tc> PatMatcher<'tc> {
 
         let mut bound_members = match pat {
             // Binding: Add the binding as a member
-            Pat::Binding(binding) => Ok(Some(vec![(
-                Member::variable(binding.name, binding.mutability, term_ty_id, simplified_term_id),
-                pat_id,
-            )])),
+            Pat::Binding(binding) => Ok(Some(vec![PatMember {
+                member: Member::variable(
+                    binding.name,
+                    binding.mutability,
+                    term_ty_id,
+                    simplified_term_id,
+                ),
+                pat: pat_id,
+            }])),
 
             // We don't actually do anything here with the spread pattern since this should happen
             // at either the `list`, `tuple` or `constructor level. If it does not, then this
@@ -843,7 +891,8 @@ impl<'tc> PatMatcher<'tc> {
         pat_id: PatId,
         term_id: TermId,
     ) -> TcResult<Option<Vec<Member>>> {
-        self.match_pat_with_term_and_extract_binds(pat_id, term_id)
-            .map(|members| members.map(|inner| inner.into_iter().map(|(m, _)| m).collect()))
+        self.match_pat_with_term_and_extract_binds(pat_id, term_id).map(|members| {
+            members.map(|inner| inner.into_iter().map(|pat_member| pat_member.member).collect())
+        })
     }
 }

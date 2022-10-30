@@ -43,7 +43,9 @@ pub enum Mutability {
 /// The value of a bound member should always be None.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BoundMember {
+    /// The name of the member.
     pub name: Identifier,
+    /// The type of the bound member.
     pub ty: TermId,
 }
 
@@ -52,8 +54,12 @@ pub struct BoundMember {
 /// Should be part of a [ScopeKind::SetBound].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SetBoundMember {
+    /// The name of the member.
     pub name: Identifier,
+    /// The type of the bound member.
     pub ty: TermId,
+    /// The type of the associated value with this member, this is essentially
+    /// wrapped in `Rt(..)`
     pub value: TermId,
 }
 

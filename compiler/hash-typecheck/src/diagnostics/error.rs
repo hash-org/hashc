@@ -1356,7 +1356,8 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
             }
             TcError::MissingPatternBounds { pat, bounds } => {
                 builder.with_error_code(HashErrorCode::MissingPatternBounds).with_message(format!(
-                    "variables {} are not declared in all patterns",
+                    "variable{} {} are not declared in all patterns",
+                    pluralise!(bounds.len()),
                     SequenceDisplay::all(bounds.as_slice())
                 ));
 

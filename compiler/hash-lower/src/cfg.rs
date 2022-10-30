@@ -1,30 +1,34 @@
 //! Data structure representing the Control-Flow-Graph(CFG) that is used to
 //! represent lowered functions or constant blocks.
 
-use hash_ir::ir::{
-    BasicBlock, BasicBlockData, Place, RValue, Statement, StatementKind, Terminator, TerminatorKind,
+use hash_ir::{
+    ir::{
+        BasicBlock, BasicBlockData, Place, RValue, Statement, StatementKind, Terminator,
+        TerminatorKind,
+    },
+    IrStorage, RValueId,
 };
 use hash_source::location::Span;
 use index_vec::IndexVec;
 
-pub struct ControlFlowGraph<'tcx> {
+pub struct ControlFlowGraph {
     /// The basic blocks that this control flow graph contains.
-    pub(crate) basic_blocks: IndexVec<BasicBlock, BasicBlockData<'tcx>>,
+    pub(crate) basic_blocks: IndexVec<BasicBlock, BasicBlockData>,
 }
 
-impl<'tcx> ControlFlowGraph<'tcx> {
+impl ControlFlowGraph {
     /// Create a new empty control-flow graph
     pub fn new() -> Self {
         Self { basic_blocks: IndexVec::new() }
     }
 
     /// Get a reference to a [BasicBlock] inner [BasicBlockData].
-    pub(crate) fn block_data(&self, block: BasicBlock) -> &BasicBlockData<'tcx> {
+    pub(crate) fn block_data(&self, block: BasicBlock) -> &BasicBlockData {
         &self.basic_blocks[block]
     }
 
     /// Get a mutable reference to a [BasicBlock] inner [BasicBlockData].
-    pub(crate) fn block_data_mut(&mut self, block: BasicBlock) -> &mut BasicBlockData<'tcx> {
+    pub(crate) fn block_data_mut(&mut self, block: BasicBlock) -> &mut BasicBlockData {
         &mut self.basic_blocks[block]
     }
 
@@ -35,7 +39,7 @@ impl<'tcx> ControlFlowGraph<'tcx> {
 
     /// Function to terminate a particular [BasicBlock] provided that it has not
     /// been already terminated.
-    pub(crate) fn terminate(&mut self, block: BasicBlock, span: Span, kind: TerminatorKind<'tcx>) {
+    pub(crate) fn terminate(&mut self, block: BasicBlock, span: Span, kind: TerminatorKind) {
         debug_assert!(
             self.block_data(block).terminator.is_none(),
             "terminate: block {:?}={:?} already has a terminator set",
@@ -47,7 +51,7 @@ impl<'tcx> ControlFlowGraph<'tcx> {
     }
 
     /// Add a [Statement] to the specified [BasicBlock]
-    pub(crate) fn push(&mut self, block: BasicBlock, statement: Statement<'tcx>) {
+    pub(crate) fn push(&mut self, block: BasicBlock, statement: Statement) {
         self.block_data_mut(block).statements.push(statement);
     }
 
@@ -56,7 +60,7 @@ impl<'tcx> ControlFlowGraph<'tcx> {
         &mut self,
         block: BasicBlock,
         place: Place,
-        value: RValue<'tcx>,
+        value: RValueId,
         span: Span,
     ) {
         self.push(block, Statement { kind: StatementKind::Assign(place, value), span });

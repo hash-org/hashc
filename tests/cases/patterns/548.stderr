@@ -1,0 +1,13 @@
+error[0081]: variable `d` are not declared in all patterns
+ --> $DIR/548.hash:6:6
+5 |       // ~ERROR: variable `d` not declared in all patterns
+6 |       (c | d) := 2;    
+  |        ^ pattern doesn't bind `d`
+7 |   }
+
+error[0081]: variable `c` are not declared in all patterns
+ --> $DIR/548.hash:6:10
+5 |       // ~ERROR: variable `d` not declared in all patterns
+6 |       (c | d) := 2;    
+  |            ^ pattern doesn't bind `c`
+7 |   }

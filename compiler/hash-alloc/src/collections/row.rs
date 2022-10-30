@@ -200,7 +200,7 @@ impl<'c, T> Row<'c, T> {
         row
     }
 
-    /// Create a new [Row] from a [Vec<T>].
+    /// Create a new [Row] from a [`Vec<T>`].
     pub fn from_vec(vec: Vec<T>, wall: &Wall<'c>) -> Self {
         Self::from_iter(vec.into_iter(), wall)
     }
