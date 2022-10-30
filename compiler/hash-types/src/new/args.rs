@@ -1,6 +1,5 @@
-//! Definition of [Arg] data structure, which is the representation of a
-//! an argument to some function, data type, and other constructs that
-//! can take arguments.
+//! Definitions related to arguments to data structures, functions,
+//! etc.
 
 use hash_utils::{new_sequence_store_key, store::DefaultSequenceStore};
 

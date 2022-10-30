@@ -1,4 +1,4 @@
-//! Contains structures that store information about scopes.
+//! Definitions related to stack scopes, and variable declarations.
 
 use hash_utils::{new_sequence_store_key, store::DefaultSequenceStore};
 

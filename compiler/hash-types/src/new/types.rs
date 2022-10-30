@@ -1,3 +1,5 @@
+//! Definitions related to types.
+
 use hash_utils::{new_store_key, store::DefaultStore};
 
 use crate::new::{

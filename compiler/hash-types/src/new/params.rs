@@ -1,4 +1,4 @@
-//! Contains structures to store lists of parameters.
+//! Definitions related to parameters to data types, functions, etc.
 
 use hash_utils::{new_sequence_store_key, store::DefaultSequenceStore};
 

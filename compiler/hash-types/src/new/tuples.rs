@@ -1,4 +1,5 @@
-//! Contains structures relating to tuples.
+//! Definitions related to tuples.
+
 use crate::new::{args::ArgsId, params::ParamsId};
 
 /// A tuple type.

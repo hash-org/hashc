@@ -3,7 +3,7 @@ pub mod control;
 pub mod data;
 pub mod defs;
 pub mod fns;
-pub mod hole;
+pub mod holes;
 pub mod mods;
 pub mod params;
 pub mod pats;

@@ -1,5 +1,4 @@
-//! Contains structures to keep track of traits and information relating to
-//! them.
+//! Definitions related to traits.
 
 use hash_source::identifier::Identifier;
 use hash_utils::{
@@ -42,3 +41,13 @@ pub struct TrtBound {
 }
 new_sequence_store_key!(pub TrtBoundsId);
 pub type TrtBoundsStore = DefaultSequenceStore<TrtBoundsId, TrtBound>;
+
+/// Information about a trait being implemented.
+///
+/// Arguments in `args` could be referencing variables bound by the definition's
+/// params.
+#[derive(Debug, Clone, Copy)]
+pub struct TrtImplData {
+    pub trt: TrtDefId,
+    pub args: DefArgsId,
+}

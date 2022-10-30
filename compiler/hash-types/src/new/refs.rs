@@ -1,4 +1,4 @@
-//! Definitions related to reference types.
+//! Definitions related to reference types and terms.
 
 use crate::new::{terms::TermId, types::TyId};
 

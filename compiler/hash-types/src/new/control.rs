@@ -1,4 +1,5 @@
-///! Contains structures related to control flow.
+//! Definitions related to control flow.
+
 use crate::new::{
     scopes::BlockTerm,
     terms::{TermId, TermListId},

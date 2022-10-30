@@ -1,4 +1,5 @@
-//! Contains structures to keep track of terms and information relevant to them.
+//! Definitions related to terms.
+
 use hash_utils::{
     new_sequence_store_key, new_store_key,
     store::{DefaultSequenceStore, DefaultStore},
@@ -15,7 +16,7 @@ use crate::new::{
     trts::TrtDefId,
     tuples::TupleTerm,
     types::TyId,
-    unions::UnionTerm,
+    unions::UnionVariantTerm,
     vars::{ResolvedVarTerm, SymbolicVarTerm},
 };
 
@@ -68,7 +69,7 @@ pub enum Term {
     Ty(TyId),
     Cast(CastTerm),
     Runtime(RuntimeTerm),
-    Union(UnionTerm),
+    UnionVariant(UnionVariantTerm),
     Tuple(TupleTerm),
     TypeOfTerm(TypeOfTerm),
     Ctor(CtorTerm),

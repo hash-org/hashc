@@ -1,3 +1,5 @@
+//! Definitions related to variables.
+
 use crate::new::{
     data::CtorDefId, mods::ModMemberId, scopes::StackMemberId, symbols::Symbol, trts::TrtMemberId,
 };

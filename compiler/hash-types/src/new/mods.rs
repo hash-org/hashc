@@ -1,22 +1,13 @@
+//! Definitions related to modules.
+
 use hash_source::SourceId;
-///! Structures related to module definitions.
 use hash_utils::{new_sequence_store_key, new_store, new_store_key, store::DefaultSequenceStore};
 
 use crate::new::{
-    defs::{DefArgsId, DefMember, DefParamsId},
+    defs::{DefMember, DefParamsId},
     symbols::Symbol,
-    trts::TrtDefId,
+    trts::TrtImplData,
 };
-
-/// Information about a trait being implemented.
-///
-/// Arguments in `args` could be referencing variables bound by the definition's
-/// params.
-#[derive(Debug, Clone, Copy)]
-pub struct TrtImplData {
-    pub trt: TrtDefId,
-    pub args: DefArgsId,
-}
 
 /// The kind of a module.
 #[derive(Debug, Clone, Copy)]

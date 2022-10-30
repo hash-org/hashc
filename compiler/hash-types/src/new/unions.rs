@@ -1,3 +1,5 @@
+//! Definitions related to unions.
+
 use crate::new::{params::ParamsId, terms::TermId};
 
 /// A union type.
@@ -6,9 +8,9 @@ pub struct UnionTy {
     pub variants: ParamsId,
 }
 
-/// A union term.
+/// A union variant term.
 #[derive(Debug, Clone, Copy)]
-pub struct UnionTerm {
+pub struct UnionVariantTerm {
     /// The original union type
     pub original_ty: UnionTy,
     /// The variant index of the union
