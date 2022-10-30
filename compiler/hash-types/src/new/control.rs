@@ -1,5 +1,6 @@
 //! Definitions related to control flow.
 
+use super::pats::PatListId;
 use crate::new::{
     scopes::BlockTerm,
     terms::{TermId, TermListId},
@@ -21,7 +22,7 @@ pub struct LoopTerm {
 /// `decision[i]` is parametrised by the binds in `cases[i]`.
 #[derive(Debug, Clone, Copy)]
 pub struct MatchTerm {
-    // cases: PatListId,
+    pub cases: PatListId,
     pub decisions: TermListId,
 }
 
