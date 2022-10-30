@@ -4,13 +4,13 @@ use std::collections::HashSet;
 use hash_ast::ast::{ParamOrigin, RangeEnd};
 use hash_reporting::diagnostic::Diagnostics;
 use hash_types::{
-    arguments::ArgsId,
+    arguments::ArgsIdOld,
     mods::{ModDefIdOld, ModDefOriginOld},
     nominals::{NominalDef, NominalDefId, StructFields},
     params::{ParamList, ParamsId},
     pats::{BindingPat, ConstructorPat, Pat, PatArgsId, PatId, RangePat},
     scope::{Member, Scope, ScopeId, ScopeKind},
-    terms::{ConstructedTerm, FnTy, Level0Term, Level1Term, Level2Term, LitTerm, Term, TermId},
+    terms::{ConstructedTerm, FnTy, Level0Term, Level1Term, Level2Term, LitTerm, TermId, TermOld},
     trts::TrtDefIdOld,
 };
 use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreCopy, SequenceStoreKey, Store};
@@ -152,7 +152,7 @@ impl<'tc> Validator<'tc> {
 
         // Ensure the term leads to a trait definition:
         match simplified_trt_def_term {
-            Term::SetBound(set_bound) => {
+            TermOld::SetBound(set_bound) => {
                 self.scope_manager().enter_scope(set_bound.scope, |this| {
                     this.validator().ensure_scope_implements_trt(
                         set_bound.term,
@@ -161,7 +161,7 @@ impl<'tc> Validator<'tc> {
                     )
                 })
             }
-            Term::Level2(Level2Term::Trt(trt_def_id)) => {
+            TermOld::Level2(Level2Term::Trt(trt_def_id)) => {
                 let scope = self.reader().get_scope_copy(scope_id);
                 let mut scope_member_map = vec![false; scope.members.len()];
 
@@ -342,13 +342,13 @@ impl<'tc> Validator<'tc> {
 
         // Ensure the level of the term is valid:
         match union_element_term {
-            Term::SetBound(set_bound) => {
+            TermOld::SetBound(set_bound) => {
                 // Ensure the inner one is valid
                 self.scope_manager().enter_scope(set_bound.scope, |this| {
                     this.validator().validate_union_element(union_term_id, set_bound.term)
                 })
             }
-            Term::Level1(level1_term) => match level1_term {
+            TermOld::Level1(level1_term) => match level1_term {
                 // Checking a nominal
                 Level1Term::NominalDef(_) => Ok(()),
                 // Not checking a nominal:
@@ -356,7 +356,7 @@ impl<'tc> Validator<'tc> {
                     invalid_union_element()
                 }
             },
-            Term::ScopeVar(scope_var) => {
+            TermOld::ScopeVar(scope_var) => {
                 // Forward to the value:
                 let member = self.scope_manager().get_scope_var_member(scope_var);
                 let value = member.member.value();
@@ -368,23 +368,23 @@ impl<'tc> Validator<'tc> {
                 }
             },
             // Unclear if this fits the requirements, so we reject it:
-            Term::Unresolved(_) => {
+            TermOld::Unresolved(_) => {
                 Err(TcError::NeedMoreTypeAnnotationsToResolve { term: union_element_term_id })
             }
-            Term::Merge(_)
-            | Term::Level3(_)
-            | Term::Level2(_)
-            | Term::TyFn(_)
-            | Term::TyFnTy(_)
-            | Term::Level0(_)
-            | Term::Root
-            | Term::TyOf(_)
-            | Term::TyFnCall(_)
-            | Term::Access(_)
-            | Term::BoundVar(_) // @@Todo: we could allow this? Similar to merge elements where we just get their type..
-            | Term::Var(_) => invalid_union_element(),
+            TermOld::Merge(_)
+            | TermOld::Level3(_)
+            | TermOld::Level2(_)
+            | TermOld::TyFn(_)
+            | TermOld::TyFnTy(_)
+            | TermOld::Level0(_)
+            | TermOld::Root
+            | TermOld::TyOf(_)
+            | TermOld::TyFnCall(_)
+            | TermOld::Access(_)
+            | TermOld::BoundVar(_) // @@Todo: we could allow this? Similar to merge elements where we just get their type..
+            | TermOld::Var(_) => invalid_union_element(),
             // This should have been flattened already:
-            Term::Union(_) => {
+            TermOld::Union(_) => {
                 tc_panic_on_many!(
                     [union_element_term_id, union_term_id],
                     self,
@@ -479,16 +479,16 @@ impl<'tc> Validator<'tc> {
             // level 3 and the merge is level 2, which means it is a level 2 term. Their
             // type is level 2, we cannot be sure it won't have a duplicate nominal
             // definition so we cannot accept it.
-            Term::ScopeVar(_)
-            | Term::BoundVar(_)
-            | Term::TyFnCall(_)
-            | Term::Access(_)
-            | Term::Var(_) => {
+            TermOld::ScopeVar(_)
+            | TermOld::BoundVar(_)
+            | TermOld::TyFnCall(_)
+            | TermOld::Access(_)
+            | TermOld::Var(_) => {
                 let ty_id_of_term = self.typer().infer_ty_of_term(merge_element_term_id)?;
                 let reader = self.reader();
                 let ty_of_term = reader.get_term(ty_id_of_term);
                 match ty_of_term {
-                    Term::Level3(_) => {
+                    TermOld::Level3(_) => {
                         // If the type of the term is level 3, then we know that the merge should be
                         // level 2:
                         *merge_kind = ensure_merge_is_level2()?;
@@ -500,7 +500,7 @@ impl<'tc> Validator<'tc> {
                     }
                 }
             }
-            Term::SetBound(set_bound) => {
+            TermOld::SetBound(set_bound) => {
                 // Ensure the inner one is valid
                 self.scope_manager().enter_scope(set_bound.scope, |this| {
                     this.validator().validate_merge_element(
@@ -511,26 +511,26 @@ impl<'tc> Validator<'tc> {
                 })
             }
             // Unclear if this fits the requirements, so we reject it:
-            Term::Unresolved(_) => {
+            TermOld::Unresolved(_) => {
                 Err(TcError::NeedMoreTypeAnnotationsToResolve { term: merge_element_term_id })
             }
-            Term::Union(_) => {
+            TermOld::Union(_) => {
                 // For unions, we just treat it as a nominal, since it is a requirement of
                 // unions: @@Invariant: Unions only contain nominals.
                 *merge_kind = ensure_merge_is_level1(Some(merge_element_term_id))?;
                 Ok(())
             }
             // Level 3 terms are not allowed:
-            Term::Level3(_) => invalid_merge_element(),
+            TermOld::Level3(_) => invalid_merge_element(),
             // Level 2 terms are allowed:
-            Term::Level2(level2_term) => match level2_term {
+            TermOld::Level2(level2_term) => match level2_term {
                 Level2Term::Trt(_) | Level2Term::AnyTy | Level2Term::SizedTy => {
                     *merge_kind = ensure_merge_is_level2()?;
                     Ok(())
                 }
             },
             // Level 1 terms are allowed:
-            Term::Level1(level1_term) => match level1_term {
+            TermOld::Level1(level1_term) => match level1_term {
                 // @@Incomplete: shouldn't we also check that the `Self` property is compatible with
                 // the other elements?
 
@@ -547,15 +547,15 @@ impl<'tc> Validator<'tc> {
                 }
             },
             // Type functions are not allowed
-            Term::TyFn(_) | Term::TyFnTy(_) => invalid_merge_element(),
+            TermOld::TyFn(_) | TermOld::TyFnTy(_) => invalid_merge_element(),
             // Runtime terms are not allowed
-            Term::Level0(_) => invalid_merge_element(),
+            TermOld::Level0(_) => invalid_merge_element(),
             // Root is not allowed
-            Term::Root => invalid_merge_element(),
+            TermOld::Root => invalid_merge_element(),
             // Unsimplifiable typeof is not allowed
-            Term::TyOf(_) => invalid_merge_element(),
+            TermOld::TyOf(_) => invalid_merge_element(),
             // This should have been flattened already:
-            Term::Merge(_) => {
+            TermOld::Merge(_) => {
                 tc_panic_on_many!(
                     [merge_element_term_id, merge_term_id],
                     self,
@@ -593,7 +593,7 @@ impl<'tc> Validator<'tc> {
     /// Validate the given arguments, by validating their values.
     ///
     /// **Note**: Requires that the arguments have already been simplified.
-    pub(crate) fn validate_args(&self, args_id: ArgsId) -> TcResult<()> {
+    pub(crate) fn validate_args(&self, args_id: ArgsIdOld) -> TcResult<()> {
         let args = self.args_store().get_owned_param_list(args_id);
 
         for arg in args.positional() {
@@ -629,7 +629,7 @@ impl<'tc> Validator<'tc> {
 
         let validated_term = match term {
             // Merge:
-            Term::Merge(terms) => {
+            TermOld::Merge(terms) => {
                 let terms = self.reader().get_term_list_owned(terms);
 
                 if let [term] = terms.as_slice() {
@@ -657,7 +657,7 @@ impl<'tc> Validator<'tc> {
             }
 
             // Union
-            Term::Union(terms) => {
+            TermOld::Union(terms) => {
                 let terms = self.reader().get_term_list_owned(terms);
 
                 if let [term] = terms.as_slice() {
@@ -680,7 +680,7 @@ impl<'tc> Validator<'tc> {
             }
 
             // Level 1 terms:
-            Term::Level1(level1_term) => match level1_term {
+            TermOld::Level1(level1_term) => match level1_term {
                 Level1Term::Tuple(tuple_ty) => {
                     // Validate each parameter
                     self.validate_params(tuple_ty.members)?;
@@ -715,7 +715,7 @@ impl<'tc> Validator<'tc> {
             },
 
             // Level 0 terms:
-            Term::Level0(level0_term) => match level0_term {
+            TermOld::Level0(level0_term) => match level0_term {
                 Level0Term::Rt(rt_inner_term) => {
                     // Validate the inner term, and ensure it is runtime instantiable:
                     self.validate_term(rt_inner_term)?;
@@ -798,7 +798,7 @@ impl<'tc> Validator<'tc> {
             },
 
             // Access
-            Term::Access(access_term) => {
+            TermOld::Access(access_term) => {
                 // Validate the inner term; the access should already be valid since it passed
                 // the typing stage.
                 self.validate_term(access_term.subject)?;
@@ -806,7 +806,7 @@ impl<'tc> Validator<'tc> {
             }
 
             // Set bound, just validate inner
-            Term::SetBound(set_bound) => {
+            TermOld::SetBound(set_bound) => {
                 let _ = self.scope_manager().enter_scope(set_bound.scope, |this| {
                     this.validator().validate_term(set_bound.term)
                 })?;
@@ -814,7 +814,7 @@ impl<'tc> Validator<'tc> {
             }
 
             // Type function type:
-            Term::TyFnTy(ty_fn_ty) => {
+            TermOld::TyFnTy(ty_fn_ty) => {
                 // Validate the params and return type:
                 let ty_fn_ty = ty_fn_ty;
                 self.validate_params(ty_fn_ty.params)?;
@@ -846,7 +846,7 @@ impl<'tc> Validator<'tc> {
             }
 
             // Type function:
-            Term::TyFn(ty_fn) => {
+            TermOld::TyFn(ty_fn) => {
                 // Validate params and return type.
                 let ty_fn = ty_fn;
                 self.validate_params(ty_fn.general_params)?;
@@ -925,10 +925,10 @@ impl<'tc> Validator<'tc> {
             }
 
             // Typeof: recurse to inner
-            Term::TyOf(term) => self.validate_term(term),
+            TermOld::TyOf(term) => self.validate_term(term),
 
             // Type function application:
-            Term::TyFnCall(app_ty_fn) => {
+            TermOld::TyFnCall(app_ty_fn) => {
                 // Since this could be typed, it means the application is valid in terms of
                 // unification of type function params with the arguments. Thus, all we need to
                 // do is validate individually the term and the arguments:
@@ -937,12 +937,16 @@ impl<'tc> Validator<'tc> {
                 self.validate_args(app_ty_fn.args)?;
                 Ok(result)
             }
-            Term::ScopeVar(_) => Ok(result),
-            Term::BoundVar(_) => {
+            TermOld::ScopeVar(_) => Ok(result),
+            TermOld::BoundVar(_) => {
                 // @@Todo: ensure bound var exists
                 Ok(result)
             }
-            Term::Level2(_) | Term::Level3(_) | Term::Var(_) | Term::Root | Term::Unresolved(_) => {
+            TermOld::Level2(_)
+            | TermOld::Level3(_)
+            | TermOld::Var(_)
+            | TermOld::Root
+            | TermOld::Unresolved(_) => {
                 // Nothing to do, should have already been validated by the typer.
                 Ok(result)
             }
@@ -1002,7 +1006,7 @@ impl<'tc> Validator<'tc> {
         let reader = self.reader();
         let term = reader.get_term(term_id);
         match term {
-            Term::Level0(level0_term) => {
+            TermOld::Level0(level0_term) => {
                 match level0_term {
                     Level0Term::Rt(_) => {
                         // Not any runtime value can be used here because it might produce
@@ -1051,13 +1055,13 @@ impl<'tc> Validator<'tc> {
             // These have not been resolved, for now we don't allow them.
             // @@Enhance,@@ErrorReporting: we could possibly look at the type of the term?
             // Otherwise we could at least provide a better error message.
-            Term::ScopeVar(_)
-            | Term::BoundVar(_)
-            | Term::TyOf(_)
-            | Term::TyFnCall(_)
-            | Term::Access(_)
-            | Term::Var(_) => Ok(false),
-            Term::Merge(terms) | Term::Union(terms) => {
+            TermOld::ScopeVar(_)
+            | TermOld::BoundVar(_)
+            | TermOld::TyOf(_)
+            | TermOld::TyFnCall(_)
+            | TermOld::Access(_)
+            | TermOld::Var(_) => Ok(false),
+            TermOld::Merge(terms) | TermOld::Union(terms) => {
                 // Valid if each element is okay to be used as the return type:
                 for idx in terms.to_index_range() {
                     let term = self.term_list_store().get_at_index(terms, idx);
@@ -1068,7 +1072,7 @@ impl<'tc> Validator<'tc> {
                 }
                 Ok(true)
             }
-            Term::Level0(_) | Term::TyFn(_) => {
+            TermOld::Level0(_) | TermOld::TyFn(_) => {
                 // This should never happen
                 tc_panic!(
                     term_id,
@@ -1076,26 +1080,26 @@ impl<'tc> Validator<'tc> {
                     "Found type function definition or level 0 term in type position!"
                 )
             }
-            Term::TyFnTy(_) => {
+            TermOld::TyFnTy(_) => {
                 // All good, basically curried type function:
                 Ok(true)
             }
-            Term::SetBound(set_bound) => {
+            TermOld::SetBound(set_bound) => {
                 // Look at inner term
                 self.scope_manager().enter_scope(set_bound.scope, |this| {
                     this.validator().term_can_be_used_as_ty_fn_return_ty(set_bound.term)
                 })
             }
-            Term::Unresolved(_) => {
+            TermOld::Unresolved(_) => {
                 // More type annotations are needed
                 Err(TcError::NeedMoreTypeAnnotationsToResolve { term: term_id })
             }
             // All level 2 and 3 terms are ok to use as return types
-            Term::Level2(_) | Term::Level3(_) => Ok(true),
+            TermOld::Level2(_) | TermOld::Level3(_) => Ok(true),
             // All level 1 terms are ok to use as return types, but their values have some
             // constraints (see `Self::term_can_be_used_as_ty_fn_return_value` function above)
-            Term::Level1(_) => Ok(true),
-            Term::Root => {
+            TermOld::Level1(_) => Ok(true),
+            TermOld::Root => {
                 // This should be okay, for example if we are returning some TyFnTy value.
                 Ok(true)
             }
@@ -1116,12 +1120,12 @@ impl<'tc> Validator<'tc> {
             // These have not been resolved, for now we don't allow them.
             // @@Enhance,@@ErrorReporting: we could possibly look at the type of the term?
             // Otherwise we could at least provide a better error message.
-            Term::ScopeVar(_)
-            | Term::BoundVar(_)
-            | Term::TyFnCall(_)
-            | Term::Access(_)
-            | Term::Var(_) => Ok(false),
-            Term::Union(terms) | Term::Merge(terms) => {
+            TermOld::ScopeVar(_)
+            | TermOld::BoundVar(_)
+            | TermOld::TyFnCall(_)
+            | TermOld::Access(_)
+            | TermOld::Var(_) => Ok(false),
+            TermOld::Union(terms) | TermOld::Merge(terms) => {
                 // Valid if each element is okay to be used as a parameter type:
                 for idx in terms.to_index_range() {
                     let term = self.term_list_store().get_at_index(terms, idx);
@@ -1133,7 +1137,7 @@ impl<'tc> Validator<'tc> {
 
                 Ok(true)
             }
-            Term::Level0(_) | Term::TyFn(_) => {
+            TermOld::Level0(_) | TermOld::TyFn(_) => {
                 // This should never happen
                 tc_panic!(
                     term_id,
@@ -1141,25 +1145,25 @@ impl<'tc> Validator<'tc> {
                     "Found type function definition or level 0 term in type position!"
                 )
             }
-            Term::TyFnTy(ty_fn_ty) => {
+            TermOld::TyFnTy(ty_fn_ty) => {
                 // Type function types are okay to use if their return types can be used here:
                 self.term_can_be_used_as_ty_fn_param_ty(ty_fn_ty.return_ty)
             }
-            Term::SetBound(set_bound) => {
+            TermOld::SetBound(set_bound) => {
                 // Look at inner term
                 self.scope_manager().enter_scope(set_bound.scope, |this| {
                     this.validator().term_can_be_used_as_ty_fn_param_ty(set_bound.term)
                 })
             }
-            Term::Unresolved(_) => {
+            TermOld::Unresolved(_) => {
                 // More type annotations are needed
                 Err(TcError::NeedMoreTypeAnnotationsToResolve { term: term_id })
             }
             // All level 2 and 3 terms are ok to use as parameter types
-            Term::Level2(_) | Term::Level3(_) => Ok(true),
+            TermOld::Level2(_) | TermOld::Level3(_) => Ok(true),
             // Level 1 terms are not ok (because their instances are runtime)
-            Term::Level1(_) => Ok(false),
-            Term::TyOf(_) | Term::Root => {
+            TermOld::Level1(_) => Ok(false),
+            TermOld::TyOf(_) | TermOld::Root => {
                 // @@PotentiallyUnnecessary: is there some use case to allow this?
                 Ok(false)
             }
@@ -1172,7 +1176,7 @@ impl<'tc> Validator<'tc> {
         let reader = self.reader();
         let term = reader.get_term(simplified_term_id);
         match term {
-            Term::Level1(Level1Term::Fn(fn_ty)) => Ok(Some(fn_ty)),
+            TermOld::Level1(Level1Term::Fn(fn_ty)) => Ok(Some(fn_ty)),
             _ => Ok(None),
         }
     }
@@ -1205,16 +1209,16 @@ impl<'tc> Validator<'tc> {
         // or equal to `rhs`, otherwise it must be less than `rhs
         match (lo_term, hi_term) {
             (
-                Term::Level0(Level0Term::Lit(LitTerm::Char(lhs))),
-                Term::Level0(Level0Term::Lit(LitTerm::Char(rhs))),
+                TermOld::Level0(Level0Term::Lit(LitTerm::Char(lhs))),
+                TermOld::Level0(Level0Term::Lit(LitTerm::Char(rhs))),
             ) => match end {
                 RangeEnd::Included if lhs > rhs => invalid_range_bound(lo, end),
                 RangeEnd::Excluded if lhs >= rhs => invalid_range_bound(lo, end),
                 _ => Ok(()),
             },
             (
-                Term::Level0(Level0Term::Lit(LitTerm::Int { value: lhs, kind: lhs_kind })),
-                Term::Level0(Level0Term::Lit(LitTerm::Int { value: rhs, kind: rhs_kind })),
+                TermOld::Level0(Level0Term::Lit(LitTerm::Int { value: lhs, kind: lhs_kind })),
+                TermOld::Level0(Level0Term::Lit(LitTerm::Int { value: rhs, kind: rhs_kind })),
             ) => {
                 // Check that the integer type is sized, if it is not then we currently
                 // say that this is not supported...

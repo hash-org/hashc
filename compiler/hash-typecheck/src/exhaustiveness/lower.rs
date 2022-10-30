@@ -11,7 +11,7 @@ use hash_types::{
         AccessPat, ConstPat, ConstructorPat, IfPat, ListPat, ModPat, Pat, PatArg, PatArgsId, PatId,
         RangePat, SpreadPat,
     },
-    terms::{Level0Term, Level1Term, LitTerm, Term, TermId, TupleTy},
+    terms::{Level0Term, Level1Term, LitTerm, TermId, TermOld, TupleTy},
 };
 use hash_utils::store::Store;
 use if_chain::if_chain;
@@ -78,7 +78,7 @@ impl<'tc> LowerPatOps<'tc> {
                 let specified_members = reader.get_pat_args_owned(members).clone();
 
                 let (scope_id, mut scope_members) = match reader.get_term(ty) {
-                    Term::Level1(Level1Term::ModDef(id)) => {
+                    TermOld::Level1(Level1Term::ModDef(id)) => {
                         let ModDefOld { members, .. } = reader.get_mod_def(id);
                         self.scope_store().map_fast(members, |scope| {
                             // We should be in a constant scope
@@ -129,7 +129,7 @@ impl<'tc> LowerPatOps<'tc> {
                 (DeconstructedCtor::IntRange(range), vec![])
             }
             Pat::Lit(term) => match reader.get_term(term) {
-                Term::Level0(Level0Term::Lit(lit)) => match lit {
+                TermOld::Level0(Level0Term::Lit(lit)) => match lit {
                     LitTerm::Str(value) => (DeconstructedCtor::Str(value), vec![]),
                     LitTerm::Int { value, kind } => {
                         let value = Constant::from_int(value, kind, term);
@@ -148,7 +148,7 @@ impl<'tc> LowerPatOps<'tc> {
                 // We need to read the tuple type from the ctx type and then create
                 // wildcard fields for all of the inner types
                 match reader.get_term(ty) {
-                    Term::Level1(Level1Term::Tuple(TupleTy { members })) => {
+                    TermOld::Level1(Level1Term::Tuple(TupleTy { members })) => {
                         let fields = self.pat_lowerer().deconstruct_pat_fields(args, members);
                         let members = reader.get_params_owned(members).clone();
 
@@ -178,7 +178,7 @@ impl<'tc> LowerPatOps<'tc> {
             }
             Pat::Constructor(ConstructorPat { args, .. }) => {
                 match reader.get_term(ty) {
-                    Term::Level1(Level1Term::NominalDef(nominal_def)) => {
+                    TermOld::Level1(Level1Term::NominalDef(nominal_def)) => {
                         // @@Todo: deal with variants
                         match reader.get_nominal_def(nominal_def) {
                             NominalDef::Struct(struct_def) => match struct_def.fields {
@@ -316,7 +316,7 @@ impl<'tc> LowerPatOps<'tc> {
                 let reader = self.reader();
 
                 match reader.get_term(pat.ty) {
-                    Term::Level1(Level1Term::Tuple(_)) => {
+                    TermOld::Level1(Level1Term::Tuple(_)) => {
                         let children = pat
                             .fields
                             .iter_patterns()
@@ -329,7 +329,7 @@ impl<'tc> LowerPatOps<'tc> {
                         let args = self.builder().create_pat_args(children, ParamOrigin::Tuple);
                         Pat::Tuple(args)
                     }
-                    Term::Level1(Level1Term::NominalDef(nom_def)) => {
+                    TermOld::Level1(Level1Term::NominalDef(nom_def)) => {
                         match reader.get_nominal_def(nom_def) {
                             NominalDef::Struct(struct_def) => {
                                 let tys = match struct_def.fields {
@@ -440,10 +440,10 @@ impl<'tc> LowerPatOps<'tc> {
             // The only types we support we support within ranges is currently a
             // `char` and `int` types
             match self.reader().get_term(term) {
-                Term::Level0(Level0Term::Lit(LitTerm::Char(ch))) => {
+                TermOld::Level0(Level0Term::Lit(LitTerm::Char(ch))) => {
                     Constant::from_char(ch, term).data()
                 }
-                Term::Level0(Level0Term::Lit(LitTerm::Int { value, kind })) => {
+                TermOld::Level0(Level0Term::Lit(LitTerm::Int { value, kind })) => {
                     Constant::from_int(value, kind, term).data()
                 }
                 _ => tc_panic!(term, self, "term does not support lowering into range"),

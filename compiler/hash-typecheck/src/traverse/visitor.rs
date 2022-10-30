@@ -18,7 +18,7 @@ use hash_source::{
     ModuleKind, SourceId,
 };
 use hash_types::{
-    arguments::Arg,
+    arguments::ArgOld,
     location::{IndexedLocationTarget, LocationTarget},
     mods::ModDefOriginOld,
     nodes::NodeInfoTarget,
@@ -294,7 +294,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         Ok(term)
     }
 
-    type TupleLitEntryRet = Arg;
+    type TupleLitEntryRet = ArgOld;
 
     fn visit_tuple_lit_entry(
         &self,
@@ -311,7 +311,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let ty_sub = self.unifier().unify_terms(value_ty, ty_or_unresolved)?;
         let value = self.substituter().apply_sub_to_term(&ty_sub, value);
 
-        Ok(Arg { name, value })
+        Ok(ArgOld { name, value })
     }
 
     type TupleLitRet = TermId;
@@ -456,14 +456,14 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         Ok(subject)
     }
 
-    type ConstructorCallArgRet = Arg;
+    type ConstructorCallArgRet = ArgOld;
 
     fn visit_constructor_call_arg(
         &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ConstructorCallArg>,
     ) -> Result<Self::ConstructorCallArgRet, Self::Error> {
         let walk::ConstructorCallArg { name, value } = walk::walk_constructor_call_arg(self, node)?;
-        Ok(Arg { name, value })
+        Ok(ArgOld { name, value })
     }
 
     type ConstructorCallExprRet = TermId;
@@ -868,7 +868,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         // These should be converted to args
         let args = self.builder().create_args(
-            args.iter().map(|param_arg| Arg { name: param_arg.name, value: param_arg.ty }),
+            args.iter().map(|param_arg| ArgOld { name: param_arg.name, value: param_arg.ty }),
             ParamOrigin::TyFn,
         );
 

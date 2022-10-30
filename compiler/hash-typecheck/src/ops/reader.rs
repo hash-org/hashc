@@ -2,13 +2,13 @@
 //! ease.
 
 use hash_types::{
-    arguments::{Args, ArgsId},
+    arguments::{ArgsIdOld, ArgsOld},
     mods::{ModDefIdOld, ModDefOld},
     nominals::{NominalDef, NominalDefId},
     params::{Params, ParamsId},
     pats::{Pat, PatArgs, PatArgsId, PatId},
     scope::{Scope, ScopeId},
-    terms::{Term, TermId, TermListId},
+    terms::{TermId, TermListId, TermOld},
     trts::{TrtDefIdOld, TrtDefOld},
 };
 use hash_utils::store::{CloneStore, SequenceStore, Store};
@@ -39,7 +39,7 @@ impl<'tc> PrimitiveReader<'tc> {
     }
 
     /// Get the term with the given [TermId].
-    pub fn get_term(&self, id: TermId) -> Term {
+    pub fn get_term(&self, id: TermId) -> TermOld {
         self.term_store().get(id)
     }
 
@@ -69,7 +69,7 @@ impl<'tc> PrimitiveReader<'tc> {
     }
 
     /// Get the args with the given [ArgsId].
-    pub fn get_args_owned(&self, id: ArgsId) -> Args<'static> {
+    pub fn get_args_owned(&self, id: ArgsIdOld) -> ArgsOld<'static> {
         self.args_store().get_owned_param_list(id)
     }
 

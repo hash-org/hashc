@@ -47,6 +47,7 @@ impl fmt::Display for ForFormatting<'_, TrtDefIdOld> {
 
 new_sequence_store_key!(pub TrtMembersId);
 pub type TrtMembersStore = DefaultSequenceStore<TrtMembersId, DefMember<TrtDefId>>;
+pub type TrtMemberId = (TrtMembersId, usize);
 
 /// A trait definition.
 ///

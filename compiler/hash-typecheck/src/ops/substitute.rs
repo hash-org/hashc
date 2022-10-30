@@ -1,11 +1,11 @@
 //! Functionality related to variable substitution inside terms/types.
 use hash_types::{
-    arguments::{Arg, ArgsId},
+    arguments::{ArgOld, ArgsIdOld},
     params::{Param, ParamsId},
     scope::ScopeId,
     terms::{
-        ConstructedTerm, FnTy, Level0Term, Level1Term, Level2Term, Level3Term, Sub, SubVar, Term,
-        TermId, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
+        ConstructedTerm, FnTy, Level0Term, Level1Term, Level2Term, Level3Term, Sub, SubVar, TermId,
+        TermOld, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
     },
 };
 use hash_utils::store::Store;
@@ -31,13 +31,13 @@ impl<'tc> Substituter<'tc> {
 
     /// Apply the given substitution to the given arguments, producing a new set
     /// of arguments with the substituted variables.
-    pub fn apply_sub_to_args(&self, sub: &Sub, args_id: ArgsId) -> ArgsId {
+    pub fn apply_sub_to_args(&self, sub: &Sub, args_id: ArgsIdOld) -> ArgsIdOld {
         let args = self.args_store().get_owned_param_list(args_id);
 
         let new_args = args
             .positional()
             .iter()
-            .map(|arg| Arg { name: arg.name, value: self.apply_sub_to_term(sub, arg.value) })
+            .map(|arg| ArgOld { name: arg.name, value: self.apply_sub_to_term(sub, arg.value) })
             .collect::<Vec<_>>();
 
         self.builder().create_args(new_args, self.args_store().get_origin(args_id))
@@ -118,14 +118,14 @@ impl<'tc> Substituter<'tc> {
             Level1Term::Tuple(tuple_ty) => {
                 // Apply to all members
                 let subbed_members = self.apply_sub_to_params(sub, tuple_ty.members);
-                self.builder().create_term(Term::Level1(Level1Term::Tuple(TupleTy {
+                self.builder().create_term(TermOld::Level1(Level1Term::Tuple(TupleTy {
                     members: subbed_members,
                 })))
             }
             Level1Term::Fn(fn_ty) => {
                 // Apply to parameters and return type
                 let subbed_fn_ty = self.apply_sub_to_fn_ty(sub, fn_ty);
-                self.builder().create_term(Term::Level1(Level1Term::Fn(subbed_fn_ty)))
+                self.builder().create_term(TermOld::Level1(Level1Term::Fn(subbed_fn_ty)))
             }
         }
     }
@@ -210,16 +210,18 @@ impl<'tc> Substituter<'tc> {
 
         let new_term = match term {
             // Leaves:
-            Term::ScopeVar(_) | Term::Var(_) | Term::BoundVar(_) | Term::Root => term_id,
-            Term::Unresolved(unresolved) => self.apply_sub_to_subject(sub, unresolved.into()),
+            TermOld::ScopeVar(_) | TermOld::Var(_) | TermOld::BoundVar(_) | TermOld::Root => {
+                term_id
+            }
+            TermOld::Unresolved(unresolved) => self.apply_sub_to_subject(sub, unresolved.into()),
 
             // Recursive cases:
-            Term::Access(access) => {
+            TermOld::Access(access) => {
                 // Just apply the substitution to the subject:
                 let subbed_subject_id = self.apply_sub_to_term(sub, access.subject);
                 self.builder().create_ns_access(subbed_subject_id, access.name)
             }
-            Term::Merge(terms) => {
+            TermOld::Merge(terms) => {
                 // Apply the substitution to each element of the merge.
                 let terms = self
                     .reader()
@@ -229,7 +231,7 @@ impl<'tc> Substituter<'tc> {
 
                 self.builder().create_merge_term(terms)
             }
-            Term::Union(terms) => {
+            TermOld::Union(terms) => {
                 // Apply the substitution to each element of the union.
                 let terms = self
                     .reader()
@@ -239,7 +241,7 @@ impl<'tc> Substituter<'tc> {
 
                 self.builder().create_union_term(terms)
             }
-            Term::TyFn(ty_fn) => {
+            TermOld::TyFn(ty_fn) => {
                 // Apply the substitution to the general parameters, return type, and each case.
                 let general_params = self.apply_sub_to_params(sub, ty_fn.general_params);
                 let general_return_ty = self.apply_sub_to_term(sub, ty_fn.general_return_ty);
@@ -254,44 +256,44 @@ impl<'tc> Substituter<'tc> {
                     })
                     .collect::<Vec<_>>();
 
-                self.builder().create_term(Term::TyFn(TyFn {
+                self.builder().create_term(TermOld::TyFn(TyFn {
                     name: ty_fn.name,
                     general_params,
                     general_return_ty,
                     cases,
                 }))
             }
-            Term::TyFnTy(ty_fn_ty) => {
+            TermOld::TyFnTy(ty_fn_ty) => {
                 // Apply the substitution to the parameters and return type.
                 let params = self.apply_sub_to_params(sub, ty_fn_ty.params);
                 let return_ty = self.apply_sub_to_term(sub, ty_fn_ty.return_ty);
-                self.builder().create_term(Term::TyFnTy(TyFnTy { params, return_ty }))
+                self.builder().create_term(TermOld::TyFnTy(TyFnTy { params, return_ty }))
             }
-            Term::TyFnCall(app_ty_fn) => {
+            TermOld::TyFnCall(app_ty_fn) => {
                 // Apply the substitution to the subject and arguments.
                 let subbed_subject = self.apply_sub_to_term(sub, app_ty_fn.subject);
                 let subbed_args = self.apply_sub_to_args(sub, app_ty_fn.args);
-                self.builder().create_term(Term::TyFnCall(TyFnCall {
+                self.builder().create_term(TermOld::TyFnCall(TyFnCall {
                     subject: subbed_subject,
                     args: subbed_args,
                 }))
             }
-            Term::SetBound(set_bound) => {
+            TermOld::SetBound(set_bound) => {
                 // Apply to the scope and the term:
                 let scope = self.apply_sub_to_scope(sub, set_bound.scope);
                 let term = self.apply_sub_to_term(sub, set_bound.term);
                 self.builder().create_set_bound_term(term, scope)
             }
-            Term::TyOf(term) => {
+            TermOld::TyOf(term) => {
                 // Apply sub to inner:
                 let subbed_term = self.apply_sub_to_term(sub, term);
                 self.builder().create_ty_of_term(subbed_term)
             }
             // Definite-level terms:
-            Term::Level3(term) => self.apply_sub_to_level3_term(sub, term, term_id),
-            Term::Level2(term) => self.apply_sub_to_level2_term(sub, term, term_id),
-            Term::Level1(term) => self.apply_sub_to_level1_term(sub, term, term_id),
-            Term::Level0(term) => self.apply_sub_to_level0_term(sub, term, term_id),
+            TermOld::Level3(term) => self.apply_sub_to_level3_term(sub, term, term_id),
+            TermOld::Level2(term) => self.apply_sub_to_level2_term(sub, term, term_id),
+            TermOld::Level1(term) => self.apply_sub_to_level1_term(sub, term, term_id),
+            TermOld::Level0(term) => self.apply_sub_to_level0_term(sub, term, term_id),
         };
 
         self.location_store().copy_location(term_id, new_term);

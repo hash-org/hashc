@@ -9,7 +9,7 @@ use hash_ast::ast::ParamOrigin;
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::identifier::Identifier;
 use hash_types::{
-    arguments::Arg,
+    arguments::ArgOld,
     nominals::StructFields,
     params::{AccessOp, ParamsId},
     pats::{
@@ -144,7 +144,7 @@ impl<'tc> PatMatcher<'tc> {
         original_id: PatId,
     ) -> TcResult<Option<(Member, PatId)>> {
         let members = self.builder().create_args(
-            items.iter().map(|(member, ty, value)| Arg {
+            items.iter().map(|(member, ty, value)| ArgOld {
                 name: member.name,
                 value: value.unwrap_or(self.builder().create_rt_term(*ty)),
             }),

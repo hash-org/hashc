@@ -19,15 +19,23 @@ use crate::{
 /// Each constructor must result in the original data-type, with some given
 /// arguments.
 #[derive(Debug, Clone, Copy)]
-pub struct Ctor {
+pub struct CtorDef {
     pub name: Symbol,
-    pub data_def: DataDefId,
+    pub original_data_def_id: DataDefId,
     pub index: usize,
     pub params: DefParamsId,
     pub result_args: DefArgsId,
 }
-new_sequence_store_key!(pub CtorsId);
-pub type CtorsStore = DefaultSequenceStore<CtorsId, Ctor>;
+new_sequence_store_key!(pub CtorDefsId);
+pub type CtorDefsStore = DefaultSequenceStore<CtorDefsId, CtorDef>;
+pub type CtorDefId = (CtorDefsId, usize);
+
+/// A constructor term.
+#[derive(Debug, Clone, Copy)]
+pub struct CtorTerm {
+    pub ctor: CtorDefId,
+    pub args: DefArgsId,
+}
 
 /// A data-type definition.
 ///
@@ -37,7 +45,14 @@ pub type CtorsStore = DefaultSequenceStore<CtorsId, Ctor>;
 pub struct DataDef {
     pub name: Symbol,
     pub params: DefParamsId,
-    pub ctors: CtorsId,
+    pub ctors: CtorDefsId,
 }
 new_store_key!(pub DataDefId);
 pub type DataDefStore = DefaultStore<DataDefId, DataDef>;
+
+/// A type pointing to a data-type definition.
+#[derive(Debug, Clone, Copy)]
+pub struct DataTy {
+    pub data_def: DataDefId,
+    pub args: DefArgsId,
+}

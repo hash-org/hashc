@@ -9,33 +9,36 @@ use hash_utils::new_sequence_store_key;
 use crate::{
     fmt::{ForFormatting, PrepareForFormatting},
     params::{GetNameOpt, ParamList, ParamListStore},
+    symbols::Symbol,
     terms::TermId,
 };
 
+// -- OLD --
+
 /// An argument to a parameter.
 #[derive(Debug, Clone, Hash, Copy)]
-pub struct Arg {
+pub struct ArgOld {
     /// Optional name that is attached to the argument.
     pub name: Option<Identifier>,
     /// The term that is the value of the argument.
     pub value: TermId,
 }
 
-impl GetNameOpt for Arg {
+impl GetNameOpt for ArgOld {
     fn get_name_opt(&self) -> Option<Identifier> {
         self.name
     }
 }
 
 /// A list of arguments.
-pub type Args<'p> = ParamList<'p, Arg>;
+pub type ArgsOld<'p> = ParamList<'p, ArgOld>;
 
-new_sequence_store_key!(pub ArgsId);
-pub type ArgsStore = ParamListStore<ArgsId, Arg>;
+new_sequence_store_key!(pub ArgsIdOld);
+pub type ArgsStoreOld = ParamListStore<ArgsIdOld, ArgOld>;
 
-impl PrepareForFormatting for ArgsId {}
+impl PrepareForFormatting for ArgsIdOld {}
 
-impl fmt::Display for ForFormatting<'_, ArgsId> {
+impl fmt::Display for ForFormatting<'_, ArgsIdOld> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let args_id = self.t;
 
@@ -61,3 +64,20 @@ impl fmt::Display for ForFormatting<'_, ArgsId> {
         })
     }
 }
+
+// -- NEW --
+
+/// An argument to a parameter.
+#[derive(Debug, Clone, Hash, Copy)]
+pub struct Arg {
+    /// Optional name that is attached to the argument.
+    pub name: Option<Symbol>,
+    /// The term that is the value of the argument.
+    pub value: TermId,
+}
+
+/// A list of arguments.
+pub type Args<'p> = ParamList<'p, Arg>;
+
+new_sequence_store_key!(pub ArgsId);
+pub type ArgsStore = ParamListStore<ArgsId, Arg>;

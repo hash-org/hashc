@@ -7,7 +7,7 @@ use hash_source::{identifier::Identifier, location::SourceLocation};
 use hash_utils::store::{SequenceStore, Store};
 
 use crate::{
-    arguments::{Arg, ArgsId},
+    arguments::{ArgOld, ArgsIdOld},
     location::LocationTarget,
     mods::{ModDefIdOld, ModDefOld, ModDefOriginOld},
     nominals::{
@@ -25,8 +25,8 @@ use crate::{
     },
     storage::GlobalStorage,
     terms::{
-        AccessTerm, ConstructedTerm, FnCall, FnLit, FnTy, Level0Term, Level1Term, Level2Term,
-        Level3Term, LitTerm, Term, TermId, TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
+        AccessTermOld, ConstructedTerm, FnCall, FnLit, FnTy, Level0Term, Level1Term, Level2Term,
+        Level3Term, LitTerm, TermId, TermOld, TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
         UnresolvedTerm,
     },
     trts::{TrtDefIdOld, TrtDefOld},
@@ -67,12 +67,12 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// Create a variable with the given name, in the form of a [Term::Var].
     pub fn create_var_term(&self, var_name: impl Into<Identifier>) -> TermId {
         let var = self.create_var(var_name);
-        self.create_term(Term::Var(var))
+        self.create_term(TermOld::Var(var))
     }
 
     /// Create a bound variable with the given name.
     pub fn create_bound_var_term(&self, name: impl Into<Identifier>) -> TermId {
-        self.create_term(Term::BoundVar(BoundVar { name: name.into() }))
+        self.create_term(TermOld::BoundVar(BoundVar { name: name.into() }))
     }
 
     /// Create a scope variable with the given name, scope and index.
@@ -82,13 +82,13 @@ impl<'gs> PrimitiveBuilder<'gs> {
         scope: ScopeId,
         index: usize,
     ) -> TermId {
-        self.create_term(Term::ScopeVar(ScopeVar { name: name.into(), scope, index }))
+        self.create_term(TermOld::ScopeVar(ScopeVar { name: name.into(), scope, index }))
     }
 
     /// Add the given nominal definition to the scope.
     fn add_nominal_def_to_scope(&self, name: Identifier, def_id: NominalDefId) {
         let def_ty = self.create_sized_ty_term();
-        let def_value = self.create_term(Term::Level1(Level1Term::NominalDef(def_id)));
+        let def_value = self.create_term(TermOld::Level1(Level1Term::NominalDef(def_id)));
         self.add_pub_member_to_scope(name, def_ty, def_value);
     }
 
@@ -98,7 +98,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
             ModDefOriginOld::TrtImpl(trt_id) => trt_id,
             _ => self.create_any_ty_term(),
         };
-        let def_value = self.create_term(Term::Level1(Level1Term::ModDef(def_id)));
+        let def_value = self.create_term(TermOld::Level1(Level1Term::ModDef(def_id)));
         self.add_pub_member_to_scope(name, def_ty, def_value);
     }
 
@@ -221,7 +221,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
         variant_name: impl Into<Identifier>,
         enum_def_id: NominalDefId,
     ) -> TermId {
-        self.create_term(Term::Level0(Level0Term::EnumVariant(EnumVariantValue {
+        self.create_term(TermOld::Level0(Level0Term::EnumVariant(EnumVariantValue {
             variant_name: variant_name.into(),
             enum_def_id,
         })))
@@ -265,7 +265,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
 
     /// Create a [Term::TyOf].
     pub fn create_ty_of_term(&self, inner: TermId) -> TermId {
-        self.create_term(Term::TyOf(inner))
+        self.create_term(TermOld::TyOf(inner))
     }
 
     /// Add an closed member to the scope, marking it as public.
@@ -286,13 +286,17 @@ impl<'gs> PrimitiveBuilder<'gs> {
         name: impl Into<Field>,
         op: AccessOp,
     ) -> TermId {
-        self.create_term(Term::Access(AccessTerm { subject: subject_id, name: name.into(), op }))
+        self.create_term(TermOld::Access(AccessTermOld {
+            subject: subject_id,
+            name: name.into(),
+            op,
+        }))
     }
 
     /// Create a [Term::Access] with the given subject and name, and namespace
     /// operator.
     pub fn create_ns_access(&self, subject_id: TermId, field: impl Into<Field>) -> TermId {
-        self.create_term(Term::Access(AccessTerm {
+        self.create_term(TermOld::Access(AccessTermOld {
             subject: subject_id,
             name: field.into(),
             op: AccessOp::Namespace,
@@ -302,7 +306,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// Create a [Term::Access] with the given subject and name, and property
     /// operator.
     pub fn create_prop_access(&self, subject_id: TermId, field: impl Into<Field>) -> TermId {
-        self.create_term(Term::Access(AccessTerm {
+        self.create_term(TermOld::Access(AccessTermOld {
             subject: subject_id,
             name: field.into(),
             op: AccessOp::Property,
@@ -311,56 +315,56 @@ impl<'gs> PrimitiveBuilder<'gs> {
 
     /// Create a [Term::Root].
     pub fn create_root_term(&self) -> TermId {
-        self.create_term(Term::Root)
+        self.create_term(TermOld::Root)
     }
 
     /// Create a term [Level3Term::TrtKind].
     pub fn create_trt_kind_term(&self) -> TermId {
-        self.create_term(Term::Level3(Level3Term::TrtKind))
+        self.create_term(TermOld::Level3(Level3Term::TrtKind))
     }
 
     /// Create a term [Level2Term::AnyTy].
     pub fn create_any_ty_term(&self) -> TermId {
-        self.create_term(Term::Level2(Level2Term::AnyTy))
+        self.create_term(TermOld::Level2(Level2Term::AnyTy))
     }
 
     /// Create a term [Level2Term::SizedTy].
     pub fn create_sized_ty_term(&self) -> TermId {
-        self.create_term(Term::Level2(Level2Term::SizedTy))
+        self.create_term(TermOld::Level2(Level2Term::SizedTy))
     }
 
     /// Create a term [Level2Term::Trt] with the given [TrtDefId].
     pub fn create_trt_term(&self, trt_def_id: TrtDefIdOld) -> TermId {
-        self.create_term(Term::Level2(Level2Term::Trt(trt_def_id)))
+        self.create_term(TermOld::Level2(Level2Term::Trt(trt_def_id)))
     }
 
     /// Create a term [Term::Merge] with the given inner terms.
     pub fn create_merge_term(&self, terms: impl IntoIterator<Item = TermId>) -> TermId {
         let terms = self.gs.term_list_store.create_from_iter(terms);
-        self.create_term(Term::Merge(terms))
+        self.create_term(TermOld::Merge(terms))
     }
 
     /// Create a term [Term::Union] with the given inner terms.
     pub fn create_union_term(&self, terms: impl IntoIterator<Item = TermId>) -> TermId {
         let terms = self.gs.term_list_store.create_from_iter(terms);
-        self.create_term(Term::Union(terms))
+        self.create_term(TermOld::Union(terms))
     }
 
     /// Create a term [Level0Term::Unit] from the given nominal definition ID.
     pub fn create_unit_term(&self, unit_id: NominalDefId) -> TermId {
-        self.create_term(Term::Level0(Level0Term::Unit(unit_id)))
+        self.create_term(TermOld::Level0(Level0Term::Unit(unit_id)))
     }
 
     /// Create the void type term: [Level1Term::Tuple] with no members.
     pub fn create_void_ty_term(&self) -> TermId {
-        self.create_term(Term::Level1(Level1Term::Tuple(TupleTy {
+        self.create_term(TermOld::Level1(Level1Term::Tuple(TupleTy {
             members: self.create_params([], ParamOrigin::Tuple),
         })))
     }
 
     /// Create the void term: [Level0Term::Tuple] with no members.
     pub fn create_void_term(&self) -> TermId {
-        self.create_term(Term::Level0(Level0Term::Tuple(TupleLit {
+        self.create_term(TermOld::Level0(Level0Term::Tuple(TupleLit {
             members: self.create_args([], ParamOrigin::Tuple),
         })))
     }
@@ -368,22 +372,22 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// Create the never type: [Term::Union] with no members.
     pub fn create_never_ty(&self) -> TermId {
         let terms = self.gs.term_list_store.create_from_slice(&[]);
-        self.create_term(Term::Union(terms))
+        self.create_term(TermOld::Union(terms))
     }
 
     /// Create a tuple type term [Level1Term::Tuple].
     pub fn create_tuple_ty_term(&self, members: ParamsId) -> TermId {
-        self.create_term(Term::Level1(Level1Term::Tuple(TupleTy { members })))
+        self.create_term(TermOld::Level1(Level1Term::Tuple(TupleTy { members })))
     }
 
     /// Create a tuple literal term [Level0Term::Tuple].
-    pub fn create_tuple_lit_term(&self, members: ArgsId) -> TermId {
-        self.create_term(Term::Level0(Level0Term::Tuple(TupleLit { members })))
+    pub fn create_tuple_lit_term(&self, members: ArgsIdOld) -> TermId {
+        self.create_term(TermOld::Level0(Level0Term::Tuple(TupleLit { members })))
     }
 
     /// Create a tuple literal term [Level0Term::Constructed].
-    pub fn create_constructed_term(&self, subject: TermId, members: ArgsId) -> TermId {
-        self.create_term(Term::Level0(Level0Term::Constructed(ConstructedTerm {
+    pub fn create_constructed_term(&self, subject: TermId, members: ArgsIdOld) -> TermId {
+        self.create_term(TermOld::Level0(Level0Term::Constructed(ConstructedTerm {
             subject,
             members,
         })))
@@ -391,12 +395,12 @@ impl<'gs> PrimitiveBuilder<'gs> {
 
     /// Create a [Level0Term::Rt] of the given type.
     pub fn create_rt_term(&self, ty_term_id: TermId) -> TermId {
-        self.create_term(Term::Level0(Level0Term::Rt(ty_term_id)))
+        self.create_term(TermOld::Level0(Level0Term::Rt(ty_term_id)))
     }
 
     /// Create a [Level0Term::Lit] of the given value.
     pub fn create_lit_term(&self, lit: impl Into<LitTerm>) -> TermId {
-        self.create_term(Term::Level0(Level0Term::Lit(lit.into())))
+        self.create_term(TermOld::Level0(Level0Term::Lit(lit.into())))
     }
 
     /// Create a [Level0Term::FnLit] of the given function type and return
@@ -407,12 +411,12 @@ impl<'gs> PrimitiveBuilder<'gs> {
         fn_ty: TermId,
         return_value: TermId,
     ) -> TermId {
-        self.create_term(Term::Level0(Level0Term::FnLit(FnLit { name, fn_ty, return_value })))
+        self.create_term(TermOld::Level0(Level0Term::FnLit(FnLit { name, fn_ty, return_value })))
     }
 
     /// Create a [Level0Term::FnCall] term with the given subject and arguments.
-    pub fn create_fn_call_term(&self, subject: TermId, args: ArgsId) -> TermId {
-        self.create_term(Term::Level0(Level0Term::FnCall(FnCall { subject, args })))
+    pub fn create_fn_call_term(&self, subject: TermId, args: ArgsIdOld) -> TermId {
+        self.create_term(TermOld::Level0(Level0Term::FnCall(FnCall { subject, args })))
     }
 
     /// Create a parameter with the given name and type.
@@ -421,7 +425,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
     }
 
     /// Create a term with the given term value.
-    pub fn create_term(&self, term: Term) -> TermId {
+    pub fn create_term(&self, term: TermOld) -> TermId {
         self.gs.term_store.create(term)
     }
 
@@ -433,12 +437,12 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// Create a [Level1Term::Fn] term with the given parameters and return
     /// type.
     pub fn create_fn_ty_term(&self, params: ParamsId, return_ty: TermId) -> TermId {
-        self.create_term(Term::Level1(Level1Term::Fn(FnTy { params, return_ty })))
+        self.create_term(TermOld::Level1(Level1Term::Fn(FnTy { params, return_ty })))
     }
 
     /// Create a [Level1Term::NominalDef] from the given [NominalDefId].
     pub fn create_nominal_def_term(&self, nominal_def_id: NominalDefId) -> TermId {
-        self.create_term(Term::Level1(Level1Term::NominalDef(nominal_def_id)))
+        self.create_term(TermOld::Level1(Level1Term::NominalDef(nominal_def_id)))
     }
 
     /// Create a [Scope], returning a [ScopeId].
@@ -479,14 +483,14 @@ impl<'gs> PrimitiveBuilder<'gs> {
 
     /// Create [Level1Term::ModDef] with the given [ModDefId].
     pub fn create_mod_def_term(&self, mod_def_id: ModDefIdOld) -> TermId {
-        self.create_term(Term::Level1(Level1Term::ModDef(mod_def_id)))
+        self.create_term(TermOld::Level1(Level1Term::ModDef(mod_def_id)))
     }
 
     /// Create a type function type term with the given name, parameters, and
     /// return type.
     pub fn create_ty_fn_ty_term(&self, params: ParamsId, return_ty: TermId) -> TermId {
         let ty_fn = TyFnTy { params, return_ty };
-        self.create_term(Term::TyFnTy(ty_fn))
+        self.create_term(TermOld::TyFnTy(ty_fn))
     }
 
     /// Create a [ParamsId] from an iterator of [Param]. This function will
@@ -504,7 +508,11 @@ impl<'gs> PrimitiveBuilder<'gs> {
 
     /// Create a [ArgsId] from an iterator of [Arg]. This function wil create a
     /// [Args](crate::Args), append it to the store and return  the created id.
-    pub fn create_args(&self, args: impl IntoIterator<Item = Arg>, origin: ParamOrigin) -> ArgsId {
+    pub fn create_args(
+        &self,
+        args: impl IntoIterator<Item = ArgOld>,
+        origin: ParamOrigin,
+    ) -> ArgsIdOld {
         let args_id = self.gs.args_store.create_from_iter(args);
         self.gs.args_store.set_origin(args_id, origin);
         args_id
@@ -555,8 +563,8 @@ impl<'gs> PrimitiveBuilder<'gs> {
             general_return_ty: return_ty,
             cases: vec![TyFnCase { params, return_ty, return_value }],
         };
-        let ty_fn_id = self.create_term(Term::TyFn(ty_fn));
-        let ty_fn_ty_id = self.create_term(Term::TyFnTy(TyFnTy { params, return_ty }));
+        let ty_fn_id = self.create_term(TermOld::TyFn(ty_fn));
+        let ty_fn_ty_id = self.create_term(TermOld::TyFnTy(TyFnTy { params, return_ty }));
         if let Some(name) = name {
             self.add_pub_member_to_scope(name, ty_fn_ty_id, ty_fn_id);
         }
@@ -565,7 +573,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
 
     /// Create a type function application, given type function value and
     /// arguments.
-    pub fn create_app_ty_fn(&self, subject: TermId, args: ArgsId) -> TyFnCall {
+    pub fn create_app_ty_fn(&self, subject: TermId, args: ArgsIdOld) -> TyFnCall {
         TyFnCall { args, subject }
     }
 
@@ -577,7 +585,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
 
     /// Create a new unresolved term, of type [Term::Unresolved].
     pub fn create_unresolved_term(&self) -> TermId {
-        self.create_term(Term::Unresolved(self.create_unresolved()))
+        self.create_term(TermOld::Unresolved(self.create_unresolved()))
     }
 
     /// Create a new unresolved term, of type [Term::Unresolved], if the given
@@ -589,26 +597,26 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// Create a set bound term, given a term and scope which is of kind
     /// [ScopeKind::SetBound].
     pub fn create_set_bound_term(&self, term: TermId, set_bound_scope: ScopeId) -> TermId {
-        self.create_term(Term::SetBound(SetBound { term, scope: set_bound_scope }))
+        self.create_term(TermOld::SetBound(SetBound { term, scope: set_bound_scope }))
     }
 
     /// Create an argument with the given name and value.
-    pub fn create_arg(&self, name: impl Into<Identifier>, value: TermId) -> Arg {
-        Arg { name: Some(name.into()), value }
+    pub fn create_arg(&self, name: impl Into<Identifier>, value: TermId) -> ArgOld {
+        ArgOld { name: Some(name.into()), value }
     }
 
     /// Create a nameless argument with the given value.
-    pub fn create_nameless_arg(&self, value: TermId) -> Arg {
-        Arg { name: None, value }
+    pub fn create_nameless_arg(&self, value: TermId) -> ArgOld {
+        ArgOld { name: None, value }
     }
 
     /// Create a type function application type, given type function value and
     /// arguments.
     ///
     /// This calls [Self::create_app_ty_fn], so its conditions apply here.
-    pub fn create_app_ty_fn_term(&self, subject: TermId, args: ArgsId) -> TermId {
+    pub fn create_app_ty_fn_term(&self, subject: TermId, args: ArgsIdOld) -> TermId {
         let app_ty_fn = self.create_app_ty_fn(subject, args);
-        self.create_term(Term::TyFnCall(app_ty_fn))
+        self.create_term(TermOld::TyFnCall(app_ty_fn))
     }
 
     /// Create pattern arguments from the given pattern argument iterator.

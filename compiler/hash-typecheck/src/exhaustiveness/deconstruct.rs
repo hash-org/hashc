@@ -10,7 +10,7 @@ use hash_types::{
     fmt::PrepareForFormatting,
     nominals::NominalDef,
     pats::PatId,
-    terms::{Level1Term, Term, TermId},
+    terms::{Level1Term, TermId, TermOld},
 };
 use hash_utils::store::{CloneStore, Store};
 use itertools::Itertools;
@@ -227,7 +227,7 @@ impl Debug for PatForFormatting<'_, DeconstructedPatId> {
                 // If it is a `struct` or an `enum` then try and get the
                 // variant name...
                 match term {
-                    Term::Level1(Level1Term::NominalDef(nominal_def)) => {
+                    TermOld::Level1(Level1Term::NominalDef(nominal_def)) => {
                         match self.storage.nominal_def_store().get(nominal_def) {
                             NominalDef::Struct(struct_def) => {
                                 if let Some(name) = struct_def.name {

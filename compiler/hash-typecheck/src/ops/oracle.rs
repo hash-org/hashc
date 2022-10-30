@@ -7,7 +7,7 @@ use hash_types::{
         EnumDef, EnumVariant, EnumVariantValue, NominalDef, NominalDefId, StructDef, UnitDef,
     },
     scope::ScopeVar,
-    terms::{FnTy, Level0Term, Level1Term, Level2Term, Term, TermId, TupleTy},
+    terms::{FnTy, Level0Term, Level1Term, Level2Term, TermId, TermOld, TupleTy},
     trts::TrtDefOld,
 };
 use hash_utils::store::Store;
@@ -48,7 +48,7 @@ impl<'tc> Oracle<'tc> {
     /// **Note**: assumes that the term is simplified.
     pub fn term_as_scope_var(&self, term: TermId) -> Option<ScopeVar> {
         match self.reader().get_term(term) {
-            Term::ScopeVar(scope_var) => Some(scope_var),
+            TermOld::ScopeVar(scope_var) => Some(scope_var),
             _ => None,
         }
     }
@@ -103,7 +103,7 @@ impl<'tc> Oracle<'tc> {
         let reader = self.reader();
 
         match reader.get_term(term) {
-            Term::Level1(Level1Term::Tuple(ty)) => Some(ty),
+            TermOld::Level1(Level1Term::Tuple(ty)) => Some(ty),
             _ => None,
         }
     }
@@ -117,7 +117,7 @@ impl<'tc> Oracle<'tc> {
     pub fn term_is_literal(&self, term: TermId) -> bool {
         let reader = self.reader();
 
-        matches!(reader.get_term(term), Term::Level0(Level0Term::Lit(_)))
+        matches!(reader.get_term(term), TermOld::Level0(Level0Term::Lit(_)))
     }
 
     /// If the term is a [StructDef] term.
@@ -138,7 +138,7 @@ impl<'tc> Oracle<'tc> {
     /// If the term is a [`Term::TyOf`], return its inner type.
     pub fn term_as_ty_of(&self, term: TermId) -> Option<TermId> {
         match self.reader().get_term(term) {
-            Term::TyOf(inner) => Some(inner),
+            TermOld::TyOf(inner) => Some(inner),
             _ => None,
         }
     }
@@ -146,7 +146,7 @@ impl<'tc> Oracle<'tc> {
     /// If the term is a function type, return it.
     pub fn term_as_fn_ty(&self, term: TermId) -> Option<FnTy> {
         match self.reader().get_term(term) {
-            Term::Level1(Level1Term::Fn(fn_ty)) => Some(fn_ty),
+            TermOld::Level1(Level1Term::Fn(fn_ty)) => Some(fn_ty),
             _ => None,
         }
     }
@@ -154,10 +154,12 @@ impl<'tc> Oracle<'tc> {
     /// Get a [Term] as a [StructDef].
     pub fn term_as_struct_def(&self, term: TermId) -> Option<StructDef> {
         match self.reader().get_term(term) {
-            Term::Level1(Level1Term::NominalDef(def)) => match self.reader().get_nominal_def(def) {
-                NominalDef::Struct(struct_def) => Some(struct_def),
-                _ => None,
-            },
+            TermOld::Level1(Level1Term::NominalDef(def)) => {
+                match self.reader().get_nominal_def(def) {
+                    NominalDef::Struct(struct_def) => Some(struct_def),
+                    _ => None,
+                }
+            }
             _ => None,
         }
     }
@@ -165,10 +167,12 @@ impl<'tc> Oracle<'tc> {
     /// Get a [Term] as a [EnumDef].
     pub fn term_as_enum_def(&self, term: TermId) -> Option<EnumDef> {
         match self.reader().get_term(term) {
-            Term::Level1(Level1Term::NominalDef(def)) => match self.reader().get_nominal_def(def) {
-                NominalDef::Enum(enum_def) => Some(enum_def),
-                _ => None,
-            },
+            TermOld::Level1(Level1Term::NominalDef(def)) => {
+                match self.reader().get_nominal_def(def) {
+                    NominalDef::Enum(enum_def) => Some(enum_def),
+                    _ => None,
+                }
+            }
             _ => None,
         }
     }
@@ -176,10 +180,12 @@ impl<'tc> Oracle<'tc> {
     /// Get a [Term] as a [UnitDef].
     pub fn term_as_unit_def(&self, term: TermId) -> Option<UnitDef> {
         match self.reader().get_term(term) {
-            Term::Level1(Level1Term::NominalDef(def)) => match self.reader().get_nominal_def(def) {
-                NominalDef::Unit(unit_def) => Some(unit_def),
-                _ => None,
-            },
+            TermOld::Level1(Level1Term::NominalDef(def)) => {
+                match self.reader().get_nominal_def(def) {
+                    NominalDef::Unit(unit_def) => Some(unit_def),
+                    _ => None,
+                }
+            }
             _ => None,
         }
     }
@@ -187,7 +193,7 @@ impl<'tc> Oracle<'tc> {
     /// Get a [Term] as a [TrtDef].
     pub fn term_as_trt_def(&self, term: TermId) -> Option<TrtDefOld> {
         match self.reader().get_term(term) {
-            Term::Level2(Level2Term::Trt(item)) => Some(self.reader().get_trt_def(item)),
+            TermOld::Level2(Level2Term::Trt(item)) => Some(self.reader().get_trt_def(item)),
             _ => None,
         }
     }
@@ -200,7 +206,7 @@ impl<'tc> Oracle<'tc> {
     /// Get a [Term] as a [NominalDefId].
     pub fn term_as_nominal_def_id(&self, term: TermId) -> Option<NominalDefId> {
         match self.reader().get_term(term) {
-            Term::Level1(Level1Term::NominalDef(def)) => Some(def),
+            TermOld::Level1(Level1Term::NominalDef(def)) => Some(def),
             _ => None,
         }
     }
@@ -208,11 +214,11 @@ impl<'tc> Oracle<'tc> {
     /// Check if the given [Term] has the given name (in its definition).
     pub fn term_is_named(&self, term: TermId, name: Identifier) -> bool {
         match self.reader().get_term(term) {
-            Term::Level1(Level1Term::NominalDef(def)) => {
+            TermOld::Level1(Level1Term::NominalDef(def)) => {
                 self.nominal_def_store().map_fast(def, |def| def.name().contains(&name))
             }
-            Term::TyFn(ty_fn) => ty_fn.name.contains(&name),
-            Term::Level1(Level1Term::ModDef(def)) => {
+            TermOld::TyFn(ty_fn) => ty_fn.name.contains(&name),
+            TermOld::Level1(Level1Term::ModDef(def)) => {
                 self.mod_def_store().map_fast(def, |def| def.name.contains(&name))
             }
             _ => false,
@@ -222,7 +228,7 @@ impl<'tc> Oracle<'tc> {
     /// Given an [`EnumVariantValue`], get its corresponding [`EnumVariant`].
     pub fn get_enum_variant_info(&self, enum_variant: EnumVariantValue) -> EnumVariant {
         let dummy_term =
-            || self.builder().create_term(Term::Level0(Level0Term::EnumVariant(enum_variant)));
+            || self.builder().create_term(TermOld::Level0(Level0Term::EnumVariant(enum_variant)));
         match self.reader().get_nominal_def(enum_variant.enum_def_id) {
             NominalDef::Enum(enum_def) => {
                 *enum_def.variants.get(&enum_variant.variant_name).unwrap_or_else(|| {
@@ -241,7 +247,7 @@ impl<'tc> Oracle<'tc> {
     /// If the term is an eum variant value, get it.
     pub fn term_as_enum_variant_value(&self, term: TermId) -> Option<EnumVariantValue> {
         match self.reader().get_term(term) {
-            Term::Level0(Level0Term::EnumVariant(enum_variant)) => Some(enum_variant),
+            TermOld::Level0(Level0Term::EnumVariant(enum_variant)) => Some(enum_variant),
             _ => None,
         }
     }

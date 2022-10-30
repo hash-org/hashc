@@ -2,7 +2,7 @@
 
 use hash_utils::{new_sequence_store_key, store::DefaultSequenceStore};
 
-use crate::{arguments::ArgsId, params::ParamsId, symbols::Symbol, terms::TermId, types::TyId};
+use crate::{arguments::ArgsIdOld, params::ParamsId, symbols::Symbol, terms::TermId, types::TyId};
 
 /// A group of definition parameters
 ///
@@ -24,7 +24,7 @@ pub type DefParamGroupId = (DefParamsId, usize);
 #[derive(Debug, Clone, Copy)]
 pub struct DefArgGroup {
     pub param_group: DefParamGroupId,
-    pub args: ArgsId,
+    pub args: ArgsIdOld,
 }
 new_sequence_store_key!(pub DefArgsId);
 pub type DefArgsStore = DefaultSequenceStore<DefArgsId, DefArgGroup>;

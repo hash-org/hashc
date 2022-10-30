@@ -4,13 +4,14 @@ use std::iter;
 use hash_ast::ast::ParamOrigin;
 use hash_source::identifier::Identifier;
 use hash_types::{
-    arguments::{Arg, ArgsId},
+    arguments::{ArgOld, ArgsIdOld},
     nominals::{NominalDef, StructFields},
     params::{AccessOp, Field, Param, ParamsId},
     scope::{Member, Mutability, ScopeKind},
     terms::{
-        AccessTerm, ConstructedTerm, FnLit, FnTy, Level0Term, Level1Term, Level2Term, Level3Term,
-        Term, TermId, TermListId, TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
+        AccessTermOld, ConstructedTerm, FnLit, FnTy, Level0Term, Level1Term, Level2Term,
+        Level3Term, TermId, TermListId, TermOld, TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase,
+        TyFnTy,
     },
 };
 use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
@@ -38,13 +39,13 @@ impl<'tc> AccessToStorage for Simplifier<'tc> {
 
 // Helper for [Simplifier::apply_access_term] erroring for things that do not
 // support accessing:
-fn does_not_support_access<T>(access_term: &AccessTerm) -> TcResult<T> {
+fn does_not_support_access<T>(access_term: &AccessTermOld) -> TcResult<T> {
     Err(TcError::UnsupportedPropertyAccess { name: access_term.name, value: access_term.subject })
 }
 
 // Helper for [Simplifier::apply_access_term] erroring for things that only
 // support namespace access:
-fn does_not_support_prop_access(access_term: &AccessTerm) -> TcResult<Identifier> {
+fn does_not_support_prop_access(access_term: &AccessTermOld) -> TcResult<Identifier> {
     match access_term.op {
         AccessOp::Namespace => match access_term.name {
             Field::Named(name) => Ok(name),
@@ -62,7 +63,7 @@ fn does_not_support_prop_access(access_term: &AccessTerm) -> TcResult<Identifier
 
 // Helper for [Simplifier::apply_access_term] erroring for things that only
 // support property access:
-fn does_not_support_ns_access(access_term: &AccessTerm) -> TcResult<()> {
+fn does_not_support_ns_access(access_term: &AccessTermOld) -> TcResult<()> {
     match access_term.op {
         AccessOp::Property => Ok(()),
         AccessOp::Namespace => Err(TcError::UnsupportedNamespaceAccess {
@@ -74,7 +75,7 @@ fn does_not_support_ns_access(access_term: &AccessTerm) -> TcResult<()> {
 
 // Helper for [Simplifier::apply_access_term] erroring for name not found in
 // value:
-fn name_not_found<T>(access_term: &AccessTerm) -> TcResult<T> {
+fn name_not_found<T>(access_term: &AccessTermOld) -> TcResult<T> {
     Err(TcError::UnresolvedNameInValue {
         name: access_term.name,
         value: access_term.subject,
@@ -85,7 +86,7 @@ fn name_not_found<T>(access_term: &AccessTerm) -> TcResult<T> {
 // Helper for converting a [TcError::UnresolvedVariable] into a
 // [TcError::UnresolvedNameInValue] if originating from the given access term.
 fn turn_unresolved_var_err_into_unresolved_in_value_err(
-    access_term: &AccessTerm,
+    access_term: &AccessTermOld,
 ) -> impl Fn(TcError) -> TcError + '_ {
     |err| {
         match err {
@@ -191,7 +192,7 @@ impl<'tc> Simplifier<'tc> {
             || Err(TcError::InvalidPropertyAccessOfNonMethod { subject: rt_term_ty_id, property });
 
         match self.reader().get_term(rt_term_ty_id) {
-            Term::SetBound(set_bound) => {
+            TermOld::SetBound(set_bound) => {
                 // Enter the bound and try access
                 let result = self.scope_manager().enter_scope(set_bound.scope, |this| {
                     this.simplifier().access_struct_or_tuple_field(set_bound.term, property)
@@ -204,7 +205,7 @@ impl<'tc> Simplifier<'tc> {
                     None => Ok(None),
                 }
             }
-            Term::Merge(terms) => {
+            TermOld::Merge(terms) => {
                 // Try this for each term:
                 for idx in terms.to_index_range() {
                     let term = self.term_list_store().get_at_index(terms, idx);
@@ -216,7 +217,7 @@ impl<'tc> Simplifier<'tc> {
                 }
                 Ok(None)
             }
-            Term::Level1(level1_term) => {
+            TermOld::Level1(level1_term) => {
                 // If it is a struct or a tuple, and the name is resolved in the fields, return
                 // the (runtime) value of the field.
                 if let Level1Term::NominalDef(nominal_def_id) = level1_term {
@@ -267,7 +268,7 @@ impl<'tc> Simplifier<'tc> {
     fn apply_access_to_level0_term(
         &self,
         term: &Level0Term,
-        access_term: &AccessTerm,
+        access_term: &AccessTermOld,
         originating_term: TermId,
     ) -> TcResult<Option<TermId>> {
         match term {
@@ -285,7 +286,7 @@ impl<'tc> Simplifier<'tc> {
 
                 // If a property access is given, first try to access `ty_term_id` with a
                 // namespace operator, to resolve "method calls":
-                let ty_access_result = self.apply_access_term(&AccessTerm {
+                let ty_access_result = self.apply_access_term(&AccessTermOld {
                     subject: *ty_term_id,
                     name: access_term.name,
                     op: AccessOp::Namespace,
@@ -310,7 +311,7 @@ impl<'tc> Simplifier<'tc> {
                 // This is possible because traits will return the type of their
                 // members when accessing members.
                 let ty_of_ty_term_id = self.typer().infer_ty_of_term(*ty_term_id)?;
-                let accessed_result = self.apply_access_term(&AccessTerm {
+                let accessed_result = self.apply_access_term(&AccessTermOld {
                     subject: ty_of_ty_term_id,
                     name: access_term.name,
                     op: AccessOp::Namespace,
@@ -362,7 +363,7 @@ impl<'tc> Simplifier<'tc> {
             Level0Term::Unit(_) | Level0Term::Lit(_) => {
                 // Create an Rt(..) of the value wrapped, and use that as the subject.
                 let term_value = Level0Term::Rt(self.typer().infer_ty_of_term(originating_term)?);
-                let term = self.builder().create_term(Term::Level0(term_value.clone()));
+                let term = self.builder().create_term(TermOld::Level0(term_value.clone()));
                 self.location_store().copy_location(originating_term, term);
                 self.apply_access_to_level0_term(&term_value, access_term, term)
             }
@@ -375,7 +376,7 @@ impl<'tc> Simplifier<'tc> {
     fn apply_access_to_level1_term(
         &self,
         term: &Level1Term,
-        access_term: &AccessTerm,
+        access_term: &AccessTermOld,
     ) -> TcResult<Option<TermId>> {
         match term {
             // Modules:
@@ -440,7 +441,7 @@ impl<'tc> Simplifier<'tc> {
     fn apply_access_to_level2_term(
         &self,
         term: &Level2Term,
-        access_term: &AccessTerm,
+        access_term: &AccessTermOld,
     ) -> TcResult<Option<TermId>> {
         match term {
             // Traits:
@@ -469,21 +470,21 @@ impl<'tc> Simplifier<'tc> {
     fn apply_access_to_level3_term(
         &self,
         _term: &Level3Term,
-        access_term: &AccessTerm,
+        access_term: &AccessTermOld,
     ) -> TcResult<Option<TermId>> {
         does_not_support_access(access_term)
     }
 
     /// Apply the given access term structure, if possible.
-    fn apply_access_term(&self, access_term: &AccessTerm) -> TcResult<Option<TermId>> {
+    fn apply_access_term(&self, access_term: &AccessTermOld) -> TcResult<Option<TermId>> {
         let simplified_subject_id = self.potentially_simplify_term(access_term.subject)?;
         let simplified_subject = self.reader().get_term(simplified_subject_id);
 
         // Overwrite the the `subject` with `simplified_subject_id`
-        let access_term = &AccessTerm { subject: simplified_subject_id, ..*access_term };
+        let access_term = &AccessTermOld { subject: simplified_subject_id, ..*access_term };
 
         match simplified_subject {
-            Term::Union(terms) => {
+            TermOld::Union(terms) => {
                 // Here we try to access the nominal with the given name:
                 self.term_list_store().map_fast(terms, |terms| {
                     if let Field::Named(name) = access_term.name {
@@ -500,7 +501,7 @@ impl<'tc> Simplifier<'tc> {
                     })
                 })
             }
-            Term::Merge(terms) => {
+            TermOld::Merge(terms) => {
                 // Apply the access to each result. If there are multiple results, it means
                 // there is an ambiguity which should be reported.
                 let results: Vec<_> = self
@@ -508,7 +509,7 @@ impl<'tc> Simplifier<'tc> {
                     .get_term_list_owned(terms)
                     .iter()
                     .filter_map(|item| {
-                        let item_access_term = AccessTerm { subject: *item, ..*access_term };
+                        let item_access_term = AccessTermOld { subject: *item, ..*access_term };
                         self.apply_access_term(&item_access_term).ok().flatten()
                     })
                     .collect();
@@ -526,10 +527,12 @@ impl<'tc> Simplifier<'tc> {
                     }),
                 }
             }
-            Term::SetBound(set_bound) => {
+            TermOld::SetBound(set_bound) => {
                 let result = self.scope_manager().enter_scope(set_bound.scope, |this| {
-                    this.simplifier()
-                        .apply_access_term(&AccessTerm { subject: set_bound.term, ..*access_term })
+                    this.simplifier().apply_access_term(&AccessTermOld {
+                        subject: set_bound.term,
+                        ..*access_term
+                    })
                 })?;
                 match result {
                     Some(result) => Ok(Some(
@@ -539,31 +542,31 @@ impl<'tc> Simplifier<'tc> {
                     None => Ok(None),
                 }
             }
-            Term::Level3(level3_term) => {
+            TermOld::Level3(level3_term) => {
                 self.apply_access_to_level3_term(&level3_term, access_term)
             }
-            Term::Level2(level2_term) => {
+            TermOld::Level2(level2_term) => {
                 self.apply_access_to_level2_term(&level2_term, access_term)
             }
-            Term::Level1(level1_term) => {
+            TermOld::Level1(level1_term) => {
                 self.apply_access_to_level1_term(&level1_term, access_term)
             }
-            Term::Level0(level0_term) => {
+            TermOld::Level0(level0_term) => {
                 self.apply_access_to_level0_term(&level0_term, access_term, simplified_subject_id)
             }
             // @@Todo: infer type vars:
-            Term::TyFn(_) => does_not_support_access(access_term),
-            Term::TyFnTy(_) => does_not_support_access(access_term),
-            Term::Root => does_not_support_access(access_term),
-            Term::TyOf(_) => does_not_support_access(access_term),
+            TermOld::TyFn(_) => does_not_support_access(access_term),
+            TermOld::TyFnTy(_) => does_not_support_access(access_term),
+            TermOld::Root => does_not_support_access(access_term),
+            TermOld::TyOf(_) => does_not_support_access(access_term),
             // @@Enhancement: maybe we can allow this and add it to some hints context of the
             // variable.
-            Term::Unresolved(_) => does_not_support_access(access_term),
-            Term::BoundVar(_)
-            | Term::ScopeVar(_)
-            | Term::Access(_)
-            | Term::Var(_)
-            | Term::TyFnCall(_) => {
+            TermOld::Unresolved(_) => does_not_support_access(access_term),
+            TermOld::BoundVar(_)
+            | TermOld::ScopeVar(_)
+            | TermOld::Access(_)
+            | TermOld::Var(_)
+            | TermOld::TyFnCall(_) => {
                 // We cannot perform any accessing here:
                 Ok(None)
             }
@@ -586,7 +589,7 @@ impl<'tc> Simplifier<'tc> {
         };
 
         match simplified_subject {
-            Term::TyFn(ty_fn) => {
+            TermOld::TyFn(ty_fn) => {
                 // Keep track of encountered errors so that if no cases match, we can return all
                 // of them.
                 let mut errors = vec![];
@@ -643,32 +646,32 @@ impl<'tc> Simplifier<'tc> {
                     Ok(Some(self.builder().create_merge_term(results.into_iter())))
                 }
             }
-            Term::Unresolved(_) => {
+            TermOld::Unresolved(_) => {
                 // We don't know the type of this, so we refuse it.
                 // @@Enhancement: here we can unify the unresolved term with a type function
                 // term ?
                 cannot_apply()
             }
-            Term::Merge(_) => {
+            TermOld::Merge(_) => {
                 // Cannot apply a merge:
                 // @@Enhancement: this could be allowed in the future.
                 cannot_apply()
             }
-            Term::SetBound(_)
-            | Term::Union(_)
-            | Term::Root
-            | Term::TyFnTy(_)
-            | Term::Level3(_)
-            | Term::Level2(_)
-            | Term::Level1(_)
-            | Term::Level0(_)
-            | Term::ScopeVar(_)
-            | Term::BoundVar(_)
-            | Term::TyOf(_) => {
+            TermOld::SetBound(_)
+            | TermOld::Union(_)
+            | TermOld::Root
+            | TermOld::TyFnTy(_)
+            | TermOld::Level3(_)
+            | TermOld::Level2(_)
+            | TermOld::Level1(_)
+            | TermOld::Level0(_)
+            | TermOld::ScopeVar(_)
+            | TermOld::BoundVar(_)
+            | TermOld::TyOf(_) => {
                 // Cannot apply if it didn't simplify to a type function:
                 cannot_apply()
             }
-            Term::Access(_) | Term::Var(_) | Term::TyFnCall(_) => {
+            TermOld::Access(_) | TermOld::Var(_) | TermOld::TyFnCall(_) => {
                 let simplified_args = self.simplifier().simplify_args(apply_ty_fn.args)?;
 
                 // Return a simplified term if either the subject or the args were simplified.
@@ -698,13 +701,13 @@ impl<'tc> Simplifier<'tc> {
     /// *Note*: Expects the term to be simplified.
     pub fn is_term_constructable(&self, term_id: TermId) -> bool {
         match self.reader().get_term(term_id) {
-            Term::Merge(terms) => self
+            TermOld::Merge(terms) => self
                 .reader()
                 .get_term_list_owned(terms)
                 .iter()
                 .any(|term| self.is_term_constructable(*term)),
-            Term::SetBound(set_bound) => self.is_term_constructable(set_bound.term),
-            Term::Level1(Level1Term::NominalDef(_)) => true,
+            TermOld::SetBound(set_bound) => self.is_term_constructable(set_bound.term),
+            TermOld::Level1(Level1Term::NominalDef(_)) => true,
             _ => false,
         }
     }
@@ -723,7 +726,7 @@ impl<'tc> Simplifier<'tc> {
     pub fn use_term_as_constructed_subject(
         &self,
         term_id: TermId,
-        args: ArgsId,
+        args: ArgsIdOld,
         args_subject: TermId,
     ) -> TcResult<ConstructedTerm> {
         let reader = self.reader();
@@ -732,7 +735,7 @@ impl<'tc> Simplifier<'tc> {
         let cannot_use_as_call_subject = || Err(TcError::InvalidCallSubject { term: term_id });
 
         match term {
-            Term::Merge(terms) => {
+            TermOld::Merge(terms) => {
                 // Recurse into the inner terms:
                 let terms = terms;
                 let results: Vec<_> = self
@@ -759,7 +762,7 @@ impl<'tc> Simplifier<'tc> {
                             .iter()
                             .map(|result| {
                                 self.builder()
-                                    .create_term(Term::Level0(Level0Term::Constructed(*result)))
+                                    .create_term(TermOld::Level0(Level0Term::Constructed(*result)))
                             })
                             .collect::<Vec<_>>();
 
@@ -772,7 +775,7 @@ impl<'tc> Simplifier<'tc> {
                     }
                 }
             }
-            Term::SetBound(set_bound) => {
+            TermOld::SetBound(set_bound) => {
                 let constructed_result =
                     self.scope_manager().enter_scope(set_bound.scope, |this| {
                         this.simplifier().use_term_as_constructed_subject(
@@ -792,7 +795,7 @@ impl<'tc> Simplifier<'tc> {
                     )?,
                 })
             }
-            Term::Level1(Level1Term::NominalDef(nominal_def_id)) => {
+            TermOld::Level1(Level1Term::NominalDef(nominal_def_id)) => {
                 let reader = self.reader();
 
                 let nominal_def = reader.get_nominal_def(nominal_def_id);
@@ -845,7 +848,7 @@ impl<'tc> Simplifier<'tc> {
         let cannot_use_as_fn_call_subject = || Err(TcError::InvalidCallSubject { term: term_id });
 
         match term {
-            Term::Merge(terms) => {
+            TermOld::Merge(terms) => {
                 // Recurse into the inner terms:
                 let terms = terms;
                 let results: Vec<_> = self
@@ -883,7 +886,7 @@ impl<'tc> Simplifier<'tc> {
                         let result_terms = results
                             .iter()
                             .map(|(_, result)| {
-                                self.builder().create_term(Term::Level1(Level1Term::Fn(*result)))
+                                self.builder().create_term(TermOld::Level1(Level1Term::Fn(*result)))
                             })
                             .collect::<Vec<_>>();
                         tc_panic_on_many!(
@@ -895,7 +898,7 @@ impl<'tc> Simplifier<'tc> {
                     }
                 }
             }
-            Term::SetBound(set_bound) => {
+            TermOld::SetBound(set_bound) => {
                 let result = self.scope_manager().enter_scope(set_bound.scope, |this| {
                     this.simplifier().use_term_as_fn_call_subject(set_bound.term)
                 })?;
@@ -908,12 +911,12 @@ impl<'tc> Simplifier<'tc> {
                         .potentially_apply_set_bound_to_term(set_bound.scope, result.return_ty)?,
                 })
             }
-            Term::Unresolved(_) => {
+            TermOld::Unresolved(_) => {
                 // @@Future: Here maybe create a function type with unknown args and return?
                 // For now error:
                 cannot_use_as_fn_call_subject()
             }
-            Term::Level0(level0_term) => {
+            TermOld::Level0(level0_term) => {
                 // Ensure it is either an enum variant, or Rt(Fn(..)) or
                 // FnLit(..)
                 let reader = self.reader();
@@ -921,14 +924,14 @@ impl<'tc> Simplifier<'tc> {
                     Level0Term::Rt(rt_inner_term_id) => {
                         // Only accept if it is a function type inside:
                         match reader.get_term(rt_inner_term_id) {
-                            Term::Level1(Level1Term::Fn(fn_ty)) => Ok(fn_ty),
+                            TermOld::Level1(Level1Term::Fn(fn_ty)) => Ok(fn_ty),
                             _ => cannot_use_as_fn_call_subject(),
                         }
                     }
                     Level0Term::FnLit(fn_lit) => {
                         // Just return the inner type:
                         match reader.get_term(fn_lit.fn_ty) {
-                            Term::Level1(Level1Term::Fn(fn_ty)) => Ok(fn_ty),
+                            TermOld::Level1(Level1Term::Fn(fn_ty)) => Ok(fn_ty),
                             _ => tc_panic!(
                                 fn_lit.fn_ty,
                                 self,
@@ -962,19 +965,19 @@ impl<'tc> Simplifier<'tc> {
 
             // Cannot be used as function call subjects:
             // (Remember, the term should have already been simplified)
-            Term::Level2(_)
-            | Term::Level1(_)
-            | Term::Level3(_)
-            | Term::TyFnCall(_)
-            | Term::TyFn(_)
-            | Term::TyFnTy(_)
-            | Term::Root
-            | Term::Var(_)
-            | Term::Union(_)
-            | Term::ScopeVar(_)
-            | Term::BoundVar(_)
-            | Term::TyOf(_)
-            | Term::Access(_) => cannot_use_as_fn_call_subject(),
+            TermOld::Level2(_)
+            | TermOld::Level1(_)
+            | TermOld::Level3(_)
+            | TermOld::TyFnCall(_)
+            | TermOld::TyFn(_)
+            | TermOld::TyFnTy(_)
+            | TermOld::Root
+            | TermOld::Var(_)
+            | TermOld::Union(_)
+            | TermOld::ScopeVar(_)
+            | TermOld::BoundVar(_)
+            | TermOld::TyOf(_)
+            | TermOld::Access(_) => cannot_use_as_fn_call_subject(),
         }
     }
 
@@ -1005,13 +1008,13 @@ impl<'tc> Simplifier<'tc> {
 
                 match simplified_fn_ty {
                     None => Ok(None),
-                    Some(simplified_fn_ty) => Ok(Some(self.builder().create_term(Term::Level0(
-                        Level0Term::FnLit(FnLit {
+                    Some(simplified_fn_ty) => Ok(Some(self.builder().create_term(
+                        TermOld::Level0(Level0Term::FnLit(FnLit {
                             name: fn_lit.name,
                             fn_ty: simplified_fn_ty,
                             return_value: fn_lit.return_value,
-                        }),
-                    )))),
+                        })),
+                    ))),
                 }
             }
             Level0Term::EnumVariant(_) => Ok(None),
@@ -1025,7 +1028,7 @@ impl<'tc> Simplifier<'tc> {
 
                 let term = self
                     .builder()
-                    .create_term(Term::Level0(Level0Term::Constructed(constructed_ty)));
+                    .create_term(TermOld::Level0(Level0Term::Constructed(constructed_ty)));
 
                 Ok(Some(term))
             }
@@ -1085,7 +1088,7 @@ impl<'tc> Simplifier<'tc> {
                 let simplified_members = self.simplify_params(tuple_ty.members)?;
 
                 Ok(simplified_members.map(|simplified_members| {
-                    self.builder().create_term(Term::Level1(Level1Term::Tuple(TupleTy {
+                    self.builder().create_term(TermOld::Level1(Level1Term::Tuple(TupleTy {
                         members: simplified_members,
                     })))
                 }))
@@ -1097,10 +1100,12 @@ impl<'tc> Simplifier<'tc> {
                 let simplified_return_ty = self.simplify_term(fn_ty.return_ty)?;
                 match (&simplified_params, simplified_return_ty) {
                     (None, None) => Ok(None),
-                    _ => Ok(Some(self.builder().create_term(Term::Level1(Level1Term::Fn(FnTy {
-                        params: simplified_params.unwrap_or(fn_ty.params),
-                        return_ty: simplified_return_ty.unwrap_or(fn_ty.return_ty),
-                    }))))),
+                    _ => Ok(Some(self.builder().create_term(TermOld::Level1(Level1Term::Fn(
+                        FnTy {
+                            params: simplified_params.unwrap_or(fn_ty.params),
+                            return_ty: simplified_return_ty.unwrap_or(fn_ty.return_ty),
+                        },
+                    ))))),
                 }
             }
         }
@@ -1121,7 +1126,7 @@ impl<'tc> Simplifier<'tc> {
     }
 
     /// Simplify the given [ArgsId], if possible.
-    pub(crate) fn simplify_args(&self, args_id: ArgsId) -> TcResult<Option<ArgsId>> {
+    pub(crate) fn simplify_args(&self, args_id: ArgsIdOld) -> TcResult<Option<ArgsIdOld>> {
         let args = self.args_store().get_owned_param_list(args_id);
 
         // Simplify values:
@@ -1130,7 +1135,7 @@ impl<'tc> Simplifier<'tc> {
             .positional()
             .iter()
             .map(|arg| {
-                Ok(Arg {
+                Ok(ArgOld {
                     name: arg.name,
                     value: self
                         .simplify_term(arg.value)?
@@ -1217,7 +1222,7 @@ impl<'tc> Simplifier<'tc> {
     pub fn simplify_algebraic_term_list(
         &self,
         terms: TermListId,
-        is_nested: impl Fn(&Term) -> Option<TermListId>,
+        is_nested: impl Fn(&TermOld) -> Option<TermListId>,
     ) -> TcResult<Option<TermListId>> {
         let mut simplified_once = false;
 
@@ -1296,19 +1301,19 @@ impl<'tc> Simplifier<'tc> {
 
         let value = self.reader().get_term(term_id);
         let new_term = match value {
-            Term::Merge(inner) => Ok(self
+            TermOld::Merge(inner) => Ok(self
                 .simplify_algebraic_term_list(inner, |term| match term {
-                    Term::Merge(terms) => Some(*terms),
+                    TermOld::Merge(terms) => Some(*terms),
                     _ => None,
                 })?
-                .map(|result| self.builder().create_term(Term::Merge(result)))),
-            Term::Union(inner) => Ok(self
+                .map(|result| self.builder().create_term(TermOld::Merge(result)))),
+            TermOld::Union(inner) => Ok(self
                 .simplify_algebraic_term_list(inner, |term| match term {
-                    Term::Union(terms) => Some(*terms),
+                    TermOld::Union(terms) => Some(*terms),
                     _ => None,
                 })?
-                .map(|result| self.builder().create_term(Term::Union(result)))),
-            Term::SetBound(set_bound) => {
+                .map(|result| self.builder().create_term(TermOld::Union(result)))),
+            TermOld::SetBound(set_bound) => {
                 let simplified_inner =
                     self.scope_manager().enter_scope(set_bound.scope, |this| {
                         this.simplifier().simplify_term(set_bound.term)
@@ -1323,13 +1328,13 @@ impl<'tc> Simplifier<'tc> {
                         .apply_set_bound_to_term(set_bound.scope, set_bound.term)?),
                 }
             }
-            Term::TyFnCall(apply_ty_fn) => {
+            TermOld::TyFnCall(apply_ty_fn) => {
                 let applied = self.apply_ty_fn(&apply_ty_fn)?;
                 Ok(applied)
             }
-            Term::Access(access_term) => self.apply_access_term(&access_term),
+            TermOld::Access(access_term) => self.apply_access_term(&access_term),
             // Turn the variable into a ScopeVar:
-            Term::Var(var) => {
+            TermOld::Var(var) => {
                 // First resolve the name:
                 let scope_member =
                     self.scope_manager().resolve_name_in_scopes(var.name, term_id)?;
@@ -1355,7 +1360,7 @@ impl<'tc> Simplifier<'tc> {
                 }
             }
             // Resolve the variable to its value if it is set and closed.
-            Term::ScopeVar(var) => {
+            TermOld::ScopeVar(var) => {
                 let scope_member = self.scope_manager().get_scope_var_member(var);
                 match scope_member.member {
                     Member::Bound(_) => Ok(None),
@@ -1374,8 +1379,8 @@ impl<'tc> Simplifier<'tc> {
                 }
             }
             // Nothing can be done for bound vars
-            Term::BoundVar(_) => Ok(None),
-            Term::TyFn(ty_fn) => {
+            TermOld::BoundVar(_) => Ok(None),
+            TermOld::TyFn(ty_fn) => {
                 // Simplify each constituent of the type function, and if any are successfully
                 // simplified, the whole thing can be simplified:
 
@@ -1423,7 +1428,7 @@ impl<'tc> Simplifier<'tc> {
                     (None, None) if simplified_cases.iter().all(|x| x.is_none()) => Ok(None),
                     // Otherwise, build the simplified type function:
                     _ => Ok(Some(
-                        self.builder().create_term(Term::TyFn(TyFn {
+                        self.builder().create_term(TermOld::TyFn(TyFn {
                             name: ty_fn.name,
                             general_params: simplified_general_params
                                 .unwrap_or(ty_fn.general_params),
@@ -1440,7 +1445,7 @@ impl<'tc> Simplifier<'tc> {
                     )),
                 }
             }
-            Term::TyFnTy(ty_fn_ty) => {
+            TermOld::TyFnTy(ty_fn_ty) => {
                 // Simplify params and return, and if either is simplified, the whole term is
                 // simplified.
                 let simplified_params = self.simplify_params(ty_fn_ty.params)?;
@@ -1453,27 +1458,27 @@ impl<'tc> Simplifier<'tc> {
 
                 match (&simplified_params, simplified_return_ty) {
                     (None, None) => Ok(None),
-                    _ => Ok(Some(self.builder().create_term(Term::TyFnTy(TyFnTy {
+                    _ => Ok(Some(self.builder().create_term(TermOld::TyFnTy(TyFnTy {
                         params: simplified_params.unwrap_or(ty_fn_ty.params),
                         return_ty: simplified_return_ty.unwrap_or(ty_fn_ty.return_ty),
                     })))),
                 }
             }
-            Term::TyOf(term) => {
+            TermOld::TyOf(term) => {
                 // Get the type of the term:
                 Ok(Some(self.typer().infer_ty_of_term(term)?))
             }
-            Term::Unresolved(_) => {
+            TermOld::Unresolved(_) => {
                 // Cannot do anything here:
                 Ok(None)
             }
             // Recurse for definite-level terms:
-            Term::Level3(term) => self.simplify_level3_term(&term),
-            Term::Level2(term) => self.simplify_level2_term(&term),
-            Term::Level1(term) => self.simplify_level1_term(&term),
-            Term::Level0(term) => self.simplify_level0_term(&term, term_id),
+            TermOld::Level3(term) => self.simplify_level3_term(&term),
+            TermOld::Level2(term) => self.simplify_level2_term(&term),
+            TermOld::Level1(term) => self.simplify_level1_term(&term),
+            TermOld::Level0(term) => self.simplify_level0_term(&term, term_id),
             // Root cannot be simplified:
-            Term::Root => Ok(None),
+            TermOld::Root => Ok(None),
         }?;
 
         // Copy over the location if a new term was created

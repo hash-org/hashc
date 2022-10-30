@@ -9,7 +9,7 @@ use hash_source::SourceId;
 use hash_utils::store::Store;
 
 use crate::{
-    arguments::ArgsStore,
+    arguments::ArgsStoreOld,
     bootstrap::create_core_defs_in,
     location::LocationStore,
     mods::ModDefStoreOld,
@@ -43,7 +43,7 @@ pub struct GlobalStorage {
 
     /// Store for function calls, tuple, struct, enum and other constructs that
     /// hold arguments.
-    pub args_store: ArgsStore,
+    pub args_store: ArgsStoreOld,
 
     /// Store for trait definitions
     pub trt_def_store: TrtDefStoreOld,
@@ -90,7 +90,7 @@ impl GlobalStorage {
             pat_args_store: PatArgsStore::new(),
             root_scope,
             params_store: ParamsStore::new(),
-            args_store: ArgsStore::new(),
+            args_store: ArgsStoreOld::new(),
         };
         create_core_defs_in(&gs);
         gs

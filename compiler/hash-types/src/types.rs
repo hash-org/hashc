@@ -1,36 +1,16 @@
 use hash_utils::{new_store_key, store::DefaultStore};
 
 use crate::{
-    data::DataDefId, defs::DefArgsId, params::ParamsId, refs::RefTy, terms::TermId,
-    trts::TrtBoundsId,
+    data::DataTy, fns::FnTy, refs::RefTy, terms::TermId, trts::TrtBoundsId, tuples::TupleTy,
+    unions::UnionTy,
 };
-
-#[derive(Debug, Clone, Copy)]
-pub struct FnTy {
-    pub implicit: bool,
-    pub pure: bool,
-    pub params: ParamsId,
-    pub conditions: ParamsId,
-    pub return_type: TyId,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct TupleTy {
-    pub data: ParamsId,
-    pub conditions: ParamsId,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct UnionTy {
-    pub variants: ParamsId,
-}
 
 /// The type of types, i.e. a universe.
 #[derive(Debug, Clone, Copy)]
 pub struct TypeTy {
     /// Whether this is a small universe or a large one.
     ///
-    /// Small universe does not include `Meta(..)` and `Type(..)`, where as a
+    /// A small universe does not include `Meta(..)` and `Type(..)`, where as a
     /// large one does.
     pub small: bool,
     /// Any additional bounds that types in the universe must satisfy.
@@ -52,16 +32,12 @@ pub enum MetaTy {
     DataDefTy,
 }
 
-/// A type pointing to a data-type definition.
-#[derive(Debug, Clone, Copy)]
-pub struct DataTy {
-    pub data_def: DataDefId,
-    pub args: DefArgsId,
-}
-
+/// Represents a type in a Hash program.
 #[derive(Debug, Clone, Copy)]
 pub enum Ty {
+    /// A term which evaluates to a type.
     Expr(TermId),
+
     Union(UnionTy),
     Tuple(TupleTy),
     Fn(FnTy),

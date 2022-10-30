@@ -14,7 +14,7 @@ pub mod sources;
 
 use hash_source::SourceMap;
 use hash_types::{
-    arguments::ArgsStore,
+    arguments::ArgsStoreOld,
     fmt::{ForFormatting, PrepareForFormatting},
     location::LocationStore,
     mods::ModDefStoreOld,
@@ -111,7 +111,7 @@ pub trait AccessToStorage {
         &self.global_storage().trt_def_store
     }
 
-    fn args_store(&self) -> &ArgsStore {
+    fn args_store(&self) -> &ArgsStoreOld {
         &self.global_storage().args_store
     }
 

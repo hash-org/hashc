@@ -5,7 +5,7 @@ use std::{borrow::Cow, collections::HashSet};
 use hash_ast::ast::ParamOrigin;
 use hash_source::{identifier::Identifier, location::SourceLocation};
 use hash_types::{
-    arguments::ArgsId,
+    arguments::ArgsIdOld,
     location::LocationTarget,
     params::{GetNameOpt, Param, ParamList, Params, ParamsId},
 };
@@ -32,7 +32,7 @@ pub(crate) fn pair_args_with_params<'p, 'a, T: Clone + GetNameOpt>(
     params: &'p Params<'_>,
     args: &'a ParamList<'_, T>,
     params_id: ParamsId,
-    args_id: ArgsId,
+    args_id: ArgsIdOld,
     mut infer_arg_from_default_param: impl FnMut(&Param) -> T,
     params_subject: impl Into<LocationTarget>,
     args_subject: impl Into<LocationTarget>,

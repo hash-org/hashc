@@ -103,6 +103,7 @@ pub enum ModKind {
 
 new_sequence_store_key!(pub ModMembersId);
 pub type ModMembersStore = DefaultSequenceStore<ModMembersId, DefMember<ModDefId>>;
+pub type ModMemberId = (ModMembersId, usize);
 
 /// A module definition.
 ///

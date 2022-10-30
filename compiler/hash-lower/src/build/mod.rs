@@ -18,14 +18,14 @@ use hash_types::{
     fmt::PrepareForFormatting,
     nodes::NodeInfoTarget,
     storage::GlobalStorage,
-    terms::{FnLit, FnTy, Level0Term, Level1Term, Term, TermId},
+    terms::{FnLit, FnTy, Level0Term, Level1Term, TermId, TermOld},
 };
 use hash_utils::store::{CloneStore, PartialStore, SequenceStoreKey};
 use index_vec::IndexVec;
 
 use crate::cfg::ControlFlowGraph;
 
-///   
+///
 pub(crate) enum BuildItem<'a> {
     /// A function body is being lowered.
     FnDef(AstNodeRef<'a, FnDef>),
@@ -61,8 +61,8 @@ fn get_fn_ty_from_term(term: TermId, tcx: &GlobalStorage) -> FnTy {
     let term = tcx.term_store.get(term);
 
     match term {
-        Term::Level0(Level0Term::FnLit(FnLit { fn_ty, .. })) => get_fn_ty_from_term(fn_ty, tcx),
-        Term::Level1(Level1Term::Fn(fn_ty)) => fn_ty,
+        TermOld::Level0(Level0Term::FnLit(FnLit { fn_ty, .. })) => get_fn_ty_from_term(fn_ty, tcx),
+        TermOld::Level1(Level1Term::Fn(fn_ty)) => fn_ty,
         _ => unreachable!(),
     }
 }
