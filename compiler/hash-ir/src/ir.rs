@@ -13,6 +13,8 @@ use hash_source::{
 use hash_types::{nominals::NominalDefId, scope::Mutability, terms::TermId};
 use index_vec::{index_vec, IndexSlice, IndexVec};
 
+use crate::{RValueId, StatementId};
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Const {
     /// Character constant
@@ -34,7 +36,7 @@ pub enum Const {
 
 /// A collection of operations that are constant and must run during the
 /// compilation stage.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum ConstOp {
     /// Yields the size of the given type.
     SizeOf,
@@ -42,7 +44,7 @@ pub enum ConstOp {
     AlignOf,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum UnaryOp {
     // Bitwise logical inversion
     BitNot,
@@ -56,7 +58,7 @@ pub enum UnaryOp {
 /// `intrinsic` implementations defined for them. Any time that does not
 /// implement these binary operations by default will create a function  
 /// call to the implementation of the binary operation.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum BinOp {
     /// '=='
     EqEq,
@@ -130,7 +132,7 @@ impl LocalDecl {
 }
 
 /// The addressing mode of the [RValue::Ref].
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum AddressMode {
     /// Take the `&raw` reference of something.
     Raw,
@@ -139,7 +141,7 @@ pub enum AddressMode {
     Smart,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum PlaceProjection {
     /// When we want to narrow down the union type to some specific
     /// variant.
@@ -154,7 +156,7 @@ pub enum PlaceProjection {
     Deref,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Place {
     /// The original place of where this is referring to.
     pub local: Local,
@@ -170,7 +172,7 @@ impl Place {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum AggregateKind {
     Tuple,
     Array(TermId),
@@ -180,8 +182,8 @@ pub enum AggregateKind {
 
 /// The representation of values that occur on the right-hand side of an
 /// assignment.
-#[derive(Debug, PartialEq, Eq)]
-pub enum RValue<'ir> {
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum RValue {
     /// A constant value.
     Const(Const),
 
@@ -198,13 +200,13 @@ pub enum RValue<'ir> {
     ConstOp(ConstOp, TermId),
 
     /// A unary expression with a unary operator.
-    UnaryOp(UnaryOp, &'ir RValue<'ir>),
+    UnaryOp(UnaryOp, RValueId),
 
     /// A binary expression with a binary operator and two inner expressions.
-    BinaryOp(BinOp, &'ir RValue<'ir>, &'ir RValue<'ir>),
+    BinaryOp(BinOp, RValueId, RValueId),
     /// An expression which is taking the address of another expression with an
     /// mutability modifier e.g. `&mut x`.
-    Ref(Mutability, &'ir Statement<'ir>, AddressMode),
+    Ref(Mutability, StatementId, AddressMode),
     /// Used for initialising structs, tuples and other aggregate
     /// data structures
     Aggregate(AggregateKind, Vec<Place>),
@@ -216,13 +218,13 @@ pub enum RValue<'ir> {
 
 /// A defined statement within the IR
 #[derive(Debug, PartialEq, Eq)]
-pub enum StatementKind<'ir> {
+pub enum StatementKind {
     /// Filler kind when expressions are optimised out or removed for other
     /// reasons.
     Nop,
     /// An assignment expression, a right hand-side expression is assigned to a
     /// left hand-side pattern e.g. `x = 2`
-    Assign(Place, RValue<'ir>),
+    Assign(Place, RValueId),
 
     /// Allocate some value on the the heap using reference
     /// counting.
@@ -234,9 +236,9 @@ pub enum StatementKind<'ir> {
 
 /// A [Statement] is a intermediate transformation step within a [BasicBlock].
 #[derive(Debug, PartialEq, Eq)]
-pub struct Statement<'ir> {
+pub struct Statement {
     /// The kind of [Statement] that it is.
-    pub kind: StatementKind<'ir>,
+    pub kind: StatementKind,
     /// The [Span] of the statement, relative to the [Body]
     /// `source-id`.
     pub span: Span,
@@ -259,9 +261,9 @@ pub enum AssertKind {
 /// [Terminator] statement that instructs where the program
 /// flow is to go next.
 #[derive(Debug, PartialEq, Eq)]
-pub struct Terminator<'ir> {
+pub struct Terminator {
     /// The kind of [Terminator] that it is.
-    pub kind: TerminatorKind<'ir>,
+    pub kind: TerminatorKind,
     /// The [Span] of the statement, relative to the [Body]
     /// `source-id`.
     pub span: Span,
@@ -272,7 +274,7 @@ pub struct Terminator<'ir> {
 /// @@Future: does this need an `Intrinsic(...)` variant for substituting
 /// expressions for intrinsic functions?
 #[derive(Debug, PartialEq, Eq)]
-pub enum TerminatorKind<'ir> {
+pub enum TerminatorKind {
     /// A simple go to block directive.
     Goto(BasicBlock),
 
@@ -295,7 +297,7 @@ pub enum TerminatorKind<'ir> {
 
     /// Essentially a `jump if <0> to <1> else go to <2>`. The last argument is
     /// the `otherwise` condition.
-    Switch(Local, &'ir [(Const, BasicBlock)], BasicBlock),
+    Switch(Local, Vec<(Const, BasicBlock)>, BasicBlock),
 
     /// This terminator is used to verify that the result of some operation has
     /// no violated a some condition. Usually, this is combined with operations
@@ -316,20 +318,20 @@ pub enum TerminatorKind<'ir> {
 
 /// Essentially a block
 #[derive(Debug, PartialEq, Eq)]
-pub struct BasicBlockData<'ir> {
+pub struct BasicBlockData {
     /// The statements that the block has.
-    pub statements: Vec<Statement<'ir>>,
+    pub statements: Vec<Statement>,
     /// An optional terminating statement, where the block goes
     /// after finishing execution of these statements. When a
     /// [BasicBlock] is finalised, it must always have a terminator.
-    pub terminator: Option<Terminator<'ir>>,
+    pub terminator: Option<Terminator>,
 }
 
-impl<'ir> BasicBlockData<'ir> {
+impl BasicBlockData {
     /// Create a new [BasicBlockData] with no statements and a provided
     /// `terminator`. It is assumed that the statements are to be added
     /// later to the block.
-    pub fn new(terminator: Option<Terminator<'ir>>) -> Self {
+    pub fn new(terminator: Option<Terminator>) -> Self {
         Self { statements: vec![], terminator }
     }
 }
@@ -368,9 +370,9 @@ pub enum FnSource {
     Intrinsic,
 }
 
-pub struct Body<'ir> {
+pub struct Body {
     /// The blocks that the function is represented with
-    pub blocks: IndexVec<BasicBlock, BasicBlockData<'ir>>,
+    pub blocks: IndexVec<BasicBlock, BasicBlockData>,
 
     /// Declarations of local variables:
     ///
@@ -397,18 +399,29 @@ pub struct Body<'ir> {
     span: Span,
     /// The id of the source of where this body originates from.
     source_id: SourceId,
+    /// Whether the IR Body that is generated should be printed
+    /// when the generation process is finalised.
+    dump: bool,
 }
 
-impl<'ir> Body<'ir> {
+impl Body {
+    /// Create a new [Body] with the given `name`, `arg_count`, `source_id` and
+    /// `span`.
     pub fn new(
-        blocks: IndexVec<BasicBlock, BasicBlockData<'ir>>,
+        blocks: IndexVec<BasicBlock, BasicBlockData>,
         declarations: IndexVec<Local, LocalDecl>,
         name: Identifier,
         arg_count: usize,
         source: FnSource,
         span: Span,
         source_id: SourceId,
+        dump: bool,
     ) -> Self {
-        Self { blocks, name, declarations, arg_count, source, span, source_id }
+        Self { blocks, name, declarations, arg_count, source, span, source_id, dump }
+    }
+
+    /// Check if the [Body] needs to be dumped.
+    pub fn needs_dumping(&self) -> bool {
+        self.dump
     }
 }

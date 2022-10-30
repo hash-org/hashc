@@ -34,13 +34,19 @@ pub struct IrWriter<'ir> {
     /// metadata about types within the ir.
     tcx: &'ir GlobalStorage,
     /// The body that is being printed
-    body: &'ir Body<'ir>,
+    body: &'ir Body,
 }
 
 impl<'ir> IrWriter<'ir> {
     /// Create a new IR writer for the given body.
-    pub fn new(tcx: &'ir GlobalStorage, body: &'ir Body<'ir>) -> Self {
+    pub fn new(tcx: &'ir GlobalStorage, body: &'ir Body) -> Self {
         Self { tcx, body }
+    }
+}
+
+impl fmt::Display for IrWriter<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.write_body(f)
     }
 }
 

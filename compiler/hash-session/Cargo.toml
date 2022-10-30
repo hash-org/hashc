@@ -17,6 +17,7 @@ hash-reporting = { path = "../hash-reporting" }
 hash-pipeline = { path = "../hash-pipeline" }
 hash-tree-def = { path = "../hash-tree-def" }
 hash-types = { path = "../hash-types" }
+hash-ir = { path = "../hash-ir" }
 
 # Various stages that the pipeline interfaces with...
 hash-parser = { path = "../hash-parser" }

@@ -7,12 +7,12 @@ use hash_ir::ir::{BasicBlock, Place};
 
 use super::{BlockAnd, BlockAndExtend, Builder};
 
-impl<'a, 'tcx> Builder<'a, 'tcx> {
+impl<'tcx> Builder<'tcx> {
     pub(crate) fn block_into_dest(
         &mut self,
         place: Place,
         block: BasicBlock,
-        body: AstNodeRef<'a, Block>,
+        body: AstNodeRef<'tcx, Block>,
     ) -> BlockAnd<()> {
         // Check which kind of block we are dealing with...
         match body.body {

@@ -7,9 +7,12 @@ mod matches;
 mod pat;
 
 use hash_ast::ast::{AstNodeId, AstNodeRef, Expr, FnDef};
-use hash_ir::ir::{
-    BasicBlock, BasicBlockData, Body, FnSource, Local, LocalDecl, Place, Terminator,
-    TerminatorKind, START_BLOCK,
+use hash_ir::{
+    ir::{
+        BasicBlock, BasicBlockData, Body, FnSource, Local, LocalDecl, Place, Terminator,
+        TerminatorKind, START_BLOCK,
+    },
+    IrStorage,
 };
 use hash_source::{
     identifier::Identifier,
@@ -111,15 +114,18 @@ macro_rules! unpack {
 
 /// The builder is responsible for lowering a body into the associated IR.
 
-pub(crate) struct Builder<'a, 'tcx> {
+pub(crate) struct Builder<'tcx> {
     /// The type storage needed for accessing the types of the traversed terms
     tcx: &'tcx GlobalStorage,
+
+    /// The IR storage needed for storing all of the created values and bodies
+    storage: &'tcx mut IrStorage,
 
     /// The name with the associated body that this is building.
     name: Identifier,
 
     /// The item that is being lowered.
-    item: BuildItem<'a>,
+    item: BuildItem<'tcx>,
 
     /// The originating module of where this item is defined.
     source_id: SourceId,
@@ -129,18 +135,24 @@ pub(crate) struct Builder<'a, 'tcx> {
     arg_count: usize,
 
     /// The body control-flow graph.
-    control_flow_graph: ControlFlowGraph<'tcx>,
+    control_flow_graph: ControlFlowGraph,
 
     /// Any local declarations that have been made
     declarations: IndexVec<Local, LocalDecl>,
+
+    /// If the body that is being built will need to be
+    /// dumped.
+    needs_dumping: bool,
 }
 
-impl<'a, 'tcx> Builder<'a, 'tcx> {
+impl<'tcx> Builder<'tcx> {
     pub(crate) fn new(
         name: Identifier,
-        item: BuildItem<'a>,
+        item: BuildItem<'tcx>,
         source_id: SourceId,
         tcx: &'tcx GlobalStorage,
+        storage: &'tcx mut IrStorage,
+        needs_dumping: bool,
     ) -> Self {
         let arg_count = match item {
             BuildItem::FnDef(node) => {
@@ -159,16 +171,18 @@ impl<'a, 'tcx> Builder<'a, 'tcx> {
         Self {
             item,
             tcx,
+            storage,
             name,
             arg_count,
             source_id,
             control_flow_graph: ControlFlowGraph::new(),
             declarations: IndexVec::new(),
+            needs_dumping,
         }
     }
 
     /// Convert the [Builder] into the [Body].
-    pub(crate) fn finish(self) -> Body<'tcx> {
+    pub(crate) fn finish(self) -> Body {
         // Verify that all basic blocks have a terminator
         for (index, block) in self.control_flow_graph.basic_blocks.iter().enumerate() {
             if block.terminator.is_none() {
@@ -185,6 +199,7 @@ impl<'a, 'tcx> Builder<'a, 'tcx> {
             FnSource::Item,
             self.item.span(),
             self.source_id,
+            self.needs_dumping,
         )
     }
 

@@ -4,10 +4,10 @@ use hash_types::{pats::BindingPat, scope::Mutability, terms::TermId};
 
 use super::Builder;
 
-impl<'a, 'tcx> Builder<'a, 'tcx> {
+impl<'tcx> Builder<'tcx> {
     /// Visit all of the bindings that are declared in the current pattern, and
     /// add them to the current builder declarations.
-    pub(crate) fn visit_bindings(&mut self, pat: AstNodeRef<'a, ast::Pat>) {
+    pub(crate) fn visit_bindings(&mut self, pat: AstNodeRef<'tcx, ast::Pat>) {
         let pat_id = pat.id();
 
         match pat.body {

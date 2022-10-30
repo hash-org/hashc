@@ -4,12 +4,12 @@ use hash_utils::store::PartialStore;
 
 use super::{BlockAnd, BlockAndExtend, Builder};
 
-impl<'a, 'tcx> Builder<'a, 'tcx> {
+impl<'tcx> Builder<'tcx> {
     pub(crate) fn expr_into_dest(
         &mut self,
         place: Place,
         block: BasicBlock,
-        body: AstNodeRef<'a, Expr>,
+        body: AstNodeRef<'tcx, Expr>,
     ) -> BlockAnd<()> {
         let block_and = match body.body {
             // @@Todo: we need to determine if this is a method call, or
@@ -80,7 +80,7 @@ impl<'a, 'tcx> Builder<'a, 'tcx> {
         &mut self,
         place: Place,
         block: BasicBlock,
-        body: AstNodeRef<'a, Expr>,
+        body: AstNodeRef<'tcx, Expr>,
     ) -> BlockAnd<()> {
         // We need to declare all of the bindings within this declaration
 
