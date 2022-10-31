@@ -1,0 +1,290 @@
+<!DOCTYPE HTML>
+<html lang="en" class="sidebar-visible no-js light">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>🚧 Operators - The Hash Programming Language</title>
+        <!-- Custom HTML head -->
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff" />
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="../highlight.css">
+        <link rel="stylesheet" href="../tomorrow-night.css">
+        <link rel="stylesheet" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+    </head>
+    <body>
+        <!-- Provide site root to javascript -->
+        <script type="text/javascript">
+            var path_to_root = "../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script type="text/javascript">
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script type="text/javascript">
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('no-js')
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add('js');
+        </script>
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script type="text/javascript">
+            var html = document.querySelector('html');
+            var sidebar = 'hidden';
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            }
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item expanded "><a href="../intro.html"><strong aria-hidden="true">1.</strong> Introduction</a></li><li class="chapter-item expanded "><a href="../features/intro.html"><strong aria-hidden="true">2.</strong> Language features</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../features/name-bindings.html"><strong aria-hidden="true">2.1.</strong> Name bindings</a></li><li class="chapter-item expanded "><a href="../features/functions.html"><strong aria-hidden="true">2.2.</strong> Functions</a></li><li class="chapter-item expanded "><a href="../features/primitives.html"><strong aria-hidden="true">2.3.</strong> Primitives</a></li><li class="chapter-item expanded "><a href="../features/control-flow.html"><strong aria-hidden="true">2.4.</strong> 🚧 Control flow</a></li><li class="chapter-item expanded "><a href="../features/operators.html" class="active"><strong aria-hidden="true">2.5.</strong> 🚧 Operators</a></li><li class="chapter-item expanded "><a href="../features/types.html"><strong aria-hidden="true">2.6.</strong> 🚧 Types</a></li><li class="chapter-item expanded "><a href="../features/structs-enums.html"><strong aria-hidden="true">2.7.</strong> Structs and enums</a></li><li class="chapter-item expanded "><a href="../features/modules.html"><strong aria-hidden="true">2.8.</strong> Modules and visibility</a></li><li class="chapter-item expanded "><a href="../features/patterns.html"><strong aria-hidden="true">2.9.</strong> Patterns</a></li><li class="chapter-item expanded "><a href="../features/traits-impls.html"><strong aria-hidden="true">2.10.</strong> Traits and implementations</a></li><li class="chapter-item expanded "><a href="../features/type-functions.html"><strong aria-hidden="true">2.11.</strong> Type functions</a></li><li class="chapter-item expanded "><a href="../features/memory.html"><strong aria-hidden="true">2.12.</strong> 🚧 Memory management</a></li><li class="chapter-item expanded "><a href="../features/directives.html"><strong aria-hidden="true">2.13.</strong> 🚧 Directives</a></li></ol></li><li class="chapter-item expanded "><a href="../standard-library/intro.html"><strong aria-hidden="true">3.</strong> Standard library</a></li><li class="chapter-item expanded "><a href="../interpreter/intro.html"><strong aria-hidden="true">4.</strong> Interpreter</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../interpreter/options.html"><strong aria-hidden="true">4.1.</strong> Interpreter options</a></li><li class="chapter-item expanded "><a href="../interpreter/backends.html"><strong aria-hidden="true">4.2.</strong> Compiler backends</a></li></ol></li><li class="chapter-item expanded "><a href="../advanced/intro.html"><strong aria-hidden="true">5.</strong> Advanced concepts</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../advanced/compiler-internals.html"><strong aria-hidden="true">5.1.</strong> Compiler internals</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../advanced/loop-transpilation.html"><strong aria-hidden="true">5.1.1.</strong> Loop transpilation</a></li><li class="chapter-item expanded "><a href="../advanced/if-statement-transpilation.html"><strong aria-hidden="true">5.1.2.</strong> If statement transpilation</a></li><li class="chapter-item expanded "><a href="../advanced/type-inference.html"><strong aria-hidden="true">5.1.3.</strong> Type inference</a></li></ol></li><li class="chapter-item expanded "><a href="../advanced/future-features.html"><strong aria-hidden="true">5.2.</strong> Future features</a></li></ol></li></ol>
+            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky bordered">
+                    <div class="left-buttons">
+                        <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </button>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light (default)</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The Hash Programming Language</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/hash-org/lang" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script type="text/javascript">
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="operators--symbols"><a class="header" href="#operators--symbols">Operators &amp; Symbols</a></h1>
+<p>This section contains all of the syntactic operators that are available within Hash</p>
+<h2 id="general-operators-"><a class="header" href="#general-operators-">General operators 🚧</a></h2>
+<p>Here are the general operators for arithmetic, bitwise assignment operators. This table does not include
+all of the possible operators specified within the grammar. There are more operators that are related to
+a specific group of operations or are used to convey meaning within the language.</p>
+<div class="table-wrapper"><table><thead><tr><th>Operator</th><th>Example</th><th>Description</th><th>Overloadable trait</th></tr></thead><tbody>
+<tr><td><code>==</code>, <code>!=</code></td><td><code>a == 2</code>, <code>b != 'a'</code></td><td>Equality</td><td><code>eq</code></td></tr>
+<tr><td><code>=</code></td><td><code>a = 2</code></td><td>Assignment</td><td>N/A</td></tr>
+<tr><td><code>!</code></td><td><code>!a</code></td><td>Logical not</td><td><code>not</code></td></tr>
+<tr><td><code>&amp;&amp;</code></td><td><code>a &amp;&amp; b</code></td><td>Logical and</td><td><code>and</code></td></tr>
+<tr><td><code>||</code></td><td><code>a  || b</code></td><td>Logical or</td><td><code>or</code></td></tr>
+<tr><td><code>+</code></td><td><code>2 + 2</code>, <code>3 + b</code></td><td>Addition</td><td><code>add</code></td></tr>
+<tr><td><code>-</code></td><td><code>3 - a</code></td><td>Subtraction</td><td><code>sub</code></td></tr>
+<tr><td><code>-</code></td><td><code>-2</code></td><td>Negation</td><td><code>neg</code></td></tr>
+<tr><td><code>*</code></td><td><code>3 * 2</code>, <code>2 * c</code></td><td>Multiplication</td><td><code>mul</code></td></tr>
+<tr><td><code>^^</code></td><td><code>3 ^^ 2</code>, <code>3 ^^ 2.3</code></td><td>Exponentiation</td><td><code>exp</code></td></tr>
+<tr><td><code>/</code></td><td><code>4 / 2</code>, <code>a / b</code></td><td>Division</td><td><code>div</code></td></tr>
+<tr><td><code>%</code></td><td><code>a % 1</code></td><td>Modulo</td><td><code>mod</code></td></tr>
+<tr><td><code>&lt;&lt;</code></td><td><code>4 &lt;&lt; 1</code></td><td>Bitwise left shift</td><td><code>shl</code></td></tr>
+<tr><td><code>&gt;&gt;</code></td><td><code>8 &gt;&gt; 1</code></td><td>Bitwise right shift</td><td><code>shr</code></td></tr>
+<tr><td><code>&amp;</code></td><td><code>5 &amp; 4</code>, <code>a &amp; 2</code></td><td>Bitwise and</td><td><code>andb</code></td></tr>
+<tr><td><code>|</code></td><td><code>a  | 2</code></td><td>Bitwise or</td><td><code>orb</code></td></tr>
+<tr><td><code>^</code></td><td><code>3 ^ 2</code></td><td>Bitwise exclusive or</td><td><code>xorb</code></td></tr>
+<tr><td><code>~</code></td><td><code>~2</code></td><td>Bitwise not</td><td><code>notb</code></td></tr>
+<tr><td><code>&gt;=</code>, <code>&lt;=</code>, <code>&lt;</code>, <code>&gt;</code></td><td><code>2 &lt; b</code>, <code>c &gt;= 3</code></td><td>Order comparison</td><td><code>ord</code></td></tr>
+<tr><td><code>+=</code></td><td><code>x += y</code></td><td>Add with assignment</td><td><code>add_eq</code></td></tr>
+<tr><td><code>-=</code></td><td><code>x -= 1</code></td><td>Subtract with assignment</td><td><code>sub_eq</code></td></tr>
+<tr><td><code>*=</code></td><td><code>b *= 10</code></td><td>Multiply with assignment</td><td><code>mul_eq</code></td></tr>
+<tr><td><code>/=</code></td><td><code>b /= 2</code></td><td>Divide with assignment</td><td><code>div_eq</code></td></tr>
+<tr><td><code>%=</code></td><td><code>a %= 3</code></td><td>Modulo with assignment</td><td><code>mod_eq</code></td></tr>
+<tr><td><code>&amp;&amp;=</code></td><td><code>b &amp;&amp;= c</code></td><td>Logical and with assignment</td><td><code>and_eq</code></td></tr>
+<tr><td><code>&gt;&gt;=</code></td><td><code>b &gt;&gt;= 3</code></td><td>Bitwise right shift equality</td><td><code>shr_eq</code></td></tr>
+<tr><td><code>&lt;&lt;=</code></td><td><code>b &lt;&lt;= 1</code></td><td>Bitwise left shift equality</td><td><code>shl_eq</code></td></tr>
+<tr><td><code>||=</code></td><td><code>b ||= c</code></td><td>Logical or with assignment</td><td><code>or_eq</code></td></tr>
+<tr><td><code>&amp;=</code></td><td><code>a &amp;= b</code></td><td>Bitwise and with assignment</td><td><code>andb</code></td></tr>
+<tr><td><code>|=</code></td><td><code>b  |= SOME_CONST</code></td><td>Bitwise or with assignment</td><td><code>orb</code></td></tr>
+<tr><td><code>^=</code></td><td><code>a ^= 1</code></td><td>Bitwise xor with assignment</td><td><code>xorb</code></td></tr>
+<tr><td><code>.</code></td><td><code>a.foo</code></td><td>Struct/Tuple enum property accessor</td><td>N/A</td></tr>
+<tr><td><code>:</code></td><td><code>{2: 'a'}</code></td><td>Map key-value separator</td><td>N/A</td></tr>
+<tr><td><code>::</code></td><td><code>io::open()</code></td><td>Namespace symbol access</td><td>N/A</td></tr>
+<tr><td><code>as</code></td><td><code>t as str</code></td><td>Type assertion</td><td>N/A</td></tr>
+<tr><td><code>@</code></td><td>N/A</td><td>Pattern value binding</td><td>N/A</td></tr>
+<tr><td><code>...</code></td><td>N/A</td><td>Spread operator (Not-implemented)</td><td><code>range</code>?</td></tr>
+<tr><td><code>;</code></td><td><code>expression;</code></td><td>statement terminator</td><td>N/A</td></tr>
+<tr><td><code>?</code></td><td><code>k&lt;T&gt; where s&lt;T, ?&gt; := ...</code></td><td>Type argument wildcard</td><td>N/A</td></tr>
+<tr><td><code>-&gt;</code></td><td><code>(str) -&gt; usize</code></td><td>Function return type notation</td><td>N/A</td></tr>
+<tr><td><code>=&gt;</code></td><td><code>(a) =&gt; a + 2</code></td><td>Function Body definition</td><td>N/A</td></tr>
+</tbody></table>
+</div>
+<h2 id="comments-"><a class="header" href="#comments-">Comments 🚧</a></h2>
+<p>This table represents the syntax for different types of comments in Hash:</p>
+<div class="table-wrapper"><table><thead><tr><th>Symbol</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>//...</code></td><td>Line comment</td></tr>
+<tr><td><code>/*...*/</code></td><td>Block comment</td></tr>
+<tr><td><code>///</code></td><td>function doc comment    🚧</td></tr>
+<tr><td><code>//!</code></td><td>module doc comment      🚧</td></tr>
+</tbody></table>
+</div>
+<h1 id="type-signature-assertions"><a class="header" href="#type-signature-assertions">Type Signature Assertions</a></h1>
+<h2 id="basics"><a class="header" href="#basics">Basics</a></h2>
+<p>As in many other languages, the programmer can specify the type of a variable or
+a literal by using some special syntax. For example, in languages such as typescript,
+you can say that: </p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>some_value as str
+<span class="boring">}
+</span></code></pre></pre>
+<p>which implies that you are asserting that <code>some_value</code> is a string, this is essentially a way to avoid explicitly stating that type of a variable every
+single time and telling the compiler &quot;Trust me <code>some_value</code> is a <code>string</code>&quot;. </p>
+<p>The principle is somewhat similar in <code>Hash</code>, but it is more strictly enforced.
+For example, within the statement <code>x := 37;</code>, the type of <code>x</code> can be any of the
+integer types. This might lead to unexpected behaviour in future statements, where
+the compiler has decided the type of <code>x</code> (it might not be what you intended it).</p>
+<p>So, you can either declare <code>x</code> to be some integer type explicitly like so:</p>
+<pre><code class="language-rs">x: u32 = 37;
+</code></pre>
+<p>Or you can, use <code>as</code> to imply a type for a variable, which the compiler will assume 
+to be true, like so:</p>
+<pre><code class="language-rs">x := 37 as u32;
+</code></pre>
+<h2 id="failing-type-assertions"><a class="header" href="#failing-type-assertions">Failing type assertions</a></h2>
+<p>If you specify a type assertion, the compiler will either attempt to infer this information from the left-hand side of the <code>as</code> operator
+to the right. If the inference results in a different type to the right-hand side, this will raise a typechecking failure. </p>
+<p>For example, if you were to specify the expression:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>&quot;A&quot; as char
+<span class="boring">}
+</span></code></pre></pre>
+<p>The compiler will report this error as:</p>
+<pre><code>error[0001]: Types mismatch, got a `str`, but wanted a `char`.
+ --&gt; &lt;interactive&gt;:1:8
+1 |   &quot;A&quot; as char
+  |          ^^^^ This specifies that the expression should be of type `char`
+
+ --&gt; &lt;interactive&gt;:1:1
+1 |   &quot;A&quot; as char
+  |   ^^^ Found this to be of type `str`
+
+</code></pre>
+<h2 id="usefulness"><a class="header" href="#usefulness">Usefulness</a></h2>
+<p>Why are type assertions when there is already type inference within the language? Well, sometimes the type inference
+system does not have enough information to infer the types of variables and declarations. 
+Type inference may not have enough information when dealing with functions that are generic, so it can sometimes
+be useful to assert to the compiler that a given variable is a certain type. </p>
+<p>Additionally, whilst the language is in an early stage of maturity and some things that are quirky or broken, type
+assertions can come to the rescue and help the compiler to understand your program.</p>
+<p>In general, type assertions should be used when the compiler cannot infer the type of some expression with 
+the given information and needs assistance. You shouldn't need to use type assertions often.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../features/control-flow.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+                            <a rel="next" href="../features/types.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../features/control-flow.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+                    <a rel="next" href="../features/types.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+        <script type="text/javascript">
+            window.playground_copyable = true;
+        </script>
+        <script src="../elasticlunr.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../mark.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../searcher.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../clipboard.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../highlight.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../book.js" type="text/javascript" charset="utf-8"></script>
+
+        <!-- Custom JS scripts -->
+    </body>
+</html>
