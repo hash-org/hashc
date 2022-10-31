@@ -1,12 +1,15 @@
 name: Generate book
 on: 
   push:
-    branches: [ main ]
+    branches:
+      - main
 
 jobs:
-  ebook:
+  deploy:
     name: Build and upload
     runs-on: ubuntu-latest
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
     steps:
       - uses: actions/checkout@v2
 
@@ -23,3 +26,4 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./docs/book
+
