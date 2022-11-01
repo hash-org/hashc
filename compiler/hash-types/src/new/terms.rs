@@ -47,7 +47,8 @@ pub struct RuntimeTerm {
 
 /// An application of a term to a list of arguments.
 ///
-/// This is a term which will resolve to a function call, or a constructor call.
+/// This is a term which will resolve to a function call, a constructor call, or
+/// a trait function call.
 #[derive(Debug, Clone, Copy)]
 pub struct AppTerm {
     pub subject: TermId,
@@ -74,8 +75,10 @@ pub enum Term {
     TypeOfTerm(TypeOfTerm),
     Ctor(CtorTerm),
 
-    // To-be-resolved
-    SymbolicVar(SymbolicVarTerm),
+    // Infer the term from the surrounding context.
+    Infer,
+
+    // Application
     App(AppTerm),
 
     // Functions
@@ -92,6 +95,7 @@ pub enum Term {
     ModDef(ModDefId),
 
     // Variables
+    SymbolicVar(SymbolicVarTerm),
     ResolvedVar(ResolvedVarTerm),
 
     // Loops

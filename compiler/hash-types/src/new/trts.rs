@@ -1,6 +1,5 @@
 //! Definitions related to traits.
 
-use hash_source::identifier::Identifier;
 use hash_utils::{
     new_sequence_store_key, new_store_key,
     store::{DefaultSequenceStore, DefaultStore},
@@ -21,7 +20,7 @@ pub type TrtMemberId = (TrtMembersId, usize);
 /// members, as well as the name of "Self".
 #[derive(Debug, Clone, Copy)]
 pub struct TrtDef {
-    pub name: Identifier,
+    pub name: Symbol,
     pub params: DefParamsId,
     pub members: TrtMembersId,
 

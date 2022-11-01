@@ -9,6 +9,9 @@ use crate::new::{
 /// A loop term.
 ///
 /// Contains a block.
+///
+/// The type of a loop is `void`, unless it can be proven to never terminate (in
+/// which case it is `never`).
 #[derive(Debug, Clone, Copy)]
 pub struct LoopTerm {
     pub block: BlockTerm,

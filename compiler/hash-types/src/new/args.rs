@@ -6,6 +6,9 @@ use hash_utils::{new_sequence_store_key, store::DefaultSequenceStore};
 use crate::new::{symbols::Symbol, terms::TermId};
 
 /// An argument to a parameter.
+///
+/// This might be used for arguments in constructor calls `C(...)`, function
+/// calls `f(...)` or `f<...>`, or type arguments.
 #[derive(Debug, Clone, Hash, Copy)]
 pub struct Arg {
     /// Optional name that is attached to the argument.
