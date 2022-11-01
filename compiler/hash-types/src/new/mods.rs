@@ -68,7 +68,7 @@ pub struct ModDef {
 
     /// The name of the "Self" type in the scope of the trait definition, if
     /// present.
-    pub self_type_name: Option<Symbol>,
+    pub self_ty_name: Option<Symbol>,
 }
 
 new_store_key!(pub ModDefId);

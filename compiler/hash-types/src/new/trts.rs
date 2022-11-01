@@ -25,7 +25,7 @@ pub struct TrtDef {
     pub members: TrtMembersId,
 
     /// The name of the "Self" type in the scope of the trait definition.
-    pub self_type_name: Symbol,
+    pub self_ty_name: Symbol,
 }
 new_store_key!(pub TrtDefId);
 pub type TrtDefStore = DefaultStore<TrtDefId, TrtDef>;
