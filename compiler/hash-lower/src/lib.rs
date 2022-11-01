@@ -3,6 +3,7 @@
 //! the Hash IR builder crate contains implemented passes that will optimise the
 //! IR, performing optimisations such as constant folding or dead code
 //! elimination.
+#![feature(decl_macro)]
 #![allow(unused)] // @@TODO: remove this when the builder is complete
 
 mod build;
@@ -67,7 +68,7 @@ impl<Ctx: IrLoweringCtx> CompilerStage<Ctx> for AstLowerer {
             let stage_info = source_stage_info.get(source_id);
 
             // Skip any modules that have already been checked
-            if stage_info.is_semantics_checked() {
+            if stage_info.is_lowered() {
                 continue;
             }
 
