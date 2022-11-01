@@ -1,5 +1,6 @@
 //! Definitions related to patterns.
 
+use hash_ast::ast::RangeEnd;
 use hash_utils::{new_sequence_store_key, new_store, new_store_key, store::DefaultSequenceStore};
 
 use super::{
@@ -46,10 +47,7 @@ pub struct RangePat {
     /// The end of the range.
     pub end: LitPat,
     /// If the range includes the `end` or not.
-    ///
-    /// If `true`, this is the pattern `start..<end`, otherwise it is
-    /// `start..end`.
-    pub end_exclusive: bool,
+    pub range_end: RangeEnd,
 }
 
 /// Represents a pattern.
