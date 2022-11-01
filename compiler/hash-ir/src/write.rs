@@ -7,9 +7,27 @@
 
 use std::fmt;
 
-use hash_types::{fmt::PrepareForFormatting, storage::GlobalStorage};
-
 use super::ir::*;
+use crate::{
+    ty::{AdtId, IrTyId, IrTyListId},
+    IrStorage,
+};
+
+/// Struct that is used to write [IrTy]s.
+pub struct ForFormatting<'ir, T> {
+    pub t: T,
+    pub storage: &'ir IrStorage,
+}
+
+pub trait WriteTyIr: Sized {
+    fn for_fmt(self, storage: &IrStorage) -> ForFormatting<Self> {
+        ForFormatting { t: self, storage }
+    }
+}
+
+impl WriteTyIr for IrTyId {}
+impl WriteTyIr for IrTyListId {}
+impl WriteTyIr for AdtId {}
 
 /// A trait for printing out the IR in a human readable format.
 pub trait WriteIr<'ir> {
@@ -32,14 +50,14 @@ pub trait WriteIr<'ir> {
 pub struct IrWriter<'ir> {
     /// The type context allowing for printing any additional
     /// metadata about types within the ir.
-    tcx: &'ir GlobalStorage,
+    tcx: &'ir IrStorage,
     /// The body that is being printed
     body: &'ir Body,
 }
 
 impl<'ir> IrWriter<'ir> {
     /// Create a new IR writer for the given body.
-    pub fn new(tcx: &'ir GlobalStorage, body: &'ir Body) -> Self {
+    pub fn new(tcx: &'ir IrStorage, body: &'ir Body) -> Self {
         Self { tcx, body }
     }
 }
@@ -64,18 +82,18 @@ impl<'ir> WriteIr<'ir> for IrWriter<'ir> {
                 write!(f, ", ")?;
             }
 
-            write!(f, "_{i}: {}", param.ty().for_formatting(self.tcx))?;
+            write!(f, "_{i}: {}", param.ty().for_fmt(self.tcx))?;
         }
-        writeln!(f, ") -> {} {{", return_ty_decl.ty().for_formatting(self.tcx))?;
+        writeln!(f, ") -> {} {{", return_ty_decl.ty().for_fmt(self.tcx))?;
 
         // Print all of the declarations within the function
-        writeln!(f, "_0: {}", return_ty_decl.ty().for_formatting(self.tcx))?;
+        writeln!(f, "_0: {}", return_ty_decl.ty().for_fmt(self.tcx))?;
 
         let declarations = self.body.declarations.iter_enumerated();
         let offset = 1 + self.body.arg_count;
 
         for (local, decl) in declarations.skip(offset) {
-            writeln!(f, "    {local:?}:{}", decl.ty().for_formatting(self.tcx))?;
+            writeln!(f, "    {local:?}:{}", decl.ty().for_fmt(self.tcx))?;
         }
 
         // Print all of the basic blocks

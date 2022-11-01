@@ -6,7 +6,9 @@ edition = "2021"
 
 [dependencies]
 index_vec = "0.1.3"
+bitflags = "1.3.2"
 
+hash-ast = {path = "../hash-ast" }
 hash-utils = {path = "../hash-utils" }
 hash-alloc = {path = "../hash-alloc" }
 hash-source = {path = "../hash-source" }

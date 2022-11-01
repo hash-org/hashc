@@ -1,5 +1,8 @@
 use hash_ast::ast::{self, AstNodeRef};
-use hash_ir::ir::{Local, LocalDecl};
+use hash_ir::{
+    ir::{Local, LocalDecl},
+    ty::IrTyId,
+};
 use hash_types::{pats::BindingPat, scope::Mutability, terms::TermId};
 
 use super::Builder;
@@ -13,10 +16,10 @@ impl<'tcx> Builder<'tcx> {
         match pat.body {
             ast::Pat::Binding(ast::BindingPat { name, visibility, mutability }) => {
                 // resolve the type of this binding
-                let pat = self.get_pat_of_ast_node(pat_id);
+                let pat = self.get_pat_id_of_node(pat_id);
                 let BindingPat { mutability, .. } = pat.into_bind().unwrap();
 
-                let ty = self.get_term_id_of_ast_node(pat_id);
+                let ty = self.get_ty_id_of_node(pat_id);
                 self.declare_binding(ty, mutability)
             }
             ast::Pat::Constructor(_) => todo!(),
@@ -41,7 +44,7 @@ impl<'tcx> Builder<'tcx> {
     }
 
     /// Declare a [Local] with the given metadata in the current builder.
-    pub(crate) fn declare_binding(&mut self, ty: TermId, mutability: Mutability) {
+    pub(crate) fn declare_binding(&mut self, ty: IrTyId, mutability: Mutability) {
         let local = LocalDecl::new(mutability, ty);
 
         self.declarations.push(local);

@@ -17,7 +17,7 @@ impl<'tcx> Builder<'tcx> {
             Expr::ConstructorCall(..) => todo!(),
             Expr::Directive(expr) => self.expr_into_dest(place, block, expr.subject.ast_ref()),
             Expr::Variable(variable) => {
-                let term = self.get_term_of_ast_node(expr.id());
+                let term = self.get_ty_of_node(expr.id());
                 println!("term: {term:?}");
 
                 block.unit()
