@@ -1,12 +1,14 @@
 //! Contains definitions that are relevant to the typed semantic analysis stage
 //! of the compiler (in other words, typechecking).
 
+pub mod access;
 pub mod args;
 pub mod control;
 pub mod data;
 pub mod defs;
 pub mod fns;
 pub mod holes;
+pub mod lits;
 pub mod mods;
 pub mod params;
 pub mod pats;

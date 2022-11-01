@@ -1,6 +1,6 @@
 //! Definitions related to control flow.
 
-use super::pats::PatListId;
+use super::pats::{PatId, PatListId};
 use crate::new::{
     scopes::BlockTerm,
     terms::{TermId, TermListId},
@@ -52,4 +52,17 @@ pub struct ReturnTerm {
 pub enum LoopControlTerm {
     Break,
     Continue,
+}
+
+/// A conditional pattern, containing a pattern and an condition.
+#[derive(Clone, Debug, Copy)]
+pub struct IfPat {
+    pub pat: PatId,
+    pub condition: TermId,
+}
+
+/// Represents a list of alternative patterns (A | B | C).
+#[derive(Copy, Clone, Debug)]
+pub struct OrPat {
+    pub alternatives: PatListId,
 }

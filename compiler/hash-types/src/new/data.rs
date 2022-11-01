@@ -5,6 +5,7 @@ use hash_utils::{
     store::{DefaultSequenceStore, DefaultStore},
 };
 
+use super::defs::DefPatArgsId;
 use crate::new::{
     defs::{DefArgsId, DefParamsId},
     symbols::Symbol,
@@ -56,6 +57,17 @@ pub struct CtorTerm {
     pub ctor: CtorDefId,
     /// The arguments to the constructor.
     pub args: DefArgsId,
+}
+
+/// A constructor pattern.
+///
+/// This is a pattern matching a constructor, for example `Some(_)`.
+#[derive(Debug, Clone, Copy)]
+pub struct CtorPat {
+    /// The constructor definition that this pattern references.
+    pub ctor: CtorDefId,
+    /// The pattern arguments to the constructor.
+    pub args: DefPatArgsId,
 }
 
 /// A data-type definition.
