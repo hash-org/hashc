@@ -9,15 +9,15 @@ impl<'tcx> Builder<'tcx> {
         &mut self,
         place: Place,
         block: BasicBlock,
-        body: AstNodeRef<'tcx, Expr>,
+        expr: AstNodeRef<'tcx, Expr>,
     ) -> BlockAnd<()> {
-        let block_and = match body.body {
+        let block_and = match expr.body {
             // @@Todo: we need to determine if this is a method call, or
             // a constructor call, we should do this somewhere else
             Expr::ConstructorCall(..) => todo!(),
             Expr::Directive(expr) => self.expr_into_dest(place, block, expr.subject.ast_ref()),
             Expr::Variable(variable) => {
-                let term = self.tcx.node_info_store.get(body.id()).map(|f| f.term_id()).unwrap();
+                let term = self.get_term_of_ast_node(expr.id());
                 println!("term: {term:?}");
 
                 block.unit()
@@ -33,7 +33,7 @@ impl<'tcx> Builder<'tcx> {
             // For declarations, we have to perform some bookkeeping in regards
             // to locals..., but this expression should never return any value
             // so we should just return a unit block here
-            Expr::Declaration(decl) => self.handle_expr_declaration(place, block, body),
+            Expr::Declaration(decl) => self.handle_expr_declaration(place, block, expr),
 
             // Traverse the lhs of the cast, and then apply the cast
             // to the result... although this should be a no-op?

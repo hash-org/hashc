@@ -99,17 +99,17 @@ impl BlockAndExtend for BasicBlock {
 
 /// Update a block pointer and return the value.
 /// Use it like `let x = unpack!(block = self.foo(block, foo))`.
-macro_rules! unpack {
+pub macro unpack {
     ($x:ident = $c:expr) => {{
         let BlockAnd(b, v) = $c;
         $x = b;
         v
-    }};
+    }},
 
     ($c:expr) => {{
         let BlockAnd(b, ()) = $c;
         b
-    }};
+    }}
 }
 
 /// The builder is responsible for lowering a body into the associated IR.
@@ -208,6 +208,15 @@ impl<'tcx> Builder<'tcx> {
     #[inline]
     fn get_term_id_of_ast_node(&self, id: AstNodeId) -> TermId {
         self.tcx.node_info_store.get(id).map(|f| f.term_id()).unwrap()
+    }
+
+    /// Function to get the associated [Term] with the
+    /// provided [AstNodeId].
+    #[inline]
+    fn get_term_of_ast_node(&self, id: AstNodeId) -> Term {
+        let term_id = self.tcx.node_info_store.get(id).map(|f| f.term_id()).unwrap();
+
+        self.tcx.term_store.get(term_id)
     }
 
     /// Function to get the associated [PatId] with the
