@@ -3,7 +3,7 @@
 //! the `splitting` operation creates [DeconstructedCtor]s that represent
 //! the whole range of all possible values by the associated type
 //! to the constructor.
-use hash_ast::ast::{IntTy, RangeEnd};
+use hash_ast::ast::RangeEnd;
 use hash_types::{
     nominals::NominalDef,
     terms::{Level1Term, Term},
@@ -87,7 +87,7 @@ impl<'tc> SplitWildcardOps<'tc> {
                 // @@Future: Maybe in the future, we can have a compiler setting/project
                 // setting that allows a user to say `it's ok to use the `target`
                 // pointer width`
-                IntTy::ISize | IntTy::USize | IntTy::UBig | IntTy::IBig => {
+                kind if kind.is_big_sized_integral() || kind.is_ptr_sized_integral() => {
                     smallvec![DeconstructedCtor::NonExhaustive]
                 }
                 kind if kind.is_signed() => {

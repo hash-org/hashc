@@ -5,9 +5,9 @@ use std::{
     fmt::{self, Display},
 };
 
-use hash_ast::ast::{IntLit, IntLitKind, IntTy};
+use hash_ast::ast::{IntLit, IntLitKind};
 use hash_source::{
-    constant::{InternedStr, CONSTANT_MAP},
+    constant::{IntTy, InternedStr, SIntTy, CONSTANT_MAP},
     identifier::Identifier,
 };
 use hash_utils::{
@@ -281,7 +281,9 @@ impl From<IntLit> for LitTerm {
 
         match lit.kind {
             IntLitKind::Suffixed(kind) => LitTerm::Int { value: value.to_big_int(), kind },
-            IntLitKind::Unsuffixed => LitTerm::Int { value: value.to_big_int(), kind: IntTy::I32 },
+            IntLitKind::Unsuffixed => {
+                LitTerm::Int { value: value.to_big_int(), kind: IntTy::Int(SIntTy::I32) }
+            }
         }
     }
 }

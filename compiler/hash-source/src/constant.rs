@@ -4,7 +4,10 @@
 //! be passed around each stage of the compiler and can just
 //! be interned, and accessed when needed.
 
-use std::{fmt::Display, ops::Neg};
+use std::{
+    fmt::{self, Display},
+    ops::Neg,
+};
 
 use dashmap::DashMap;
 use fnv::FnvBuildHasher;
@@ -13,6 +16,22 @@ use lazy_static::lazy_static;
 use num_bigint::BigInt;
 
 use crate::identifier::{Identifier, IDENTS};
+
+/// The type of the float the [FloatLit] is storing.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum FloatTy {
+    F32,
+    F64,
+}
+
+impl Display for FloatTy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FloatTy::F32 => write!(f, "f32"),
+            FloatTy::F64 => write!(f, "f64"),
+        }
+    }
+}
 
 /// The inner stored value of a [FloatConstant].
 #[derive(Debug, Clone, Copy)]
@@ -76,6 +95,221 @@ impl Display for FloatConstant {
 impl Display for InternedFloat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", CONSTANT_MAP.lookup_float_constant(*self))
+    }
+}
+
+/// Unsigned integer type variants.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum UIntTy {
+    U8,
+    U16,
+    U32,
+    U64,
+    U128,
+    USize,
+    UBig,
+}
+
+impl UIntTy {
+    /// Get the size of [IntTy] in bytes. Returns [None] for
+    /// [UIntTy::UBig] variants
+    pub const fn size(&self) -> Option<u64> {
+        match self {
+            UIntTy::U8 => Some(1),
+            UIntTy::U16 => Some(2),
+            UIntTy::U32 => Some(4),
+            UIntTy::U64 => Some(8),
+            // @@Todo: actually get the target pointer size, don't default to 64bit pointers.
+            UIntTy::USize => Some(8),
+            UIntTy::U128 => Some(16),
+            UIntTy::UBig => None,
+        }
+    }
+
+    /// Function to get the largest possible integer represented within this
+    /// type. For sizes `ibig` and `ubig` there is no defined max and so the
+    /// function returns [None].
+    pub fn max(&self) -> Option<BigInt> {
+        match self {
+            UIntTy::U8 => Some(BigInt::from(i8::MAX)),
+            UIntTy::U16 => Some(BigInt::from(i16::MAX)),
+            UIntTy::U32 => Some(BigInt::from(i32::MAX)),
+            UIntTy::U64 => Some(BigInt::from(i64::MAX)),
+            UIntTy::U128 => Some(BigInt::from(i128::MAX)),
+            UIntTy::USize => Some(BigInt::from(isize::MAX)),
+            UIntTy::UBig => None,
+        }
+    }
+
+    /// Function to get the most minimum integer represented within this
+    /// type.
+    pub fn min(&self) -> BigInt {
+        0.into()
+    }
+
+    /// Convert the [UIntTy] into a primitive type name
+    pub fn to_name(&self) -> &'static str {
+        match self {
+            UIntTy::U8 => "u8",
+            UIntTy::U16 => "u16",
+            UIntTy::U32 => "u32",
+            UIntTy::U64 => "u64",
+            UIntTy::U128 => "u128",
+            UIntTy::USize => "usize",
+            UIntTy::UBig => "ubig",
+        }
+    }
+}
+
+impl Display for UIntTy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_name())
+    }
+}
+
+/// Signed integer type variants.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum SIntTy {
+    I8,
+    I16,
+    I32,
+    I64,
+    I128,
+    ISize,
+    IBig,
+}
+
+impl SIntTy {
+    /// Get the size of [IntTy] in bytes. Returns [None] for
+    /// [UIntTy::UBig] variants
+    pub const fn size(&self) -> Option<u64> {
+        match self {
+            SIntTy::I8 => Some(1),
+            SIntTy::I16 => Some(2),
+            SIntTy::I32 => Some(4),
+            SIntTy::I64 => Some(8),
+            // @@Todo: actually get the target pointer size, don't default to 64bit pointers.
+            SIntTy::ISize => Some(8),
+            SIntTy::I128 => Some(16),
+            SIntTy::IBig => None,
+        }
+    }
+
+    /// Function to get the largest possible integer represented within this
+    /// type. For sizes `ibig` and `ubig` there is no defined max and so the
+    /// function returns [None].
+    pub fn max(&self) -> Option<BigInt> {
+        match self {
+            SIntTy::I8 => Some(BigInt::from(i8::MAX)),
+            SIntTy::I16 => Some(BigInt::from(i16::MAX)),
+            SIntTy::I32 => Some(BigInt::from(i32::MAX)),
+            SIntTy::I64 => Some(BigInt::from(i64::MAX)),
+            SIntTy::I128 => Some(BigInt::from(i128::MAX)),
+            SIntTy::ISize => Some(BigInt::from(isize::MAX)),
+            SIntTy::IBig => None,
+        }
+    }
+
+    /// Function to get the most minimum integer represented within this
+    /// type. For sizes `ibig` and `ubig` there is no defined minimum and so the
+    /// function returns [None].
+    pub fn min(&self) -> Option<BigInt> {
+        match self {
+            SIntTy::I8 => Some(BigInt::from(i8::MIN)),
+            SIntTy::I16 => Some(BigInt::from(i16::MIN)),
+            SIntTy::I32 => Some(BigInt::from(i32::MIN)),
+            SIntTy::I64 => Some(BigInt::from(i64::MIN)),
+            SIntTy::I128 => Some(BigInt::from(i128::MIN)),
+            SIntTy::ISize => Some(BigInt::from(isize::MIN)),
+            SIntTy::IBig => None,
+        }
+    }
+
+    /// Convert the [IntTy] into a primitive type name
+    pub fn to_name(&self) -> &'static str {
+        match self {
+            SIntTy::I8 => "i8",
+            SIntTy::I16 => "i16",
+            SIntTy::I32 => "i32",
+            SIntTy::I64 => "i64",
+            SIntTy::I128 => "i128",
+            SIntTy::ISize => "isize",
+            SIntTy::IBig => "ibig",
+        }
+    }
+}
+
+impl Display for SIntTy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_name())
+    }
+}
+
+/// The representation of an integer type.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum IntTy {
+    /// Signed integer variant.
+    Int(SIntTy),
+    /// Unsigned integer variant.
+    UInt(UIntTy),
+}
+
+impl IntTy {
+    /// Convert the type into a name.
+    pub fn to_name(&self) -> &'static str {
+        match self {
+            IntTy::Int(ty) => ty.to_name(),
+            IntTy::UInt(ty) => ty.to_name(),
+        }
+    }
+
+    /// Function to get the largest possible integer represented within this
+    /// type. For sizes `ibig` and `ubig` there is no defined max and so the
+    /// function returns [None].
+    pub fn max(&self) -> Option<BigInt> {
+        match self {
+            IntTy::Int(ty) => ty.max(),
+            IntTy::UInt(ty) => ty.max(),
+        }
+    }
+
+    /// Function to get the most minimum integer represented within this
+    /// type. For sizes `ibig` there is no defined minimum and so the
+    /// function returns [None].
+    pub fn min(&self) -> Option<BigInt> {
+        match self {
+            IntTy::Int(ty) => ty.min(),
+            IntTy::UInt(ty) => Some(ty.min()),
+        }
+    }
+
+    /// Function to get the size of the integer type in bytes.
+    pub fn size(&self) -> Option<u64> {
+        match self {
+            IntTy::Int(ty) => ty.size(),
+            IntTy::UInt(ty) => ty.size(),
+        }
+    }
+
+    /// Check if the type is signed.
+    pub fn is_signed(&self) -> bool {
+        matches!(self, IntTy::Int(_))
+    }
+
+    /// Check if the type is a pointer integral type, i.e. `isize` or `usize`.
+    pub fn is_ptr_sized_integral(self) -> bool {
+        matches!(self, IntTy::Int(SIntTy::ISize) | IntTy::UInt(UIntTy::USize))
+    }
+
+    /// Check if the type is a [BigInt] variant, i.e. `ibig` or `ubig`.
+    pub fn is_big_sized_integral(self) -> bool {
+        matches!(self, IntTy::Int(SIntTy::IBig) | IntTy::UInt(UIntTy::UBig))
+    }
+}
+
+impl fmt::Display for IntTy {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.to_name())
     }
 }
 
