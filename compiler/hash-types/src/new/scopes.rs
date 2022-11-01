@@ -12,6 +12,17 @@ use crate::new::{
     tys::TyId,
 };
 
+/// A binding pattern, which is essentially a declaration left-hand side.
+#[derive(Clone, Debug, Copy)]
+pub struct BindingPat {
+    /// The name of the bind.
+    /// If `name` does not map to a specific `Identifier` name, it means
+    /// that the pattern is actually a wildcard `_`.
+    pub name: Symbol,
+    /// Whether the binding is declared as mutable.
+    pub is_mutable: bool,
+}
+
 // @@Todo: examples
 
 /// Term to declare new variable(s) in the current stack scope.
@@ -20,7 +31,6 @@ use crate::new::{
 /// multiple variables.
 #[derive(Debug, Clone, Copy)]
 pub struct DeclStackMemberTerm {
-    pub is_mutable: bool,
     pub bind_pat: PatId,
     pub ty: TyId,
     pub value: Option<TermId>,

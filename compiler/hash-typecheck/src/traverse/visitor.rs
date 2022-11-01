@@ -396,7 +396,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::IntLit>,
     ) -> Result<Self::IntLitRet, Self::Error> {
-        let term = self.builder().create_lit_term(node.body().clone());
+        let term = self.builder().create_lit_term(*node.body());
         self.register_node_info_and_location(node, term);
         Ok(term)
     }

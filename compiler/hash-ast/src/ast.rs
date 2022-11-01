@@ -583,14 +583,14 @@ define_tree! {
     }
 
     /// A string literal.
-    #[derive(Debug, PartialEq, Eq, Clone)]
+    #[derive(Debug, PartialEq, Eq, Clone, Copy)]
     #[node]
     pub struct StrLit {
         pub data: InternedStr
     }
 
     /// A character literal.
-    #[derive(Debug, PartialEq, Eq, Clone)]
+    #[derive(Debug, PartialEq, Eq, Clone, Copy)]
     #[node]
     pub struct CharLit {
         pub data: char
@@ -739,7 +739,7 @@ define_tree! {
     }
 
     /// An integer literal.
-    #[derive(Debug, PartialEq, Eq, Clone)]
+    #[derive(Debug, PartialEq, Eq, Clone, Copy)]
     #[node]
     pub struct IntLit {
         /// The raw value of the literal
@@ -783,7 +783,7 @@ define_tree! {
     }
 
     /// A float literal.
-    #[derive(Debug, PartialEq, Eq, Clone)]
+    #[derive(Debug, PartialEq, Eq, Clone, Copy)]
     #[node]
     pub struct FloatLit {
         /// Raw value of the literal

@@ -5,6 +5,7 @@ use hash_utils::{
     store::{DefaultSequenceStore, DefaultStore},
 };
 
+use super::lits::LitTerm;
 use crate::new::{
     args::ArgsId,
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
@@ -78,6 +79,9 @@ pub enum Term {
     Tuple(TupleTerm),
     TypeOf(TypeOfTerm),
     Ctor(CtorTerm),
+
+    // Literals
+    Lit(LitTerm),
 
     /// Infer the term from the surrounding context.
     Infer,
