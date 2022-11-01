@@ -72,7 +72,7 @@ pub enum Term {
     Runtime(RuntimeTerm),
     UnionVariant(UnionVariantTerm),
     Tuple(TupleTerm),
-    TypeOfTerm(TypeOfTerm),
+    TypeOf(TypeOfTerm),
     Ctor(CtorTerm),
 
     // Infer the term from the surrounding context.
