@@ -14,6 +14,8 @@ new_sequence_store_key!(pub TrtMembersId);
 pub type TrtMembersStore = DefaultSequenceStore<TrtMembersId, DefMember<TrtDefId>>;
 pub type TrtMemberId = (TrtMembersId, usize);
 
+// @@Todo: examples
+
 /// A trait definition.
 ///
 /// Includes a name, a set of parameters for the trait, as well as a set of

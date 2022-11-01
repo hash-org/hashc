@@ -2,7 +2,7 @@
 
 use hash_utils::{new_sequence_store_key, store::DefaultSequenceStore};
 
-use crate::new::{args::ArgsId, params::ParamsId, symbols::Symbol, terms::TermId, types::TyId};
+use crate::new::{args::ArgsId, params::ParamsId, symbols::Symbol, terms::TermId, tys::TyId};
 
 /// A group of definition parameters
 ///

@@ -2,7 +2,9 @@
 
 use hash_utils::{new_sequence_store_key, store::DefaultSequenceStore};
 
-use crate::new::{symbols::Symbol, terms::TermId, types::TyId};
+use crate::new::{symbols::Symbol, terms::TermId, tys::TyId};
+
+// @@Todo: examples
 
 /// A parameter, declaring a potentially named variable with a given type and
 /// possibly a default value.

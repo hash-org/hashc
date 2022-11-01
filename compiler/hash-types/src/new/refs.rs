@@ -1,6 +1,8 @@
 //! Definitions related to reference types and terms.
 
-use crate::new::{terms::TermId, types::TyId};
+use crate::new::{terms::TermId, tys::TyId};
+
+// @@Todo: explanations about semantics
 
 /// The kind of a reference.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

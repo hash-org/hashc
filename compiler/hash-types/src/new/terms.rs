@@ -15,7 +15,7 @@ use crate::new::{
     scopes::{AccessTerm, AssignTerm, BlockTerm, DeclStackMemberTerm},
     trts::TrtDefId,
     tuples::TupleTerm,
-    types::TyId,
+    tys::TyId,
     unions::UnionVariantTerm,
     vars::{ResolvedVarTerm, SymbolicVarTerm},
 };
@@ -64,6 +64,10 @@ pub struct AppTerm {
 /// constructors, etc. This is because they might have extra data attached to
 /// them; for example, function definitions might have AST node IDs attached to
 /// them through some secondary map.
+///
+/// Some terms will be eventually eliminated during the semantic analysis
+/// stages, so they won't be present during code generation.
+// @@Todo: ^^ figure out and document exactly which terms these are
 #[derive(Debug, Clone, Copy)]
 pub enum Term {
     // Primitives
@@ -75,7 +79,7 @@ pub enum Term {
     TypeOf(TypeOfTerm),
     Ctor(CtorTerm),
 
-    // Infer the term from the surrounding context.
+    /// Infer the term from the surrounding context.
     Infer,
 
     // Application

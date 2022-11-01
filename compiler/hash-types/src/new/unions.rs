@@ -2,6 +2,8 @@
 
 use crate::new::{params::ParamsId, terms::TermId};
 
+// @@Todo: docs and examples
+
 /// A union type.
 #[derive(Debug, Clone, Copy)]
 pub struct UnionTy {

@@ -20,10 +20,26 @@ use crate::new::{
 /// arguments.
 #[derive(Debug, Clone, Copy)]
 pub struct CtorDef {
+    /// The name of the constructor, for example `symbol("Red")` in `Red: Color`
+    /// if given as a constructor to a `Colour := datatype...`.
     pub name: Symbol,
+    /// The `DataDefId` of the data-type that this constructor is a part of.
     pub original_data_def_id: DataDefId,
+    /// The index of this constructor in the original data-type's ordered
+    /// constructor list (`ctors`).
     pub index: usize,
+    /// The parameters of the constructor.
+    // @@Todo: formalise positivity requirements
     pub params: DefParamsId,
+    /// The arguments given to the original data-type in the "return type" of
+    /// the constructor.
+    ///
+    /// For example, in `Red: Color`, the `args` would be empty.
+    /// In `Some: (t: T) -> Option<T>`, the `args` would be `<T>`.
+    /// In `refl: (x: A) -> Id<A>(x, x)`, the `args` would be `<A>(x, x)`.
+    ///
+    /// This restricts the return value of each constructor to be the original
+    /// data type, with some given arguments for its parameters.
     pub result_args: DefArgsId,
 }
 new_sequence_store_key!(pub CtorDefsId);
@@ -31,28 +47,50 @@ pub type CtorDefsStore = DefaultSequenceStore<CtorDefsId, CtorDef>;
 pub type CtorDefId = (CtorDefsId, usize);
 
 /// A constructor term.
+///
+/// This is an invocation of a constructor, for example `Some(3)`, which would
+/// type as `Option<i32>`.
 #[derive(Debug, Clone, Copy)]
 pub struct CtorTerm {
+    /// The constructor definition that this term is an invocation of.
     pub ctor: CtorDefId,
+    /// The arguments to the constructor.
     pub args: DefArgsId,
 }
 
 /// A data-type definition.
 ///
-/// Includes a name, a set of parameters for the data-type, a set of
-/// constructors.
+/// This is a "nominal" inductively defined data type, which is how user-defined
+/// data types in Hash are done. It consists of a set of constructors, each of
+/// which provide a different way to construct the data type.
 #[derive(Debug, Clone, Copy)]
 pub struct DataDef {
+    /// The name of the data-type.
+    ///
+    /// For example `symbol("Colour")` in `Colour := datatype...`.
     pub name: Symbol,
+    /// The parameters of the data-type.
+    ///
+    /// For example `<A: Type>(x: i32)` in `Bingo := datatype <A: Type> (x:
+    /// i32)`.
     pub params: DefParamsId,
+    /// The ordered list of constructors for the data-type.
+    ///
+    /// This list is ordered so that a constructor can refer back to its
+    /// location in this list using a `usize` index.
     pub ctors: CtorDefsId,
 }
 new_store_key!(pub DataDefId);
 pub type DataDefStore = DefaultStore<DataDefId, DataDef>;
 
 /// A type pointing to a data-type definition.
+///
+/// This is, for example `Option<i32>` when it is used in type position `y:
+/// Option<i32>`.
 #[derive(Debug, Clone, Copy)]
 pub struct DataTy {
+    /// The data-type definition of this type.
     pub data_def: DataDefId,
+    /// The arguments to the data-type definition.
     pub args: DefArgsId,
 }

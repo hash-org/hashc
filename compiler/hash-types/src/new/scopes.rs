@@ -1,4 +1,7 @@
 //! Definitions related to stack scopes, and variable declarations.
+//!
+//! This defines the stack scopes themselves, as well as declarations, accesses,
+//! and assignments of variables.
 
 use hash_utils::{new_sequence_store_key, store::DefaultSequenceStore};
 
@@ -6,8 +9,10 @@ use crate::new::{
     pats::PatId,
     symbols::Symbol,
     terms::{TermId, TermListId},
-    types::TyId,
+    tys::TyId,
 };
+
+// @@Todo: examples
 
 /// Term to declare new variable(s) in the current stack scope.
 ///
@@ -31,6 +36,7 @@ pub struct AssignTerm {
 }
 
 /// The kind of an access.
+// @@Organisation: Should this be in its own module?
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub enum AccessKind {
     Numeric(usize),

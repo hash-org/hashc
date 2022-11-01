@@ -9,12 +9,14 @@ use crate::new::{
 
 /// The type of types, i.e. a universe.
 #[derive(Debug, Clone, Copy)]
-pub struct TypeTy {
+pub struct UniverseTy {
     /// Whether this is a small universe or a large one.
     ///
     /// A small universe does not include `Meta(..)` and `Type(..)`, where as a
-    /// large one does.
+    /// large one does. It is not valid to take
+    /// `TypeOf(TypeOf(UniverseTy(..)))`.
     pub small: bool,
+
     /// Any additional bounds that types in the universe must satisfy.
     pub trait_bounds: TrtBoundsId,
 }
@@ -38,13 +40,13 @@ pub enum MetaTy {
 #[derive(Debug, Clone, Copy)]
 pub enum Ty {
     /// A term which evaluates to a type.
-    Expr(TermId),
+    Eval(TermId),
 
     Union(UnionTy),
     Tuple(TupleTy),
     Fn(FnTy),
     Data(DataTy),
-    Type(TypeTy),
+    Universe(UniverseTy),
     Meta(MetaTy),
     Ref(RefTy),
 }

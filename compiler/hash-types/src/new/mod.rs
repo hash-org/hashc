@@ -1,3 +1,6 @@
+//! Contains definitions that are relevant to the typed semantic analysis stage
+//! of the compiler (in other words, typechecking).
+
 pub mod args;
 pub mod control;
 pub mod data;
@@ -13,6 +16,6 @@ pub mod symbols;
 pub mod terms;
 pub mod trts;
 pub mod tuples;
-pub mod types;
+pub mod tys;
 pub mod unions;
 pub mod vars;

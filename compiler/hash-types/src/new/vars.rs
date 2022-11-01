@@ -1,8 +1,14 @@
 //! Definitions related to variables.
+//!
+//! This defines the variables themselves (their terms). In [`super::scopes`],
+//! more constructs regarding variables are defined (declaring, reassigning, and
+//! storing variables).
 
 use crate::new::{
     data::CtorDefId, mods::ModMemberId, scopes::StackMemberId, symbols::Symbol, trts::TrtMemberId,
 };
+
+// @@Todo: examples and docs
 
 /// A variable by name, which will be resolved to a more concrete variable term.
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]

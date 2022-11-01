@@ -9,6 +9,8 @@ use crate::new::{
     symbols::Symbol,
 };
 
+// @@Todo: examples
+
 /// The subject of an implementation block.
 #[derive(Debug, Clone, Copy)]
 pub enum ImplSubject {
