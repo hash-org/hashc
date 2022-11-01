@@ -55,14 +55,28 @@ pub enum LoopControlTerm {
 }
 
 /// A conditional pattern, containing a pattern and an condition.
+///
+/// This is `A if c` in its most general form, where `A` is a pattern and `c` is
+/// a boolean-valued term.
+///
+/// This pattern matches iff `A` matches and `c` is met.
 #[derive(Clone, Debug, Copy)]
 pub struct IfPat {
+    /// The subject pattern `A`.
     pub pat: PatId,
+    /// The condition `c`.
     pub condition: TermId,
 }
 
-/// Represents a list of alternative patterns (A | B | C).
+/// A list of alternative patterns.
+///
+/// This is `A | B | C | ...` in its most general form, where `A`, `B`, `C`,
+/// ..., are patterns.
+///
+/// This pattern matches iff at least one of the patterns in the sequence
+/// matches.
 #[derive(Copy, Clone, Debug)]
 pub struct OrPat {
+    /// The sequence of alternative patterns.
     pub alternatives: PatListId,
 }
