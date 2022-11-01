@@ -20,9 +20,10 @@ impl<'tc> TcVisitor<'tc> {
     /// The `scope_to_use` parameter is optional and is used to override the
     /// scope that is used to append all the members into. If not given, a new
     /// constant scope is created and used.
-    pub(crate) fn visit_constant_scope<'m>(
+    pub(crate) fn visit_constant_scope<'m, T>(
         &self,
         members: impl Iterator<Item = ast::AstNodeRef<'m, ast::Expr>>,
+        originating_node: ast::AstNodeRef<T>,
         scope_to_use: Option<ScopeId>,
         scope_kind: ScopeKind,
     ) -> TcResult<VisitConstantScope> {
@@ -43,6 +44,9 @@ impl<'tc> TcVisitor<'tc> {
             }
             Ok(())
         })?;
+
+        // Assign the scope to the target node
+        self.register_node_info(originating_node, scope_id);
 
         Ok(VisitConstantScope { scope_name, scope_id })
     }

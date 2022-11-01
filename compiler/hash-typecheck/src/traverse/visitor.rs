@@ -159,14 +159,26 @@ impl<'tc> TcVisitor<'tc> {
     /// Register the given [`TermId`] or [`PatId`] as describing the given
     /// [AstNodeRef].
     ///
-    /// This copies the node's location to the term, and adds the node-term pair
-    /// to [hash_types::nodes::NodeInfoStore].
-    fn register_node_info<T>(
+    /// This copies the node's location to the target, and adds the node-target
+    /// pair to [hash_types::nodes::NodeInfoStore].
+    pub(crate) fn register_node_info_and_location<T>(
         &self,
         node: AstNodeRef<T>,
         data: impl Into<NodeInfoTarget> + Into<LocationTarget> + Clone,
     ) {
         self.copy_location_from_node_to_target(node, data.clone());
+        self.node_info_store().insert(node.id(), data.into());
+    }
+
+    /// Register the given [`NodeInfoTarget`] as describing the given
+    /// [AstNodeRef].
+    ///
+    /// This adds the node-target pair to [hash_types::nodes::NodeInfoStore].
+    pub(crate) fn register_node_info<T>(
+        &self,
+        node: AstNodeRef<T>,
+        data: impl Into<NodeInfoTarget>,
+    ) {
         self.node_info_store().insert(node.id(), data.into());
     }
 
@@ -235,7 +247,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         );
 
         let term = builder.create_rt_term(map_ty);
-        self.register_node_info(node, term);
+        self.register_node_info_and_location(node, term);
         Ok(term)
     }
 
@@ -268,7 +280,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         );
 
         let term = builder.create_rt_term(list_ty);
-        self.register_node_info(node, term);
+        self.register_node_info_and_location(node, term);
         Ok(term)
     }
 
@@ -290,7 +302,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         );
 
         let term = builder.create_rt_term(set_ty);
-        self.register_node_info(node, term);
+        self.register_node_info_and_location(node, term);
         Ok(term)
     }
 
@@ -304,7 +316,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         let ty_or_unresolved = ty.unwrap_or_else(|| self.builder().create_unresolved_term());
         let value_ty = self.typer().infer_ty_of_term(value)?;
-        self.register_node_info(node.value.ast_ref(), value_ty);
+        self.register_node_info_and_location(node.value.ast_ref(), value_ty);
 
         // Check that the type of the value and the type annotation match and then apply
         // the substitution onto ty
@@ -328,7 +340,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         // add the location of each parameter, and the term, to the location storage
         self.copy_location_from_nodes_to_targets(node.elements.ast_ref_iter(), params);
-        self.register_node_info(node, term);
+        self.register_node_info_and_location(node, term);
 
         Ok(term)
     }
@@ -340,7 +352,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::StrLit>,
     ) -> Result<Self::StrLitRet, Self::Error> {
         let term = self.builder().create_lit_term(node.data.to_string());
-        self.register_node_info(node, term);
+        self.register_node_info_and_location(node, term);
         Ok(term)
     }
 
@@ -351,7 +363,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::CharLit>,
     ) -> Result<Self::CharLitRet, Self::Error> {
         let term = self.builder().create_lit_term(node.data);
-        self.register_node_info(node, term);
+        self.register_node_info_and_location(node, term);
         Ok(term)
     }
 
@@ -363,7 +375,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     ) -> Result<Self::FloatLitRet, Self::Error> {
         let f32_def = self.core_defs().f32_ty();
         let term = self.builder().create_rt_term(f32_def);
-        self.register_node_info(node, term);
+        self.register_node_info_and_location(node, term);
         Ok(term)
     }
 
@@ -385,7 +397,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::IntLit>,
     ) -> Result<Self::IntLitRet, Self::Error> {
         let term = self.builder().create_lit_term(node.body().clone());
-        self.register_node_info(node, term);
+        self.register_node_info_and_location(node, term);
         Ok(term)
     }
 
@@ -452,7 +464,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         self.state.within_intrinsics_directive.set(old_intrinsics_state);
 
-        self.register_node_info(node, subject);
+        self.register_node_info_and_location(node, subject);
         Ok(subject)
     }
 
@@ -699,7 +711,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
             None => {
                 // This should never happen because all modules should have been parsed by now.
                 let unresolved_import_term = self.builder().create_unresolved_term();
-                self.register_node_info(node, unresolved_import_term);
+                self.register_node_info_and_location(node, unresolved_import_term);
                 tc_panic!(
                     unresolved_import_term,
                     self,
@@ -809,7 +821,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TyArg>,
     ) -> Result<Self::TyArgRet, Self::Error> {
         let walk::TyArg { ty, name } = walk::walk_ty_arg(self, node)?;
-        self.register_node_info(node, ty);
+        self.register_node_info_and_location(node, ty);
         Ok(Param { ty, name, default_value: None })
     }
 
@@ -1146,6 +1158,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
                         // Enter a new scope and add the members
                         let match_case_scope =
                             self.builder().create_scope(ScopeKind::Variable, members_to_add);
+
+                        // Assign the scope to the match case
+                        self.register_node_info(case, match_case_scope);
+
                         self.scope_manager().enter_scope(match_case_scope, |_| {
                             // Traverse the body with the bound variables:
                             let case_body = self.visit_expr(case.expr.ast_ref())?;
@@ -1239,7 +1255,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     ) -> Result<Self::ModBlockRet, Self::Error> {
         // create a scope for the module definition
         let VisitConstantScope { scope_name, scope_id, .. } =
-            self.visit_constant_scope(node.block.members(), None, ScopeKind::Mod)?;
+            self.visit_constant_scope(node.block.members(), node, None, ScopeKind::Mod)?;
 
         // @@Todo: bound variables
         let mod_def = self.builder().create_mod_def(scope_name, ModDefOrigin::Mod, scope_id);
@@ -1249,7 +1265,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let is_within_intrinsics = self.state.within_intrinsics_directive.get();
         self.validator().validate_mod_def(mod_def, term, is_within_intrinsics)?;
 
-        self.register_node_info(node, term);
+        self.register_node_info_and_location(node, term);
         Ok(term)
     }
 
@@ -1261,7 +1277,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     ) -> Result<Self::ImplBlockRet, Self::Error> {
         // create a scope for the module definition
         let VisitConstantScope { scope_name, scope_id, .. } =
-            self.visit_constant_scope(node.block.members(), None, ScopeKind::Impl)?;
+            self.visit_constant_scope(node.block.members(), node, None, ScopeKind::Impl)?;
 
         // @@Todo: bound variables
         let mod_def = self.builder().create_mod_def(scope_name, ModDefOrigin::AnonImpl, scope_id);
@@ -1270,7 +1286,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         // Validate the definition
         self.validator().validate_mod_def(mod_def, term, false)?;
 
-        self.register_node_info(node, term);
+        self.register_node_info_and_location(node, term);
         Ok(term)
     }
 
@@ -1306,20 +1322,27 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::BodyBlock>,
     ) -> Result<Self::BodyBlockRet, Self::Error> {
-        // Traverse each statement
-        for statement in node.statements.iter() {
-            let statement_id = self.visit_expr(statement.ast_ref())?;
-            self.validator().validate_term(statement_id)?;
-            // @@Design: do we check that the return type is void? Should we
-            // warn if it isn't?
-        }
+        // First create a new scope and assign it to the block node
+        let scope = self.builder().create_scope(ScopeKind::Variable, []);
+        self.register_node_info(node, scope);
 
-        // Traverse the ending expression, if any, or return void.
-        let term = match &node.expr {
-            Some(expr) => self.visit_expr(expr.ast_ref())?,
-            None => self.builder().create_void_term(),
-        };
-        self.validate_and_register_simplified_term(node, term)
+        // Enter the scope and visit the block
+        self.scope_manager().enter_scope(scope, |_| {
+            // Traverse each statement
+            for statement in node.statements.iter() {
+                let statement_id = self.visit_expr(statement.ast_ref())?;
+                self.validator().validate_term(statement_id)?;
+                // @@Design: do we check that the return type is void? Should we
+                // warn if it isn't?
+            }
+
+            // Traverse the ending expression, if any, or return void.
+            let term = match &node.expr {
+                Some(expr) => self.visit_expr(expr.ast_ref())?,
+                None => self.builder().create_void_term(),
+            };
+            self.validate_and_register_simplified_term(node, term)
+        })
     }
 
     type ReturnStatementRet = TermId;
@@ -1720,7 +1743,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         // validate the constructed nominal def
         self.validator().validate_nominal_def(nominal_id)?;
 
-        self.register_node_info(node, term);
+        self.register_node_info_and_location(node, term);
         Ok(term)
     }
 
@@ -1779,7 +1802,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     ) -> Result<Self::TraitDefRet, Self::Error> {
         // create a scope for the module definition
         let VisitConstantScope { scope_name, scope_id, .. } =
-            self.visit_constant_scope(node.members.ast_ref_iter(), None, ScopeKind::Trait)?;
+            self.visit_constant_scope(node.members.ast_ref_iter(), node, None, ScopeKind::Trait)?;
 
         // @@Todo: bound variables
         let trt_def = self.builder().create_trt_def(scope_name, scope_id);
@@ -1788,7 +1811,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         // Validate the definition
         self.validator().validate_trt_def(trt_def)?;
 
-        self.register_node_info(node, term);
+        self.register_node_info_and_location(node, term);
         Ok(term)
     }
 
@@ -1802,7 +1825,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         // create a scope for the module definition
         let VisitConstantScope { scope_name, scope_id, .. } =
-            self.visit_constant_scope(node.trait_body.ast_ref_iter(), None, ScopeKind::Impl)?;
+            self.visit_constant_scope(node.trait_body.ast_ref_iter(), node, None, ScopeKind::Impl)?;
 
         // @@Todo: bound variables
         let mod_def =
@@ -1810,7 +1833,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let term = self.builder().create_mod_def_term(mod_def);
 
         // Validate the definition
-        self.register_node_info(node.ty.ast_ref(), term);
+        self.register_node_info_and_location(node.ty.ast_ref(), term);
         self.validator().validate_mod_def(mod_def, term, false)?;
 
         Ok(term)
@@ -1833,7 +1856,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     ) -> Result<Self::AccessPatRet, Self::Error> {
         let walk::AccessPat { subject, property } = walk::walk_access_pat(self, node)?;
         let access_pat = self.builder().create_access_pat(subject, property);
-        self.register_node_info(node, access_pat);
+        self.register_node_info_and_location(node, access_pat);
         Ok(access_pat)
     }
 
@@ -1856,7 +1879,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         self.copy_location_from_node_to_target(node, constructor_pat);
         self.validator().validate_constructor_pat(constructor_pat)?;
-        self.register_node_info(node, constructor_pat);
+        self.register_node_info_and_location(node, constructor_pat);
         Ok(constructor_pat)
     }
 
@@ -1887,7 +1910,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         self.copy_location_from_node_to_target(node, tuple_pat);
         self.validator().validate_tuple_pat(members)?;
-        self.register_node_info(node, tuple_pat);
+        self.register_node_info_and_location(node, tuple_pat);
         Ok(tuple_pat)
     }
 
@@ -1920,7 +1943,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), members);
 
-        self.register_node_info(node, list_pat);
+        self.register_node_info_and_location(node, list_pat);
         Ok(list_pat)
     }
 
@@ -1934,7 +1957,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         let spread_pat = self.builder().create_pat(Pat::Spread(SpreadPat { name }));
 
-        self.register_node_info(node, spread_pat);
+        self.register_node_info_and_location(node, spread_pat);
         Ok(spread_pat)
     }
 
@@ -1951,7 +1974,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
             _ => self.builder().create_lit_pat(data),
         };
 
-        self.register_node_info(node, pat);
+        self.register_node_info_and_location(node, pat);
         Ok(pat)
     }
 
@@ -1967,7 +1990,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         self.copy_location_from_node_to_target(node, pat);
         self.validator().validate_range_pat(&range_pat)?;
-        self.register_node_info(node, pat);
+        self.register_node_info_and_location(node, pat);
         Ok(pat)
     }
 
@@ -1979,7 +2002,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     ) -> Result<Self::OrPatRet, Self::Error> {
         let walk::OrPat { variants } = walk::walk_or_pat(self, node)?;
         let pat = self.builder().create_or_pat(variants);
-        self.register_node_info(node, pat);
+        self.register_node_info_and_location(node, pat);
         Ok(pat)
     }
 
@@ -1991,7 +2014,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     ) -> Result<Self::IfPatRet, Self::Error> {
         let walk::IfPat { condition, pat } = walk::walk_if_pat(self, node)?;
         let pat = self.builder().create_if_pat(pat, condition);
-        self.register_node_info(node, pat);
+        self.register_node_info_and_location(node, pat);
         Ok(pat)
     }
 
@@ -2014,7 +2037,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
                 self.location_store().copy_location(ty, var_term);
                 let pat = self.builder().create_pat(Pat::Const(ConstPat { term: var_term }));
 
-                self.register_node_info(node, pat);
+                self.register_node_info_and_location(node, pat);
                 return Ok(pat);
             }
         }
@@ -2031,7 +2054,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
             },
         );
 
-        self.register_node_info(node, pat);
+        self.register_node_info_and_location(node, pat);
         Ok(pat)
     }
 
@@ -2042,7 +2065,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::WildPat>,
     ) -> Result<Self::WildPatRet, Self::Error> {
         let pat = self.builder().create_wildcard_pat();
-        self.register_node_info(node, pat);
+        self.register_node_info_and_location(node, pat);
         Ok(pat)
     }
 
@@ -2066,7 +2089,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let members = self.builder().create_pat_args(fields, ParamOrigin::ModulePat);
         let module_pat = self.builder().create_mod_pat(members);
         self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), members);
-        self.register_node_info(node, module_pat);
+        self.register_node_info_and_location(node, module_pat);
         Ok(module_pat)
     }
 
@@ -2090,8 +2113,12 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         // Get the end of the filename for the module and use this as the name of the
         // module
         let name = self.source_map().source_name(id).to_owned();
-        let VisitConstantScope { scope_id, .. } =
-            self.visit_constant_scope(node.contents.ast_ref_iter(), Some(members), ScopeKind::Mod)?;
+        let VisitConstantScope { scope_id, .. } = self.visit_constant_scope(
+            node.contents.ast_ref_iter(),
+            node,
+            Some(members),
+            ScopeKind::Mod,
+        )?;
 
         let mod_def = self.builder().create_named_mod_def(name, ModDefOrigin::Source(id), scope_id);
 
@@ -2100,7 +2127,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         self.validator().validate_mod_def(mod_def, term, false)?;
 
         // Add location to the term
-        self.register_node_info(node, term);
+        self.register_node_info_and_location(node, term);
         Ok(term)
     }
 }
