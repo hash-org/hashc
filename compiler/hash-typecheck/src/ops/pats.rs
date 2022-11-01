@@ -9,7 +9,7 @@ use hash_ast::ast::ParamOrigin;
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::identifier::Identifier;
 use hash_types::{
-    arguments::Arg,
+    args::Arg,
     nominals::StructFields,
     params::{AccessOp, ParamsId},
     pats::{

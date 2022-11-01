@@ -2,7 +2,7 @@
 use std::{borrow::Borrow, collections::HashSet};
 
 use hash_types::{
-    arguments::{Arg, ArgsId},
+    args::{Arg, ArgsId},
     location::LocationTarget,
     params::{Param, ParamsId},
     pats::PatId,

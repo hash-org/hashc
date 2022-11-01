@@ -2,7 +2,7 @@
 //! ease.
 
 use hash_types::{
-    arguments::{Args, ArgsId},
+    args::{Args, ArgsId},
     mods::{ModDef, ModDefId},
     nominals::{NominalDef, NominalDefId},
     params::{Params, ParamsId},

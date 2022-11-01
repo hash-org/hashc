@@ -3,7 +3,7 @@
 
 use std::fmt::Display;
 
-use hash_types::{arguments::ArgsId, params::ParamsId, pats::PatArgsId};
+use hash_types::{args::ArgsId, params::ParamsId, pats::PatArgsId};
 use hash_utils::store::SequenceStoreKey;
 
 /// Particular reason why parameters couldn't be unified, either argument

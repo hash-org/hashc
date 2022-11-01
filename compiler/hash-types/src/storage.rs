@@ -9,7 +9,7 @@ use hash_source::SourceId;
 use hash_utils::store::Store;
 
 use crate::{
-    arguments::ArgsStore,
+    args::ArgsStore,
     bootstrap::create_core_defs_in,
     location::LocationStore,
     mods::ModDefStore,

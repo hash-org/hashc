@@ -3,7 +3,7 @@
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::identifier::Identifier;
 use hash_types::{
-    arguments::ArgsId,
+    args::ArgsId,
     location::LocationTarget,
     params::ParamsId,
     scope::{BoundVar, Member, Mutability, ScopeId, ScopeKind, ScopeMember, ScopeVar},

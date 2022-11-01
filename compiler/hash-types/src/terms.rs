@@ -19,7 +19,7 @@ use hash_utils::{
 use num_bigint::BigInt;
 
 use crate::{
-    arguments::ArgsId,
+    args::ArgsId,
     fmt::{fmt_as_single, ForFormatting, PrepareForFormatting},
     mods::ModDefId,
     nominals::{EnumVariantValue, NominalDefId},

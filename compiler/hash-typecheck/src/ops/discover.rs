@@ -2,7 +2,7 @@
 use std::collections::HashSet;
 
 use hash_types::{
-    arguments::{Arg, ArgsId},
+    args::{Arg, ArgsId},
     nominals::{NominalDef, StructDef, StructFields},
     params::{Param, ParamsId},
     scope::{BoundVar, Member, ScopeId},

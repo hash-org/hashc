@@ -1,6 +1,6 @@
 //! Functionality related to variable substitution inside terms/types.
 use hash_types::{
-    arguments::{Arg, ArgsId},
+    args::{Arg, ArgsId},
     params::{Param, ParamsId},
     scope::ScopeId,
     terms::{

@@ -8,7 +8,7 @@ use hash_reporting::{
 };
 use hash_source::identifier::Identifier;
 use hash_types::{
-    arguments::{Arg, ArgsId},
+    args::{Arg, ArgsId},
     fmt::{PrepareForFormatting, TcFormatOpts},
     location::LocationTarget,
     params::{AccessOp, Field, Param, ParamsId},

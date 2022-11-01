@@ -18,7 +18,7 @@ use hash_source::{
     ModuleKind, SourceId,
 };
 use hash_types::{
-    arguments::Arg,
+    args::Arg,
     location::{IndexedLocationTarget, LocationTarget},
     mods::ModDefOrigin,
     nodes::NodeInfoTarget,

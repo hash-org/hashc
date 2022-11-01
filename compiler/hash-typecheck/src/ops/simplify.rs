@@ -4,7 +4,7 @@ use std::iter;
 use hash_ast::ast::ParamOrigin;
 use hash_source::identifier::Identifier;
 use hash_types::{
-    arguments::{Arg, ArgsId},
+    args::{Arg, ArgsId},
     nominals::{NominalDef, StructFields},
     params::{AccessOp, Field, Param, ParamsId},
     scope::{Member, Mutability, ScopeKind},

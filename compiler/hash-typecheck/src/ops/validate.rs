@@ -4,7 +4,7 @@ use std::collections::HashSet;
 use hash_ast::ast::{ParamOrigin, RangeEnd};
 use hash_reporting::diagnostic::Diagnostics;
 use hash_types::{
-    arguments::ArgsId,
+    args::ArgsId,
     mods::{ModDefId, ModDefOrigin},
     nominals::{NominalDef, NominalDefId, StructFields},
     params::{ParamList, ParamsId},

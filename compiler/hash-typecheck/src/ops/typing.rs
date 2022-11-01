@@ -1,7 +1,7 @@
 //! Contains operations to get the type of a term.
 use hash_ast::ast::ParamOrigin;
 use hash_types::{
-    arguments::{Arg, ArgsId},
+    args::{Arg, ArgsId},
     mods::ModDefOrigin,
     nominals::{NominalDef, StructFields},
     params::{AccessOp, Param, ParamsId},

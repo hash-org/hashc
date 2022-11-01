@@ -7,7 +7,7 @@ use hash_source::{identifier::Identifier, location::SourceLocation};
 use hash_utils::store::{SequenceStore, Store};
 
 use crate::{
-    arguments::{Arg, ArgsId},
+    args::{Arg, ArgsId},
     location::LocationTarget,
     mods::{ModDef, ModDefId, ModDefOrigin},
     nominals::{

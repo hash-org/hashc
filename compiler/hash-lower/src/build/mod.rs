@@ -31,7 +31,7 @@ use index_vec::IndexVec;
 
 use crate::cfg::ControlFlowGraph;
 
-///   
+///
 pub(crate) enum BuildItem<'a> {
     /// A function body is being lowered.
     FnDef(AstNodeRef<'a, FnDef>),

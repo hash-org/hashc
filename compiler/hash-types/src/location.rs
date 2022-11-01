@@ -9,7 +9,7 @@ use hash_source::location::{SourceLocation, Span};
 use hash_utils::store::{DefaultPartialStore, PartialStore};
 
 use crate::{
-    arguments::ArgsId,
+    args::ArgsId,
     params::ParamsId,
     pats::{PatArgsId, PatId},
     scope::ScopeId,

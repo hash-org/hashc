@@ -14,7 +14,7 @@ pub mod sources;
 
 use hash_source::SourceMap;
 use hash_types::{
-    arguments::ArgsStore,
+    args::ArgsStore,
     fmt::{ForFormatting, PrepareForFormatting},
     location::LocationStore,
     mods::ModDefStore,

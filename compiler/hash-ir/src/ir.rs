@@ -56,7 +56,7 @@ pub enum UnaryOp {
 
 /// Binary operations on [RValue]s that are typed as primitive, or have
 /// `intrinsic` implementations defined for them. Any time that does not
-/// implement these binary operations by default will create a function  
+/// implement these binary operations by default will create a function
 /// call to the implementation of the binary operation.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum BinOp {
