@@ -37,27 +37,11 @@ pub struct DeclStackMemberTerm {
 }
 
 /// Term to assign a value to a subject.
-///
-/// @@Todo: figure out exact rules about what subject could be.
+// @@Todo: figure out exact rules about what subject could be.
 #[derive(Debug, Clone, Copy)]
 pub struct AssignTerm {
     pub subject: TermId,
     pub value: TermId,
-}
-
-/// The kind of an access.
-// @@Organisation: Should this be in its own module?
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
-pub enum AccessKind {
-    Numeric(usize),
-    Named(Symbol),
-}
-
-/// Term to access a nested value.
-#[derive(Debug, Clone, Copy)]
-pub struct AccessTerm {
-    pub subject: TermId,
-    pub access_kind: AccessKind,
 }
 
 /// A variable on the stack.
