@@ -23,14 +23,24 @@ pub struct BoundVar {
 #[derive(Debug, Clone, Copy)]
 pub enum BindingKind {
     /// A binding that is a trait member.
+    ///
+    /// For example, `trait { y := 3; z := y }`
     TrtMember(TrtMemberId),
     /// A binding that is a module member.
+    ///
+    /// For example, `mod { Q := struct(); Q }`
     ModMember(ModMemberId),
     /// A binding that is a stack member.
+    ///
+    /// For example, `{ a := 3; a }`
     StackMember(StackMemberId),
     /// A binding that is a constructor definition.
+    ///
+    /// For example, `false`, `None`, `Some(_)`.
     Ctor(CtorDefId),
     /// A binding that represents a parameter variable of a function.
+    ///
+    /// For example, `(x: i32) => x`
     BoundVar(BoundVar),
 }
 
