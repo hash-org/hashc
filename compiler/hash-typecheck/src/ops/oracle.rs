@@ -1,7 +1,10 @@
 //! Functionality related to determining properties about terms and other
 //! constructs.
-use hash_ast::ast::{IntTy, ParamOrigin};
-use hash_source::identifier::Identifier;
+use hash_ast::ast::ParamOrigin;
+use hash_source::{
+    constant::{IntTy, SIntTy, UIntTy},
+    identifier::Identifier,
+};
 use hash_types::{
     nominals::{
         EnumDef, EnumVariant, EnumVariantValue, NominalDef, NominalDefId, StructDef, UnitDef,
@@ -56,10 +59,10 @@ impl<'tc> Oracle<'tc> {
     /// If the term is an integer type, returns its [IntTy].
     pub fn term_as_int_ty(&self, term: TermId) -> Option<IntTy> {
         macro_rules! check_for_tys {
-            ($($ty:ident => $variant:ident),* $(,)?) => {
+            ($($ty:ident => $variant:expr),* $(,)?) => {
                 $(
                     if self.unifier().terms_are_equal(term, self.core_defs().$ty()) {
-                        return Some(IntTy::$variant);
+                        return Some($variant);
                     }
                 )*
             };
@@ -67,16 +70,16 @@ impl<'tc> Oracle<'tc> {
 
         // Check if it is each of the integer types.
         check_for_tys!(
-                i8_ty => I8,
-                i16_ty => I16,
-                i32_ty => I32,
-                i64_ty => I64,
-                isize_ty => ISize,
-                u8_ty => U8,
-                u16_ty => U16,
-                u32_ty => U32,
-                u64_ty => U64,
-                usize_ty => USize,
+                i8_ty => IntTy::Int(SIntTy::I8),
+                i16_ty => IntTy::Int(SIntTy::I16),
+                i32_ty => IntTy::Int(SIntTy::I32),
+                i64_ty => IntTy::Int(SIntTy::I64),
+                isize_ty => IntTy::Int(SIntTy::ISize),
+                u8_ty => IntTy::UInt(UIntTy::U8),
+                u16_ty => IntTy::UInt(UIntTy::U16),
+                u32_ty => IntTy::UInt(UIntTy::U32),
+                u64_ty => IntTy::UInt(UIntTy::U64),
+                usize_ty => IntTy::UInt(UIntTy::USize),
         );
 
         // Otherwise not an int

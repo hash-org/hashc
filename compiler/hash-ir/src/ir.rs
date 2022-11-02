@@ -1,19 +1,16 @@
 //! Hash Compiler Intermediate Representation (IR) crate. This module is still
 //! under construction and is subject to change.
-#![allow(unused)]
-
-use core::fmt;
-
 use hash_source::{
     constant::{InternedFloat, InternedInt, InternedStr},
     identifier::Identifier,
-    location::{SourceLocation, Span},
+    location::Span,
     SourceId,
 };
-use hash_types::{nominals::NominalDefId, scope::Mutability, terms::TermId};
-use index_vec::{index_vec, IndexSlice, IndexVec};
+use hash_types::{scope::Mutability, terms::TermId};
+use hash_utils::{new_store_key, store::DefaultStore};
+use index_vec::IndexVec;
 
-use crate::RValueId;
+use crate::ty::IrTyId;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Const {
@@ -106,27 +103,27 @@ pub struct LocalDecl {
     /// Mutability of the local.
     mutability: Mutability,
     /// The type of the local.
-    ty: TermId,
+    ty: IrTyId,
 }
 
 impl LocalDecl {
     /// Create a new [LocalDecl].
-    pub fn new(mutability: Mutability, ty: TermId) -> Self {
+    pub fn new(mutability: Mutability, ty: IrTyId) -> Self {
         Self { mutability, ty }
     }
 
     /// Create a new mutable [LocalDecl].
-    pub fn new_mutable(ty: TermId) -> Self {
+    pub fn new_mutable(ty: IrTyId) -> Self {
         Self::new(Mutability::Mutable, ty)
     }
 
     /// Create a new immutable [LocalDecl].
-    pub fn new_immutable(ty: TermId) -> Self {
+    pub fn new_immutable(ty: IrTyId) -> Self {
         Self::new(Mutability::Immutable, ty)
     }
 
     /// Returns the type of the local.
-    pub fn ty(&self) -> TermId {
+    pub fn ty(&self) -> IrTyId {
         self.ty
     }
 }
@@ -175,9 +172,9 @@ impl Place {
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum AggregateKind {
     Tuple,
-    Array(TermId),
-    Enum(NominalDefId, usize),
-    Struct(NominalDefId),
+    Array(IrTyId),
+    Enum(IrTyId, usize),
+    Struct(IrTyId),
 }
 
 /// The representation of values that occur on the right-hand side of an
@@ -284,7 +281,7 @@ pub enum TerminatorKind {
     /// Perform a function call
     Call {
         /// The layout of the function type that is to be called.
-        op: TermId,
+        op: IrTyId,
         /// Arguments to the function.
         args: Vec<Local>,
         /// Where to return after completing the call
@@ -394,11 +391,11 @@ pub struct Body {
     pub arg_count: usize,
 
     /// The source of the function, is it a normal function, or an intrinsic
-    source: FnSource,
+    _source: FnSource,
     /// The location of the function
-    span: Span,
+    _span: Span,
     /// The id of the source of where this body originates from.
-    source_id: SourceId,
+    _source_id: SourceId,
     /// Whether the IR Body that is generated should be printed
     /// when the generation process is finalised.
     dump: bool,
@@ -417,7 +414,16 @@ impl Body {
         source_id: SourceId,
         dump: bool,
     ) -> Self {
-        Self { blocks, name, declarations, arg_count, source, span, source_id, dump }
+        Self {
+            blocks,
+            name,
+            declarations,
+            arg_count,
+            _source: source,
+            _span: span,
+            _source_id: source_id,
+            dump,
+        }
     }
 
     /// Check if the [Body] needs to be dumped.
@@ -425,3 +431,10 @@ impl Body {
         self.dump
     }
 }
+
+new_store_key!(pub RValueId);
+
+/// Stores all the used [RValue]s.
+///
+/// [Rvalue]s are accessed by an ID, of type [RValueId].
+pub type RValueStore = DefaultStore<RValueId, RValue>;

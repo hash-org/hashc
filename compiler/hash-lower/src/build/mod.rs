@@ -12,6 +12,7 @@ use hash_ir::{
         BasicBlock, BasicBlockData, Body, FnSource, Local, LocalDecl, Place, Terminator,
         TerminatorKind, START_BLOCK,
     },
+    ty::{IrTy, IrTyId},
     IrStorage,
 };
 use hash_source::{
@@ -26,7 +27,7 @@ use hash_types::{
     storage::GlobalStorage,
     terms::{FnLit, FnTy, Level0Term, Level1Term, Term, TermId},
 };
-use hash_utils::store::{CloneStore, PartialStore, SequenceStoreKey};
+use hash_utils::store::{CloneStore, PartialStore, SequenceStore, SequenceStoreKey};
 use index_vec::IndexVec;
 
 use crate::cfg::ControlFlowGraph;
@@ -99,17 +100,17 @@ impl BlockAndExtend for BasicBlock {
 
 /// Update a block pointer and return the value.
 /// Use it like `let x = unpack!(block = self.foo(block, foo))`.
-macro_rules! unpack {
+pub macro unpack {
     ($x:ident = $c:expr) => {{
         let BlockAnd(b, v) = $c;
         $x = b;
         v
-    }};
+    }},
 
     ($c:expr) => {{
         let BlockAnd(b, ()) = $c;
         b
-    }};
+    }}
 }
 
 /// The builder is responsible for lowering a body into the associated IR.
@@ -206,14 +207,29 @@ impl<'tcx> Builder<'tcx> {
     /// Function to get the associated [TermId] with the
     /// provided [AstNodeId].
     #[inline]
-    fn get_term_id_of_ast_node(&self, id: AstNodeId) -> TermId {
-        self.tcx.node_info_store.get(id).map(|f| f.term_id()).unwrap()
+    fn get_ty_id_of_node(&self, id: AstNodeId) -> IrTyId {
+        let term_id = self.tcx.node_info_store.get(id).map(|f| f.term_id()).unwrap();
+
+        // We need to try and look up the type within the cache, if not
+        // present then we create the type by converting the term into
+        // the type.
+
+        todo!()
+    }
+
+    /// Function to get the associated [Term] with the
+    /// provided [AstNodeId].
+    #[inline]
+    fn get_ty_of_node(&self, id: AstNodeId) -> IrTy {
+        let term_id = self.tcx.node_info_store.get(id).map(|f| f.term_id()).unwrap();
+
+        todo!()
     }
 
     /// Function to get the associated [PatId] with the
     /// provided [AstNodeId].
     #[inline]
-    fn get_pat_of_ast_node(&self, id: AstNodeId) -> Pat {
+    fn get_pat_id_of_node(&self, id: AstNodeId) -> Pat {
         let pat_id = self.tcx.node_info_store.get(id).map(|f| f.pat_id()).unwrap();
 
         self.tcx.pat_store.get(pat_id)
@@ -227,21 +243,23 @@ impl<'tcx> Builder<'tcx> {
         };
 
         let term = match self.item {
-            BuildItem::FnDef(node) => self.get_term_id_of_ast_node(node.id()),
-            BuildItem::Expr(node) => self.get_term_id_of_ast_node(node.id()),
+            BuildItem::FnDef(node) => self.get_ty_of_node(node.id()),
+            BuildItem::Expr(node) => self.get_ty_of_node(node.id()),
         };
 
-        let fn_ty = get_fn_ty_from_term(term, self.tcx);
+        let IrTy::Fn(params, ret_ty) = term else {
+            panic!("Expected a function type");
+        };
 
         // The first local declaration is used as the return type. The return local
         // declaration is always mutable because it will be set at some point in
         // the end, not the beginning.
-        self.declarations.push(LocalDecl::new_mutable(fn_ty.return_ty));
+        self.declarations.push(LocalDecl::new_mutable(ret_ty));
 
         // Deal with all the function parameters that are given to the function.
-        for param in self.tcx.params_store.get_owned_param_list(fn_ty.params).positional() {
+        for param in self.storage.ty_list_store().get_vec(params) {
             // @@Future: deal with parameter attributes that are mutable?
-            self.declarations.push(LocalDecl::new_immutable(param.ty));
+            self.declarations.push(LocalDecl::new_immutable(param));
         }
 
         // Now we begin by lowering the body of the function.

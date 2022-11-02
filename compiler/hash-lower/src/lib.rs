@@ -3,6 +3,7 @@
 //! the Hash IR builder crate contains implemented passes that will optimise the
 //! IR, performing optimisations such as constant folding or dead code
 //! elimination.
+#![feature(decl_macro)]
 #![allow(unused)] // @@TODO: remove this when the builder is complete
 
 mod build;
@@ -67,35 +68,35 @@ impl<Ctx: IrLoweringCtx> CompilerStage<Ctx> for AstLowerer {
             let stage_info = source_stage_info.get(source_id);
 
             // Skip any modules that have already been checked
-            if stage_info.is_semantics_checked() {
+            if stage_info.is_lowered() {
                 continue;
             }
 
             let mut discoverer = LoweringVisitor::new(&ty_storage.global, ir_storage, source_id);
             discoverer.visit_module(module.node_ref());
 
-            // we need to check if any of the bodies have been marked for `dumping`
-            // and emit the IR that they have generated.
-            let bodies_to_dump = discoverer
-                .bodies
-                .iter()
-                .enumerate()
-                .filter(|(index, body)| body.needs_dumping())
-                .map(|(index, _)| index)
-                .collect::<Vec<_>>();
-
-            for (index, body_index) in bodies_to_dump.into_iter().enumerate() {
-                if index > 0 {
-                    println!();
-                }
-
-                let body = &discoverer.bodies[body_index];
-                println!("{}", IrWriter::new(&ty_storage.global, body));
-            }
-
             // We need to add all of the bodies to the global bodies
             // store.
             lowered_bodies.extend(discoverer.into_bodies());
+        }
+
+        // we need to check if any of the bodies have been marked for `dumping`
+        // and emit the IR that they have generated.
+        let bodies_to_dump = lowered_bodies
+            .iter()
+            .enumerate()
+            .filter(|(index, body)| body.needs_dumping())
+            .map(|(index, _)| index)
+            .collect::<Vec<_>>();
+
+        for (index, body_index) in bodies_to_dump.into_iter().enumerate() {
+            // Use a newline as a separator between each body
+            if index > 0 {
+                println!();
+            }
+
+            let body = &lowered_bodies[body_index];
+            println!("{}", IrWriter::new(ir_storage, body));
         }
 
         // Mark all modules now as lowered, and all generated

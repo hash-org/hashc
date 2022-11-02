@@ -431,7 +431,9 @@ dependencies = [
 name = "hash-ir"
 version = "0.1.0"
 dependencies = [
+ "bitflags",
  "hash-alloc",
+ "hash-ast",
  "hash-source",
  "hash-types",
  "hash-utils",

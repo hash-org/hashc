@@ -6,6 +6,7 @@ use hash_ast::ast::{AstNodeRef, Block, BodyBlock};
 use hash_ir::ir::{BasicBlock, Place};
 
 use super::{BlockAnd, BlockAndExtend, Builder};
+use crate::build::unpack;
 
 impl<'tcx> Builder<'tcx> {
     pub(crate) fn block_into_dest(
@@ -36,8 +37,8 @@ impl<'tcx> Builder<'tcx> {
     pub(crate) fn body_block_into_dest(
         &mut self,
         place: Place,
-        block: BasicBlock,
-        body: &BodyBlock,
+        mut block: BasicBlock,
+        body: &'tcx BodyBlock,
     ) -> BlockAnd<()> {
         // Essentially walk all of the statement in the block, and then set
         // the return type of this block as the last expression, or an empty
@@ -46,7 +47,9 @@ impl<'tcx> Builder<'tcx> {
 
         // If this block has an expression, we need to deal with it since
         // it might change the destination of this block.
-        if let Some(expr) = body.expr.as_ref() {}
+        if let Some(expr) = body.expr.as_ref() {
+            unpack!(block = self.expr_into_dest(place, block, expr.ast_ref()));
+        }
 
         block.unit()
     }

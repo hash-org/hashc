@@ -293,45 +293,6 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
         Ok(())
     }
 
-    type ModBlockRet = ();
-
-    fn visit_mod_block(
-        &mut self,
-        node: ast::AstNodeRef<ast::ModBlock>,
-    ) -> Result<Self::ModBlockRet, Self::Error> {
-        let old_block_origin = mem::replace(&mut self.current_block, BlockOrigin::Mod);
-        let _ = walk_mut_self::walk_mod_block(self, node);
-        self.current_block = old_block_origin;
-
-        Ok(())
-    }
-
-    type ImplBlockRet = ();
-
-    fn visit_impl_block(
-        &mut self,
-        node: ast::AstNodeRef<ast::ImplBlock>,
-    ) -> Result<Self::ImplBlockRet, Self::Error> {
-        let old_block_origin = mem::replace(&mut self.current_block, BlockOrigin::Impl);
-        let _ = walk_mut_self::walk_impl_block(self, node);
-        self.current_block = old_block_origin;
-        Ok(())
-    }
-
-    type BodyBlockRet = ();
-
-    fn visit_body_block(
-        &mut self,
-        node: ast::AstNodeRef<ast::BodyBlock>,
-    ) -> Result<Self::BodyBlockRet, Self::Error> {
-        let old_block_origin = mem::replace(&mut self.current_block, BlockOrigin::Body);
-
-        let _ = walk_mut_self::walk_body_block(self, node);
-
-        self.current_block = old_block_origin;
-        Ok(())
-    }
-
     type DeclarationRet = ();
 
     fn visit_declaration(
@@ -348,6 +309,18 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
         self.bind_stack.extend(binds.into_iter().rev());
         let _ = walk_mut_self::walk_declaration(self, node);
 
+        Ok(())
+    }
+
+    type BodyBlockRet = ();
+
+    fn visit_body_block(
+        &mut self,
+        node: ast::AstNodeRef<ast::BodyBlock>,
+    ) -> Result<Self::BodyBlockRet, Self::Error> {
+        let old_block_origin = mem::replace(&mut self.current_block, BlockOrigin::Body);
+        let _ = walk_mut_self::walk_body_block(self, node);
+        self.current_block = old_block_origin;
         Ok(())
     }
 
@@ -371,6 +344,31 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
     ) -> Result<Self::TraitImplRet, Self::Error> {
         let old_block_origin = mem::replace(&mut self.current_block, BlockOrigin::Impl);
         let _ = walk_mut_self::walk_trait_impl(self, node);
+        self.current_block = old_block_origin;
+        Ok(())
+    }
+
+    type ModBlockRet = ();
+
+    fn visit_mod_block(
+        &mut self,
+        node: ast::AstNodeRef<ast::ModBlock>,
+    ) -> Result<Self::ModBlockRet, Self::Error> {
+        let old_block_origin = mem::replace(&mut self.current_block, BlockOrigin::Mod);
+        let _ = walk_mut_self::walk_mod_block(self, node);
+        self.current_block = old_block_origin;
+
+        Ok(())
+    }
+
+    type ImplBlockRet = ();
+
+    fn visit_impl_block(
+        &mut self,
+        node: ast::AstNodeRef<ast::ImplBlock>,
+    ) -> Result<Self::ImplBlockRet, Self::Error> {
+        let old_block_origin = mem::replace(&mut self.current_block, BlockOrigin::Impl);
+        let _ = walk_mut_self::walk_impl_block(self, node);
         self.current_block = old_block_origin;
         Ok(())
     }

@@ -3,10 +3,10 @@
 
 use hash_ir::{
     ir::{
-        BasicBlock, BasicBlockData, Place, RValue, Statement, StatementKind, Terminator,
+        BasicBlock, BasicBlockData, Place, RValue, RValueId, Statement, StatementKind, Terminator,
         TerminatorKind,
     },
-    IrStorage, RValueId,
+    IrStorage,
 };
 use hash_source::location::Span;
 use index_vec::IndexVec;
