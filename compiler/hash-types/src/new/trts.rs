@@ -22,6 +22,7 @@ pub type TrtMemberId = (TrtMembersId, usize);
 /// members, as well as the name of "Self".
 #[derive(Debug, Clone, Copy)]
 pub struct TrtDef {
+    pub id: TrtDefId,
     pub name: Symbol,
     pub params: DefParamsId,
     pub members: TrtMembersId,

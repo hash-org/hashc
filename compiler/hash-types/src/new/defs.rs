@@ -55,9 +55,8 @@ pub type DefPatArgGroupId = (DefPatArgsId, usize);
 /// value of the member.
 #[derive(Debug, Clone, Copy)]
 pub struct DefMember<OriginalDefId> {
+    pub id: (OriginalDefId, usize),
     pub name: Symbol,
-    pub original_def_id: OriginalDefId,
-    pub index: usize,
     pub ty: TyId,
     pub value: Option<TermId>,
 }

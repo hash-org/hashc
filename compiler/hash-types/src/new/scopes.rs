@@ -63,16 +63,15 @@ pub struct AccessTerm {
 /// A variable on the stack.
 #[derive(Debug, Copy, Clone)]
 pub struct StackMember {
-    pub is_mutable: bool,
+    pub id: StackMemberId,
     pub name: Symbol,
-    pub original_stack_scope_id: StackScopeId,
-    pub index: usize,
+    pub is_mutable: bool,
     pub ty: TyId,
     pub value: Option<TermId>,
 }
-new_sequence_store_key!(pub StackScopeId);
-pub type StackScopeStore = DefaultSequenceStore<StackScopeId, StackMember>;
-pub type StackMemberId = (StackScopeId, usize);
+new_sequence_store_key!(pub StackId);
+pub type StackStore = DefaultSequenceStore<StackId, StackMember>;
+pub type StackMemberId = (StackId, usize);
 
 /// A block term.
 ///

@@ -53,6 +53,8 @@ pub struct FnTy {
 /// r(a_1,...,a_n,p_1,...,p_n)`.
 #[derive(Debug, Clone, Copy)]
 pub struct FnDef {
+    /// The ID of the function definition.
+    pub id: FnDefId,
     /// The symbolic name of the function, which resolves to its definition name
     /// if given by the user, by querying the data of the symbol.
     pub name: Symbol,
