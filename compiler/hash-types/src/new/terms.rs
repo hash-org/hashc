@@ -5,7 +5,7 @@ use hash_utils::{
     store::{DefaultSequenceStore, DefaultStore},
 };
 
-use super::lits::LitTerm;
+use super::{lits::LitTerm, symbols::Symbol};
 use crate::new::{
     args::ArgsId,
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
@@ -18,7 +18,6 @@ use crate::new::{
     tuples::TupleTerm,
     tys::TyId,
     unions::UnionVariantTerm,
-    vars::{ResolvedVarTerm, SymbolicVarTerm},
 };
 
 /// A term that can contain unsafe operations.
@@ -103,8 +102,7 @@ pub enum Term {
     ModDef(ModDefId),
 
     // Variables
-    SymbolicVar(SymbolicVarTerm),
-    ResolvedVar(ResolvedVarTerm),
+    Var(Symbol),
 
     // Loops
     Loop(LoopTerm),
