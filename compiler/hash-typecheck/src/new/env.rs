@@ -13,6 +13,8 @@ pub struct Env {
     context: Context,
 }
 
+/// Trait to be implemented for things that want to have access to the
+/// environment.
 pub trait AccessToEnv {
     fn env(&self) -> &Env;
 
