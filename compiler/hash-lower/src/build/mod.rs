@@ -31,7 +31,7 @@ use hash_types::{
 use hash_utils::store::{CloneStore, PartialStore, SequenceStore, SequenceStoreKey};
 use index_vec::IndexVec;
 
-use self::ty::get_fn_ty_from_term;
+use self::ty::{convert_term_into_ir_ty, get_fn_ty_from_term, lower_term};
 use crate::cfg::ControlFlowGraph;
 
 /// A wrapper type for the kind of AST node that is being lowered, the [Builder]
@@ -207,7 +207,7 @@ impl<'tcx> Builder<'tcx> {
         // present then we create the type by converting the term into
         // the type.
 
-        todo!()
+        convert_term_into_ir_ty(term_id, self.tcx, &self.storage)
     }
 
     /// Function to get the associated [Term] with the
@@ -216,7 +216,7 @@ impl<'tcx> Builder<'tcx> {
     fn get_ty_of_node(&self, id: AstNodeId) -> IrTy {
         let term_id = self.tcx.node_info_store.get(id).map(|f| f.term_id()).unwrap();
 
-        todo!()
+        lower_term(term_id, self.tcx, &self.storage)
     }
 
     /// Function to get the associated [PatId] with the
