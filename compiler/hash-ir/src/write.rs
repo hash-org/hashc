@@ -7,6 +7,8 @@
 
 use std::fmt;
 
+use hash_utils::store::CloneStore;
+
 use super::ir::*;
 use crate::{
     ty::{AdtId, IrTyId, IrTyListId},
@@ -44,21 +46,21 @@ pub trait WriteIr<'ir> {
     fn write_terminator(&self, terminator: &'ir Terminator, f: &mut fmt::Formatter) -> fmt::Result;
 
     /// Write an IR [RValue] to the given formatter.
-    fn write_rvalue(&self, value: &'ir RValue, f: &mut fmt::Formatter) -> fmt::Result;
+    fn write_rvalue(&self, value: RValueId, f: &mut fmt::Formatter) -> fmt::Result;
 }
 
 pub struct IrWriter<'ir> {
     /// The type context allowing for printing any additional
     /// metadata about types within the ir.
-    tcx: &'ir IrStorage,
+    ctx: &'ir IrStorage,
     /// The body that is being printed
     body: &'ir Body,
 }
 
 impl<'ir> IrWriter<'ir> {
     /// Create a new IR writer for the given body.
-    pub fn new(tcx: &'ir IrStorage, body: &'ir Body) -> Self {
-        Self { tcx, body }
+    pub fn new(ctx: &'ir IrStorage, body: &'ir Body) -> Self {
+        Self { ctx, body }
     }
 }
 
@@ -84,23 +86,23 @@ impl<'ir> WriteIr<'ir> for IrWriter<'ir> {
 
             // We add 1 to the index because the return type is always
             // located at `0`.
-            write!(f, "_{}: {}", i + 1, param.ty().for_fmt(self.tcx))?;
+            write!(f, "_{}: {}", i + 1, param.ty().for_fmt(self.ctx))?;
         }
-        writeln!(f, ") -> {} {{", return_ty_decl.ty().for_fmt(self.tcx))?;
+        writeln!(f, ") -> {} {{", return_ty_decl.ty().for_fmt(self.ctx))?;
 
         // Print all of the declarations within the function
         writeln!(
             f,
             "    {}_0: {};",
             return_ty_decl.mutability(),
-            return_ty_decl.ty().for_fmt(self.tcx)
+            return_ty_decl.ty().for_fmt(self.ctx)
         )?;
 
         let declarations = self.body.declarations.iter_enumerated();
         let offset = 1 + self.body.arg_count;
 
         for (local, decl) in declarations.skip(offset) {
-            writeln!(f, "    {}{local:?}:{};", decl.mutability(), decl.ty().for_fmt(self.tcx))?;
+            writeln!(f, "    {}{local:?}:{};", decl.mutability(), decl.ty().for_fmt(self.ctx))?;
         }
 
         // Print all of the basic blocks
@@ -138,7 +140,9 @@ impl<'ir> WriteIr<'ir> for IrWriter<'ir> {
         match &statement.kind {
             StatementKind::Nop => write!(f, "nop;"),
             StatementKind::Assign(place, value) => {
-                write!(f, "{place:?} = {value:?};")
+                write!(f, "{place} = ")?;
+                self.write_rvalue(*value, f)?;
+                writeln!(f, ";")
             }
 
             // @@Todo: figure out format for printing out the allocations that
@@ -148,9 +152,11 @@ impl<'ir> WriteIr<'ir> for IrWriter<'ir> {
         }
     }
 
-    fn write_rvalue(&self, value: &'ir RValue, f: &mut fmt::Formatter) -> fmt::Result {
-        match value {
-            RValue::Use(place) => write!(f, "{place:?}"),
+    fn write_rvalue(&self, value: RValueId, f: &mut fmt::Formatter) -> fmt::Result {
+        let rvalue = self.ctx.rvalue_store().get(value);
+
+        match rvalue {
+            RValue::Use(place) => write!(f, "{place}"),
             RValue::Const(operand) => write!(f, "const {operand:?}"),
             RValue::BinaryOp(op, lhs, rhs) => write!(f, "{lhs:?} {op:?} {rhs:?}"),
             RValue::UnaryOp(op, operand) => write!(f, "{op:?}({operand:?})"),

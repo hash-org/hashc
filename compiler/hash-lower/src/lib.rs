@@ -57,6 +57,7 @@ impl<Ctx: IrLoweringCtx> CompilerStage<Ctx> for AstLowerer {
 
     fn run_stage(&mut self, entry_point: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
         let (workspace, ty_storage, ir_storage) = ctx.data();
+        let source_map = &mut workspace.source_map;
         let source_stage_info = &mut workspace.source_stage_info;
 
         let mut lowered_bodies = Vec::new();
@@ -96,7 +97,13 @@ impl<Ctx: IrLoweringCtx> CompilerStage<Ctx> for AstLowerer {
             }
 
             let body = &lowered_bodies[body_index];
-            println!("{}", IrWriter::new(ir_storage, body));
+            println!(
+                "IR dump for {} `{}` defined at {}\n{}",
+                body.source(),
+                body.name(),
+                source_map.fmt_location(body.location()),
+                IrWriter::new(ir_storage, body)
+            );
         }
 
         // Mark all modules now as lowered, and all generated
