@@ -1,7 +1,5 @@
 //! Storage that holds type information about AST nodes.
 
-use std::ops::BitAnd;
-
 use hash_ast::ast::AstNodeId;
 use hash_utils::{new_partial_store, store::PartialStore};
 
@@ -53,16 +51,13 @@ impl NodeInfoTarget {
     pub fn set_scope_id(&mut self, scope_id: ScopeId) {
         self.scope = Some(scope_id);
     }
-}
 
-impl BitAnd for NodeInfoTarget {
-    type Output = Self;
-
-    fn bitand(self, rhs: Self) -> Self::Output {
+    /// Combine two [`NodeInfoTarget`]s together.
+    pub fn combine(self, other: Self) -> Self {
         Self {
-            term: self.term.and(rhs.term),
-            pat: self.pat.and(rhs.pat),
-            scope: self.scope.and(rhs.scope),
+            term: self.term.or(other.term),
+            pat: self.pat.or(other.pat),
+            scope: self.scope.or(other.scope),
         }
     }
 }
@@ -93,7 +88,10 @@ impl NodeInfoStore {
     pub fn update_or_insert(&self, id: AstNodeId, target: NodeInfoTarget) {
         // First check if the entry already exists.
         if self.has(id) {
-            self.modify_fast(id, |entry| entry.unwrap().bitand(target));
+            self.modify_fast(id, |entry| {
+                let entry = entry.unwrap();
+                *entry = entry.combine(target);
+            });
         } else {
             self.insert(id, target);
         }

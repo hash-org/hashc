@@ -1049,6 +1049,9 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let params_potentially_unresolved = self.builder().create_params(params, ParamOrigin::Fn);
         let param_scope = self.scope_manager().make_rt_param_scope(params_potentially_unresolved);
 
+        // Set the function scope to the parameter scope:
+        self.register_node_info(node, param_scope);
+
         let (params, return_ty, return_value) =
             self.scope_manager().enter_scope(param_scope, |_| {
                 let fn_body = self.visit_expr(node.fn_body.ast_ref())?;
@@ -1099,7 +1102,6 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         // Clear return type
         self.state.fn_def_return_ty.set(old_return_ty);
-
         self.validate_and_register_simplified_term(node, fn_ty_term)
     }
 
