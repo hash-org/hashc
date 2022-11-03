@@ -29,7 +29,7 @@ use hash_types::{
     storage::LocalStorage,
     terms::{Sub, TermId},
 };
-use hash_utils::store::{PartialStore, Store};
+use hash_utils::store::Store;
 use itertools::Itertools;
 
 use super::{scopes::VisitConstantScope, AccessToTraverseOps};
@@ -167,7 +167,7 @@ impl<'tc> TcVisitor<'tc> {
         data: impl Into<NodeInfoTarget> + Into<LocationTarget> + Clone,
     ) {
         self.copy_location_from_node_to_target(node, data.clone());
-        self.node_info_store().insert(node.id(), data.into());
+        self.node_info_store().update_or_insert(node.id(), data.into());
     }
 
     /// Register the given [`NodeInfoTarget`] as describing the given
@@ -179,7 +179,7 @@ impl<'tc> TcVisitor<'tc> {
         node: AstNodeRef<T>,
         data: impl Into<NodeInfoTarget>,
     ) {
-        self.node_info_store().insert(node.id(), data.into());
+        self.node_info_store().update_or_insert(node.id(), data.into());
     }
 
     /// Validate and register node info for the given term.
@@ -192,7 +192,10 @@ impl<'tc> TcVisitor<'tc> {
         self.copy_location_from_node_to_target(node, term);
 
         let simplified_term_id = self.validator().validate_term(term)?.simplified_term_id;
-        self.node_info_store().insert(node.id(), NodeInfoTarget::Term(simplified_term_id));
+
+        // Check if there is already an entry for this node in the node info store.
+        self.node_info_store().update_or_insert(node.id(), simplified_term_id.into());
+
         Ok(simplified_term_id)
     }
 }
