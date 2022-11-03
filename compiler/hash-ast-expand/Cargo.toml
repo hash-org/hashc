@@ -7,8 +7,9 @@ edition = "2021"
 [dependencies]
 rayon = "1.5.0"
 
-hash-ast = {path = "../hash-ast" }
+hash-ast = { path = "../hash-ast" }
+hash-tree-def = { path = "../hash-tree-def" }
 hash-source = { path = "../hash-source" }
-hash-reporting = {path = "../hash-reporting" }
+hash-reporting = { path = "../hash-reporting" }
 hash-pipeline = { path = "../hash-pipeline" }
 hash-utils = { path = "../hash-utils" }
