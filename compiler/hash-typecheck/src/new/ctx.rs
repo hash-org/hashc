@@ -1,12 +1,11 @@
 //! Representing and modifying the typechecking context.
 use std::cell::RefCell;
 
-use indexmap::IndexMap;
-
-use super::{
+use hash_types::new::{
     data::CtorDefId, mods::ModMemberId, params::ParamTarget, scopes::StackMemberId,
     symbols::Symbol, trts::TrtMemberId, tys::TyId,
 };
+use indexmap::IndexMap;
 
 /// A bound variable, originating from some bound.
 #[derive(Debug, Copy, Clone)]

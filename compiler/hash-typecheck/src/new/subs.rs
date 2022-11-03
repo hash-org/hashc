@@ -1,7 +1,6 @@
 //! Definitions related to substitutions.
+use hash_types::new::{holes::HoleId, symbols::Symbol, terms::TermId};
 use smallvec::SmallVec;
-
-use super::{holes::HoleId, symbols::Symbol, terms::TermId};
 
 /// The subject of a substitution
 ///

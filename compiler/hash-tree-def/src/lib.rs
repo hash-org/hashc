@@ -3,11 +3,15 @@
 //! walker implementations for the given tree.
 
 mod definitions;
+mod difference;
 mod emit;
 mod parse;
 mod validate;
 
+use difference::Difference;
 use emit::emit_tree;
+use proc_macro2::Ident;
+use quote::quote;
 use syn::parse_macro_input;
 use validate::validate_tree_def;
 
@@ -79,4 +83,24 @@ pub fn define_tree(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     try_syn_err!(validate_tree_def(&def));
     let result = try_syn_err!(emit_tree(&def));
     proc_macro::TokenStream::from(result)
+}
+
+/// Macro that takes two lists of identifiers `A = [a,..]` and `B = [b,...]` and
+/// returns the set difference `A \ B`. Additionally, it applies a macro to each
+/// resultant element.
+///
+/// Can be used as `difference!(a, b, c, d; a, b; foo; bar)` which will produce
+/// `foo!(@bar c); foo!(@bar d)`.
+///
+/// This is used as a helper to implement all AST visitor methods other than
+/// some specified ones. See [`crate::emit`] source for more details.
+#[proc_macro]
+pub fn difference(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let Difference { symbols, symbols_to_remove, callback_macro, callback_macro_flag } =
+        parse_macro_input!(input as Difference);
+    let difference = symbols
+        .into_iter()
+        .filter(|symbol| !symbols_to_remove.contains(symbol))
+        .collect::<Vec<Ident>>();
+    quote! { #( #callback_macro!(@#callback_macro_flag #difference); )* }.into()
 }

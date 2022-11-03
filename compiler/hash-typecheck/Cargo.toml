@@ -11,9 +11,11 @@ dashmap = "5.1"
 itertools = "0.10"
 if_chain = "1.0.2"
 num-bigint = "0.4"
-smallvec = "1.9.0"
 rayon = "1.5.0"
+indexmap = "1.9"
+smallvec = "1.9"
 
+hash-tree-def = { path = "../hash-tree-def" }
 hash-ast = { path = "../hash-ast" }
 hash-alloc = { path = "../hash-alloc" }
 hash-error-codes = { path = "../hash-error-codes" }

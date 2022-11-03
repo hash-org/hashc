@@ -389,6 +389,7 @@ dependencies = [
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
+ "hash-tree-def",
  "rayon",
 ]
 
@@ -400,6 +401,7 @@ dependencies = [
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
+ "hash-tree-def",
  "hash-utils",
  "rayon",
 ]
@@ -462,6 +464,7 @@ dependencies = [
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
+ "hash-tree-def",
  "hash-types",
  "hash-utils",
  "index_vec",
@@ -636,9 +639,11 @@ dependencies = [
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
+ "hash-tree-def",
  "hash-types",
  "hash-utils",
  "if_chain",
+ "indexmap",
  "itertools",
  "log",
  "num-bigint",
@@ -654,10 +659,8 @@ dependencies = [
  "hash-ast",
  "hash-source",
  "hash-utils",
- "indexmap",
  "log",
  "num-bigint",
- "smallvec",
 ]
 
 [[package]]
@@ -670,6 +673,7 @@ dependencies = [
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
+ "hash-tree-def",
  "if_chain",
  "rayon",
 ]
