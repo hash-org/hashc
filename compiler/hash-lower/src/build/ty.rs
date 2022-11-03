@@ -112,15 +112,22 @@ fn lower_term(term: TermId, tcx: &GlobalStorage, ir_ctx: &IrStorage) -> IrTy {
                 }
             }
             Level1Term::Tuple(TupleTy { members }) => {
-                let params = tcx
+                let fields = tcx
                     .params_store
                     .get_owned_param_list(members)
                     .into_positional()
                     .into_iter()
-                    .map(|param| convert_term_into_ir_ty(param.ty, tcx, ir_ctx));
+                    .enumerate()
+                    .map(|(index, param)| AdtField {
+                        name: index.into(),
+                        ty: convert_term_into_ir_ty(param.ty, tcx, ir_ctx),
+                    })
+                    .collect();
 
-                let params_id = ir_ctx.ty_list_store().create_from_iter(params);
-                IrTy::Tuple(params_id)
+                let variants = index_vec![AdtVariant { name: 0usize.into(), fields }];
+                let adt = AdtData::new_with_flags("tuple".into(), variants, AdtFlags::TUPLE);
+                let adt_id = ir_ctx.adt_store().create(adt);
+                IrTy::Adt(adt_id)
             }
             Level1Term::Fn(FnTy { params, return_ty }) => {
                 let return_ty = convert_term_into_ir_ty(return_ty, tcx, ir_ctx);

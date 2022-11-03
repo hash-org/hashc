@@ -13,7 +13,7 @@ use hash_source::{
 };
 use hash_utils::{
     new_sequence_store_key, new_store_key,
-    store::{CloneStore, DefaultSequenceStore, DefaultStore, SequenceStore, Store},
+    store::{CloneStore, DefaultSequenceStore, DefaultStore, SequenceStore},
 };
 use index_vec::IndexVec;
 
@@ -87,9 +87,6 @@ pub enum IrTy {
 
     /// A reference counted pointer type, e.g. `Rc<T>`
     Rc(IrTyId, Mutability),
-
-    /// A tuple type
-    Tuple(IrTyListId),
 
     /// A slice type
     Slice(IrTyId),
@@ -167,6 +164,9 @@ bitflags! {
 
         /// The underlying ADT is a enum.
         const ENUM  = 0b00000100;
+
+        /// The underlying ADT is a tuple.
+        const TUPLE  = 0b00001000;
     }
 }
 
@@ -214,10 +214,29 @@ pub type AdtStore = DefaultStore<AdtId, AdtData>;
 
 impl fmt::Display for ForFormatting<'_, AdtId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let adt_name = self.storage.adt_store().map_fast(self.t, |item| item.name);
+        let adt = self.storage.adt_store().get(self.t);
 
-        // We just write the name of the underlying ADT
-        write!(f, "{adt_name}")
+        match adt.flags {
+            AdtFlags::TUPLE => {
+                assert!(adt.variants.len() == 1);
+                let variant = &adt.variants[0];
+
+                write!(f, "(")?;
+                for (i, field) in variant.fields.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, ", ")?;
+                    }
+
+                    write!(f, "{}", field.ty.for_fmt(self.storage))?;
+                }
+
+                write!(f, ")")
+            }
+            _ => {
+                // We just write the name of the underlying ADT
+                write!(f, "{}", adt.name)
+            }
+        }
     }
 }
 
@@ -254,7 +273,6 @@ impl fmt::Display for ForFormatting<'_, IrTyId> {
 
                 write!(f, "Rc{name}<{}>", inner.for_fmt(self.storage))
             }
-            IrTy::Tuple(fields) => write!(f, "({})", fields.for_fmt(self.storage)),
             IrTy::Adt(adt) => write!(f, "{}", adt.for_fmt(self.storage)),
             IrTy::Fn(params, return_ty) => write!(
                 f,
