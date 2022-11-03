@@ -6,6 +6,7 @@
 
 use std::fmt;
 
+use bitflags::bitflags;
 use hash_source::{
     constant::{FloatTy, SIntTy, UIntTy},
     identifier::Identifier,
@@ -126,10 +127,47 @@ pub struct AdtData {
 
     // Flags which denote additional information about this specific
     // data structure.
-    // pub flags: AdtFlags,
+    pub flags: AdtFlags,
+
     /// Options that are regarding the representation of the ADT
     /// in memory.
     pub representation: AdtRepresentation,
+}
+
+impl AdtData {
+    /// Create a new [AdtData] with the given name and variants.
+    pub fn new(name: Identifier, variants: IndexVec<VariantIdx, AdtVariant>) -> Self {
+        Self {
+            name,
+            variants,
+            representation: AdtRepresentation::default(),
+            flags: AdtFlags::empty(),
+        }
+    }
+
+    /// Create [AdtData] with specified [AdtFlags].
+    pub fn new_with_flags(
+        name: Identifier,
+        variants: IndexVec<VariantIdx, AdtVariant>,
+        flags: AdtFlags,
+    ) -> Self {
+        Self { name, variants, representation: AdtRepresentation::default(), flags }
+    }
+}
+
+bitflags! {
+    /// Flags that occur on a [AdtData] which are used for conveniently checking
+    /// the properties of the underlying ADT.
+    pub struct AdtFlags: u32 {
+        /// The underlying ADT is a union.
+        const UNION = 0b00000001;
+
+        /// The underlying ADT is a struct.
+        const STRUCT  = 0b00000010;
+
+        /// The underlying ADT is a enum.
+        const ENUM  = 0b00000100;
+    }
 }
 
 /// Options that are regarding the representation of the ADT. This includes
@@ -142,6 +180,11 @@ pub struct AdtData {
 ///     - add `C` layout configuration
 #[derive(Clone)]
 pub struct AdtRepresentation {}
+impl AdtRepresentation {
+    fn default() -> AdtRepresentation {
+        AdtRepresentation {}
+    }
+}
 
 #[derive(Clone)]
 pub struct AdtVariant {

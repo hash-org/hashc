@@ -6,9 +6,15 @@ pub mod ty;
 pub mod visitor;
 pub mod write;
 
+use std::{
+    cell::{Ref, RefCell},
+    collections::HashMap,
+};
+
+use hash_types::terms::TermId;
 use hash_utils::store::Store;
 use ir::{Body, RValue, RValueId, RValueStore};
-use ty::{AdtStore, TyListStore, TyStore};
+use ty::{AdtStore, IrTyId, TyListStore, TyStore};
 
 /// Storage that is used by the IR builder.
 pub struct IrStorage {
@@ -29,6 +35,9 @@ pub struct IrStorage {
     /// Storage that is used to store all of the created ADTs that
     /// are registered within the IR.
     adt_store: ty::AdtStore,
+
+    /// Cache for the [IrTyId]s that are created from [TermId]s.
+    ty_cache: RefCell<HashMap<TermId, IrTyId>>,
 }
 
 impl IrStorage {
@@ -39,6 +48,7 @@ impl IrStorage {
             ty_store: TyStore::default(),
             ty_list_store: TyListStore::default(),
             adt_store: AdtStore::default(),
+            ty_cache: RefCell::new(HashMap::new()),
         }
     }
 
@@ -60,6 +70,16 @@ impl IrStorage {
     /// Get a reference to the [RValueStore]
     pub fn rvalue_store(&self) -> &RValueStore {
         &self.rvalue_store
+    }
+
+    /// Get a reference to the type cache.
+    pub fn ty_cache(&self) -> Ref<HashMap<TermId, IrTyId>> {
+        self.ty_cache.borrow()
+    }
+
+    /// Add an entry to the type cache.
+    pub fn add_ty_cache_entry(&self, term_id: TermId, ty_id: IrTyId) {
+        self.ty_cache.borrow_mut().insert(term_id, ty_id);
     }
 
     /// Push an [RValue] on the storage.

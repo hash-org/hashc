@@ -5,6 +5,7 @@ mod block;
 mod expr;
 mod matches;
 mod pat;
+mod ty;
 
 use hash_ast::ast::{AstNodeId, AstNodeRef, Expr, FnDef};
 use hash_ir::{
@@ -30,9 +31,12 @@ use hash_types::{
 use hash_utils::store::{CloneStore, PartialStore, SequenceStore, SequenceStoreKey};
 use index_vec::IndexVec;
 
+use self::ty::get_fn_ty_from_term;
 use crate::cfg::ControlFlowGraph;
 
-///
+/// A wrapper type for the kind of AST node that is being lowered, the [Builder]
+/// accepts either a [FnDef] or an [Expr] node. The [Expr] node case is used
+/// when a constant block is being lowered.
 pub(crate) enum BuildItem<'a> {
     /// A function body is being lowered.
     FnDef(AstNodeRef<'a, FnDef>),
@@ -60,17 +64,6 @@ impl<'a> From<AstNodeRef<'a, FnDef>> for BuildItem<'a> {
 impl<'a> From<AstNodeRef<'a, Expr>> for BuildItem<'a> {
     fn from(expr: AstNodeRef<'a, Expr>) -> Self {
         BuildItem::Expr(expr)
-    }
-}
-
-/// Get the [FnTy] from a given [TermId].
-fn get_fn_ty_from_term(term: TermId, tcx: &GlobalStorage) -> FnTy {
-    let term = tcx.term_store.get(term);
-
-    match term {
-        Term::Level0(Level0Term::FnLit(FnLit { fn_ty, .. })) => get_fn_ty_from_term(fn_ty, tcx),
-        Term::Level1(Level1Term::Fn(fn_ty)) => fn_ty,
-        _ => unreachable!(),
     }
 }
 
