@@ -654,6 +654,7 @@ dependencies = [
  "hash-ast",
  "hash-source",
  "hash-utils",
+ "indexmap",
  "log",
  "num-bigint",
 ]

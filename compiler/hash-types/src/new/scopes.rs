@@ -37,42 +37,25 @@ pub struct DeclStackMemberTerm {
 }
 
 /// Term to assign a value to a subject.
-///
-/// @@Todo: figure out exact rules about what subject could be.
+// @@Todo: figure out exact rules about what subject could be.
 #[derive(Debug, Clone, Copy)]
 pub struct AssignTerm {
     pub subject: TermId,
     pub value: TermId,
 }
 
-/// The kind of an access.
-// @@Organisation: Should this be in its own module?
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
-pub enum AccessKind {
-    Numeric(usize),
-    Named(Symbol),
-}
-
-/// Term to access a nested value.
-#[derive(Debug, Clone, Copy)]
-pub struct AccessTerm {
-    pub subject: TermId,
-    pub access_kind: AccessKind,
-}
-
 /// A variable on the stack.
 #[derive(Debug, Copy, Clone)]
 pub struct StackMember {
-    pub is_mutable: bool,
+    pub id: StackMemberId,
     pub name: Symbol,
-    pub original_stack_scope_id: StackScopeId,
-    pub index: usize,
+    pub is_mutable: bool,
     pub ty: TyId,
     pub value: Option<TermId>,
 }
-new_sequence_store_key!(pub StackScopeId);
-pub type StackScopeStore = DefaultSequenceStore<StackScopeId, StackMember>;
-pub type StackMemberId = (StackScopeId, usize);
+new_sequence_store_key!(pub StackId);
+pub type StackStore = DefaultSequenceStore<StackId, StackMember>;
+pub type StackMemberId = (StackId, usize);
 
 /// A block term.
 ///

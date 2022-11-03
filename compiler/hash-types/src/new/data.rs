@@ -21,14 +21,16 @@ use crate::new::{
 /// arguments.
 #[derive(Debug, Clone, Copy)]
 pub struct CtorDef {
+    /// The ID of the constructor.
+    pub id: CtorDefId,
     /// The name of the constructor, for example `symbol("Red")` in `Red: Color`
     /// if given as a constructor to a `Colour := datatype...`.
     pub name: Symbol,
     /// The `DataDefId` of the data-type that this constructor is a part of.
-    pub original_data_def_id: DataDefId,
+    pub data_def_id: DataDefId,
     /// The index of this constructor in the original data-type's ordered
     /// constructor list (`ctors`).
-    pub index: usize,
+    pub data_def_ctor_index: usize,
     /// The parameters of the constructor.
     // @@Todo: formalise positivity requirements
     pub params: DefParamsId,
@@ -77,6 +79,8 @@ pub struct CtorPat {
 /// which provide a different way to construct the data type.
 #[derive(Debug, Clone, Copy)]
 pub struct DataDef {
+    /// The ID of the data-type definition.
+    pub id: DataDefId,
     /// The name of the data-type.
     ///
     /// For example `symbol("Colour")` in `Colour := datatype...`.

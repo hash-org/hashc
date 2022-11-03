@@ -383,6 +383,12 @@ pub trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
         Ok(self.create_from_slice(&values))
     }
 
+    /// Same as [`SequenceStore::get_at_index`] but takes the element key and
+    /// index as a tuple.
+    fn get_element(&self, element_id: (Key, usize)) -> Value {
+        self.get_at_index(element_id.0, element_id.1)
+    }
+
     /// Get the value at the given index in the value sequence corresponding to
     /// the given key.
     ///

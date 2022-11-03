@@ -60,12 +60,19 @@ pub type ModMemberId = (ModMembersId, usize);
 /// This contains a name, parameters, a kind, and a set of members.
 #[derive(Debug, Clone, Copy)]
 pub struct ModDef {
+    /// The ID of the module definition.
+    pub id: ModDefId,
+
+    /// The name of the module.
     pub name: Symbol,
+
+    /// The parameters of the module, if any.
     pub params: DefParamsId,
 
     /// The kind is parametrised over `params`.
     pub kind: ModKind,
 
+    /// The members of the module.
     pub members: ModMembersId,
 
     /// The name of the "Self" type in the scope of the trait definition, if

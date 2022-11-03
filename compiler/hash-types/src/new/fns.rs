@@ -53,6 +53,8 @@ pub struct FnTy {
 /// r(a_1,...,a_n,p_1,...,p_n)`.
 #[derive(Debug, Clone, Copy)]
 pub struct FnDef {
+    /// The ID of the function definition.
+    pub id: FnDefId,
     /// The symbolic name of the function, which resolves to its definition name
     /// if given by the user, by querying the data of the symbol.
     pub name: Symbol,
@@ -75,7 +77,10 @@ pub type FnDefStore = DefaultStore<FnDefId, FnDef>;
 #[derive(Debug, Clone, Copy)]
 pub struct FnCallTerm {
     /// The function being called
-    pub subject: FnDefId,
+    ///
+    /// This could be a function definition, a value of a function type, or a
+    /// trait method.
+    pub subject: TermId,
     // The arguments to the function, sorted by the parameters of the function
     pub args: ArgsId,
     /// Whether the function call is implicit.

@@ -7,6 +7,7 @@ edition = "2021"
 [dependencies]
 log = "0.4"
 num-bigint = "0.4"
+indexmap = "1.9"
 
 hash-ast = { path = "../hash-ast" }
 hash-utils = { path = "../hash-utils" }

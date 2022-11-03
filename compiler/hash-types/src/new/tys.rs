@@ -53,3 +53,9 @@ pub enum Ty {
 
 new_store_key!(pub TyId);
 pub type TyStore = DefaultStore<TyId, Ty>;
+
+/// Infer the type of the given term, returning its type.
+#[derive(Debug, Clone, Copy)]
+pub struct TypeOfTerm {
+    pub term: TermId,
+}

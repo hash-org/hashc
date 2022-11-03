@@ -5,20 +5,24 @@ use hash_utils::{
     store::{DefaultSequenceStore, DefaultStore},
 };
 
-use super::lits::LitTerm;
+use super::{
+    casting::{CastTerm, CoerceTerm},
+    lits::LitTerm,
+    symbols::Symbol,
+    tys::TypeOfTerm,
+};
 use crate::new::{
-    args::ArgsId,
+    access::AccessTerm,
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
     data::{CtorTerm, DataDefId},
     fns::{FnCallTerm, FnDefId},
     mods::ModDefId,
     refs::{DerefTerm, RefTerm},
-    scopes::{AccessTerm, AssignTerm, BlockTerm, DeclStackMemberTerm},
+    scopes::{AssignTerm, BlockTerm, DeclStackMemberTerm},
     trts::TrtDefId,
     tuples::TupleTerm,
     tys::TyId,
     unions::UnionVariantTerm,
-    vars::{ResolvedVarTerm, SymbolicVarTerm},
 };
 
 /// A term that can contain unsafe operations.
@@ -27,33 +31,10 @@ pub struct UnsafeTerm {
     pub inner: TermId,
 }
 
-/// Cast a given term to a given type.
-#[derive(Debug, Clone, Copy)]
-pub struct CastTerm {
-    pub subject: TermId,
-    pub ty: TyId,
-}
-
-/// Infer the type of the given term, returning its type.
-#[derive(Debug, Clone, Copy)]
-pub struct TypeOfTerm {
-    pub term: TermId,
-}
-
 /// A term whose value is only known at runtime.
 #[derive(Debug, Clone, Copy)]
 pub struct RuntimeTerm {
     pub term_ty: TyId,
-}
-
-/// An application of a term to a list of arguments.
-///
-/// This is a term which will resolve to a function call, a constructor call, or
-/// a trait function call.
-#[derive(Debug, Clone, Copy)]
-pub struct AppTerm {
-    pub subject: TermId,
-    pub args: ArgsId,
 }
 
 /// A term in a Hash program.
@@ -65,36 +46,24 @@ pub struct AppTerm {
 /// constructors, etc. This is because they might have extra data attached to
 /// them; for example, function definitions might have AST node IDs attached to
 /// them through some secondary map.
-///
-/// Some terms will be eventually eliminated during the semantic analysis
-/// stages, so they won't be present during code generation.
-// @@Todo: ^^ figure out and document exactly which terms these are
 #[derive(Debug, Clone, Copy)]
 pub enum Term {
-    // Primitives
-    Ty(TyId),
-    Cast(CastTerm),
+    // Runtime
     Runtime(RuntimeTerm),
+
+    // Primitives
     UnionVariant(UnionVariantTerm),
     Tuple(TupleTerm),
-    TypeOf(TypeOfTerm),
-    Ctor(CtorTerm),
-
-    // Literals
     Lit(LitTerm),
 
-    /// Infer the term from the surrounding context.
-    Infer,
-
-    // Application
-    App(AppTerm),
+    // Constructors
+    Ctor(CtorTerm),
 
     // Functions
     FnCall(FnCallTerm),
     FnDef(FnDefId),
 
     // Scopes
-    Access(AccessTerm),
     Block(BlockTerm),
 
     // Definitions
@@ -103,8 +72,7 @@ pub enum Term {
     ModDef(ModDefId),
 
     // Variables
-    SymbolicVar(SymbolicVarTerm),
-    ResolvedVar(ResolvedVarTerm),
+    Var(Symbol),
 
     // Loops
     Loop(LoopTerm),
@@ -120,6 +88,17 @@ pub enum Term {
 
     // Unsafe
     Unsafe(UnsafeTerm),
+
+    // Access
+    Access(AccessTerm),
+
+    // Casting
+    Cast(CastTerm),
+    Coerce(CoerceTerm),
+
+    // Types
+    TypeOf(TypeOfTerm),
+    Ty(TyId),
 
     // References
     Ref(RefTerm),
