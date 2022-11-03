@@ -6,13 +6,14 @@
 
 use std::fmt;
 
+use bitflags::bitflags;
 use hash_source::{
     constant::{FloatTy, SIntTy, UIntTy},
     identifier::Identifier,
 };
 use hash_utils::{
     new_sequence_store_key, new_store_key,
-    store::{CloneStore, DefaultSequenceStore, DefaultStore, SequenceStore, Store},
+    store::{CloneStore, DefaultSequenceStore, DefaultStore, SequenceStore},
 };
 use index_vec::IndexVec;
 
@@ -87,9 +88,6 @@ pub enum IrTy {
     /// A reference counted pointer type, e.g. `Rc<T>`
     Rc(IrTyId, Mutability),
 
-    /// A tuple type
-    Tuple(IrTyListId),
-
     /// A slice type
     Slice(IrTyId),
 
@@ -126,10 +124,50 @@ pub struct AdtData {
 
     // Flags which denote additional information about this specific
     // data structure.
-    // pub flags: AdtFlags,
+    pub flags: AdtFlags,
+
     /// Options that are regarding the representation of the ADT
     /// in memory.
     pub representation: AdtRepresentation,
+}
+
+impl AdtData {
+    /// Create a new [AdtData] with the given name and variants.
+    pub fn new(name: Identifier, variants: IndexVec<VariantIdx, AdtVariant>) -> Self {
+        Self {
+            name,
+            variants,
+            representation: AdtRepresentation::default(),
+            flags: AdtFlags::empty(),
+        }
+    }
+
+    /// Create [AdtData] with specified [AdtFlags].
+    pub fn new_with_flags(
+        name: Identifier,
+        variants: IndexVec<VariantIdx, AdtVariant>,
+        flags: AdtFlags,
+    ) -> Self {
+        Self { name, variants, representation: AdtRepresentation::default(), flags }
+    }
+}
+
+bitflags! {
+    /// Flags that occur on a [AdtData] which are used for conveniently checking
+    /// the properties of the underlying ADT.
+    pub struct AdtFlags: u32 {
+        /// The underlying ADT is a union.
+        const UNION = 0b00000001;
+
+        /// The underlying ADT is a struct.
+        const STRUCT  = 0b00000010;
+
+        /// The underlying ADT is a enum.
+        const ENUM  = 0b00000100;
+
+        /// The underlying ADT is a tuple.
+        const TUPLE  = 0b00001000;
+    }
 }
 
 /// Options that are regarding the representation of the ADT. This includes
@@ -142,6 +180,11 @@ pub struct AdtData {
 ///     - add `C` layout configuration
 #[derive(Clone)]
 pub struct AdtRepresentation {}
+impl AdtRepresentation {
+    fn default() -> AdtRepresentation {
+        AdtRepresentation {}
+    }
+}
 
 #[derive(Clone)]
 pub struct AdtVariant {
@@ -171,10 +214,29 @@ pub type AdtStore = DefaultStore<AdtId, AdtData>;
 
 impl fmt::Display for ForFormatting<'_, AdtId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let adt_name = self.storage.adt_store().map_fast(self.t, |item| item.name);
+        let adt = self.storage.adt_store().get(self.t);
 
-        // We just write the name of the underlying ADT
-        write!(f, "{adt_name}")
+        match adt.flags {
+            AdtFlags::TUPLE => {
+                assert!(adt.variants.len() == 1);
+                let variant = &adt.variants[0];
+
+                write!(f, "(")?;
+                for (i, field) in variant.fields.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, ", ")?;
+                    }
+
+                    write!(f, "{}", field.ty.for_fmt(self.storage))?;
+                }
+
+                write!(f, ")")
+            }
+            _ => {
+                // We just write the name of the underlying ADT
+                write!(f, "{}", adt.name)
+            }
+        }
     }
 }
 
@@ -211,7 +273,6 @@ impl fmt::Display for ForFormatting<'_, IrTyId> {
 
                 write!(f, "Rc{name}<{}>", inner.for_fmt(self.storage))
             }
-            IrTy::Tuple(fields) => write!(f, "({})", fields.for_fmt(self.storage)),
             IrTy::Adt(adt) => write!(f, "{}", adt.for_fmt(self.storage)),
             IrTy::Fn(params, return_ty) => write!(
                 f,

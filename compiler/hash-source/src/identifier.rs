@@ -48,6 +48,12 @@ impl From<String> for Identifier {
     }
 }
 
+impl From<usize> for Identifier {
+    fn from(id: usize) -> Self {
+        IDENTIFIER_MAP.create_ident(id.to_string().as_str())
+    }
+}
+
 impl From<Identifier> for &str {
     fn from(ident: Identifier) -> Self {
         IDENTIFIER_MAP.get_ident(ident)
