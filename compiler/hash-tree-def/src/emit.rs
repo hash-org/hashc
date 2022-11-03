@@ -811,25 +811,40 @@ fn emit_default_impl_macros(
         }
     });
 
-    // @@Todo: hiding variant
-    // let all_nodes = tree_def
-    //     .nodes
-    //     .keys()
-    //     .map(|node_name| {
-    //         let node_name = format_ident!("{}",
-    // node_name.to_string().to_case(Case::Pascal));         quote! {
-    // #node_name, }     })
-    //     .collect::<TokenStream>();
+    // All the available AST nodes as names
+    let all_nodes = tree_def
+        .nodes
+        .keys()
+        .map(|node_name| {
+            let node_name = format_ident!("{}", node_name.to_string().to_case(Case::Pascal));
+            quote! {
+                #node_name
+            }
+        })
+        .collect::<Vec<_>>();
 
     // For each node name given, emit a default impl by calling its appropriate
     // `@node` case recursively.
     let result = quote! {
         #[macro_export]
         macro_rules! #default_impl_name {
+            (@expr [$e:expr]) => {
+                #default_impl_name!($e);
+            };
             ($($node:ident),* $(,)?) => {
+                #default_impl_name!([$($node),*]);
+            };
+            ([$($node:ident),* $(,)?]) => {
                 $(
                     #default_impl_name!(@node $node);
                 )*
+            };
+            (hiding: $($node:ident),* $(,)?) => {
+                #default_impl_name!(hiding: [$($node),*]);
+            };
+            (hiding: [$($node:ident),* $(,)?]) => {
+                // Here we call the difference! macro to implement all the nodes that are not given
+                hash_tree_def::difference!(#(#all_nodes),*; $($node),*; #default_impl_name, node);
             };
             #(#default_impl_macro_cases)*
             // Last case is error

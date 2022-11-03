@@ -29,6 +29,7 @@ use traverse::visitor::TcVisitor;
 
 pub mod diagnostics;
 pub mod exhaustiveness;
+pub mod new;
 pub mod ops;
 pub mod storage;
 pub mod traverse;

@@ -636,9 +636,11 @@ dependencies = [
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
+ "hash-tree-def",
  "hash-types",
  "hash-utils",
  "if_chain",
+ "indexmap",
  "itertools",
  "log",
  "num-bigint",
@@ -654,10 +656,8 @@ dependencies = [
  "hash-ast",
  "hash-source",
  "hash-utils",
- "indexmap",
  "log",
  "num-bigint",
- "smallvec",
 ]
 
 [[package]]

@@ -4,7 +4,6 @@
 pub mod access;
 pub mod args;
 pub mod casting;
-pub mod context;
 pub mod control;
 pub mod data;
 pub mod defs;
@@ -17,7 +16,6 @@ pub mod pats;
 pub mod refs;
 pub mod scopes;
 pub mod stores;
-pub mod subs;
 pub mod symbols;
 pub mod terms;
 pub mod trts;
