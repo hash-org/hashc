@@ -657,6 +657,7 @@ dependencies = [
  "indexmap",
  "log",
  "num-bigint",
+ "smallvec",
 ]
 
 [[package]]

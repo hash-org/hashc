@@ -2,6 +2,7 @@
 
 use hash_utils::{new_store_key, store::DefaultStore};
 
+use super::holes::HoleId;
 use crate::new::{
     data::DataTy, fns::FnTy, refs::RefTy, terms::TermId, trts::TrtBoundsId, tuples::TupleTy,
     unions::UnionTy,
@@ -42,13 +43,34 @@ pub enum Ty {
     /// A term which evaluates to a type.
     Eval(TermId),
 
+    /// Type hole.
+    ///
+    /// Invariant: `hole.kind == HoleKind::Ty`
+    Hole(HoleId),
+
+    /// Type variable
+    Var(TyId),
+
+    /// Union type
     Union(UnionTy),
+
+    /// Tuple type
     Tuple(TupleTy),
+
+    /// Function type
     Fn(FnTy),
-    Data(DataTy),
-    Universe(UniverseTy),
-    Meta(MetaTy),
+
+    /// Reference type
     Ref(RefTy),
+
+    /// A user-defined data type
+    Data(DataTy),
+
+    /// The universe type
+    Universe(UniverseTy),
+
+    /// Meta type: type of definitions
+    Meta(MetaTy),
 }
 
 new_store_key!(pub TyId);

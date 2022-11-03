@@ -7,6 +7,7 @@ use hash_utils::{
 
 use super::{
     casting::{CastTerm, CoerceTerm},
+    holes::HoleId,
     lits::LitTerm,
     symbols::Symbol,
     tys::TypeOfTerm,
@@ -103,6 +104,13 @@ pub enum Term {
     // References
     Ref(RefTerm),
     Deref(DerefTerm),
+
+    /// Term hole
+    ///
+    /// Invariant: `hole.kind == HoleKind::Term`
+    // @@Reconsider: this invariant might need to be broken sometimes if types are used in expr
+    // context.
+    Hole(HoleId),
 }
 
 new_store_key!(pub TermId);

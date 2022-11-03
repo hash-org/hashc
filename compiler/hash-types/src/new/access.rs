@@ -9,12 +9,12 @@ pub enum AccessKind {
     CtorField,
     /// Accessing a tuple field, like `f := (2, 3); f.0`.
     TupleField,
-    /// Accessing a module member, like `X := mod { y := 3 }; X.y`.
+    /// Accessing a module member, like `X := mod { y := 3 }; X::y`.
     ModMember,
     /// Accessing a trait member, like `T := trait { y := 3; z := self.y }`
     TrtMember,
     /// Accessing a datatype constructor, like `Colour := enum(Red, Green,
-    /// Blue); Colour.Red`
+    /// Blue); Colour::Red`
     Ctor,
 }
 
