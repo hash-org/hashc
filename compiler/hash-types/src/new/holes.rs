@@ -12,6 +12,7 @@ pub enum HoleKind {
 }
 
 /// A hole, which represents a type or term that is not yet known.
+#[derive(Debug, Clone, Copy)]
 pub struct Hole {
     /// The ID of the hole.
     pub id: HoleId,
