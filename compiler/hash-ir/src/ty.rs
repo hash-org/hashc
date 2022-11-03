@@ -42,7 +42,7 @@ impl Mutability {
     /// Get [Mutability] as a printable name
     pub fn as_str(&self) -> &'static str {
         match self {
-            Mutability::Mutable => "mut",
+            Mutability::Mutable => "mut ",
             Mutability::Immutable => "",
         }
     }

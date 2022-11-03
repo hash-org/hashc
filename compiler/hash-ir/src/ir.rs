@@ -6,11 +6,11 @@ use hash_source::{
     location::Span,
     SourceId,
 };
-use hash_types::{scope::Mutability, terms::TermId};
+use hash_types::terms::TermId;
 use hash_utils::{new_store_key, store::DefaultStore};
 use index_vec::IndexVec;
 
-use crate::ty::IrTyId;
+use crate::ty::{IrTyId, Mutability};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Const {
@@ -122,9 +122,14 @@ impl LocalDecl {
         Self::new(Mutability::Immutable, ty)
     }
 
-    /// Returns the type of the local.
+    /// Returns the [IrTyId] of the local.
     pub fn ty(&self) -> IrTyId {
         self.ty
+    }
+
+    /// Returns the [Mutability] of the local.
+    pub fn mutability(&self) -> Mutability {
+        self.mutability
     }
 }
 
