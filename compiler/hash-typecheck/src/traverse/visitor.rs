@@ -2059,6 +2059,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
             },
         );
 
+        // Copy the location of this node to the pat_id
         self.register_node_info_and_location(node, pat);
         Ok(pat)
     }

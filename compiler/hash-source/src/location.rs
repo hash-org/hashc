@@ -69,6 +69,11 @@ impl Span {
     pub fn is_empty(&self) -> bool {
         self.start() == self.end()
     }
+
+    /// Convert the [Span] into a [SourceLocation].
+    pub fn into_location(self, source_id: SourceId) -> SourceLocation {
+        SourceLocation::new(self, source_id)
+    }
 }
 
 impl Default for Span {

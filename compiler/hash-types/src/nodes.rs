@@ -11,11 +11,11 @@ use crate::scope::ScopeId;
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct NodeInfoTarget {
     /// The node corresponds to the term with the given [`TermId`].
-    term: Option<TermId>,
+    pub term: Option<TermId>,
     /// The node corresponds to the pattern with the given [`PatId`].
-    pat: Option<PatId>,
+    pub pat: Option<PatId>,
     /// The node corresponds to the scope with the given [`ScopeId`].
-    scope: Option<ScopeId>,
+    pub scope: Option<ScopeId>,
 }
 
 impl NodeInfoTarget {
@@ -80,20 +80,53 @@ impl From<ScopeId> for NodeInfoTarget {
     }
 }
 
-new_partial_store!(pub NodeInfoStore<AstNodeId, NodeInfoTarget>);
+new_partial_store!(pub InfoStore<AstNodeId, NodeInfoTarget>);
+
+new_partial_store!(pub PatMapping<PatId, AstNodeId>);
+
+#[derive(Debug, Default)]
+pub struct NodeInfoStore {
+    /// Mapping between [AstNodeId]s and [NodeInfoTarget]s. This store is
+    /// partial and many [AstNodeId]s will not have a corresponding
+    /// [NodeInfoTarget].
+    store: InfoStore,
+
+    /// A mapping between [PatId]s to [AstNodeId]s. This is needed to
+    /// lookup the [AstNodeId] of a [PatId] when we need to append additional
+    /// information about patterns to the [InfoStore].
+    reverse_pat_mapping: PatMapping,
+}
 
 impl NodeInfoStore {
+    /// Create a new [NodeInfoStore].
+    pub fn new() -> Self {
+        Self { store: InfoStore::new(), reverse_pat_mapping: PatMapping::new() }
+    }
+
     /// Update an entry with the associated [AstNodeId] and merge it
     /// with the provided [NodeInfoTarget].
     pub fn update_or_insert(&self, id: AstNodeId, target: NodeInfoTarget) {
         // First check if the entry already exists.
-        if self.has(id) {
-            self.modify_fast(id, |entry| {
+        if self.store.has(id) {
+            self.store.modify_fast(id, |entry| {
                 let entry = entry.unwrap();
                 *entry = entry.combine(target);
             });
         } else {
-            self.insert(id, target);
+            self.store.insert(id, target);
+
+            if let Some(pat_id) = target.pat {
+                self.reverse_pat_mapping.insert(pat_id, id);
+            }
         }
+    }
+
+    /// Get the [NodeInfoTarget] associated with the given [AstNodeId].
+    pub fn pat_to_node_id(&self, pat_id: PatId) -> Option<AstNodeId> {
+        self.reverse_pat_mapping.get(pat_id)
+    }
+
+    pub fn node_info(&self, id: AstNodeId) -> Option<NodeInfoTarget> {
+        self.store.get(id)
     }
 }
