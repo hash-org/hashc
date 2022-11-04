@@ -1,5 +1,6 @@
 use hash_ast::ast::{AstNodeRef, BlockExpr, Expr, UnsafeExpr};
 use hash_ir::ir::{BasicBlock, Place, RValue};
+use hash_reporting::macros::panic_on_span;
 use hash_utils::store::PartialStore;
 
 use super::{unpack, BlockAnd, BlockAndExtend, Builder};
@@ -37,12 +38,18 @@ impl<'tcx> Builder<'tcx> {
             }
 
             // Lower this as an Rvalue
-            Expr::Lit(..) => todo!(),
+            Expr::Lit(literal) => {
+                let constant = self.as_constant(literal.data.ast_ref());
+                let rvalue = self.storage.push_rvalue(RValue::Const(constant));
+                self.control_flow_graph.push_assign(block, destination, rvalue, span);
+
+                block.unit()
+            }
 
             // For declarations, we have to perform some bookkeeping in regards
             // to locals..., but this expression should never return any value
             // so we should just return a unit block here
-            Expr::Declaration(decl) => self.handle_expr_declaration(destination, block, expr),
+            Expr::Declaration(decl) => self.handle_expr_declaration(block, expr),
 
             // Traverse the lhs of the cast, and then apply the cast
             // to the result... although this should be a no-op?
@@ -86,14 +93,39 @@ impl<'tcx> Builder<'tcx> {
         block_and
     }
 
+    /// This function handles the lowering of an expression declaration.
+    /// Internally, we check if this declaration needs to be lowered since
+    /// this might be declaring a free function within the current function
+    /// body, and thus we should not lower it.
     ///
+    /// @@Todo: deal with non-trivial dead-ends, i.e. compound patterns that
+    /// have dead ends...
     pub(crate) fn handle_expr_declaration(
         &mut self,
-        place: Place,
         block: BasicBlock,
-        body: AstNodeRef<'tcx, Expr>,
+        declaration: AstNodeRef<'tcx, Expr>,
     ) -> BlockAnd<()> {
-        // We need to declare all of the bindings within this declaration
+        let Expr::Declaration(decl) = &declaration.body else {
+            panic!("expected declaration");
+        };
+
+        if self.dead_ends.contains(&decl.pat.id()) {
+            return block.unit();
+        }
+
+        // Declare all locals that need to be declared based on the
+        // pattern.
+        self.visit_bindings(decl.pat.ast_ref());
+
+        if let Some(rvalue) = &decl.value {
+            self.expr_into_pat(block, decl.pat.ast_ref(), rvalue.ast_ref());
+        } else {
+            panic_on_span!(
+                declaration.span().into_location(self.source_id),
+                self.source_map,
+                "expected initialisation value, declaration are expected to have values (for now)."
+            );
+        }
 
         // if the declaration has an initialiser, then we need to deal with
         // the initialisation block.

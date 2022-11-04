@@ -2,7 +2,7 @@
 //! contains the process for lowering a body block and a loop block. The `match`
 //! block lowering logic is complicated enough to warrant its own module which
 //! is located in `matches.rs`.
-use hash_ast::ast::{AstNodeRef, Block, BodyBlock};
+use hash_ast::ast::{AstNodeRef, Block, BodyBlock, Expr};
 use hash_ir::ir::{BasicBlock, Place};
 use hash_utils::store::PartialStore;
 
@@ -46,7 +46,17 @@ impl<'tcx> Builder<'tcx> {
         // Essentially walk all of the statement in the block, and then set
         // the return type of this block as the last expression, or an empty
         // unit if there is no expression.
-        for statement in body.statements.iter() {}
+        for statement in body.statements.iter() {
+            // We need to handle declarations here specifically, otherwise
+            // in order to not have to create a temporary for the declaration
+            // which doesn't make sense because we are just declaring a local(s)
+            if let Expr::Declaration(..) = statement.body() {
+                unpack!(block = self.handle_expr_declaration(block, statement.ast_ref()));
+            } else {
+                // unpack!(block = self.expr_into_dest(place, block, statement.ast_ref()))
+                todo!() // @@Todo: put the statement in a temporary
+            }
+        }
 
         // If this block has an expression, we need to deal with it since
         // it might change the destination of this block.

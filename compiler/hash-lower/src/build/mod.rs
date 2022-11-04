@@ -172,7 +172,8 @@ pub(crate) struct Builder<'tcx> {
     /// Then we don't want to add `foo` as a declaration to the body of `bar`
     /// because it is a free standing function that will be lowered by
     /// another builder. However, this does not occur when the function is
-    /// not free standing, for example: ```ignore
+    /// not free standing, for example:
+    /// ```ignore
     /// bar := (x: i32) => {
     ///     foo := () => { 1 + x };   
     /// }
