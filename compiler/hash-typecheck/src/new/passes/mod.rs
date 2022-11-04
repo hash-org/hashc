@@ -1,8 +1,4 @@
-use hash_ast::{
-    ast::OwnsAstNode,
-    node_map::SourceRef,
-    visitor::{AstVisitor, AstVisitorMutSelf},
-};
+use hash_ast::{ast::OwnsAstNode, node_map::SourceRef, visitor::AstVisitorMutSelf};
 
 use self::scope_discovery::ScopeDiscoveryPass;
 use super::data::env::{AccessToTcEnv, TcEnv};

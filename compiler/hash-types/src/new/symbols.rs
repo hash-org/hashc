@@ -1,7 +1,14 @@
 //! Definitions related to symbols and names.
 
+use std::fmt::Display;
+
 use hash_source::identifier::Identifier;
-use hash_utils::{new_store_key, store::DefaultStore};
+use hash_utils::{
+    new_store_key,
+    store::{DefaultStore, Store, StoreKey},
+};
+
+use super::stores::WithStores;
 
 /// The data carried by a symbol.
 ///
@@ -36,3 +43,12 @@ pub struct SymbolData {
 
 new_store_key!(pub Symbol);
 pub type SymbolStore = DefaultStore<Symbol, SymbolData>;
+
+impl Display for WithStores<'_, Symbol> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.stores().symbol().map_fast(self.value, |data| match data.name {
+            Some(name) => write!(f, "{name}"),
+            None => write!(f, "S_{}", data.symbol.to_index()),
+        })
+    }
+}

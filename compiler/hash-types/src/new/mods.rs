@@ -1,10 +1,16 @@
 //! Definitions related to modules.
 
+use std::fmt::Display;
+
 use hash_source::SourceId;
-use hash_utils::{new_sequence_store_key, new_store, new_store_key, store::DefaultSequenceStore};
+use hash_utils::{
+    new_sequence_store_key, new_store, new_store_key,
+    store::{DefaultSequenceStore, SequenceStore, Store},
+};
+use textwrap::indent;
 use utility_types::omit;
 
-use super::{data::DataTy, trts::TrtBound};
+use super::{data::DataTy, stores::WithStores, trts::TrtBound};
 use crate::new::{
     defs::{DefMember, DefParamsId},
     symbols::Symbol,
@@ -84,3 +90,36 @@ pub struct ModDef {
 
 new_store_key!(pub ModDefId);
 new_store!(pub ModDefStore<ModDefId, ModDef>);
+
+impl Display for WithStores<'_, ModDefId> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.stores().mod_def().map_fast(self.value, |def| write!(f, "{}", self.stores().with(def)))
+    }
+}
+
+impl Display for WithStores<'_, ModMembersId> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.stores().mod_members().map_fast(self.value, |members| {
+            for member in members.iter() {
+                writeln!(f, "{} = ...", self.stores().with(member.name))?;
+            }
+            Ok(())
+        })
+    }
+}
+
+impl Display for WithStores<'_, &ModDef> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let members = self.stores().with(self.value.members).to_string();
+        match self.value.kind {
+            ModKind::TrtImpl(_) => todo!(),
+            ModKind::AnonImpl(_) => todo!(),
+            ModKind::ModBlock => {
+                write!(f, "mod {{\n{}\n}}", indent(&members, "    "))
+            }
+            ModKind::Source(source_id) => {
+                write!(f, "source({source_id:?}) {{\n{}}}", indent(&members, "    "))
+            }
+        }
+    }
+}

@@ -70,3 +70,41 @@ stores! {
     trt_bounds: TrtBoundsStore,
     ty: TyStore,
 }
+
+/// A reference to [`Stores`] alongside a value.
+///
+/// Used to implement traits for values where the trait implementation requires
+/// access to the [`Stores`] (for example formatting).
+pub struct WithStores<'s, T> {
+    stores: &'s Stores,
+    pub value: T,
+}
+
+impl<'s, T: Clone> Clone for WithStores<'s, T> {
+    fn clone(&self) -> Self {
+        Self { stores: self.stores, value: self.value.clone() }
+    }
+}
+impl<'s, T: Copy> Copy for WithStores<'s, T> {}
+
+impl<'s, T> WithStores<'s, T> {
+    pub fn new(stores: &'s Stores, value: T) -> Self {
+        Self { stores, value }
+    }
+
+    pub fn stores(&self) -> &Stores {
+        self.stores
+    }
+
+    pub fn map<U>(self, f: impl FnOnce(T) -> U) -> WithStores<'s, U> {
+        WithStores { stores: self.stores, value: f(self.value) }
+    }
+}
+
+impl Stores {
+    /// Attach a value to a [`Stores`] reference, creating a [`WithStores`]
+    /// value.
+    pub fn with<T>(&self, value: T) -> WithStores<T> {
+        WithStores::new(self, value)
+    }
+}

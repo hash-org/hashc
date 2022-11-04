@@ -107,6 +107,9 @@ impl<'env> ast::AstVisitorMutSelf for ScopeDiscoveryPass<'env> {
         mod_ops
             .set_mod_def_members(mod_def_id, mod_ops.create_mod_members(members.iter().copied()));
 
+        // @@Debugging: Print the module:
+        println!("{}", self.stores().with(mod_def_id));
+
         Ok(())
     }
 }
