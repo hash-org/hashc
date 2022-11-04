@@ -1,31 +1,40 @@
 use hash_ast::ast::{AstNodeRef, BlockExpr, Expr, UnsafeExpr};
-use hash_ir::ir::{BasicBlock, Place};
+use hash_ir::ir::{BasicBlock, Place, RValue};
 use hash_utils::store::PartialStore;
 
-use super::{BlockAnd, BlockAndExtend, Builder};
+use super::{unpack, BlockAnd, BlockAndExtend, Builder};
 
 impl<'tcx> Builder<'tcx> {
     pub(crate) fn expr_into_dest(
         &mut self,
-        place: Place,
-        block: BasicBlock,
+        destination: Place,
+        mut block: BasicBlock,
         expr: AstNodeRef<'tcx, Expr>,
     ) -> BlockAnd<()> {
+        let span = expr.span();
+
         let block_and = match expr.body {
             // @@Todo: we need to determine if this is a method call, or
             // a constructor call, we should do this somewhere else
             Expr::ConstructorCall(..) => todo!(),
-            Expr::Directive(expr) => self.expr_into_dest(place, block, expr.subject.ast_ref()),
+            Expr::Directive(expr) => {
+                self.expr_into_dest(destination, block, expr.subject.ast_ref())
+            }
             Expr::Variable(variable) => {
                 let term = self.get_ty_of_node(expr.id());
-                println!("term: {term:?}");
+                let place = unpack!(block = self.as_place(block, expr));
+
+                let rvalue = self.storage.push_rvalue(RValue::Use(place));
+                self.control_flow_graph.push_assign(block, destination, rvalue, span);
 
                 block.unit()
             }
             Expr::Access(..) => todo!(),
             Expr::Ref(..) => todo!(),
             Expr::Deref(..) => todo!(),
-            Expr::Unsafe(UnsafeExpr { data }) => self.expr_into_dest(place, block, data.ast_ref()),
+            Expr::Unsafe(UnsafeExpr { data }) => {
+                self.expr_into_dest(destination, block, data.ast_ref())
+            }
 
             // Lower this as an Rvalue
             Expr::Lit(..) => todo!(),
@@ -33,14 +42,16 @@ impl<'tcx> Builder<'tcx> {
             // For declarations, we have to perform some bookkeeping in regards
             // to locals..., but this expression should never return any value
             // so we should just return a unit block here
-            Expr::Declaration(decl) => self.handle_expr_declaration(place, block, expr),
+            Expr::Declaration(decl) => self.handle_expr_declaration(destination, block, expr),
 
             // Traverse the lhs of the cast, and then apply the cast
             // to the result... although this should be a no-op?
             Expr::Cast(..) => todo!(),
 
             // This includes `loop { ... } `, `{ ... }`, `match { ... }`
-            Expr::Block(BlockExpr { data }) => self.block_into_dest(place, block, data.ast_ref()),
+            Expr::Block(BlockExpr { data }) => {
+                self.block_into_dest(destination, block, data.ast_ref())
+            }
 
             // We never do anything for these anyway...
             Expr::Import { .. }

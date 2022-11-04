@@ -4,6 +4,7 @@
 //! is located in `matches.rs`.
 use hash_ast::ast::{AstNodeRef, Block, BodyBlock};
 use hash_ir::ir::{BasicBlock, Place};
+use hash_utils::store::PartialStore;
 
 use super::{BlockAnd, BlockAndExtend, Builder};
 use crate::build::unpack;
@@ -15,23 +16,25 @@ impl<'tcx> Builder<'tcx> {
         block: BasicBlock,
         body: AstNodeRef<'tcx, Block>,
     ) -> BlockAnd<()> {
-        // Check which kind of block we are dealing with...
-        match body.body {
-            Block::Body(body) => self.body_block_into_dest(place, block, body),
+        self.with_scope(body, |this| {
+            // Check which kind of block we are dealing with...
+            match body.body {
+                Block::Body(body) => this.body_block_into_dest(place, block, body),
 
-            // Send this off into the `match` lowering logic
-            Block::Match(..) => todo!(),
+                // Send this off into the `match` lowering logic
+                Block::Match(..) => todo!(),
 
-            // Send this off into the `loop` lowering logic
-            Block::Loop(..) => todo!(),
+                // Send this off into the `loop` lowering logic
+                Block::Loop(..) => todo!(),
 
-            // These variants are removed during the de-sugaring stage
-            Block::For(..) | Block::While(..) | Block::If(..) => unreachable!(),
+                // These variants are removed during the de-sugaring stage
+                Block::For(..) | Block::While(..) | Block::If(..) => unreachable!(),
 
-            // Lowering implementation blocks is a no-op because this is dealt with
-            // at a lower level, so we just want to skip this.
-            Block::Impl(..) | Block::Mod(..) => block.unit(),
-        }
+                // Lowering implementation blocks is a no-op because this is dealt with
+                // at a lower level, so we just want to skip this.
+                Block::Impl(..) | Block::Mod(..) => block.unit(),
+            }
+        })
     }
 
     pub(crate) fn body_block_into_dest(

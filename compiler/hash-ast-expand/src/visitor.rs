@@ -50,12 +50,13 @@ impl<'s> AstVisitor for AstExpander<'s> {
         // there will be errors later on in the compilation stage.
         if node.name.is(IDENTS.dump_ast) {
             let tree = AstTreeGenerator.visit_expr(node.subject.ast_ref()).unwrap();
-            let name = self.source_map.canonicalised_path_by_id(self.source_id);
-
             let location = self.source_location(node.subject.span());
-            let span = self.source_map.get_column_row_span_for(location);
 
-            println!("AST for {name}:{span}\n{}", TreeWriter::new(&tree));
+            println!(
+                "AST dump for {}\n{}",
+                self.source_map.fmt_location(location),
+                TreeWriter::new(&tree)
+            );
         }
 
         Ok(())

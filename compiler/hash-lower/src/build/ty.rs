@@ -33,10 +33,22 @@ pub(super) fn get_fn_ty_from_term(term: TermId, tcx: &GlobalStorage) -> FnTy {
 }
 
 /// Get the [IrTy] from a given [TermId].
-fn lower_term(term: TermId, tcx: &GlobalStorage, ir_ctx: &IrStorage) -> IrTy {
+pub(super) fn lower_term(term: TermId, tcx: &GlobalStorage, ir_ctx: &IrStorage) -> IrTy {
     let term = tcx.term_store.get(term);
 
     match term {
+        // @@Temporary: we need to deal with `Level0` fn terms...
+        Term::Level0(lvl_0_term) => match lvl_0_term {
+            Level0Term::FnLit(FnLit { fn_ty, .. }) => lower_term(fn_ty, tcx, ir_ctx),
+            Level0Term::Rt(term) => lower_term(term, tcx, ir_ctx),
+            Level0Term::Tuple(_)
+            | Level0Term::Unit(_)
+            | Level0Term::Lit(_)
+            | Level0Term::FnCall(_)
+            | Level0Term::EnumVariant(_)
+            | Level0Term::Constructed(_) => panic!("unexpected level 0 term: {lvl_0_term:?}"),
+        },
+
         Term::Level1(lvl_1_term) => match lvl_1_term {
             Level1Term::NominalDef(def_id) => {
                 let def = tcx.nominal_def_store.get(def_id);
@@ -192,7 +204,7 @@ fn lower_term(term: TermId, tcx: &GlobalStorage, ir_ctx: &IrStorage) -> IrTy {
         | Term::Level0(_)
         | Term::TyOf(_)
         | Term::Unresolved(_)
-        | Term::Root => unreachable!(),
+        | Term::Root => panic!("unexpected term: {term:?}"),
     }
 }
 

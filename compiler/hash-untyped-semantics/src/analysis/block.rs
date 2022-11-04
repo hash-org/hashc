@@ -4,7 +4,7 @@
 use std::{cell::Cell, collections::HashSet, mem};
 
 use hash_ast::{
-    ast::{AstNodeRef, BodyBlock, DirectiveExpr, Expr},
+    ast::{AstNodeRef, Block, BlockExpr, BodyBlock, DirectiveExpr, Expr},
     origin::BlockOrigin,
     visitor::AstVisitorMutSelf,
 };
@@ -36,24 +36,50 @@ impl SemanticAnalyser<'_> {
         for (index, statement) in members.enumerate() {
             let current = Cell::new(statement);
 
+            let mut emit_err = |this: &mut Self| {
+                this.append_error(
+                    AnalysisErrorKind::NonDeclarativeExpression { origin },
+                    statement,
+                );
+                error_indices.insert(index);
+            };
+
             // Since directives are allowed at the level because they apply onto
             // the child declaration, we actually need to check the child of the
             // directive, not the directive itself.
             loop {
                 let current_value = current.get();
-                if let Expr::Directive(DirectiveExpr { subject, .. }) = current_value.body {
-                    current.set(subject.ast_ref());
-                    continue;
-                } else if !allowed_top_level_expr(current_value) {
-                    self.append_error(
-                        AnalysisErrorKind::NonDeclarativeExpression { origin },
-                        statement,
-                    );
+                match current_value.body {
+                    Expr::Directive(DirectiveExpr { subject, .. }) => {
+                        current.set(subject.ast_ref());
+                    }
+                    Expr::Block(BlockExpr { data }) => {
+                        match data.ast_ref().body {
+                            Block::Body(body) => {
+                                // Don't append any of the indices of the body block, but make
+                                // sure that all members of the body block adhere to the same
+                                // rules...
+                                let indices =
+                                    self.check_members_are_declarative(body.members(), origin);
 
-                    error_indices.insert(index);
-                    break;
-                } else {
-                    break;
+                                // If there were problems within the inner body block, then we
+                                // report that the entire block is
+                                // invalid.
+                                if !indices.is_empty() {
+                                    emit_err(self)
+                                }
+                            }
+                            _ => emit_err(self),
+                        }
+
+                        break;
+                    }
+                    _ => {
+                        if !allowed_top_level_expr(current_value) {
+                            emit_err(self);
+                        }
+                        break;
+                    }
                 }
             }
         }

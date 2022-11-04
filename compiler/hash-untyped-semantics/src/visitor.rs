@@ -117,29 +117,41 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
                 }
             }
         } else if name.is(IDENTS.dump_ir) {
-            // For the `#dump_ir` directive, we are expecting that it takes either a
-            // function definition and be within a constant scope
+            let is_in_constant_block = self.is_in_constant_block();
 
-            if let Expr::Declaration(_) = node.subject.body() {
-                if !self.is_in_constant_block() {
-                    self.append_error(
+            let maybe_emit_invalid_scope_err = |this: &mut Self| {
+                if !is_in_constant_block {
+                    this.append_error(
                         AnalysisErrorKind::InvalidDirectiveScope {
                             name: name.ident,
                             expected: BlockOrigin::Const,
-                            received: self.current_block,
+                            received: this.current_block,
                         },
                         node.subject.ast_ref(),
                     );
                 }
-            } else {
-                self.append_error(
+            };
+
+            // For the `#dump_ir` directive, we are expecting that it takes either a
+            // function definition and be within a constant scope
+            match node.subject.body() {
+                Expr::Declaration(_) => {
+                    maybe_emit_invalid_scope_err(self);
+                }
+                Expr::Block(BlockExpr { data: block })
+                    if matches!(block.body(), Block::Body(..)) =>
+                {
+                    maybe_emit_invalid_scope_err(self);
+                }
+                _ => self.append_error(
                     AnalysisErrorKind::InvalidDirectiveArgument {
                         name: name.ident,
+                        // @@Improvement, specify multiple allowed argument kinds
                         expected: DirectiveArgument::Declaration,
                         received: node.subject.body().into(),
                     },
                     node.subject.ast_ref(),
-                );
+                ),
             }
         } else if !name.is(IDENTS.dump_ast) {
             // @@Future: use some kind of scope validation in order to verify that

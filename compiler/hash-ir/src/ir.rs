@@ -1,16 +1,18 @@
 //! Hash Compiler Intermediate Representation (IR) crate. This module is still
 //! under construction and is subject to change.
+use std::fmt;
+
 use hash_source::{
     constant::{InternedFloat, InternedInt, InternedStr},
     identifier::Identifier,
-    location::Span,
+    location::{SourceLocation, Span},
     SourceId,
 };
-use hash_types::{scope::Mutability, terms::TermId};
+use hash_types::terms::TermId;
 use hash_utils::{new_store_key, store::DefaultStore};
 use index_vec::IndexVec;
 
-use crate::ty::IrTyId;
+use crate::ty::{IrTyId, Mutability};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Const {
@@ -101,30 +103,45 @@ pub enum BinOp {
 #[derive(Debug, PartialEq, Eq)]
 pub struct LocalDecl {
     /// Mutability of the local.
-    mutability: Mutability,
+    pub mutability: Mutability,
     /// The type of the local.
-    ty: IrTyId,
+    pub ty: IrTyId,
+
+    /// An optional name for the local, this is used for building the
+    /// IR and for printing the IR (in order to label which local associates
+    /// with which variable and scope).
+    pub name: Option<Identifier>,
 }
 
 impl LocalDecl {
     /// Create a new [LocalDecl].
-    pub fn new(mutability: Mutability, ty: IrTyId) -> Self {
-        Self { mutability, ty }
+    pub fn new(name: Identifier, mutability: Mutability, ty: IrTyId) -> Self {
+        Self { mutability, ty, name: Some(name) }
     }
 
     /// Create a new mutable [LocalDecl].
-    pub fn new_mutable(ty: IrTyId) -> Self {
-        Self::new(Mutability::Mutable, ty)
+    pub fn new_mutable(name: Identifier, ty: IrTyId) -> Self {
+        Self::new(name, Mutability::Mutable, ty)
     }
 
     /// Create a new immutable [LocalDecl].
-    pub fn new_immutable(ty: IrTyId) -> Self {
-        Self::new(Mutability::Immutable, ty)
+    pub fn new_immutable(name: Identifier, ty: IrTyId) -> Self {
+        Self::new(name, Mutability::Immutable, ty)
     }
 
-    /// Returns the type of the local.
+    /// Returns the [IrTyId] of the local.
     pub fn ty(&self) -> IrTyId {
         self.ty
+    }
+
+    /// Returns the [Mutability] of the local.
+    pub fn mutability(&self) -> Mutability {
+        self.mutability
+    }
+
+    /// Returns the name of the local.
+    pub fn name(&self) -> Option<Identifier> {
+        self.name
     }
 }
 
@@ -360,11 +377,24 @@ index_vec::define_index_type! {
 pub const RETURN_PLACE: Local = Local { _raw: 0 };
 
 /// The origin of a lowered function body.
-pub enum FnSource {
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum BodySource {
+    /// Constant block
+    Const,
     /// The item is a normal function.
     Item,
     /// The item is an intrinsic function.
     Intrinsic,
+}
+
+impl fmt::Display for BodySource {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BodySource::Const => write!(f, "constant block"),
+            BodySource::Item => write!(f, "function"),
+            BodySource::Intrinsic => write!(f, "intrinsic function"),
+        }
+    }
 }
 
 pub struct Body {
@@ -391,11 +421,11 @@ pub struct Body {
     pub arg_count: usize,
 
     /// The source of the function, is it a normal function, or an intrinsic
-    _source: FnSource,
+    source: BodySource,
     /// The location of the function
-    _span: Span,
+    span: Span,
     /// The id of the source of where this body originates from.
-    _source_id: SourceId,
+    source_id: SourceId,
     /// Whether the IR Body that is generated should be printed
     /// when the generation process is finalised.
     dump: bool,
@@ -409,26 +439,32 @@ impl Body {
         declarations: IndexVec<Local, LocalDecl>,
         name: Identifier,
         arg_count: usize,
-        source: FnSource,
+        source: BodySource,
         span: Span,
         source_id: SourceId,
         dump: bool,
     ) -> Self {
-        Self {
-            blocks,
-            name,
-            declarations,
-            arg_count,
-            _source: source,
-            _span: span,
-            _source_id: source_id,
-            dump,
-        }
+        Self { blocks, name, declarations, arg_count, source, span, source_id, dump }
     }
 
     /// Check if the [Body] needs to be dumped.
     pub fn needs_dumping(&self) -> bool {
         self.dump
+    }
+
+    /// Get the [SourceLocation] for the [Body]
+    pub fn location(&self) -> SourceLocation {
+        SourceLocation { id: self.source_id, span: self.span }
+    }
+
+    /// Get the [BodySource] for the [Body]
+    pub fn source(&self) -> BodySource {
+        self.source
+    }
+
+    /// Get the name of the [Body]
+    pub fn name(&self) -> Identifier {
+        self.name
     }
 }
 
