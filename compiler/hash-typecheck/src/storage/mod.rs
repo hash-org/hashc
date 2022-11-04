@@ -33,7 +33,7 @@ use self::{
     exhaustiveness::{DeconstructedCtorStore, DeconstructedPatStore, ExhaustivenessStorage},
     sources::CheckedSources,
 };
-use crate::diagnostics::DiagnosticsStore;
+use crate::{diagnostics::DiagnosticsStore, new::env::TcEnv};
 
 /// A reference to the storage, which includes both local and global storage, as
 /// well as core definitions.
@@ -56,6 +56,9 @@ pub struct StorageRef<'tc> {
     /// The typechecking cache, contains cached simplification, validation
     /// and unification results.
     pub cache: &'tc Cache,
+
+    /// The new TC environment
+    pub _new: TcEnv<'tc>,
 }
 
 /// Trait that provides convenient accessor methods to various parts of the

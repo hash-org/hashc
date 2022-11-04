@@ -127,6 +127,15 @@ pub trait Store<Key: StoreKey, Value> {
     /// the store.
     fn internal_data(&self) -> &RefCell<Vec<Value>>;
 
+    /// Create a value inside the store, given its key, returning its key.
+    fn create_with(&self, value_fn: impl FnOnce(Key) -> Value) -> Key {
+        let mut data = self.internal_data().borrow_mut();
+        let next_index = data.len();
+        let key = Key::from_index_unchecked(next_index);
+        data.push(value_fn(key));
+        key
+    }
+
     /// Create a value inside the store, returning its key.
     fn create(&self, value: Value) -> Key {
         let mut data = self.internal_data().borrow_mut();

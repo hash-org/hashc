@@ -18,8 +18,10 @@ use hash_reporting::diagnostic::Diagnostics;
 use hash_source::SourceId;
 use hash_types::{
     fmt::PrepareForFormatting,
+    new::stores::Stores,
     storage::{LocalStorage, TyStorage},
 };
+use new::{ctx::Context, env::TcEnv, source_info::CurrentSourceInfo};
 use ops::AccessToOps;
 use storage::{
     cache::Cache, exhaustiveness::ExhaustivenessStorage, sources::CheckedSources, AccessToStorage,
@@ -49,6 +51,10 @@ pub struct Typechecker {
     /// Typechecking cache, contains useful mappings for a variety of
     /// operations.
     pub cache: Cache,
+
+    /// The new typechecking environment
+    pub _new_stores: Stores,
+    pub _new_ctx: Context,
 }
 
 impl Typechecker {
@@ -58,6 +64,8 @@ impl Typechecker {
             exhaustiveness_storage: ExhaustivenessStorage::default(),
             diagnostics_store: DiagnosticsStore::default(),
             cache: Cache::new(),
+            _new_stores: Stores::new(),
+            _new_ctx: Context::new(),
         }
     }
 }
@@ -67,6 +75,8 @@ impl Default for Typechecker {
         Self::new()
     }
 }
+
+const USE_NEW_TC: bool = true;
 
 pub trait TypecheckingCtx: CompilerInterface {
     fn data(&mut self) -> (&Workspace, &mut TyStorage);
@@ -95,6 +105,8 @@ impl<Ctx: TypecheckingCtx> CompilerStage<Ctx> for Typechecker {
 
         let TyStorage { local, global } = &ty_storage;
 
+        let current_source_info = CurrentSourceInfo { source_id: entry_point };
+
         // Instantiate a visitor with the source and visit the source, using the
         // previous local storage.
         let storage = StorageRef {
@@ -105,28 +117,40 @@ impl<Ctx: TypecheckingCtx> CompilerStage<Ctx> for Typechecker {
             source_map: &workspace.source_map,
             diagnostics_store: &self.diagnostics_store,
             cache: &self.cache,
+            _new: TcEnv::new(
+                &self._new_stores,
+                &self._new_ctx,
+                &workspace.node_map,
+                &workspace.source_map,
+                &self.diagnostics_store,
+                &current_source_info,
+            ),
         };
-        let tc_visitor = TcVisitor::new_in_source(storage.storages(), &workspace.node_map);
 
-        match tc_visitor.visit_source() {
-            Err(err) => {
-                tc_visitor.diagnostics().add_error(err);
+        if USE_NEW_TC {
+            let tc_visitor = new::passes::TcVisitor::new(&storage._new);
+            tc_visitor.visit_source();
+        } else {
+            let tc_visitor = TcVisitor::new_in_source(storage.storages(), &workspace.node_map);
+            match tc_visitor.visit_source() {
+                Err(err) => {
+                    tc_visitor.diagnostics().add_error(err);
+                }
+                Ok(source_term)
+                    if !tc_visitor.diagnostics().has_errors() && entry_point.is_interactive() =>
+                {
+                    // @@Cmdline: make this a configurable behaviour through a cmd-arg.
+                    // Print the result if no errors
+                    println!("{}", source_term.for_formatting(storage.global_storage()));
+                }
+                Ok(_) => {}
             }
-            Ok(source_term)
-                if !tc_visitor.diagnostics().has_errors() && entry_point.is_interactive() =>
-            {
-                // @@Cmdline: make this a configurable behaviour through a cmd-arg.
-                // Print the result if no errors
-                println!("{}", source_term.for_formatting(storage.global_storage()));
+            // If there are diagnostics that were generated or the result itself returned
+            // an error, then we should return those errors, otherwise print the inferred
+            // term.
+            if tc_visitor.diagnostics().has_diagnostics() {
+                return Err(tc_visitor.diagnostics().into_reports());
             }
-            Ok(_) => {}
-        }
-
-        // If there are diagnostics that were generated or the result itself returned
-        // an error, then we should return those errors, otherwise print the inferred
-        // term.
-        if tc_visitor.diagnostics().has_diagnostics() {
-            return Err(tc_visitor.diagnostics().into_reports());
         }
 
         Ok(())
