@@ -4,6 +4,7 @@ use hash_utils::{
     new_sequence_store_key, new_store_key,
     store::{DefaultSequenceStore, DefaultStore},
 };
+use utility_types::omit;
 
 use super::defs::DefPatArgsId;
 use crate::new::{
@@ -19,7 +20,8 @@ use crate::new::{
 ///
 /// Each constructor must result in the original data-type, with some given
 /// arguments.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Copy, Clone)]
+#[omit(CtorDefData, [id], [Debug, Clone, Copy])]
 pub struct CtorDef {
     /// The ID of the constructor.
     pub id: CtorDefId,
@@ -77,6 +79,7 @@ pub struct CtorPat {
 /// This is a "nominal" inductively defined data type, which is how user-defined
 /// data types in Hash are done. It consists of a set of constructors, each of
 /// which provide a different way to construct the data type.
+#[omit(DataDefData, [id], [Debug, Clone, Copy])]
 #[derive(Debug, Clone, Copy)]
 pub struct DataDef {
     /// The ID of the data-type definition.

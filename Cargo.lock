@@ -633,6 +633,7 @@ name = "hash-typecheck"
 version = "0.1.0"
 dependencies = [
  "dashmap",
+ "derive_more",
  "hash-alloc",
  "hash-ast",
  "hash-error-codes",
@@ -659,8 +660,10 @@ dependencies = [
  "hash-ast",
  "hash-source",
  "hash-utils",
+ "indexmap",
  "log",
  "num-bigint",
+ "utility-types",
 ]
 
 [[package]]
@@ -1436,6 +1439,17 @@ name = "utf8parse"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "936e4b492acfd135421d8dca4b1aa80a7bfc26e702ef3af710e0752684df5372"
+
+[[package]]
+name = "utility-types"
+version = "0.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f20b5dda50e68466846162da7279c0ac571f60ef8c6575d8a56740b6f1a2bae7"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "valuable"

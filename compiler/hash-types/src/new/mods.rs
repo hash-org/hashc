@@ -2,6 +2,7 @@
 
 use hash_source::SourceId;
 use hash_utils::{new_sequence_store_key, new_store, new_store_key, store::DefaultSequenceStore};
+use utility_types::omit;
 
 use super::{data::DataTy, trts::TrtBound};
 use crate::new::{
@@ -52,13 +53,14 @@ pub enum ModKind {
 }
 
 new_sequence_store_key!(pub ModMembersId);
-pub type ModMembersStore = DefaultSequenceStore<ModMembersId, DefMember<ModDefId>>;
+pub type ModMembersStore = DefaultSequenceStore<ModMembersId, DefMember<ModMembersId>>;
 pub type ModMemberId = (ModMembersId, usize);
 
 /// A module definition.
 ///
 /// This contains a name, parameters, a kind, and a set of members.
 #[derive(Debug, Clone, Copy)]
+#[omit(ModDefData, [id], [Debug, Clone, Copy])]
 pub struct ModDef {
     /// The ID of the module definition.
     pub id: ModDefId,

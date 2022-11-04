@@ -2,6 +2,7 @@
 //! etc.
 
 use hash_utils::{new_sequence_store_key, store::DefaultSequenceStore};
+use utility_types::omit;
 
 use super::{params::ParamTarget, pats::PatId};
 use crate::new::terms::TermId;
@@ -10,7 +11,8 @@ use crate::new::terms::TermId;
 ///
 /// This might be used for arguments in constructor calls `C(...)`, function
 /// calls `f(...)` or `f<...>`, or type arguments.
-#[derive(Debug, Clone, Hash, Copy)]
+#[omit(ArgData, [id], [Debug, Clone, Copy])]
+#[derive(Debug, Clone, Copy)]
 pub struct Arg {
     /// The ID of the argument in the argument list.
     pub id: ArgId,
@@ -27,7 +29,8 @@ pub type ArgsStore = DefaultSequenceStore<ArgsId, Arg>;
 /// A pattern argument to a parameter
 ///
 /// This might be used for constructor patterns like `C(true, x)`.
-#[derive(Clone, Debug, Copy)]
+#[omit(PatArgData, [id], [Debug, Clone, Copy])]
+#[derive(Debug, Clone, Copy)]
 pub struct PatArg {
     /// The ID of the argument in the argument pattern list.
     pub id: PatArgId,

@@ -1,8 +1,8 @@
 use hash_ast::node_map::NodeMap;
 use hash_source::SourceMap;
-use hash_types::new::stores::Stores;
+use hash_types::new::{ctx::Context, stores::Stores};
 
-use super::{ctx::Context, source_info::CurrentSourceInfo};
+use super::source_info::CurrentSourceInfo;
 use crate::diagnostics::DiagnosticsStore;
 
 macro_rules! tc_env {

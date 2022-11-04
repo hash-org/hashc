@@ -1,5 +1,6 @@
 //! Definitions related to parameters to data types, functions, etc.
 use hash_utils::{new_sequence_store_key, store::DefaultSequenceStore};
+use utility_types::omit;
 
 use crate::new::{symbols::Symbol, terms::TermId, tys::TyId};
 
@@ -7,7 +8,8 @@ use crate::new::{symbols::Symbol, terms::TermId, tys::TyId};
 
 /// A parameter, declaring a potentially named variable with a given type and
 /// possibly a default value.
-#[derive(Debug, Clone, Hash, Copy)]
+#[omit(ParamData, [id], [Debug, Clone, Copy])]
+#[derive(Debug, Clone, Copy)]
 pub struct Param {
     /// The ID of the parameter in the parameter list.
     pub id: ParamId,

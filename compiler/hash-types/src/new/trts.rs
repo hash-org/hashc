@@ -4,6 +4,7 @@ use hash_utils::{
     new_sequence_store_key, new_store_key,
     store::{DefaultSequenceStore, DefaultStore},
 };
+use utility_types::omit;
 
 use crate::new::{
     defs::{DefArgsId, DefMember, DefParamsId},
@@ -11,7 +12,7 @@ use crate::new::{
 };
 
 new_sequence_store_key!(pub TrtMembersId);
-pub type TrtMembersStore = DefaultSequenceStore<TrtMembersId, DefMember<TrtDefId>>;
+pub type TrtMembersStore = DefaultSequenceStore<TrtMembersId, DefMember<TrtMembersId>>;
 pub type TrtMemberId = (TrtMembersId, usize);
 
 // @@Todo: examples
@@ -21,6 +22,7 @@ pub type TrtMemberId = (TrtMembersId, usize);
 /// Includes a name, a set of parameters for the trait, as well as a set of
 /// members, as well as the name of "Self".
 #[derive(Debug, Clone, Copy)]
+#[omit(TrtDefData, [id], [Debug, Clone, Copy])]
 pub struct TrtDef {
     pub id: TrtDefId,
     pub name: Symbol,

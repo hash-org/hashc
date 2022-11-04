@@ -18,10 +18,10 @@ use hash_reporting::diagnostic::Diagnostics;
 use hash_source::SourceId;
 use hash_types::{
     fmt::PrepareForFormatting,
-    new::stores::Stores,
+    new::{ctx::Context, stores::Stores},
     storage::{LocalStorage, TyStorage},
 };
-use new::data::{ctx::Context, env::TcEnv, source_info::CurrentSourceInfo};
+use new::data::{env::TcEnv, source_info::CurrentSourceInfo};
 use ops::AccessToOps;
 use storage::{
     cache::Cache, exhaustiveness::ExhaustivenessStorage, sources::CheckedSources, AccessToStorage,

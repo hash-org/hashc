@@ -1,10 +1,14 @@
-use hash_ast::{ast::OwnsAstNode, node_map::SourceRef, visitor::AstVisitor};
+use hash_ast::{
+    ast::OwnsAstNode,
+    node_map::SourceRef,
+    visitor::{AstVisitor, AstVisitorMutSelf},
+};
 
-use self::symbol_resolving::SymbolResolvingPass;
+use self::scope_discovery::ScopeDiscoveryPass;
 use super::data::env::{AccessToTcEnv, TcEnv};
 use crate::impl_access_to_tc_env;
 
-pub mod symbol_resolving;
+pub mod scope_discovery;
 
 pub struct TcVisitor<'tc> {
     env: &'tc TcEnv<'tc>,
@@ -22,14 +26,14 @@ impl<'tc> TcVisitor<'tc> {
     pub fn visit_source(&self) {
         let source = self.node_map().get_source(self.current_source_info().source_id);
 
-        let symbol_resolving_pass = SymbolResolvingPass::new(self.env);
+        let mut scope_discovery = ScopeDiscoveryPass::new(self.env);
 
         let result = match source {
             SourceRef::Interactive(interactive_source) => {
-                symbol_resolving_pass.visit_body_block(interactive_source.node_ref())
+                scope_discovery.visit_body_block(interactive_source.node_ref())
             }
             SourceRef::Module(module_source) => {
-                symbol_resolving_pass.visit_module(module_source.node_ref())
+                scope_discovery.visit_module(module_source.node_ref())
             }
         };
 

@@ -319,6 +319,30 @@ pub trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
         Key::from_index_and_len_unchecked(starting_index, values.len())
     }
 
+    /// Same as [`SequenceStore::create_from_iter()`], but each value takes its
+    /// key and index.
+    ///
+    /// The given iterator must support [`ExactSizeIterator`].
+    fn create_from_iter_with<F: FnOnce((Key, usize)) -> Value, I: IntoIterator<Item = F>>(
+        &self,
+        values: I,
+    ) -> Key
+    where
+        I::IntoIter: ExactSizeIterator,
+    {
+        let starting_index = self.internal_data().borrow().len();
+
+        let (key, values_computed) = {
+            let values = values.into_iter();
+            let key = Key::from_index_and_len_unchecked(starting_index, values.len());
+            (key, values.enumerate().map(|(i, f)| f((key, i))).collect::<Vec<_>>())
+        };
+
+        let mut data = self.internal_data().borrow_mut();
+        data.extend(values_computed.into_iter());
+        key
+    }
+
     /// Create a sequence of values inside the store from an iterator-like
     /// object, returning its key.
     ///

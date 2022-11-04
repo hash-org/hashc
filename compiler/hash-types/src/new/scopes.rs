@@ -4,6 +4,7 @@
 //! and assignments of variables.
 
 use hash_utils::{new_sequence_store_key, store::DefaultSequenceStore};
+use utility_types::omit;
 
 use crate::new::{
     pats::PatId,
@@ -45,6 +46,7 @@ pub struct AssignTerm {
 }
 
 /// A variable on the stack.
+#[omit(StackMemberData, [id], [Debug, Copy, Clone])]
 #[derive(Debug, Copy, Clone)]
 pub struct StackMember {
     pub id: StackMemberId,

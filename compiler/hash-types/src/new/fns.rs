@@ -1,6 +1,7 @@
 //! Definitions related to functions.
 
 use hash_utils::{new_store_key, store::DefaultStore};
+use utility_types::omit;
 
 use crate::new::{args::ArgsId, params::ParamsId, symbols::Symbol, terms::TermId, tys::TyId};
 
@@ -52,6 +53,7 @@ pub struct FnTy {
 /// definitions follow the syntax of function types, but followed by `=>
 /// r(a_1,...,a_n,p_1,...,p_n)`.
 #[derive(Debug, Clone, Copy)]
+#[omit(FnDefData, [id], [Debug, Clone, Copy])]
 pub struct FnDef {
     /// The ID of the function definition.
     pub id: FnDefId,
