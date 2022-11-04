@@ -61,7 +61,7 @@ tc_env! {
 #[macro_export]
 macro_rules! impl_access_to_tc_env {
     ($x:ident<$lt:lifetime>) => {
-        impl<$lt> $crate::new::env::AccessToTcEnv for $x<$lt> {
+        impl<$lt> $crate::new::data::env::AccessToTcEnv for $x<$lt> {
             fn env(&self) -> &TcEnv {
                 &self.env
             }

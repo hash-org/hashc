@@ -1,7 +1,7 @@
 use hash_ast::{ast::OwnsAstNode, node_map::SourceRef, visitor::AstVisitor};
 
 use self::symbol_resolving::SymbolResolvingPass;
-use super::env::{AccessToTcEnv, TcEnv};
+use super::data::env::{AccessToTcEnv, TcEnv};
 use crate::impl_access_to_tc_env;
 
 pub mod symbol_resolving;

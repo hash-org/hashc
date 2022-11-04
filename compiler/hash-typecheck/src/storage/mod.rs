@@ -33,7 +33,7 @@ use self::{
     exhaustiveness::{DeconstructedCtorStore, DeconstructedPatStore, ExhaustivenessStorage},
     sources::CheckedSources,
 };
-use crate::{diagnostics::DiagnosticsStore, new::env::TcEnv};
+use crate::{diagnostics::DiagnosticsStore, new::data::env::TcEnv};
 
 /// A reference to the storage, which includes both local and global storage, as
 /// well as core definitions.

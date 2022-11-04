@@ -21,7 +21,7 @@ use hash_types::{
     new::stores::Stores,
     storage::{LocalStorage, TyStorage},
 };
-use new::{ctx::Context, env::TcEnv, source_info::CurrentSourceInfo};
+use new::data::{ctx::Context, env::TcEnv, source_info::CurrentSourceInfo};
 use ops::AccessToOps;
 use storage::{
     cache::Cache, exhaustiveness::ExhaustivenessStorage, sources::CheckedSources, AccessToStorage,
@@ -76,8 +76,6 @@ impl Default for Typechecker {
     }
 }
 
-const USE_NEW_TC: bool = true;
-
 pub trait TypecheckingCtx: CompilerInterface {
     fn data(&mut self) -> (&Workspace, &mut TyStorage);
 }
@@ -127,7 +125,11 @@ impl<Ctx: TypecheckingCtx> CompilerStage<Ctx> for Typechecker {
             ),
         };
 
-        if USE_NEW_TC {
+        // @@Hack: for now we use the `USE_NEW_TC` env variable to switch between the
+        // old and new typechecker. This will be removed once the new
+        // typechecker is complete.
+
+        if std::env::var_os("USE_NEW_TC").is_some() {
             let tc_visitor = new::passes::TcVisitor::new(&storage._new);
             tc_visitor.visit_source();
         } else {

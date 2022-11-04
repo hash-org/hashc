@@ -1,6 +1,6 @@
 use hash_ast::{ast, ast_visitor_default_impl};
 
-use crate::{diagnostics::error::TcError, impl_access_to_tc_env, new::env::TcEnv};
+use crate::{diagnostics::error::TcError, impl_access_to_tc_env, new::data::env::TcEnv};
 
 pub struct SymbolResolvingPass<'env> {
     env: &'env TcEnv<'env>,
