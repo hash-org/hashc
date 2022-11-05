@@ -1,10 +1,10 @@
 use hash_ast::ast::{self, AstNodeRef};
 use hash_ir::{
-    ir::{BasicBlock, Local, LocalDecl, Place},
+    ir::{BasicBlock, LocalDecl, Place},
     ty::{IrTyId, Mutability},
 };
 use hash_source::identifier::Identifier;
-use hash_types::{pats::BindingPat, terms::TermId};
+use hash_types::pats::BindingPat;
 
 use super::{BlockAnd, Builder};
 use crate::build::{unpack, BlockAndExtend};
@@ -16,7 +16,7 @@ impl<'tcx> Builder<'tcx> {
         let node_id = pat.id();
 
         match pat.body {
-            ast::Pat::Binding(ast::BindingPat { name, visibility, mutability }) => {
+            ast::Pat::Binding(ast::BindingPat { name: _, visibility: _, mutability: _ }) => {
                 // resolve the type of this binding
                 let pat = self.get_pat_id_of_node(node_id);
                 let BindingPat { mutability, name, .. } = pat.into_bind().unwrap();

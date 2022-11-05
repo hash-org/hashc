@@ -1,11 +1,19 @@
-use hash_ast::ast::{AstNodeRef, BlockExpr, Declaration, Expr, UnsafeExpr};
-use hash_ir::ir::{BasicBlock, Place, RValue};
-use hash_reporting::macros::panic_on_span;
-use hash_utils::store::PartialStore;
+//! Implementation for lowering [Expr]s into Hash IR. This module contains the
+//! core logic of converting expressions into IR, other auxiliary conversion
+//! `strategies` can be found in [crate::build::rvalue] and
+//! [crate::build::temp].
 
-use super::{unpack, BlockAnd, BlockAndExtend, Builder};
+use hash_ast::ast::{
+    AssignExpr, AssignOpExpr, AstNodeRef, BlockExpr, Declaration, Expr, ReturnStatement, UnsafeExpr,
+};
+use hash_ir::ir::{self, BasicBlock, Place, RValue};
+use hash_reporting::macros::panic_on_span;
+
+use super::{unpack, BlockAnd, BlockAndExtend, Builder, LoopBlockInfo};
 
 impl<'tcx> Builder<'tcx> {
+    /// Compile the given [Expr] and place the value of the [Expr] into
+    /// the specified destination [Place].
     pub(crate) fn expr_into_dest(
         &mut self,
         destination: Place,
@@ -21,8 +29,8 @@ impl<'tcx> Builder<'tcx> {
             Expr::Directive(expr) => {
                 self.expr_into_dest(destination, block, expr.subject.ast_ref())
             }
-            Expr::Variable(variable) => {
-                let term = self.get_ty_of_node(expr.id());
+            Expr::Variable(_variable) => {
+                let _term = self.get_ty_of_node(expr.id());
                 let place = unpack!(block = self.as_place(block, expr));
 
                 let rvalue = self.storage.push_rvalue(RValue::Use(place));
@@ -40,7 +48,7 @@ impl<'tcx> Builder<'tcx> {
             // Lower this as an Rvalue
             Expr::Lit(literal) => {
                 let constant = self.as_constant(literal.data.ast_ref());
-                let rvalue = self.storage.push_rvalue(RValue::Const(constant));
+                let rvalue = self.storage.push_rvalue(constant.into());
                 self.control_flow_graph.push_assign(block, destination, rvalue, span);
 
                 block.unit()
@@ -75,15 +83,75 @@ impl<'tcx> Builder<'tcx> {
             Expr::FnDef(..) => todo!(),
 
             Expr::Assign { .. } | Expr::AssignOp { .. } => {
-                todo!()
+                // Deal with the actual assignment
+                block = unpack!(self.handle_statement_expr(block, expr));
+
+                // Assign the `value` of the assignment into the `tmp_place`
+                let empty_value = self.storage.push_rvalue(RValue::Const(ir::Const::Zero));
+                self.control_flow_graph.push_assign(block, destination, empty_value, span);
+                block.unit()
             }
 
             // @@Todo: For a return expression, we need to terminate this block, and
             // then return the value from the function.
-            Expr::Return(..) => todo!(),
+            Expr::Return(ReturnStatement { expr }) => {
+                // In either case, we want to mark that the function has reached the
+                // **terminating** statement of this block and we needn't continue looking
+                // for more statements beyond this point.
+                self.reached_terminator = true;
+
+                // we want to set the return `place` with whatever the expression
+                // is...
+                if let Some(return_expr) = &expr {
+                    unpack!(
+                        block = self.expr_into_dest(
+                            Place::return_place(),
+                            block,
+                            return_expr.ast_ref()
+                        )
+                    )
+                } else {
+                    // If no expression is attached to the return, then we need to push a
+                    // `unit` value into the return place.
+                    let unit = self.storage.push_rvalue(RValue::Const(ir::Const::Zero));
+                    self.control_flow_graph.push_assign(block, Place::return_place(), unit, span);
+                }
+
+                // Create a new block for the `return` statement and make this block
+                // go to the return whilst also starting a new block.
+                //
+                // @@Note: during CFG simplification, this edge will be removed and unified with
+                // the `exit` block.
+                let return_block = self.control_flow_graph.make_return_block();
+                self.control_flow_graph.goto(block, return_block, span);
+                self.control_flow_graph.start_new_block().unit()
+            }
 
             // These should be unreachable in this context
-            Expr::Continue { .. } | Expr::Break { .. } => unreachable!(),
+            Expr::Continue { .. } | Expr::Break { .. } => {
+                // Specify that we have reached the terminator of this block...
+                self.reached_terminator = true;
+
+                // When this is a continue, we need to **jump** back to the
+                // start of the loop block, and when this is a break, we need to
+                // **jump** to the proceeding block of the loop block
+                let Some(LoopBlockInfo { loop_body, next_block }) = self.loop_block_info else {
+                    panic!("`continue` or `break` outside of loop");
+                };
+
+                // Add terminators to this block to specify where this block will jump...
+                match expr.body {
+                    Expr::Continue { .. } => {
+                        self.control_flow_graph.goto(block, loop_body, span);
+                    }
+                    Expr::Break { .. } => {
+                        self.control_flow_graph.goto(block, next_block, span);
+                    }
+                    _ => unreachable!(),
+                }
+
+                block.unit()
+            }
 
             Expr::Index(..) => todo!(),
             Expr::BinaryExpr(..) => todo!(),
@@ -126,5 +194,27 @@ impl<'tcx> Builder<'tcx> {
         // if the declaration has an initialiser, then we need to deal with
         // the initialisation block.
         block.unit()
+    }
+
+    pub(crate) fn handle_statement_expr(
+        &mut self,
+        mut block: BasicBlock,
+        statement: AstNodeRef<'tcx, Expr>,
+    ) -> BlockAnd<()> {
+        match statement.body {
+            Expr::Assign(AssignExpr { lhs, rhs }) => {
+                let place = unpack!(block = self.as_place(block, lhs.ast_ref()));
+                let value = unpack!(block = self.as_rvalue(block, rhs.ast_ref()));
+                self.control_flow_graph.push_assign(block, place, value, statement.span());
+
+                block.unit()
+            }
+            Expr::AssignOp(AssignOpExpr { lhs: _, rhs: _, operator: _ }) => {
+                // @@Todo: implement this when operators work properly
+                block.unit()
+            }
+
+            _ => unreachable!(),
+        }
     }
 }

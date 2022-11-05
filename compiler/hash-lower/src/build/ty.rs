@@ -10,13 +10,13 @@ use hash_ir::{
     IrStorage,
 };
 use hash_source::{
-    constant::{FloatTy, IntTy, SIntTy, UIntTy},
+    constant::{FloatTy, SIntTy, UIntTy},
     identifier::IDENTS,
 };
 use hash_types::{
     nominals::{NominalDef, StructFields},
     storage::GlobalStorage,
-    terms::{FnLit, FnTy, Level0Term, Level1Term, Term, TermId, TupleTy},
+    terms::{FnLit, FnTy, Level0Term, Level1Term, Term, TermId, TupleLit, TupleTy},
 };
 use hash_utils::store::{CloneStore, SequenceStore, Store};
 use index_vec::index_vec;
@@ -32,17 +32,39 @@ pub(super) fn get_fn_ty_from_term(term: TermId, tcx: &GlobalStorage) -> FnTy {
     }
 }
 
+// pub(super) fn create_tuple_ty(tcx: &GlobalStorage, ir_ctx: &IrStorage) ->
+// IrTy {
+
+// }
+
 /// Get the [IrTy] from a given [TermId].
 pub(super) fn lower_term(term: TermId, tcx: &GlobalStorage, ir_ctx: &IrStorage) -> IrTy {
     let term = tcx.term_store.get(term);
 
     match term {
-        // @@Temporary: we need to deal with `Level0` fn terms...
+        // @@Temporary: we shouldn't need to deal with `Level0` terms...
         Term::Level0(lvl_0_term) => match lvl_0_term {
             Level0Term::FnLit(FnLit { fn_ty, .. }) => lower_term(fn_ty, tcx, ir_ctx),
             Level0Term::Rt(term) => lower_term(term, tcx, ir_ctx),
-            Level0Term::Tuple(_)
-            | Level0Term::Unit(_)
+            Level0Term::Tuple(TupleLit { members }) => {
+                let fields = tcx
+                    .args_store
+                    .get_owned_param_list(members)
+                    .positional()
+                    .iter()
+                    .enumerate()
+                    .map(|(index, param)| AdtField {
+                        name: index.into(),
+                        ty: convert_term_into_ir_ty(param.value, tcx, ir_ctx),
+                    })
+                    .collect();
+
+                let variants = index_vec![AdtVariant { name: 0usize.into(), fields }];
+                let adt = AdtData::new_with_flags("tuple".into(), variants, AdtFlags::TUPLE);
+                let adt_id = ir_ctx.adt_store().create(adt);
+                IrTy::Adt(adt_id)
+            }
+            Level0Term::Unit(_)
             | Level0Term::Lit(_)
             | Level0Term::FnCall(_)
             | Level0Term::EnumVariant(_)
@@ -173,6 +195,11 @@ pub(super) fn lower_term(term: TermId, tcx: &GlobalStorage, ir_ctx: &IrStorage) 
         Term::Union(union_term) => {
             let union = tcx.term_list_store.get_vec(union_term);
 
+            // This means that this is the `never` type
+            if union.is_empty() {
+                return IrTy::Never;
+            }
+
             let variants = union
                 .into_iter()
                 .enumerate()
@@ -200,8 +227,6 @@ pub(super) fn lower_term(term: TermId, tcx: &GlobalStorage, ir_ctx: &IrStorage) 
         | Term::SetBound(_)
         | Term::Level3(_)
         | Term::Level2(_)
-        | Term::Access(_)
-        | Term::Level0(_)
         | Term::TyOf(_)
         | Term::Unresolved(_)
         | Term::Root => panic!("unexpected term: {term:?}"),

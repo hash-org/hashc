@@ -1,8 +1,8 @@
-use hash_ast::ast::{AstNodeRef, Expr, Lit};
+use hash_ast::ast::{AstNodeRef, Lit};
 use hash_ir::ir;
 use hash_reporting::macros::panic_on_span;
 
-use super::{unpack, BlockAnd, BlockAndExtend, Builder};
+use super::Builder;
 
 impl<'tcx> Builder<'tcx> {
     /// Lower a simple literal into an [ir::Const], this does not deal

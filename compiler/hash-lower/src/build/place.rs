@@ -1,3 +1,6 @@
+//! Utilities for dealing with [Place]s when building up Hash IR.
+#![allow(unused)]
+
 use hash_ast::ast::{AstNodeRef, Expr};
 use hash_ir::ir::{BasicBlock, Local, Place, PlaceProjection};
 
@@ -69,7 +72,7 @@ impl<'tcx> Builder<'tcx> {
 
     pub(crate) fn as_place_builder(
         &mut self,
-        mut block: BasicBlock,
+        block: BasicBlock,
         expr: AstNodeRef<'tcx, Expr>,
     ) -> BlockAnd<PlaceBuilder> {
         match expr.body {
@@ -112,7 +115,6 @@ impl<'tcx> Builder<'tcx> {
             | Expr::Return(_)
             | Expr::Break(_)
             | Expr::Continue(_)
-            | Expr::Index(_)
             | Expr::Assign(_)
             | Expr::AssignOp(_)
             | Expr::BinaryExpr(_)
