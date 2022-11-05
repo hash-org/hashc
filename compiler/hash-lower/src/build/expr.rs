@@ -1,4 +1,4 @@
-use hash_ast::ast::{AstNodeRef, BlockExpr, Expr, UnsafeExpr};
+use hash_ast::ast::{AstNodeRef, BlockExpr, Declaration, Expr, UnsafeExpr};
 use hash_ir::ir::{BasicBlock, Place, RValue};
 use hash_reporting::macros::panic_on_span;
 use hash_utils::store::PartialStore;
@@ -49,7 +49,7 @@ impl<'tcx> Builder<'tcx> {
             // For declarations, we have to perform some bookkeeping in regards
             // to locals..., but this expression should never return any value
             // so we should just return a unit block here
-            Expr::Declaration(decl) => self.handle_expr_declaration(block, expr),
+            Expr::Declaration(decl) => self.handle_expr_declaration(block, decl),
 
             // Traverse the lhs of the cast, and then apply the cast
             // to the result... although this should be a no-op?
@@ -103,12 +103,8 @@ impl<'tcx> Builder<'tcx> {
     pub(crate) fn handle_expr_declaration(
         &mut self,
         block: BasicBlock,
-        declaration: AstNodeRef<'tcx, Expr>,
+        decl: &'tcx Declaration,
     ) -> BlockAnd<()> {
-        let Expr::Declaration(decl) = &declaration.body else {
-            panic!("expected declaration");
-        };
-
         if self.dead_ends.contains(&decl.pat.id()) {
             return block.unit();
         }
@@ -121,7 +117,7 @@ impl<'tcx> Builder<'tcx> {
             self.expr_into_pat(block, decl.pat.ast_ref(), rvalue.ast_ref());
         } else {
             panic_on_span!(
-                declaration.span().into_location(self.source_id),
+                decl.pat.span().into_location(self.source_id),
                 self.source_map,
                 "expected initialisation value, declaration are expected to have values (for now)."
             );

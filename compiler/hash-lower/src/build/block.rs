@@ -50,8 +50,8 @@ impl<'tcx> Builder<'tcx> {
             // We need to handle declarations here specifically, otherwise
             // in order to not have to create a temporary for the declaration
             // which doesn't make sense because we are just declaring a local(s)
-            if let Expr::Declaration(..) = statement.body() {
-                unpack!(block = self.handle_expr_declaration(block, statement.ast_ref()));
+            if let Expr::Declaration(decl) = statement.body() {
+                unpack!(block = self.handle_expr_declaration(block, decl));
             } else {
                 // unpack!(block = self.expr_into_dest(place, block, statement.ast_ref()))
                 todo!() // @@Todo: put the statement in a temporary
