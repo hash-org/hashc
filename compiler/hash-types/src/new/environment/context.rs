@@ -6,51 +6,44 @@ use indexmap::IndexMap;
 
 use super::env::AccessToEnv;
 use crate::new::{
-    data::{CtorDefId, DataDefId},
-    defs::DefParamGroupId,
-    fns::FnDefId,
-    mods::{ModDefId, ModMemberId},
-    params::{ParamId, ParamTarget},
-    scopes::{StackId, StackMemberId},
-    symbols::Symbol,
-    trts::{TrtDefId, TrtMemberId},
-    tys::TyId,
+    data::DataDefId, defs::DefParamGroupId, fns::FnDefId, mods::ModDefId, params::ParamId,
+    scopes::StackId, symbols::Symbol, trts::TrtDefId,
 };
-
-/// A bound variable, originating from some bound.
-#[derive(Debug, Copy, Clone)]
-pub struct BoundVar {
-    /// The name/position of the bound variable.
-    pub name: Symbol,
-    /// The type of the bound variable.
-    pub ty: TyId,
-    /// The target of the bound variable.
-    pub target: ParamTarget,
-}
-
 /// The kind of a binding.
 #[derive(Debug, Clone, Copy)]
 pub enum BindingKind {
     /// A binding that is a trait member.
     ///
     /// For example, `trait { y := 3; z := y }`
-    TrtMember(TrtMemberId, BindingOrigin<TrtDefId, usize>),
+    TrtMember(BindingOrigin<TrtDefId, usize>),
     /// A binding that is a module member.
     ///
     /// For example, `mod { Q := struct(); Q }`
-    ModMember(ModMemberId, BindingOrigin<ModDefId, usize>),
+    ModMember(BindingOrigin<ModDefId, usize>),
     /// A binding that is a stack member.
     ///
     /// For example, `{ a := 3; a }`
-    StackMember(StackMemberId, BindingOrigin<StackId, usize>),
+    StackMember(BindingOrigin<StackId, usize>),
     /// A binding that is a constructor definition.
     ///
     /// For example, `false`, `None`, `Some(_)`.
-    Ctor(CtorDefId, BindingOrigin<DataDefId, usize>),
+    Ctor(BindingOrigin<DataDefId, usize>),
     /// A binding that represents a parameter variable of a function.
     ///
     /// For example, `(x: i32) => x`
-    BoundVar(BoundVar, BindingOrigin<ScopeKind, usize>),
+    BoundVar(BindingOrigin<ScopeKind, usize>),
+}
+
+/// The origin of a binding, which consists of a definition (whatever it may be)
+/// ID, and an index into that definition's "members".
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BindingOrigin<Id, Index>
+where
+    Id: fmt::Debug + Copy + Eq,
+    Index: fmt::Debug + Copy + Eq,
+{
+    pub id: Id,
+    pub index: Index,
 }
 
 /// All the different places a bound variable can originate from.
@@ -91,14 +84,6 @@ pub enum ScopeKind {
     Fn(FnDefId),
     /// A data definition.
     Data(DataDefId),
-}
-
-/// The origin of a binding, which consists of a definition (whatever it may be)
-/// ID, and an index into that definition's "members".
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BindingOrigin<Id: fmt::Debug + Copy + Eq, Index: fmt::Debug + Copy + Eq> {
-    pub id: Id,
-    pub index: Index,
 }
 
 /// Data structure managing the typechecking context.

@@ -7,6 +7,7 @@ use hash_utils::{
 
 use super::{
     casting::{CastTerm, CoerceTerm},
+    environment::context::Binding,
     holes::HoleId,
     lits::LitTerm,
     symbols::Symbol,
@@ -74,6 +75,7 @@ pub enum Term {
 
     // Variables
     Var(Symbol),
+    ResolvedVar(Binding),
 
     // Loops
     Loop(LoopTerm),
