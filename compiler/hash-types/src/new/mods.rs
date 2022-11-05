@@ -10,7 +10,11 @@ use hash_utils::{
 use textwrap::indent;
 use utility_types::omit;
 
-use super::{data::DataTy, stores::WithStores, trts::TrtBound};
+use super::{
+    data::DataTy,
+    environment::env::{AccessToEnv, WithEnv},
+    trts::TrtBound,
+};
 use crate::new::{
     defs::{DefMember, DefParamsId},
     symbols::Symbol,
@@ -91,26 +95,27 @@ pub struct ModDef {
 new_store_key!(pub ModDefId);
 new_store!(pub ModDefStore<ModDefId, ModDef>);
 
-impl Display for WithStores<'_, ModDefId> {
+impl Display for WithEnv<'_, ModDefId> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.stores().mod_def().map_fast(self.value, |def| write!(f, "{}", self.stores().with(def)))
+        self.stores().mod_def().map_fast(self.value, |def| write!(f, "{}", self.env().with(def)))
     }
 }
 
-impl Display for WithStores<'_, ModMembersId> {
+impl Display for WithEnv<'_, ModMembersId> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.stores().mod_members().map_fast(self.value, |members| {
             for member in members.iter() {
-                writeln!(f, "{} = ...", self.stores().with(member.name))?;
+                writeln!(f, "{} = ...", self.env().with(member.name))?;
             }
             Ok(())
         })
     }
 }
 
-impl Display for WithStores<'_, &ModDef> {
+impl Display for WithEnv<'_, &ModDef> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let members = self.stores().with(self.value.members).to_string();
+        self.env().stores();
+        let members = self.env().with(self.value.members).to_string();
         match self.value.kind {
             ModKind::TrtImpl(_) => todo!(),
             ModKind::AnonImpl(_) => todo!(),

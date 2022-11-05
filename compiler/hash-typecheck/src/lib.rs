@@ -18,10 +18,12 @@ use hash_reporting::diagnostic::Diagnostics;
 use hash_source::SourceId;
 use hash_types::{
     fmt::PrepareForFormatting,
-    new::{ctx::Context, stores::Stores},
+    new::environment::{
+        context::Context, env::Env, source_info::CurrentSourceInfo, stores::Stores,
+    },
     storage::{LocalStorage, TyStorage},
 };
-use new::data::{env::TcEnv, source_info::CurrentSourceInfo};
+use new::environment::tc_env::TcEnv;
 use ops::AccessToOps;
 use storage::{
     cache::Cache, exhaustiveness::ExhaustivenessStorage, sources::CheckedSources, AccessToStorage,
@@ -105,6 +107,14 @@ impl<Ctx: TypecheckingCtx> CompilerStage<Ctx> for Typechecker {
 
         let current_source_info = CurrentSourceInfo { source_id: entry_point };
 
+        let env = Env::new(
+            &self._new_stores,
+            &self._new_ctx,
+            &workspace.node_map,
+            &workspace.source_map,
+            &current_source_info,
+        );
+
         // Instantiate a visitor with the source and visit the source, using the
         // previous local storage.
         let storage = StorageRef {
@@ -115,14 +125,7 @@ impl<Ctx: TypecheckingCtx> CompilerStage<Ctx> for Typechecker {
             source_map: &workspace.source_map,
             diagnostics_store: &self.diagnostics_store,
             cache: &self.cache,
-            _new: TcEnv::new(
-                &self._new_stores,
-                &self._new_ctx,
-                &workspace.node_map,
-                &workspace.source_map,
-                &self.diagnostics_store,
-                &current_source_info,
-            ),
+            _new: TcEnv::new(&env, &self.diagnostics_store),
         };
 
         // @@Hack: for now we use the `USE_NEW_TC` env variable to switch between the

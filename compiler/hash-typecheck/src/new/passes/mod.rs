@@ -1,20 +1,21 @@
 use hash_ast::{ast::OwnsAstNode, node_map::SourceRef, visitor::AstVisitorMutSelf};
+use hash_types::new::environment::env::AccessToEnv;
 
 use self::scope_discovery::ScopeDiscoveryPass;
-use super::data::env::{AccessToTcEnv, TcEnv};
+use super::environment::tc_env::{AccessToTcEnv, TcEnv};
 use crate::impl_access_to_tc_env;
 
 pub mod scope_discovery;
 
 pub struct TcVisitor<'tc> {
-    env: &'tc TcEnv<'tc>,
+    tc_env: &'tc TcEnv<'tc>,
 }
 
 impl_access_to_tc_env!(TcVisitor<'tc>);
 
 impl<'tc> TcVisitor<'tc> {
-    pub fn new(env: &'tc TcEnv<'tc>) -> Self {
-        TcVisitor { env }
+    pub fn new(tc_env: &'tc TcEnv<'tc>) -> Self {
+        TcVisitor { tc_env }
     }
 
     /// Visits the source passed in as an argument to [Self::new_in_source], and
@@ -22,7 +23,7 @@ impl<'tc> TcVisitor<'tc> {
     pub fn visit_source(&self) {
         let source = self.node_map().get_source(self.current_source_info().source_id);
 
-        let mut scope_discovery = ScopeDiscoveryPass::new(self.env);
+        let mut scope_discovery = ScopeDiscoveryPass::new(self.tc_env());
 
         let result = match source {
             SourceRef::Interactive(interactive_source) => {

@@ -2,22 +2,20 @@ use derive_more::Constructor;
 use hash_source::identifier::Identifier;
 use hash_types::new::{
     defs::{DefParamGroup, DefParamGroupData, DefParamsId},
+    environment::env::AccessToEnv,
     params::{Param, ParamData, ParamsId},
     symbols::{Symbol, SymbolData},
 };
 use hash_utils::store::{SequenceStore, Store};
 
-use crate::{
-    impl_access_to_tc_env,
-    new::data::env::{AccessToTcEnv, TcEnv},
-};
+use crate::{impl_access_to_tc_env, new::environment::tc_env::TcEnv};
 
 #[derive(Constructor)]
 pub struct Builder<'env> {
-    env: &'env TcEnv<'env>,
+    tc_env: &'env TcEnv<'env>,
 }
 
-impl_access_to_tc_env!(Builder<'env>);
+impl_access_to_tc_env!(Builder<'tc>);
 
 impl<'env> Builder<'env> {
     pub fn create_internal_symbol(&self) -> Symbol {

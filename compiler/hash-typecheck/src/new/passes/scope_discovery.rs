@@ -3,28 +3,28 @@ use std::collections::HashMap;
 use hash_ast::{ast, ast_visitor_mut_self_default_impl, visitor::walk_mut_self};
 use hash_source::identifier::Identifier;
 use hash_types::new::{
-    ctx::ScopeKind,
     defs::DefMemberData,
+    environment::{
+        context::{Context, ScopeKind},
+        env::AccessToEnv,
+    },
     mods::{ModDefId, ModKind},
 };
 
 use crate::{
     diagnostics::error::TcError,
     impl_access_to_tc_env,
-    new::{
-        data::env::{AccessToTcEnv, TcEnv},
-        ops::AccessToOps,
-    },
+    new::{environment::tc_env::TcEnv, ops::AccessToOps},
 };
 
 pub struct ScopeDiscoveryPass<'env> {
-    env: &'env TcEnv<'env>,
+    tc_env: &'env TcEnv<'env>,
     mod_def_members_found: HashMap<ModDefId, Vec<DefMemberData>>,
 }
 
 impl<'env> ScopeDiscoveryPass<'env> {
-    pub fn new(env: &'env TcEnv<'env>) -> Self {
-        Self { env, mod_def_members_found: Default::default() }
+    pub fn new(tc_env: &'env TcEnv<'env>) -> Self {
+        Self { tc_env, mod_def_members_found: Default::default() }
     }
 }
 
@@ -95,10 +95,9 @@ impl<'env> ast::AstVisitorMutSelf for ScopeDiscoveryPass<'env> {
         );
 
         // Traverse the module in the context of the module definition.
-        self.context().add_scope(ScopeKind::Mod(mod_def_id));
-        let walk_result = walk_mut_self::walk_module(self, node);
-        self.context().remove_scope();
-        let _ = walk_result?;
+        Context::enter_scope_mut(self, ScopeKind::Mod(mod_def_id), |this| {
+            walk_mut_self::walk_module(this, node)
+        })?;
 
         // Get all the members found in the module and add them.
         let mod_ops = self.mod_ops();
@@ -108,7 +107,7 @@ impl<'env> ast::AstVisitorMutSelf for ScopeDiscoveryPass<'env> {
             .set_mod_def_members(mod_def_id, mod_ops.create_mod_members(members.iter().copied()));
 
         // @@Debugging: Print the module:
-        println!("{}", self.stores().with(mod_def_id));
+        println!("{}", self.env().with(mod_def_id));
 
         Ok(())
     }

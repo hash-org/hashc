@@ -6,14 +6,14 @@ pub mod ty_ops;
 
 macro_rules! ops {
     ($($name:ident: $ty:ty),* $(,)?) => {
-        pub trait AccessToOps: $crate::new::data::env::AccessToTcEnv {
+        pub trait AccessToOps: $crate::new::environment::tc_env::AccessToTcEnv {
             $(
                 fn $name(&self) -> $ty {
-                    <$ty>::new(self.env())
+                    <$ty>::new(self.tc_env())
                 }
             )*
         }
-        impl<T: $crate::new::data::env::AccessToTcEnv> AccessToOps for T { }
+        impl<T: $crate::new::environment::tc_env::AccessToTcEnv> AccessToOps for T { }
     };
 }
 

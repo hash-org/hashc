@@ -8,7 +8,7 @@ use hash_utils::{
     store::{DefaultStore, Store, StoreKey},
 };
 
-use super::stores::WithStores;
+use super::environment::env::{AccessToEnv, WithEnv};
 
 /// The data carried by a symbol.
 ///
@@ -44,7 +44,7 @@ pub struct SymbolData {
 new_store_key!(pub Symbol);
 pub type SymbolStore = DefaultStore<Symbol, SymbolData>;
 
-impl Display for WithStores<'_, Symbol> {
+impl Display for WithEnv<'_, Symbol> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.stores().symbol().map_fast(self.value, |data| match data.name {
             Some(name) => write!(f, "{name}"),

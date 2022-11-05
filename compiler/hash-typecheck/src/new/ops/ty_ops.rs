@@ -1,18 +1,16 @@
 use derive_more::Constructor;
 use hash_types::new::{
+    environment::env::AccessToEnv,
     holes::{Hole, HoleKind},
     tys::{Ty, TyId},
 };
 use hash_utils::store::Store;
 
-use crate::{
-    impl_access_to_tc_env,
-    new::data::env::{AccessToTcEnv, TcEnv},
-};
+use crate::{impl_access_to_tc_env, new::environment::tc_env::TcEnv};
 
 #[derive(Constructor)]
 pub struct TyOps<'tc> {
-    env: &'tc TcEnv<'tc>,
+    tc_env: &'tc TcEnv<'tc>,
 }
 
 impl_access_to_tc_env!(TyOps<'tc>);

@@ -4,6 +4,7 @@ use std::cell::RefCell;
 
 use indexmap::IndexMap;
 
+use super::env::AccessToEnv;
 use crate::new::{
     data::{CtorDefId, DataDefId},
     defs::DefParamGroupId,
@@ -152,6 +153,23 @@ impl Context {
         self.add_scope(kind);
         let res = f();
         if self.remove_scope().is_none() {
+            panic!("tried to remove a scope that didn't exist");
+        }
+        res
+    }
+
+    /// Enter a new scope in the context, and run the given function in that
+    /// scope, with a mutable `self` that implements [`AccessToEnv`].
+    ///
+    /// The scope is exited after the function has been run.
+    pub fn enter_scope_mut<T, This: AccessToEnv>(
+        this: &mut This,
+        kind: ScopeKind,
+        f: impl FnOnce(&mut This) -> T,
+    ) -> T {
+        this.context().add_scope(kind);
+        let res = f(this);
+        if this.context().remove_scope().is_none() {
             panic!("tried to remove a scope that didn't exist");
         }
         res
