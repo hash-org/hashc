@@ -32,11 +32,6 @@ pub(super) fn get_fn_ty_from_term(term: TermId, tcx: &GlobalStorage) -> FnTy {
     }
 }
 
-// pub(super) fn create_tuple_ty(tcx: &GlobalStorage, ir_ctx: &IrStorage) ->
-// IrTy {
-
-// }
-
 /// Get the [IrTy] from a given [TermId].
 pub(super) fn lower_term(term: TermId, tcx: &GlobalStorage, ir_ctx: &IrStorage) -> IrTy {
     let term = tcx.term_store.get(term);

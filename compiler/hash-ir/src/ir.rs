@@ -19,7 +19,7 @@ pub enum Const {
     /// Nothing, it has zero size.
     Zero,
 
-    /// Byte constant, essentially a boolean.
+    /// Byte constant, could a boolean.
     Byte(u8),
 
     /// Character constant
@@ -131,7 +131,13 @@ pub struct LocalDecl {
     /// with which variable and scope).
     pub name: Option<Identifier>,
 
-    /// Whether the local declaration is an auxiliary,
+    /// Whether the local declaration is an auxiliary. An auxiliary local
+    /// declaration is used to store a temporary result of an operation that
+    /// is used to store the result of expressions that return **nothing**,
+    /// or temporary variables that are needed during the lowering process to
+    /// lower edge case expressions. Auxiliary local declarations will be
+    /// eliminated during the lowering process, when the IR undergoes
+    /// optimisations.
     auxiliary: bool,
 }
 

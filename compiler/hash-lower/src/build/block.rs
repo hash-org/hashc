@@ -57,7 +57,7 @@ impl<'tcx> Builder<'tcx> {
             Block::For(..) | Block::While(..) | Block::If(..) => unreachable!(),
 
             // Lowering implementation blocks is a no-op because this is dealt with
-            // at a lower level, so we just want to skip this.
+            // at a higher level, so we just want to skip this.
             Block::Impl(..) | Block::Mod(..) => block.unit(),
         }
     }
@@ -116,29 +116,5 @@ impl<'tcx> Builder<'tcx> {
 
         self.loop_block_info = old_block_info;
         normal_exit_block
-
-        // match (normal_exit_block, loop_block) {
-        //     // The inner `f` returned a block to where it currently was...
-        //     // which means that we can continue and use this block as part
-        //     // of the building from here.
-        //     (Some(block), None) => block,
-
-        //     // No `normal_exit_block` means that we should go back to the
-        //     // loop block.
-        //     (None, Some(block)) => block.unit(),
-        //     (None, None) => self.control_flow_graph.start_new_block().unit(),
-        //     (Some(normal_exit_block), Some(break_block)) => {
-        //         let target = self.control_flow_graph.start_new_block();
-
-        //         // Terminate the `continue` and `break` blocks with a `goto`
-        // instruction.         // Then specify that the next block that
-        // should be used is the newly         // created `target`
-        // block.         self.control_flow_graph.goto(unpack!
-        // (normal_exit_block), target, span);         self.
-        // control_flow_graph.goto(break_block, target, span);
-
-        //         target.unit()
-        //     }
-        // }
     }
 }
