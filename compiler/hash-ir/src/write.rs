@@ -104,7 +104,7 @@ impl<'ir> WriteIr<'ir> for IrWriter<'ir> {
         for (local, decl) in declarations.skip(offset) {
             write!(f, "    {}{local:?}: {};", decl.mutability(), decl.ty().for_fmt(self.ctx))?;
 
-            if let Some(name) = decl.name {
+            if let Some(name) = decl.name && !decl.auxiliary() {
                 writeln!(f, "\t\t// parameter `{name}`")?;
             } else {
                 writeln!(f)?;

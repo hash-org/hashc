@@ -13,11 +13,14 @@ use hash_source::{
 };
 use hash_utils::{
     new_sequence_store_key, new_store_key,
-    store::{CloneStore, DefaultSequenceStore, DefaultStore, SequenceStore},
+    store::{CloneStore, DefaultSequenceStore, DefaultStore, SequenceStore, Store},
 };
-use index_vec::IndexVec;
+use index_vec::{index_vec, IndexVec};
 
-use crate::write::{ForFormatting, WriteTyIr};
+use crate::{
+    write::{ForFormatting, WriteTyIr},
+    IrStorage,
+};
 
 /// Mutability of a particular variable, reference, etc.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -102,6 +105,17 @@ pub enum IrTy {
     /// second item is the return type of the function. If the function has no
     /// explicit return type, this will always be inferred at this stage.
     Fn(IrTyListId, IrTyId),
+}
+
+impl IrTy {
+    /// Make a unit type, i.e. `()`
+    pub fn unit(ir_storage: &IrStorage) -> Self {
+        let variants = index_vec![AdtVariant { name: 0usize.into(), fields: vec![] }];
+        let adt = AdtData::new_with_flags("unit".into(), variants, AdtFlags::TUPLE);
+        let adt_id = ir_storage.adt_store().create(adt);
+
+        Self::Adt(adt_id)
+    }
 }
 
 index_vec::define_index_type! {

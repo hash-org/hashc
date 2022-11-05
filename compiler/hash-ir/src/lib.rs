@@ -1,5 +1,6 @@
 //! Hash Compiler Intermediate Representation (IR) crate.
 #![allow(clippy::too_many_arguments)]
+#![feature(let_chains)]
 
 pub mod ir;
 pub mod ty;

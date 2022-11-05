@@ -14,11 +14,9 @@ use hash_ast::{
 use hash_ir::{ir::Body, IrStorage};
 use hash_source::{
     identifier::{Identifier, IDENTS},
-    location::{SourceLocation, Span},
     SourceId, SourceMap,
 };
-use hash_types::{fmt::PrepareForFormatting, nodes::NodeInfoTarget, storage::GlobalStorage};
-use hash_utils::store::{CloneStore, PartialStore};
+use hash_types::storage::GlobalStorage;
 
 use crate::build::Builder;
 
@@ -66,7 +64,7 @@ fn extract_binds_from_bind(pat: ast::AstNodeRef<ast::Pat>, binds: &mut Vec<Bindi
         }
         ast::Pat::List(ast::ListPat { fields }) => {
             for entry in fields.iter() {
-                extract_binds_from_bind(pat, binds);
+                extract_binds_from_bind(entry.ast_ref(), binds);
             }
         }
         ast::Pat::Or(ast::OrPat { variants }) => {
@@ -152,12 +150,6 @@ impl<'ir> LoweringVisitor<'ir> {
             bind_stack: Vec::new(),
             dead_ends: HashSet::new(),
         }
-    }
-
-    /// Create a [SourceLocation] from a given span using the current
-    /// [SourceId].
-    fn source_location(&self, span: Span) -> SourceLocation {
-        SourceLocation { span, id: self.source_id }
     }
 
     pub(crate) fn into_bodies(self) -> Vec<Body> {
@@ -252,11 +244,19 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
             self.tcx,
             self.storage,
             self.source_map,
-            self.in_dump_ir_directive,
             &self.dead_ends,
         );
         builder.build_fn();
-        self.bodies.push(builder.finish());
+
+        let mut generated_body = builder.finish();
+
+        // If we are in the `dump_ir` directive, then we need to
+        // mark the generated body as needing to be dumped.
+        if self.in_dump_ir_directive {
+            generated_body.mark_to_dump();
+        }
+
+        self.bodies.push(generated_body);
 
         // We want to clear the dead ends after we have finished lowering the particular
         // function and then add this ID to the dead ends

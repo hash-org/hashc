@@ -16,7 +16,12 @@ use crate::ty::{IrTyId, Mutability};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Const {
+    /// Nothing, it has zero size.
+    Zero,
+
+    /// Byte constant, could a boolean.
     Byte(u8),
+
     /// Character constant
     Char(char),
     /// Integer constant that is defined within the program source.
@@ -37,6 +42,7 @@ pub enum Const {
 impl fmt::Display for Const {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            Self::Zero => write!(f, "()"),
             Self::Byte(b) => write!(f, "{b}"),
             Self::Char(c) => write!(f, "{c}"),
             Self::Int(i) => write!(f, "{i}"),
@@ -124,12 +130,21 @@ pub struct LocalDecl {
     /// IR and for printing the IR (in order to label which local associates
     /// with which variable and scope).
     pub name: Option<Identifier>,
+
+    /// Whether the local declaration is an auxiliary. An auxiliary local
+    /// declaration is used to store a temporary result of an operation that
+    /// is used to store the result of expressions that return **nothing**,
+    /// or temporary variables that are needed during the lowering process to
+    /// lower edge case expressions. Auxiliary local declarations will be
+    /// eliminated during the lowering process, when the IR undergoes
+    /// optimisations.
+    auxiliary: bool,
 }
 
 impl LocalDecl {
     /// Create a new [LocalDecl].
     pub fn new(name: Identifier, mutability: Mutability, ty: IrTyId) -> Self {
-        Self { mutability, ty, name: Some(name) }
+        Self { mutability, ty, name: Some(name), auxiliary: false }
     }
 
     /// Create a new mutable [LocalDecl].
@@ -140,6 +155,10 @@ impl LocalDecl {
     /// Create a new immutable [LocalDecl].
     pub fn new_immutable(name: Identifier, ty: IrTyId) -> Self {
         Self::new(name, Mutability::Immutable, ty)
+    }
+
+    pub fn new_auxiliary(ty: IrTyId, mutability: Mutability) -> Self {
+        Self { mutability, ty, name: None, auxiliary: true }
     }
 
     /// Returns the [IrTyId] of the local.
@@ -155,6 +174,11 @@ impl LocalDecl {
     /// Returns the name of the local.
     pub fn name(&self) -> Option<Identifier> {
         self.name
+    }
+
+    /// Is the [Local] an auxiliary?
+    pub fn auxiliary(&self) -> bool {
+        self.auxiliary
     }
 }
 
@@ -247,6 +271,12 @@ pub enum RValue {
     /// which variant a union is. For types that don't have a discriminant
     /// (non-union types ) this will return the value as 0.
     Discriminant(Place),
+}
+
+impl From<Const> for RValue {
+    fn from(value: Const) -> Self {
+        Self::Const(value)
+    }
 }
 
 /// A defined statement within the IR
@@ -461,9 +491,14 @@ impl Body {
         source: BodySource,
         span: Span,
         source_id: SourceId,
-        dump: bool,
     ) -> Self {
-        Self { blocks, name, declarations, arg_count, source, span, source_id, dump }
+        Self { blocks, name, declarations, arg_count, source, span, source_id, dump: false }
+    }
+
+    /// Set the `dump` flag to `true` so that the IR Body that is generated
+    /// will be printed when the generation process is finalised.
+    pub fn mark_to_dump(&mut self) {
+        self.dump = true;
     }
 
     /// Check if the [Body] needs to be dumped.

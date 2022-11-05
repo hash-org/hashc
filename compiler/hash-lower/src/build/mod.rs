@@ -8,36 +8,21 @@ mod expr;
 mod matches;
 mod pat;
 mod place;
+mod rvalue;
+mod temp;
 mod ty;
 
-use std::{
-    cell::Cell,
-    collections::{HashMap, HashSet},
-};
+use std::collections::{HashMap, HashSet};
 
 use hash_ast::ast::{AstNodeId, AstNodeRef, Expr, FnDef};
 use hash_ir::{
-    ir::{
-        BasicBlock, BasicBlockData, Body, BodySource, Local, LocalDecl, Place, Terminator,
-        TerminatorKind, START_BLOCK,
-    },
+    ir::{BasicBlock, Body, BodySource, Local, LocalDecl, Place, TerminatorKind, START_BLOCK},
     ty::{IrTy, IrTyId, Mutability},
     IrStorage,
 };
-use hash_source::{
-    identifier::Identifier,
-    location::{SourceLocation, Span},
-    SourceId, SourceMap,
-};
-use hash_types::{
-    fmt::PrepareForFormatting,
-    nodes::NodeInfoTarget,
-    pats::{Pat, PatId},
-    scope::ScopeId,
-    storage::GlobalStorage,
-    terms::{FnLit, FnTy, Level0Term, Level1Term, Term, TermId},
-};
-use hash_utils::store::{CloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store};
+use hash_source::{identifier::Identifier, location::Span, SourceId, SourceMap};
+use hash_types::{pats::Pat, scope::ScopeId, storage::GlobalStorage};
+use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
 use index_vec::IndexVec;
 
 use self::ty::{convert_term_into_ir_ty, get_fn_ty_from_term, lower_term};
@@ -115,8 +100,23 @@ pub macro unpack {
     }}
 }
 
-/// The builder is responsible for lowering a body into the associated IR.
+/// Information about the current `loop` context that is being lowered. When
+/// the [Builder] is lowering a loop, it will store the current loop body
+/// block, and the `next` block that the loop will jump to after the loop
+/// in order to correctly handle `break` and `continue` statements.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct LoopBlockInfo {
+    /// Denotes where the index of the loop body that is being used
+    /// for `continue` statements. The loop body should finish the
+    /// current block by sending the **current** block to the loop body.
+    loop_body: BasicBlock,
 
+    /// Denotes where the index of the next block that is being used
+    /// for `break` statements should jump to...
+    next_block: BasicBlock,
+}
+
+/// The builder is responsible for lowering a body into the associated IR.
 pub(crate) struct Builder<'tcx> {
     /// The type storage needed for accessing the types of the traversed terms
     tcx: &'tcx GlobalStorage,
@@ -156,9 +156,22 @@ pub(crate) struct Builder<'tcx> {
     /// The current scope stack that builder is in.
     scope_stack: Vec<ScopeId>,
 
-    /// If the body that is being built will need to be
-    /// dumped.
-    needs_dumping: bool,
+    /// Information about the currently traversed [Block] in the AST. This
+    /// value is used to determine when the block should be terminated by
+    /// the builder. This is used to avoid lowering statements that occur
+    /// after a block terminator.
+    loop_block_info: Option<LoopBlockInfo>,
+
+    /// If the current [Block] has reached a terminating statement, i.e. a
+    /// statement that is typed as `!`. Examples of such statements are
+    /// `return`, `break`, `continue`, etc.
+    reached_terminator: bool,
+
+    /// A temporary [Place] that is used to throw away results from expressions
+    /// when we know that we don't need or want to store the result. If
+    /// `tmp_place` is [None], then we create a new temporary place and store
+    /// it in the field for later use.
+    tmp_place: Option<Place>,
 
     /// Declaration dead ends, this is to ensure that we don't try to
     /// lower a declaration that is not part of the function definition.
@@ -191,7 +204,6 @@ impl<'tcx> Builder<'tcx> {
         tcx: &'tcx GlobalStorage,
         storage: &'tcx mut IrStorage,
         source_map: &'tcx SourceMap,
-        needs_dumping: bool,
         dead_ends: &'tcx HashSet<AstNodeId>,
     ) -> Self {
         let arg_count = match item {
@@ -220,9 +232,11 @@ impl<'tcx> Builder<'tcx> {
             control_flow_graph: ControlFlowGraph::new(),
             declarations: IndexVec::new(),
             declaration_map: HashMap::new(),
+            reached_terminator: false,
+            loop_block_info: None,
             scope_stack: vec![],
-            needs_dumping,
             dead_ends,
+            tmp_place: None,
         }
     }
 
@@ -244,7 +258,6 @@ impl<'tcx> Builder<'tcx> {
             BodySource::Item,
             self.item.span(),
             self.source_id,
-            self.needs_dumping,
         )
     }
 
@@ -279,6 +292,26 @@ impl<'tcx> Builder<'tcx> {
         self.tcx.pat_store.get(pat_id)
     }
 
+    /// Function to create a new [Place] that is used to ignore
+    /// the results of expressions, i.e. blocks.
+    pub(crate) fn make_tmp_unit(&mut self) -> Place {
+        match &self.tmp_place {
+            Some(tmp) => tmp.clone(),
+            None => {
+                let ty = IrTy::unit(self.storage);
+                let ty_id = self.storage.ty_store().create(ty);
+
+                let local = LocalDecl::new_auxiliary(ty_id, Mutability::Immutable);
+                let local_id = self.declarations.push(local);
+
+                let place = Place::from(local_id);
+                self.tmp_place = Some(place.clone());
+
+                place
+            }
+        }
+    }
+
     /// Run a lowering operation whilst entering a new scope which is derived
     /// from the provided [AstNodeRef<Expr>].
     ///
@@ -299,17 +332,25 @@ impl<'tcx> Builder<'tcx> {
         result
     }
 
+    /// Get the current [ScopeId] that is being used within the builder.
+    pub(crate) fn current_scope(&self) -> ScopeId {
+        *self.scope_stack.last().unwrap()
+    }
+
     /// Push a [LocalDecl] in the current [Builder] with the associated
     /// [ScopeId]. This will put the [LocalDecl] into the declarations, and
     /// create an entry in the lookup map so that the [Local] can be looked up
     /// via the name of the local and the scope that it is in.
     pub(crate) fn push_local(&mut self, decl: LocalDecl, scope: ScopeId) -> Local {
-        let decl_name = decl.name.unwrap();
+        let decl_name = decl.name;
         let index = self.declarations.push(decl);
 
-        // We assume that if this function is used to push
-        // a declaration, then the `LocalDecl` has an associated name.
-        self.declaration_map.insert((scope, decl_name), index);
+        // If the declaration has a name i.e. not an auxiliary local, then
+        // we can push it into the `declaration_map`.
+        if let Some(name) = decl_name {
+            self.declaration_map.insert((scope, name), index);
+        }
+
         index
     }
 
@@ -343,7 +384,7 @@ impl<'tcx> Builder<'tcx> {
 
         // We need to get the underlying `FnTy` so that we can read the parameters
         let fn_term = match self.item {
-            BuildItem::FnDef(node) => get_fn_ty_from_term(term_id, self.tcx),
+            BuildItem::FnDef(_node) => get_fn_ty_from_term(term_id, self.tcx),
             BuildItem::Expr(_) => unreachable!(),
         };
         let fn_params =
@@ -356,7 +397,7 @@ impl<'tcx> Builder<'tcx> {
         // The first local declaration is used as the return type. The return local
         // declaration is always mutable because it will be set at some point in
         // the end, not the beginning.
-        let ret_local = LocalDecl { name: None, ty: ret_ty, mutability: Mutability::Mutable };
+        let ret_local = LocalDecl::new_auxiliary(ret_ty, Mutability::Mutable);
         self.declarations.push(ret_local);
 
         // Deal with all the function parameters that are given to the function.
@@ -374,13 +415,13 @@ impl<'tcx> Builder<'tcx> {
         let start = self.control_flow_graph.start_new_block();
         debug_assert!(start == START_BLOCK);
 
-        let return_block =
-            unpack!(self.expr_into_dest(Place::return_place(), start, node.body.fn_body.ast_ref()));
-
         // Now that we have built the inner body block, we then need to terminate
         // the current basis block with a return terminator.
         let ret_span = node.span(); // @@Fixme: this should be the span of the ending part of the function body
                                     // span!
+
+        let return_block =
+            unpack!(self.expr_into_dest(Place::return_place(), start, node.body.fn_body.ast_ref()));
 
         self.control_flow_graph.terminate(return_block, ret_span, TerminatorKind::Return)
     }
@@ -392,5 +433,5 @@ impl<'tcx> Builder<'tcx> {
     ///
     /// This is a different concept from `compile-time` since in the future we
     /// will allow compile time expressions to run any arbitrary code.
-    fn build_const(&mut self, _node: AstNodeRef<Expr>) {}
+    fn _build_const(&mut self, _node: AstNodeRef<Expr>) {}
 }
