@@ -1,10 +1,10 @@
 //! Representing and modifying the typechecking context.
 use core::fmt;
-use std::cell::RefCell;
+use std::{cell::RefCell, convert::Infallible};
 
 use indexmap::IndexMap;
 
-use super::env::AccessToEnv;
+use super::env::{AccessToEnv, WithEnv};
 use crate::new::{
     data::DataDefId, defs::DefParamGroupId, fns::FnDefId, mods::ModDefId, params::ParamId,
     scopes::StackId, symbols::Symbol, trts::TrtDefId,
@@ -176,10 +176,77 @@ impl Context {
             panic!("tried to get the scope kind of a context with no scopes");
         })
     }
+
+    /// Get all the scope levels in the context.
+    pub fn get_scope_levels(&self) -> impl Iterator<Item = usize> {
+        0..self.scope_levels.borrow().len()
+    }
+
+    /// Get the scope kind of the given scope level.
+    pub fn get_scope_kind_of_level(&self, level: usize) -> ScopeKind {
+        self.scope_kinds.borrow()[level]
+    }
+
+    /// Iterate over all the bindings in the context for the given scope level
+    /// (fallible).
+    pub fn try_for_bindings_of_level<E>(
+        &self,
+        level: usize,
+        mut f: impl FnMut(&Binding) -> Result<(), E>,
+    ) -> Result<(), E> {
+        let scope_levels = self.scope_levels.borrow();
+        let current_level_member_index = scope_levels[level];
+        let next_level_member_index =
+            scope_levels.get(level + 1).copied().unwrap_or(scope_levels.len());
+        for (_, binding) in self
+            .members
+            .borrow()
+            .iter()
+            .skip(current_level_member_index)
+            .take(next_level_member_index - current_level_member_index)
+        {
+            f(binding)?
+        }
+        Ok(())
+    }
+
+    /// Iterate all the bindings in the context for the given scope level.
+    pub fn for_bindings_of_level(&self, level: usize, mut f: impl FnMut(&Binding)) {
+        let _ = self.try_for_bindings_of_level(level, |binding| -> Result<(), Infallible> {
+            f(binding);
+            Ok(())
+        });
+    }
+
+    /// Get all the bindings in the context for the given scope level.
+    pub fn get_bindings_of_level(&self, level: usize) -> Vec<Symbol> {
+        let mut symbols = vec![];
+        self.for_bindings_of_level(level, |binding| symbols.push(binding.name));
+        symbols
+    }
 }
 
 impl Default for Context {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl fmt::Display for WithEnv<'_, Binding> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}: ...", self.env().with(self.value.name))
+    }
+}
+
+impl fmt::Display for WithEnv<'_, &Context> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for scope_level in self.value.get_scope_levels() {
+            let scope_kind = self.value.get_scope_kind_of_level(scope_level);
+            writeln!(f, "scope level {scope_level}: {scope_kind:?}")?;
+            self.value.try_for_bindings_of_level(scope_level, |binding| {
+                writeln!(f, "  {}", self.env().with(*binding))
+            })?;
+        }
+        Ok(())
     }
 }

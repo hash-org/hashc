@@ -1,8 +1,10 @@
-use self::{builder::Builder, mods::ModOps, ty_ops::TyOps};
+use self::{builder::Builder, defs::CommonDefOps, infer::InferOps, mods::ModOps};
 
 pub mod builder;
+pub mod common;
+pub mod defs;
+pub mod infer;
 pub mod mods;
-pub mod ty_ops;
 
 macro_rules! ops {
     ($($name:ident: $ty:ty),* $(,)?) => {
@@ -20,5 +22,6 @@ macro_rules! ops {
 ops! {
   builder: Builder,
   mod_ops: ModOps,
-  ty_ops: TyOps,
+  infer_ops: InferOps,
+  common_def_ops: CommonDefOps,
 }

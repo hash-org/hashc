@@ -2,7 +2,7 @@
 
 use hash_utils::{new_store_key, store::DefaultStore};
 
-use super::holes::HoleId;
+use super::{environment::context::Binding, holes::HoleId, symbols::Symbol};
 use crate::new::{
     data::DataTy, fns::FnTy, refs::RefTy, terms::TermId, trts::TrtBoundsId, tuples::TupleTy,
     unions::UnionTy,
@@ -11,12 +11,11 @@ use crate::new::{
 /// The type of types, i.e. a universe.
 #[derive(Debug, Clone, Copy)]
 pub struct UniverseTy {
-    /// Whether this is a small universe or a large one.
+    /// The size of the universe
     ///
-    /// A small universe does not include `Meta(..)` and `Type(..)`, where as a
-    /// large one does. It is not valid to take
-    /// `TypeOf(TypeOf(UniverseTy(..)))`.
-    pub small: bool,
+    /// `Universe(n + 1)` includes everything inside `Universe(n)` as well as
+    /// the term `Universe(n)` itself.
+    pub size: usize,
 
     /// Any additional bounds that types in the universe must satisfy.
     pub trait_bounds: TrtBoundsId,
@@ -25,16 +24,12 @@ pub struct UniverseTy {
 /// The type of a meta construct, i.e. a type which cannot be given by the user.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MetaTy {
-    /// The type of any `mod/impl (...args) {...}` definition
-    ModTy,
-    /// The type of any `trait (...args) {...}` definition
-    TraitTy,
-    /// The type of any `datatype (...args) {...}` definition,
-    ///
-    /// If the `args` of the data-type in question is empty, then its type is
-    /// coercible to `Type`. Otherwise, once the `args` of the datatype are
-    /// given, its type is coercible to `Type`.
-    DataDefTy,
+    /// The type of any `mod {...}` definition after arguments have been
+    /// applied.
+    ModDefTy,
+    /// The type of any `trait {...}` definition after arguments have been
+    /// applied.
+    TrtDefTy,
 }
 
 /// Represents a type in a Hash program.
@@ -49,7 +44,8 @@ pub enum Ty {
     Hole(HoleId),
 
     /// Type variable
-    Var(TyId),
+    Var(Symbol),
+    ResolvedVar(Binding),
 
     /// Union type
     Union(UnionTy),
