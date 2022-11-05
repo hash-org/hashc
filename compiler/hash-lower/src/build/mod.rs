@@ -1,14 +1,19 @@
 //! Defines a IR Builder for function blocks. This is essentially a builder
 //! pattern for lowering declarations into the associated IR.
+#![allow(clippy::too_many_arguments)]
 
 mod block;
+mod constant;
 mod expr;
 mod matches;
 mod pat;
 mod place;
 mod ty;
 
-use std::{cell::Cell, collections::HashMap};
+use std::{
+    cell::Cell,
+    collections::{HashMap, HashSet},
+};
 
 use hash_ast::ast::{AstNodeId, AstNodeRef, Expr, FnDef};
 use hash_ir::{
@@ -22,7 +27,7 @@ use hash_ir::{
 use hash_source::{
     identifier::Identifier,
     location::{SourceLocation, Span},
-    SourceId,
+    SourceId, SourceMap,
 };
 use hash_types::{
     fmt::PrepareForFormatting,
@@ -119,6 +124,12 @@ pub(crate) struct Builder<'tcx> {
     /// The IR storage needed for storing all of the created values and bodies
     storage: &'tcx mut IrStorage,
 
+    /// The sources of the current program, this is only used
+    /// to give more contextual panics when the compiler unexpectedly
+    /// encounters an unexpected AST node, and thus it will emit a
+    /// span when the compiler panics.
+    source_map: &'tcx SourceMap,
+
     /// The name with the associated body that this is building.
     name: Identifier,
 
@@ -148,6 +159,28 @@ pub(crate) struct Builder<'tcx> {
     /// If the body that is being built will need to be
     /// dumped.
     needs_dumping: bool,
+
+    /// Declaration dead ends, this is to ensure that we don't try to
+    /// lower a declaration that is not part of the function definition.
+    /// For example, if the function `foo` is declared in `bar` like this:
+    /// ```ignore
+    /// bar := () => {
+    ///     foo := () => { 1 };   
+    /// }
+    /// ```
+    ///
+    /// Then we don't want to add `foo` as a declaration to the body of `bar`
+    /// because it is a free standing function that will be lowered by
+    /// another builder. However, this does not occur when the function is
+    /// not free standing, for example:
+    /// ```ignore
+    /// bar := (x: i32) => {
+    ///     foo := () => { 1 + x };   
+    /// }
+    /// ```
+    /// The function `foo` is no longer free in `bar` because it captures `x`,
+    /// therefore making it a closure of `foo`.
+    dead_ends: &'tcx HashSet<AstNodeId>,
 }
 
 impl<'tcx> Builder<'tcx> {
@@ -157,7 +190,9 @@ impl<'tcx> Builder<'tcx> {
         source_id: SourceId,
         tcx: &'tcx GlobalStorage,
         storage: &'tcx mut IrStorage,
+        source_map: &'tcx SourceMap,
         needs_dumping: bool,
+        dead_ends: &'tcx HashSet<AstNodeId>,
     ) -> Self {
         let arg_count = match item {
             BuildItem::FnDef(node) => {
@@ -165,7 +200,8 @@ impl<'tcx> Builder<'tcx> {
                 // figure out how many arguments there will be passed in
                 // and how many locals we need to allocate.
 
-                let term = tcx.node_info_store.get(node.id()).map(|info| info.term_id()).unwrap();
+                let term =
+                    tcx.node_info_store.node_info(node.id()).map(|info| info.term_id()).unwrap();
                 let fn_ty = get_fn_ty_from_term(term, tcx);
 
                 fn_ty.params.len()
@@ -177,6 +213,7 @@ impl<'tcx> Builder<'tcx> {
             item,
             tcx,
             storage,
+            source_map,
             name,
             arg_count,
             source_id,
@@ -185,6 +222,7 @@ impl<'tcx> Builder<'tcx> {
             declaration_map: HashMap::new(),
             scope_stack: vec![],
             needs_dumping,
+            dead_ends,
         }
     }
 
@@ -214,7 +252,7 @@ impl<'tcx> Builder<'tcx> {
     /// provided [AstNodeId].
     #[inline]
     fn get_ty_id_of_node(&self, id: AstNodeId) -> IrTyId {
-        let term_id = self.tcx.node_info_store.get(id).map(|f| f.term_id()).unwrap();
+        let term_id = self.tcx.node_info_store.node_info(id).map(|f| f.term_id()).unwrap();
 
         // We need to try and look up the type within the cache, if not
         // present then we create the type by converting the term into
@@ -227,7 +265,7 @@ impl<'tcx> Builder<'tcx> {
     /// provided [AstNodeId].
     #[inline]
     fn get_ty_of_node(&self, id: AstNodeId) -> IrTy {
-        let term_id = self.tcx.node_info_store.get(id).map(|f| f.term_id()).unwrap();
+        let term_id = self.tcx.node_info_store.node_info(id).map(|f| f.term_id()).unwrap();
 
         lower_term(term_id, self.tcx, self.storage)
     }
@@ -236,7 +274,7 @@ impl<'tcx> Builder<'tcx> {
     /// provided [AstNodeId].
     #[inline]
     fn get_pat_id_of_node(&self, id: AstNodeId) -> Pat {
-        let pat_id = self.tcx.node_info_store.get(id).map(|f| f.pat_id()).unwrap();
+        let pat_id = self.tcx.node_info_store.node_info(id).map(|f| f.pat_id()).unwrap();
 
         self.tcx.pat_store.get(pat_id)
     }
@@ -250,7 +288,7 @@ impl<'tcx> Builder<'tcx> {
         expr: AstNodeRef<U>,
         f: impl FnOnce(&mut Self) -> T,
     ) -> T {
-        let scope_id = self.tcx.node_info_store.get(expr.id()).map(|f| f.scope_id()).unwrap();
+        let scope_id = self.tcx.node_info_store.node_info(expr.id()).map(|f| f.scope_id()).unwrap();
         self.scope_stack.push(scope_id);
 
         let result = f(self);
@@ -301,7 +339,7 @@ impl<'tcx> Builder<'tcx> {
             BuildItem::Expr(_) => unreachable!(),
         };
 
-        let term_id = self.tcx.node_info_store.get(node.id()).map(|f| f.term_id()).unwrap();
+        let term_id = self.tcx.node_info_store.node_info(node.id()).map(|f| f.term_id()).unwrap();
 
         // We need to get the underlying `FnTy` so that we can read the parameters
         let fn_term = match self.item {
@@ -322,7 +360,8 @@ impl<'tcx> Builder<'tcx> {
         self.declarations.push(ret_local);
 
         // Deal with all the function parameters that are given to the function.
-        let param_scope = self.tcx.node_info_store.get(node.id()).map(|f| f.scope_id()).unwrap();
+        let param_scope =
+            self.tcx.node_info_store.node_info(node.id()).map(|f| f.scope_id()).unwrap();
         self.scope_stack.push(param_scope);
 
         // @@Future: deal with parameter attributes that are mutable?

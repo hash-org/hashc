@@ -102,7 +102,13 @@ impl<'ir> WriteIr<'ir> for IrWriter<'ir> {
         let offset = 1 + self.body.arg_count;
 
         for (local, decl) in declarations.skip(offset) {
-            writeln!(f, "    {}{local:?}:{};", decl.mutability(), decl.ty().for_fmt(self.ctx))?;
+            write!(f, "    {}{local:?}: {};", decl.mutability(), decl.ty().for_fmt(self.ctx))?;
+
+            if let Some(name) = decl.name {
+                writeln!(f, "\t\t// parameter `{name}`")?;
+            } else {
+                writeln!(f)?;
+            }
         }
 
         // Print all of the basic blocks
@@ -157,7 +163,7 @@ impl<'ir> WriteIr<'ir> for IrWriter<'ir> {
 
         match rvalue {
             RValue::Use(place) => write!(f, "{place}"),
-            RValue::Const(operand) => write!(f, "const {operand:?}"),
+            RValue::Const(operand) => write!(f, "const {operand}"),
             RValue::BinaryOp(op, lhs, rhs) => write!(f, "{lhs:?} {op:?} {rhs:?}"),
             RValue::UnaryOp(op, operand) => write!(f, "{op:?}({operand:?})"),
             RValue::ConstOp(op, operand) => write!(f, "{op:?}({operand:?})"),

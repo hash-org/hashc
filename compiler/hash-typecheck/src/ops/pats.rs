@@ -876,6 +876,17 @@ impl<'tc> PatMatcher<'tc> {
         if let Some(members) = bound_members {
             self.verify_members_are_bound_once(&members)?;
 
+            // Here, we for each member, we register an associated `TermId` with the node
+            // that corresponds to `AstNodeId` of the pattern. This is used
+            // during IR generation when querying the types of the patterns.
+            members.iter().for_each(|member| {
+                let PatMember { member, pat } = member;
+
+                if let Some(id) = self.node_info_store().pat_to_node_id(*pat) {
+                    self.node_info_store().update_or_insert(id, member.ty().into())
+                }
+            });
+
             Ok(Some(members))
         } else {
             Ok(None)

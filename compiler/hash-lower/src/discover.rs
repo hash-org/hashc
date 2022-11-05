@@ -15,17 +15,32 @@ use hash_ir::{ir::Body, IrStorage};
 use hash_source::{
     identifier::{Identifier, IDENTS},
     location::{SourceLocation, Span},
-    SourceId,
+    SourceId, SourceMap,
 };
 use hash_types::{fmt::PrepareForFormatting, nodes::NodeInfoTarget, storage::GlobalStorage};
 use hash_utils::store::{CloneStore, PartialStore};
 
 use crate::build::Builder;
 
-fn extract_binds_from_bind(pat: ast::AstNodeRef<ast::Pat>, binds: &mut Vec<Identifier>) {
+/// [Binding]s are used to track what variables a particular declaration  
+/// binds. This is needed because declarations can bind multiple variables in
+/// a single expression. For example, `let (a, b) = (1, 2);` binds both `a` and
+/// `b` to the values `1` and `2` respectively. The [Binding] stores the name
+/// that it binds, and an [AstNodeId] which points to which [AstNode] it binds
+/// to. The `id` of node is stored so that the [Builder] can later use it to
+/// look up which declarations it should and shouldn't attempt to lower.
+pub struct Binding {
+    /// The name that the binding is specifying
+    name: Identifier,
+
+    /// The relevant [AstNodeId] that this binding points too.
+    node: AstNodeId,
+}
+
+fn extract_binds_from_bind(pat: ast::AstNodeRef<ast::Pat>, binds: &mut Vec<Binding>) {
     match &pat.body() {
         ast::Pat::Binding(ast::BindingPat { name, .. }) => {
-            binds.push(name.ident);
+            binds.push(Binding { name: name.ident, node: pat.id() });
         }
         ast::Pat::Wild(_) => {
             // @@Weirdness: what should happen to a function body if it bound to
@@ -33,7 +48,7 @@ fn extract_binds_from_bind(pat: ast::AstNodeRef<ast::Pat>, binds: &mut Vec<Ident
             // it, or should we lower the function anyway. This is a weird case,
             // because the function can never be invoked because it is not bound,
             // so should we not do anything here?
-            binds.push(IDENTS.underscore);
+            binds.push(Binding { name: IDENTS.underscore, node: pat.id() });
         }
         ast::Pat::Tuple(ast::TuplePat { fields }) => {
             for entry in fields.iter() {
@@ -43,7 +58,7 @@ fn extract_binds_from_bind(pat: ast::AstNodeRef<ast::Pat>, binds: &mut Vec<Ident
                 // down to find more binds. @@Verify: is this checked within the
                 // typechecker.
                 if let Some(entry_name) = name {
-                    binds.push(entry_name.ident);
+                    binds.push(Binding { name: entry_name.ident, node: entry.id() });
                 } else {
                     extract_binds_from_bind(pat.ast_ref(), binds);
                 }
@@ -87,6 +102,8 @@ pub(crate) struct LoweringVisitor<'ir> {
     /// Used to store all of the generated bodies and rvalues.
     storage: &'ir mut IrStorage,
 
+    source_map: &'ir SourceMap,
+
     /// The [SourceId] of the current source that is being
     /// lowered.
     source_id: SourceId,
@@ -97,7 +114,7 @@ pub(crate) struct LoweringVisitor<'ir> {
     /// ```ignore
     /// (a, b) := (() => 1, () => 2);
     /// ```
-    pub(crate) bind_stack: Vec<Identifier>,
+    pub(crate) bind_stack: Vec<Binding>,
 
     /// Flag denoting whether the current visited function def/constant
     /// block needs to be `dumped`.
@@ -118,12 +135,18 @@ pub(crate) struct LoweringVisitor<'ir> {
 }
 
 impl<'ir> LoweringVisitor<'ir> {
-    pub fn new(tcx: &'ir GlobalStorage, storage: &'ir mut IrStorage, source_id: SourceId) -> Self {
+    pub fn new(
+        tcx: &'ir GlobalStorage,
+        storage: &'ir mut IrStorage,
+        source_map: &'ir SourceMap,
+        source_id: SourceId,
+    ) -> Self {
         Self {
             tcx,
             current_block: BlockOrigin::Const,
             storage,
             source_id,
+            source_map,
             in_dump_ir_directive: false,
             bodies: Vec::new(),
             bind_stack: Vec::new(),
@@ -204,10 +227,17 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
         &mut self,
         node: ast::AstNodeRef<ast::FnDef>,
     ) -> Result<Self::FnDefRet, Self::Error> {
+        // @@Todo: deal with closures, we need to possibly introduce a new Term
+        // that denotes whether a particular binding is a closure or not to disambiguate
+        // between free and closure declarations within functions.
+
         // Pop off the top bind from the top of the stack, if no item is present
         // then we should just use `_` (it is an invariant if there is no name when we
         // reach a function definition with no assigned name).
-        let name = self.bind_stack.pop().unwrap_or(IDENTS.underscore);
+        let binding = self
+            .bind_stack
+            .pop()
+            .unwrap_or_else(|| Binding { name: IDENTS.underscore, node: node.id() });
 
         // We want to walk the inner part of the function to check
         // if we need to lower anything within the function.
@@ -216,15 +246,22 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
         // Create the builder here, and then proceed to emit the generated function
         // body!
         let mut builder = Builder::new(
-            name,
+            binding.name,
             node.into(),
             self.source_id,
             self.tcx,
             self.storage,
+            self.source_map,
             self.in_dump_ir_directive,
+            &self.dead_ends,
         );
         builder.build_fn();
         self.bodies.push(builder.finish());
+
+        // We want to clear the dead ends after we have finished lowering the particular
+        // function and then add this ID to the dead ends
+        self.dead_ends.clear();
+        self.dead_ends.insert(binding.node);
 
         Ok(())
     }

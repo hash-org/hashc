@@ -73,7 +73,8 @@ impl<Ctx: IrLoweringCtx> CompilerStage<Ctx> for AstLowerer {
                 continue;
             }
 
-            let mut discoverer = LoweringVisitor::new(&ty_storage.global, ir_storage, source_id);
+            let mut discoverer =
+                LoweringVisitor::new(&ty_storage.global, ir_storage, source_map, source_id);
             discoverer.visit_module(module.node_ref());
 
             // We need to add all of the bodies to the global bodies

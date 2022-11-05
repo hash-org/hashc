@@ -16,6 +16,7 @@ use crate::ty::{IrTyId, Mutability};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Const {
+    Byte(u8),
     /// Character constant
     Char(char),
     /// Integer constant that is defined within the program source.
@@ -31,6 +32,18 @@ pub enum Const {
     /// str := struct(data: &raw u8, len: usize);
     /// ```
     Str(InternedStr),
+}
+
+impl fmt::Display for Const {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Byte(b) => write!(f, "{b}"),
+            Self::Char(c) => write!(f, "{c}"),
+            Self::Int(i) => write!(f, "{i}"),
+            Self::Float(flt) => write!(f, "{flt}"),
+            Self::Str(s) => write!(f, "{s}"),
+        }
+    }
 }
 
 /// A collection of operations that are constant and must run during the
@@ -183,6 +196,12 @@ impl Place {
     /// Create a [Place] that points to the return `place` of a lowered  body.
     pub fn return_place() -> Self {
         Self { local: RETURN_PLACE, projections: Vec::new() }
+    }
+}
+
+impl From<Local> for Place {
+    fn from(value: Local) -> Self {
+        Self { local: value, projections: Vec::new() }
     }
 }
 
