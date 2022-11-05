@@ -485,9 +485,14 @@ impl Body {
         source: BodySource,
         span: Span,
         source_id: SourceId,
-        dump: bool,
     ) -> Self {
-        Self { blocks, name, declarations, arg_count, source, span, source_id, dump }
+        Self { blocks, name, declarations, arg_count, source, span, source_id, dump: false }
+    }
+
+    /// Set the `dump` flag to `true` so that the IR Body that is generated
+    /// will be printed when the generation process is finalised.
+    pub fn mark_to_dump(&mut self) {
+        self.dump = true;
     }
 
     /// Check if the [Body] needs to be dumped.

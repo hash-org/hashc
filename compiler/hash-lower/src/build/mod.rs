@@ -156,10 +156,6 @@ pub(crate) struct Builder<'tcx> {
     /// The current scope stack that builder is in.
     scope_stack: Vec<ScopeId>,
 
-    /// If the body that is being built will need to be
-    /// dumped.
-    needs_dumping: bool,
-
     /// Information about the currently traversed [Block] in the AST. This
     /// value is used to determine when the block should be terminated by
     /// the builder. This is used to avoid lowering statements that occur
@@ -208,7 +204,6 @@ impl<'tcx> Builder<'tcx> {
         tcx: &'tcx GlobalStorage,
         storage: &'tcx mut IrStorage,
         source_map: &'tcx SourceMap,
-        needs_dumping: bool,
         dead_ends: &'tcx HashSet<AstNodeId>,
     ) -> Self {
         let arg_count = match item {
@@ -240,7 +235,6 @@ impl<'tcx> Builder<'tcx> {
             reached_terminator: false,
             loop_block_info: None,
             scope_stack: vec![],
-            needs_dumping,
             dead_ends,
             tmp_place: None,
         }
@@ -264,7 +258,6 @@ impl<'tcx> Builder<'tcx> {
             BodySource::Item,
             self.item.span(),
             self.source_id,
-            self.needs_dumping,
         )
     }
 

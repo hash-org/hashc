@@ -244,11 +244,19 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
             self.tcx,
             self.storage,
             self.source_map,
-            self.in_dump_ir_directive,
             &self.dead_ends,
         );
         builder.build_fn();
-        self.bodies.push(builder.finish());
+
+        let mut generated_body = builder.finish();
+
+        // If we are in the `dump_ir` directive, then we need to
+        // mark the generated body as needing to be dumped.
+        if self.in_dump_ir_directive {
+            generated_body.mark_to_dump();
+        }
+
+        self.bodies.push(generated_body);
 
         // We want to clear the dead ends after we have finished lowering the particular
         // function and then add this ID to the dead ends
