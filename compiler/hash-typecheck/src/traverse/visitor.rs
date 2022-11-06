@@ -29,7 +29,7 @@ use hash_types::{
     storage::LocalStorage,
     terms::{Sub, TermId},
 };
-use hash_utils::store::Store;
+use hash_utils::store::{CloneStore, Store};
 use itertools::Itertools;
 
 use super::{scopes::VisitConstantScope, AccessToTraverseOps};
@@ -1662,6 +1662,23 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     ) -> Result<Self::BinaryExprRet, Self::Error> {
         let walk::BinaryExpr { lhs, rhs, .. } = walk::walk_binary_expr(self, node)?;
 
+        // @@Hack: currently, trait resolution logic is broken, so we introduce
+        // a workaround for primitives to support all operators so that we can
+        // continue onto lowering...
+        let lhs_term = self.typer().infer_ty_of_term(lhs)?;
+        let rhs_term = self.typer().infer_ty_of_term(rhs)?;
+
+        if self.oracle().term_is_primitive(lhs_term) && self.oracle().term_is_primitive(rhs_term) {
+            if !self.unifier().terms_are_equal(lhs_term, rhs_term) {
+                return Err(TcError::CannotUnify { src: rhs_term, target: lhs_term });
+            }
+
+            let lhs_term = self.term_store().get(lhs);
+            let term = self.builder().create_term(lhs_term);
+
+            return self.validate_and_register_simplified_term(node, term);
+        }
+
         let term = if matches!(node.operator.body(), BinOp::Merge) {
             self.builder().create_merge_term([lhs, rhs])
         } else if node.operator.is_lazy() {
@@ -1680,6 +1697,16 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::UnaryExpr>,
     ) -> Result<Self::UnaryExprRet, Self::Error> {
         let walk::UnaryExpr { expr, .. } = walk::walk_unary_expr(self, node)?;
+
+        // @@Hack: currently, trait resolution logic is broken, so we introduce
+        // a workaround for primitives to support all unary operators on primitive
+        // types.
+        if self.oracle().term_is_primitive(expr) {
+            let term = self.term_store().get(expr);
+            let term = self.builder().create_term(term);
+
+            return self.validate_and_register_simplified_term(node, term);
+        }
 
         let operator_fn = |trait_fn_name: &str| {
             let prop_access = self.builder().create_prop_access(expr, trait_fn_name);
@@ -1720,7 +1747,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         self.copy_location_from_node_to_target(node.subject.ast_ref(), index_fn_call_subject);
         self.copy_location_from_node_to_target(node.index_expr.ast_ref(), (index_fn_call_args, 0));
 
-        // @@ErrorReporting: We could provide customised error reporting here.
+        // @@ErrorReporting: We could provide customised error reporting h ere.
         self.validate_and_register_simplified_term(node, index_fn_call)
     }
 

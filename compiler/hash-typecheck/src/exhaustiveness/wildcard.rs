@@ -148,8 +148,7 @@ impl<'tc> SplitWildcardOps<'tc> {
                             NominalDef::Struct(_) => smallvec![DeconstructedCtor::Single],
                             NominalDef::Enum(enum_def) => {
                                 // The exception is if the pattern is at the top level, because we
-                                // want empty matches to be
-                                // considered exhaustive.
+                                // want empty matches to be considered exhaustive.
                                 let is_secretly_empty =
                                     enum_def.variants.is_empty() && !ctx.is_top_level;
 
