@@ -54,10 +54,13 @@ impl<'tc> InferOps<'tc> {
             Term::Block(_) => todo!(),
             Term::Var(_) => todo!(),
             Term::ResolvedVar(_) => todo!(),
-            Term::Loop(_) => todo!(),
+            Term::Loop(_) => {
+                // @@Future: if loop is proven to not break, return never
+                Some(self.new_void_ty())
+            }
             Term::LoopControl(_) => todo!(),
             Term::Match(_) => todo!(),
-            Term::Return(_) => todo!(),
+            Term::Return(_) => Some(self.new_never_ty()),
             Term::DeclStackMember(_) => todo!(),
             Term::Assign(_) => todo!(),
             Term::Unsafe(_) => todo!(),

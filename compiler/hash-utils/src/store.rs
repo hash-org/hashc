@@ -319,6 +319,12 @@ pub trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
         Key::from_index_and_len_unchecked(starting_index, values.len())
     }
 
+    /// Create an empty sequence of values inside the store, returning its key.
+    fn create_empty(&self) -> Key {
+        let starting_index = self.internal_data().borrow().len();
+        Key::from_index_and_len_unchecked(starting_index, 0)
+    }
+
     /// Same as [`SequenceStore::create_from_iter()`], but each value takes its
     /// key and index.
     ///

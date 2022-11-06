@@ -1,15 +1,17 @@
 use std::collections::HashMap;
 
+use derive_more::From;
 use hash_ast::{ast, ast_visitor_mut_self_default_impl, visitor::walk_mut_self};
 use hash_source::identifier::Identifier;
 use hash_types::new::{
-    data::{CtorDefData, DataDefId},
+    data::DataDefId,
     defs::DefMemberData,
     environment::{
-        context::{Context, ScopeKind},
+        context::{Binding, Context, ScopeKind},
         env::AccessToEnv,
     },
     mods::{ModDefId, ModKind},
+    scopes::StackId,
     symbols::Symbol,
     terms::TermId,
     trts::TrtDefId,
@@ -24,17 +26,25 @@ use crate::{
     },
 };
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, From)]
+enum DefId {
+    Mod(ModDefId),
+    Trt(TrtDefId),
+    Data(DataDefId),
+    Stack(StackId),
+}
+
+pub struct DefMemberFound<'env> {
+    pub data: DefMemberData,
+    pub origin: ast::AstNodeRef<'env, ast::Declaration>,
+}
+
 pub struct ScopeDiscoveryPass<'env> {
     tc_env: &'env TcEnv<'env>,
     name_hint: Option<Symbol>,
-
     ast_ids_to_term_ids: HashMap<ast::AstNodeId, TermId>,
-
-    mod_def_members_found: HashMap<ModDefId, Vec<DefMemberData>>,
-
-    _trt_def_members_found: HashMap<TrtDefId, Vec<DefMemberData>>,
-
-    _data_def_members_found: HashMap<DataDefId, Vec<CtorDefData>>,
+    def_members_found: HashMap<DefId, Vec<DefMemberFound<'env>>>,
+    _ast_ids_to_bindings: HashMap<ast::AstNodeId, Binding>,
 }
 
 impl<'env> ScopeDiscoveryPass<'env> {
@@ -43,9 +53,8 @@ impl<'env> ScopeDiscoveryPass<'env> {
             tc_env,
             name_hint: None,
             ast_ids_to_term_ids: HashMap::new(),
-            mod_def_members_found: HashMap::new(),
-            _data_def_members_found: HashMap::new(),
-            _trt_def_members_found: HashMap::new(),
+            def_members_found: HashMap::new(),
+            _ast_ids_to_bindings: HashMap::new(),
         }
     }
 
@@ -56,18 +65,54 @@ impl<'env> ScopeDiscoveryPass<'env> {
         result
     }
 
-    fn add_mod_def_member(&mut self, mod_def_id: ModDefId, member: DefMemberData) {
-        self.mod_def_members_found.entry(mod_def_id).or_default().push(member);
+    fn _add_def_member(
+        &mut self,
+        def_id: impl Into<DefId>,
+        member: DefMemberData,
+        origin: ast::AstNodeRef<'env, ast::Declaration>,
+    ) {
+        self.def_members_found
+            .entry(def_id.into())
+            .or_default()
+            .push(DefMemberFound { data: member, origin });
     }
 
-    fn get_mod_def_members(&self, mod_def_id: ModDefId) -> &[DefMemberData] {
-        self.mod_def_members_found.get(&mod_def_id).map(|x| x.as_slice()).unwrap_or(&[])
+    fn get_def_members(&self, def_id: impl Into<DefId>) -> &[DefMemberFound] {
+        self.def_members_found.get(&def_id.into()).map(|x| x.as_slice()).unwrap_or(&[])
     }
 
-    fn store_found_mod_def_members(&mut self, mod_def_id: ModDefId) {
-        let members = self.get_mod_def_members(mod_def_id);
-        let members_stored = self.mod_ops().create_mod_members(members.iter().copied());
-        self.mod_ops().set_mod_def_members(mod_def_id, members_stored);
+    fn store_found_def_members(&mut self, def_id: impl Into<DefId> + Copy) {
+        let members = self.get_def_members(def_id);
+        match def_id.into() {
+            DefId::Mod(mod_def_id) => {
+                let members_stored =
+                    self.mod_ops().create_mod_members(members.iter().map(|members| members.data));
+                self.mod_ops().set_mod_def_members(mod_def_id, members_stored);
+            }
+            DefId::Trt(trt_def_id) => {
+                let members_stored =
+                    self.trt_ops().create_trt_members(members.iter().map(|members| members.data));
+                self.trt_ops().set_trt_def_members(trt_def_id, members_stored);
+            }
+            DefId::Data(data_def_id) => {
+                let members_stored = self.data_ops().create_data_ctors_from_members(
+                    data_def_id,
+                    members.iter().map(|members| members.data),
+                );
+                self.data_ops().set_data_def_ctors(data_def_id, members_stored);
+            }
+            DefId::Stack(stack_id) => {
+                let members_stored = self.stack_ops().create_stack_members_from_def_members(
+                    stack_id,
+                    members.iter().map(|members| {
+                        // @@Todo: Here we also have to provide mutability information for the
+                        // stack members
+                        (false, members.data)
+                    }),
+                );
+                self.stack_ops().set_stack_members(stack_id, members_stored);
+            }
+        }
     }
 
     fn take_name_hint_or_create_internal_name(&mut self) -> Symbol {
@@ -117,39 +162,29 @@ impl<'env> ast::AstVisitorMutSelf for ScopeDiscoveryPass<'env> {
                 ast::Pat::Binding(binding) => this.builder().create_symbol(binding.name.ident),
                 _ => unreachable!("non-named declaration patterns in constant scopes found after pre-tc semantics"),
             };
-            // With the member's name hint, walk the value
+            // With the member's name hint, walk the value.
+            //
+            // If the declaration is in the form `x := mod/trait/struct/enum/impl ...`, then
+            // it will use this name hint to declare it.
             this.with_name_hint(name, |this| walk_mut_self::walk_declaration(this, node))?;
 
+            // Get the created value of this term
             let value =
                 node.value.as_ref().and_then(|value| this.get_value_term_of_def(value.ast_ref()));
 
-            Ok(DefMemberData { name, ty: this.new_ty_hole(), value })
+            // Infer the type of the value
+            //
+            // This will be a hole unless the value is a definition.
+            let ty = value
+                .and_then(|value| this.infer_ops().infer_ty_of_term(value))
+                .unwrap_or_else(|| this.new_ty_hole());
+
+            Ok(DefMemberData { name, ty, value })
         };
 
-        match self.context().get_scope_kind() {
-            ScopeKind::Mod(mod_def_id) => {
-                // Mod members
-                let member = make_def_member(self)?;
-                self.add_mod_def_member(mod_def_id, member);
-                Ok(())
-            }
-            ScopeKind::Trt(_) => {
-                // Trait members
-                Ok(())
-            }
-            ScopeKind::Stack(_) => {
-                // Stack variables
-                Ok(())
-            }
-            ScopeKind::Data(_) => {
-                // Constructor
-                Ok(())
-            }
-            ScopeKind::Fn(_) => {
-                // Function body
-                Ok(())
-            }
-        }
+        let _member = make_def_member(self)?;
+        // self.add_def_member(def_id, member, node.ast_ref());
+        todo!()
     }
 
     type ModuleRet = ();
@@ -176,7 +211,7 @@ impl<'env> ast::AstVisitorMutSelf for ScopeDiscoveryPass<'env> {
         })?;
 
         // Get all the members found in the module and add them.
-        self.store_found_mod_def_members(mod_def_id);
+        self.store_found_def_members(mod_def_id);
 
         Ok(())
     }
@@ -204,7 +239,7 @@ impl<'env> ast::AstVisitorMutSelf for ScopeDiscoveryPass<'env> {
         })?;
 
         // Get all the members found in the module and add them.
-        self.store_found_mod_def_members(mod_def_id);
+        self.store_found_def_members(mod_def_id);
 
         Ok(())
     }
