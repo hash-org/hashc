@@ -2,7 +2,7 @@
 //! constructs.
 use hash_ast::ast::ParamOrigin;
 use hash_source::{
-    constant::{IntTy, SIntTy, UIntTy},
+    constant::{FloatTy, IntTy, SIntTy, UIntTy},
     identifier::Identifier,
 };
 use hash_types::{
@@ -56,6 +56,20 @@ impl<'tc> Oracle<'tc> {
         }
     }
 
+    /// Check if the [Term] is a primitive type.
+    pub fn term_is_primitive(&self, term: TermId) -> bool {
+        self.term_is_char_ty(term)
+            || self.term_is_bool_ty(term)
+            || self.term_is_str_ty(term)
+            || self.term_as_int_ty(term).is_some()
+            || self.term_as_float_ty(term).is_some()
+    }
+
+    /// If the term is a bool type.
+    pub fn term_is_bool_ty(&self, term: TermId) -> bool {
+        self.unifier().terms_are_equal(term, self.core_defs().bool_ty())
+    }
+
     /// If the term is an integer type, returns its [IntTy].
     pub fn term_as_int_ty(&self, term: TermId) -> Option<IntTy> {
         macro_rules! check_for_tys {
@@ -83,6 +97,28 @@ impl<'tc> Oracle<'tc> {
         );
 
         // Otherwise not an int
+        None
+    }
+
+    /// If the term is a float type, returns its [FloatTy].
+    pub fn term_as_float_ty(&self, term: TermId) -> Option<FloatTy> {
+        macro_rules! check_for_tys {
+            ($($ty:ident => $variant:expr),* $(,)?) => {
+                $(
+                    if self.unifier().terms_are_equal(term, self.core_defs().$ty()) {
+                        return Some($variant);
+                    }
+                )*
+            };
+        }
+
+        // Check if it is each of the integer types.
+        check_for_tys!(
+            f32_ty => FloatTy::F32,
+            f64_ty => FloatTy::F64,
+        );
+
+        // Otherwise not a float.
         None
     }
 
