@@ -1,7 +1,14 @@
 //! Definitions related to parameters to data types, functions, etc.
-use hash_utils::{new_sequence_store_key, store::DefaultSequenceStore};
+use core::fmt;
+use std::fmt::Debug;
+
+use hash_utils::{
+    new_sequence_store_key,
+    store::{CloneStore, DefaultSequenceStore},
+};
 use utility_types::omit;
 
+use super::environment::env::{AccessToEnv, WithEnv};
 use crate::new::{symbols::Symbol, terms::TermId, tys::TyId};
 
 // @@Todo: examples
@@ -31,4 +38,13 @@ pub type ParamsStore = DefaultSequenceStore<ParamsId, Param>;
 pub enum ParamTarget {
     Name(Symbol),
     Position(usize),
+}
+
+impl fmt::Display for WithEnv<'_, ParamTarget> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.value {
+            ParamTarget::Name(name) => todo!(),
+            ParamTarget::Position(_) => todo!(),
+        }
+    }
 }

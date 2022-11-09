@@ -1,8 +1,21 @@
 //! Definitions related to types.
 
-use hash_utils::{new_store_key, store::DefaultStore};
+use core::fmt;
+use std::fmt::Debug;
 
-use super::{environment::context::Binding, holes::HoleId, symbols::Symbol};
+use hash_utils::{
+    new_store_key,
+    store::{CloneStore, DefaultStore},
+};
+
+use super::{
+    environment::{
+        context::Binding,
+        env::{AccessToEnv, WithEnv},
+    },
+    holes::HoleId,
+    symbols::Symbol,
+};
 use crate::new::{
     data::DataTy, fns::FnTy, refs::RefTy, terms::TermId, trts::TrtBoundsId, tuples::TupleTy,
     unions::UnionTy,
@@ -76,4 +89,16 @@ pub type TyStore = DefaultStore<TyId, Ty>;
 #[derive(Debug, Clone, Copy)]
 pub struct TypeOfTerm {
     pub term: TermId,
+}
+
+impl fmt::Display for WithEnv<'_, TyId> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.env().stores().ty().get(self.value).fmt(f)
+    }
+}
+
+impl fmt::Display for WithEnv<'_, Ty> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        todo!()
+    }
 }

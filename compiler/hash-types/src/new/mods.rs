@@ -105,7 +105,7 @@ impl Display for WithEnv<'_, ModMembersId> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.stores().mod_members().map_fast(self.value, |members| {
             for member in members.iter() {
-                writeln!(f, "{} = ...", self.env().with(member.name))?;
+                writeln!(f, "{}", self.env().with(member))?;
             }
             Ok(())
         })
@@ -123,7 +123,8 @@ impl Display for WithEnv<'_, &ModDef> {
                 write!(f, "mod {{\n{}\n}}", indent(&members, "    "))
             }
             ModKind::Source(source_id) => {
-                write!(f, "source({source_id:?}) {{\n{}}}", indent(&members, "    "))
+                let source_name = self.env().source_map().source_name(source_id);
+                write!(f, "file(\"{source_name:?}\") {{\n{}}}", indent(&members, "    "))
             }
         }
     }

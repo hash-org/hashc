@@ -1,9 +1,15 @@
 //! General definition-related utilities
 
+use std::fmt::Display;
+
 use hash_utils::{new_sequence_store_key, store::DefaultSequenceStore};
 use utility_types::omit;
 
-use super::{args::PatArgsId, pats::Spread};
+use super::{
+    args::PatArgsId,
+    environment::env::{AccessToEnv, WithEnv},
+    pats::Spread,
+};
 use crate::new::{args::ArgsId, params::ParamsId, symbols::Symbol, terms::TermId, tys::TyId};
 
 /// A group of definition parameters
@@ -74,4 +80,19 @@ pub struct DefMemberData {
     pub name: Symbol,
     pub ty: TyId,
     pub value: Option<TermId>,
+}
+
+impl<T> Display for WithEnv<'_, &DefMember<T>> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(
+            f,
+            "{}: {}{}",
+            self.env().with(self.value.name),
+            self.env().with(self.value.ty),
+            self.value
+                .value
+                .map(|x| format!(" = {}", self.env().with(x).to_string()))
+                .unwrap_or_else(|| "".to_string())
+        )
+    }
 }

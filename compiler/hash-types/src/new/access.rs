@@ -1,6 +1,12 @@
 //! Definitions related to access operations.
 
-use super::{params::ParamTarget, terms::TermId};
+use core::fmt;
+
+use super::{
+    environment::env::{AccessToEnv, WithEnv},
+    params::ParamTarget,
+    terms::TermId,
+};
 
 /// The kind of an access.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -27,4 +33,23 @@ pub struct AccessTerm {
     pub kind: AccessKind,
     /// The target field of the accessing operation.
     pub field: ParamTarget,
+}
+
+impl fmt::Display for WithEnv<'_, AccessTerm> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let op = match self.value.kind {
+            AccessKind::CtorField => ".",
+            AccessKind::TupleField => ".",
+            AccessKind::ModMember => "::",
+            AccessKind::TrtMember => "::",
+            AccessKind::Ctor => "::",
+        };
+        write!(
+            f,
+            "{}{}{}",
+            self.env().with(self.value.subject),
+            op,
+            self.env().with(self.value.field)
+        )
+    }
 }

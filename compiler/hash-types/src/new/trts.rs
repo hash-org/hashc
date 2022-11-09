@@ -1,11 +1,15 @@
 //! Definitions related to traits.
 
+use std::fmt::Display;
+
 use hash_utils::{
     new_sequence_store_key, new_store_key,
-    store::{DefaultSequenceStore, DefaultStore},
+    store::{DefaultSequenceStore, DefaultStore, SequenceStore, Store},
 };
+use textwrap::indent;
 use utility_types::omit;
 
+use super::environment::env::{AccessToEnv, WithEnv};
 use crate::new::{
     defs::{DefArgsId, DefMember, DefParamsId},
     symbols::Symbol,
@@ -45,3 +49,28 @@ pub struct TrtBound {
 }
 new_sequence_store_key!(pub TrtBoundsId);
 pub type TrtBoundsStore = DefaultSequenceStore<TrtBoundsId, TrtBound>;
+
+impl Display for WithEnv<'_, TrtDefId> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.stores().trt_def().map_fast(self.value, |def| write!(f, "{}", self.env().with(def)))
+    }
+}
+
+impl Display for WithEnv<'_, TrtMembersId> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.stores().trt_members().map_fast(self.value, |members| {
+            for member in members.iter() {
+                writeln!(f, "{}", self.env().with(member))?;
+            }
+            Ok(())
+        })
+    }
+}
+
+impl Display for WithEnv<'_, &TrtDef> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.env().stores();
+        let members = self.env().with(self.value.members).to_string();
+        write!(f, "trait {{\n{}\n}}", indent(&members, "    "))
+    }
+}

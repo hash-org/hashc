@@ -1,8 +1,11 @@
 //! Definitions related to functions.
 
+use core::fmt;
+
 use hash_utils::{new_store_key, store::DefaultStore};
 use utility_types::omit;
 
+use super::environment::env::Env;
 use crate::new::{args::ArgsId, params::ParamsId, symbols::Symbol, terms::TermId, tys::TyId};
 
 /// A function type.
@@ -47,6 +50,45 @@ pub struct FnTy {
     pub return_type: TyId,
 }
 
+/// Intrinsics live in a store.
+///
+/// Each intrinsic is essentially a function pointer that takes some arguments
+#[derive(Clone, Copy)]
+pub struct Intrinsic {
+    pub name: Symbol,
+    pub fn_def: FnDefId,
+    pub call: fn(&Env, ArgsId) -> TermId,
+}
+new_store_key!(pub IntrinsicId);
+pub type IntrinsicStore = DefaultStore<IntrinsicId, Intrinsic>;
+
+// Debug for intrinsics needs to be explicit to omit `call`, otherwise rust
+// complains.
+impl fmt::Debug for Intrinsic {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Intrinsic").field("name", &self.name).finish()
+    }
+}
+
+/// A function body.
+#[derive(Debug, Clone, Copy)]
+pub enum FnBody {
+    /// A function that is defined in Hash.
+    ///
+    /// This is the most common type of function.
+    /// Contains the term of the body.
+    Defined(TermId),
+    /// A function that is defined in Rust.
+    ///
+    /// This is used for intrinsics.
+    Intrinsic(IntrinsicId),
+    /// A function that is an axiom.
+    ///
+    /// This can never be simplified further than an function call on some
+    /// arguments, like constructors.
+    Axiom,
+}
+
 /// A function definition.
 ///
 /// Every function literal `(x) => y` is a function definition. Function
@@ -64,11 +106,10 @@ pub struct FnDef {
     /// the function literal (if some aspects of the type are not given, then
     /// they will be type holes).
     pub ty: FnTy,
-    /// The return type of the function.
+    /// The return value of the function.
     ///
-    /// This might depend on `ty.params` and `ty.conditions`.
-    pub return_term: TermId,
-    // @@Todo: captured variables
+    /// This depends on `ty.params` and `ty.conditions`.
+    pub body: FnBody,
 }
 new_store_key!(pub FnDefId);
 
