@@ -20,8 +20,11 @@ use crate::{
     crash_handler::panic_handler,
 };
 
-pub static CONSOLE_LOGGER: CompilerLogger = CompilerLogger;
+/// THe logger that is used by the compiler for `log!` statements.
+pub static COMPILER_LOGGER: CompilerLogger = CompilerLogger;
 
+/// Perform some task that might fail and if it does, report the error and exit,
+/// otherwise return the result of the task.
 fn execute<T>(f: impl FnOnce() -> Result<T, CompilerError>) -> T {
     match f() {
         Ok(value) => value,
@@ -32,7 +35,7 @@ fn execute<T>(f: impl FnOnce() -> Result<T, CompilerError>) -> T {
 fn main() {
     // Initial grunt work, panic handler and logger setup...
     panic::set_hook(Box::new(panic_handler));
-    log::set_logger(&CONSOLE_LOGGER).unwrap_or_else(|_| panic!("Couldn't initiate logger"));
+    log::set_logger(&COMPILER_LOGGER).unwrap_or_else(|_| panic!("Couldn't initiate logger"));
 
     // Starting the Tracy client is necessary before any invoking any of its APIs
     #[cfg(feature = "profile-with-tracy")]

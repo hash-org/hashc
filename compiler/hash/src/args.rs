@@ -90,11 +90,17 @@ impl TryInto<CompilerSettings> for CompilerOptions {
     }
 }
 
+/// [SubCmd] specifies separate modes that the compiler can run in. These modes
+/// are used to terminate the compiler at a particular stage of the pipeline.
 #[derive(ClapParser, Clone)]
 pub(crate) enum SubCmd {
+    /// Parse the given program and terminate.
     AstGen(AstGenMode),
+    /// Only run the compiler up until the `de-sugaring` stage.
     DeSugar(DeSugarMode),
+    /// Typecheck the given module.
     Check(CheckMode),
+    /// Generate the IR for the given file.
     IrGen(IrGenMode),
 }
 
