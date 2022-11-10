@@ -29,8 +29,8 @@ impl Constant {
     /// Function to convert a [BigInt] into a [Constant]. The only
     /// constraint is that it can fit into a [u128], otherwise the
     /// function will currently panic.
-    pub fn from_int(int: BigInt, kind: IntTy, ty: TermId) -> Self {
-        let size = kind.size().unwrap_or_else(|| int.bits());
+    pub fn from_int(int: BigInt, kind: IntTy, ty: TermId, ptr_width: usize) -> Self {
+        let size = kind.size(ptr_width).unwrap_or_else(|| int.bits());
         assert!(size < 128);
 
         // @@Hack: this should be done in some better way or tidied up!
@@ -44,7 +44,7 @@ impl Constant {
 
             // memset the upper 16-kind.size() bytes to zero since they aren't
             // necessary.
-            data[0..(16 - kind.size().unwrap() as usize)].fill(0);
+            data[0..(16 - kind.size(ptr_width).unwrap() as usize)].fill(0);
 
             Constant { data: u128::from_be_bytes(data), ty }
         } else {

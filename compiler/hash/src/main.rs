@@ -82,11 +82,10 @@ fn main() {
         .build()
         .unwrap();
 
+    let workspace = Workspace::new();
     let compiler_settings: CompilerSettings = execute(|| opts.try_into());
 
-    let workspace = Workspace::new();
     let session = CompilerSession::new(workspace, pool, compiler_settings);
-
     let mut compiler = Compiler::new(make_stages());
     let compiler_state = compiler.bootstrap(session);
 

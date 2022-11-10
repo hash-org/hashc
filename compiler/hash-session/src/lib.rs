@@ -66,8 +66,9 @@ pub struct CompilerSession {
 }
 
 impl CompilerSession {
+    /// Create a new [CompilerSession].
     pub fn new(workspace: Workspace, pool: rayon::ThreadPool, settings: CompilerSettings) -> Self {
-        let global = GlobalStorage::new();
+        let global = GlobalStorage::new(settings.target_info.target());
         let local = LocalStorage::new(&global, SourceId::default());
 
         Self {

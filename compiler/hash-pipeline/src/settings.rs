@@ -3,9 +3,11 @@
 //! to the Compiler pipeline.
 use std::fmt::Display;
 
+use hash_target::TargetInfo;
+
 /// Various settings that are present on the compiler pipeline when initially
 /// launching.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct CompilerSettings {
     /// Print metrics about each stage when the entire pipeline has completed.
     ///
@@ -36,13 +38,15 @@ pub struct CompilerSettings {
     /// dump the ast for a particular expression.
     pub dump_ast: bool,
 
-    /// Which target the compiler should compile for, this affects various
-    /// settings within the compiler, notably the pointer size.
-    pub target: CompilationTarget,
-
     /// To what should the compiler run to, anywhere from parsing, typecheck, to
     /// code generation.
     pub stage: CompilerStageKind,
+
+    /// Information about the current "session" that the compiler is running
+    /// in. This contains information about which target the compiler is
+    /// compiling for, and other information that is used by the compiler
+    /// to determine how to compile the source code.
+    pub target_info: TargetInfo,
 }
 
 impl CompilerSettings {
@@ -72,7 +76,7 @@ impl CompilerSettings {
 impl Default for CompilerSettings {
     fn default() -> Self {
         Self {
-            target: CompilationTarget::default(),
+            target_info: TargetInfo::default(),
             output_stage_results: false,
             output_metrics: false,
             worker_count: num_cpus::get(),
@@ -80,36 +84,6 @@ impl Default for CompilerSettings {
             emit_errors: true,
             dump_ast: false,
             stage: CompilerStageKind::Full,
-        }
-    }
-}
-
-/// The target that the compiler should compile for.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum CompilationTarget {
-    /// The target is a 32-bit system.
-    X86,
-
-    /// The target is a 64-bit system.
-    X86_64,
-}
-
-impl Default for CompilationTarget {
-    fn default() -> Self {
-        match std::env::consts::ARCH {
-            "x86" => Self::X86,
-            "x86_64" => Self::X86_64,
-            _ => panic!("Unsupported target architecture"),
-        }
-    }
-}
-
-impl CompilationTarget {
-    /// Get the size of a pointer for the target in bytes.
-    pub fn pointer_size(&self) -> usize {
-        match self {
-            Self::X86 => 4,
-            Self::X86_64 => 8,
         }
     }
 }

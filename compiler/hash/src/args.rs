@@ -1,8 +1,9 @@
 //! Hash Compiler arguments management.
 
 use clap::Parser as ClapParser;
-use hash_pipeline::settings::{CompilationTarget, CompilerSettings, CompilerStageKind};
+use hash_pipeline::settings::{CompilerSettings, CompilerStageKind};
 use hash_reporting::errors::CompilerError;
+use hash_target::{Target, TargetInfo};
 
 /// CompilerOptions is a structural representation of what arguments the
 /// compiler can take when running. Compiler options are well documented on the
@@ -69,16 +70,16 @@ impl TryInto<CompilerSettings> for CompilerOptions {
             _ => CompilerStageKind::Full,
         };
 
-        // Determine the target that the compiler should emit the executable for.
-        let target = match self.target.as_str() {
-            "x86" => CompilationTarget::X86,
-            "x86_64" => CompilationTarget::X86_64,
-            // @@Future: gracefully fail here rather than panicking
-            _ => return Err(CompilerError::InvalidTarget(self.target)),
-        };
+        let host = Target::from_string(std::env::consts::ARCH.to_string())
+            .ok_or_else(|| CompilerError::InvalidTarget(std::env::consts::ARCH.to_string()))?;
+
+        let target = Target::from_string(self.target.clone())
+            .ok_or_else(|| CompilerError::InvalidTarget(self.target))?;
+
+        let target_info = TargetInfo::new(host, target);
 
         Ok(CompilerSettings {
-            target,
+            target_info,
             output_stage_results: self.output_stage_results,
             output_metrics: self.output_metrics,
             worker_count: self.worker_count,

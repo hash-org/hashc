@@ -16,3 +16,4 @@ hash-types = { path = "../hash-types" }
 hash-utils = { path = "../hash-utils" }
 hash-source = { path = "../hash-source" }
 hash-reporting = { path = "../hash-reporting" }
+hash-target = { path = "../hash-target" }

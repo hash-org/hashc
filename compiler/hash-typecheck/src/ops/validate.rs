@@ -1216,11 +1216,13 @@ impl<'tc> Validator<'tc> {
                 Term::Level0(Level0Term::Lit(LitTerm::Int { value: lhs, kind: lhs_kind })),
                 Term::Level0(Level0Term::Lit(LitTerm::Int { value: rhs, kind: rhs_kind })),
             ) => {
+                let ptr_width = self.global_storage().target_pointer_width;
+
                 // Check that the integer type is sized, if it is not then we currently
                 // say that this is not supported...
-                if lhs_kind.size().is_none() || rhs_kind.size().is_none() {
+                if lhs_kind.size(ptr_width).is_none() || rhs_kind.size(ptr_width).is_none() {
                     return Err(TcError::UnsupportedRangePatTy {
-                        term: lhs_kind.size().map_or(lo, |_| hi),
+                        term: lhs_kind.size(ptr_width).map_or(lo, |_| hi),
                     });
                 }
 

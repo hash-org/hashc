@@ -6,6 +6,7 @@
 use std::cell::Cell;
 
 use hash_source::SourceId;
+use hash_target::Target;
 use hash_utils::store::Store;
 
 use crate::{
@@ -70,14 +71,19 @@ pub struct GlobalStorage {
     /// directly queried, but rather the [LocalStorage] scopes should be
     /// queried.
     pub root_scope: ScopeId,
+
+    /// The pointer width on the current target architecture.
+    pub target_pointer_width: usize,
 }
 
 impl GlobalStorage {
     /// Create a new, empty [GlobalStorage].
-    pub fn new() -> Self {
+    pub fn new(target: &Target) -> Self {
         let scope_store = ScopeStore::new();
         let root_scope = scope_store.create(Scope::empty(ScopeKind::Mod));
+
         let gs = Self {
+            target_pointer_width: target.pointer_width,
             location_store: LocationStore::new(),
             term_store: TermStore::new(),
             term_list_store: TermListStore::new(),
@@ -92,14 +98,9 @@ impl GlobalStorage {
             params_store: ParamsStore::new(),
             args_store: ArgsStore::new(),
         };
+
         create_core_defs_in(&gs);
         gs
-    }
-}
-
-impl Default for GlobalStorage {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

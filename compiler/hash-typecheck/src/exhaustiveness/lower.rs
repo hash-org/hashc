@@ -132,7 +132,8 @@ impl<'tc> LowerPatOps<'tc> {
                 Term::Level0(Level0Term::Lit(lit)) => match lit {
                     LitTerm::Str(value) => (DeconstructedCtor::Str(value), vec![]),
                     LitTerm::Int { value, kind } => {
-                        let value = Constant::from_int(value, kind, term);
+                        let ptr_width = self.global_storage().target_pointer_width;
+                        let value = Constant::from_int(value, kind, term, ptr_width);
                         let range = self.int_range_ops().range_from_constant(value);
                         (DeconstructedCtor::IntRange(range), vec![])
                     }
@@ -444,7 +445,9 @@ impl<'tc> LowerPatOps<'tc> {
                     Constant::from_char(ch, term).data()
                 }
                 Term::Level0(Level0Term::Lit(LitTerm::Int { value, kind })) => {
-                    Constant::from_int(value, kind, term).data()
+                    let ptr_width = self.global_storage().target_pointer_width;
+
+                    Constant::from_int(value, kind, term, ptr_width).data()
                 }
                 _ => tc_panic!(term, self, "term does not support lowering into range"),
             }
@@ -477,7 +480,8 @@ impl<'tc> LowerPatOps<'tc> {
         let (lo, hi) = (lo ^ bias, hi ^ bias);
 
         let (lo, hi) = if let Some(kind) = self.oracle().term_as_int_ty(ty) {
-            let size = kind.size().unwrap() as usize;
+            let ptr_width = self.global_storage().target_pointer_width;
+            let size = kind.size(ptr_width).unwrap() as usize;
 
             // Trim the values within the stored range and then create
             // literal terms with those values...
