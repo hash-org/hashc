@@ -30,6 +30,9 @@ pub enum InteractiveCommandError {
 /// program.
 #[derive(Debug, Error)]
 pub enum CompilerError {
+    #[error("invalid compiler target `{0}` specified, available targets are: `x86_64` and `x86`")]
+    /// Invalid target was passed to the compiler.
+    InvalidTarget(String),
     /// Generic IO error.
     #[error("{0}")]
     IoError(#[from] io::Error),

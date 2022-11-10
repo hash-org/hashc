@@ -1,7 +1,8 @@
 //! Hash Compiler arguments management.
 
 use clap::Parser as ClapParser;
-use hash_pipeline::settings::{CompilerSettings, CompilerStageKind};
+use hash_pipeline::settings::{CompilationTarget, CompilerSettings, CompilerStageKind};
+use hash_reporting::errors::CompilerError;
 
 /// CompilerOptions is a structural representation of what arguments the
 /// compiler can take when running. Compiler options are well documented on the
@@ -44,14 +45,22 @@ pub(crate) struct CompilerOptions {
     #[clap(short, long, default_value = Box::leak(num_cpus::get().to_string().into_boxed_str()))]
     pub(crate) worker_count: usize,
 
+    /// The target that the compiler will emit the executable for. This
+    /// will be used to determine the pointer size and other settings that
+    /// are **target specific**.
+    #[clap(long, default_value = std::env::consts::ARCH)]
+    pub(crate) target: String,
+
     /// Compiler mode
     #[clap(subcommand)]
     pub(crate) mode: Option<SubCmd>,
 }
 
-impl From<CompilerOptions> for CompilerSettings {
-    fn from(options: CompilerOptions) -> Self {
-        let stage = match options.mode {
+impl TryInto<CompilerSettings> for CompilerOptions {
+    type Error = CompilerError;
+
+    fn try_into(self) -> Result<CompilerSettings, Self::Error> {
+        let stage = match self.mode {
             Some(SubCmd::AstGen { .. }) => CompilerStageKind::Parse,
             Some(SubCmd::DeSugar { .. }) => CompilerStageKind::DeSugar,
 
@@ -60,15 +69,24 @@ impl From<CompilerOptions> for CompilerSettings {
             _ => CompilerStageKind::Full,
         };
 
-        Self {
-            output_stage_results: options.output_stage_results,
-            output_metrics: options.output_metrics,
-            worker_count: options.worker_count,
+        // Determine the target that the compiler should emit the executable for.
+        let target = match self.target.as_str() {
+            "x86" => CompilationTarget::X86,
+            "x86_64" => CompilationTarget::X86_64,
+            // @@Future: gracefully fail here rather than panicking
+            _ => return Err(CompilerError::InvalidTarget(self.target)),
+        };
+
+        Ok(CompilerSettings {
+            target,
+            output_stage_results: self.output_stage_results,
+            output_metrics: self.output_metrics,
+            worker_count: self.worker_count,
             skip_prelude: false,
             emit_errors: true,
-            dump_ast: options.dump_ast,
+            dump_ast: self.dump_ast,
             stage,
-        }
+        })
     }
 }
 

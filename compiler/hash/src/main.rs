@@ -22,9 +22,9 @@ use crate::{
 
 pub static CONSOLE_LOGGER: CompilerLogger = CompilerLogger;
 
-fn execute(f: impl FnOnce() -> Result<(), CompilerError>) {
+fn execute<T>(f: impl FnOnce() -> Result<T, CompilerError>) -> T {
     match f() {
-        Ok(()) => (),
+        Ok(value) => value,
         Err(e) => e.report_and_exit(),
     }
 }
@@ -79,7 +79,7 @@ fn main() {
         .build()
         .unwrap();
 
-    let compiler_settings: CompilerSettings = opts.into();
+    let compiler_settings: CompilerSettings = execute(|| opts.try_into());
 
     let workspace = Workspace::new();
     let session = CompilerSession::new(workspace, pool, compiler_settings);

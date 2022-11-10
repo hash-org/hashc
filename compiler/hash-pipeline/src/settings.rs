@@ -10,7 +10,7 @@ pub struct CompilerSettings {
     /// Print metrics about each stage when the entire pipeline has completed.
     ///
     /// N.B: This flag has no effect if the compiler is not specified to run in
-    ///       debug mode!
+    ///      debug mode!
     pub output_metrics: bool,
 
     /// Whether to output of each stage result.
@@ -35,6 +35,10 @@ pub struct CompilerSettings {
     /// dumped, or this could be achieved with using some kind of directive to
     /// dump the ast for a particular expression.
     pub dump_ast: bool,
+
+    /// Which target the compiler should compile for, this affects various
+    /// settings within the compiler, notably the pointer size.
+    pub target: CompilationTarget,
 
     /// To what should the compiler run to, anywhere from parsing, typecheck, to
     /// code generation.
@@ -68,6 +72,7 @@ impl CompilerSettings {
 impl Default for CompilerSettings {
     fn default() -> Self {
         Self {
+            target: CompilationTarget::default(),
             output_stage_results: false,
             output_metrics: false,
             worker_count: num_cpus::get(),
@@ -75,6 +80,36 @@ impl Default for CompilerSettings {
             emit_errors: true,
             dump_ast: false,
             stage: CompilerStageKind::Full,
+        }
+    }
+}
+
+/// The target that the compiler should compile for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CompilationTarget {
+    /// The target is a 32-bit system.
+    X86,
+
+    /// The target is a 64-bit system.
+    X86_64,
+}
+
+impl Default for CompilationTarget {
+    fn default() -> Self {
+        match std::env::consts::ARCH {
+            "x86" => Self::X86,
+            "x86_64" => Self::X86_64,
+            _ => panic!("Unsupported target architecture"),
+        }
+    }
+}
+
+impl CompilationTarget {
+    /// Get the size of a pointer for the target in bytes.
+    pub fn pointer_size(&self) -> usize {
+        match self {
+            Self::X86 => 4,
+            Self::X86_64 => 8,
         }
     }
 }
