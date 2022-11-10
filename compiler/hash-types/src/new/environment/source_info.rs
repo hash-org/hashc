@@ -1,3 +1,4 @@
+// @@Docs
 use hash_source::SourceId;
 
 #[derive(Debug, Copy, Clone)]

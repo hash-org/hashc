@@ -84,14 +84,14 @@ pub struct DefMemberData {
 
 impl<T> Display for WithEnv<'_, &DefMember<T>> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(
+        write!(
             f,
             "{}: {}{}",
             self.env().with(self.value.name),
             self.env().with(self.value.ty),
             self.value
                 .value
-                .map(|x| format!(" = {}", self.env().with(x).to_string()))
+                .map(|x| format!(" = {}", self.env().with(x)))
                 .unwrap_or_else(|| "".to_string())
         )
     }

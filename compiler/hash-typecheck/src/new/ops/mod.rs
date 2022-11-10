@@ -1,9 +1,8 @@
+// @@Docs
 use self::{
-    builder::Builder, data::DataOps, defs::CommonDefOps, infer::InferOps, mods::ModOps,
-    stack::StackOps, trts::TrtOps,
+    data::DataOps, defs::CommonDefOps, infer::InferOps, mods::ModOps, stack::StackOps, trts::TrtOps,
 };
 
-pub mod builder;
 pub mod common;
 pub mod data;
 pub mod defs;
@@ -14,6 +13,7 @@ pub mod trts;
 
 macro_rules! ops {
     ($($name:ident: $ty:ty),* $(,)?) => {
+        /// A trait that defines typechecking operations, which operate on [`TcEnv`].
         pub trait AccessToOps: $crate::new::environment::tc_env::AccessToTcEnv {
             $(
                 fn $name(&self) -> $ty {
@@ -26,7 +26,6 @@ macro_rules! ops {
 }
 
 ops! {
-  builder: Builder,
   mod_ops: ModOps,
   trt_ops: TrtOps,
   data_ops: DataOps,

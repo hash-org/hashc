@@ -1,3 +1,4 @@
+// @@Docs
 use derive_more::Constructor;
 use hash_types::new::{
     data::{CtorDef, CtorDefsId, DataDef, DataDefId},
@@ -9,6 +10,7 @@ use hash_utils::store::{SequenceStore, Store};
 
 use crate::{impl_access_to_tc_env, new::environment::tc_env::TcEnv};
 
+/// Data definition-related operations.
 #[derive(Constructor)]
 pub struct DataOps<'tc> {
     tc_env: &'tc TcEnv<'tc>,
@@ -17,6 +19,7 @@ pub struct DataOps<'tc> {
 impl_access_to_tc_env!(DataOps<'tc>);
 
 impl<'tc> DataOps<'tc> {
+    /// Create an empty data definition.
     pub fn create_empty_data_def(&self, name: Symbol, params: DefParamsId) -> DataDefId {
         self.stores().data_def().create_with(|id| DataDef {
             id,
@@ -26,12 +29,17 @@ impl<'tc> DataOps<'tc> {
         })
     }
 
+    /// Set the constructors of the given data definition.
     pub fn set_data_def_ctors(&self, data_def: DataDefId, ctors: CtorDefsId) {
         self.stores().data_def().modify_fast(data_def, |data_def| {
             data_def.ctors = ctors;
         });
     }
 
+    /// Create data constructors from the given set of members as an iterator.
+    ///
+    /// This has to turn function types into data constructors, while also
+    /// checking for strict positivity @@Todo.
     pub fn create_data_ctors_from_members<I: IntoIterator<Item = DefMemberData>>(
         &self,
         data_def_id: DataDefId,

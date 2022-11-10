@@ -1,10 +1,19 @@
 //! Definitions related to arguments to data structures, functions,
 //! etc.
+use core::fmt;
+use std::fmt::Debug;
 
-use hash_utils::{new_sequence_store_key, store::DefaultSequenceStore};
+use hash_utils::{
+    new_sequence_store_key,
+    store::{DefaultSequenceStore, SequenceStore},
+};
 use utility_types::omit;
 
-use super::{params::ParamTarget, pats::PatId};
+use super::{
+    environment::env::{AccessToEnv, WithEnv},
+    params::ParamTarget,
+    pats::PatId,
+};
 use crate::new::terms::TermId;
 
 /// An argument to a parameter.
@@ -43,3 +52,29 @@ pub struct PatArg {
 new_sequence_store_key!(pub PatArgsId);
 pub type PatArgId = (PatArgsId, usize);
 pub type PatArgsStore = DefaultSequenceStore<PatArgsId, PatArg>;
+
+impl fmt::Display for WithEnv<'_, &Arg> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} = {}", self.env().with(self.value.target), self.env().with(self.value.value))
+    }
+}
+
+impl fmt::Display for WithEnv<'_, ArgId> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.env().with(&self.stores().args().get_element(self.value)))
+    }
+}
+
+impl fmt::Display for WithEnv<'_, ArgsId> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.stores().args().map_fast(self.value, |args| {
+            for (i, arg) in args.iter().enumerate() {
+                write!(f, "{}", self.env().with(arg))?;
+                if i > 0 {
+                    write!(f, ", ")?;
+                }
+            }
+            Ok(())
+        })
+    }
+}

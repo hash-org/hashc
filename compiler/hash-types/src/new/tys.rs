@@ -93,12 +93,27 @@ pub struct TypeOfTerm {
 
 impl fmt::Display for WithEnv<'_, TyId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.env().stores().ty().get(self.value).fmt(f)
+        write!(f, "{}", self.env().with(self.env().stores().ty().get(self.value)))
     }
 }
 
 impl fmt::Display for WithEnv<'_, Ty> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        todo!()
+        match self.value {
+            Ty::Eval(_) => todo!(),
+            Ty::Hole(hole) => write!(f, "{}", self.env().with(hole)),
+            Ty::Var(var) => write!(f, "{}", self.env().with(var)),
+            Ty::ResolvedVar(resolved_var) => write!(f, "{}", self.env().with(resolved_var.name)),
+            Ty::Union(_) => todo!(),
+            Ty::Tuple(_) => todo!(),
+            Ty::Fn(_) => todo!(),
+            Ty::Ref(_) => todo!(),
+            Ty::Data(_) => todo!(),
+            Ty::Universe(_) => todo!(),
+            Ty::Meta(meta) => match meta {
+                MetaTy::ModDefTy => write!(f, "Module"),
+                MetaTy::TrtDefTy => write!(f, "Trait"),
+            },
+        }
     }
 }

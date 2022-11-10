@@ -1,3 +1,4 @@
+// @@Docs
 use derive_more::Constructor;
 use hash_types::new::{
     environment::env::AccessToEnv,
@@ -18,6 +19,9 @@ pub struct InferOps<'tc> {
 impl_access_to_tc_env!(InferOps<'tc>);
 
 impl<'tc> InferOps<'tc> {
+    /**
+     * Infer the type of a term, or create a new a type hole.
+     */
     pub fn infer_ty_of_term_or_hole(&self, term: TermId) -> TyId {
         self.infer_ty_of_term(term).unwrap_or_else(|| self.new_ty_hole())
     }
@@ -66,7 +70,6 @@ impl<'tc> InferOps<'tc> {
             Term::Unsafe(_) => todo!(),
             Term::Access(_) => todo!(),
             Term::Cast(_) => todo!(),
-            Term::Coerce(_) => todo!(),
             Term::TypeOf(_) => todo!(),
             Term::Ty(ty_id) => {
                 match self.get_ty(ty_id) {

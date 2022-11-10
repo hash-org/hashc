@@ -1,3 +1,4 @@
+// @@Docs
 use hash_types::new::environment::env::{AccessToEnv, Env};
 
 use crate::diagnostics::DiagnosticsStore;

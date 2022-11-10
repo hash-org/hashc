@@ -7,6 +7,7 @@ use crate::impl_access_to_tc_env;
 
 pub mod scope_discovery;
 
+/// The base TC visitor, which runs each typechecking pass in order on the AST.
 pub struct TcVisitor<'tc> {
     tc_env: &'tc TcEnv<'tc>,
 }
@@ -23,6 +24,7 @@ impl<'tc> TcVisitor<'tc> {
     pub fn visit_source(&self) {
         let source = self.node_map().get_source(self.current_source_info().source_id);
 
+        // First, we need to discover the scopes of the source.
         let mut scope_discovery = ScopeDiscoveryPass::new(self.tc_env());
 
         let result = match source {
@@ -34,6 +36,7 @@ impl<'tc> TcVisitor<'tc> {
             }
         };
 
+        // Record errors
         if let Err(err) = result {
             self.diagnostics_store().errors.borrow_mut().push(err);
         }

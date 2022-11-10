@@ -124,7 +124,7 @@ impl Display for WithEnv<'_, &ModDef> {
             }
             ModKind::Source(source_id) => {
                 let source_name = self.env().source_map().source_name(source_id);
-                write!(f, "file(\"{source_name:?}\") {{\n{}}}", indent(&members, "    "))
+                write!(f, "file \"{source_name}\" {{\n{}}}", indent(&members, "    "))
             }
         }
     }

@@ -1,3 +1,4 @@
+// @@Docs
 use derive_more::Constructor;
 use hash_types::new::{
     defs::DefMemberData,
@@ -8,6 +9,7 @@ use hash_utils::store::Store;
 
 use crate::{impl_access_to_tc_env, new::environment::tc_env::TcEnv};
 
+/// Operations related to the stack.
 #[derive(Constructor)]
 pub struct StackOps<'tc> {
     tc_env: &'tc TcEnv<'tc>,
@@ -16,10 +18,12 @@ pub struct StackOps<'tc> {
 impl_access_to_tc_env!(StackOps<'tc>);
 
 impl<'tc> StackOps<'tc> {
+    /// Create a new empty stack.
     pub fn create_stack(&self) -> StackId {
         self.stores().stack().create_with(|id| Stack { id, members: vec![] })
     }
 
+    /// Set the members of the given stack.
     pub fn set_stack_members(
         &self,
         stack_id: StackId,
@@ -31,6 +35,8 @@ impl<'tc> StackOps<'tc> {
         })
     }
 
+    /// Create stack members from the given iterator of members where the `bool`
+    /// flag determines mutability.
     pub fn create_stack_members_from_def_members<I: IntoIterator<Item = (bool, DefMemberData)>>(
         &self,
         stack_id: StackId,

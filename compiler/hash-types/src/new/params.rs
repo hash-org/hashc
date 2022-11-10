@@ -4,7 +4,7 @@ use std::fmt::Debug;
 
 use hash_utils::{
     new_sequence_store_key,
-    store::{CloneStore, DefaultSequenceStore},
+    store::{DefaultSequenceStore, SequenceStore},
 };
 use utility_types::omit;
 
@@ -21,7 +21,7 @@ pub struct Param {
     /// The ID of the parameter in the parameter list.
     pub id: ParamId,
     /// The name of the parameter.
-    pub name: Option<Symbol>,
+    pub name: Symbol,
     /// The type of the parameter.
     pub ty: TyId,
     /// The default value of the parameter, if given.
@@ -40,11 +40,47 @@ pub enum ParamTarget {
     Position(usize),
 }
 
+impl fmt::Display for WithEnv<'_, &Param> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}: {}{}",
+            self.env().with(self.value.name),
+            self.env().with(self.value.ty),
+            if let Some(default_value) = self.value.default_value {
+                format!(" = {}", self.env().with(default_value))
+            } else {
+                "".to_string()
+            }
+        )
+    }
+}
+
+impl fmt::Display for WithEnv<'_, ParamId> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.env().with(&self.stores().params().get_element(self.value)))
+    }
+}
+
+impl fmt::Display for WithEnv<'_, ParamsId> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.stores().params().map_fast(self.value, |params| {
+            for (i, param) in params.iter().enumerate() {
+                write!(f, "{}", self.env().with(param))?;
+                if i > 0 {
+                    write!(f, ", ")?;
+                }
+            }
+            Ok(())
+        })
+    }
+}
+
 impl fmt::Display for WithEnv<'_, ParamTarget> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.value {
-            ParamTarget::Name(name) => todo!(),
-            ParamTarget::Position(_) => todo!(),
+            ParamTarget::Name(name) => write!(f, "{}", self.env().with(name)),
+            ParamTarget::Position(pos) => write!(f, "{pos}"),
         }
     }
 }

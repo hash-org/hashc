@@ -134,13 +134,12 @@ impl fmt::Display for WithEnv<'_, &RuntimeTerm> {
 
 impl fmt::Display for WithEnv<'_, TermId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.env().stores().term().get(self.value).fmt(f)
+        write!(f, "{}", self.env().with(&self.env().stores().term().get(self.value)))
     }
 }
 
 impl fmt::Display for WithEnv<'_, &Term> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let term = self.value;
         match self.value {
             Term::Runtime(_) => todo!(),
             Term::UnionVariant(_) => todo!(),
@@ -150,11 +149,11 @@ impl fmt::Display for WithEnv<'_, &Term> {
             Term::FnCall(_) => todo!(),
             Term::FnDef(_) => todo!(),
             Term::Block(_) => todo!(),
-            Term::TrtDef(_) => todo!(),
+            Term::TrtDef(trt_def) => write!(f, "{}", self.env().with(*trt_def)),
             Term::DataDef(_) => todo!(),
-            Term::ModDef(mod_def) => self.env().with(*mod_def).fmt(f),
-            Term::Var(_) => todo!(),
-            Term::ResolvedVar(_) => todo!(),
+            Term::ModDef(mod_def) => write!(f, "{}", self.env().with(*mod_def)),
+            Term::Var(var) => write!(f, "{}", self.env().with(*var)),
+            Term::ResolvedVar(resolved_var) => write!(f, "{}", self.env().with(resolved_var.name)),
             Term::Loop(_) => todo!(),
             Term::LoopControl(_) => todo!(),
             Term::Match(_) => todo!(),
@@ -168,7 +167,7 @@ impl fmt::Display for WithEnv<'_, &Term> {
             Term::Ty(_) => todo!(),
             Term::Ref(_) => todo!(),
             Term::Deref(_) => todo!(),
-            Term::Hole(_) => todo!(),
+            Term::Hole(hole) => write!(f, "{}", self.env().with(*hole)),
         }
     }
 }
