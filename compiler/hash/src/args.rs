@@ -70,8 +70,9 @@ impl TryInto<CompilerSettings> for CompilerOptions {
             _ => CompilerStageKind::Full,
         };
 
-        let host = Target::from_string(std::env::consts::ARCH.to_string())
-            .ok_or_else(|| CompilerError::InvalidTarget(std::env::consts::ARCH.to_string()))?;
+        // We can use the default value of target since we are running
+        // on the current system...
+        let host = Target::default();
 
         let target = Target::from_string(self.target.clone())
             .ok_or_else(|| CompilerError::InvalidTarget(self.target))?;

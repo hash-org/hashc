@@ -614,3 +614,37 @@ impl ConstantMap {
         self.int_table.alter(&id, |_, value| value.negate());
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use num_bigint::BigInt;
+
+    use super::SIntTy;
+    use crate::constant::UIntTy;
+
+    #[test]
+    fn test_max_signed_int_value() {
+        // Pointer width is always described using a number of bytes
+        assert_eq!(SIntTy::ISize.max(8), Some(BigInt::from(isize::MAX)));
+        assert_eq!(SIntTy::ISize.min(8), Some(BigInt::from(isize::MIN)));
+
+        assert_eq!(SIntTy::ISize.max(4), Some(BigInt::from(i32::MAX)));
+        assert_eq!(SIntTy::ISize.min(4), Some(BigInt::from(i32::MIN)));
+
+        // Check that computing the size of each type with pointer widths
+        // is consistent.
+        assert_eq!(SIntTy::ISize.size(8), Some(8));
+        assert_eq!(SIntTy::ISize.size(4), Some(4));
+    }
+
+    #[test]
+    fn test_max_unsigned_int_value() {
+        // We don't check `min()` for unsigned since this always
+        // returns 0.
+        assert_eq!(UIntTy::USize.max(8), Some(BigInt::from(usize::MAX)));
+        assert_eq!(UIntTy::USize.max(4), Some(BigInt::from(u32::MAX)));
+
+        assert_eq!(UIntTy::USize.size(8), Some(8));
+        assert_eq!(UIntTy::USize.size(4), Some(4));
+    }
+}
