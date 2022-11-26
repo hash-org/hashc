@@ -45,15 +45,6 @@ impl<'tcx> Builder<'tcx> {
                 self.expr_into_dest(destination, block, data.ast_ref())
             }
 
-            // Lower this as an Rvalue
-            Expr::Lit(literal) => {
-                let constant = self.as_constant(literal.data.ast_ref());
-                let rvalue = self.storage.push_rvalue(constant.into());
-                self.control_flow_graph.push_assign(block, destination, rvalue, span);
-
-                block.unit()
-            }
-
             // For declarations, we have to perform some bookkeeping in regards
             // to locals..., but this expression should never return any value
             // so we should just return a unit block here
@@ -153,9 +144,21 @@ impl<'tcx> Builder<'tcx> {
                 block.unit()
             }
 
-            Expr::Index(..) => todo!(),
-            Expr::BinaryExpr(..) => todo!(),
-            Expr::UnaryExpr(..) => todo!(),
+            // Lower this as an Rvalue
+            Expr::Lit(literal) => {
+                let constant = self.as_constant(literal.data.ast_ref());
+                let rvalue = self.storage.push_rvalue(constant.into());
+                self.control_flow_graph.push_assign(block, destination, rvalue, span);
+
+                block.unit()
+            }
+
+            Expr::Index(..) | Expr::BinaryExpr(..) | Expr::UnaryExpr(..) => {
+                let rvalue = unpack!(block = self.as_rvalue(block, expr));
+                self.control_flow_graph.push_assign(block, destination, rvalue, span);
+
+                block.unit()
+            }
         };
 
         block_and

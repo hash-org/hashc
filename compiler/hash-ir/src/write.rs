@@ -164,8 +164,18 @@ impl<'ir> WriteIr<'ir> for IrWriter<'ir> {
         match rvalue {
             RValue::Use(place) => write!(f, "{place}"),
             RValue::Const(operand) => write!(f, "const {operand}"),
-            RValue::BinaryOp(op, lhs, rhs) => write!(f, "{lhs:?} {op:?} {rhs:?}"),
-            RValue::UnaryOp(op, operand) => write!(f, "{op:?}({operand:?})"),
+            RValue::BinaryOp(op, lhs, rhs) => {
+                write!(f, "{op:?}(")?;
+                self.write_rvalue(lhs, f)?;
+                write!(f, ", ")?;
+                self.write_rvalue(rhs, f)?;
+                write!(f, ")")
+            }
+            RValue::UnaryOp(op, operand) => {
+                write!(f, "{op:?}(")?;
+                self.write_rvalue(operand, f)?;
+                write!(f, ")")
+            }
             RValue::ConstOp(op, operand) => write!(f, "{op:?}({operand:?})"),
             RValue::Discriminant(place) => write!(f, "discriminant({place:?})"),
             RValue::Ref(region, borrow_kind, place) => {

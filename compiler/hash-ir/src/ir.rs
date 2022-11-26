@@ -2,6 +2,7 @@
 //! under construction and is subject to change.
 use std::fmt;
 
+use hash_ast::ast;
 use hash_source::{
     constant::{InternedFloat, InternedInt, InternedStr},
     identifier::Identifier,
@@ -70,6 +71,17 @@ pub enum UnaryOp {
     Not,
     /// The operator '-' for negation
     Neg,
+}
+
+impl From<ast::UnOp> for UnaryOp {
+    fn from(value: ast::UnOp) -> Self {
+        match value {
+            ast::UnOp::BitNot => Self::BitNot,
+            ast::UnOp::Not => Self::Not,
+            ast::UnOp::Neg => Self::Neg,
+            _ => unreachable!(),
+        }
+    }
 }
 
 /// Binary operations on [RValue]s that are typed as primitive, or have

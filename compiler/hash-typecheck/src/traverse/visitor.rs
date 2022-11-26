@@ -1701,7 +1701,9 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         // @@Hack: currently, trait resolution logic is broken, so we introduce
         // a workaround for primitives to support all unary operators on primitive
         // types.
-        if self.oracle().term_is_primitive(expr) {
+        let expr_ty = self.typer().infer_ty_of_term(expr)?;
+
+        if self.oracle().term_is_primitive(expr_ty) {
             let term = self.term_store().get(expr);
             let term = self.builder().create_term(term);
 

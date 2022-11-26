@@ -3,6 +3,7 @@
 #![allow(clippy::too_many_arguments)]
 
 mod block;
+mod category;
 mod constant;
 mod expr;
 mod matches;

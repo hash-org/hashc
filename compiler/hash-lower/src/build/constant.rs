@@ -18,7 +18,7 @@ impl<'tcx> Builder<'tcx> {
                 panic_on_span!(
                     lit.span().into_location(self.source_id),
                     self.source_map,
-                    "cannot lower compound literal into constant"
+                    "cannot lower non-primitive literal into constant"
                 )
             }
         }

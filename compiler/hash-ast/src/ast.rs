@@ -712,6 +712,18 @@ define_tree! {
                 _ => true,
             }
         }
+
+        /// Check whether the given literal is a primitive literal. Primitive
+        /// literals consist of the following:
+        ///
+        /// - `StrLit`
+        /// - `CharLit`
+        /// - `IntLit`
+        /// - `FloatLit`
+        /// - `BoolLit`
+        pub fn is_primitive(&self) -> bool {
+            matches!(self, Lit::Str(_) | Lit::Char(_) | Lit::Int(_) | Lit::Float(_) | Lit::Bool(_))
+        }
     }
 
     /// An alternative pattern, e.g. `Red | Blue`.
@@ -1002,7 +1014,7 @@ define_tree! {
     }
 
     /// Unary operators that are defined within the core of the language.
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Copy)]
     #[node]
     pub enum UnOp {
         // Bitwise logical inversion
