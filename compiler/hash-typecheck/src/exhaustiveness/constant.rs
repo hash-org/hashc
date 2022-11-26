@@ -30,7 +30,7 @@ impl Constant {
     /// constraint is that it can fit into a [u128], otherwise the
     /// function will currently panic.
     pub fn from_int(int: BigInt, kind: IntTy, ty: TermId, ptr_width: usize) -> Self {
-        let size = kind.size(ptr_width).unwrap_or_else(|| int.bits());
+        let size = kind.size(ptr_width).map(|size| size * 8).unwrap_or_else(|| int.bits());
         assert!(size < 128);
 
         // @@Hack: this should be done in some better way or tidied up!
