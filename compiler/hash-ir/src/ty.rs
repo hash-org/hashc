@@ -7,6 +7,7 @@
 use std::{cell::Cell, fmt};
 
 use bitflags::bitflags;
+use hash_ast::ast;
 use hash_source::{
     constant::{FloatTy, IntTy, SIntTy, UIntTy},
     identifier::Identifier,
@@ -47,6 +48,15 @@ impl Mutability {
         match self {
             Mutability::Mutable => "mut ",
             Mutability::Immutable => "",
+        }
+    }
+}
+
+impl From<ast::Mutability> for Mutability {
+    fn from(value: ast::Mutability) -> Self {
+        match value {
+            ast::Mutability::Mutable => Mutability::Mutable,
+            ast::Mutability::Immutable => Mutability::Immutable,
         }
     }
 }
@@ -212,6 +222,28 @@ bitflags! {
 
         /// The underlying ADT is a tuple.
         const TUPLE  = 0b00001000;
+    }
+}
+
+impl AdtFlags {
+    /// Check if the underlying ADT is a union.
+    pub fn is_union(&self) -> bool {
+        self.contains(Self::UNION)
+    }
+
+    /// Check if the underlying ADT is a struct.
+    pub fn is_struct(&self) -> bool {
+        self.contains(Self::STRUCT)
+    }
+
+    /// Check if the underlying ADT is a enum.
+    pub fn is_enum(&self) -> bool {
+        self.contains(Self::ENUM)
+    }
+
+    /// Check if the underlying ADT is a tuple.
+    pub fn is_tuple(&self) -> bool {
+        self.contains(Self::TUPLE)
     }
 }
 

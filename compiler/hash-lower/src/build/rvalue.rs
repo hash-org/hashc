@@ -122,8 +122,7 @@ impl<'tcx> Builder<'tcx> {
         if op.is_checkable() && ty.is_integral() {
             // Create a new tuple that contains the result of the operation
             let expr_ty = self.storage.ty_store().create(ty);
-            let ret_ty = [expr_ty, self.storage.ty_store().make_bool()];
-            let ty = IrTy::tuple(self.storage, &ret_ty);
+            let ty = IrTy::tuple(self.storage, &[expr_ty, self.storage.ty_store().make_bool()]);
             let ty_id = self.storage.ty_store().create(ty);
 
             let temp = self.temp_place(ty_id);

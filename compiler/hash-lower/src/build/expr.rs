@@ -4,13 +4,15 @@
 //! [crate::build::temp].
 
 use hash_ast::ast::{
-    AssignExpr, AssignOpExpr, AstNodeRef, BlockExpr, Declaration, Expr, ReturnStatement, UnsafeExpr,
+    AssignExpr, AssignOpExpr, AstNodeRef, BlockExpr, Declaration, Expr, RefExpr, RefKind,
+    ReturnStatement, UnsafeExpr,
 };
 use hash_ir::{
-    ir::{self, BasicBlock, Place, RValue},
+    ir::{self, AddressMode, BasicBlock, Place, RValue},
     ty::Mutability,
 };
 use hash_reporting::macros::panic_on_span;
+use hash_utils::store::Store;
 
 use super::{unpack, BlockAnd, BlockAndExtend, Builder, LoopBlockInfo};
 
@@ -32,7 +34,7 @@ impl<'tcx> Builder<'tcx> {
             Expr::Directive(expr) => {
                 self.expr_into_dest(destination, block, expr.subject.ast_ref())
             }
-            Expr::Variable(_variable) => {
+            Expr::Index(..) | Expr::Deref(..) | Expr::Access(..) | Expr::Variable(..) => {
                 let _term = self.get_ty_of_node(expr.id());
                 let place = unpack!(block = self.as_place(block, expr, Mutability::Immutable));
 
@@ -41,9 +43,31 @@ impl<'tcx> Builder<'tcx> {
 
                 block.unit()
             }
-            Expr::Access(..) => todo!(),
-            Expr::Ref(..) => todo!(),
-            Expr::Deref(..) => todo!(),
+            Expr::Ref(RefExpr { inner_expr, kind, mutability }) => {
+                let mutability = if let Some(specified_mut) = mutability {
+                    (*specified_mut.body()).into()
+                } else {
+                    Mutability::Immutable
+                };
+
+                // @@Todo: This is not the full picture here, if the user only specifies a
+                // `Normal` ref, this still might become a `SmartRef` based on
+                // the type of the expression, and where the expression comes
+                // from.
+                let kind = match kind {
+                    RefKind::Normal => AddressMode::Smart,
+                    RefKind::Raw => AddressMode::Raw,
+                };
+
+                let place = unpack!(block = self.as_place(block, inner_expr.ast_ref(), mutability));
+
+                // Create an RValue for this reference
+                let addr_of = RValue::Ref(mutability, place, kind);
+                let rvalue = self.storage.rvalue_store().create(addr_of);
+
+                self.control_flow_graph.push_assign(block, destination, rvalue, span);
+                block.unit()
+            }
             Expr::Unsafe(UnsafeExpr { data }) => {
                 self.expr_into_dest(destination, block, data.ast_ref())
             }
@@ -72,9 +96,11 @@ impl<'tcx> Builder<'tcx> {
             | Expr::MergeDeclaration { .. }
             | Expr::Ty { .. } => block.unit(),
 
-            // We either need to lower the function as well, or perform
-            // special treatment since this becomes a closure...
-            Expr::FnDef(..) => todo!(),
+            // @@Todo: we need be able to check here if this function is a closure,
+            // and if so lower it as a closure. Similarly, any variables that are being
+            // referenced from the environment above need special treatment when it comes
+            // to a closure.
+            Expr::FnDef(..) => block.unit(),
 
             Expr::Assign { .. } | Expr::AssignOp { .. } => {
                 // Deal with the actual assignment
@@ -86,8 +112,6 @@ impl<'tcx> Builder<'tcx> {
                 block.unit()
             }
 
-            // @@Todo: For a return expression, we need to terminate this block, and
-            // then return the value from the function.
             Expr::Return(ReturnStatement { expr }) => {
                 // In either case, we want to mark that the function has reached the
                 // **terminating** statement of this block and we needn't continue looking
@@ -156,7 +180,7 @@ impl<'tcx> Builder<'tcx> {
                 block.unit()
             }
 
-            Expr::Index(..) | Expr::BinaryExpr(..) | Expr::UnaryExpr(..) => {
+            Expr::BinaryExpr(..) | Expr::UnaryExpr(..) => {
                 let rvalue = unpack!(block = self.as_rvalue(block, expr));
                 self.control_flow_graph.push_assign(block, destination, rvalue, span);
 
