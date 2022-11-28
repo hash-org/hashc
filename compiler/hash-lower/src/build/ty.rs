@@ -81,67 +81,66 @@ pub(super) fn lower_term(term: TermId, tcx: &GlobalStorage, ir_ctx: &IrStorage) 
                         // we convert to using the primitive variant, otherwise we
                         // then just convert the struct into the IR representation.
 
-                        if let Some(name) = struct_def.name {
-                            match name {
-                                id if id == IDENTS.i8 => IrTy::Int(SIntTy::I8),
-                                id if id == IDENTS.i16 => IrTy::Int(SIntTy::I16),
-                                id if id == IDENTS.i32 => IrTy::Int(SIntTy::I32),
-                                id if id == IDENTS.i64 => IrTy::Int(SIntTy::I64),
-                                id if id == IDENTS.i128 => IrTy::Int(SIntTy::I128),
-                                id if id == IDENTS.isize => IrTy::Int(SIntTy::ISize),
-                                id if id == IDENTS.u8 => IrTy::UInt(UIntTy::U8),
-                                id if id == IDENTS.u16 => IrTy::UInt(UIntTy::U16),
-                                id if id == IDENTS.u32 => IrTy::UInt(UIntTy::U32),
-                                id if id == IDENTS.u64 => IrTy::UInt(UIntTy::U64),
-                                id if id == IDENTS.u128 => IrTy::UInt(UIntTy::U128),
-                                id if id == IDENTS.usize => IrTy::UInt(UIntTy::USize),
-                                id if id == IDENTS.f32 => IrTy::Float(FloatTy::F32),
-                                id if id == IDENTS.f64 => IrTy::Float(FloatTy::F64),
-                                id if id == IDENTS.bool => IrTy::Bool,
-                                id if id == IDENTS.char => IrTy::Char,
-                                id if id == IDENTS.str => IrTy::Str,
-                                _ => {
-                                    // if the fields of the struct are not opaque, then we
-                                    // can create an ADT from it, otherwise this case should
-                                    // not occur, and we have encountered an unhandled primitive.
-                                    if let StructFields::Explicit(params) = struct_def.fields {
-                                        let fields = tcx
-                                            .params_store
-                                            .get_vec(params)
-                                            .into_iter()
-                                            .enumerate()
-                                            .map(|(index, param)| AdtField {
-                                                name: param.name.unwrap_or_else(|| index.into()),
-                                                ty: convert_term_into_ir_ty(param.ty, tcx, ir_ctx),
-                                            })
-                                            .collect();
+                        if struct_def.name.is_none() {
+                            // @@Future: Nameless structs will be removed from the type structure
+                            //           so we don't have to deal with them here.
+                            unreachable!()
+                        }
 
-                                        let variants = index_vec![AdtVariant { name, fields }];
+                        match struct_def.name.unwrap() {
+                            id if id == IDENTS.i8 => IrTy::Int(SIntTy::I8),
+                            id if id == IDENTS.i16 => IrTy::Int(SIntTy::I16),
+                            id if id == IDENTS.i32 => IrTy::Int(SIntTy::I32),
+                            id if id == IDENTS.i64 => IrTy::Int(SIntTy::I64),
+                            id if id == IDENTS.i128 => IrTy::Int(SIntTy::I128),
+                            id if id == IDENTS.isize => IrTy::Int(SIntTy::ISize),
+                            id if id == IDENTS.u8 => IrTy::UInt(UIntTy::U8),
+                            id if id == IDENTS.u16 => IrTy::UInt(UIntTy::U16),
+                            id if id == IDENTS.u32 => IrTy::UInt(UIntTy::U32),
+                            id if id == IDENTS.u64 => IrTy::UInt(UIntTy::U64),
+                            id if id == IDENTS.u128 => IrTy::UInt(UIntTy::U128),
+                            id if id == IDENTS.usize => IrTy::UInt(UIntTy::USize),
+                            id if id == IDENTS.f32 => IrTy::Float(FloatTy::F32),
+                            id if id == IDENTS.f64 => IrTy::Float(FloatTy::F64),
+                            id if id == IDENTS.bool => IrTy::Bool,
+                            id if id == IDENTS.char => IrTy::Char,
+                            id if id == IDENTS.str => IrTy::Str,
+                            name => {
+                                // if the fields of the struct are not opaque, then we
+                                // can create an ADT from it, otherwise this case should
+                                // not occur, and we have encountered an unhandled primitive.
+                                if let StructFields::Explicit(params) = struct_def.fields {
+                                    let fields = tcx
+                                        .params_store
+                                        .get_vec(params)
+                                        .into_iter()
+                                        .enumerate()
+                                        .map(|(index, param)| AdtField {
+                                            name: param.name.unwrap_or_else(|| index.into()),
+                                            ty: convert_term_into_ir_ty(param.ty, tcx, ir_ctx),
+                                        })
+                                        .collect();
 
-                                        let adt = AdtData::new_with_flags(
-                                            name,
-                                            variants,
-                                            AdtFlags::STRUCT,
-                                        );
-                                        let adt_id = ir_ctx.adt_store().create(adt);
+                                    let variants = index_vec![AdtVariant { name, fields }];
 
-                                        IrTy::Adt(adt_id)
-                                    } else {
-                                        // If we get here, this means that we haven't accounted for
-                                        // a particular primitive
-                                        // type occurring.
-                                        panic!("unhandled primitive type: {name}");
-                                    }
+                                    let adt =
+                                        AdtData::new_with_flags(name, variants, AdtFlags::STRUCT);
+                                    let adt_id = ir_ctx.adt_store().create(adt);
+
+                                    IrTy::Adt(adt_id)
+                                } else {
+                                    // If we get here, this means that we haven't accounted for
+                                    // a particular primitive
+                                    // type occurring.
+                                    panic!("unhandled primitive type: {name}");
                                 }
                             }
-                        } else {
-                            todo!()
                         }
                     }
-                    NominalDef::Unit(_) => todo!(),
+                    NominalDef::Unit(_) => unimplemented!(),
 
                     // @@Remove: this will later be removed, so don't deal with this case for now.
-                    NominalDef::Enum(_) => unreachable!(),
+                    NominalDef::Enum(_) => unimplemented!(),
                 }
             }
             Level1Term::Tuple(TupleTy { members }) => {

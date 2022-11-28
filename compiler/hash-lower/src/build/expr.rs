@@ -91,7 +91,7 @@ impl<'tcx> Builder<'tcx> {
 
             // Traverse the lhs of the cast, and then apply the cast
             // to the result... although this should be a no-op?
-            Expr::Cast(..) => todo!(),
+            Expr::Cast(..) => unimplemented!(),
 
             // This includes `loop { ... } `, `{ ... }`, `match { ... }`
             Expr::Block(BlockExpr { data }) => {
@@ -311,6 +311,6 @@ impl<'tcx> Builder<'tcx> {
         _subject: AstNodeRef<'tcx, Expr>,
         _args: &'tcx AstNodes<ConstructorCallArg>,
     ) -> BlockAnd<()> {
-        todo!()
+        unimplemented!()
     }
 }

@@ -28,7 +28,7 @@ impl<'tcx> Builder<'tcx> {
             }
 
             // Send this off into the `match` lowering logic
-            Block::Match(..) => todo!(),
+            Block::Match(..) => unimplemented!(),
 
             Block::Loop(LoopBlock { contents }) => {
                 // Begin the loop block by connecting the previous block
