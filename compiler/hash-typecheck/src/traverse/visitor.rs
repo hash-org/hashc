@@ -841,7 +841,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         self.copy_location_from_nodes_to_targets(node.params.ast_ref_iter(), params);
 
         // Create the function type term:
-        let fn_ty_term = self.builder().create_fn_ty_term(params, return_ty);
+        let fn_ty_term = self.builder().create_fn_ty_term(None, params, return_ty);
 
         self.validate_and_register_simplified_term(node, fn_ty_term)
     }
@@ -1096,7 +1096,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         let fn_ty_term = builder.create_fn_lit_term(
             name,
-            builder.create_fn_ty_term(params, return_ty),
+            builder.create_fn_ty_term(name, params, return_ty),
             return_value,
         );
 

@@ -1,6 +1,6 @@
 use hash_ast::ast::{self, AstNodeRef, BinaryExpr, Expr, UnaryExpr};
 use hash_ir::{
-    ir::{AssertKind, BasicBlock, BinOp, RValue, RValueId},
+    ir::{AssertKind, BasicBlock, BinOp, Const, RValue, RValueId},
     ty::{IrTy, Mutability},
 };
 use hash_source::location::Span;
@@ -20,6 +20,14 @@ impl<'tcx> Builder<'tcx> {
         // the expression itself,
         let rvalue = match expr.body {
             Expr::Lit(lit) => self.as_constant(lit.data.ast_ref()).into(),
+
+            // @@SpecialCase: if this is a variable, and it is not in scope,
+            // then we essentially assume that it is a zero-sized constant type.
+            Expr::Variable(variable) if self.lookup_local(variable.name.ident).is_none() => {
+                let ty = self.get_ty_id_of_node(expr.id());
+                Const::Zero(ty).into()
+            }
+
             Expr::UnaryExpr(UnaryExpr { operator, expr }) => {
                 // If the unary operator is a typeof, we should have already dealt with
                 // this...
@@ -52,8 +60,37 @@ impl<'tcx> Builder<'tcx> {
                     rhs,
                 );
             }
-            Expr::Index(..) => todo!(),
-            _ => unimplemented!(),
+            Expr::Variable(_)
+            | Expr::ConstructorCall(_)
+            | Expr::Directive(_)
+            | Expr::Declaration(_)
+            | Expr::Access(_)
+            | Expr::Ref(_)
+            | Expr::Deref(_)
+            | Expr::Unsafe(_)
+            | Expr::Cast(_)
+            | Expr::Block(_)
+            | Expr::Import(_)
+            | Expr::StructDef(_)
+            | Expr::EnumDef(_)
+            | Expr::TyFnDef(_)
+            | Expr::TraitDef(_)
+            | Expr::FnDef(_)
+            | Expr::Ty(_)
+            | Expr::Return(_)
+            | Expr::Break(_)
+            | Expr::Continue(_)
+            | Expr::Index(_)
+            | Expr::Assign(_)
+            | Expr::AssignOp(_)
+            | Expr::MergeDeclaration(_)
+            | Expr::TraitImpl(_) => {
+                // Verify that this is an actual RValue...
+                debug_assert!(!matches!(Category::of(expr), Category::RValue | Category::Constant));
+
+                let operand = unpack!(block = self.as_operand(block, expr, Mutability::Mutable));
+                return block.and(operand);
+            }
         };
 
         let rvalue_id = self.storage.rvalue_store().create(rvalue);
@@ -74,7 +111,7 @@ impl<'tcx> Builder<'tcx> {
         match Category::of(expr) {
             // Just directly recurse and create the constant.
             Category::Constant => self.as_rvalue(block, expr),
-            Category::Place | Category::Rvalue => {
+            Category::Place | Category::RValue => {
                 let place = unpack!(block = self.as_place(block, expr, mutability));
 
                 let rvalue = RValue::Use(place);

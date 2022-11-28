@@ -17,13 +17,23 @@ use crate::{
 
 /// Struct that is used to write [IrTy]s.
 pub struct ForFormatting<'ir, T> {
-    pub t: T,
+    /// The item that is being printed.
+    pub item: T,
+
+    /// Whether the formatting should be verbose or not.
+    pub verbose: bool,
+
+    /// The storage used to print various IR constructs.
     pub storage: &'ir IrStorage,
 }
 
 pub trait WriteTyIr: Sized {
     fn for_fmt(self, storage: &IrStorage) -> ForFormatting<Self> {
-        ForFormatting { t: self, storage }
+        ForFormatting { item: self, storage, verbose: false }
+    }
+
+    fn verbose_fmt(self, storage: &IrStorage) -> ForFormatting<Self> {
+        ForFormatting { item: self, storage, verbose: true }
     }
 }
 
@@ -163,7 +173,8 @@ impl<'ir> WriteIr<'ir> for IrWriter<'ir> {
 
         match rvalue {
             RValue::Use(place) => write!(f, "{place}"),
-            RValue::Const(operand) => write!(f, "const {operand}"),
+            RValue::Const(Const::Zero(ty)) => write!(f, "{}", ty.for_fmt(self.ctx)),
+            RValue::Const(const_value) => write!(f, "const {const_value}"),
             RValue::BinaryOp(op, lhs, rhs) => {
                 write!(f, "{op:?}(")?;
                 self.write_rvalue(lhs, f)?;
@@ -201,8 +212,10 @@ impl<'ir> WriteIr<'ir> for IrWriter<'ir> {
         match &terminator.kind {
             TerminatorKind::Goto(place) => writeln!(f, "goto -> {place:?};"),
             TerminatorKind::Return => writeln!(f, "return;"),
-            TerminatorKind::Call { op, args, target } => {
-                write!(f, "{op:?}(")?;
+            TerminatorKind::Call { op, args, target, destination } => {
+                write!(f, "{destination} = ")?;
+                self.write_rvalue(*op, f)?;
+                write!(f, "(")?;
 
                 // write all of the arguments
                 for (i, arg) in args.iter().enumerate() {
@@ -210,11 +223,14 @@ impl<'ir> WriteIr<'ir> for IrWriter<'ir> {
                         write!(f, ", ")?;
                     }
 
-                    // @@Todo: should we write the type of the operand here?
-                    write!(f, "{arg:?}")?;
+                    self.write_rvalue(*arg, f)?;
                 }
 
-                writeln!(f, ") -> {target:?};")
+                if let Some(target) = target {
+                    writeln!(f, ") -> {target:?};")
+                } else {
+                    writeln!(f, ");")
+                }
             }
             TerminatorKind::Unreachable => write!(f, "unreachable;"),
             TerminatorKind::Switch(value, branches, otherwise) => {

@@ -10,15 +10,21 @@ use hash_source::{
     SourceId,
 };
 use hash_types::terms::TermId;
-use hash_utils::{new_store_key, store::DefaultStore};
+use hash_utils::{
+    new_store_key,
+    store::{DefaultStore, Store},
+};
 use index_vec::IndexVec;
 
-use crate::ty::{IrTyId, Mutability};
+use crate::{
+    ty::{IrTy, IrTyId, Mutability},
+    IrStorage,
+};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Const {
-    /// Nothing, it has zero size.
-    Zero,
+    /// Nothing, it has zero size, and is associated with a particular type.
+    Zero(IrTyId),
 
     /// Byte constant, could a boolean.
     Byte(u8),
@@ -40,10 +46,18 @@ pub enum Const {
     Str(InternedStr),
 }
 
+impl Const {
+    /// Create a [Const::Zero] with a unit type, the total zero.
+    pub fn zero(storage: &IrStorage) -> Self {
+        let unit = storage.ty_store().create(IrTy::unit(storage));
+        Self::Zero(unit)
+    }
+}
+
 impl fmt::Display for Const {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::Zero => write!(f, "()"),
+            Self::Zero(_) => write!(f, "()"),
             Self::Byte(b) => write!(f, "{b}"),
             Self::Char(c) => write!(f, "{c}"),
             Self::Int(i) => write!(f, "{i}"),
@@ -285,11 +299,22 @@ impl From<Local> for Place {
     }
 }
 
+/// [AggregateKind] represent an initialisation process of a particular
+/// structure be it a tuple, array, struct, etc.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum AggregateKind {
+    /// A tuple value initialisation.
     Tuple,
+
+    /// An array aggregate kind initialisation.
     Array(IrTyId),
+
+    /// Enum aggregate kind, this is used to represent an initialisation
+    /// of an enum variant with the specified variant index.
     Enum(IrTyId, usize),
+
+    /// Struct aggregate kind, this is used to represent a struct
+    /// initialisation.
     Struct(IrTyId),
 }
 
@@ -431,10 +456,16 @@ pub enum TerminatorKind {
 
     /// Perform a function call
     Call {
-        /// The layout of the function type that is to be called.
-        op: IrTyId,
-        /// Arguments to the function.
-        args: Vec<Local>,
+        /// The function that is being called
+        op: RValueId,
+
+        /// Arguments to the function, later we might need to distinguish
+        /// whether these are move or copy arguments.
+        args: Vec<RValueId>,
+
+        /// Destination of the result...
+        destination: Place,
+
         /// Where to return after completing the call
         target: Option<BasicBlock>,
     },

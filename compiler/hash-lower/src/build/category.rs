@@ -19,7 +19,7 @@ pub(crate) enum Category {
 
     // Something that generates a new value at runtime, like `x + y`
     // or `foo()`.
-    Rvalue,
+    RValue,
 }
 
 /// Determines the category for a given expression. Note that scope
@@ -38,7 +38,7 @@ impl Category {
             | Expr::Variable(..) => Self::Place,
 
             // Everything else is considered as an RValue of some kind.
-            _ => Self::Rvalue,
+            _ => Self::RValue,
         }
     }
 }

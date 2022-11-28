@@ -4,14 +4,15 @@
 //! [crate::build::temp].
 
 use hash_ast::ast::{
-    AssignExpr, AssignOpExpr, AstNodeRef, BlockExpr, Declaration, Expr, RefExpr, RefKind,
-    ReturnStatement, UnsafeExpr,
+    AssignExpr, AssignOpExpr, AstNodeRef, AstNodes, BlockExpr, ConstructorCallArg,
+    ConstructorCallExpr, Declaration, Expr, RefExpr, RefKind, ReturnStatement, UnsafeExpr,
 };
 use hash_ir::{
-    ir::{self, AddressMode, BasicBlock, Place, RValue},
-    ty::Mutability,
+    ir::{self, AddressMode, BasicBlock, Place, RValue, TerminatorKind},
+    ty::{IrTy, Mutability},
 };
 use hash_reporting::macros::panic_on_span;
+use hash_source::location::Span;
 use hash_utils::store::Store;
 
 use super::{unpack, BlockAnd, BlockAndExtend, Builder, LoopBlockInfo};
@@ -28,9 +29,20 @@ impl<'tcx> Builder<'tcx> {
         let span = expr.span();
 
         let block_and = match expr.body {
-            // @@Todo: we need to determine if this is a method call, or
-            // a constructor call, we should do this somewhere else
-            Expr::ConstructorCall(..) => todo!(),
+            Expr::ConstructorCall(ConstructorCallExpr { subject, args }) => {
+                // Check the type of the subject, and if we need to
+                // handle it as a constructor initialisation, or if it is a
+                // function call.
+
+                let subject_ty = self.get_ty_of_node(subject.id());
+
+                if let IrTy::Fn { .. } = subject_ty {
+                    self.fn_call_into_dest(destination, block, subject.ast_ref(), args, span)
+                } else {
+                    // This is a constructor call, so we need to handle it as such.
+                    self.constructor_into_dest(destination, block, subject.ast_ref(), args)
+                }
+            }
             Expr::Directive(expr) => {
                 self.expr_into_dest(destination, block, expr.subject.ast_ref())
             }
@@ -107,7 +119,9 @@ impl<'tcx> Builder<'tcx> {
                 block = unpack!(self.handle_statement_expr(block, expr));
 
                 // Assign the `value` of the assignment into the `tmp_place`
-                let empty_value = self.storage.push_rvalue(RValue::Const(ir::Const::Zero));
+                let const_value = ir::Const::zero(self.storage);
+
+                let empty_value = self.storage.push_rvalue(RValue::Const(const_value));
                 self.control_flow_graph.push_assign(block, destination, empty_value, span);
                 block.unit()
             }
@@ -131,7 +145,9 @@ impl<'tcx> Builder<'tcx> {
                 } else {
                     // If no expression is attached to the return, then we need to push a
                     // `unit` value into the return place.
-                    let unit = self.storage.push_rvalue(RValue::Const(ir::Const::Zero));
+                    let const_value = ir::Const::zero(self.storage);
+
+                    let unit = self.storage.push_rvalue(RValue::Const(const_value));
                     self.control_flow_graph.push_assign(block, Place::return_place(), unit, span);
                 }
 
@@ -247,5 +263,54 @@ impl<'tcx> Builder<'tcx> {
 
             _ => unreachable!(),
         }
+    }
+
+    /// Lower a function call and place the result into the provided
+    /// destination.
+    pub fn fn_call_into_dest(
+        &mut self,
+        destination: Place,
+        mut block: BasicBlock,
+        subject: AstNodeRef<'tcx, Expr>,
+        args: &'tcx AstNodes<ConstructorCallArg>,
+        span: Span,
+    ) -> BlockAnd<()> {
+        // First we want to lower the subject of the function call
+        let func = unpack!(block = self.as_rvalue(block, subject));
+
+        // lower the arguments of the function...
+        //
+        // @@Todo: we need to deal with default arguments here, we compute the missing
+        // arguments, and then insert a lowered copy of the default value for
+        // the argument.
+        let args = args
+            .iter()
+            .map(|arg| {
+                let value = arg.value.ast_ref();
+                unpack!(block = self.as_rvalue(block, value))
+            })
+            .collect::<Vec<_>>();
+
+        // This is the block that is used when resuming from the function..
+        let success = self.control_flow_graph.start_new_block();
+
+        // Terminate the current block with a `Call` terminator
+        self.control_flow_graph.terminate(
+            block,
+            span,
+            TerminatorKind::Call { op: func, args, destination, target: Some(success) },
+        );
+
+        success.unit()
+    }
+
+    pub fn constructor_into_dest(
+        &mut self,
+        _destination: Place,
+        mut _block: BasicBlock,
+        _subject: AstNodeRef<'tcx, Expr>,
+        _args: &'tcx AstNodes<ConstructorCallArg>,
+    ) -> BlockAnd<()> {
+        todo!()
     }
 }

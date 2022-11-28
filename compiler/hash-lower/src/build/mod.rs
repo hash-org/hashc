@@ -414,14 +414,14 @@ impl<'tcx> Builder<'tcx> {
         let fn_params =
             self.tcx.params_store.get_owned_param_list(fn_term.params).into_positional();
 
-        let IrTy::Fn(params, ret_ty) = lower_term(term_id, self.tcx, self.storage) else {
+        let IrTy::Fn {params, return_ty, .. } = lower_term(term_id, self.tcx, self.storage) else {
             panic!("Expected a function type");
         };
 
         // The first local declaration is used as the return type. The return local
         // declaration is always mutable because it will be set at some point in
         // the end, not the beginning.
-        let ret_local = LocalDecl::new_auxiliary(ret_ty, Mutability::Mutable);
+        let ret_local = LocalDecl::new_auxiliary(return_ty, Mutability::Mutable);
         self.declarations.push(ret_local);
 
         // Deal with all the function parameters that are given to the function.

@@ -162,6 +162,7 @@ impl<'tc> Simplifier<'tc> {
 
                 // Return the substituted type without the first parameter:
                 Ok(builder.create_rt_term(builder.create_fn_ty_term(
+                    fn_ty.name,
                     builder.create_params(
                         self.params_store().map_fast(subbed_params_id, |params| {
                             params.iter().skip(1).copied().collect_vec()
@@ -876,7 +877,7 @@ impl<'tc> Simplifier<'tc> {
                                     .map(|(_, term)| *term),
                             ),
                         );
-                        Ok(FnTy { params, return_ty })
+                        Ok(FnTy { name: single_result.name, params, return_ty })
                     }
                     // Got multiple results, which should not happen:
                     results => {
@@ -900,6 +901,7 @@ impl<'tc> Simplifier<'tc> {
                     this.simplifier().use_term_as_fn_call_subject(set_bound.term)
                 })?;
                 Ok(FnTy {
+                    name: result.name,
                     params: self
                         .discoverer()
                         .apply_set_bound_to_params(set_bound.scope, result.params)?,
@@ -946,7 +948,11 @@ impl<'tc> Simplifier<'tc> {
                         let enum_ty =
                             self.builder().create_nominal_def_term(enum_variant.enum_def_id);
                         match variant.fields {
-                            Some(fields) => Ok(FnTy { params: fields, return_ty: enum_ty }),
+                            Some(fields) => Ok(FnTy {
+                                name: Some(variant.name),
+                                params: fields,
+                                return_ty: enum_ty,
+                            }),
                             None => cannot_use_as_fn_call_subject(),
                         }
                     }
@@ -1098,6 +1104,7 @@ impl<'tc> Simplifier<'tc> {
                 match (&simplified_params, simplified_return_ty) {
                     (None, None) => Ok(None),
                     _ => Ok(Some(self.builder().create_term(Term::Level1(Level1Term::Fn(FnTy {
+                        name: fn_ty.name,
                         params: simplified_params.unwrap_or(fn_ty.params),
                         return_ty: simplified_return_ty.unwrap_or(fn_ty.return_ty),
                     }))))),

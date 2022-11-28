@@ -162,7 +162,7 @@ pub(super) fn lower_term(term: TermId, tcx: &GlobalStorage, ir_ctx: &IrStorage) 
                 let adt_id = ir_ctx.adt_store().create(adt);
                 IrTy::Adt(adt_id)
             }
-            Level1Term::Fn(FnTy { params, return_ty }) => {
+            Level1Term::Fn(FnTy { name, params, return_ty }) => {
                 let return_ty = convert_term_into_ir_ty(return_ty, tcx, ir_ctx);
                 let params = tcx
                     .params_store
@@ -171,8 +171,8 @@ pub(super) fn lower_term(term: TermId, tcx: &GlobalStorage, ir_ctx: &IrStorage) 
                     .into_iter()
                     .map(|param| convert_term_into_ir_ty(param.ty, tcx, ir_ctx));
 
-                let params_id = ir_ctx.ty_list_store().create_from_iter(params);
-                IrTy::Fn(params_id, return_ty)
+                let params = ir_ctx.ty_list_store().create_from_iter(params);
+                IrTy::Fn { name, params, return_ty }
             }
             Level1Term::ModDef(_) => unreachable!(),
         },

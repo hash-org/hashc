@@ -67,7 +67,7 @@ impl<'tc> Substituter<'tc> {
         // Apply to parameters and return type
         let subbed_params = self.apply_sub_to_params(sub, fn_ty.params);
         let subbed_return_ty = self.apply_sub_to_term(sub, fn_ty.return_ty);
-        FnTy { params: subbed_params, return_ty: subbed_return_ty }
+        FnTy { name: fn_ty.name, params: subbed_params, return_ty: subbed_return_ty }
     }
 
     /// Apply the given substitution to the given [ConstructedTerm], producing a

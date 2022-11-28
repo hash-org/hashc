@@ -114,7 +114,7 @@ pub enum IrTy {
     /// The first item is the interned parameter types to the function, and the
     /// second item is the return type of the function. If the function has no
     /// explicit return type, this will always be inferred at this stage.
-    Fn(IrTyListId, IrTyId),
+    Fn { name: Option<Identifier>, params: IrTyListId, return_ty: IrTyId },
 }
 
 impl IrTy {
@@ -291,7 +291,7 @@ pub type AdtStore = DefaultStore<AdtId, AdtData>;
 
 impl fmt::Display for ForFormatting<'_, AdtId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let adt = self.storage.adt_store().get(self.t);
+        let adt = self.storage.adt_store().get(self.item);
 
         match adt.flags {
             AdtFlags::TUPLE => {
@@ -353,7 +353,7 @@ impl Store<IrTyId, IrTy> for TyStore {
 
 impl fmt::Display for ForFormatting<'_, IrTyId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let ty = self.storage.ty_store().get(self.t);
+        let ty = self.storage.ty_store().get(self.item);
 
         match ty {
             IrTy::Int(variant) => write!(f, "{variant}"),
@@ -378,12 +378,23 @@ impl fmt::Display for ForFormatting<'_, IrTyId> {
                 write!(f, "Rc{name}<{}>", inner.for_fmt(self.storage))
             }
             IrTy::Adt(adt) => write!(f, "{}", adt.for_fmt(self.storage)),
-            IrTy::Fn(params, return_ty) => write!(
-                f,
-                "({}) -> {}",
-                params.for_fmt(self.storage),
-                return_ty.for_fmt(self.storage)
-            ),
+            IrTy::Fn { params, return_ty, name: None } => {
+                write!(
+                    f,
+                    "({}) -> {}",
+                    params.for_fmt(self.storage),
+                    return_ty.for_fmt(self.storage)
+                )
+            }
+            IrTy::Fn { params, return_ty, .. } if self.verbose => {
+                write!(
+                    f,
+                    "({}) -> {}",
+                    params.for_fmt(self.storage),
+                    return_ty.for_fmt(self.storage)
+                )
+            }
+            IrTy::Fn { name: Some(name), .. } => write!(f, "{name}"),
             IrTy::Slice(ty) => write!(f, "[{}]", ty.for_fmt(self.storage)),
             IrTy::Array(ty, len) => write!(f, "[{}; {len}]", ty.for_fmt(self.storage)),
         }
@@ -398,7 +409,7 @@ pub type TyListStore = DefaultSequenceStore<IrTyListId, IrTyId>;
 
 impl fmt::Display for ForFormatting<'_, IrTyListId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let items = self.storage.ty_list_store().get_vec(self.t);
+        let items = self.storage.ty_list_store().get_vec(self.item);
         let mut tys = items.iter();
 
         if let Some(first) = tys.next() {
