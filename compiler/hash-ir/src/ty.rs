@@ -4,11 +4,11 @@
 //! complexity from types that are required for IR generation and
 //! analysis.
 
-use std::fmt;
+use std::{cell::Cell, fmt};
 
 use bitflags::bitflags;
 use hash_source::{
-    constant::{FloatTy, SIntTy, UIntTy},
+    constant::{FloatTy, IntTy, SIntTy, UIntTy},
     identifier::Identifier,
 };
 use hash_utils::{
@@ -115,6 +115,37 @@ impl IrTy {
         let adt_id = ir_storage.adt_store().create(adt);
 
         Self::Adt(adt_id)
+    }
+
+    /// Make a tuple type, i.e. `(T1, T2, T3, ...)`
+    pub fn tuple(ir_storage: &IrStorage, tys: &[IrTyId]) -> Self {
+        let variants = index_vec![AdtVariant {
+            name: 0usize.into(),
+            fields: tys
+                .iter()
+                .copied()
+                .enumerate()
+                .map(|(idx, ty)| AdtField { name: idx.into(), ty })
+                .collect(),
+        }];
+        let adt = AdtData::new_with_flags("tuple".into(), variants, AdtFlags::TUPLE);
+        let adt_id = ir_storage.adt_store().create(adt);
+
+        Self::Adt(adt_id)
+    }
+
+    /// Check if the type is an integral type.
+    pub fn is_integral(&self) -> bool {
+        matches!(self, Self::Int(_) | Self::UInt(_) | Self::Float(_) | Self::Char)
+    }
+}
+
+impl From<IntTy> for IrTy {
+    fn from(value: IntTy) -> Self {
+        match value {
+            IntTy::Int(ty) => Self::Int(ty),
+            IntTy::UInt(ty) => Self::UInt(ty),
+        }
     }
 }
 
@@ -259,7 +290,34 @@ new_store_key!(pub IrTyId);
 /// Stores all the used [IrTy]s.
 ///
 /// [Rvalue]s are accessed by an ID, of type [IrTyId].
-pub type TyStore = DefaultStore<IrTyId, IrTy>;
+#[derive(Debug, Default)]
+pub struct TyStore {
+    data: DefaultStore<IrTyId, IrTy>,
+
+    /// Internal boolean used sometimes when lowering binary expressions
+    /// that need to be checked.
+    bool_ty: Cell<Option<IrTyId>>,
+}
+
+impl TyStore {
+    /// Create a [IrTy::Bool], this will re-use the previously created boolean
+    /// type if it exists.
+    pub fn make_bool(&self) -> IrTyId {
+        if let Some(id) = self.bool_ty.get() {
+            id
+        } else {
+            let id = self.create(IrTy::Bool);
+            self.bool_ty.set(Some(id));
+            id
+        }
+    }
+}
+
+impl Store<IrTyId, IrTy> for TyStore {
+    fn internal_data(&self) -> &std::cell::RefCell<Vec<IrTy>> {
+        self.data.internal_data()
+    }
+}
 
 impl fmt::Display for ForFormatting<'_, IrTyId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

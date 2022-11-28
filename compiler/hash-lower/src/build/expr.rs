@@ -6,7 +6,10 @@
 use hash_ast::ast::{
     AssignExpr, AssignOpExpr, AstNodeRef, BlockExpr, Declaration, Expr, ReturnStatement, UnsafeExpr,
 };
-use hash_ir::ir::{self, BasicBlock, Place, RValue};
+use hash_ir::{
+    ir::{self, BasicBlock, Place, RValue},
+    ty::Mutability,
+};
 use hash_reporting::macros::panic_on_span;
 
 use super::{unpack, BlockAnd, BlockAndExtend, Builder, LoopBlockInfo};
@@ -31,7 +34,7 @@ impl<'tcx> Builder<'tcx> {
             }
             Expr::Variable(_variable) => {
                 let _term = self.get_ty_of_node(expr.id());
-                let place = unpack!(block = self.as_place(block, expr));
+                let place = unpack!(block = self.as_place(block, expr, Mutability::Immutable));
 
                 let rvalue = self.storage.push_rvalue(RValue::Use(place));
                 self.control_flow_graph.push_assign(block, destination, rvalue, span);
@@ -206,7 +209,8 @@ impl<'tcx> Builder<'tcx> {
     ) -> BlockAnd<()> {
         match statement.body {
             Expr::Assign(AssignExpr { lhs, rhs }) => {
-                let place = unpack!(block = self.as_place(block, lhs.ast_ref()));
+                let place =
+                    unpack!(block = self.as_place(block, lhs.ast_ref(), Mutability::Mutable));
                 let value = unpack!(block = self.as_rvalue(block, rhs.ast_ref()));
                 self.control_flow_graph.push_assign(block, place, value, statement.span());
 

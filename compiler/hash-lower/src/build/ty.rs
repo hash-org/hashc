@@ -16,7 +16,7 @@ use hash_source::{
 use hash_types::{
     nominals::{NominalDef, StructFields},
     storage::GlobalStorage,
-    terms::{FnLit, FnTy, Level0Term, Level1Term, Term, TermId, TupleLit, TupleTy},
+    terms::{FnLit, FnTy, Level0Term, Level1Term, LitTerm, Term, TermId, TupleLit, TupleTy},
 };
 use hash_utils::store::{CloneStore, SequenceStore, Store};
 use index_vec::index_vec;
@@ -59,8 +59,12 @@ pub(super) fn lower_term(term: TermId, tcx: &GlobalStorage, ir_ctx: &IrStorage) 
                 let adt_id = ir_ctx.adt_store().create(adt);
                 IrTy::Adt(adt_id)
             }
+            Level0Term::Lit(lit_term) => match lit_term {
+                LitTerm::Str(_) => IrTy::Str,
+                LitTerm::Int { kind, .. } => kind.into(),
+                LitTerm::Char(_) => IrTy::Char,
+            },
             Level0Term::Unit(_)
-            | Level0Term::Lit(_)
             | Level0Term::FnCall(_)
             | Level0Term::EnumVariant(_)
             | Level0Term::Constructed(_) => panic!("unexpected level 0 term: {lvl_0_term:?}"),

@@ -686,8 +686,7 @@ define_tree! {
         /// This function is used to determine if the current literal tree only
         /// contains constants. Constants are other literals that are not subject
         /// to change, e.g. a number like `5` or a string `hello`. This function
-        /// implements short circuiting behaviour and thus should check if the
-        /// literal is constant in the minimal time possible.
+        /// implements short circuiting behaviour.
         pub fn is_constant(&self) -> bool {
             let is_expr_lit_and_const = |expr: &AstNode<Expr>| -> bool {
                 match expr.body() {

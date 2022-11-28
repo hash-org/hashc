@@ -171,6 +171,13 @@ impl<'ir> WriteIr<'ir> for IrWriter<'ir> {
                 self.write_rvalue(rhs, f)?;
                 write!(f, ")")
             }
+            RValue::CheckedBinaryOp(op, lhs, rhs) => {
+                write!(f, "Checked{op:?}(")?;
+                self.write_rvalue(lhs, f)?;
+                write!(f, ", ")?;
+                self.write_rvalue(rhs, f)?;
+                write!(f, ")")
+            }
             RValue::UnaryOp(op, operand) => {
                 write!(f, "{op:?}(")?;
                 self.write_rvalue(operand, f)?;
@@ -224,7 +231,7 @@ impl<'ir> WriteIr<'ir> for IrWriter<'ir> {
                 writeln!(f, "otherwise -> {otherwise:?}];")
             }
             TerminatorKind::Assert { condition, expected, kind, target } => {
-                writeln!(f, "assert({condition:?}, {expected:?}, {kind:?}) -> {target:?};")
+                writeln!(f, "assert({condition}, {expected:?}, {kind:?}) -> {target:?};")
             }
         }
     }

@@ -17,7 +17,10 @@ use std::collections::{HashMap, HashSet};
 
 use hash_ast::ast::{AstNodeId, AstNodeRef, Expr, FnDef};
 use hash_ir::{
-    ir::{BasicBlock, Body, BodySource, Local, LocalDecl, Place, TerminatorKind, START_BLOCK},
+    ir::{
+        AssertKind, BasicBlock, Body, BodySource, Local, LocalDecl, Place, TerminatorKind,
+        START_BLOCK,
+    },
     ty::{IrTy, IrTyId, Mutability},
     IrStorage,
 };
@@ -311,6 +314,26 @@ impl<'tcx> Builder<'tcx> {
                 place
             }
         }
+    }
+
+    /// Create an assertion on a particular block
+    pub(crate) fn assert(
+        &mut self,
+        block: BasicBlock,
+        condition: Place,
+        expected: bool,
+        kind: AssertKind,
+        span: Span,
+    ) -> BasicBlock {
+        let success_block = self.control_flow_graph.start_new_block();
+
+        self.control_flow_graph.terminate(
+            block,
+            span,
+            TerminatorKind::Assert { condition, expected, kind, target: success_block },
+        );
+
+        success_block
     }
 
     /// Run a lowering operation whilst entering a new scope which is derived

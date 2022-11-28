@@ -1,5 +1,9 @@
-use hash_ast::ast::{self, AstNodeRef, Expr, UnaryExpr};
-use hash_ir::ir::{BasicBlock, RValue, RValueId};
+use hash_ast::ast::{self, AstNodeRef, BinaryExpr, Expr, UnaryExpr};
+use hash_ir::{
+    ir::{AssertKind, BasicBlock, BinOp, RValue, RValueId},
+    ty::{IrTy, Mutability},
+};
+use hash_source::location::Span;
 use hash_utils::store::Store;
 
 use super::{category::Category, unpack, BlockAnd, BlockAndExtend, Builder};
@@ -23,14 +27,31 @@ impl<'tcx> Builder<'tcx> {
                     panic!("`typeof` should have been handled already");
                 }
 
-                let arg = unpack!(block = self.as_operand(block, expr.ast_ref()));
+                let arg =
+                    unpack!(block = self.as_operand(block, expr.ast_ref(), Mutability::Mutable));
 
                 // @@Todo: depending on what mode we're running in (which should be derived from
                 // the compiler session, we         should emit a check here
                 // determining if the operation might cause an overflow, or an underflow).
-                RValue::UnaryOp((*(operator.body())).into(), arg)
+                RValue::UnaryOp((*operator.body()).into(), arg)
             }
-            Expr::BinaryExpr(..) => todo!(),
+            Expr::BinaryExpr(BinaryExpr { lhs, rhs, operator }) => {
+                let lhs =
+                    unpack!(block = self.as_operand(block, lhs.ast_ref(), Mutability::Mutable));
+                let rhs =
+                    unpack!(block = self.as_operand(block, rhs.ast_ref(), Mutability::Mutable));
+
+                let ty = self.get_ty_of_node(expr.id());
+
+                return self.build_binary_op(
+                    block,
+                    ty,
+                    expr.span,
+                    (*operator.body()).into(),
+                    lhs,
+                    rhs,
+                );
+            }
             Expr::Index(..) => todo!(),
             _ => unimplemented!(),
         };
@@ -48,20 +69,81 @@ impl<'tcx> Builder<'tcx> {
         &mut self,
         mut block: BasicBlock,
         expr: AstNodeRef<'tcx, Expr>,
+        mutability: Mutability,
     ) -> BlockAnd<RValueId> {
-        let category = Category::of(expr);
-
-        match category {
+        match Category::of(expr) {
             // Just directly recurse and create the constant.
             Category::Constant => self.as_rvalue(block, expr),
             Category::Place | Category::Rvalue => {
-                let place = unpack!(block = self.as_place(block, expr));
+                let place = unpack!(block = self.as_place(block, expr, mutability));
 
                 let rvalue = RValue::Use(place);
                 let rvalue_id = self.storage.rvalue_store().create(rvalue);
 
                 block.and(rvalue_id)
             }
+        }
+    }
+
+    /// Create a binary operation from two operands and a provided [BinOp]. This
+    /// function is needed to handle some additional cases where we might
+    /// eagerly evaluate the operands and just produce a new constant. For
+    /// example, if we have `1 + 2`, we can just produce a constant `3`
+    /// instead of creating a binary operation. Additionally, we also
+    /// introduce "checks" for various kinds of operators to ensure that
+    /// undefined behaviour causes a runtime crash (depending on if the
+    /// compiler session specified to do this).
+    pub(crate) fn build_binary_op(
+        &mut self,
+        mut block: BasicBlock,
+        ty: IrTy,
+        span: Span,
+        op: BinOp,
+        lhs: RValueId,
+        rhs: RValueId,
+    ) -> BlockAnd<RValueId> {
+        let is_lhs_const =
+            self.storage.rvalue_store().map_fast(lhs, |value| value.is_integral_const());
+        let is_rhs_const =
+            self.storage.rvalue_store().map_fast(rhs, |value| value.is_integral_const());
+
+        // If both values are constant, see if we can perform a constant fold...
+        if is_lhs_const && is_rhs_const {
+            let lhs = self.storage.rvalue_store().map_fast(lhs, |value| value.as_const());
+            let rhs = self.storage.rvalue_store().map_fast(rhs, |value| value.as_const());
+
+            if let Some(folded) = self.try_fold_const_op(op, lhs, rhs) {
+                return block.and(self.storage.rvalue_store().create(folded.into()));
+            }
+        }
+
+        // If we need have been instructed to insert overflow checks, and the
+        // operator is checkable, then use `CheckedBinaryOp` instead of `BinaryOp`.
+        if op.is_checkable() && ty.is_integral() {
+            // Create a new tuple that contains the result of the operation
+            let expr_ty = self.storage.ty_store().create(ty);
+            let ret_ty = [expr_ty, self.storage.ty_store().make_bool()];
+            let ty = IrTy::tuple(self.storage, &ret_ty);
+            let ty_id = self.storage.ty_store().create(ty);
+
+            let temp = self.temp_place(ty_id);
+            let rvalue_id =
+                self.storage.rvalue_store().create(RValue::CheckedBinaryOp(op, lhs, rhs));
+
+            let result = temp.field(0);
+            let overflow = temp.field(1);
+
+            // Push an assignment to the tuple on the operation
+            self.control_flow_graph.push_assign(block, temp, rvalue_id, span);
+
+            block = self.assert(block, overflow, false, AssertKind::Overflow, span);
+
+            let value = self.storage.rvalue_store().create(RValue::Use(result));
+            block.and(value)
+        } else {
+            let binary_op = RValue::BinaryOp(op, lhs, rhs);
+            let rvalue_id = self.storage.rvalue_store().create(binary_op);
+            block.and(rvalue_id)
         }
     }
 }

@@ -2,7 +2,10 @@
 #![allow(unused)]
 
 use hash_ast::ast::{AstNodeRef, Expr};
-use hash_ir::ir::{BasicBlock, Local, Place, PlaceProjection};
+use hash_ir::{
+    ir::{BasicBlock, Local, Place, PlaceProjection},
+    ty::Mutability,
+};
 
 use super::{unpack, BlockAnd, BlockAndExtend, Builder};
 
@@ -65,15 +68,17 @@ impl<'tcx> Builder<'tcx> {
         &mut self,
         mut block: BasicBlock,
         expr: AstNodeRef<'tcx, Expr>,
+        mutability: Mutability,
     ) -> BlockAnd<Place> {
-        let place_builder = unpack!(block = self.as_place_builder(block, expr));
+        let place_builder = unpack!(block = self.as_place_builder(block, expr, mutability));
         block.and(place_builder.into_place())
     }
 
     pub(crate) fn as_place_builder(
         &mut self,
-        block: BasicBlock,
+        mut block: BasicBlock,
         expr: AstNodeRef<'tcx, Expr>,
+        mutability: Mutability,
     ) -> BlockAnd<PlaceBuilder> {
         match expr.body {
             Expr::Variable(variable) => {
@@ -121,8 +126,8 @@ impl<'tcx> Builder<'tcx> {
             | Expr::UnaryExpr(_) => {
                 // These expressions are not places, so we need to create a temporary
                 // and then deal with it.
-
-                unimplemented!()
+                let temp = unpack!(block = self.expr_into_temp(block, expr, mutability));
+                block.and(PlaceBuilder::from(temp))
             }
         }
     }

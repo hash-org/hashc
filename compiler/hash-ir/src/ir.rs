@@ -130,6 +130,42 @@ pub enum BinOp {
     Mod,
 }
 
+impl BinOp {
+    /// Returns whether the binary operator can be "checked".
+    pub fn is_checkable(&self) -> bool {
+        matches!(self, Self::Add | Self::Sub | Self::Mul | Self::Div | Self::Shl | Self::Shr)
+    }
+}
+
+impl From<ast::BinOp> for BinOp {
+    fn from(value: ast::BinOp) -> Self {
+        match value {
+            ast::BinOp::EqEq => Self::EqEq,
+            ast::BinOp::NotEq => Self::NotEq,
+            ast::BinOp::BitOr => Self::BitOr,
+            ast::BinOp::Or => Self::Or,
+            ast::BinOp::BitAnd => Self::BitAnd,
+            ast::BinOp::And => Self::And,
+            ast::BinOp::BitXor => Self::BitXor,
+            ast::BinOp::Exp => Self::Exp,
+            ast::BinOp::Gt => Self::Gt,
+            ast::BinOp::GtEq => Self::GtEq,
+            ast::BinOp::Lt => Self::Lt,
+            ast::BinOp::LtEq => Self::LtEq,
+            ast::BinOp::Shr => Self::Shr,
+            ast::BinOp::Shl => Self::Shl,
+            ast::BinOp::Add => Self::Add,
+            ast::BinOp::Sub => Self::Sub,
+            ast::BinOp::Mul => Self::Mul,
+            ast::BinOp::Div => Self::Div,
+            ast::BinOp::Mod => Self::Mod,
+            // `As` and `Merge` are dealt with before this ever reached
+            // this point.
+            _ => unreachable!(),
+        }
+    }
+}
+
 /// Essentially a register for a value
 #[derive(Debug, PartialEq, Eq)]
 pub struct LocalDecl {
@@ -233,6 +269,14 @@ impl Place {
     pub fn return_place() -> Self {
         Self { local: RETURN_PLACE, projections: Vec::new() }
     }
+
+    /// Create a new [Place] from an existing place whilst also
+    /// applying a a [PlaceProjection::Field] on the old one.
+    pub fn field(&self, field: usize) -> Self {
+        let mut projections = self.projections.clone();
+        projections.push(PlaceProjection::Field(field));
+        Self { local: self.local, projections }
+    }
 }
 
 impl From<Local> for Place {
@@ -273,6 +317,13 @@ pub enum RValue {
 
     /// A binary expression with a binary operator and two inner expressions.
     BinaryOp(BinOp, RValueId, RValueId),
+
+    /// A binary expression that is checked. The only difference between this
+    /// and a normal [RValue::BinaryOp] is that this will return a boolean and
+    /// the result of the operation in the form of `(T, bool)`. The boolean
+    /// flag denotes whether the operation violated the check...
+    CheckedBinaryOp(BinOp, RValueId, RValueId),
+
     /// An expression which is taking the address of another expression with an
     /// mutability modifier e.g. `&mut x`.
     Ref(Mutability, Statement, AddressMode),
@@ -283,6 +334,28 @@ pub enum RValue {
     /// which variant a union is. For types that don't have a discriminant
     /// (non-union types ) this will return the value as 0.
     Discriminant(Place),
+}
+
+impl RValue {
+    /// Check if an [RValue] is a constant.
+    pub fn is_const(&self) -> bool {
+        matches!(self, RValue::Const(_))
+    }
+
+    /// Check if an [RValue] is a constant operation and involves a constant
+    /// that is of an integral kind...
+    pub fn is_integral_const(&self) -> bool {
+        matches!(self, RValue::Const(Const::Int(_) | Const::Float(_) | Const::Char(_)))
+    }
+
+    /// Convert the RValue into a constant, having previously
+    /// checked that it is a constant.
+    pub fn as_const(&self) -> Const {
+        match self {
+            RValue::Const(c) => *c,
+            rvalue => unreachable!("Expected a constant, got {:?}", rvalue),
+        }
+    }
 }
 
 impl From<Const> for RValue {

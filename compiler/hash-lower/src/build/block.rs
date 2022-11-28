@@ -5,7 +5,10 @@
 use std::mem;
 
 use hash_ast::ast::{AstNodeRef, Block, BodyBlock, Expr, LoopBlock};
-use hash_ir::ir::{BasicBlock, Place};
+use hash_ir::{
+    ir::{BasicBlock, Place},
+    ty::Mutability,
+};
 
 use super::{BlockAnd, BlockAndExtend, Builder, LoopBlockInfo};
 use crate::build::unpack;
@@ -83,7 +86,9 @@ impl<'tcx> Builder<'tcx> {
                 unpack!(block = self.handle_expr_declaration(block, decl));
             } else {
                 // @@Investigate: do we need to deal with the temporary here?
-                unpack!(block = self.expr_into_temp(block, statement.ast_ref()));
+                unpack!(
+                    block = self.expr_into_temp(block, statement.ast_ref(), Mutability::Immutable)
+                );
             }
         }
 

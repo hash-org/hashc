@@ -469,6 +469,7 @@ dependencies = [
  "hash-types",
  "hash-utils",
  "index_vec",
+ "num-traits",
  "rayon",
 ]
 
