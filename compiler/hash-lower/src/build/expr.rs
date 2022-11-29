@@ -13,7 +13,7 @@ use hash_ir::{
 };
 use hash_reporting::macros::panic_on_span;
 use hash_source::location::Span;
-use hash_utils::store::Store;
+use hash_utils::store::{SequenceStoreKey, Store};
 
 use super::{unpack, BlockAnd, BlockAndExtend, Builder, LoopBlockInfo};
 
@@ -283,6 +283,24 @@ impl<'tcx> Builder<'tcx> {
         // @@Todo: we need to deal with default arguments here, we compute the missing
         // arguments, and then insert a lowered copy of the default value for
         // the argument.
+        //
+        // @@Future: this means we would have to have a way of referencing
+        // the default value of an argument, which is not currently possible in
+        // the AST. One way could be to build a map when traversing the AST that
+        // can map between the argument and the default value, later being fetched
+        // when we need to **fill** in the missing argument.
+        let fn_ty = self.get_ty_of_node(subject.id());
+
+        if let IrTy::Fn { params, .. } = fn_ty {
+            if args.len() != params.len() {
+                panic_on_span!(
+                    span.into_location(self.source_id),
+                    self.source_map,
+                    "default arguments on functions are not currently supported",
+                );
+            }
+        }
+
         let args = args
             .iter()
             .map(|arg| {
