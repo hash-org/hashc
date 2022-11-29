@@ -513,7 +513,7 @@ pub enum TerminatorKind {
         table: Vec<(Const, BasicBlock)>,
 
         /// If all lookups fail for the particular value, then this is a default
-        /// branch of where to fo to.
+        /// basic block to jump to.
         otherwise: BasicBlock,
     },
 
