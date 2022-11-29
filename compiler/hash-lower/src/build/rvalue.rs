@@ -156,7 +156,7 @@ impl<'tcx> Builder<'tcx> {
 
         // If we need have been instructed to insert overflow checks, and the
         // operator is checkable, then use `CheckedBinaryOp` instead of `BinaryOp`.
-        if op.is_checkable() && ty.is_integral() {
+        if self.settings.checked_operations && op.is_checkable() && ty.is_integral() {
             // Create a new tuple that contains the result of the operation
             let expr_ty = self.storage.ty_store().create(ty);
             let ty = IrTy::tuple(self.storage, &[expr_ty, self.storage.ty_store().make_bool()]);

@@ -24,6 +24,7 @@ use hash_ir::{
     ty::{IrTy, IrTyId, Mutability},
     IrStorage,
 };
+use hash_pipeline::settings::LoweringSettings;
 use hash_source::{identifier::Identifier, location::Span, SourceId, SourceMap};
 use hash_types::{pats::Pat, scope::ScopeId, storage::GlobalStorage};
 use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
@@ -134,6 +135,10 @@ pub(crate) struct Builder<'tcx> {
     /// span when the compiler panics.
     source_map: &'tcx SourceMap,
 
+    /// The stage settings, sometimes used to determine what the lowering
+    /// behaviour should be.
+    settings: &'tcx LoweringSettings,
+
     /// The type of the item that is being lowered, the type is
     /// deduced when the [Builder] is created.
     ty: IrTyId,
@@ -213,6 +218,7 @@ impl<'tcx> Builder<'tcx> {
         storage: &'tcx mut IrStorage,
         source_map: &'tcx SourceMap,
         dead_ends: &'tcx HashSet<AstNodeId>,
+        settings: &'tcx LoweringSettings,
     ) -> Self {
         let (arg_count, ty) = match item {
             BuildItem::FnDef(node) => {
@@ -234,6 +240,7 @@ impl<'tcx> Builder<'tcx> {
         };
 
         Self {
+            settings,
             item,
             tcx,
             ty,

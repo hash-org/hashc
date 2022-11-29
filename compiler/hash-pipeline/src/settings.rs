@@ -115,39 +115,23 @@ impl Default for OptimisationLevel {
 /// Settings that relate to the IR stage of the compiler, these include if the
 /// IR should be dumped (and in which mode), whether the IR should be optimised,
 /// whether the IR should use `checked` operations, etc.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct LoweringSettings {
-    /// Whether the IR that is generated at the time should be dumped
-    pub dump_mode: Option<IrDumpMode>,
+    /// Whether the IR should dump all lowered bodies, rather than
+    /// relying on user directives to select specific bodies.
+    pub dump_all: bool,
+
+    /// Whether the IR that is generated at the time should be dumped.
+    pub dump_mode: IrDumpMode,
 
     /// Use checked operations when emitting IR, this is usually derived whether
     /// the compiler is building a debug variant or not.
     pub checked_operations: bool,
-
-    /// Whether the IR that is generated should be optimised.
-    pub optimise: bool,
-}
-
-impl LoweringSettings {
-    /// Specify whether the IR should be dumped, and in which mode.
-    pub fn set_dump_mode(&mut self, mode: Option<IrDumpMode>) {
-        self.dump_mode = mode;
-    }
-
-    /// Specify whether the IR should be optimised.
-    pub fn set_optimise(&mut self, value: bool) {
-        self.optimise = value;
-    }
-
-    /// Specify whether the IR should use checked operations.
-    pub fn set_checked_operations(&mut self, value: bool) {
-        self.checked_operations = value;
-    }
 }
 
 impl Default for LoweringSettings {
     fn default() -> Self {
-        Self { dump_mode: None, checked_operations: true, optimise: false }
+        Self { dump_mode: IrDumpMode::Pretty, checked_operations: true, dump_all: false }
     }
 }
 

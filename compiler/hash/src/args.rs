@@ -127,7 +127,27 @@ pub(crate) struct IrGenMode {
     /// If the IR should be printed to stdout or not, and in which
     /// format, options are `pretty` or `graph`.
     #[arg(long, value_enum)]
-    pub(crate) dump: Option<IrDumpMode>,
+    pub(crate) dump_mode: IrDumpMode,
+
+    /// Whether to print the IR to stdout or not.
+    #[arg(long)]
+    pub(crate) dump: bool,
+
+    /// Whether the IR should use `checked` operations, this flag is
+    /// superseded by `optimise` level when it is set to
+    /// [OptimisationLevel::Release].
+    #[arg(long, default_value_t = true)]
+    pub(crate) checked_operations: bool,
+}
+
+impl From<IrGenMode> for LoweringSettings {
+    fn from(options: IrGenMode) -> Self {
+        Self {
+            dump_mode: options.dump_mode,
+            dump_all: options.dump,
+            checked_operations: options.checked_operations,
+        }
+    }
 }
 
 impl TryInto<CompilerSettings> for CompilerOptions {
@@ -141,9 +161,8 @@ impl TryInto<CompilerSettings> for CompilerOptions {
             Some(SubCmd::DeSugar { .. }) => CompilerStageKind::DeSugar,
 
             Some(SubCmd::Check { .. }) => CompilerStageKind::Typecheck,
-            Some(SubCmd::IrGen(IrGenMode { dump, .. })) => {
-                lowering_settings.set_dump_mode(dump);
-
+            Some(SubCmd::IrGen(opts)) => {
+                lowering_settings = opts.into();
                 CompilerStageKind::IrGen
             }
             _ => CompilerStageKind::Full,

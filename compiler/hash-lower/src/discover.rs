@@ -12,6 +12,7 @@ use hash_ast::{
     visitor::{walk_mut_self, AstVisitorMutSelf},
 };
 use hash_ir::{ir::Body, IrStorage};
+use hash_pipeline::settings::LoweringSettings;
 use hash_source::{
     identifier::{Identifier, IDENTS},
     SourceId, SourceMap,
@@ -106,6 +107,9 @@ pub(crate) struct LoweringVisitor<'ir> {
     /// lowered.
     source_id: SourceId,
 
+    /// The current lowering settings.
+    settings: LoweringSettings,
+
     /// Declaration binds stack, this is used to resolve the name of
     /// the declared function or functions. It is made to be a stack
     /// because a single declaration can bind multiple functions, e.g.
@@ -138,8 +142,10 @@ impl<'ir> LoweringVisitor<'ir> {
         storage: &'ir mut IrStorage,
         source_map: &'ir SourceMap,
         source_id: SourceId,
+        settings: LoweringSettings,
     ) -> Self {
         Self {
+            settings,
             tcx,
             current_block: BlockOrigin::Const,
             storage,
@@ -245,6 +251,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
             self.storage,
             self.source_map,
             &self.dead_ends,
+            &self.settings,
         );
         builder.build_fn();
 

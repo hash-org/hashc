@@ -1,7 +1,11 @@
 //! Graph visualisation tools for the IR. This module contains a builder for
-//! generating a `.dot` [graphviz](https://graphviz.org/) file from the IR. This can be used to
-//! convert a [Body] into a graph that can be visualised. This writing backend
-//! for the IR will emit
+//! generating a `.dot` [graphviz](https://graphviz.org/) file from the IR.
+//! This writing backend for the IR will emit the specified [Body] into the
+//! `.dot` syntax which can later be interpreted by `graphviz` to generate
+//! a visual representation of the IR in formats such as `pdf`, `svg`, `png`,
+//! etc.
+
+use std::io;
 
 use html_escape::encode_text;
 
@@ -34,11 +38,21 @@ pub struct IrGraphOptions {
 
     /// The background colour of each node as the header of the graph.
     background_colour: String,
+
+    /// Whether the body should be written directly to the graph or a
+    /// sub-graph should be created. If the `use_subgraph` option is
+    /// set, then this points to the index to use for the sub-graph
+    /// when printing edges, and labels for things.
+    use_subgraph: Option<usize>,
 }
 
 impl Default for IrGraphOptions {
     fn default() -> Self {
-        Self { font: "Courier, monospace".to_string(), background_colour: "gray".to_string() }
+        Self {
+            font: "Courier, monospace".to_string(),
+            background_colour: "gray".to_string(),
+            use_subgraph: None,
+        }
     }
 }
 
@@ -48,35 +62,27 @@ impl<'ir> IrGraphWriter<'ir> {
     }
 
     /// Function that writes the body to the appropriate writer.
-    pub fn write_body(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
-        writeln!(w, "digraph {} {{", self.body.name)?;
+    pub fn write_body(&self, w: &mut impl io::Write) -> io::Result<()> {
+        if let Some(index) = self.options.use_subgraph {
+            writeln!(w, "subgraph cluster_{index} {{")?;
+        } else {
+            writeln!(w, "digraph {{")?;
+        }
 
         // First of all, we need to write the graph options for the `graph`, `node`, and
         // the `edge`.
-        writeln!(
-            w,
-            "  graph [fontname=\"{}\", bgcolor=\"{}\"]",
-            self.options.font, self.options.background_colour
-        )?;
-        writeln!(
-            w,
-            "  node [fontname=\"{}\", bgcolor=\"{}\"]",
-            self.options.font, self.options.background_colour
-        )?;
-        writeln!(
-            w,
-            "  edge [fontname=\"{}\", bgcolor=\"{}\"]",
-            self.options.font, self.options.background_colour
-        )?;
+        writeln!(w, "  graph [fontname=\"{}\"];", self.options.font)?;
+        writeln!(w, "  node [fontname=\"{}\"];", self.options.font)?;
+        writeln!(w, "  edge [fontname=\"{}\"];", self.options.font)?;
 
         // Now we write the `label` of the graph which is essentially the type of
         // the function and any local declarations that have been defined within the
         // body.
         write!(
             w,
-            " label=<{}{}{}",
+            "  label=<{}{}{}",
             self.body.name,
-            self.body.ty.fmt_with_opts(self.ctx, true, true),
+            encode_text(&format!("{}", self.body.ty.fmt_with_opts(self.ctx, true, false))),
             LINE_SEPARATOR
         )?;
 
@@ -90,7 +96,7 @@ impl<'ir> IrGraphWriter<'ir> {
                 w,
                 "{}{local:?}: {};{}",
                 decl.mutability(),
-                decl.ty().fmt_with_opts(self.ctx, true, true),
+                encode_text(&format!("{}", decl.ty().fmt_with_opts(self.ctx, true, false))),
                 LINE_SEPARATOR
             )?;
         }
@@ -106,23 +112,44 @@ impl<'ir> IrGraphWriter<'ir> {
         // Now we need to write all of the edges of the control flow graph
         for (id, block) in self.body.blocks.iter_enumerated() {
             if let Some(terminator) = &block.terminator {
+                let prefix = if let Some(index) = self.options.use_subgraph {
+                    format!("c{index}_")
+                } else {
+                    "".to_string()
+                };
+
                 match &terminator.kind {
                     TerminatorKind::Assert { target, .. } | TerminatorKind::Goto(target) => {
-                        writeln!(w, r#"  {id:?} -> {target:?} [label=""];"#)?;
+                        writeln!(w, r#"  {prefix}{id:?} -> {prefix}{target:?} [label=""];"#)?;
                     }
-                    TerminatorKind::Call { target, .. } => {
-                        writeln!(w, r#"  {id:?} -> {target:?} [label="return"];"#)?;
+                    TerminatorKind::Call { target, .. } if target.is_some() => {
+                        writeln!(
+                            w,
+                            r#"  {prefix}{:?} -> {prefix}{:?} [label="return"];"#,
+                            id,
+                            target.unwrap()
+                        )?;
                     }
                     TerminatorKind::Switch { table, otherwise, .. } => {
                         // Add all of the table cases
                         for (value, target) in table.iter() {
-                            writeln!(w, r#"  {id:?} -> {target:?} [label="{value}"];"#)?;
+                            writeln!(
+                                w,
+                                r#"  {prefix}{:?} -> {prefix}{:?} [label="{}"];"#,
+                                id, target, value
+                            )?;
                         }
 
                         // Add the otherwise case
-                        writeln!(w, r#"  {id:?} -> {otherwise:?} [label="otherwise"];"#)?;
+                        writeln!(
+                            w,
+                            r#"  {prefix}{:?} -> {prefix}{:?} [label="otherwise"];"#,
+                            id, otherwise
+                        )?;
                     }
-                    TerminatorKind::Unreachable | TerminatorKind::Return => {}
+                    TerminatorKind::Call { .. }
+                    | TerminatorKind::Unreachable
+                    | TerminatorKind::Return => {}
                 }
             }
         }
@@ -163,18 +190,29 @@ impl<'ir> IrGraphWriter<'ir> {
     /// the header is the ID of the block.
     fn write_block(
         &self,
-        w: &mut impl std::io::Write,
+        w: &mut impl io::Write,
         id: BasicBlock,
         block: &'ir BasicBlockData,
-    ) -> std::io::Result<()> {
+    ) -> io::Result<()> {
+        // Now we write the first row, which is the basic block header
+        let block_id = if let Some(index) = self.options.use_subgraph {
+            format!("c{index}_{id:?}")
+        } else {
+            format!("{:?}", id.raw())
+        };
+
         // First write the table, and the header of the table
         write!(
             w,
-            "  {id:?} [shape=none, label=<<table border=\"0\", cellborder=\"1\" cellspacing=\"0\">"
+            r#"  {block_id} [shape="none", label=<<table border="0" cellborder="1" cellspacing="0">"#
         )?;
 
-        // Now we write the first row, which is the basic block header
-        write!(w, r#"<tr><td bgcolor="gray" align="center" colspan="1">{}</td></tr>"#, id.raw())?;
+        write!(
+            w,
+            r#"<tr><td bgcolor="{}" align="center" colspan="1">{}</td></tr>"#,
+            self.options.background_colour,
+            id.raw(),
+        )?;
 
         // Now we can write all of the statements within this block
         for statement in block.statements.iter() {
@@ -189,12 +227,33 @@ impl<'ir> IrGraphWriter<'ir> {
         if let Some(terminator) = &block.terminator {
             write!(
                 w,
-                r#"<tr><td align="left" balign="left">{}</td></tr>"#,
-                encode_text(&format!("{}", terminator.for_fmt(self.ctx)))
+                r#"<tr><td align="left">{}</td></tr>"#,
+                encode_text(&format!("{}", terminator.fmt_with_opts(self.ctx, false, false)))
             )?;
         }
 
         // close of the table and the label
         writeln!(w, "</table>>];")
     }
+}
+
+/// Dump all of the provided [Body]s to standard output using the `dot` format.
+pub fn dump_ir_bodies(storage: &IrStorage, bodies: &[Body], dump_all: bool) {
+    let mut w = io::stdout();
+
+    println!("digraph program {{");
+
+    for (id, body) in bodies.iter().enumerate() {
+        // Check if we need to print this body (or if we're printing all of them)
+        // and then skip bodies that we didn't request to print.
+        if !dump_all && !body.needs_dumping() {
+            continue;
+        }
+
+        let opts = IrGraphOptions { use_subgraph: Some(id), ..IrGraphOptions::default() };
+        let dumper = IrGraphWriter::new(storage, body, opts);
+        dumper.write_body(&mut w).unwrap();
+    }
+
+    println!("}}");
 }
