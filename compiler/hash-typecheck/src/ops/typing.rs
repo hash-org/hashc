@@ -220,7 +220,11 @@ impl<'tc> Typer<'tc> {
                         let enum_ty =
                             self.builder().create_nominal_def_term(enum_variant.enum_def_id);
                         match variant.fields {
-                            Some(fields) => Ok(self.builder().create_fn_ty_term(fields, enum_ty)),
+                            Some(fields) => Ok(self.builder().create_fn_ty_term(
+                                Some(variant.name),
+                                fields,
+                                enum_ty,
+                            )),
                             None => Ok(enum_ty),
                         }
                     }

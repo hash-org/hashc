@@ -686,8 +686,7 @@ define_tree! {
         /// This function is used to determine if the current literal tree only
         /// contains constants. Constants are other literals that are not subject
         /// to change, e.g. a number like `5` or a string `hello`. This function
-        /// implements short circuiting behaviour and thus should check if the
-        /// literal is constant in the minimal time possible.
+        /// implements short circuiting behaviour.
         pub fn is_constant(&self) -> bool {
             let is_expr_lit_and_const = |expr: &AstNode<Expr>| -> bool {
                 match expr.body() {
@@ -711,6 +710,18 @@ define_tree! {
                 }),
                 _ => true,
             }
+        }
+
+        /// Check whether the given literal is a primitive literal. Primitive
+        /// literals consist of the following:
+        ///
+        /// - `StrLit`
+        /// - `CharLit`
+        /// - `IntLit`
+        /// - `FloatLit`
+        /// - `BoolLit`
+        pub fn is_primitive(&self) -> bool {
+            matches!(self, Lit::Str(_) | Lit::Char(_) | Lit::Int(_) | Lit::Float(_) | Lit::Bool(_))
         }
     }
 
@@ -1002,7 +1013,7 @@ define_tree! {
     }
 
     /// Unary operators that are defined within the core of the language.
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Copy)]
     #[node]
     pub enum UnOp {
         // Bitwise logical inversion

@@ -30,7 +30,6 @@ impl<'tcx> Builder<'tcx> {
                 let ty = self.get_ty_id_of_node(node_id);
                 self.declare_binding(name, ty, mutability)
             }
-            ast::Pat::Constructor(_) => todo!(),
             ast::Pat::Tuple(ast::TuplePat { fields }) => {
                 // @@Todo: deal with associating a projection here.
 
@@ -39,9 +38,10 @@ impl<'tcx> Builder<'tcx> {
                     self.visit_bindings(pat.ast_ref());
                 }
             }
-            ast::Pat::List(_) => todo!(),
-            ast::Pat::Or(_) => todo!(),
-            ast::Pat::If(_) => todo!(),
+            ast::Pat::Constructor(_) => unimplemented!(),
+            ast::Pat::List(_) => unimplemented!(),
+            ast::Pat::Or(_) => unimplemented!(),
+            ast::Pat::If(_) => unimplemented!(),
             ast::Pat::Lit(_)
             | ast::Pat::Module(_)
             | ast::Pat::Access(_)
@@ -75,12 +75,12 @@ impl<'tcx> Builder<'tcx> {
                 unpack!(block = self.expr_into_dest(place, block, rvalue));
                 block.unit()
             }
-            ast::Pat::Wild(_) => todo!(),
-            ast::Pat::Constructor(_) => todo!(),
-            ast::Pat::Tuple(_) => todo!(),
-            ast::Pat::List(_) => todo!(),
-            ast::Pat::Lit(_) => todo!(),
-            ast::Pat::Or(_) => todo!(),
+            ast::Pat::Wild(_) => unimplemented!(),
+            ast::Pat::Constructor(_) => unimplemented!(),
+            ast::Pat::Tuple(_) => unimplemented!(),
+            ast::Pat::List(_) => unimplemented!(),
+            ast::Pat::Lit(_) => unimplemented!(),
+            ast::Pat::Or(_) => unimplemented!(),
             pat => {
                 panic!("reached irrefutable pattern: {pat:?} in `expr_into_pat`");
             }

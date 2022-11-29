@@ -959,7 +959,7 @@ impl<'tc> Discoverer<'tc> {
                 if !applied_once {
                     Ok(None)
                 } else {
-                    Ok(Some(self.builder().create_fn_ty_term(params, return_ty)))
+                    Ok(Some(self.builder().create_fn_ty_term(fn_ty.name, params, return_ty)))
                 }
             }
             Term::Level0(term) => match term {

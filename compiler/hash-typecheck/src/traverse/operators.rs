@@ -52,11 +52,13 @@ impl<'tc> TcVisitor<'tc> {
         let builder = self.builder();
 
         // () => lhs
-        let fn_ty = builder.create_fn_ty_term(builder.create_params([], ParamOrigin::Fn), lhs_ty);
+        let fn_ty =
+            builder.create_fn_ty_term(None, builder.create_params([], ParamOrigin::Fn), lhs_ty);
         let lhs = builder.create_fn_lit_term(None, fn_ty, lhs);
 
         // () => rhs
-        let fn_ty = builder.create_fn_ty_term(builder.create_params([], ParamOrigin::Fn), rhs_ty);
+        let fn_ty =
+            builder.create_fn_ty_term(None, builder.create_params([], ParamOrigin::Fn), rhs_ty);
         let rhs = builder.create_fn_lit_term(None, fn_ty, rhs);
 
         // (() => lhs).trait_name()

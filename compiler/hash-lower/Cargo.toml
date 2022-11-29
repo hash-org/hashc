@@ -7,6 +7,7 @@ edition = "2021"
 [dependencies]
 index_vec = "0.1.3"
 rayon = "1.5.0"
+num-traits = "0.2.15"
 
 hash-ast = { path = "../hash-ast" }
 hash-tree-def = { path = "../hash-tree-def" }

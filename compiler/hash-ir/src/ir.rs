@@ -2,6 +2,7 @@
 //! under construction and is subject to change.
 use std::fmt;
 
+use hash_ast::ast;
 use hash_source::{
     constant::{InternedFloat, InternedInt, InternedStr},
     identifier::Identifier,
@@ -9,15 +10,21 @@ use hash_source::{
     SourceId,
 };
 use hash_types::terms::TermId;
-use hash_utils::{new_store_key, store::DefaultStore};
+use hash_utils::{
+    new_store_key,
+    store::{DefaultStore, Store},
+};
 use index_vec::IndexVec;
 
-use crate::ty::{IrTyId, Mutability};
+use crate::{
+    ty::{IrTy, IrTyId, Mutability},
+    IrStorage,
+};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Const {
-    /// Nothing, it has zero size.
-    Zero,
+    /// Nothing, it has zero size, and is associated with a particular type.
+    Zero(IrTyId),
 
     /// Byte constant, could a boolean.
     Byte(u8),
@@ -39,10 +46,18 @@ pub enum Const {
     Str(InternedStr),
 }
 
+impl Const {
+    /// Create a [Const::Zero] with a unit type, the total zero.
+    pub fn zero(storage: &IrStorage) -> Self {
+        let unit = storage.ty_store().create(IrTy::unit(storage));
+        Self::Zero(unit)
+    }
+}
+
 impl fmt::Display for Const {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::Zero => write!(f, "()"),
+            Self::Zero(_) => write!(f, "()"),
             Self::Byte(b) => write!(f, "{b}"),
             Self::Char(c) => write!(f, "{c}"),
             Self::Int(i) => write!(f, "{i}"),
@@ -70,6 +85,17 @@ pub enum UnaryOp {
     Not,
     /// The operator '-' for negation
     Neg,
+}
+
+impl From<ast::UnOp> for UnaryOp {
+    fn from(value: ast::UnOp) -> Self {
+        match value {
+            ast::UnOp::BitNot => Self::BitNot,
+            ast::UnOp::Not => Self::Not,
+            ast::UnOp::Neg => Self::Neg,
+            _ => unreachable!(),
+        }
+    }
 }
 
 /// Binary operations on [RValue]s that are typed as primitive, or have
@@ -116,6 +142,42 @@ pub enum BinOp {
     Div,
     /// '%'
     Mod,
+}
+
+impl BinOp {
+    /// Returns whether the binary operator can be "checked".
+    pub fn is_checkable(&self) -> bool {
+        matches!(self, Self::Add | Self::Sub | Self::Mul | Self::Div | Self::Shl | Self::Shr)
+    }
+}
+
+impl From<ast::BinOp> for BinOp {
+    fn from(value: ast::BinOp) -> Self {
+        match value {
+            ast::BinOp::EqEq => Self::EqEq,
+            ast::BinOp::NotEq => Self::NotEq,
+            ast::BinOp::BitOr => Self::BitOr,
+            ast::BinOp::Or => Self::Or,
+            ast::BinOp::BitAnd => Self::BitAnd,
+            ast::BinOp::And => Self::And,
+            ast::BinOp::BitXor => Self::BitXor,
+            ast::BinOp::Exp => Self::Exp,
+            ast::BinOp::Gt => Self::Gt,
+            ast::BinOp::GtEq => Self::GtEq,
+            ast::BinOp::Lt => Self::Lt,
+            ast::BinOp::LtEq => Self::LtEq,
+            ast::BinOp::Shr => Self::Shr,
+            ast::BinOp::Shl => Self::Shl,
+            ast::BinOp::Add => Self::Add,
+            ast::BinOp::Sub => Self::Sub,
+            ast::BinOp::Mul => Self::Mul,
+            ast::BinOp::Div => Self::Div,
+            ast::BinOp::Mod => Self::Mod,
+            // `As` and `Merge` are dealt with before this ever reached
+            // this point.
+            _ => unreachable!(),
+        }
+    }
 }
 
 /// Essentially a register for a value
@@ -221,6 +283,14 @@ impl Place {
     pub fn return_place() -> Self {
         Self { local: RETURN_PLACE, projections: Vec::new() }
     }
+
+    /// Create a new [Place] from an existing place whilst also
+    /// applying a a [PlaceProjection::Field] on the old one.
+    pub fn field(&self, field: usize) -> Self {
+        let mut projections = self.projections.clone();
+        projections.push(PlaceProjection::Field(field));
+        Self { local: self.local, projections }
+    }
 }
 
 impl From<Local> for Place {
@@ -229,11 +299,22 @@ impl From<Local> for Place {
     }
 }
 
+/// [AggregateKind] represent an initialisation process of a particular
+/// structure be it a tuple, array, struct, etc.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum AggregateKind {
+    /// A tuple value initialisation.
     Tuple,
+
+    /// An array aggregate kind initialisation.
     Array(IrTyId),
+
+    /// Enum aggregate kind, this is used to represent an initialisation
+    /// of an enum variant with the specified variant index.
     Enum(IrTyId, usize),
+
+    /// Struct aggregate kind, this is used to represent a struct
+    /// initialisation.
     Struct(IrTyId),
 }
 
@@ -261,9 +342,16 @@ pub enum RValue {
 
     /// A binary expression with a binary operator and two inner expressions.
     BinaryOp(BinOp, RValueId, RValueId),
+
+    /// A binary expression that is checked. The only difference between this
+    /// and a normal [RValue::BinaryOp] is that this will return a boolean and
+    /// the result of the operation in the form of `(T, bool)`. The boolean
+    /// flag denotes whether the operation violated the check...
+    CheckedBinaryOp(BinOp, RValueId, RValueId),
+
     /// An expression which is taking the address of another expression with an
     /// mutability modifier e.g. `&mut x`.
-    Ref(Mutability, Statement, AddressMode),
+    Ref(Mutability, Place, AddressMode),
     /// Used for initialising structs, tuples and other aggregate
     /// data structures
     Aggregate(AggregateKind, Vec<Place>),
@@ -271,6 +359,28 @@ pub enum RValue {
     /// which variant a union is. For types that don't have a discriminant
     /// (non-union types ) this will return the value as 0.
     Discriminant(Place),
+}
+
+impl RValue {
+    /// Check if an [RValue] is a constant.
+    pub fn is_const(&self) -> bool {
+        matches!(self, RValue::Const(_))
+    }
+
+    /// Check if an [RValue] is a constant operation and involves a constant
+    /// that is of an integral kind...
+    pub fn is_integral_const(&self) -> bool {
+        matches!(self, RValue::Const(Const::Int(_) | Const::Float(_) | Const::Char(_)))
+    }
+
+    /// Convert the RValue into a constant, having previously
+    /// checked that it is a constant.
+    pub fn as_const(&self) -> Const {
+        match self {
+            RValue::Const(c) => *c,
+            rvalue => unreachable!("Expected a constant, got {:?}", rvalue),
+        }
+    }
 }
 
 impl From<Const> for RValue {
@@ -346,10 +456,16 @@ pub enum TerminatorKind {
 
     /// Perform a function call
     Call {
-        /// The layout of the function type that is to be called.
-        op: IrTyId,
-        /// Arguments to the function.
-        args: Vec<Local>,
+        /// The function that is being called
+        op: RValueId,
+
+        /// Arguments to the function, later we might need to distinguish
+        /// whether these are move or copy arguments.
+        args: Vec<RValueId>,
+
+        /// Destination of the result...
+        destination: Place,
+
         /// Where to return after completing the call
         target: Option<BasicBlock>,
     },

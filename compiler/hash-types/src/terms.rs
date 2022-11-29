@@ -39,7 +39,13 @@ pub struct TupleTy {
 /// All the parameter types and return type must be level 0
 #[derive(Debug, Clone, Copy)]
 pub struct FnTy {
+    /// The name of the function.
+    pub name: Option<Identifier>,
+
+    /// All of the parameters that the function accepts.
     pub params: ParamsId,
+
+    /// The return type of the function
     pub return_ty: TermId,
 }
 

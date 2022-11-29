@@ -3,6 +3,7 @@
 #![allow(clippy::too_many_arguments)]
 
 mod block;
+mod category;
 mod constant;
 mod expr;
 mod matches;
@@ -16,7 +17,10 @@ use std::collections::{HashMap, HashSet};
 
 use hash_ast::ast::{AstNodeId, AstNodeRef, Expr, FnDef};
 use hash_ir::{
-    ir::{BasicBlock, Body, BodySource, Local, LocalDecl, Place, TerminatorKind, START_BLOCK},
+    ir::{
+        AssertKind, BasicBlock, Body, BodySource, Local, LocalDecl, Place, TerminatorKind,
+        START_BLOCK,
+    },
     ty::{IrTy, IrTyId, Mutability},
     IrStorage,
 };
@@ -312,6 +316,26 @@ impl<'tcx> Builder<'tcx> {
         }
     }
 
+    /// Create an assertion on a particular block
+    pub(crate) fn assert(
+        &mut self,
+        block: BasicBlock,
+        condition: Place,
+        expected: bool,
+        kind: AssertKind,
+        span: Span,
+    ) -> BasicBlock {
+        let success_block = self.control_flow_graph.start_new_block();
+
+        self.control_flow_graph.terminate(
+            block,
+            span,
+            TerminatorKind::Assert { condition, expected, kind, target: success_block },
+        );
+
+        success_block
+    }
+
     /// Run a lowering operation whilst entering a new scope which is derived
     /// from the provided [AstNodeRef<Expr>].
     ///
@@ -390,14 +414,14 @@ impl<'tcx> Builder<'tcx> {
         let fn_params =
             self.tcx.params_store.get_owned_param_list(fn_term.params).into_positional();
 
-        let IrTy::Fn(params, ret_ty) = lower_term(term_id, self.tcx, self.storage) else {
+        let IrTy::Fn {params, return_ty, .. } = lower_term(term_id, self.tcx, self.storage) else {
             panic!("Expected a function type");
         };
 
         // The first local declaration is used as the return type. The return local
         // declaration is always mutable because it will be set at some point in
         // the end, not the beginning.
-        let ret_local = LocalDecl::new_auxiliary(ret_ty, Mutability::Mutable);
+        let ret_local = LocalDecl::new_auxiliary(return_ty, Mutability::Mutable);
         self.declarations.push(ret_local);
 
         // Deal with all the function parameters that are given to the function.
