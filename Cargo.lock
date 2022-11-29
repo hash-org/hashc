@@ -351,6 +351,7 @@ dependencies = [
  "hash-reporting",
  "hash-session",
  "hash-source",
+ "hash-target",
  "hash-tree-def",
  "hash-typecheck",
  "hash-untyped-semantics",
@@ -498,6 +499,7 @@ dependencies = [
  "hash-ast",
  "hash-reporting",
  "hash-source",
+ "hash-target",
  "hash-types",
  "hash-utils",
  "log",
@@ -555,6 +557,10 @@ dependencies = [
  "num-bigint",
  "slotmap",
 ]
+
+[[package]]
+name = "hash-target"
+version = "0.1.0"
 
 [[package]]
 name = "hash-testing-internal"
@@ -658,6 +664,7 @@ version = "0.1.0"
 dependencies = [
  "hash-ast",
  "hash-source",
+ "hash-target",
  "hash-utils",
  "log",
  "num-bigint",

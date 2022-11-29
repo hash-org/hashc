@@ -113,14 +113,13 @@ pub enum UIntTy {
 impl UIntTy {
     /// Get the size of [IntTy] in bytes. Returns [None] for
     /// [UIntTy::UBig] variants
-    pub const fn size(&self) -> Option<u64> {
+    pub const fn size(&self, ptr_width: usize) -> Option<u64> {
         match self {
             UIntTy::U8 => Some(1),
             UIntTy::U16 => Some(2),
             UIntTy::U32 => Some(4),
             UIntTy::U64 => Some(8),
-            // @@Todo: actually get the target pointer size, don't default to 64bit pointers.
-            UIntTy::USize => Some(8),
+            UIntTy::USize => Some(ptr_width as u64),
             UIntTy::U128 => Some(16),
             UIntTy::UBig => None,
         }
@@ -129,14 +128,17 @@ impl UIntTy {
     /// Function to get the largest possible integer represented within this
     /// type. For sizes `ibig` and `ubig` there is no defined max and so the
     /// function returns [None].
-    pub fn max(&self) -> Option<BigInt> {
+    pub fn max(&self, ptr_width: usize) -> Option<BigInt> {
         match self {
-            UIntTy::U8 => Some(BigInt::from(i8::MAX)),
-            UIntTy::U16 => Some(BigInt::from(i16::MAX)),
-            UIntTy::U32 => Some(BigInt::from(i32::MAX)),
-            UIntTy::U64 => Some(BigInt::from(i64::MAX)),
-            UIntTy::U128 => Some(BigInt::from(i128::MAX)),
-            UIntTy::USize => Some(BigInt::from(isize::MAX)),
+            UIntTy::U8 => Some(BigInt::from(u8::MAX)),
+            UIntTy::U16 => Some(BigInt::from(u16::MAX)),
+            UIntTy::U32 => Some(BigInt::from(u32::MAX)),
+            UIntTy::U64 => Some(BigInt::from(u64::MAX)),
+            UIntTy::U128 => Some(BigInt::from(u128::MAX)),
+            UIntTy::USize => {
+                let max = !0u64 >> (64 - (ptr_width * 8));
+                Some(BigInt::from(max))
+            }
             UIntTy::UBig => None,
         }
     }
@@ -182,14 +184,13 @@ pub enum SIntTy {
 impl SIntTy {
     /// Get the size of [IntTy] in bytes. Returns [None] for
     /// [UIntTy::UBig] variants
-    pub const fn size(&self) -> Option<u64> {
+    pub const fn size(&self, ptr_width: usize) -> Option<u64> {
         match self {
             SIntTy::I8 => Some(1),
             SIntTy::I16 => Some(2),
             SIntTy::I32 => Some(4),
             SIntTy::I64 => Some(8),
-            // @@Todo: actually get the target pointer size, don't default to 64bit pointers.
-            SIntTy::ISize => Some(8),
+            SIntTy::ISize => Some(ptr_width as u64),
             SIntTy::I128 => Some(16),
             SIntTy::IBig => None,
         }
@@ -198,14 +199,18 @@ impl SIntTy {
     /// Function to get the largest possible integer represented within this
     /// type. For sizes `ibig` and `ubig` there is no defined max and so the
     /// function returns [None].
-    pub fn max(&self) -> Option<BigInt> {
+    pub fn max(&self, ptr_width: usize) -> Option<BigInt> {
         match self {
             SIntTy::I8 => Some(BigInt::from(i8::MAX)),
             SIntTy::I16 => Some(BigInt::from(i16::MAX)),
             SIntTy::I32 => Some(BigInt::from(i32::MAX)),
             SIntTy::I64 => Some(BigInt::from(i64::MAX)),
             SIntTy::I128 => Some(BigInt::from(i128::MAX)),
-            SIntTy::ISize => Some(BigInt::from(isize::MAX)),
+            SIntTy::ISize => {
+                // convert the size to a signed integer
+                let max = (1u64 << (ptr_width * 8 - 1)) - 1;
+                Some(BigInt::from(max))
+            }
             SIntTy::IBig => None,
         }
     }
@@ -213,14 +218,17 @@ impl SIntTy {
     /// Function to get the most minimum integer represented within this
     /// type. For sizes `ibig` and `ubig` there is no defined minimum and so the
     /// function returns [None].
-    pub fn min(&self) -> Option<BigInt> {
+    pub fn min(&self, ptr_width: usize) -> Option<BigInt> {
         match self {
             SIntTy::I8 => Some(BigInt::from(i8::MIN)),
             SIntTy::I16 => Some(BigInt::from(i16::MIN)),
             SIntTy::I32 => Some(BigInt::from(i32::MIN)),
             SIntTy::I64 => Some(BigInt::from(i64::MIN)),
             SIntTy::I128 => Some(BigInt::from(i128::MIN)),
-            SIntTy::ISize => Some(BigInt::from(isize::MIN)),
+            SIntTy::ISize => {
+                let min = (i64::MAX) << ((ptr_width * 8) - 1);
+                Some(BigInt::from(min))
+            }
             SIntTy::IBig => None,
         }
     }
@@ -266,28 +274,28 @@ impl IntTy {
     /// Function to get the largest possible integer represented within this
     /// type. For sizes `ibig` and `ubig` there is no defined max and so the
     /// function returns [None].
-    pub fn max(&self) -> Option<BigInt> {
+    pub fn max(&self, ptr_width: usize) -> Option<BigInt> {
         match self {
-            IntTy::Int(ty) => ty.max(),
-            IntTy::UInt(ty) => ty.max(),
+            IntTy::Int(ty) => ty.max(ptr_width),
+            IntTy::UInt(ty) => ty.max(ptr_width),
         }
     }
 
     /// Function to get the most minimum integer represented within this
     /// type. For sizes `ibig` there is no defined minimum and so the
     /// function returns [None].
-    pub fn min(&self) -> Option<BigInt> {
+    pub fn min(&self, ptr_width: usize) -> Option<BigInt> {
         match self {
-            IntTy::Int(ty) => ty.min(),
+            IntTy::Int(ty) => ty.min(ptr_width),
             IntTy::UInt(ty) => Some(ty.min()),
         }
     }
 
     /// Function to get the size of the integer type in bytes.
-    pub fn size(&self) -> Option<u64> {
+    pub fn size(&self, ptr_width: usize) -> Option<u64> {
         match self {
-            IntTy::Int(ty) => ty.size(),
-            IntTy::UInt(ty) => ty.size(),
+            IntTy::Int(ty) => ty.size(ptr_width),
+            IntTy::UInt(ty) => ty.size(ptr_width),
         }
     }
 
@@ -604,5 +612,39 @@ impl ConstantMap {
     /// signed.
     pub fn negate_int_constant(&self, id: InternedInt) {
         self.int_table.alter(&id, |_, value| value.negate());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use num_bigint::BigInt;
+
+    use super::SIntTy;
+    use crate::constant::UIntTy;
+
+    #[test]
+    fn test_max_signed_int_value() {
+        // Pointer width is always described using a number of bytes
+        assert_eq!(SIntTy::ISize.max(8), Some(BigInt::from(isize::MAX)));
+        assert_eq!(SIntTy::ISize.min(8), Some(BigInt::from(isize::MIN)));
+
+        assert_eq!(SIntTy::ISize.max(4), Some(BigInt::from(i32::MAX)));
+        assert_eq!(SIntTy::ISize.min(4), Some(BigInt::from(i32::MIN)));
+
+        // Check that computing the size of each type with pointer widths
+        // is consistent.
+        assert_eq!(SIntTy::ISize.size(8), Some(8));
+        assert_eq!(SIntTy::ISize.size(4), Some(4));
+    }
+
+    #[test]
+    fn test_max_unsigned_int_value() {
+        // We don't check `min()` for unsigned since this always
+        // returns 0.
+        assert_eq!(UIntTy::USize.max(8), Some(BigInt::from(usize::MAX)));
+        assert_eq!(UIntTy::USize.max(4), Some(BigInt::from(u32::MAX)));
+
+        assert_eq!(UIntTy::USize.size(8), Some(8));
+        assert_eq!(UIntTy::USize.size(4), Some(4));
     }
 }

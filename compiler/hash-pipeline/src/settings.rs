@@ -3,14 +3,16 @@
 //! to the Compiler pipeline.
 use std::fmt::Display;
 
+use hash_target::TargetInfo;
+
 /// Various settings that are present on the compiler pipeline when initially
 /// launching.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct CompilerSettings {
     /// Print metrics about each stage when the entire pipeline has completed.
     ///
     /// N.B: This flag has no effect if the compiler is not specified to run in
-    ///       debug mode!
+    ///      debug mode!
     pub output_metrics: bool,
 
     /// Whether to output of each stage result.
@@ -39,6 +41,12 @@ pub struct CompilerSettings {
     /// To what should the compiler run to, anywhere from parsing, typecheck, to
     /// code generation.
     pub stage: CompilerStageKind,
+
+    /// Information about the current "session" that the compiler is running
+    /// in. This contains information about which target the compiler is
+    /// compiling for, and other information that is used by the compiler
+    /// to determine how to compile the source code.
+    pub target_info: TargetInfo,
 }
 
 impl CompilerSettings {
@@ -68,6 +76,7 @@ impl CompilerSettings {
 impl Default for CompilerSettings {
     fn default() -> Self {
         Self {
+            target_info: TargetInfo::default(),
             output_stage_results: false,
             output_metrics: false,
             worker_count: num_cpus::get(),

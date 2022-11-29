@@ -20,11 +20,14 @@ use crate::{
     crash_handler::panic_handler,
 };
 
-pub static CONSOLE_LOGGER: CompilerLogger = CompilerLogger;
+/// THe logger that is used by the compiler for `log!` statements.
+pub static COMPILER_LOGGER: CompilerLogger = CompilerLogger;
 
-fn execute(f: impl FnOnce() -> Result<(), CompilerError>) {
+/// Perform some task that might fail and if it does, report the error and exit,
+/// otherwise return the result of the task.
+fn execute<T>(f: impl FnOnce() -> Result<T, CompilerError>) -> T {
     match f() {
-        Ok(()) => (),
+        Ok(value) => value,
         Err(e) => e.report_and_exit(),
     }
 }
@@ -32,7 +35,7 @@ fn execute(f: impl FnOnce() -> Result<(), CompilerError>) {
 fn main() {
     // Initial grunt work, panic handler and logger setup...
     panic::set_hook(Box::new(panic_handler));
-    log::set_logger(&CONSOLE_LOGGER).unwrap_or_else(|_| panic!("Couldn't initiate logger"));
+    log::set_logger(&COMPILER_LOGGER).unwrap_or_else(|_| panic!("Couldn't initiate logger"));
 
     // Starting the Tracy client is necessary before any invoking any of its APIs
     #[cfg(feature = "profile-with-tracy")]
@@ -79,11 +82,10 @@ fn main() {
         .build()
         .unwrap();
 
-    let compiler_settings: CompilerSettings = opts.into();
-
     let workspace = Workspace::new();
-    let session = CompilerSession::new(workspace, pool, compiler_settings);
+    let compiler_settings: CompilerSettings = execute(|| opts.try_into());
 
+    let session = CompilerSession::new(workspace, pool, compiler_settings);
     let mut compiler = Compiler::new(make_stages());
     let compiler_state = compiler.bootstrap(session);
 
