@@ -134,6 +134,10 @@ pub(crate) struct Builder<'tcx> {
     /// span when the compiler panics.
     source_map: &'tcx SourceMap,
 
+    /// The type of the item that is being lowered, the type is
+    /// deduced when the [Builder] is created.
+    ty: IrTyId,
+
     /// The name with the associated body that this is building.
     name: Identifier,
 
@@ -210,7 +214,7 @@ impl<'tcx> Builder<'tcx> {
         source_map: &'tcx SourceMap,
         dead_ends: &'tcx HashSet<AstNodeId>,
     ) -> Self {
-        let arg_count = match item {
+        let (arg_count, ty) = match item {
             BuildItem::FnDef(node) => {
                 // Get the type of this function definition, we need to
                 // figure out how many arguments there will be passed in
@@ -220,14 +224,19 @@ impl<'tcx> Builder<'tcx> {
                     tcx.node_info_store.node_info(node.id()).map(|info| info.term_id()).unwrap();
                 let fn_ty = get_fn_ty_from_term(term, tcx);
 
-                fn_ty.params.len()
+                let arg_count = fn_ty.params.len();
+                let ty = lower_term(term, tcx, storage);
+                let ty_id = storage.ty_store().create(ty);
+
+                (arg_count, ty_id)
             }
-            BuildItem::Expr(_) => 0,
+            BuildItem::Expr(_) => todo!(),
         };
 
         Self {
             item,
             tcx,
+            ty,
             storage,
             source_map,
             name,
@@ -254,6 +263,7 @@ impl<'tcx> Builder<'tcx> {
         }
 
         Body::new(
+            self.ty,
             self.control_flow_graph.basic_blocks,
             self.declarations,
             self.name,

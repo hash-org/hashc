@@ -11,7 +11,7 @@ mod discover;
 
 use discover::LoweringVisitor;
 use hash_ast::ast::{AstVisitorMutSelf, OwnsAstNode};
-use hash_ir::{write::IrWriter, IrStorage};
+use hash_ir::{write::pretty::IrBodyWriter, IrStorage};
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerResult, CompilerStage},
     settings::CompilerStageKind,
@@ -41,10 +41,17 @@ pub trait IrLoweringCtx: CompilerInterface {
 }
 
 impl<Ctx: IrLoweringCtx> CompilerStage<Ctx> for AstLowerer {
+    /// Return that this is [CompilerStageKind::IrGen].
     fn stage_kind(&self) -> CompilerStageKind {
         CompilerStageKind::IrGen
     }
 
+    /// Lower that AST of each module that is currently in the workspace
+    /// into Hash IR. This will iterate over all modules, and possibly
+    /// interactive statements to see if the need IR lowering, if so they
+    /// are lowered and the result is saved on the [IrStorage].
+    /// Additionally, this module is responsible for performing
+    /// optimisations on the IR (if specified via the [CompilerSettings]).
     fn run_stage(&mut self, _: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
         let (workspace, ty_storage, ir_storage) = ctx.data();
         let source_map = &mut workspace.source_map;
@@ -93,7 +100,7 @@ impl<Ctx: IrLoweringCtx> CompilerStage<Ctx> for AstLowerer {
                 body.source(),
                 body.name(),
                 source_map.fmt_location(body.location()),
-                IrWriter::new(ir_storage, body)
+                IrBodyWriter::new(ir_storage, body)
             );
         }
 

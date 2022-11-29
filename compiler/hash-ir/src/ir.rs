@@ -299,6 +299,33 @@ impl From<Local> for Place {
     }
 }
 
+impl fmt::Display for Place {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // First we, need to deal with the `deref` projections, since
+        // they need to be printed in reverse
+        for projection in self.projections.iter().rev() {
+            match projection {
+                PlaceProjection::Downcast(_) | PlaceProjection::Field(_) => write!(f, "(")?,
+                PlaceProjection::Deref => write!(f, "(*")?,
+                PlaceProjection::Index(_) => {}
+            }
+        }
+
+        write!(f, "{:?}", self.local)?;
+
+        for projection in &self.projections {
+            match projection {
+                PlaceProjection::Downcast(index) => write!(f, " as variant#{index})")?,
+                PlaceProjection::Index(local) => write!(f, "[{local:?}]")?,
+                PlaceProjection::Field(index) => write!(f, ".{index})")?,
+                PlaceProjection::Deref => write!(f, ")")?,
+            }
+        }
+
+        Ok(())
+    }
+}
+
 /// [AggregateKind] represent an initialisation process of a particular
 /// structure be it a tuple, array, struct, etc.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -476,7 +503,19 @@ pub enum TerminatorKind {
 
     /// Essentially a `jump if <0> to <1> else go to <2>`. The last argument is
     /// the `otherwise` condition.
-    Switch(Local, Vec<(Const, BasicBlock)>, BasicBlock),
+    Switch {
+        /// The value to use when comparing against the cases.
+        value: Local,
+
+        /// The target to jump to if the value is equal to the provided [Const]
+        /// value. All values that the table contains will always be
+        /// [Const::Int] values.
+        table: Vec<(Const, BasicBlock)>,
+
+        /// If all lookups fail for the particular value, then this is a default
+        /// branch of where to fo to.
+        otherwise: BasicBlock,
+    },
 
     /// This terminator is used to verify that the result of some operation has
     /// no violated a some condition. Usually, this is combined with operations
@@ -563,6 +602,9 @@ impl fmt::Display for BodySource {
 }
 
 pub struct Body {
+    /// The type of the item that was lowered
+    pub ty: IrTyId,
+
     /// The blocks that the function is represented with
     pub blocks: IndexVec<BasicBlock, BasicBlockData>,
 
@@ -600,6 +642,7 @@ impl Body {
     /// Create a new [Body] with the given `name`, `arg_count`, `source_id` and
     /// `span`.
     pub fn new(
+        ty: IrTyId,
         blocks: IndexVec<BasicBlock, BasicBlockData>,
         declarations: IndexVec<Local, LocalDecl>,
         name: Identifier,
@@ -608,7 +651,7 @@ impl Body {
         span: Span,
         source_id: SourceId,
     ) -> Self {
-        Self { blocks, name, declarations, arg_count, source, span, source_id, dump: false }
+        Self { ty, blocks, name, declarations, arg_count, source, span, source_id, dump: false }
     }
 
     /// Set the `dump` flag to `true` so that the IR Body that is generated
@@ -644,3 +687,34 @@ new_store_key!(pub RValueId);
 ///
 /// [Rvalue]s are accessed by an ID, of type [RValueId].
 pub type RValueStore = DefaultStore<RValueId, RValue>;
+
+#[cfg(test)]
+mod tests {
+    use crate::ir::*;
+
+    #[test]
+    fn test_place_display() {
+        let place = Place {
+            local: Local::new(0),
+            projections: vec![
+                PlaceProjection::Deref,
+                PlaceProjection::Field(0),
+                PlaceProjection::Index(Local::new(1)),
+                PlaceProjection::Downcast(0),
+            ],
+        };
+
+        assert_eq!(format!("{place}"), "(((*_0).0)[_1] as variant#0)");
+
+        let place = Place {
+            local: Local::new(0),
+            projections: vec![
+                PlaceProjection::Deref,
+                PlaceProjection::Deref,
+                PlaceProjection::Deref,
+            ],
+        };
+
+        assert_eq!(format!("{place}"), "(*(*(*_0)))");
+    }
+}
