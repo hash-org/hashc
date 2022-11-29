@@ -7,7 +7,7 @@ mod logger;
 
 use std::{num::NonZeroUsize, panic};
 
-use clap::Parser as ClapParser;
+use clap::Parser;
 use hash_pipeline::{settings::CompilerSettings, workspace::Workspace, Compiler};
 use hash_reporting::errors::CompilerError;
 use hash_session::{make_stages, CompilerSession};
@@ -58,7 +58,7 @@ fn main() {
     let entry_point = match &opts.mode {
         Some(SubCmd::AstGen(AstGenMode { filename })) => Some(filename.clone()),
         Some(SubCmd::DeSugar(DeSugarMode { filename })) => Some(filename.clone()),
-        Some(SubCmd::IrGen(IrGenMode { filename })) => Some(filename.clone()),
+        Some(SubCmd::IrGen(IrGenMode { filename, .. })) => Some(filename.clone()),
         Some(SubCmd::Check(CheckMode { filename })) => Some(filename.clone()),
         None => opts.filename.clone(),
     };

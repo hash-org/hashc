@@ -3,6 +3,7 @@
 //! to the Compiler pipeline.
 use std::fmt::Display;
 
+use clap_derive::ValueEnum;
 use hash_target::TargetInfo;
 
 /// Various settings that are present on the compiler pipeline when initially
@@ -30,6 +31,9 @@ pub struct CompilerSettings {
     /// Whether the pipeline should output errors and warnings to
     /// standard error
     pub emit_errors: bool,
+
+    /// All settings that relate to the lowering stage of the compiler.
+    pub lowering_settings: LoweringSettings,
 
     /// If the compiler should emit generated `ast` for all parsed modules
     ///
@@ -84,8 +88,76 @@ impl Default for CompilerSettings {
             emit_errors: true,
             dump_ast: false,
             stage: CompilerStageKind::Full,
+            lowering_settings: LoweringSettings::default(),
         }
     }
+}
+
+/// What optimisation level the compiler should run at.
+#[derive(ValueEnum, Clone, Copy, PartialEq, Eq)]
+pub enum OptimisationLevel {
+    /// Run the compiler using the debug optimisation level. This will
+    /// disable most optimisations that the compiler would otherwise do.
+    /// This is intended for building the program as fast as possible.
+    Debug,
+
+    /// Optimise the given program as much as possible, essentially
+    /// applying all optimisation.
+    Release,
+}
+
+impl Default for OptimisationLevel {
+    fn default() -> Self {
+        Self::Debug
+    }
+}
+
+/// Settings that relate to the IR stage of the compiler, these include if the
+/// IR should be dumped (and in which mode), whether the IR should be optimised,
+/// whether the IR should use `checked` operations, etc.
+#[derive(Debug, Clone)]
+pub struct LoweringSettings {
+    /// Whether the IR that is generated at the time should be dumped
+    pub dump_mode: Option<IrDumpMode>,
+
+    /// Use checked operations when emitting IR, this is usually derived whether
+    /// the compiler is building a debug variant or not.
+    pub checked_operations: bool,
+
+    /// Whether the IR that is generated should be optimised.
+    pub optimise: bool,
+}
+
+impl LoweringSettings {
+    /// Specify whether the IR should be dumped, and in which mode.
+    pub fn set_dump_mode(&mut self, mode: Option<IrDumpMode>) {
+        self.dump_mode = mode;
+    }
+
+    /// Specify whether the IR should be optimised.
+    pub fn set_optimise(&mut self, value: bool) {
+        self.optimise = value;
+    }
+
+    /// Specify whether the IR should use checked operations.
+    pub fn set_checked_operations(&mut self, value: bool) {
+        self.checked_operations = value;
+    }
+}
+
+impl Default for LoweringSettings {
+    fn default() -> Self {
+        Self { dump_mode: None, checked_operations: true, optimise: false }
+    }
+}
+
+#[derive(ValueEnum, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IrDumpMode {
+    /// Dump the generated IR using a pretty-printed format
+    Pretty,
+
+    /// Dump the generated IR using the `graphviz` format
+    Graph,
 }
 
 /// Enum representing what mode the compiler should run in. Specifically, if the
