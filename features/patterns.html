@@ -5,7 +5,6 @@
         <meta charset="UTF-8">
         <title>Patterns - The Hash Programming Language</title>
         <!-- Custom HTML head -->
-        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
         <meta name="description" content="">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#ffffff" />
@@ -28,13 +27,13 @@
     </head>
     <body>
         <!-- Provide site root to javascript -->
-        <script type="text/javascript">
+        <script>
             var path_to_root = "../";
             var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
         </script>
 
         <!-- Work around some values being stored in localStorage wrapped in quotes -->
-        <script type="text/javascript">
+        <script>
             try {
                 var theme = localStorage.getItem('mdbook-theme');
                 var sidebar = localStorage.getItem('mdbook-sidebar');
@@ -50,7 +49,7 @@
         </script>
 
         <!-- Set the theme before any content is loaded, prevents flash -->
-        <script type="text/javascript">
+        <script>
             var theme;
             try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
             if (theme === null || theme === undefined) { theme = default_theme; }
@@ -62,7 +61,7 @@
         </script>
 
         <!-- Hide / unhide sidebar before it is displayed -->
-        <script type="text/javascript">
+        <script>
             var html = document.querySelector('html');
             var sidebar = 'hidden';
             if (document.body.clientWidth >= 1080) {
@@ -93,7 +92,7 @@
                             <i class="fa fa-paint-brush"></i>
                         </button>
                         <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
-                            <li role="none"><button role="menuitem" class="theme" id="light">Light (default)</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
@@ -127,7 +126,7 @@
                     </div>
                 </div>
                 <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
-                <script type="text/javascript">
+                <script>
                     document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
                     document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
                     Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
@@ -156,8 +155,7 @@ match foo {
     3 =&gt; print(&quot;Got three&quot;);
     _ =&gt; print(&quot;Got something else&quot;);
 }
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <p>On the left-hand side of the match cases there are the literal patterns <code>1</code>, <code>2</code> and <code>3</code>.
 These perform <code>foo == 1</code>, <code>foo == 2</code> and <code>foo == 3</code> in sequence, and the code follows the branch which succeeds first.
 If no branch succeeds, the <code>_</code> branch is followed, which means &quot;match anything&quot;.
@@ -176,8 +174,7 @@ match my_str {
     &quot;fizzbuzz&quot; =&gt; print(&quot;Multiple of 15&quot;);
     _ =&gt; print(&quot;Not a multiple of 3 or 5&quot;);
 }
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <h2 id="binding-patterns"><a class="header" href="#binding-patterns">Binding patterns</a></h2>
 <p>Nested values within the value being pattern matched can be bound to symbols, using binding patterns.
 A binding pattern is any valid Hash identifier:</p>
@@ -187,8 +184,7 @@ A binding pattern is any valid Hash identifier:</p>
     Ok(success) =&gt; print(&quot;Got success &quot; + conv(result)); // success: f32
     Err(failure) =&gt; print(&quot;Got failure &quot; + conv(failure)); // failure: i32
 }
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <h2 id="tuple-patterns"><a class="header" href="#tuple-patterns">Tuple patterns</a></h2>
 <p>Tuple patterns match a tuple type of some given arity, and contain nested patterns.
 They are irrefutable if their inner patterns are irrefutable, so they can be used in declarations.</p>
@@ -204,8 +200,7 @@ my_val := (Cat(&quot;Bob&quot;), [1, 2, 3]); // my_val: (Cat, [i32])
 
 assert(name == &quot;Bob&quot;);
 assert(elements == [1, 2, 3]);
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <h2 id="constructor-patterns"><a class="header" href="#constructor-patterns">Constructor patterns</a></h2>
 <p>Constructor patterns are used to match the members of structs or enum variants.
 A struct is comprised of a single constructor, while an enum might be comprised of multiple constructors.
@@ -223,8 +218,7 @@ match my_val {
     // Matching the None constructor
     None =&gt; assert(false);
 }
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <p>The names of the members of a constructor need to be specified if the matching isn't done in order:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -240,8 +234,7 @@ Dog(name, breed) = Dog(
     name = &quot;Bob&quot;,
     breed = &quot;Husky&quot;
 ) // breed: str, name: str
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <h2 id="list-patterns"><a class="header" href="#list-patterns">List patterns</a></h2>
 <p>A list pattern can match elements at certain positions of a list by using the following syntax:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -250,8 +243,7 @@ Dog(name, breed) = Dog(
     [a, b] =&gt; print(conv(a) + &quot; &quot; + conv(b));
     _ =&gt; print(&quot;Other&quot;); // Matches everything other than [X, Y] for some X and Y
 }
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <p>The <code>...</code> spread operator can be used to capture or ignore the rest of the elements of the list at some position:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -259,8 +251,7 @@ Dog(name, breed) = Dog(
     [a, b, ...] =&gt; print(conv(a) + &quot; &quot; + conv(b));
     _ =&gt; print(&quot;Other&quot;); // Only matches [] and [X] for some X
 }
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <p>If you want to match the remaining elements with some pattern, you can specify a pattern after the <code>spread</code> operator like so:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -269,15 +260,13 @@ Dog(name, breed) = Dog(
     [...rest, c] =&gt; print(conv(c)); // Only matches [X] for some X, rest is always []
     _ =&gt; print(&quot;Other&quot;); // Only matches []
 }
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <p>One obvious limitation of the <code>spread</code> operator is that you can only use it once in the list pattern.
 For example, the following pattern will be reported as an error by the compiler:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>[..., a, ...] := arr;
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <pre><code>error: Failed to typecheck:
  --&gt; 1:6 - 1:9, 1:15 - 1:18
   |
@@ -302,8 +291,7 @@ They follow a simple syntax:</p>
 {Cat as NestedCat} := mod {
     pub Cat := struct(name: str, age: i32);
 };
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <p>You do not need to list all the members of a module in the pattern; the members which are not listed will be ignored.
 To read more about modules, you can click <a href="./modules.html">here</a>.</p>
 <h2 id="or-patterns"><a class="header" href="#or-patterns">Or-patterns</a></h2>
@@ -314,8 +302,7 @@ For example:</p>
 </span>symmetric_result: Result&lt;str, str&gt; := Ok(&quot;bilbobaggins&quot;);
 
 (Ok(inner) | Err(inner)) := symmetric_result; // inner: str
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <p>The pattern above is irrefutable because it matches all variants of the <code>Result</code> enum.
 Furthermore, each branch has the binding <code>inner</code>, which always has the type <code>str</code>, and so is a valid pattern.
 The same name binding can appear in multiple branches of an or-pattern, given that it is bound in every branch, and always to the same type.
@@ -327,8 +314,7 @@ Another use-case of or-patterns is to collapse match cases:</p>
     Cyan | Magenta | Yellow =&gt; print(&quot;Primary subtractive&quot;);
     _ =&gt; print(&quot;Unimportant color&quot;);
 }
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <h2 id="conditional-patterns"><a class="header" href="#conditional-patterns">Conditional patterns</a></h2>
 <p>Conditional patterns allow one to specify further arbitrary boolean conditions to a pattern for it to match:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -348,8 +334,7 @@ Another use-case of or-patterns is to collapse match cases:</p>
         auto_destruct();
     };
 }
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <p>They are specified using the <code>if</code> keyword after a pattern.
 Conditional patterns are always refutable, at least as far as the current version of the language is concerned.
 With more advanced type refinement and literal types, this restriction can be lifted sometimes.</p>
@@ -361,8 +346,7 @@ This is necessary in declarations for example, if one wants to specify a conditi
 </span>// get_value: () -&gt; bool;
 true | false := get_value(); // Error: bitwise-or not implemented between `bool` and `void`
 (true | false) := get_value(); // Ok
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <h2 id="grammar"><a class="header" href="#grammar">Grammar</a></h2>
 <p>The grammar for patterns is as follows:</p>
 <pre><code>pattern = 
@@ -426,15 +410,15 @@ list_pattern = &quot;[&quot; ( list_pattern_member &quot;,&quot; )* list_pattern
 
         </div>
 
-        <script type="text/javascript">
+        <script>
             window.playground_copyable = true;
         </script>
-        <script src="../elasticlunr.min.js" type="text/javascript" charset="utf-8"></script>
-        <script src="../mark.min.js" type="text/javascript" charset="utf-8"></script>
-        <script src="../searcher.js" type="text/javascript" charset="utf-8"></script>
-        <script src="../clipboard.min.js" type="text/javascript" charset="utf-8"></script>
-        <script src="../highlight.js" type="text/javascript" charset="utf-8"></script>
-        <script src="../book.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
 
         <!-- Custom JS scripts -->
     </body>

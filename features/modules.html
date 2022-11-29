@@ -5,7 +5,6 @@
         <meta charset="UTF-8">
         <title>Modules and visibility - The Hash Programming Language</title>
         <!-- Custom HTML head -->
-        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
         <meta name="description" content="">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#ffffff" />
@@ -28,13 +27,13 @@
     </head>
     <body>
         <!-- Provide site root to javascript -->
-        <script type="text/javascript">
+        <script>
             var path_to_root = "../";
             var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
         </script>
 
         <!-- Work around some values being stored in localStorage wrapped in quotes -->
-        <script type="text/javascript">
+        <script>
             try {
                 var theme = localStorage.getItem('mdbook-theme');
                 var sidebar = localStorage.getItem('mdbook-sidebar');
@@ -50,7 +49,7 @@
         </script>
 
         <!-- Set the theme before any content is loaded, prevents flash -->
-        <script type="text/javascript">
+        <script>
             var theme;
             try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
             if (theme === null || theme === undefined) { theme = default_theme; }
@@ -62,7 +61,7 @@
         </script>
 
         <!-- Hide / unhide sidebar before it is displayed -->
-        <script type="text/javascript">
+        <script>
             var html = document.querySelector('html');
             var sidebar = 'hidden';
             if (document.body.clientWidth >= 1080) {
@@ -93,7 +92,7 @@
                             <i class="fa fa-paint-brush"></i>
                         </button>
                         <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
-                            <li role="none"><button role="menuitem" class="theme" id="light">Light (default)</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
@@ -127,7 +126,7 @@
                     </div>
                 </div>
                 <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
-                <script type="text/javascript">
+                <script>
                     document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
                     document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
                     Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
@@ -159,8 +158,7 @@ Each <code>.hash</code> source file is a module, and inline modules can also be 
 a := import(&quot;lib/a&quot;);
 b := import(&quot;lib/b&quot;);
 c := import(&quot;lib/sub/c&quot;);
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <p>By doing so, you are placing everything that is defined within each of those modules under
 the namespace. </p>
 <h2 id="exporting"><a class="header" href="#exporting">Exporting</a></h2>
@@ -183,8 +181,7 @@ priv c := 1;
 { a } := import(&quot;a.hash&quot;); // Ok
 { b } := import(&quot;a.hash&quot;); // Error: b is private
 { c } := import(&quot;a.hash&quot;); // Error: c is private.
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <h2 id="referencing-exports"><a class="header" href="#referencing-exports">Referencing exports</a></h2>
 <p>Furthermore, if the <code>a</code> module contained a public structure definition like <code>Point</code>:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -194,8 +191,7 @@ pub Point := struct(
     x: u32,
     y: u32,
 );
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <p>Within main, you can create a new <code>Point</code> by doing the following</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -209,8 +205,7 @@ p1 := a::Point(
 
 print(p1.x); // 2
 print(p1.y); // 3
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <p>From this example, the <code>::</code> item access operator is used to reference any exports from the module.</p>
 <p>Furthermore, what if you wanted to import only a specific definition within a module such as the 'Point' structure from the module <code>a</code>.</p>
 <p>You can do so by destructuring the definitions into using the syntax as
@@ -220,8 +215,7 @@ follows:</p>
 </span>{ Point } := import(&quot;lib/a&quot;);
 
 p1 := Point(x=2, y=3);
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <p>In case you have a member of your current module already reserving a name, you
 can rename the exported members to your liking using the <code>as</code> pattern operator:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -229,8 +223,7 @@ can rename the exported members to your liking using the <code>as</code> pattern
 </span>{ Point as LibPoint } = import(&quot;lib/a&quot;);
 
 p1 := LibPoint(x=2, y=3);
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <h2 id="inline-modules"><a class="header" href="#inline-modules">Inline modules</a></h2>
 <p>Other than through <code>.hash</code> files, modules can be created inline using <code>mod</code> blocks:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -245,8 +238,7 @@ pub nested := mod {
 // b.hash
 a := import(&quot;a.hash&quot;);
 red := a::nested::Colour::Red;
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <p>These follow the same conventions as <code>.hash</code> files, and members need to be exported with <code>pub</code> in order to be visible from the outside.
 However, the external module items are always visible from within a <code>mod</code> block, so in the above example, <code>bar</code> can be used from within <code>nested</code>.</p>
 <h2 id="grammar"><a class="header" href="#grammar">Grammar</a></h2>
@@ -283,15 +275,15 @@ However, the external module items are always visible from within a <code>mod</c
 
         </div>
 
-        <script type="text/javascript">
+        <script>
             window.playground_copyable = true;
         </script>
-        <script src="../elasticlunr.min.js" type="text/javascript" charset="utf-8"></script>
-        <script src="../mark.min.js" type="text/javascript" charset="utf-8"></script>
-        <script src="../searcher.js" type="text/javascript" charset="utf-8"></script>
-        <script src="../clipboard.min.js" type="text/javascript" charset="utf-8"></script>
-        <script src="../highlight.js" type="text/javascript" charset="utf-8"></script>
-        <script src="../book.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
 
         <!-- Custom JS scripts -->
     </body>

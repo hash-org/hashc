@@ -5,7 +5,6 @@
         <meta charset="UTF-8">
         <title>🚧 Control flow - The Hash Programming Language</title>
         <!-- Custom HTML head -->
-        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
         <meta name="description" content="">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#ffffff" />
@@ -28,13 +27,13 @@
     </head>
     <body>
         <!-- Provide site root to javascript -->
-        <script type="text/javascript">
+        <script>
             var path_to_root = "../";
             var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
         </script>
 
         <!-- Work around some values being stored in localStorage wrapped in quotes -->
-        <script type="text/javascript">
+        <script>
             try {
                 var theme = localStorage.getItem('mdbook-theme');
                 var sidebar = localStorage.getItem('mdbook-sidebar');
@@ -50,7 +49,7 @@
         </script>
 
         <!-- Set the theme before any content is loaded, prevents flash -->
-        <script type="text/javascript">
+        <script>
             var theme;
             try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
             if (theme === null || theme === undefined) { theme = default_theme; }
@@ -62,7 +61,7 @@
         </script>
 
         <!-- Hide / unhide sidebar before it is displayed -->
-        <script type="text/javascript">
+        <script>
             var html = document.querySelector('html');
             var sidebar = 'hidden';
             if (document.body.clientWidth >= 1080) {
@@ -93,7 +92,7 @@
                             <i class="fa fa-paint-brush"></i>
                         </button>
                         <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
-                            <li role="none"><button role="menuitem" class="theme" id="light">Light (default)</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
@@ -127,7 +126,7 @@
                     </div>
                 </div>
                 <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
-                <script type="text/javascript">
+                <script>
                     document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
                     document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
                     Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
@@ -148,8 +147,7 @@ if a { print(&quot;a&quot;); } else { print(&quot;b&quot;); }
 
 // using a comparison operator
 if b == 2 { print(&quot;b is &quot; + b); } else { print (&quot;b is not &quot; + conv(b)); }
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <p>Obviously, this checks if the evaluation of <code>a</code> returns a boolean value. If it does not
 evaluate to something to be considered as true, then the block expression defined
 at <code>else</code> is executed.</p>
@@ -164,8 +162,7 @@ conditional statements. To use the <code>else-if</code> syntax, you do so like t
 } else {
     print(&quot;b isn't 2 or 3 &quot;)
 }
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <p>As mentioned in the introduction, a conditional statement must evaluate an explicit boolean value. The <code>if</code> statement syntax will not infer a boolean value from a statement within <code>Hash</code>. This design feature is motivated by the fact that in many languages, common bugs and mistakes occur with the automatic inference of conditional statements. </p>
 <p>An example of an invalid program is:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -173,40 +170,34 @@ conditional statements. To use the <code>else-if</code> syntax, you do so like t
 </span>a: u8 = 12;
 
 if a { print(&quot;a&quot;) }
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <h3 id="additional-syntax"><a class="header" href="#additional-syntax">Additional syntax</a></h3>
 <p>Furthermore, if you do not want an else statement you can do:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>if a { print(&quot;a&quot;) }  // if a is true, then execute
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <p>which is syntactic sugar for:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>if a { print(&quot;a&quot;) } else {}
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <p>Additionally, since the <code>if</code> statement body's are also equivalent to functional bodies, you
 can also specifically return a type as you would normally do within a function body:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>abs: (i64: x) =&gt; i64 = if x &lt; 0 { -x } else { x }
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <p>You can also assign values since <code>if</code> statements are just blocks</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>my_value: i32 = if some_condition == x { 3 } else { 5 };
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <p>However, you cannot do something like this:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>abs: (i64: x) =&gt; i64 = if x &lt; 0 { -x }
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <p><strong>Note</strong>: here that you will not get a syntax error if you run this, but you will encounter an error during the interpretation stage of the program because the function may not have any return type since this has no definition
 of what should happen for the <code>else</code> case.</p>
 <h2 id="if-statements-and-enums-"><a class="header" href="#if-statements-and-enums-">If statements and Enums 🚧</a></h2>
@@ -226,8 +217,7 @@ if let Ok(value) = result  {
 } else let Err(e) = result {
   panic(&quot;Failed to get result: &quot; + e);
 }
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <p>Furthermore, for more complicated conditional statements, you can include an expression
 block which is essentially treated as if it was a functional body, like so:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -245,8 +235,7 @@ if is_ok(a) {
     // run if is_ok(a) returns true
 }
 
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <p>The only difference between those two examples is that within the first, a is contained within
 the if statement condition body expression, i.e; the <code>a</code> variable will not be visible to any further
 scope. This has some advantages, specifically when you don't wish to store that particular result
@@ -275,8 +264,7 @@ convert: (x: u8) =&gt; str = (x) =&gt; match x {
 }
 
 m := convert(input&lt;u8&gt;());
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <p>The <code>_</code> case is a special wildcard case that captures any case. This is essentially synonymous with the <code>else</code> clause in many other languages like Python or JavaScript. For conventional purposes, it should be included when creating a <code>match</code> statement where the type value is not reasonably bounded (like an integer). One subtle difference with the <code>match</code> syntax is you must always explicitly define a <code>_</code> case. This language behaviour is designed to enforce that <code>explicit</code> is better than <code>implicit</code>. So, if you know that a program should never hit
 the default case:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -286,8 +274,7 @@ the default case:</p>
   2 =&gt; &quot;two&quot;;
   _ =&gt; unreachable(); // we know that 'x' should never be 1 or 2.
 }
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <p><strong>Note</strong>: You do not have to provide a default case if you have defined all the cases for a type (this mainly applies to enums).</p>
 <p>Additionally, because cases are matched incrementally, by doing the following:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -297,8 +284,7 @@ the default case:</p>
   1 =&gt; &quot;one&quot;;
   2 =&gt; &quot;two&quot;;
 }
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <p>The value of <code>m</code> will always evaluate as <code>&quot;not one or two&quot;</code> since the wildcard matches any condition.</p>
 <p>Match statements are also really good for destructing enum types in Hash. 
 For example,</p>
@@ -318,8 +304,7 @@ match result {
   Ok(value) =&gt; print(&quot;Got '&quot; + conv(value) + &quot;' from operation&quot;);
   Err(e)    =&gt; panic(&quot;Failed to get result: &quot; + e);
 }
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <p>To specify multiple conditions for a single case within a <code>match</code> statement, you can do so by
 writing the following syntax:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -331,8 +316,7 @@ match x {
   4 | 5 | {2 | 4} =&gt; print(&quot;x is either 4, 5 or 6&quot;); // using bitwise or operator
   _               =&gt; print(&quot;x is something else&quot;);
 }
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <p>To specify more complex conditional statements like and within the match case, you
 can do so using the <code>match-if</code> syntax, like so:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -346,8 +330,7 @@ match x {
   {2 | 4 if y}   =&gt; print(&quot;x is 6 and y is true&quot;);
   _              =&gt; print(&quot;x is something else&quot;);
 }
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <h1 id="loop-constructs"><a class="header" href="#loop-constructs">Loop constructs</a></h1>
 <p>Hash contains 3 distinct loop control constructs: <code>for</code>, <code>while</code> and <code>loop</code>. Each construct has
 a distinct usage case, but they can often be used interchangeably without hassle and are merely
@@ -370,8 +353,7 @@ with iterators. </p>
 </span>for i in range(1, 10) { // range is a built in iterator
     print(i);
 }
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <p>Iterating over lists is also quite simple using the <code>iter</code> function to 
 convert the list into an iterator:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -387,8 +369,7 @@ for num in nums.iter() {
 for num in iter(nums) {
     print(nums);
 }
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <h3 id="iterators"><a class="header" href="#iterators">iterators</a></h3>
 <p>Iterators ship with the standard library, but you can define your own iterators via the Hash generic typing system.</p>
 <p>An iterator <code>I</code> of <code>T</code> it means to have an implementation <code>next&lt;I, T&gt;</code> in scope the current scope. 
@@ -410,8 +391,7 @@ given condition.</p>
 while c &lt; 10 {
     print(i);
 }
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <p>The <code>loop</code> keyword is equivalent of someone writing a <code>while</code> loop that has
 a conditional expression that always evaluate to <code>true</code>; like so,</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -425,8 +405,7 @@ a conditional expression that always evaluate to <code>true</code>; like so,</p>
 loop {
     // do something
 }
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <blockquote>
 <p><strong>Note</strong>: In <code>Hash</code>, you cannot write <code>do-while</code> loops, but if u want to write a loop that behaves
 like a <code>do-while</code> statement, here is a good example using <code>loop</code>:</p>
@@ -441,8 +420,7 @@ like a <code>do-while</code> statement, here is a good example using <code>loop<
 
     if !condition {break}
 }    
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <h3 id="expression-blocks-and-behaviour"><a class="header" href="#expression-blocks-and-behaviour">Expression blocks and behaviour</a></h3>
 <p>Furthermore, The looping condition can also be represented as a block which means it can have any number of expressions
 before the final expression. For example:</p>
@@ -451,8 +429,7 @@ before the final expression. For example:</p>
 </span>while {c += 1; c &lt; 10} {
     print(i);
 }
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <p>It is worth noting that the looping expression whether block or not must explicitly have the 
 <code>boolean</code> return type. For example, the code below will fail typechecking:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -462,8 +439,7 @@ before the final expression. For example:</p>
 while c -= 1 {
     ...
 }
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <p>Running the following code snippet produces the following error:</p>
 <pre><code>error[0052]: Failed to Typecheck: Mismatching types.
  --&gt; 3:7 - 3:12
@@ -485,8 +461,7 @@ loop {
     print(&quot;I looped &quot; + c + &quot; times!&quot;);
     c += 1;
 }
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <p>You can also use conditional statements within the loop body (which is equivalent to a function body) like so:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span>
@@ -499,8 +474,7 @@ loop {
     print(&quot;I looped &quot; + c + &quot; times!&quot;);
     c += 1;
 } // this will loop 10 times, and print all 10 times
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>c: u64 = 1;
@@ -511,8 +485,7 @@ loop {
 
     print(&quot;I loop and I print when I get a  &quot; + c);
 } // this will loop 10 times, and print only when c is even
-<span class="boring">}
-</span></code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
 
                     </main>
 
@@ -540,15 +513,15 @@ loop {
 
         </div>
 
-        <script type="text/javascript">
+        <script>
             window.playground_copyable = true;
         </script>
-        <script src="../elasticlunr.min.js" type="text/javascript" charset="utf-8"></script>
-        <script src="../mark.min.js" type="text/javascript" charset="utf-8"></script>
-        <script src="../searcher.js" type="text/javascript" charset="utf-8"></script>
-        <script src="../clipboard.min.js" type="text/javascript" charset="utf-8"></script>
-        <script src="../highlight.js" type="text/javascript" charset="utf-8"></script>
-        <script src="../book.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
 
         <!-- Custom JS scripts -->
     </body>
