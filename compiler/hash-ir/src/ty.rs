@@ -19,7 +19,7 @@ use hash_utils::{
 use index_vec::{index_vec, IndexVec};
 
 use crate::{
-    write::{ForFormatting, WriteTyIr},
+    write::{ForFormatting, WriteIr},
     IrStorage,
 };
 
