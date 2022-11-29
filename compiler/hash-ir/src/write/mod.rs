@@ -109,9 +109,9 @@ impl WriteIr for &Terminator {}
 impl fmt::Display for ForFormatting<'_, &Terminator> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.item.kind {
-            TerminatorKind::Goto(place) if self.with_edges => writeln!(f, "goto -> {place:?}"),
-            TerminatorKind::Goto(_) => writeln!(f, "goto"),
-            TerminatorKind::Return => writeln!(f, "return"),
+            TerminatorKind::Goto(place) if self.with_edges => write!(f, "goto -> {place:?}"),
+            TerminatorKind::Goto(_) => write!(f, "goto"),
+            TerminatorKind::Return => write!(f, "return"),
             TerminatorKind::Call { op, args, target, destination } => {
                 write!(f, "{destination} = {}(", op.for_fmt(self.storage))?;
 
@@ -127,9 +127,9 @@ impl fmt::Display for ForFormatting<'_, &Terminator> {
                 // Only print the target if there is a target, and if the formatting
                 // specifies that edges should be printed.
                 if let Some(target) = target && self.with_edges {
-                    writeln!(f, ") -> {target:?}")
+                    write!(f, ") -> {target:?}")
                 } else {
-                    writeln!(f, ")")
+                    write!(f, ")")
                 }
             }
             TerminatorKind::Unreachable => write!(f, "unreachable"),
@@ -151,13 +151,13 @@ impl fmt::Display for ForFormatting<'_, &Terminator> {
                     }
 
                     // Write the default case
-                    writeln!(f, "otherwise -> {otherwise:?}]")?;
+                    write!(f, "otherwise -> {otherwise:?}]")?;
                 }
 
                 Ok(())
             }
             TerminatorKind::Assert { condition, expected, kind, target } => {
-                writeln!(f, "assert({condition}, {expected:?}, {kind:?})")?;
+                write!(f, "assert({condition}, {expected:?}, {kind:?})")?;
 
                 if self.with_edges {
                     write!(f, "-> {target:?}")?;
