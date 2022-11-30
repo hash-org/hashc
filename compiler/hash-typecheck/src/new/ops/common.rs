@@ -111,10 +111,7 @@ pub trait CommonOps: AccessToTcEnv {
 
     /// Create a new empty tuple type.
     fn new_void_ty(&self) -> TyId {
-        self.stores().ty().create(Ty::Tuple(TupleTy {
-            data: self.new_empty_params(),
-            conditions: self.new_empty_params(),
-        }))
+        self.stores().ty().create(Ty::Tuple(TupleTy { data: self.new_empty_params() }))
     }
 }
 

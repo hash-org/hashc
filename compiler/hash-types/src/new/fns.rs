@@ -12,10 +12,9 @@ use crate::new::{args::ArgsId, params::ParamsId, symbols::Symbol, terms::TermId,
 /// A function type.
 ///
 /// In their most general form, function types are written like
-/// `pure? unsafe? (a_1:A_1,...,a_n:B_n) where (p_1:P_1,...,p_n:P_n)
-/// -> R(a_1,...,a_n,p_1,...,p_n)`, or `impure? unsafe? <a_1:A_1,...,a_n:B_n>
-/// where (p_1:P_1,...,p_n:P_n) -> R(a_1,...,a_n,p_1,...,p_n)` for implicit
-/// function types.
+/// `pure? unsafe? (a_1:A_1,...,a_n:B_n) -> R(a_1,...,a_n,p_1,...,p_n)`, or
+/// `impure? unsafe? <a_1:A_1,...,a_n:B_n> -> R(a_1,...,a_n,p_1,...,p_n)` for
+/// implicit function types.
 #[derive(Debug, Clone, Copy)]
 pub struct FnTy {
     // @@MemoryUsage: use bitflags here?
@@ -40,11 +39,6 @@ pub struct FnTy {
     pub is_unsafe: bool,
     /// The parameters of the function.
     pub params: ParamsId,
-    /// Any implicit conditions to the function.
-    ///
-    /// These are to be inferred from the call site context. They might depend
-    /// on `params`.
-    pub conditions: ParamsId,
     /// The return type of the function.
     ///
     /// This might depend on `params` and `conditions`.
