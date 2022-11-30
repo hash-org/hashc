@@ -72,6 +72,7 @@ pub enum ModMemberValue {
 /// definition's members, as well as the type of the member, and an optional
 /// value of the member.
 #[derive(Debug, Clone, Copy)]
+#[omit(ModMemberData, [id], [Debug, Clone, Copy])]
 pub struct ModMember {
     pub id: ModMemberId,
     pub name: Symbol,

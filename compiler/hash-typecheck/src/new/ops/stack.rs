@@ -1,9 +1,8 @@
 // @@Docs
 use derive_more::Constructor;
 use hash_types::new::{
-    defs::DefMemberData,
     environment::env::AccessToEnv,
-    scopes::{Stack, StackId, StackMember},
+    scopes::{Stack, StackId, StackMember, StackMemberData},
 };
 use hash_utils::store::Store;
 
@@ -35,9 +34,8 @@ impl<'tc> StackOps<'tc> {
         })
     }
 
-    /// Create stack members from the given iterator of members where the `bool`
-    /// flag determines mutability.
-    pub fn create_stack_members_from_def_members<I: IntoIterator<Item = (bool, DefMemberData)>>(
+    /// Create stack members from the given iterator, for the given stack.
+    pub fn create_stack_members<I: IntoIterator<Item = StackMemberData>>(
         &self,
         stack_id: StackId,
         data: I,
@@ -45,9 +43,9 @@ impl<'tc> StackOps<'tc> {
     where
         I::IntoIter: ExactSizeIterator,
     {
-        data.into_iter().enumerate().map(move |(index, (is_mutable, data))| StackMember {
+        data.into_iter().enumerate().map(move |(index, data)| StackMember {
             id: (stack_id, index),
-            is_mutable,
+            is_mutable: data.is_mutable,
             name: data.name,
             ty: data.ty,
             value: data.value,

@@ -1,8 +1,8 @@
 // @@Docs
 use derive_more::Constructor;
 use hash_types::new::{
-    data::{CtorDef, CtorDefsId, DataDef, DataDefId},
-    defs::{DefMemberData, DefParamsId},
+    data::{CtorDef, CtorDefData, CtorDefsId, DataDef, DataDefId},
+    defs::DefParamsId,
     environment::env::AccessToEnv,
     symbols::Symbol,
 };
@@ -30,17 +30,16 @@ impl<'tc> DataOps<'tc> {
     }
 
     /// Set the constructors of the given data definition.
-    pub fn set_data_def_ctors(&self, data_def: DataDefId, ctors: CtorDefsId) {
+    pub fn set_data_def_ctors(&self, data_def: DataDefId, ctors: CtorDefsId) -> CtorDefsId {
         self.stores().data_def().modify_fast(data_def, |data_def| {
             data_def.ctors = ctors;
         });
+        ctors
     }
 
-    /// Create data constructors from the given set of members as an iterator.
-    ///
-    /// This has to turn function types into data constructors, while also
-    /// checking for strict positivity @@Todo.
-    pub fn create_data_ctors_from_members<I: IntoIterator<Item = DefMemberData>>(
+    /// Create data constructors from the given iterator, for the given data
+    /// definition.
+    pub fn create_data_ctors<I: IntoIterator<Item = CtorDefData>>(
         &self,
         data_def_id: DataDefId,
         data: I,
@@ -50,14 +49,13 @@ impl<'tc> DataOps<'tc> {
     {
         self.stores().ctor_defs().create_from_iter_with(data.into_iter().enumerate().map(
             |(index, data)| {
-                // @@Todo: deal with parameters
                 move |id| CtorDef {
                     id,
                     name: data.name,
                     data_def_id,
                     data_def_ctor_index: index,
-                    params: self.stores().def_params().create_empty(),
-                    result_args: self.stores().def_args().create_empty(),
+                    params: data.params,
+                    result_args: data.result_args,
                 }
             },
         ))

@@ -3,7 +3,7 @@ use derive_more::Constructor;
 use hash_types::new::{
     defs::DefParamsId,
     environment::env::AccessToEnv,
-    mods::{ModDef, ModDefId, ModKind, ModMember, ModMemberValue, ModMembersId},
+    mods::{ModDef, ModDefId, ModKind, ModMember, ModMemberData, ModMembersId},
     symbols::Symbol,
 };
 use hash_utils::store::{SequenceStore, Store};
@@ -38,22 +38,21 @@ impl<'tc> ModOps<'tc> {
     }
 
     /// Set the members of the given module definition.
-    pub fn set_mod_def_members(&self, mod_def: ModDefId, members: ModMembersId) {
+    pub fn set_mod_def_members(&self, mod_def: ModDefId, members: ModMembersId) -> ModMembersId {
         self.stores().mod_def().modify_fast(mod_def, |mod_def| {
             mod_def.members = members;
         });
+        members
     }
 
     /// Create module members from the given set of members as an iterator.
-    pub fn create_mod_members<I: IntoIterator<Item = (Symbol, ModMemberValue)>>(
-        &self,
-        data: I,
-    ) -> ModMembersId
+    pub fn create_mod_members<I: IntoIterator<Item = ModMemberData>>(&self, data: I) -> ModMembersId
     where
         I::IntoIter: ExactSizeIterator,
     {
         self.stores().mod_members().create_from_iter_with(
-            data.into_iter().map(|data| move |id| ModMember { id, name: data.0, value: data.1 }),
+            data.into_iter()
+                .map(|data| move |id| ModMember { id, name: data.name, value: data.value }),
         )
     }
 }

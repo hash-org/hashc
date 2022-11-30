@@ -23,7 +23,7 @@ use crate::new::{
 /// Each constructor must result in the original data-type, with some given
 /// arguments.
 #[derive(Debug, Copy, Clone)]
-#[omit(CtorDefData, [id], [Debug, Clone, Copy])]
+#[omit(CtorDefData, [id, data_def_id, data_def_ctor_index], [Debug, Clone, Copy])]
 pub struct CtorDef {
     /// The ID of the constructor.
     pub id: CtorDefId,

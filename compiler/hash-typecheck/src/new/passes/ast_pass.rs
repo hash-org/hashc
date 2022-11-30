@@ -1,5 +1,5 @@
 use hash_ast::{
-    ast::{self, BodyBlock, Module, OwnsAstNode},
+    ast::{AstNodeRef, BodyBlock, Module, OwnsAstNode},
     node_map::SourceRef,
 };
 
@@ -8,8 +8,9 @@ use crate::new::{
 };
 
 pub trait AstPass: AccessToTcEnv {
-    fn pass_interactive(&self, node: ast::AstNodeRef<BodyBlock>) -> TcResult<()>;
-    fn pass_module(&self, node: ast::AstNodeRef<Module>) -> TcResult<()>;
+    fn pass_interactive(&self, node: AstNodeRef<BodyBlock>) -> TcResult<()>;
+    fn pass_module(&self, node: AstNodeRef<Module>) -> TcResult<()>;
+
     fn pass_source(&self) {
         let source = self.node_map().get_source(self.current_source_info().source_id);
         let result = match source {

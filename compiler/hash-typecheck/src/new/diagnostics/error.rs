@@ -3,21 +3,19 @@ use hash_reporting::{
     builder::ReportBuilder,
     report::{Report, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind},
 };
+use hash_source::location::SourceLocation;
 use hash_types::new::terms::TermId;
 
 use crate::new::{environment::tc_env::WithTcEnv, ops::common::CommonOps};
 
 #[derive(Clone, Debug)]
 pub enum TcError {
-    /// @@Todo: write out error variants
-    Err,
+    /// A series of errors.
+    Compound { errors: Vec<TcError> },
     /// More type annotations are needed to infer the type of the given term.
-    NeedMoreTypeAnnotationsToInfer {
-        term: TermId,
-    },
-    Compound {
-        errors: Vec<TcError>,
-    },
+    NeedMoreTypeAnnotationsToInfer { term: TermId },
+    /// Traits are not yet supported.
+    TraitsNotSupported { trait_location: SourceLocation },
 }
 
 pub type TcResult<T> = Result<T, TcError>;
@@ -34,9 +32,6 @@ impl<'tc> From<WithTcEnv<'tc, &TcError>> for Report {
 impl<'tc> WithTcEnv<'tc, &TcError> {
     fn add_to_builder(&self, builder: &mut ReportBuilder) {
         match &self.value {
-            TcError::Err => {
-                builder.with_message("Unknown typechecking error");
-            }
             TcError::NeedMoreTypeAnnotationsToInfer { term } => {
                 builder
                     .with_error_code(HashErrorCode::UnresolvedType)
@@ -56,6 +51,21 @@ impl<'tc> WithTcEnv<'tc, &TcError> {
                 for error in errors {
                     self.tc_env().with(error).add_to_builder(builder);
                 }
+            }
+            TcError::TraitsNotSupported { trait_location } => {
+                builder.with_error_code(HashErrorCode::UnsupportedTraits).with_message(
+                    "traits are work-in-progress and currently not supported".to_string(),
+                );
+
+                builder
+                    .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        *trait_location,
+                        "",
+                    )))
+                    .add_element(ReportElement::Note(ReportNote::new(
+                        ReportNoteKind::Help,
+                        "traits are not yet supported",
+                    )));
             }
         }
     }

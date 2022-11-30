@@ -1,6 +1,7 @@
 // @@Docs
 use hash_types::new::environment::env::{AccessToEnv, Env};
 
+use super::ast_info::AstInfo;
 use crate::new::diagnostics::store::DiagnosticsStore;
 
 macro_rules! tc_env {
@@ -53,6 +54,7 @@ macro_rules! tc_env {
 tc_env! {
     #hide env: Env<'tc>,
     diagnostics: DiagnosticsStore,
+    ast_info: AstInfo,
 }
 
 /// Implement [`AccessToEnv`] for some type that has a field `env: Env`.

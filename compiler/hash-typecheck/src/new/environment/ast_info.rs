@@ -1,33 +1,27 @@
-use std::hash::Hash;
+use std::{cell::RefCell, hash::Hash};
 
 use bimap::BiMap;
 use hash_ast::ast::AstNodeId;
-use hash_types::{
-    mods::ModDefId,
-    new::{data::DataDefId, fns::FnDefId, scopes::StackId},
+use hash_types::new::{
+    data::{CtorDefId, DataDefId},
+    fns::FnDefId,
+    mods::{ModDefId, ModMemberId},
+    scopes::{StackId, StackMemberId},
 };
 
 /// A partial mapping from AST nodes to [`T`] and back.
 #[derive(Debug, Clone)]
 pub struct AstMap<T: Hash + Eq> {
-    data: BiMap<AstNodeId, T>,
+    data: RefCell<BiMap<AstNodeId, T>>,
 }
 
 impl<T: Hash + Eq> AstMap<T> {
     pub fn new() -> Self {
-        Self { data: BiMap::new() }
+        Self { data: RefCell::new(BiMap::new()) }
     }
 
-    pub fn insert(&mut self, ast_id: AstNodeId, data: T) {
-        self.data.insert(ast_id, data);
-    }
-
-    pub fn get_data_ref_by_node(&self, ast_id: AstNodeId) -> Option<&T> {
-        self.data.get_by_left(&ast_id)
-    }
-
-    pub fn get_node_by_data_ref(&self, data: &T) -> Option<AstNodeId> {
-        self.data.get_by_right(data).copied()
+    pub fn insert(&self, ast_id: AstNodeId, data: T) {
+        self.data.borrow_mut().insert(ast_id, data);
     }
 }
 
@@ -39,18 +33,50 @@ impl<T: Hash + Eq> Default for AstMap<T> {
 
 impl<T: Hash + Eq + Copy> AstMap<T> {
     pub fn get_data_by_node(&self, ast_id: AstNodeId) -> Option<T> {
-        self.data.get_by_left(&ast_id).copied()
+        self.data.borrow().get_by_left(&ast_id).copied()
     }
 
     pub fn get_node_by_data(&self, data: T) -> Option<AstNodeId> {
-        self.data.get_by_right(&data).copied()
+        self.data.borrow().get_by_right(&data).copied()
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct AstInfo {
-    pub data_defs: AstMap<DataDefId>,
-    pub mod_defs: AstMap<ModDefId>,
-    pub fn_defs: AstMap<FnDefId>,
-    pub stacks: AstMap<StackId>,
+macro_rules! ast_info {
+    ($($name:ident: $ty:ty),* $(,)?) => {
+        #[derive(Debug, Clone)]
+        pub struct AstInfo {
+            $(
+                pub $name: $ty,
+            )*
+        }
+
+        impl AstInfo {
+            pub fn new() -> Self {
+                Self {
+                    $(
+                        $name: Default::default(),
+                    )*
+                }
+            }
+        }
+
+        impl Default for AstInfo {
+            fn default() -> Self {
+                Self::new()
+            }
+        }
+    };
+}
+
+ast_info! {
+    data_defs: AstMap<DataDefId>,
+    ctor_defs: AstMap<CtorDefId>,
+
+    mod_defs: AstMap<ModDefId>,
+    mod_members: AstMap<ModMemberId>,
+
+    fn_defs: AstMap<FnDefId>,
+
+    stacks: AstMap<StackId>,
+    stack_members: AstMap<StackMemberId>,
 }

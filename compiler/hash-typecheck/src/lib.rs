@@ -23,7 +23,10 @@ use hash_types::{
     },
     storage::{LocalStorage, TyStorage},
 };
-use new::environment::tc_env::TcEnv;
+use new::environment::{
+    ast_info::AstInfo,
+    tc_env::{AccessToTcEnv, TcEnv},
+};
 use ops::AccessToOps;
 use storage::{
     cache::Cache, exhaustiveness::ExhaustivenessStorage, sources::CheckedSources, AccessToStorage,
@@ -56,6 +59,7 @@ pub struct Typechecker {
 
     /// The new typechecking environment
     pub _new_stores: Stores,
+    pub _new_ast_info: AstInfo,
     pub _new_diagnostic: new::diagnostics::store::DiagnosticsStore,
     pub _new_ctx: Context,
 }
@@ -70,6 +74,7 @@ impl Typechecker {
             _new_stores: Stores::new(),
             _new_ctx: Context::new(),
             _new_diagnostic: new::diagnostics::store::DiagnosticsStore::new(),
+            _new_ast_info: AstInfo::new(),
         }
     }
 }
@@ -127,7 +132,7 @@ impl<Ctx: TypecheckingCtx> CompilerStage<Ctx> for Typechecker {
             source_map: &workspace.source_map,
             diagnostics_store: &self.diagnostics_store,
             cache: &self.cache,
-            _new: TcEnv::new(&env, &self._new_diagnostic),
+            _new: TcEnv::new(&env, &self._new_diagnostic, &self._new_ast_info),
         };
 
         // @@Hack: for now we use the `USE_NEW_TC` env variable to switch between the
@@ -137,6 +142,14 @@ impl<Ctx: TypecheckingCtx> CompilerStage<Ctx> for Typechecker {
         if std::env::var_os("USE_NEW_TC").is_some() {
             let tc_visitor = new::passes::TcVisitor::new(&storage._new);
             tc_visitor.visit_source();
+            if tc_visitor.tc_env().diagnostics().has_errors() {
+                return Err(vec![tc_visitor
+                    .tc_env()
+                    .with(&crate::new::diagnostics::error::TcError::Compound {
+                        errors: tc_visitor.diagnostics().errors_owned(),
+                    })
+                    .into()]);
+            }
         } else {
             let tc_visitor = TcVisitor::new_in_source(storage.storages(), &workspace.node_map);
             match tc_visitor.visit_source() {

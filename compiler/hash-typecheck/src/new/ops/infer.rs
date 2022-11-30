@@ -73,7 +73,7 @@ impl<'tc> InferOps<'tc> {
             Term::TypeOf(_) => todo!(),
             Term::Ty(ty_id) => {
                 match self.get_ty(ty_id) {
-                    Ty::Hole(_) => Err(TcError::Err),
+                    Ty::Hole(_) => Err(TcError::NeedMoreTypeAnnotationsToInfer { term }),
                     Ty::Union(_) | Ty::Tuple(_) | Ty::Fn(_) | Ty::Ref(_) | Ty::Data(_) => {
                         // @@Todo: bounds
                         Ok(self.new_small_universe_ty())

@@ -15,11 +15,6 @@ pub enum AccessKind {
     CtorField,
     /// Accessing a tuple field, like `f := (2, 3); f.0`.
     TupleField,
-    /// Accessing a module member, like `X := mod { y := 3 }; X::y`.
-    ModMember,
-    /// Accessing a datatype constructor, like `Colour := enum(Red, Green,
-    /// Blue); Colour::Red`
-    Ctor,
 }
 
 /// Term to access a nested value.
@@ -38,8 +33,6 @@ impl fmt::Display for WithEnv<'_, AccessTerm> {
         let op = match self.value.kind {
             AccessKind::CtorField => ".",
             AccessKind::TupleField => ".",
-            AccessKind::ModMember => "::",
-            AccessKind::Ctor => "::",
         };
         write!(
             f,
