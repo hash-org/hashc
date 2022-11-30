@@ -1,7 +1,5 @@
 // @@Docs
-use self::{
-    data::DataOps, defs::CommonDefOps, infer::InferOps, mods::ModOps, stack::StackOps, trts::TrtOps,
-};
+use self::{data::DataOps, defs::CommonDefOps, infer::InferOps, mods::ModOps, stack::StackOps};
 
 pub mod common;
 pub mod data;
@@ -9,7 +7,6 @@ pub mod defs;
 pub mod infer;
 pub mod mods;
 pub mod stack;
-pub mod trts;
 pub mod tuple;
 
 macro_rules! ops {
@@ -28,7 +25,6 @@ macro_rules! ops {
 
 ops! {
   mod_ops: ModOps,
-  trt_ops: TrtOps,
   data_ops: DataOps,
   stack_ops: StackOps,
   infer_ops: InferOps,

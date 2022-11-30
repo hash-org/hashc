@@ -11,7 +11,6 @@ use super::super::{
     scopes::StackStore,
     symbols::SymbolStore,
     terms::{TermListStore, TermStore},
-    trts::{TrtBoundsStore, TrtDefStore, TrtMembersStore},
     tys::TyStore,
 };
 
@@ -66,9 +65,6 @@ stores! {
     symbol: SymbolStore,
     term: TermStore,
     term_list: TermListStore,
-    trt_def: TrtDefStore,
-    trt_members: TrtMembersStore,
-    trt_bounds: TrtBoundsStore,
     ty: TyStore,
 }
 

@@ -13,7 +13,6 @@ use utility_types::omit;
 use super::{
     data::DataTy,
     environment::env::{AccessToEnv, WithEnv},
-    trts::TrtBound,
 };
 use crate::new::{
     defs::{DefMember, DefParamsId},
@@ -29,16 +28,6 @@ pub enum ImplSubject {
     // @@Todo: add some primitives here
 }
 
-/// A trait implementation
-///
-/// Contains a trait bound to implement, as well as the subject to implement
-/// it on.
-#[derive(Debug, Clone, Copy)]
-pub struct TrtImpl {
-    pub subject: ImplSubject,
-    pub trt: TrtBound,
-}
-
 /// An anonymous implementation
 ///
 /// Contains the subject to implement members on.
@@ -52,8 +41,6 @@ pub struct AnonImpl {
 /// Might reference parameters in the mod def.
 #[derive(Debug, Clone, Copy)]
 pub enum ModKind {
-    /// Defined as a trait implementation.
-    TrtImpl(TrtImpl),
     /// Defined as an anonymous implementation on a datatype.
     AnonImpl(AnonImpl),
     /// Defined as a module (`mod` block).
@@ -117,7 +104,6 @@ impl Display for WithEnv<'_, &ModDef> {
         self.env().stores();
         let members = self.env().with(self.value.members).to_string();
         match self.value.kind {
-            ModKind::TrtImpl(_) => todo!(),
             ModKind::AnonImpl(_) => todo!(),
             ModKind::ModBlock => {
                 write!(f, "mod {{\n{}\n}}", indent(&members, "    "))

@@ -8,7 +8,7 @@ use hash_types::new::{
 };
 use hash_utils::store::{CloneStore, Store};
 
-use super::{common::CommonOps, AccessToOps};
+use super::common::CommonOps;
 use crate::{
     impl_access_to_tc_env,
     new::environment::{
@@ -53,17 +53,7 @@ impl<'tc> InferOps<'tc> {
                 .stores()
                 .fn_def()
                 .map_fast(fn_def_id, |fn_def| self.new_ty(Ty::Fn(fn_def.ty)))),
-            Term::TrtDef(trt_def_id) => {
-                Ok(self.common_def_ops().compute_fn_ty_of_trt_def(trt_def_id))
-            }
-            Term::DataDef(data_def_id) => {
-                Ok(self.common_def_ops().compute_fn_ty_of_data_def(data_def_id))
-            }
-            Term::ModDef(mod_def_id) => {
-                Ok(self.common_def_ops().compute_fn_ty_of_mod_def(mod_def_id))
-            }
             Term::Block(_) => todo!(),
-            Term::Var(_) => todo!(),
             Term::ResolvedVar(_) => todo!(),
             Term::Loop(_) => {
                 // @@Future: if loop is proven to not break, return never
@@ -80,13 +70,8 @@ impl<'tc> InferOps<'tc> {
             Term::TypeOf(_) => todo!(),
             Term::Ty(ty_id) => {
                 match self.get_ty(ty_id) {
-                    Ty::Hole(_) | Ty::Var(_) => Err(TcError::Err),
-                    Ty::Meta(_)
-                    | Ty::Union(_)
-                    | Ty::Tuple(_)
-                    | Ty::Fn(_)
-                    | Ty::Ref(_)
-                    | Ty::Data(_) => {
+                    Ty::Hole(_) => Err(TcError::Err),
+                    Ty::Union(_) | Ty::Tuple(_) | Ty::Fn(_) | Ty::Ref(_) | Ty::Data(_) => {
                         // @@Todo: bounds
                         Ok(self.new_small_universe_ty())
                     }

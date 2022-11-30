@@ -16,18 +16,15 @@ use super::{
     },
     holes::HoleId,
     lits::LitTerm,
-    symbols::Symbol,
     tys::TypeOfTerm,
 };
 use crate::new::{
     access::AccessTerm,
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
-    data::{CtorTerm, DataDefId},
+    data::CtorTerm,
     fns::{FnCallTerm, FnDefId},
-    mods::ModDefId,
     refs::{DerefTerm, RefTerm},
     scopes::{AssignTerm, BlockTerm, DeclStackMemberTerm},
-    trts::TrtDefId,
     tuples::TupleTerm,
     tys::TyId,
     unions::UnionVariantTerm,
@@ -74,13 +71,7 @@ pub enum Term {
     // Scopes
     Block(BlockTerm),
 
-    // Definitions
-    TrtDef(TrtDefId),
-    DataDef(DataDefId),
-    ModDef(ModDefId),
-
     // Variables
-    Var(Symbol),
     ResolvedVar(Binding),
 
     // Loops
@@ -149,10 +140,6 @@ impl fmt::Display for WithEnv<'_, &Term> {
             Term::FnCall(_) => todo!(),
             Term::FnDef(_) => todo!(),
             Term::Block(_) => todo!(),
-            Term::TrtDef(trt_def) => write!(f, "{}", self.env().with(*trt_def)),
-            Term::DataDef(_) => todo!(),
-            Term::ModDef(mod_def) => write!(f, "{}", self.env().with(*mod_def)),
-            Term::Var(var) => write!(f, "{}", self.env().with(*var)),
             Term::ResolvedVar(resolved_var) => write!(f, "{}", self.env().with(resolved_var.name)),
             Term::Loop(_) => todo!(),
             Term::LoopControl(_) => todo!(),

@@ -14,8 +14,7 @@ use hash_types::new::{
     mods::{ModDefId, ModKind},
     scopes::StackId,
     symbols::Symbol,
-    terms::{Term, TermId},
-    trts::TrtDefId,
+    terms::TermId,
 };
 
 use crate::{
@@ -31,7 +30,6 @@ use crate::{
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, From)]
 enum DefId {
     Mod(ModDefId),
-    Trt(TrtDefId),
     Data(DataDefId),
     Stack(StackId),
 }
@@ -93,11 +91,6 @@ impl<'env> ScopeDiscoveryPass<'env> {
                     self.mod_ops().create_mod_members(members.iter().map(|members| members.data));
                 self.mod_ops().set_mod_def_members(mod_def_id, members_stored);
             }
-            DefId::Trt(trt_def_id) => {
-                let members_stored =
-                    self.trt_ops().create_trt_members(members.iter().map(|members| members.data));
-                self.trt_ops().set_trt_def_members(trt_def_id, members_stored);
-            }
             DefId::Data(data_def_id) => {
                 let members_stored = self.data_ops().create_data_ctors_from_members(
                     data_def_id,
@@ -122,11 +115,6 @@ impl<'env> ScopeDiscoveryPass<'env> {
     /// Take the currently set name hint, or create a new internal name.
     fn take_name_hint_or_create_internal_name(&mut self) -> Symbol {
         self.name_hint.take().unwrap_or_else(|| self.new_fresh_symbol())
-    }
-
-    /// Set the inferred term for the given node.
-    fn set_term_for_node<T>(&mut self, node: ast::AstNodeRef<T>, term: TermId) {
-        self.ast_ids_to_term_ids.insert(node.id(), term);
     }
 
     /// If the given `expr` is a mod/trait/data definition, get its set value
@@ -193,7 +181,6 @@ impl<'env> ast::AstVisitorMutSelf for ScopeDiscoveryPass<'env> {
         let member = make_def_member(self)?;
         let id: DefId = match self.context().get_scope_kind() {
             ScopeKind::Mod(mod_def_id) => mod_def_id.into(),
-            ScopeKind::Trt(trt_def_id) => trt_def_id.into(),
             ScopeKind::Stack(stack_id) => stack_id.into(),
             ScopeKind::Data(data_def_id) => data_def_id.into(),
             ScopeKind::Fn(_) => {
@@ -222,8 +209,6 @@ impl<'env> ast::AstVisitorMutSelf for ScopeDiscoveryPass<'env> {
             ModKind::Source(source_id),
             None,
         );
-
-        self.set_term_for_node(node, self.new_term(Term::ModDef(mod_def_id)));
 
         // Traverse the module
         Context::enter_scope_mut(self, ScopeKind::Mod(mod_def_id), |this| {
@@ -256,8 +241,6 @@ impl<'env> ast::AstVisitorMutSelf for ScopeDiscoveryPass<'env> {
             None,
         );
 
-        self.set_term_for_node(node, self.new_term(Term::ModDef(mod_def_id)));
-
         // Traverse the mod block
         Context::enter_scope_mut(self, ScopeKind::Mod(mod_def_id), |this| {
             walk_mut_self::walk_mod_block(this, node)
@@ -273,29 +256,8 @@ impl<'env> ast::AstVisitorMutSelf for ScopeDiscoveryPass<'env> {
 
     fn visit_trait_def(
         &mut self,
-        node: ast::AstNodeRef<ast::TraitDef>,
+        _node: ast::AstNodeRef<ast::TraitDef>,
     ) -> Result<Self::TraitDefRet, Self::Error> {
-        // Get the trait name from the name hint.
-        let trt_name = self.take_name_hint_or_create_internal_name();
-
-        // Create a trait block definition, with empty members for now.
-        let trt_def_id = self.trt_ops().create_trt_def(
-            trt_name,
-            // @@Todo: params
-            self.new_empty_def_params(),
-            self.new_symbol("Self"),
-        );
-
-        self.set_term_for_node(node, self.new_term(Term::TrtDef(trt_def_id)));
-
-        // Traverse the trait block
-        Context::enter_scope_mut(self, ScopeKind::Trt(trt_def_id), |this| {
-            walk_mut_self::walk_trait_def(this, node)
-        })?;
-
-        // Get all the members found in the module and add them.
-        self.store_found_def_members(trt_def_id);
-
-        Ok(())
+        todo!()
     }
 }

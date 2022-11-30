@@ -18,7 +18,6 @@ pub mod refs;
 pub mod scopes;
 pub mod symbols;
 pub mod terms;
-pub mod trts;
 pub mod tuples;
 pub mod tys;
 pub mod unions;

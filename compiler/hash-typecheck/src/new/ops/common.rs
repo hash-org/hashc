@@ -9,7 +9,6 @@ use hash_types::new::{
     params::ParamsId,
     symbols::{Symbol, SymbolData},
     terms::{Term, TermId},
-    trts::TrtBoundsId,
     tuples::TupleTy,
     tys::{Ty, TyId, UniverseTy},
     unions::UnionTy,
@@ -106,19 +105,10 @@ pub trait CommonOps: AccessToEnv {
     }
 
     /**
-     * Create a new empty trait bound list.
-     */
-    fn new_empty_trt_bounds(&self) -> TrtBoundsId {
-        self.stores().trt_bounds().create_from_slice(&[])
-    }
-
-    /**
      * Create a type of types, i.e. small `Type`.
      */
     fn new_small_universe_ty(&self) -> TyId {
-        self.stores()
-            .ty()
-            .create(Ty::Universe(UniverseTy { size: 0, trait_bounds: self.new_empty_trt_bounds() }))
+        self.stores().ty().create(Ty::Universe(UniverseTy { size: 0 }))
     }
 
     /**
@@ -126,9 +116,7 @@ pub trait CommonOps: AccessToEnv {
      * `n`.
      */
     fn new_universe_ty(&self, n: usize) -> TyId {
-        self.stores()
-            .ty()
-            .create(Ty::Universe(UniverseTy { size: n, trait_bounds: self.new_empty_trt_bounds() }))
+        self.stores().ty().create(Ty::Universe(UniverseTy { size: n }))
     }
 
     /**

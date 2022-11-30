@@ -14,11 +14,9 @@ use super::{
         env::{AccessToEnv, WithEnv},
     },
     holes::HoleId,
-    symbols::Symbol,
 };
 use crate::new::{
-    data::DataTy, fns::FnTy, refs::RefTy, terms::TermId, trts::TrtBoundsId, tuples::TupleTy,
-    unions::UnionTy,
+    data::DataTy, fns::FnTy, refs::RefTy, terms::TermId, tuples::TupleTy, unions::UnionTy,
 };
 
 /// The type of types, i.e. a universe.
@@ -29,20 +27,6 @@ pub struct UniverseTy {
     /// `Universe(n + 1)` includes everything inside `Universe(n)` as well as
     /// the term `Universe(n)` itself.
     pub size: usize,
-
-    /// Any additional bounds that types in the universe must satisfy.
-    pub trait_bounds: TrtBoundsId,
-}
-
-/// The type of a meta construct, i.e. a type which cannot be given by the user.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MetaTy {
-    /// The type of any `mod {...}` definition after arguments have been
-    /// applied.
-    ModDefTy,
-    /// The type of any `trait {...}` definition after arguments have been
-    /// applied.
-    TrtDefTy,
 }
 
 /// Represents a type in a Hash program.
@@ -57,7 +41,6 @@ pub enum Ty {
     Hole(HoleId),
 
     /// Type variable
-    Var(Symbol),
     ResolvedVar(Binding),
 
     /// Union type
@@ -77,9 +60,6 @@ pub enum Ty {
 
     /// The universe type
     Universe(UniverseTy),
-
-    /// Meta type: type of definitions
-    Meta(MetaTy),
 }
 
 new_store_key!(pub TyId);
@@ -102,7 +82,6 @@ impl fmt::Display for WithEnv<'_, Ty> {
         match self.value {
             Ty::Eval(_) => todo!(),
             Ty::Hole(hole) => write!(f, "{}", self.env().with(hole)),
-            Ty::Var(var) => write!(f, "{}", self.env().with(var)),
             Ty::ResolvedVar(resolved_var) => write!(f, "{}", self.env().with(resolved_var.name)),
             Ty::Union(_) => todo!(),
             Ty::Tuple(_) => todo!(),
@@ -110,10 +89,6 @@ impl fmt::Display for WithEnv<'_, Ty> {
             Ty::Ref(_) => todo!(),
             Ty::Data(_) => todo!(),
             Ty::Universe(_) => todo!(),
-            Ty::Meta(meta) => match meta {
-                MetaTy::ModDefTy => write!(f, "Module"),
-                MetaTy::TrtDefTy => write!(f, "Trait"),
-            },
         }
     }
 }

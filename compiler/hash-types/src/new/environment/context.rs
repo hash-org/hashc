@@ -7,15 +7,11 @@ use indexmap::IndexMap;
 use super::env::{AccessToEnv, WithEnv};
 use crate::new::{
     data::DataDefId, defs::DefParamGroupId, fns::FnDefId, mods::ModDefId, params::ParamId,
-    scopes::StackId, symbols::Symbol, trts::TrtDefId,
+    scopes::StackId, symbols::Symbol,
 };
 /// The kind of a binding.
 #[derive(Debug, Clone, Copy)]
 pub enum BindingKind {
-    /// A binding that is a trait member.
-    ///
-    /// For example, `trait { y := 3; z := y }`
-    TrtMember(BindingOrigin<TrtDefId, usize>),
     /// A binding that is a module member.
     ///
     /// For example, `mod { Q := struct(); Q }`
@@ -51,8 +47,6 @@ where
 pub enum BoundVarOrigin {
     /// Module parameter.
     Mod(ModDefId, DefParamGroupId, ParamId),
-    /// Trait parameter.
-    Trt(TrtDefId, DefParamGroupId, ParamId),
     /// Function parameter.
     Fn(FnDefId, ParamId),
     /// Data definition parameter.
@@ -76,8 +70,6 @@ pub struct Binding {
 pub enum ScopeKind {
     /// A module scope.
     Mod(ModDefId),
-    /// A trait scope.
-    Trt(TrtDefId),
     /// A stack scope.
     Stack(StackId),
     /// A function scope.
