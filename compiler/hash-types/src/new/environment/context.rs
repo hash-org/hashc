@@ -27,7 +27,7 @@ pub enum BindingKind {
     /// A binding that represents a parameter variable of a function.
     ///
     /// For example, `(x: i32) => x`
-    BoundVar(BindingOrigin<ScopeKind, usize>),
+    BoundVar(BindingOrigin<BoundVarOrigin, usize>),
 }
 
 /// The origin of a binding, which consists of a definition (whatever it may be)
@@ -70,7 +70,7 @@ pub struct Binding {
 pub enum ScopeKind {
     /// A module scope.
     Mod(ModDefId),
-    /// A stack scope.
+    // A stack scope.
     Stack(StackId),
     /// A function scope.
     Fn(FnDefId),

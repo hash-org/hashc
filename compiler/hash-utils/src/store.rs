@@ -263,7 +263,7 @@ pub trait SequenceStoreKey: Copy + Eq + Hash {
     }
 
     /// Get the index of the entry corresponding to the key.
-    fn index(self) -> usize {
+    fn entry_index(self) -> usize {
         let (index, _) = self.to_index_and_len();
         index
     }
@@ -570,7 +570,7 @@ impl<Key: SequenceStoreKey, Value: Clone, T: SequenceStore<Key, Value>>
     type Iter<'s> = impl Iterator<Item = Value> + 's where T: 's, Key: 's;
     fn iter(&self, key: Key) -> Self::Iter<'_> {
         key.to_index_range().map(move |index| {
-            self.internal_data().borrow().get(key.index() + index).unwrap().clone()
+            self.internal_data().borrow().get(key.entry_index() + index).unwrap().clone()
         })
     }
 }

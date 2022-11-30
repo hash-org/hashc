@@ -72,7 +72,7 @@ pub enum Term {
     Block(BlockTerm),
 
     // Variables
-    ResolvedVar(Binding),
+    Var(Binding),
 
     // Loops
     Loop(LoopTerm),
@@ -140,7 +140,7 @@ impl fmt::Display for WithEnv<'_, &Term> {
             Term::FnCall(_) => todo!(),
             Term::FnDef(_) => todo!(),
             Term::Block(_) => todo!(),
-            Term::ResolvedVar(resolved_var) => write!(f, "{}", self.env().with(resolved_var.name)),
+            Term::Var(resolved_var) => write!(f, "{}", self.env().with(resolved_var.name)),
             Term::Loop(_) => todo!(),
             Term::LoopControl(_) => todo!(),
             Term::Match(_) => todo!(),

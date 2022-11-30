@@ -685,6 +685,7 @@ dependencies = [
 name = "hash-types"
 version = "0.1.0"
 dependencies = [
+ "bimap",
  "hash-ast",
  "hash-source",
  "hash-target",

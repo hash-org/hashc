@@ -41,7 +41,7 @@ pub enum Ty {
     Hole(HoleId),
 
     /// Type variable
-    ResolvedVar(Binding),
+    Var(Binding),
 
     /// Union type
     Union(UnionTy),
@@ -82,7 +82,7 @@ impl fmt::Display for WithEnv<'_, Ty> {
         match self.value {
             Ty::Eval(_) => todo!(),
             Ty::Hole(hole) => write!(f, "{}", self.env().with(hole)),
-            Ty::ResolvedVar(resolved_var) => write!(f, "{}", self.env().with(resolved_var.name)),
+            Ty::Var(resolved_var) => write!(f, "{}", self.env().with(resolved_var.name)),
             Ty::Union(_) => todo!(),
             Ty::Tuple(_) => todo!(),
             Ty::Fn(_) => todo!(),

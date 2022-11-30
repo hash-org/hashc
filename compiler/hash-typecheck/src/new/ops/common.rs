@@ -1,11 +1,12 @@
 // @@Docs
-use hash_source::identifier::Identifier;
+use hash_source::{identifier::Identifier, location::SourceLocation};
 use hash_types::new::{
     data::{DataDef, DataDefId},
     defs::DefParamsId,
     environment::env::AccessToEnv,
     fns::{FnDef, FnDefId},
     holes::{Hole, HoleKind},
+    locations::LocationTarget,
     params::ParamsId,
     symbols::{Symbol, SymbolData},
     terms::{Term, TermId},
@@ -45,6 +46,10 @@ pub trait CommonOps: AccessToEnv {
      */
     fn get_fn_def(&self, fn_def_id: FnDefId) -> FnDef {
         self.stores().fn_def().get(fn_def_id)
+    }
+
+    fn get_location(&self, target: impl Into<LocationTarget>) -> Option<SourceLocation> {
+        self.stores().location().get_location(target)
     }
 
     /**

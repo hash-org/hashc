@@ -11,9 +11,12 @@ use hash_utils::store::{CloneStore, Store};
 use super::common::CommonOps;
 use crate::{
     impl_access_to_tc_env,
-    new::environment::{
-        error::{TcError, TcResult},
-        tc_env::TcEnv,
+    new::{
+        diagnostics::{
+            error::{TcError, TcResult},
+            panic::tc_panic_on_many,
+        },
+        environment::tc_env::TcEnv,
     },
 };
 
@@ -54,7 +57,7 @@ impl<'tc> InferOps<'tc> {
                 .fn_def()
                 .map_fast(fn_def_id, |fn_def| self.new_ty(Ty::Fn(fn_def.ty)))),
             Term::Block(_) => todo!(),
-            Term::ResolvedVar(_) => todo!(),
+            Term::Var(_) => todo!(),
             Term::Loop(_) => {
                 // @@Future: if loop is proven to not break, return never
                 Ok(self.new_void_ty())
@@ -76,7 +79,7 @@ impl<'tc> InferOps<'tc> {
                         Ok(self.new_small_universe_ty())
                     }
                     Ty::Universe(universe_ty) => Ok(self.new_universe_ty(universe_ty.size + 1)),
-                    Ty::ResolvedVar(_) => todo!(),
+                    Ty::Var(_) => todo!(),
                     Ty::Eval(_) => todo!(),
                 }
             }
@@ -89,7 +92,9 @@ impl<'tc> InferOps<'tc> {
                 })))
             }
             Term::Deref(_) => todo!(),
-            Term::Hole(_) => todo!(),
+            Term::Hole(_) => {
+                tc_panic_on_many!([term, term], self, "What")
+            }
         }
     }
 }

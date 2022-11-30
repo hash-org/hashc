@@ -11,6 +11,7 @@ pub mod environment;
 pub mod fns;
 pub mod holes;
 pub mod lits;
+pub mod locations;
 pub mod mods;
 pub mod params;
 pub mod pats;
