@@ -661,6 +661,7 @@ dependencies = [
 name = "hash-typecheck"
 version = "0.1.0"
 dependencies = [
+ "bimap",
  "dashmap",
  "derive_more",
  "hash-alloc",

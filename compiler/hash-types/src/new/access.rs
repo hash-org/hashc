@@ -17,8 +17,6 @@ pub enum AccessKind {
     TupleField,
     /// Accessing a module member, like `X := mod { y := 3 }; X::y`.
     ModMember,
-    /// Accessing a trait member, like `T := trait { y := 3; z := self.y }`
-    TrtMember,
     /// Accessing a datatype constructor, like `Colour := enum(Red, Green,
     /// Blue); Colour::Red`
     Ctor,
@@ -41,7 +39,6 @@ impl fmt::Display for WithEnv<'_, AccessTerm> {
             AccessKind::CtorField => ".",
             AccessKind::TupleField => ".",
             AccessKind::ModMember => "::",
-            AccessKind::TrtMember => "::",
             AccessKind::Ctor => "::",
         };
         write!(

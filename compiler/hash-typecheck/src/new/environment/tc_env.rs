@@ -1,7 +1,7 @@
 // @@Docs
 use hash_types::new::environment::env::{AccessToEnv, Env};
 
-use crate::diagnostics::DiagnosticsStore;
+use crate::new::diagnostics::store::DiagnosticsStore;
 
 macro_rules! tc_env {
     ($($(#$hide:ident)? $name:ident: $ty:ident $(<$lt:lifetime> )?),* $(,)?) => {
@@ -19,7 +19,7 @@ macro_rules! tc_env {
 
         /// Trait to be implemented for things that want to have access to the
         /// TC environment.
-        pub trait AccessToTcEnv {
+        pub trait AccessToTcEnv: AccessToEnv {
             fn tc_env(&self) -> &TcEnv;
 
             $(
@@ -52,7 +52,7 @@ macro_rules! tc_env {
 
 tc_env! {
     #hide env: Env<'tc>,
-    diagnostics_store: DiagnosticsStore,
+    diagnostics: DiagnosticsStore,
 }
 
 /// Implement [`AccessToEnv`] for some type that has a field `env: Env`.

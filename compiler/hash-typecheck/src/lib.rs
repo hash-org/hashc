@@ -56,6 +56,7 @@ pub struct Typechecker {
 
     /// The new typechecking environment
     pub _new_stores: Stores,
+    pub _new_diagnostic: new::diagnostics::store::DiagnosticsStore,
     pub _new_ctx: Context,
 }
 
@@ -68,6 +69,7 @@ impl Typechecker {
             cache: Cache::new(),
             _new_stores: Stores::new(),
             _new_ctx: Context::new(),
+            _new_diagnostic: new::diagnostics::store::DiagnosticsStore::new(),
         }
     }
 }
@@ -125,7 +127,7 @@ impl<Ctx: TypecheckingCtx> CompilerStage<Ctx> for Typechecker {
             source_map: &workspace.source_map,
             diagnostics_store: &self.diagnostics_store,
             cache: &self.cache,
-            _new: TcEnv::new(&env, &self.diagnostics_store),
+            _new: TcEnv::new(&env, &self._new_diagnostic),
         };
 
         // @@Hack: for now we use the `USE_NEW_TC` env variable to switch between the
