@@ -1,12 +1,14 @@
 //! Definitions related to user-defined data-types.
 
+use std::fmt::Display;
+
 use hash_utils::{
     new_sequence_store_key, new_store_key,
     store::{DefaultSequenceStore, DefaultStore},
 };
 use utility_types::omit;
 
-use super::defs::DefPatArgsId;
+use super::{defs::DefPatArgsId, environment::env::WithEnv};
 use crate::new::{
     defs::{DefArgsId, DefParamsId},
     symbols::Symbol,
@@ -112,4 +114,22 @@ pub struct DataTy {
     pub data_def: DataDefId,
     /// The arguments to the data-type definition.
     pub args: DefArgsId,
+}
+
+impl Display for WithEnv<'_, &DataTy> {
+    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        todo!()
+    }
+}
+
+impl Display for WithEnv<'_, DataDefId> {
+    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        todo!()
+    }
+}
+
+impl Display for WithEnv<'_, &DataDef> {
+    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        todo!()
+    }
 }

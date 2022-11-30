@@ -1,9 +1,9 @@
 // @@Docs
 use derive_more::Constructor;
 use hash_types::new::{
-    defs::{DefMember, DefMemberData, DefParamsId},
+    defs::DefParamsId,
     environment::env::AccessToEnv,
-    mods::{ModDef, ModDefId, ModKind, ModMembersId},
+    mods::{ModDef, ModDefId, ModKind, ModMember, ModMemberValue, ModMembersId},
     symbols::Symbol,
 };
 use hash_utils::store::{SequenceStore, Store};
@@ -45,12 +45,15 @@ impl<'tc> ModOps<'tc> {
     }
 
     /// Create module members from the given set of members as an iterator.
-    pub fn create_mod_members<I: IntoIterator<Item = DefMemberData>>(&self, data: I) -> ModMembersId
+    pub fn create_mod_members<I: IntoIterator<Item = (Symbol, ModMemberValue)>>(
+        &self,
+        data: I,
+    ) -> ModMembersId
     where
         I::IntoIter: ExactSizeIterator,
     {
-        self.stores().mod_members().create_from_iter_with(data.into_iter().map(|data| {
-            move |id| DefMember { id, name: data.name, ty: data.ty, value: data.value }
-        }))
+        self.stores().mod_members().create_from_iter_with(
+            data.into_iter().map(|data| move |id| ModMember { id, name: data.0, value: data.1 }),
+        )
     }
 }

@@ -11,13 +11,11 @@ use textwrap::indent;
 use utility_types::omit;
 
 use super::{
-    data::DataTy,
+    data::{DataDefId, DataTy},
     environment::env::{AccessToEnv, WithEnv},
+    fns::FnDefId,
 };
-use crate::new::{
-    defs::{DefMember, DefParamsId},
-    symbols::Symbol,
-};
+use crate::new::{defs::DefParamsId, symbols::Symbol};
 
 // @@Todo: examples
 
@@ -49,8 +47,39 @@ pub enum ModKind {
     Source(SourceId),
 }
 
+/// The right-hand side of a module member definition.
+///
+/// This can be:
+/// - a function definition, e.g  x := () -> i32 => 42;
+/// - a data definition, e.g.  x := struct(foo: str);
+/// - a module definition, e.g.  x := mod {}, or x := impl y {};
+#[derive(Debug, Clone, Copy)]
+pub enum ModMemberValue {
+    /// A module member that is a definition.
+    Data(DataDefId),
+    /// A module member that is a nested module.
+    Mod(ModDefId),
+    /// A module member that is a function.
+    Fn(FnDefId),
+    // @@Future: constants
+}
+
+/// A member of a definition.
+///
+/// A definition might be a trait, impl block, or a module.
+///
+/// Includes a name, the original definition ID, an index into the original
+/// definition's members, as well as the type of the member, and an optional
+/// value of the member.
+#[derive(Debug, Clone, Copy)]
+pub struct ModMember {
+    pub id: ModMemberId,
+    pub name: Symbol,
+    pub value: ModMemberValue,
+}
+
 new_sequence_store_key!(pub ModMembersId);
-pub type ModMembersStore = DefaultSequenceStore<ModMembersId, DefMember<ModMembersId>>;
+pub type ModMembersStore = DefaultSequenceStore<ModMembersId, ModMember>;
 pub type ModMemberId = (ModMembersId, usize);
 
 /// A module definition.
@@ -85,6 +114,22 @@ new_store!(pub ModDefStore<ModDefId, ModDef>);
 impl Display for WithEnv<'_, ModDefId> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.stores().mod_def().map_fast(self.value, |def| write!(f, "{}", self.env().with(def)))
+    }
+}
+
+impl Display for WithEnv<'_, ModMemberValue> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.value {
+            ModMemberValue::Data(data_def_id) => write!(f, "{}", self.env().with(data_def_id)),
+            ModMemberValue::Mod(mod_def_id) => write!(f, "{}", self.env().with(mod_def_id)),
+            ModMemberValue::Fn(fn_def_id) => write!(f, "{}", self.env().with(fn_def_id)),
+        }
+    }
+}
+
+impl Display for WithEnv<'_, &ModMember> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} := {}", self.env().with(self.value.name), self.env().with(self.value.value),)
     }
 }
 

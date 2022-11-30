@@ -66,7 +66,8 @@ pub enum Term {
 
     // Functions
     FnCall(FnCallTerm),
-    FnDef(FnDefId),
+    // @@Todo: create separate closure type ~= (FnDefId, CapturedVars)
+    Closure(FnDefId),
 
     // Scopes
     Block(BlockTerm),
@@ -138,7 +139,7 @@ impl fmt::Display for WithEnv<'_, &Term> {
             Term::Lit(_) => todo!(),
             Term::Ctor(_) => todo!(),
             Term::FnCall(_) => todo!(),
-            Term::FnDef(_) => todo!(),
+            Term::Closure(_) => todo!(),
             Term::Block(_) => todo!(),
             Term::Var(resolved_var) => write!(f, "{}", self.env().with(resolved_var.name)),
             Term::Loop(_) => todo!(),

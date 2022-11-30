@@ -1,11 +1,12 @@
 //! Definitions related to functions.
 
 use core::fmt;
+use std::fmt::Display;
 
 use hash_utils::{new_store_key, store::DefaultStore};
 use utility_types::omit;
 
-use super::environment::env::Env;
+use super::environment::env::{Env, WithEnv};
 use crate::new::{args::ArgsId, params::ParamsId, symbols::Symbol, terms::TermId, tys::TyId};
 
 /// A function type.
@@ -132,4 +133,16 @@ pub struct FnCallTerm {
     /// calls look like `A(B)`.
     pub is_implicit: bool,
     // @@Design: optional conditions
+}
+
+impl Display for WithEnv<'_, FnDefId> {
+    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        todo!()
+    }
+}
+
+impl Display for WithEnv<'_, &FnDef> {
+    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        todo!()
+    }
 }

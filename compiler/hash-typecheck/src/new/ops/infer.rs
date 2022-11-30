@@ -52,7 +52,7 @@ impl<'tc> InferOps<'tc> {
                 todo!()
             }
             Term::FnCall(_) => todo!(),
-            Term::FnDef(fn_def_id) => Ok(self
+            Term::Closure(fn_def_id) => Ok(self
                 .stores()
                 .fn_def()
                 .map_fast(fn_def_id, |fn_def| self.new_ty(Ty::Fn(fn_def.ty)))),
