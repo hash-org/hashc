@@ -73,6 +73,25 @@ impl FloatConstant {
     }
 }
 
+/// Provide implementations for converting primitive floating point types into
+/// [FloatConstant]s.
+macro_rules! float_const_impl_into {
+    ($($ty:ident, $kind: ident);*) => {
+        $(
+            impl From<$ty> for FloatConstant {
+                fn from(value: $ty) -> Self {
+                    Self {
+                        value: FloatConstantValue::$kind(value),
+                        suffix: Some(IDENTS.$ty),
+                    }
+                }
+            }
+        )*
+    };
+}
+
+float_const_impl_into!(f32, F32; f64, F64);
+
 counter! {
     name: InternedFloat,
     counter_name: INTERNED_FLOAT_COUNTER,
@@ -113,14 +132,13 @@ pub enum UIntTy {
 impl UIntTy {
     /// Get the size of [IntTy] in bytes. Returns [None] for
     /// [UIntTy::UBig] variants
-    pub const fn size(&self) -> Option<u64> {
+    pub const fn size(&self, ptr_width: usize) -> Option<u64> {
         match self {
             UIntTy::U8 => Some(1),
             UIntTy::U16 => Some(2),
             UIntTy::U32 => Some(4),
             UIntTy::U64 => Some(8),
-            // @@Todo: actually get the target pointer size, don't default to 64bit pointers.
-            UIntTy::USize => Some(8),
+            UIntTy::USize => Some(ptr_width as u64),
             UIntTy::U128 => Some(16),
             UIntTy::UBig => None,
         }
@@ -129,14 +147,17 @@ impl UIntTy {
     /// Function to get the largest possible integer represented within this
     /// type. For sizes `ibig` and `ubig` there is no defined max and so the
     /// function returns [None].
-    pub fn max(&self) -> Option<BigInt> {
+    pub fn max(&self, ptr_width: usize) -> Option<BigInt> {
         match self {
-            UIntTy::U8 => Some(BigInt::from(i8::MAX)),
-            UIntTy::U16 => Some(BigInt::from(i16::MAX)),
-            UIntTy::U32 => Some(BigInt::from(i32::MAX)),
-            UIntTy::U64 => Some(BigInt::from(i64::MAX)),
-            UIntTy::U128 => Some(BigInt::from(i128::MAX)),
-            UIntTy::USize => Some(BigInt::from(isize::MAX)),
+            UIntTy::U8 => Some(BigInt::from(u8::MAX)),
+            UIntTy::U16 => Some(BigInt::from(u16::MAX)),
+            UIntTy::U32 => Some(BigInt::from(u32::MAX)),
+            UIntTy::U64 => Some(BigInt::from(u64::MAX)),
+            UIntTy::U128 => Some(BigInt::from(u128::MAX)),
+            UIntTy::USize => {
+                let max = !0u64 >> (64 - (ptr_width * 8));
+                Some(BigInt::from(max))
+            }
             UIntTy::UBig => None,
         }
     }
@@ -182,14 +203,13 @@ pub enum SIntTy {
 impl SIntTy {
     /// Get the size of [IntTy] in bytes. Returns [None] for
     /// [UIntTy::UBig] variants
-    pub const fn size(&self) -> Option<u64> {
+    pub const fn size(&self, ptr_width: usize) -> Option<u64> {
         match self {
             SIntTy::I8 => Some(1),
             SIntTy::I16 => Some(2),
             SIntTy::I32 => Some(4),
             SIntTy::I64 => Some(8),
-            // @@Todo: actually get the target pointer size, don't default to 64bit pointers.
-            SIntTy::ISize => Some(8),
+            SIntTy::ISize => Some(ptr_width as u64),
             SIntTy::I128 => Some(16),
             SIntTy::IBig => None,
         }
@@ -198,14 +218,18 @@ impl SIntTy {
     /// Function to get the largest possible integer represented within this
     /// type. For sizes `ibig` and `ubig` there is no defined max and so the
     /// function returns [None].
-    pub fn max(&self) -> Option<BigInt> {
+    pub fn max(&self, ptr_width: usize) -> Option<BigInt> {
         match self {
             SIntTy::I8 => Some(BigInt::from(i8::MAX)),
             SIntTy::I16 => Some(BigInt::from(i16::MAX)),
             SIntTy::I32 => Some(BigInt::from(i32::MAX)),
             SIntTy::I64 => Some(BigInt::from(i64::MAX)),
             SIntTy::I128 => Some(BigInt::from(i128::MAX)),
-            SIntTy::ISize => Some(BigInt::from(isize::MAX)),
+            SIntTy::ISize => {
+                // convert the size to a signed integer
+                let max = (1u64 << (ptr_width * 8 - 1)) - 1;
+                Some(BigInt::from(max))
+            }
             SIntTy::IBig => None,
         }
     }
@@ -213,14 +237,17 @@ impl SIntTy {
     /// Function to get the most minimum integer represented within this
     /// type. For sizes `ibig` and `ubig` there is no defined minimum and so the
     /// function returns [None].
-    pub fn min(&self) -> Option<BigInt> {
+    pub fn min(&self, ptr_width: usize) -> Option<BigInt> {
         match self {
             SIntTy::I8 => Some(BigInt::from(i8::MIN)),
             SIntTy::I16 => Some(BigInt::from(i16::MIN)),
             SIntTy::I32 => Some(BigInt::from(i32::MIN)),
             SIntTy::I64 => Some(BigInt::from(i64::MIN)),
             SIntTy::I128 => Some(BigInt::from(i128::MIN)),
-            SIntTy::ISize => Some(BigInt::from(isize::MIN)),
+            SIntTy::ISize => {
+                let min = (i64::MAX) << ((ptr_width * 8) - 1);
+                Some(BigInt::from(min))
+            }
             SIntTy::IBig => None,
         }
     }
@@ -266,28 +293,28 @@ impl IntTy {
     /// Function to get the largest possible integer represented within this
     /// type. For sizes `ibig` and `ubig` there is no defined max and so the
     /// function returns [None].
-    pub fn max(&self) -> Option<BigInt> {
+    pub fn max(&self, ptr_width: usize) -> Option<BigInt> {
         match self {
-            IntTy::Int(ty) => ty.max(),
-            IntTy::UInt(ty) => ty.max(),
+            IntTy::Int(ty) => ty.max(ptr_width),
+            IntTy::UInt(ty) => ty.max(ptr_width),
         }
     }
 
     /// Function to get the most minimum integer represented within this
     /// type. For sizes `ibig` there is no defined minimum and so the
     /// function returns [None].
-    pub fn min(&self) -> Option<BigInt> {
+    pub fn min(&self, ptr_width: usize) -> Option<BigInt> {
         match self {
-            IntTy::Int(ty) => ty.min(),
+            IntTy::Int(ty) => ty.min(ptr_width),
             IntTy::UInt(ty) => Some(ty.min()),
         }
     }
 
     /// Function to get the size of the integer type in bytes.
-    pub fn size(&self) -> Option<u64> {
+    pub fn size(&self, ptr_width: usize) -> Option<u64> {
         match self {
-            IntTy::Int(ty) => ty.size(),
-            IntTy::UInt(ty) => ty.size(),
+            IntTy::Int(ty) => ty.size(ptr_width),
+            IntTy::UInt(ty) => ty.size(ptr_width),
         }
     }
 
@@ -376,7 +403,7 @@ impl IntConstant {
     /// Check if the [IntConstant] is `signed` by checking if the specified
     /// suffix matches one of the available signed integer suffixes. If no
     /// suffix is specified, the assumed type of the integer constant is `i32`
-    /// and therefore this follows the same assumption.
+    /// and therefore this follows the same assu¬mption.
     pub fn is_signed(&self) -> bool {
         match self.suffix {
             Some(suffix) => match suffix {
@@ -393,6 +420,20 @@ impl IntConstant {
         }
     }
 
+    /// Check if the [IntConstant] is represented as the
+    /// [IntConstantValue::Small], as in this is an integer type that is not
+    /// represented using a `ibig` or `ubig` type.
+    pub fn is_small(&self) -> bool {
+        matches!(self.value, IntConstantValue::Small(_))
+    }
+
+    fn get_bytes(&self) -> [u8; 8] {
+        match &self.value {
+            IntConstantValue::Small(value) => *value,
+            _ => unreachable!(),
+        }
+    }
+
     /// Negate the [IntConstant] provided that the constant is signed. If
     /// the constant is not signed, then no negation operation is applied.
     pub fn negate(self) -> Self {
@@ -403,6 +444,8 @@ impl IntConstant {
 
         let value = match self.value {
             IntConstantValue::Small(inner) => {
+                // @@Todo: don't always assume that this is a 64 biy integer.
+
                 // Flip the sign, and the convert back to `be` bytes
                 let value = -i64::from_be_bytes(inner);
                 IntConstantValue::Small(value.to_be_bytes())
@@ -411,6 +454,69 @@ impl IntConstant {
         };
 
         Self { value, suffix: self.suffix }
+    }
+}
+
+/// Provide implementations for converting primitive integer types into
+/// [IntConstant]s.
+macro_rules! int_const_impl_from {
+    ($($ty:ident),*; $into: ty) => {
+        $(
+            impl From<$ty> for IntConstant {
+                fn from(value: $ty) -> Self {
+                    Self {
+                        value: IntConstantValue::Small((value as $into).to_be_bytes()),
+                        suffix: Some(IDENTS.$ty),
+                    }
+                }
+            }
+        )*
+    };
+    () => {
+    };
+}
+
+int_const_impl_from!(i8, i16, i32, i64, isize; i64);
+int_const_impl_from!(u8, u16, u32, u64, usize; u64);
+
+macro_rules! int_const_impl_into {
+    ($($ty:ident),*) => {
+        $(
+            impl TryFrom<IntConstant> for $ty {
+                type Error = ();
+
+                fn try_from(value: IntConstant) -> Result<Self, Self::Error> {
+                    if value.suffix == Some(IDENTS.$ty) {
+                        let value = value.to_bytes_be();
+                        Ok(<$ty>::from_be_bytes(value.try_into().unwrap()))
+                    } else {
+                        Err(())
+                    }
+                }
+            }
+        )*
+    };
+    () => {
+    };
+}
+
+int_const_impl_into!(i8, i16, i64, isize);
+int_const_impl_into!(u8, u16, u32, u64, usize);
+
+// We need to have a special implementation for `i32` as it is the default
+// integer type when no suffix is provided.
+//
+// @@Todo: potentially make `suffix` field on `IntConstant` non-optional
+impl TryFrom<IntConstant> for i32 {
+    type Error = ();
+
+    fn try_from(value: IntConstant) -> Result<Self, Self::Error> {
+        if value.suffix == Some(IDENTS.i32) || value.suffix.is_none() {
+            debug_assert!(value.is_small());
+            Ok(<i64>::from_be_bytes(value.get_bytes()) as i32)
+        } else {
+            Err(())
+        }
     }
 }
 
@@ -542,11 +648,8 @@ impl ConstantMap {
         value: f64,
         suffix: Option<Identifier>,
     ) -> InternedFloat {
-        let ident = InternedFloat::new();
         let constant = FloatConstant { value: FloatConstantValue::F64(value), suffix };
-
-        self.float_table.insert(ident, constant);
-        ident
+        self.create_float_constant(constant)
     }
 
     /// Create a `f32` [FloatConstant] within the [ConstantMap]
@@ -555,10 +658,15 @@ impl ConstantMap {
         value: f32,
         suffix: Option<Identifier>,
     ) -> InternedFloat {
-        let ident = InternedFloat::new();
         let constant = FloatConstant { value: FloatConstantValue::F32(value), suffix };
+        self.create_float_constant(constant)
+    }
 
+    /// Create a [FloatConstant] within the [ConstantMap]
+    pub fn create_float_constant(&self, constant: FloatConstant) -> InternedFloat {
+        let ident = InternedFloat::new();
         self.float_table.insert(ident, constant);
+
         ident
     }
 
@@ -572,16 +680,24 @@ impl ConstantMap {
         self.float_table.alter(&id, |_, value| value.negate());
     }
 
-    /// Create a [IntConstant] within the [ConstantMap].
-    pub fn create_int_constant(&self, value: BigInt, suffix: Option<Identifier>) -> InternedInt {
+    /// Create a [IntConstant] from the a provided value and suffix, and then
+    /// insert it into the [ConstantMap] returning the [InternedInt].
+    pub fn create_int_constant_from_value(
+        &self,
+        value: BigInt,
+        suffix: Option<Identifier>,
+    ) -> InternedInt {
         let value = IntConstantValue::from(value);
-
-        let ident = InternedInt::new();
         let constant = IntConstant { value, suffix };
+        self.create_int_constant(constant)
+    }
+
+    /// Create a [IntConstant] within the [ConstantMap].
+    pub fn create_int_constant(&self, constant: IntConstant) -> InternedInt {
+        let ident = InternedInt::new();
 
         // Insert the entries into the map and the reverse-lookup map
         self.int_table.insert(ident, constant);
-
         ident
     }
 
@@ -598,11 +714,52 @@ impl ConstantMap {
         IntConstant { value, suffix: *suffix }
     }
 
+    /// Perform a transformation on the [IntConstant] behind the [InternedInt]
+    /// without making a copy of the original value.
+    pub fn map_int_constant<T>(&self, id: InternedInt, f: impl FnOnce(&IntConstant) -> T) -> T {
+        let lookup_value = self.int_table.get(&id).unwrap();
+        f(lookup_value.value())
+    }
+
     /// Perform a negation operation on an [InternedInt].
     ///
     /// N.B: This function has no effect on the stored constant if it is not
     /// signed.
     pub fn negate_int_constant(&self, id: InternedInt) {
         self.int_table.alter(&id, |_, value| value.negate());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use num_bigint::BigInt;
+
+    use super::SIntTy;
+    use crate::constant::UIntTy;
+
+    #[test]
+    fn test_max_signed_int_value() {
+        // Pointer width is always described using a number of bytes
+        assert_eq!(SIntTy::ISize.max(8), Some(BigInt::from(isize::MAX)));
+        assert_eq!(SIntTy::ISize.min(8), Some(BigInt::from(isize::MIN)));
+
+        assert_eq!(SIntTy::ISize.max(4), Some(BigInt::from(i32::MAX)));
+        assert_eq!(SIntTy::ISize.min(4), Some(BigInt::from(i32::MIN)));
+
+        // Check that computing the size of each type with pointer widths
+        // is consistent.
+        assert_eq!(SIntTy::ISize.size(8), Some(8));
+        assert_eq!(SIntTy::ISize.size(4), Some(4));
+    }
+
+    #[test]
+    fn test_max_unsigned_int_value() {
+        // We don't check `min()` for unsigned since this always
+        // returns 0.
+        assert_eq!(UIntTy::USize.max(8), Some(BigInt::from(usize::MAX)));
+        assert_eq!(UIntTy::USize.max(4), Some(BigInt::from(u32::MAX)));
+
+        assert_eq!(UIntTy::USize.size(8), Some(8));
+        assert_eq!(UIntTy::USize.size(4), Some(4));
     }
 }

@@ -29,7 +29,7 @@ use hash_types::{
     storage::LocalStorage,
     terms::{Sub, TermId},
 };
-use hash_utils::store::{PartialStore, Store};
+use hash_utils::store::{CloneStore, Store};
 use itertools::Itertools;
 
 use super::{scopes::VisitConstantScope, AccessToTraverseOps};
@@ -167,7 +167,7 @@ impl<'tc> TcVisitor<'tc> {
         data: impl Into<NodeInfoTarget> + Into<LocationTarget> + Clone,
     ) {
         self.copy_location_from_node_to_target(node, data.clone());
-        self.node_info_store().insert(node.id(), data.into());
+        self.node_info_store().update_or_insert(node.id(), data.into());
     }
 
     /// Register the given [`NodeInfoTarget`] as describing the given
@@ -179,7 +179,7 @@ impl<'tc> TcVisitor<'tc> {
         node: AstNodeRef<T>,
         data: impl Into<NodeInfoTarget>,
     ) {
-        self.node_info_store().insert(node.id(), data.into());
+        self.node_info_store().update_or_insert(node.id(), data.into());
     }
 
     /// Validate and register node info for the given term.
@@ -192,7 +192,10 @@ impl<'tc> TcVisitor<'tc> {
         self.copy_location_from_node_to_target(node, term);
 
         let simplified_term_id = self.validator().validate_term(term)?.simplified_term_id;
-        self.node_info_store().insert(node.id(), NodeInfoTarget::Term(simplified_term_id));
+
+        // Check if there is already an entry for this node in the node info store.
+        self.node_info_store().update_or_insert(node.id(), simplified_term_id.into());
+
         Ok(simplified_term_id)
     }
 }
@@ -838,7 +841,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         self.copy_location_from_nodes_to_targets(node.params.ast_ref_iter(), params);
 
         // Create the function type term:
-        let fn_ty_term = self.builder().create_fn_ty_term(params, return_ty);
+        let fn_ty_term = self.builder().create_fn_ty_term(None, params, return_ty);
 
         self.validate_and_register_simplified_term(node, fn_ty_term)
     }
@@ -1046,6 +1049,9 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         let params_potentially_unresolved = self.builder().create_params(params, ParamOrigin::Fn);
         let param_scope = self.scope_manager().make_rt_param_scope(params_potentially_unresolved);
 
+        // Set the function scope to the parameter scope:
+        self.register_node_info(node, param_scope);
+
         let (params, return_ty, return_value) =
             self.scope_manager().enter_scope(param_scope, |_| {
                 let fn_body = self.visit_expr(node.fn_body.ast_ref())?;
@@ -1090,13 +1096,12 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
 
         let fn_ty_term = builder.create_fn_lit_term(
             name,
-            builder.create_fn_ty_term(params, return_ty),
+            builder.create_fn_ty_term(name, params, return_ty),
             return_value,
         );
 
         // Clear return type
         self.state.fn_def_return_ty.set(old_return_ty);
-
         self.validate_and_register_simplified_term(node, fn_ty_term)
     }
 
@@ -1657,6 +1662,23 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
     ) -> Result<Self::BinaryExprRet, Self::Error> {
         let walk::BinaryExpr { lhs, rhs, .. } = walk::walk_binary_expr(self, node)?;
 
+        // @@Hack: currently, trait resolution logic is broken, so we introduce
+        // a workaround for primitives to support all operators so that we can
+        // continue onto lowering...
+        let lhs_term = self.typer().infer_ty_of_term(lhs)?;
+        let rhs_term = self.typer().infer_ty_of_term(rhs)?;
+
+        if self.oracle().term_is_primitive(lhs_term) && self.oracle().term_is_primitive(rhs_term) {
+            if !self.unifier().terms_are_equal(lhs_term, rhs_term) {
+                return Err(TcError::CannotUnify { src: rhs_term, target: lhs_term });
+            }
+
+            let lhs_term = self.term_store().get(lhs);
+            let term = self.builder().create_term(lhs_term);
+
+            return self.validate_and_register_simplified_term(node, term);
+        }
+
         let term = if matches!(node.operator.body(), BinOp::Merge) {
             self.builder().create_merge_term([lhs, rhs])
         } else if node.operator.is_lazy() {
@@ -1675,6 +1697,18 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::UnaryExpr>,
     ) -> Result<Self::UnaryExprRet, Self::Error> {
         let walk::UnaryExpr { expr, .. } = walk::walk_unary_expr(self, node)?;
+
+        // @@Hack: currently, trait resolution logic is broken, so we introduce
+        // a workaround for primitives to support all unary operators on primitive
+        // types.
+        let expr_ty = self.typer().infer_ty_of_term(expr)?;
+
+        if self.oracle().term_is_primitive(expr_ty) {
+            let term = self.term_store().get(expr);
+            let term = self.builder().create_term(term);
+
+            return self.validate_and_register_simplified_term(node, term);
+        }
 
         let operator_fn = |trait_fn_name: &str| {
             let prop_access = self.builder().create_prop_access(expr, trait_fn_name);
@@ -1715,7 +1749,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         self.copy_location_from_node_to_target(node.subject.ast_ref(), index_fn_call_subject);
         self.copy_location_from_node_to_target(node.index_expr.ast_ref(), (index_fn_call_args, 0));
 
-        // @@ErrorReporting: We could provide customised error reporting here.
+        // @@ErrorReporting: We could provide customised error reporting h ere.
         self.validate_and_register_simplified_term(node, index_fn_call)
     }
 
@@ -2054,6 +2088,7 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
             },
         );
 
+        // Copy the location of this node to the pat_id
         self.register_node_info_and_location(node, pat);
         Ok(pat)
     }

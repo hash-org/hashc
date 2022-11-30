@@ -4,20 +4,24 @@
 //! complexity from types that are required for IR generation and
 //! analysis.
 
-use std::fmt;
+use std::{cell::Cell, fmt};
 
 use bitflags::bitflags;
+use hash_ast::ast;
 use hash_source::{
-    constant::{FloatTy, SIntTy, UIntTy},
+    constant::{FloatTy, IntTy, SIntTy, UIntTy},
     identifier::Identifier,
 };
 use hash_utils::{
     new_sequence_store_key, new_store_key,
-    store::{CloneStore, DefaultSequenceStore, DefaultStore, SequenceStore},
+    store::{CloneStore, DefaultSequenceStore, DefaultStore, SequenceStore, Store},
 };
-use index_vec::IndexVec;
+use index_vec::{index_vec, IndexVec};
 
-use crate::write::{ForFormatting, WriteTyIr};
+use crate::{
+    write::{ForFormatting, WriteIr},
+    IrStorage,
+};
 
 /// Mutability of a particular variable, reference, etc.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -42,8 +46,17 @@ impl Mutability {
     /// Get [Mutability] as a printable name
     pub fn as_str(&self) -> &'static str {
         match self {
-            Mutability::Mutable => "mut",
+            Mutability::Mutable => "mut ",
             Mutability::Immutable => "",
+        }
+    }
+}
+
+impl From<ast::Mutability> for Mutability {
+    fn from(value: ast::Mutability) -> Self {
+        match value {
+            ast::Mutability::Mutable => Mutability::Mutable,
+            ast::Mutability::Immutable => Mutability::Immutable,
         }
     }
 }
@@ -101,7 +114,49 @@ pub enum IrTy {
     /// The first item is the interned parameter types to the function, and the
     /// second item is the return type of the function. If the function has no
     /// explicit return type, this will always be inferred at this stage.
-    Fn(IrTyListId, IrTyId),
+    Fn { name: Option<Identifier>, params: IrTyListId, return_ty: IrTyId },
+}
+
+impl IrTy {
+    /// Make a unit type, i.e. `()`
+    pub fn unit(ir_storage: &IrStorage) -> Self {
+        let variants = index_vec![AdtVariant { name: 0usize.into(), fields: vec![] }];
+        let adt = AdtData::new_with_flags("unit".into(), variants, AdtFlags::TUPLE);
+        let adt_id = ir_storage.adt_store().create(adt);
+
+        Self::Adt(adt_id)
+    }
+
+    /// Make a tuple type, i.e. `(T1, T2, T3, ...)`
+    pub fn tuple(ir_storage: &IrStorage, tys: &[IrTyId]) -> Self {
+        let variants = index_vec![AdtVariant {
+            name: 0usize.into(),
+            fields: tys
+                .iter()
+                .copied()
+                .enumerate()
+                .map(|(idx, ty)| AdtField { name: idx.into(), ty })
+                .collect(),
+        }];
+        let adt = AdtData::new_with_flags("tuple".into(), variants, AdtFlags::TUPLE);
+        let adt_id = ir_storage.adt_store().create(adt);
+
+        Self::Adt(adt_id)
+    }
+
+    /// Check if the type is an integral type.
+    pub fn is_integral(&self) -> bool {
+        matches!(self, Self::Int(_) | Self::UInt(_) | Self::Float(_) | Self::Char)
+    }
+}
+
+impl From<IntTy> for IrTy {
+    fn from(value: IntTy) -> Self {
+        match value {
+            IntTy::Int(ty) => Self::Int(ty),
+            IntTy::UInt(ty) => Self::UInt(ty),
+        }
+    }
 }
 
 index_vec::define_index_type! {
@@ -170,6 +225,28 @@ bitflags! {
     }
 }
 
+impl AdtFlags {
+    /// Check if the underlying ADT is a union.
+    pub fn is_union(&self) -> bool {
+        self.contains(Self::UNION)
+    }
+
+    /// Check if the underlying ADT is a struct.
+    pub fn is_struct(&self) -> bool {
+        self.contains(Self::STRUCT)
+    }
+
+    /// Check if the underlying ADT is a enum.
+    pub fn is_enum(&self) -> bool {
+        self.contains(Self::ENUM)
+    }
+
+    /// Check if the underlying ADT is a tuple.
+    pub fn is_tuple(&self) -> bool {
+        self.contains(Self::TUPLE)
+    }
+}
+
 /// Options that are regarding the representation of the ADT. This includes
 /// options about alignment, padding, etc.
 ///
@@ -214,7 +291,7 @@ pub type AdtStore = DefaultStore<AdtId, AdtData>;
 
 impl fmt::Display for ForFormatting<'_, AdtId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let adt = self.storage.adt_store().get(self.t);
+        let adt = self.storage.adt_store().get(self.item);
 
         match adt.flags {
             AdtFlags::TUPLE => {
@@ -245,11 +322,38 @@ new_store_key!(pub IrTyId);
 /// Stores all the used [IrTy]s.
 ///
 /// [Rvalue]s are accessed by an ID, of type [IrTyId].
-pub type TyStore = DefaultStore<IrTyId, IrTy>;
+#[derive(Debug, Default)]
+pub struct TyStore {
+    data: DefaultStore<IrTyId, IrTy>,
+
+    /// Internal boolean used sometimes when lowering binary expressions
+    /// that need to be checked.
+    bool_ty: Cell<Option<IrTyId>>,
+}
+
+impl TyStore {
+    /// Create a [IrTy::Bool], this will re-use the previously created boolean
+    /// type if it exists.
+    pub fn make_bool(&self) -> IrTyId {
+        if let Some(id) = self.bool_ty.get() {
+            id
+        } else {
+            let id = self.create(IrTy::Bool);
+            self.bool_ty.set(Some(id));
+            id
+        }
+    }
+}
+
+impl Store<IrTyId, IrTy> for TyStore {
+    fn internal_data(&self) -> &std::cell::RefCell<Vec<IrTy>> {
+        self.data.internal_data()
+    }
+}
 
 impl fmt::Display for ForFormatting<'_, IrTyId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let ty = self.storage.ty_store().get(self.t);
+        let ty = self.storage.ty_store().get(self.item);
 
         match ty {
             IrTy::Int(variant) => write!(f, "{variant}"),
@@ -274,12 +378,23 @@ impl fmt::Display for ForFormatting<'_, IrTyId> {
                 write!(f, "Rc{name}<{}>", inner.for_fmt(self.storage))
             }
             IrTy::Adt(adt) => write!(f, "{}", adt.for_fmt(self.storage)),
-            IrTy::Fn(params, return_ty) => write!(
-                f,
-                "({}) -> {}",
-                params.for_fmt(self.storage),
-                return_ty.for_fmt(self.storage)
-            ),
+            IrTy::Fn { params, return_ty, name: None } => {
+                write!(
+                    f,
+                    "({}) -> {}",
+                    params.for_fmt(self.storage),
+                    return_ty.for_fmt(self.storage)
+                )
+            }
+            IrTy::Fn { params, return_ty, .. } if self.verbose => {
+                write!(
+                    f,
+                    "({}) -> {}",
+                    params.for_fmt(self.storage),
+                    return_ty.for_fmt(self.storage)
+                )
+            }
+            IrTy::Fn { name: Some(name), .. } => write!(f, "{name}"),
             IrTy::Slice(ty) => write!(f, "[{}]", ty.for_fmt(self.storage)),
             IrTy::Array(ty, len) => write!(f, "[{}; {len}]", ty.for_fmt(self.storage)),
         }
@@ -294,7 +409,7 @@ pub type TyListStore = DefaultSequenceStore<IrTyListId, IrTyId>;
 
 impl fmt::Display for ForFormatting<'_, IrTyListId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let items = self.storage.ty_list_store().get_vec(self.t);
+        let items = self.storage.ty_list_store().get_vec(self.item);
         let mut tys = items.iter();
 
         if let Some(first) = tys.next() {

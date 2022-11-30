@@ -10,6 +10,7 @@ pub mod infer;
 pub mod mods;
 pub mod stack;
 pub mod trts;
+pub mod tuple;
 
 macro_rules! ops {
     ($($name:ident: $ty:ty),* $(,)?) => {

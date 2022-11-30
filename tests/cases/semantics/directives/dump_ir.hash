@@ -17,3 +17,9 @@ mux := #dump_ir 2
 
 // Allowed: multiple nested directives
 #dump_ast #dump_ir brux := 2
+
+// Allowed: `#dump_ir` directives can accept a top-level body block:
+#dump_ir {
+    foo := (x: u32) => { x }
+    main := (x: u32) => { x }
+}

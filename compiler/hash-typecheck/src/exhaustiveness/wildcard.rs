@@ -92,7 +92,8 @@ impl<'tc> SplitWildcardOps<'tc> {
                 }
                 kind if kind.is_signed() => {
                     // Safe to unwrap since we deal with `ibig` and `ubig` variants...
-                    let size = kind.size().unwrap();
+                    let ptr_width = self.global_storage().target_pointer_width;
+                    let size = kind.size(ptr_width).unwrap();
                     let bits = (size * 8) as u128;
 
                     let min = 1u128 << (bits - 1);
@@ -103,7 +104,8 @@ impl<'tc> SplitWildcardOps<'tc> {
                 }
                 kind => {
                     // Safe to unwrap since we deal with `ibig` and `ubig` variants...
-                    let size = kind.size().unwrap();
+                    let ptr_width = self.global_storage().target_pointer_width;
+                    let size = kind.size(ptr_width).unwrap();
                     let bits = size * 8;
 
                     let shift = 128 - bits;
@@ -148,8 +150,7 @@ impl<'tc> SplitWildcardOps<'tc> {
                             NominalDef::Struct(_) => smallvec![DeconstructedCtor::Single],
                             NominalDef::Enum(enum_def) => {
                                 // The exception is if the pattern is at the top level, because we
-                                // want empty matches to be
-                                // considered exhaustive.
+                                // want empty matches to be considered exhaustive.
                                 let is_secretly_empty =
                                     enum_def.variants.is_empty() && !ctx.is_top_level;
 

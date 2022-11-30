@@ -1,19 +1,34 @@
 //! Hash Compiler Intermediate Representation (IR) crate. This module is still
 //! under construction and is subject to change.
+use std::fmt;
+
+use hash_ast::ast;
 use hash_source::{
     constant::{InternedFloat, InternedInt, InternedStr},
     identifier::Identifier,
-    location::Span,
+    location::{SourceLocation, Span},
     SourceId,
 };
-use hash_types::{scope::Mutability, terms::TermId};
-use hash_utils::{new_store_key, store::DefaultStore};
+use hash_types::terms::TermId;
+use hash_utils::{
+    new_store_key,
+    store::{DefaultStore, Store},
+};
 use index_vec::IndexVec;
 
-use crate::ty::IrTyId;
+use crate::{
+    ty::{IrTy, IrTyId, Mutability},
+    IrStorage,
+};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Const {
+    /// Nothing, it has zero size, and is associated with a particular type.
+    Zero(IrTyId),
+
+    /// Byte constant, could a boolean.
+    Byte(u8),
+
     /// Character constant
     Char(char),
     /// Integer constant that is defined within the program source.
@@ -29,6 +44,27 @@ pub enum Const {
     /// str := struct(data: &raw u8, len: usize);
     /// ```
     Str(InternedStr),
+}
+
+impl Const {
+    /// Create a [Const::Zero] with a unit type, the total zero.
+    pub fn zero(storage: &IrStorage) -> Self {
+        let unit = storage.ty_store().create(IrTy::unit(storage));
+        Self::Zero(unit)
+    }
+}
+
+impl fmt::Display for Const {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Zero(_) => write!(f, "()"),
+            Self::Byte(b) => write!(f, "{b}"),
+            Self::Char(c) => write!(f, "{c}"),
+            Self::Int(i) => write!(f, "{i}"),
+            Self::Float(flt) => write!(f, "{flt}"),
+            Self::Str(s) => write!(f, "{s}"),
+        }
+    }
 }
 
 /// A collection of operations that are constant and must run during the
@@ -49,6 +85,17 @@ pub enum UnaryOp {
     Not,
     /// The operator '-' for negation
     Neg,
+}
+
+impl From<ast::UnOp> for UnaryOp {
+    fn from(value: ast::UnOp) -> Self {
+        match value {
+            ast::UnOp::BitNot => Self::BitNot,
+            ast::UnOp::Not => Self::Not,
+            ast::UnOp::Neg => Self::Neg,
+            _ => unreachable!(),
+        }
+    }
 }
 
 /// Binary operations on [RValue]s that are typed as primitive, or have
@@ -97,34 +144,103 @@ pub enum BinOp {
     Mod,
 }
 
+impl BinOp {
+    /// Returns whether the binary operator can be "checked".
+    pub fn is_checkable(&self) -> bool {
+        matches!(self, Self::Add | Self::Sub | Self::Mul | Self::Div | Self::Shl | Self::Shr)
+    }
+}
+
+impl From<ast::BinOp> for BinOp {
+    fn from(value: ast::BinOp) -> Self {
+        match value {
+            ast::BinOp::EqEq => Self::EqEq,
+            ast::BinOp::NotEq => Self::NotEq,
+            ast::BinOp::BitOr => Self::BitOr,
+            ast::BinOp::Or => Self::Or,
+            ast::BinOp::BitAnd => Self::BitAnd,
+            ast::BinOp::And => Self::And,
+            ast::BinOp::BitXor => Self::BitXor,
+            ast::BinOp::Exp => Self::Exp,
+            ast::BinOp::Gt => Self::Gt,
+            ast::BinOp::GtEq => Self::GtEq,
+            ast::BinOp::Lt => Self::Lt,
+            ast::BinOp::LtEq => Self::LtEq,
+            ast::BinOp::Shr => Self::Shr,
+            ast::BinOp::Shl => Self::Shl,
+            ast::BinOp::Add => Self::Add,
+            ast::BinOp::Sub => Self::Sub,
+            ast::BinOp::Mul => Self::Mul,
+            ast::BinOp::Div => Self::Div,
+            ast::BinOp::Mod => Self::Mod,
+            // `As` and `Merge` are dealt with before this ever reached
+            // this point.
+            _ => unreachable!(),
+        }
+    }
+}
+
 /// Essentially a register for a value
 #[derive(Debug, PartialEq, Eq)]
 pub struct LocalDecl {
     /// Mutability of the local.
-    mutability: Mutability,
+    pub mutability: Mutability,
     /// The type of the local.
-    ty: IrTyId,
+    pub ty: IrTyId,
+
+    /// An optional name for the local, this is used for building the
+    /// IR and for printing the IR (in order to label which local associates
+    /// with which variable and scope).
+    pub name: Option<Identifier>,
+
+    /// Whether the local declaration is an auxiliary. An auxiliary local
+    /// declaration is used to store a temporary result of an operation that
+    /// is used to store the result of expressions that return **nothing**,
+    /// or temporary variables that are needed during the lowering process to
+    /// lower edge case expressions. Auxiliary local declarations will be
+    /// eliminated during the lowering process, when the IR undergoes
+    /// optimisations.
+    auxiliary: bool,
 }
 
 impl LocalDecl {
     /// Create a new [LocalDecl].
-    pub fn new(mutability: Mutability, ty: IrTyId) -> Self {
-        Self { mutability, ty }
+    pub fn new(name: Identifier, mutability: Mutability, ty: IrTyId) -> Self {
+        Self { mutability, ty, name: Some(name), auxiliary: false }
     }
 
     /// Create a new mutable [LocalDecl].
-    pub fn new_mutable(ty: IrTyId) -> Self {
-        Self::new(Mutability::Mutable, ty)
+    pub fn new_mutable(name: Identifier, ty: IrTyId) -> Self {
+        Self::new(name, Mutability::Mutable, ty)
     }
 
     /// Create a new immutable [LocalDecl].
-    pub fn new_immutable(ty: IrTyId) -> Self {
-        Self::new(Mutability::Immutable, ty)
+    pub fn new_immutable(name: Identifier, ty: IrTyId) -> Self {
+        Self::new(name, Mutability::Immutable, ty)
     }
 
-    /// Returns the type of the local.
+    pub fn new_auxiliary(ty: IrTyId, mutability: Mutability) -> Self {
+        Self { mutability, ty, name: None, auxiliary: true }
+    }
+
+    /// Returns the [IrTyId] of the local.
     pub fn ty(&self) -> IrTyId {
         self.ty
+    }
+
+    /// Returns the [Mutability] of the local.
+    pub fn mutability(&self) -> Mutability {
+        self.mutability
+    }
+
+    /// Returns the name of the local.
+    pub fn name(&self) -> Option<Identifier> {
+        self.name
+    }
+
+    /// Is the [Local] an auxiliary?
+    pub fn auxiliary(&self) -> bool {
+        self.auxiliary
     }
 }
 
@@ -167,13 +283,65 @@ impl Place {
     pub fn return_place() -> Self {
         Self { local: RETURN_PLACE, projections: Vec::new() }
     }
+
+    /// Create a new [Place] from an existing place whilst also
+    /// applying a a [PlaceProjection::Field] on the old one.
+    pub fn field(&self, field: usize) -> Self {
+        let mut projections = self.projections.clone();
+        projections.push(PlaceProjection::Field(field));
+        Self { local: self.local, projections }
+    }
 }
 
+impl From<Local> for Place {
+    fn from(value: Local) -> Self {
+        Self { local: value, projections: Vec::new() }
+    }
+}
+
+impl fmt::Display for Place {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // First we, need to deal with the `deref` projections, since
+        // they need to be printed in reverse
+        for projection in self.projections.iter().rev() {
+            match projection {
+                PlaceProjection::Downcast(_) | PlaceProjection::Field(_) => write!(f, "(")?,
+                PlaceProjection::Deref => write!(f, "(*")?,
+                PlaceProjection::Index(_) => {}
+            }
+        }
+
+        write!(f, "{:?}", self.local)?;
+
+        for projection in &self.projections {
+            match projection {
+                PlaceProjection::Downcast(index) => write!(f, " as variant#{index})")?,
+                PlaceProjection::Index(local) => write!(f, "[{local:?}]")?,
+                PlaceProjection::Field(index) => write!(f, ".{index})")?,
+                PlaceProjection::Deref => write!(f, ")")?,
+            }
+        }
+
+        Ok(())
+    }
+}
+
+/// [AggregateKind] represent an initialisation process of a particular
+/// structure be it a tuple, array, struct, etc.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum AggregateKind {
+    /// A tuple value initialisation.
     Tuple,
+
+    /// An array aggregate kind initialisation.
     Array(IrTyId),
+
+    /// Enum aggregate kind, this is used to represent an initialisation
+    /// of an enum variant with the specified variant index.
     Enum(IrTyId, usize),
+
+    /// Struct aggregate kind, this is used to represent a struct
+    /// initialisation.
     Struct(IrTyId),
 }
 
@@ -201,9 +369,16 @@ pub enum RValue {
 
     /// A binary expression with a binary operator and two inner expressions.
     BinaryOp(BinOp, RValueId, RValueId),
+
+    /// A binary expression that is checked. The only difference between this
+    /// and a normal [RValue::BinaryOp] is that this will return a boolean and
+    /// the result of the operation in the form of `(T, bool)`. The boolean
+    /// flag denotes whether the operation violated the check...
+    CheckedBinaryOp(BinOp, RValueId, RValueId),
+
     /// An expression which is taking the address of another expression with an
     /// mutability modifier e.g. `&mut x`.
-    Ref(Mutability, Statement, AddressMode),
+    Ref(Mutability, Place, AddressMode),
     /// Used for initialising structs, tuples and other aggregate
     /// data structures
     Aggregate(AggregateKind, Vec<Place>),
@@ -211,6 +386,34 @@ pub enum RValue {
     /// which variant a union is. For types that don't have a discriminant
     /// (non-union types ) this will return the value as 0.
     Discriminant(Place),
+}
+
+impl RValue {
+    /// Check if an [RValue] is a constant.
+    pub fn is_const(&self) -> bool {
+        matches!(self, RValue::Const(_))
+    }
+
+    /// Check if an [RValue] is a constant operation and involves a constant
+    /// that is of an integral kind...
+    pub fn is_integral_const(&self) -> bool {
+        matches!(self, RValue::Const(Const::Int(_) | Const::Float(_) | Const::Char(_)))
+    }
+
+    /// Convert the RValue into a constant, having previously
+    /// checked that it is a constant.
+    pub fn as_const(&self) -> Const {
+        match self {
+            RValue::Const(c) => *c,
+            rvalue => unreachable!("Expected a constant, got {:?}", rvalue),
+        }
+    }
+}
+
+impl From<Const> for RValue {
+    fn from(value: Const) -> Self {
+        Self::Const(value)
+    }
 }
 
 /// A defined statement within the IR
@@ -280,10 +483,16 @@ pub enum TerminatorKind {
 
     /// Perform a function call
     Call {
-        /// The layout of the function type that is to be called.
-        op: IrTyId,
-        /// Arguments to the function.
-        args: Vec<Local>,
+        /// The function that is being called
+        op: RValueId,
+
+        /// Arguments to the function, later we might need to distinguish
+        /// whether these are move or copy arguments.
+        args: Vec<RValueId>,
+
+        /// Destination of the result...
+        destination: Place,
+
         /// Where to return after completing the call
         target: Option<BasicBlock>,
     },
@@ -294,7 +503,19 @@ pub enum TerminatorKind {
 
     /// Essentially a `jump if <0> to <1> else go to <2>`. The last argument is
     /// the `otherwise` condition.
-    Switch(Local, Vec<(Const, BasicBlock)>, BasicBlock),
+    Switch {
+        /// The value to use when comparing against the cases.
+        value: Local,
+
+        /// The target to jump to if the value is equal to the provided [Const]
+        /// value. All values that the table contains will always be
+        /// [Const::Int] values.
+        table: Vec<(Const, BasicBlock)>,
+
+        /// If all lookups fail for the particular value, then this is a default
+        /// basic block to jump to.
+        otherwise: BasicBlock,
+    },
 
     /// This terminator is used to verify that the result of some operation has
     /// no violated a some condition. Usually, this is combined with operations
@@ -360,14 +581,30 @@ index_vec::define_index_type! {
 pub const RETURN_PLACE: Local = Local { _raw: 0 };
 
 /// The origin of a lowered function body.
-pub enum FnSource {
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum BodySource {
+    /// Constant block
+    Const,
     /// The item is a normal function.
     Item,
     /// The item is an intrinsic function.
     Intrinsic,
 }
 
+impl fmt::Display for BodySource {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BodySource::Const => write!(f, "constant block"),
+            BodySource::Item => write!(f, "function"),
+            BodySource::Intrinsic => write!(f, "intrinsic function"),
+        }
+    }
+}
+
 pub struct Body {
+    /// The type of the item that was lowered
+    pub ty: IrTyId,
+
     /// The blocks that the function is represented with
     pub blocks: IndexVec<BasicBlock, BasicBlockData>,
 
@@ -391,11 +628,11 @@ pub struct Body {
     pub arg_count: usize,
 
     /// The source of the function, is it a normal function, or an intrinsic
-    _source: FnSource,
+    source: BodySource,
     /// The location of the function
-    _span: Span,
+    span: Span,
     /// The id of the source of where this body originates from.
-    _source_id: SourceId,
+    source_id: SourceId,
     /// Whether the IR Body that is generated should be printed
     /// when the generation process is finalised.
     dump: bool,
@@ -405,30 +642,42 @@ impl Body {
     /// Create a new [Body] with the given `name`, `arg_count`, `source_id` and
     /// `span`.
     pub fn new(
+        ty: IrTyId,
         blocks: IndexVec<BasicBlock, BasicBlockData>,
         declarations: IndexVec<Local, LocalDecl>,
         name: Identifier,
         arg_count: usize,
-        source: FnSource,
+        source: BodySource,
         span: Span,
         source_id: SourceId,
-        dump: bool,
     ) -> Self {
-        Self {
-            blocks,
-            name,
-            declarations,
-            arg_count,
-            _source: source,
-            _span: span,
-            _source_id: source_id,
-            dump,
-        }
+        Self { ty, blocks, name, declarations, arg_count, source, span, source_id, dump: false }
+    }
+
+    /// Set the `dump` flag to `true` so that the IR Body that is generated
+    /// will be printed when the generation process is finalised.
+    pub fn mark_to_dump(&mut self) {
+        self.dump = true;
     }
 
     /// Check if the [Body] needs to be dumped.
     pub fn needs_dumping(&self) -> bool {
         self.dump
+    }
+
+    /// Get the [SourceLocation] for the [Body]
+    pub fn location(&self) -> SourceLocation {
+        SourceLocation { id: self.source_id, span: self.span }
+    }
+
+    /// Get the [BodySource] for the [Body]
+    pub fn source(&self) -> BodySource {
+        self.source
+    }
+
+    /// Get the name of the [Body]
+    pub fn name(&self) -> Identifier {
+        self.name
     }
 }
 
@@ -438,3 +687,34 @@ new_store_key!(pub RValueId);
 ///
 /// [Rvalue]s are accessed by an ID, of type [RValueId].
 pub type RValueStore = DefaultStore<RValueId, RValue>;
+
+#[cfg(test)]
+mod tests {
+    use crate::ir::*;
+
+    #[test]
+    fn test_place_display() {
+        let place = Place {
+            local: Local::new(0),
+            projections: vec![
+                PlaceProjection::Deref,
+                PlaceProjection::Field(0),
+                PlaceProjection::Index(Local::new(1)),
+                PlaceProjection::Downcast(0),
+            ],
+        };
+
+        assert_eq!(format!("{place}"), "(((*_0).0)[_1] as variant#0)");
+
+        let place = Place {
+            local: Local::new(0),
+            projections: vec![
+                PlaceProjection::Deref,
+                PlaceProjection::Deref,
+                PlaceProjection::Deref,
+            ],
+        };
+
+        assert_eq!(format!("{place}"), "(*(*(*_0)))");
+    }
+}

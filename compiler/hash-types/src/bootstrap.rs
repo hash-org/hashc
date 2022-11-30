@@ -130,6 +130,7 @@ pub fn create_core_defs_in(global_storage: &GlobalStorage) {
                     IDENTS.hash,
                     Visibility::Public,
                     builder.create_fn_ty_term(
+                        Some(IDENTS.hash),
                         builder.create_params(
                             [builder.create_param(
                                 IDENTS.value,
@@ -153,6 +154,7 @@ pub fn create_core_defs_in(global_storage: &GlobalStorage) {
                     IDENTS.eq,
                     Visibility::Public,
                     builder.create_fn_ty_term(
+                        Some(IDENTS.eq),
                         builder.create_params(
                             [
                                 builder
@@ -182,6 +184,7 @@ pub fn create_core_defs_in(global_storage: &GlobalStorage) {
                     IDENTS.index,
                     Visibility::Public,
                     builder.create_fn_ty_term(
+                        Some(IDENTS.index),
                         builder.create_params(
                             [
                                 builder.create_param(
@@ -239,6 +242,7 @@ pub fn create_core_defs_in(global_storage: &GlobalStorage) {
                     IDENTS.index,
                     Visibility::Public,
                     builder.create_fn_ty_term(
+                        Some(IDENTS.index),
                         builder.create_params(
                             [
                                 builder.create_param(
@@ -257,6 +261,7 @@ pub fn create_core_defs_in(global_storage: &GlobalStorage) {
                     builder.create_fn_lit_term(
                         Some(IDENTS.index),
                         builder.create_fn_ty_term(
+                            Some(IDENTS.index),
                             builder.create_params(
                                 [
                                     builder.create_param(

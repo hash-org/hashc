@@ -157,7 +157,7 @@ impl_access_to_tc_env!(ScopeDiscoveryPass<'env>);
 
 impl<'env> ast::AstVisitorMutSelf for ScopeDiscoveryPass<'env> {
     type Error = TcError;
-    ast_visitor_mut_self_default_impl!(hiding: Declaration, Module, ModBlock, TraitDef);
+    ast_visitor_mut_self_default_impl!(hiding: Declaration, Module, ModBlock, TraitDef,);
 
     type DeclarationRet = ();
     fn visit_declaration(

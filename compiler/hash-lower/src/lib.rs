@@ -3,32 +3,25 @@
 //! the Hash IR builder crate contains implemented passes that will optimise the
 //! IR, performing optimisations such as constant folding or dead code
 //! elimination.
-#![feature(decl_macro)]
-#![allow(unused)] // @@TODO: remove this when the builder is complete
+#![feature(decl_macro, let_chains)]
 
 mod build;
 mod cfg;
 mod discover;
 
 use discover::LoweringVisitor;
-use hash_ast::ast::{AstNodeRef, AstVisitorMutSelf, Expr, OwnsAstNode};
+use hash_ast::ast::{AstVisitorMutSelf, OwnsAstNode};
 use hash_ir::{
-    ir::{Body, RValue},
-    write::IrWriter,
+    write::{graphviz, pretty},
     IrStorage,
 };
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerResult, CompilerStage},
-    settings::CompilerStageKind,
+    settings::{CompilerStageKind, IrDumpMode},
     workspace::{SourceStageInfo, Workspace},
 };
-use hash_source::{
-    location::{SourceLocation, Span},
-    SourceId,
-};
+use hash_source::SourceId;
 use hash_types::storage::TyStorage;
-
-use self::build::Builder;
 
 /// The Hash IR builder compiler stage. This will walk the AST, and
 /// lower all items within a particular module.
@@ -51,12 +44,22 @@ pub trait IrLoweringCtx: CompilerInterface {
 }
 
 impl<Ctx: IrLoweringCtx> CompilerStage<Ctx> for AstLowerer {
+    /// Return that this is [CompilerStageKind::IrGen].
     fn stage_kind(&self) -> CompilerStageKind {
         CompilerStageKind::IrGen
     }
 
-    fn run_stage(&mut self, entry_point: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
+    /// Lower that AST of each module that is currently in the workspace
+    /// into Hash IR. This will iterate over all modules, and possibly
+    /// interactive statements to see if the need IR lowering, if so they
+    /// are lowered and the result is saved on the [IrStorage].
+    /// Additionally, this module is responsible for performing
+    /// optimisations on the IR (if specified via the [CompilerSettings]).
+    fn run_stage(&mut self, _: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
+        let settings = ctx.settings().lowering_settings;
+
         let (workspace, ty_storage, ir_storage) = ctx.data();
+        let source_map = &mut workspace.source_map;
         let source_stage_info = &mut workspace.source_stage_info;
 
         let mut lowered_bodies = Vec::new();
@@ -72,8 +75,14 @@ impl<Ctx: IrLoweringCtx> CompilerStage<Ctx> for AstLowerer {
                 continue;
             }
 
-            let mut discoverer = LoweringVisitor::new(&ty_storage.global, ir_storage, source_id);
-            discoverer.visit_module(module.node_ref());
+            let mut discoverer = LoweringVisitor::new(
+                &ty_storage.global,
+                ir_storage,
+                source_map,
+                source_id,
+                settings,
+            );
+            discoverer.visit_module(module.node_ref()).unwrap();
 
             // We need to add all of the bodies to the global bodies
             // store.
@@ -82,21 +91,11 @@ impl<Ctx: IrLoweringCtx> CompilerStage<Ctx> for AstLowerer {
 
         // we need to check if any of the bodies have been marked for `dumping`
         // and emit the IR that they have generated.
-        let bodies_to_dump = lowered_bodies
-            .iter()
-            .enumerate()
-            .filter(|(index, body)| body.needs_dumping())
-            .map(|(index, _)| index)
-            .collect::<Vec<_>>();
 
-        for (index, body_index) in bodies_to_dump.into_iter().enumerate() {
-            // Use a newline as a separator between each body
-            if index > 0 {
-                println!();
-            }
-
-            let body = &lowered_bodies[body_index];
-            println!("{}", IrWriter::new(ir_storage, body));
+        if settings.dump_mode == IrDumpMode::Graph {
+            graphviz::dump_ir_bodies(ir_storage, &lowered_bodies, settings.dump_all);
+        } else {
+            pretty::dump_ir_bodies(ir_storage, source_map, &lowered_bodies, settings.dump_all);
         }
 
         // Mark all modules now as lowered, and all generated

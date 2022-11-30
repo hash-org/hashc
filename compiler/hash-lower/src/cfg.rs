@@ -1,12 +1,9 @@
 //! Data structure representing the Control-Flow-Graph(CFG) that is used to
 //! represent lowered functions or constant blocks.
 
-use hash_ir::{
-    ir::{
-        BasicBlock, BasicBlockData, Place, RValue, RValueId, Statement, StatementKind, Terminator,
-        TerminatorKind,
-    },
-    IrStorage,
+use hash_ir::ir::{
+    BasicBlock, BasicBlockData, Place, RValueId, Statement, StatementKind, Terminator,
+    TerminatorKind,
 };
 use hash_source::location::Span;
 use index_vec::IndexVec;
@@ -37,6 +34,15 @@ impl ControlFlowGraph {
         self.basic_blocks.push(BasicBlockData::new(None))
     }
 
+    /// Create a [BasicBlock] that is terminated by a [TerminatorKind::Return]
+    /// and has no other present statements.
+    pub(crate) fn make_return_block(&mut self) -> BasicBlock {
+        let block = self.start_new_block();
+        self.block_data_mut(block).terminator =
+            Some(Terminator { kind: TerminatorKind::Return, span: Span::default() });
+        block
+    }
+
     /// Function to terminate a particular [BasicBlock] provided that it has not
     /// been already terminated.
     pub(crate) fn terminate(&mut self, block: BasicBlock, span: Span, kind: TerminatorKind) {
@@ -48,6 +54,11 @@ impl ControlFlowGraph {
         );
 
         self.block_data_mut(block).terminator = Some(Terminator { span, kind });
+    }
+
+    /// Check whether a block has been terminated or not.
+    pub(crate) fn is_terminated(&self, block: BasicBlock) -> bool {
+        self.block_data(block).terminator.is_some()
     }
 
     /// Add a [Statement] to the specified [BasicBlock]

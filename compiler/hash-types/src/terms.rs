@@ -39,7 +39,13 @@ pub struct TupleTy {
 /// All the parameter types and return type must be level 0
 #[derive(Debug, Clone, Copy)]
 pub struct FnTy {
+    /// The name of the function.
+    pub name: Option<Identifier>,
+
+    /// All of the parameters that the function accepts.
     pub params: ParamsId,
+
+    /// The return type of the function
     pub return_ty: TermId,
 }
 
@@ -751,14 +757,16 @@ impl fmt::Display for ForFormatting<'_, &Level0Term> {
                         write!(f, "\"{str}\"")
                     }
                     LitTerm::Int { value, kind } => {
+                        let pointer_width = self.global_storage.target_pointer_width;
+
                         // It's often the case that users don't include the range of the entire
                         // integer and so we will write `-2147483648..x` and
                         // same for max, what we want to do is write `MIN`
                         // and `MAX for these situations since it is easier for the
                         // user to understand the problem
-                        if let Some(min) = kind.min() && min == *value {
+                        if let Some(min) = kind.min(pointer_width) && min == *value {
                             write!(f, "{kind}::MIN")
-                        } else if let Some(max) = kind.max() && max == *value {
+                        } else if let Some(max) = kind.max(pointer_width) && max == *value {
                             write!(f, "{kind}::MAX")
                         } else {
                             write!(f, "{value}_{kind}")

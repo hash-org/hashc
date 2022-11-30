@@ -411,7 +411,7 @@ impl<'a> Lexer<'a> {
         let parsed = BigInt::from_str_radix(chars, radix).unwrap();
 
         // We need to create a interned constant here...
-        let interned_const = CONSTANT_MAP.create_int_constant(parsed, ascription);
+        let interned_const = CONSTANT_MAP.create_int_constant_from_value(parsed, ascription);
         TokenKind::IntLit(interned_const)
     }
 

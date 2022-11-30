@@ -190,4 +190,13 @@ impl SourceMap {
 
         RowColSpan { start, end }
     }
+
+    /// Pretty print a [SourceLocation] in terms of the filename, row and column
+    /// to the provided [Write] instance.
+    pub fn fmt_location(&self, location: SourceLocation) -> String {
+        let name = self.canonicalised_path_by_id(location.id);
+        let span = self.get_column_row_span_for(location);
+
+        format!("{name}:{span}")
+    }
 }

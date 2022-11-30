@@ -1,37 +1,36 @@
 //! Defines a IR Builder for function blocks. This is essentially a builder
 //! pattern for lowering declarations into the associated IR.
+#![allow(clippy::too_many_arguments)]
 
 mod block;
+mod category;
+mod constant;
 mod expr;
 mod matches;
 mod pat;
+mod place;
+mod rvalue;
+mod temp;
 mod ty;
+
+use std::collections::{HashMap, HashSet};
 
 use hash_ast::ast::{AstNodeId, AstNodeRef, Expr, FnDef};
 use hash_ir::{
     ir::{
-        BasicBlock, BasicBlockData, Body, FnSource, Local, LocalDecl, Place, Terminator,
-        TerminatorKind, START_BLOCK,
+        AssertKind, BasicBlock, Body, BodySource, Local, LocalDecl, Place, TerminatorKind,
+        START_BLOCK,
     },
-    ty::{IrTy, IrTyId},
+    ty::{IrTy, IrTyId, Mutability},
     IrStorage,
 };
-use hash_source::{
-    identifier::Identifier,
-    location::{SourceLocation, Span},
-    SourceId,
-};
-use hash_types::{
-    fmt::PrepareForFormatting,
-    nodes::NodeInfoTarget,
-    pats::{Pat, PatId},
-    storage::GlobalStorage,
-    terms::{FnLit, FnTy, Level0Term, Level1Term, Term, TermId},
-};
-use hash_utils::store::{CloneStore, PartialStore, SequenceStore, SequenceStoreKey};
+use hash_pipeline::settings::LoweringSettings;
+use hash_source::{identifier::Identifier, location::Span, SourceId, SourceMap};
+use hash_types::{pats::Pat, scope::ScopeId, storage::GlobalStorage};
+use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
 use index_vec::IndexVec;
 
-use self::ty::get_fn_ty_from_term;
+use self::ty::{convert_term_into_ir_ty, get_fn_ty_from_term, lower_term};
 use crate::cfg::ControlFlowGraph;
 
 /// A wrapper type for the kind of AST node that is being lowered, the [Builder]
@@ -106,14 +105,43 @@ pub macro unpack {
     }}
 }
 
-/// The builder is responsible for lowering a body into the associated IR.
+/// Information about the current `loop` context that is being lowered. When
+/// the [Builder] is lowering a loop, it will store the current loop body
+/// block, and the `next` block that the loop will jump to after the loop
+/// in order to correctly handle `break` and `continue` statements.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct LoopBlockInfo {
+    /// Denotes where the index of the loop body that is being used
+    /// for `continue` statements. The loop body should finish the
+    /// current block by sending the **current** block to the loop body.
+    loop_body: BasicBlock,
 
+    /// Denotes where the index of the next block that is being used
+    /// for `break` statements should jump to...
+    next_block: BasicBlock,
+}
+
+/// The builder is responsible for lowering a body into the associated IR.
 pub(crate) struct Builder<'tcx> {
     /// The type storage needed for accessing the types of the traversed terms
     tcx: &'tcx GlobalStorage,
 
     /// The IR storage needed for storing all of the created values and bodies
     storage: &'tcx mut IrStorage,
+
+    /// The sources of the current program, this is only used
+    /// to give more contextual panics when the compiler unexpectedly
+    /// encounters an unexpected AST node, and thus it will emit a
+    /// span when the compiler panics.
+    source_map: &'tcx SourceMap,
+
+    /// The stage settings, sometimes used to determine what the lowering
+    /// behaviour should be.
+    settings: &'tcx LoweringSettings,
+
+    /// The type of the item that is being lowered, the type is
+    /// deduced when the [Builder] is created.
+    ty: IrTyId,
 
     /// The name with the associated body that this is building.
     name: Identifier,
@@ -131,12 +159,54 @@ pub(crate) struct Builder<'tcx> {
     /// The body control-flow graph.
     control_flow_graph: ControlFlowGraph,
 
-    /// Any local declarations that have been made
+    /// Any local declarations that have been made.
     declarations: IndexVec<Local, LocalDecl>,
 
-    /// If the body that is being built will need to be
-    /// dumped.
-    needs_dumping: bool,
+    /// A map that is used by the [Builder] to lookup which variables correspond
+    /// to which locals.
+    declaration_map: HashMap<(ScopeId, Identifier), Local>,
+
+    /// The current scope stack that builder is in.
+    scope_stack: Vec<ScopeId>,
+
+    /// Information about the currently traversed [Block] in the AST. This
+    /// value is used to determine when the block should be terminated by
+    /// the builder. This is used to avoid lowering statements that occur
+    /// after a block terminator.
+    loop_block_info: Option<LoopBlockInfo>,
+
+    /// If the current [Block] has reached a terminating statement, i.e. a
+    /// statement that is typed as `!`. Examples of such statements are
+    /// `return`, `break`, `continue`, etc.
+    reached_terminator: bool,
+
+    /// A temporary [Place] that is used to throw away results from expressions
+    /// when we know that we don't need or want to store the result. If
+    /// `tmp_place` is [None], then we create a new temporary place and store
+    /// it in the field for later use.
+    tmp_place: Option<Place>,
+
+    /// Declaration dead ends, this is to ensure that we don't try to
+    /// lower a declaration that is not part of the function definition.
+    /// For example, if the function `foo` is declared in `bar` like this:
+    /// ```ignore
+    /// bar := () => {
+    ///     foo := () => { 1 };   
+    /// }
+    /// ```
+    ///
+    /// Then we don't want to add `foo` as a declaration to the body of `bar`
+    /// because it is a free standing function that will be lowered by
+    /// another builder. However, this does not occur when the function is
+    /// not free standing, for example:
+    /// ```ignore
+    /// bar := (x: i32) => {
+    ///     foo := () => { 1 + x };   
+    /// }
+    /// ```
+    /// The function `foo` is no longer free in `bar` because it captures `x`,
+    /// therefore making it a closure of `foo`.
+    dead_ends: &'tcx HashSet<AstNodeId>,
 }
 
 impl<'tcx> Builder<'tcx> {
@@ -146,32 +216,47 @@ impl<'tcx> Builder<'tcx> {
         source_id: SourceId,
         tcx: &'tcx GlobalStorage,
         storage: &'tcx mut IrStorage,
-        needs_dumping: bool,
+        source_map: &'tcx SourceMap,
+        dead_ends: &'tcx HashSet<AstNodeId>,
+        settings: &'tcx LoweringSettings,
     ) -> Self {
-        let arg_count = match item {
+        let (arg_count, ty) = match item {
             BuildItem::FnDef(node) => {
                 // Get the type of this function definition, we need to
                 // figure out how many arguments there will be passed in
                 // and how many locals we need to allocate.
 
-                let term = tcx.node_info_store.get(node.id()).map(|f| f.term_id()).unwrap();
+                let term =
+                    tcx.node_info_store.node_info(node.id()).map(|info| info.term_id()).unwrap();
                 let fn_ty = get_fn_ty_from_term(term, tcx);
 
-                fn_ty.params.len()
+                let arg_count = fn_ty.params.len();
+                let ty = lower_term(term, tcx, storage);
+                let ty_id = storage.ty_store().create(ty);
+
+                (arg_count, ty_id)
             }
-            BuildItem::Expr(_) => 0,
+            BuildItem::Expr(_) => todo!(),
         };
 
         Self {
+            settings,
             item,
             tcx,
+            ty,
             storage,
+            source_map,
             name,
             arg_count,
             source_id,
             control_flow_graph: ControlFlowGraph::new(),
             declarations: IndexVec::new(),
-            needs_dumping,
+            declaration_map: HashMap::new(),
+            reached_terminator: false,
+            loop_block_info: None,
+            scope_stack: vec![],
+            dead_ends,
+            tmp_place: None,
         }
     }
 
@@ -185,15 +270,15 @@ impl<'tcx> Builder<'tcx> {
         }
 
         Body::new(
+            self.ty,
             self.control_flow_graph.basic_blocks,
             self.declarations,
             self.name,
             self.arg_count,
             // @@Todo: actually determine this properly
-            FnSource::Item,
+            BodySource::Item,
             self.item.span(),
             self.source_id,
-            self.needs_dumping,
         )
     }
 
@@ -201,33 +286,134 @@ impl<'tcx> Builder<'tcx> {
     /// provided [AstNodeId].
     #[inline]
     fn get_ty_id_of_node(&self, id: AstNodeId) -> IrTyId {
-        let term_id = self.tcx.node_info_store.get(id).map(|f| f.term_id()).unwrap();
+        let term_id = self.tcx.node_info_store.node_info(id).map(|f| f.term_id()).unwrap();
 
         // We need to try and look up the type within the cache, if not
         // present then we create the type by converting the term into
         // the type.
 
-        todo!()
+        convert_term_into_ir_ty(term_id, self.tcx, self.storage)
     }
 
     /// Function to get the associated [Term] with the
     /// provided [AstNodeId].
     #[inline]
     fn get_ty_of_node(&self, id: AstNodeId) -> IrTy {
-        let term_id = self.tcx.node_info_store.get(id).map(|f| f.term_id()).unwrap();
+        let term_id = self.tcx.node_info_store.node_info(id).map(|f| f.term_id()).unwrap();
 
-        todo!()
+        lower_term(term_id, self.tcx, self.storage)
     }
 
     /// Function to get the associated [PatId] with the
     /// provided [AstNodeId].
     #[inline]
     fn get_pat_id_of_node(&self, id: AstNodeId) -> Pat {
-        let pat_id = self.tcx.node_info_store.get(id).map(|f| f.pat_id()).unwrap();
+        let pat_id = self.tcx.node_info_store.node_info(id).map(|f| f.pat_id()).unwrap();
 
         self.tcx.pat_store.get(pat_id)
     }
 
+    /// Function to create a new [Place] that is used to ignore
+    /// the results of expressions, i.e. blocks.
+    pub(crate) fn make_tmp_unit(&mut self) -> Place {
+        match &self.tmp_place {
+            Some(tmp) => tmp.clone(),
+            None => {
+                let ty = IrTy::unit(self.storage);
+                let ty_id = self.storage.ty_store().create(ty);
+
+                let local = LocalDecl::new_auxiliary(ty_id, Mutability::Immutable);
+                let local_id = self.declarations.push(local);
+
+                let place = Place::from(local_id);
+                self.tmp_place = Some(place.clone());
+
+                place
+            }
+        }
+    }
+
+    /// Create an assertion on a particular block
+    pub(crate) fn assert(
+        &mut self,
+        block: BasicBlock,
+        condition: Place,
+        expected: bool,
+        kind: AssertKind,
+        span: Span,
+    ) -> BasicBlock {
+        let success_block = self.control_flow_graph.start_new_block();
+
+        self.control_flow_graph.terminate(
+            block,
+            span,
+            TerminatorKind::Assert { condition, expected, kind, target: success_block },
+        );
+
+        success_block
+    }
+
+    /// Run a lowering operation whilst entering a new scope which is derived
+    /// from the provided [AstNodeRef<Expr>].
+    ///
+    /// N.B. It is assumed that the related expression has an associated scope.
+    pub(crate) fn with_scope<T, U>(
+        &mut self,
+        expr: AstNodeRef<U>,
+        f: impl FnOnce(&mut Self) -> T,
+    ) -> T {
+        let scope_id = self.tcx.node_info_store.node_info(expr.id()).map(|f| f.scope_id()).unwrap();
+        self.scope_stack.push(scope_id);
+
+        let result = f(self);
+
+        let popped = self.scope_stack.pop();
+        debug_assert!(popped.is_some() && matches!(popped, Some(id) if id == scope_id));
+
+        result
+    }
+
+    /// Get the current [ScopeId] that is being used within the builder.
+    pub(crate) fn current_scope(&self) -> ScopeId {
+        *self.scope_stack.last().unwrap()
+    }
+
+    /// Push a [LocalDecl] in the current [Builder] with the associated
+    /// [ScopeId]. This will put the [LocalDecl] into the declarations, and
+    /// create an entry in the lookup map so that the [Local] can be looked up
+    /// via the name of the local and the scope that it is in.
+    pub(crate) fn push_local(&mut self, decl: LocalDecl, scope: ScopeId) -> Local {
+        let decl_name = decl.name;
+        let index = self.declarations.push(decl);
+
+        // If the declaration has a name i.e. not an auxiliary local, then
+        // we can push it into the `declaration_map`.
+        if let Some(name) = decl_name {
+            self.declaration_map.insert((scope, name), index);
+        }
+
+        index
+    }
+
+    /// Get the [Local] associated with the provided [ScopeId] and [Identifier].
+    pub(crate) fn lookup_local(&self, name: Identifier) -> Option<Local> {
+        // We need to walk up the scopes, and then find the first scope
+        // that contains this variable
+        for scope_id in self.scope_stack.iter().rev() {
+            match self.tcx.scope_store.map_fast(*scope_id, |scope| scope.get(name)) {
+                // Found in this scope, return the member.
+                Some(_) => {
+                    return self.declaration_map.get(&(*scope_id, name)).copied();
+                }
+                // Continue to the next (higher) scope:
+                None => continue,
+            }
+        }
+
+        None
+    }
+
+    /// This is the entry point for lowering functions into Hash IR.
     pub(crate) fn build_fn(&mut self) {
         // Get the type of the function, and then add the local declarations
         let node = match self.item {
@@ -235,31 +421,50 @@ impl<'tcx> Builder<'tcx> {
             BuildItem::Expr(_) => unreachable!(),
         };
 
-        let term = match self.item {
-            BuildItem::FnDef(node) => self.get_ty_of_node(node.id()),
-            BuildItem::Expr(node) => self.get_ty_of_node(node.id()),
-        };
+        let term_id = self.tcx.node_info_store.node_info(node.id()).map(|f| f.term_id()).unwrap();
 
-        let IrTy::Fn(params, ret_ty) = term else {
+        // We need to get the underlying `FnTy` so that we can read the parameters
+        let fn_term = match self.item {
+            BuildItem::FnDef(_node) => get_fn_ty_from_term(term_id, self.tcx),
+            BuildItem::Expr(_) => unreachable!(),
+        };
+        let fn_params =
+            self.tcx.params_store.get_owned_param_list(fn_term.params).into_positional();
+
+        let IrTy::Fn {params, return_ty, .. } = lower_term(term_id, self.tcx, self.storage) else {
             panic!("Expected a function type");
         };
 
         // The first local declaration is used as the return type. The return local
         // declaration is always mutable because it will be set at some point in
         // the end, not the beginning.
-        self.declarations.push(LocalDecl::new_mutable(ret_ty));
+        let ret_local = LocalDecl::new_auxiliary(return_ty, Mutability::Mutable);
+        self.declarations.push(ret_local);
 
         // Deal with all the function parameters that are given to the function.
-        for param in self.storage.ty_list_store().get_vec(params) {
-            // @@Future: deal with parameter attributes that are mutable?
-            self.declarations.push(LocalDecl::new_immutable(param));
+        let param_scope =
+            self.tcx.node_info_store.node_info(node.id()).map(|f| f.scope_id()).unwrap();
+        self.scope_stack.push(param_scope);
+
+        // @@Future: deal with parameter attributes that are mutable?
+        for (ir_ty, param) in self.storage.ty_list_store().get_vec(params).iter().zip(fn_params) {
+            let param_name = param.name.unwrap();
+            self.push_local(LocalDecl::new_immutable(param_name, *ir_ty), param_scope);
         }
 
         // Now we begin by lowering the body of the function.
         let start = self.control_flow_graph.start_new_block();
         debug_assert!(start == START_BLOCK);
 
-        self.expr_into_dest(Place::return_place(), start, node.body.fn_body.ast_ref());
+        // Now that we have built the inner body block, we then need to terminate
+        // the current basis block with a return terminator.
+        let ret_span = node.span(); // @@Fixme: this should be the span of the ending part of the function body
+                                    // span!
+
+        let return_block =
+            unpack!(self.expr_into_dest(Place::return_place(), start, node.body.fn_body.ast_ref()));
+
+        self.control_flow_graph.terminate(return_block, ret_span, TerminatorKind::Return)
     }
 
     /// Build a [Body] for a constant expression that occurs on the
@@ -269,5 +474,5 @@ impl<'tcx> Builder<'tcx> {
     ///
     /// This is a different concept from `compile-time` since in the future we
     /// will allow compile time expressions to run any arbitrary code.
-    fn build_const(&mut self, _node: AstNodeRef<Expr>) {}
+    fn _build_const(&mut self, _node: AstNodeRef<Expr>) {}
 }

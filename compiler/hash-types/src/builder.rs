@@ -428,8 +428,13 @@ impl<'gs> PrimitiveBuilder<'gs> {
 
     /// Create a [Level1Term::Fn] term with the given parameters and return
     /// type.
-    pub fn create_fn_ty_term(&self, params: ParamsId, return_ty: TermId) -> TermId {
-        self.create_term(Term::Level1(Level1Term::Fn(FnTy { params, return_ty })))
+    pub fn create_fn_ty_term(
+        &self,
+        name: Option<Identifier>,
+        params: ParamsId,
+        return_ty: TermId,
+    ) -> TermId {
+        self.create_term(Term::Level1(Level1Term::Fn(FnTy { name, params, return_ty })))
     }
 
     /// Create a [Level1Term::NominalDef] from the given [NominalDefId].

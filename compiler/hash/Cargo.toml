@@ -10,7 +10,8 @@ log = "0.4"
 backtrace = "0.3"
 num_cpus = "1.13.0"
 rayon = "1.5.0"
-clap = { version = "3.0.0", features = ["derive"] }
+
+clap = { version = "4.0.29", features=["derive"] }
 
 profiling = "1.0.6"
 tracy-client = "0.13.2"
@@ -21,7 +22,7 @@ hash-source = { path = "../hash-source" }
 hash-interactive = { path = "../hash-interactive" }
 hash-reporting = { path = "../hash-reporting" }
 hash-tree-def = { path = "../hash-tree-def" }
-
+hash-target = { path = "../hash-target" }
 hash-pipeline = { path = "../hash-pipeline" }
 hash-session = { path = "../hash-session" }
 

@@ -3,14 +3,17 @@
 //! to the Compiler pipeline.
 use std::fmt::Display;
 
+use clap_derive::ValueEnum;
+use hash_target::TargetInfo;
+
 /// Various settings that are present on the compiler pipeline when initially
 /// launching.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct CompilerSettings {
     /// Print metrics about each stage when the entire pipeline has completed.
     ///
     /// N.B: This flag has no effect if the compiler is not specified to run in
-    ///       debug mode!
+    ///      debug mode!
     pub output_metrics: bool,
 
     /// Whether to output of each stage result.
@@ -29,6 +32,9 @@ pub struct CompilerSettings {
     /// standard error
     pub emit_errors: bool,
 
+    /// All settings that relate to the lowering stage of the compiler.
+    pub lowering_settings: LoweringSettings,
+
     /// If the compiler should emit generated `ast` for all parsed modules
     ///
     /// @@Future: add the possibility of specifying which modules should be
@@ -39,6 +45,12 @@ pub struct CompilerSettings {
     /// To what should the compiler run to, anywhere from parsing, typecheck, to
     /// code generation.
     pub stage: CompilerStageKind,
+
+    /// Information about the current "session" that the compiler is running
+    /// in. This contains information about which target the compiler is
+    /// compiling for, and other information that is used by the compiler
+    /// to determine how to compile the source code.
+    pub target_info: TargetInfo,
 }
 
 impl CompilerSettings {
@@ -68,6 +80,7 @@ impl CompilerSettings {
 impl Default for CompilerSettings {
     fn default() -> Self {
         Self {
+            target_info: TargetInfo::default(),
             output_stage_results: false,
             output_metrics: false,
             worker_count: num_cpus::get(),
@@ -75,8 +88,60 @@ impl Default for CompilerSettings {
             emit_errors: true,
             dump_ast: false,
             stage: CompilerStageKind::Full,
+            lowering_settings: LoweringSettings::default(),
         }
     }
+}
+
+/// What optimisation level the compiler should run at.
+#[derive(ValueEnum, Clone, Copy, PartialEq, Eq)]
+pub enum OptimisationLevel {
+    /// Run the compiler using the debug optimisation level. This will
+    /// disable most optimisations that the compiler would otherwise do.
+    /// This is intended for building the program as fast as possible.
+    Debug,
+
+    /// Optimise the given program as much as possible, essentially
+    /// applying all optimisation.
+    Release,
+}
+
+impl Default for OptimisationLevel {
+    fn default() -> Self {
+        Self::Debug
+    }
+}
+
+/// Settings that relate to the IR stage of the compiler, these include if the
+/// IR should be dumped (and in which mode), whether the IR should be optimised,
+/// whether the IR should use `checked` operations, etc.
+#[derive(Debug, Clone, Copy)]
+pub struct LoweringSettings {
+    /// Whether the IR should dump all lowered bodies, rather than
+    /// relying on user directives to select specific bodies.
+    pub dump_all: bool,
+
+    /// Whether the IR that is generated at the time should be dumped.
+    pub dump_mode: IrDumpMode,
+
+    /// Use checked operations when emitting IR, this is usually derived whether
+    /// the compiler is building a debug variant or not.
+    pub checked_operations: bool,
+}
+
+impl Default for LoweringSettings {
+    fn default() -> Self {
+        Self { dump_mode: IrDumpMode::Pretty, checked_operations: true, dump_all: false }
+    }
+}
+
+#[derive(ValueEnum, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IrDumpMode {
+    /// Dump the generated IR using a pretty-printed format
+    Pretty,
+
+    /// Dump the generated IR using the `graphviz` format
+    Graph,
 }
 
 /// Enum representing what mode the compiler should run in. Specifically, if the
