@@ -1,7 +1,7 @@
 use hash_error_codes::error_codes::HashErrorCode;
 use hash_reporting::{
-    builder::ReportBuilder,
-    report::{Report, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind},
+    builder::{Reporter, Reports},
+    report::{ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind},
 };
 use hash_source::location::SourceLocation;
 use hash_types::new::terms::TermId;
@@ -20,17 +20,18 @@ pub enum TcError {
 
 pub type TcResult<T> = Result<T, TcError>;
 
-impl<'tc> From<WithTcEnv<'tc, &TcError>> for Report {
+impl<'tc> From<WithTcEnv<'tc, &TcError>> for Reports {
     fn from(ctx: WithTcEnv<'tc, &TcError>) -> Self {
-        let mut builder = ReportBuilder::new();
-        builder.with_kind(ReportKind::Error);
-        ctx.add_to_builder(&mut builder);
+        let mut builder = Reporter::new();
+        ctx.add_to_reporter(&mut builder);
         builder.build()
     }
 }
 
 impl<'tc> WithTcEnv<'tc, &TcError> {
-    fn add_to_builder(&self, builder: &mut ReportBuilder) {
+    fn add_to_reporter(&self, reporter: &mut Reporter) {
+        let builder = reporter.add_report();
+        builder.with_kind(ReportKind::Error);
         match &self.value {
             TcError::NeedMoreTypeAnnotationsToInfer { term } => {
                 builder
@@ -49,7 +50,7 @@ impl<'tc> WithTcEnv<'tc, &TcError> {
             }
             TcError::Compound { errors } => {
                 for error in errors {
-                    self.tc_env().with(error).add_to_builder(builder);
+                    self.tc_env().with(error).add_to_reporter(reporter);
                 }
             }
             TcError::TraitsNotSupported { trait_location } => {

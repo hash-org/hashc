@@ -143,12 +143,12 @@ impl<Ctx: TypecheckingCtx> CompilerStage<Ctx> for Typechecker {
             let tc_visitor = new::passes::TcVisitor::new(&storage._new);
             tc_visitor.visit_source();
             if tc_visitor.tc_env().diagnostics().has_errors() {
-                return Err(vec![tc_visitor
+                return Err(tc_visitor
                     .tc_env()
                     .with(&crate::new::diagnostics::error::TcError::Compound {
                         errors: tc_visitor.diagnostics().errors_owned(),
                     })
-                    .into()]);
+                    .into());
             }
         } else {
             let tc_visitor = TcVisitor::new_in_source(storage.storages(), &workspace.node_map);

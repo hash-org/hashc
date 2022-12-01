@@ -3,6 +3,31 @@ use hash_error_codes::error_codes::HashErrorCode;
 
 use crate::report::{Report, ReportElement, ReportKind};
 
+pub type Reports = Vec<Report>;
+
+/// Facilitates the creation of lists of [Report]s in a declarative way.
+#[derive(Debug, Default)]
+pub struct Reporter {
+    report_builders: Vec<ReportBuilder>,
+}
+
+impl Reporter {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Add a report to the builder.
+    pub fn add_report(&mut self) -> &mut ReportBuilder {
+        self.report_builders.push(ReportBuilder::new());
+        self.report_builders.last_mut().unwrap()
+    }
+
+    /// Build the report list.
+    pub fn build(self) -> Reports {
+        self.report_builders.into_iter().map(|mut builder| builder.build()).collect()
+    }
+}
+
 /// A utility struct that allows for a [Report] to be built incrementally
 /// adding annotations and other metadata to the report.
 #[derive(Debug, Default)]
