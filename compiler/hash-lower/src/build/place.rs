@@ -134,6 +134,8 @@ impl<'tcx> Builder<'tcx> {
             | Expr::EnumDef(_)
             | Expr::TyFnDef(_)
             | Expr::TraitDef(_)
+            | Expr::ImplDef(_)
+            | Expr::ModDef(_)
             | Expr::FnDef(_)
             | Expr::MergeDeclaration(_)
             | Expr::TraitImpl(_)

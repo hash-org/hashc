@@ -34,9 +34,9 @@ pub enum DirectiveArgument {
     /// `match` and `if` blocks end up here...
     Match,
     /// The [hash_ast::ast::Block::Impl] variant
-    ImplBlock,
+    ImplDef,
     /// The [hash_ast::ast::Block::Mod] variant
-    ModBlock,
+    ModDef,
     /// The [hash_ast::ast::Block::Body] variant
     Block,
     /// An `import` statement.
@@ -80,15 +80,15 @@ impl From<&Expr> for DirectiveArgument {
             Expr::Block(BlockExpr { data: block }) => match block.body() {
                 Block::Loop(_) | Block::While(_) | Block::For(_) => DirectiveArgument::Loop,
                 Block::Match(_) | Block::If(_) => DirectiveArgument::Match,
-                Block::Mod(_) => DirectiveArgument::ModBlock,
                 Block::Body(_) => DirectiveArgument::Block,
-                Block::Impl(_) => DirectiveArgument::ImplBlock,
             },
             Expr::Import(_) => DirectiveArgument::Import,
             Expr::StructDef(_) => DirectiveArgument::StructDef,
             Expr::EnumDef(_) => DirectiveArgument::EnumDef,
             Expr::TyFnDef(_) => DirectiveArgument::TyFnDef,
             Expr::TraitDef(_) => DirectiveArgument::TraitDef,
+            Expr::ImplDef(_) => DirectiveArgument::ImplDef,
+            Expr::ModDef(_) => DirectiveArgument::ModDef,
             Expr::FnDef(_) => DirectiveArgument::FnDef,
             Expr::Ty(_) => DirectiveArgument::Ty,
             Expr::Return(_) => DirectiveArgument::Return,
@@ -113,8 +113,8 @@ impl Display for DirectiveArgument {
             DirectiveArgument::Cast => write!(f, "type cast"),
             DirectiveArgument::Loop => write!(f, "`loop` block"),
             DirectiveArgument::Match => write!(f, "`match` block"),
-            DirectiveArgument::ImplBlock => write!(f, "`impl` block"),
-            DirectiveArgument::ModBlock => write!(f, "`mod` block"),
+            DirectiveArgument::ImplDef => write!(f, "`impl` block"),
+            DirectiveArgument::ModDef => write!(f, "`mod` block"),
             DirectiveArgument::Block => write!(f, "body block"),
             DirectiveArgument::Import => write!(f, "import"),
             DirectiveArgument::StructDef => write!(f, "struct definition"),

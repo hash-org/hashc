@@ -174,6 +174,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     token.span,
                 )
             }
+            TokenKind::Keyword(Keyword::Mod) => {
+                let def = self.parse_mod_def()?;
+                self.node_with_joined_span(Expr::ModDef(def), token.span)
+            }
+            TokenKind::Keyword(Keyword::Impl) => {
+                let def = self.parse_impl_def()?;
+                self.node_with_joined_span(Expr::ImplDef(def), token.span)
+            }
             // Body block.
             TokenKind::Tree(Delimiter::Brace, _) => {
                 // @@Hack: we need to backtrack a single token so that `parse_block` can be
@@ -200,8 +208,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     }
                     TokenKind::Keyword(Keyword::If) => self.parse_if_block()?,
                     TokenKind::Keyword(Keyword::Match) => self.parse_match_block()?,
-                    TokenKind::Keyword(Keyword::Mod) => self.parse_mod_block()?,
-                    TokenKind::Keyword(Keyword::Impl) => self.parse_impl_block()?,
                     _ => unreachable!(),
                 };
 

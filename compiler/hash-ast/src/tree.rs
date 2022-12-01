@@ -631,12 +631,12 @@ impl AstVisitor for AstTreeGenerator {
         Ok(TreeNode::branch("while_loop", vec![condition, while_body]))
     }
 
-    type ModBlockRet = TreeNode;
-    fn visit_mod_block(
+    type ModDefRet = TreeNode;
+    fn visit_mod_def(
         &self,
-        node: ast::AstNodeRef<ast::ModBlock>,
-    ) -> Result<Self::ModBlockRet, Self::Error> {
-        let walk::ModBlock { block, ty_params } = walk::walk_mod_block(self, node)?;
+        node: ast::AstNodeRef<ast::ModDef>,
+    ) -> Result<Self::ModDefRet, Self::Error> {
+        let walk::ModDef { block, ty_params } = walk::walk_mod_def(self, node)?;
         let children = {
             if ty_params.is_empty() {
                 vec![block]
@@ -648,12 +648,12 @@ impl AstVisitor for AstTreeGenerator {
         Ok(TreeNode::branch("mod", children))
     }
 
-    type ImplBlockRet = TreeNode;
-    fn visit_impl_block(
+    type ImplDefRet = TreeNode;
+    fn visit_impl_def(
         &self,
-        node: ast::AstNodeRef<ast::ImplBlock>,
-    ) -> Result<Self::ImplBlockRet, Self::Error> {
-        let walk::ImplBlock { block, ty_params } = walk::walk_impl_block(self, node)?;
+        node: ast::AstNodeRef<ast::ImplDef>,
+    ) -> Result<Self::ImplDefRet, Self::Error> {
+        let walk::ImplDef { block, ty_params } = walk::walk_impl_def(self, node)?;
 
         let children = {
             if ty_params.is_empty() {

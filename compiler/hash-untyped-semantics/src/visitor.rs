@@ -5,7 +5,6 @@
 
 use std::{collections::HashSet, convert::Infallible, mem};
 
-use ::if_chain::if_chain;
 use hash_ast::{
     ast::{
         walk_mut_self, AstVisitorMutSelf, BindingPat, Block, BlockExpr, DirectiveExpr, Expr,
@@ -36,8 +35,8 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
         LoopBlock,
         ForLoopBlock,
         WhileLoopBlock,
-        ModBlock,
-        ImplBlock,
+        ModDef,
+        ImplDef,
         IfClause,
         IfBlock,
         BodyBlock,
@@ -101,20 +100,15 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
             // @@Cleanup @@Hardcoded: we check here that this particular directive
             // expression must be a `mod` block since otherwise the directive
             // wouldn't make sense...
-            if_chain! {
-                if let Expr::Block(BlockExpr { data }) = node.subject.body();
-                if matches!(data.body(), Block::Mod(_));
-                then {}
-                else {
-                    self.append_error(
-                        AnalysisErrorKind::InvalidDirectiveArgument {
-                            name: name.ident,
-                            expected: DirectiveArgument::ModBlock,
-                            received: node.subject.body().into()
-                        },
-                        node.subject.ast_ref(),
-                    );
-                }
+            if !matches!(node.subject.body(), Expr::ModDef(..)) {
+                self.append_error(
+                    AnalysisErrorKind::InvalidDirectiveArgument {
+                        name: name.ident,
+                        expected: DirectiveArgument::ModDef,
+                        received: node.subject.body().into(),
+                    },
+                    node.subject.ast_ref(),
+                );
             }
         } else if name.is(IDENTS.dump_ir) {
             let is_in_constant_block = self.is_in_constant_block();
@@ -259,22 +253,22 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
         );
     }
 
-    type ModBlockRet = ();
+    type ModDefRet = ();
 
-    fn visit_mod_block(
+    fn visit_mod_def(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ModBlock>,
-    ) -> Result<Self::ModBlockRet, Self::Error> {
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ModDef>,
+    ) -> Result<Self::ModDefRet, Self::Error> {
         self.check_constant_body_block(&node.body().block, BlockOrigin::Mod);
         Ok(())
     }
 
-    type ImplBlockRet = ();
+    type ImplDefRet = ();
 
-    fn visit_impl_block(
+    fn visit_impl_def(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ImplBlock>,
-    ) -> Result<Self::ImplBlockRet, Self::Error> {
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ImplDef>,
+    ) -> Result<Self::ImplDefRet, Self::Error> {
         self.check_constant_body_block(&node.body().block, BlockOrigin::Impl);
         Ok(())
     }

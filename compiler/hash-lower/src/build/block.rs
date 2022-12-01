@@ -58,10 +58,6 @@ impl<'tcx> Builder<'tcx> {
 
             // These variants are removed during the de-sugaring stage
             Block::For(..) | Block::While(..) | Block::If(..) => unreachable!(),
-
-            // Lowering implementation blocks is a no-op because this is dealt with
-            // at a higher level, so we just want to skip this.
-            Block::Impl(..) | Block::Mod(..) => block.unit(),
         }
     }
 

@@ -184,6 +184,26 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         Ok(TraitDef { members: self.parse_exprs_from_braces()?, ty_params })
     }
 
+    /// Parse a `mod` block, with optional type parameters.
+    pub(crate) fn parse_mod_def(&mut self) -> ParseResult<ModDef> {
+        debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Mod)));
+
+        let ty_params = self.parse_optional_ty_params(DefinitionKind::Mod)?;
+        let block = self.parse_body_block()?;
+
+        Ok(ModDef { block, ty_params })
+    }
+
+    /// Parse a `impl` block, with optional type parameters.
+    pub(crate) fn parse_impl_def(&mut self) -> ParseResult<ImplDef> {
+        debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Impl)));
+
+        let ty_params = self.parse_optional_ty_params(DefinitionKind::Impl)?;
+        let block = self.parse_body_block()?;
+
+        Ok(ImplDef { block, ty_params })
+    }
+
     /// Parse optional type [Param]s, if the next token is not a
     /// `<`, the function will return an empty [AstNodes<Param>].
     #[inline]

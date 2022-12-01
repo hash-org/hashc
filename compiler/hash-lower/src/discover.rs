@@ -169,53 +169,27 @@ impl<'ir> LoweringVisitor<'ir> {
 impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
     type Error = Infallible;
 
-    ast_visitor_mut_self_default_impl!(
-        hiding: Expr,
-        DirectiveExpr,
-        FnDef,
-        Declaration,
-        BodyBlock,
-        TraitDef,
-        TraitImpl,
-        ModBlock,
-        ImplBlock,
-        Module
-    );
+    type TraitImplRet = ();
 
-    type ExprRet = ();
-
-    fn visit_expr(
+    fn visit_trait_impl(
         &mut self,
-        node: ast::AstNodeRef<ast::Expr>,
-    ) -> Result<Self::ExprRet, Self::Error> {
-        // We don't walk the inner bodies of traits (unless they have default impls?)
-        if !matches!(self.current_block, BlockOrigin::Trait) {
-            let _ = walk_mut_self::walk_expr(self, node);
-        }
-
+        node: ast::AstNodeRef<ast::TraitImpl>,
+    ) -> Result<Self::TraitImplRet, Self::Error> {
+        let old_block_origin = mem::replace(&mut self.current_block, BlockOrigin::Impl);
+        let _ = walk_mut_self::walk_trait_impl(self, node);
+        self.current_block = old_block_origin;
         Ok(())
     }
 
-    type DirectiveExprRet = ();
+    type TraitDefRet = ();
 
-    fn visit_directive_expr(
+    fn visit_trait_def(
         &mut self,
-        node: ast::AstNodeRef<ast::DirectiveExpr>,
-    ) -> Result<Self::DirectiveExprRet, Self::Error> {
-        // If this directive is a `dump_ir`, then specify that
-        // we are currently within a `dump_ir` directive, which
-        // will mark the child function definition as needing
-        // to be `dumped`.
-        let mut old_dump_ir_value = self.in_dump_ir_directive;
-
-        if node.name.is(IDENTS.dump_ir) {
-            old_dump_ir_value = mem::replace(&mut self.in_dump_ir_directive, true);
-        }
-
-        let _ = walk_mut_self::walk_directive_expr(self, node);
-
-        // Reset the old directive value.
-        self.in_dump_ir_directive = old_dump_ir_value;
+        node: ast::AstNodeRef<ast::TraitDef>,
+    ) -> Result<Self::TraitDefRet, Self::Error> {
+        let old_block_origin = mem::replace(&mut self.current_block, BlockOrigin::Trait);
+        let _ = walk_mut_self::walk_trait_def(self, node);
+        self.current_block = old_block_origin;
         Ok(())
     }
 
@@ -273,6 +247,66 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
         Ok(())
     }
 
+    type ImplDefRet = ();
+
+    fn visit_impl_def(
+        &mut self,
+        node: ast::AstNodeRef<ast::ImplDef>,
+    ) -> Result<Self::ImplDefRet, Self::Error> {
+        let old_block_origin = mem::replace(&mut self.current_block, BlockOrigin::Impl);
+        let _ = walk_mut_self::walk_impl_def(self, node);
+        self.current_block = old_block_origin;
+        Ok(())
+    }
+
+    type ModuleRet = ();
+
+    fn visit_module(
+        &mut self,
+        node: ast::AstNodeRef<ast::Module>,
+    ) -> Result<Self::ModuleRet, Self::Error> {
+        self.current_block = BlockOrigin::Root;
+        let _ = walk_mut_self::walk_module(self, node);
+        Ok(())
+    }
+
+    type ExprRet = ();
+
+    fn visit_expr(
+        &mut self,
+        node: ast::AstNodeRef<ast::Expr>,
+    ) -> Result<Self::ExprRet, Self::Error> {
+        // We don't walk the inner bodies of traits (unless they have default impls?)
+        if !matches!(self.current_block, BlockOrigin::Trait) {
+            let _ = walk_mut_self::walk_expr(self, node);
+        }
+
+        Ok(())
+    }
+
+    type DirectiveExprRet = ();
+
+    fn visit_directive_expr(
+        &mut self,
+        node: ast::AstNodeRef<ast::DirectiveExpr>,
+    ) -> Result<Self::DirectiveExprRet, Self::Error> {
+        // If this directive is a `dump_ir`, then specify that
+        // we are currently within a `dump_ir` directive, which
+        // will mark the child function definition as needing
+        // to be `dumped`.
+        let mut old_dump_ir_value = self.in_dump_ir_directive;
+
+        if node.name.is(IDENTS.dump_ir) {
+            old_dump_ir_value = mem::replace(&mut self.in_dump_ir_directive, true);
+        }
+
+        let _ = walk_mut_self::walk_directive_expr(self, node);
+
+        // Reset the old directive value.
+        self.in_dump_ir_directive = old_dump_ir_value;
+        Ok(())
+    }
+
     type DeclarationRet = ();
 
     fn visit_declaration(
@@ -305,63 +339,29 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
         Ok(())
     }
 
-    type TraitDefRet = ();
+    type ModDefRet = ();
 
-    fn visit_trait_def(
+    fn visit_mod_def(
         &mut self,
-        node: ast::AstNodeRef<ast::TraitDef>,
-    ) -> Result<Self::TraitDefRet, Self::Error> {
-        let old_block_origin = mem::replace(&mut self.current_block, BlockOrigin::Trait);
-        let _ = walk_mut_self::walk_trait_def(self, node);
-        self.current_block = old_block_origin;
-        Ok(())
-    }
-
-    type TraitImplRet = ();
-
-    fn visit_trait_impl(
-        &mut self,
-        node: ast::AstNodeRef<ast::TraitImpl>,
-    ) -> Result<Self::TraitImplRet, Self::Error> {
-        let old_block_origin = mem::replace(&mut self.current_block, BlockOrigin::Impl);
-        let _ = walk_mut_self::walk_trait_impl(self, node);
-        self.current_block = old_block_origin;
-        Ok(())
-    }
-
-    type ModBlockRet = ();
-
-    fn visit_mod_block(
-        &mut self,
-        node: ast::AstNodeRef<ast::ModBlock>,
-    ) -> Result<Self::ModBlockRet, Self::Error> {
+        node: ast::AstNodeRef<ast::ModDef>,
+    ) -> Result<Self::ModDefRet, Self::Error> {
         let old_block_origin = mem::replace(&mut self.current_block, BlockOrigin::Mod);
-        let _ = walk_mut_self::walk_mod_block(self, node);
+        let _ = walk_mut_self::walk_mod_def(self, node);
         self.current_block = old_block_origin;
 
         Ok(())
     }
 
-    type ImplBlockRet = ();
-
-    fn visit_impl_block(
-        &mut self,
-        node: ast::AstNodeRef<ast::ImplBlock>,
-    ) -> Result<Self::ImplBlockRet, Self::Error> {
-        let old_block_origin = mem::replace(&mut self.current_block, BlockOrigin::Impl);
-        let _ = walk_mut_self::walk_impl_block(self, node);
-        self.current_block = old_block_origin;
-        Ok(())
-    }
-
-    type ModuleRet = ();
-
-    fn visit_module(
-        &mut self,
-        node: ast::AstNodeRef<ast::Module>,
-    ) -> Result<Self::ModuleRet, Self::Error> {
-        self.current_block = BlockOrigin::Root;
-        let _ = walk_mut_self::walk_module(self, node);
-        Ok(())
-    }
+    ast_visitor_mut_self_default_impl!(
+        hiding: Expr,
+        DirectiveExpr,
+        FnDef,
+        Declaration,
+        BodyBlock,
+        TraitDef,
+        TraitImpl,
+        ModDef,
+        ImplDef,
+        Module
+    );
 }
