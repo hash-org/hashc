@@ -26,8 +26,8 @@ use hash_ir::{
 };
 use hash_pipeline::settings::LoweringSettings;
 use hash_source::{identifier::Identifier, location::Span, SourceId, SourceMap};
-use hash_types::{pats::Pat, scope::ScopeId, storage::GlobalStorage};
-use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
+use hash_types::{pats::PatId, scope::ScopeId, storage::GlobalStorage};
+use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
 use index_vec::IndexVec;
 
 use self::ty::{convert_term_into_ir_ty, get_fn_ty_from_term, lower_term};
@@ -307,10 +307,8 @@ impl<'tcx> Builder<'tcx> {
     /// Function to get the associated [PatId] with the
     /// provided [AstNodeId].
     #[inline]
-    fn get_pat_id_of_node(&self, id: AstNodeId) -> Pat {
-        let pat_id = self.tcx.node_info_store.node_info(id).map(|f| f.pat_id()).unwrap();
-
-        self.tcx.pat_store.get(pat_id)
+    fn get_pat_id_of_node(&self, id: AstNodeId) -> PatId {
+        self.tcx.node_info_store.node_info(id).map(|f| f.pat_id()).unwrap()
     }
 
     /// Function to create a new [Place] that is used to ignore
