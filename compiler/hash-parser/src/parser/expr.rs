@@ -787,9 +787,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let span = subject.span();
 
         if let Some(token) = self.peek() && token.kind.is_numeric() {
-            // If the next token kind is a integer with no sign, then we can assume 
-            // that this is a numeric field access, otherwise we can say that 
-            // `-` was an unexpected token here... 
+            // If the next token kind is a integer with no sign, then we can assume
+            // that this is a numeric field access, otherwise we can say that
+            // `-` was an unexpected token here...
             if let TokenKind::IntLit(value) = token.kind {
                 // Now read the value and verify that it has no numeric prefix
                 let interned_lit = CONSTANT_MAP.lookup_int_constant(value);

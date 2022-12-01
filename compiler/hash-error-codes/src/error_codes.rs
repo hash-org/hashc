@@ -47,6 +47,7 @@ error_codes! {
     InvalidPropertyAccessOfNonMethod = 54,
     TraitImplMissingMember = 55,
     MethodNotAMemberOfTrait = 56,
+    UnsupportedTraits = 57,
 
     // Pattern errors
     IdentifierBoundMultipleTimes = 80,

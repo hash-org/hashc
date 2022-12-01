@@ -1,26 +1,30 @@
 //! Definitions related to terms.
 
+use core::fmt;
+use std::fmt::Debug;
+
 use hash_utils::{
     new_sequence_store_key, new_store_key,
-    store::{DefaultSequenceStore, DefaultStore},
+    store::{CloneStore, DefaultSequenceStore, DefaultStore},
 };
 
 use super::{
-    casting::{CastTerm, CoerceTerm},
+    casting::CastTerm,
+    environment::{
+        context::Binding,
+        env::{AccessToEnv, WithEnv},
+    },
     holes::HoleId,
     lits::LitTerm,
-    symbols::Symbol,
     tys::TypeOfTerm,
 };
 use crate::new::{
     access::AccessTerm,
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
-    data::{CtorTerm, DataDefId},
+    data::CtorTerm,
     fns::{FnCallTerm, FnDefId},
-    mods::ModDefId,
     refs::{DerefTerm, RefTerm},
     scopes::{AssignTerm, BlockTerm, DeclStackMemberTerm},
-    trts::TrtDefId,
     tuples::TupleTerm,
     tys::TyId,
     unions::UnionVariantTerm,
@@ -62,18 +66,14 @@ pub enum Term {
 
     // Functions
     FnCall(FnCallTerm),
-    FnDef(FnDefId),
+    // @@Todo: create separate closure type ~= (FnDefId, CapturedVars)
+    Closure(FnDefId),
 
     // Scopes
     Block(BlockTerm),
 
-    // Definitions
-    TrtDef(TrtDefId),
-    DataDef(DataDefId),
-    ModDef(ModDefId),
-
     // Variables
-    Var(Symbol),
+    Var(Binding),
 
     // Loops
     Loop(LoopTerm),
@@ -95,7 +95,6 @@ pub enum Term {
 
     // Casting
     Cast(CastTerm),
-    Coerce(CoerceTerm),
 
     // Types
     TypeOf(TypeOfTerm),
@@ -118,3 +117,45 @@ pub type TermStore = DefaultStore<TermId, Term>;
 
 new_sequence_store_key!(pub TermListId);
 pub type TermListStore = DefaultSequenceStore<TermListId, TermId>;
+
+impl fmt::Display for WithEnv<'_, &RuntimeTerm> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{{value {}}}", self.env().with(self.value.term_ty))
+    }
+}
+
+impl fmt::Display for WithEnv<'_, TermId> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.env().with(&self.env().stores().term().get(self.value)))
+    }
+}
+
+impl fmt::Display for WithEnv<'_, &Term> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.value {
+            Term::Runtime(_) => todo!(),
+            Term::UnionVariant(_) => todo!(),
+            Term::Tuple(_) => todo!(),
+            Term::Lit(_) => todo!(),
+            Term::Ctor(_) => todo!(),
+            Term::FnCall(_) => todo!(),
+            Term::Closure(_) => todo!(),
+            Term::Block(_) => todo!(),
+            Term::Var(resolved_var) => write!(f, "{}", self.env().with(resolved_var.name)),
+            Term::Loop(_) => todo!(),
+            Term::LoopControl(_) => todo!(),
+            Term::Match(_) => todo!(),
+            Term::Return(_) => todo!(),
+            Term::DeclStackMember(_) => todo!(),
+            Term::Assign(_) => todo!(),
+            Term::Unsafe(_) => todo!(),
+            Term::Access(_) => todo!(),
+            Term::Cast(_) => todo!(),
+            Term::TypeOf(_) => todo!(),
+            Term::Ty(_) => todo!(),
+            Term::Ref(_) => todo!(),
+            Term::Deref(_) => todo!(),
+            Term::Hole(hole) => write!(f, "{}", self.env().with(*hole)),
+        }
+    }
+}

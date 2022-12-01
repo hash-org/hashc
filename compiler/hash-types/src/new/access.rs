@@ -1,6 +1,12 @@
 //! Definitions related to access operations.
 
-use super::{params::ParamTarget, terms::TermId};
+use core::fmt;
+
+use super::{
+    environment::env::{AccessToEnv, WithEnv},
+    params::ParamTarget,
+    terms::TermId,
+};
 
 /// The kind of an access.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -9,13 +15,6 @@ pub enum AccessKind {
     CtorField,
     /// Accessing a tuple field, like `f := (2, 3); f.0`.
     TupleField,
-    /// Accessing a module member, like `X := mod { y := 3 }; X::y`.
-    ModMember,
-    /// Accessing a trait member, like `T := trait { y := 3; z := self.y }`
-    TrtMember,
-    /// Accessing a datatype constructor, like `Colour := enum(Red, Green,
-    /// Blue); Colour::Red`
-    Ctor,
 }
 
 /// Term to access a nested value.
@@ -27,4 +26,20 @@ pub struct AccessTerm {
     pub kind: AccessKind,
     /// The target field of the accessing operation.
     pub field: ParamTarget,
+}
+
+impl fmt::Display for WithEnv<'_, AccessTerm> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let op = match self.value.kind {
+            AccessKind::CtorField => ".",
+            AccessKind::TupleField => ".",
+        };
+        write!(
+            f,
+            "{}{}{}",
+            self.env().with(self.value.subject),
+            op,
+            self.env().with(self.value.field)
+        )
+    }
 }
