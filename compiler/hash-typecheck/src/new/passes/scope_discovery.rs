@@ -280,7 +280,7 @@ impl<'tc> ScopeDiscoveryPass<'tc> {
             let members = match members {
                 Some(members) => members,
                 None => {
-                    panic!("Got empty members for mod def {:?}", mod_def_id);
+                    panic!("Got empty members for mod def {mod_def_id:?}");
                 }
             };
 
@@ -428,7 +428,7 @@ impl<'tc> ScopeDiscoveryPass<'tc> {
             let members = match members {
                 Some(members) => members,
                 None => {
-                    panic!("Got empty members for stack {:?}", stack_id);
+                    panic!("Got empty members for stack {stack_id:?}");
                 }
             };
 
@@ -446,7 +446,7 @@ impl_access_to_tc_env!(ScopeDiscoveryPass<'tc>);
 
 impl<'tc> ast::AstVisitor for ScopeDiscoveryPass<'tc> {
     type Error = TcError;
-    ast_visitor_default_impl!(hiding: Declaration, Module, ModBlock, TraitDef, StructDef, EnumDef);
+    ast_visitor_default_impl!(hiding: Declaration, Module, ModDef, TraitDef, StructDef, EnumDef);
 
     type DeclarationRet = ();
     fn visit_declaration(
@@ -516,11 +516,11 @@ impl<'tc> ast::AstVisitor for ScopeDiscoveryPass<'tc> {
         Ok(())
     }
 
-    type ModBlockRet = ();
-    fn visit_mod_block(
+    type ModDefRet = ();
+    fn visit_mod_def(
         &self,
-        node: ast::AstNodeRef<ast::ModBlock>,
-    ) -> Result<Self::ModBlockRet, Self::Error> {
+        node: ast::AstNodeRef<ast::ModDef>,
+    ) -> Result<Self::ModDefRet, Self::Error> {
         // Get the mod block name from the name hint.
         let mod_block_name = self.take_name_hint_or_create_internal_name();
 
@@ -534,7 +534,7 @@ impl<'tc> ast::AstVisitor for ScopeDiscoveryPass<'tc> {
         );
 
         // Traverse the mod block
-        self.enter_def(node, mod_def_id, || walk::walk_mod_block(self, node))?;
+        self.enter_def(node, mod_def_id, || walk::walk_mod_def(self, node))?;
 
         Ok(())
     }

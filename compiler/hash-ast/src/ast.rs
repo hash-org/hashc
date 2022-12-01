@@ -1403,7 +1403,7 @@ define_tree! {
         pub otherwise: OptionalChild!(Block),
     }
 
-    /// A `mod` block, e.g.
+    /// A `mod` definition block, e.g.
     ///
     /// ```ignore
     /// mod {
@@ -1413,14 +1413,14 @@ define_tree! {
     /// ```
     #[derive(Debug, PartialEq, Clone)]
     #[node]
-    pub struct ModBlock {
+    pub struct ModDef {
         /// Any type parameters that are applied to the `mod` block.
         pub ty_params: Children!(Param),
         /// The actual contents of the block.
         pub block: Child!(BodyBlock),
     }
 
-    /// An `impl` block, e.g.
+    /// An `impl` definition block, e.g.
     ///
     /// ```ignore
     /// impl<T> {
@@ -1430,7 +1430,7 @@ define_tree! {
     /// ```
     #[derive(Debug, PartialEq, Clone)]
     #[node]
-    pub struct ImplBlock {
+    pub struct ImplDef {
         /// Any type parameters that are applied to the `mod` block.
         pub ty_params: Children!(Param),
         /// The actual contents of the block.
@@ -1536,11 +1536,6 @@ define_tree! {
         If(IfBlock),
         /// A body block.
         Body(BodyBlock),
-        /// A module block. The inner block becomes an inner module of the current
-        /// module.
-        Mod(ModBlock),
-        /// An implementation block
-        Impl(ImplBlock),
     }
 
     impl Block {
@@ -1551,9 +1546,7 @@ define_tree! {
                 Block::For(_) => "for(..)",
                 Block::While(_) => "while(..)",
                 Block::If(_) => "if(..)",
-                Block::Mod(_) => "mod(..)",
                 Block::Body(_) => "body(..)",
-                Block::Impl(_) => "impl(..)",
             }
         }
     }
@@ -1892,6 +1885,10 @@ define_tree! {
         TyFnDef(TyFnDef),
         /// Trait definition e.g.  `trait { ... }`
         TraitDef(TraitDef),
+        /// An implementation definition e.g. `impl { ... }`
+        ImplDef(ImplDef),
+        /// A `mod` definition e.g. `mod { ... }`
+        ModDef(ModDef),
         /// Function definition e.g. `(foo: i32) -> i32 => { ... }`
         FnDef(FnDef),
         /// Type expression e.g. `type i32`

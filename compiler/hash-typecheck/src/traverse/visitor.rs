@@ -1252,12 +1252,12 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         );
     }
 
-    type ModBlockRet = TermId;
+    type ModDefRet = TermId;
 
-    fn visit_mod_block(
+    fn visit_mod_def(
         &self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ModBlock>,
-    ) -> Result<Self::ModBlockRet, Self::Error> {
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ModDef>,
+    ) -> Result<Self::ModDefRet, Self::Error> {
         // create a scope for the module definition
         let VisitConstantScope { scope_name, scope_id, .. } =
             self.visit_constant_scope(node.block.members(), node, None, ScopeKind::Mod)?;
@@ -1274,12 +1274,12 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         Ok(term)
     }
 
-    type ImplBlockRet = TermId;
+    type ImplDefRet = TermId;
 
-    fn visit_impl_block(
+    fn visit_impl_def(
         &self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ImplBlock>,
-    ) -> Result<Self::ImplBlockRet, Self::Error> {
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ImplDef>,
+    ) -> Result<Self::ImplDefRet, Self::Error> {
         // create a scope for the module definition
         let VisitConstantScope { scope_name, scope_id, .. } =
             self.visit_constant_scope(node.block.members(), node, None, ScopeKind::Impl)?;

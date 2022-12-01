@@ -104,6 +104,8 @@ impl<'tcx> Builder<'tcx> {
             | Expr::EnumDef { .. }
             | Expr::TyFnDef { .. }
             | Expr::TraitDef { .. }
+            | Expr::ImplDef { .. }
+            | Expr::ModDef { .. }
             | Expr::TraitImpl { .. }
             | Expr::MergeDeclaration { .. }
             | Expr::Ty { .. } => block.unit(),
