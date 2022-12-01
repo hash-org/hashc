@@ -1,15 +1,11 @@
 //! Hash Compiler AST generation sources. This file contains the sources to the
 //! logic that transforms tokens into an AST.
 use hash_ast::ast::*;
-use hash_source::{
-    constant::{FloatTy, IntConstant, IntTy, SIntTy, UIntTy, CONSTANT_MAP},
-    identifier::{Identifier, IDENTS},
-    location::Span,
-};
+use hash_source::{constant::CONSTANT_MAP, location::Span};
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
 
 use super::AstGen;
-use crate::diagnostics::error::{NumericLitKind, ParseErrorKind, ParseResult};
+use crate::diagnostics::error::{ParseErrorKind, ParseResult};
 
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a primitive literal, which means it can be either a `char`,
@@ -52,77 +48,40 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                         CONSTANT_MAP.negate_int_constant(value);
                     }
 
-                    let IntConstant { suffix, .. } = CONSTANT_MAP.lookup_int_constant(value);
+                    let (ty, suffix) =
+                        CONSTANT_MAP.map_int_constant(value, |val| (val.ty, val.suffix));
 
-                    // Parse the provided suffix
-                    let kind = suffix.map_or(Ok(IntLitKind::Unsuffixed), |s| {
-                        self.parse_integer_suffix(s, token.span)
-                    })?;
-
-                    Lit::Int(IntLit { value, kind })
+                    // Despite the fact that we always know the type, we still want to preserve
+                    // information about whether this constant had a specified
+                    // suffix, this is used to accurately reflect the parsed AST
+                    // for purposes like pretty printing the suffix, or disallowing suffixes
+                    // in particular situations.
+                    if suffix.is_some() {
+                        Lit::Int(IntLit { value, kind: IntLitKind::Suffixed(ty) })
+                    } else {
+                        Lit::Int(IntLit { value, kind: IntLitKind::Unsuffixed })
+                    }
                 }
                 TokenKind::FloatLit(value) => {
-                    let suffix = CONSTANT_MAP.lookup_float_constant(value).suffix;
-
                     // If it is specified that we should negate this constant, then we modify the
                     // literal that is stored within the constant map with the modified value.
                     if negate {
                         CONSTANT_MAP.negate_float_constant(value);
                     }
 
-                    // Parse the provided suffix
-                    let kind = suffix.map_or(Ok(FloatLitKind::Unsuffixed), |s| {
-                        self.parse_float_suffix(s, token.span)
-                    })?;
+                    let (ty, suffix) =
+                        CONSTANT_MAP.map_float_constant(value, |val| (val.ty, val.suffix));
 
-                    Lit::Float(FloatLit { value, kind })
+                    if suffix.is_some() {
+                        Lit::Float(FloatLit { value, kind: FloatLitKind::Suffixed(ty) })
+                    } else {
+                        Lit::Float(FloatLit { value, kind: FloatLitKind::Unsuffixed })
+                    }
                 }
                 _ => panic!("expected numeric token in parse_numeric_lit()"),
             },
             token.span,
         ))
-    }
-
-    /// Parse an integer literal suffix.
-    fn parse_integer_suffix(&self, suffix: Identifier, span: Span) -> ParseResult<IntLitKind> {
-        let ty = match suffix {
-            id if IDENTS.i8 == id => IntTy::Int(SIntTy::I8),
-            id if IDENTS.i16 == id => IntTy::Int(SIntTy::I16),
-            id if IDENTS.i32 == id => IntTy::Int(SIntTy::I32),
-            id if IDENTS.i64 == id => IntTy::Int(SIntTy::I64),
-            id if IDENTS.i128 == id => IntTy::Int(SIntTy::I128),
-            id if IDENTS.isize == id => IntTy::Int(SIntTy::ISize),
-            id if IDENTS.ibig == id => IntTy::Int(SIntTy::IBig),
-            id if IDENTS.u8 == id => IntTy::UInt(UIntTy::U8),
-            id if IDENTS.u16 == id => IntTy::UInt(UIntTy::U16),
-            id if IDENTS.u32 == id => IntTy::UInt(UIntTy::U32),
-            id if IDENTS.u64 == id => IntTy::UInt(UIntTy::U64),
-            id if IDENTS.u128 == id => IntTy::UInt(UIntTy::U128),
-            id if IDENTS.usize == id => IntTy::UInt(UIntTy::USize),
-            id if IDENTS.ubig == id => IntTy::UInt(UIntTy::UBig),
-            id => self.err_with_location(
-                ParseErrorKind::InvalidLitSuffix(NumericLitKind::Integer, id),
-                None,
-                None,
-                span,
-            )?,
-        };
-
-        Ok(IntLitKind::Suffixed(ty))
-    }
-
-    /// Parse an integer literal suffix.
-    fn parse_float_suffix(&self, suffix: Identifier, span: Span) -> ParseResult<FloatLitKind> {
-        match suffix {
-            id if IDENTS.f32 == id => Ok(FloatLitKind::Suffixed(FloatTy::F32)),
-            id if IDENTS.f64 == id => Ok(FloatLitKind::Suffixed(FloatTy::F64)),
-            id => self.err_with_location(
-                ParseErrorKind::InvalidLitSuffix(NumericLitKind::Float, id),
-                None,
-                None,
-                span,
-            )?,
-        }
     }
 
     /// Parse a single map entry in a literal.

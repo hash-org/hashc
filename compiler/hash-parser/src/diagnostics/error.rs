@@ -1,6 +1,4 @@
 //! Hash Compiler parser error utilities.
-use std::fmt::Display;
-
 use derive_more::Constructor;
 use hash_pipeline::fs::ImportError;
 use hash_reporting::{
@@ -28,29 +26,6 @@ pub struct ParseError {
     expected: Option<TokenKindVector>,
     /// An optional token in question that was received byt shouldn't of been
     received: Option<TokenKind>,
-}
-
-/// Auxiliary data type to provide more information about the
-/// numerical literal kind that was encountered. This is used
-/// to give more accurate information about if the numerical
-/// literal was a `number` or a `float`. The reason why it
-/// is a number is because it still not clear whether this
-/// is meant to be an integer or a float.
-#[derive(Debug, Clone, Copy)]
-pub enum NumericLitKind {
-    /// Unclear, could be a `integer` or `float`
-    Integer,
-    /// Known to be a `float`
-    Float,
-}
-
-impl Display for NumericLitKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            NumericLitKind::Integer => write!(f, "integer"),
-            NumericLitKind::Float => write!(f, "float"),
-        }
-    }
 }
 
 /// Enum representation of the AST generation error variants.
@@ -109,8 +84,6 @@ pub enum ParseErrorKind {
     MalformedSpreadPattern(u8),
     /// Expected a literal token, mainly originating from range pattern parsing
     ExpectedLit,
-    /// Invalid literal ascription for either `float` or `integer`
-    InvalidLitSuffix(NumericLitKind, Identifier),
     /// When a suffix is not allowed on a numeric literal, specifically
     /// when it used as a property access field.
     DisallowedSuffix(Identifier),
@@ -176,18 +149,6 @@ impl From<ParseError> for Report {
                 )
             }
             ParseErrorKind::ExpectedLit => "expected literal".to_string(),
-            ParseErrorKind::InvalidLitSuffix(kind, suffix) => {
-                let suffix_note = match kind {
-                    NumericLitKind::Integer => format!("{kind} suffix must be `u32`, `i64`, etc"),
-                    NumericLitKind::Float => format!("{kind} suffix must be `f32` or `f64`"),
-                };
-
-                // push a note about what kind of suffix is expected
-                help_notes
-                    .push(ReportElement::Note(ReportNote::new(ReportNoteKind::Info, suffix_note)));
-
-                format!("invalid suffix `{suffix}` for {kind} literal")
-            }
             ParseErrorKind::DisallowedSuffix(suffix) => {
                 span_label = format!("disallowed suffix `{suffix}`");
 

@@ -1,5 +1,7 @@
 //! Definitions to describe the target of Hash compilation.
 
+pub mod size;
+
 use std::{
     env::consts::ARCH,
     fmt::{Display, Formatter},
