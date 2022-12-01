@@ -582,6 +582,15 @@ impl<'a> Lexer<'a> {
                         let float_const = if let Some(suffix_ident) = suffix && suffix_ident == IDENTS.f32 {
                             CONSTANT_MAP.create_f32_float_constant(value as f32, suffix)
                         } else {
+                            // Check that the suffix is correct for the literal
+                            if let Some(suffix_ident) = suffix && suffix_ident != IDENTS.f64 {
+                                self.emit_error(
+                                    None,
+                                    LexerErrorKind::InvalidLitSuffix(NumericLitKind::Float, suffix_ident),
+                                    Span::new(start, self.offset.get()),
+                                );
+                            }
+
                             CONSTANT_MAP.create_f64_float_constant(value, suffix)
                         };
 
@@ -637,7 +646,7 @@ impl<'a> Lexer<'a> {
     /// Consume only decimal digits up to encountering a non-decimal digit
     /// whilst taking into account that the language supports '_' as digit
     /// separators which should just be skipped over...
-    fn eat_decimal_digits(&'a self, radix: u32) -> &'a str {
+    fn eat_decimal_digits(&self, radix: u32) -> &str {
         self.eat_while_and_slice(move |c| c.is_digit(radix) || c == '_')
     }
 
