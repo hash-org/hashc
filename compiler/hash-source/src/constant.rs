@@ -11,6 +11,7 @@ use std::{
 
 use dashmap::DashMap;
 use fnv::FnvBuildHasher;
+use hash_target::size::Size;
 use hash_utils::counter;
 use lazy_static::lazy_static;
 use num_bigint::BigInt;
@@ -56,6 +57,10 @@ impl Display for FloatConstantValue {
 pub struct FloatConstant {
     /// Raw value of the float
     pub value: FloatConstantValue,
+
+    /// The type of the float constant,
+    pub ty: FloatTy,
+
     /// If the constant contains a type ascription, as specified
     /// when the constant is declared, e.g. `32.4f64`
     pub suffix: Option<Identifier>,
@@ -69,7 +74,7 @@ impl FloatConstant {
             FloatConstantValue::F32(inner) => FloatConstantValue::F32(-inner),
         };
 
-        Self { value, suffix: self.suffix }
+        Self { value, ty: self.ty, suffix: self.suffix }
     }
 }
 
@@ -82,6 +87,7 @@ macro_rules! float_const_impl_into {
                 fn from(value: $ty) -> Self {
                     Self {
                         value: FloatConstantValue::$kind(value),
+                        ty: FloatTy::$kind,
                         suffix: Some(IDENTS.$ty),
                     }
                 }
@@ -118,7 +124,7 @@ impl Display for InternedFloat {
 }
 
 /// Unsigned integer type variants.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum UIntTy {
     U8,
     U16,
@@ -132,14 +138,14 @@ pub enum UIntTy {
 impl UIntTy {
     /// Get the size of [IntTy] in bytes. Returns [None] for
     /// [UIntTy::UBig] variants
-    pub const fn size(&self, ptr_width: usize) -> Option<u64> {
+    pub fn size(&self, ptr_width: usize) -> Option<Size> {
         match self {
-            UIntTy::U8 => Some(1),
-            UIntTy::U16 => Some(2),
-            UIntTy::U32 => Some(4),
-            UIntTy::U64 => Some(8),
-            UIntTy::USize => Some(ptr_width as u64),
-            UIntTy::U128 => Some(16),
+            UIntTy::U8 => Some(Size::from_bytes(1)),
+            UIntTy::U16 => Some(Size::from_bytes(2)),
+            UIntTy::U32 => Some(Size::from_bytes(4)),
+            UIntTy::U64 => Some(Size::from_bytes(8)),
+            UIntTy::USize => Some(Size::from_bytes(ptr_width)),
+            UIntTy::U128 => Some(Size::from_bytes(16)),
             UIntTy::UBig => None,
         }
     }
@@ -182,14 +188,28 @@ impl UIntTy {
     }
 }
 
-impl Display for UIntTy {
+impl From<UIntTy> for Identifier {
+    fn from(value: UIntTy) -> Self {
+        match value {
+            UIntTy::U8 => IDENTS.u8,
+            UIntTy::U16 => IDENTS.u16,
+            UIntTy::U32 => IDENTS.u32,
+            UIntTy::U64 => IDENTS.u64,
+            UIntTy::U128 => IDENTS.u128,
+            UIntTy::USize => IDENTS.usize,
+            UIntTy::UBig => IDENTS.ubig,
+        }
+    }
+}
+
+impl fmt::Display for UIntTy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.to_name())
     }
 }
 
 /// Signed integer type variants.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum SIntTy {
     I8,
     I16,
@@ -203,14 +223,14 @@ pub enum SIntTy {
 impl SIntTy {
     /// Get the size of [IntTy] in bytes. Returns [None] for
     /// [UIntTy::UBig] variants
-    pub const fn size(&self, ptr_width: usize) -> Option<u64> {
+    pub fn size(&self, ptr_width: usize) -> Option<Size> {
         match self {
-            SIntTy::I8 => Some(1),
-            SIntTy::I16 => Some(2),
-            SIntTy::I32 => Some(4),
-            SIntTy::I64 => Some(8),
-            SIntTy::ISize => Some(ptr_width as u64),
-            SIntTy::I128 => Some(16),
+            SIntTy::I8 => Some(Size::from_bytes(1)),
+            SIntTy::I16 => Some(Size::from_bytes(2)),
+            SIntTy::I32 => Some(Size::from_bytes(4)),
+            SIntTy::I64 => Some(Size::from_bytes(8)),
+            SIntTy::ISize => Some(Size::from_bytes(ptr_width)),
+            SIntTy::I128 => Some(Size::from_bytes(16)),
             SIntTy::IBig => None,
         }
     }
@@ -266,14 +286,28 @@ impl SIntTy {
     }
 }
 
-impl Display for SIntTy {
+impl From<SIntTy> for Identifier {
+    fn from(value: SIntTy) -> Self {
+        match value {
+            SIntTy::I8 => IDENTS.i8,
+            SIntTy::I16 => IDENTS.i16,
+            SIntTy::I32 => IDENTS.i32,
+            SIntTy::I64 => IDENTS.i64,
+            SIntTy::I128 => IDENTS.i128,
+            SIntTy::ISize => IDENTS.isize,
+            SIntTy::IBig => IDENTS.ibig,
+        }
+    }
+}
+
+impl fmt::Display for SIntTy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.to_name())
     }
 }
 
 /// The representation of an integer type.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum IntTy {
     /// Signed integer variant.
     Int(SIntTy),
@@ -311,7 +345,7 @@ impl IntTy {
     }
 
     /// Function to get the size of the integer type in bytes.
-    pub fn size(&self, ptr_width: usize) -> Option<u64> {
+    pub fn size(&self, ptr_width: usize) -> Option<Size> {
         match self {
             IntTy::Int(ty) => ty.size(ptr_width),
             IntTy::UInt(ty) => ty.size(ptr_width),
@@ -334,6 +368,39 @@ impl IntTy {
     }
 }
 
+impl From<IntTy> for Identifier {
+    fn from(value: IntTy) -> Self {
+        match value {
+            IntTy::Int(ty) => ty.into(),
+            IntTy::UInt(ty) => ty.into(),
+        }
+    }
+}
+
+impl TryFrom<Identifier> for IntTy {
+    type Error = ();
+
+    fn try_from(value: Identifier) -> Result<Self, Self::Error> {
+        match value {
+            i if i == IDENTS.i8 => Ok(IntTy::Int(SIntTy::I8)),
+            i if i == IDENTS.i16 => Ok(IntTy::Int(SIntTy::I16)),
+            i if i == IDENTS.i32 => Ok(IntTy::Int(SIntTy::I32)),
+            i if i == IDENTS.i64 => Ok(IntTy::Int(SIntTy::I64)),
+            i if i == IDENTS.i128 => Ok(IntTy::Int(SIntTy::I128)),
+            i if i == IDENTS.isize => Ok(IntTy::Int(SIntTy::ISize)),
+            i if i == IDENTS.ibig => Ok(IntTy::Int(SIntTy::IBig)),
+            i if i == IDENTS.u8 => Ok(IntTy::UInt(UIntTy::U8)),
+            i if i == IDENTS.u16 => Ok(IntTy::UInt(UIntTy::U16)),
+            i if i == IDENTS.u32 => Ok(IntTy::UInt(UIntTy::U32)),
+            i if i == IDENTS.u64 => Ok(IntTy::UInt(UIntTy::U64)),
+            i if i == IDENTS.u128 => Ok(IntTy::UInt(UIntTy::U128)),
+            i if i == IDENTS.usize => Ok(IntTy::UInt(UIntTy::USize)),
+            i if i == IDENTS.ubig => Ok(IntTy::UInt(UIntTy::UBig)),
+            _ => Err(()),
+        }
+    }
+}
+
 impl fmt::Display for IntTy {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.to_name())
@@ -343,14 +410,39 @@ impl fmt::Display for IntTy {
 /// Value of the [IntConstant], this kind be either the `inlined`
 /// variant where we just fallback to using `u64` for small sized
 /// integer constants, and then in the unlikely scenario of needing
-/// more than a [u64] to represent the constant, we will then
+/// more than a [u128] to represent the constant, we will then
 /// fallback to [BigInt].
+///
+/// N.B: Values are always stored and accessed in **Big Endian** format.
 #[derive(Debug, Eq, PartialEq, Hash)]
 pub enum IntConstantValue {
     /// For small values, we store inline
-    Small([u8; 8]),
+    Small([u8; 16]),
     /// For bigger values, we just store a pointer to the `BigInt`
     Big(Box<BigInt>),
+}
+
+impl IntConstantValue {
+    /// Create a new [IntConstantValue] from little endian ordered bytes
+    pub fn from_le_bytes(bytes: &[u8]) -> Self {
+        if bytes.len() <= 16 {
+            let mut arr = [0u8; 16];
+            arr[..bytes.len()].copy_from_slice(bytes);
+
+            // If the last byte is negative, we need to sign extend
+            if bytes.last().map(|b| b & 0x80 != 0).unwrap_or(false) {
+                for i in arr.iter_mut().skip(bytes.len()) {
+                    *i = 0xff;
+                }
+            }
+
+            // Then finally reverse
+            arr.reverse();
+            Self::Small(arr)
+        } else {
+            Self::Big(Box::new(BigInt::from_signed_bytes_le(bytes)))
+        }
+    }
 }
 
 impl From<BigInt> for IntConstantValue {
@@ -359,8 +451,8 @@ impl From<BigInt> for IntConstantValue {
 
         // We want to see if we can fit this big-int in a `u128` so we can just copy it
         // directly
-        if bits <= 64 {
-            let data = (<BigInt as TryInto<i64>>::try_into(value).unwrap()).to_be_bytes();
+        if bits <= 128 {
+            let data = (<BigInt as TryInto<i128>>::try_into(value).unwrap()).to_be_bytes();
             IntConstantValue::Small(data)
         } else {
             IntConstantValue::Big(Box::new(value))
@@ -378,12 +470,21 @@ pub struct IntConstant {
     /// constant is not big enough to store this integer, then we resort to
     /// using [IntConstant
     value: IntConstantValue,
+
+    /// The type of the int constant that is stored.
+    pub ty: IntTy,
+
     /// If the constant contains a type ascription, as specified
     /// when the constant is declared, e.g. `32u64`
     pub suffix: Option<Identifier>,
 }
 
 impl IntConstant {
+    /// Create a new [IntConstant] from a given `value` and `ty`.
+    pub fn new(value: IntConstantValue, ty: IntTy, suffix: Option<Identifier>) -> Self {
+        Self { value, ty, suffix }
+    }
+
     /// Convert the constant into a Big endian order byte stream.
     pub fn to_bytes_be(&self) -> Vec<u8> {
         match &self.value {
@@ -403,21 +504,9 @@ impl IntConstant {
     /// Check if the [IntConstant] is `signed` by checking if the specified
     /// suffix matches one of the available signed integer suffixes. If no
     /// suffix is specified, the assumed type of the integer constant is `i32`
-    /// and therefore this follows the same assu¬mption.
+    /// and therefore this follows the same assumption.
     pub fn is_signed(&self) -> bool {
-        match self.suffix {
-            Some(suffix) => match suffix {
-                i if IDENTS.i8 == i => true,
-                i if IDENTS.i16 == i => true,
-                i if IDENTS.i32 == i => true,
-                i if IDENTS.i64 == i => true,
-                i if IDENTS.i128 == i => true,
-                i if IDENTS.isize == i => true,
-                i if IDENTS.ibig == i => true,
-                _ => false,
-            },
-            None => true,
-        }
+        self.ty.is_signed()
     }
 
     /// Check if the [IntConstant] is represented as the
@@ -427,7 +516,10 @@ impl IntConstant {
         matches!(self.value, IntConstantValue::Small(_))
     }
 
-    fn get_bytes(&self) -> [u8; 8] {
+    /// Assuming that the [IntConstant] is a represented as a
+    /// [IntConstantValue::Small], then this function will read the bytes of
+    /// this scalar int.
+    pub fn get_bytes(&self) -> [u8; 16] {
         match &self.value {
             IntConstantValue::Small(value) => *value,
             _ => unreachable!(),
@@ -447,13 +539,13 @@ impl IntConstant {
                 // @@Todo: don't always assume that this is a 64 biy integer.
 
                 // Flip the sign, and the convert back to `be` bytes
-                let value = -i64::from_be_bytes(inner);
+                let value = -i128::from_be_bytes(inner);
                 IntConstantValue::Small(value.to_be_bytes())
             }
             IntConstantValue::Big(inner) => IntConstantValue::Big(Box::new(inner.neg())),
         };
 
-        Self { value, suffix: self.suffix }
+        Self { value, ty: self.ty, suffix: self.suffix }
     }
 }
 
@@ -466,7 +558,10 @@ macro_rules! int_const_impl_from {
                 fn from(value: $ty) -> Self {
                     Self {
                         value: IntConstantValue::Small((value as $into).to_be_bytes()),
-                        suffix: Some(IDENTS.$ty),
+                        // @@Hack: derive the type into the identifier, this is to
+                        // avoid using a procedural macro to derive the type.
+                        ty: (IDENTS.$ty).try_into().unwrap(),
+                        suffix: Some(IDENTS.$ty)
                     }
                 }
             }
@@ -476,22 +571,22 @@ macro_rules! int_const_impl_from {
     };
 }
 
-int_const_impl_from!(i8, i16, i32, i64, isize; i64);
-int_const_impl_from!(u8, u16, u32, u64, usize; u64);
+int_const_impl_from!(i8, i16, i32, i64, isize, i128; i128);
+int_const_impl_from!(u8, u16, u32, u64, usize, u128; u128);
 
+/// Provide implementations for converting [IntConstant]s into primitive
+/// integer types. This uses the system defined sizes for the primitive
+/// integer types, and should not be used to reliably convert into target
+/// sized integers.
 macro_rules! int_const_impl_into {
-    ($($ty:ident),*) => {
+    ($($ty:ident),*; $cast: ty) => {
         $(
             impl TryFrom<IntConstant> for $ty {
                 type Error = ();
 
                 fn try_from(value: IntConstant) -> Result<Self, Self::Error> {
-                    if value.suffix == Some(IDENTS.$ty) {
-                        let value = value.to_bytes_be();
-                        Ok(<$ty>::from_be_bytes(value.try_into().unwrap()))
-                    } else {
-                        Err(())
-                    }
+                    debug_assert!(value.is_small());
+                    <$cast>::from_be_bytes(value.get_bytes()).try_into().map_err(|_| ())
                 }
             }
         )*
@@ -500,25 +595,8 @@ macro_rules! int_const_impl_into {
     };
 }
 
-int_const_impl_into!(i8, i16, i64, isize);
-int_const_impl_into!(u8, u16, u32, u64, usize);
-
-// We need to have a special implementation for `i32` as it is the default
-// integer type when no suffix is provided.
-//
-// @@Todo: potentially make `suffix` field on `IntConstant` non-optional
-impl TryFrom<IntConstant> for i32 {
-    type Error = ();
-
-    fn try_from(value: IntConstant) -> Result<Self, Self::Error> {
-        if value.suffix == Some(IDENTS.i32) || value.suffix.is_none() {
-            debug_assert!(value.is_small());
-            Ok(<i64>::from_be_bytes(value.get_bytes()) as i32)
-        } else {
-            Err(())
-        }
-    }
-}
+int_const_impl_into!(i8, i16, i32, i64, isize, i128; i128);
+int_const_impl_into!(u8, u16, u32, u64, usize, u128; u128);
 
 counter! {
     name: InternedInt,
@@ -534,19 +612,15 @@ impl Display for IntConstant {
             // rest...
             IntConstantValue::Small(value) => {
                 if self.is_signed() {
-                    write!(f, "{}", i64::from_be_bytes(*value))?;
+                    write!(f, "{}", i128::from_be_bytes(*value))?;
                 } else {
-                    write!(f, "{}", u64::from_be_bytes(*value))?;
+                    write!(f, "{}", u128::from_be_bytes(*value))?;
                 }
             }
             IntConstantValue::Big(value) => write!(f, "{value}")?,
         }
 
-        if let Some(suffix) = self.suffix {
-            write!(f, "{suffix}")?;
-        }
-
-        Ok(())
+        write!(f, "{}", self.ty)
     }
 }
 
@@ -648,7 +722,8 @@ impl ConstantMap {
         value: f64,
         suffix: Option<Identifier>,
     ) -> InternedFloat {
-        let constant = FloatConstant { value: FloatConstantValue::F64(value), suffix };
+        let constant =
+            FloatConstant { value: FloatConstantValue::F64(value), ty: FloatTy::F64, suffix };
         self.create_float_constant(constant)
     }
 
@@ -658,7 +733,8 @@ impl ConstantMap {
         value: f32,
         suffix: Option<Identifier>,
     ) -> InternedFloat {
-        let constant = FloatConstant { value: FloatConstantValue::F32(value), suffix };
+        let constant =
+            FloatConstant { value: FloatConstantValue::F32(value), ty: FloatTy::F32, suffix };
         self.create_float_constant(constant)
     }
 
@@ -685,10 +761,20 @@ impl ConstantMap {
     pub fn create_int_constant_from_value(
         &self,
         value: BigInt,
+        ty: IntTy,
         suffix: Option<Identifier>,
     ) -> InternedInt {
         let value = IntConstantValue::from(value);
-        let constant = IntConstant { value, suffix };
+        let constant = IntConstant { value, ty, suffix };
+        self.create_int_constant(constant)
+    }
+
+    /// Create a [IntConstant] from Little endian bytes and an [IntTy]. It is
+    /// assumed that the correct amount of bytes are provided to this
+    /// function.
+    pub fn create_int_constant_from_le_bytes(&self, bytes: &[u8], ty: IntTy) -> InternedInt {
+        let value = IntConstantValue::from_le_bytes(bytes);
+        let constant = IntConstant { value, ty, suffix: None };
         self.create_int_constant(constant)
     }
 
@@ -704,20 +790,31 @@ impl ConstantMap {
     /// Get the [IntConstant] behind the [InternedInt]
     pub fn lookup_int_constant(&self, id: InternedInt) -> IntConstant {
         let lookup_value = self.int_table.get(&id).unwrap();
-        let IntConstant { value, suffix } = lookup_value.value();
+        let IntConstant { value, ty, suffix } = lookup_value.value();
 
         let value = match value {
             IntConstantValue::Small(inner) => IntConstantValue::Small(*inner),
             IntConstantValue::Big(inner) => IntConstantValue::Big(inner.clone()),
         };
 
-        IntConstant { value, suffix: *suffix }
+        IntConstant { value, ty: *ty, suffix: *suffix }
     }
 
     /// Perform a transformation on the [IntConstant] behind the [InternedInt]
     /// without making a copy of the original value.
     pub fn map_int_constant<T>(&self, id: InternedInt, f: impl FnOnce(&IntConstant) -> T) -> T {
         let lookup_value = self.int_table.get(&id).unwrap();
+        f(lookup_value.value())
+    }
+
+    /// Perform a transformation on the [FloatConstant] behind the
+    /// [InternedFloat] without making a copy of the original value.
+    pub fn map_float_constant<T>(
+        &self,
+        id: InternedFloat,
+        f: impl FnOnce(&FloatConstant) -> T,
+    ) -> T {
+        let lookup_value = self.float_table.get(&id).unwrap();
         f(lookup_value.value())
     }
 
@@ -732,9 +829,10 @@ impl ConstantMap {
 
 #[cfg(test)]
 mod tests {
+    use hash_target::size::Size;
     use num_bigint::BigInt;
 
-    use super::SIntTy;
+    use super::{IntConstantValue, SIntTy};
     use crate::constant::UIntTy;
 
     #[test]
@@ -748,8 +846,8 @@ mod tests {
 
         // Check that computing the size of each type with pointer widths
         // is consistent.
-        assert_eq!(SIntTy::ISize.size(8), Some(8));
-        assert_eq!(SIntTy::ISize.size(4), Some(4));
+        assert_eq!(SIntTy::ISize.size(8), Some(Size::from_bytes(8)));
+        assert_eq!(SIntTy::ISize.size(4), Some(Size::from_bytes(4)));
     }
 
     #[test]
@@ -759,7 +857,35 @@ mod tests {
         assert_eq!(UIntTy::USize.max(8), Some(BigInt::from(usize::MAX)));
         assert_eq!(UIntTy::USize.max(4), Some(BigInt::from(u32::MAX)));
 
-        assert_eq!(UIntTy::USize.size(8), Some(8));
-        assert_eq!(UIntTy::USize.size(4), Some(4));
+        assert_eq!(UIntTy::USize.size(4), Some(Size::from_bytes(4)));
+        assert_eq!(UIntTy::USize.size(8), Some(Size::from_bytes(8)));
+    }
+
+    #[test]
+    fn test_int_constant_conversions() {
+        let value = -7i32;
+        let constant = IntConstantValue::from_le_bytes(&value.to_le_bytes());
+        assert_eq!(
+            IntConstantValue::Small([
+                255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 249
+            ]),
+            constant
+        );
+
+        let value = -7i32;
+        let constant = IntConstantValue::from_le_bytes(&value.to_le_bytes());
+        assert_eq!(
+            IntConstantValue::Small([
+                255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 249
+            ]),
+            constant
+        );
+
+        let value = 7i32;
+        let constant = IntConstantValue::from_le_bytes(&value.to_le_bytes());
+        assert_eq!(
+            IntConstantValue::Small([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7]),
+            constant
+        );
     }
 }

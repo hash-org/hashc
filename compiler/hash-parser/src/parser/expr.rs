@@ -788,12 +788,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 // Now read the value and verify that it has no numeric prefix
                 let interned_lit = CONSTANT_MAP.lookup_int_constant(value);
 
-                if let Some(suffix )= interned_lit.suffix {
+                if let Some(suffix) = interned_lit.suffix {
                     return self.err_with_location(ParseErrorKind::DisallowedSuffix(suffix), None, None, token.span)?;
                 }
 
                 self.skip_token();
-                let value = usize::try_from(interned_lit.to_big_int()).map_err(|_| {
+                let value = usize::try_from(interned_lit).map_err(|_| {
                     self.make_err(ParseErrorKind::InvalidPropertyAccess, None, None, Some(token.span))
                 })?;
 

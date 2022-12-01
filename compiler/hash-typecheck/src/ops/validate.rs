@@ -3,6 +3,7 @@ use std::collections::HashSet;
 
 use hash_ast::ast::{ParamOrigin, RangeEnd};
 use hash_reporting::diagnostic::Diagnostics;
+use hash_source::constant::CONSTANT_MAP;
 use hash_types::{
     args::ArgsId,
     mods::{ModDefId, ModDefOrigin},
@@ -1213,10 +1214,12 @@ impl<'tc> Validator<'tc> {
                 _ => Ok(()),
             },
             (
-                Term::Level0(Level0Term::Lit(LitTerm::Int { value: lhs, kind: lhs_kind })),
-                Term::Level0(Level0Term::Lit(LitTerm::Int { value: rhs, kind: rhs_kind })),
+                Term::Level0(Level0Term::Lit(LitTerm::Int { value: lhs })),
+                Term::Level0(Level0Term::Lit(LitTerm::Int { value: rhs })),
             ) => {
                 let ptr_width = self.global_storage().target_pointer_width;
+                let lhs_kind = CONSTANT_MAP.map_int_constant(lhs, |val| val.ty);
+                let rhs_kind = CONSTANT_MAP.map_int_constant(rhs, |val| val.ty);
 
                 // Check that the integer type is sized, if it is not then we currently
                 // say that this is not supported...

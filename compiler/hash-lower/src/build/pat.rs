@@ -4,7 +4,8 @@ use hash_ir::{
     ty::{IrTyId, Mutability},
 };
 use hash_source::identifier::Identifier;
-use hash_types::pats::BindingPat;
+use hash_types::pats::{BindingPat, Pat};
+use hash_utils::store::Store;
 
 use super::{BlockAnd, Builder};
 use crate::build::{unpack, BlockAndExtend};
@@ -18,14 +19,14 @@ impl<'tcx> Builder<'tcx> {
         match pat.body {
             ast::Pat::Binding(ast::BindingPat { name: _, visibility: _, mutability: _ }) => {
                 // resolve the type of this binding
-                let pat = self.get_pat_id_of_node(node_id);
-                let BindingPat { mutability, name, .. } = pat.into_bind().unwrap();
+                let (name, mutability) =
+                    self.tcx.pat_store.map_fast(self.get_pat_id_of_node(node_id), |pat| {
+                        let Pat::Binding(BindingPat { mutability, name, .. }) = pat else {
+                            unreachable!("expected binding pattern");
+                        };
 
-                // @@Fugly: convert the provided mutability into **our** mutability
-                let mutability = match mutability {
-                    hash_types::scope::Mutability::Immutable => Mutability::Immutable,
-                    hash_types::scope::Mutability::Mutable => Mutability::Mutable,
-                };
+                        (*name, (*mutability).into())
+                    });
 
                 let ty = self.get_ty_id_of_node(node_id);
                 self.declare_binding(name, ty, mutability)

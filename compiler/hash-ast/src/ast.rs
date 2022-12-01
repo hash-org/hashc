@@ -8,7 +8,7 @@ use std::{
 };
 
 use hash_source::{
-    constant::{FloatTy, IntTy, InternedFloat, InternedInt, InternedStr},
+    constant::{FloatTy, IntTy, InternedFloat, InternedInt, InternedStr, SIntTy},
     identifier::Identifier,
     location::Span,
 };
@@ -602,6 +602,16 @@ define_tree! {
         Suffixed(IntTy),
         /// No provided suffix type, so defaults to `i32`
         Unsuffixed,
+    }
+
+    impl IntLitKind {
+        /// Get the type of the integer literal
+        pub fn ty(&self) -> IntTy {
+            match self {
+                IntLitKind::Suffixed(ty) => *ty,
+                IntLitKind::Unsuffixed => IntTy::Int(SIntTy::I32),
+            }
+        }
     }
 
     impl Display for IntLitKind {
@@ -1290,6 +1300,13 @@ define_tree! {
         ///
         /// Will be executed if the pattern succeeds.
         pub expr: Child!(Expr),
+    }
+
+    impl MatchCase {
+        /// Check if the pattern of the case is an `if-pattern`
+        pub fn has_if_pat(&self) -> bool {
+            matches!(self.pat.body(), Pat::If(_))
+        }
     }
 
     /// The origin of a match block when the AST is

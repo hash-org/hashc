@@ -126,11 +126,11 @@ pub(crate) struct IrGenMode {
 
     /// If the IR should be printed to stdout or not, and in which
     /// format, options are `pretty` or `graph`.
-    #[arg(long, value_enum)]
+    #[arg(long, value_enum, default_value_t = IrDumpMode::Pretty)]
     pub(crate) dump_mode: IrDumpMode,
 
     /// Whether to print the IR to stdout or not.
-    #[arg(long)]
+    #[arg(long, default_value_t = false)]
     pub(crate) dump: bool,
 
     /// Whether the IR should use `checked` operations, this flag is

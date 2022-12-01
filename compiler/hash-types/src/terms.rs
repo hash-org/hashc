@@ -5,9 +5,9 @@ use std::{
     fmt::{self, Display},
 };
 
-use hash_ast::ast::{IntLit, IntLitKind};
+use hash_ast::ast::IntLit;
 use hash_source::{
-    constant::{IntTy, InternedStr, SIntTy, CONSTANT_MAP},
+    constant::{InternedInt, InternedStr, CONSTANT_MAP},
     identifier::Identifier,
 };
 use hash_utils::{
@@ -16,7 +16,6 @@ use hash_utils::{
         CloneStore, DefaultSequenceStore, DefaultStore, SequenceStore, SequenceStoreKey, Store,
     },
 };
-use num_bigint::BigInt;
 
 use crate::{
     args::ArgsId,
@@ -264,8 +263,11 @@ pub struct AccessTerm {
 /// A literal term, which is level 0.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LitTerm {
+    /// String value
     Str(InternedStr),
-    Int { value: BigInt, kind: IntTy },
+    /// Integer constant kind, with an associated value.
+    Int { value: InternedInt },
+    /// Constant character kind
     Char(char),
 }
 
@@ -283,14 +285,7 @@ impl From<String> for LitTerm {
 
 impl From<IntLit> for LitTerm {
     fn from(lit: IntLit) -> Self {
-        let value = CONSTANT_MAP.lookup_int_constant(lit.value);
-
-        match lit.kind {
-            IntLitKind::Suffixed(kind) => LitTerm::Int { value: value.to_big_int(), kind },
-            IntLitKind::Unsuffixed => {
-                LitTerm::Int { value: value.to_big_int(), kind: IntTy::Int(SIntTy::I32) }
-            }
-        }
+        LitTerm::Int { value: lit.value }
     }
 }
 
@@ -756,17 +751,20 @@ impl fmt::Display for ForFormatting<'_, &Level0Term> {
                     LitTerm::Str(str) => {
                         write!(f, "\"{str}\"")
                     }
-                    LitTerm::Int { value, kind } => {
+                    LitTerm::Int { value } => {
                         let pointer_width = self.global_storage.target_pointer_width;
+                        let kind = CONSTANT_MAP.map_int_constant(*value, |val| val.ty);
 
                         // It's often the case that users don't include the range of the entire
                         // integer and so we will write `-2147483648..x` and
                         // same for max, what we want to do is write `MIN`
                         // and `MAX for these situations since it is easier for the
                         // user to understand the problem
-                        if let Some(min) = kind.min(pointer_width) && min == *value {
+                        let value = CONSTANT_MAP.lookup_int_constant(*value).to_big_int();
+
+                        if let Some(min) = kind.min(pointer_width) && min == value {
                             write!(f, "{kind}::MIN")
-                        } else if let Some(max) = kind.max(pointer_width) && max == *value {
+                        } else if let Some(max) = kind.max(pointer_width) && max == value {
                             write!(f, "{kind}::MAX")
                         } else {
                             write!(f, "{value}_{kind}")

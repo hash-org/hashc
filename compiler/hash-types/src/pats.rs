@@ -159,6 +159,11 @@ impl Pat {
         matches!(self, Pat::Spread(_))
     }
 
+    /// Check if this pattern is a or-pattern
+    pub fn is_or(&self) -> bool {
+        matches!(self, Pat::Or(_))
+    }
+
     /// Check if the pattern is of the [Pat::Spread] variant.
     pub fn is_bind(&self) -> bool {
         matches!(self, Pat::Binding(_))

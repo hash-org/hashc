@@ -7,9 +7,8 @@ use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Rem, Shl, Shr, Sub};
 use hash_ast::ast::{AstNodeRef, Lit};
 use hash_ir::ir::{self, BinOp, Const};
 use hash_reporting::macros::panic_on_span;
-use hash_source::{
-    constant::{FloatConstant, FloatConstantValue, IntConstant, CONSTANT_MAP},
-    identifier::IDENTS,
+use hash_source::constant::{
+    FloatConstant, FloatConstantValue, IntConstant, IntTy, SIntTy, UIntTy, CONSTANT_MAP,
 };
 
 use super::Builder;
@@ -51,17 +50,17 @@ impl<'tcx> Builder<'tcx> {
 
             // First we need to coerce the types into the same primitive integer type, we do this 
             // by checking the `suffix` and then coercing both ints into that value
-            return match lhs_const.suffix.unwrap_or(IDENTS.i32) {
-                i if i == IDENTS.i8 => fold_int_const(op, TryInto::<i8>::try_into(lhs_const).unwrap(), TryInto::<i8>::try_into(rhs_const).unwrap()),
-                i if i == IDENTS.i16 => fold_int_const(op, TryInto::<i16>::try_into(lhs_const).unwrap(), TryInto::<i16>::try_into(rhs_const).unwrap()),
-                i if i == IDENTS.i32 => fold_int_const(op, TryInto::<i32>::try_into(lhs_const).unwrap(), TryInto::<i32>::try_into(rhs_const).unwrap()),
-                i if i == IDENTS.i64 => fold_int_const(op, TryInto::<i64>::try_into(lhs_const).unwrap(), TryInto::<i64>::try_into(rhs_const).unwrap()),
-                i if i == IDENTS.isize => fold_int_const(op, TryInto::<isize>::try_into(lhs_const).unwrap(), TryInto::<isize>::try_into(rhs_const).unwrap()),
-                i if i == IDENTS.u8 => fold_int_const(op, TryInto::<u8>::try_into(lhs_const).unwrap(), TryInto::<u8>::try_into(rhs_const).unwrap()),
-                i if i == IDENTS.u16 => fold_int_const(op, TryInto::<u16>::try_into(lhs_const).unwrap(), TryInto::<u16>::try_into(rhs_const).unwrap()),
-                i if i == IDENTS.u32 => fold_int_const(op, TryInto::<u32>::try_into(lhs_const).unwrap(), TryInto::<u32>::try_into(rhs_const).unwrap()),
-                i if i == IDENTS.u64 => fold_int_const(op, TryInto::<u64>::try_into(lhs_const).unwrap(), TryInto::<u64>::try_into(rhs_const).unwrap()),
-                i if i == IDENTS.usize => fold_int_const(op, TryInto::<usize>::try_into(lhs_const).unwrap(), TryInto::<usize>::try_into(rhs_const).unwrap()),
+            return match lhs_const.ty {
+                IntTy::Int(SIntTy::I8) => fold_int_const(op, TryInto::<i8>::try_into(lhs_const).unwrap(), TryInto::<i8>::try_into(rhs_const).unwrap()),
+                IntTy::Int(SIntTy::I16) => fold_int_const(op, TryInto::<i16>::try_into(lhs_const).unwrap(), TryInto::<i16>::try_into(rhs_const).unwrap()),
+                IntTy::Int(SIntTy::I32) => fold_int_const(op, TryInto::<i32>::try_into(lhs_const).unwrap(), TryInto::<i32>::try_into(rhs_const).unwrap()),
+                IntTy::Int(SIntTy::I64) => fold_int_const(op, TryInto::<i64>::try_into(lhs_const).unwrap(), TryInto::<i64>::try_into(rhs_const).unwrap()),
+                IntTy::Int(SIntTy::ISize) => fold_int_const(op, TryInto::<isize>::try_into(lhs_const).unwrap(), TryInto::<isize>::try_into(rhs_const).unwrap()),
+                IntTy::UInt(UIntTy::U8) => fold_int_const(op, TryInto::<u8>::try_into(lhs_const).unwrap(), TryInto::<u8>::try_into(rhs_const).unwrap()),
+                IntTy::UInt(UIntTy::U16) => fold_int_const(op, TryInto::<u16>::try_into(lhs_const).unwrap(), TryInto::<u16>::try_into(rhs_const).unwrap()),
+                IntTy::UInt(UIntTy::U32) => fold_int_const(op, TryInto::<u32>::try_into(lhs_const).unwrap(), TryInto::<u32>::try_into(rhs_const).unwrap()),
+                IntTy::UInt(UIntTy::U64) => fold_int_const(op, TryInto::<u64>::try_into(lhs_const).unwrap(), TryInto::<u64>::try_into(rhs_const).unwrap()),
+                IntTy::UInt(UIntTy::U128) => fold_int_const(op, TryInto::<usize>::try_into(lhs_const).unwrap(), TryInto::<usize>::try_into(rhs_const).unwrap()),
                 _ => unreachable!(),
             }
         }

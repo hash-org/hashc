@@ -3,10 +3,10 @@
 
 use std::{cell::Cell, iter};
 
-use error::{LexerDiagnostics, LexerError, LexerErrorKind, LexerResult};
+use error::{LexerDiagnostics, LexerError, LexerErrorKind, LexerResult, NumericLitKind};
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::{
-    constant::CONSTANT_MAP,
+    constant::{IntTy, SIntTy, CONSTANT_MAP},
     identifier::{Identifier, IDENTS},
     location::{SourceLocation, Span},
     SourceId,
@@ -96,7 +96,11 @@ impl<'a> Lexer<'a> {
         kind: LexerErrorKind,
         span: Span,
     ) -> TokenKind {
-        self.add_error(LexerError::new(message, kind, SourceLocation { span, id: self.source_id }));
+        self.add_error(LexerError {
+            message,
+            kind,
+            location: SourceLocation { span, id: self.source_id },
+        });
 
         TokenKind::Err
     }
@@ -110,7 +114,7 @@ impl<'a> Lexer<'a> {
         kind: LexerErrorKind,
         span: Span,
     ) -> Result<T, LexerError> {
-        Err(LexerError::new(message, kind, SourceLocation { span, id: self.source_id }))
+        Err(LexerError { message, kind, location: SourceLocation { span, id: self.source_id } })
     }
 
     /// Returns a reference to the stored token trees for the current job
@@ -399,10 +403,10 @@ impl<'a> Lexer<'a> {
     /// Function to create an integer constant from characters and
     /// a specific radix.
     fn create_int_const(
-        &self,
+        &mut self,
         chars: &str,
         radix: u32,
-        ascription: Option<Identifier>,
+        suffix: Option<Identifier>,
     ) -> TokenKind {
         // ##Safety: this can't fail since the radix is validated by the parsing, and
         //   we will always have at least one character in `chars`...
@@ -411,7 +415,19 @@ impl<'a> Lexer<'a> {
         let parsed = BigInt::from_str_radix(chars, radix).unwrap();
 
         // We need to create a interned constant here...
-        let interned_const = CONSTANT_MAP.create_int_constant_from_value(parsed, ascription);
+        let ty: IntTy = match (suffix.unwrap_or(IDENTS.i32)).try_into() {
+            Ok(ty) => ty,
+            Err(_) => {
+                self.emit_error(
+                    None,
+                    LexerErrorKind::InvalidLitSuffix(NumericLitKind::Integer, suffix.unwrap()),
+                    Span::new(self.offset.get(), self.offset.get()),
+                );
+                IntTy::Int(SIntTy::I32)
+            }
+        };
+
+        let interned_const = CONSTANT_MAP.create_int_constant_from_value(parsed, ty, suffix);
         TokenKind::IntLit(interned_const)
     }
 
@@ -453,7 +469,7 @@ impl<'a> Lexer<'a> {
             // if this does have a radix then we need to handle the radix
             if let Some(radix) = maybe_radix {
                 self.skip(); // accounting for the radix
-                let chars = self.eat_decimal_digits(radix);
+                let chars = self.eat_decimal_digits(radix).to_string();
 
                 // If we didn't get any characters, this means that
                 if chars.is_empty() {
@@ -480,7 +496,7 @@ impl<'a> Lexer<'a> {
                         Span::new(start, self.offset.get()),
                     );
                 } else {
-                    return self.create_int_const(chars, radix, suffix);
+                    return self.create_int_const(chars.as_str(), radix, suffix);
                 }
             }
         }
@@ -566,6 +582,15 @@ impl<'a> Lexer<'a> {
                         let float_const = if let Some(suffix_ident) = suffix && suffix_ident == IDENTS.f32 {
                             CONSTANT_MAP.create_f32_float_constant(value as f32, suffix)
                         } else {
+                            // Check that the suffix is correct for the literal
+                            if let Some(suffix_ident) = suffix && suffix_ident != IDENTS.f64 {
+                                self.emit_error(
+                                    None,
+                                    LexerErrorKind::InvalidLitSuffix(NumericLitKind::Float, suffix_ident),
+                                    Span::new(start, self.offset.get()),
+                                );
+                            }
+
                             CONSTANT_MAP.create_f64_float_constant(value, suffix)
                         };
 

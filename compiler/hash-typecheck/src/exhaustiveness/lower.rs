@@ -3,6 +3,7 @@
 use std::{iter::once, mem::size_of};
 
 use hash_ast::ast::{ParamOrigin, RangeEnd};
+use hash_source::constant::{IntConstant, IntConstantValue, CONSTANT_MAP};
 use hash_types::{
     mods::ModDef,
     nominals::{NominalDef, StructFields},
@@ -16,7 +17,6 @@ use hash_types::{
 use hash_utils::store::Store;
 use if_chain::if_chain;
 use itertools::Itertools;
-use num_bigint::BigInt;
 use smallvec::SmallVec;
 
 use super::{
@@ -131,9 +131,9 @@ impl<'tc> LowerPatOps<'tc> {
             Pat::Lit(term) => match reader.get_term(term) {
                 Term::Level0(Level0Term::Lit(lit)) => match lit {
                     LitTerm::Str(value) => (DeconstructedCtor::Str(value), vec![]),
-                    LitTerm::Int { value, kind } => {
+                    LitTerm::Int { value } => {
                         let ptr_width = self.global_storage().target_pointer_width;
-                        let value = Constant::from_int(value, kind, term, ptr_width);
+                        let value = Constant::from_int(value, term, ptr_width);
                         let range = self.int_range_ops().range_from_constant(value);
                         (DeconstructedCtor::IntRange(range), vec![])
                     }
@@ -444,10 +444,10 @@ impl<'tc> LowerPatOps<'tc> {
                 Term::Level0(Level0Term::Lit(LitTerm::Char(ch))) => {
                     Constant::from_char(ch, term).data()
                 }
-                Term::Level0(Level0Term::Lit(LitTerm::Int { value, kind })) => {
+                Term::Level0(Level0Term::Lit(LitTerm::Int { value })) => {
                     let ptr_width = self.global_storage().target_pointer_width;
 
-                    Constant::from_int(value, kind, term, ptr_width).data()
+                    Constant::from_int(value, term, ptr_width).data()
                 }
                 _ => tc_panic!(term, self, "term does not support lowering into range"),
             }
@@ -481,15 +481,24 @@ impl<'tc> LowerPatOps<'tc> {
 
         let (lo, hi) = if let Some(kind) = self.oracle().term_as_int_ty(ty) {
             let ptr_width = self.global_storage().target_pointer_width;
-            let size = kind.size(ptr_width).unwrap() as usize;
+            let size = kind.size(ptr_width).unwrap().bytes() as usize;
 
             // Trim the values within the stored range and then create
             // literal terms with those values...
-            let lo_val = BigInt::from_signed_bytes_le(&lo.to_le_bytes()[0..size]);
-            let hi_val = BigInt::from_signed_bytes_le(&hi.to_le_bytes()[0..size]);
+            println!("lo: {lo:#128b}\nhi: {hi:#128b}");
+            let lo_val = CONSTANT_MAP.create_int_constant(IntConstant::new(
+                IntConstantValue::from_le_bytes(&lo.to_le_bytes()[0..size]),
+                kind,
+                None,
+            ));
+            let hi_val = CONSTANT_MAP.create_int_constant(IntConstant::new(
+                IntConstantValue::from_le_bytes(&hi.to_le_bytes()[0..size]),
+                kind,
+                None,
+            ));
 
-            let lo = self.builder().create_lit_term(LitTerm::Int { value: lo_val, kind });
-            let hi = self.builder().create_lit_term(LitTerm::Int { value: hi_val, kind });
+            let lo = self.builder().create_lit_term(LitTerm::Int { value: lo_val });
+            let hi = self.builder().create_lit_term(LitTerm::Int { value: hi_val });
 
             (lo, hi)
         } else if self.oracle().term_is_char_ty(ty) {

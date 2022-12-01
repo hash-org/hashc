@@ -93,9 +93,7 @@ impl<'tc> SplitWildcardOps<'tc> {
                 kind if kind.is_signed() => {
                     // Safe to unwrap since we deal with `ibig` and `ubig` variants...
                     let ptr_width = self.global_storage().target_pointer_width;
-                    let size = kind.size(ptr_width).unwrap();
-                    let bits = (size * 8) as u128;
-
+                    let bits = kind.size(ptr_width).unwrap().bits() as u128;
                     let min = 1u128 << (bits - 1);
                     let max = min - 1;
 
@@ -106,13 +104,7 @@ impl<'tc> SplitWildcardOps<'tc> {
                     // Safe to unwrap since we deal with `ibig` and `ubig` variants...
                     let ptr_width = self.global_storage().target_pointer_width;
                     let size = kind.size(ptr_width).unwrap();
-                    let bits = size * 8;
-
-                    let shift = 128 - bits;
-
-                    // Truncate (shift left to drop out leftover values, shift right to
-                    // fill with zeroes).
-                    let max = (u128::MAX << shift) >> shift;
+                    let max = size.truncate(u128::MAX);
 
                     smallvec![make_range(0, max)]
                 }

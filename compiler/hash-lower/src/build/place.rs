@@ -13,6 +13,7 @@ use super::{unpack, BlockAnd, BlockAndExtend, Builder};
 /// A builder interface for building a [Place] with a base [Local]
 /// and a collection of projections that are applied as the
 /// [Place] is constructed.
+#[derive(Debug, Clone)]
 pub struct PlaceBuilder {
     /// The place that we are building.
     base: Local,

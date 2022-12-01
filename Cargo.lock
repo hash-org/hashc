@@ -467,13 +467,11 @@ dependencies = [
 name = "hash-lexer"
 version = "0.1.0"
 dependencies = [
- "derive_more",
  "hash-reporting",
  "hash-source",
  "hash-token",
  "num-bigint",
  "num-traits",
- "thiserror",
 ]
 
 [[package]]
@@ -485,12 +483,14 @@ dependencies = [
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
+ "hash-target",
  "hash-tree-def",
  "hash-types",
  "hash-utils",
  "index_vec",
  "num-traits",
  "rayon",
+ "smallvec",
 ]
 
 [[package]]
@@ -575,6 +575,7 @@ dependencies = [
  "derive_more",
  "fnv",
  "hash-alloc",
+ "hash-target",
  "hash-utils",
  "lazy_static",
  "num-bigint",

@@ -10,7 +10,7 @@ use hash_ir::{
     IrStorage,
 };
 use hash_source::{
-    constant::{FloatTy, SIntTy, UIntTy},
+    constant::{FloatTy, SIntTy, UIntTy, CONSTANT_MAP},
     identifier::IDENTS,
 };
 use hash_types::{
@@ -61,7 +61,7 @@ pub(super) fn lower_term(term: TermId, tcx: &GlobalStorage, ir_ctx: &IrStorage) 
             }
             Level0Term::Lit(lit_term) => match lit_term {
                 LitTerm::Str(_) => IrTy::Str,
-                LitTerm::Int { kind, .. } => kind.into(),
+                LitTerm::Int { value } => CONSTANT_MAP.map_int_constant(value, |val| val.ty).into(),
                 LitTerm::Char(_) => IrTy::Char,
             },
             Level0Term::Unit(_)
