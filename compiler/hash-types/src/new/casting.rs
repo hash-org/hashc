@@ -1,19 +1,41 @@
 //! Definitions related to type casting and coercion.
-use super::{terms::TermId, tys::TyId};
+use super::{fns::FnDefId, terms::TermId, tys::TyId};
 
-/// A coercion of a term from one type to another.
+/// The kind of a cast.
 ///
-/// This must be a valid coercion.
+/// There are two kinds of cast:
+/// 1. Type conversion: this is for casts that do not require a change in the
+/// runtime representation of the value, i.e. they are proof irrelevant.
+///
+/// 2. Value conversion: this is for casts that do require a change in the
+/// runtime representation of the value. Contains a function that converts from
+/// one to the other.
 #[derive(Debug, Clone, Copy)]
-pub struct CoerceTerm {
-    pub source_ty: TyId,
-    pub target_ty: TyId,
-    pub subject: TermId,
+pub enum CastKind {
+    /// The two types have a proof-irrelevant conversion
+    TypeConversion,
+    /// The two types have a proof-relevant conversion
+    ValueConversion(FnDefId),
 }
 
-/// Cast a given term to a given type.
+/// A term which has been cast to a different type.
+#[derive(Debug, Clone, Copy)]
+pub struct CastedTerm {
+    /// The kind of cast that occurred.
+    pub kind: CastKind,
+    // The type that the term was cast to.
+    pub target_ty: TyId,
+    // The term that was cast.
+    pub term: TermId,
+}
+
+/// Cast a given term to a given type. See [`CastKind`].
 #[derive(Debug, Clone, Copy)]
 pub struct CastTerm {
-    pub ty: TyId,
-    pub subject: TermId,
+    /// The target type to cast to.
+    pub target_ty: TyId,
+    /// The source type to cast from.
+    pub subject_ty: TyId,
+    /// The source term to cast from.
+    pub subject_term: TyId,
 }

@@ -1,6 +1,13 @@
 //! Definitions related to type and term holes.
 
-use hash_utils::{new_store_key, store::DefaultStore};
+use core::fmt;
+
+use hash_utils::{
+    new_store_key,
+    store::{CloneStore, DefaultStore},
+};
+
+use super::environment::env::{AccessToEnv, WithEnv};
 
 /// The kind of the hole.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -23,3 +30,23 @@ pub struct Hole {
 
 new_store_key!(pub HoleId);
 pub type HoleStore = DefaultStore<HoleId, Hole>;
+
+impl fmt::Display for WithEnv<'_, Hole> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}{}",
+            match self.value.kind {
+                HoleKind::Ty => "Hole",
+                HoleKind::Term => "hole",
+            },
+            self.value.id.index
+        )
+    }
+}
+
+impl fmt::Display for WithEnv<'_, HoleId> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.env().with(self.env().stores().hole().get(self.value)))
+    }
+}

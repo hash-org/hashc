@@ -1,6 +1,7 @@
 //! Main module for the hash typed semantic analysis stage, i.e. typechecking.
 
-pub mod ctx;
-pub mod env;
+pub mod diagnostics;
+pub mod environment;
+pub mod ops;
 pub mod passes;
-pub mod subs;
+pub mod primitives;

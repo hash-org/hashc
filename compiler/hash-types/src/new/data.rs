@@ -1,11 +1,14 @@
 //! Definitions related to user-defined data-types.
 
+use std::fmt::Display;
+
 use hash_utils::{
     new_sequence_store_key, new_store_key,
     store::{DefaultSequenceStore, DefaultStore},
 };
+use utility_types::omit;
 
-use super::defs::DefPatArgsId;
+use super::{defs::DefPatArgsId, environment::env::WithEnv};
 use crate::new::{
     defs::{DefArgsId, DefParamsId},
     symbols::Symbol,
@@ -19,7 +22,8 @@ use crate::new::{
 ///
 /// Each constructor must result in the original data-type, with some given
 /// arguments.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Copy, Clone)]
+#[omit(CtorDefData, [id, data_def_id, data_def_ctor_index], [Debug, Clone, Copy])]
 pub struct CtorDef {
     /// The ID of the constructor.
     pub id: CtorDefId,
@@ -77,6 +81,7 @@ pub struct CtorPat {
 /// This is a "nominal" inductively defined data type, which is how user-defined
 /// data types in Hash are done. It consists of a set of constructors, each of
 /// which provide a different way to construct the data type.
+#[omit(DataDefData, [id], [Debug, Clone, Copy])]
 #[derive(Debug, Clone, Copy)]
 pub struct DataDef {
     /// The ID of the data-type definition.
@@ -109,4 +114,22 @@ pub struct DataTy {
     pub data_def: DataDefId,
     /// The arguments to the data-type definition.
     pub args: DefArgsId,
+}
+
+impl Display for WithEnv<'_, &DataTy> {
+    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        todo!()
+    }
+}
+
+impl Display for WithEnv<'_, DataDefId> {
+    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        todo!()
+    }
+}
+
+impl Display for WithEnv<'_, &DataDef> {
+    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        todo!()
+    }
 }

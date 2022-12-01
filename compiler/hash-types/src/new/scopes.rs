@@ -3,7 +3,8 @@
 //! This defines the stack scopes themselves, as well as declarations, accesses,
 //! and assignments of variables.
 
-use hash_utils::{new_sequence_store_key, store::DefaultSequenceStore};
+use hash_utils::{new_store_key, store::DefaultStore};
+use utility_types::omit;
 
 use crate::new::{
     pats::PatId,
@@ -45,6 +46,7 @@ pub struct AssignTerm {
 }
 
 /// A variable on the stack.
+#[omit(StackMemberData, [id], [Debug, Copy, Clone])]
 #[derive(Debug, Copy, Clone)]
 pub struct StackMember {
     pub id: StackMemberId,
@@ -53,8 +55,17 @@ pub struct StackMember {
     pub ty: TyId,
     pub value: Option<TermId>,
 }
-new_sequence_store_key!(pub StackId);
-pub type StackStore = DefaultSequenceStore<StackId, StackMember>;
+
+/// A stack, which is a list of stack members.
+#[derive(Debug, Clone)]
+#[omit(StackData, [id], [Debug, Clone])]
+pub struct Stack {
+    pub id: StackId,
+    pub members: Vec<StackMember>,
+}
+
+new_store_key!(pub StackId);
+pub type StackStore = DefaultStore<StackId, Stack>;
 pub type StackMemberId = (StackId, usize);
 
 /// A block term.

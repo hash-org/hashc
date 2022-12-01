@@ -127,6 +127,15 @@ pub trait Store<Key: StoreKey, Value> {
     /// the store.
     fn internal_data(&self) -> &RefCell<Vec<Value>>;
 
+    /// Create a value inside the store, given its key, returning its key.
+    fn create_with(&self, value_fn: impl FnOnce(Key) -> Value) -> Key {
+        let mut data = self.internal_data().borrow_mut();
+        let next_index = data.len();
+        let key = Key::from_index_unchecked(next_index);
+        data.push(value_fn(key));
+        key
+    }
+
     /// Create a value inside the store, returning its key.
     fn create(&self, value: Value) -> Key {
         let mut data = self.internal_data().borrow_mut();
@@ -254,7 +263,7 @@ pub trait SequenceStoreKey: Copy + Eq + Hash {
     }
 
     /// Get the index of the entry corresponding to the key.
-    fn index(self) -> usize {
+    fn entry_index(self) -> usize {
         let (index, _) = self.to_index_and_len();
         index
     }
@@ -308,6 +317,36 @@ pub trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
         let starting_index = data.len();
         data.extend_from_slice(values);
         Key::from_index_and_len_unchecked(starting_index, values.len())
+    }
+
+    /// Create an empty sequence of values inside the store, returning its key.
+    fn create_empty(&self) -> Key {
+        let starting_index = self.internal_data().borrow().len();
+        Key::from_index_and_len_unchecked(starting_index, 0)
+    }
+
+    /// Same as [`SequenceStore::create_from_iter()`], but each value takes its
+    /// key and index.
+    ///
+    /// The given iterator must support [`ExactSizeIterator`].
+    fn create_from_iter_with<F: FnOnce((Key, usize)) -> Value, I: IntoIterator<Item = F>>(
+        &self,
+        values: I,
+    ) -> Key
+    where
+        I::IntoIter: ExactSizeIterator,
+    {
+        let starting_index = self.internal_data().borrow().len();
+
+        let (key, values_computed) = {
+            let values = values.into_iter();
+            let key = Key::from_index_and_len_unchecked(starting_index, values.len());
+            (key, values.enumerate().map(|(i, f)| f((key, i))).collect::<Vec<_>>())
+        };
+
+        let mut data = self.internal_data().borrow_mut();
+        data.extend(values_computed.into_iter());
+        key
     }
 
     /// Create a sequence of values inside the store from an iterator-like
@@ -531,7 +570,7 @@ impl<Key: SequenceStoreKey, Value: Clone, T: SequenceStore<Key, Value>>
     type Iter<'s> = impl Iterator<Item = Value> + 's where T: 's, Key: 's;
     fn iter(&self, key: Key) -> Self::Iter<'_> {
         key.to_index_range().map(move |index| {
-            self.internal_data().borrow().get(key.index() + index).unwrap().clone()
+            self.internal_data().borrow().get(key.entry_index() + index).unwrap().clone()
         })
     }
 }
