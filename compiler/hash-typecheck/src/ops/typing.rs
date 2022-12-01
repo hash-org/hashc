@@ -1,5 +1,6 @@
 //! Contains operations to get the type of a term.
 use hash_ast::ast::ParamOrigin;
+use hash_source::{constant::CONSTANT_MAP, identifier::Identifier};
 use hash_types::{
     args::{Arg, ArgsId},
     mods::ModDefOrigin,
@@ -242,8 +243,10 @@ impl<'tc> Typer<'tc> {
                         let term = match lit_term {
                             LitTerm::Str(_) => self.core_defs().str_ty(),
                             // @@Todo: do some more sophisticated inferring here
-                            LitTerm::Int { kind, .. } => {
-                                self.core_defs().resolve_core_def(kind.to_name().into())
+                            LitTerm::Int { value } => {
+                                let kind: Identifier =
+                                    CONSTANT_MAP.map_int_constant(value, |int| int.ty).into();
+                                self.core_defs().resolve_core_def(kind)
                             }
                             LitTerm::Char(_) => self.core_defs().char_ty(),
                         };
