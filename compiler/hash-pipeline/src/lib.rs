@@ -14,13 +14,13 @@ use std::{collections::HashMap, env, time::Duration};
 
 use fs::{read_in_path, resolve_path, PRELUDE};
 use hash_ast::node_map::ModuleEntry;
-use hash_reporting::{report::Report, writer::ReportWriter};
+use hash_reporting::{builder::Reports, writer::ReportWriter};
 use hash_source::{constant::CONSTANT_MAP, ModuleKind, SourceId};
 use hash_utils::timing::timed;
 use interface::{CompilerInterface, CompilerStage};
 use settings::CompilerStageKind;
 
-pub type CompilerResult<T> = Result<T, Vec<Report>>;
+pub type CompilerResult<T> = Result<T, Reports>;
 
 /// The Hash Compiler interface. This interface allows a caller to create a
 /// [Compiler] with the specified components. This allows external tinkerers
