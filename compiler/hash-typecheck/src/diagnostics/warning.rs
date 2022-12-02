@@ -10,8 +10,8 @@
 //! job.
 
 use hash_reporting::{
-    builder::ReportBuilder,
     report::{Report, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind},
+    reporter::ReportBuilder,
 };
 use hash_types::{fmt::PrepareForFormatting, location::LocationTarget, pats::PatId, terms::TermId};
 
@@ -85,7 +85,7 @@ impl<'tc> From<TcWarningWithStorage<'tc>> for Report {
 
         match ctx.warning {
             TcWarning::UselessMatchCase { pat, subject } => {
-                builder.with_message(format!(
+                builder.message(format!(
                     "match case `{}` is redundant when matching on `{}`",
                     pat.for_formatting(ctx.global_storage()),
                     subject.for_formatting(ctx.global_storage())
@@ -106,7 +106,7 @@ impl<'tc> From<TcWarningWithStorage<'tc>> for Report {
                 }
             }
             TcWarning::UnreachablePat { pat } => {
-                builder.with_message("pattern is unreachable".to_string());
+                builder.message("pattern is unreachable".to_string());
 
                 if let Some(location) = ctx.location_store().get_location(pat) {
                     builder
@@ -114,7 +114,7 @@ impl<'tc> From<TcWarningWithStorage<'tc>> for Report {
                 }
             }
             TcWarning::OverlappingRangeEnd { range, overlapping_term, overlaps } => {
-                builder.with_message("range pattern has an overlap with another pattern");
+                builder.message("range pattern has an overlap with another pattern");
 
                 if let Some(location) = ctx.location_store().get_location(range) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -134,7 +134,7 @@ impl<'tc> From<TcWarningWithStorage<'tc>> for Report {
                 }
             }
             TcWarning::NamedTupleCoercion { original, coerced_into } => {
-                builder.with_message("named tuple is coerced into an un-named tuple");
+                builder.message("named tuple is coerced into an un-named tuple");
 
                 if let Some(location) = ctx.location_store().get_location(original) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -159,7 +159,7 @@ impl<'tc> From<TcWarningWithStorage<'tc>> for Report {
                 )));
             }
             TcWarning::Debug { ref label, location } => {
-                builder.with_message(label);
+                builder.message(label);
 
                 if let Some(location) = ctx.location_store().get_location(location) {
                     builder

@@ -53,7 +53,7 @@ fn compare_emitted_diagnostics(
 ) -> std::io::Result<()> {
     let contents = diagnostics
         .into_iter()
-        .map(|report| format!("{}", ReportWriter::new(report, &sources.source_map)))
+        .map(|report| format!("{}", ReportWriter::single(report, &sources.source_map)))
         .collect::<Vec<_>>()
         .join("\n");
 
@@ -174,7 +174,7 @@ fn handle_pass_case(
             "\ntest case did not pass:\n{}",
             diagnostics
                 .into_iter()
-                .map(|report| format!("{}", ReportWriter::new(report, &sources.source_map)))
+                .map(|report| format!("{}", ReportWriter::single(report, &sources.source_map)))
                 .collect::<Vec<_>>()
                 .join("\n")
         );

@@ -8,16 +8,12 @@
 pub macro panic_on_span {
     ($location:expr, $sources:expr, $fmt: expr) => {
         {
-            let mut report = $crate::builder::ReportBuilder::new();
-            report
-                .with_kind($crate::report::ReportKind::Internal)
-                .with_message($fmt)
-                .add_element($crate::report::ReportElement::CodeBlock($crate::report::ReportCodeBlock::new(
-                    $location,
-                    "here",
-                )));
+            let mut reporter = $crate::reporter::Reporter::new();
+            reporter.internal()
+                .message($fmt)
+                .add_named_span($location, "here");
 
-            eprintln!("{}", $crate::writer::ReportWriter::new(report.build(), $sources));
+            eprintln!("{}", $crate::writer::ReportWriter::new(reporter.into_reports(), $sources));
             std::panic::panic_any("A fatal error occurred during compilation on the reported node");
         }
     },

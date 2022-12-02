@@ -4,7 +4,7 @@
 pub(crate) mod error;
 pub(crate) mod warning;
 
-use hash_reporting::{diagnostic::Diagnostics, report::Report};
+use hash_reporting::{diagnostic::Diagnostics, report::Report, reporter::Reports};
 use smallvec::SmallVec;
 
 use self::{
@@ -51,12 +51,10 @@ impl<'stream, 'resolver> Diagnostics<ParseError, ParseWarning> for AstGen<'strea
         self.diagnostics
             .errors
             .into_iter()
-            .map(|err| err.into())
-            .chain(
-                self.diagnostics.warnings.into_iter().map(|warn| {
-                    ParseWarningWrapper(warn, self.resolver.current_source_id()).into()
-                }),
-            )
+            .flat_map(Reports::from)
+            .chain(self.diagnostics.warnings.into_iter().flat_map(|warn| {
+                Reports::from(ParseWarningWrapper(warn, self.resolver.current_source_id()))
+            }))
             .collect()
     }
 

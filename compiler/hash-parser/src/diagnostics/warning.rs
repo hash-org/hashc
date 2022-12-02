@@ -6,8 +6,8 @@ use std::fmt::Display;
 use derive_more::Constructor;
 use hash_ast::ast::Expr;
 use hash_reporting::{
-    builder::ReportBuilder,
     report::{Report, ReportCodeBlock, ReportElement, ReportKind},
+    reporter::{Reporter, Reports},
 };
 use hash_source::{
     location::{SourceLocation, Span},
@@ -80,9 +80,8 @@ pub enum WarningKind {
 
 pub(crate) struct ParseWarningWrapper(pub ParseWarning, pub SourceId);
 
-impl From<ParseWarningWrapper> for Report {
+impl From<ParseWarningWrapper> for Reports {
     fn from(ParseWarningWrapper(warning, id): ParseWarningWrapper) -> Self {
-        let mut builder = ReportBuilder::new();
         let mut span_label = "".to_string();
 
         let message = match warning.kind {
@@ -114,13 +113,12 @@ impl From<ParseWarningWrapper> for Report {
             }
         };
 
-        builder.with_kind(ReportKind::Warning).with_message(message).add_element(
-            ReportElement::CodeBlock(ReportCodeBlock::new(
-                SourceLocation { span: warning.location, id },
-                span_label,
-            )),
-        );
+        let mut reporter = Reporter::new();
+        reporter
+            .warning()
+            .message(message)
+            .add_named_span(SourceLocation { span: warning.location, id }, span_label);
 
-        builder.build()
+        reporter.into_reports()
     }
 }

@@ -3,8 +3,8 @@
 use hash_ast::ast::{MatchOrigin, ParamOrigin, RangeEnd};
 use hash_error_codes::error_codes::HashErrorCode;
 use hash_reporting::{
-    builder::ReportBuilder,
     report::{Report, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind},
+    reporter::ReportBuilder,
 };
 use hash_source::identifier::Identifier;
 use hash_types::{
@@ -255,7 +255,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
 
         match &ctx.error {
             TcError::CannotUnify { src, target } => {
-                builder.with_error_code(HashErrorCode::TypeMismatch).with_message(format!(
+                builder.code(HashErrorCode::TypeMismatch).message(format!(
                     "types mismatch, wanted `{}`, but got `{}`",
                     target.for_formatting(ctx.global_storage()),
                     src.for_formatting(ctx.global_storage())
@@ -293,16 +293,14 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
 
                 match &reason {
                     ParamUnificationErrorReason::LengthMismatch => {
-                        builder
-                            .with_error_code(HashErrorCode::ParameterLengthMismatch)
-                            .with_message(format!(
-                                "{} expects {} argument{}, however {} argument{} were given",
-                                origin,
-                                target_args.len(),
-                                pluralise!(target_args.len()),
-                                src_args.len(),
-                                pluralise!(src_args.len())
-                            ));
+                        builder.code(HashErrorCode::ParameterLengthMismatch).message(format!(
+                            "{} expects {} argument{}, however {} argument{} were given",
+                            origin,
+                            target_args.len(),
+                            pluralise!(target_args.len()),
+                            src_args.len(),
+                            pluralise!(src_args.len())
+                        ));
 
                         // Provide information about the location of the target type if available
                         if let Some(location) = ctx.location_store().get_location(target) {
@@ -333,8 +331,8 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                         // We know that the error occurred at the particular index of both argument
                         // lists.
                         builder
-                            .with_error_code(HashErrorCode::ParameterLengthMismatch)
-                            .with_message(format!("{origin} argument names are mis-matching",));
+                            .code(HashErrorCode::ParameterLengthMismatch)
+                            .message(format!("{origin} argument names are mis-matching",));
 
                         let src_arg = &src_args.positional()[*index];
                         let target_arg = &target_args.positional()[*index];
@@ -421,16 +419,14 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
 
                 match &reason {
                     ParamUnificationErrorReason::LengthMismatch => {
-                        builder
-                            .with_error_code(HashErrorCode::ParameterLengthMismatch)
-                            .with_message(format!(
-                                "{} expects {} parameter{}, however {} parameter{} were given",
-                                origin,
-                                target_params.len(),
-                                pluralise!(target_params.len()),
-                                src_params.len(),
-                                pluralise!(src_params.len())
-                            ));
+                        builder.code(HashErrorCode::ParameterLengthMismatch).message(format!(
+                            "{} expects {} parameter{}, however {} parameter{} were given",
+                            origin,
+                            target_params.len(),
+                            pluralise!(target_params.len()),
+                            src_params.len(),
+                            pluralise!(src_params.len())
+                        ));
 
                         // Provide information about the location of the target type if available
                         if let Some(location) = ctx.location_store().get_location(*target) {
@@ -457,8 +453,8 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                         // We know that the error occurred at the particular index of both parameter
                         // lists.
                         builder
-                            .with_error_code(HashErrorCode::ParameterNameMismatch)
-                            .with_message(format!("{origin} parameter names are mis-matching",));
+                            .code(HashErrorCode::ParameterNameMismatch)
+                            .message(format!("{origin} parameter names are mis-matching",));
 
                         let src_param = &src_params.positional()[*index];
                         let target_param = &target_params.positional()[*index];
@@ -536,7 +532,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 }
             }
             TcError::NotATyFn { term } => {
-                builder.with_error_code(HashErrorCode::TyIsNotTyFn).with_message(format!(
+                builder.code(HashErrorCode::TyIsNotTyFn).message(format!(
                     "type `{}` is not a type function",
                     term.for_formatting(ctx.global_storage())
                 ));
@@ -552,12 +548,10 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 }
             }
             TcError::CannotUseValueAsTy { value } => {
-                builder.with_error_code(HashErrorCode::ValueCannotBeUsedAsType).with_message(
-                    format!(
-                        "type `{}` is not a type function",
-                        value.for_formatting(ctx.global_storage())
-                    ),
-                );
+                builder.code(HashErrorCode::ValueCannotBeUsedAsType).message(format!(
+                    "type `{}` is not a type function",
+                    value.for_formatting(ctx.global_storage())
+                ));
 
                 if let Some(location) = ctx.location_store().get_location(value) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -574,13 +568,13 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
             } => {
                 let params = ctx.params_store().get_owned_param_list(*params_id);
 
-                builder.with_error_code(HashErrorCode::ParameterLengthMismatch);
+                builder.code(HashErrorCode::ParameterLengthMismatch);
 
                 let params_origin = ctx.params_store().get_origin(*params_id);
 
                 match params_origin {
                     ParamOrigin::Struct => {
-                        builder.with_error_code(HashErrorCode::MissingStructField);
+                        builder.code(HashErrorCode::MissingStructField);
                         // @@ErrorReporting: Get the name of the struct...
 
                         if params.len() > args.len() {
@@ -594,7 +588,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                                 SequenceDisplayOptions::with_limit(SequenceJoinMode::All, 5),
                             );
 
-                            builder.with_message(format!(
+                            builder.message(format!(
                                 "struct literal is missing the field{} {formatted_missing_fields}",
                                 pluralise!(missing_fields.len()),
                             ));
@@ -622,7 +616,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                                 SequenceDisplayOptions::with_limit(SequenceJoinMode::All, 5),
                             );
 
-                            builder.with_message(format!(
+                            builder.message(format!(
                                 "struct literal does not have the fields{} {formatted_extra_fields}",
                                 pluralise!(extra_fields.len())
                             ));
@@ -657,14 +651,12 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     _ => {
                         // @@ErrorReporting: get more customised messages for other variant
                         // mismatch...
-                        builder
-                            .with_error_code(HashErrorCode::ParameterLengthMismatch)
-                            .with_message(format!(
-                                "{} expects {} arguments, however {} arguments were given",
-                                params_origin,
-                                params.len(),
-                                args.len()
-                            ));
+                        builder.code(HashErrorCode::ParameterLengthMismatch).message(format!(
+                            "{} expects {} arguments, however {} arguments were given",
+                            params_origin,
+                            params.len(),
+                            args.len()
+                        ));
 
                         // Provide information about the location of the target type if available
                         if let Some(location) = ctx.location_store().get_location(*args_location) {
@@ -687,8 +679,8 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
             }
             TcError::ParamNotFound { args_kind, params_subject, name } => {
                 builder
-                    .with_error_code(HashErrorCode::UnresolvedNameInValue)
-                    .with_message(format!("{} `{name}` is not defined", args_kind.as_noun()));
+                    .code(HashErrorCode::UnresolvedNameInValue)
+                    .message(format!("{} `{name}` is not defined", args_kind.as_noun()));
 
                 // find the parameter and report the location
                 let id = ctx.param_ops().get_name_by_index(args_kind, *name).unwrap();
@@ -768,7 +760,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     }
                 };
 
-                builder.with_error_code(HashErrorCode::ParameterInUse).with_message(format!(
+                builder.code(HashErrorCode::ParameterInUse).message(format!(
                     "parameter with name `{}` is already specified within the {}",
                     name, origin
                 ));
@@ -792,8 +784,8 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 let origin = ctx.param_ops().origin(param_kind);
 
                 builder
-                    .with_error_code(HashErrorCode::AmbiguousFieldOrder)
-                    .with_message(format!("ambiguous parameter ordering within a {origin}"));
+                    .code(HashErrorCode::AmbiguousFieldOrder)
+                    .message(format!("ambiguous parameter ordering within a {origin}"));
 
                 // Add the location of the
                 if let Some(location) = ctx.param_ops().field_location(param_kind, *index) {
@@ -807,13 +799,11 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 // @@ErrorReporting: Add the span of `name` to show where the access occurs
                 let op_member_kind = if *op == AccessOp::Namespace { "member" } else { "field" };
 
-                builder.with_error_code(HashErrorCode::UnresolvedNameInValue).with_message(
-                    format!(
-                        "the {op_member_kind} `{}` is not present within `{}`",
-                        name,
-                        value.for_formatting(ctx.global_storage())
-                    ),
-                );
+                builder.code(HashErrorCode::UnresolvedNameInValue).message(format!(
+                    "the {op_member_kind} `{}` is not present within `{}`",
+                    name,
+                    value.for_formatting(ctx.global_storage())
+                ));
 
                 if let Some(location) = ctx.location_store().get_location(value) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -828,10 +818,9 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 }
             }
             TcError::UnresolvedVariable { name, value } => {
-                builder.with_error_code(HashErrorCode::UnresolvedSymbol).with_message(format!(
-                    "variable `{}` is not defined in the current scope",
-                    name
-                ));
+                builder
+                    .code(HashErrorCode::UnresolvedSymbol)
+                    .message(format!("variable `{}` is not defined in the current scope", name));
 
                 if let Some(location) = ctx.location_store().get_location(value) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -841,9 +830,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 }
             }
             TcError::UnsupportedAccess { name, value } => {
-                builder
-                    .with_error_code(HashErrorCode::UnsupportedAccess)
-                    .with_message("unsupported access");
+                builder.code(HashErrorCode::UnsupportedAccess).message("unsupported access");
 
                 if let Some(location) = ctx.location_store().get_location(value) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -857,12 +844,10 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 }
             }
             TcError::UnsupportedNamespaceAccess { name, value } => {
-                builder.with_error_code(HashErrorCode::UnsupportedNamespaceAccess).with_message(
-                    format!(
-                        "unsupported namespace access, `{}` cannot be namespaced",
-                        value.for_formatting(ctx.global_storage())
-                    ),
-                );
+                builder.code(HashErrorCode::UnsupportedNamespaceAccess).message(format!(
+                    "unsupported namespace access, `{}` cannot be namespaced",
+                    value.for_formatting(ctx.global_storage())
+                ));
 
                 if let Some(location) = ctx.location_store().get_location(value) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -877,12 +862,10 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
             }
 
             TcError::UnsupportedPropertyAccess { name, value } => {
-                builder.with_error_code(HashErrorCode::UnsupportedPropertyAccess).with_message(
-                    format!(
-                        "unsupported property access for type `{}`",
-                        value.for_formatting(ctx.global_storage())
-                    ),
-                );
+                builder.code(HashErrorCode::UnsupportedPropertyAccess).message(format!(
+                    "unsupported property access for type `{}`",
+                    value.for_formatting(ctx.global_storage())
+                ));
 
                 if let Some(location) = ctx.location_store().get_location(value) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -896,7 +879,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 }
             }
             TcError::InvalidTyFnApplication { type_fn, cases, unification_errors, .. } => {
-                builder.with_error_code(HashErrorCode::TypeMismatch).with_message(format!(
+                builder.code(HashErrorCode::TypeMismatch).message(format!(
                     "the type function `{}` cannot be applied",
                     type_fn.for_formatting(ctx.global_storage()),
                 ));
@@ -928,8 +911,8 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
             }
             TcError::InvalidMergeElement { term } => {
                 builder
-                    .with_error_code(HashErrorCode::InvalidMergeElement)
-                    .with_message("invalid element within a merge declaration");
+                    .code(HashErrorCode::InvalidMergeElement)
+                    .message("invalid element within a merge declaration");
 
                 if let Some(location) = ctx.location_store().get_location(term) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -947,8 +930,8 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
             }
             TcError::InvalidUnionElement { term } => {
                 builder
-                    .with_error_code(HashErrorCode::InvalidUnionElement)
-                    .with_message("invalid element within a union");
+                    .code(HashErrorCode::InvalidUnionElement)
+                    .message("invalid element within a union");
 
                 if let Some(location) = ctx.location_store().get_location(term) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -966,8 +949,8 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
             }
             TcError::InvalidTyFnParamTy { param_ty } => {
                 builder
-                    .with_error_code(HashErrorCode::DisallowedType)
-                    .with_message("invalid function parameter type".to_string());
+                    .code(HashErrorCode::DisallowedType)
+                    .message("invalid function parameter type".to_string());
 
                 if let Some(location) = ctx.location_store().get_location(param_ty) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -981,8 +964,8 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
             }
             TcError::InvalidTyFnReturnTy { return_ty } => {
                 builder
-                    .with_error_code(HashErrorCode::DisallowedType)
-                    .with_message("invalid function return type".to_string());
+                    .code(HashErrorCode::DisallowedType)
+                    .message("invalid function return type".to_string());
 
                 if let Some(location) = ctx.location_store().get_location(return_ty) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -996,8 +979,8 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
             }
             TcError::InvalidTyFnReturnValue { return_value } => {
                 builder
-                    .with_error_code(HashErrorCode::DisallowedType)
-                    .with_message("invalid type of function return value".to_string());
+                    .code(HashErrorCode::DisallowedType)
+                    .message("invalid type of function return value".to_string());
 
                 if let Some(location) = ctx.location_store().get_location(return_value) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -1020,7 +1003,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 initial_term,
                 offending_term,
             } => {
-                builder.with_error_code(HashErrorCode::DisallowedType).with_message(
+                builder.code(HashErrorCode::DisallowedType).message(
                     "merge declarations should only contain a single nominal term".to_string(),
                 );
 
@@ -1054,10 +1037,8 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 let offender_location = ctx.location_store().get_location(offending_term).unwrap();
 
                 builder
-                    .with_error_code(HashErrorCode::DisallowedType)
-                    .with_message(
-                        "this merge declaration should only contain level-1 terms".to_string(),
-                    )
+                    .code(HashErrorCode::DisallowedType)
+                    .message("this merge declaration should only contain level-1 terms".to_string())
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "in this merge declaration",
@@ -1077,10 +1058,8 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 let offender_location = ctx.location_store().get_location(offending_term).unwrap();
 
                 builder
-                    .with_error_code(HashErrorCode::DisallowedType)
-                    .with_message(
-                        "this merge declaration should only contain level-2 terms".to_string(),
-                    )
+                    .code(HashErrorCode::DisallowedType)
+                    .message("this merge declaration should only contain level-2 terms".to_string())
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "in this merge declaration",
@@ -1095,8 +1074,8 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
             }
             TcError::NeedMoreTypeAnnotationsToResolve { term } => {
                 builder
-                    .with_error_code(HashErrorCode::UnresolvedType)
-                    .with_message("insufficient information to resolve types".to_string());
+                    .code(HashErrorCode::UnresolvedType)
+                    .message("insufficient information to resolve types".to_string());
 
                 if let Some(location) = ctx.location_store().get_location(term) {
                     builder
@@ -1108,12 +1087,10 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 }
             }
             TcError::TermIsNotRuntimeInstantiable { term } => {
-                builder.with_error_code(HashErrorCode::NonRuntimeInstantiable).with_message(
-                    format!(
-                        "the type `{}` is not runtime instantiable",
-                        term.for_formatting(ctx.global_storage())
-                    ),
-                );
+                builder.code(HashErrorCode::NonRuntimeInstantiable).message(format!(
+                    "the type `{}` is not runtime instantiable",
+                    term.for_formatting(ctx.global_storage())
+                ));
 
                 if let Some(location) = ctx.location_store().get_location(term) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -1124,8 +1101,8 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
             }
             TcError::UnsupportedTyFnApplication { subject_id } => {
                 builder
-                    .with_error_code(HashErrorCode::UnsupportedTyFnApplication)
-                    .with_message("unsupported subject in type function application");
+                    .code(HashErrorCode::UnsupportedTyFnApplication)
+                    .message("unsupported subject in type function application");
 
                 if let Some(location) = ctx.location_store().get_location(subject_id) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -1136,8 +1113,8 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
             }
             TcError::AmbiguousAccess { access, results } => {
                 builder
-                    .with_error_code(HashErrorCode::AmbiguousAccess)
-                    .with_message(format!("ambiguous access of {} `{}`", access.op, access.name));
+                    .code(HashErrorCode::AmbiguousAccess)
+                    .message(format!("ambiguous access of {} `{}`", access.op, access.name));
 
                 // show the subject if possible
                 if let Some(location) = ctx.location_store().get_location(access.subject) {
@@ -1166,11 +1143,8 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
             }
             TcError::InvalidPropertyAccessOfNonMethod { subject, property } => {
                 builder
-                    .with_error_code(HashErrorCode::InvalidPropertyAccessOfNonMethod)
-                    .with_message(format!(
-                        "property `{}` access yields non-method result",
-                        property
-                    ));
+                    .code(HashErrorCode::InvalidPropertyAccessOfNonMethod)
+                    .message(format!("property `{}` access yields non-method result", property));
 
                 if let Some(location) = ctx.location_store().get_location(subject) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -1181,8 +1155,8 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
             }
             TcError::UninitialisedMemberNotAllowed { member } => {
                 builder
-                    .with_error_code(HashErrorCode::UninitialisedMember)
-                    .with_message("members must be initialised in the current scope");
+                    .code(HashErrorCode::UninitialisedMember)
+                    .message("members must be initialised in the current scope");
 
                 if let Some(location) = ctx.location_store().get_location(member) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -1192,7 +1166,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 }
             }
             TcError::CannotImplementNonTrait { term } => {
-                builder.with_error_code(HashErrorCode::TypeIsNotTrait).with_message(format!(
+                builder.code(HashErrorCode::TypeIsNotTrait).message(format!(
                     "type `{}` is not a trait",
                     term.for_formatting(ctx.global_storage())
                 ));
@@ -1224,13 +1198,11 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     SequenceDisplayOptions::with_limit(SequenceJoinMode::All, 6),
                 );
 
-                builder.with_error_code(HashErrorCode::TraitImplMissingMember).with_message(
-                    format!(
-                        "trait `{}` is missing the member{} {missing_members}",
-                        trt_def_term_id.for_formatting(ctx.global_storage()),
-                        pluralise!(missing_trt_members.len())
-                    ),
-                );
+                builder.code(HashErrorCode::TraitImplMissingMember).message(format!(
+                    "trait `{}` is missing the member{} {missing_members}",
+                    trt_def_term_id.for_formatting(ctx.global_storage()),
+                    pluralise!(missing_trt_members.len())
+                ));
 
                 if let Some(location) = ctx.location_store().get_location(trt_impl_term_id) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -1254,15 +1226,13 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 }
             }
             TcError::MethodNotAMemberOfTrait { trt_def_term_id, member, name } => {
-                builder.with_error_code(HashErrorCode::MethodNotAMemberOfTrait).with_message(
-                    format!(
-                        "method `{name}` is not a member of trait `{}`",
-                        trt_def_term_id.for_formatting_with_opts(
-                            ctx.global_storage(),
-                            TcFormatOpts { expand: false }
-                        ),
+                builder.code(HashErrorCode::MethodNotAMemberOfTrait).message(format!(
+                    "method `{name}` is not a member of trait `{}`",
+                    trt_def_term_id.for_formatting_with_opts(
+                        ctx.global_storage(),
+                        TcFormatOpts { expand: false }
                     ),
-                );
+                ));
 
                 if let Some(location) = ctx.location_store().get_location(member) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -1279,7 +1249,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
             }
             TcError::InvalidCallSubject { term } => {
                 // @@Todo: error code
-                builder.with_message(format!(
+                builder.message(format!(
                     "cannot use `{}` as a function call subject",
                     term.for_formatting(ctx.global_storage())
                 ));
@@ -1293,7 +1263,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
             }
             TcError::CannotPatMatchWithoutAssignment { pat } => {
                 // @@Todo: error code
-                builder.with_message(
+                builder.message(
                     "declaration left-hand side cannot contain a pattern if no value is provided"
                         .to_string(),
                 );
@@ -1309,9 +1279,9 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 }
             }
             TcError::InvalidAssignSubject { location } => {
-                builder.with_error_code(HashErrorCode::InvalidAssignSubject).with_message(
-                    "assignment left-hand side needs to be a stack variable".to_string(),
-                );
+                builder
+                    .code(HashErrorCode::InvalidAssignSubject)
+                    .message("assignment left-hand side needs to be a stack variable".to_string());
 
                 if let Some(location) = ctx.location_store().get_location(*location) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -1321,7 +1291,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 }
             }
             TcError::NoConstructorOnType { subject } => {
-                builder.with_message(format!(
+                builder.message(format!(
                     "type `{}` has no instantiable constructor",
                     subject.for_formatting(ctx.global_storage())
                 ));
@@ -1332,7 +1302,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 }
             }
             TcError::NoCallableConstructorOnType { subject } => {
-                builder.with_message(format!(
+                builder.message(format!(
                     "type `{}` has a constant constructor, not a callable one",
                     subject.for_formatting(ctx.global_storage())
                 ));
@@ -1345,9 +1315,9 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 }
             }
             TcError::IdentifierBoundMultipleTimes { name, pat } => {
-                builder.with_error_code(HashErrorCode::IdentifierBoundMultipleTimes).with_message(
-                    format!("identifier `{name}` is bound multiple times in the same pattern"),
-                );
+                builder.code(HashErrorCode::IdentifierBoundMultipleTimes).message(format!(
+                    "identifier `{name}` is bound multiple times in the same pattern"
+                ));
 
                 if let Some(location) = ctx.location_store().get_location(pat) {
                     builder
@@ -1355,7 +1325,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 }
             }
             TcError::MissingPatternBounds { pat, bounds } => {
-                builder.with_error_code(HashErrorCode::MissingPatternBounds).with_message(format!(
+                builder.code(HashErrorCode::MissingPatternBounds).message(format!(
                     "variable{} {} are not declared in all patterns",
                     pluralise!(bounds.len()),
                     SequenceDisplay::all(bounds.as_slice())
@@ -1390,9 +1360,9 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     SequenceDisplayOptions::with_limit(SequenceJoinMode::All, 3),
                 );
 
-                builder.with_error_code(HashErrorCode::RefutablePat).with_message(format!(
-                    "refutable pattern in {origin} binding: {pats} not covered",
-                ));
+                builder
+                    .code(HashErrorCode::RefutablePat)
+                    .message(format!("refutable pattern in {origin} binding: {pats} not covered",));
 
                 if let Some(location) = ctx.location_store().get_location(pat) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -1413,8 +1383,8 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 );
 
                 builder
-                    .with_error_code(HashErrorCode::NonExhaustiveMatch)
-                    .with_message(format!("non-exhaustive patterns: {pats} not covered"));
+                    .code(HashErrorCode::NonExhaustiveMatch)
+                    .message(format!("non-exhaustive patterns: {pats} not covered"));
 
                 if let Some(location) = ctx.location_store().get_location(term) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -1431,9 +1401,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                     RangeEnd::Excluded => "lower range bound must be less than upper bound",
                 };
 
-                builder
-                    .with_error_code(HashErrorCode::InvalidRangePatBoundaries)
-                    .with_message(message);
+                builder.code(HashErrorCode::InvalidRangePatBoundaries).message(message);
 
                 if let Some(location) = ctx.location_store().get_location(term) {
                     builder
@@ -1441,12 +1409,10 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 }
             }
             TcError::UnsupportedRangePatTy { term } => {
-                builder.with_error_code(HashErrorCode::InvalidRangePatBoundaries).with_message(
-                    format!(
-                        "the type `{}` is not supported in range patterns",
-                        term.for_formatting(ctx.global_storage())
-                    ),
-                );
+                builder.code(HashErrorCode::InvalidRangePatBoundaries).message(format!(
+                    "the type `{}` is not supported in range patterns",
+                    term.for_formatting(ctx.global_storage())
+                ));
 
                 if let Some(location) = ctx.location_store().get_location(term) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -1461,8 +1427,8 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
             }
             TcError::MemberIsImmutable { name, site, decl } => {
                 builder
-                    .with_error_code(HashErrorCode::ItemIsImmutable)
-                    .with_message(format!("cannot assign twice to immutable variable `{name}`"));
+                    .code(HashErrorCode::ItemIsImmutable)
+                    .message(format!("cannot assign twice to immutable variable `{name}`"));
 
                 if let Some(location) = ctx.location_store().get_location(decl) {
                     builder
@@ -1484,9 +1450,9 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 }
             }
             TcError::MemberMustBeImmutable { name, site } => {
-                builder.with_error_code(HashErrorCode::ItemMustBeImmutable).with_message(format!(
-                    "`{name}` must be declared as immutable in a constant scope"
-                ));
+                builder
+                    .code(HashErrorCode::ItemMustBeImmutable)
+                    .message(format!("`{name}` must be declared as immutable in a constant scope"));
 
                 if let Some(location) = ctx.location_store().get_location(site) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(

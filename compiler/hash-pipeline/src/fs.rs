@@ -5,10 +5,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use hash_reporting::{
-    builder::ReportBuilder,
-    report::{Report, ReportKind},
-};
+use hash_reporting::report::{Report, ReportKind};
 use hash_source::constant::{InternedStr, CONSTANT_MAP};
 
 /// The location of a build directory of this package, this used to resolve
@@ -59,8 +56,9 @@ impl Display for ImportError {
 impl ImportError {
     /// Create a [Report] from the [ImportError].
     pub fn create_report(&self) -> Report {
-        let mut builder = ReportBuilder::new();
-        builder.with_kind(ReportKind::Error).with_message(format!("{self}")).build()
+        let mut report = Report::new();
+        report.kind(ReportKind::Error).message(format!("{self}"));
+        report
     }
 }
 

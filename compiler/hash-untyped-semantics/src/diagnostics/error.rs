@@ -6,8 +6,8 @@ use hash_ast::{
 };
 use hash_error_codes::error_codes::HashErrorCode;
 use hash_reporting::{
-    builder::ReportBuilder,
     report::{Report, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind},
+    reporter::ReportBuilder,
 };
 use hash_source::{identifier::Identifier, location::SourceLocation, ModuleKind, SourceId};
 
@@ -113,32 +113,29 @@ impl From<AnalysisError> for Report {
 
         match err.kind {
             AnalysisErrorKind::UsingBreakOutsideLoop => {
-                builder.with_error_code(HashErrorCode::UsingBreakOutsideLoop);
+                builder.code(HashErrorCode::UsingBreakOutsideLoop);
 
-                builder.with_message("use of a `break` clause outside of a loop").add_element(
+                builder.message("use of a `break` clause outside of a loop").add_element(
                     ReportElement::CodeBlock(ReportCodeBlock::new(err.location, "here")),
                 );
             }
             AnalysisErrorKind::UsingContinueOutsideLoop => {
-                builder.with_error_code(HashErrorCode::UsingContinueOutsideLoop);
+                builder.code(HashErrorCode::UsingContinueOutsideLoop);
 
-                builder.with_message("use of a `continue` clause outside of a loop").add_element(
+                builder.message("use of a `continue` clause outside of a loop").add_element(
                     ReportElement::CodeBlock(ReportCodeBlock::new(err.location, "here")),
                 );
             }
             AnalysisErrorKind::UsingReturnOutsideOfFn => {
-                builder.with_error_code(HashErrorCode::UsingReturnOutsideFn);
+                builder.code(HashErrorCode::UsingReturnOutsideFn);
 
-                builder
-                    .with_message("use of a `return` expression outside of a function")
-                    .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
-                        err.location,
-                        "here",
-                    )));
+                builder.message("use of a `return` expression outside of a function").add_element(
+                    ReportElement::CodeBlock(ReportCodeBlock::new(err.location, "here")),
+                );
             }
             AnalysisErrorKind::MultipleSpreadPats { origin } => {
                 builder
-                    .with_message(format!(
+                    .message(format!(
                         "spread patterns `...` can only be used once in a {} pattern",
                         origin
                     ))
@@ -149,7 +146,7 @@ impl From<AnalysisError> for Report {
             }
             AnalysisErrorKind::IllegalSpreadPatUse { origin } => {
                 builder
-                    .with_message(format!(
+                    .message(format!(
                         "spread patterns `...` cannot be used in a {} pattern",
                         origin
                     ))
@@ -160,8 +157,8 @@ impl From<AnalysisError> for Report {
             }
             AnalysisErrorKind::AmbiguousPatFieldOrder { origin } => {
                 builder
-                    .with_error_code(HashErrorCode::AmbiguousFieldOrder)
-                    .with_message(format!("ambiguous field order in `{origin}` pattern"));
+                    .code(HashErrorCode::AmbiguousFieldOrder)
+                    .message(format!("ambiguous field order in `{origin}` pattern"));
 
                 builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                     err.location,
@@ -169,7 +166,7 @@ impl From<AnalysisError> for Report {
                 )));
             }
             AnalysisErrorKind::NonDeclarativeExpression { origin } => {
-                builder.with_message(format!(
+                builder.message(format!(
                     "non-declarative expressions are not allowed in `{}` pattern",
                     origin
                 ));
@@ -180,7 +177,7 @@ impl From<AnalysisError> for Report {
                 )));
             }
             AnalysisErrorKind::IllegalBindingMutability => {
-                builder.with_message("top-level declaration cannot be mutable");
+                builder.message("top-level declaration cannot be mutable");
 
                 builder
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -193,7 +190,7 @@ impl From<AnalysisError> for Report {
                     )));
             }
             AnalysisErrorKind::IllegalBindingVisibilityModifier { modifier, origin } => {
-                builder.with_message(format!(
+                builder.message(format!(
                     "declarations in {} blocks cannot have visibility modifiers",
                     origin
                 ));
@@ -216,7 +213,7 @@ impl From<AnalysisError> for Report {
                     )));
             }
             AnalysisErrorKind::InsufficientTypeAnnotations { origin } => {
-                builder.with_message(format!(
+                builder.message(format!(
                     "`{}` {} does not have enough information",
                     origin,
                     origin.field_name()
@@ -242,7 +239,7 @@ impl From<AnalysisError> for Report {
                     None => "an interactive",
                 };
 
-                builder.with_message(format!(
+                builder.message(format!(
                     "the `{}` directive is disallowed within {} context",
                     name, origin
                 ));
@@ -254,7 +251,7 @@ impl From<AnalysisError> for Report {
                 )));
             }
             AnalysisErrorKind::InvalidDirectiveScope { name, expected, received } => {
-                builder.with_message(format!(
+                builder.message(format!(
                     "the `{}` directive is must be within a {} block",
                     name, expected
                 ));
@@ -266,7 +263,7 @@ impl From<AnalysisError> for Report {
                 )));
             }
             AnalysisErrorKind::InvalidDirectiveArgument { name, expected, received: given } => {
-                builder.with_message(format!(
+                builder.message(format!(
                     "the `{}` directive expects a {} as an argument",
                     name, expected
                 ));
@@ -278,7 +275,7 @@ impl From<AnalysisError> for Report {
                 )));
             }
             AnalysisErrorKind::DisallowedFloatPat => {
-                builder.with_message("float literals are disallowed within a pattern position");
+                builder.message("float literals are disallowed within a pattern position");
 
                 builder
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(err.location, "")))
@@ -288,9 +285,8 @@ impl From<AnalysisError> for Report {
                     )));
             }
             AnalysisErrorKind::InconsistentFieldNaming { naming_expectation, origin } => {
-                builder.with_message(format!(
-                    "mismatching naming convention of fields within a {origin}"
-                ));
+                builder
+                    .message(format!("mismatching naming convention of fields within a {origin}"));
 
                 builder
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -303,7 +299,7 @@ impl From<AnalysisError> for Report {
                     )));
             }
             AnalysisErrorKind::SelfInFreeStandingFn => {
-                builder.with_message("`self` parameter is only allowed in associated functions");
+                builder.message("`self` parameter is only allowed in associated functions");
 
                 builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                     err.location,

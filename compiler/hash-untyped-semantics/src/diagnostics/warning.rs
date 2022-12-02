@@ -2,8 +2,8 @@
 
 use hash_ast::ast::{AstNodeId, AstNodeRef};
 use hash_reporting::{
-    builder::ReportBuilder,
     report::{Report, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind},
+    reporter::ReportBuilder,
 };
 use hash_source::{identifier::Identifier, location::SourceLocation, SourceId};
 
@@ -51,7 +51,7 @@ impl From<AnalysisWarning> for Report {
         match warning.kind {
             AnalysisWarningKind::UselessExpression => {
                 builder
-                    .with_message("this expression is useless")
+                    .message("this expression is useless")
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         warning.location,
                         "here",
@@ -63,7 +63,7 @@ impl From<AnalysisWarning> for Report {
             }
             AnalysisWarningKind::UnknownDirective { name } => {
                 builder
-                    .with_message(format!("`{name}` is not a known directive"))
+                    .message(format!("`{name}` is not a known directive"))
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         warning.location,
                         "",

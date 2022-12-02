@@ -1,6 +1,6 @@
 use hash_reporting::{
-    builder::ReportBuilder,
     report::{Report, ReportKind},
+    reporter::ReportBuilder,
 };
 
 use crate::new::environment::tc_env::WithTcEnv;

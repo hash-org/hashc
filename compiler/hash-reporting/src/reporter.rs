@@ -8,7 +8,7 @@ pub type Reports = Vec<Report>;
 /// Facilitates the creation of lists of [Report]s in a declarative way.
 #[derive(Debug, Default)]
 pub struct Reporter {
-    report_builders: Vec<ReportBuilder>,
+    reports: Vec<Report>,
 }
 
 impl Reporter {
@@ -17,19 +17,42 @@ impl Reporter {
     }
 
     /// Add a report to the builder.
-    pub fn add_report(&mut self) -> &mut ReportBuilder {
-        self.report_builders.push(ReportBuilder::new());
-        self.report_builders.last_mut().unwrap()
+    pub fn report(&mut self, kind: ReportKind) -> &mut Report {
+        let mut report = Report::new();
+        report.kind(kind);
+        self.reports.push(report);
+        self.reports.last_mut().unwrap()
     }
 
-    /// Build the report list.
-    pub fn build(self) -> Reports {
-        self.report_builders.into_iter().map(|mut builder| builder.build()).collect()
+    /// Add an error report to the builder.
+    pub fn error(&mut self) -> &mut Report {
+        self.report(ReportKind::Error)
+    }
+
+    /// Add an info report to the builder.
+    pub fn info(&mut self) -> &mut Report {
+        self.report(ReportKind::Info)
+    }
+
+    /// Add a warning report to the builder.
+    pub fn warning(&mut self) -> &mut Report {
+        self.report(ReportKind::Warning)
+    }
+
+    /// Add an internal report to the builder.
+    pub fn internal(&mut self) -> &mut Report {
+        self.report(ReportKind::Internal)
+    }
+
+    /// Consume the [`Reporter`], producing a [`Vec<Report>`].
+    pub fn into_reports(self) -> Reports {
+        self.reports
     }
 }
 
 /// A utility struct that allows for a [Report] to be built incrementally
 /// adding annotations and other metadata to the report.
+#[deprecated]
 #[derive(Debug, Default)]
 pub struct ReportBuilder {
     kind: Option<ReportKind>,
@@ -45,7 +68,7 @@ impl ReportBuilder {
     }
 
     /// Add a general message to the [Report].
-    pub fn with_message(&mut self, message: impl ToString) -> &mut Self {
+    pub fn message(&mut self, message: impl ToString) -> &mut Self {
         self.message = Some(message.to_string());
         self
     }
@@ -57,7 +80,7 @@ impl ReportBuilder {
     }
 
     /// Add an associated [HashErrorCode] to the [Report].
-    pub fn with_error_code(&mut self, error_code: HashErrorCode) -> &mut Self {
+    pub fn code(&mut self, error_code: HashErrorCode) -> &mut Self {
         self.error_code = Some(error_code);
         self
     }
