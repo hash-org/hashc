@@ -80,6 +80,12 @@ pub struct BlockTerm {
     pub return_value: TermId,
 }
 
+impl fmt::Display for WithEnv<'_, &BlockTerm> {
+    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        todo!()
+    }
+}
+
 impl fmt::Display for WithEnv<'_, StackMemberId> {
     fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
         todo!()

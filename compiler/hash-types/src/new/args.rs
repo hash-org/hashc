@@ -55,7 +55,12 @@ pub type PatArgsStore = DefaultSequenceStore<PatArgsId, PatArg>;
 
 impl fmt::Display for WithEnv<'_, &Arg> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} = {}", self.env().with(self.value.target), self.env().with(self.value.value))
+        match self.value.target {
+            ParamTarget::Name(name) => {
+                write!(f, "{} = {}", self.env().with(name), self.env().with(self.value.value))
+            }
+            ParamTarget::Position(_) => write!(f, "{}", self.env().with(self.value.value)),
+        }
     }
 }
 

@@ -6,6 +6,7 @@ pub mod data;
 pub mod defs;
 pub mod infer;
 pub mod mods;
+pub mod oracle;
 pub mod stack;
 pub mod tuple;
 

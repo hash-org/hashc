@@ -1,11 +1,14 @@
 //! Definitions related to patterns.
 
+use core::fmt;
+
 use hash_ast::ast::RangeEnd;
 use hash_utils::{new_sequence_store_key, new_store, new_store_key, store::DefaultSequenceStore};
 
 use super::{
     control::{IfPat, OrPat},
     data::CtorPat,
+    environment::env::WithEnv,
     lits::LitPat,
     scopes::BindingPat,
     symbols::Symbol,
@@ -70,3 +73,15 @@ new_store!(pub PatStore<PatId, Pat>);
 
 new_sequence_store_key!(pub PatListId);
 pub type PatListStore = DefaultSequenceStore<PatListId, PatId>;
+
+impl fmt::Display for WithEnv<'_, PatId> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        todo!()
+    }
+}
+
+impl fmt::Display for WithEnv<'_, &Pat> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        todo!()
+    }
+}

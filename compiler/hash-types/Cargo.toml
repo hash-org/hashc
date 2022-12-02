@@ -11,6 +11,7 @@ utility-types = "0.0.2"
 indexmap = "1.9"
 textwrap = "0.16"
 bimap = "0.6"
+derive_more = "0.99"
 
 hash-ast = { path = "../hash-ast" }
 hash-utils = { path = "../hash-utils" }

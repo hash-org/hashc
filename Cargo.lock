@@ -688,6 +688,7 @@ name = "hash-types"
 version = "0.1.0"
 dependencies = [
  "bimap",
+ "derive_more",
  "hash-ast",
  "hash-source",
  "hash-target",

@@ -1,41 +1,33 @@
 //! Definitions related to type casting and coercion.
-use super::{fns::FnDefId, terms::TermId, tys::TyId};
+use core::fmt;
 
-/// The kind of a cast.
-///
-/// There are two kinds of cast:
-/// 1. Type conversion: this is for casts that do not require a change in the
-/// runtime representation of the value, i.e. they are proof irrelevant.
-///
-/// 2. Value conversion: this is for casts that do require a change in the
-/// runtime representation of the value. Contains a function that converts from
-/// one to the other.
-#[derive(Debug, Clone, Copy)]
-pub enum CastKind {
-    /// The two types have a proof-irrelevant conversion
-    TypeConversion,
-    /// The two types have a proof-relevant conversion
-    ValueConversion(FnDefId),
-}
-
-/// A term which has been cast to a different type.
-#[derive(Debug, Clone, Copy)]
-pub struct CastedTerm {
-    /// The kind of cast that occurred.
-    pub kind: CastKind,
-    // The type that the term was cast to.
-    pub target_ty: TyId,
-    // The term that was cast.
-    pub term: TermId,
-}
+use super::{
+    environment::env::{AccessToEnv, WithEnv},
+    terms::TermId,
+    tys::TyId,
+};
 
 /// Cast a given term to a given type. See [`CastKind`].
+///
+/// This might be produced as a result of a unification.
+///
+/// @@Future: this could be narrowed down to a more restricted set of choices
+/// for `target_ty` and source type.
 #[derive(Debug, Clone, Copy)]
 pub struct CastTerm {
     /// The target type to cast to.
     pub target_ty: TyId,
-    /// The source type to cast from.
-    pub subject_ty: TyId,
     /// The source term to cast from.
-    pub subject_term: TyId,
+    pub subject_term: TermId,
+}
+
+impl fmt::Display for WithEnv<'_, CastTerm> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "cast({}, {})",
+            self.env().with(self.value.target_ty),
+            self.env().with(self.value.subject_term)
+        )
+    }
 }
