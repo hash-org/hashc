@@ -1,5 +1,6 @@
 //! Definitions related to user-defined data-types.
 
+use core::fmt;
 use std::fmt::Display;
 
 use hash_utils::{
@@ -130,6 +131,18 @@ impl Display for WithEnv<'_, DataDefId> {
 
 impl Display for WithEnv<'_, &DataDef> {
     fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        todo!()
+    }
+}
+
+impl fmt::Display for WithEnv<'_, CtorDefId> {
+    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        todo!()
+    }
+}
+
+impl fmt::Display for WithEnv<'_, &CtorDefId> {
+    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
         todo!()
     }
 }

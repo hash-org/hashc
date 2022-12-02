@@ -2,6 +2,7 @@
 use core::fmt;
 use std::{cell::RefCell, convert::Infallible};
 
+use hash_utils::store::{Store, StoreKey};
 use indexmap::IndexMap;
 
 use super::env::{AccessToEnv, WithEnv};
@@ -27,7 +28,7 @@ pub enum BindingKind {
     /// A binding that represents a parameter variable of a function.
     ///
     /// For example, `(x: i32) => x`
-    BoundVar(BindingOrigin<BoundVarOrigin, usize>),
+    BoundVar(BoundVarOrigin),
 }
 
 /// The origin of a binding, which consists of a definition (whatever it may be)
@@ -85,7 +86,7 @@ pub enum ScopeKind {
 /// The context is used to resolve symbols to their corresponding bindings, and
 /// thus interpret their meaning. It can read and add [`Binding`]s, and can
 /// enter and exit scopes.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Context {
     scope_levels: RefCell<Vec<usize>>,
     members: RefCell<IndexMap<Symbol, Binding>>,
@@ -94,11 +95,7 @@ pub struct Context {
 
 impl Context {
     pub fn new() -> Self {
-        Self {
-            scope_levels: RefCell::new(vec![]),
-            members: RefCell::new(IndexMap::new()),
-            scope_kinds: RefCell::new(vec![]),
-        }
+        Self::default()
     }
 
     /// Enter a new scope in the context.
@@ -218,25 +215,83 @@ impl Context {
     }
 }
 
-impl Default for Context {
-    fn default() -> Self {
-        Self::new()
+impl fmt::Display for WithEnv<'_, &BoundVarOrigin> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.value {
+            BoundVarOrigin::Mod(_, _, param_id)
+            | BoundVarOrigin::Fn(_, param_id)
+            | BoundVarOrigin::Data(_, _, param_id) => {
+                write!(f, "{}", self.env().with(*param_id))
+            }
+        }
     }
 }
 
 impl fmt::Display for WithEnv<'_, Binding> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: ...", self.env().with(self.value.name))
+        match self.value.kind {
+            BindingKind::ModMember(mod_member) => {
+                self.stores().mod_def().map_fast(mod_member.id, |mod_def| {
+                    let member_id = (mod_def.members, mod_member.index);
+                    write!(f, "{}", self.env().with(member_id))
+                })
+            }
+            BindingKind::StackMember(stack_member) => {
+                write!(f, "{}", self.env().with((stack_member.id, stack_member.index)))
+            }
+            BindingKind::Ctor(ctor) => self.stores().data_def().map_fast(ctor.id, |data_def| {
+                let ctor_id = (data_def.ctors, ctor.index);
+                write!(f, "{}", self.env().with(ctor_id))
+            }),
+            BindingKind::BoundVar(bound_var) => {
+                write!(f, "{}", self.env().with(&bound_var))
+            }
+        }
+    }
+}
+
+impl fmt::Display for WithEnv<'_, ScopeKind> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.value {
+            ScopeKind::Mod(mod_def_id) => write!(
+                f,
+                "mod {}",
+                self.stores()
+                    .mod_def()
+                    .map_fast(mod_def_id, |mod_def| self.env().with(mod_def.name))
+            ),
+            ScopeKind::Fn(fn_def_id) => write!(
+                f,
+                "fn {}",
+                self.stores().fn_def().map_fast(fn_def_id, |fn_def| self.env().with(fn_def.name))
+            ),
+            ScopeKind::Data(data_def_id) => write!(
+                f,
+                "data {}",
+                self.stores()
+                    .data_def()
+                    .map_fast(data_def_id, |data_def| self.env().with(data_def.name))
+            ),
+            ScopeKind::Stack(stack_def_id) => write!(
+                f,
+                "stack {}",
+                self.stores().stack().map_fast(stack_def_id, |stack_def| stack_def.id.to_index())
+            ),
+        }
     }
 }
 
 impl fmt::Display for WithEnv<'_, &Context> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for scope_level in self.value.get_scope_levels() {
-            let scope_kind = self.value.get_scope_kind_of_level(scope_level);
-            writeln!(f, "scope level {scope_level}: {scope_kind:?}")?;
+            let kind = self.value.get_scope_kind_of_level(scope_level);
+            writeln!(f, "({}) {}:", scope_level, self.env().with(kind))?;
             self.value.try_for_bindings_of_level(scope_level, |binding| {
-                writeln!(f, "  {}", self.env().with(*binding))
+                let result = self.env().with(*binding).to_string();
+                for line in result.lines() {
+                    write!(f, "  {}", line)?;
+                }
+                Ok(())
             })?;
         }
         Ok(())

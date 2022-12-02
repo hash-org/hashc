@@ -134,6 +134,14 @@ impl Display for WithEnv<'_, &ModMember> {
     }
 }
 
+impl Display for WithEnv<'_, ModMemberId> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.stores().mod_members().map_fast(self.value.0, |members| {
+            writeln!(f, "{}", self.env().with(&members[self.value.1]))
+        })
+    }
+}
+
 impl Display for WithEnv<'_, ModMembersId> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.stores().mod_members().map_fast(self.value, |members| {

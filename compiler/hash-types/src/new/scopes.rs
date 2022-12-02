@@ -3,9 +3,12 @@
 //! This defines the stack scopes themselves, as well as declarations, accesses,
 //! and assignments of variables.
 
+use core::fmt;
+
 use hash_utils::{new_store_key, store::DefaultStore};
 use utility_types::omit;
 
+use super::environment::env::WithEnv;
 use crate::new::{
     pats::PatId,
     symbols::Symbol,
@@ -75,4 +78,16 @@ pub type StackMemberId = (StackId, usize);
 pub struct BlockTerm {
     pub statements: TermListId,
     pub return_value: TermId,
+}
+
+impl fmt::Display for WithEnv<'_, StackMemberId> {
+    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        todo!()
+    }
+}
+
+impl fmt::Display for WithEnv<'_, &StackMember> {
+    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        todo!()
+    }
 }
