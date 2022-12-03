@@ -1,18 +1,18 @@
 error[0055]: trait `Foo` is missing the member `bux`
-  --> $DIR/comppund_errors.hash:20:19
+  --> $DIR/compound_errors.hash:20:19
 19 |   
 20 |   Frobulate ~= impl Foo {
    |                     ^^^ implementation is missing `bux`
 21 |       bax := () -> u32 => {
 
-  --> $DIR/comppund_errors.hash:9:3
+  --> $DIR/compound_errors.hash:9:3
  8 |   
  9 |     bux : (a: i32) -> Mux
    |     ^^^^^^^^^^^^^^^^^^^^^ trait item `bux` is defined here
 10 |   
 
 error[0056]: method `member_not_on_trt` is not a member of trait `Foo`
-  --> $DIR/comppund_errors.hash:37:5
+  --> $DIR/compound_errors.hash:37:5
 36 |        //~ ERROR: `method_not_on_trt` not a member of `Foo`
 37 |        member_not_on_trt := (a: i32, b: char) -> Mux => {
    |  ______-
@@ -26,13 +26,13 @@ error[0056]: method `member_not_on_trt` is not a member of trait `Foo`
 46 |    }
 
 error[0020]: types mismatch, wanted `(a: u32) -> Mux`, but got `(a: i32) -> Mux`
-  --> $DIR/comppund_errors.hash:11:10
+  --> $DIR/compound_errors.hash:11:10
 10 |   
 11 |     crux : (a: u32) -> Mux
    |            ^^^^^^^^^^^^^^^ this expects the type `(a: u32) -> Mux`
 12 |   }
 
-  --> $DIR/comppund_errors.hash:32:13
+  --> $DIR/compound_errors.hash:32:13
 30 |    
 31 |        //~ ERROR: `a` parameter mis-matches
 32 |        crux := (a: i32) -> Mux => {
