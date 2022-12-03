@@ -1,28 +1,33 @@
-//! Module that contains all of the logic with dealing with `match` blocks.
-//! Lowering `match` blocks is probably the most complex part of lowering, since
-//! we have to create essentially a *jump* table each case that is specified in
-//! the `match` arms, which might also have `if` guards, `or` patterns, etc.
-#![allow(unused, dead_code)]
+//! Definitions for [Candidate]s that are used to represent
+//! arms within a `match` block, specifically when code is
+//! being generated to efficiently group and select where
+//! to jump to next.
 
 use std::{borrow::Borrow, mem};
 
-use hash_ast::ast::{AstNodeRef, Expr, MatchCase};
+use hash_ast::ast::{AstNodeRef, MatchCase, RangeEnd};
 use hash_ir::{
-    ir::{BasicBlock, Place, TerminatorKind},
-    ty::{IrTy, Mutability},
+    ir::{BasicBlock, PlaceProjection},
+    ty::{AdtId, IrTy, Mutability},
 };
 use hash_source::{constant::CONSTANT_MAP, location::Span};
 use hash_target::size::Size;
 use hash_types::{
-    pats::{BindingPat, IfPat, Pat, PatId, RangePat, SpreadPat},
+    pats::{
+        BindingPat, ConstructorPat, IfPat, ListPat, Pat, PatArgsId, PatId, RangePat, SpreadPat,
+    },
     terms::{Level0Term, LitTerm, Term, TermId},
 };
-use hash_utils::{stack::ensure_sufficient_stack, store::Store};
+use hash_utils::store::Store;
 use smallvec::{smallvec, SmallVec};
 
-use super::{place::PlaceBuilder, ty::lower_term, unpack, BlockAnd, BlockAndExtend, Builder};
+use crate::build::{
+    place::PlaceBuilder,
+    ty::{convert_term_into_ir_ty, lower_term},
+    Builder,
+};
 
-pub struct Candidate {
+pub(super) struct Candidate {
     /// The span of the `match` arm, for-error reporting
     /// functionality.
     pub span: Span,
@@ -34,22 +39,43 @@ pub struct Candidate {
     pub bindings: Vec<Binding>,
 
     /// The match pair that is associated with the binding.
-    pub pats: SmallVec<[PatId; 1]>,
+    pub pairs: SmallVec<[MatchPair; 1]>,
 
-    ///
-    pub otherwise_block: Option<BasicBlock>,
-    ///
+    /// Block before all of the bindings have been established within
+    /// the arm.
     pub pre_binding_block: Option<BasicBlock>,
-    ///
+
+    /// In the event that the guard is evaluated, this is the block that
+    /// is jumped to if the guard is false.
+    pub otherwise_block: Option<BasicBlock>,
+
+    /// The `pre_binding_block` of the next candidate arm.
     pub next_candidate_pre_bind_block: Option<BasicBlock>,
 
     /// Any sub-candidates that are associated with this candidate.
     pub sub_candidates: Vec<Candidate>,
 }
 
+/// A [MatchPair] associates a pattern with a particular [Place] that
+/// is used to access the underlying data when generating code for
+/// comparing values of each [Candidate].
+pub(super) struct MatchPair {
+    /// The ID of the pattern that occurs within a [Candidate].
+    pub pat: PatId,
+
+    /// The [Place] associated with this pattern. We use
+    /// a [PlaceBuilder] since we might modify the place based on
+    /// if we are performing various down-casts, field accesses on the
+    /// way. We always start with the [Place] of the `match` subject, and
+    /// build up each pattern place.
+    pub place: PlaceBuilder,
+}
+
+pub(super) type Candidates<'tcx> = (AstNodeRef<'tcx, MatchCase>, Candidate);
+
 impl Candidate {
     /// Create a new [Candidate].
-    pub fn new(span: Span, pat: PatId, has_guard: bool) -> Self {
+    pub(super) fn new(span: Span, pat: PatId, place: &PlaceBuilder, has_guard: bool) -> Self {
         Self {
             span,
             has_guard,
@@ -57,7 +83,7 @@ impl Candidate {
             pre_binding_block: None,
             next_candidate_pre_bind_block: None,
             // @@Todo: do we need to store an associated place with this pattern?
-            pats: smallvec![pat],
+            pairs: smallvec![MatchPair { pat, place: place.clone() }],
             bindings: Vec::new(),
             sub_candidates: Vec::new(),
         }
@@ -65,7 +91,7 @@ impl Candidate {
 
     /// Visit all of the leaves of a candidate and apply some operation on
     /// each one that is contained in the current candidate.
-    pub fn visit_leaves<'a>(&'a mut self, mut visit_leaf: impl FnMut(&'a mut Candidate)) {
+    pub(super) fn visit_leaves<'a>(&'a mut self, mut visit_leaf: impl FnMut(&'a mut Candidate)) {
         traverse_candidate(
             self,
             &mut (),
@@ -101,7 +127,7 @@ fn traverse_candidate<C, T, I>(
 
 /// All the bindings that occur in a `match` arm.
 #[derive(Debug, Clone)]
-pub struct Binding {
+pub(super) struct Binding {
     /// The span of the binding.
     pub span: Span,
 
@@ -117,137 +143,12 @@ pub struct Binding {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum BindingMode {
+pub(super) enum BindingMode {
     ByValue,
     ByRef,
 }
 
-type Candidates<'tcx> = (AstNodeRef<'tcx, MatchCase>, Candidate);
-
 impl<'tcx> Builder<'tcx> {
-    /// This is the entry point of matching an expression. Firstly, we deal with
-    /// the subject of the match, and then we build a decision tree of all
-    /// of the arms that have been specified, then we create all of the
-    /// blocks that are required to represent the decision tree. After the
-    /// decision tree has been built, we then build the blocks
-    /// that are required to represent the actual match arms.
-    pub(crate) fn match_expr(
-        &mut self,
-        destination: Place,
-        mut block: BasicBlock,
-        subject: AstNodeRef<'tcx, Expr>,
-        arms: Vec<AstNodeRef<'tcx, MatchCase>>,
-    ) -> BlockAnd<()> {
-        let subject_place =
-            unpack!(block = self.as_place_builder(block, subject, Mutability::Immutable));
-
-        // Make the decision tree here...
-        let mut arm_candidates = self.create_match_candidates(&arms);
-
-        let mut candidates =
-            arm_candidates.iter_mut().map(|(_, candidate)| candidate).collect::<Vec<_>>();
-
-        // Using the decision tree, now build up the blocks for each arm, and then
-        // join them at the end to the next block after the match, i.e. the `ending
-        // block`.
-        let ending_block = self.lower_match_arms(
-            block,
-            destination,
-            subject_place,
-            subject.span(),
-            &mut candidates,
-        );
-
-        ending_block.unit()
-    }
-
-    fn create_match_candidates(
-        &mut self,
-        arms: &[AstNodeRef<'tcx, MatchCase>],
-    ) -> Vec<Candidates<'tcx>> {
-        arms.iter()
-            .copied()
-            .map(|arm| {
-                let pat_id = self.get_pat_id_of_node(arm.pat.id());
-                let candidate = Candidate::new(arm.span, pat_id, arm.has_if_pat());
-                (arm, candidate)
-            })
-            .collect()
-    }
-
-    fn lower_match_arms(
-        &mut self,
-        block: BasicBlock,
-        destination: Place,
-        subject_place: PlaceBuilder,
-        subject_span: Span,
-        arm_candidates: &mut [&mut Candidate],
-    ) -> BasicBlock {
-        // This is the basic block that is derived for using when the
-        // matching fails on the pattern, and that it should jump to
-        // in the `otherwise` situation.
-        let mut otherwise = None;
-
-        self.match_candidates(block, &mut otherwise, arm_candidates);
-
-        // We need to terminate the otherwise block with an `unreachable` since
-        // this branch should never be reached since the `match` is exhaustive.
-        if let Some(otherwise_block) = otherwise {
-            self.control_flow_graph.terminate(
-                otherwise_block,
-                subject_span,
-                TerminatorKind::Unreachable,
-            );
-        }
-
-        todo!()
-    }
-
-    /// This is the main **entry point** of the match-lowering algorithm.
-    fn match_candidates(
-        &mut self,
-        block: BasicBlock,
-        otherwise: &mut Option<BasicBlock>,
-        candidates: &mut [&mut Candidate],
-    ) {
-        // Start by simplifying the candidates, i.e. splitting them into sub-candidates
-        // so that they can be dealt with in a much easier way. If any of the
-        // candidates we're split in the simplification process, we need to
-        // later re-add them to the `candidates` list so that when they are
-        // actually generated, they can be generated for only simple candidates,
-        // and that all of them are dealt with.
-        let mut split_or_candidate = false;
-
-        for candidate in &mut *candidates {
-            split_or_candidate |= self.simplify_candidate(candidate);
-        }
-
-        ensure_sufficient_stack(|| {
-            if split_or_candidate {
-                let mut new_candidates = Vec::new();
-
-                // Iterate over all of the candidates and essentially flatten the
-                // candidate list...
-                for candidate in candidates {
-                    candidate.visit_leaves(|leaf| new_candidates.push(leaf));
-                }
-
-                self.match_simplified_candidates(block, otherwise, &mut new_candidates)
-            } else {
-                self.match_simplified_candidates(block, otherwise, candidates)
-            }
-        });
-    }
-
-    fn match_simplified_candidates(
-        &mut self,
-        block: BasicBlock,
-        otherwise: &mut Option<BasicBlock>,
-        candidates: &mut [&mut Candidate],
-    ) {
-        todo!()
-    }
-
     /// This function attempts to simplify a [Candidate] so that all match pairs
     /// can be tested. This method will also split the candidate in which
     /// the only match pair is a `or` pattern, in order for matches like:
@@ -261,29 +162,30 @@ impl<'tcx> Builder<'tcx> {
     ///
     /// The function returns a boolean denoting whether it has performed any
     /// splits on the given candidate.
-    fn simplify_candidate(&mut self, candidate: &mut Candidate) -> bool {
+    pub(super) fn simplify_candidate(&mut self, candidate: &mut Candidate) -> bool {
         // keep a record of the existing bindings and all of the bindings that
         // are to be added when exploring the pattern.
         let mut existing_bindings = mem::take(&mut candidate.bindings);
         let mut new_bindings = Vec::new();
 
         loop {
-            let match_pairs = mem::take(&mut candidate.pats);
+            let match_pairs = mem::take(&mut candidate.pairs);
 
             // Check if the bindings has a single or-pattern
-            if let [pat] = *match_pairs {
-                if self.tcx.pat_store.map_fast(pat, Pat::is_or) {
+            if let [pair] = &*match_pairs {
+                if self.tcx.pat_store.map_fast(pair.pat, Pat::is_or) {
                     // append all the new bindings, and then swap the two vecs around
                     existing_bindings.extend_from_slice(&new_bindings);
                     mem::swap(&mut candidate.bindings, &mut existing_bindings);
 
                     // Now we need to create sub-candidates for each of the or-patterns
-                    return self.tcx.pat_store.map_fast(pat, |pat| {
+                    return self.tcx.pat_store.map_fast(pair.pat, |pat| {
                         let Pat::Or(sub_pats) = pat else {
                             unreachable!()
                         };
 
-                        candidate.sub_candidates = self.create_sub_candidates(candidate, sub_pats);
+                        candidate.sub_candidates =
+                            self.create_sub_candidates(&pair.place, candidate, sub_pats);
 
                         true
                     });
@@ -294,13 +196,13 @@ impl<'tcx> Builder<'tcx> {
             // over each one and perform a simplification...
             let mut changed = false;
 
-            for pat in match_pairs {
-                match self.simplify_pat(pat, candidate) {
+            for pair in match_pairs {
+                match self.simplify_match_pair(pair, candidate) {
                     Ok(_) => {
                         changed = true;
                     }
                     // We need to re-evaluate one of the patterns later on
-                    Err(pat_id) => candidate.pats.push(pat_id),
+                    Err(pair) => candidate.pairs.push(pair),
                 }
             }
 
@@ -316,7 +218,9 @@ impl<'tcx> Builder<'tcx> {
                 mem::swap(&mut candidate.bindings, &mut existing_bindings);
 
                 // sort all of the pats in the candidate by `or-pat` last
-                candidate.pats.sort_by_key(|pat| self.tcx.pat_store.map_fast(*pat, Pat::is_or));
+                candidate
+                    .pairs
+                    .sort_by_key(|pair| self.tcx.pat_store.map_fast(pair.pat, Pat::is_or));
 
                 // We weren't able to perform any further simplifications, so return false
                 return false;
@@ -324,10 +228,19 @@ impl<'tcx> Builder<'tcx> {
         }
     }
 
-    fn simplify_pat(&mut self, pat_id: PatId, candidate: &mut Candidate) -> Result<(), PatId> {
-        self.tcx.pat_store.map_fast(pat_id, |pat| {
-            // Get the span of this partciular pattern...
-            let span = self.tcx.location_store.get_span(pat_id).unwrap();
+    /// Tries to simplify `match_pair`, returning `Ok(())` if
+    /// successful. If successful, new match pairs and bindings will
+    /// have been pushed into the candidate. If no simplification is
+    /// possible, `Err` is returned and no changes are made to
+    /// candidate.
+    pub(super) fn simplify_match_pair(
+        &mut self,
+        pair: MatchPair,
+        candidate: &mut Candidate,
+    ) -> Result<(), MatchPair> {
+        self.tcx.pat_store.map_fast(pair.pat, |pat| {
+            // Get the span of this particular pattern...
+            let span = self.tcx.location_store.get_span(pair.pat).unwrap();
 
             match pat {
                 Pat::Binding(BindingPat { mutability, .. }) => {
@@ -395,16 +308,80 @@ impl<'tcx> Builder<'tcx> {
                         // we have to convert the `lo` term into the actual value, by getting
                         // the literal term from this term, and then converting the stored value
                         // into a u128...
-                        let lo_val = term_to_val(*lo);
+                        let lo_val = term_to_val(*lo) ^ bias;
 
-                        // let lo = lo.try_to_bits(sz).unwrap() ^ bias;
+                        if lo_val <= min {
+                            let hi_val = term_to_val(*hi) ^ bias;
+
+                            // In this situation, we have an irrefutable pattern, so we can
+                            // always go down this path
+                            if hi_val > max || hi_val == max && *end == RangeEnd::Excluded {
+                                return Ok(());
+                            }
+                        }
                     }
 
-                    Err(pat_id)
+                    Err(pair)
                 }
-                Pat::Tuple(_) => todo!(),
-                Pat::Access(_) | Pat::Const(_) | Pat::Constructor(_) => todo!(),
-                Pat::List(_) => todo!(),
+                Pat::Tuple(pat_args) => {
+                    // get the type of the tuple so that we can read all of the
+                    // fields
+                    let ty = self.get_ty_of_pat(pair.pat);
+                    let adt = self.storage.ty_store().map_fast(ty, |ty| {
+                        let IrTy::Adt(adt) = ty else {
+                            unreachable!("expected tuple pattern to have a tuple ty")
+                        };
+
+                        *adt
+                    });
+
+                    candidate.pairs.extend(self.match_pat_fields(*pat_args, adt, pair.place));
+                    Ok(())
+                }
+                Pat::Constructor(ConstructorPat { subject, args }) => {
+                    let ty = convert_term_into_ir_ty(*subject, self.tcx, self.storage);
+
+                    // @@Todo: maybe refactor this check into it's own function...
+                    let adt = self.storage.ty_store().map_fast(ty, |ty| {
+                        debug_assert!(ty.is_adt());
+
+                        if let IrTy::Adt(adt_ty) = ty {
+                            self.storage.adt_store().map_fast(*adt_ty, |adt| {
+                                if adt.flags.is_struct() {
+                                    Some(*adt_ty)
+                                } else {
+                                    None
+                                }
+                            })
+                        } else {
+                            None
+                        }
+                    });
+
+                    // If this is a struct then we need to match on the fields of
+                    // the struct since it is an *irrefutable* pattern.
+                    if let Some(adt_id) = adt {
+                        candidate.pairs.extend(self.match_pat_fields(*args, adt_id, pair.place));
+                        return Ok(());
+                    }
+
+                    Err(pair)
+                }
+                Pat::Access(_) | Pat::Const(_) => {
+                    // @@Todo: when we switch to the new pattern representation, we can
+                    //         remove this branch entirely, for now ignore it.
+                    Ok(())
+                }
+
+                // @@Todo: deal with this variant when we switch over to the new
+                // Pat representation since we can accurately look at the position
+                // of a `spread` and then perform simplifications on it. Right now,
+                // without the position, we would need compute it ourselves (again)
+                // and then perform the simplification.
+                //
+                // The simplification that can occur here is if both the prefix and the
+                // suffix are empty, then we can perform some simplifications.
+                Pat::List(ListPat { .. }) => todo!("simplify list patterns"),
 
                 // We essentially create a new bind for the tuple here
                 // that captures all of the members. We create a new bind
@@ -428,12 +405,57 @@ impl<'tcx> Builder<'tcx> {
                 Pat::Spread(_) | Pat::Mod(_) | Pat::Wild => Ok(()),
 
                 // Look at the pattern located within the if-pat
-                Pat::If(IfPat { pat, .. }) => self.simplify_pat(*pat, candidate),
+                Pat::If(IfPat { pat, .. }) => self.simplify_match_pair(
+                    MatchPair { pat: pair.pat, place: pair.place.clone() },
+                    candidate,
+                ),
 
                 // We have to deal with these outside of this function
-                Pat::Lit(_) => Err(pat_id),
-                Pat::Or(_) => Err(pat_id),
+                Pat::Lit(_) => Err(pair),
+                Pat::Or(_) => Err(pair),
             }
+        })
+    }
+
+    /// Iterate over a list of patterns, and extract the pattern from
+    /// all of the arguments. We create new [MatchPair]s for each pattern
+    /// that is referenced within the pattern, and automatically adjust
+    /// all of the [PlaceProjection]s on the pairs to reflect that they
+    /// are performing a field access.
+    fn match_pat_fields(
+        &mut self,
+        pat: PatArgsId,
+        ty: AdtId,
+        place: PlaceBuilder,
+    ) -> Vec<MatchPair> {
+        self.storage.adt_store().map_fast(ty, |adt| {
+            debug_assert!(adt.flags.is_struct() || adt.flags.is_tuple());
+
+            let variant = adt.variants.first().unwrap();
+
+            self.tcx.pat_args_store.map_as_param_list_fast(pat, |pats| {
+                pats.positional()
+                    .iter()
+                    .enumerate()
+                    .map(|(index, arg)| {
+                        // Compute the index we should use to access the field. If
+                        // no name is provided, we assume that the type is positional,
+                        // and thus we use the index of the pattern in the argument.
+                        let index = match arg.name {
+                            Some(name) => {
+                                // @@Optimisation: we could use a lookup table for `AdtField` to
+                                // immediately lookup the field rather than looping through the
+                                // whole vector trying to find the field with the same name.
+                                variant.fields.iter().position(|field| field.name == name).unwrap()
+                            }
+                            None => index,
+                        };
+
+                        let place = place.clone_project(PlaceProjection::Field(index));
+                        MatchPair { pat: arg.pat, place }
+                    })
+                    .collect()
+            })
         })
     }
 
@@ -443,6 +465,7 @@ impl<'tcx> Builder<'tcx> {
     /// jump to an `otherwise` case later on during the lowering process.
     fn create_sub_candidates(
         &mut self,
+        subject: &PlaceBuilder,
         candidate: &mut Candidate,
         sub_pats: &[PatId],
     ) -> Vec<Candidate> {
@@ -451,8 +474,12 @@ impl<'tcx> Builder<'tcx> {
             .copied()
             .map(|pat_id| {
                 let pat_has_guard = self.tcx.pat_store.map_fast(pat_id, Pat::is_or);
-                let mut sub_candidate =
-                    Candidate::new(candidate.span, pat_id, candidate.has_guard || pat_has_guard);
+                let mut sub_candidate = Candidate::new(
+                    candidate.span,
+                    pat_id,
+                    subject,
+                    candidate.has_guard || pat_has_guard,
+                );
                 self.simplify_candidate(candidate);
                 sub_candidate
             })
