@@ -1,10 +1,11 @@
 //! Hash Compiler Intermediate Representation (IR) crate. This module is still
 //! under construction and is subject to change.
+use core::slice;
 use std::fmt;
 
 use hash_ast::ast;
 use hash_source::{
-    constant::{InternedFloat, InternedInt, InternedStr},
+    constant::{IntTy, InternedFloat, InternedInt, InternedStr},
     identifier::Identifier,
     location::{SourceLocation, Span},
     SourceId,
@@ -15,6 +16,7 @@ use hash_utils::{
     store::{DefaultStore, Store},
 };
 use index_vec::IndexVec;
+use smallvec::SmallVec;
 
 use crate::{
     ty::{IrTy, IrTyId, Mutability},
@@ -254,7 +256,7 @@ pub enum AddressMode {
     Smart,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum PlaceProjection {
     /// When we want to narrow down the union type to some specific
     /// variant.
@@ -469,6 +471,90 @@ pub struct Terminator {
     pub span: Span,
 }
 
+/// Struct that represents all of the targets that a [TerminatorKind::Switch]
+/// can jump to. This also defines some useful methods on the block to iterate
+/// over all the targets, etc.
+#[derive(Debug, PartialEq, Eq)]
+pub struct SwitchTargets {
+    /// The jump table, contains corresponding values to *jump* on and the
+    /// location of where the jump goes to. The values are stored as an
+    /// [u128] because we only deal with **small** integral types, for larger
+    /// integer values, we default to using `Eq` check. Since the value is
+    /// stored as an [u128], this is nonsensical when it comes using these
+    /// values, which is why a **bias** needs to be applied before properly
+    /// reading the value which can be derived from the integral type that
+    /// is being matched on.
+    ///
+    /// N.B. All values within the table are unique, there cannot be multiple
+    /// targets for the same value.
+    pub table: SmallVec<[(u128, BasicBlock); 1]>,
+
+    /// This is the type that is used to represent the values within
+    /// the jump table. This will be used to create the appropriate
+    /// value when actually reading from the jump table.
+    pub ty: IntTy,
+
+    /// If none of the corresponding values match, then jump to this block. This
+    /// is set to [None] if the switch is exhaustive.
+    pub otherwise: Option<BasicBlock>,
+}
+
+impl SwitchTargets {
+    /// Create a new [SwitchTargets] with the specified jump table and
+    /// an optional otherwise block.
+    pub fn new(
+        targets: impl Iterator<Item = (u128, BasicBlock)>,
+        ty: IntTy,
+        otherwise: Option<BasicBlock>,
+    ) -> Self {
+        Self { table: targets.collect(), ty, otherwise }
+    }
+
+    /// Check if there is an `otherwise` block.
+    pub fn has_otherwise(&self) -> bool {
+        self.otherwise.is_some()
+    }
+
+    /// Get the `otherwise` block to jump to unconditionally.
+    pub fn otherwise(&self) -> BasicBlock {
+        self.otherwise.unwrap()
+    }
+
+    /// Iterate all of the associated targets.
+    pub fn iter_targets(&self) -> impl Iterator<Item = BasicBlock> + '_ {
+        self.table.iter().map(|(_, target)| *target).chain(self.otherwise.into_iter())
+    }
+
+    pub fn iter(&self) -> SwitchTargetsIter<'_> {
+        SwitchTargetsIter { inner: self.table.iter() }
+    }
+
+    /// Find the target for a specific value, if it exists.
+    pub fn corresponding_target(&self, value: u128) -> BasicBlock {
+        self.table
+            .iter()
+            .find(|(v, _)| *v == value)
+            .map(|(_, b)| *b)
+            .unwrap_or_else(|| self.otherwise())
+    }
+}
+
+pub struct SwitchTargetsIter<'a> {
+    inner: slice::Iter<'a, (u128, BasicBlock)>,
+}
+
+impl<'a> Iterator for SwitchTargetsIter<'a> {
+    type Item = (u128, BasicBlock);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next().copied()
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
+}
+
 /// The kind of [Terminator] that it is.
 ///
 /// @@Future: does this need an `Intrinsic(...)` variant for substituting
@@ -505,16 +591,10 @@ pub enum TerminatorKind {
     /// the `otherwise` condition.
     Switch {
         /// The value to use when comparing against the cases.
-        value: Local,
+        value: Place,
 
-        /// The target to jump to if the value is equal to the provided [Const]
-        /// value. All values that the table contains will always be
-        /// [Const::Int] values.
-        table: Vec<(Const, BasicBlock)>,
-
-        /// If all lookups fail for the particular value, then this is a default
-        /// basic block to jump to.
-        otherwise: BasicBlock,
+        /// All of the targets that are defined for the particular switch.
+        targets: SwitchTargets,
     },
 
     /// This terminator is used to verify that the result of some operation has

@@ -7,6 +7,7 @@
 
 use std::io;
 
+use hash_source::constant::IntConstant;
 use html_escape::encode_text;
 
 use crate::{
@@ -130,9 +131,13 @@ impl<'ir> IrGraphWriter<'ir> {
                             target.unwrap()
                         )?;
                     }
-                    TerminatorKind::Switch { table, otherwise, .. } => {
+                    TerminatorKind::Switch { targets, .. } => {
                         // Add all of the table cases
-                        for (value, target) in table.iter() {
+                        for (value, target) in targets.iter() {
+                            // We want to create an a constant from this value
+                            // with the type, and then print it.
+                            let value = IntConstant::from_uint(value, targets.ty);
+
                             writeln!(
                                 w,
                                 r#"  {prefix}{:?} -> {prefix}{:?} [label="{}"];"#,
@@ -141,11 +146,13 @@ impl<'ir> IrGraphWriter<'ir> {
                         }
 
                         // Add the otherwise case
-                        writeln!(
-                            w,
-                            r#"  {prefix}{:?} -> {prefix}{:?} [label="otherwise"];"#,
-                            id, otherwise
-                        )?;
+                        if let Some(otherwise) = targets.otherwise {
+                            writeln!(
+                                w,
+                                r#"  {prefix}{:?} -> {prefix}{:?} [label="otherwise"];"#,
+                                id, otherwise
+                            )?;
+                        }
                     }
                     TerminatorKind::Call { .. }
                     | TerminatorKind::Unreachable

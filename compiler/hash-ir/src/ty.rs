@@ -160,6 +160,11 @@ impl IrTy {
     pub fn is_integral(&self) -> bool {
         matches!(self, Self::Int(_) | Self::UInt(_) | Self::Float(_) | Self::Char)
     }
+
+    /// Check if the type is an ADT.
+    pub fn is_adt(&self) -> bool {
+        matches!(self, Self::Adt(_))
+    }
 }
 
 impl From<IntTy> for IrTy {
@@ -216,6 +221,11 @@ impl AdtData {
         flags: AdtFlags,
     ) -> Self {
         Self { name, variants, representation: AdtRepresentation::default(), flags }
+    }
+
+    /// Lookup the index of a variant by its name.
+    pub fn variant_idx(&self, name: &Identifier) -> Option<usize> {
+        self.variants.iter().position(|variant| &variant.name == name)
     }
 }
 

@@ -10,6 +10,7 @@ pub mod pretty;
 
 use std::fmt;
 
+use hash_source::constant::IntConstant;
 use hash_utils::store::Store;
 
 use super::ir::*;
@@ -133,7 +134,7 @@ impl fmt::Display for ForFormatting<'_, &Terminator> {
                 }
             }
             TerminatorKind::Unreachable => write!(f, "unreachable"),
-            TerminatorKind::Switch { value, table, otherwise } => {
+            TerminatorKind::Switch { value, targets } => {
                 write!(f, "switch({value:?})")?;
 
                 if self.with_edges {
@@ -142,16 +143,22 @@ impl fmt::Display for ForFormatting<'_, &Terminator> {
                     // Iterate over each value in the table, and add a arrow denoting
                     // that the CF will go to the specified block given the specified
                     // `value`.
-                    for (i, (value, target)) in table.iter().enumerate() {
+                    for (i, (value, target)) in targets.iter().enumerate() {
                         if i > 0 {
                             write!(f, ", ")?;
                         }
+
+                        // We want to create an a constant from this value
+                        // with the type, and then print it.
+                        let value = IntConstant::from_uint(value, targets.ty);
 
                         write!(f, "{value:?} -> {target:?}")?;
                     }
 
                     // Write the default case
-                    write!(f, "otherwise -> {otherwise:?}]")?;
+                    if let Some(otherwise) = targets.otherwise {
+                        write!(f, "otherwise -> {otherwise:?}]")?;
+                    }
                 }
 
                 Ok(())
