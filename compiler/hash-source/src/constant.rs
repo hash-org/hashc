@@ -423,7 +423,7 @@ pub enum IntConstantValue {
 }
 
 impl IntConstantValue {
-    /// Create a new [IntConstantValue] from little endian ordered bytes
+    /// Create a new [IntConstantValue] from little endian ordered bytes.
     pub fn from_le_bytes(bytes: &[u8]) -> Self {
         if bytes.len() <= 16 {
             let mut arr = [0u8; 16];
@@ -441,6 +441,25 @@ impl IntConstantValue {
             Self::Small(arr)
         } else {
             Self::Big(Box::new(BigInt::from_signed_bytes_le(bytes)))
+        }
+    }
+
+    /// Create a new [IntConstantValue] from big endian ordered bytes
+    pub fn from_be_bytes(bytes: &[u8]) -> Self {
+        if bytes.len() <= 16 {
+            let mut arr = [0u8; 16];
+            arr[..bytes.len()].copy_from_slice(bytes);
+
+            // If the last byte is negative, we need to sign extend
+            // if bytes.last().map(|b| b & 0x80 != 0).unwrap_or(false) {
+            //     for i in arr.iter_mut().skip(bytes.len()) {
+            //         *i = 0xff;
+            //     }
+            // }
+
+            Self::Small(arr)
+        } else {
+            Self::Big(Box::new(BigInt::from_signed_bytes_be(bytes)))
         }
     }
 }
@@ -483,6 +502,23 @@ impl IntConstant {
     /// Create a new [IntConstant] from a given `value` and `ty`.
     pub fn new(value: IntConstantValue, ty: IntTy, suffix: Option<Identifier>) -> Self {
         Self { value, ty, suffix }
+    }
+
+    /// Create a [IntConstant] from the a provided value and suffix, and then
+    /// insert it into the [ConstantMap] returning the [InternedInt].
+    pub fn from_big_int(value: BigInt, ty: IntTy, suffix: Option<Identifier>) -> Self {
+        Self { value: IntConstantValue::from(value), ty, suffix }
+    }
+
+    pub fn from_uint(value: u128, ty: IntTy) -> Self {
+        Self { value: IntConstantValue::from_be_bytes(&value.to_be_bytes()), ty, suffix: None }
+    }
+
+    /// Create a [IntConstant] from Little endian bytes and an [IntTy]. It is
+    /// assumed that the correct amount of bytes are provided to this
+    /// function.
+    pub fn from_le_bytes(&self, bytes: &[u8], ty: IntTy) -> Self {
+        IntConstant { value: IntConstantValue::from_le_bytes(bytes), ty, suffix: None }
     }
 
     /// Convert the constant into a Big endian order byte stream.
@@ -754,28 +790,6 @@ impl ConstantMap {
     /// Perform a negation operation on an [InternedFloat].
     pub fn negate_float_constant(&self, id: InternedFloat) {
         self.float_table.alter(&id, |_, value| value.negate());
-    }
-
-    /// Create a [IntConstant] from the a provided value and suffix, and then
-    /// insert it into the [ConstantMap] returning the [InternedInt].
-    pub fn create_int_constant_from_value(
-        &self,
-        value: BigInt,
-        ty: IntTy,
-        suffix: Option<Identifier>,
-    ) -> InternedInt {
-        let value = IntConstantValue::from(value);
-        let constant = IntConstant { value, ty, suffix };
-        self.create_int_constant(constant)
-    }
-
-    /// Create a [IntConstant] from Little endian bytes and an [IntTy]. It is
-    /// assumed that the correct amount of bytes are provided to this
-    /// function.
-    pub fn create_int_constant_from_le_bytes(&self, bytes: &[u8], ty: IntTy) -> InternedInt {
-        let value = IntConstantValue::from_le_bytes(bytes);
-        let constant = IntConstant { value, ty, suffix: None };
-        self.create_int_constant(constant)
     }
 
     /// Create a [IntConstant] within the [ConstantMap].
