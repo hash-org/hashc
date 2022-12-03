@@ -4,7 +4,7 @@
 //! is located in `matches.rs`.
 use std::mem;
 
-use hash_ast::ast::{AstNodeRef, Block, BodyBlock, Expr, LoopBlock};
+use hash_ast::ast::{AstNodeRef, Block, BodyBlock, Expr, LoopBlock, MatchBlock};
 use hash_ir::{
     ir::{BasicBlock, Place},
     ty::Mutability,
@@ -28,7 +28,9 @@ impl<'tcx> Builder<'tcx> {
             }
 
             // Send this off into the `match` lowering logic
-            Block::Match(..) => unimplemented!(),
+            Block::Match(MatchBlock { subject, cases, .. }) => {
+                self.match_expr(place, block, span, subject.ast_ref(), cases)
+            }
 
             Block::Loop(LoopBlock { contents }) => {
                 // Begin the loop block by connecting the previous block

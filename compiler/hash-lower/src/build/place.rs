@@ -6,14 +6,14 @@ use hash_ir::{
     ir::{BasicBlock, Local, Place, PlaceProjection},
     ty::{IrTy, IrTyId, Mutability},
 };
-use hash_utils::store::CloneStore;
+use hash_utils::store::{CloneStore, Store};
 
 use super::{unpack, BlockAnd, BlockAndExtend, Builder};
 
 /// A builder interface for building a [Place] with a base [Local]
 /// and a collection of projections that are applied as the
 /// [Place] is constructed.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PlaceBuilder {
     /// The place that we are building.
     base: Local,
@@ -51,6 +51,17 @@ impl PlaceBuilder {
     pub(crate) fn project(mut self, projection: PlaceProjection) -> Self {
         self.projections.push(projection);
         self
+    }
+
+    /// Clone the [PlaceBuilder], and then apply a [PlaceProjection]. This
+    /// is more efficient that calling `place.clone().project()`.
+    pub(crate) fn clone_project(&self, projection: PlaceProjection) -> Self {
+        Self {
+            base: self.base,
+            projections: Vec::from_iter(
+                self.projections.iter().copied().chain(std::iter::once(projection)),
+            ),
+        }
     }
 
     /// Build the [Place] from the [PlaceBuilder].
@@ -171,32 +182,32 @@ impl<'tcx> Builder<'tcx> {
     /// a [PropertyKind]. This function assumes that the underlying type is
     /// a [IrTy::Adt].
     fn lookup_field_index(&mut self, ty: IrTyId, field: PropertyKind) -> usize {
-        let ty = self.storage.ty_store().get(ty);
+        self.storage.ty_store().map_fast(ty, |ty| {
+            // This must be an adt...
+            let IrTy::Adt(adt) = ty else {
+                unreachable!()
+            };
 
-        // This must be an adt...
-        let IrTy::Adt(adt_id) = ty else {
-            unreachable!()
-        };
+            self.storage.adt_store().map_fast(*adt, |adt| {
+                // @@Todo: deal with unions here.
+                if adt.flags.is_struct() || adt.flags.is_tuple() {
+                    // So we get the first variant of the ADT since structs, tuples always
+                    // have a single variant
+                    let variant = adt.variants.first().unwrap();
 
-        let adt = self.storage.adt_store().get(adt_id);
-
-        // @@Todo: deal with unions here.
-        if adt.flags.is_struct() || adt.flags.is_tuple() {
-            // So we get the first variant of the ADT since structs, tuples always
-            // have a single variant
-            let variant = adt.variants.first().unwrap();
-
-            match field {
-                PropertyKind::NamedField(name) => {
-                    // @@Optimisation: we could use a lookup table for `AdtField` to
-                    // immediately lookup the field rather than looping through the
-                    // whole vector trying to find the field with the same name.
-                    variant.fields.iter().position(|field| field.name == name).unwrap()
+                    match field {
+                        PropertyKind::NamedField(name) => {
+                            // @@Optimisation: we could use a lookup table for `AdtField` to
+                            // immediately lookup the field rather than looping through the
+                            // whole vector trying to find the field with the same name.
+                            variant.fields.iter().position(|field| field.name == name).unwrap()
+                        }
+                        PropertyKind::NumericField(index) => index,
+                    }
+                } else {
+                    unreachable!("attempt to access a field of a non-struct or tuple type")
                 }
-                PropertyKind::NumericField(index) => index,
-            }
-        } else {
-            unreachable!("attempt to access a field of a non-struct or tuple type")
-        }
+            })
+        })
     }
 }

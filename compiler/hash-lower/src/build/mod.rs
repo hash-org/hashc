@@ -311,6 +311,12 @@ impl<'tcx> Builder<'tcx> {
         self.tcx.node_info_store.node_info(id).map(|f| f.pat_id()).unwrap()
     }
 
+    /// Lookup the corresponding [AstNodeId] of [PatId], and then compute
+    /// the type associated with this [AstNodeId].
+    fn get_ty_of_pat(&self, id: PatId) -> IrTyId {
+        self.tcx.node_info_store.pat_to_node_id(id).map(|id| self.get_ty_id_of_node(id)).unwrap()
+    }
+
     /// Function to create a new [Place] that is used to ignore
     /// the results of expressions, i.e. blocks.
     pub(crate) fn make_tmp_unit(&mut self) -> Place {
