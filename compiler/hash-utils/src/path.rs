@@ -12,12 +12,12 @@ pub fn adjust_canonicalisation<P: AsRef<Path>>(p: P) -> String {
 #[cfg(target_os = "windows")]
 pub fn adjust_canonicalisation<P: AsRef<Path>>(p: P) -> String {
     const VERBATIM_PREFIX: &str = r#"\\?\"#;
-    let p =
+    let path =
         canonicalize(p.as_ref()).unwrap_or_else(|_| p.as_ref().to_path_buf()).display().to_string();
 
-    if p.starts_with(VERBATIM_PREFIX) {
-        p[VERBATIM_PREFIX.len()..].to_string()
+    if let Some(stripped_path) = path.strip_prefix(VERBATIM_PREFIX) {
+        stripped_path.to_string()
     } else {
-        p
+        path
     }
 }
