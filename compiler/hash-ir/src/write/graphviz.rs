@@ -7,11 +7,10 @@
 
 use std::io;
 
-use hash_source::constant::IntConstant;
 use html_escape::encode_text;
 
 use crate::{
-    ir::{BasicBlock, BasicBlockData, Body, TerminatorKind},
+    ir::{BasicBlock, BasicBlockData, Body, Const, TerminatorKind},
     write::WriteIr,
     IrStorage,
 };
@@ -136,7 +135,7 @@ impl<'ir> IrGraphWriter<'ir> {
                         for (value, target) in targets.iter() {
                             // We want to create an a constant from this value
                             // with the type, and then print it.
-                            let value = IntConstant::from_uint(value, targets.ty);
+                            let value = Const::from_scalar(value, targets.ty, self.ctx);
 
                             writeln!(
                                 w,

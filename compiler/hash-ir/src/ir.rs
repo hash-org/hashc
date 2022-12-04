@@ -1,11 +1,11 @@
 //! Hash Compiler Intermediate Representation (IR) crate. This module is still
 //! under construction and is subject to change.
 use core::slice;
-use std::fmt;
+use std::{cmp::Ordering, fmt};
 
 use hash_ast::ast;
 use hash_source::{
-    constant::{IntTy, InternedFloat, InternedInt, InternedStr},
+    constant::{IntConstant, InternedFloat, InternedInt, InternedStr, CONSTANT_MAP},
     identifier::Identifier,
     location::{SourceLocation, Span},
     SourceId,
@@ -23,7 +23,7 @@ use crate::{
     IrStorage,
 };
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub enum Const {
     /// Nothing, it has zero size, and is associated with a particular type.
     Zero(IrTyId),
@@ -54,6 +54,29 @@ impl Const {
         let unit = storage.ty_store().create(IrTy::unit(storage));
         Self::Zero(unit)
     }
+
+    /// Check if a [Const] is of integral kind.
+    pub fn is_integral(&self) -> bool {
+        matches!(self, Self::Char(_) | Self::Int(_) | Self::Byte(_))
+    }
+
+    /// Create a new [Const] from a scalar value, with the appropriate
+    /// type.
+    pub fn from_scalar(value: u128, ty: IrTyId, storage: &IrStorage) -> Self {
+        storage.ty_store().map_fast(ty, |ty| match ty {
+            IrTy::Int(int_ty) => {
+                let interned_value = IntConstant::from_uint(value, (*int_ty).into());
+                Self::Int(CONSTANT_MAP.create_int_constant(interned_value))
+            }
+            IrTy::UInt(int_ty) => {
+                let interned_value = IntConstant::from_uint(value, (*int_ty).into());
+                Self::Int(CONSTANT_MAP.create_int_constant(interned_value))
+            }
+            IrTy::Bool => Self::Byte(value as u8),
+            IrTy::Char => unsafe { Self::Char(char::from_u32_unchecked(value as u32)) },
+            _ => unreachable!(),
+        })
+    }
 }
 
 impl fmt::Display for Const {
@@ -66,6 +89,25 @@ impl fmt::Display for Const {
             Self::Float(flt) => write!(f, "{flt}"),
             Self::Str(s) => write!(f, "{s}"),
         }
+    }
+}
+
+/// Perform a value comparison between two constants.
+pub fn compare_constant_values(left: Const, right: Const) -> Option<Ordering> {
+    match (left, right) {
+        (Const::Zero(_), Const::Zero(_)) => Some(Ordering::Equal),
+        (Const::Byte(left), Const::Byte(right)) => Some(left.cmp(&right)),
+        (Const::Char(left), Const::Char(right)) => Some(left.cmp(&right)),
+        (Const::Int(left), Const::Int(right)) => CONSTANT_MAP.map_int_constant(left, |left| {
+            CONSTANT_MAP.map_int_constant(right, |right| left.partial_cmp(right))
+        }),
+        (Const::Float(left), Const::Float(right)) => {
+            CONSTANT_MAP.map_float_constant(left, |left| {
+                CONSTANT_MAP.map_float_constant(right, |right| left.value.partial_cmp(&right.value))
+            })
+        }
+        (Const::Str(left), Const::Str(right)) => Some(left.cmp(&right)),
+        _ => None,
     }
 }
 
@@ -277,6 +319,10 @@ pub struct Place {
     pub local: Local,
     /// Any projections that are applied onto the `local` in
     /// order to specify an exact location within the local.
+    ///
+    /// @@Todo: maybe make this a slice rather than a vec, we
+    /// could create a `projection` store..., in order to make
+    /// this copyable.
     pub projections: Vec<PlaceProjection>,
 }
 
@@ -492,7 +538,9 @@ pub struct SwitchTargets {
     /// This is the type that is used to represent the values within
     /// the jump table. This will be used to create the appropriate
     /// value when actually reading from the jump table.
-    pub ty: IntTy,
+    ///
+    /// N.B. This must be an integral type, `int`, `bool`, `char`.
+    pub ty: IrTyId,
 
     /// If none of the corresponding values match, then jump to this block. This
     /// is set to [None] if the switch is exhaustive.
@@ -504,7 +552,7 @@ impl SwitchTargets {
     /// an optional otherwise block.
     pub fn new(
         targets: impl Iterator<Item = (u128, BasicBlock)>,
-        ty: IntTy,
+        ty: IrTyId,
         otherwise: Option<BasicBlock>,
     ) -> Self {
         Self { table: targets.collect(), ty, otherwise }
@@ -591,7 +639,7 @@ pub enum TerminatorKind {
     /// the `otherwise` condition.
     Switch {
         /// The value to use when comparing against the cases.
-        value: Place,
+        value: RValueId,
 
         /// All of the targets that are defined for the particular switch.
         targets: SwitchTargets,
@@ -614,7 +662,30 @@ pub enum TerminatorKind {
     },
 }
 
-/// Essentially a block
+impl TerminatorKind {
+    pub fn make_if(
+        place: Place,
+        true_block: BasicBlock,
+        false_block: BasicBlock,
+        storage: &IrStorage,
+    ) -> Self {
+        let value = storage.push_rvalue(RValue::Use(place));
+
+        let targets = SwitchTargets::new(
+            std::iter::once((0, false_block)),
+            storage.ty_store().make_bool(),
+            Some(true_block),
+        );
+
+        TerminatorKind::Switch { value, targets }
+    }
+}
+
+/// The contents of a [BasicBlock], the statements of the block, and a
+/// terminator. Initially, the `terminator` begins as [None], and will
+/// be set when the lowering process is completed.
+///
+/// N.B. It is an invariant for a [BasicBlock] to not have a terminator.
 #[derive(Debug, PartialEq, Eq)]
 pub struct BasicBlockData {
     /// The statements that the block has.

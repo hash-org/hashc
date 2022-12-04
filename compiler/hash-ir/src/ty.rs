@@ -4,13 +4,14 @@
 //! complexity from types that are required for IR generation and
 //! analysis.
 
-use std::{cell::Cell, fmt};
+use std::{cell::Cell, cmp, fmt};
 
 use bitflags::bitflags;
 use hash_source::{
     constant::{FloatTy, IntTy, SIntTy, UIntTy},
     identifier::Identifier,
 };
+use hash_target::size::Size;
 use hash_utils::{
     new_sequence_store_key, new_store_key,
     store::{CloneStore, DefaultSequenceStore, DefaultStore, SequenceStore, Store},
@@ -165,6 +166,15 @@ impl IrTy {
     pub fn is_adt(&self) -> bool {
         matches!(self, Self::Adt(_))
     }
+
+    /// Assuming that the [IrTy] is an ADT, return the [AdtId]
+    /// of the underlying ADT.
+    pub fn as_adt(&self) -> AdtId {
+        match self {
+            Self::Adt(adt_id) => *adt_id,
+            _ => panic!("expected ADT"),
+        }
+    }
 }
 
 impl From<IntTy> for IrTy {
@@ -226,6 +236,29 @@ impl AdtData {
     /// Lookup the index of a variant by its name.
     pub fn variant_idx(&self, name: &Identifier) -> Option<usize> {
         self.variants.iter().position(|variant| &variant.name == name)
+    }
+
+    /// Compute the discriminant type of this ADT, assuming that this
+    /// is an `enum` or a `union`.
+    ///
+    /// @@Todo(discriminants): This is incomplete because it does not account
+    /// for the         `repr` attribute, and the fact that enums might have
+    /// explicit          discriminants specified on them. @@Future: since
+    /// we don't support          this yet, it is not a problem.
+    pub fn discriminant_ty(&self) -> IntTy {
+        debug_assert!(self.flags.is_enum() || self.flags.is_union());
+
+        // Compute the maximum number of bits needed for the discriminant.
+        let max = self.variants.len() as u64;
+        let bits = max.leading_zeros();
+        let size = Size::from_bits(cmp::max(1, 64 - bits));
+
+        IntTy::UInt(UIntTy::from_size(size))
+    }
+
+    /// Create an iterator of all of the discriminants of this ADT.
+    pub fn discriminants(&self) -> impl Iterator<Item = (VariantIdx, u128)> {
+        self.variants.indices().map(|idx| (idx, idx._raw as u128))
     }
 }
 

@@ -18,7 +18,7 @@ impl<'tcx> Builder<'tcx> {
         mutability: Mutability,
     ) -> BlockAnd<Local> {
         let temp = {
-            let ty = self.get_ty_id_of_node(expr.id());
+            let ty = self.ty_id_of_node(expr.id());
             let local = LocalDecl::new_auxiliary(ty, mutability);
             let scope = self.current_scope();
 

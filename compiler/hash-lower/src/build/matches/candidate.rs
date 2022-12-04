@@ -326,37 +326,15 @@ impl<'tcx> Builder<'tcx> {
                 Pat::Tuple(pat_args) => {
                     // get the type of the tuple so that we can read all of the
                     // fields
-                    let ty = self.get_ty_of_pat(pair.pat);
-                    let adt = self.storage.ty_store().map_fast(ty, |ty| {
-                        let IrTy::Adt(adt) = ty else {
-                            unreachable!("expected tuple pattern to have a tuple ty")
-                        };
-
-                        *adt
-                    });
+                    let ty = self.ty_of_pat(pair.pat);
+                    let adt = self.storage.ty_store().map_fast(ty, IrTy::as_adt);
 
                     candidate.pairs.extend(self.match_pat_fields(*pat_args, adt, pair.place));
                     Ok(())
                 }
                 Pat::Constructor(ConstructorPat { subject, args }) => {
                     let ty = convert_term_into_ir_ty(*subject, self.tcx, self.storage);
-
-                    // @@Todo: maybe refactor this check into it's own function...
-                    let adt = self.storage.ty_store().map_fast(ty, |ty| {
-                        debug_assert!(ty.is_adt());
-
-                        if let IrTy::Adt(adt_ty) = ty {
-                            self.storage.adt_store().map_fast(*adt_ty, |adt| {
-                                if adt.flags.is_struct() {
-                                    Some(*adt_ty)
-                                } else {
-                                    None
-                                }
-                            })
-                        } else {
-                            None
-                        }
-                    });
+                    let adt = self.map_on_adt(ty, |adt, id| adt.flags.is_struct().then_some(id));
 
                     // If this is a struct then we need to match on the fields of
                     // the struct since it is an *irrefutable* pattern.

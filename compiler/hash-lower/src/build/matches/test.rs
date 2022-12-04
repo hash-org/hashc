@@ -3,30 +3,29 @@
 //! when deciding where to jump to within the decision tree.
 
 use fixedbitset::FixedBitSet;
-use hash_ast::ast::{ConstructorPat, RangeEnd};
 use hash_ir::{
-    ir::{BasicBlock, BinOp, Const},
-    ty::{AdtId, IrTy, IrTyId, VariantIdx},
+    ir::{BasicBlock, BinOp, Const, RValue, SwitchTargets, TerminatorKind},
+    ty::{AdtId, IrTy, IrTyId},
+    IrStorage,
 };
+use hash_reporting::macros::panic_on_span;
 use hash_source::location::Span;
-use hash_types::pats::{AccessPat, Pat, PatId};
+use hash_types::{
+    fmt::PrepareForFormatting,
+    pats::{AccessPat, IfPat, Pat, PatId, RangePat},
+};
 use hash_utils::store::Store;
 use indexmap::IndexMap;
 
-use super::candidate::{self, Candidate};
-use crate::build::{place::PlaceBuilder, Builder};
-
-/// A [Test] represents a test that will be carried out on a
-/// a particular [Candidate].
-pub(super) struct Test {
-    /// The kind of test that is being performed on the candidate
-    kind: TestKind,
-
-    /// The span of where the test occurs, in order to provide richer
-    /// information to basic block terminations when actually *performing*
-    /// the test
-    span: Span,
-}
+use super::{
+    candidate::{Candidate, MatchPair},
+    utils::ConstRange,
+};
+use crate::build::{
+    place::PlaceBuilder,
+    ty::{constify_lit_term, evaluate_int_lit_term},
+    Builder,
+};
 
 pub(super) enum TestKind {
     /// Test what value an `enum` variant is.
@@ -59,7 +58,7 @@ pub(super) enum TestKind {
     },
 
     /// Test whether the value falls within this particular range of values.
-    Range { lo: Const, hi: Const, end: RangeEnd },
+    Range { range: ConstRange },
 
     /// Test the length of the a slice/array pattern. This has an associated
     /// length and an operator, which is strictly an comparison operator of
@@ -73,107 +72,245 @@ pub(super) enum TestKind {
     },
 }
 
+/// A [Test] represents a test that will be carried out on a
+/// a particular [Candidate].
+pub(super) struct Test {
+    /// The kind of test that is being performed on the candidate
+    pub kind: TestKind,
+
+    /// The span of where the test occurs, in order to provide richer
+    /// information to basic block terminations when actually *performing*
+    /// the test
+    pub span: Span,
+}
+
+impl Test {
+    /// Return the total amount of targets that a particular
+    /// [Test] yields.
+    pub(super) fn targets(&self, storage: &IrStorage) -> usize {
+        match self.kind {
+            TestKind::Switch { adt, .. } => {
+                // The switch will not (necessarily) generate branches
+                // for all of the variants, so we have a target for each
+                // variant, and an additional target for the `otherwise` case.
+                storage.adt_store().map_fast(adt, |adt| adt.variants.len() + 1)
+            }
+            TestKind::SwitchInt { ty, ref options } => {
+                storage.ty_store().map_fast(ty, |ty| {
+                    // The boolean branch is always 2...
+                    if let IrTy::Bool = ty {
+                        2
+                    } else {
+                        // @@FixMe: this isn't always true since the number of options
+                        // might be exhaustive of the type, and so we don't necessarily
+                        // have to add the `otherwise` branch. However, this is a case that
+                        // doesn't often occur, so we can just ignore it for now.
+                        options.len() + 1
+                    }
+                })
+            }
+
+            // These variants are always `true` or otherwise...
+            TestKind::Eq { .. } | TestKind::Range { .. } | TestKind::Len { .. } => 2,
+        }
+    }
+}
+
 impl<'tcx> Builder<'tcx> {
-    /// This is the point where we begin to "test" candidates since we have
-    /// simplified all of the candidates as much as possible. We take the
-    /// first candidate from the provided list, and take the first pattern
-    /// within it's list that it must satisfy. Then we decide what kind of
-    /// test to perform based on the type of the pattern.
-    ///
-    /// After we know what test is going to be performed on the candidate, we
-    /// can cut down the number of candidates (from high to low priority)
-    /// and check.
-    ///
-    /// There are situations where this does not apply, for example:
-    /// ```ignore
-    /// (x, y, z) := (true, true, true)
-    ///
-    /// match (x, y, z) {
-    ///    (true ,     _, true ) => { ... } Candidate #1
-    ///    (_    ,  true, _    ) if x == false => { ... } Candidate #2
-    ///    (false, false, _    ) => { ... } Candidate #3
-    ///    (true ,     _, false) => { ... } Candidate #4
-    /// }
-    /// ```
-    ///
-    /// When we test `x`, there are two overlapping sets:
-    ///
-    /// - If `x` is `true`, then we have candidates #1, #2, and #4
-    /// - If `x` is `false`, then we have candidates #2, #3
-    ///
-    /// This would generate separate code-paths for these two cases. In some
-    /// cases, this would produce exponential behaviour (and thus exponential
-    /// amount of code). This might not actually show up in real scenarios,
-    /// but a simple scenario which is realistic might be:
-    /// ```ignore
-    /// match x {
-    ///    "a" if a => { ... }
-    ///    "b" if b => { ... }
-    ///    "c" if c => { ... }
-    /// }
-    /// ```
-    ///
-    /// Here, we use a [TestKind::Eq] since we need to perform an equality test
-    /// between the string literal and `x`. Using the standard approach, we
-    /// wouldn't generate two distinct sets of two values, since `"a"` might
-    /// be matched later by some other branch, which would then lead to an
-    /// exponential number of tests occurring. (@@Explain).
-    ///
-    /// To avoid this, we try to ensure that the amount of generated tests is
-    /// linear. We
-    // / do this by doing a k-way test, which returns an additional "unmatched" set alongside
-    /// the matches `k` set. When we encounter a candidate that would present in
-    /// more than one of the sets, we put it and all candidates below it in
-    /// an "unmatched" set. This ensures that these sets are disjoint, which
-    /// means we don't need to perform more than k + 1 tests.
-    ///
-    /// Once a test is performed, we branch into the appropriate candidate set,
-    /// and then recursively call `match_candidates`. These sub-matches are
-    /// non-exhaustive (since we discarded the `otherwise` set) - so we
-    /// continue with the "unmatched" set with `match_candidates` Using this
-    /// approach, we essentially generate an `if-else-if` chain.
-    pub(super) fn test_candidates(
+    pub(super) fn test_or_pat(
+        &mut self,
+        candidate: &mut Candidate,
+        otherwise: &mut Option<BasicBlock>,
+        pats: &[PatId],
+    ) {
+        todo!()
+    }
+
+    /// Create a [Test] from a [MatchPair]. If this function is called
+    /// on a un-simplified pattern, then this breaks an invariant and the
+    /// function will panic.
+    pub(super) fn test_match_pair(&mut self, pair: &MatchPair) -> Test {
+        self.tcx.pat_store.map_fast(pair.pat, |pat| {
+            // get the location of the pattern
+            let span = self.span_of_pat(pair.pat);
+
+            match pat {
+                Pat::Access(AccessPat { subject, .. }) => {
+                    let ty = self.ty_of_pat(*subject);
+                    let (variant_count, adt) =
+                        self.map_on_adt(ty, |adt, id| (adt.variants.len(), id));
+
+                    Test {
+                        kind: TestKind::Switch {
+                            adt,
+                            options: FixedBitSet::with_capacity(variant_count),
+                        },
+                        span,
+                    }
+                }
+                Pat::Lit(term) => {
+                    let ty = self.ty_of_pat(pair.pat);
+                    let value = constify_lit_term(*term, self.tcx);
+
+                    // If it is not an integral constant, we use an `Eq` test. This will
+                    // happen when the constant is either a float or a string.
+                    if value.is_integral() {
+                        Test { kind: TestKind::SwitchInt { ty, options: Default::default() }, span }
+                    } else {
+                        Test { kind: TestKind::Eq { ty, value }, span }
+                    }
+                }
+                Pat::Range(range_pat) => Test {
+                    kind: TestKind::Range { range: ConstRange::from_range(range_pat, self.tcx) },
+                    span,
+                },
+                Pat::List(list_pat) => {
+                    let (prefix, suffix, rest) = list_pat.into_parts(self.tcx);
+
+                    let len = prefix.len() + suffix.len();
+                    let op = if rest.is_some() { BinOp::GtEq } else { BinOp::EqEq };
+
+                    Test { kind: TestKind::Len { len, op }, span }
+                }
+                Pat::If(IfPat { pat, .. }) => {
+                    self.test_match_pair(&MatchPair { pat: pair.pat, place: pair.place.clone() })
+                }
+                Pat::Or(_) => panic_on_span!(
+                    span.into_location(self.source_id),
+                    self.source_map,
+                    "or patterns should be handled by `test_or_pat`"
+                ),
+                Pat::Const(_)
+                | Pat::Constructor(_)
+                | Pat::Wild
+                | Pat::Spread(_)
+                | Pat::Tuple(_)
+                | Pat::Mod(_)
+                | Pat::Binding(_) => {
+                    panic_on_span!(
+                        span.into_location(self.source_id),
+                        self.source_map,
+                        "attempt to test simplify-able pattern, `{}`",
+                        pair.pat.for_formatting(self.tcx)
+                    )
+                }
+            }
+        })
+    }
+
+    pub(super) fn sort_candidate(
+        &mut self,
+        _match_place: &PlaceBuilder,
+        _test: &Test,
+        _candidate: &mut Candidate,
+    ) -> Option<usize> {
+        todo!()
+    }
+
+    /// This function is responsible for generating the code for the specified
+    /// [Test].
+    pub(super) fn perform_test(
         &mut self,
         span: Span,
-        candidates: &mut [&mut Candidate],
         block: BasicBlock,
-        otherwise: &mut Option<BasicBlock>,
+        place_builder: &PlaceBuilder,
+        test: &Test,
+        make_target_blocks: impl FnOnce(&mut Self) -> Vec<BasicBlock>,
     ) {
-        // take the first pattern
-        let pair = &candidates.first().unwrap().pairs[0];
-        let mut test = self.test_pat(pair.pat);
-        let match_place = pair.place.clone();
+        // Build the place from the provided place builder
+        let place = place_builder.clone().into_place();
 
-        // For switch tests, we may want to add additional cases to the
-        // test from the available candidates
         match test.kind {
-            TestKind::Switch { adt, options: ref mut variants } => {
-                for candidate in candidates.iter() {
-                    // If we couldn't add a particular candidate, then short-circuit
-                    // since we won't be able to add any candidates after.
-                    if !self.add_variants_to_switch(&match_place, candidate, variants) {
-                        break;
-                    }
-                }
-            }
-            TestKind::SwitchInt { ty, ref mut options } => {
-                for candidate in candidates.iter() {
-                    // If we couldn't add a particular candidate, then short-circuit
-                    // since we won't be able to add any candidates after.
-                    if !self.add_cases_to_switch(&match_place, candidate, ty, options) {
-                        break;
-                    }
-                }
-            }
-            _ => {}
-        };
+            TestKind::Switch { adt, options: ref variants } => {
+                let target_blocks = make_target_blocks(self);
+                let (variant_count, discriminant_ty) = self
+                    .storage
+                    .adt_store()
+                    .map_fast(adt, |adt| (adt.variants.len(), adt.discriminant_ty()));
 
-        todo!()
+                // Assert that the number of variants is the same as the number of
+                // target blocks.
+                debug_assert_eq!(variant_count + 1, target_blocks.len());
+
+                let otherwise_block = target_blocks.last().copied();
+
+                // Here we want to create a switch statement that will match on all of the
+                // specified discriminants of the ADT.
+                let discriminant_ty = self.storage.ty_store().create(discriminant_ty.into());
+                let targets = SwitchTargets::new(
+                    self.storage.adt_store().map_fast(adt, |adt| {
+                        // Map over all of the discriminants of the ADT, and filter out those that
+                        // are not in the `options` set.
+                        adt.discriminants().filter_map(|(var_idx, discriminant)| {
+                            let idx = var_idx.index();
+                            if variants.contains(idx) {
+                                Some((discriminant, target_blocks[idx]))
+                            } else {
+                                None
+                            }
+                        })
+                    }),
+                    discriminant_ty,
+                    otherwise_block,
+                );
+
+                // Then we push an assignment to a the passed in `place` so that we
+                // can compare the discriminant to the specified value within the
+                // switch statement.
+                let discriminant_tmp = self.temp_place(discriminant_ty);
+                let value = self.storage.push_rvalue(RValue::Discriminant(place));
+                self.control_flow_graph.push_assign(block, discriminant_tmp, value, span);
+
+                // then terminate this block with the `switch` terminator
+                self.control_flow_graph.terminate(
+                    block,
+                    span,
+                    TerminatorKind::Switch { value, targets },
+                );
+            }
+            TestKind::SwitchInt { ty, ref options } => {
+                let target_blocks = make_target_blocks(self);
+
+                let terminator_kind =
+                    if self.storage.ty_store().map_fast(ty, |ty| *ty == IrTy::Bool) {
+                        debug_assert!(options.len() == 2);
+
+                        let [first_block, second_block]= *target_blocks else {
+                        panic!("expected two target blocks for boolean switch");
+                    };
+
+                        let (true_block, false_block) = match options[0] {
+                            1 => (first_block, second_block),
+                            0 => (second_block, first_block),
+                            _ => panic!("expected boolean switch to have only two options"),
+                        };
+
+                        TerminatorKind::make_if(place, true_block, false_block, self.storage)
+                    } else {
+                        debug_assert_eq!(options.len() + 1, target_blocks.len());
+                        let otherwise_block = target_blocks.last().copied();
+
+                        let targets = SwitchTargets::new(
+                            options.values().copied().zip(target_blocks),
+                            ty,
+                            otherwise_block,
+                        );
+
+                        let value = self.storage.push_rvalue(RValue::Use(place));
+                        TerminatorKind::Switch { value, targets }
+                    };
+
+                self.control_flow_graph.terminate(block, span, terminator_kind);
+            }
+            TestKind::Eq { ty, value } => todo!(),
+            TestKind::Range { ref range } => todo!(),
+            TestKind::Len { len, op } => todo!(),
+        }
     }
 
     /// Try to add any match pairs of the [Candidate] to the particular
     /// `options` of a [TestKind::SwitchInt].
-    fn add_variants_to_switch(
+    pub(super) fn add_variants_to_switch(
         &mut self,
         test_place: &PlaceBuilder,
         candidate: &Candidate,
@@ -195,19 +332,12 @@ impl<'tcx> Builder<'tcx> {
                 Pat::Access(AccessPat { subject, property }) => {
                     // Get the type of the subject, and then compute the
                     // variant index of the property.
-                    let ty = self.get_ty_of_pat(*subject);
+                    let ty = self.ty_of_pat(*subject);
 
-                    self.storage.ty_store().map_fast(ty, |ty| {
-                        let IrTy::Adt(adt) = ty else {
-                            unreachable!("expected ADT from subject type of access pattern");
-                        };
-
-                        // Add the variant to the options
-                        self.storage.adt_store().map_fast(*adt, |adt| {
-                            let variant_index = adt.variant_idx(property).unwrap();
-                            variants.insert(variant_index);
-                            true
-                        })
+                    self.map_on_adt(ty, |adt, _| {
+                        let variant_index = adt.variant_idx(property).unwrap();
+                        variants.insert(variant_index);
+                        true
                     })
                 }
 
@@ -219,7 +349,7 @@ impl<'tcx> Builder<'tcx> {
 
     /// Try to add any [Candidate]s that are also matching on a particular
     /// variant.
-    fn add_cases_to_switch(
+    pub(super) fn add_cases_to_switch(
         &mut self,
         test_place: &PlaceBuilder,
         candidate: &Candidate,
@@ -232,9 +362,16 @@ impl<'tcx> Builder<'tcx> {
 
         self.tcx.pat_store.map_fast(match_pair.pat, |pat| {
             match pat {
-                Pat::Lit(_) => todo!(),
-                Pat::Range(_) => {
-                    todo!()
+                Pat::Lit(term) => {
+                    let (constant, value) = evaluate_int_lit_term(*term, self.tcx);
+
+                    options.entry(constant).or_insert(value);
+                    true
+                }
+                Pat::Range(pat) => {
+                    // Check if there is at least one value that is not
+                    // contained within the r
+                    self.values_not_contained_in_range(pat, options).unwrap_or(false)
                 }
                 // We either don't know how to map these, or they should of been mapped
                 // by `add_variants_to_switch`.
@@ -253,16 +390,23 @@ impl<'tcx> Builder<'tcx> {
         })
     }
 
-    pub(super) fn test_or_pat(
+    /// Check if there is at least one value that is not contained within the
+    /// range. If there is, then we can add it to the options.
+    fn values_not_contained_in_range(
         &mut self,
-        candidate: &mut Candidate,
-        otherwise: &mut Option<BasicBlock>,
-        pats: &[PatId],
-    ) {
-        todo!()
-    }
+        pat: &RangePat,
+        options: &mut IndexMap<Const, u128>,
+    ) -> Option<bool> {
+        let const_range = ConstRange::from_range(pat, self.tcx);
 
-    pub(super) fn test_pat(&mut self, pat: PatId) -> Test {
-        todo!()
+        // Iterate over all of the options and check if the
+        // value is contained in the constant range.
+        for &value in options.keys() {
+            if const_range.contains(value)? {
+                return Some(false);
+            }
+        }
+
+        Some(true)
     }
 }

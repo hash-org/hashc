@@ -12,25 +12,23 @@ mod place;
 mod rvalue;
 mod temp;
 mod ty;
+mod utils;
 
 use std::collections::{HashMap, HashSet};
 
 use hash_ast::ast::{AstNodeId, AstNodeRef, Expr, FnDef};
 use hash_ir::{
-    ir::{
-        AssertKind, BasicBlock, Body, BodySource, Local, LocalDecl, Place, TerminatorKind,
-        START_BLOCK,
-    },
+    ir::{BasicBlock, Body, BodySource, Local, LocalDecl, Place, TerminatorKind, START_BLOCK},
     ty::{IrTy, IrTyId, Mutability},
     IrStorage,
 };
 use hash_pipeline::settings::LoweringSettings;
 use hash_source::{identifier::Identifier, location::Span, SourceId, SourceMap};
-use hash_types::{pats::PatId, scope::ScopeId, storage::GlobalStorage};
+use hash_types::{scope::ScopeId, storage::GlobalStorage};
 use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
 use index_vec::IndexVec;
 
-use self::ty::{convert_term_into_ir_ty, get_fn_ty_from_term, lower_term};
+use self::ty::{get_fn_ty_from_term, lower_term};
 use crate::cfg::ControlFlowGraph;
 
 /// A wrapper type for the kind of AST node that is being lowered, the [Builder]
@@ -280,101 +278,6 @@ impl<'tcx> Builder<'tcx> {
             self.item.span(),
             self.source_id,
         )
-    }
-
-    /// Function to get the associated [TermId] with the
-    /// provided [AstNodeId].
-    #[inline]
-    fn get_ty_id_of_node(&self, id: AstNodeId) -> IrTyId {
-        let term_id = self.tcx.node_info_store.node_info(id).map(|f| f.term_id()).unwrap();
-
-        // We need to try and look up the type within the cache, if not
-        // present then we create the type by converting the term into
-        // the type.
-
-        convert_term_into_ir_ty(term_id, self.tcx, self.storage)
-    }
-
-    /// Function to get the associated [Term] with the
-    /// provided [AstNodeId].
-    #[inline]
-    fn get_ty_of_node(&self, id: AstNodeId) -> IrTy {
-        let term_id = self.tcx.node_info_store.node_info(id).map(|f| f.term_id()).unwrap();
-
-        lower_term(term_id, self.tcx, self.storage)
-    }
-
-    /// Function to get the associated [PatId] with the
-    /// provided [AstNodeId].
-    #[inline]
-    fn get_pat_id_of_node(&self, id: AstNodeId) -> PatId {
-        self.tcx.node_info_store.node_info(id).map(|f| f.pat_id()).unwrap()
-    }
-
-    /// Lookup the corresponding [AstNodeId] of [PatId], and then compute
-    /// the type associated with this [AstNodeId].
-    fn get_ty_of_pat(&self, id: PatId) -> IrTyId {
-        self.tcx.node_info_store.pat_to_node_id(id).map(|id| self.get_ty_id_of_node(id)).unwrap()
-    }
-
-    /// Function to create a new [Place] that is used to ignore
-    /// the results of expressions, i.e. blocks.
-    pub(crate) fn make_tmp_unit(&mut self) -> Place {
-        match &self.tmp_place {
-            Some(tmp) => tmp.clone(),
-            None => {
-                let ty = IrTy::unit(self.storage);
-                let ty_id = self.storage.ty_store().create(ty);
-
-                let local = LocalDecl::new_auxiliary(ty_id, Mutability::Immutable);
-                let local_id = self.declarations.push(local);
-
-                let place = Place::from(local_id);
-                self.tmp_place = Some(place.clone());
-
-                place
-            }
-        }
-    }
-
-    /// Create an assertion on a particular block
-    pub(crate) fn assert(
-        &mut self,
-        block: BasicBlock,
-        condition: Place,
-        expected: bool,
-        kind: AssertKind,
-        span: Span,
-    ) -> BasicBlock {
-        let success_block = self.control_flow_graph.start_new_block();
-
-        self.control_flow_graph.terminate(
-            block,
-            span,
-            TerminatorKind::Assert { condition, expected, kind, target: success_block },
-        );
-
-        success_block
-    }
-
-    /// Run a lowering operation whilst entering a new scope which is derived
-    /// from the provided [AstNodeRef<Expr>].
-    ///
-    /// N.B. It is assumed that the related expression has an associated scope.
-    pub(crate) fn with_scope<T, U>(
-        &mut self,
-        expr: AstNodeRef<U>,
-        f: impl FnOnce(&mut Self) -> T,
-    ) -> T {
-        let scope_id = self.tcx.node_info_store.node_info(expr.id()).map(|f| f.scope_id()).unwrap();
-        self.scope_stack.push(scope_id);
-
-        let result = f(self);
-
-        let popped = self.scope_stack.pop();
-        debug_assert!(popped.is_some() && matches!(popped, Some(id) if id == scope_id));
-
-        result
     }
 
     /// Get the current [ScopeId] that is being used within the builder.

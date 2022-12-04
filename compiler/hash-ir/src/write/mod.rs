@@ -10,7 +10,6 @@ pub mod pretty;
 
 use std::fmt;
 
-use hash_source::constant::IntConstant;
 use hash_utils::store::Store;
 
 use super::ir::*;
@@ -150,7 +149,7 @@ impl fmt::Display for ForFormatting<'_, &Terminator> {
 
                         // We want to create an a constant from this value
                         // with the type, and then print it.
-                        let value = IntConstant::from_uint(value, targets.ty);
+                        let value = Const::from_scalar(value, targets.ty, self.storage);
 
                         write!(f, "{value:?} -> {target:?}")?;
                     }

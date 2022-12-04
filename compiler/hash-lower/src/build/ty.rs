@@ -6,6 +6,7 @@
 //! types into the [IrTy] which is then used for the lowering process.
 
 use hash_ir::{
+    ir::Const,
     ty::{AdtData, AdtField, AdtFlags, AdtVariant, IrTy, IrTyId},
     IrStorage,
 };
@@ -251,4 +252,30 @@ pub(super) fn convert_term_into_ir_ty(
     ir_ctx.add_ty_cache_entry(term, ir_ty_id);
 
     ir_ty_id
+}
+
+/// Assuming that the provided [TermId] is a literal term, we essentially
+/// convert the term into a [Const] and return the value of the constant
+/// as a [u128]. This literal term must be an integral type.
+pub(super) fn evaluate_int_lit_term(term: TermId, tcx: &GlobalStorage) -> (Const, u128) {
+    tcx.term_store.map_fast(term, |term| match term {
+        Term::Level0(Level0Term::Lit(LitTerm::Int { value })) => CONSTANT_MAP
+            .map_int_constant(*value, |val| {
+                (Const::Int(*value), u128::from_be_bytes(val.get_bytes()))
+            }),
+        Term::Level0(Level0Term::Lit(LitTerm::Char(char))) => {
+            (Const::Char(*char), u128::from(*char))
+        }
+        _ => unreachable!(),
+    })
+}
+
+/// Convert a [LitTerm] into a [Const] value.
+pub(super) fn constify_lit_term(term: TermId, tcx: &GlobalStorage) -> Const {
+    tcx.term_store.map_fast(term, |term| match term {
+        Term::Level0(Level0Term::Lit(LitTerm::Int { value })) => Const::Int(*value),
+        Term::Level0(Level0Term::Lit(LitTerm::Char(char))) => Const::Char(*char),
+        Term::Level0(Level0Term::Lit(LitTerm::Str(str))) => Const::Str(*str),
+        _ => unreachable!(),
+    })
 }

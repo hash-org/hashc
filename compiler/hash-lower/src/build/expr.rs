@@ -34,7 +34,7 @@ impl<'tcx> Builder<'tcx> {
                 // handle it as a constructor initialisation, or if it is a
                 // function call.
 
-                let subject_ty = self.get_ty_of_node(subject.id());
+                let subject_ty = self.ty_of_node(subject.id());
 
                 if let IrTy::Fn { .. } = subject_ty {
                     self.fn_call_into_dest(destination, block, subject.ast_ref(), args, span)
@@ -47,7 +47,7 @@ impl<'tcx> Builder<'tcx> {
                 self.expr_into_dest(destination, block, expr.subject.ast_ref())
             }
             Expr::Index(..) | Expr::Deref(..) | Expr::Access(..) | Expr::Variable(..) => {
-                let _term = self.get_ty_of_node(expr.id());
+                let _term = self.ty_of_node(expr.id());
                 let place = unpack!(block = self.as_place(block, expr, Mutability::Immutable));
 
                 let rvalue = self.storage.push_rvalue(RValue::Use(place));
@@ -289,7 +289,7 @@ impl<'tcx> Builder<'tcx> {
         // the AST. One way could be to build a map when traversing the AST that
         // can map between the argument and the default value, later being fetched
         // when we need to **fill** in the missing argument.
-        let fn_ty = self.get_ty_of_node(subject.id());
+        let fn_ty = self.ty_of_node(subject.id());
 
         if let IrTy::Fn { params, .. } = fn_ty {
             if args.len() != params.len() {
