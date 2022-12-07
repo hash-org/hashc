@@ -415,8 +415,9 @@ impl TyStore {
         }
     }
 
-    /// Create a a [IrTy::UInt(UintTy::USize)], which is often used for generating
-    /// internal comparisons of values that are used for indexing.
+    /// Create a a [IrTy::UInt(UintTy::USize)], which is often used for
+    /// generating internal comparisons of values that are used for
+    /// indexing.
     pub fn make_usize(&self) -> IrTyId {
         self.create(IrTy::UInt(UIntTy::USize))
     }

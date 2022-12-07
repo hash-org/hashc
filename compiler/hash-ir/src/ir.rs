@@ -430,7 +430,7 @@ pub enum RValue {
     CheckedBinaryOp(BinOp, RValueId, RValueId),
 
     /// Compute the `length` of a place, yielding a `usize`.
-    /// 
+    ///
     /// Any `place` that is not an array or slice, is not a valid [RValue].
     Len(Place),
 

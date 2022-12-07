@@ -13,13 +13,13 @@ use crate::build::ty::evaluate_int_lit_term;
 ///
 /// N.B. These [Const]s must be of the same type, and must be integral
 ///      types.
-pub struct ConstRange {
+pub(super) struct ConstRange {
     /// The lower value of the range.
-    lo: Const,
+    pub lo: Const,
     /// The upper value of the range.
-    hi: Const,
+    pub hi: Const,
     /// If the range includes the `hi` or not.
-    end: RangeEnd,
+    pub end: RangeEnd,
 }
 
 impl ConstRange {

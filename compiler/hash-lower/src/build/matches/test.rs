@@ -3,18 +3,22 @@
 //! when deciding where to jump to within the decision tree.
 
 use fixedbitset::FixedBitSet;
+use hash_ast::ast::RangeEnd;
 use hash_ir::{
-    ir::{BasicBlock, BinOp, Const, RValue, SwitchTargets, TerminatorKind},
+    ir::{BasicBlock, BinOp, Const, RValue, RValueId, SwitchTargets, TerminatorKind},
     ty::{AdtId, IrTy, IrTyId},
     IrStorage,
 };
 use hash_reporting::macros::panic_on_span;
-use hash_source::location::Span;
+use hash_source::{
+    constant::{IntConstant, CONSTANT_MAP},
+    location::Span,
+};
 use hash_types::{
     fmt::PrepareForFormatting,
     pats::{AccessPat, IfPat, Pat, PatId, RangePat},
 };
-use hash_utils::store::Store;
+use hash_utils::store::{CloneStore, Store};
 use indexmap::IndexMap;
 
 use super::{
@@ -203,7 +207,7 @@ impl<'tcx> Builder<'tcx> {
                     let (prefix, suffix, rest) = list_pat.into_parts(self.tcx);
 
                     let len = prefix.len() + suffix.len();
-                    let op = if rest.is_some() { BinOp::GtEq } else { BinOp::EqEq };
+                    let op = if rest.is_some() { BinOp::GtEq } else { BinOp::Eq };
 
                     Test { kind: TestKind::Len { len, op }, span }
                 }
@@ -306,41 +310,181 @@ impl<'tcx> Builder<'tcx> {
             TestKind::SwitchInt { ty, ref options } => {
                 let target_blocks = make_target_blocks(self);
 
-                let terminator_kind =
-                    if self.storage.ty_store().map_fast(ty, |ty| *ty == IrTy::Bool) {
-                        debug_assert!(options.len() == 2);
+                let terminator_kind = if self.map_ty(ty, |ty| *ty == IrTy::Bool) {
+                    debug_assert!(options.len() == 2);
 
-                        let [first_block, second_block]= *target_blocks else {
+                    let [first_block, second_block]= *target_blocks else {
                         panic!("expected two target blocks for boolean switch");
                     };
 
-                        let (true_block, false_block) = match options[0] {
-                            1 => (first_block, second_block),
-                            0 => (second_block, first_block),
-                            _ => panic!("expected boolean switch to have only two options"),
-                        };
-
-                        TerminatorKind::make_if(place, true_block, false_block, self.storage)
-                    } else {
-                        debug_assert_eq!(options.len() + 1, target_blocks.len());
-                        let otherwise_block = target_blocks.last().copied();
-
-                        let targets = SwitchTargets::new(
-                            options.values().copied().zip(target_blocks),
-                            ty,
-                            otherwise_block,
-                        );
-
-                        let value = self.storage.push_rvalue(RValue::Use(place));
-                        TerminatorKind::Switch { value, targets }
+                    let (true_block, false_block) = match options[0] {
+                        1 => (first_block, second_block),
+                        0 => (second_block, first_block),
+                        _ => panic!("expected boolean switch to have only two options"),
                     };
+
+                    TerminatorKind::make_if(place, true_block, false_block, self.storage)
+                } else {
+                    debug_assert_eq!(options.len() + 1, target_blocks.len());
+                    let otherwise_block = target_blocks.last().copied();
+
+                    let targets = SwitchTargets::new(
+                        options.values().copied().zip(target_blocks),
+                        ty,
+                        otherwise_block,
+                    );
+
+                    let value = self.storage.push_rvalue(RValue::Use(place));
+                    TerminatorKind::Switch { value, targets }
+                };
 
                 self.control_flow_graph.terminate(block, span, terminator_kind);
             }
-            TestKind::Eq { ty, value } => todo!(),
-            TestKind::Range { ref range } => todo!(),
-            TestKind::Len { len, op } => todo!(),
+            TestKind::Eq { ty, value } => {
+                let (is_str, is_scalar) =
+                    self.map_ty(ty, |ty| (matches!(ty, IrTy::Str), ty.is_scalar()));
+
+                // If this type is a string, we essentially have to make a call to
+                // a string comparator function (which will be filled in later on
+                // by the `codegen` pass).
+                if is_str {
+                    unimplemented!("string comparisons not yet implemented")
+                }
+
+                // If the type is a scalar, then we can just perform a binary
+                // operation on the value, and then switch on the result
+                if is_scalar {
+                    let [success, fail] = *make_target_blocks(self) else {
+                            panic!("expected two target blocks for `Eq` test");
+                        };
+
+                    let expected = self.storage.push_rvalue(RValue::Const(value));
+                    let value = self.storage.push_rvalue(RValue::Use(place));
+
+                    self.compare(block, success, fail, BinOp::Eq, expected, value, span);
+                } else {
+                    // @@Todo: here we essentially have to make a call to some alternative
+                    //         equality mechanism since the [BinOp::EqEq] cannot handle
+                    //         non-scalar types.
+                    unimplemented!("non-scalar comparisons not yet implemented")
+                }
+            }
+            TestKind::Range { range: ConstRange { lo, hi, end } } => {
+                let lb_success = self.control_flow_graph.start_new_block();
+                let target_blocks = make_target_blocks(self);
+
+                let lo = self.storage.push_rvalue(RValue::Const(lo));
+                let hi = self.storage.push_rvalue(RValue::Const(hi));
+                let val = self.storage.push_rvalue(RValue::Use(place));
+
+                let [success, fail] = *target_blocks else {
+                    panic!("expected two target blocks for `Range` test");
+                };
+
+                // So here, we generate the control flow checks for the range comparison.
+                // Firslty, we generate the check to see if the `value` is less
+                // than or equal to the `lo` value. If so, the cfg progresses to
+                // `lb_success` which means that is has passed the first check.
+                // If not, then the cfg progresses to `fail` which means that the
+                // value is not in the range, and we can stop there.
+                //
+                // If the check is successful, the cfg goes to check if the `value` is less than
+                // (or equal to if inclusive range) and if so, then we go to the
+                // `success` branch, otherwise we go to the `fail` branch as previously
+                // specified. Here is a visual illustration of the control flow:
+                //
+                //```text
+                //    +---------+
+                //    |  block  |
+                //    +----+----+
+                //         |
+                //         v
+                //     +--+--+--+  (true)  +--------------+
+                //     | >=lo?  |--------> | (< | <=) hi? |  ----+ (false)
+                //     +---+----+          +------+-------+      |
+                //         | (false)              | (true)       |
+                //         v                      v              |
+                //     +---+---+             +----+----+         |
+                //     | fail  |             | success |         |
+                //     +---+---+             +---------+         |
+                //         ^                                     |
+                //         |                                     |
+                //         +-------------------------------------+
+                //```
+
+                // Generate the comparison for the lower bound
+                self.compare(block, lb_success, fail, BinOp::LtEq, lo, val, span);
+
+                let op = match end {
+                    RangeEnd::Included => BinOp::LtEq,
+                    RangeEnd::Excluded => BinOp::Lt,
+                };
+
+                self.compare(lb_success, success, fail, op, val, hi, span);
+            }
+            TestKind::Len { len, op } => {
+                let target_blocks = make_target_blocks(self);
+
+                let usize_ty = self.storage.ty_store().make_usize();
+                let actual = self.temp_place(usize_ty);
+
+                // Assign `actual = length(place)`
+                let value = self.storage.push_rvalue(RValue::Len(place));
+                self.control_flow_graph.push_assign(block, actual.clone(), value, span);
+
+                // @@Todo: can we not just use the `value` directly, there should be no
+                // dependency on it in other places, and it will always be a
+                // `usize`.
+                let actual_operand = self.storage.push_rvalue(RValue::Use(actual));
+
+                // Now, we generate a temporary for the expected length, and then
+                // compare the two.
+                let const_len =
+                    Const::Int(CONSTANT_MAP.create_int_constant(IntConstant::from(len)));
+                let expected = self.storage.push_rvalue(RValue::Const(const_len));
+
+                let [success, fail] = *target_blocks else {
+                    panic!("expected two target blocks for `Len` test");
+                };
+
+                self.compare(block, success, fail, op, actual_operand, expected, span);
+            }
         }
+    }
+
+    /// Generate IR for a comparison operation with a specified comparison
+    /// [BinOp]. This will take in the two [RValueId] operands, push a
+    /// [RValue::BinaryOp], and then insert a [TerminatorKind::Switch] which
+    /// determines where the control flow goes based on the result of the
+    /// comparison.
+    pub(super) fn compare(
+        &mut self,
+        block: BasicBlock,
+        success: BasicBlock,
+        fail: BasicBlock,
+        op: BinOp,
+        lhs: RValueId,
+        rhs: RValueId,
+        span: Span,
+    ) {
+        debug_assert!(op.is_comparator());
+
+        let bool_ty = self.storage.ty_store().make_bool();
+        let result = self.temp_place(bool_ty);
+
+        // Push an assignment with the result of the comparison, i.e. `result = op(lhs,
+        // rhs)`
+        let value = self.storage.push_rvalue(RValue::BinaryOp(op, lhs, rhs));
+        self.control_flow_graph.push_assign(block, result.clone(), value, span);
+
+        // Then insert the switch statement, which determines where the cfg goes based
+        // on if the comparison was true or false.
+        self.control_flow_graph.terminate(
+            block,
+            span,
+            // @@Todo: make `Place` copy!
+            TerminatorKind::make_if(result, success, fail, self.storage),
+        );
     }
 
     /// Try to add any match pairs of the [Candidate] to the particular
