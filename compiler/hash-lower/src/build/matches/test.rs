@@ -121,9 +121,44 @@ impl<'tcx> Builder<'tcx> {
         &mut self,
         candidate: &mut Candidate,
         otherwise: &mut Option<BasicBlock>,
+        place_builder: &PlaceBuilder,
         pats: &[PatId],
+        or_span: Span,
     ) {
-        todo!()
+        let mut or_candidates: Vec<_> = pats
+            .iter()
+            .map(|pat| {
+                let span = self.span_of_pat(*pat);
+
+                self.tcx.pat_store.map_fast(*pat, |pattern| {
+                    Candidate::new(
+                        span,
+                        *pat,
+                        place_builder,
+                        pattern.is_if() || candidate.has_guard,
+                    )
+                })
+            })
+            .collect();
+
+        let mut or_candidates_ref: Vec<_> = or_candidates.iter_mut().collect();
+
+        let otherwise = if candidate.otherwise_block.is_some() {
+            &mut candidate.otherwise_block
+        } else {
+            otherwise
+        };
+
+        // Perform the algorithm on these or-pats, and then attempt
+        // to simplify anthing trivial, and assume the starting block
+        // is the pre-binding block of the overall candidate.
+        self.match_candidates(
+            or_span,
+            candidate.pre_binding_block.unwrap(),
+            otherwise,
+            &mut or_candidates_ref,
+        );
+        self.merge_sub_candidates(candidate, or_span);
     }
 
     /// Create a [Test] from a [MatchPair]. If this function is called

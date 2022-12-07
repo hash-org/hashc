@@ -72,6 +72,7 @@ impl fmt::Display for ForFormatting<'_, RValueId> {
                     rhs.for_fmt(self.storage)
                 )
             }
+            RValue::Len(place) => write!(f, "len({})", place),
             RValue::UnaryOp(op, operand) => {
                 write!(f, "{op:?}({})", operand.for_fmt(self.storage))
             }

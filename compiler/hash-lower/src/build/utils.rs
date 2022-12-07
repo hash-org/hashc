@@ -128,4 +128,13 @@ impl<'tcx> Builder<'tcx> {
 
         result
     }
+
+    /// Run some function whilst reading a [IrTy] from a provided [IrTyId].
+    ///
+    /// N.B. The closure that is passed into this should not attempt to create
+    ///      new [IrTy]s, whislt this is checking, this is only meant as a
+    /// read-only      context over the whole type storage.
+    pub(crate) fn map_ty<T>(&mut self, ty: IrTyId, f: impl FnOnce(&IrTy) -> T) -> T {
+        self.storage.ty_store().map_fast(ty, f)
+    }
 }

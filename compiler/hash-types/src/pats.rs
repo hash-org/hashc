@@ -204,6 +204,11 @@ impl Pat {
         matches!(self, Pat::Binding(_))
     }
 
+    /// Check if the pattern is wrapped with an `if` guard.
+    pub fn is_if(&self) -> bool {
+        matches!(self, Pat::If(_))
+    }
+
     /// Convert the pattern into a binding pattern, if it is one.
     pub fn into_bind(self) -> Option<BindingPat> {
         match self {

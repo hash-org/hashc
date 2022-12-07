@@ -149,9 +149,9 @@ impl From<ast::UnOp> for UnaryOp {
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum BinOp {
     /// '=='
-    EqEq,
+    Eq,
     /// '!='
-    NotEq,
+    Neq,
     /// '|'
     BitOr,
     /// '||'
@@ -193,13 +193,18 @@ impl BinOp {
     pub fn is_checkable(&self) -> bool {
         matches!(self, Self::Add | Self::Sub | Self::Mul | Self::Div | Self::Shl | Self::Shr)
     }
+
+    /// Check if the [BinOP] is a comparitor.
+    pub fn is_comparator(&self) -> bool {
+        matches!(self, Self::Eq | Self::Neq | Self::Gt | Self::GtEq | Self::Lt | Self::LtEq)
+    }
 }
 
 impl From<ast::BinOp> for BinOp {
     fn from(value: ast::BinOp) -> Self {
         match value {
-            ast::BinOp::EqEq => Self::EqEq,
-            ast::BinOp::NotEq => Self::NotEq,
+            ast::BinOp::EqEq => Self::Eq,
+            ast::BinOp::NotEq => Self::Neq,
             ast::BinOp::BitOr => Self::BitOr,
             ast::BinOp::Or => Self::Or,
             ast::BinOp::BitAnd => Self::BitAnd,
@@ -423,6 +428,11 @@ pub enum RValue {
     /// the result of the operation in the form of `(T, bool)`. The boolean
     /// flag denotes whether the operation violated the check...
     CheckedBinaryOp(BinOp, RValueId, RValueId),
+
+    /// Compute the `length` of a place, yielding a `usize`.
+    /// 
+    /// Any `place` that is not an array or slice, is not a valid [RValue].
+    Len(Place),
 
     /// An expression which is taking the address of another expression with an
     /// mutability modifier e.g. `&mut x`.

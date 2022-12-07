@@ -162,6 +162,22 @@ impl IrTy {
         matches!(self, Self::Int(_) | Self::UInt(_) | Self::Float(_) | Self::Char)
     }
 
+    /// Check if a type is a scalar, i.e. it cannot be divided into
+    /// further components. [IrTy::RawRef] is also considered as a scalar since
+    /// the components of the reference are *opaque* to the compiler because it
+    /// isn't managed.
+    pub fn is_scalar(&self) -> bool {
+        matches!(
+            self,
+            Self::Int(_)
+                | Self::UInt(_)
+                | Self::Float(_)
+                | Self::Char
+                | Self::Bool
+                | Self::RawRef(_, _)
+        )
+    }
+
     /// Check if the type is an ADT.
     pub fn is_adt(&self) -> bool {
         matches!(self, Self::Adt(_))
@@ -397,6 +413,12 @@ impl TyStore {
             self.bool_ty.set(Some(id));
             id
         }
+    }
+
+    /// Create a a [IrTy::UInt(UintTy::USize)], which is often used for generating
+    /// internal comparisons of values that are used for indexing.
+    pub fn make_usize(&self) -> IrTyId {
+        self.create(IrTy::UInt(UIntTy::USize))
     }
 }
 

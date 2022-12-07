@@ -329,6 +329,8 @@ impl<'tcx> Builder<'tcx> {
         let mut otherwise = None;
 
         for pair in pairs {
+            let or_span = self.span_of_pat(pair.pat);
+
             let pats = self.tcx.pat_store.map_fast(pair.pat, |pat| {
                 let Pat::Or(pats) = pat else {
                     unreachable!("`or` pattern expected after candidate sorting")
@@ -338,7 +340,7 @@ impl<'tcx> Builder<'tcx> {
             });
 
             first.visit_leaves(|leaf| {
-                self.test_or_pat(leaf, &mut otherwise, &pats);
+                self.test_or_pat(leaf, &mut otherwise, &pair.place, &pats, or_span);
             });
         }
 
