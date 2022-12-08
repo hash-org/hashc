@@ -14,7 +14,7 @@ use hash_source::{
     identifier::IDENTS,
 };
 use hash_types::{
-    nominals::{EnumVariantValue, NominalDef, StructFields},
+    nominals::{EnumDef, EnumVariantValue, NominalDef, NominalDefId, StructFields},
     storage::GlobalStorage,
     terms::{FnLit, FnTy, Level0Term, Level1Term, LitTerm, Term, TermId, TupleLit, TupleTy},
 };
@@ -94,95 +94,16 @@ impl<'tcx> Builder<'tcx> {
                     }
                     LitTerm::Char(_) => IrTy::Char,
                 },
-                Level0Term::Unit(_)
-                | Level0Term::FnCall(_)
-                | Level0Term::EnumVariant(_)
-                | Level0Term::Constructed(_) => panic!("unexpected level 0 term: {lvl_0_term:?}"),
+                Level0Term::EnumVariant(EnumVariantValue { enum_def_id, .. }) => {
+                    self.lower_nominal_def(enum_def_id)
+                }
+                Level0Term::Unit(_) | Level0Term::FnCall(_) | Level0Term::Constructed(_) => {
+                    panic!("unexpected level 0 term: {lvl_0_term:?}")
+                }
             },
 
             Term::Level1(lvl_1_term) => match lvl_1_term {
-                Level1Term::NominalDef(def_id) => {
-                    self.tcx.nominal_def_store.map_fast(def_id, |def| {
-                        match def {
-                            NominalDef::Struct(struct_def) => {
-                                // @@Hack: for now, we basically just check if the name
-                                // of the struct is a `primitive` type, and if so then
-                                // we convert to using the primitive variant, otherwise we
-                                // then just convert the struct into the IR representation.
-
-                                if struct_def.name.is_none() {
-                                    // @@Future: Nameless structs will be removed from the type
-                                    // structure           so we don't
-                                    // have to deal with them here.
-                                    unreachable!()
-                                }
-
-                                match struct_def.name.unwrap() {
-                                    id if id == IDENTS.i8 => IrTy::Int(SIntTy::I8),
-                                    id if id == IDENTS.i16 => IrTy::Int(SIntTy::I16),
-                                    id if id == IDENTS.i32 => IrTy::Int(SIntTy::I32),
-                                    id if id == IDENTS.i64 => IrTy::Int(SIntTy::I64),
-                                    id if id == IDENTS.i128 => IrTy::Int(SIntTy::I128),
-                                    id if id == IDENTS.isize => IrTy::Int(SIntTy::ISize),
-                                    id if id == IDENTS.u8 => IrTy::UInt(UIntTy::U8),
-                                    id if id == IDENTS.u16 => IrTy::UInt(UIntTy::U16),
-                                    id if id == IDENTS.u32 => IrTy::UInt(UIntTy::U32),
-                                    id if id == IDENTS.u64 => IrTy::UInt(UIntTy::U64),
-                                    id if id == IDENTS.u128 => IrTy::UInt(UIntTy::U128),
-                                    id if id == IDENTS.usize => IrTy::UInt(UIntTy::USize),
-                                    id if id == IDENTS.f32 => IrTy::Float(FloatTy::F32),
-                                    id if id == IDENTS.f64 => IrTy::Float(FloatTy::F64),
-                                    id if id == IDENTS.bool => IrTy::Bool,
-                                    id if id == IDENTS.char => IrTy::Char,
-                                    id if id == IDENTS.str => IrTy::Str,
-                                    name => {
-                                        // if the fields of the struct are not opaque, then we
-                                        // can create an ADT from it, otherwise this case should
-                                        // not occur, and we have encountered an unhandled
-                                        // primitive.
-                                        if let StructFields::Explicit(params) = struct_def.fields {
-                                            let fields = self
-                                                .tcx
-                                                .params_store
-                                                .get_vec(params)
-                                                .into_iter()
-                                                .enumerate()
-                                                .map(|(index, param)| AdtField {
-                                                    name: param
-                                                        .name
-                                                        .unwrap_or_else(|| index.into()),
-                                                    ty: self.convert_term_into_ir_ty(param.ty),
-                                                })
-                                                .collect();
-
-                                            let variants = index_vec![AdtVariant { name, fields }];
-
-                                            let adt = AdtData::new_with_flags(
-                                                name,
-                                                variants,
-                                                AdtFlags::STRUCT,
-                                            );
-                                            let adt_id = self.storage.adt_store().create(adt);
-
-                                            IrTy::Adt(adt_id)
-                                        } else {
-                                            // If we get here, this means that we haven't accounted
-                                            // for
-                                            // a particular primitive
-                                            // type occurring.
-                                            panic!("unhandled primitive type: {name}");
-                                        }
-                                    }
-                                }
-                            }
-                            NominalDef::Unit(_) => unimplemented!(),
-
-                            // @@Remove: this will later be removed, so don't deal with this case
-                            // for now.
-                            NominalDef::Enum(_) => unimplemented!(),
-                        }
-                    })
-                }
+                Level1Term::NominalDef(def_id) => self.lower_nominal_def(def_id),
                 Level1Term::Tuple(TupleTy { members }) => {
                     let fields = self
                         .tcx
@@ -271,6 +192,115 @@ impl<'tcx> Builder<'tcx> {
             | Term::Unresolved(_)
             | Term::Root => panic!("unexpected term: {term:?}"),
         }
+    }
+
+    fn lower_nominal_def(&self, def_id: NominalDefId) -> IrTy {
+        self.tcx.nominal_def_store.map_fast(def_id, |def| {
+            match def {
+                NominalDef::Struct(struct_def) => {
+                    // @@Hack: for now, we basically just check if the name
+                    // of the struct is a `primitive` type, and if so then
+                    // we convert to using the primitive variant, otherwise we
+                    // then just convert the struct into the IR representation.
+
+                    if struct_def.name.is_none() {
+                        // @@Future: Nameless structs will be removed from the type
+                        // structure           so we don't
+                        // have to deal with them here.
+                        unreachable!()
+                    }
+
+                    match struct_def.name.unwrap() {
+                        id if id == IDENTS.i8 => IrTy::Int(SIntTy::I8),
+                        id if id == IDENTS.i16 => IrTy::Int(SIntTy::I16),
+                        id if id == IDENTS.i32 => IrTy::Int(SIntTy::I32),
+                        id if id == IDENTS.i64 => IrTy::Int(SIntTy::I64),
+                        id if id == IDENTS.i128 => IrTy::Int(SIntTy::I128),
+                        id if id == IDENTS.isize => IrTy::Int(SIntTy::ISize),
+                        id if id == IDENTS.u8 => IrTy::UInt(UIntTy::U8),
+                        id if id == IDENTS.u16 => IrTy::UInt(UIntTy::U16),
+                        id if id == IDENTS.u32 => IrTy::UInt(UIntTy::U32),
+                        id if id == IDENTS.u64 => IrTy::UInt(UIntTy::U64),
+                        id if id == IDENTS.u128 => IrTy::UInt(UIntTy::U128),
+                        id if id == IDENTS.usize => IrTy::UInt(UIntTy::USize),
+                        id if id == IDENTS.f32 => IrTy::Float(FloatTy::F32),
+                        id if id == IDENTS.f64 => IrTy::Float(FloatTy::F64),
+                        id if id == IDENTS.bool => IrTy::Bool,
+                        id if id == IDENTS.char => IrTy::Char,
+                        id if id == IDENTS.str => IrTy::Str,
+                        name => {
+                            // if the fields of the struct are not opaque, then we
+                            // can create an ADT from it, otherwise this case should
+                            // not occur, and we have encountered an unhandled
+                            // primitive.
+                            if let StructFields::Explicit(params) = struct_def.fields {
+                                let fields = self.tcx.params_store.map_as_param_list_fast(
+                                    params,
+                                    |params| {
+                                        params
+                                            .positional()
+                                            .iter()
+                                            .enumerate()
+                                            .map(|(index, param)| AdtField {
+                                                name: param.name.unwrap_or_else(|| index.into()),
+                                                ty: self.convert_term_into_ir_ty(param.ty),
+                                            })
+                                            .collect()
+                                    },
+                                );
+
+                                let variants = index_vec![AdtVariant { name, fields }];
+
+                                let adt = AdtData::new_with_flags(name, variants, AdtFlags::STRUCT);
+                                let adt_id = self.storage.adt_store().create(adt);
+
+                                IrTy::Adt(adt_id)
+                            } else {
+                                // If we get here, this means that we haven't accounted
+                                // for
+                                // a particular primitive
+                                // type occurring.
+                                panic!("unhandled primitive type: {name}");
+                            }
+                        }
+                    }
+                }
+                NominalDef::Unit(_) => unimplemented!(),
+
+                // @@Remove: this will later be removed, so don't deal with this case
+                // for now.
+                NominalDef::Enum(EnumDef { name, variants }) => {
+                    let variants = variants
+                        .into_iter()
+                        .map(|(variant_name, variant)| {
+                            let fields = match variant.fields {
+                                Some(fields) => {
+                                    self.tcx.params_store.map_as_param_list_fast(fields, |params| {
+                                        params
+                                            .positional()
+                                            .iter()
+                                            .enumerate()
+                                            .map(|(index, param)| AdtField {
+                                                name: param.name.unwrap_or_else(|| index.into()),
+                                                ty: self.convert_term_into_ir_ty(param.ty),
+                                            })
+                                            .collect()
+                                    })
+                                }
+                                None => vec![],
+                            };
+
+                            AdtVariant { name: *variant_name, fields }
+                        })
+                        .collect();
+
+                    let adt = AdtData::new_with_flags(name.unwrap(), variants, AdtFlags::ENUM);
+                    let adt_id = self.storage.adt_store().create(adt);
+
+                    IrTy::Adt(adt_id)
+                }
+            }
+        })
     }
 
     /// This function will attempt to lower a provided [TermId] into a specified
