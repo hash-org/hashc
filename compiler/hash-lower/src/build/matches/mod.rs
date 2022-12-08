@@ -11,9 +11,9 @@ mod utils;
 
 use std::mem;
 
-use hash_ast::ast::{AstNodeRef, AstNodes, Expr, MatchCase};
+use hash_ast::ast::{self, AstNodeRef, AstNodes, BinOp, BinaryExpr, Expr, IfPat, MatchCase};
 use hash_ir::{
-    ir::{BasicBlock, Place, TerminatorKind},
+    ir::{AddressMode, BasicBlock, Place, RValue, TerminatorKind},
     ty::Mutability,
 };
 use hash_source::location::Span;
@@ -21,7 +21,7 @@ use hash_types::pats::Pat;
 use hash_utils::{stack::ensure_sufficient_stack, store::Store};
 
 use self::{
-    candidate::{Candidate, Candidates},
+    candidate::{traverse_candidate, Binding, Candidate, Candidates},
     test::TestKind,
 };
 use super::{place::PlaceBuilder, unpack, BlockAnd, BlockAndExtend, Builder};
@@ -71,6 +71,41 @@ impl<'tcx> Builder<'tcx> {
                 (arm, candidate)
             })
             .collect()
+    }
+
+    /// This function is used to create a `then-else` block sequence for a
+    /// specified expression. This is used to deal with `if-guards`, and to
+    /// also capture behaviour of short-circuiting logic operations, such as
+    /// `&&` and `||`.
+    pub(crate) fn then_else_break(
+        &mut self,
+        mut block: BasicBlock,
+        expr: AstNodeRef<'tcx, Expr>,
+    ) -> BlockAnd<()> {
+        let span = expr.span();
+
+        match expr.body {
+            Expr::BinaryExpr(BinaryExpr { lhs, rhs, operator })
+                if *operator.body() == BinOp::And =>
+            {
+                let lhs_then_block = unpack!(self.then_else_break(block, lhs.ast_ref()));
+                let rhs_then_block = unpack!(self.then_else_break(lhs_then_block, rhs.ast_ref()));
+
+                rhs_then_block.unit()
+            }
+            _ => {
+                let place = unpack!(block = self.as_place(block, expr, Mutability::Mutable));
+
+                let then_block = self.control_flow_graph.start_new_block();
+                let else_block = self.control_flow_graph.start_new_block();
+
+                let terminator =
+                    TerminatorKind::make_if(place, then_block, else_block, self.storage);
+                self.control_flow_graph.terminate(block, span, terminator);
+
+                then_block.unit()
+            }
+        }
     }
 
     /// Create a decision tree for the match expression using all of the created
@@ -132,8 +167,7 @@ impl<'tcx> Builder<'tcx> {
         let mut lowered_arms_edges: Vec<_> = Vec::with_capacity(arm_candidates.len());
 
         for (arm, candidate) in arm_candidates {
-            // @@Todo: we have to bind all of the declared bindings here...
-            let arm_block = self.bind_pattern(subject_span, candidate);
+            let arm_block = self.declare_bindings(subject_span, arm, candidate);
 
             lowered_arms_edges.push(self.expr_into_dest(
                 destination.clone(),
@@ -517,7 +551,152 @@ impl<'tcx> Builder<'tcx> {
         self.perform_test(span, block, &match_place, &test, make_target_blocks);
     }
 
-    fn bind_pattern(&mut self, span: Span, candidate: Candidate) -> BasicBlock {
-        todo!()
+    /// This function is responsible for putting all of the declared bindigs
+    /// into scope.
+    fn declare_bindings(
+        &mut self,
+        span: Span,
+        arm: AstNodeRef<'tcx, MatchCase>,
+        candidate: Candidate,
+    ) -> BasicBlock {
+        let guard = match arm.body.pat.ast_ref().body {
+            ast::Pat::If(ast::IfPat { condition, .. }) => Some(condition.ast_ref()),
+            _ => None,
+        };
+
+        if candidate.sub_candidates.is_empty() {
+            // We don't need generate another `BasicBlock` when we only have
+            // this candidate.
+            self.bind_and_guard_matched_candidate(candidate, guard, &[], span)
+        } else {
+            let target_block = self.control_flow_graph.start_new_block();
+
+            traverse_candidate(
+                candidate,
+                &mut Vec::new(),
+                &mut |leaf, parent_bindings| {
+                    let binding_end =
+                        self.bind_and_guard_matched_candidate(leaf, guard, parent_bindings, span);
+                    self.control_flow_graph.goto(binding_end, target_block, span);
+                },
+                |inner, parent_bindings| {
+                    parent_bindings.push(inner.bindings);
+                    inner.sub_candidates.into_iter()
+                },
+                |parent_bindings| {
+                    parent_bindings.pop();
+                },
+            );
+
+            target_block
+        }
+    }
+
+    /// Function that initialised each of the bindings from the candidate by
+    /// performing an a ref/copy as appropriate. Additionally, this will
+    /// test if there is a guard, and it will generate the guard basic
+    /// blocks, and then it will move onto the arm of the match.
+    ///
+    /// @@Todo: support specifically generating `if-guards` for sub-patterns.
+    ///
+    /// @@Todo: we need to specifically deny any `if-guards` from **mutating**
+    /// the bindings, so possibly wrap them in a ref?
+    fn bind_and_guard_matched_candidate(
+        &mut self,
+        candidate: Candidate,
+        guard: Option<AstNodeRef<'tcx, Expr>>,
+        parent_bindings: &[Vec<Binding>],
+        span: Span,
+    ) -> BasicBlock {
+        let block = candidate.pre_binding_block.unwrap();
+
+        // If this has a guard, then we need to create more blocks for the event
+        // that the guard does not succeed and we backtrack to the next patterns.
+        if candidate.has_guard && let Some(guard) = guard {
+            let bindings = parent_bindings
+                .iter()
+                .flatten()
+                .chain(&candidate.bindings);
+
+            // bind everything necessary for the guard.
+            self.bind_matched_candidate_for_guard(block, bindings);
+
+            // deal with the if-guard
+            let (post_guard_block, otherwise_post_guard_block) = (
+                unpack!(self.then_else_break(block, guard)),
+                self.control_flow_graph.start_new_block()
+            );
+
+            self.bind_matched_candidate_for_arm_body(
+                post_guard_block, parent_bindings.iter().flatten().chain(&candidate.bindings));
+
+            let otherwise_block = candidate.otherwise_block.unwrap_or_else(|| {
+               let unreachable = self.control_flow_graph.start_new_block();
+               self.control_flow_graph.terminate(unreachable, span, TerminatorKind::Unreachable);
+               unreachable
+            });
+
+            // Terminate the `otherwise` block on the candidate as unreachable if it hasn't
+            // been terminated already.
+            self.control_flow_graph.goto(otherwise_post_guard_block, otherwise_block, span);
+
+            post_guard_block
+        } else {
+            self.bind_matched_candidate_for_arm_body(block, parent_bindings.iter().flatten().chain(&candidate.bindings));
+            block
+        }
+    }
+
+    /// Assign all of the bindings that are in scope for the `if-guard`. For
+    /// now, we will automatically wrap any binding that is made by a
+    /// reference (this might change in the future when this is determined
+    /// more semantically).
+    fn bind_matched_candidate_for_guard<'b>(
+        &mut self,
+        block: BasicBlock,
+        bindings: impl IntoIterator<Item = &'b Binding>,
+    ) where
+        'tcx: 'b,
+    {
+        // assign each of the bindings, since this the guard expressionm there
+        // should be only references to values that the if-guard references in order
+        // to avoid problems of mutation in the if-guard, and then affecting the
+        // soundness of later match checks.
+        for binding in bindings {
+            let value_place = self.lookup_local(binding.name).unwrap().into();
+
+            // @@Todo: we might have to do some special rules for the `by-ref` case
+            //         when we start to think about reference rules more concretely.
+            let rvalue = RValue::Ref(binding.mutability, binding.source.clone(), AddressMode::Raw);
+            let rvalue_id = self.storage.push_rvalue(rvalue);
+            self.control_flow_graph.push_assign(block, value_place, rvalue_id, binding.span);
+        }
+    }
+
+    fn bind_matched_candidate_for_arm_body<'b>(
+        &mut self,
+        block: BasicBlock,
+        bindings: impl IntoIterator<Item = &'b Binding>,
+    ) where
+        'tcx: 'b,
+    {
+        for binding in bindings {
+            let value_place = self.lookup_local(binding.name).unwrap().into();
+
+            let rvalue = match binding.mode {
+                candidate::BindingMode::ByValue => RValue::Use(value_place),
+                candidate::BindingMode::ByRef => {
+                    RValue::Ref(binding.mutability, value_place, AddressMode::Raw)
+                }
+            };
+            let rvalue_id = self.storage.push_rvalue(rvalue);
+
+            self.control_flow_graph.push_assign(
+                block,
+                binding.source.clone(),
+                rvalue_id,
+                binding.span,
+            );
+        }
     }
 }
