@@ -312,21 +312,29 @@ impl<'tcx> Builder<'tcx> {
             candidates.iter().position(|c| !c.has_guard).unwrap_or(candidates.len() - 1);
 
         // Split the candidates between this point
-        let (reachable_candidates, unreachable_candidates) = candidates.split_at_mut(first_guard);
+        let (reachable_candidates, unreachable_candidates) =
+            candidates.split_at_mut(first_guard + 1);
 
         let mut next_pre_binding_block = start_block;
 
         for candidate in reachable_candidates.iter_mut() {
+            debug_assert!(candidate.otherwise_block.is_none());
+            debug_assert!(candidate.pre_binding_block.is_none());
+
             candidate.pre_binding_block = Some(next_pre_binding_block);
 
             // Create a new block for the next candidate to jump to, which
             // becomes that pre-binding block for the next candidate.
-            next_pre_binding_block = self.control_flow_graph.start_new_block();
-            candidate.otherwise_block = Some(next_pre_binding_block);
+            if candidate.has_guard {
+                next_pre_binding_block = self.control_flow_graph.start_new_block();
+                candidate.otherwise_block = Some(next_pre_binding_block);
+            }
         }
 
         // Add blocks for all of the unreachable candidates...
         for candidate in unreachable_candidates {
+            debug_assert!(candidate.pre_binding_block.is_none());
+
             candidate.pre_binding_block = Some(self.control_flow_graph.start_new_block());
         }
 
@@ -628,7 +636,6 @@ impl<'tcx> Builder<'tcx> {
 
             // deal with the if-guard
             let post_guard_block = unpack!(self.then_else_break(block, otherwise_block, guard));
-
             self.bind_matched_candidate_for_arm_body(
                 post_guard_block, parent_bindings.iter().flatten().chain(&candidate.bindings));
 
