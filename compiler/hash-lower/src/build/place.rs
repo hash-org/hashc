@@ -1,12 +1,10 @@
 //! Utilities for dealing with [Place]s when building up Hash IR.
-#![allow(unused)]
 
 use hash_ast::ast::{AccessExpr, AccessKind, AstNodeRef, DerefExpr, Expr, IndexExpr, PropertyKind};
 use hash_ir::{
     ir::{BasicBlock, Local, Place, PlaceProjection},
-    ty::{IrTy, IrTyId, Mutability},
+    ty::{IrTyId, Mutability},
 };
-use hash_utils::store::{CloneStore, Store};
 
 use super::{unpack, BlockAnd, BlockAndExtend, Builder};
 

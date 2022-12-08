@@ -2,8 +2,6 @@
 //! Lowering `match` blocks is probably the most complex part of lowering, since
 //! we have to create essentially a *jump* table each case that is specified in
 //! the `match` arms, which might also have `if` guards, `or` patterns, etc.
-#![allow(unused)]
-
 mod candidate;
 mod optimise;
 mod test;
@@ -11,7 +9,7 @@ mod utils;
 
 use std::mem;
 
-use hash_ast::ast::{self, AstNodeRef, AstNodes, BinOp, BinaryExpr, Expr, IfPat, MatchCase};
+use hash_ast::ast::{self, AstNodeRef, AstNodes, BinOp, BinaryExpr, Expr, MatchCase};
 use hash_ir::{
     ir::{AddressMode, BasicBlock, Place, RValue, TerminatorKind},
     ty::Mutability,
@@ -467,11 +465,11 @@ impl<'tcx> Builder<'tcx> {
                     }
                 }
             }
-            TestKind::SwitchInt { ty, ref mut options } => {
+            TestKind::SwitchInt { ref mut options, .. } => {
                 for candidate in candidates.iter() {
                     // If we couldn't add a particular candidate, then short-circuit
                     // since we won't be able to add any candidates after.
-                    if !self.add_cases_to_switch(&match_place, candidate, ty, options) {
+                    if !self.add_cases_to_switch(&match_place, candidate, options) {
                         break;
                     }
                 }

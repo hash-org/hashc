@@ -24,18 +24,15 @@ use hash_ir::{
     ir::{BasicBlock, Place, PlaceProjection},
     ty::{AdtId, IrTy, Mutability},
 };
-use hash_source::{constant::CONSTANT_MAP, identifier::Identifier, location::Span};
+use hash_source::{identifier::Identifier, location::Span};
 use hash_target::size::Size;
-use hash_types::{
-    pats::{
-        BindingPat, ConstructorPat, IfPat, ListPat, Pat, PatArgsId, PatId, RangePat, SpreadPat,
-    },
-    terms::{Level0Term, LitTerm, Term, TermId},
+use hash_types::pats::{
+    BindingPat, ConstructorPat, IfPat, Pat, PatArgsId, PatId, RangePat, SpreadPat,
 };
 use hash_utils::store::Store;
 use smallvec::{smallvec, SmallVec};
 
-use crate::build::{place::PlaceBuilder, Builder};
+use crate::build::{place::PlaceBuilder, ty::evaluate_int_lit_term, Builder};
 
 pub(super) struct Candidate {
     /// The span of the `match` arm, for-error reporting
@@ -309,25 +306,14 @@ impl<'tcx> Builder<'tcx> {
                     // representation of signed integers does not match their numeric order. Thus,
                     // to correct the ordering, we need to shift the range of signed integers to
                     // correct the comparison. This is achieved by XORing with a bias.
-                    if let Some((min, max, size)) = range {
-                        let term_to_val = |term: TermId| -> u128 {
-                            self.tcx.term_store.map_fast(*lo, |term| match term {
-                                Term::Level0(Level0Term::Lit(LitTerm::Int { value })) => {
-                                    CONSTANT_MAP.map_int_constant(*value, |val| {
-                                        u128::from_be_bytes(val.get_bytes())
-                                    })
-                                }
-                                _ => unreachable!(),
-                            })
-                        };
-
+                    if let Some((min, max, _)) = range {
                         // we have to convert the `lo` term into the actual value, by getting
                         // the literal term from this term, and then converting the stored value
                         // into a u128...
-                        let lo_val = term_to_val(*lo) ^ bias;
+                        let lo_val = evaluate_int_lit_term(*lo, self.tcx).1 ^ bias;
 
                         if lo_val <= min {
-                            let hi_val = term_to_val(*hi) ^ bias;
+                            let hi_val = evaluate_int_lit_term(*hi, self.tcx).1 ^ bias;
 
                             // In this situation, we have an irrefutable pattern, so we can
                             // always go down this path
@@ -422,7 +408,7 @@ impl<'tcx> Builder<'tcx> {
 
                 // Look at the pattern located within the if-pat
                 Pat::If(IfPat { pat, .. }) => self.simplify_match_pair(
-                    MatchPair { pat: pair.pat, place: pair.place.clone() },
+                    MatchPair { pat: *pat, place: pair.place.clone() },
                     candidate,
                 ),
 
@@ -491,7 +477,7 @@ impl<'tcx> Builder<'tcx> {
                     subject,
                     candidate.has_guard || pat_has_guard,
                 );
-                self.simplify_candidate(candidate);
+                self.simplify_candidate(&mut sub_candidate);
                 sub_candidate
             })
             .collect()

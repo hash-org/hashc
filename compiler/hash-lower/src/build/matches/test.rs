@@ -10,7 +10,7 @@ use hash_ir::{
     ir::{
         BasicBlock, BinOp, Const, PlaceProjection, RValue, RValueId, SwitchTargets, TerminatorKind,
     },
-    ty::{AdtData, AdtId, IrTy, IrTyId},
+    ty::{AdtId, IrTy, IrTyId},
     IrStorage,
 };
 use hash_reporting::macros::panic_on_span;
@@ -22,11 +22,11 @@ use hash_types::{
     fmt::PrepareForFormatting,
     pats::{AccessPat, ConstructorPat, IfPat, Pat, PatArgsId, PatId, RangePat},
 };
-use hash_utils::store::{CloneStore, SequenceStore, Store};
+use hash_utils::store::Store;
 use indexmap::IndexMap;
 
 use super::{
-    candidate::{self, Candidate, MatchPair},
+    candidate::{Candidate, MatchPair},
     utils::ConstRange,
 };
 use crate::build::{
@@ -217,7 +217,7 @@ impl<'tcx> Builder<'tcx> {
                     Test { kind: TestKind::Len { len, op }, span }
                 }
                 Pat::If(IfPat { pat, .. }) => {
-                    self.test_match_pair(&MatchPair { pat: pair.pat, place: pair.place.clone() })
+                    self.test_match_pair(&MatchPair { pat: *pat, place: pair.place.clone() })
                 }
                 Pat::Or(_) => panic_on_span!(
                     span.into_location(self.source_id),
@@ -266,15 +266,12 @@ impl<'tcx> Builder<'tcx> {
         };
 
         self.tcx.pat_store.map_fast(pair.pat, |pat| match (&test.kind, pat) {
-            (
-                TestKind::Switch { adt, options },
-                Pat::Constructor(ConstructorPat { subject, args }),
-            ) => {
+            (TestKind::Switch { adt, .. }, Pat::Constructor(ConstructorPat { subject, args })) => {
                 // If we are performing a variant switch, then this informs
                 // variant patterns, bu nothing else.
                 let test_adt = self.convert_term_into_ir_ty(*subject);
 
-                let variant_index = self.map_on_adt(test_adt, |adt, id| {
+                let variant_index = self.map_on_adt(test_adt, |adt, _| {
                     // If this is a struct, then we don't do anything
                     // since we're expecting an enum. Although, this case shouldn't happen?
                     if adt.flags.is_struct() {
@@ -317,7 +314,7 @@ impl<'tcx> Builder<'tcx> {
                 candidate.pairs.remove(pair_index);
                 Some(index)
             }
-            (TestKind::SwitchInt { ty, ref options }, Pat::Range(range_pat)) => {
+            (TestKind::SwitchInt { ty: _, ref options }, Pat::Range(range_pat)) => {
                 let not_contained =
                     self.values_not_contained_in_range(range_pat, options).unwrap_or(false);
 
@@ -411,7 +408,7 @@ impl<'tcx> Builder<'tcx> {
                     None
                 }
             }
-            (TestKind::Range { range }, _) => None,
+            (TestKind::Range { .. }, _) => None,
             (TestKind::Eq { .. } | TestKind::Len { .. }, _) => {
                 // If we encounter here an or-pattern, then we need to return
                 // from here because we will panic if we continue down this
@@ -504,7 +501,7 @@ impl<'tcx> Builder<'tcx> {
     /// [Test].
     pub(super) fn perform_test(
         &mut self,
-        span: Span,
+        subject_span: Span,
         block: BasicBlock,
         place_builder: &PlaceBuilder,
         test: &Test,
@@ -512,6 +509,7 @@ impl<'tcx> Builder<'tcx> {
     ) {
         // Build the place from the provided place builder
         let place = place_builder.clone().into_place();
+        let span = test.span;
 
         match test.kind {
             TestKind::Switch { adt, options: ref variants } => {
@@ -552,7 +550,7 @@ impl<'tcx> Builder<'tcx> {
                 // switch statement.
                 let discriminant_tmp = self.temp_place(discriminant_ty);
                 let value = self.storage.push_rvalue(RValue::Discriminant(place));
-                self.control_flow_graph.push_assign(block, discriminant_tmp, value, span);
+                self.control_flow_graph.push_assign(block, discriminant_tmp, value, subject_span);
 
                 // then terminate this block with the `switch` terminator
                 self.control_flow_graph.terminate(
@@ -786,7 +784,6 @@ impl<'tcx> Builder<'tcx> {
         &mut self,
         test_place: &PlaceBuilder,
         candidate: &Candidate,
-        ty: IrTyId,
         options: &mut IndexMap<Const, u128>,
     ) -> bool {
         let Some(match_pair) = candidate.pairs.iter().find(|mp| mp.place == *test_place) else {
