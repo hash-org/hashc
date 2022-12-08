@@ -2,11 +2,15 @@
 //! of test needs to be performed on a particular set of candidates
 //! when deciding where to jump to within the decision tree.
 
+use std::cmp::Ordering;
+
 use fixedbitset::FixedBitSet;
 use hash_ast::ast::RangeEnd;
 use hash_ir::{
-    ir::{BasicBlock, BinOp, Const, RValue, RValueId, SwitchTargets, TerminatorKind},
-    ty::{AdtId, IrTy, IrTyId},
+    ir::{
+        BasicBlock, BinOp, Const, PlaceProjection, RValue, RValueId, SwitchTargets, TerminatorKind,
+    },
+    ty::{AdtData, AdtId, IrTy, IrTyId},
     IrStorage,
 };
 use hash_reporting::macros::panic_on_span;
@@ -16,13 +20,13 @@ use hash_source::{
 };
 use hash_types::{
     fmt::PrepareForFormatting,
-    pats::{AccessPat, IfPat, Pat, PatId, RangePat},
+    pats::{AccessPat, ConstructorPat, IfPat, Pat, PatArgsId, PatId, RangePat},
 };
-use hash_utils::store::{CloneStore, Store};
+use hash_utils::store::{CloneStore, SequenceStore, Store};
 use indexmap::IndexMap;
 
 use super::{
-    candidate::{Candidate, MatchPair},
+    candidate::{self, Candidate, MatchPair},
     utils::ConstRange,
 };
 use crate::build::{
@@ -31,6 +35,7 @@ use crate::build::{
     Builder,
 };
 
+#[derive(PartialEq, Eq, Debug)]
 pub(super) enum TestKind {
     /// Test what value an `enum` variant is.
     Switch {
@@ -237,13 +242,262 @@ impl<'tcx> Builder<'tcx> {
         })
     }
 
+    /// The `Test` is a specification of a specific test that we are performing
+    /// with a `test_place` and a candidate. This function is responsible
+    /// for computing the **status** of the candidate after the test is
+    /// performed. The status is represented as the index of where the
+    /// candidate should be placed in the `candidates` vector. Additionally,
+    /// the [Candidate] place may be modified to update the `pairs` place.
     pub(super) fn sort_candidate(
         &mut self,
-        _match_place: &PlaceBuilder,
-        _test: &Test,
-        _candidate: &mut Candidate,
+        match_place: &PlaceBuilder,
+        test: &Test,
+        candidate: &mut Candidate,
     ) -> Option<usize> {
-        todo!()
+        // firstly, find the `test_place` within the candidate, there can only
+        // be one matching place.
+        let (pair_index, pair) = {
+            candidate
+                .pairs
+                .iter()
+                .enumerate()
+                .find(|(_, pair)| pair.place == *match_place)
+                .map(|(index, item)| (index, item.clone()))?
+        };
+
+        self.tcx.pat_store.map_fast(pair.pat, |pat| match (&test.kind, pat) {
+            (
+                TestKind::Switch { adt, options },
+                Pat::Constructor(ConstructorPat { subject, args }),
+            ) => {
+                // If we are performing a variant switch, then this informs
+                // variant patterns, bu nothing else.
+                let test_adt = self.convert_term_into_ir_ty(*subject);
+
+                let variant_index = self.map_on_adt(test_adt, |adt, id| {
+                    // If this is a struct, then we don't do anything
+                    // since we're expecting an enum. Although, this case shouldn't happen?
+                    if adt.flags.is_struct() {
+                        return None;
+                    }
+
+                    Some(self.lower_enum_variant_ty(adt, *subject))
+                })?;
+
+                self.candidate_after_variant_switch(
+                    pair_index,
+                    *adt,
+                    variant_index,
+                    *args,
+                    candidate,
+                );
+
+                Some(variant_index)
+            }
+
+            (TestKind::Switch { .. }, _) => None,
+
+            // When we are performing a switch over integers, then this informs integer
+            // equality, but nothing else, @@Improve: we could use the Pat::Range to rule
+            // some things out.
+            (TestKind::SwitchInt { ty, ref options }, Pat::Lit(lit)) => {
+                // We can't really do anything here since we can't compare them with
+                // the switch.
+                if !self.storage.ty_store().map_fast(*ty, |ty| ty.is_integral()) {
+                    return None;
+                }
+
+                // @@Todo: when we switch to new patterns, we can look this up without
+                // the additional evaluation. However, we might need to modify the `Eq`
+                // on `ir::Const` to actually check if integer values are equal.
+                let (value, _) = evaluate_int_lit_term(*lit, self.tcx);
+                let index = options.get_index_of(&value).unwrap();
+
+                // remove the candidate from the pairs
+                candidate.pairs.remove(pair_index);
+                Some(index)
+            }
+            (TestKind::SwitchInt { ty, ref options }, Pat::Range(range_pat)) => {
+                let not_contained =
+                    self.values_not_contained_in_range(range_pat, options).unwrap_or(false);
+
+                // If no switch values are contained within this range, so that pattern can only
+                // be matched if the test fails.
+                not_contained.then(|| options.len())
+            }
+            (TestKind::SwitchInt { .. }, _) => None,
+
+            (TestKind::Len { len: test_len, op: BinOp::Eq }, Pat::List(list_pat)) => {
+                let (prefix, suffix, rest) = list_pat.into_parts(self.tcx);
+                let pat_len = prefix.len() + suffix.len();
+                let ty = self.ty_of_pat(pair.pat);
+
+                match (pat_len.cmp(test_len), rest) {
+                    (Ordering::Equal, None) => {
+                        self.candidate_after_slice_test(
+                            ty, pair_index, candidate, &prefix, rest, &suffix,
+                        );
+
+                        Some(0)
+                    }
+
+                    // `test_len` < `pat_len`. If `actual_len` = `test_len`,
+                    // then `actual_len` < `pat_len` and we don't have
+                    // enough elements.
+                    (Ordering::Less, _) => Some(1),
+                    // `actual_len` >= `test_len`, and if the `actual_len` > `test_len` we cannot
+                    // advance.
+                    (Ordering::Equal | Ordering::Greater, Some(_)) => None,
+                    // the `test_len` is != `pat_len`, so if `actual_len` = `test_len`, then
+                    // `actual_len` != `pat_len`.
+                    (Ordering::Greater, None) => Some(1),
+                }
+            }
+            (TestKind::Len { len: test_len, op: BinOp::GtEq }, Pat::List(list_pat)) => {
+                let (prefix, suffix, rest) = list_pat.into_parts(self.tcx);
+                let pat_len = prefix.len() + suffix.len();
+
+                let ty = self.ty_of_pat(pair.pat);
+
+                match (pat_len.cmp(test_len), rest) {
+                    (Ordering::Equal, Some(_)) => {
+                        // `actual_len` >= `test_len` && `test_len` == `pat_len`, so we can
+                        // advance.
+                        self.candidate_after_slice_test(
+                            ty, pair_index, candidate, &prefix, rest, &suffix,
+                        );
+
+                        Some(0)
+                    }
+                    // `test_len` <= `pat_len`. If `actual_len` < `test_len`,
+                    // then it is also < `pat_len`, so the test passing is
+                    // necessary (but insufficient).
+                    (Ordering::Less, _) | (Ordering::Equal, None) => Some(0),
+                    // `test_len` > `pat_len`. If `actual_len` >= `test_len` > `pat_len`,
+                    // then we know we won't have a match.
+                    (Ordering::Greater, None) => Some(1),
+                    // `test_len` < `pat_len`, and is therefore less
+                    // strict. This can still go both ways.
+                    (Ordering::Greater, Some(_)) => None,
+                }
+            }
+
+            (TestKind::Range { range }, Pat::Range(range_pat)) => {
+                let actual_range = ConstRange::from_range(range_pat, self.tcx);
+
+                if actual_range == *range {
+                    // If the ranges are equal, then we can remove the candidate from the
+                    // pairs.
+                    candidate.pairs.remove(pair_index);
+                    return Some(0);
+                }
+
+                // Check if the two ranged overlap, and if they don't then the pattern
+                // can only be matched if this test fails
+                if !range.overlaps(&actual_range)? {
+                    Some(1)
+                } else {
+                    None
+                }
+            }
+            (TestKind::Range { ref range }, Pat::Lit(lit_pat)) => {
+                let (value, _) = evaluate_int_lit_term(*lit_pat, self.tcx);
+
+                // If the `value` is not contained in the testing range, so the `value` can be
+                // matched only if the test fails.
+                if let Some(false) = range.contains(value) {
+                    Some(1)
+                } else {
+                    None
+                }
+            }
+            (TestKind::Range { range }, _) => None,
+            (TestKind::Eq { .. } | TestKind::Len { .. }, _) => {
+                // If we encounter here an or-pattern, then we need to return
+                // from here because we will panic if we continue down this
+                // branch, since the `test()` only expects fully simplified
+                // patterns.
+                if let Pat::Or(_) = pat {
+                    return None;
+                }
+
+                // We make a test for the pattern to compare with the given test
+                // to see if it is the same, if so we can match... @@Improve: we possibly avoid
+                // this?
+                let pat_test = self.test_match_pair(&pair);
+
+                if pat_test.kind == test.kind {
+                    // remove the candidate from the pairs
+                    candidate.pairs.remove(pair_index);
+                    Some(0)
+                } else {
+                    None
+                }
+            }
+        })
+    }
+
+    /// This function is responsible for adjusting the [Candidate] after a
+    /// slice test has been checked. This means that we remove the given
+    /// `pair_index` from the candidate, and then adjust all of the prefix
+    /// and the suffix places to be the correct places.
+    fn candidate_after_slice_test(
+        &mut self,
+        ty: IrTyId,
+        pair_index: usize,
+        candidate: &mut Candidate,
+        prefix: &[PatId],
+        rest: Option<PatId>,
+        suffix: &[PatId],
+    ) {
+        let removed_place = candidate.pairs.remove(pair_index).place;
+
+        self.adjust_list_pat_candidates(
+            ty,
+            &mut candidate.pairs,
+            &removed_place,
+            prefix,
+            rest,
+            suffix,
+        );
+    }
+
+    fn candidate_after_variant_switch(
+        &mut self,
+        pair_index: usize,
+        adt: AdtId,
+        variant_index: usize,
+        sub_patterns: PatArgsId,
+        candidate: &mut Candidate,
+    ) {
+        let pair = candidate.pairs.remove(pair_index);
+
+        // we need to compute the subsequent match pairs after the downcastr
+        // and add them to the candidate.
+        let downcast_place = pair.place.downcast(variant_index);
+
+        let consequent_pairs: Vec<_> = self.storage.adt_store().map_fast(adt, |adt| {
+            let variant = &adt.variants[variant_index];
+
+            self.tcx.pat_args_store.map_as_param_list_fast(sub_patterns, |pats| {
+                pats.positional()
+                    .iter()
+                    .enumerate()
+                    .map(|(index, arg)| {
+                        let field_index = match arg.name {
+                            Some(name) => variant.field_idx(name).unwrap(),
+                            _ => index,
+                        };
+
+                        let place =
+                            downcast_place.clone_project(PlaceProjection::Field(field_index));
+                        MatchPair { place, pat: arg.pat }
+                    })
+                    .collect()
+            })
+        });
+
+        candidate.pairs.extend(consequent_pairs);
     }
 
     /// This function is responsible for generating the code for the specified
@@ -574,7 +828,7 @@ impl<'tcx> Builder<'tcx> {
     fn values_not_contained_in_range(
         &mut self,
         pat: &RangePat,
-        options: &mut IndexMap<Const, u128>,
+        options: &IndexMap<Const, u128>,
     ) -> Option<bool> {
         let const_range = ConstRange::from_range(pat, self.tcx);
 

@@ -13,6 +13,7 @@ use crate::build::ty::evaluate_int_lit_term;
 ///
 /// N.B. These [Const]s must be of the same type, and must be integral
 ///      types.
+#[derive(Debug, PartialEq, Eq)]
 pub(super) struct ConstRange {
     /// The lower value of the range.
     pub lo: Const,
@@ -41,6 +42,20 @@ impl ConstRange {
             matches!(compare_constant_values(self.lo, value)?, Less | Equal)
                 && matches!(
                     (compare_constant_values(self.hi, value)?, self.end),
+                    (Less, _) | (Equal, RangeEnd::Included)
+                ),
+        )
+    }
+
+    /// Check if a range overlaps with another range.
+    pub fn overlaps(&self, other: &Self) -> Option<bool> {
+        use Ordering::*;
+
+        // self.lo <= other.hi && self.hi >= other.lo
+        Some(
+            matches!(compare_constant_values(self.lo, other.hi)?, Less | Equal)
+                && matches!(
+                    (compare_constant_values(self.hi, other.lo)?, self.end),
                     (Less, _) | (Equal, RangeEnd::Included)
                 ),
         )

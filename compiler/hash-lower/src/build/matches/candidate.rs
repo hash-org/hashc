@@ -2,15 +2,29 @@
 //! arms within a `match` block, specifically when code is
 //! being generated to efficiently group and select where
 //! to jump to next.
+//!
+//! @@Todo: This implementation is not fully complete and doesn't handle the
+//!         full range of patterns (most of this will go away with the new
+//! pattern         representation). Notably, the following problems persist:
+//!
+//! 1. `if-guards` that are located on sub-patterns are not properly
+//! handled, it is assumed there is an outermost 'if-guard' that is
+//! used to determine the control flow, amongst other things.
+//!
+//! 2. spread patterns (`...`) are not properly handled because they
+//! aren't associated with a particular parent pattern, which makes it
+//! hard to reason about them. When we switch to the new pattern
+//! representation, it will be significantly easier to deal with `...`
+//! patterns (specifically, when they are binding).
 
 use std::{borrow::Borrow, mem};
 
 use hash_ast::ast::{AstNodeRef, MatchCase, RangeEnd};
 use hash_ir::{
-    ir::{BasicBlock, PlaceProjection},
+    ir::{BasicBlock, Place, PlaceProjection},
     ty::{AdtId, IrTy, Mutability},
 };
-use hash_source::{constant::CONSTANT_MAP, location::Span};
+use hash_source::{constant::CONSTANT_MAP, identifier::Identifier, location::Span};
 use hash_target::size::Size;
 use hash_types::{
     pats::{
@@ -21,11 +35,7 @@ use hash_types::{
 use hash_utils::store::Store;
 use smallvec::{smallvec, SmallVec};
 
-use crate::build::{
-    place::PlaceBuilder,
-    ty::{convert_term_into_ir_ty, lower_term},
-    Builder,
-};
+use crate::build::{place::PlaceBuilder, Builder};
 
 pub(super) struct Candidate {
     /// The span of the `match` arm, for-error reporting
@@ -59,6 +69,7 @@ pub(super) struct Candidate {
 /// A [MatchPair] associates a pattern with a particular [Place] that
 /// is used to access the underlying data when generating code for
 /// comparing values of each [Candidate].
+#[derive(Clone, Debug)]
 pub(super) struct MatchPair {
     /// The ID of the pattern that occurs within a [Candidate].
     pub pat: PatId,
@@ -104,7 +115,7 @@ impl Candidate {
 
 /// A depth-first traversal of the [Candidate] and all of its recursive
 /// sub candidates.
-fn traverse_candidate<C, T, I>(
+pub(super) fn traverse_candidate<C, T, I>(
     candidate: C,
     context: &mut T,
     visit_leaf: &mut impl FnMut(C, &mut T),
@@ -131,10 +142,12 @@ pub(super) struct Binding {
     /// The span of the binding.
     pub span: Span,
 
-    // @@Todo: do we need to store an associated place with the pattern?
-    //
-    // The source of the binding, where the value is coming from.
-    // pub place: Place,
+    /// The source of the binding, where the value is coming from.
+    pub source: Place,
+
+    /// The identifier that is used as the binding.
+    pub name: Identifier,
+
     /// The mutability of the binding
     pub mutability: Mutability,
 
@@ -243,10 +256,13 @@ impl<'tcx> Builder<'tcx> {
             let span = self.tcx.location_store.get_span(pair.pat).unwrap();
 
             match pat {
-                Pat::Binding(BindingPat { mutability, .. }) => {
+                Pat::Binding(BindingPat { mutability, name, .. }) => {
                     candidate.bindings.push(Binding {
                         span,
                         mutability: (*mutability).into(),
+                        source: pair.place.into_place(),
+                        name: *name,
+
                         // @@Todo: introduce a way of specifying what the binding
                         // mode of a particular binding is, but for now we assume that
                         // it is always by value.
@@ -263,7 +279,7 @@ impl<'tcx> Builder<'tcx> {
                 Pat::Range(RangePat { lo, hi, end }) => {
                     // get the range and bias of this range pattern from
                     // the `lo`
-                    let lo_ty = lower_term(*lo, self.tcx, self.storage);
+                    let lo_ty = self.lower_term(*lo);
                     // let lo_ty_id = self.storage.ty_store().create(lo_ty);
 
                     // The range is the minimum value, maximum value, and the size of
@@ -333,7 +349,7 @@ impl<'tcx> Builder<'tcx> {
                     Ok(())
                 }
                 Pat::Constructor(ConstructorPat { subject, args }) => {
-                    let ty = convert_term_into_ir_ty(*subject, self.tcx, self.storage);
+                    let ty = self.convert_term_into_ir_ty(*subject);
                     let adt = self.map_on_adt(ty, |adt, id| adt.flags.is_struct().then_some(id));
 
                     // If this is a struct then we need to match on the fields of
@@ -350,29 +366,51 @@ impl<'tcx> Builder<'tcx> {
                     //         remove this branch entirely, for now ignore it.
                     Ok(())
                 }
-
-                // @@Todo: deal with this variant when we switch over to the new
-                // Pat representation since we can accurately look at the position
-                // of a `spread` and then perform simplifications on it. Right now,
-                // without the position, we would need compute it ourselves (again)
-                // and then perform the simplification.
-                //
                 // The simplification that can occur here is if both the prefix and the
                 // suffix are empty, then we can perform some simplifications.
-                Pat::List(ListPat { .. }) => todo!("simplify list patterns"),
+                Pat::List(list_pat) => {
+                    let (prefix, suffix, rest) = list_pat.into_parts(self.tcx);
+
+                    if prefix.is_empty() && suffix.is_empty() && rest.is_some() {
+                        let ty = self.ty_of_pat(pair.pat);
+
+                        // This means that this is irrefutable since we will always match this
+                        // pattern.
+                        self.adjust_list_pat_candidates(
+                            ty,
+                            &mut candidate.pairs,
+                            &pair.place,
+                            &prefix,
+                            rest,
+                            &suffix,
+                        );
+
+                        Ok(())
+                    } else {
+                        Err(pair)
+                    }
+                }
 
                 // We essentially create a new bind for the tuple here
                 // that captures all of the members. We create a new bind
                 // with the type of this `spread` type which is derived
                 // during typechecking...
-                Pat::Spread(SpreadPat { name }) if name.is_some() => {
+                Pat::Spread(SpreadPat { name: Some(name) }) => {
                     candidate.bindings.push(Binding {
                         span,
                         // @@FixMe: allow for spread patterns to be declared as `mut`
                         mutability: Mutability::Immutable,
+                        name: *name,
 
-                        // @@FixMe: is this correct? Since it shouldn't always be passed by
-                        // reference into the proceeding block
+                        // @@FixMe: this is not the correct place to use, since we might encounter
+                        //           a spread pattern in various locations which means we might
+                        //           affect the actual place that is being referenced. This process
+                        //           should be alot simpler to do we switch to the new pattern
+                        //           representation. This is because, the spreads are now on each
+                        //           specific pattern, which means that we can more precisely
+                        // determine           the place that we are
+                        // referencing.
+                        source: pair.place.into_place(),
                         mode: BindingMode::ByRef,
                     });
 
@@ -420,12 +458,7 @@ impl<'tcx> Builder<'tcx> {
                         // no name is provided, we assume that the type is positional,
                         // and thus we use the index of the pattern in the argument.
                         let index = match arg.name {
-                            Some(name) => {
-                                // @@Optimisation: we could use a lookup table for `AdtField` to
-                                // immediately lookup the field rather than looping through the
-                                // whole vector trying to find the field with the same name.
-                                variant.fields.iter().position(|field| field.name == name).unwrap()
-                            }
+                            Some(name) => variant.field_idx(name).unwrap(),
                             None => index,
                         };
 

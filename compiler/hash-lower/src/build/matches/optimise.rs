@@ -4,10 +4,16 @@
 
 use std::mem;
 
+use hash_ir::{
+    ir::PlaceProjection,
+    ty::{IrTy, IrTyId},
+};
 use hash_source::location::Span;
+use hash_types::pats::PatId;
+use smallvec::SmallVec;
 
-use super::candidate::Candidate;
-use crate::build::Builder;
+use super::candidate::{Candidate, MatchPair};
+use crate::build::{place::PlaceBuilder, Builder};
 
 impl<'tcx> Builder<'tcx> {
     /// Attempt to optimise the sub-candidates of a provided [Candidate]. This
@@ -42,5 +48,53 @@ impl<'tcx> Builder<'tcx> {
 
             candidate.pre_binding_block = Some(any_matches);
         }
+    }
+
+    /// This function is responsible for adjusting all of the inner [MatchPair]s
+    /// of a list candidate. This means that when a pair is eliminated, we have
+    /// to compute all of the `projections` that occur on the list pattern,
+    /// this means that all of the index projections are re-computed, and
+    /// the `rest` pattern projection is also adjusted.
+    pub(super) fn adjust_list_pat_candidates(
+        &mut self,
+        ty: IrTyId,
+        pairs: &mut SmallVec<[MatchPair; 1]>,
+        place: &PlaceBuilder,
+        prefix: &[PatId],
+        rest: Option<PatId>,
+        suffix: &[PatId],
+    ) {
+        let (min_length, exact_size) = self.map_ty(ty, |ty| match ty {
+            IrTy::Array { size, .. } => (*size, true),
+            _ => (prefix.len() + suffix.len(), false),
+        });
+
+        // Add all of the prefix patterns.
+        pairs.extend(prefix.iter().enumerate().map(|(index, sub_pat)| {
+            let projection =
+                PlaceProjection::ConstantIndex { offset: index, from_end: false, min_length };
+            MatchPair { place: place.clone().project(projection), pat: *sub_pat }
+        }));
+
+        // Create a projection as a a `sub-slice` of the original array
+        if let Some(rest_pat) = rest {
+            let suffix_len = suffix.len();
+            let place = place.clone_project(PlaceProjection::Subslice {
+                from: prefix.len(),
+                to: if exact_size { min_length - suffix_len } else { suffix_len },
+                from_end: !exact_size,
+            });
+            pairs.push(MatchPair { place, pat: rest_pat });
+        }
+
+        // Add all of the suffixes, with a constant offset, i.e. the size of the
+        // prefix.
+        pairs.extend(suffix.iter().enumerate().map(|(index, sub_pat)| {
+            let offset = if exact_size { min_length - (index + 1) } else { index + 1 };
+
+            let projection =
+                PlaceProjection::ConstantIndex { offset, from_end: !exact_size, min_length };
+            MatchPair { place: place.clone().project(projection), pat: *sub_pat }
+        }));
     }
 }
