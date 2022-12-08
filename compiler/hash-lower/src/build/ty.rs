@@ -271,7 +271,7 @@ impl<'tcx> Builder<'tcx> {
                 // for now.
                 NominalDef::Enum(EnumDef { name, variants }) => {
                     let variants = variants
-                        .into_iter()
+                        .iter()
                         .map(|(variant_name, variant)| {
                             let fields = match variant.fields {
                                 Some(fields) => {

@@ -78,6 +78,7 @@ impl<'tcx> Builder<'tcx> {
     pub(crate) fn then_else_break(
         &mut self,
         mut block: BasicBlock,
+        else_block: BasicBlock,
         expr: AstNodeRef<'tcx, Expr>,
     ) -> BlockAnd<()> {
         let span = expr.span();
@@ -86,8 +87,10 @@ impl<'tcx> Builder<'tcx> {
             Expr::BinaryExpr(BinaryExpr { lhs, rhs, operator })
                 if *operator.body() == BinOp::And =>
             {
-                let lhs_then_block = unpack!(self.then_else_break(block, lhs.ast_ref()));
-                let rhs_then_block = unpack!(self.then_else_break(lhs_then_block, rhs.ast_ref()));
+                let lhs_then_block =
+                    unpack!(self.then_else_break(block, else_block, lhs.ast_ref()));
+                let rhs_then_block =
+                    unpack!(self.then_else_break(lhs_then_block, else_block, rhs.ast_ref()));
 
                 rhs_then_block.unit()
             }
@@ -95,7 +98,6 @@ impl<'tcx> Builder<'tcx> {
                 let place = unpack!(block = self.as_place(block, expr, Mutability::Mutable));
 
                 let then_block = self.control_flow_graph.start_new_block();
-                let else_block = self.control_flow_graph.start_new_block();
 
                 let terminator =
                     TerminatorKind::make_if(place, then_block, else_block, self.storage);
@@ -180,8 +182,7 @@ impl<'tcx> Builder<'tcx> {
         // Link up all of the arms with the ending block
         for arm_edge in lowered_arms_edges {
             // get the span of the last statement
-            let block_id = arm_edge.0;
-            let span = self.control_flow_graph.basic_blocks[block_id]
+            let span = self.control_flow_graph.basic_blocks[arm_edge.0]
                 .statements
                 .last()
                 .map(|stmt| stmt.span)
@@ -619,24 +620,17 @@ impl<'tcx> Builder<'tcx> {
             // bind everything necessary for the guard.
             self.bind_matched_candidate_for_guard(block, bindings);
 
+            let otherwise_block = candidate.otherwise_block.unwrap_or_else(|| {
+                let unreachable = self.control_flow_graph.start_new_block();
+                self.control_flow_graph.terminate(unreachable, span, TerminatorKind::Unreachable);
+                unreachable
+            });
+
             // deal with the if-guard
-            let (post_guard_block, otherwise_post_guard_block) = (
-                unpack!(self.then_else_break(block, guard)),
-                self.control_flow_graph.start_new_block()
-            );
+            let post_guard_block = unpack!(self.then_else_break(block, otherwise_block, guard));
 
             self.bind_matched_candidate_for_arm_body(
                 post_guard_block, parent_bindings.iter().flatten().chain(&candidate.bindings));
-
-            let otherwise_block = candidate.otherwise_block.unwrap_or_else(|| {
-               let unreachable = self.control_flow_graph.start_new_block();
-               self.control_flow_graph.terminate(unreachable, span, TerminatorKind::Unreachable);
-               unreachable
-            });
-
-            // Terminate the `otherwise` block on the candidate as unreachable if it hasn't
-            // been terminated already.
-            self.control_flow_graph.goto(otherwise_post_guard_block, otherwise_block, span);
 
             post_guard_block
         } else {

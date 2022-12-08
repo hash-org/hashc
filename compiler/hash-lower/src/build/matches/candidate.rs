@@ -34,6 +34,11 @@ use smallvec::{smallvec, SmallVec};
 
 use crate::build::{place::PlaceBuilder, ty::evaluate_int_lit_term, Builder};
 
+/// A [Candidate] is a representation of a single `match` arm that
+/// is used to generate code for a `match` block. [Candidate]s store
+/// sub-candidates which are tests that are derived from compound patterns
+/// like constructors, tuples, structs, etc.
+#[derive(Debug)]
 pub(super) struct Candidate {
     /// The span of the `match` arm, for-error reporting
     /// functionality.
