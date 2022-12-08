@@ -161,6 +161,11 @@ impl<'tcx> Builder<'tcx> {
                     return IrTy::Never;
                 }
 
+                // If there is only one variant, then we can just return that variant.
+                if union.len() == 1 {
+                    return self.lower_term(union[0]);
+                }
+
                 let variants = union
                     .into_iter()
                     .enumerate()
@@ -225,7 +230,6 @@ impl<'tcx> Builder<'tcx> {
                         id if id == IDENTS.usize => IrTy::UInt(UIntTy::USize),
                         id if id == IDENTS.f32 => IrTy::Float(FloatTy::F32),
                         id if id == IDENTS.f64 => IrTy::Float(FloatTy::F64),
-                        id if id == IDENTS.bool => IrTy::Bool,
                         id if id == IDENTS.char => IrTy::Char,
                         id if id == IDENTS.str => IrTy::Str,
                         name => {
@@ -266,39 +270,42 @@ impl<'tcx> Builder<'tcx> {
                     }
                 }
                 NominalDef::Unit(_) => unimplemented!(),
+                NominalDef::Enum(EnumDef { name, variants }) => match name.unwrap() {
+                    id if id == IDENTS.bool => IrTy::Bool,
+                    name => {
+                        let variants = variants
+                            .iter()
+                            .map(|(variant_name, variant)| {
+                                let fields = match variant.fields {
+                                    Some(fields) => self.tcx.params_store.map_as_param_list_fast(
+                                        fields,
+                                        |params| {
+                                            params
+                                                .positional()
+                                                .iter()
+                                                .enumerate()
+                                                .map(|(index, param)| AdtField {
+                                                    name: param
+                                                        .name
+                                                        .unwrap_or_else(|| index.into()),
+                                                    ty: self.convert_term_into_ir_ty(param.ty),
+                                                })
+                                                .collect()
+                                        },
+                                    ),
+                                    None => vec![],
+                                };
 
-                // @@Remove: this will later be removed, so don't deal with this case
-                // for now.
-                NominalDef::Enum(EnumDef { name, variants }) => {
-                    let variants = variants
-                        .iter()
-                        .map(|(variant_name, variant)| {
-                            let fields = match variant.fields {
-                                Some(fields) => {
-                                    self.tcx.params_store.map_as_param_list_fast(fields, |params| {
-                                        params
-                                            .positional()
-                                            .iter()
-                                            .enumerate()
-                                            .map(|(index, param)| AdtField {
-                                                name: param.name.unwrap_or_else(|| index.into()),
-                                                ty: self.convert_term_into_ir_ty(param.ty),
-                                            })
-                                            .collect()
-                                    })
-                                }
-                                None => vec![],
-                            };
+                                AdtVariant { name: *variant_name, fields }
+                            })
+                            .collect();
 
-                            AdtVariant { name: *variant_name, fields }
-                        })
-                        .collect();
+                        let adt = AdtData::new_with_flags(name, variants, AdtFlags::ENUM);
+                        let adt_id = self.storage.adt_store().create(adt);
 
-                    let adt = AdtData::new_with_flags(name.unwrap(), variants, AdtFlags::ENUM);
-                    let adt_id = self.storage.adt_store().create(adt);
-
-                    IrTy::Adt(adt_id)
-                }
+                        IrTy::Adt(adt_id)
+                    }
+                },
             }
         })
     }

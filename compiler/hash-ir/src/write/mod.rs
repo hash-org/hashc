@@ -135,7 +135,7 @@ impl fmt::Display for ForFormatting<'_, &Terminator> {
             }
             TerminatorKind::Unreachable => write!(f, "unreachable"),
             TerminatorKind::Switch { value, targets } => {
-                write!(f, "switch({value:?})")?;
+                write!(f, "switch({})", value.for_fmt(self.storage))?;
 
                 if self.with_edges {
                     write!(f, " [")?;
@@ -152,12 +152,12 @@ impl fmt::Display for ForFormatting<'_, &Terminator> {
                         // with the type, and then print it.
                         let value = Const::from_scalar(value, targets.ty, self.storage);
 
-                        write!(f, "{value:?} -> {target:?}")?;
+                        write!(f, "{value} -> {target:?}")?;
                     }
 
                     // Write the default case
                     if let Some(otherwise) = targets.otherwise {
-                        write!(f, "otherwise -> {otherwise:?}]")?;
+                        write!(f, ", otherwise -> {otherwise:?}]")?;
                     }
                 }
 

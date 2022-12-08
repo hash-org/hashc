@@ -212,7 +212,12 @@ index_vec::define_index_type! {
     DEBUG_FORMAT = "variant#{}";
 }
 
-#[derive(Clone)]
+/// This is the underlying data of an ADT which is stored behind an [AdtId].
+/// The ADT stores the name of the defined type, all of the variants (if it
+/// a leaf ADT i.e. `struct` or `tuple` then there is one variant), and
+/// information about the ADT, which kind of ADT it is, and how it is
+/// represented in memory.
+#[derive(Clone, Debug)]
 pub struct AdtData {
     /// The name of the ADT
     pub name: Identifier,
@@ -257,10 +262,9 @@ impl AdtData {
     /// Compute the discriminant type of this ADT, assuming that this
     /// is an `enum` or a `union`.
     ///
-    /// @@Todo(discriminants): This is incomplete because it does not account
-    /// for the         `repr` attribute, and the fact that enums might have
-    /// explicit          discriminants specified on them. @@Future: since
-    /// we don't support          this yet, it is not a problem.
+    /// @@Future(discriminants): This is incomplete because it does not account
+    /// for the `repr` attribute, and the fact that enums might have
+    /// explicit discriminants specified on them.
     pub fn discriminant_ty(&self) -> IntTy {
         debug_assert!(self.flags.is_enum() || self.flags.is_union());
 
@@ -326,15 +330,19 @@ impl AdtFlags {
 ///     - add `pack` configuration
 ///     - add layout randomisation configuration
 ///     - add `C` layout configuration
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct AdtRepresentation {}
+
 impl AdtRepresentation {
     fn default() -> AdtRepresentation {
         AdtRepresentation {}
     }
 }
 
-#[derive(Clone)]
+/// An [AdtVariant] is a potential variant of an ADT which contains all of the
+/// associated fields, and the name of the variant if any. If no names are
+/// available, then the name will be the index of that variant.
+#[derive(Clone, Debug)]
 pub struct AdtVariant {
     /// The name of the variant, if this is a struct variant, this inherits
     /// the name of the struct.
@@ -351,7 +359,10 @@ impl AdtVariant {
     }
 }
 
-#[derive(Clone)]
+/// An [AdtField] is a field that is defined for a variant of an ADT. It
+/// contains an associated name, and a type. If no user defined name was
+/// available, then the name of each variant is the index of that field.
+#[derive(Clone, Debug)]
 pub struct AdtField {
     /// The name of the field.
     pub name: Identifier,
@@ -369,29 +380,29 @@ pub type AdtStore = DefaultStore<AdtId, AdtData>;
 
 impl fmt::Display for ForFormatting<'_, AdtId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let adt = self.storage.adt_store().get(self.item);
+        self.storage.adt_store.map_fast(self.item, |adt| {
+            match adt.flags {
+                AdtFlags::TUPLE => {
+                    assert!(adt.variants.len() == 1);
+                    let variant = &adt.variants[0];
 
-        match adt.flags {
-            AdtFlags::TUPLE => {
-                assert!(adt.variants.len() == 1);
-                let variant = &adt.variants[0];
+                    write!(f, "(")?;
+                    for (i, field) in variant.fields.iter().enumerate() {
+                        if i != 0 {
+                            write!(f, ", ")?;
+                        }
 
-                write!(f, "(")?;
-                for (i, field) in variant.fields.iter().enumerate() {
-                    if i != 0 {
-                        write!(f, ", ")?;
+                        write!(f, "{}", field.ty.for_fmt(self.storage))?;
                     }
 
-                    write!(f, "{}", field.ty.for_fmt(self.storage))?;
+                    write!(f, ")")
                 }
-
-                write!(f, ")")
+                _ => {
+                    // We just write the name of the underlying ADT
+                    write!(f, "{}", adt.name)
+                }
             }
-            _ => {
-                // We just write the name of the underlying ADT
-                write!(f, "{}", adt.name)
-            }
-        }
+        })
     }
 }
 

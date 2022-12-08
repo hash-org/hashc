@@ -18,7 +18,6 @@ impl<'tcx> Builder<'tcx> {
         mutability: Mutability,
     ) -> BlockAnd<Local> {
         let temp = {
-            println!("{:?}", expr.id());
             // @@Hack: for now literal expressions don't get their type set on the node, it
             // is the underlying literal that has the type, so we read that in this case.
             let id = if let Expr::Lit(lit) = expr.body { lit.data.id() } else { expr.id() };

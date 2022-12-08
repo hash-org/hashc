@@ -28,8 +28,8 @@ pub enum Const {
     /// Nothing, it has zero size, and is associated with a particular type.
     Zero(IrTyId),
 
-    /// Byte constant, could a boolean.
-    Byte(u8),
+    /// Boolean constant value.
+    Bool(bool),
 
     /// Character constant
     Char(char),
@@ -57,7 +57,7 @@ impl Const {
 
     /// Check if a [Const] is of integral kind.
     pub fn is_integral(&self) -> bool {
-        matches!(self, Self::Char(_) | Self::Int(_) | Self::Byte(_))
+        matches!(self, Self::Char(_) | Self::Int(_) | Self::Bool(_))
     }
 
     /// Create a new [Const] from a scalar value, with the appropriate
@@ -72,7 +72,7 @@ impl Const {
                 let interned_value = IntConstant::from_uint(value, (*int_ty).into());
                 Self::Int(CONSTANT_MAP.create_int_constant(interned_value))
             }
-            IrTy::Bool => Self::Byte(value as u8),
+            IrTy::Bool => Self::Bool(value == 0),
             IrTy::Char => unsafe { Self::Char(char::from_u32_unchecked(value as u32)) },
             _ => unreachable!(),
         })
@@ -83,7 +83,7 @@ impl fmt::Display for Const {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Zero(_) => write!(f, "()"),
-            Self::Byte(b) => write!(f, "{b}"),
+            Self::Bool(b) => write!(f, "{b}"),
             Self::Char(c) => write!(f, "{c}"),
             Self::Int(i) => write!(f, "{i}"),
             Self::Float(flt) => write!(f, "{flt}"),
@@ -96,7 +96,7 @@ impl fmt::Display for Const {
 pub fn compare_constant_values(left: Const, right: Const) -> Option<Ordering> {
     match (left, right) {
         (Const::Zero(_), Const::Zero(_)) => Some(Ordering::Equal),
-        (Const::Byte(left), Const::Byte(right)) => Some(left.cmp(&right)),
+        (Const::Bool(left), Const::Bool(right)) => Some(left.cmp(&right)),
         (Const::Char(left), Const::Char(right)) => Some(left.cmp(&right)),
         (Const::Int(left), Const::Int(right)) => CONSTANT_MAP.map_int_constant(left, |left| {
             CONSTANT_MAP.map_int_constant(right, |right| left.partial_cmp(right))
