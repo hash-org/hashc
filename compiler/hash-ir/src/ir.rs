@@ -72,7 +72,7 @@ impl Const {
                 let interned_value = IntConstant::from_uint(value, (*int_ty).into());
                 Self::Int(CONSTANT_MAP.create_int_constant(interned_value))
             }
-            IrTy::Bool => Self::Bool(value == 0),
+            IrTy::Bool => Self::Bool(value == (true as u128)),
             IrTy::Char => unsafe { Self::Char(char::from_u32_unchecked(value as u32)) },
             _ => unreachable!(),
         })
@@ -744,7 +744,7 @@ impl TerminatorKind {
         let value = storage.push_rvalue(RValue::Use(place));
 
         let targets = SwitchTargets::new(
-            std::iter::once((0, false_block)),
+            std::iter::once((false.into(), false_block)),
             storage.ty_store().make_bool(),
             Some(true_block),
         );
