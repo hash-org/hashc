@@ -18,8 +18,11 @@ use std::collections::{HashMap, HashSet};
 
 use hash_ast::ast::{AstNodeId, AstNodeRef, Expr, FnDef};
 use hash_ir::{
-    ir::{BasicBlock, Body, BodySource, Local, LocalDecl, Place, TerminatorKind, START_BLOCK},
-    ty::{IrTy, IrTyId, Mutability},
+    ir::{
+        BasicBlock, Body, BodyInfo, BodySource, Local, LocalDecl, Place, TerminatorKind,
+        START_BLOCK,
+    },
+    ty::{IrTy, Mutability},
     IrStorage,
 };
 use hash_pipeline::settings::LoweringSettings;
@@ -28,7 +31,7 @@ use hash_types::{scope::ScopeId, storage::GlobalStorage};
 use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
 use index_vec::IndexVec;
 
-use self::ty::{get_fn_ty_from_term, lower_term};
+use self::ty::get_fn_ty_from_term;
 use crate::cfg::ControlFlowGraph;
 
 /// A wrapper type for the kind of AST node that is being lowered, the [Builder]
@@ -137,12 +140,8 @@ pub(crate) struct Builder<'tcx> {
     /// behaviour should be.
     settings: &'tcx LoweringSettings,
 
-    /// The type of the item that is being lowered, the type is
-    /// deduced when the [Builder] is created.
-    ty: IrTyId,
-
-    /// The name with the associated body that this is building.
-    name: Identifier,
+    /// Info that is derived during the loweing process of the type.
+    info: BodyInfo,
 
     /// The item that is being lowered.
     item: BuildItem<'tcx>,
@@ -218,21 +217,16 @@ impl<'tcx> Builder<'tcx> {
         dead_ends: &'tcx HashSet<AstNodeId>,
         settings: &'tcx LoweringSettings,
     ) -> Self {
-        let (arg_count, ty) = match item {
+        let arg_count = match item {
             BuildItem::FnDef(node) => {
                 // Get the type of this function definition, we need to
                 // figure out how many arguments there will be passed in
                 // and how many locals we need to allocate.
-
                 let term =
                     tcx.node_info_store.node_info(node.id()).map(|info| info.term_id()).unwrap();
                 let fn_ty = get_fn_ty_from_term(term, tcx);
 
-                let arg_count = fn_ty.params.len();
-                let ty = lower_term(term, tcx, storage);
-                let ty_id = storage.ty_store().create(ty);
-
-                (arg_count, ty_id)
+                fn_ty.params.len()
             }
             BuildItem::Expr(_) => todo!(),
         };
@@ -241,10 +235,9 @@ impl<'tcx> Builder<'tcx> {
             settings,
             item,
             tcx,
-            ty,
+            info: BodyInfo::new(name),
             storage,
             source_map,
-            name,
             arg_count,
             source_id,
             control_flow_graph: ControlFlowGraph::new(),
@@ -268,10 +261,9 @@ impl<'tcx> Builder<'tcx> {
         }
 
         Body::new(
-            self.ty,
             self.control_flow_graph.basic_blocks,
             self.declarations,
-            self.name,
+            self.info,
             self.arg_count,
             // @@Todo: actually determine this properly
             BodySource::Item,
@@ -338,9 +330,13 @@ impl<'tcx> Builder<'tcx> {
         let fn_params =
             self.tcx.params_store.get_owned_param_list(fn_term.params).into_positional();
 
-        let IrTy::Fn {params, return_ty, .. } = lower_term(term_id, self.tcx, self.storage) else {
+        let ty @ IrTy::Fn {params, return_ty, .. } = self.lower_term(term_id) else {
             panic!("Expected a function type");
         };
+
+        // update the type in the body info with this value
+        let ty_id = self.storage.ty_store().create(ty);
+        self.info.set_ty(ty_id);
 
         // The first local declaration is used as the return type. The return local
         // declaration is always mutable because it will be set at some point in

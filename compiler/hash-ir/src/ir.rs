@@ -314,6 +314,48 @@ pub enum PlaceProjection {
     /// Take the index of some specific place, the index does not need to be
     /// constant
     Index(Local),
+
+    /// This kind of index is used when slice patterns are specified, we know
+    /// the exact location of the offset that this is referencing. Here are
+    /// some examples of where the element `A` is referenced:
+    /// ```ignore
+    /// [A, _, .., _, _] => { offset: 0, min_length: 4, from_end: false }
+    /// [_, _, .., _, A] => { offset: 0, min_length: 4, from_end: true }
+    /// [_, _, .., A, _] => { offset: 1, min_length: 4, from_end: true }
+    /// [_, A, .., _, _] => { offset: 1, min_length: 4, from_end: false }
+    /// ```
+    ConstantIndex {
+        /// The index of the constant index.
+        offset: usize,
+
+        /// If the index is referencing from the end of the slice.
+        from_end: bool,
+
+        /// The minimum length of the slice that this is referencing.
+        min_length: usize,
+    },
+
+    /// A sub-slice projection references a sub-slice of the original slice.
+    /// This is generated from slice patterns that associate a sub-slice with
+    /// a variable, for example:
+    /// ```ignore
+    /// [_, _, ...x, _]
+    /// [_, ...x, _, _]
+    /// ```
+    Subslice {
+        /// The initial offset of where the slice is referencing
+        /// from.
+        from: usize,
+
+        /// To which index the slice is referencing to.
+        to: usize,
+
+        /// If this is referring to from the end of a slice. This determines
+        /// from where `to` counts from, whether the start or the end of the
+        /// slice/list.
+        from_end: bool,
+    },
+
     /// We want to dereference the place
     Deref,
 }
@@ -360,7 +402,9 @@ impl fmt::Display for Place {
             match projection {
                 PlaceProjection::Downcast(_) | PlaceProjection::Field(_) => write!(f, "(")?,
                 PlaceProjection::Deref => write!(f, "(*")?,
-                PlaceProjection::Index(_) => {}
+                PlaceProjection::Subslice { .. }
+                | PlaceProjection::ConstantIndex { .. }
+                | PlaceProjection::Index(_) => {}
             }
         }
 
@@ -370,6 +414,24 @@ impl fmt::Display for Place {
             match projection {
                 PlaceProjection::Downcast(index) => write!(f, " as variant#{index})")?,
                 PlaceProjection::Index(local) => write!(f, "[{local:?}]")?,
+                PlaceProjection::ConstantIndex { offset, min_length, from_end: true } => {
+                    write!(f, "[-{:?} of {:?}]", offset, min_length)?;
+                }
+                PlaceProjection::ConstantIndex { offset, min_length, from_end: false } => {
+                    write!(f, "[{:?} of {:?}]", offset, min_length)?;
+                }
+                PlaceProjection::Subslice { from, to, from_end: true } if *to == 0 => {
+                    write!(f, "[{}:]", from)?;
+                }
+                PlaceProjection::Subslice { from, to, from_end: false } if *from == 0 => {
+                    write!(f, "[:-{:?}]", to)?;
+                }
+                PlaceProjection::Subslice { from, to, from_end: true } => {
+                    write!(f, "[{}:-{:?}]", from, to)?;
+                }
+                PlaceProjection::Subslice { from, to, from_end: false } => {
+                    write!(f, "[{:?}:{:?}]", from, to)?;
+                }
                 PlaceProjection::Field(index) => write!(f, ".{index})")?,
                 PlaceProjection::Deref => write!(f, ")")?,
             }
@@ -763,9 +825,6 @@ impl fmt::Display for BodySource {
 }
 
 pub struct Body {
-    /// The type of the item that was lowered
-    pub ty: IrTyId,
-
     /// The blocks that the function is represented with
     pub blocks: IndexVec<BasicBlock, BasicBlockData>,
 
@@ -782,18 +841,22 @@ pub struct Body {
     /// - the remaining are temporaries that are used within the function.
     pub declarations: IndexVec<Local, LocalDecl>,
 
-    /// The name of the body
-    pub name: Identifier,
+    /// Information that is derived when the body in being
+    /// lowered.
+    pub info: BodyInfo,
 
     /// Number of arguments to the function
     pub arg_count: usize,
 
     /// The source of the function, is it a normal function, or an intrinsic
     source: BodySource,
+
     /// The location of the function
     span: Span,
+
     /// The id of the source of where this body originates from.
     source_id: SourceId,
+
     /// Whether the IR Body that is generated should be printed
     /// when the generation process is finalised.
     dump: bool,
@@ -803,16 +866,15 @@ impl Body {
     /// Create a new [Body] with the given `name`, `arg_count`, `source_id` and
     /// `span`.
     pub fn new(
-        ty: IrTyId,
         blocks: IndexVec<BasicBlock, BasicBlockData>,
         declarations: IndexVec<Local, LocalDecl>,
-        name: Identifier,
+        info: BodyInfo,
         arg_count: usize,
         source: BodySource,
         span: Span,
         source_id: SourceId,
     ) -> Self {
-        Self { ty, blocks, name, declarations, arg_count, source, span, source_id, dump: false }
+        Self { blocks, info, declarations, arg_count, source, span, source_id, dump: false }
     }
 
     /// Set the `dump` flag to `true` so that the IR Body that is generated
@@ -836,7 +898,45 @@ impl Body {
         self.source
     }
 
-    /// Get the name of the [Body]
+    /// Get the [BodyInfo] for the [Body]
+    pub fn info(&self) -> &BodyInfo {
+        &self.info
+    }
+}
+
+/// This struct contains additional metadata about the body that was lowered,
+/// namely the associated name with the body that is derived from the
+/// declaration that it was lowered from, the type of the body that is computed
+/// during lowering, etc.
+///
+/// This type exists since it is expected that this information is constructed
+/// during lowering and might not be initially available, so most of the fields
+/// are wrapped in a [Option], however any access method on the field
+/// **expects** that the value was computed.
+pub struct BodyInfo {
+    pub name: Identifier,
+
+    /// The type of the body that was lowered
+    ty: Option<IrTyId>,
+}
+
+impl BodyInfo {
+    /// Create a new [BodyInfo] with the given `name`.
+    pub fn new(name: Identifier) -> Self {
+        Self { name, ty: None }
+    }
+
+    /// Set the type of the body that was lowered.
+    pub fn set_ty(&mut self, ty: IrTyId) {
+        self.ty = Some(ty);
+    }
+
+    /// Get the type of the body that was lowered.
+    pub fn ty(&self) -> IrTyId {
+        self.ty.expect("body type was not computed")
+    }
+
+    /// Get the name of the body that was lowered.
     pub fn name(&self) -> Identifier {
         self.name
     }

@@ -118,7 +118,7 @@ pub enum IrTy {
     Slice(IrTyId),
 
     /// An array type with a specified length, i.e. `[T; N]`
-    Array(IrTyId, u64),
+    Array { ty: IrTyId, size: usize },
 
     /// An abstract data structure type, i.e a `struct` or `enum`, or any
     /// other kind of type.
@@ -344,6 +344,13 @@ pub struct AdtVariant {
     pub fields: Vec<AdtField>,
 }
 
+impl AdtVariant {
+    /// Find the index of a field by name.
+    pub fn field_idx(&self, name: Identifier) -> Option<usize> {
+        self.fields.iter().position(|field| field.name == name)
+    }
+}
+
 #[derive(Clone)]
 pub struct AdtField {
     /// The name of the field.
@@ -474,7 +481,7 @@ impl fmt::Display for ForFormatting<'_, IrTyId> {
             }
             IrTy::Fn { name: Some(name), .. } => write!(f, "{name}"),
             IrTy::Slice(ty) => write!(f, "[{}]", ty.for_fmt(self.storage)),
-            IrTy::Array(ty, len) => write!(f, "[{}; {len}]", ty.for_fmt(self.storage)),
+            IrTy::Array { ty, size } => write!(f, "[{}; {size}]", ty.for_fmt(self.storage)),
         }
     }
 }

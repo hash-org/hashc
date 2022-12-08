@@ -81,8 +81,8 @@ impl<'ir> IrGraphWriter<'ir> {
         write!(
             w,
             "  label=<{}{}{}",
-            self.body.name,
-            encode_text(&format!("{}", self.body.ty.fmt_with_opts(self.ctx, true, false))),
+            self.body.info().name,
+            encode_text(&format!("{}", self.body.info().ty().fmt_with_opts(self.ctx, true, false))),
             LINE_SEPARATOR
         )?;
 

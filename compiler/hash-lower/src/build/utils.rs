@@ -12,10 +12,7 @@ use hash_source::location::Span;
 use hash_types::pats::PatId;
 use hash_utils::store::Store;
 
-use super::{
-    ty::{convert_term_into_ir_ty, lower_term},
-    Builder,
-};
+use super::Builder;
 
 impl<'tcx> Builder<'tcx> {
     /// Function to get the associated [TermId] with the
@@ -28,7 +25,7 @@ impl<'tcx> Builder<'tcx> {
         // present then we create the type by converting the term into
         // the type.
 
-        convert_term_into_ir_ty(term_id, self.tcx, self.storage)
+        self.convert_term_into_ir_ty(term_id)
     }
 
     /// Function to get the associated [IrTy] with the
@@ -41,8 +38,7 @@ impl<'tcx> Builder<'tcx> {
         // We need to try and look up the type within the cache, if not
         // present then we create the type by converting the term into
         // the type.
-
-        lower_term(term_id, self.tcx, self.storage)
+        self.lower_term(term_id)
     }
 
     /// Function to get the associated [PatId] with the
