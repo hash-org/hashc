@@ -17,6 +17,7 @@ use hash_pipeline::{
     workspace::{SourceStageInfo, Workspace},
     CompilerResult,
 };
+use hash_reporting::reporter::Reports;
 use hash_source::SourceId;
 
 pub struct SemanticAnalysis;
@@ -107,7 +108,7 @@ impl<Ctx: SemanticAnalysisCtx> CompilerStage<Ctx> for SemanticAnalysis {
             // come out in a stable order.
             messages.sort_by_key(|item| item.id());
 
-            Err(messages.into_iter().map(|item| item.into()).collect())
+            Err(messages.into_iter().flat_map(Reports::from).collect())
         }
     }
 

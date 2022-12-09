@@ -14,7 +14,7 @@ use std::{collections::HashMap, env, time::Duration};
 
 use fs::{read_in_path, resolve_path, PRELUDE};
 use hash_ast::node_map::ModuleEntry;
-use hash_reporting::{builder::Reports, writer::ReportWriter};
+use hash_reporting::{reporter::Reports, writer::ReportWriter};
 use hash_source::{constant::CONSTANT_MAP, ModuleKind, SourceId};
 use hash_utils::timing::timed;
 use interface::{CompilerInterface, CompilerStage};
@@ -188,7 +188,7 @@ impl<I: CompilerInterface> Compiler<I> {
                     warn_count += 1;
                 }
 
-                eprintln!("{}", ReportWriter::new(diagnostic, ctx.source_map()));
+                eprintln!("{}", ReportWriter::single(diagnostic, ctx.source_map()));
             }
 
             // @@Hack: to prevent the compiler from printing this message when the pipeline
@@ -230,7 +230,7 @@ impl<I: CompilerInterface> Compiler<I> {
 
             // Only print the error if specified within the settings
             if ctx.settings().emit_errors {
-                eprintln!("{}", ReportWriter::new(err.create_report(), ctx.source_map()));
+                eprintln!("{}", ReportWriter::single(err.create_report(), ctx.source_map()));
             }
 
             return ctx;
@@ -244,7 +244,7 @@ impl<I: CompilerInterface> Compiler<I> {
 
             // Only print the error if specified within the settings
             if ctx.settings().emit_errors {
-                eprintln!("{}", ReportWriter::new(err.create_report(), ctx.source_map()));
+                eprintln!("{}", ReportWriter::single(err.create_report(), ctx.source_map()));
             }
 
             return ctx;

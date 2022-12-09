@@ -2,8 +2,8 @@
 use derive_more::Constructor;
 use hash_pipeline::fs::ImportError;
 use hash_reporting::{
-    builder::ReportBuilder,
-    report::{Report, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind},
+    report::{ReportElement, ReportNote, ReportNoteKind},
+    reporter::{Reporter, Reports},
 };
 use hash_source::{identifier::Identifier, location::SourceLocation};
 use hash_token::{TokenKind, TokenKindVector};
@@ -94,7 +94,7 @@ pub enum ParseErrorKind {
 }
 
 /// Conversion implementation from an AST Generator Error into a Parser Error.
-impl From<ParseError> for Report {
+impl From<ParseError> for Reports {
     fn from(err: ParseError) -> Self {
         let expected = err.expected;
 
@@ -179,17 +179,15 @@ impl From<ParseError> for Report {
         }
 
         // Now actually build the report
-        let mut builder = ReportBuilder::new();
-        builder
-            .with_kind(ReportKind::Error)
-            .with_message(base_message)
-            .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(err.location, span_label)));
+        let mut reporter = Reporter::new();
+        let report = reporter.error();
+        report.title(base_message).add_labelled_span(err.location, span_label);
 
         // Add the `help` messages to the report
         for note in help_notes {
-            builder.add_element(note);
+            report.add_element(note);
         }
 
-        builder.build()
+        reporter.into_reports()
     }
 }
