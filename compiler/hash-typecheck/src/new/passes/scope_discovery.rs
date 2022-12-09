@@ -280,7 +280,7 @@ impl<'tc> ScopeDiscoveryPass<'tc> {
             let members = match members {
                 Some(members) => members,
                 None => {
-                    panic!("Got empty members for mod def {:?}", mod_def_id);
+                    panic!("Got empty members for mod def {mod_def_id:?}");
                 }
             };
 
@@ -428,7 +428,7 @@ impl<'tc> ScopeDiscoveryPass<'tc> {
             let members = match members {
                 Some(members) => members,
                 None => {
-                    panic!("Got empty members for stack {:?}", stack_id);
+                    panic!("Got empty members for stack {stack_id:?}");
                 }
             };
 

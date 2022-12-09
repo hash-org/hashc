@@ -99,10 +99,8 @@ fn compare_emitted_diagnostics(
     // @@Hack: the forward slash at the end is unconditional, since we
     //         need to re-add it because we removed it in the
     // `stringify_test_dir_path` function.
-    let report_contents = dir_regex
-        .replace_all(report_contents.as_ref(), r"$$DIR/")
-        .replace("\r\n", "\n")
-        .to_string();
+    let report_contents =
+        dir_regex.replace_all(report_contents.as_ref(), r"$$DIR/").replace("\r\n", "\n");
 
     // We want to load the `.stderr` file and verify that the contents of the
     // file match to the created report. If the `.stderr` file does not exist
@@ -161,8 +159,8 @@ fn handle_failure_case(
     // verify that the case failed, as in reports where generated
     assert!(
         diagnostics.iter().any(|report| report.is_error()),
-        "\ntest case did not fail: {:#?}",
-        input
+        "\ntest case did not fail: {input:#?}",
+        input = input
     );
 
     // If the test specifies that no warnings should be generated, then check
@@ -170,8 +168,8 @@ fn handle_failure_case(
     if input.metadata.warnings == HandleWarnings::Disallow {
         assert!(
             diagnostics.iter().all(|report| report.is_error()),
-            "\ntest case generated warnings where they were disallowed: {:#?}",
-            input
+            "\ntest case generated warnings where they were disallowed: {input:#?}",
+            input = input
         );
     }
 

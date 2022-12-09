@@ -139,8 +139,7 @@ impl<'ir> IrGraphWriter<'ir> {
 
                             writeln!(
                                 w,
-                                r#"  {prefix}{:?} -> {prefix}{:?} [label="{}"];"#,
-                                id, target, value
+                                r#"  {prefix}{id:?} -> {prefix}{target:?} [label="{value}"];"#
                             )?;
                         }
 
@@ -148,8 +147,7 @@ impl<'ir> IrGraphWriter<'ir> {
                         if let Some(otherwise) = targets.otherwise {
                             writeln!(
                                 w,
-                                r#"  {prefix}{:?} -> {prefix}{:?} [label="otherwise"];"#,
-                                id, otherwise
+                                r#"  {prefix}{id:?} -> {prefix}{otherwise:?} [label="otherwise"];"#
                             )?;
                         }
                     }

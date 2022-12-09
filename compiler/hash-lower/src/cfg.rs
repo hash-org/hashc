@@ -18,10 +18,10 @@ pub struct ControlFlowGraph {
 impl fmt::Debug for ControlFlowGraph {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (id, block) in self.basic_blocks.iter_enumerated() {
-            write!(f, "{:?}", id)?;
+            write!(f, "{id:?}")?;
 
             if let Some(terminator) = &block.terminator {
-                writeln!(f, " -> {:?}", terminator)?;
+                writeln!(f, " -> {terminator:?}")?;
             } else {
                 writeln!(f, " -> <none>")?;
             }

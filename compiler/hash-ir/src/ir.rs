@@ -415,22 +415,22 @@ impl fmt::Display for Place {
                 PlaceProjection::Downcast(index) => write!(f, " as variant#{index})")?,
                 PlaceProjection::Index(local) => write!(f, "[{local:?}]")?,
                 PlaceProjection::ConstantIndex { offset, min_length, from_end: true } => {
-                    write!(f, "[-{:?} of {:?}]", offset, min_length)?;
+                    write!(f, "[-{offset:?} of {min_length:?}]")?;
                 }
                 PlaceProjection::ConstantIndex { offset, min_length, from_end: false } => {
-                    write!(f, "[{:?} of {:?}]", offset, min_length)?;
+                    write!(f, "[{offset:?} of {min_length:?}]")?;
                 }
                 PlaceProjection::Subslice { from, to, from_end: true } if *to == 0 => {
-                    write!(f, "[{}:]", from)?;
+                    write!(f, "[{from}:]")?;
                 }
                 PlaceProjection::Subslice { from, to, from_end: false } if *from == 0 => {
-                    write!(f, "[:-{:?}]", to)?;
+                    write!(f, "[:-{to:?}]")?;
                 }
                 PlaceProjection::Subslice { from, to, from_end: true } => {
-                    write!(f, "[{}:-{:?}]", from, to)?;
+                    write!(f, "[{from}:-{to:?}]")?;
                 }
                 PlaceProjection::Subslice { from, to, from_end: false } => {
-                    write!(f, "[{:?}:{:?}]", from, to)?;
+                    write!(f, "[{from:?}:{to:?}]")?;
                 }
                 PlaceProjection::Field(index) => write!(f, ".{index})")?,
                 PlaceProjection::Deref => write!(f, ")")?,
