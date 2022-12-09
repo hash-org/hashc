@@ -31,7 +31,7 @@ pub struct Hole {
 new_store_key!(pub HoleId);
 pub type HoleStore = DefaultStore<HoleId, Hole>;
 
-impl fmt::Display for WithEnv<'_, Hole> {
+impl fmt::Display for WithEnv<'_, &Hole> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -47,6 +47,6 @@ impl fmt::Display for WithEnv<'_, Hole> {
 
 impl fmt::Display for WithEnv<'_, HoleId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.env().with(self.env().stores().hole().get(self.value)))
+        write!(f, "{}", self.env().with(&self.env().stores().hole().get(self.value)))
     }
 }

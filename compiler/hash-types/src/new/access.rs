@@ -28,7 +28,7 @@ pub struct AccessTerm {
     pub field: ParamTarget,
 }
 
-impl fmt::Display for WithEnv<'_, AccessTerm> {
+impl fmt::Display for WithEnv<'_, &AccessTerm> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let op = match self.value.kind {
             AccessKind::CtorField => ".",

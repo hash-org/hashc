@@ -5,7 +5,7 @@ use std::fmt::Debug;
 
 use hash_utils::{
     new_sequence_store_key, new_store_key,
-    store::{CloneStore, DefaultSequenceStore, DefaultStore},
+    store::{CloneStore, DefaultSequenceStore, DefaultStore, SequenceStore},
 };
 
 use super::{
@@ -27,7 +27,6 @@ use crate::new::{
     scopes::{AssignTerm, BlockTerm, DeclStackMemberTerm},
     tuples::TupleTerm,
     tys::TyId,
-    unions::UnionVariantTerm,
 };
 
 /// A term that can contain unsafe operations.
@@ -57,7 +56,6 @@ pub enum Term {
     Runtime(RuntimeTerm),
 
     // Primitives
-    UnionVariant(UnionVariantTerm),
     Tuple(TupleTerm),
     Lit(LitTerm),
 
@@ -118,9 +116,48 @@ pub type TermStore = DefaultStore<TermId, Term>;
 new_sequence_store_key!(pub TermListId);
 pub type TermListStore = DefaultSequenceStore<TermListId, TermId>;
 
+impl fmt::Display for WithEnv<'_, &UnsafeTerm> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "unsafe {}", self.env().with(self.value.inner))
+    }
+}
+
 impl fmt::Display for WithEnv<'_, &RuntimeTerm> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{{value {}}}", self.env().with(self.value.term_ty))
+        write!(f, "{{runtime {}}}", self.env().with(self.value.term_ty))
+    }
+}
+
+impl fmt::Display for WithEnv<'_, &Term> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.value {
+            Term::Runtime(runtime_term) => write!(f, "{}", self.env().with(runtime_term)),
+            Term::Tuple(tuple_term) => write!(f, "{}", self.env().with(tuple_term)),
+            Term::Lit(lit_term) => write!(f, "{}", lit_term),
+            Term::Ctor(ctor_term) => write!(f, "{}", self.env().with(ctor_term)),
+            Term::FnCall(fn_call_term) => write!(f, "{}", self.env().with(fn_call_term)),
+            Term::Closure(closure_term) => write!(f, "{}", self.env().with(*closure_term)),
+            Term::Block(block_term) => write!(f, "{}", self.env().with(block_term)),
+            Term::Var(resolved_var) => write!(f, "{}", self.env().with(resolved_var.name)),
+            Term::Loop(loop_term) => write!(f, "{}", self.env().with(loop_term)),
+            Term::LoopControl(loop_control_term) => {
+                write!(f, "{}", self.env().with(loop_control_term))
+            }
+            Term::Match(match_term) => write!(f, "{}", self.env().with(match_term)),
+            Term::Return(return_term) => write!(f, "{}", self.env().with(return_term)),
+            Term::DeclStackMember(decl_stack_member_term) => {
+                write!(f, "{}", self.env().with(decl_stack_member_term))
+            }
+            Term::Assign(assign_term) => write!(f, "{}", self.env().with(assign_term)),
+            Term::Unsafe(unsafe_term) => write!(f, "{}", self.env().with(unsafe_term)),
+            Term::Access(access_term) => write!(f, "{}", self.env().with(access_term)),
+            Term::Cast(cast_term) => write!(f, "{}", self.env().with(cast_term)),
+            Term::TypeOf(type_of_term) => write!(f, "{}", self.env().with(type_of_term)),
+            Term::Ty(ty) => write!(f, "type {}", self.env().with(*ty)),
+            Term::Ref(ref_term) => write!(f, "{}", self.env().with(ref_term)),
+            Term::Deref(deref_term) => write!(f, "{}", self.env().with(deref_term)),
+            Term::Hole(hole) => write!(f, "{}", self.env().with(*hole)),
+        }
     }
 }
 
@@ -130,32 +167,17 @@ impl fmt::Display for WithEnv<'_, TermId> {
     }
 }
 
-impl fmt::Display for WithEnv<'_, &Term> {
+impl fmt::Display for WithEnv<'_, TermListId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.value {
-            Term::Runtime(_) => todo!(),
-            Term::UnionVariant(_) => todo!(),
-            Term::Tuple(_) => todo!(),
-            Term::Lit(_) => todo!(),
-            Term::Ctor(_) => todo!(),
-            Term::FnCall(_) => todo!(),
-            Term::Closure(_) => todo!(),
-            Term::Block(_) => todo!(),
-            Term::Var(resolved_var) => write!(f, "{}", self.env().with(resolved_var.name)),
-            Term::Loop(_) => todo!(),
-            Term::LoopControl(_) => todo!(),
-            Term::Match(_) => todo!(),
-            Term::Return(_) => todo!(),
-            Term::DeclStackMember(_) => todo!(),
-            Term::Assign(_) => todo!(),
-            Term::Unsafe(_) => todo!(),
-            Term::Access(_) => todo!(),
-            Term::Cast(_) => todo!(),
-            Term::TypeOf(_) => todo!(),
-            Term::Ty(_) => todo!(),
-            Term::Ref(_) => todo!(),
-            Term::Deref(_) => todo!(),
-            Term::Hole(hole) => write!(f, "{}", self.env().with(*hole)),
-        }
+        self.stores().term_list().map_fast(self.value, |list| {
+            for (i, term) in list.iter().enumerate() {
+                if i > 0 {
+                    write!(f, ", ")?;
+                }
+                write!(f, "{}", self.env().with(*term))?;
+            }
+            Ok(())
+        })?;
+        Ok(())
     }
 }

@@ -43,9 +43,6 @@ impl<'tc> InferOps<'tc> {
     pub fn infer_ty_of_term(&self, term: TermId) -> TcResult<TyId> {
         match self.stores().term().get(term) {
             Term::Runtime(rt_term) => Ok(rt_term.term_ty),
-            Term::UnionVariant(union_variant) => {
-                Ok(self.new_ty(Ty::Union(union_variant.original_ty)))
-            }
             Term::Tuple(_) => todo!(),
             Term::Lit(_) => todo!(),
             Term::Ctor(_) => {
@@ -64,7 +61,7 @@ impl<'tc> InferOps<'tc> {
             }
             Term::LoopControl(_) => todo!(),
             Term::Match(_) => todo!(),
-            Term::Return(_) => Ok(self.new_never_ty()),
+            Term::Return(_) => todo!(),
             Term::DeclStackMember(_) => todo!(),
             Term::Assign(_) => todo!(),
             Term::Unsafe(_) => todo!(),
@@ -74,7 +71,7 @@ impl<'tc> InferOps<'tc> {
             Term::Ty(ty_id) => {
                 match self.get_ty(ty_id) {
                     Ty::Hole(_) => Err(TcError::NeedMoreTypeAnnotationsToInfer { term }),
-                    Ty::Union(_) | Ty::Tuple(_) | Ty::Fn(_) | Ty::Ref(_) | Ty::Data(_) => {
+                    Ty::Tuple(_) | Ty::Fn(_) | Ty::Ref(_) | Ty::Data(_) => {
                         // @@Todo: bounds
                         Ok(self.new_small_universe_ty())
                     }
