@@ -57,7 +57,7 @@ impl ImportError {
     /// Create a [Report] from the [ImportError].
     pub fn create_report(&self) -> Report {
         let mut report = Report::new();
-        report.kind(ReportKind::Error).message(format!("{self}"));
+        report.kind(ReportKind::Error).title(format!("{self}"));
         report
     }
 }

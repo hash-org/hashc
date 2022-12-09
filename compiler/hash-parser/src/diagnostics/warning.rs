@@ -116,8 +116,8 @@ impl From<ParseWarningWrapper> for Reports {
         let mut reporter = Reporter::new();
         reporter
             .warning()
-            .message(message)
-            .add_named_span(SourceLocation { span: warning.location, id }, span_label);
+            .title(message)
+            .add_labelled_span(SourceLocation { span: warning.location, id }, span_label);
 
         reporter.into_reports()
     }

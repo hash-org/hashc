@@ -51,7 +51,7 @@ impl From<AnalysisWarning> for Reports {
         match warn.kind {
             AnalysisWarningKind::UselessExpression => {
                 warning
-                    .message("this expression is useless")
+                    .title("this expression is useless")
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         warn.location,
                         "here",
@@ -63,7 +63,7 @@ impl From<AnalysisWarning> for Reports {
             }
             AnalysisWarningKind::UnknownDirective { name } => {
                 warning
-                    .message(format!("`{name}` is not a known directive"))
+                    .title(format!("`{name}` is not a known directive"))
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         warn.location,
                         "",

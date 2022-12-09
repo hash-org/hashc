@@ -127,8 +127,8 @@ pub enum ReportElement {
 pub struct Report {
     /// The general kind of the report.
     pub kind: ReportKind,
-    /// A general associated message with the report.
-    pub message: String,
+    /// A title for the report.
+    pub title: String,
     /// An optional associated general error code with the report.
     pub error_code: Option<HashErrorCode>,
     /// A vector of additional [ReportElement]s in order to add additional
@@ -151,9 +151,9 @@ impl Report {
         self.kind == ReportKind::Warning
     }
 
-    /// Add a general message to the [Report].
-    pub fn message(&mut self, message: impl ToString) -> &mut Self {
-        self.message = message.to_string();
+    /// Add a title to the [Report].
+    pub fn title(&mut self, title: impl ToString) -> &mut Self {
+        self.title = title.to_string();
         self
     }
 
@@ -201,8 +201,8 @@ impl Report {
         self.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(location, "")))
     }
 
-    /// Add a named code block at the given location to the [Report].
-    pub fn add_named_span(
+    /// Add a labelled code block at the given location to the [Report].
+    pub fn add_labelled_span(
         &mut self,
         location: SourceLocation,
         message: impl ToString,
@@ -224,7 +224,7 @@ impl Default for Report {
     fn default() -> Self {
         Self {
             kind: ReportKind::Error,
-            message: "Bottom text".to_string(),
+            title: "Bottom text".to_string(),
             error_code: None,
             contents: vec![],
         }
@@ -237,7 +237,7 @@ impl From<io::Error> for Report {
         let mut report = Report::new();
 
         // @@ErrorReporting: we might want to show a bit more info here.
-        report.kind(ReportKind::Error).message(err.to_string());
+        report.kind(ReportKind::Error).title(err.to_string());
         report
     }
 }

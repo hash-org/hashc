@@ -85,7 +85,7 @@ impl<'tc> From<TcWarningWithStorage<'tc>> for Reports {
 
         match ctx.warning {
             TcWarning::UselessMatchCase { pat, subject } => {
-                builder.message(format!(
+                builder.title(format!(
                     "match case `{}` is redundant when matching on `{}`",
                     pat.for_formatting(ctx.global_storage()),
                     subject.for_formatting(ctx.global_storage())
@@ -106,7 +106,7 @@ impl<'tc> From<TcWarningWithStorage<'tc>> for Reports {
                 }
             }
             TcWarning::UnreachablePat { pat } => {
-                builder.message("pattern is unreachable".to_string());
+                builder.title("pattern is unreachable".to_string());
 
                 if let Some(location) = ctx.location_store().get_location(pat) {
                     builder
@@ -114,7 +114,7 @@ impl<'tc> From<TcWarningWithStorage<'tc>> for Reports {
                 }
             }
             TcWarning::OverlappingRangeEnd { range, overlapping_term, overlaps } => {
-                builder.message("range pattern has an overlap with another pattern");
+                builder.title("range pattern has an overlap with another pattern");
 
                 if let Some(location) = ctx.location_store().get_location(range) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -134,7 +134,7 @@ impl<'tc> From<TcWarningWithStorage<'tc>> for Reports {
                 }
             }
             TcWarning::NamedTupleCoercion { original, coerced_into } => {
-                builder.message("named tuple is coerced into an un-named tuple");
+                builder.title("named tuple is coerced into an un-named tuple");
 
                 if let Some(location) = ctx.location_store().get_location(original) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -159,7 +159,7 @@ impl<'tc> From<TcWarningWithStorage<'tc>> for Reports {
                 )));
             }
             TcWarning::Debug { ref label, location } => {
-                builder.message(label);
+                builder.title(label);
 
                 if let Some(location) = ctx.location_store().get_location(location) {
                     builder

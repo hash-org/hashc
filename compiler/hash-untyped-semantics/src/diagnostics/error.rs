@@ -115,27 +115,27 @@ impl From<AnalysisError> for Reports {
             AnalysisErrorKind::UsingBreakOutsideLoop => {
                 error.code(HashErrorCode::UsingBreakOutsideLoop);
 
-                error.message("use of a `break` clause outside of a loop").add_element(
+                error.title("use of a `break` clause outside of a loop").add_element(
                     ReportElement::CodeBlock(ReportCodeBlock::new(err.location, "here")),
                 );
             }
             AnalysisErrorKind::UsingContinueOutsideLoop => {
                 error.code(HashErrorCode::UsingContinueOutsideLoop);
 
-                error.message("use of a `continue` clause outside of a loop").add_element(
+                error.title("use of a `continue` clause outside of a loop").add_element(
                     ReportElement::CodeBlock(ReportCodeBlock::new(err.location, "here")),
                 );
             }
             AnalysisErrorKind::UsingReturnOutsideOfFn => {
                 error.code(HashErrorCode::UsingReturnOutsideFn);
 
-                error.message("use of a `return` expression outside of a function").add_element(
+                error.title("use of a `return` expression outside of a function").add_element(
                     ReportElement::CodeBlock(ReportCodeBlock::new(err.location, "here")),
                 );
             }
             AnalysisErrorKind::MultipleSpreadPats { origin } => {
                 error
-                    .message(format!(
+                    .title(format!(
                         "spread patterns `...` can only be used once in a {origin} pattern"
                     ))
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -145,7 +145,7 @@ impl From<AnalysisError> for Reports {
             }
             AnalysisErrorKind::IllegalSpreadPatUse { origin } => {
                 error
-                    .message(format!("spread patterns `...` cannot be used in a {origin} pattern"))
+                    .title(format!("spread patterns `...` cannot be used in a {origin} pattern"))
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         err.location,
                         "here",
@@ -154,7 +154,7 @@ impl From<AnalysisError> for Reports {
             AnalysisErrorKind::AmbiguousPatFieldOrder { origin } => {
                 error
                     .code(HashErrorCode::AmbiguousFieldOrder)
-                    .message(format!("ambiguous field order in `{origin}` pattern"));
+                    .title(format!("ambiguous field order in `{origin}` pattern"));
 
                 error.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                     err.location,
@@ -162,7 +162,7 @@ impl From<AnalysisError> for Reports {
                 )));
             }
             AnalysisErrorKind::NonDeclarativeExpression { origin } => {
-                error.message(format!(
+                error.title(format!(
                     "non-declarative expressions are not allowed in `{origin}` pattern"
                 ));
 
@@ -172,7 +172,7 @@ impl From<AnalysisError> for Reports {
                 )));
             }
             AnalysisErrorKind::IllegalBindingMutability => {
-                error.message("top-level declaration cannot be mutable");
+                error.title("top-level declaration cannot be mutable");
 
                 error
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -185,7 +185,7 @@ impl From<AnalysisError> for Reports {
                     )));
             }
             AnalysisErrorKind::IllegalBindingVisibilityModifier { modifier, origin } => {
-                error.message(format!(
+                error.title(format!(
                     "declarations in {origin} blocks cannot have visibility modifiers"
                 ));
 
@@ -206,7 +206,7 @@ impl From<AnalysisError> for Reports {
                     )));
             }
             AnalysisErrorKind::InsufficientTypeAnnotations { origin } => {
-                error.message(format!(
+                error.title(format!(
                     "`{}` {} does not have enough information",
                     origin,
                     origin.field_name()
@@ -232,9 +232,8 @@ impl From<AnalysisError> for Reports {
                     None => "an interactive",
                 };
 
-                error.message(format!(
-                    "the `{name}` directive is disallowed within {origin} context"
-                ));
+                error
+                    .title(format!("the `{name}` directive is disallowed within {origin} context"));
 
                 // Show the location where the directive is being used...
                 error.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -243,9 +242,7 @@ impl From<AnalysisError> for Reports {
                 )));
             }
             AnalysisErrorKind::InvalidDirectiveScope { name, expected, received } => {
-                error.message(format!(
-                    "the `{name}` directive is must be within a {expected} block"
-                ));
+                error.title(format!("the `{name}` directive is must be within a {expected} block"));
 
                 // Show the location where the directive is being used...
                 error.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -254,8 +251,7 @@ impl From<AnalysisError> for Reports {
                 )));
             }
             AnalysisErrorKind::InvalidDirectiveArgument { name, expected, received: given } => {
-                error
-                    .message(format!("the `{name}` directive expects a {expected} as an argument"));
+                error.title(format!("the `{name}` directive expects a {expected} as an argument"));
 
                 // Show the location where the directive is being used...
                 error.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -264,7 +260,7 @@ impl From<AnalysisError> for Reports {
                 )));
             }
             AnalysisErrorKind::DisallowedFloatPat => {
-                error.message("float literals are disallowed within a pattern position");
+                error.title("float literals are disallowed within a pattern position");
 
                 error
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(err.location, "")))
@@ -274,7 +270,7 @@ impl From<AnalysisError> for Reports {
                     )));
             }
             AnalysisErrorKind::InconsistentFieldNaming { naming_expectation, origin } => {
-                error.message(format!("mismatching naming convention of fields within a {origin}"));
+                error.title(format!("mismatching naming convention of fields within a {origin}"));
 
                 error
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -287,7 +283,7 @@ impl From<AnalysisError> for Reports {
                     )));
             }
             AnalysisErrorKind::SelfInFreeStandingFn => {
-                error.message("`self` parameter is only allowed in associated functions");
+                error.title("`self` parameter is only allowed in associated functions");
 
                 error.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                     err.location,

@@ -31,7 +31,7 @@ pub macro tc_panic {
             let mut reporter = reporter::Reporter::new();
             let report = reporter.internal();
             report
-                .message("The compiler encountered a fatal error")
+                .title("The compiler encountered a fatal error")
                 .add_info(format!("whilst performing operations on the term `{}`", $term.for_formatting(storages.global_storage())));
 
             if let Some(location) = term_location {
@@ -76,7 +76,7 @@ pub macro tc_panic_on_many {
             let mut reporter = reporter::Reporter::new();
             let report = reporter.internal();
             report
-                .message("The compiler encountered a fatal error")
+                .title("The compiler encountered a fatal error")
                 .add_info(format!("whilst performing operations on the terms: {}", terms));
 
             // Add all of the locations from the terms that we're provided by the macro
@@ -86,7 +86,7 @@ pub macro tc_panic_on_many {
                 {
                     let term_location = storages.location_store().get_location($terms);
                     if let Some(location) = term_location {
-                        report.add_named_span(location, format!("{} member here", index));
+                        report.add_labelled_span(location, format!("{} member here", index));
                     }
 
                     index += 1;
@@ -122,7 +122,7 @@ pub macro tc_panic_on_many {
             let mut reporter = reporter::Reporter::new();
             let report = reporter.internal();
             report
-                .message("The compiler encountered a fatal error")
+                .title("The compiler encountered a fatal error")
                 .add_info(format!("whilst performing operations on the terms: {}", terms));
 
             // Add all of the locations from the terms that we're provided by the macro
@@ -130,7 +130,7 @@ pub macro tc_panic_on_many {
                 let term_location = storages.location_store().get_location(term);
 
                 if let Some(location) = term_location {
-                    report.add_named_span(location, format!("{} member here", index));
+                    report.add_labelled_span(location, format!("{} member here", index));
                 }
             }
 

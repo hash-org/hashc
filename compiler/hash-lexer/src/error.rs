@@ -173,7 +173,7 @@ impl From<LexerError> for Reports {
             message.push_str(&format!(". {additional_info}"));
         }
 
-        reporter.error().message(message).add_named_span(err.location, "here");
+        reporter.error().title(message).add_labelled_span(err.location, "here");
 
         reporter.into_reports()
     }

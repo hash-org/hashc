@@ -44,7 +44,7 @@ impl fmt::Display for ReportWriter<'_> {
                 "{}{}: {}",
                 report.kind,
                 error_code_fmt,
-                highlight(Modifier::Bold, &report.message),
+                highlight(Modifier::Bold, &report.title),
             )?;
 
             let longest_indent_width =

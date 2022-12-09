@@ -181,7 +181,7 @@ impl From<ParseError> for Reports {
         // Now actually build the report
         let mut reporter = Reporter::new();
         let report = reporter.error();
-        report.message(base_message).add_named_span(err.location, span_label);
+        report.title(base_message).add_labelled_span(err.location, span_label);
 
         // Add the `help` messages to the report
         for note in help_notes {

@@ -35,7 +35,7 @@ impl<'tc> WithTcEnv<'tc, &TcError> {
             TcError::NeedMoreTypeAnnotationsToInfer { term } => {
                 error
                     .code(HashErrorCode::UnresolvedType)
-                    .message("cannot infer the type of this term".to_string());
+                    .title("cannot infer the type of this term".to_string());
 
                 if let Some(location) = self.tc_env().get_location(term) {
                     error
@@ -51,7 +51,7 @@ impl<'tc> WithTcEnv<'tc, &TcError> {
             TcError::TraitsNotSupported { trait_location } => {
                 error
                     .code(HashErrorCode::UnsupportedTraits)
-                    .message("traits are work-in-progress and currently not supported".to_string());
+                    .title("traits are work-in-progress and currently not supported".to_string());
 
                 error.add_span(*trait_location).add_help("traits are not yet supported");
             }
