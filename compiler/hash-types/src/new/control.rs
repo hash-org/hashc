@@ -127,3 +127,39 @@ impl fmt::Display for WithEnv<'_, &ReturnTerm> {
         }
     }
 }
+
+impl fmt::Display for WithEnv<'_, &LoopControlTerm> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.value {
+            LoopControlTerm::Break => write!(f, "break"),
+            LoopControlTerm::Continue => write!(f, "continue"),
+        }
+    }
+}
+
+impl fmt::Display for WithEnv<'_, &IfPat> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{} if {}",
+            self.env().with(self.value.pat),
+            self.env().with(self.value.condition)
+        )
+    }
+}
+
+impl fmt::Display for WithEnv<'_, &OrPat> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.stores().pat_list().map_fast(self.value.alternatives, |alternatives| {
+            let mut first = true;
+            for pat in alternatives {
+                if !first {
+                    write!(f, " | ")?;
+                }
+                write!(f, "{}", self.env().with(*pat))?;
+                first = false;
+            }
+            Ok(())
+        })
+    }
+}
