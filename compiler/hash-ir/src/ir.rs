@@ -1,10 +1,11 @@
 //! Hash Compiler Intermediate Representation (IR) crate. This module is still
 //! under construction and is subject to change.
-use std::fmt;
+use core::slice;
+use std::{cmp::Ordering, fmt};
 
 use hash_ast::ast;
 use hash_source::{
-    constant::{InternedFloat, InternedInt, InternedStr},
+    constant::{IntConstant, InternedFloat, InternedInt, InternedStr, CONSTANT_MAP},
     identifier::Identifier,
     location::{SourceLocation, Span},
     SourceId,
@@ -15,19 +16,20 @@ use hash_utils::{
     store::{DefaultStore, Store},
 };
 use index_vec::IndexVec;
+use smallvec::SmallVec;
 
 use crate::{
     ty::{IrTy, IrTyId, Mutability},
     IrStorage,
 };
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub enum Const {
     /// Nothing, it has zero size, and is associated with a particular type.
     Zero(IrTyId),
 
-    /// Byte constant, could a boolean.
-    Byte(u8),
+    /// Boolean constant value.
+    Bool(bool),
 
     /// Character constant
     Char(char),
@@ -52,18 +54,60 @@ impl Const {
         let unit = storage.ty_store().create(IrTy::unit(storage));
         Self::Zero(unit)
     }
+
+    /// Check if a [Const] is of integral kind.
+    pub fn is_integral(&self) -> bool {
+        matches!(self, Self::Char(_) | Self::Int(_) | Self::Bool(_))
+    }
+
+    /// Create a new [Const] from a scalar value, with the appropriate
+    /// type.
+    pub fn from_scalar(value: u128, ty: IrTyId, storage: &IrStorage) -> Self {
+        storage.ty_store().map_fast(ty, |ty| match ty {
+            IrTy::Int(int_ty) => {
+                let interned_value = IntConstant::from_uint(value, (*int_ty).into());
+                Self::Int(CONSTANT_MAP.create_int_constant(interned_value))
+            }
+            IrTy::UInt(int_ty) => {
+                let interned_value = IntConstant::from_uint(value, (*int_ty).into());
+                Self::Int(CONSTANT_MAP.create_int_constant(interned_value))
+            }
+            IrTy::Bool => Self::Bool(value == (true as u128)),
+            IrTy::Char => unsafe { Self::Char(char::from_u32_unchecked(value as u32)) },
+            _ => unreachable!(),
+        })
+    }
 }
 
 impl fmt::Display for Const {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Zero(_) => write!(f, "()"),
-            Self::Byte(b) => write!(f, "{b}"),
+            Self::Bool(b) => write!(f, "{b}"),
             Self::Char(c) => write!(f, "{c}"),
             Self::Int(i) => write!(f, "{i}"),
             Self::Float(flt) => write!(f, "{flt}"),
             Self::Str(s) => write!(f, "{s}"),
         }
+    }
+}
+
+/// Perform a value comparison between two constants.
+pub fn compare_constant_values(left: Const, right: Const) -> Option<Ordering> {
+    match (left, right) {
+        (Const::Zero(_), Const::Zero(_)) => Some(Ordering::Equal),
+        (Const::Bool(left), Const::Bool(right)) => Some(left.cmp(&right)),
+        (Const::Char(left), Const::Char(right)) => Some(left.cmp(&right)),
+        (Const::Int(left), Const::Int(right)) => CONSTANT_MAP.map_int_constant(left, |left| {
+            CONSTANT_MAP.map_int_constant(right, |right| left.partial_cmp(right))
+        }),
+        (Const::Float(left), Const::Float(right)) => {
+            CONSTANT_MAP.map_float_constant(left, |left| {
+                CONSTANT_MAP.map_float_constant(right, |right| left.value.partial_cmp(&right.value))
+            })
+        }
+        (Const::Str(left), Const::Str(right)) => Some(left.cmp(&right)),
+        _ => None,
     }
 }
 
@@ -105,9 +149,9 @@ impl From<ast::UnOp> for UnaryOp {
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum BinOp {
     /// '=='
-    EqEq,
+    Eq,
     /// '!='
-    NotEq,
+    Neq,
     /// '|'
     BitOr,
     /// '||'
@@ -149,13 +193,18 @@ impl BinOp {
     pub fn is_checkable(&self) -> bool {
         matches!(self, Self::Add | Self::Sub | Self::Mul | Self::Div | Self::Shl | Self::Shr)
     }
+
+    /// Check if the [BinOP] is a comparitor.
+    pub fn is_comparator(&self) -> bool {
+        matches!(self, Self::Eq | Self::Neq | Self::Gt | Self::GtEq | Self::Lt | Self::LtEq)
+    }
 }
 
 impl From<ast::BinOp> for BinOp {
     fn from(value: ast::BinOp) -> Self {
         match value {
-            ast::BinOp::EqEq => Self::EqEq,
-            ast::BinOp::NotEq => Self::NotEq,
+            ast::BinOp::EqEq => Self::Eq,
+            ast::BinOp::NotEq => Self::Neq,
             ast::BinOp::BitOr => Self::BitOr,
             ast::BinOp::Or => Self::Or,
             ast::BinOp::BitAnd => Self::BitAnd,
@@ -254,7 +303,7 @@ pub enum AddressMode {
     Smart,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum PlaceProjection {
     /// When we want to narrow down the union type to some specific
     /// variant.
@@ -265,6 +314,48 @@ pub enum PlaceProjection {
     /// Take the index of some specific place, the index does not need to be
     /// constant
     Index(Local),
+
+    /// This kind of index is used when slice patterns are specified, we know
+    /// the exact location of the offset that this is referencing. Here are
+    /// some examples of where the element `A` is referenced:
+    /// ```ignore
+    /// [A, _, .., _, _] => { offset: 0, min_length: 4, from_end: false }
+    /// [_, _, .., _, A] => { offset: 0, min_length: 4, from_end: true }
+    /// [_, _, .., A, _] => { offset: 1, min_length: 4, from_end: true }
+    /// [_, A, .., _, _] => { offset: 1, min_length: 4, from_end: false }
+    /// ```
+    ConstantIndex {
+        /// The index of the constant index.
+        offset: usize,
+
+        /// If the index is referencing from the end of the slice.
+        from_end: bool,
+
+        /// The minimum length of the slice that this is referencing.
+        min_length: usize,
+    },
+
+    /// A sub-slice projection references a sub-slice of the original slice.
+    /// This is generated from slice patterns that associate a sub-slice with
+    /// a variable, for example:
+    /// ```ignore
+    /// [_, _, ...x, _]
+    /// [_, ...x, _, _]
+    /// ```
+    Subslice {
+        /// The initial offset of where the slice is referencing
+        /// from.
+        from: usize,
+
+        /// To which index the slice is referencing to.
+        to: usize,
+
+        /// If this is referring to from the end of a slice. This determines
+        /// from where `to` counts from, whether the start or the end of the
+        /// slice/list.
+        from_end: bool,
+    },
+
     /// We want to dereference the place
     Deref,
 }
@@ -275,6 +366,10 @@ pub struct Place {
     pub local: Local,
     /// Any projections that are applied onto the `local` in
     /// order to specify an exact location within the local.
+    ///
+    /// @@Todo: maybe make this a slice rather than a vec, we
+    /// could create a `projection` store..., in order to make
+    /// this copyable.
     pub projections: Vec<PlaceProjection>,
 }
 
@@ -307,7 +402,9 @@ impl fmt::Display for Place {
             match projection {
                 PlaceProjection::Downcast(_) | PlaceProjection::Field(_) => write!(f, "(")?,
                 PlaceProjection::Deref => write!(f, "(*")?,
-                PlaceProjection::Index(_) => {}
+                PlaceProjection::Subslice { .. }
+                | PlaceProjection::ConstantIndex { .. }
+                | PlaceProjection::Index(_) => {}
             }
         }
 
@@ -317,6 +414,24 @@ impl fmt::Display for Place {
             match projection {
                 PlaceProjection::Downcast(index) => write!(f, " as variant#{index})")?,
                 PlaceProjection::Index(local) => write!(f, "[{local:?}]")?,
+                PlaceProjection::ConstantIndex { offset, min_length, from_end: true } => {
+                    write!(f, "[-{offset:?} of {min_length:?}]")?;
+                }
+                PlaceProjection::ConstantIndex { offset, min_length, from_end: false } => {
+                    write!(f, "[{offset:?} of {min_length:?}]")?;
+                }
+                PlaceProjection::Subslice { from, to, from_end: true } if *to == 0 => {
+                    write!(f, "[{from}:]")?;
+                }
+                PlaceProjection::Subslice { from, to, from_end: false } if *from == 0 => {
+                    write!(f, "[:-{to:?}]")?;
+                }
+                PlaceProjection::Subslice { from, to, from_end: true } => {
+                    write!(f, "[{from}:-{to:?}]")?;
+                }
+                PlaceProjection::Subslice { from, to, from_end: false } => {
+                    write!(f, "[{from:?}:{to:?}]")?;
+                }
                 PlaceProjection::Field(index) => write!(f, ".{index})")?,
                 PlaceProjection::Deref => write!(f, ")")?,
             }
@@ -375,6 +490,11 @@ pub enum RValue {
     /// the result of the operation in the form of `(T, bool)`. The boolean
     /// flag denotes whether the operation violated the check...
     CheckedBinaryOp(BinOp, RValueId, RValueId),
+
+    /// Compute the `length` of a place, yielding a `usize`.
+    ///
+    /// Any `place` that is not an array or slice, is not a valid [RValue].
+    Len(Place),
 
     /// An expression which is taking the address of another expression with an
     /// mutability modifier e.g. `&mut x`.
@@ -469,6 +589,92 @@ pub struct Terminator {
     pub span: Span,
 }
 
+/// Struct that represents all of the targets that a [TerminatorKind::Switch]
+/// can jump to. This also defines some useful methods on the block to iterate
+/// over all the targets, etc.
+#[derive(Debug, PartialEq, Eq)]
+pub struct SwitchTargets {
+    /// The jump table, contains corresponding values to *jump* on and the
+    /// location of where the jump goes to. The values are stored as an
+    /// [u128] because we only deal with **small** integral types, for larger
+    /// integer values, we default to using `Eq` check. Since the value is
+    /// stored as an [u128], this is nonsensical when it comes using these
+    /// values, which is why a **bias** needs to be applied before properly
+    /// reading the value which can be derived from the integral type that
+    /// is being matched on.
+    ///
+    /// N.B. All values within the table are unique, there cannot be multiple
+    /// targets for the same value.
+    pub table: SmallVec<[(u128, BasicBlock); 1]>,
+
+    /// This is the type that is used to represent the values within
+    /// the jump table. This will be used to create the appropriate
+    /// value when actually reading from the jump table.
+    ///
+    /// N.B. This must be an integral type, `int`, `bool`, `char`.
+    pub ty: IrTyId,
+
+    /// If none of the corresponding values match, then jump to this block. This
+    /// is set to [None] if the switch is exhaustive.
+    pub otherwise: Option<BasicBlock>,
+}
+
+impl SwitchTargets {
+    /// Create a new [SwitchTargets] with the specified jump table and
+    /// an optional otherwise block.
+    pub fn new(
+        targets: impl Iterator<Item = (u128, BasicBlock)>,
+        ty: IrTyId,
+        otherwise: Option<BasicBlock>,
+    ) -> Self {
+        Self { table: targets.collect(), ty, otherwise }
+    }
+
+    /// Check if there is an `otherwise` block.
+    pub fn has_otherwise(&self) -> bool {
+        self.otherwise.is_some()
+    }
+
+    /// Get the `otherwise` block to jump to unconditionally.
+    pub fn otherwise(&self) -> BasicBlock {
+        self.otherwise.unwrap()
+    }
+
+    /// Iterate all of the associated targets.
+    pub fn iter_targets(&self) -> impl Iterator<Item = BasicBlock> + '_ {
+        self.table.iter().map(|(_, target)| *target).chain(self.otherwise.into_iter())
+    }
+
+    pub fn iter(&self) -> SwitchTargetsIter<'_> {
+        SwitchTargetsIter { inner: self.table.iter() }
+    }
+
+    /// Find the target for a specific value, if it exists.
+    pub fn corresponding_target(&self, value: u128) -> BasicBlock {
+        self.table
+            .iter()
+            .find(|(v, _)| *v == value)
+            .map(|(_, b)| *b)
+            .unwrap_or_else(|| self.otherwise())
+    }
+}
+
+pub struct SwitchTargetsIter<'a> {
+    inner: slice::Iter<'a, (u128, BasicBlock)>,
+}
+
+impl<'a> Iterator for SwitchTargetsIter<'a> {
+    type Item = (u128, BasicBlock);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next().copied()
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
+}
+
 /// The kind of [Terminator] that it is.
 ///
 /// @@Future: does this need an `Intrinsic(...)` variant for substituting
@@ -505,16 +711,10 @@ pub enum TerminatorKind {
     /// the `otherwise` condition.
     Switch {
         /// The value to use when comparing against the cases.
-        value: Local,
+        value: RValueId,
 
-        /// The target to jump to if the value is equal to the provided [Const]
-        /// value. All values that the table contains will always be
-        /// [Const::Int] values.
-        table: Vec<(Const, BasicBlock)>,
-
-        /// If all lookups fail for the particular value, then this is a default
-        /// basic block to jump to.
-        otherwise: BasicBlock,
+        /// All of the targets that are defined for the particular switch.
+        targets: SwitchTargets,
     },
 
     /// This terminator is used to verify that the result of some operation has
@@ -534,7 +734,30 @@ pub enum TerminatorKind {
     },
 }
 
-/// Essentially a block
+impl TerminatorKind {
+    pub fn make_if(
+        place: Place,
+        true_block: BasicBlock,
+        false_block: BasicBlock,
+        storage: &IrStorage,
+    ) -> Self {
+        let value = storage.push_rvalue(RValue::Use(place));
+
+        let targets = SwitchTargets::new(
+            std::iter::once((false.into(), false_block)),
+            storage.ty_store().make_bool(),
+            Some(true_block),
+        );
+
+        TerminatorKind::Switch { value, targets }
+    }
+}
+
+/// The contents of a [BasicBlock], the statements of the block, and a
+/// terminator. Initially, the `terminator` begins as [None], and will
+/// be set when the lowering process is completed.
+///
+/// N.B. It is an invariant for a [BasicBlock] to not have a terminator.
 #[derive(Debug, PartialEq, Eq)]
 pub struct BasicBlockData {
     /// The statements that the block has.
@@ -602,9 +825,6 @@ impl fmt::Display for BodySource {
 }
 
 pub struct Body {
-    /// The type of the item that was lowered
-    pub ty: IrTyId,
-
     /// The blocks that the function is represented with
     pub blocks: IndexVec<BasicBlock, BasicBlockData>,
 
@@ -621,18 +841,22 @@ pub struct Body {
     /// - the remaining are temporaries that are used within the function.
     pub declarations: IndexVec<Local, LocalDecl>,
 
-    /// The name of the body
-    pub name: Identifier,
+    /// Information that is derived when the body in being
+    /// lowered.
+    pub info: BodyInfo,
 
     /// Number of arguments to the function
     pub arg_count: usize,
 
     /// The source of the function, is it a normal function, or an intrinsic
     source: BodySource,
+
     /// The location of the function
     span: Span,
+
     /// The id of the source of where this body originates from.
     source_id: SourceId,
+
     /// Whether the IR Body that is generated should be printed
     /// when the generation process is finalised.
     dump: bool,
@@ -642,16 +866,15 @@ impl Body {
     /// Create a new [Body] with the given `name`, `arg_count`, `source_id` and
     /// `span`.
     pub fn new(
-        ty: IrTyId,
         blocks: IndexVec<BasicBlock, BasicBlockData>,
         declarations: IndexVec<Local, LocalDecl>,
-        name: Identifier,
+        info: BodyInfo,
         arg_count: usize,
         source: BodySource,
         span: Span,
         source_id: SourceId,
     ) -> Self {
-        Self { ty, blocks, name, declarations, arg_count, source, span, source_id, dump: false }
+        Self { blocks, info, declarations, arg_count, source, span, source_id, dump: false }
     }
 
     /// Set the `dump` flag to `true` so that the IR Body that is generated
@@ -675,7 +898,45 @@ impl Body {
         self.source
     }
 
-    /// Get the name of the [Body]
+    /// Get the [BodyInfo] for the [Body]
+    pub fn info(&self) -> &BodyInfo {
+        &self.info
+    }
+}
+
+/// This struct contains additional metadata about the body that was lowered,
+/// namely the associated name with the body that is derived from the
+/// declaration that it was lowered from, the type of the body that is computed
+/// during lowering, etc.
+///
+/// This type exists since it is expected that this information is constructed
+/// during lowering and might not be initially available, so most of the fields
+/// are wrapped in a [Option], however any access method on the field
+/// **expects** that the value was computed.
+pub struct BodyInfo {
+    pub name: Identifier,
+
+    /// The type of the body that was lowered
+    ty: Option<IrTyId>,
+}
+
+impl BodyInfo {
+    /// Create a new [BodyInfo] with the given `name`.
+    pub fn new(name: Identifier) -> Self {
+        Self { name, ty: None }
+    }
+
+    /// Set the type of the body that was lowered.
+    pub fn set_ty(&mut self, ty: IrTyId) {
+        self.ty = Some(ty);
+    }
+
+    /// Get the type of the body that was lowered.
+    pub fn ty(&self) -> IrTyId {
+        self.ty.expect("body type was not computed")
+    }
+
+    /// Get the name of the body that was lowered.
     pub fn name(&self) -> Identifier {
         self.name
     }

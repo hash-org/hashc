@@ -22,7 +22,7 @@ impl<'tcx> Builder<'tcx> {
             Lit::Char(literal) => ir::Const::Char(literal.data),
             Lit::Int(literal) => ir::Const::Int(literal.value),
             Lit::Float(literal) => ir::Const::Float(literal.value),
-            Lit::Bool(literal) => ir::Const::Byte(literal.data.into()),
+            Lit::Bool(literal) => ir::Const::Bool(literal.data),
             Lit::Set(_) | Lit::Map(_) | Lit::List(_) | Lit::Tuple(_) => {
                 panic_on_span!(
                     lit.span().into_location(self.source_id),
@@ -101,12 +101,12 @@ where
         + Into<IntConstant>,
 {
     let value: Option<T> = match op {
-        BinOp::Gt => return Some(Const::Byte((lhs > rhs).into())),
-        BinOp::GtEq => return Some(Const::Byte((lhs >= rhs).into())),
-        BinOp::Lt => return Some(Const::Byte((lhs < rhs).into())),
-        BinOp::LtEq => return Some(Const::Byte((lhs <= rhs).into())),
-        BinOp::EqEq => return Some(Const::Byte((lhs == rhs).into())),
-        BinOp::NotEq => return Some(Const::Byte((lhs != rhs).into())),
+        BinOp::Gt => return Some(Const::Bool(lhs > rhs)),
+        BinOp::GtEq => return Some(Const::Bool(lhs >= rhs)),
+        BinOp::Lt => return Some(Const::Bool(lhs < rhs)),
+        BinOp::LtEq => return Some(Const::Bool(lhs <= rhs)),
+        BinOp::Eq => return Some(Const::Bool(lhs == rhs)),
+        BinOp::Neq => return Some(Const::Bool(lhs != rhs)),
         BinOp::Add => Some(lhs + rhs),
         BinOp::Sub => Some(lhs - rhs),
         BinOp::Mul => Some(lhs * rhs),
@@ -151,12 +151,12 @@ where
         + Into<FloatConstant>,
 {
     let value = match op {
-        BinOp::Gt => return Some(Const::Byte((lhs > rhs).into())),
-        BinOp::GtEq => return Some(Const::Byte((lhs >= rhs).into())),
-        BinOp::Lt => return Some(Const::Byte((lhs < rhs).into())),
-        BinOp::LtEq => return Some(Const::Byte((lhs <= rhs).into())),
-        BinOp::EqEq => return Some(Const::Byte((lhs == rhs).into())),
-        BinOp::NotEq => return Some(Const::Byte((lhs != rhs).into())),
+        BinOp::Gt => return Some(Const::Bool(lhs > rhs)),
+        BinOp::GtEq => return Some(Const::Bool(lhs >= rhs)),
+        BinOp::Lt => return Some(Const::Bool(lhs < rhs)),
+        BinOp::LtEq => return Some(Const::Bool(lhs <= rhs)),
+        BinOp::Eq => return Some(Const::Bool(lhs == rhs)),
+        BinOp::Neq => return Some(Const::Bool(lhs != rhs)),
         BinOp::Add => Some(lhs + rhs),
         BinOp::Sub => Some(lhs - rhs),
         BinOp::Mul => Some(lhs * rhs),

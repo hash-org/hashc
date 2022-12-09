@@ -42,7 +42,7 @@ pub(crate) struct CompilerOptions {
     /// The optimisation level that the compiler should run at. This can be
     /// specified as a either `debug`, or `release`.
     #[arg(long, value_enum, default_value = "debug")]
-    pub(crate) optimisation: OptimisationLevel,
+    pub(crate) optimisation_level: OptimisationLevel,
 
     /// Set the maximum stack size for the current running instance.
     //
@@ -133,9 +133,9 @@ pub(crate) struct IrGenMode {
     #[arg(long, default_value_t = false)]
     pub(crate) dump: bool,
 
-    /// Whether the IR should use `checked` operations, this flag is
-    /// superseded by `optimise` level when it is set to
-    /// [OptimisationLevel::Release].
+    /// Whether the IR should use `checked` operations, if this flag
+    /// is specified, this will insert `checked` operations regardless
+    /// of the optimisation level.
     #[arg(long, default_value_t = true)]
     pub(crate) checked_operations: bool,
 }
@@ -167,6 +167,16 @@ impl TryInto<CompilerSettings> for CompilerOptions {
             }
             _ => CompilerStageKind::Full,
         };
+
+        // If we are running in release mode, we should disable
+        // checked operations.
+        //
+        // @@Todo: make this nicer when we have more affected settings, we could
+        // potentially even move this into another kind of settings that is
+        // determined from the optimisation level, and then derived from that.
+        if self.optimisation_level == OptimisationLevel::Release {
+            lowering_settings.checked_operations = false;
+        }
 
         // We can use the default value of target since we are running
         // on the current system...

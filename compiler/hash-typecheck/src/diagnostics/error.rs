@@ -344,10 +344,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Reports {
                                 (Some(src_name), Some(target_name)) => (
                                     format!("this argument should be named `{target_name}`"),
                                     "argument is specified as being named".to_string(),
-                                    format!(
-                                        "consider renaming `{}` to `{}`",
-                                        src_name, target_name
-                                    ),
+                                    format!("consider renaming `{src_name}` to `{target_name}`"),
                                 ),
                                 (Some(src_name), None) => (
                                     format!("this argument shouldn't be named `{src_name}`"),
@@ -358,9 +355,8 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Reports {
                                     format!("this argument should be named `{target_name}`"),
                                     "argument is specified as being named".to_string(),
                                     format!(
-                                        "consider adding `{}` as the name to the argument",
-                                        target_name
-                                    ),
+                                    "consider adding `{target_name}` as the name to the argument"
+                                ),
                                 ),
                                 _ => unreachable!(),
                             };
@@ -466,10 +462,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Reports {
                                 (Some(src_name), Some(target_name)) => (
                                     format!("this parameter should be named `{target_name}`"),
                                     "parameter is specified as being named".to_string(),
-                                    format!(
-                                        "consider renaming `{}` to `{}`",
-                                        src_name, target_name
-                                    ),
+                                    format!("consider renaming `{src_name}` to `{target_name}`"),
                                 ),
                                 (Some(src_name), None) => (
                                     format!("this parameter shouldn't be named `{src_name}`"),
@@ -480,9 +473,8 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Reports {
                                     format!("this parameter should be named `{target_name}`"),
                                     "parameter is specified as being named".to_string(),
                                     format!(
-                                        "consider adding `{}` as the name to the parameter",
-                                        target_name
-                                    ),
+                                    "consider adding `{target_name}` as the name to the parameter"
+                                ),
                                 ),
                                 _ => unreachable!(),
                             };
@@ -761,8 +753,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Reports {
                 };
 
                 builder.code(HashErrorCode::ParameterInUse).message(format!(
-                    "parameter with name `{}` is already specified within the {}",
-                    name, origin
+                    "parameter with name `{name}` is already specified within the {origin}"
                 ));
 
                 // Report where the secondary use occurred, and if possible the first use
@@ -820,7 +811,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Reports {
             TcError::UnresolvedVariable { name, value } => {
                 builder
                     .code(HashErrorCode::UnresolvedSymbol)
-                    .message(format!("variable `{}` is not defined in the current scope", name));
+                    .message(format!("variable `{name}` is not defined in the current scope"));
 
                 if let Some(location) = ctx.location_store().get_location(value) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -1146,7 +1137,7 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Reports {
             TcError::InvalidPropertyAccessOfNonMethod { subject, property } => {
                 builder
                     .code(HashErrorCode::InvalidPropertyAccessOfNonMethod)
-                    .message(format!("property `{}` access yields non-method result", property));
+                    .message(format!("property `{property}` access yields non-method result"));
 
                 if let Some(location) = ctx.location_store().get_location(subject) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(

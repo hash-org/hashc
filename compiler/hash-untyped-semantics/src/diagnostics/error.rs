@@ -136,8 +136,7 @@ impl From<AnalysisError> for Reports {
             AnalysisErrorKind::MultipleSpreadPats { origin } => {
                 error
                     .message(format!(
-                        "spread patterns `...` can only be used once in a {} pattern",
-                        origin
+                        "spread patterns `...` can only be used once in a {origin} pattern"
                     ))
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         err.location,
@@ -146,10 +145,7 @@ impl From<AnalysisError> for Reports {
             }
             AnalysisErrorKind::IllegalSpreadPatUse { origin } => {
                 error
-                    .message(format!(
-                        "spread patterns `...` cannot be used in a {} pattern",
-                        origin
-                    ))
+                    .message(format!("spread patterns `...` cannot be used in a {origin} pattern"))
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         err.location,
                         "here",
@@ -167,8 +163,7 @@ impl From<AnalysisError> for Reports {
             }
             AnalysisErrorKind::NonDeclarativeExpression { origin } => {
                 error.message(format!(
-                    "non-declarative expressions are not allowed in `{}` pattern",
-                    origin
+                    "non-declarative expressions are not allowed in `{origin}` pattern"
                 ));
 
                 error.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -191,8 +186,7 @@ impl From<AnalysisError> for Reports {
             }
             AnalysisErrorKind::IllegalBindingVisibilityModifier { modifier, origin } => {
                 error.message(format!(
-                    "declarations in {} blocks cannot have visibility modifiers",
-                    origin
+                    "declarations in {origin} blocks cannot have visibility modifiers"
                 ));
 
                 error
@@ -203,8 +197,7 @@ impl From<AnalysisError> for Reports {
                     .add_element(ReportElement::Note(ReportNote::new(
                         ReportNoteKind::Note,
                         format!(
-                            "declarations in `{}` blocks by default have private visibility.",
-                            origin
+                            "declarations in `{origin}` blocks by default have private visibility."
                         ),
                     )))
                     .add_element(ReportElement::Note(ReportNote::new(
@@ -240,8 +233,7 @@ impl From<AnalysisError> for Reports {
                 };
 
                 error.message(format!(
-                    "the `{}` directive is disallowed within {} context",
-                    name, origin
+                    "the `{name}` directive is disallowed within {origin} context"
                 ));
 
                 // Show the location where the directive is being used...
@@ -252,8 +244,7 @@ impl From<AnalysisError> for Reports {
             }
             AnalysisErrorKind::InvalidDirectiveScope { name, expected, received } => {
                 error.message(format!(
-                    "the `{}` directive is must be within a {} block",
-                    name, expected
+                    "the `{name}` directive is must be within a {expected} block"
                 ));
 
                 // Show the location where the directive is being used...
@@ -263,10 +254,8 @@ impl From<AnalysisError> for Reports {
                 )));
             }
             AnalysisErrorKind::InvalidDirectiveArgument { name, expected, received: given } => {
-                error.message(format!(
-                    "the `{}` directive expects a {} as an argument",
-                    name, expected
-                ));
+                error
+                    .message(format!("the `{name}` directive expects a {expected} as an argument"));
 
                 // Show the location where the directive is being used...
                 error.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(

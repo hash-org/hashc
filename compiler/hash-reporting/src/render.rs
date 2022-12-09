@@ -117,8 +117,7 @@ impl ReportCodeBlock {
         let (top_buffer, bottom_buffer) = compute_buffers(start_row, end_row);
 
         source
-            .trim_end_matches('\n')
-            .split('\n')
+            .lines()
             .enumerate()
             .skip(start_row.saturating_sub(top_buffer))
             .take(top_buffer + end_row - start_row + 1 + bottom_buffer)

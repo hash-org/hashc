@@ -20,7 +20,7 @@ impl<'tcx> Builder<'tcx> {
             ast::Pat::Binding(ast::BindingPat { name: _, visibility: _, mutability: _ }) => {
                 // resolve the type of this binding
                 let (name, mutability) =
-                    self.tcx.pat_store.map_fast(self.get_pat_id_of_node(node_id), |pat| {
+                    self.tcx.pat_store.map_fast(self.pat_id_of_node(node_id), |pat| {
                         let Pat::Binding(BindingPat { mutability, name, .. }) = pat else {
                             unreachable!("expected binding pattern");
                         };
@@ -28,7 +28,7 @@ impl<'tcx> Builder<'tcx> {
                         (*name, (*mutability).into())
                     });
 
-                let ty = self.get_ty_id_of_node(node_id);
+                let ty = self.ty_id_of_node(node_id);
                 self.declare_binding(name, ty, mutability)
             }
             ast::Pat::Tuple(ast::TuplePat { fields }) => {

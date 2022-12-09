@@ -4,13 +4,14 @@
 //! complexity from types that are required for IR generation and
 //! analysis.
 
-use std::{cell::Cell, fmt};
+use std::{cell::Cell, cmp, fmt};
 
 use bitflags::bitflags;
 use hash_source::{
     constant::{FloatTy, IntTy, SIntTy, UIntTy},
     identifier::Identifier,
 };
+use hash_target::size::Size;
 use hash_utils::{
     new_sequence_store_key, new_store_key,
     store::{CloneStore, DefaultSequenceStore, DefaultStore, SequenceStore, Store},
@@ -117,7 +118,7 @@ pub enum IrTy {
     Slice(IrTyId),
 
     /// An array type with a specified length, i.e. `[T; N]`
-    Array(IrTyId, u64),
+    Array { ty: IrTyId, size: usize },
 
     /// An abstract data structure type, i.e a `struct` or `enum`, or any
     /// other kind of type.
@@ -160,6 +161,36 @@ impl IrTy {
     pub fn is_integral(&self) -> bool {
         matches!(self, Self::Int(_) | Self::UInt(_) | Self::Float(_) | Self::Char)
     }
+
+    /// Check if a type is a scalar, i.e. it cannot be divided into
+    /// further components. [IrTy::RawRef] is also considered as a scalar since
+    /// the components of the reference are *opaque* to the compiler because it
+    /// isn't managed.
+    pub fn is_scalar(&self) -> bool {
+        matches!(
+            self,
+            Self::Int(_)
+                | Self::UInt(_)
+                | Self::Float(_)
+                | Self::Char
+                | Self::Bool
+                | Self::RawRef(_, _)
+        )
+    }
+
+    /// Check if the type is an ADT.
+    pub fn is_adt(&self) -> bool {
+        matches!(self, Self::Adt(_))
+    }
+
+    /// Assuming that the [IrTy] is an ADT, return the [AdtId]
+    /// of the underlying ADT.
+    pub fn as_adt(&self) -> AdtId {
+        match self {
+            Self::Adt(adt_id) => *adt_id,
+            _ => panic!("expected ADT"),
+        }
+    }
 }
 
 impl From<IntTy> for IrTy {
@@ -181,7 +212,12 @@ index_vec::define_index_type! {
     DEBUG_FORMAT = "variant#{}";
 }
 
-#[derive(Clone)]
+/// This is the underlying data of an ADT which is stored behind an [AdtId].
+/// The ADT stores the name of the defined type, all of the variants (if it
+/// a leaf ADT i.e. `struct` or `tuple` then there is one variant), and
+/// information about the ADT, which kind of ADT it is, and how it is
+/// represented in memory.
+#[derive(Clone, Debug)]
 pub struct AdtData {
     /// The name of the ADT
     pub name: Identifier,
@@ -216,6 +252,33 @@ impl AdtData {
         flags: AdtFlags,
     ) -> Self {
         Self { name, variants, representation: AdtRepresentation::default(), flags }
+    }
+
+    /// Lookup the index of a variant by its name.
+    pub fn variant_idx(&self, name: &Identifier) -> Option<usize> {
+        self.variants.iter().position(|variant| &variant.name == name)
+    }
+
+    /// Compute the discriminant type of this ADT, assuming that this
+    /// is an `enum` or a `union`.
+    ///
+    /// @@Future(discriminants): This is incomplete because it does not account
+    /// for the `repr` attribute, and the fact that enums might have
+    /// explicit discriminants specified on them.
+    pub fn discriminant_ty(&self) -> IntTy {
+        debug_assert!(self.flags.is_enum() || self.flags.is_union());
+
+        // Compute the maximum number of bits needed for the discriminant.
+        let max = self.variants.len() as u64;
+        let bits = max.leading_zeros();
+        let size = Size::from_bits(cmp::max(1, 64 - bits));
+
+        IntTy::UInt(UIntTy::from_size(size))
+    }
+
+    /// Create an iterator of all of the discriminants of this ADT.
+    pub fn discriminants(&self) -> impl Iterator<Item = (VariantIdx, u128)> {
+        self.variants.indices().map(|idx| (idx, idx._raw as u128))
     }
 }
 
@@ -267,15 +330,19 @@ impl AdtFlags {
 ///     - add `pack` configuration
 ///     - add layout randomisation configuration
 ///     - add `C` layout configuration
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct AdtRepresentation {}
+
 impl AdtRepresentation {
     fn default() -> AdtRepresentation {
         AdtRepresentation {}
     }
 }
 
-#[derive(Clone)]
+/// An [AdtVariant] is a potential variant of an ADT which contains all of the
+/// associated fields, and the name of the variant if any. If no names are
+/// available, then the name will be the index of that variant.
+#[derive(Clone, Debug)]
 pub struct AdtVariant {
     /// The name of the variant, if this is a struct variant, this inherits
     /// the name of the struct.
@@ -285,7 +352,17 @@ pub struct AdtVariant {
     pub fields: Vec<AdtField>,
 }
 
-#[derive(Clone)]
+impl AdtVariant {
+    /// Find the index of a field by name.
+    pub fn field_idx(&self, name: Identifier) -> Option<usize> {
+        self.fields.iter().position(|field| field.name == name)
+    }
+}
+
+/// An [AdtField] is a field that is defined for a variant of an ADT. It
+/// contains an associated name, and a type. If no user defined name was
+/// available, then the name of each variant is the index of that field.
+#[derive(Clone, Debug)]
 pub struct AdtField {
     /// The name of the field.
     pub name: Identifier,
@@ -303,29 +380,29 @@ pub type AdtStore = DefaultStore<AdtId, AdtData>;
 
 impl fmt::Display for ForFormatting<'_, AdtId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let adt = self.storage.adt_store().get(self.item);
+        self.storage.adt_store.map_fast(self.item, |adt| {
+            match adt.flags {
+                AdtFlags::TUPLE => {
+                    assert!(adt.variants.len() == 1);
+                    let variant = &adt.variants[0];
 
-        match adt.flags {
-            AdtFlags::TUPLE => {
-                assert!(adt.variants.len() == 1);
-                let variant = &adt.variants[0];
+                    write!(f, "(")?;
+                    for (i, field) in variant.fields.iter().enumerate() {
+                        if i != 0 {
+                            write!(f, ", ")?;
+                        }
 
-                write!(f, "(")?;
-                for (i, field) in variant.fields.iter().enumerate() {
-                    if i != 0 {
-                        write!(f, ", ")?;
+                        write!(f, "{}", field.ty.for_fmt(self.storage))?;
                     }
 
-                    write!(f, "{}", field.ty.for_fmt(self.storage))?;
+                    write!(f, ")")
                 }
-
-                write!(f, ")")
+                _ => {
+                    // We just write the name of the underlying ADT
+                    write!(f, "{}", adt.name)
+                }
             }
-            _ => {
-                // We just write the name of the underlying ADT
-                write!(f, "{}", adt.name)
-            }
-        }
+        })
     }
 }
 
@@ -354,6 +431,13 @@ impl TyStore {
             self.bool_ty.set(Some(id));
             id
         }
+    }
+
+    /// Create a a [IrTy::UInt(UintTy::USize)], which is often used for
+    /// generating internal comparisons of values that are used for
+    /// indexing.
+    pub fn make_usize(&self) -> IrTyId {
+        self.create(IrTy::UInt(UIntTy::USize))
     }
 }
 
@@ -408,7 +492,7 @@ impl fmt::Display for ForFormatting<'_, IrTyId> {
             }
             IrTy::Fn { name: Some(name), .. } => write!(f, "{name}"),
             IrTy::Slice(ty) => write!(f, "[{}]", ty.for_fmt(self.storage)),
-            IrTy::Array(ty, len) => write!(f, "[{}; {len}]", ty.for_fmt(self.storage)),
+            IrTy::Array { ty, size } => write!(f, "[{}; {size}]", ty.for_fmt(self.storage)),
         }
     }
 }
