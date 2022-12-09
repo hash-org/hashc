@@ -81,9 +81,9 @@ impl Display for FloatLit {
 impl Display for LitPat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            LitPat::Int(lit) => write!(f, "{}", lit),
-            LitPat::Str(lit) => write!(f, "{}", lit),
-            LitPat::Char(lit) => write!(f, "{}", lit),
+            LitPat::Int(lit) => write!(f, "{lit}"),
+            LitPat::Str(lit) => write!(f, "{lit}"),
+            LitPat::Char(lit) => write!(f, "{lit}"),
         }
     }
 }
@@ -91,10 +91,10 @@ impl Display for LitPat {
 impl Display for LitTerm {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            LitTerm::Int(lit) => write!(f, "{}", lit),
-            LitTerm::Str(lit) => write!(f, "{}", lit),
-            LitTerm::Char(lit) => write!(f, "{}", lit),
-            LitTerm::Float(lit) => write!(f, "{}", lit),
+            LitTerm::Int(lit) => write!(f, "{lit}"),
+            LitTerm::Str(lit) => write!(f, "{lit}"),
+            LitTerm::Char(lit) => write!(f, "{lit}"),
+            LitTerm::Float(lit) => write!(f, "{lit}"),
         }
     }
 }

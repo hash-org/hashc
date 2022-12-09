@@ -81,7 +81,7 @@ impl fmt::Display for WithEnv<'_, Spread> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let symbol_data = self.stores().symbol().get(self.value.name);
         if let Some(name) = symbol_data.name {
-            write!(f, "...{}", name)
+            write!(f, "...{name}")
         } else {
             write!(f, "...")
         }
@@ -103,7 +103,7 @@ impl fmt::Display for WithEnv<'_, &ListPat> {
                 if i > 0 {
                     write!(f, ", ")?;
                 }
-                write!(f, "{}", pat_arg)?;
+                write!(f, "{pat_arg}")?;
             }
             Ok(())
         })?;
@@ -127,7 +127,7 @@ impl fmt::Display for WithEnv<'_, &Pat> {
         match self.value {
             Pat::Binding(binding_pat) => write!(f, "{}", self.env().with(binding_pat)),
             Pat::Range(range_pat) => write!(f, "{}", self.env().with(range_pat)),
-            Pat::Lit(lit_pat) => write!(f, "{}", lit_pat),
+            Pat::Lit(lit_pat) => write!(f, "{lit_pat}"),
             Pat::Tuple(tuple_pat) => write!(f, "{}", self.env().with(tuple_pat)),
             Pat::Ctor(ctor_pat) => write!(f, "{}", self.env().with(ctor_pat)),
             Pat::List(list_pat) => write!(f, "{}", self.env().with(list_pat)),

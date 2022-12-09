@@ -109,7 +109,7 @@ impl fmt::Display for WithEnv<'_, &MatchTerm> {
                     write!(f, "{} => {}", self.env().with(pat), line)?;
                     first = false;
                 } else {
-                    write!(f, "  {}", line)?;
+                    write!(f, "  {line}")?;
                 }
             }
         }

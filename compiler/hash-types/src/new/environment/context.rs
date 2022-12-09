@@ -289,7 +289,7 @@ impl fmt::Display for WithEnv<'_, &Context> {
             self.value.try_for_bindings_of_level(scope_level, |binding| {
                 let result = self.env().with(*binding).to_string();
                 for line in result.lines() {
-                    write!(f, "  {}", line)?;
+                    write!(f, "  {line}")?;
                 }
                 Ok(())
             })?;

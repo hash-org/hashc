@@ -159,8 +159,8 @@ fn handle_failure_case(
     // verify that the case failed, as in reports where generated
     assert!(
         diagnostics.iter().any(|report| report.is_error()),
-        "\ntest case did not fail: {input:#?}",
-        input = input
+        "\ntest case did not fail: {input:#?}{}",
+        ""
     );
 
     // If the test specifies that no warnings should be generated, then check
@@ -168,8 +168,8 @@ fn handle_failure_case(
     if input.metadata.warnings == HandleWarnings::Disallow {
         assert!(
             diagnostics.iter().all(|report| report.is_error()),
-            "\ntest case generated warnings where they were disallowed: {input:#?}",
-            input = input
+            "\ntest case generated warnings where they were disallowed: {input:#?}{}",
+            ""
         );
     }
 

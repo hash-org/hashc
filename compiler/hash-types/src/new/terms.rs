@@ -133,7 +133,7 @@ impl fmt::Display for WithEnv<'_, &Term> {
         match self.value {
             Term::Runtime(runtime_term) => write!(f, "{}", self.env().with(runtime_term)),
             Term::Tuple(tuple_term) => write!(f, "{}", self.env().with(tuple_term)),
-            Term::Lit(lit_term) => write!(f, "{}", lit_term),
+            Term::Lit(lit_term) => write!(f, "{lit_term}"),
             Term::Ctor(ctor_term) => write!(f, "{}", self.env().with(ctor_term)),
             Term::FnCall(fn_call_term) => write!(f, "{}", self.env().with(fn_call_term)),
             Term::Closure(closure_term) => write!(f, "{}", self.env().with(*closure_term)),

@@ -177,7 +177,7 @@ impl Display for WithEnv<'_, &DefPatArgGroup> {
                 if i > 0 {
                     write!(f, ", ")?;
                 }
-                write!(f, "{}", pat_arg)?;
+                write!(f, "{pat_arg}")?;
             }
             Ok(())
         })?;

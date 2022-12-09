@@ -72,7 +72,7 @@ impl fmt::Display for &UniverseTy {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.size {
             0 => write!(f, "Type"),
-            n => write!(f, "Type({})", n),
+            n => write!(f, "Type({n})"),
         }
     }
 }
@@ -95,7 +95,7 @@ impl fmt::Display for WithEnv<'_, &Ty> {
             Ty::Fn(fn_ty) => write!(f, "{}", self.env().with(fn_ty)),
             Ty::Ref(ref_ty) => write!(f, "{}", self.env().with(ref_ty)),
             Ty::Data(data_ty) => write!(f, "{}", self.env().with(data_ty)),
-            Ty::Universe(universe_ty) => write!(f, "{}", universe_ty),
+            Ty::Universe(universe_ty) => write!(f, "{universe_ty}"),
         }
     }
 }
