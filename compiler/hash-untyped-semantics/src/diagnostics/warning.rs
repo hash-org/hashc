@@ -2,8 +2,8 @@
 
 use hash_ast::ast::{AstNodeId, AstNodeRef};
 use hash_reporting::{
-    report::{Report, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind},
-    reporter::ReportBuilder,
+    report::{ReportCodeBlock, ReportElement, ReportNote, ReportNoteKind},
+    reporter::{Reporter, Reports},
 };
 use hash_source::{identifier::Identifier, location::SourceLocation, SourceId};
 
@@ -43,17 +43,17 @@ pub(crate) enum AnalysisWarningKind {
     UnknownDirective { name: Identifier },
 }
 
-impl From<AnalysisWarning> for Report {
-    fn from(warning: AnalysisWarning) -> Self {
-        let mut builder = ReportBuilder::new();
-        builder.with_kind(ReportKind::Warning);
+impl From<AnalysisWarning> for Reports {
+    fn from(warn: AnalysisWarning) -> Self {
+        let mut reporter = Reporter::new();
+        let warning = reporter.warning();
 
-        match warning.kind {
+        match warn.kind {
             AnalysisWarningKind::UselessExpression => {
-                builder
+                warning
                     .message("this expression is useless")
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
-                        warning.location,
+                        warn.location,
                         "here",
                     )))
                     .add_element(ReportElement::Note(ReportNote::new(
@@ -62,10 +62,10 @@ impl From<AnalysisWarning> for Report {
                     )));
             }
             AnalysisWarningKind::UnknownDirective { name } => {
-                builder
+                warning
                     .message(format!("`{name}` is not a known directive"))
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
-                        warning.location,
+                        warn.location,
                         "",
                     )))
                     .add_element(ReportElement::Note(ReportNote::new(
@@ -75,6 +75,6 @@ impl From<AnalysisWarning> for Report {
             }
         }
 
-        builder.build()
+        reporter.into_reports()
     }
 }

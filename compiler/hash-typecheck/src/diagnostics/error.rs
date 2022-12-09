@@ -3,8 +3,8 @@
 use hash_ast::ast::{MatchOrigin, ParamOrigin, RangeEnd};
 use hash_error_codes::error_codes::HashErrorCode;
 use hash_reporting::{
-    report::{Report, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind},
-    reporter::ReportBuilder,
+    report::{Report, ReportCodeBlock, ReportElement, ReportNote, ReportNoteKind},
+    reporter::{Reporter, Reports},
 };
 use hash_source::identifier::Identifier;
 use hash_types::{
@@ -248,10 +248,10 @@ impl<'tc> AccessToStorage for TcErrorWithStorage<'tc> {
     }
 }
 
-impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
+impl<'tc> From<TcErrorWithStorage<'tc>> for Reports {
     fn from(ctx: TcErrorWithStorage<'tc>) -> Self {
-        let mut builder = ReportBuilder::new();
-        builder.with_kind(ReportKind::Error);
+        let mut reporter = Reporter::new();
+        let builder = reporter.error();
 
         match &ctx.error {
             TcError::CannotUnify { src, target } => {
@@ -904,7 +904,9 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
                 // report.
                 let _inner_reports: Vec<Report> = unification_errors
                     .iter()
-                    .map(|error| TcErrorWithStorage::new(error.clone(), ctx.storages()).into())
+                    .flat_map(|error| {
+                        Reports::from(TcErrorWithStorage::new(error.clone(), ctx.storages()))
+                    })
                     .collect();
 
                 // @@Todo(feds01): Now we need to merge the reports:
@@ -1463,6 +1465,6 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Report {
             }
         };
 
-        builder.build()
+        reporter.into_reports()
     }
 }

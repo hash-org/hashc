@@ -10,8 +10,8 @@
 //! job.
 
 use hash_reporting::{
-    report::{Report, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind},
-    reporter::ReportBuilder,
+    report::{ReportCodeBlock, ReportElement, ReportNote, ReportNoteKind},
+    reporter::{Reporter, Reports},
 };
 use hash_types::{fmt::PrepareForFormatting, location::LocationTarget, pats::PatId, terms::TermId};
 
@@ -78,10 +78,10 @@ impl<'tc> AccessToStorage for TcWarningWithStorage<'tc> {
     }
 }
 
-impl<'tc> From<TcWarningWithStorage<'tc>> for Report {
+impl<'tc> From<TcWarningWithStorage<'tc>> for Reports {
     fn from(ctx: TcWarningWithStorage<'tc>) -> Self {
-        let mut builder = ReportBuilder::new();
-        builder.with_kind(ReportKind::Warning);
+        let mut reporter = Reporter::new();
+        let builder = reporter.warning();
 
         match ctx.warning {
             TcWarning::UselessMatchCase { pat, subject } => {
@@ -168,6 +168,6 @@ impl<'tc> From<TcWarningWithStorage<'tc>> for Report {
             }
         }
 
-        builder.build()
+        reporter.into_reports()
     }
 }
