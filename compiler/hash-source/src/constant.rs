@@ -5,6 +5,7 @@
 //! be interned, and accessed when needed.
 
 use std::{
+    cmp::Ordering,
     fmt::{self, Display},
     ops::Neg,
 };
@@ -35,7 +36,7 @@ impl Display for FloatTy {
 }
 
 /// The inner stored value of a [FloatConstant].
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub enum FloatConstantValue {
     F64(f64),
     F32(f32),
@@ -150,6 +151,22 @@ impl UIntTy {
         }
     }
 
+    /// Create a new [UnitTy] from a given [Size]. This assumes that
+    /// the maximum passed [Size] can be represented as a [UIntTy::U128].
+    ///
+    /// Additionally, this will never use the `usize` type to avoid confusion
+    /// between different platforms/targets.
+    pub fn from_size(size: Size) -> Self {
+        match size.bytes() {
+            0..=1 => UIntTy::U8,
+            2 => UIntTy::U16,
+            3..=4 => UIntTy::U32,
+            5..=8 => UIntTy::U64,
+            9..=16 => UIntTy::U128,
+            _ => unreachable!(),
+        }
+    }
+
     /// Function to get the largest possible integer represented within this
     /// type. For sizes `ibig` and `ubig` there is no defined max and so the
     /// function returns [None].
@@ -185,6 +202,12 @@ impl UIntTy {
             UIntTy::USize => "usize",
             UIntTy::UBig => "ubig",
         }
+    }
+}
+
+impl From<UIntTy> for IntTy {
+    fn from(value: UIntTy) -> Self {
+        IntTy::UInt(value)
     }
 }
 
@@ -297,6 +320,12 @@ impl From<SIntTy> for Identifier {
             SIntTy::ISize => IDENTS.isize,
             SIntTy::IBig => IDENTS.ibig,
         }
+    }
+}
+
+impl From<SIntTy> for IntTy {
+    fn from(value: SIntTy) -> Self {
+        IntTy::Int(value)
     }
 }
 
@@ -423,7 +452,7 @@ pub enum IntConstantValue {
 }
 
 impl IntConstantValue {
-    /// Create a new [IntConstantValue] from little endian ordered bytes
+    /// Create a new [IntConstantValue] from little endian ordered bytes.
     pub fn from_le_bytes(bytes: &[u8]) -> Self {
         if bytes.len() <= 16 {
             let mut arr = [0u8; 16];
@@ -441,6 +470,25 @@ impl IntConstantValue {
             Self::Small(arr)
         } else {
             Self::Big(Box::new(BigInt::from_signed_bytes_le(bytes)))
+        }
+    }
+
+    /// Create a new [IntConstantValue] from big endian ordered bytes
+    pub fn from_be_bytes(bytes: &[u8]) -> Self {
+        if bytes.len() <= 16 {
+            let mut arr = [0u8; 16];
+            arr[..bytes.len()].copy_from_slice(bytes);
+
+            // If the last byte is negative, we need to sign extend
+            // if bytes.last().map(|b| b & 0x80 != 0).unwrap_or(false) {
+            //     for i in arr.iter_mut().skip(bytes.len()) {
+            //         *i = 0xff;
+            //     }
+            // }
+
+            Self::Small(arr)
+        } else {
+            Self::Big(Box::new(BigInt::from_signed_bytes_be(bytes)))
         }
     }
 }
@@ -483,6 +531,23 @@ impl IntConstant {
     /// Create a new [IntConstant] from a given `value` and `ty`.
     pub fn new(value: IntConstantValue, ty: IntTy, suffix: Option<Identifier>) -> Self {
         Self { value, ty, suffix }
+    }
+
+    /// Create a [IntConstant] from the a provided value and suffix, and then
+    /// insert it into the [ConstantMap] returning the [InternedInt].
+    pub fn from_big_int(value: BigInt, ty: IntTy, suffix: Option<Identifier>) -> Self {
+        Self { value: IntConstantValue::from(value), ty, suffix }
+    }
+
+    pub fn from_uint(value: u128, ty: IntTy) -> Self {
+        Self { value: IntConstantValue::from_be_bytes(&value.to_be_bytes()), ty, suffix: None }
+    }
+
+    /// Create a [IntConstant] from Little endian bytes and an [IntTy]. It is
+    /// assumed that the correct amount of bytes are provided to this
+    /// function.
+    pub fn from_le_bytes(&self, bytes: &[u8], ty: IntTy) -> Self {
+        IntConstant { value: IntConstantValue::from_le_bytes(bytes), ty, suffix: None }
     }
 
     /// Convert the constant into a Big endian order byte stream.
@@ -546,6 +611,38 @@ impl IntConstant {
         };
 
         Self { value, ty: self.ty, suffix: self.suffix }
+    }
+}
+
+impl PartialOrd for IntConstant {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        match (self.ty, other.ty) {
+            (IntTy::Int(left), IntTy::Int(right)) if left == right => {
+                // We need to get the value from the constant, and then
+                // perform a comparison on the two values.
+                if self.is_small() && other.is_small() {
+                    let left_val = i128::from_be_bytes(self.get_bytes());
+                    let right_val = i128::from_be_bytes(other.get_bytes());
+
+                    Some(left_val.cmp(&right_val))
+                } else {
+                    // Deal with bigints...
+                    todo!()
+                }
+            }
+            (IntTy::UInt(left), IntTy::UInt(right)) if left == right => {
+                if self.is_small() && other.is_small() {
+                    let left_val = u128::from_be_bytes(self.get_bytes());
+                    let right_val = u128::from_be_bytes(other.get_bytes());
+
+                    Some(left_val.cmp(&right_val))
+                } else {
+                    // Deal with bigints...
+                    todo!()
+                }
+            }
+            _ => None,
+        }
     }
 }
 
@@ -754,28 +851,6 @@ impl ConstantMap {
     /// Perform a negation operation on an [InternedFloat].
     pub fn negate_float_constant(&self, id: InternedFloat) {
         self.float_table.alter(&id, |_, value| value.negate());
-    }
-
-    /// Create a [IntConstant] from the a provided value and suffix, and then
-    /// insert it into the [ConstantMap] returning the [InternedInt].
-    pub fn create_int_constant_from_value(
-        &self,
-        value: BigInt,
-        ty: IntTy,
-        suffix: Option<Identifier>,
-    ) -> InternedInt {
-        let value = IntConstantValue::from(value);
-        let constant = IntConstant { value, ty, suffix };
-        self.create_int_constant(constant)
-    }
-
-    /// Create a [IntConstant] from Little endian bytes and an [IntTy]. It is
-    /// assumed that the correct amount of bytes are provided to this
-    /// function.
-    pub fn create_int_constant_from_le_bytes(&self, bytes: &[u8], ty: IntTy) -> InternedInt {
-        let value = IntConstantValue::from_le_bytes(bytes);
-        let constant = IntConstant { value, ty, suffix: None };
-        self.create_int_constant(constant)
     }
 
     /// Create a [IntConstant] within the [ConstantMap].

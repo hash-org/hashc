@@ -4,12 +4,16 @@ use std::fmt;
 
 use hash_ast::ast::RangeEnd;
 use hash_source::identifier::Identifier;
-use hash_utils::{new_sequence_store_key, new_store, new_store_key, store::CloneStore};
+use hash_utils::{
+    new_sequence_store_key, new_store, new_store_key,
+    store::{CloneStore, Store},
+};
 
 use crate::{
     fmt::{ForFormatting, PrepareForFormatting},
     params::{GetNameOpt, ParamList, ParamListStore},
     scope::{Mutability, Visibility},
+    storage::GlobalStorage,
     terms::TermId,
 };
 
@@ -80,6 +84,37 @@ pub struct ListPat {
     pub list_element_ty: TermId,
     /// Patterns for the list elements
     pub element_pats: PatArgsId,
+}
+
+impl ListPat {
+    /// Split the pattern into the `prefix`, `suffix` and an optional;
+    /// `rest` pattern.
+    pub fn into_parts(&self, tcx: &GlobalStorage) -> (Vec<PatId>, Vec<PatId>, Option<PatId>) {
+        let mut prefix = vec![];
+        let mut suffix = vec![];
+        let mut rest = None;
+
+        tcx.pat_args_store.map_as_param_list_fast(self.element_pats, |args| {
+            for arg in args.positional() {
+                let is_spread = tcx.pat_store.map_fast(arg.pat, |pat| pat.is_spread());
+
+                match rest {
+                    Some(_) => {
+                        suffix.push(arg.pat);
+                    }
+                    None if is_spread => {
+                        assert!(rest.is_none());
+                        rest = Some(arg.pat);
+                    }
+                    None => {
+                        prefix.push(arg.pat);
+                    }
+                }
+            }
+        });
+
+        (prefix, suffix, rest)
+    }
 }
 
 /// Spread pattern
@@ -167,6 +202,11 @@ impl Pat {
     /// Check if the pattern is of the [Pat::Spread] variant.
     pub fn is_bind(&self) -> bool {
         matches!(self, Pat::Binding(_))
+    }
+
+    /// Check if the pattern is wrapped with an `if` guard.
+    pub fn is_if(&self) -> bool {
+        matches!(self, Pat::If(_))
     }
 
     /// Convert the pattern into a binding pattern, if it is one.

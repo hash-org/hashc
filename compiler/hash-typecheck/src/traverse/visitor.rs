@@ -673,7 +673,10 @@ impl<'tc> visitor::AstVisitor for TcVisitor<'tc> {
         &self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::BlockExpr>,
     ) -> Result<Self::BlockExprRet, Self::Error> {
-        Ok(walk::walk_block_expr(self, node)?.data)
+        let walk::BlockExpr { data } = walk::walk_block_expr(self, node)?;
+
+        // register the term with this block expression:
+        self.validate_and_register_simplified_term(node, data)
     }
 
     type ImportRet = TermId;

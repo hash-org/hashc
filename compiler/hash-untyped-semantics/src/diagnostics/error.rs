@@ -139,8 +139,7 @@ impl From<AnalysisError> for Report {
             AnalysisErrorKind::MultipleSpreadPats { origin } => {
                 builder
                     .with_message(format!(
-                        "spread patterns `...` can only be used once in a {} pattern",
-                        origin
+                        "spread patterns `...` can only be used once in a {origin} pattern"
                     ))
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         err.location,
@@ -150,8 +149,7 @@ impl From<AnalysisError> for Report {
             AnalysisErrorKind::IllegalSpreadPatUse { origin } => {
                 builder
                     .with_message(format!(
-                        "spread patterns `...` cannot be used in a {} pattern",
-                        origin
+                        "spread patterns `...` cannot be used in a {origin} pattern"
                     ))
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         err.location,
@@ -170,8 +168,7 @@ impl From<AnalysisError> for Report {
             }
             AnalysisErrorKind::NonDeclarativeExpression { origin } => {
                 builder.with_message(format!(
-                    "non-declarative expressions are not allowed in `{}` pattern",
-                    origin
+                    "non-declarative expressions are not allowed in `{origin}` pattern"
                 ));
 
                 builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -194,8 +191,7 @@ impl From<AnalysisError> for Report {
             }
             AnalysisErrorKind::IllegalBindingVisibilityModifier { modifier, origin } => {
                 builder.with_message(format!(
-                    "declarations in {} blocks cannot have visibility modifiers",
-                    origin
+                    "declarations in {origin} blocks cannot have visibility modifiers"
                 ));
 
                 builder
@@ -206,8 +202,7 @@ impl From<AnalysisError> for Report {
                     .add_element(ReportElement::Note(ReportNote::new(
                         ReportNoteKind::Note,
                         format!(
-                            "declarations in `{}` blocks by default have private visibility.",
-                            origin
+                            "declarations in `{origin}` blocks by default have private visibility."
                         ),
                     )))
                     .add_element(ReportElement::Note(ReportNote::new(
@@ -243,8 +238,7 @@ impl From<AnalysisError> for Report {
                 };
 
                 builder.with_message(format!(
-                    "the `{}` directive is disallowed within {} context",
-                    name, origin
+                    "the `{name}` directive is disallowed within {origin} context"
                 ));
 
                 // Show the location where the directive is being used...
@@ -255,8 +249,7 @@ impl From<AnalysisError> for Report {
             }
             AnalysisErrorKind::InvalidDirectiveScope { name, expected, received } => {
                 builder.with_message(format!(
-                    "the `{}` directive is must be within a {} block",
-                    name, expected
+                    "the `{name}` directive is must be within a {expected} block"
                 ));
 
                 // Show the location where the directive is being used...
@@ -267,8 +260,7 @@ impl From<AnalysisError> for Report {
             }
             AnalysisErrorKind::InvalidDirectiveArgument { name, expected, received: given } => {
                 builder.with_message(format!(
-                    "the `{}` directive expects a {} as an argument",
-                    name, expected
+                    "the `{name}` directive expects a {expected} as an argument"
                 ));
 
                 // Show the location where the directive is being used...

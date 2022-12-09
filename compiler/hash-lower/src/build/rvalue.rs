@@ -24,7 +24,7 @@ impl<'tcx> Builder<'tcx> {
             // @@SpecialCase: if this is a variable, and it is not in scope,
             // then we essentially assume that it is a zero-sized constant type.
             Expr::Variable(variable) if self.lookup_local(variable.name.ident).is_none() => {
-                let ty = self.get_ty_id_of_node(expr.id());
+                let ty = self.ty_id_of_node(expr.id());
                 Const::Zero(ty).into()
             }
 
@@ -49,11 +49,9 @@ impl<'tcx> Builder<'tcx> {
                 let rhs =
                     unpack!(block = self.as_operand(block, rhs.ast_ref(), Mutability::Mutable));
 
-                let ty = self.get_ty_of_node(expr.id());
-
                 return self.build_binary_op(
                     block,
-                    ty,
+                    self.ty_of_node(expr.id()),
                     expr.span,
                     (*operator.body()).into(),
                     lhs,
