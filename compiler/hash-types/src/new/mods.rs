@@ -120,17 +120,19 @@ impl Display for WithEnv<'_, &ModDef> {
             ModKind::ModBlock => {
                 write!(
                     f,
-                    "mod [name={}, type=block] {{\n{}\n}}",
+                    "mod [name={}, type=block] {} {{\n{}}}",
                     self.env().with(self.value.name),
-                    indent(&members, "    ")
+                    self.env().with(self.value.params),
+                    indent(&members, "  ")
                 )
             }
             ModKind::Source(source_id) => {
                 let source_name = self.env().source_map().source_name(source_id);
                 write!(
                     f,
-                    "mod [name={}, type=file, src=\"{source_name}\" {{\n{}}}",
+                    "mod [name={}, type=file, src=\"{source_name}\"] {} {{\n{}}}",
                     self.env().with(self.value.name),
+                    self.env().with(self.value.params),
                     indent(&members, "    ")
                 )
             }
