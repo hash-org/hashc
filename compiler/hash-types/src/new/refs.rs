@@ -50,8 +50,8 @@ pub struct DerefTerm {
 impl Display for RefKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            RefKind::Rc => write!(f, "&rc"),
-            RefKind::Raw => write!(f, "&raw"),
+            RefKind::Rc => write!(f, "&rc "),
+            RefKind::Raw => write!(f, "&raw "),
             RefKind::Local => write!(f, "&"),
         }
     }
@@ -61,7 +61,7 @@ impl Display for WithEnv<'_, &RefTy> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{} {}{}",
+            "{}{}{}",
             self.value.kind,
             if self.value.mutable { "mut " } else { "" },
             self.env().with(self.value.ty)
@@ -73,7 +73,7 @@ impl Display for WithEnv<'_, &RefTerm> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{} {}{}",
+            "{}{}{}",
             self.value.kind,
             if self.value.mutable { "mut " } else { "" },
             self.env().with(self.value.subject)
