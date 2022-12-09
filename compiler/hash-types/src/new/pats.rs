@@ -3,12 +3,15 @@
 use core::fmt;
 
 use hash_ast::ast::RangeEnd;
-use hash_utils::{new_sequence_store_key, new_store, new_store_key, store::DefaultSequenceStore};
+use hash_utils::{
+    new_sequence_store_key, new_store, new_store_key,
+    store::{CloneStore, DefaultSequenceStore, SequenceStore, Store},
+};
 
 use super::{
     control::{IfPat, OrPat},
     data::CtorPat,
-    environment::env::WithEnv,
+    environment::env::{AccessToEnv, WithEnv},
     lits::LitPat,
     scopes::BindingPat,
     symbols::Symbol,
@@ -74,14 +77,68 @@ new_store!(pub PatStore<PatId, Pat>);
 new_sequence_store_key!(pub PatListId);
 pub type PatListStore = DefaultSequenceStore<PatListId, PatId>;
 
-impl fmt::Display for WithEnv<'_, PatId> {
-    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        todo!()
+impl fmt::Display for WithEnv<'_, Spread> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let symbol_data = self.stores().symbol().get(self.value.name);
+        if let Some(name) = symbol_data.name {
+            write!(f, "...{}", name)
+        } else {
+            write!(f, "...")
+        }
+    }
+}
+
+impl fmt::Display for WithEnv<'_, &ListPat> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "[")?;
+        self.stores().pat_list().map_fast(self.value.pats, |pat_list| {
+            let mut pat_args_formatted =
+                pat_list.iter().map(|arg| self.env().with(*arg).to_string()).collect::<Vec<_>>();
+
+            if let Some(spread) = self.value.spread {
+                pat_args_formatted.insert(spread.index, self.env().with(spread).to_string());
+            }
+
+            for (i, pat_arg) in pat_args_formatted.iter().enumerate() {
+                if i > 0 {
+                    write!(f, ", ")?;
+                }
+                write!(f, "{}", pat_arg)?;
+            }
+            Ok(())
+        })?;
+        write!(f, "]")
+    }
+}
+
+impl fmt::Display for WithEnv<'_, &RangePat> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.value.start)?;
+        match self.value.range_end {
+            RangeEnd::Included => write!(f, "..=")?,
+            RangeEnd::Excluded => write!(f, "..")?,
+        }
+        write!(f, "{}", self.value.end)
     }
 }
 
 impl fmt::Display for WithEnv<'_, &Pat> {
-    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        todo!()
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.value {
+            Pat::Binding(binding_pat) => write!(f, "{}", self.env().with(binding_pat)),
+            Pat::Range(range_pat) => write!(f, "{}", self.env().with(range_pat)),
+            Pat::Lit(lit_pat) => write!(f, "{}", lit_pat),
+            Pat::Tuple(tuple_pat) => write!(f, "{}", self.env().with(tuple_pat)),
+            Pat::Ctor(ctor_pat) => write!(f, "{}", self.env().with(ctor_pat)),
+            Pat::List(list_pat) => write!(f, "{}", self.env().with(list_pat)),
+            Pat::Or(or_pat) => write!(f, "{}", self.env().with(or_pat)),
+            Pat::If(if_pat) => write!(f, "{}", self.env().with(if_pat)),
+        }
+    }
+}
+
+impl fmt::Display for WithEnv<'_, PatId> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.stores().pat().map_fast(self.value, |pat| write!(f, "{}", self.env().with(pat)))
     }
 }

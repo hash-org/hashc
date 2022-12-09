@@ -8,7 +8,7 @@ use core::fmt;
 use hash_utils::{new_store_key, store::DefaultStore};
 use utility_types::omit;
 
-use super::environment::env::WithEnv;
+use super::environment::env::{AccessToEnv, WithEnv};
 use crate::new::{
     pats::PatId,
     symbols::Symbol,
@@ -78,6 +78,17 @@ pub type StackMemberId = (StackId, usize);
 pub struct BlockTerm {
     pub statements: TermListId,
     pub return_value: TermId,
+}
+
+impl fmt::Display for WithEnv<'_, &BindingPat> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}{}",
+            self.env().with(self.value.name),
+            if self.value.is_mutable { "mut " } else { "" }
+        )
+    }
 }
 
 impl fmt::Display for WithEnv<'_, &BlockTerm> {

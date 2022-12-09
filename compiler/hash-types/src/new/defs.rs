@@ -4,7 +4,7 @@ use std::fmt::Display;
 
 use hash_utils::{
     new_sequence_store_key,
-    store::{CloneStore, DefaultSequenceStore, SequenceStore},
+    store::{DefaultSequenceStore, SequenceStore},
 };
 use utility_types::omit;
 
@@ -164,21 +164,13 @@ impl Display for WithEnv<'_, &DefPatArgGroup> {
         } else {
             write!(f, "(")?;
         }
-        write!(f, "{}", self.env().with(self.value.pat_args))?;
 
         self.stores().pat_args().map_fast(self.value.pat_args, |pat_args| {
             let mut pat_args_formatted =
                 pat_args.iter().map(|arg| self.env().with(arg).to_string()).collect::<Vec<_>>();
 
-            if let Some(Spread { name, index }) = self.value.spread {
-                let symbol_data = self.stores().symbol().get(name);
-                let name = if let Some(name) = symbol_data.name {
-                    name.to_string()
-                } else {
-                    "".to_string()
-                };
-                let spread_str = format!("...{}", name);
-                pat_args_formatted.insert(index, spread_str);
+            if let Some(spread) = self.value.spread {
+                pat_args_formatted.insert(spread.index, self.env().with(spread).to_string());
             }
 
             for (i, pat_arg) in pat_args_formatted.iter().enumerate() {
