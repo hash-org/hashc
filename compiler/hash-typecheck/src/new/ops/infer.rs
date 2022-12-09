@@ -87,7 +87,7 @@ impl<'tc> InferOps<'tc> {
                 let inner_ty = self.infer_ty_of_term_or_hole(ref_term.subject);
                 Ok(self.new_ty(Ty::Ref(RefTy {
                     ty: inner_ty,
-                    is_mutable: ref_term.is_mutable,
+                    mutable: ref_term.mutable,
                     kind: ref_term.kind,
                 })))
             }
