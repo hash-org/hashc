@@ -871,6 +871,12 @@ impl<'a> Lexer<'a> {
 
         // Report that the literal is unclosed and set the error as being fatal
         if !closed {
+            // If we have a windows line ending, we want to use the offset before
+            // the current so we're not highlighing the `\r` as well
+            if value.len() >= 2 && &value[(value.len() - 2)..] == "\r\n" {
+                self.offset.set(self.offset.get() - 1);
+            }
+
             return self.emit_fatal_error(
                 None,
                 LexerErrorKind::UnclosedStringLit,

@@ -2,4 +2,4 @@ error: unclosed string literal
  --> $DIR/unclosed_string_literal.hash:3:2
 2 |   
 3 |   "a
-  |    ^^^ here
+  |    ^^ here
