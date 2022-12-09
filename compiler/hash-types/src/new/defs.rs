@@ -2,7 +2,10 @@
 
 use std::fmt::Display;
 
-use hash_utils::{new_sequence_store_key, store::DefaultSequenceStore};
+use hash_utils::{
+    new_sequence_store_key,
+    store::{CloneStore, DefaultSequenceStore, SequenceStore},
+};
 use utility_types::omit;
 
 use super::{
@@ -82,7 +85,154 @@ pub struct DefMemberData {
     pub value: Option<TermId>,
 }
 
+impl Display for WithEnv<'_, &DefParamGroup> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.value.implicit {
+            write!(f, "<")?;
+        } else {
+            write!(f, "(")?;
+        }
+        write!(f, "{}", self.env().with(self.value.params))?;
+        if self.value.implicit {
+            write!(f, ">")?;
+        } else {
+            write!(f, ")")?;
+        }
+        Ok(())
+    }
+}
+
+impl Display for WithEnv<'_, DefParamGroupId> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let param_group = self.stores().def_params().get_element(self.value);
+        write!(f, "{}", self.env().with(&param_group))
+    }
+}
+
+impl Display for WithEnv<'_, DefParamsId> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.stores().def_params().map_fast(self.value, |params| {
+            for param in params.iter() {
+                write!(f, "{}", self.env().with(param))?;
+            }
+            Ok(())
+        })
+    }
+}
+
+impl Display for WithEnv<'_, &DefArgGroup> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let param_group = self.stores().def_params().get_element(self.value.param_group);
+        if param_group.implicit {
+            write!(f, "<")?;
+        } else {
+            write!(f, "(")?;
+        }
+        write!(f, "{}", self.env().with(self.value.args))?;
+        if param_group.implicit {
+            write!(f, ">")?;
+        } else {
+            write!(f, ")")?;
+        }
+        Ok(())
+    }
+}
+
+impl Display for WithEnv<'_, DefArgGroupId> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let arg_group = self.stores().def_args().get_element(self.value);
+        write!(f, "{}", self.env().with(&arg_group))
+    }
+}
+
+impl Display for WithEnv<'_, DefArgsId> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.stores().def_args().map_fast(self.value, |args| {
+            for arg in args.iter() {
+                write!(f, "{}", self.env().with(arg))?;
+            }
+            Ok(())
+        })
+    }
+}
+
+impl Display for WithEnv<'_, &DefPatArgGroup> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let param_group = self.stores().def_params().get_element(self.value.param_group);
+        if param_group.implicit {
+            write!(f, "<")?;
+        } else {
+            write!(f, "(")?;
+        }
+        write!(f, "{}", self.env().with(self.value.pat_args))?;
+
+        self.stores().pat_args().map_fast(self.value.pat_args, |pat_args| {
+            let mut pat_args_formatted =
+                pat_args.iter().map(|arg| self.env().with(arg).to_string()).collect::<Vec<_>>();
+
+            if let Some(Spread { name, index }) = self.value.spread {
+                let symbol_data = self.stores().symbol().get(name);
+                let name = if let Some(name) = symbol_data.name {
+                    name.to_string()
+                } else {
+                    "".to_string()
+                };
+                let spread_str = format!("...{}", name);
+                pat_args_formatted.insert(index, spread_str);
+            }
+
+            for (i, pat_arg) in pat_args_formatted.iter().enumerate() {
+                if i > 0 {
+                    write!(f, ", ")?;
+                }
+                write!(f, "{}", pat_arg)?;
+            }
+            Ok(())
+        })?;
+
+        if param_group.implicit {
+            write!(f, ">")?;
+        } else {
+            write!(f, ")")?;
+        }
+        Ok(())
+    }
+}
+
+impl Display for WithEnv<'_, DefPatArgGroupId> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let pat_arg_group = self.stores().def_pat_args().get_element(self.value);
+        write!(f, "{}", self.env().with(&pat_arg_group))
+    }
+}
+
+impl Display for WithEnv<'_, DefPatArgsId> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.stores().def_pat_args().map_fast(self.value, |pat_args| {
+            for pat_arg in pat_args.iter() {
+                write!(f, "{}", self.env().with(pat_arg))?;
+            }
+            Ok(())
+        })
+    }
+}
+
 impl<T> Display for WithEnv<'_, &DefMember<T>> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}: {}{}",
+            self.env().with(self.value.name),
+            self.env().with(self.value.ty),
+            self.value
+                .value
+                .map(|x| format!(" = {}", self.env().with(x)))
+                .unwrap_or_else(|| "".to_string())
+        )
+    }
+}
+
+impl Display for WithEnv<'_, &DefMemberData> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
