@@ -3,9 +3,9 @@
 use std::{cell::Cell, convert::Infallible, fmt::Display};
 
 use hash_reporting::{
-    builder::ReportBuilder,
     diagnostic::Diagnostics,
-    report::{Report, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind},
+    report::{Report, ReportElement, ReportNote, ReportNoteKind},
+    reporter::{Reporter, Reports},
 };
 use hash_source::{identifier::Identifier, location::SourceLocation};
 use hash_token::{delimiter::Delimiter, TokenKind};
@@ -137,9 +137,9 @@ pub enum LexerErrorKind {
     InvalidLitSuffix(NumericLitKind, Identifier),
 }
 
-impl From<LexerError> for Report {
+impl From<LexerError> for Reports {
     fn from(err: LexerError) -> Self {
-        let mut builder = ReportBuilder::new();
+        let mut reporter = Reporter::new();
 
         // We can have multiple notes describing what could be done about the error.
         let mut help_notes = vec![];
@@ -173,12 +173,9 @@ impl From<LexerError> for Report {
             message.push_str(&format!(". {additional_info}"));
         }
 
-        builder
-            .with_kind(ReportKind::Error)
-            .with_message(message)
-            .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(err.location, "here")));
+        reporter.error().title(message).add_labelled_span(err.location, "here");
 
-        builder.build()
+        reporter.into_reports()
     }
 }
 
@@ -222,7 +219,7 @@ impl Diagnostics<LexerError, Infallible> for Lexer<'_> {
     }
 
     fn into_reports(self) -> Vec<Report> {
-        self.diagnostics.errors.into_iter().map(|err| err.into()).collect()
+        self.diagnostics.errors.into_iter().flat_map(Reports::from).collect()
     }
 
     fn into_diagnostics(self) -> (Vec<LexerError>, Vec<Infallible>) {

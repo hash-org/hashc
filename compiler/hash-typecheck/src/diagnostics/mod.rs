@@ -8,7 +8,7 @@ pub(crate) mod macros;
 
 use std::cell::RefCell;
 
-use hash_reporting::diagnostic::Diagnostics;
+use hash_reporting::{diagnostic::Diagnostics, reporter::Reports};
 use smallvec::SmallVec;
 
 use self::{
@@ -68,12 +68,12 @@ impl<'tc, T: AccessToStorage> Diagnostics<TcError, TcWarning> for TcDiagnostics<
 
         errors
             .into_iter()
-            .map(|error| TcErrorWithStorage { error, storage: self.0.storages() }.into())
-            .chain(
-                warnings.into_iter().map(|warning| {
-                    TcWarningWithStorage { warning, storage: self.0.storages() }.into()
-                }),
-            )
+            .flat_map(|error| {
+                Reports::from(TcErrorWithStorage { error, storage: self.0.storages() })
+            })
+            .chain(warnings.into_iter().flat_map(|warning| {
+                Reports::from(TcWarningWithStorage { warning, storage: self.0.storages() })
+            }))
             .collect()
     }
 

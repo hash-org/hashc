@@ -2,12 +2,11 @@
 
 use core::fmt;
 
-use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey};
+use hash_utils::store::{SequenceStore, SequenceStoreKey};
 
 use super::{
     environment::env::{AccessToEnv, WithEnv},
     pats::{PatId, PatListId},
-    terms::Term,
 };
 use crate::new::{
     scopes::BlockTerm,

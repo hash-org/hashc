@@ -2,7 +2,7 @@
 #![allow(dead_code)]
 
 use hash_ast::ast::AstNodeId;
-use hash_reporting::{diagnostic::Diagnostics, report::Report};
+use hash_reporting::{diagnostic::Diagnostics, report::Report, reporter::Reports};
 
 use self::{error::AnalysisError, warning::AnalysisWarning};
 use crate::analysis::SemanticAnalyser;
@@ -31,7 +31,7 @@ impl AnalysisDiagnostic {
     }
 }
 
-impl From<AnalysisDiagnostic> for Report {
+impl From<AnalysisDiagnostic> for Reports {
     fn from(diagnostic: AnalysisDiagnostic) -> Self {
         match diagnostic {
             AnalysisDiagnostic::Warning(w) => w.into(),
@@ -71,7 +71,7 @@ impl Diagnostics<AnalysisError, AnalysisWarning> for SemanticAnalyser<'_> {
     }
 
     fn into_reports(self) -> Vec<Report> {
-        self.diagnostics.items.into_iter().map(|item| item.into()).collect()
+        self.diagnostics.items.into_iter().flat_map(Reports::from).collect()
     }
 
     fn into_diagnostics(self) -> (Vec<AnalysisError>, Vec<AnalysisWarning>) {

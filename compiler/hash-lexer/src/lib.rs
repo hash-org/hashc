@@ -6,7 +6,7 @@ use std::{cell::Cell, iter};
 use error::{LexerDiagnostics, LexerError, LexerErrorKind, LexerResult, NumericLitKind};
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::{
-    constant::{IntTy, SIntTy, CONSTANT_MAP},
+    constant::{IntConstant, IntTy, SIntTy, CONSTANT_MAP},
     identifier::{Identifier, IDENTS},
     location::{SourceLocation, Span},
     SourceId,
@@ -427,8 +427,9 @@ impl<'a> Lexer<'a> {
             }
         };
 
-        let interned_const = CONSTANT_MAP.create_int_constant_from_value(parsed, ty, suffix);
-        TokenKind::IntLit(interned_const)
+        let constant = IntConstant::from_big_int(parsed, ty, suffix);
+        let interned = CONSTANT_MAP.create_int_constant(constant);
+        TokenKind::IntLit(interned)
     }
 
     /// Attempt to eat an identifier if the next token is one, otherwise don't
@@ -870,6 +871,12 @@ impl<'a> Lexer<'a> {
 
         // Report that the literal is unclosed and set the error as being fatal
         if !closed {
+            // If we have a windows line ending, we want to use the offset before
+            // the current so we're not highlighing the `\r` as well
+            if value.len() >= 2 && &value[(value.len() - 2)..] == "\r\n" {
+                self.offset.set(self.offset.get() - 1);
+            }
+
             return self.emit_fatal_error(
                 None,
                 LexerErrorKind::UnclosedStringLit,

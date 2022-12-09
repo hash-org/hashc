@@ -72,6 +72,7 @@ impl fmt::Display for ForFormatting<'_, RValueId> {
                     rhs.for_fmt(self.storage)
                 )
             }
+            RValue::Len(place) => write!(f, "len({place})"),
             RValue::UnaryOp(op, operand) => {
                 write!(f, "{op:?}({})", operand.for_fmt(self.storage))
             }
@@ -133,8 +134,8 @@ impl fmt::Display for ForFormatting<'_, &Terminator> {
                 }
             }
             TerminatorKind::Unreachable => write!(f, "unreachable"),
-            TerminatorKind::Switch { value, table, otherwise } => {
-                write!(f, "switch({value:?})")?;
+            TerminatorKind::Switch { value, targets } => {
+                write!(f, "switch({})", value.for_fmt(self.storage))?;
 
                 if self.with_edges {
                     write!(f, " [")?;
@@ -142,16 +143,22 @@ impl fmt::Display for ForFormatting<'_, &Terminator> {
                     // Iterate over each value in the table, and add a arrow denoting
                     // that the CF will go to the specified block given the specified
                     // `value`.
-                    for (i, (value, target)) in table.iter().enumerate() {
+                    for (i, (value, target)) in targets.iter().enumerate() {
                         if i > 0 {
                             write!(f, ", ")?;
                         }
 
-                        write!(f, "{value:?} -> {target:?}")?;
+                        // We want to create an a constant from this value
+                        // with the type, and then print it.
+                        let value = Const::from_scalar(value, targets.ty, self.storage);
+
+                        write!(f, "{value} -> {target:?}")?;
                     }
 
                     // Write the default case
-                    write!(f, "otherwise -> {otherwise:?}]")?;
+                    if let Some(otherwise) = targets.otherwise {
+                        write!(f, ", otherwise -> {otherwise:?}]")?;
+                    }
                 }
 
                 Ok(())

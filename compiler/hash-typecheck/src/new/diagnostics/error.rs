@@ -1,7 +1,7 @@
 use hash_error_codes::error_codes::HashErrorCode;
 use hash_reporting::{
-    builder::{Reporter, Reports},
-    report::{ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind},
+    self,
+    reporter::{Reporter, Reports},
 };
 use hash_source::location::SourceLocation;
 use hash_types::new::terms::TermId;
@@ -24,28 +24,23 @@ impl<'tc> From<WithTcEnv<'tc, &TcError>> for Reports {
     fn from(ctx: WithTcEnv<'tc, &TcError>) -> Self {
         let mut builder = Reporter::new();
         ctx.add_to_reporter(&mut builder);
-        builder.build()
+        builder.into_reports()
     }
 }
 
 impl<'tc> WithTcEnv<'tc, &TcError> {
     fn add_to_reporter(&self, reporter: &mut Reporter) {
-        let builder = reporter.add_report();
-        builder.with_kind(ReportKind::Error);
+        let error = reporter.error();
         match &self.value {
             TcError::NeedMoreTypeAnnotationsToInfer { term } => {
-                builder
-                    .with_error_code(HashErrorCode::UnresolvedType)
-                    .with_message("cannot infer the type of this term".to_string());
+                error
+                    .code(HashErrorCode::UnresolvedType)
+                    .title("cannot infer the type of this term".to_string());
 
                 if let Some(location) = self.tc_env().get_location(term) {
-                    builder
-                        .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(location, "")))
-                        .add_element(ReportElement::Note(ReportNote::new(
-                            ReportNoteKind::Help,
-                            "consider adding more type annotations to this
-                expression",
-                        )));
+                    error
+                        .add_span(location)
+                        .add_help("consider adding more type annotations to this expression");
                 }
             }
             TcError::Compound { errors } => {
@@ -54,19 +49,11 @@ impl<'tc> WithTcEnv<'tc, &TcError> {
                 }
             }
             TcError::TraitsNotSupported { trait_location } => {
-                builder.with_error_code(HashErrorCode::UnsupportedTraits).with_message(
-                    "traits are work-in-progress and currently not supported".to_string(),
-                );
+                error
+                    .code(HashErrorCode::UnsupportedTraits)
+                    .title("traits are work-in-progress and currently not supported".to_string());
 
-                builder
-                    .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
-                        *trait_location,
-                        "",
-                    )))
-                    .add_element(ReportElement::Note(ReportNote::new(
-                        ReportNoteKind::Help,
-                        "traits are not yet supported",
-                    )));
+                error.add_span(*trait_location).add_help("traits are not yet supported");
             }
         }
     }

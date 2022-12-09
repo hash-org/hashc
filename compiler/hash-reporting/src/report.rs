@@ -4,10 +4,7 @@ use std::{cell::Cell, convert::Infallible, fmt, io};
 use hash_error_codes::error_codes::HashErrorCode;
 use hash_source::location::{RowColSpan, SourceLocation};
 
-use crate::{
-    builder::ReportBuilder,
-    highlight::{highlight, Colour, Modifier},
-};
+use crate::highlight::{highlight, Colour, Modifier};
 
 /// A data type representing a comment/message on a specific span in a code
 /// block.
@@ -130,8 +127,8 @@ pub enum ReportElement {
 pub struct Report {
     /// The general kind of the report.
     pub kind: ReportKind,
-    /// A general associated message with the report.
-    pub message: String,
+    /// A title for the report.
+    pub title: String,
     /// An optional associated general error code with the report.
     pub error_code: Option<HashErrorCode>,
     /// A vector of additional [ReportElement]s in order to add additional
@@ -140,6 +137,10 @@ pub struct Report {
 }
 
 impl Report {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     /// Check if the report denotes an occurred error.
     pub fn is_error(&self) -> bool {
         self.kind == ReportKind::Error
@@ -149,16 +150,95 @@ impl Report {
     pub fn is_warning(&self) -> bool {
         self.kind == ReportKind::Warning
     }
+
+    /// Add a title to the [Report].
+    pub fn title(&mut self, title: impl ToString) -> &mut Self {
+        self.title = title.to_string();
+        self
+    }
+
+    /// Add a general kind to the [Report].
+    pub fn kind(&mut self, kind: ReportKind) -> &mut Self {
+        self.kind = kind;
+        self
+    }
+
+    /// Add an associated [HashErrorCode] to the [Report].
+    pub fn code(&mut self, error_code: HashErrorCode) -> &mut Self {
+        self.error_code = Some(error_code);
+        self
+    }
+
+    /// Add a [`ReportNoteKind::Help`] note with the given message to the
+    /// [Report].
+    pub fn add_help(&mut self, message: impl ToString) -> &mut Self {
+        self.add_element(ReportElement::Note(ReportNote::new(
+            ReportNoteKind::Help,
+            message.to_string(),
+        )))
+    }
+
+    /// Add a [`ReportNoteKind::Info`] note with the given message to the
+    /// [Report].
+    pub fn add_info(&mut self, message: impl ToString) -> &mut Self {
+        self.add_element(ReportElement::Note(ReportNote::new(
+            ReportNoteKind::Info,
+            message.to_string(),
+        )))
+    }
+
+    /// Add a [`ReportNoteKind::Note`] note with the given message to the
+    /// [Report].
+    pub fn add_note(&mut self, message: impl ToString) -> &mut Self {
+        self.add_element(ReportElement::Note(ReportNote::new(
+            ReportNoteKind::Note,
+            message.to_string(),
+        )))
+    }
+
+    /// Add a code block at the given location to the [Report].
+    pub fn add_span(&mut self, location: SourceLocation) -> &mut Self {
+        self.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(location, "")))
+    }
+
+    /// Add a labelled code block at the given location to the [Report].
+    pub fn add_labelled_span(
+        &mut self,
+        location: SourceLocation,
+        message: impl ToString,
+    ) -> &mut Self {
+        self.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+            location,
+            message.to_string(),
+        )))
+    }
+
+    /// Add a [ReportElement] to the report.
+    pub fn add_element(&mut self, element: ReportElement) -> &mut Self {
+        self.contents.push(element);
+        self
+    }
+}
+
+impl Default for Report {
+    fn default() -> Self {
+        Self {
+            kind: ReportKind::Error,
+            title: "Bottom text".to_string(),
+            error_code: None,
+            contents: vec![],
+        }
+    }
 }
 
 /// Some basic conversions into reports
 impl From<io::Error> for Report {
     fn from(err: io::Error) -> Self {
-        let mut report = ReportBuilder::new();
+        let mut report = Report::new();
 
         // @@ErrorReporting: we might want to show a bit more info here.
-        report.with_kind(ReportKind::Error).with_message(err.to_string());
-        report.build()
+        report.kind(ReportKind::Error).title(err.to_string());
+        report
     }
 }
 

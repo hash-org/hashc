@@ -18,7 +18,11 @@ impl<'tcx> Builder<'tcx> {
         mutability: Mutability,
     ) -> BlockAnd<Local> {
         let temp = {
-            let ty = self.get_ty_id_of_node(expr.id());
+            // @@Hack: for now literal expressions don't get their type set on the node, it
+            // is the underlying literal that has the type, so we read that in this case.
+            let id = if let Expr::Lit(lit) = expr.body { lit.data.id() } else { expr.id() };
+            let ty = self.ty_id_of_node(id);
+
             let local = LocalDecl::new_auxiliary(ty, mutability);
             let scope = self.current_scope();
 

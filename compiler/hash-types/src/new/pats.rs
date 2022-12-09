@@ -75,13 +75,13 @@ new_sequence_store_key!(pub PatListId);
 pub type PatListStore = DefaultSequenceStore<PatListId, PatId>;
 
 impl fmt::Display for WithEnv<'_, PatId> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
         todo!()
     }
 }
 
 impl fmt::Display for WithEnv<'_, &Pat> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
         todo!()
     }
 }

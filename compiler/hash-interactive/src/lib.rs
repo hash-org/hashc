@@ -54,8 +54,7 @@ pub fn init<W: CompilerInterface>(
             }
             Err(err) => {
                 return Err(InteractiveCommandError::InternalError(format!(
-                    "Unexpected error: {}",
-                    err
+                    "Unexpected error: {err}"
                 ))
                 .into());
             }

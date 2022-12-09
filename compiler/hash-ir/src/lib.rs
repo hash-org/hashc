@@ -84,7 +84,7 @@ impl IrStorage {
     }
 
     /// Push an [RValue] on the storage.
-    pub fn push_rvalue(&mut self, rvalue: RValue) -> RValueId {
+    pub fn push_rvalue(&self, rvalue: RValue) -> RValueId {
         self.rvalue_store.create(rvalue)
     }
 

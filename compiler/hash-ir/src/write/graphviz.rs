@@ -10,7 +10,7 @@ use std::io;
 use html_escape::encode_text;
 
 use crate::{
-    ir::{BasicBlock, BasicBlockData, Body, TerminatorKind},
+    ir::{BasicBlock, BasicBlockData, Body, Const, TerminatorKind},
     write::WriteIr,
     IrStorage,
 };
@@ -81,8 +81,8 @@ impl<'ir> IrGraphWriter<'ir> {
         write!(
             w,
             "  label=<{}{}{}",
-            self.body.name,
-            encode_text(&format!("{}", self.body.ty.fmt_with_opts(self.ctx, true, false))),
+            self.body.info().name,
+            encode_text(&format!("{}", self.body.info().ty().fmt_with_opts(self.ctx, true, false))),
             LINE_SEPARATOR
         )?;
 
@@ -130,22 +130,26 @@ impl<'ir> IrGraphWriter<'ir> {
                             target.unwrap()
                         )?;
                     }
-                    TerminatorKind::Switch { table, otherwise, .. } => {
+                    TerminatorKind::Switch { targets, .. } => {
                         // Add all of the table cases
-                        for (value, target) in table.iter() {
+                        for (value, target) in targets.iter() {
+                            // We want to create an a constant from this value
+                            // with the type, and then print it.
+                            let value = Const::from_scalar(value, targets.ty, self.ctx);
+
                             writeln!(
                                 w,
-                                r#"  {prefix}{:?} -> {prefix}{:?} [label="{}"];"#,
-                                id, target, value
+                                r#"  {prefix}{id:?} -> {prefix}{target:?} [label="{value}"];"#
                             )?;
                         }
 
                         // Add the otherwise case
-                        writeln!(
-                            w,
-                            r#"  {prefix}{:?} -> {prefix}{:?} [label="otherwise"];"#,
-                            id, otherwise
-                        )?;
+                        if let Some(otherwise) = targets.otherwise {
+                            writeln!(
+                                w,
+                                r#"  {prefix}{id:?} -> {prefix}{otherwise:?} [label="otherwise"];"#
+                            )?;
+                        }
                     }
                     TerminatorKind::Call { .. }
                     | TerminatorKind::Unreachable

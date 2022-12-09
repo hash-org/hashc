@@ -24,7 +24,7 @@
 //! "parsing" stage and then stop compiling, and that the test case should fail.
 #![cfg(test)]
 
-use std::{fs, io};
+use std::{fs, io, path::Path};
 
 use hash_pipeline::{settings::CompilerSettings, workspace::Workspace, Compiler};
 use hash_reporting::{report::Report, writer::ReportWriter};
@@ -35,11 +35,42 @@ use hash_testing_internal::{
     TestingInput,
 };
 use hash_testing_macros::generate_tests;
+use hash_utils::path::adjust_canonicalisation;
 use regex::Regex;
 
 use crate::{ANSI_REGEX, REGENERATE_OUTPUT};
 
 const WORKER_COUNT: usize = 2;
+
+/// Convert a [Path] into a [String] whilst also escaping any special
+/// characters that may be present in the path. This is useful for when
+/// the test-suite runs on Windows, as the path may contain backslashes
+/// which are interpreted as escape characters.
+fn stringify_test_dir_path(path: &Path) -> String {
+    // On windows, the backslashes are special characters, therefore we need
+    // to escape them.
+    #[cfg(target_os = "windows")]
+    let test_dir = {
+        let mut dir = regex::escape(&adjust_canonicalisation(path));
+
+        // @@Hack: on windows, the separator is a backslash, which is problematic
+        //         for ui-tests, since they expect a `/` (forward slash) as the
+        // connector         between `$DIR` and the filename. So, we replace the
+        // backslashes after         the directory, and then we will replace
+        // with a forward slash.
+        dir.push_str("\\\\");
+        dir
+    };
+
+    #[cfg(not(target_os = "windows"))]
+    let test_dir = {
+        let mut dir = adjust_canonicalisation(path);
+        dir.push('/');
+        dir
+    };
+
+    test_dir
+}
 
 /// Given the testing input, and a pre-filtered [Vec<Report>] based on
 /// the testing input parameters, render the reports and compare them
@@ -53,18 +84,23 @@ fn compare_emitted_diagnostics(
 ) -> std::io::Result<()> {
     let contents = diagnostics
         .into_iter()
-        .map(|report| format!("{}", ReportWriter::new(report, &sources.source_map)))
+        .map(|report| format!("{}", ReportWriter::single(report, &sources.source_map)))
         .collect::<Vec<_>>()
         .join("\n");
-
-    let test_dir = input.path.parent().unwrap();
 
     // Remove any ANSI escape codes generated from the reporting...
     let report_contents = ANSI_REGEX.replace_all(contents.as_str(), "");
 
     // Replace the directory by `$DIR`
-    let dir_regex = Regex::new(test_dir.to_str().unwrap()).unwrap();
-    let report_contents = dir_regex.replace_all(report_contents.as_ref(), r"$$DIR").to_string();
+    let test_dir = input.path.parent().unwrap();
+    let stringified_test_dir = stringify_test_dir_path(test_dir);
+    let dir_regex = Regex::new(stringified_test_dir.as_str()).unwrap();
+
+    // @@Hack: the forward slash at the end is unconditional, since we
+    //         need to re-add it because we removed it in the
+    // `stringify_test_dir_path` function.
+    let report_contents =
+        dir_regex.replace_all(report_contents.as_ref(), r"$$DIR/").replace("\r\n", "\n");
 
     // We want to load the `.stderr` file and verify that the contents of the
     // file match to the created report. If the `.stderr` file does not exist
@@ -91,11 +127,12 @@ fn compare_emitted_diagnostics(
     // only reason why the file wouldn't be written to is if it didn't exist
     // prior to this and that the contents of the diagnostics are empty, so
     // returning an empty string makes sense here.
-    let err_contents =
-        fs::read_to_string(stderr_path.clone()).unwrap_or_else(|err| match err.kind() {
+    let err_contents = fs::read_to_string(stderr_path.clone())
+        .unwrap_or_else(|err| match err.kind() {
             io::ErrorKind::NotFound => "".to_string(),
             err => panic!("couldn't open file `{stderr_path:?}`: {:?}", err),
-        });
+        })
+        .replace("\r\n", "\n");
 
     pretty_assertions::assert_str_eq!(
         err_contents,
@@ -122,8 +159,8 @@ fn handle_failure_case(
     // verify that the case failed, as in reports where generated
     assert!(
         diagnostics.iter().any(|report| report.is_error()),
-        "\ntest case did not fail: {:#?}",
-        input
+        "\ntest case did not fail: {input:#?}",
+        input = input
     );
 
     // If the test specifies that no warnings should be generated, then check
@@ -131,8 +168,8 @@ fn handle_failure_case(
     if input.metadata.warnings == HandleWarnings::Disallow {
         assert!(
             diagnostics.iter().all(|report| report.is_error()),
-            "\ntest case generated warnings where they were disallowed: {:#?}",
-            input
+            "\ntest case generated warnings where they were disallowed: {input:#?}",
+            input = input
         );
     }
 
@@ -174,7 +211,7 @@ fn handle_pass_case(
             "\ntest case did not pass:\n{}",
             diagnostics
                 .into_iter()
-                .map(|report| format!("{}", ReportWriter::new(report, &sources.source_map)))
+                .map(|report| format!("{}", ReportWriter::single(report, &sources.source_map)))
                 .collect::<Vec<_>>()
                 .join("\n")
         );

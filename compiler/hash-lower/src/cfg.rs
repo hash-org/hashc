@@ -1,6 +1,8 @@
 //! Data structure representing the Control-Flow-Graph(CFG) that is used to
 //! represent lowered functions or constant blocks.
 
+use std::fmt;
+
 use hash_ir::ir::{
     BasicBlock, BasicBlockData, Place, RValueId, Statement, StatementKind, Terminator,
     TerminatorKind,
@@ -11,6 +13,22 @@ use index_vec::IndexVec;
 pub struct ControlFlowGraph {
     /// The basic blocks that this control flow graph contains.
     pub(crate) basic_blocks: IndexVec<BasicBlock, BasicBlockData>,
+}
+
+impl fmt::Debug for ControlFlowGraph {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (id, block) in self.basic_blocks.iter_enumerated() {
+            write!(f, "{id:?}")?;
+
+            if let Some(terminator) = &block.terminator {
+                writeln!(f, " -> {terminator:?}")?;
+            } else {
+                writeln!(f, " -> <none>")?;
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl ControlFlowGraph {

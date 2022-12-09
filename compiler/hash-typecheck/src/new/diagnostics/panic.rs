@@ -23,30 +23,20 @@ pub macro tc_panic {
             let sources = env.source_map();
 
             // format the message and build the report
-            let mut report = builder::ReportBuilder::new();
+            let mut reporter = reporter::Reporter::new();
+            let report = reporter.internal();
             report
-                .with_kind(report::ReportKind::Internal)
-                .with_message("The compiler encountered a fatal error")
-                .add_element(report::ReportElement::Note(report::ReportNote::new(
-                    report::ReportNoteKind::Info,
-                    format!("whilst performing operations on the term `{}`", env.with($term))
-                )));
+                .title("The compiler encountered a fatal error")
+                .add_info(format!("whilst performing operations on the term `{}`", env.with($term)));
 
             if let Some(location) = term_location {
-                report
-                    .add_element(report::ReportElement::CodeBlock(report::ReportCodeBlock::new(
-                        location,
-                        "",
-                    )));
+                report.add_span(location);
             }
 
             // Add the `info` note about why the internal panic occurred
-            report.add_element(report::ReportElement::Note(report::ReportNote::new(
-                report::ReportNoteKind::Info,
-                $fmt
-            )));
+            report.add_info($fmt);
 
-            eprintln!("{}", writer::ReportWriter::new(report.build(), sources));
+            eprintln!("{}", writer::ReportWriter::new(reporter.into_reports(), sources));
             std::panic::panic_any(TC_FATAL_ERROR_MESSAGE);
         }
     },
@@ -63,7 +53,7 @@ pub macro tc_panic {
 pub macro tc_panic_on_many {
     ($terms:expr, $storage:expr, $fmt: expr) => {
         {
-            use hash_reporting::{report, builder, writer};
+            use hash_reporting::{reporter, writer};
             let env = $storage.env();
 
             // get the sources and and the location from the term
@@ -76,40 +66,25 @@ pub macro tc_panic_on_many {
                 .join(", ");
 
             // build the report
-            let mut report = builder::ReportBuilder::new();
+            let mut reporter = reporter::Reporter::new();
+            let report = reporter.internal();
             report
-                .with_kind(report::ReportKind::Internal)
-                .with_message("The compiler encountered a fatal error")
-                .add_element(report::ReportElement::Note(
-                    report::ReportNote::new(
-                        report::ReportNoteKind::Info,
-                        format!("whilst performing operations on the terms: {}", terms),
-                    ),
-                ));
+                .title("The compiler encountered a fatal error")
+                .add_info(format!("whilst performing operations on the terms: {}", terms));
 
             // Add all of the locations from the terms that we're provided by the macro
             for (index, term) in $terms.iter().enumerate() {
                 let term_location = env.stores().location().get_location(term);
 
                 if let Some(location) = term_location {
-                    report.add_element(report::ReportElement::CodeBlock(
-                        report::ReportCodeBlock::new(
-                            location,
-                            format!("{} member here", index),
-                        ),
-                    ));
+                        report.add_labelled_span(location, format!("{} member here", index));
                 }
             }
 
             // Add the `info` note about why the internal panic occurred
-            report.add_element(report::ReportElement::Note(
-                report::ReportNote::new(
-                    report::ReportNoteKind::Info,
-                    $fmt,
-                ),
-            ));
+            report.add_info($fmt);
 
-            eprintln!("{}", writer::ReportWriter::new(report.build(), sources));
+            eprintln!("{}", writer::ReportWriter::new(reporter.into_reports(), sources));
             std::panic::panic_any(TC_FATAL_ERROR_MESSAGE);
         }
     },

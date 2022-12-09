@@ -30,7 +30,7 @@ impl<'ir> IrBodyWriter<'ir> {
     }
 
     fn write_body(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}(", self.body.name)?;
+        write!(f, "{}(", self.body.info().name)?;
 
         let mut declarations = self.body.declarations.iter();
 
@@ -126,7 +126,7 @@ pub fn dump_ir_bodies(
         println!(
             "IR dump for {} `{}` defined at {}\n{}",
             body.source(),
-            body.name(),
+            body.info().name,
             source_map.fmt_location(body.location()),
             IrBodyWriter::new(storage, body)
         );
