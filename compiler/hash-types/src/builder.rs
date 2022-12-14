@@ -218,8 +218,8 @@ impl<'gs> PrimitiveBuilder<'gs> {
         enum_def_id: NominalDefId,
     ) -> TermId {
         self.create_term(Term::Level0(Level0Term::EnumVariant(EnumVariantValue {
-            variant_name: variant_name.into(),
-            enum_def_id,
+            name: variant_name.into(),
+            def_id: enum_def_id,
         })))
     }
 

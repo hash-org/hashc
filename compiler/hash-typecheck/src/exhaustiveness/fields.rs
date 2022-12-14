@@ -92,9 +92,7 @@ impl<'tc> FieldOps<'tc> {
         let ctor = reader.get_deconstructed_ctor(ctor);
 
         match ctor {
-            DeconstructedCtor::Single | DeconstructedCtor::Variant(_) => {
-                let reader = self.reader();
-
+            ctor @ (DeconstructedCtor::Single | DeconstructedCtor::Variant(_)) => {
                 match reader.get_term(ctx.ty) {
                     Term::Level1(Level1Term::Tuple(TupleTy { members })) => {
                         let members = reader.get_params_owned(members);
@@ -103,28 +101,41 @@ impl<'tc> FieldOps<'tc> {
                         self.wildcards_from_tys(tys)
                     }
                     Term::Level1(Level1Term::NominalDef(def)) => {
-                        match reader.get_nominal_def(def) {
-                            NominalDef::Struct(struct_def) => match struct_def.fields {
-                                StructFields::Explicit(params) => {
-                                    let members = reader.get_params_owned(params);
-                                    let tys = members
-                                        .positional()
-                                        .iter()
-                                        .map(|member| member.ty)
-                                        .collect_vec();
+                        // get the varaint index from the deconstructed ctor
+                        let variant_idx =
+                            if let DeconstructedCtor::Variant(idx) = ctor { idx } else { 0 };
 
-                                    self.wildcards_from_tys(tys)
-                                }
-                                StructFields::Opaque => tc_panic!(
-                                ctx.ty,
-                                self,
-                                "Unexpected ty `{}` when getting wildcards in Fields::wildcards",
-                                self.for_fmt(ctx.ty),
-                            ),
-                            },
-                            NominalDef::Unit(_) => Fields::empty(),
-                            NominalDef::Enum(_) => todo!(),
-                        }
+                        reader.nominal_def_store().map_fast(def, |def| {
+                            match def {
+                                NominalDef::Struct(struct_def) => match struct_def.fields {
+                                    StructFields::Explicit(params) => {
+                                        let tys = reader.params_store().map_as_param_list_fast(params, |params| {
+                                            params.positional().iter().map(|param| param.ty).collect_vec()
+                                        });
+
+                                        self.wildcards_from_tys(tys)
+                                    }
+                                    StructFields::Opaque => tc_panic!(
+                                        ctx.ty,
+                                        self,
+                                        "Unexpected ty `{}` when getting wildcards in Fields::wildcards",
+                                        self.for_fmt(ctx.ty),
+                                    ),
+                                },
+                                NominalDef::Unit(_) => Fields::empty(),
+                                NominalDef::Enum(enum_def) => {
+                                    match enum_def.get_variant_by_idx(variant_idx).unwrap().fields {
+                                        Some(fields) => {
+                                            let tys = reader.params_store().map_as_param_list_fast(fields, |params| {
+                                                params.positional().iter().map(|param| param.ty).collect_vec()
+                                            });
+                                            self.wildcards_from_tys(tys)
+                                        }
+                                        _ => Fields::empty(),
+                                    }
+                                },
+                            }
+                        })
                     }
                     _ => tc_panic!(
                         ctx.ty,

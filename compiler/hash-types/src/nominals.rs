@@ -1,9 +1,10 @@
 //! Contains structures to keep track of nominal type definitions and
 //! information relating to them.
-use std::{collections::HashMap, fmt};
+use std::fmt;
 
 use hash_source::identifier::Identifier;
 use hash_utils::{new_store, new_store_key, store::CloneStore};
+use indexmap::IndexMap;
 
 use crate::{
     fmt::{ForFormatting, PrepareForFormatting},
@@ -25,7 +26,10 @@ pub enum StructFields {
 /// A struct definition, containing a binding name and a set of fields.
 #[derive(Debug, Clone, Copy)]
 pub struct StructDef {
+    /// The name of the struct, used for error reporting.
     pub name: Option<Identifier>,
+
+    /// The fields of the struct.
     pub fields: StructFields,
 }
 
@@ -34,7 +38,11 @@ pub struct StructDef {
 /// Structurally the same as a struct.
 #[derive(Debug, Clone, Copy)]
 pub struct EnumVariant {
+    /// The name of the variant, used for variant resolution and
+    /// erorr reporting.
     pub name: Identifier,
+
+    /// The associated fields with the [EnumVariant].
     pub fields: Option<ParamsId>,
 }
 
@@ -43,8 +51,28 @@ pub struct EnumVariant {
 pub struct EnumDef {
     /// The name of the `EnumDef`, useful for error reporting
     pub name: Option<Identifier>,
-    /// All of the defined variants that occur within the [EnumDef].
-    pub variants: HashMap<Identifier, EnumVariant>,
+    /// All of the defined variants that occur within the [EnumDef]. This
+    /// uses an
+    pub variants: IndexMap<Identifier, EnumVariant>,
+}
+
+impl EnumDef {
+    /// Get a [EnumVariant] from an [EnumDef] based on the index of the
+    /// variant.
+    pub fn get_variant_by_idx(&self, index: usize) -> Option<&EnumVariant> {
+        self.variants.values().nth(index)
+    }
+
+    /// Get the index of an [EnumVariant] from the name of the variant.
+    pub fn get_variant_idx(&self, name: &Identifier) -> Option<usize> {
+        self.variants.get_full(name).map(|(idx, _, _)| idx)
+    }
+
+    /// Get a [EnumVariant] from an [EnumDef] based on the name of the
+    /// variant.
+    pub fn variant(&self, name: Identifier) -> Option<&EnumVariant> {
+        self.variants.get(&name)
+    }
 }
 
 /// An enum variant value, consisting of a [NominalDefId] pointing to an enum,
@@ -53,8 +81,11 @@ pub struct EnumDef {
 /// Has a level 0 type.
 #[derive(Debug, Clone, Copy)]
 pub struct EnumVariantValue {
-    pub enum_def_id: NominalDefId,
-    pub variant_name: Identifier,
+    /// The definition of the enum that this variant belongs to.
+    pub def_id: NominalDefId,
+
+    /// The name of the variant.
+    pub name: Identifier,
 }
 
 /// A unit definition.

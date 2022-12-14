@@ -12,7 +12,7 @@ use hash_types::{
     pats::PatId,
     terms::{Level1Term, Term, TermId},
 };
-use hash_utils::store::{CloneStore, Store};
+use hash_utils::store::Store;
 use itertools::Itertools;
 use smallvec::SmallVec;
 
@@ -206,8 +206,8 @@ impl PreparePatForFormatting for DeconstructedPatId {}
 
 impl Debug for PatForFormatting<'_, DeconstructedPatId> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let pat = self.storage.exhaustiveness_storage.deconstructed_pat_store.get(self.item);
-        let ctor = self.storage.exhaustiveness_storage.deconstructed_ctor_store.get(pat.ctor);
+        let pat_store = &self.storage.exhaustiveness_storage.deconstructed_pat_store;
+        let ctor_store = &self.storage.exhaustiveness_storage.deconstructed_ctor_store;
 
         // Utility for printing a joined list of things...
         let mut first = true;
@@ -220,104 +220,136 @@ impl Debug for PatForFormatting<'_, DeconstructedPatId> {
             }
         };
 
-        match ctor {
-            DeconstructedCtor::Single | DeconstructedCtor::Variant(_) => {
-                let term = self.storage.term_store().get(pat.ty);
+        pat_store.map_fast(self.item, |pat| {
+            ctor_store.map_fast(pat.ctor, |ctor| {
+                match ctor {
+                    DeconstructedCtor::Single | DeconstructedCtor::Variant(_) => {
+                        self.storage.term_store().map_fast(pat.ty, |ty| {
+                            // If it is a `struct` or an `enum` then try and get the
+                            // variant name...
+                            match ty {
+                                Term::Level1(Level1Term::NominalDef(nominal_def)) => {
+                                    // get the variant index
+                                    let variant_idx = match ctor {
+                                        DeconstructedCtor::Single => 0,
+                                        DeconstructedCtor::Variant(index) => *index,
+                                        _ => unreachable!(),
+                                    };
 
-                // If it is a `struct` or an `enum` then try and get the
-                // variant name...
-                match term {
-                    Term::Level1(Level1Term::NominalDef(nominal_def)) => {
-                        match self.storage.nominal_def_store().get(nominal_def) {
-                            NominalDef::Struct(struct_def) => {
-                                if let Some(name) = struct_def.name {
-                                    write!(f, "{name}")?;
+                                    self.storage.nominal_def_store().map_fast(*nominal_def, |def| {
+                                        match def {
+                                            NominalDef::Struct(struct_def) => {
+                                                if let Some(name) = struct_def.name {
+                                                    write!(f, "{name}")?;
+                                                }
+
+                                                Ok(())
+                                            }
+                                            NominalDef::Unit(unit_def) => {
+                                                if let Some(name) = unit_def.name {
+                                                    write!(f, "{name}")?;
+                                                }
+
+                                                Ok(())
+                                            }
+                                            NominalDef::Enum(enum_def) => {
+                                                let variant_name = enum_def
+                                                    .get_variant_by_idx(variant_idx)
+                                                    .expect("invalid variant index")
+                                                    .name;
+
+                                                if let Some(name) = enum_def.name {
+                                                    write!(f, "{name}::")?;
+                                                }
+
+                                                write!(f, "{variant_name}")
+                                            }
+                                        }
+                                    })
+                                }
+                                _ => panic!(
+                                    "unexpected ty `{}` when printing deconstructed pat",
+                                    pat.ty.for_formatting(self.storage.global_storage)
+                                ),
+                            }
+                        })?;
+
+                        write!(f, "(")?;
+
+                        for p in pat.fields.iter_patterns() {
+                            write!(f, "{}", start_or_continue(", "))?;
+                            write!(f, "{:?}", p.for_formatting(self.storage))?;
+                        }
+                        write!(f, ")")
+                    }
+                    DeconstructedCtor::IntRange(range) => write!(f, "{range:?}"),
+                    DeconstructedCtor::Str(value) => write!(f, "{value}"),
+                    DeconstructedCtor::List(list) => {
+                        let mut subpatterns = pat.fields.iter_patterns();
+
+                        write!(f, "[")?;
+
+                        match list.kind {
+                            ListKind::Fixed(_) => {
+                                for p in subpatterns {
+                                    write!(f, "{}{p:?}", start_or_continue(", "))?;
                                 }
                             }
-                            NominalDef::Unit(unit_def) => {
-                                if let Some(name) = unit_def.name {
-                                    write!(f, "{name}")?;
+                            ListKind::Var(prefix, _) => {
+                                for p in subpatterns.by_ref().take(prefix) {
+                                    write!(
+                                        f,
+                                        "{}{:?}",
+                                        start_or_continue(", "),
+                                        p.for_formatting(self.storage)
+                                    )?;
+                                }
+                                write!(f, "{}", start_or_continue(", "))?;
+                                write!(f, "..")?;
+                                for p in subpatterns {
+                                    write!(
+                                        f,
+                                        "{}{:?}",
+                                        start_or_continue(", "),
+                                        p.for_formatting(self.storage)
+                                    )?;
                                 }
                             }
-                            NominalDef::Enum(_) => todo!(),
                         }
+
+                        write!(f, "]")
                     }
-                    _ => panic!(
-                        "Unexpected ty `{}` when printing deconstructed pat",
-                        pat.ty.for_formatting(self.storage.global_storage)
-                    ),
-                };
-
-                write!(f, "(")?;
-
-                for p in pat.fields.iter_patterns() {
-                    write!(f, "{}", start_or_continue(", "))?;
-                    write!(f, "{:?}", p.for_formatting(self.storage))?;
-                }
-                write!(f, ")")
-            }
-            DeconstructedCtor::IntRange(range) => write!(f, "{range:?}"),
-            DeconstructedCtor::Str(value) => write!(f, "{value}"),
-            DeconstructedCtor::List(list) => {
-                let mut subpatterns = pat.fields.iter_patterns();
-
-                write!(f, "[")?;
-
-                match list.kind {
-                    ListKind::Fixed(_) => {
-                        for p in subpatterns {
-                            write!(f, "{}{p:?}", start_or_continue(", "))?;
-                        }
-                    }
-                    ListKind::Var(prefix, _) => {
-                        for p in subpatterns.by_ref().take(prefix) {
+                    DeconstructedCtor::Or => {
+                        for pat in pat.fields.iter_patterns() {
                             write!(
                                 f,
                                 "{}{:?}",
-                                start_or_continue(", "),
-                                p.for_formatting(self.storage)
+                                start_or_continue(" | "),
+                                pat.for_formatting(self.storage)
                             )?;
                         }
-                        write!(f, "{}", start_or_continue(", "))?;
-                        write!(f, "..")?;
-                        for p in subpatterns {
-                            write!(
-                                f,
-                                "{}{:?}",
-                                start_or_continue(", "),
-                                p.for_formatting(self.storage)
-                            )?;
-                        }
+                        Ok(())
+                    }
+                    ctor @ (DeconstructedCtor::Wildcard
+                    | DeconstructedCtor::Missing
+                    | DeconstructedCtor::NonExhaustive) => {
+                        // Just for clarity, we want to also print what specific `wildcard`
+                        // constructor it is
+                        let prefix = match ctor {
+                            DeconstructedCtor::Wildcard => "",
+                            DeconstructedCtor::Missing => "m",
+                            DeconstructedCtor::NonExhaustive => "ne",
+                            _ => unreachable!(),
+                        };
+
+                        write!(
+                            f,
+                            "{prefix}_ : {}",
+                            pat.ty.for_formatting(self.storage.global_storage)
+                        )
                     }
                 }
-
-                write!(f, "]")
-            }
-            DeconstructedCtor::Or => {
-                for pat in pat.fields.iter_patterns() {
-                    write!(
-                        f,
-                        "{}{:?}",
-                        start_or_continue(" | "),
-                        pat.for_formatting(self.storage)
-                    )?;
-                }
-                Ok(())
-            }
-            ctor @ (DeconstructedCtor::Wildcard
-            | DeconstructedCtor::Missing
-            | DeconstructedCtor::NonExhaustive) => {
-                // Just for clarity, we want to also print what specific `wildcard` constructor
-                // it is
-                let prefix = match ctor {
-                    DeconstructedCtor::Wildcard => "",
-                    DeconstructedCtor::Missing => "m",
-                    DeconstructedCtor::NonExhaustive => "ne",
-                    _ => unreachable!(),
-                };
-
-                write!(f, "{prefix}_ : {}", pat.ty.for_formatting(self.storage.global_storage))
-            }
-        }
+            })
+        })
     }
 }

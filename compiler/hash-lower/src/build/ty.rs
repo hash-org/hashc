@@ -94,7 +94,7 @@ impl<'tcx> Builder<'tcx> {
                     }
                     LitTerm::Char(_) => IrTy::Char,
                 },
-                Level0Term::EnumVariant(EnumVariantValue { enum_def_id, .. }) => {
+                Level0Term::EnumVariant(EnumVariantValue { def_id: enum_def_id, .. }) => {
                     self.lower_nominal_def(enum_def_id)
                 }
                 Level0Term::Unit(_) | Level0Term::FnCall(_) | Level0Term::Constructed(_) => {
@@ -317,7 +317,7 @@ impl<'tcx> Builder<'tcx> {
     pub(crate) fn lower_enum_variant_ty(&self, adt: &AdtData, term: TermId) -> usize {
         self.tcx.term_store.map_fast(term, |term| match term {
             Term::Level0(level0_term) => match level0_term {
-                Level0Term::EnumVariant(EnumVariantValue { variant_name, .. }) => {
+                Level0Term::EnumVariant(EnumVariantValue { name: variant_name, .. }) => {
                     adt.variant_idx(variant_name).unwrap()
                 }
                 term => panic!("expected enum variant, but got: {term:?}"),

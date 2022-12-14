@@ -218,8 +218,7 @@ impl<'tc> Typer<'tc> {
                         // For an enum variant Foo::Bar(x: A, y: B), we create:
                         // (x: A, y: B) -> Bar
                         let variant = self.oracle().get_enum_variant_info(enum_variant);
-                        let enum_ty =
-                            self.builder().create_nominal_def_term(enum_variant.enum_def_id);
+                        let enum_ty = self.builder().create_nominal_def_term(enum_variant.def_id);
                         match variant.fields {
                             Some(fields) => Ok(self.builder().create_fn_ty_term(
                                 Some(variant.name),
