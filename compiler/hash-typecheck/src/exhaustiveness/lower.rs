@@ -211,8 +211,7 @@ impl<'tc> LowerPatOps<'tc> {
                                 }
                             },
                             NominalDef::Unit(_) => (DeconstructedCtor::Single, vec![]),
-                            // @@EnumToUnion: when enums aren't a thing, do this with a union
-                            NominalDef::Enum(_) => unreachable!(),
+                            NominalDef::Enum(_) => todo!(),
                         }
                     }
                     _ => tc_panic!(
@@ -373,7 +372,7 @@ impl<'tc> LowerPatOps<'tc> {
                             NominalDef::Unit(_) => {
                                 Pat::Const(ConstPat { term: self.builder().create_unit_term(nom_def) })
                             }
-                            NominalDef::Enum(_) => unreachable!(),
+                            NominalDef::Enum(_) => todo!(),
                         }
 
                     }

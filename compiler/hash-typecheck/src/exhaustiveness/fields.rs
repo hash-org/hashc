@@ -116,17 +116,14 @@ impl<'tc> FieldOps<'tc> {
                                     self.wildcards_from_tys(tys)
                                 }
                                 StructFields::Opaque => tc_panic!(
-                                    ctx.ty,
-                                    self,
-                                    "Unexpected ty `{}` when getting wildcards in Fields::wildcards",
-                                    self.for_fmt(ctx.ty),
-                                ),
+                                ctx.ty,
+                                self,
+                                "Unexpected ty `{}` when getting wildcards in Fields::wildcards",
+                                self.for_fmt(ctx.ty),
+                            ),
                             },
-                            NominalDef::Unit(_) => {
-                                Fields::empty()
-                            },
-                            // @@EnumToUnion: when enums aren't represented as this anymore
-                            NominalDef::Enum(_) => unreachable!(),
+                            NominalDef::Unit(_) => Fields::empty(),
+                            NominalDef::Enum(_) => todo!(),
                         }
                     }
                     _ => tc_panic!(

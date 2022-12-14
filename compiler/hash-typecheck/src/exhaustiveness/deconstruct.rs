@@ -239,8 +239,7 @@ impl Debug for PatForFormatting<'_, DeconstructedPatId> {
                                     write!(f, "{name}")?;
                                 }
                             }
-                            // @@EnumToUnion: remove and replace
-                            NominalDef::Enum(_) => unreachable!(),
+                            NominalDef::Enum(_) => todo!(),
                         }
                     }
                     _ => panic!(
