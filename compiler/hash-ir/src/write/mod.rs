@@ -97,6 +97,9 @@ impl fmt::Display for ForFormatting<'_, &Statement> {
             StatementKind::Assign(place, value) => {
                 write!(f, "{place} = {}", (*value).for_fmt(self.storage))
             }
+            StatementKind::Discriminate(place, index) => {
+                write!(f, "discriminant({place}) = {index}")
+            }
             // @@Todo: figure out format for printing out the allocations that
             // are made.
             StatementKind::Alloc(_) => todo!(),

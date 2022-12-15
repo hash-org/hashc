@@ -19,7 +19,7 @@ use index_vec::IndexVec;
 use smallvec::SmallVec;
 
 use crate::{
-    ty::{IrTy, IrTyId, Mutability},
+    ty::{IrTy, IrTyId, Mutability, VariantIdx},
     IrStorage,
 };
 
@@ -307,7 +307,7 @@ pub enum AddressMode {
 pub enum PlaceProjection {
     /// When we want to narrow down the union type to some specific
     /// variant.
-    Downcast(usize),
+    Downcast(VariantIdx),
     /// A reference to a specific field within the place, at this stage they
     /// are represented as indexes into the field store of the place type.
     Field(usize),
@@ -443,6 +443,12 @@ impl fmt::Display for Place {
 
 /// [AggregateKind] represent an initialisation process of a particular
 /// structure be it a tuple, array, struct, etc.
+///
+/// @@Todo: decide whether to keep this, or to stick with just immediately
+///         lowering items as setting values for each field within the aggregate
+///         data structure (as it). If we stick with initially generating
+/// aggregates,         then we will have to de-aggregate them before lowering
+/// to bytecode/llvm.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum AggregateKind {
     /// A tuple value initialisation.
@@ -542,9 +548,14 @@ pub enum StatementKind {
     /// Filler kind when expressions are optimised out or removed for other
     /// reasons.
     Nop,
+
     /// An assignment expression, a right hand-side expression is assigned to a
     /// left hand-side pattern e.g. `x = 2`
     Assign(Place, RValueId),
+
+    /// Set the discriminant on a particular place, this is used to conceretly
+    /// specify what the discrimniant of a particular enum/union type is.
+    Discriminate(Place, VariantIdx),
 
     /// Allocate some value on the the heap using reference
     /// counting.
@@ -961,7 +972,7 @@ mod tests {
                 PlaceProjection::Deref,
                 PlaceProjection::Field(0),
                 PlaceProjection::Index(Local::new(1)),
-                PlaceProjection::Downcast(0),
+                PlaceProjection::Downcast(VariantIdx::from_usize(0)),
             ],
         };
 

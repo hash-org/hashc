@@ -4,12 +4,13 @@
 //! [crate::build::temp].
 
 use hash_ast::ast::{
-    AssignExpr, AssignOpExpr, AstNodeRef, AstNodes, BlockExpr, ConstructorCallArg,
-    ConstructorCallExpr, Declaration, Expr, RefExpr, RefKind, ReturnStatement, UnsafeExpr,
+    AccessExpr, AccessKind, AssignExpr, AssignOpExpr, AstNodeRef, AstNodes, BlockExpr,
+    ConstructorCallArg, ConstructorCallExpr, Declaration, Expr, PropertyKind, RefExpr, RefKind,
+    ReturnStatement, UnsafeExpr,
 };
 use hash_ir::{
-    ir::{self, AddressMode, BasicBlock, Place, RValue, TerminatorKind},
-    ty::{IrTy, Mutability},
+    ir::{self, AddressMode, BasicBlock, Place, RValue, Statement, StatementKind, TerminatorKind},
+    ty::{IrTy, Mutability, VariantIdx},
 };
 use hash_reporting::macros::panic_on_span;
 use hash_source::location::Span;
@@ -46,12 +47,31 @@ impl<'tcx> Builder<'tcx> {
             Expr::Directive(expr) => {
                 self.expr_into_dest(destination, block, expr.subject.ast_ref())
             }
-            Expr::Index(..) | Expr::Deref(..) | Expr::Access(..) | Expr::Variable(..) => {
+            Expr::Index(..)
+            | Expr::Deref(..)
+            | Expr::Access(AccessExpr { kind: AccessKind::Property, .. })
+            | Expr::Variable(..) => {
                 let _term = self.ty_of_node(expr.id());
                 let place = unpack!(block = self.as_place(block, expr, Mutability::Immutable));
 
                 let rvalue = self.storage.push_rvalue(RValue::Use(place));
                 self.control_flow_graph.push_assign(block, destination, rvalue, span);
+
+                block.unit()
+            }
+            Expr::Access(AccessExpr { subject, kind: AccessKind::Namespace, property }) => {
+                // This is a special case, since we are creating an enum variant here with
+                // no arguments.
+                let subject_ty = self.ty_id_of_node(subject.id());
+                let index = self.map_on_adt(subject_ty, |adt, _| match property.body() {
+                    PropertyKind::NamedField(name) => adt.variant_idx(name).unwrap(),
+                    PropertyKind::NumericField(index) => VariantIdx::from_usize(*index),
+                });
+
+                self.control_flow_graph.push(
+                    block,
+                    Statement { kind: StatementKind::Discriminate(destination, index), span },
+                );
 
                 block.unit()
             }

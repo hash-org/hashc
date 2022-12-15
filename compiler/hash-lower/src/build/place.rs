@@ -3,7 +3,7 @@
 use hash_ast::ast::{AccessExpr, AccessKind, AstNodeRef, DerefExpr, Expr, IndexExpr, PropertyKind};
 use hash_ir::{
     ir::{BasicBlock, Local, Place, PlaceProjection},
-    ty::{IrTyId, Mutability},
+    ty::{IrTyId, Mutability, VariantIdx},
 };
 
 use super::{unpack, BlockAnd, BlockAndExtend, Builder};
@@ -41,7 +41,7 @@ impl PlaceBuilder {
     }
 
     /// Apply a [PlaceProjection::Downcast] to the [PlaceBuilder].
-    pub(crate) fn downcast(self, index: usize) -> Self {
+    pub(crate) fn downcast(self, index: VariantIdx) -> Self {
         self.project(PlaceProjection::Downcast(index))
     }
 

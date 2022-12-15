@@ -210,6 +210,8 @@ index_vec::define_index_type! {
     DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
 
     DEBUG_FORMAT = "variant#{}";
+
+    DISPLAY_FORMAT="{}";
 }
 
 /// This is the underlying data of an ADT which is stored behind an [AdtId].
@@ -255,8 +257,8 @@ impl AdtData {
     }
 
     /// Lookup the index of a variant by its name.
-    pub fn variant_idx(&self, name: &Identifier) -> Option<usize> {
-        self.variants.iter().position(|variant| &variant.name == name)
+    pub fn variant_idx(&self, name: &Identifier) -> Option<VariantIdx> {
+        self.variants.position(|variant| &variant.name == name)
     }
 
     /// Compute the discriminant type of this ADT, assuming that this

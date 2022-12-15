@@ -10,7 +10,7 @@ use hash_ir::{
     ir::{
         BasicBlock, BinOp, Const, PlaceProjection, RValue, RValueId, SwitchTargets, TerminatorKind,
     },
-    ty::{AdtId, IrTy, IrTyId},
+    ty::{AdtId, IrTy, IrTyId, VariantIdx},
     IrStorage,
 };
 use hash_reporting::macros::panic_on_span;
@@ -289,7 +289,7 @@ impl<'tcx> Builder<'tcx> {
                     candidate,
                 );
 
-                Some(variant_index)
+                Some(variant_index.index())
             }
             // @@Todo: remove this branch since this is just for handling enumerations.
             (TestKind::Switch { adt, .. }, Pat::Access(..) | Pat::Const(..)) => {
@@ -316,7 +316,7 @@ impl<'tcx> Builder<'tcx> {
                     candidate,
                 );
 
-                Some(variant_index)
+                Some(variant_index.index())
             }
 
             (TestKind::Switch { .. }, _) => None,
@@ -493,7 +493,7 @@ impl<'tcx> Builder<'tcx> {
         &mut self,
         pair_index: usize,
         adt: AdtId,
-        variant_index: usize,
+        variant_index: VariantIdx,
         sub_patterns: Option<PatArgsId>,
         candidate: &mut Candidate,
     ) {
@@ -807,7 +807,7 @@ impl<'tcx> Builder<'tcx> {
 
                     self.map_on_adt(ty, |adt, _| {
                         let variant_index = adt.variant_idx(property).unwrap();
-                        variants.insert(variant_index);
+                        variants.insert(variant_index.index());
                         true
                     })
                 }

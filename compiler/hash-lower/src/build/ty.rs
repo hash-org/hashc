@@ -7,7 +7,7 @@
 
 use hash_ir::{
     ir::Const,
-    ty::{AdtData, AdtField, AdtFlags, AdtVariant, IrTy, IrTyId},
+    ty::{AdtData, AdtField, AdtFlags, AdtVariant, IrTy, IrTyId, VariantIdx},
 };
 use hash_source::{
     constant::{FloatTy, SIntTy, UIntTy, CONSTANT_MAP},
@@ -314,7 +314,7 @@ impl<'tcx> Builder<'tcx> {
     /// variant of a [AdtData]. This function assumed that the specified term is
     /// a [Term::Level0] enum variant which belongs to the specified adt,
     /// otherwise the function will panic.
-    pub(crate) fn lower_enum_variant_ty(&self, adt: &AdtData, term: TermId) -> usize {
+    pub(crate) fn lower_enum_variant_ty(&self, adt: &AdtData, term: TermId) -> VariantIdx {
         self.tcx.term_store.map_fast(term, |term| match term {
             Term::Level0(level0_term) => match level0_term {
                 Level0Term::EnumVariant(EnumVariantValue { name: variant_name, .. }) => {
