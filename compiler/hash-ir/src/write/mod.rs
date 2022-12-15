@@ -77,7 +77,7 @@ impl fmt::Display for ForFormatting<'_, RValueId> {
                 write!(f, "{op:?}({})", operand.for_fmt(self.storage))
             }
             RValue::ConstOp(op, operand) => write!(f, "{op:?}({operand:?})"),
-            RValue::Discriminant(place) => write!(f, "discriminant({place:?})"),
+            RValue::Discriminant(place) => write!(f, "discriminant({place})"),
             RValue::Ref(region, borrow_kind, place) => {
                 write!(f, "&{region:?} {borrow_kind:?} {place:?}")
             }

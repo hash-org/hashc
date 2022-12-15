@@ -355,7 +355,7 @@ impl<'tcx> Builder<'tcx> {
                 Pat::Access(_) | Pat::Const(_) => {
                     // @@Todo: when we switch to the new pattern representation, we can
                     //         remove this branch entirely, for now ignore it.
-                    Ok(())
+                    Err(pair)
                 }
                 // The simplification that can occur here is if both the prefix and the
                 // suffix are empty, then we can perform some simplifications.

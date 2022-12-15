@@ -9,7 +9,7 @@ use hash_ir::{
     ty::{AdtData, AdtId, IrTy, IrTyId, Mutability},
 };
 use hash_source::location::Span;
-use hash_types::pats::PatId;
+use hash_types::{pats::PatId, terms::TermId};
 use hash_utils::store::Store;
 
 use super::Builder;
@@ -52,6 +52,15 @@ impl<'tcx> Builder<'tcx> {
     /// the type associated with this [AstNodeId].
     pub(crate) fn ty_of_pat(&self, id: PatId) -> IrTyId {
         self.tcx.node_info_store.pat_to_node_id(id).map(|id| self.ty_id_of_node(id)).unwrap()
+    }
+
+    /// Lookup the corresponding [TermId] of [PatId] and return it.
+    pub(crate) fn term_of_pat(&self, id: PatId) -> TermId {
+        self.tcx
+            .node_info_store
+            .pat_to_node_id(id)
+            .map(|id| self.tcx.node_info_store.node_info(id).unwrap().term_id())
+            .unwrap()
     }
 
     pub(crate) fn span_of_pat(&self, id: PatId) -> Span {

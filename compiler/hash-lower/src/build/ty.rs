@@ -94,8 +94,8 @@ impl<'tcx> Builder<'tcx> {
                     }
                     LitTerm::Char(_) => IrTy::Char,
                 },
-                Level0Term::EnumVariant(EnumVariantValue { def_id: enum_def_id, .. }) => {
-                    self.lower_nominal_def(enum_def_id)
+                Level0Term::EnumVariant(EnumVariantValue { def_id, .. }) => {
+                    self.lower_nominal_def(def_id)
                 }
                 Level0Term::Unit(_) | Level0Term::FnCall(_) | Level0Term::Constructed(_) => {
                     panic!("unexpected level 0 term: {lvl_0_term:?}")
