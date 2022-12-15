@@ -112,30 +112,23 @@ impl<'tc> LowerPatOps<'tc> {
 
                 (DeconstructedCtor::Single, scope_members)
             }
-            // Since the type is already resolved, we just need to traverse down to
-            // the `Pat::Const`, and then we perform the lowering based on the type.
-            Pat::Access(AccessPat { subject, .. }) => return self.deconstruct_pat(ty, subject),
+
+            // A `access` is either going to be
+            Pat::Access(AccessPat { subject, .. }) => {
+                let pat_ty = self.typer().get_term_of_pat(pat_id).unwrap();
+
+                match self.maybe_construct_variant(pat_ty) {
+                    Some(variant) => (variant, vec![]),
+                    None => return self.deconstruct_pat(ty, subject),
+                }
+            }
             // This is essentially a simplification to some unit nominal definition like
             // for example `None`..., here we need to be able to get the `type` of the
             // actual pattern in order to figure out which
-            Pat::Const(ConstPat { term }) => {
-                reader.term_store().map_fast(term, |ty| match ty {
-                    Term::Level0(Level0Term::EnumVariant(EnumVariantValue { def_id, name })) => {
-                        reader.nominal_def_store().map_fast(*def_id, |def| {
-                            let NominalDef::Enum(enum_def) = def else {
-                                unreachable!()
-                            };
-
-                            let variant_idx = enum_def.get_variant_idx(name).unwrap();
-
-                            // We don't care about the fields here, since a `Pat::Const` will
-                            // not have any fields on it ever.
-                            (DeconstructedCtor::Variant(variant_idx), vec![])
-                        })
-                    }
-                    _ => (DeconstructedCtor::Wildcard, vec![]),
-                })
-            }
+            Pat::Const(ConstPat { term }) => match self.maybe_construct_variant(term) {
+                Some(variant) => (variant, vec![]),
+                None => (DeconstructedCtor::Wildcard, vec![]),
+            },
             Pat::Range(range) => {
                 let range = self.lower_pat_range(ty, range);
                 (DeconstructedCtor::IntRange(range), vec![])
@@ -193,36 +186,36 @@ impl<'tc> LowerPatOps<'tc> {
                 reader.term_store().map_fast(ty, |term| {
                     match term {
                         Term::Level1(Level1Term::NominalDef(nominal_def)) => {
+                            let lower_constructor_args = |params: ParamsId| {
+                                // Lower the fields by resolving what positions the
+                                // actual fields are with the reference of the
+                                // constructor's type...
+                                let fields =
+                                    self.pat_lowerer().deconstruct_pat_fields(args, params);
+
+                                let args = reader.get_params_owned(params);
+                                let tys = args.positional().iter().map(|param| param.ty);
+
+                                let mut wilds: SmallVec<[_; 2]> =
+                                    tys.map(|ty| self.deconstruct_pat_ops().wildcard(ty)).collect();
+
+                                // For each provided field, we want to recurse and lower
+                                // the pattern further
+                                for field in fields {
+                                    wilds[field.index] =
+                                        self.deconstruct_pat(wilds[field.index].ty, field.pat);
+                                }
+
+                                wilds.to_vec()
+                            };
+
                             reader.nominal_def_store().map_fast(*nominal_def, |def| {
                                 match def {
                                     NominalDef::Struct(struct_def) => match struct_def.fields {
-                                        StructFields::Explicit(members) => {
-                                            // Lower the fields by resolving what positions the
-                                            // actual fields are with the reference of the
-                                            // constructor's type...
-                                            let fields = self
-                                                .pat_lowerer()
-                                                .deconstruct_pat_fields(args, members);
-
-                                            let args = reader.get_params_owned(members);
-                                            let tys =
-                                                args.positional().iter().map(|param| param.ty);
-
-                                            let mut wilds: SmallVec<[_; 2]> = tys
-                                                .map(|ty| self.deconstruct_pat_ops().wildcard(ty))
-                                                .collect();
-
-                                            // For each provided field, we want to recurse and lower
-                                            // the pattern further
-                                            for field in fields {
-                                                wilds[field.index] = self.deconstruct_pat(
-                                                    wilds[field.index].ty,
-                                                    field.pat,
-                                                );
-                                            }
-
-                                            (DeconstructedCtor::Single, wilds.to_vec())
-                                        }
+                                        StructFields::Explicit(members) => (
+                                            DeconstructedCtor::Single,
+                                            lower_constructor_args(members),
+                                        ),
                                         StructFields::Opaque => {
                                             panic!("got unexpected opaque struct-def here")
                                         }
@@ -240,7 +233,7 @@ impl<'tc> LowerPatOps<'tc> {
                         _ => tc_panic!(
                             ty,
                             self,
-                            "Unexpected ty `{}` when deconstructing pattern {:?}",
+                            "unexpected ty `{}` when deconstructing pattern {:?}",
                             self.for_fmt(ty),
                             pat
                         ),
@@ -438,6 +431,30 @@ impl<'tc> LowerPatOps<'tc> {
                 // Now put the pat on the store and return it
                 self.pat_store().create(pat)
             })
+        })
+    }
+
+    /// Create a [DeconstructedCtor] from a provided [TermId] that is an
+    /// underlying enum variant. If the term is not a variant, then we don't
+    /// attempt to create a variant.
+    fn maybe_construct_variant(&self, term: TermId) -> Option<DeconstructedCtor> {
+        self.reader().term_store().map_fast(term, |term| {
+            match term {
+                Term::Level0(Level0Term::EnumVariant(EnumVariantValue { def_id, name })) => {
+                    self.reader().nominal_def_store().map_fast(*def_id, |def| {
+                        let NominalDef::Enum(enum_def) = def else {
+                            unreachable!()
+                        };
+
+                        let variant_idx = enum_def.get_variant_idx(name).unwrap();
+
+                        // We don't care about the fields here, since a `Pat::Const` will
+                        // not have any fields on it ever.
+                        Some(DeconstructedCtor::Variant(variant_idx))
+                    })
+                }
+                _ => None,
+            }
         })
     }
 

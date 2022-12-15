@@ -22,7 +22,7 @@ use hash_types::{
     location::{IndexedLocationTarget, LocationTarget},
     mods::ModDefOrigin,
     nodes::NodeInfoTarget,
-    nominals::NominalDefId,
+    nominals::EnumVariant,
     params::{AccessOp, Field, Param},
     pats::{BindingPat, ConstPat, Pat, PatArg, PatId, RangePat, SpreadPat},
     scope::{Member, Mutability, ScopeKind, ScopeMember, Visibility},
@@ -1368,7 +1368,7 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
         }
     }
 
-    type EnumDefEntryRet = (Identifier, NominalDefId);
+    type EnumDefEntryRet = EnumVariant;
 
     fn visit_enum_def_entry(
         &self,
@@ -1377,26 +1377,20 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
         let walk::EnumDefEntry { name, fields } = walk::walk_enum_def_entry(self, node)?;
 
         // Create the enum variant parameters
-        if fields.is_empty() {
-            // This is a unit variant:
-            Ok((name, self.builder().create_named_unit_def(name)))
+        let fields = if fields.is_empty() {
+            None
         } else {
-            // This is a struct variant:
-            Ok((
-                name,
-                self.builder().create_named_struct_def(
-                    name,
-                    self.builder().create_params(
-                        fields.iter().map(|field| Param {
-                            name: field.name,
-                            ty: field.ty,
-                            default_value: None,
-                        }),
-                        ParamOrigin::EnumVariant,
-                    ),
-                ),
+            Some(self.builder().create_params(
+                fields.iter().map(|field| Param {
+                    name: field.name,
+                    ty: field.ty,
+                    default_value: field.default_value,
+                }),
+                ParamOrigin::EnumVariant,
             ))
-        }
+        };
+
+        Ok(EnumVariant { name, fields })
     }
 
     type BindingPatRet = PatId;
@@ -1933,12 +1927,13 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
     ) -> Result<Self::EnumDefRet, Self::Error> {
         let walk::EnumDef { entries, .. } = walk::walk_enum_def(self, node)?;
 
-        let builder = self.builder();
-        let enum_variant_union = builder.create_union_term(
-            entries.iter().map(|(_, entry)| builder.create_nominal_def_term(*entry)),
-        );
+        // take the declaration hint here...
+        let name = self.state.declaration_name_hint.take();
 
-        self.validate_and_register_simplified_term(node, enum_variant_union)
+        let builder = self.builder();
+        let enum_def = builder.create_nominal_def_term(builder.create_enum_def(name, entries));
+
+        self.validate_and_register_simplified_term(node, enum_def)
     }
 
     type BinOpRet = ();

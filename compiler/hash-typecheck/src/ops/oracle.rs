@@ -169,7 +169,7 @@ impl<'tc> Oracle<'tc> {
         self.term_as_unit_def(term).is_some()
     }
 
-    /// If the term is a literal term.
+    /// If the term is an enum type.
     pub fn term_is_enum_def(&self, term: TermId) -> bool {
         self.term_as_enum_def(term).is_some()
     }
