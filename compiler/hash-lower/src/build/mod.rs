@@ -364,8 +364,11 @@ impl<'tcx> Builder<'tcx> {
         let ret_span = node.span(); // @@Fixme: this should be the span of the ending part of the function body
                                     // span!
 
-        let return_block =
-            unpack!(self.expr_into_dest(Place::return_place(), start, node.body.fn_body.ast_ref()));
+        let return_block = unpack!(self.expr_into_dest(
+            Place::return_place(self.storage),
+            start,
+            node.body.fn_body.ast_ref()
+        ));
 
         self.control_flow_graph.terminate(return_block, ret_span, TerminatorKind::Return)
     }

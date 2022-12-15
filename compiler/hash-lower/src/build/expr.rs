@@ -159,7 +159,7 @@ impl<'tcx> Builder<'tcx> {
                 if let Some(return_expr) = &expr {
                     unpack!(
                         block = self.expr_into_dest(
-                            Place::return_place(),
+                            Place::return_place(self.storage),
                             block,
                             return_expr.ast_ref()
                         )
@@ -170,7 +170,12 @@ impl<'tcx> Builder<'tcx> {
                     let const_value = ir::Const::zero(self.storage);
 
                     let unit = self.storage.push_rvalue(RValue::Const(const_value));
-                    self.control_flow_graph.push_assign(block, Place::return_place(), unit, span);
+                    self.control_flow_graph.push_assign(
+                        block,
+                        Place::return_place(self.storage),
+                        unit,
+                        span,
+                    );
                 }
 
                 // Create a new block for the `return` statement and make this block

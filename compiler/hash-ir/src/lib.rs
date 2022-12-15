@@ -14,7 +14,7 @@ use std::{
 
 use hash_types::terms::TermId;
 use hash_utils::store::Store;
-use ir::{Body, RValue, RValueId, RValueStore};
+use ir::{Body, ProjectionStore, RValue, RValueId, RValueStore};
 use ty::{AdtStore, IrTyId, TyListStore, TyStore};
 
 /// Storage that is used by the IR builder.
@@ -24,6 +24,9 @@ pub struct IrStorage {
 
     /// The storage for all the [RValue]s.
     rvalue_store: ir::RValueStore,
+
+    /// This the storage for all projection collections.
+    projection_store: ir::ProjectionStore,
 
     /// The storage for all of the used types that are within the IR.
     ty_store: ty::TyStore,
@@ -46,6 +49,7 @@ impl IrStorage {
         Self {
             generated_bodies: Vec::new(),
             rvalue_store: RValueStore::default(),
+            projection_store: ProjectionStore::default(),
             ty_store: TyStore::default(),
             ty_list_store: TyListStore::default(),
             adt_store: AdtStore::default(),
@@ -71,6 +75,11 @@ impl IrStorage {
     /// Get a reference to the [RValueStore]
     pub fn rvalue_store(&self) -> &RValueStore {
         &self.rvalue_store
+    }
+
+    /// Get a reference to the [ProjectionStore]
+    pub fn projection_store(&self) -> &ProjectionStore {
+        &self.projection_store
     }
 
     /// Get a reference to the type cache.

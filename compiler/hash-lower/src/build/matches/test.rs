@@ -541,7 +541,7 @@ impl<'tcx> Builder<'tcx> {
         make_target_blocks: impl FnOnce(&mut Self) -> Vec<BasicBlock>,
     ) {
         // Build the place from the provided place builder
-        let place = place_builder.clone().into_place();
+        let place = place_builder.clone().into_place(self.storage);
         let span = test.span;
 
         match test.kind {
@@ -583,12 +583,7 @@ impl<'tcx> Builder<'tcx> {
                 // switch statement.
                 let discriminant_tmp = self.temp_place(discriminant_ty);
                 let value = self.storage.push_rvalue(RValue::Discriminant(place));
-                self.control_flow_graph.push_assign(
-                    block,
-                    discriminant_tmp.clone(),
-                    value,
-                    subject_span,
-                );
+                self.control_flow_graph.push_assign(block, discriminant_tmp, value, subject_span);
 
                 let switch_value = self.storage.push_rvalue(RValue::Use(discriminant_tmp));
 
@@ -722,7 +717,7 @@ impl<'tcx> Builder<'tcx> {
 
                 // Assign `actual = length(place)`
                 let value = self.storage.push_rvalue(RValue::Len(place));
-                self.control_flow_graph.push_assign(block, actual.clone(), value, span);
+                self.control_flow_graph.push_assign(block, actual, value, span);
 
                 // @@Todo: can we not just use the `value` directly, there should be no
                 // dependency on it in other places, and it will always be a
@@ -767,7 +762,7 @@ impl<'tcx> Builder<'tcx> {
         // Push an assignment with the result of the comparison, i.e. `result = op(lhs,
         // rhs)`
         let value = self.storage.push_rvalue(RValue::BinaryOp(op, lhs, rhs));
-        self.control_flow_graph.push_assign(block, result.clone(), value, span);
+        self.control_flow_graph.push_assign(block, result, value, span);
 
         // Then insert the switch statement, which determines where the cfg goes based
         // on if the comparison was true or false.

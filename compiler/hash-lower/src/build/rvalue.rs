@@ -166,8 +166,8 @@ impl<'tcx> Builder<'tcx> {
             let rvalue_id =
                 self.storage.rvalue_store().create(RValue::CheckedBinaryOp(op, lhs, rhs));
 
-            let result = temp.field(0);
-            let overflow = temp.field(1);
+            let result = temp.field(0, self.storage);
+            let overflow = temp.field(1, self.storage);
 
             // Push an assignment to the tuple on the operation
             self.control_flow_graph.push_assign(block, temp, rvalue_id, span);

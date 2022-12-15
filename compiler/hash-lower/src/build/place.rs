@@ -4,7 +4,9 @@ use hash_ast::ast::{AccessExpr, AccessKind, AstNodeRef, DerefExpr, Expr, IndexEx
 use hash_ir::{
     ir::{BasicBlock, Local, Place, PlaceProjection},
     ty::{IrTyId, Mutability, VariantIdx},
+    IrStorage,
 };
+use hash_utils::store::SequenceStore;
 
 use super::{unpack, BlockAnd, BlockAndExtend, Builder};
 
@@ -63,8 +65,13 @@ impl PlaceBuilder {
     }
 
     /// Build the [Place] from the [PlaceBuilder].
-    pub(crate) fn into_place(self) -> Place {
-        Place { local: self.base, projections: self.projections }
+    pub(crate) fn into_place(self, storage: &IrStorage) -> Place {
+        Place {
+            local: self.base,
+            projections: storage
+                .projection_store()
+                .create_from_iter_fast(self.projections.into_iter()),
+        }
     }
 }
 
@@ -82,7 +89,7 @@ impl<'tcx> Builder<'tcx> {
         mutability: Mutability,
     ) -> BlockAnd<Place> {
         let place_builder = unpack!(block = self.as_place_builder(block, expr, mutability));
-        block.and(place_builder.into_place())
+        block.and(place_builder.into_place(self.storage))
     }
 
     pub(crate) fn as_place_builder(

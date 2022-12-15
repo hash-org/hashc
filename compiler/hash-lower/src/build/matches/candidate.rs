@@ -95,7 +95,6 @@ impl Candidate {
             otherwise_block: None,
             pre_binding_block: None,
             next_candidate_pre_bind_block: None,
-            // @@Todo: do we need to store an associated place with this pattern?
             pairs: smallvec![MatchPair { pat, place: place.clone() }],
             bindings: Vec::new(),
             sub_candidates: Vec::new(),
@@ -262,7 +261,7 @@ impl<'tcx> Builder<'tcx> {
                     candidate.bindings.push(Binding {
                         span,
                         mutability: (*mutability).into(),
-                        source: pair.place.into_place(),
+                        source: pair.place.into_place(self.storage),
                         name: *name,
 
                         // @@Todo: introduce a way of specifying what the binding
@@ -401,7 +400,7 @@ impl<'tcx> Builder<'tcx> {
                         //           specific pattern, which means that we can more precisely
                         // determine           the place that we are
                         // referencing.
-                        source: pair.place.into_place(),
+                        source: pair.place.into_place(self.storage),
                         mode: BindingMode::ByRef,
                     });
 
