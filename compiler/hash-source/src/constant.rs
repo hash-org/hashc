@@ -111,7 +111,7 @@ impl Display for FloatConstant {
         write!(f, "{}", self.value)?;
 
         if let Some(suffix) = self.suffix {
-            write!(f, "{suffix}")?;
+            write!(f, "_{suffix}")?;
         }
 
         Ok(())
@@ -717,7 +717,7 @@ impl Display for IntConstant {
             IntConstantValue::Big(value) => write!(f, "{value}")?,
         }
 
-        write!(f, "{}", self.ty)
+        write!(f, "_{}", self.ty)
     }
 }
 

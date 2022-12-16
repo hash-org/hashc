@@ -135,7 +135,35 @@ impl fmt::Display for ForFormatting<'_, RValueId> {
                 write!(f, "&{region:?} {borrow_kind:?} {place:?}")
             }
             RValue::Aggregate(aggregate_kind, operands) => {
-                write!(f, "{aggregate_kind:?}({operands:?})")
+                let fmt_operands = |f: &mut fmt::Formatter, start: char, end: char| {
+                    write!(f, "{start}")?;
+                    for (i, operand) in operands.iter().enumerate() {
+                        if i != 0 {
+                            write!(f, ", ")?;
+                        }
+                        write!(f, "{}", operand.for_fmt(self.storage))?;
+                    }
+
+                    write!(f, "{end}")
+                };
+
+                match aggregate_kind {
+                    AggregateKind::Tuple => fmt_operands(f, '(', ')'),
+                    AggregateKind::Array(_) => fmt_operands(f, '[', ']'),
+                    AggregateKind::Enum(adt, index) => {
+                        self.storage.adt_store().map_fast(*adt, |def| {
+                            let name = def.variants.get(*index).unwrap().name;
+
+                            write!(f, "{}::{name}", adt.for_fmt(self.storage))
+                        })?;
+
+                        fmt_operands(f, '(', ')')
+                    }
+                    AggregateKind::Struct(adt) => {
+                        write!(f, "{}", adt.for_fmt(self.storage))?;
+                        fmt_operands(f, '(', ')')
+                    }
+                }
             }
         })
     }
@@ -223,7 +251,7 @@ impl fmt::Display for ForFormatting<'_, &Terminator> {
                 write!(f, "assert({}, {expected:?}, {kind:?})", condition.for_fmt(self.storage))?;
 
                 if self.with_edges {
-                    write!(f, "-> {target:?}")?;
+                    write!(f, " -> {target:?}")?;
                 }
 
                 Ok(())

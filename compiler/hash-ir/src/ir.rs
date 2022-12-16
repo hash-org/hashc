@@ -412,11 +412,18 @@ pub enum AggregateKind {
 
     /// Enum aggregate kind, this is used to represent an initialisation
     /// of an enum variant with the specified variant index.
-    Enum(AdtId, usize),
+    Enum(AdtId, VariantIdx),
 
     /// Struct aggregate kind, this is used to represent a struct
     /// initialisation.
     Struct(AdtId),
+}
+
+impl AggregateKind {
+    /// Check if the [AggregateKind] represents an ADT.
+    pub fn is_adt(&self) -> bool {
+        !matches!(self, AggregateKind::Array(_))
+    }
 }
 
 /// The representation of values that occur on the right-hand side of an
@@ -460,7 +467,7 @@ pub enum RValue {
     Ref(Mutability, Place, AddressMode),
     /// Used for initialising structs, tuples and other aggregate
     /// data structures
-    Aggregate(AggregateKind, Vec<Place>),
+    Aggregate(AggregateKind, Vec<RValueId>),
     /// Compute the discriminant of a [Place], this is essentially checking
     /// which variant a union is. For types that don't have a discriminant
     /// (non-union types ) this will return the value as 0.

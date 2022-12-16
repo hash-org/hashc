@@ -14,9 +14,13 @@ use hash_source::{
     identifier::IDENTS,
 };
 use hash_types::{
+    fmt::{PrepareForFormatting, TcFormatOpts},
     nominals::{EnumDef, EnumVariantValue, NominalDef, NominalDefId, StructFields},
     storage::GlobalStorage,
-    terms::{FnLit, FnTy, Level0Term, Level1Term, LitTerm, Term, TermId, TupleLit, TupleTy},
+    terms::{
+        ConstructedTerm, FnLit, FnTy, Level0Term, Level1Term, LitTerm, Term, TermId, TupleLit,
+        TupleTy,
+    },
 };
 use hash_utils::store::{CloneStore, SequenceStore, Store};
 use index_vec::index_vec;
@@ -60,8 +64,8 @@ pub(super) fn constify_lit_term(term: TermId, tcx: &GlobalStorage) -> Const {
 
 impl<'tcx> Builder<'tcx> {
     /// Get the [IrTy] from a given [TermId].
-    pub(super) fn lower_term(&self, term: TermId) -> IrTy {
-        let term = self.tcx.term_store.get(term);
+    pub(super) fn lower_term(&self, term_id: TermId) -> IrTy {
+        let term = self.tcx.term_store.get(term_id);
 
         match term {
             // @@Temporary: we shouldn't need to deal with `Level0` terms...
@@ -97,7 +101,10 @@ impl<'tcx> Builder<'tcx> {
                 Level0Term::EnumVariant(EnumVariantValue { def_id, .. }) => {
                     self.lower_nominal_def(def_id)
                 }
-                Level0Term::Unit(_) | Level0Term::FnCall(_) | Level0Term::Constructed(_) => {
+                Level0Term::Constructed(ConstructedTerm { subject, .. }) => {
+                    self.lower_term(subject)
+                }
+                Level0Term::Unit(_) | Level0Term::FnCall(_) => {
                     panic!("unexpected level 0 term: {lvl_0_term:?}")
                 }
             },
@@ -184,18 +191,26 @@ impl<'tcx> Builder<'tcx> {
 
                 IrTy::Adt(adt_id)
             }
+
+            // @@FixMe: we assume that a merge term is going to be either a
+            // list or some other collection type.
+            Term::TyFnCall(_) | Term::Merge(_) => {
+                IrTy::Slice(self.storage.ty_store().create(IrTy::Int(SIntTy::I32)))
+            }
             Term::Var(_)
             | Term::Access(_)
-            | Term::Merge(_)
             | Term::TyFn(_)
             | Term::TyFnTy(_)
-            | Term::TyFnCall(_)
             | Term::SetBound(_)
             | Term::Level3(_)
             | Term::Level2(_)
             | Term::TyOf(_)
             | Term::Unresolved(_)
-            | Term::Root => panic!("unexpected term: {term:?}"),
+            | Term::Root => panic!(
+                "unexpected term: `{}`, expanded: `{:?}`",
+                term_id.for_formatting_with_opts(self.tcx, TcFormatOpts { expand: true }),
+                term
+            ),
         }
     }
 
