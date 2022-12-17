@@ -9,9 +9,9 @@ mod utils;
 
 use std::mem;
 
-use hash_ast::ast::{self, AstNodeRef, AstNodes, BinOp, BinaryExpr, Expr, MatchCase};
+use hash_ast::ast::{self, AstNodeRef, AstNodes, BinOp, BinaryExpr, Expr, MatchCase, MatchOrigin};
 use hash_ir::{
-    ir::{AddressMode, BasicBlock, Place, RValue, TerminatorKind},
+    ir::{self, AddressMode, BasicBlock, Place, RValue, TerminatorKind},
     ty::Mutability,
 };
 use hash_source::location::Span;
@@ -38,9 +38,17 @@ impl<'tcx> Builder<'tcx> {
         span: Span,
         subject: AstNodeRef<'tcx, Expr>,
         arms: &'tcx AstNodes<MatchCase>,
+        origin: MatchOrigin,
     ) -> BlockAnd<()> {
-        let subject_place =
-            unpack!(block = self.as_place_builder(block, subject, Mutability::Immutable));
+        // @@Hack: if the match-origin is an `if`-chain, then we don't bother
+        // lowering the place since we always know that the branches are
+        // always matching, and it's only guards that are being tested. Therefore,
+        // we use the `subject_place` as the `return_place` in this instance.
+        let subject_place = if matches!(origin, MatchOrigin::If) {
+            PlaceBuilder::from(ir::RETURN_PLACE)
+        } else {
+            unpack!(block = self.as_place_builder(block, subject, Mutability::Mutable))
+        };
 
         // Make the decision tree here...
         let mut arm_candidates = self.create_match_candidates(&subject_place, arms);

@@ -322,7 +322,7 @@ impl<'tcx> Builder<'tcx> {
                 );
 
                 let lhs =
-                    unpack!(block = self.as_operand(block, lhs.ast_ref(), Mutability::Immutable));
+                    unpack!(block = self.as_operand(block, lhs.ast_ref(), Mutability::Mutable));
 
                 let blocks = match *operator.body() {
                     BinOp::And => (else_block, shortcircuiting_block),
@@ -352,7 +352,7 @@ impl<'tcx> Builder<'tcx> {
 
                 // Now deal with the non-short-circuiting block
                 let rhs = unpack!(
-                    else_block = self.as_operand(else_block, rhs.ast_ref(), Mutability::Immutable)
+                    else_block = self.as_operand(else_block, rhs.ast_ref(), Mutability::Mutable)
                 );
                 self.control_flow_graph.push_assign(else_block, destination, rhs, span);
                 self.control_flow_graph.goto(else_block, join_block, span);
