@@ -96,7 +96,7 @@ impl<'ir> IrBodyWriter<'ir> {
         }
 
         // Print all of the basic blocks
-        for (bb, _) in self.body.blocks.iter_enumerated() {
+        for (bb, _) in self.body.basic_blocks.blocks.iter_enumerated() {
             writeln!(f)?;
             self.write_block(bb, f)?;
         }
@@ -107,7 +107,7 @@ impl<'ir> IrBodyWriter<'ir> {
     fn write_block(&self, block: BasicBlock, f: &mut fmt::Formatter) -> fmt::Result {
         // Print the label for the block
         writeln!(f, "{: <1$}{block:?} {{", "", 4)?;
-        let block_data = &self.body.blocks[block];
+        let block_data = &self.body.blocks()[block];
 
         // Write all of the statements within the block
         for statement in &block_data.statements {

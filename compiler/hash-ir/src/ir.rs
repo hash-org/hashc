@@ -16,9 +16,10 @@ use hash_utils::{
     store::{DefaultSequenceStore, DefaultStore, SequenceStore, Store},
 };
 use index_vec::IndexVec;
-use smallvec::SmallVec;
+use smallvec::{smallvec, SmallVec};
 
 use crate::{
+    basic_blocks::BasicBlocks,
     ty::{AdtId, IrTy, IrTyId, Mutability, VariantIdx},
     IrStorage,
 };
@@ -586,6 +587,19 @@ pub struct Terminator {
     pub span: Span,
 }
 
+impl Terminator {
+    /// Get all of the successors of a [Terminator].
+    pub fn successors(&self) -> SmallVec<[BasicBlock; 4]> {
+        match self.kind {
+            TerminatorKind::Goto(target) => smallvec![target],
+            TerminatorKind::Switch { ref targets, .. } => targets.iter_targets().collect(),
+            TerminatorKind::Call { target: Some(target), .. } => smallvec![target],
+            TerminatorKind::Assert { target, .. } => smallvec![target],
+            _ => smallvec![],
+        }
+    }
+}
+
 /// Struct that represents all of the targets that a [TerminatorKind::Switch]
 /// can jump to. This also defines some useful methods on the block to iterate
 /// over all the targets, etc.
@@ -773,6 +787,14 @@ impl BasicBlockData {
     pub fn new(terminator: Option<Terminator>) -> Self {
         Self { statements: vec![], terminator }
     }
+
+    /// Return a list of all of the successors of this [BasicBlock].
+    pub fn successors(&self) -> SmallVec<[BasicBlock; 4]> {
+        match &self.terminator {
+            Some(terminator) => terminator.successors(),
+            None => smallvec![],
+        }
+    }
 }
 
 index_vec::define_index_type! {
@@ -824,7 +846,7 @@ impl fmt::Display for BodySource {
 
 pub struct Body {
     /// The blocks that the function is represented with
-    pub blocks: IndexVec<BasicBlock, BasicBlockData>,
+    pub basic_blocks: BasicBlocks,
 
     /// Declarations of local variables:
     ///
@@ -868,7 +890,21 @@ impl Body {
         span: Span,
         source_id: SourceId,
     ) -> Self {
-        Self { blocks, info, declarations, arg_count, span, source_id, dump: false }
+        Self {
+            basic_blocks: BasicBlocks::new(blocks),
+            info,
+            declarations,
+            arg_count,
+            span,
+            source_id,
+            dump: false,
+        }
+    }
+
+    /// Get a reference to the stored basic blocks of this
+    /// [Body].
+    pub fn blocks(&self) -> &IndexVec<BasicBlock, BasicBlockData> {
+        &self.basic_blocks.blocks
     }
 
     /// Set the `dump` flag to `true` so that the IR Body that is generated
