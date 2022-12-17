@@ -127,7 +127,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         Ok(self.node_with_joined_span(Lit::Set(SetLit { elements }), start))
     }
 
-    /// Function to parse a tuple literal entry with a name.
+    /// Function to parse a [TupleLitEntry] with a name or parse a parenthesised
+    /// expression. In the event that the entry does not have a name `name =
+    /// ...`, or a name with a associated type `name : <type> = ...`, then
+    /// this will just parse the entry as a single expression rather than a
+    /// tuple entry with an associated name and type.
     pub(crate) fn parse_tuple_lit_entry(&mut self) -> ParseResult<AstNode<TupleLitEntry>> {
         let start = self.next_location();
         let offset = self.offset();
@@ -135,41 +139,54 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // Determine if this might have a tuple field name and optional type
         let entry = if let Some(name) = self.peek_resultant_fn(|g| g.parse_name()) {
             // Here we can identify if we need to backtrack and just parse an expression...
-            if !matches!(self.peek(), Some(Token { kind: TokenKind::Colon | TokenKind::Eq, .. })) {
-                self.offset.set(offset);
-                None
-            } else {
-                // Try and parse an optional type...
-                let ty = match self.peek() {
-                    Some(token) if token.has_kind(TokenKind::Colon) => {
-                        self.skip_token();
+            match self.peek() {
+                // If this is an `=`, then we need to see if there is a second `=` after it to
+                // ensure that it isn't a binary expression.
+                Some(Token { kind: TokenKind::Eq, .. })
+                    if self.peek_second().map_or(false, |t| t.has_kind(TokenKind::Eq)) =>
+                {
+                    self.offset.set(offset);
+                    None
+                }
+                Some(Token { kind, .. }) if !matches!(kind, TokenKind::Colon | TokenKind::Eq) => {
+                    self.offset.set(offset);
+                    None
+                }
+                Some(_) => {
+                    // Try and parse an optional type...
+                    let ty = match self.peek() {
+                        Some(token) if token.has_kind(TokenKind::Colon) => {
+                            self.skip_token();
 
-                        match self.peek() {
-                            Some(token) if token.has_kind(TokenKind::Eq) => None,
-                            _ => Some(self.parse_ty()?),
+                            match self.peek() {
+                                Some(token) if token.has_kind(TokenKind::Eq) => None,
+                                _ => Some(self.parse_ty()?),
+                            }
                         }
-                    }
-                    _ => None,
-                };
+                        _ => None,
+                    };
 
-                self.parse_token_fast(TokenKind::Eq).ok_or_else(|| {
-                    self.make_err(
-                        ParseErrorKind::ExpectedValueAfterTyAnnotation,
-                        Some(TokenKindVector::singleton(TokenKind::Eq)),
-                        None,
-                        Some(self.next_location()),
-                    )
-                })?;
+                    self.parse_token_fast(TokenKind::Eq).ok_or_else(|| {
+                        self.make_err(
+                            ParseErrorKind::ExpectedValueAfterTyAnnotation,
+                            Some(TokenKindVector::singleton(TokenKind::Eq)),
+                            None,
+                            Some(self.next_location()),
+                        )
+                    })?;
 
-                let value = self.parse_expr_with_re_assignment()?.0;
+                    let value = self.parse_expr_with_re_assignment()?.0;
 
-                // Now we try and parse an expression that allows re-assignment operators...
-                Some(
-                    self.node_with_joined_span(
+                    // Now we try and parse an expression that allows re-assignment operators...
+                    Some(self.node_with_joined_span(
                         TupleLitEntry { name: Some(name), ty, value },
                         start,
-                    ),
-                )
+                    ))
+                }
+                None => {
+                    self.offset.set(offset);
+                    None
+                }
             }
         } else {
             None
