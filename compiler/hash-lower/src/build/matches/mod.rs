@@ -170,7 +170,7 @@ impl<'tcx> Builder<'tcx> {
             let arm_block = self.declare_bindings(subject_span, arm, candidate);
 
             lowered_arms_edges.push(self.expr_into_dest(
-                destination.clone(),
+                destination,
                 arm_block,
                 arm.body.expr.ast_ref(),
             ));
@@ -662,11 +662,12 @@ impl<'tcx> Builder<'tcx> {
         // to avoid problems of mutation in the if-guard, and then affecting the
         // soundness of later match checks.
         for binding in bindings {
-            let value_place = self.lookup_local(binding.name).unwrap().into();
+            let value_place =
+                Place::from_local(self.lookup_local(binding.name).unwrap(), self.storage);
 
             // @@Todo: we might have to do some special rules for the `by-ref` case
             //         when we start to think about reference rules more concretely.
-            let rvalue = RValue::Ref(binding.mutability, binding.source.clone(), AddressMode::Raw);
+            let rvalue = RValue::Ref(binding.mutability, binding.source, AddressMode::Raw);
             let rvalue_id = self.storage.push_rvalue(rvalue);
             self.control_flow_graph.push_assign(block, value_place, rvalue_id, binding.span);
         }
@@ -680,7 +681,8 @@ impl<'tcx> Builder<'tcx> {
         'tcx: 'b,
     {
         for binding in bindings {
-            let value_place = self.lookup_local(binding.name).unwrap().into();
+            let value_place =
+                Place::from_local(self.lookup_local(binding.name).unwrap(), self.storage);
 
             let rvalue = match binding.mode {
                 candidate::BindingMode::ByValue => RValue::Use(value_place),
@@ -690,12 +692,7 @@ impl<'tcx> Builder<'tcx> {
             };
             let rvalue_id = self.storage.push_rvalue(rvalue);
 
-            self.control_flow_graph.push_assign(
-                block,
-                binding.source.clone(),
-                rvalue_id,
-                binding.span,
-            );
+            self.control_flow_graph.push_assign(block, binding.source, rvalue_id, binding.span);
         }
     }
 }

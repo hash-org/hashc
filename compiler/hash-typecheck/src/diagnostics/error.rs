@@ -37,7 +37,10 @@ pub type TcResult<T> = Result<T, TcError>;
 #[derive(Debug, Clone)]
 pub enum TcError {
     /// Cannot unify the two terms.
-    CannotUnify { src: TermId, target: TermId },
+    CannotUnify {
+        src: TermId,
+        target: TermId,
+    },
     // @@Refactor: It would be nice to not have separate variants for `CannotUnifyArgs` and
     // `CannotUnifyParams`.
     /// Cannot unify the two argument lists. This can occur if the names
@@ -61,9 +64,13 @@ pub enum TcError {
         reason: ParamUnificationErrorReason,
     },
     /// The given term should be a type function but it isn't.
-    NotATyFn { term: TermId },
+    NotATyFn {
+        term: TermId,
+    },
     /// The given value cannot be used as a type.
-    CannotUseValueAsTy { value: TermId },
+    CannotUseValueAsTy {
+        value: TermId,
+    },
     /// The given arguments do not match the length of the target parameters.
     MismatchingArgParamLength {
         args_kind: ParamListKind,
@@ -73,12 +80,22 @@ pub enum TcError {
     },
     /// The parameter with the given name is not found in the given parameter
     /// list.
-    ParamNotFound { args_kind: ParamListKind, params_subject: LocationTarget, name: Identifier },
+    ParamNotFound {
+        args_kind: ParamListKind,
+        params_subject: LocationTarget,
+        name: Identifier,
+    },
     /// There is a argument or parameter (at the index) which is
     /// specified twice in the given argument list.
-    ParamGivenTwice { param_kind: ParamListKind, index: usize },
+    ParamGivenTwice {
+        param_kind: ParamListKind,
+        index: usize,
+    },
     /// It is invalid to use a positional argument after a named argument.
-    AmbiguousArgumentOrdering { param_kind: ParamListKind, index: usize },
+    AmbiguousArgumentOrdering {
+        param_kind: ParamListKind,
+        index: usize,
+    },
     /// The given name cannot be resolved in the given value.
     UnresolvedNameInValue {
         // @@ErrorReporting: add more info about the term. Maybe we need a general way of
@@ -88,14 +105,26 @@ pub enum TcError {
         value: TermId,
     },
     /// The given variable cannot be resolved in the current context.
-    UnresolvedVariable { name: Identifier, value: TermId },
+    UnresolvedVariable {
+        name: Identifier,
+        value: TermId,
+    },
     /// The given value does not support accessing (of the given name).
-    UnsupportedAccess { name: Identifier, value: TermId },
+    UnsupportedAccess {
+        name: Identifier,
+        value: TermId,
+    },
     /// The given value does not support namespace accessing (of the given
     /// name).
-    UnsupportedNamespaceAccess { name: Field, value: TermId },
+    UnsupportedNamespaceAccess {
+        name: Field,
+        value: TermId,
+    },
     /// The given value does not support property accessing (of the given name).
-    UnsupportedPropertyAccess { name: Field, value: TermId },
+    UnsupportedPropertyAccess {
+        name: Field,
+        value: TermId,
+    },
     /// The given type function cannot be applied to the given arguments, due to
     /// the given errors.
     InvalidTyFnApplication {
@@ -105,15 +134,25 @@ pub enum TcError {
         unification_errors: Vec<TcError>,
     },
     /// The given term cannot be used in a merge operation.
-    InvalidMergeElement { term: TermId },
+    InvalidMergeElement {
+        term: TermId,
+    },
     /// The given term cannot be used in a union operation.
-    InvalidUnionElement { term: TermId },
+    InvalidUnionElement {
+        term: TermId,
+    },
     /// The given term cannot be used as a type function parameter type.
-    InvalidTyFnParamTy { param_ty: TermId },
+    InvalidTyFnParamTy {
+        param_ty: TermId,
+    },
     /// The given term cannot be used as a type function return type.
-    InvalidTyFnReturnTy { return_ty: TermId },
+    InvalidTyFnReturnTy {
+        return_ty: TermId,
+    },
     /// The given term cannot be used as a type function return value.
-    InvalidTyFnReturnValue { return_value: TermId },
+    InvalidTyFnReturnValue {
+        return_value: TermId,
+    },
     /// The given merge term should only contain zero or one nominal elements,
     /// but it contains more.
     MergeShouldOnlyContainOneNominal {
@@ -124,27 +163,51 @@ pub enum TcError {
         offending_term: TermId,
     },
     /// The given merge term should contain only level 1 terms.
-    MergeShouldBeLevel1 { merge_term: TermId, offending_term: TermId },
+    MergeShouldBeLevel1 {
+        merge_term: TermId,
+        offending_term: TermId,
+    },
     /// The given merge term should contain only level 2 terms.
-    MergeShouldBeLevel2 { merge_term: TermId, offending_term: TermId },
+    MergeShouldBeLevel2 {
+        merge_term: TermId,
+        offending_term: TermId,
+    },
     /// More type annotations are needed to resolve the given term.
-    NeedMoreTypeAnnotationsToResolve { term: TermId },
+    NeedMoreTypeAnnotationsToResolve {
+        term: TermId,
+    },
     /// The given term cannot be instantiated at runtime.
-    TermIsNotRuntimeInstantiable { term: TermId },
+    TermIsNotRuntimeInstantiable {
+        term: TermId,
+    },
     /// The given term cannot be used as the subject of a type function
     /// application.
-    UnsupportedTyFnApplication { subject_id: TermId },
+    UnsupportedTyFnApplication {
+        subject_id: TermId,
+    },
     /// The given access operation results in more than one result.
-    AmbiguousAccess { access: AccessTerm, results: Vec<TermId> },
+    AmbiguousAccess {
+        access: AccessTerm,
+        results: Vec<TermId>,
+    },
     /// Cannot use this as a function call or struct subject.
-    InvalidCallSubject { term: TermId },
+    InvalidCallSubject {
+        term: TermId,
+    },
     /// The given access operation does not resolve to a method.
-    InvalidPropertyAccessOfNonMethod { subject: TermId, property: Field },
+    InvalidPropertyAccessOfNonMethod {
+        subject: TermId,
+        property: Field,
+    },
     /// The given member requires an initialisation in the current scope.
     /// @@ErrorReporting: add span of member.
-    UninitialisedMemberNotAllowed { member: LocationTarget },
+    UninitialisedMemberNotAllowed {
+        member: LocationTarget,
+    },
     /// Cannot implement something that isn't a trait.
-    CannotImplementNonTrait { term: TermId },
+    CannotImplementNonTrait {
+        term: TermId,
+    },
     /// The trait implementation `trt_impl_term_id` is missing the member
     /// `trt_def_missing_member_id` from the trait `trt_def_term_id`.
     TraitImplMissingMember {
@@ -158,25 +221,48 @@ pub enum TcError {
     },
     /// When a member of an `impl` block that implements a trait is not present
     /// within the trait definition, in other words a non-member.
-    MethodNotAMemberOfTrait { trt_def_term_id: TermId, member: LocationTarget, name: Identifier },
+    MethodNotAMemberOfTrait {
+        trt_def_term_id: TermId,
+        member: LocationTarget,
+        name: Identifier,
+    },
     /// Cannot use pattern matching in a declaration without an assignment
-    CannotPatMatchWithoutAssignment { pat: PatId },
+    CannotPatMatchWithoutAssignment {
+        pat: PatId,
+    },
     /// Cannot use a non-name as an assign subject.
-    InvalidAssignSubject { location: LocationTarget },
+    InvalidAssignSubject {
+        location: LocationTarget,
+    },
+
+    InvalidIndexSubject {
+        subject: TermId,
+        site: LocationTarget,
+    },
 
     /// Cannot find a constructor for the given type
-    NoConstructorOnType { subject: TermId },
+    NoConstructorOnType {
+        subject: TermId,
+    },
 
     /// The subject does not have a callable constructor (i.e. it is constant).
-    NoCallableConstructorOnType { subject: TermId },
+    NoCallableConstructorOnType {
+        subject: TermId,
+    },
 
     /// When a bind within a pattern is declared more than one
-    IdentifierBoundMultipleTimes { name: Identifier, pat: PatId },
+    IdentifierBoundMultipleTimes {
+        name: Identifier,
+        pat: PatId,
+    },
 
     /// Within an `or` pattern, where there is a discrepancy between the
     /// declared bounds within two patterns. For example, if one pattern
     /// binds `k`, but the other doesn't.
-    MissingPatternBounds { pat: PatId, bounds: Vec<Identifier> },
+    MissingPatternBounds {
+        pat: PatId,
+        bounds: Vec<Identifier>,
+    },
 
     /// When a pattern is expected to be irrefutable but was found to be
     /// refutable with provided `witnesses` or possible patterns that are
@@ -209,7 +295,9 @@ pub enum TcError {
     /// When an unsized integer literal is specified in the range. This
     /// is currently not supported because the exhaustiveness checking
     /// cannot currently deal with this kind of range.
-    UnsupportedRangePatTy { term: TermId },
+    UnsupportedRangePatTy {
+        term: TermId,
+    },
 
     /// When a particular scope member is declared as `immutable` but an
     /// attempt was made to perform a mutable operation on this item.
@@ -1452,6 +1540,19 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Reports {
                         location,
                         "this member cannot be declared as mutable: remove `mut`",
                     )));
+                }
+            }
+            TcError::InvalidIndexSubject { subject, site } => {
+                builder.code(HashErrorCode::InvalidIndexSubject).title(format!(
+                    "cannot index into `{}`",
+                    subject.for_formatting(ctx.global_storage())
+                ));
+
+                if let Some(location) = ctx.location_store().get_location(site) {
+                    builder.add_labelled_span(
+                        location,
+                        "cannot index into this type, type must be of shape `[T]`",
+                    );
                 }
             }
         };

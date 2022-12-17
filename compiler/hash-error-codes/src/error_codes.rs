@@ -31,6 +31,7 @@ error_codes! {
     UnsupportedTyFnApplication = 26,
     TypeIsNotTrait = 27,
     InvalidUnionElement = 28,
+    InvalidIndexSubject = 29,
 
     // Errors in regard to parameter lists
     ParameterLengthMismatch = 35,

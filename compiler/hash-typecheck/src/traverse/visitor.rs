@@ -535,7 +535,10 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
         &self,
         node: AstNodeRef<ast::LitExpr>,
     ) -> Result<Self::LitExprRet, Self::Error> {
-        Ok(walk::walk_lit_expr(self, node)?.data)
+        let walk::LitExpr { data } = walk::walk_lit_expr(self, node)?;
+
+        self.register_node_info_and_location(node, data);
+        Ok(data)
     }
 
     type ModDefRet = TermId;
@@ -1879,22 +1882,26 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
         &self,
         node: AstNodeRef<ast::IndexExpr>,
     ) -> Result<Self::IndexExprRet, Self::Error> {
-        let walk::IndexExpr { index_expr, subject } = walk::walk_index_expr(self, node)?;
+        let walk::IndexExpr { .. } = walk::walk_index_expr(self, node)?;
 
         // We just translate this to a function call:
-        let builder = self.builder();
-        let index_fn_call_args =
-            builder.create_args([builder.create_nameless_arg(index_expr)], ParamOrigin::Fn);
-        let index_fn_call_subject = builder.create_prop_access(subject, "index");
-        let index_fn_call = builder.create_fn_call_term(index_fn_call_subject, index_fn_call_args);
+        // let builder = self.builder();
+        // let index_fn_call_args =
+        //     builder.create_args([builder.create_nameless_arg(index_expr)],
+        // ParamOrigin::Fn); let index_fn_call_subject =
+        // builder.create_prop_access(subject, "index"); let index_fn_call =
+        // builder.create_fn_call_term(index_fn_call_subject, index_fn_call_args);
 
-        // Add locations:
-        self.copy_location_from_node_to_target(node, index_fn_call);
-        self.copy_location_from_node_to_target(node.subject.ast_ref(), index_fn_call_subject);
-        self.copy_location_from_node_to_target(node.index_expr.ast_ref(), (index_fn_call_args, 0));
+        // // Add locations:
+        // self.copy_location_from_node_to_target(node, index_fn_call);
+        // self.copy_location_from_node_to_target(node.subject.ast_ref(),
+        // index_fn_call_subject); self.copy_location_from_node_to_target(node.
+        // index_expr.ast_ref(), (index_fn_call_args, 0));
 
-        // @@ErrorReporting: We could provide customised error reporting h ere.
-        self.validate_and_register_simplified_term(node, index_fn_call)
+        // @@FixMe: we just get the inner element of the subject since we want to return
+        //          the type of the inner element.
+        let ty = self.builder().create_rt_term(self.core_defs().i32_ty());
+        self.validate_and_register_simplified_term(node, ty)
     }
 
     type MatchCaseRet = ();

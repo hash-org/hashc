@@ -1,7 +1,7 @@
 //! Hash Compiler Intermediate Representation (IR) crate. This module is still
 //! under construction and is subject to change.
 use core::slice;
-use std::{cmp::Ordering, fmt};
+use std::{cmp::Ordering, fmt, iter::once};
 
 use hash_ast::ast;
 use hash_source::{
@@ -12,14 +12,14 @@ use hash_source::{
 };
 use hash_types::terms::TermId;
 use hash_utils::{
-    new_store_key,
-    store::{DefaultStore, Store},
+    new_sequence_store_key, new_store_key,
+    store::{DefaultSequenceStore, DefaultStore, SequenceStore, Store},
 };
 use index_vec::IndexVec;
 use smallvec::SmallVec;
 
 use crate::{
-    ty::{IrTy, IrTyId, Mutability},
+    ty::{AdtId, IrTy, IrTyId, Mutability, VariantIdx},
     IrStorage,
 };
 
@@ -307,7 +307,7 @@ pub enum AddressMode {
 pub enum PlaceProjection {
     /// When we want to narrow down the union type to some specific
     /// variant.
-    Downcast(usize),
+    Downcast(VariantIdx),
     /// A reference to a specific field within the place, at this stage they
     /// are represented as indexes into the field store of the place type.
     Field(usize),
@@ -360,89 +360,48 @@ pub enum PlaceProjection {
     Deref,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct Place {
     /// The original place of where this is referring to.
     pub local: Local,
+
     /// Any projections that are applied onto the `local` in
     /// order to specify an exact location within the local.
-    ///
-    /// @@Todo: maybe make this a slice rather than a vec, we
-    /// could create a `projection` store..., in order to make
-    /// this copyable.
-    pub projections: Vec<PlaceProjection>,
+    pub projections: ProjectionId,
 }
 
 impl Place {
     /// Create a [Place] that points to the return `place` of a lowered  body.
-    pub fn return_place() -> Self {
-        Self { local: RETURN_PLACE, projections: Vec::new() }
+    pub fn return_place(storage: &IrStorage) -> Self {
+        Self { local: RETURN_PLACE, projections: storage.projection_store.create_empty() }
+    }
+
+    pub fn from_local(local: Local, storage: &IrStorage) -> Self {
+        Self { local, projections: storage.projection_store.create_empty() }
     }
 
     /// Create a new [Place] from an existing place whilst also
     /// applying a a [PlaceProjection::Field] on the old one.
-    pub fn field(&self, field: usize) -> Self {
-        let mut projections = self.projections.clone();
-        projections.push(PlaceProjection::Field(field));
-        Self { local: self.local, projections }
-    }
-}
+    pub fn field(&self, field: usize, storage: &IrStorage) -> Self {
+        let projections = storage.projection_store.get_vec(self.projections);
 
-impl From<Local> for Place {
-    fn from(value: Local) -> Self {
-        Self { local: value, projections: Vec::new() }
-    }
-}
-
-impl fmt::Display for Place {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // First we, need to deal with the `deref` projections, since
-        // they need to be printed in reverse
-        for projection in self.projections.iter().rev() {
-            match projection {
-                PlaceProjection::Downcast(_) | PlaceProjection::Field(_) => write!(f, "(")?,
-                PlaceProjection::Deref => write!(f, "(*")?,
-                PlaceProjection::Subslice { .. }
-                | PlaceProjection::ConstantIndex { .. }
-                | PlaceProjection::Index(_) => {}
-            }
+        Self {
+            local: self.local,
+            projections: storage.projection_store.create_from_iter_fast(
+                projections.iter().copied().chain(once(PlaceProjection::Field(field))),
+            ),
         }
-
-        write!(f, "{:?}", self.local)?;
-
-        for projection in &self.projections {
-            match projection {
-                PlaceProjection::Downcast(index) => write!(f, " as variant#{index})")?,
-                PlaceProjection::Index(local) => write!(f, "[{local:?}]")?,
-                PlaceProjection::ConstantIndex { offset, min_length, from_end: true } => {
-                    write!(f, "[-{offset:?} of {min_length:?}]")?;
-                }
-                PlaceProjection::ConstantIndex { offset, min_length, from_end: false } => {
-                    write!(f, "[{offset:?} of {min_length:?}]")?;
-                }
-                PlaceProjection::Subslice { from, to, from_end: true } if *to == 0 => {
-                    write!(f, "[{from}:]")?;
-                }
-                PlaceProjection::Subslice { from, to, from_end: false } if *from == 0 => {
-                    write!(f, "[:-{to:?}]")?;
-                }
-                PlaceProjection::Subslice { from, to, from_end: true } => {
-                    write!(f, "[{from}:-{to:?}]")?;
-                }
-                PlaceProjection::Subslice { from, to, from_end: false } => {
-                    write!(f, "[{from:?}:{to:?}]")?;
-                }
-                PlaceProjection::Field(index) => write!(f, ".{index})")?,
-                PlaceProjection::Deref => write!(f, ")")?,
-            }
-        }
-
-        Ok(())
     }
 }
 
 /// [AggregateKind] represent an initialisation process of a particular
 /// structure be it a tuple, array, struct, etc.
+///
+/// @@Todo: decide whether to keep this, or to stick with just immediately
+/// lowering items as setting values for each field within the aggregate
+/// data structure (as it). If we stick with initially generating
+/// aggregates, then we will have to de-aggregate them before lowering
+/// to bytecode/llvm.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum AggregateKind {
     /// A tuple value initialisation.
@@ -453,11 +412,18 @@ pub enum AggregateKind {
 
     /// Enum aggregate kind, this is used to represent an initialisation
     /// of an enum variant with the specified variant index.
-    Enum(IrTyId, usize),
+    Enum(AdtId, VariantIdx),
 
     /// Struct aggregate kind, this is used to represent a struct
     /// initialisation.
-    Struct(IrTyId),
+    Struct(AdtId),
+}
+
+impl AggregateKind {
+    /// Check if the [AggregateKind] represents an ADT.
+    pub fn is_adt(&self) -> bool {
+        !matches!(self, AggregateKind::Array(_))
+    }
 }
 
 /// The representation of values that occur on the right-hand side of an
@@ -501,7 +467,7 @@ pub enum RValue {
     Ref(Mutability, Place, AddressMode),
     /// Used for initialising structs, tuples and other aggregate
     /// data structures
-    Aggregate(AggregateKind, Vec<Place>),
+    Aggregate(AggregateKind, Vec<RValueId>),
     /// Compute the discriminant of a [Place], this is essentially checking
     /// which variant a union is. For types that don't have a discriminant
     /// (non-union types ) this will return the value as 0.
@@ -542,9 +508,14 @@ pub enum StatementKind {
     /// Filler kind when expressions are optimised out or removed for other
     /// reasons.
     Nop,
+
     /// An assignment expression, a right hand-side expression is assigned to a
     /// left hand-side pattern e.g. `x = 2`
     Assign(Place, RValueId),
+
+    /// Set the discriminant on a particular place, this is used to conceretly
+    /// specify what the discrimniant of a particular enum/union type is.
+    Discriminate(Place, VariantIdx),
 
     /// Allocate some value on the the heap using reference
     /// counting.
@@ -949,33 +920,43 @@ new_store_key!(pub RValueId);
 /// [Rvalue]s are accessed by an ID, of type [RValueId].
 pub type RValueStore = DefaultStore<RValueId, RValue>;
 
+new_sequence_store_key!(pub ProjectionId);
+
+/// Stores all collections of projections that can occur on a place.
+///
+/// This is used to efficiently represent [Place]s that might have many
+/// projections, and to easily copy them when duplicating places.
+pub type ProjectionStore = DefaultSequenceStore<ProjectionId, PlaceProjection>;
+
 #[cfg(test)]
 mod tests {
-    use crate::ir::*;
+    use crate::{ir::*, write::WriteIr};
 
     #[test]
     fn test_place_display() {
+        let storage = IrStorage::new();
+
         let place = Place {
             local: Local::new(0),
-            projections: vec![
+            projections: storage.projection_store.create_from_slice(&[
                 PlaceProjection::Deref,
                 PlaceProjection::Field(0),
                 PlaceProjection::Index(Local::new(1)),
-                PlaceProjection::Downcast(0),
-            ],
+                PlaceProjection::Downcast(VariantIdx::from_usize(0)),
+            ]),
         };
 
-        assert_eq!(format!("{place}"), "(((*_0).0)[_1] as variant#0)");
+        assert_eq!(format!("{}", place.for_fmt(&storage)), "(((*_0).0)[_1] as variant#0)");
 
         let place = Place {
             local: Local::new(0),
-            projections: vec![
+            projections: storage.projection_store.create_from_slice(&[
                 PlaceProjection::Deref,
                 PlaceProjection::Deref,
                 PlaceProjection::Deref,
-            ],
+            ]),
         };
 
-        assert_eq!(format!("{place}"), "(*(*(*_0)))");
+        assert_eq!(format!("{}", place.for_fmt(&storage)), "(*(*(*_0)))");
     }
 }

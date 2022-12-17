@@ -72,7 +72,7 @@ impl<'tcx> Builder<'tcx> {
             // The simple case of a just writing into the binding, we can
             // directly assign into the binding that is provided.
             ast::Pat::Binding(ast::BindingPat { name, .. }) => {
-                let place = Place::from(self.lookup_local(name.ident).unwrap());
+                let place = Place::from_local(self.lookup_local(name.ident).unwrap(), self.storage);
                 unpack!(block = self.expr_into_dest(place, block, rvalue));
                 block.unit()
             }

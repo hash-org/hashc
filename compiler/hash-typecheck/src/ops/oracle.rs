@@ -126,6 +126,7 @@ impl<'tc> Oracle<'tc> {
     pub fn term_as_list_ty(&self, term: TermId) -> Option<TermId> {
         let list_inner_ty = self.builder().create_unresolved_term();
         let builder = self.builder();
+
         let list_ty = builder.create_app_ty_fn_term(
             self.core_defs().list_ty_fn(),
             builder.create_args(

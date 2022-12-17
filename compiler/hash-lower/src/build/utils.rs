@@ -78,7 +78,7 @@ impl<'tcx> Builder<'tcx> {
     /// the results of expressions, i.e. blocks.
     pub(crate) fn make_tmp_unit(&mut self) -> Place {
         match &self.tmp_place {
-            Some(tmp) => tmp.clone(),
+            Some(tmp) => *tmp,
             None => {
                 let ty = IrTy::unit(self.storage);
                 let ty_id = self.storage.ty_store().create(ty);
@@ -86,9 +86,8 @@ impl<'tcx> Builder<'tcx> {
                 let local = LocalDecl::new_auxiliary(ty_id, Mutability::Immutable);
                 let local_id = self.declarations.push(local);
 
-                let place = Place::from(local_id);
-                self.tmp_place = Some(place.clone());
-
+                let place = Place::from_local(local_id, self.storage);
+                self.tmp_place = Some(place);
                 place
             }
         }
