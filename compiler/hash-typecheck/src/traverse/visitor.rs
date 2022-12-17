@@ -1477,8 +1477,15 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
                 return Err(TcError::CannotUnify { src: rhs_term, target: lhs_term });
             }
 
-            let lhs_term = self.term_store().get(lhs);
-            let term = self.builder().create_term(lhs_term);
+            // If the operator is a logical operator, or comparator, then the result of the
+            // expression will be a boolean term, so we return the type of the expression as
+            // yielding a boolean term.
+            let term = if node.operator.is_lazy() || node.operator.is_comparator() {
+                self.builder().create_rt_term(self.core_defs().bool_ty())
+            } else {
+                let lhs_term = self.term_store().get(lhs);
+                self.builder().create_term(lhs_term)
+            };
 
             return self.validate_and_register_simplified_term(node, term);
         }

@@ -1167,6 +1167,14 @@ define_tree! {
             )
         }
 
+        /// Check whether an operator is a comparator operator, i.e. `==`, `!=`, etc.
+        pub fn is_comparator(&self) -> bool {
+            matches!(
+                self,
+                BinOp::EqEq | BinOp::NotEq | BinOp::Gt | BinOp::GtEq | BinOp::Lt | BinOp::LtEq
+            )
+        }
+
         /// Checks whether this operator is a ordering comparison operator, i.e. `<`
         /// `<=`, `>`, etc.
         pub fn is_ordering_comparator(&self) -> bool {
