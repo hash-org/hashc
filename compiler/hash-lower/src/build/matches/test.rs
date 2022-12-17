@@ -610,7 +610,8 @@ impl<'tcx> Builder<'tcx> {
                         _ => panic!("expected boolean switch to have only two options"),
                     };
 
-                    TerminatorKind::make_if(place, true_block, false_block, self.storage)
+                    let value = self.storage.push_rvalue(RValue::Use(place));
+                    TerminatorKind::make_if(value, true_block, false_block, self.storage)
                 } else {
                     debug_assert_eq!(options.len() + 1, target_blocks.len());
                     let otherwise_block = target_blocks.last().copied();
@@ -766,6 +767,7 @@ impl<'tcx> Builder<'tcx> {
 
         // Then insert the switch statement, which determines where the cfg goes based
         // on if the comparison was true or false.
+        let result = self.storage.push_rvalue(RValue::Use(result));
         self.control_flow_graph.terminate(
             block,
             span,

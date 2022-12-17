@@ -1,0 +1,13 @@
+// run=pass, stage=parse
+
+
+main := (y: bool, x: i32) => {
+    // This should be parsed as a parenthesised binary expression, not a tuple 
+    // that tries to assign a named member `x`, but then proceeds to fail due to 
+    // the `==`. 
+    if (x == 3) {
+        4
+    } else {
+        2
+    }
+}

@@ -154,12 +154,8 @@ pub enum BinOp {
     Neq,
     /// '|'
     BitOr,
-    /// '||'
-    Or,
     /// '&'
     BitAnd,
-    /// '&&'
-    And,
     /// '^'
     BitXor,
     /// '^^'
@@ -206,9 +202,7 @@ impl From<ast::BinOp> for BinOp {
             ast::BinOp::EqEq => Self::Eq,
             ast::BinOp::NotEq => Self::Neq,
             ast::BinOp::BitOr => Self::BitOr,
-            ast::BinOp::Or => Self::Or,
             ast::BinOp::BitAnd => Self::BitAnd,
-            ast::BinOp::And => Self::And,
             ast::BinOp::BitXor => Self::BitXor,
             ast::BinOp::Exp => Self::Exp,
             ast::BinOp::Gt => Self::Gt,
@@ -706,21 +700,22 @@ pub enum TerminatorKind {
 }
 
 impl TerminatorKind {
+    /// Utility to createa a [TerminatorKind::Switch] which emulates the
+    /// behaviour of an `if` branch where the `true` branch is the
+    /// `true_block` and the `false` branch is the `false_block`.
     pub fn make_if(
-        place: Place,
+        operand: RValueId,
         true_block: BasicBlock,
         false_block: BasicBlock,
         storage: &IrStorage,
     ) -> Self {
-        let value = storage.push_rvalue(RValue::Use(place));
-
         let targets = SwitchTargets::new(
             std::iter::once((false.into(), false_block)),
             storage.ty_store().make_bool(),
             Some(true_block),
         );
 
-        TerminatorKind::Switch { value, targets }
+        TerminatorKind::Switch { value: operand, targets }
     }
 }
 
