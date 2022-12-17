@@ -6,14 +6,14 @@
 use std::collections::HashMap;
 
 use hash_ast::ast::{
-    AccessExpr, AccessKind, AssignExpr, AssignOpExpr, AstNodeRef, AstNodes, BlockExpr,
-    ConstructorCallArg, ConstructorCallExpr, Declaration, Expr, ListLit, Lit, PropertyKind,
-    RefExpr, RefKind, ReturnStatement, TupleLit, UnsafeExpr,
+    AccessExpr, AccessKind, AssignExpr, AssignOpExpr, AstNodeRef, AstNodes, BinOp, BinaryExpr,
+    BlockExpr, ConstructorCallArg, ConstructorCallExpr, Declaration, Expr, ListLit, Lit,
+    PropertyKind, RefExpr, RefKind, ReturnStatement, TupleLit, UnsafeExpr,
 };
 use hash_ir::{
     ir::{
-        self, AddressMode, AggregateKind, BasicBlock, Place, RValue, Statement, StatementKind,
-        TerminatorKind,
+        self, AddressMode, AggregateKind, BasicBlock, Const, Place, RValue, Statement,
+        StatementKind, TerminatorKind,
     },
     ty::{IrTy, IrTyId, Mutability, VariantIdx},
 };
@@ -282,6 +282,82 @@ impl<'tcx> Builder<'tcx> {
                         block.unit()
                     }
                 }
+            }
+
+            // We deal with logical binary expressions differently than other
+            // binary operators. In order to preserve the short-circuiting behaviour of
+            // these operators, we need to create the following schemes:
+            //
+            // AND operator:
+            // ```text
+            //  +-----+  true   +------------+
+            //  | lhs |-------->| dest = rhs |--+
+            //  +--+--+         +------------+  |
+            //     |                            |
+            //     | false                      |
+            //     v                            |
+            //  +--+-----------+                |   +------+
+            //  | dest = false |----------------+-->| join |
+            //  +--------------+                    +------+
+            // ```
+            //
+            // OR operator:
+            //
+            // ```text
+            //  +-----+  false  +------------+
+            //  | lhs |-------->| dest = rhs |--+
+            //  +--+--+         +------------+  |
+            //     |                            |
+            //     | true                       |
+            //     v                            |
+            //  +--+-----------+                |   +------+
+            //  | dest = true  |----------------+-->| join |
+            //  +--------------+                    +------+
+            // ```
+            Expr::BinaryExpr(BinaryExpr { lhs, rhs, operator }) if operator.is_lazy() => {
+                let (shortcircuiting_block, mut else_block, join_block) = (
+                    self.control_flow_graph.start_new_block(),
+                    self.control_flow_graph.start_new_block(),
+                    self.control_flow_graph.start_new_block(),
+                );
+
+                let lhs =
+                    unpack!(block = self.as_operand(block, lhs.ast_ref(), Mutability::Immutable));
+
+                let blocks = match *operator.body() {
+                    BinOp::And => (else_block, shortcircuiting_block),
+                    BinOp::Or => (shortcircuiting_block, else_block),
+                    _ => unreachable!(),
+                };
+
+                let term = TerminatorKind::make_if(lhs, blocks.0, blocks.1, self.storage);
+                self.control_flow_graph.terminate(block, span, term);
+
+                // Create the constant that we will assign in the `short_circuting` block.
+                let constant = match *operator.body() {
+                    BinOp::And => Const::Bool(false),
+                    BinOp::Or => Const::Bool(true),
+                    _ => unreachable!(),
+                };
+                let value = self.storage.push_rvalue(constant.into());
+                self.control_flow_graph.push_assign(
+                    shortcircuiting_block,
+                    destination,
+                    value,
+                    span,
+                );
+
+                // Join the branch to the joining block
+                self.control_flow_graph.goto(shortcircuiting_block, join_block, span);
+
+                // Now deal with the non-short-circuiting block
+                let rhs = unpack!(
+                    else_block = self.as_operand(else_block, rhs.ast_ref(), Mutability::Immutable)
+                );
+                self.control_flow_graph.push_assign(else_block, destination, rhs, span);
+                self.control_flow_graph.goto(else_block, join_block, span);
+
+                join_block.unit()
             }
 
             Expr::BinaryExpr(..) | Expr::UnaryExpr(..) => {
