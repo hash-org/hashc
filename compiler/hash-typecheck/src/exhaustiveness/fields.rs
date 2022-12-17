@@ -101,7 +101,7 @@ impl<'tc> FieldOps<'tc> {
                         self.wildcards_from_tys(tys)
                     }
                     Term::Level1(Level1Term::NominalDef(def)) => {
-                        // get the varaint index from the deconstructed ctor
+                        // get the variant index from the deconstructed ctor
                         let variant_idx =
                             if let DeconstructedCtor::Variant(idx) = ctor { idx } else { 0 };
 

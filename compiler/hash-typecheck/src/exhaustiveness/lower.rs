@@ -182,7 +182,7 @@ impl<'tc> LowerPatOps<'tc> {
                     ),
                 }
             }
-            Pat::Constructor(ConstructorPat { args, subject }) => {
+            Pat::Constructor(ConstructorPat { args, .. }) => {
                 reader.term_store().map_fast(ty, |term| {
                     match term {
                         Term::Level1(Level1Term::NominalDef(nominal_def)) => {
@@ -222,9 +222,8 @@ impl<'tc> LowerPatOps<'tc> {
                                     },
                                     NominalDef::Unit(_) => (DeconstructedCtor::Single, vec![]),
                                     NominalDef::Enum(_) => {
-                                        println!("{:?}", self.for_fmt(subject));
-                                        // We need to deduce the variant index from the type of the
-                                        // pattern?
+                                        // @@Todo: We need to deduce the variant index from the type
+                                        // of the pattern?
                                         todo!()
                                     }
                                 }
