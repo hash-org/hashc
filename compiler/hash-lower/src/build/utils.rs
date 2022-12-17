@@ -19,13 +19,10 @@ impl<'tcx> Builder<'tcx> {
     /// provided [AstNodeId].
     #[inline]
     pub(crate) fn ty_id_of_node(&self, id: AstNodeId) -> IrTyId {
-        let term_id = self.tcx.node_info_store.node_info(id).map(|f| f.term_id()).unwrap();
-
         // We need to try and look up the type within the cache, if not
         // present then we create the type by converting the term into
         // the type.
-
-        self.convert_term_into_ir_ty(term_id)
+        self.convert_term_into_ir_ty(self.term_of_node(id))
     }
 
     /// Function to get the associated [IrTy] with the
@@ -33,12 +30,7 @@ impl<'tcx> Builder<'tcx> {
     /// type.
     #[inline]
     pub(crate) fn ty_of_node(&self, id: AstNodeId) -> IrTy {
-        let term_id = self.tcx.node_info_store.node_info(id).map(|f| f.term_id()).unwrap();
-
-        // We need to try and look up the type within the cache, if not
-        // present then we create the type by converting the term into
-        // the type.
-        self.lower_term(term_id)
+        self.lower_term(self.term_of_node(id))
     }
 
     /// Function to get the associated [PatId] with the
@@ -61,6 +53,11 @@ impl<'tcx> Builder<'tcx> {
             .pat_to_node_id(id)
             .map(|id| self.tcx.node_info_store.node_info(id).unwrap().term_id())
             .unwrap()
+    }
+
+    /// Lookup the corresponding [TermId] of a [AstNodeId] and return it.
+    pub(crate) fn term_of_node(&self, id: AstNodeId) -> TermId {
+        self.tcx.node_info_store.node_info(id).unwrap().term_id()
     }
 
     pub(crate) fn span_of_pat(&self, id: PatId) -> Span {

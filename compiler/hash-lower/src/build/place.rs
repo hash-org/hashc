@@ -105,7 +105,9 @@ impl<'tcx> Builder<'tcx> {
                 // can then lookup the local that this variable is bound to.
                 let name = variable.name.ident;
 
-                let local = self.lookup_local(name).unwrap();
+                let local = self
+                    .lookup_local(name)
+                    .unwrap_or_else(|| panic!("failed to lookup local `{name}`"));
                 block.and(PlaceBuilder::from(local))
             }
             Expr::Access(AccessExpr { subject, property, kind: AccessKind::Property }) => {

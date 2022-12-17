@@ -10,7 +10,7 @@ use hash_source::{
     location::{SourceLocation, Span},
     SourceId,
 };
-use hash_types::terms::TermId;
+use hash_types::{scope::ScopeId, terms::TermId};
 use hash_utils::{
     new_sequence_store_key, new_store_key,
     store::{DefaultSequenceStore, DefaultStore, SequenceStore, Store},
@@ -108,6 +108,35 @@ pub fn compare_constant_values(left: Const, right: Const) -> Option<Ordering> {
         }
         (Const::Str(left), Const::Str(right)) => Some(left.cmp(&right)),
         _ => None,
+    }
+}
+
+/// A constant value that is used within the IR. A [ConstantValue] is either
+/// an actual [Const] value, or an un-evaluated reference to a constant
+/// expression that comes outside of a particular function body. These
+/// "unevaluated" values will be removed during IR simplification stages since
+/// all of the items are inlined.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum ConstKind {
+    /// A constant value that is defined within the program source.
+    Value(Const),
+    /// A constant value that is defined within the program source, but is not
+    /// evaluated yet.
+    Unevaluated {
+        /// The Id of the scope that the constant comes from.
+        scope: ScopeId,
+
+        /// The name of the declaration that refers to the scope.
+        name: Identifier,
+    },
+}
+
+impl fmt::Display for ConstKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Value(value) => write!(f, "{value}"),
+            Self::Unevaluated { name, .. } => write!(f, "<unevaluated> {name}"),
+        }
     }
 }
 
@@ -425,7 +454,7 @@ impl AggregateKind {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum RValue {
     /// A constant value.
-    Const(Const),
+    Const(ConstKind),
 
     /// A local variable value, do we need to denote whether this is a
     /// copy/move?
@@ -477,12 +506,15 @@ impl RValue {
     /// Check if an [RValue] is a constant operation and involves a constant
     /// that is of an integral kind...
     pub fn is_integral_const(&self) -> bool {
-        matches!(self, RValue::Const(Const::Int(_) | Const::Float(_) | Const::Char(_)))
+        matches!(
+            self,
+            RValue::Const(ConstKind::Value(Const::Int(_) | Const::Float(_) | Const::Char(_)))
+        )
     }
 
     /// Convert the RValue into a constant, having previously
     /// checked that it is a constant.
-    pub fn as_const(&self) -> Const {
+    pub fn as_const(&self) -> ConstKind {
         match self {
             RValue::Const(c) => *c,
             rvalue => unreachable!("Expected a constant, got {:?}", rvalue),
@@ -492,7 +524,7 @@ impl RValue {
 
 impl From<Const> for RValue {
     fn from(value: Const) -> Self {
-        Self::Const(value)
+        Self::Const(ConstKind::Value(value))
     }
 }
 
@@ -814,9 +846,6 @@ pub struct Body {
     /// Number of arguments to the function
     pub arg_count: usize,
 
-    /// The source of the function, is it a normal function, or an intrinsic
-    source: BodySource,
-
     /// The location of the function
     span: Span,
 
@@ -836,11 +865,10 @@ impl Body {
         declarations: IndexVec<Local, LocalDecl>,
         info: BodyInfo,
         arg_count: usize,
-        source: BodySource,
         span: Span,
         source_id: SourceId,
     ) -> Self {
-        Self { blocks, info, declarations, arg_count, source, span, source_id, dump: false }
+        Self { blocks, info, declarations, arg_count, span, source_id, dump: false }
     }
 
     /// Set the `dump` flag to `true` so that the IR Body that is generated
@@ -859,11 +887,6 @@ impl Body {
         SourceLocation { id: self.source_id, span: self.span }
     }
 
-    /// Get the [BodySource] for the [Body]
-    pub fn source(&self) -> BodySource {
-        self.source
-    }
-
     /// Get the [BodyInfo] for the [Body]
     pub fn info(&self) -> &BodyInfo {
         &self.info
@@ -880,7 +903,12 @@ impl Body {
 /// are wrapped in a [Option], however any access method on the field
 /// **expects** that the value was computed.
 pub struct BodyInfo {
+    /// The name of the body that was lowered. This is determined from the
+    /// beginning of the lowering process.
     pub name: Identifier,
+
+    /// The source of the body that was lowered, either an item, or a constant.
+    pub source: BodySource,
 
     /// The type of the body that was lowered
     ty: Option<IrTyId>,
@@ -888,8 +916,8 @@ pub struct BodyInfo {
 
 impl BodyInfo {
     /// Create a new [BodyInfo] with the given `name`.
-    pub fn new(name: Identifier) -> Self {
-        Self { name, ty: None }
+    pub fn new(name: Identifier, source: BodySource) -> Self {
+        Self { name, ty: None, source }
     }
 
     /// Set the type of the body that was lowered.
@@ -905,6 +933,11 @@ impl BodyInfo {
     /// Get the name of the body that was lowered.
     pub fn name(&self) -> Identifier {
         self.name
+    }
+
+    /// Get the [BodySource] for [Body] that was lowered.
+    pub fn source(&self) -> BodySource {
+        self.source
     }
 }
 
