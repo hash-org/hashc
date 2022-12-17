@@ -8,17 +8,18 @@ use std::collections::HashMap;
 use hash_ast::ast::{
     AccessExpr, AccessKind, AssignExpr, AssignOpExpr, AstNodeRef, AstNodes, BinOp, BinaryExpr,
     BlockExpr, ConstructorCallArg, ConstructorCallExpr, Declaration, Expr, ListLit, Lit,
-    PropertyKind, RefExpr, RefKind, ReturnStatement, TupleLit, UnsafeExpr,
+    PropertyKind, RefExpr, RefKind, ReturnStatement, TupleLit, UnsafeExpr, VariableExpr,
 };
 use hash_ir::{
     ir::{
-        self, AddressMode, AggregateKind, BasicBlock, Const, Place, RValue, Statement,
+        self, AddressMode, AggregateKind, BasicBlock, Const, ConstKind, Place, RValue, Statement,
         StatementKind, TerminatorKind,
     },
     ty::{IrTy, IrTyId, Mutability, VariantIdx},
 };
 use hash_reporting::macros::panic_on_span;
 use hash_source::{identifier::Identifier, location::Span};
+use hash_types::scope::ScopeKind;
 use hash_utils::store::{SequenceStoreKey, Store};
 
 use super::{unpack, BlockAnd, BlockAndExtend, Builder, LoopBlockInfo};
@@ -54,12 +55,33 @@ impl<'tcx> Builder<'tcx> {
             }
             Expr::Index(..)
             | Expr::Deref(..)
-            | Expr::Access(AccessExpr { kind: AccessKind::Property, .. })
-            | Expr::Variable(..) => {
+            | Expr::Access(AccessExpr { kind: AccessKind::Property, .. }) => {
                 let place = unpack!(block = self.as_place(block, expr, Mutability::Immutable));
 
                 let rvalue = self.storage.push_rvalue(RValue::Use(place));
                 self.control_flow_graph.push_assign(block, destination, rvalue, span);
+
+                block.unit()
+            }
+            Expr::Variable(VariableExpr { name }) => {
+                let name = name.ident;
+                let (scope, _, scope_kind) = self.lookup_item_scope(name).unwrap();
+
+                // Here, if the scope is not variable, i.e. constant, then we essentially need
+                // to denote that this a constant that comes from outside of the function body.
+                if !matches!(scope_kind, ScopeKind::Variable) {
+                    // here, we emit an un-evaluated constant kind which will be resolved later
+                    // during IR simplification.
+                    let rvalue = self
+                        .storage
+                        .push_rvalue(RValue::Const(ConstKind::Unevaluated { scope, name }));
+                    self.control_flow_graph.push_assign(block, destination, rvalue, span);
+                } else {
+                    let local = self.lookup_local_from_scope(scope, name).unwrap();
+                    let place = RValue::Use(Place::from_local(local, self.storage));
+                    let rvalue = self.storage.push_rvalue(place);
+                    self.control_flow_graph.push_assign(block, destination, rvalue, span);
+                }
 
                 block.unit()
             }
@@ -147,7 +169,7 @@ impl<'tcx> Builder<'tcx> {
                 // Assign the `value` of the assignment into the `tmp_place`
                 let const_value = ir::Const::zero(self.storage);
 
-                let empty_value = self.storage.push_rvalue(RValue::Const(const_value));
+                let empty_value = self.storage.push_rvalue(const_value.into());
                 self.control_flow_graph.push_assign(block, destination, empty_value, span);
                 block.unit()
             }
@@ -172,8 +194,8 @@ impl<'tcx> Builder<'tcx> {
                     // If no expression is attached to the return, then we need to push a
                     // `unit` value into the return place.
                     let const_value = ir::Const::zero(self.storage);
+                    let unit = self.storage.push_rvalue(const_value.into());
 
-                    let unit = self.storage.push_rvalue(RValue::Const(const_value));
                     self.control_flow_graph.push_assign(
                         block,
                         Place::return_place(self.storage),

@@ -27,7 +27,10 @@ use hash_ir::{
 };
 use hash_pipeline::settings::LoweringSettings;
 use hash_source::{identifier::Identifier, location::Span, SourceId, SourceMap};
-use hash_types::{scope::ScopeId, storage::GlobalStorage};
+use hash_types::{
+    scope::{Member, ScopeId, ScopeKind},
+    storage::GlobalStorage,
+};
 use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
 use index_vec::IndexVec;
 
@@ -211,6 +214,7 @@ impl<'tcx> Builder<'tcx> {
         name: Identifier,
         item: BuildItem<'tcx>,
         source_id: SourceId,
+        scope_stack: Vec<ScopeId>,
         tcx: &'tcx GlobalStorage,
         storage: &'tcx mut IrStorage,
         source_map: &'tcx SourceMap,
@@ -228,7 +232,7 @@ impl<'tcx> Builder<'tcx> {
 
                 fn_ty.params.len()
             }
-            BuildItem::Expr(_) => todo!(),
+            BuildItem::Expr(_) => 0,
         };
 
         Self {
@@ -245,7 +249,7 @@ impl<'tcx> Builder<'tcx> {
             declaration_map: HashMap::new(),
             reached_terminator: false,
             loop_block_info: None,
-            scope_stack: vec![],
+            scope_stack,
             dead_ends,
             tmp_place: None,
         }
@@ -296,16 +300,31 @@ impl<'tcx> Builder<'tcx> {
 
     /// Get the [Local] associated with the provided [ScopeId] and [Identifier].
     pub(crate) fn lookup_local(&self, name: Identifier) -> Option<Local> {
-        // We need to walk up the scopes, and then find the first scope
-        // that contains this variable
+        self.lookup_item_scope(name)
+            .and_then(|(scope_id, _, _)| self.lookup_local_from_scope(scope_id, name))
+    }
+
+    /// Lookup a [Local] from a [ScopeId] and a [Identifier].
+    pub(crate) fn lookup_local_from_scope(
+        &self,
+        scope: ScopeId,
+        name: Identifier,
+    ) -> Option<Local> {
+        self.declaration_map.get(&(scope, name)).copied()
+    }
+
+    pub(crate) fn lookup_item_scope(
+        &self,
+        name: Identifier,
+    ) -> Option<(ScopeId, Member, ScopeKind)> {
         for scope_id in self.scope_stack.iter().rev() {
-            match self.tcx.scope_store.map_fast(*scope_id, |scope| scope.get(name)) {
+            // We need to walk up the scopes, and then find the first scope
+            // that contains this variable
+            match self.tcx.scope_store.map_fast(*scope_id, |scope| (scope.get(name), scope.kind)) {
                 // Found in this scope, return the member.
-                Some(_) => {
-                    return self.declaration_map.get(&(*scope_id, name)).copied();
-                }
+                (Some((member, _)), kind) => return Some((*scope_id, member, kind)),
                 // Continue to the next (higher) scope:
-                None => continue,
+                _ => continue,
             }
         }
 

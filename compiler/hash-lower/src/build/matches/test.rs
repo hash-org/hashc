@@ -646,7 +646,7 @@ impl<'tcx> Builder<'tcx> {
                             panic!("expected two target blocks for `Eq` test");
                         };
 
-                    let expected = self.storage.push_rvalue(RValue::Const(value));
+                    let expected = self.storage.push_rvalue(value.into());
                     let value = self.storage.push_rvalue(RValue::Use(place));
 
                     self.compare(block, success, fail, BinOp::Eq, expected, value, span);
@@ -661,8 +661,8 @@ impl<'tcx> Builder<'tcx> {
                 let lb_success = self.control_flow_graph.start_new_block();
                 let target_blocks = make_target_blocks(self);
 
-                let lo = self.storage.push_rvalue(RValue::Const(lo));
-                let hi = self.storage.push_rvalue(RValue::Const(hi));
+                let lo = self.storage.push_rvalue(lo.into());
+                let hi = self.storage.push_rvalue(hi.into());
                 let val = self.storage.push_rvalue(RValue::Use(place));
 
                 let [success, fail] = *target_blocks else {
@@ -729,7 +729,7 @@ impl<'tcx> Builder<'tcx> {
                 // compare the two.
                 let const_len =
                     Const::Int(CONSTANT_MAP.create_int_constant(IntConstant::from(len)));
-                let expected = self.storage.push_rvalue(RValue::Const(const_len));
+                let expected = self.storage.push_rvalue(const_len.into());
 
                 let [success, fail] = *target_blocks else {
                     panic!("expected two target blocks for `Len` test");

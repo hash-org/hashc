@@ -1,6 +1,6 @@
 use hash_ast::ast::{self, AstNodeRef, BinaryExpr, Expr, UnaryExpr};
 use hash_ir::{
-    ir::{AssertKind, BasicBlock, BinOp, Const, RValue, RValueId},
+    ir::{AssertKind, BasicBlock, BinOp, Const, ConstKind, RValue, RValueId},
     ty::{IrTy, Mutability},
 };
 use hash_source::location::Span;
@@ -149,8 +149,10 @@ impl<'tcx> Builder<'tcx> {
             let lhs = self.storage.rvalue_store().map_fast(lhs, |value| value.as_const());
             let rhs = self.storage.rvalue_store().map_fast(rhs, |value| value.as_const());
 
-            if let Some(folded) = self.try_fold_const_op(op, lhs, rhs) {
-                return block.and(self.storage.rvalue_store().create(folded.into()));
+            if let ConstKind::Value(lhs_value) = lhs && let ConstKind::Value(rhs_value) = rhs {
+                if let Some(folded) = self.try_fold_const_op(op, lhs_value, rhs_value) {
+                    return block.and(self.storage.rvalue_store().create(folded.into()));
+                }
             }
         }
 

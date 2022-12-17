@@ -110,7 +110,9 @@ impl fmt::Display for ForFormatting<'_, RValueId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.storage.rvalue_store().map_fast(self.item, |rvalue| match rvalue {
             RValue::Use(place) => write!(f, "{}", place.for_fmt(self.storage)),
-            RValue::Const(Const::Zero(ty)) => write!(f, "{}", ty.for_fmt(self.storage)),
+            RValue::Const(ConstKind::Value(Const::Zero(ty))) => {
+                write!(f, "{}", ty.for_fmt(self.storage))
+            }
             RValue::Const(const_value) => write!(f, "const {const_value}"),
             RValue::BinaryOp(op, lhs, rhs) => {
                 write!(f, "{op:?}({}, {})", lhs.for_fmt(self.storage), rhs.for_fmt(self.storage))

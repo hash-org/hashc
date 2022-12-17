@@ -17,7 +17,7 @@ use hash_source::{
     identifier::{Identifier, IDENTS},
     SourceId, SourceMap,
 };
-use hash_types::storage::GlobalStorage;
+use hash_types::{scope::ScopeId, storage::GlobalStorage};
 
 use crate::build::Builder;
 
@@ -101,7 +101,12 @@ pub(crate) struct LoweringVisitor<'ir> {
     /// Used to store all of the generated bodies and rvalues.
     storage: &'ir mut IrStorage,
 
+    /// The map of all sources that are currently registered in the
+    /// compiler.
     source_map: &'ir SourceMap,
+
+    /// The current scope that the stack, the lowerer is visiting.
+    scope_stack: Vec<ScopeId>,
 
     /// The [SourceId] of the current source that is being
     /// lowered.
@@ -152,12 +157,52 @@ impl<'ir> LoweringVisitor<'ir> {
             source_id,
             source_map,
             in_dump_ir_directive: false,
-            bodies: Vec::new(),
-            bind_stack: Vec::new(),
+            scope_stack: vec![],
+            bodies: vec![],
+            bind_stack: vec![],
             dead_ends: HashSet::new(),
         }
     }
 
+    /// Function to handle a particular node that introduces a new scope. If the
+    /// node has an associated scope, it is pushed onto the scope stack, and the
+    /// node is walked. Once the node has been walked, the scope is popped off
+    /// the stack.
+    ///
+    /// Additionally, this function deals with the current `block` origin that
+    /// is set every time a new scope is entered. This is used to determine
+    /// whether a particular node is a constant or a function, and whether
+    /// it should be lowered.
+    fn with_scope<F>(
+        &mut self,
+        node: AstNodeId,
+        origin: BlockOrigin,
+        f: F,
+    ) -> Result<(), Infallible>
+    where
+        F: FnOnce(&mut Self) -> Result<(), Infallible>,
+    {
+        let mut pushed_scope = false;
+
+        if let Some(info) = self.tcx.node_info_store.node_info(node) {
+            if let Some(scope) = info.scope {
+                self.scope_stack.push(scope);
+                pushed_scope = true;
+            }
+        }
+
+        let old_block_origin = mem::replace(&mut self.current_block, origin);
+        let result = f(self);
+        self.current_block = old_block_origin;
+
+        if pushed_scope {
+            self.scope_stack.pop();
+        }
+
+        result
+    }
+
+    /// Convert the [LoweringVisitor] into the bodies that have been generated.
     pub(crate) fn into_bodies(self) -> Vec<Body> {
         self.bodies
     }
@@ -175,10 +220,10 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
         &mut self,
         node: ast::AstNodeRef<ast::TraitImpl>,
     ) -> Result<Self::TraitImplRet, Self::Error> {
-        let old_block_origin = mem::replace(&mut self.current_block, BlockOrigin::Impl);
-        let _ = walk_mut_self::walk_trait_impl(self, node);
-        self.current_block = old_block_origin;
-        Ok(())
+        self.with_scope(node.id(), BlockOrigin::Impl, |this| {
+            let _ = walk_mut_self::walk_trait_impl(this, node);
+            Ok(())
+        })
     }
 
     type TraitDefRet = ();
@@ -187,10 +232,10 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
         &mut self,
         node: ast::AstNodeRef<ast::TraitDef>,
     ) -> Result<Self::TraitDefRet, Self::Error> {
-        let old_block_origin = mem::replace(&mut self.current_block, BlockOrigin::Trait);
-        let _ = walk_mut_self::walk_trait_def(self, node);
-        self.current_block = old_block_origin;
-        Ok(())
+        self.with_scope(node.id(), BlockOrigin::Trait, |this| {
+            let _ = walk_mut_self::walk_trait_def(this, node);
+            Ok(())
+        })
     }
 
     type FnDefRet = ();
@@ -221,6 +266,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
             binding.name,
             node.into(),
             self.source_id,
+            self.scope_stack.clone(),
             self.tcx,
             self.storage,
             self.source_map,
@@ -253,10 +299,10 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
         &mut self,
         node: ast::AstNodeRef<ast::ImplDef>,
     ) -> Result<Self::ImplDefRet, Self::Error> {
-        let old_block_origin = mem::replace(&mut self.current_block, BlockOrigin::Impl);
-        let _ = walk_mut_self::walk_impl_def(self, node);
-        self.current_block = old_block_origin;
-        Ok(())
+        self.with_scope(node.id(), BlockOrigin::Impl, |this| {
+            let _ = walk_mut_self::walk_impl_def(this, node);
+            Ok(())
+        })
     }
 
     type ModuleRet = ();
@@ -265,9 +311,10 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
         &mut self,
         node: ast::AstNodeRef<ast::Module>,
     ) -> Result<Self::ModuleRet, Self::Error> {
-        self.current_block = BlockOrigin::Root;
-        let _ = walk_mut_self::walk_module(self, node);
-        Ok(())
+        self.with_scope(node.id(), BlockOrigin::Root, |this| {
+            let _ = walk_mut_self::walk_module(this, node);
+            Ok(())
+        })
     }
 
     type ExprRet = ();
@@ -332,11 +379,10 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
         &mut self,
         node: ast::AstNodeRef<ast::BodyBlock>,
     ) -> Result<Self::BodyBlockRet, Self::Error> {
-        let old_block_origin = mem::replace(&mut self.current_block, BlockOrigin::Body);
-
-        let _ = walk_mut_self::walk_body_block(self, node);
-        self.current_block = old_block_origin;
-        Ok(())
+        self.with_scope(node.id(), BlockOrigin::Body, |this| {
+            let _ = walk_mut_self::walk_body_block(this, node);
+            Ok(())
+        })
     }
 
     type ModDefRet = ();
@@ -345,11 +391,10 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
         &mut self,
         node: ast::AstNodeRef<ast::ModDef>,
     ) -> Result<Self::ModDefRet, Self::Error> {
-        let old_block_origin = mem::replace(&mut self.current_block, BlockOrigin::Mod);
-        let _ = walk_mut_self::walk_mod_def(self, node);
-        self.current_block = old_block_origin;
-
-        Ok(())
+        self.with_scope(node.id(), BlockOrigin::Mod, |this| {
+            let _ = walk_mut_self::walk_mod_def(this, node);
+            Ok(())
+        })
     }
 
     ast_visitor_mut_self_default_impl!(
