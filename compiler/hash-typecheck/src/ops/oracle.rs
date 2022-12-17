@@ -169,7 +169,7 @@ impl<'tc> Oracle<'tc> {
         self.term_as_unit_def(term).is_some()
     }
 
-    /// If the term is a literal term.
+    /// If the term is an enum type.
     pub fn term_is_enum_def(&self, term: TermId) -> bool {
         self.term_as_enum_def(term).is_some()
     }
@@ -262,14 +262,14 @@ impl<'tc> Oracle<'tc> {
     pub fn get_enum_variant_info(&self, enum_variant: EnumVariantValue) -> EnumVariant {
         let dummy_term =
             || self.builder().create_term(Term::Level0(Level0Term::EnumVariant(enum_variant)));
-        match self.reader().get_nominal_def(enum_variant.enum_def_id) {
+        match self.reader().get_nominal_def(enum_variant.def_id) {
             NominalDef::Enum(enum_def) => {
-                *enum_def.variants.get(&enum_variant.variant_name).unwrap_or_else(|| {
+                *enum_def.variants.get(&enum_variant.name).unwrap_or_else(|| {
                     tc_panic!(
                         dummy_term(),
                         self,
                         "Enum variant name {} not found in enum def",
-                        enum_variant.variant_name
+                        enum_variant.name
                     )
                 })
             }

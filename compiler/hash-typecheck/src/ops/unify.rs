@@ -744,8 +744,8 @@ impl<'tc> Unifier<'tc> {
                         Level0Term::EnumVariant(src_enum_variant),
                         Level0Term::EnumVariant(target_enum_variant),
                     ) => {
-                        if src_enum_variant.enum_def_id == target_enum_variant.enum_def_id
-                            && src_enum_variant.variant_name == target_enum_variant.variant_name
+                        if src_enum_variant.def_id == target_enum_variant.def_id
+                            && src_enum_variant.name == target_enum_variant.name
                         {
                             // They are the same variant from the same enum:
                             Ok(Sub::empty())

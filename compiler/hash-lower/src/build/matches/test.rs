@@ -179,8 +179,8 @@ impl<'tcx> Builder<'tcx> {
             let span = self.span_of_pat(pair.pat);
 
             match pat {
-                Pat::Access(AccessPat { subject, .. }) => {
-                    let ty = self.ty_of_pat(*subject);
+                Pat::Access(AccessPat { .. }) => {
+                    let ty = self.ty_of_pat(pair.pat);
                     let (variant_count, adt) =
                         self.map_on_adt(ty, |adt, id| (adt.variants.len(), id));
 
@@ -285,7 +285,34 @@ impl<'tcx> Builder<'tcx> {
                     pair_index,
                     *adt,
                     variant_index,
-                    *args,
+                    Some(*args),
+                    candidate,
+                );
+
+                Some(variant_index)
+            }
+            // @@Todo: remove this branch since this is just for handling enumerations.
+            (TestKind::Switch { adt, .. }, Pat::Access(..) | Pat::Const(..)) => {
+                // If we are performing a variant switch, then this informs
+                // variant patterns, bu nothing else.
+                let test_adt = self.ty_of_pat(pair.pat);
+
+                let variant_index = self.map_on_adt(test_adt, |adt, _| {
+                    // If this is a struct, then we don't do anything
+                    // since we're expecting an enum. Although, this case shouldn't happen?
+                    if adt.flags.is_struct() {
+                        return None;
+                    }
+
+                    let pat_term = self.term_of_pat(pair.pat);
+                    Some(self.lower_enum_variant_ty(adt, pat_term))
+                })?;
+
+                self.candidate_after_variant_switch(
+                    pair_index,
+                    *adt,
+                    variant_index,
+                    None,
                     candidate,
                 );
 
@@ -459,12 +486,15 @@ impl<'tcx> Builder<'tcx> {
         );
     }
 
+    /// Perform a downcast on the given candidate, and adjust the candidate
+    /// sub-patterns if they exist on the variant. In principle, this means that
+    /// each sub-pattern now references the downcasted place of the enum.
     fn candidate_after_variant_switch(
         &mut self,
         pair_index: usize,
         adt: AdtId,
         variant_index: usize,
-        sub_patterns: PatArgsId,
+        sub_patterns: Option<PatArgsId>,
         candidate: &mut Candidate,
     ) {
         let pair = candidate.pairs.remove(pair_index);
@@ -473,28 +503,31 @@ impl<'tcx> Builder<'tcx> {
         // and add them to the candidate.
         let downcast_place = pair.place.downcast(variant_index);
 
-        let consequent_pairs: Vec<_> = self.storage.adt_store().map_fast(adt, |adt| {
-            let variant = &adt.variants[variant_index];
+        // Only deal with sub-patterns if they exist on the variant.
+        if let Some(sub_pats) = sub_patterns {
+            let consequent_pairs: Vec<_> = self.storage.adt_store().map_fast(adt, |adt| {
+                let variant = &adt.variants[variant_index];
 
-            self.tcx.pat_args_store.map_as_param_list_fast(sub_patterns, |pats| {
-                pats.positional()
-                    .iter()
-                    .enumerate()
-                    .map(|(index, arg)| {
-                        let field_index = match arg.name {
-                            Some(name) => variant.field_idx(name).unwrap(),
-                            _ => index,
-                        };
+                self.tcx.pat_args_store.map_as_param_list_fast(sub_pats, |pats| {
+                    pats.positional()
+                        .iter()
+                        .enumerate()
+                        .map(|(index, arg)| {
+                            let field_index = match arg.name {
+                                Some(name) => variant.field_idx(name).unwrap(),
+                                _ => index,
+                            };
 
-                        let place =
-                            downcast_place.clone_project(PlaceProjection::Field(field_index));
-                        MatchPair { place, pat: arg.pat }
-                    })
-                    .collect()
-            })
-        });
+                            let place =
+                                downcast_place.clone_project(PlaceProjection::Field(field_index));
+                            MatchPair { place, pat: arg.pat }
+                        })
+                        .collect()
+                })
+            });
 
-        candidate.pairs.extend(consequent_pairs);
+            candidate.pairs.extend(consequent_pairs);
+        }
     }
 
     /// This function is responsible for generating the code for the specified
@@ -550,13 +583,20 @@ impl<'tcx> Builder<'tcx> {
                 // switch statement.
                 let discriminant_tmp = self.temp_place(discriminant_ty);
                 let value = self.storage.push_rvalue(RValue::Discriminant(place));
-                self.control_flow_graph.push_assign(block, discriminant_tmp, value, subject_span);
+                self.control_flow_graph.push_assign(
+                    block,
+                    discriminant_tmp.clone(),
+                    value,
+                    subject_span,
+                );
+
+                let switch_value = self.storage.push_rvalue(RValue::Use(discriminant_tmp));
 
                 // then terminate this block with the `switch` terminator
                 self.control_flow_graph.terminate(
                     block,
                     span,
-                    TerminatorKind::Switch { value, targets },
+                    TerminatorKind::Switch { value: switch_value, targets },
                 );
             }
             TestKind::SwitchInt { ty, ref options } => {
@@ -760,10 +800,10 @@ impl<'tcx> Builder<'tcx> {
                 // @@Todo: when we switch over to the knew pattern representation, it
                 //         should be a lot easier to deduce which variant is being specified
                 //         here.
-                Pat::Access(AccessPat { subject, property }) => {
+                Pat::Access(AccessPat { property, .. }) => {
                     // Get the type of the subject, and then compute the
                     // variant index of the property.
-                    let ty = self.ty_of_pat(*subject);
+                    let ty = self.ty_of_pat(match_pair.pat);
 
                     self.map_on_adt(ty, |adt, _| {
                         let variant_index = adt.variant_idx(property).unwrap();

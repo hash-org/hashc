@@ -736,8 +736,8 @@ impl fmt::Display for ForFormatting<'_, &Level0Term> {
                 write!(
                     f,
                     "{}::{}",
-                    enum_variant.enum_def_id.for_formatting(self.global_storage),
-                    enum_variant.variant_name,
+                    enum_variant.def_id.for_formatting(self.global_storage),
+                    enum_variant.name,
                 )
             }
             Level0Term::FnCall(fn_call) => {

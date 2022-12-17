@@ -1,8 +1,9 @@
 //! Hash Compiler filesystem utility functions.
 use std::{
+    env,
     fmt::Display,
     fs,
-    path::{Path, PathBuf},
+    path::{self, Path, PathBuf},
 };
 
 use hash_reporting::report::{Report, ReportKind};
@@ -10,10 +11,11 @@ use hash_source::constant::{InternedStr, CONSTANT_MAP};
 
 /// The location of a build directory of this package, this used to resolve
 /// where the standard library is located at.
-static STDLIB: &str = env!("STDLIB_PATH");
+const STDLIB: &str = env!("STDLIB_PATH");
 
-/// Name of the prelude module
-pub static PRELUDE: &str = concat!(env!("STDLIB_PATH"), "/", "prelude");
+/// The path to the prelude module
+pub const PRELUDE: &str =
+    const_format::formatcp!("{}{}prelude", env!("STDLIB_PATH"), path::MAIN_SEPARATOR);
 
 #[derive(Debug, Clone)]
 pub enum ImportErrorKind {

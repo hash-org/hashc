@@ -825,7 +825,17 @@ impl<'tc> PatMatcher<'tc> {
                 let term = self.builder().create_ns_access(subject_term, property);
 
                 match self.unifier().unify_terms(term, simplified_term_id) {
-                    Ok(_) => Ok(Some(vec![])),
+                    Ok(_) => {
+                        // If this is successful, we want to register a type on this pattern
+                        // so that it can be queried at later stages.
+                        if let Some(id) = self.node_info_store().pat_to_node_id(pat_id) {
+                            let simplified_term =
+                                self.simplifier().potentially_simplify_term(term)?;
+                            self.node_info_store().update_or_insert(id, simplified_term.into());
+                        }
+
+                        Ok(Some(vec![]))
+                    }
                     Err(_) => Ok(None),
                 }
             }

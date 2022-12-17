@@ -103,7 +103,7 @@ impl<'tc> ScopeManager<'tc> {
                     self,
                     "Bound var {} not found in current context",
                     bound_var.name
-                );
+                )
             }
         }
     }

@@ -161,7 +161,7 @@ impl<I: CompilerInterface> Compiler<I> {
             // The prelude shouldn't generate any errors, otherwise we just failed to
             // bootstrap
             if ctx.diagnostics().iter().any(|r| r.is_error()) {
-                panic!("Failed to bootstrap compiler");
+                panic!("failed to bootstrap compiler");
             }
         }
 

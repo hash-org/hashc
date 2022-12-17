@@ -6,7 +6,7 @@ use hash_ast::ast::{ParamOrigin, RangeEnd};
 use hash_source::constant::{IntConstant, IntConstantValue, CONSTANT_MAP};
 use hash_types::{
     mods::ModDef,
-    nominals::{NominalDef, StructFields},
+    nominals::{EnumVariantValue, NominalDef, StructFields},
     params::ParamsId,
     pats::{
         AccessPat, ConstPat, ConstructorPat, IfPat, ListPat, ModPat, Pat, PatArg, PatArgsId, PatId,
@@ -14,7 +14,7 @@ use hash_types::{
     },
     terms::{Level0Term, Level1Term, LitTerm, Term, TermId, TupleTy},
 };
-use hash_utils::store::Store;
+use hash_utils::store::{SequenceStore, Store};
 use if_chain::if_chain;
 use itertools::Itertools;
 use smallvec::SmallVec;
@@ -112,18 +112,23 @@ impl<'tc> LowerPatOps<'tc> {
 
                 (DeconstructedCtor::Single, scope_members)
             }
-            // Since the type is already resolved, we just need to traverse down to
-            // the `Pat::Const`, and then we perform the lowering based on the type.
-            Pat::Access(AccessPat { subject, .. }) => return self.deconstruct_pat(ty, subject),
+
+            // A `access` is either going to be
+            Pat::Access(AccessPat { subject, .. }) => {
+                let pat_ty = self.typer().get_term_of_pat(pat_id).unwrap();
+
+                match self.maybe_construct_variant(pat_ty) {
+                    Some(variant) => (variant, vec![]),
+                    None => return self.deconstruct_pat(ty, subject),
+                }
+            }
             // This is essentially a simplification to some unit nominal definition like
             // for example `None`..., here we need to be able to get the `type` of the
             // actual pattern in order to figure out which
-            Pat::Const(_) => {
-                // @@EnumToUnion: when enums aren't a thing, do this with a union and create a
-                // `DeconstructedCtor::Variant(idx)` where `idx` is the union member number
-
-                (DeconstructedCtor::Wildcard, vec![])
-            }
+            Pat::Const(ConstPat { term }) => match self.maybe_construct_variant(term) {
+                Some(variant) => (variant, vec![]),
+                None => (DeconstructedCtor::Wildcard, vec![]),
+            },
             Pat::Range(range) => {
                 let range = self.lower_pat_range(ty, range);
                 (DeconstructedCtor::IntRange(range), vec![])
@@ -178,51 +183,61 @@ impl<'tc> LowerPatOps<'tc> {
                 }
             }
             Pat::Constructor(ConstructorPat { args, .. }) => {
-                match reader.get_term(ty) {
-                    Term::Level1(Level1Term::NominalDef(nominal_def)) => {
-                        // @@Todo: deal with variants
-                        match reader.get_nominal_def(nominal_def) {
-                            NominalDef::Struct(struct_def) => match struct_def.fields {
-                                StructFields::Explicit(members) => {
-                                    // Lower the fields by resolving what positions the actual
-                                    // fields are
-                                    // with the reference of the constructor's type...
-                                    let fields =
-                                        self.pat_lowerer().deconstruct_pat_fields(args, members);
+                reader.term_store().map_fast(ty, |term| {
+                    match term {
+                        Term::Level1(Level1Term::NominalDef(nominal_def)) => {
+                            let lower_constructor_args = |params: ParamsId| {
+                                // Lower the fields by resolving what positions the
+                                // actual fields are with the reference of the
+                                // constructor's type...
+                                let fields =
+                                    self.pat_lowerer().deconstruct_pat_fields(args, params);
 
-                                    let args = reader.get_params_owned(members);
-                                    let tys = args.positional().iter().map(|param| param.ty);
+                                let args = reader.get_params_owned(params);
+                                let tys = args.positional().iter().map(|param| param.ty);
 
-                                    let mut wilds: SmallVec<[_; 2]> = tys
-                                        .map(|ty| self.deconstruct_pat_ops().wildcard(ty))
-                                        .collect();
+                                let mut wilds: SmallVec<[_; 2]> =
+                                    tys.map(|ty| self.deconstruct_pat_ops().wildcard(ty)).collect();
 
-                                    // For each provided field, we want to recurse and lower the
-                                    // pattern further
-                                    for field in fields {
-                                        wilds[field.index] =
-                                            self.deconstruct_pat(wilds[field.index].ty, field.pat);
+                                // For each provided field, we want to recurse and lower
+                                // the pattern further
+                                for field in fields {
+                                    wilds[field.index] =
+                                        self.deconstruct_pat(wilds[field.index].ty, field.pat);
+                                }
+
+                                wilds.to_vec()
+                            };
+
+                            reader.nominal_def_store().map_fast(*nominal_def, |def| {
+                                match def {
+                                    NominalDef::Struct(struct_def) => match struct_def.fields {
+                                        StructFields::Explicit(members) => (
+                                            DeconstructedCtor::Single,
+                                            lower_constructor_args(members),
+                                        ),
+                                        StructFields::Opaque => {
+                                            panic!("got unexpected opaque struct-def here")
+                                        }
+                                    },
+                                    NominalDef::Unit(_) => (DeconstructedCtor::Single, vec![]),
+                                    NominalDef::Enum(_) => {
+                                        // @@Todo: We need to deduce the variant index from the type
+                                        // of the pattern?
+                                        todo!()
                                     }
-
-                                    (DeconstructedCtor::Single, wilds.to_vec())
                                 }
-                                StructFields::Opaque => {
-                                    panic!("got unexpected opaque struct-def here")
-                                }
-                            },
-                            NominalDef::Unit(_) => (DeconstructedCtor::Single, vec![]),
-                            // @@EnumToUnion: when enums aren't a thing, do this with a union
-                            NominalDef::Enum(_) => unreachable!(),
+                            })
                         }
+                        _ => tc_panic!(
+                            ty,
+                            self,
+                            "unexpected ty `{}` when deconstructing pattern {:?}",
+                            self.for_fmt(ty),
+                            pat
+                        ),
                     }
-                    _ => tc_panic!(
-                        ty,
-                        self,
-                        "Unexpected ty `{}` when deconstructing pattern {:?}",
-                        self.for_fmt(ty),
-                        pat
-                    ),
-                }
+                })
             }
             Pat::List(ListPat { element_pats: inner, .. }) => {
                 let mut prefix = vec![];
@@ -302,132 +317,179 @@ impl<'tc> LowerPatOps<'tc> {
     // Convert a [DeconstructedPat] into a [Pat].
     pub(crate) fn construct_pat(&self, pat: DeconstructedPatId) -> PatId {
         let reader = self.reader();
-        let pat = reader.get_deconstructed_pat(pat);
+        let deconstructed_store = reader.deconstructed_pat_store();
+        let ctor_store = reader.constructor_store();
 
-        // Short-circuit, if the pattern already has an associated `PatId`...
-        if pat.id.is_some() {
-            return pat.id.unwrap();
-        }
+        deconstructed_store.map_fast(pat, |deconstructed| {
+            let DeconstructedPat {ty, fields, ..} = deconstructed;
 
-        let ctor = reader.get_deconstructed_ctor(pat.ctor);
+            // Short-circuit, if the pattern already has an associated `PatId`...
+            if deconstructed.id.is_some() {
+                return deconstructed.id.unwrap();
+            }
 
-        // Build the pattern based from the constructor and the fields...
-        let pat = match ctor {
-            DeconstructedCtor::Single | DeconstructedCtor::Variant(_) => {
-                let reader = self.reader();
-
-                match reader.get_term(pat.ty) {
-                    Term::Level1(Level1Term::Tuple(_)) => {
-                        let children = pat
-                            .fields
-                            .iter_patterns()
-                            .map(|p| PatArg {
-                                name: None,
-                                pat: self.construct_pat(p)
-                            })
-                            .collect_vec();
-
-                        let args = self.builder().create_pat_args(children, ParamOrigin::Tuple);
-                        Pat::Tuple(args)
-                    }
-                    Term::Level1(Level1Term::NominalDef(nom_def)) => {
-                        match reader.get_nominal_def(nom_def) {
-                            NominalDef::Struct(struct_def) => {
-                                let tys = match struct_def.fields {
-                                    StructFields::Explicit(fields) => {
-                                        reader.get_params_owned(fields)
-                                    },
-                                    StructFields::Opaque => unreachable!(),
-                                };
-
-                                // Construct the inner arguments to the constructor by iterating over the
-                                // pattern fields within the pattern. If possible, lookup the name of the
-                                // field by using the nominal definition attached to the pattern.
-                                let children = pat.fields.iter_patterns().enumerate()
-                                    .filter(|(_, p)| {
-                                        !reader.get_deconstructed_pat_ctor(*p).is_wildcard()
+            ctor_store.map_fast(deconstructed.ctor, |ctor| {
+                let pat = match ctor {
+                    DeconstructedCtor::Single | DeconstructedCtor::Variant(_) => {
+                        match reader.get_term(*ty) {
+                            Term::Level1(Level1Term::Tuple(_)) => {
+                                let children =
+                                    fields
+                                    .iter_patterns()
+                                    .map(|p| PatArg {
+                                        name: None,
+                                        pat: self.construct_pat(p)
                                     })
-                                    .map(|(index, p)| {
-                                        PatArg {
-                                            name: tys.positional().get(index).and_then(|param| param.name),
-                                            pat: self.construct_pat(p)
-                                        }
-                                    }).collect_vec();
-
-                                // We collapse all fields that are specified as `wildcards` within
-                                // these construct patterns in order to represent them visually in a clearer
-                                // way. If a construct has 20 fields that 18 are specified as wildcards, and the
-                                // rest have user specified patterns, then we only want to print those and the
-                                // rest is denoted as `...`.
-                                let args = if pat.fields.len() != children.len() {
-                                    let dummy = Pat::Spread(SpreadPat { name: None  });
-                                    let arg = PatArg { pat: self.pat_store().create(dummy), name: None };
-
-                                    self.builder().create_pat_args(children.into_iter().chain(once(arg)), ParamOrigin::ListPat)
-                                }  else {
-                                    self.builder().create_pat_args(children, ParamOrigin::ListPat)
-                                };
-
-                                Pat::Constructor(ConstructorPat { subject: pat.ty, args })
-                            },
-                            NominalDef::Unit(_) => {
-                                Pat::Const(ConstPat { term: self.builder().create_unit_term(nom_def) })
+                                    .collect_vec();
+                                let args = self.builder().create_pat_args(children, ParamOrigin::Tuple);
+                                Pat::Tuple(args)
                             }
-                            NominalDef::Enum(_) => unreachable!(),
+                            Term::Level1(Level1Term::NominalDef(def_id)) => {
+                                reader.nominal_def_store().map_fast(def_id, |def| {
+                                    match def {
+                                        NominalDef::Struct(struct_def) => {
+                                            let params = match struct_def.fields {
+                                                StructFields::Explicit(fields) => fields,
+                                                StructFields::Opaque => unreachable!(),
+                                            };
+                                            let args = self.construct_pat_args(fields, params);
+                                            Pat::Constructor(ConstructorPat { subject: *ty, args })
+                                        },
+                                        NominalDef::Unit(_) => {
+                                            Pat::Const(ConstPat { term: self.builder().create_unit_term(def_id) })
+                                        }
+                                        NominalDef::Enum(enum_def) => {
+                                            let variant_idx = match ctor {
+                                                DeconstructedCtor::Variant(idx) => *idx,
+                                                _ => 0,
+                                            };
+
+                                            let variant = enum_def.get_variant_by_idx(variant_idx).unwrap();
+
+                                            // If the variant has no fields, then we can just return a `ConstPat` with the
+                                            // variant's name, and the definition id of the enum.
+                                            match variant.fields {
+                                                Some(params) => {
+                                                    let args = self.construct_pat_args(fields, params);
+                                                    Pat::Constructor(ConstructorPat { subject: *ty, args })
+                                                }
+                                                None => Pat::Const(ConstPat { term: self.builder().create_enum_variant_value_term(variant.name, def_id)})
+                                            }
+                                        },
+                                    }
+                                })
+                            }
+                            _ => tc_panic!(
+                                ty,
+                                self,
+                                "Unexpected ty `{}` when converting to pattern",
+                                self.for_fmt(*ty),
+                            ),
                         }
-
                     }
-                    _ => tc_panic!(
-                        pat.ty,
-                        self,
-                        "Unexpected ty `{}` when converting to pattern",
-                        self.for_fmt(pat.ty),
+                    DeconstructedCtor::IntRange(range) => self.construct_pat_from_range(*ty, *range),
+                    DeconstructedCtor::Str(_) => Pat::Lit(*ty),
+                    DeconstructedCtor::List(List { kind }) => {
+                        let mut children = fields.iter_patterns().map(|p| PatArg { pat: self.construct_pat(p), name: None });
+
+                        match kind {
+                            ListKind::Fixed(_) => {
+                                let inner_term = self.oracle().term_as_list_ty(*ty).unwrap();
+
+                                let inner = self.builder().create_pat_args(children, ParamOrigin::ListPat);
+                                Pat::List(ListPat { list_element_ty: inner_term, element_pats: inner })
+                            }
+                            #[allow(clippy::needless_collect)]
+                            ListKind::Var(prefix, _) => {
+                                // build the prefix and suffix components
+                                let prefix: Vec<_> = children.by_ref().take(*prefix).collect();
+                                let suffix: Vec<_> = children.collect();
+
+                                // Create the `spread` dummy pattern
+                                let dummy = Pat::Spread(SpreadPat { name: None });
+                                let spread = PatArg { pat: self.pat_store().create(dummy), name: None };
+
+                                // Now create an inner collection of patterns with the inserted
+                                // spread pattern
+                                let inner = prefix.into_iter().chain(once(spread)).chain(suffix);
+                                let term = self.oracle().term_as_list_ty(*ty).unwrap();
+
+                                let elements = self.builder().create_pat_args(inner, ParamOrigin::ListPat);
+                                Pat::List(ListPat { list_element_ty: term, element_pats: elements })
+                            }
+                        }
+                    }
+                    DeconstructedCtor::Wildcard | DeconstructedCtor::NonExhaustive => Pat::Wild,
+                    DeconstructedCtor::Or => {
+                        panic!("cannot convert an `or` deconstructed pat back into pat")
+                    }
+                    DeconstructedCtor::Missing => panic!(
+                        "trying to convert a `Missing` constructor into a `Pat`; this is probably a bug, `Missing` should have been processed in `apply_ctors`"
                     ),
+                };
+                // Now put the pat on the store and return it
+                self.pat_store().create(pat)
+            })
+        })
+    }
+
+    /// Create a [DeconstructedCtor] from a provided [TermId] that is an
+    /// underlying enum variant. If the term is not a variant, then we don't
+    /// attempt to create a variant.
+    fn maybe_construct_variant(&self, term: TermId) -> Option<DeconstructedCtor> {
+        self.reader().term_store().map_fast(term, |term| {
+            match term {
+                Term::Level0(Level0Term::EnumVariant(EnumVariantValue { def_id, name })) => {
+                    self.reader().nominal_def_store().map_fast(*def_id, |def| {
+                        let NominalDef::Enum(enum_def) = def else {
+                            unreachable!()
+                        };
+
+                        let variant_idx = enum_def.get_variant_idx(name).unwrap();
+
+                        // We don't care about the fields here, since a `Pat::Const` will
+                        // not have any fields on it ever.
+                        Some(DeconstructedCtor::Variant(variant_idx))
+                    })
                 }
+                _ => None,
             }
-            DeconstructedCtor::IntRange(range) => self.construct_pat_from_range(pat.ty, range),
-            DeconstructedCtor::Str(_) => Pat::Lit(pat.ty),
-            DeconstructedCtor::List(List { kind }) => {
-                let mut children = pat.fields.iter_patterns().map(|p| PatArg { pat: self.construct_pat(p), name: None });
+        })
+    }
 
-                match kind {
-                    ListKind::Fixed(_) => {
-                        let inner_term = self.oracle().term_as_list_ty(pat.ty).unwrap();
+    /// Construct pattern arguments from provided [ParamsId].
+    fn construct_pat_args(&self, fields: &Fields, params: ParamsId) -> PatArgsId {
+        let reader = self.reader();
 
-                        let inner = self.builder().create_pat_args(children, ParamOrigin::ListPat);
-                        Pat::List(ListPat { list_element_ty: inner_term, element_pats: inner })
-                    }
-                    #[allow(clippy::needless_collect)]
-                    ListKind::Var(prefix, _) => {
-                        // build the prefix and suffix components
-                        let prefix: Vec<_> = children.by_ref().take(prefix).collect();
-                        let suffix: Vec<_> = children.collect();
+        // Construct the inner arguments to the constructor by iterating over the
+        // pattern fields within the pattern. If possible, lookup the name of the
+        // field by using the nominal definition attached to the pattern.
+        let children = reader.params_store().map_fast(params, |tys| {
+            fields
+                .iter_patterns()
+                .enumerate()
+                .filter(|(_, p)| !reader.get_deconstructed_pat_ctor(*p).is_wildcard())
+                .map(|(index, p)| PatArg {
+                    name: tys.get(index).and_then(|param| param.name),
+                    pat: self.construct_pat(p),
+                })
+                .collect_vec()
+        });
 
-                        // Create the `spread` dummy pattern
-                        let dummy = Pat::Spread(SpreadPat { name: None });
-                        let spread = PatArg { pat: self.pat_store().create(dummy), name: None };
+        // We collapse all fields that are specified as `wildcards` within
+        // these construct patterns in order to represent them visually in a clearer
+        // way. If a construct has 20 fields that 18 are specified as wildcards, and the
+        // rest have user specified patterns, then we only want to print those and the
+        // rest is denoted as `...`.
+        if fields.len() != children.len() {
+            let dummy = Pat::Spread(SpreadPat { name: None });
+            let arg = PatArg { pat: self.pat_store().create(dummy), name: None };
 
-                        // Now create an inner collection of patterns with the inserted
-                        // spread pattern
-                        let inner = prefix.into_iter().chain(once(spread)).chain(suffix);
-                        let term = self.oracle().term_as_list_ty(pat.ty).unwrap();
-
-                        let elements = self.builder().create_pat_args(inner, ParamOrigin::ListPat);
-                        Pat::List(ListPat { list_element_ty: term, element_pats: elements })
-                    }
-                }
-            }
-            DeconstructedCtor::Wildcard | DeconstructedCtor::NonExhaustive => Pat::Wild,
-            DeconstructedCtor::Or => {
-                panic!("cannot convert an `or` deconstructed pat back into pat")
-            }
-            DeconstructedCtor::Missing => panic!(
-                "trying to convert a `Missing` constructor into a `Pat`; this is probably a bug, `Missing` should have been processed in `apply_ctors`"
-            ),
-        };
-
-        // Now put the pat on the store and return it
-        self.pat_store().create(pat)
+            self.builder()
+                .create_pat_args(children.into_iter().chain(once(arg)), ParamOrigin::ConstructorPat)
+        } else {
+            self.builder().create_pat_args(children, ParamOrigin::ConstructorPat)
+        }
     }
 
     /// Lower a [RangePat] into [IntRange]. This function expects that

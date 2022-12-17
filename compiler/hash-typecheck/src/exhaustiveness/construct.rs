@@ -34,7 +34,7 @@ use hash_types::{
     nominals::{NominalDef, StructFields},
     terms::{Level1Term, Term, TupleTy},
 };
-use hash_utils::store::{CloneStore, Store};
+use hash_utils::store::{CloneStore, SequenceStoreKey, Store};
 use smallvec::{smallvec, SmallVec};
 
 use super::{
@@ -125,10 +125,8 @@ impl<'tc> ConstructorOps<'tc> {
 
     /// Compute the `arity` of this [DeconstructedCtor].
     pub(crate) fn arity(&self, ctx: PatCtx, ctor: DeconstructedCtorId) -> usize {
-        let reader = self.reader();
-
-        match reader.get_deconstructed_ctor(ctor) {
-            DeconstructedCtor::Single | DeconstructedCtor::Variant(_) => {
+        match self.reader().get_deconstructed_ctor(ctor) {
+            ctor @ (DeconstructedCtor::Single | DeconstructedCtor::Variant(_)) => {
                 // we need to get term from the context here...
                 //
                 // if it a tuple, get the length and that is the arity
@@ -136,22 +134,28 @@ impl<'tc> ConstructorOps<'tc> {
                 // we can count the fields from that variant or struct.
                 let reader = self.reader();
 
-                match reader.get_term(ctx.ty) {
-                    Term::Level1(Level1Term::Tuple(TupleTy { members })) => {
-                        reader.get_params_owned(members).len()
-                    }
+                // We need to extract the variant index from the constructor
+                let variant_idx = match ctor {
+                    DeconstructedCtor::Single => 0,
+                    DeconstructedCtor::Variant(idx) => idx,
+                    _ => unreachable!(),
+                };
+
+                reader.term_store().map_fast(ctx.ty, |ty| match ty {
+                    Term::Level1(Level1Term::Tuple(TupleTy { members })) => members.len(),
                     Term::Level1(Level1Term::NominalDef(def)) => {
-                        match reader.get_nominal_def(def) {
+                        reader.nominal_def_store().map_fast(*def, |def| match def {
                             NominalDef::Struct(struct_def) => match struct_def.fields {
-                                StructFields::Explicit(params) => {
-                                    reader.get_params_owned(params).len()
-                                }
+                                StructFields::Explicit(params) => params.len(),
                                 StructFields::Opaque => 0,
                             },
                             NominalDef::Unit(_) => 0,
-                            // @@EnumToUnion: remove this
-                            NominalDef::Enum(_) => unreachable!(),
-                        }
+                            NominalDef::Enum(enum_def) => enum_def
+                                .get_variant_by_idx(variant_idx)
+                                .unwrap()
+                                .fields
+                                .map_or(0, |fields| fields.len()),
+                        })
                     }
                     _ => tc_panic!(
                         ctx.ty,
@@ -159,7 +163,7 @@ impl<'tc> ConstructorOps<'tc> {
                         "Unexpected ty `{}` when computing arity",
                         self.for_fmt(ctx.ty),
                     ),
-                }
+                })
             }
             DeconstructedCtor::List(list) => list.arity(),
             DeconstructedCtor::IntRange(_)
