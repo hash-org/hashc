@@ -1927,6 +1927,23 @@ define_tree! {
         UnaryExpr(UnaryExpr),
     }
 
+    impl Expr {
+        pub fn is_def(&self) -> bool {
+            matches!(self,
+                Expr::Ty(_) |
+                Expr::Import(_) |
+                Expr::StructDef(_) |
+                Expr::EnumDef(_) |
+                Expr::TyFnDef(_) |
+                Expr::TraitDef(_) |
+                Expr::TraitImpl(_) |
+                Expr::ImplDef(_) |
+                Expr::ModDef(_) |
+                Expr::MergeDeclaration(_) |
+                Expr::FnDef(_))
+        }
+    }
+
     /// A module.
     ///
     /// Represents a parsed `.hash` file.

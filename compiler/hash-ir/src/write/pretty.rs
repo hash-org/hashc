@@ -6,7 +6,7 @@ use hash_source::SourceMap;
 
 use super::WriteIr;
 use crate::{
-    ir::{BasicBlock, Body},
+    ir::{BasicBlock, Body, BodySource},
     IrStorage,
 };
 
@@ -29,32 +29,58 @@ impl<'ir> IrBodyWriter<'ir> {
         Self { ctx, body }
     }
 
-    fn write_body(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}(", self.body.info().name)?;
-
+    /// Function to deal with a [Body] header which is formatted depending on
+    /// the [BodySource] of the [Body]. For function items, the format mimics
+    /// a function declaration:
+    /// ```ignore
+    /// foo(_0: i32, _1: i32) -> i32 {
+    ///    ...
+    /// }
+    /// ```
+    /// and for constants:
+    /// ```ignore
+    /// const foo {
+    ///    ...
+    /// }
+    /// ```
+    fn write_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut declarations = self.body.declarations.iter();
 
         // return_type declaration, this is always located at `0`
         let return_ty_decl = declarations.next().unwrap();
 
-        for (i, param) in declarations.take(self.body.arg_count).enumerate() {
-            if i > 0 {
-                write!(f, ", ")?;
+        match self.body.info().source() {
+            BodySource::Item | BodySource::Intrinsic => {
+                write!(f, "{}(", self.body.info().name)?;
+
+                for (i, param) in declarations.take(self.body.arg_count).enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+
+                    // We add 1 to the index because the return type is always
+                    // located at `0`.
+                    write!(f, "_{}: {}", i + 1, param.ty().for_fmt(self.ctx))?;
+                }
+                writeln!(f, ") -> {} {{", return_ty_decl.ty().for_fmt(self.ctx))?;
             }
-
-            // We add 1 to the index because the return type is always
-            // located at `0`.
-            write!(f, "_{}: {}", i + 1, param.ty().for_fmt(self.ctx))?;
+            BodySource::Const => {
+                writeln!(f, "const {} {{", self.body.info().name)?;
+            }
         }
-        writeln!(f, ") -> {} {{", return_ty_decl.ty().for_fmt(self.ctx))?;
 
-        // Print all of the declarations within the function
+        // Print the return place declaration
         writeln!(
             f,
             "    {}_0: {};",
             return_ty_decl.mutability(),
             return_ty_decl.ty().for_fmt(self.ctx)
-        )?;
+        )
+    }
+
+    /// Write the body to the given formatter.
+    fn write_body(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.write_header(f)?;
 
         let declarations = self.body.declarations.iter_enumerated();
         let offset = 1 + self.body.arg_count;
@@ -125,8 +151,8 @@ pub fn dump_ir_bodies(
 
         println!(
             "IR dump for {} `{}` defined at {}\n{}",
-            body.source(),
-            body.info().name,
+            body.info().source(),
+            body.info().name(),
             source_map.fmt_location(body.location()),
             IrBodyWriter::new(storage, body)
         );

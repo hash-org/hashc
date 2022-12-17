@@ -846,9 +846,6 @@ pub struct Body {
     /// Number of arguments to the function
     pub arg_count: usize,
 
-    /// The source of the function, is it a normal function, or an intrinsic
-    source: BodySource,
-
     /// The location of the function
     span: Span,
 
@@ -868,11 +865,10 @@ impl Body {
         declarations: IndexVec<Local, LocalDecl>,
         info: BodyInfo,
         arg_count: usize,
-        source: BodySource,
         span: Span,
         source_id: SourceId,
     ) -> Self {
-        Self { blocks, info, declarations, arg_count, source, span, source_id, dump: false }
+        Self { blocks, info, declarations, arg_count, span, source_id, dump: false }
     }
 
     /// Set the `dump` flag to `true` so that the IR Body that is generated
@@ -891,11 +887,6 @@ impl Body {
         SourceLocation { id: self.source_id, span: self.span }
     }
 
-    /// Get the [BodySource] for the [Body]
-    pub fn source(&self) -> BodySource {
-        self.source
-    }
-
     /// Get the [BodyInfo] for the [Body]
     pub fn info(&self) -> &BodyInfo {
         &self.info
@@ -912,7 +903,12 @@ impl Body {
 /// are wrapped in a [Option], however any access method on the field
 /// **expects** that the value was computed.
 pub struct BodyInfo {
+    /// The name of the body that was lowered. This is determined from the
+    /// beginning of the lowering process.
     pub name: Identifier,
+
+    /// The source of the body that was lowered, either an item, or a constant.
+    pub source: BodySource,
 
     /// The type of the body that was lowered
     ty: Option<IrTyId>,
@@ -920,8 +916,8 @@ pub struct BodyInfo {
 
 impl BodyInfo {
     /// Create a new [BodyInfo] with the given `name`.
-    pub fn new(name: Identifier) -> Self {
-        Self { name, ty: None }
+    pub fn new(name: Identifier, source: BodySource) -> Self {
+        Self { name, ty: None, source }
     }
 
     /// Set the type of the body that was lowered.
@@ -937,6 +933,11 @@ impl BodyInfo {
     /// Get the name of the body that was lowered.
     pub fn name(&self) -> Identifier {
         self.name
+    }
+
+    /// Get the [BodySource] for [Body] that was lowered.
+    pub fn source(&self) -> BodySource {
+        self.source
     }
 }
 

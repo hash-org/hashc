@@ -4,6 +4,7 @@ use hash_ir::{
     ty::{IrTy, Mutability},
 };
 use hash_source::location::Span;
+use hash_types::scope::ScopeKind;
 use hash_utils::store::Store;
 
 use super::{category::Category, unpack, BlockAnd, BlockAndExtend, Builder};
@@ -108,6 +109,25 @@ impl<'tcx> Builder<'tcx> {
         expr: AstNodeRef<'tcx, Expr>,
         mutability: Mutability,
     ) -> BlockAnd<RValueId> {
+        // We want to deal with variables in a special way since they might
+        // be referencing values that are outside of the the body, i.e. un-evaluated
+        // constants. In this case, we want to just create a constant value that is
+        // yet to be evaluated.
+        //
+        // @@Future: would be nice to remove this particular check and somehow deal with
+        // these differently, possibly some kind of additional syntax or a flag to
+        // denote when some variable refers to a constant value.
+        if let Expr::Variable(variable) = expr.body {
+            let name = variable.name.ident;
+
+            if let Some((scope, _, kind)) = self.lookup_item_scope(name) && kind != ScopeKind::Variable {
+                let rvalue = RValue::Const(ConstKind::Unevaluated { scope, name });
+                let rvalue_id = self.storage.rvalue_store().create(rvalue);
+
+                return block.and(rvalue_id);
+            }
+        }
+
         match Category::of(expr) {
             // Just directly recurse and create the constant.
             Category::Constant => self.as_rvalue(block, expr),
