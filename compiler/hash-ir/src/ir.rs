@@ -398,9 +398,9 @@ impl Place {
 /// structure be it a tuple, array, struct, etc.
 ///
 /// @@Todo: decide whether to keep this, or to stick with just immediately
-///         lowering items as setting values for each field within the aggregate
-///         data structure (as it). If we stick with initially generating
-/// aggregates,         then we will have to de-aggregate them before lowering
+/// lowering items as setting values for each field within the aggregate
+/// data structure (as it). If we stick with initially generating
+/// aggregates, then we will have to de-aggregate them before lowering
 /// to bytecode/llvm.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum AggregateKind {
