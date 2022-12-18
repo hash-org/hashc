@@ -4,10 +4,10 @@
 //! each basic block, and stores a cache on various traversal orders
 //! of the stored basic blocks.
 
-use std::cell::OnceCell;
+use std::{cell::OnceCell, fmt};
 
 use index_vec::IndexVec;
-use smallvec::SmallVec;
+use smallvec::{smallvec, SmallVec};
 
 use crate::ir::{BasicBlock, BasicBlockData};
 
@@ -24,10 +24,38 @@ pub struct BasicBlocks {
     predecessor_cache: PredecessorCache,
 }
 
+impl fmt::Debug for BasicBlocks {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (id, block) in self.blocks.iter_enumerated() {
+            write!(f, "{id:?}")?;
+
+            if let Some(terminator) = &block.terminator {
+                writeln!(f, " -> {terminator:?}")?;
+            } else {
+                writeln!(f, " -> <none>")?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
 impl BasicBlocks {
     /// Creates a new instance of [BasicBlocks].
     pub fn new(blocks: IndexVec<BasicBlock, BasicBlockData>) -> Self {
         Self { blocks, predecessor_cache: PredecessorCache::new() }
+    }
+
+    /// Check if the block count is zero.
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.blocks.is_empty()
+    }
+
+    /// Get the length of the basic blocks.
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.blocks.len()
     }
 
     /// Get a mutable reference to the stored basic blocks. This does not
@@ -43,13 +71,25 @@ impl BasicBlocks {
     /// required.
     #[inline]
     pub fn blocks_mut(&mut self) -> &mut IndexVec<BasicBlock, BasicBlockData> {
+        // clear the cache
+        self.clear_cache();
+
         &mut self.blocks
     }
 
     /// Compute the predecessors of a basic block, or return the cached
     /// value if it has already been computed.
-    pub fn predecessors_of(&self, block: BasicBlock) -> &[BasicBlock] {
-        self.predecessor_cache.compute(&self.blocks)[block].as_slice()
+    pub fn predecessors_of(&self, block: BasicBlock) -> SmallVec<[BasicBlock; 4]> {
+        self.predecessor_cache.compute(&self.blocks)[block].clone()
+    }
+
+    pub fn clear_cache(&mut self) {
+        self.predecessor_cache.invalidate();
+    }
+
+    /// Invalidate cache for a specific [BasicBlock].
+    pub fn invalidate_cache_for(&mut self, block: BasicBlock) {
+        self.predecessor_cache.cache.get_mut().unwrap()[block].clear();
     }
 }
 
@@ -69,11 +109,21 @@ impl PredecessorCache {
         Self { cache: OnceCell::new() }
     }
 
+    pub fn invalidate(&mut self) {
+        self.cache = OnceCell::new();
+    }
+
     /// Compute the predecessors of a basic block, or return the cached
     /// value if it has already been computed.
     pub fn compute(&self, blocks: &IndexVec<BasicBlock, BasicBlockData>) -> &Predecessors {
         self.cache.get_or_init(|| {
             let mut predecessors = Predecessors::with_capacity(blocks.len());
+
+            // we need to initialise all elements regardless of whether they
+            // have any predecessors or not.
+            for block in blocks.indices() {
+                predecessors.insert(block, smallvec![]);
+            }
 
             for (bb, data) in blocks.iter_enumerated() {
                 for successor in data.successors() {

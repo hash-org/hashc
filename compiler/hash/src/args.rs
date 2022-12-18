@@ -140,16 +140,6 @@ pub(crate) struct IrGenMode {
     pub(crate) checked_operations: bool,
 }
 
-impl From<IrGenMode> for LoweringSettings {
-    fn from(options: IrGenMode) -> Self {
-        Self {
-            dump_mode: options.dump_mode,
-            dump_all: options.dump,
-            checked_operations: options.checked_operations,
-        }
-    }
-}
-
 impl TryInto<CompilerSettings> for CompilerOptions {
     type Error = CompilerError;
 
@@ -162,7 +152,13 @@ impl TryInto<CompilerSettings> for CompilerOptions {
 
             Some(SubCmd::Check { .. }) => CompilerStageKind::Typecheck,
             Some(SubCmd::IrGen(opts)) => {
-                lowering_settings = opts.into();
+                lowering_settings = LoweringSettings {
+                    dump_mode: opts.dump_mode,
+                    dump_all: opts.dump,
+                    checked_operations: opts.checked_operations,
+                    optimisation_level: self.optimisation_level,
+                };
+
                 CompilerStageKind::IrGen
             }
             _ => CompilerStageKind::Full,

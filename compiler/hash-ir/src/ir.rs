@@ -598,6 +598,27 @@ impl Terminator {
             _ => smallvec![],
         }
     }
+
+    /// Function that replaces a specified successor with another
+    /// [BasicBlock].
+    pub fn replace_edge(&mut self, successor: BasicBlock, replacement: BasicBlock) {
+        match self.kind {
+            TerminatorKind::Goto(target) if target == successor => {
+                self.kind = TerminatorKind::Goto(replacement)
+            }
+            TerminatorKind::Switch { ref mut targets, .. } => {
+                targets.replace_edge(successor, replacement)
+            }
+            TerminatorKind::Call { target: Some(ref mut target), .. } if *target == successor => {
+                *target = replacement;
+            }
+            TerminatorKind::Assert { ref mut target, .. } => {
+                *target = replacement;
+            }
+            // All other edges cannot be replaced
+            _ => {}
+        }
+    }
 }
 
 /// Struct that represents all of the targets that a [TerminatorKind::Switch]
@@ -654,6 +675,21 @@ impl SwitchTargets {
     /// Iterate all of the associated targets.
     pub fn iter_targets(&self) -> impl Iterator<Item = BasicBlock> + '_ {
         self.table.iter().map(|(_, target)| *target).chain(self.otherwise.into_iter())
+    }
+
+    /// Replace a successor with another [BasicBlock].
+    pub fn replace_edge(&mut self, successor: BasicBlock, replacement: BasicBlock) {
+        for (_, target) in self.table.iter_mut() {
+            if *target == successor {
+                *target = replacement;
+            }
+        }
+
+        if let Some(otherwise) = self.otherwise {
+            if otherwise == successor {
+                self.otherwise = Some(replacement);
+            }
+        }
     }
 
     pub fn iter(&self) -> SwitchTargetsIter<'_> {
@@ -788,6 +824,11 @@ impl BasicBlockData {
         Self { statements: vec![], terminator }
     }
 
+    /// Get a mutable reference to the terminator of this [BasicBlockData].
+    pub fn terminator_mut(&mut self) -> &mut Terminator {
+        self.terminator.as_mut().expect("expected terminator on block")
+    }
+
     /// Return a list of all of the successors of this [BasicBlock].
     pub fn successors(&self) -> SmallVec<[BasicBlock; 4]> {
         match &self.terminator {
@@ -844,6 +885,8 @@ impl fmt::Display for BodySource {
     }
 }
 
+/// Represents a lowered IR body, which stores the created declarations,
+/// blocks and various other metadata about the lowered body.
 pub struct Body {
     /// The blocks that the function is represented with
     pub basic_blocks: BasicBlocks,

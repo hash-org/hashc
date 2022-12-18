@@ -105,12 +105,7 @@ impl<I: CompilerInterface> Compiler<I> {
 
     /// Helper function in order to check if the pipeline needs to terminate
     /// after any stage that is specified within the settings of the compiler.
-    fn maybe_terminate(
-        &self,
-        result: CompilerResult<()>,
-        ctx: &mut I,
-        current_stage: CompilerStageKind,
-    ) -> Result<(), ()> {
+    fn maybe_terminate(&self, result: CompilerResult<()>, ctx: &mut I) -> Result<(), ()> {
         if let Err(diagnostics) = result {
             ctx.diagnostics_mut().extend(diagnostics.into_iter());
 
@@ -119,11 +114,6 @@ impl<I: CompilerInterface> Compiler<I> {
             if ctx.diagnostics().iter().any(|r| r.is_error()) {
                 return Err(());
             }
-        }
-
-        // Terminate the pipeline if we have reached the stage regardless of error state
-        if ctx.settings().stage == current_stage {
-            return Err(());
         }
 
         Ok(())
@@ -136,8 +126,14 @@ impl<I: CompilerInterface> Compiler<I> {
         for stage in 0..self.stages.len() {
             let kind = self.stages[stage].stage_kind();
 
+            // Terminate the pipeline if we have reached a stage that is
+            // beyond the currently specified stage.
+            if ctx.settings().stage < kind {
+                return Err(());
+            }
+
             let result = self.run_stage(entry_point, ctx, stage);
-            self.maybe_terminate(result, ctx, kind)?;
+            self.maybe_terminate(result, ctx)?;
         }
 
         Ok(())
