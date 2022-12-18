@@ -11,7 +11,10 @@
 //!   pointing to the current block and updated. Once all of the predecessors
 //!   have been updated, the current block is removed from the body.
 
-use hash_ir::ir::{BasicBlock, Body, TerminatorKind};
+use hash_ir::{
+    ir::{BasicBlock, Body, TerminatorKind},
+    BodyDataStore,
+};
 use hash_pipeline::settings::{LoweringSettings, OptimisationLevel};
 
 use super::IrOptimisation;
@@ -62,11 +65,15 @@ pub fn remove_dead_blocks(body: &mut Body) {
 pub struct SimplifyGraph;
 
 impl IrOptimisation for SimplifyGraph {
-    fn enabled(&self, settings: &LoweringSettings) -> bool {
-        settings.optimisation_level >= OptimisationLevel::Release
+    fn name(&self) -> &'static str {
+        "simplify-graph"
     }
 
-    fn optimise(&self, body: &mut Body) {
+    fn enabled(&self, settings: &LoweringSettings) -> bool {
+        settings.optimisation_level >= OptimisationLevel::Debug
+    }
+
+    fn optimise(&self, body: &mut Body, _: &BodyDataStore) {
         // Firstly, lets check if there are any predecessors for each block. If the
         // block has no predecessors then we remove the block from the body entirely.
         // This is because the block is unreachable.

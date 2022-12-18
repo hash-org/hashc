@@ -42,8 +42,26 @@ impl Default for AstLowerer {
     }
 }
 
+pub struct LoweringCtx<'ir> {
+    workspace: &'ir mut Workspace,
+    ty_storage: &'ir TyStorage,
+    ir_storage: &'ir mut IrStorage,
+    _pool: &'ir rayon::ThreadPool,
+}
+
+impl<'ir> LoweringCtx<'ir> {
+    pub fn new(
+        workspace: &'ir mut Workspace,
+        ty_storage: &'ir TyStorage,
+        ir_storage: &'ir mut IrStorage,
+        pool: &'ir rayon::ThreadPool,
+    ) -> Self {
+        Self { workspace, ty_storage, ir_storage, _pool: pool }
+    }
+}
+
 pub trait IrLoweringCtx: CompilerInterface {
-    fn data(&mut self) -> (&mut Workspace, &TyStorage, &mut IrStorage, &rayon::ThreadPool);
+    fn data(&mut self) -> LoweringCtx<'_>;
 }
 
 impl<Ctx: IrLoweringCtx> CompilerStage<Ctx> for AstLowerer {
@@ -61,7 +79,7 @@ impl<Ctx: IrLoweringCtx> CompilerStage<Ctx> for AstLowerer {
     fn run_stage(&mut self, _: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
         let settings = ctx.settings().lowering_settings;
 
-        let (workspace, ty_storage, ir_storage, _) = ctx.data();
+        let LoweringCtx { workspace, ty_storage, ir_storage, .. } = ctx.data();
         let source_map = &mut workspace.source_map;
         let source_stage_info = &mut workspace.source_stage_info;
 
@@ -123,10 +141,12 @@ impl<Ctx: IrLoweringCtx> CompilerStage<Ctx> for IrOptimiser {
     fn run_stage(&mut self, _: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
         let settings = ctx.settings().lowering_settings;
 
-        let (workspace, _, ir_storage, _) = ctx.data();
+        let LoweringCtx { workspace, ir_storage, .. } = ctx.data();
         let source_map = &mut workspace.source_map;
 
-        let optimiser = Optimiser::new(source_map, settings);
+        let bodies = &mut ir_storage.generated_bodies;
+        let body_data = &ir_storage.body_data;
+        // let optimiser = Optimiser::new(ir_storage, source_map, settings);
 
         // @@Todo: think about making optimisation passes in parallel...
         // pool.scope(|scope| {
@@ -137,7 +157,8 @@ impl<Ctx: IrLoweringCtx> CompilerStage<Ctx> for IrOptimiser {
         //     }
         // });
 
-        for body in ir_storage.generated_bodies.iter_mut() {
+        for body in bodies.iter_mut() {
+            let optimiser = Optimiser::new(body_data, source_map, settings);
             optimiser.optimise(body);
         }
 
@@ -146,7 +167,7 @@ impl<Ctx: IrLoweringCtx> CompilerStage<Ctx> for IrOptimiser {
 
     fn cleanup(&mut self, _entry_point: SourceId, ctx: &mut Ctx) {
         let settings = ctx.settings().lowering_settings;
-        let (workspace, _, ir_storage, _) = ctx.data();
+        let LoweringCtx { workspace, ir_storage, .. } = ctx.data();
         let source_map = &mut workspace.source_map;
 
         // we need to check if any of the bodies have been marked for `dumping`

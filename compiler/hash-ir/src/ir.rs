@@ -52,7 +52,7 @@ pub enum Const {
 impl Const {
     /// Create a [Const::Zero] with a unit type, the total zero.
     pub fn zero(storage: &IrStorage) -> Self {
-        let unit = storage.ty_store().create(IrTy::unit(storage));
+        let unit = storage.tys().create(IrTy::unit(storage));
         Self::Zero(unit)
     }
 
@@ -64,7 +64,7 @@ impl Const {
     /// Create a new [Const] from a scalar value, with the appropriate
     /// type.
     pub fn from_scalar(value: u128, ty: IrTyId, storage: &IrStorage) -> Self {
-        storage.ty_store().map_fast(ty, |ty| match ty {
+        storage.tys().map_fast(ty, |ty| match ty {
             IrTy::Int(int_ty) => {
                 let interned_value = IntConstant::from_uint(value, (*int_ty).into());
                 Self::Int(CONSTANT_MAP.create_int_constant(interned_value))
@@ -397,21 +397,21 @@ pub struct Place {
 impl Place {
     /// Create a [Place] that points to the return `place` of a lowered  body.
     pub fn return_place(storage: &IrStorage) -> Self {
-        Self { local: RETURN_PLACE, projections: storage.projection_store.create_empty() }
+        Self { local: RETURN_PLACE, projections: storage.projections().create_empty() }
     }
 
     pub fn from_local(local: Local, storage: &IrStorage) -> Self {
-        Self { local, projections: storage.projection_store.create_empty() }
+        Self { local, projections: storage.projections().create_empty() }
     }
 
     /// Create a new [Place] from an existing place whilst also
     /// applying a a [PlaceProjection::Field] on the old one.
     pub fn field(&self, field: usize, storage: &IrStorage) -> Self {
-        let projections = storage.projection_store.get_vec(self.projections);
+        let projections = storage.projections().get_vec(self.projections);
 
         Self {
             local: self.local,
-            projections: storage.projection_store.create_from_iter_fast(
+            projections: storage.projections().create_from_iter_fast(
                 projections.iter().copied().chain(once(PlaceProjection::Field(field))),
             ),
         }
@@ -793,7 +793,7 @@ impl TerminatorKind {
     ) -> Self {
         let targets = SwitchTargets::new(
             std::iter::once((false.into(), false_block)),
-            storage.ty_store().make_bool(),
+            storage.tys().make_bool(),
             Some(true_block),
         );
 
@@ -1045,7 +1045,7 @@ mod tests {
 
         let place = Place {
             local: Local::new(0),
-            projections: storage.projection_store.create_from_slice(&[
+            projections: storage.projections().create_from_slice(&[
                 PlaceProjection::Deref,
                 PlaceProjection::Field(0),
                 PlaceProjection::Index(Local::new(1)),
@@ -1057,7 +1057,7 @@ mod tests {
 
         let place = Place {
             local: Local::new(0),
-            projections: storage.projection_store.create_from_slice(&[
+            projections: storage.projections().create_from_slice(&[
                 PlaceProjection::Deref,
                 PlaceProjection::Deref,
                 PlaceProjection::Deref,

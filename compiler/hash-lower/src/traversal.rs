@@ -15,7 +15,7 @@ pub struct PreOrder<'ir> {
     /// The visited blocks of the body.
     visited: FixedBitSet,
 
-    /// The current worklist of the nodes that
+    /// The current work_list of the nodes that
     /// need to visited
     work_list: Vec<BasicBlock>,
 

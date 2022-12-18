@@ -135,7 +135,7 @@ impl IrTy {
     pub fn unit(ir_storage: &IrStorage) -> Self {
         let variants = index_vec![AdtVariant { name: 0usize.into(), fields: vec![] }];
         let adt = AdtData::new_with_flags("unit".into(), variants, AdtFlags::TUPLE);
-        let adt_id = ir_storage.adt_store().create(adt);
+        let adt_id = ir_storage.adts().create(adt);
 
         Self::Adt(adt_id)
     }
@@ -152,7 +152,7 @@ impl IrTy {
                 .collect(),
         }];
         let adt = AdtData::new_with_flags("tuple".into(), variants, AdtFlags::TUPLE);
-        let adt_id = ir_storage.adt_store().create(adt);
+        let adt_id = ir_storage.adts().create(adt);
 
         Self::Adt(adt_id)
     }
@@ -382,7 +382,7 @@ pub type AdtStore = DefaultStore<AdtId, AdtData>;
 
 impl fmt::Display for ForFormatting<'_, AdtId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.storage.adt_store.map_fast(self.item, |adt| {
+        self.storage.adts().map_fast(self.item, |adt| {
             match adt.flags {
                 AdtFlags::TUPLE => {
                     assert!(adt.variants.len() == 1);
@@ -451,7 +451,7 @@ impl Store<IrTyId, IrTy> for TyStore {
 
 impl fmt::Display for ForFormatting<'_, IrTyId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let ty = self.storage.ty_store().get(self.item);
+        let ty = self.storage.tys().get(self.item);
 
         match ty {
             IrTy::Int(variant) => write!(f, "{variant}"),
@@ -507,7 +507,7 @@ pub type TyListStore = DefaultSequenceStore<IrTyListId, IrTyId>;
 
 impl fmt::Display for ForFormatting<'_, IrTyListId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let items = self.storage.ty_list_store().get_vec(self.item);
+        let items = self.storage.tls().get_vec(self.item);
         let mut tys = items.iter();
 
         if let Some(first) = tys.next() {

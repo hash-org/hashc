@@ -148,8 +148,13 @@ impl TypecheckingCtx for CompilerSession {
 }
 
 impl IrLoweringCtx for CompilerSession {
-    fn data(&mut self) -> (&mut Workspace, &TyStorage, &mut IrStorage, &rayon::ThreadPool) {
-        (&mut self.workspace, &self.ty_storage, &mut self.ir_storage, &self.pool)
+    fn data(&mut self) -> hash_lower::LoweringCtx {
+        hash_lower::LoweringCtx::new(
+            &mut self.workspace,
+            &self.ty_storage,
+            &mut self.ir_storage,
+            &self.pool,
+        )
     }
 }
 

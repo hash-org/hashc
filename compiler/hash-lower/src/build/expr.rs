@@ -121,7 +121,7 @@ impl<'tcx> Builder<'tcx> {
 
                 // Create an RValue for this reference
                 let addr_of = RValue::Ref(mutability, place, kind);
-                let rvalue = self.storage.rvalue_store().create(addr_of);
+                let rvalue = self.storage.rvalues().create(addr_of);
 
                 self.control_flow_graph.push_assign(block, destination, rvalue, span);
                 block.unit()
