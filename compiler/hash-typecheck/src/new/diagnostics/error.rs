@@ -16,6 +16,8 @@ pub enum TcError {
     NeedMoreTypeAnnotationsToInfer { term: TermId },
     /// Traits are not yet supported.
     TraitsNotSupported { trait_location: SourceLocation },
+    /// Merge declarations are not yet supported.
+    MergeDeclarationsNotSupported { merge_location: SourceLocation },
 }
 
 pub type TcResult<T> = Result<T, TcError>;
@@ -53,7 +55,14 @@ impl<'tc> WithTcEnv<'tc, &TcError> {
                     .code(HashErrorCode::UnsupportedTraits)
                     .title("traits are work-in-progress and currently not supported".to_string());
 
-                error.add_span(*trait_location).add_help("traits are not yet supported");
+                error.add_span(*trait_location).add_help("cannot use traits yet");
+            }
+            TcError::MergeDeclarationsNotSupported { merge_location } => {
+                error
+                    .code(HashErrorCode::UnsupportedTraits)
+                    .title("merge declarations are currently not supported".to_string());
+
+                error.add_span(*merge_location).add_help("cannot use merge declarations yet");
             }
         }
     }

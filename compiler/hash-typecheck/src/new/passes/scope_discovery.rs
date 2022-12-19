@@ -532,6 +532,7 @@ impl<'tc> ast::AstVisitor for ScopeDiscoveryPass<'tc> {
         FnDef,
         TyFnDef,
         BodyBlock,
+        MergeDeclaration
     );
 
     type DeclarationRet = ();
@@ -674,17 +675,6 @@ impl<'tc> ast::AstVisitor for ScopeDiscoveryPass<'tc> {
         Ok(())
     }
 
-    type TraitDefRet = ();
-    fn visit_trait_def(
-        &self,
-        node: ast::AstNodeRef<ast::TraitDef>,
-    ) -> Result<Self::TraitDefRet, Self::Error> {
-        // Traits are not yet supported
-        self.diagnostics()
-            .add_error(TcError::TraitsNotSupported { trait_location: self.node_location(node) });
-        Ok(())
-    }
-
     type FnDefRet = ();
     fn visit_fn_def(&self, node: AstNodeRef<ast::FnDef>) -> Result<Self::FnDefRet, Self::Error> {
         // Get the function name from the name hint.
@@ -758,5 +748,27 @@ impl<'tc> ast::AstVisitor for ScopeDiscoveryPass<'tc> {
                 Ok(())
             }
         }
+    }
+
+    type TraitDefRet = ();
+    fn visit_trait_def(
+        &self,
+        node: ast::AstNodeRef<ast::TraitDef>,
+    ) -> Result<Self::TraitDefRet, Self::Error> {
+        // Traits are not yet supported
+        self.diagnostics()
+            .add_error(TcError::TraitsNotSupported { trait_location: self.node_location(node) });
+        Ok(())
+    }
+
+    type MergeDeclarationRet = ();
+    fn visit_merge_declaration(
+        &self,
+        node: AstNodeRef<ast::MergeDeclaration>,
+    ) -> Result<Self::MergeDeclarationRet, Self::Error> {
+        // Merge declarations are not yet supported
+        self.diagnostics()
+            .add_error(TcError::TraitsNotSupported { trait_location: self.node_location(node) });
+        Ok(())
     }
 }
