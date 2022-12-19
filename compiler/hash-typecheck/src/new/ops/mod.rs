@@ -1,12 +1,17 @@
 // @@Docs
-use self::{data::DataOps, defs::CommonDefOps, infer::InferOps, mods::ModOps, stack::StackOps};
+use self::{
+    data::DataOps, defs::CommonDefOps, fns::FnOps, infer::InferOps, mods::ModOps, params::ParamOps,
+    stack::StackOps,
+};
 
 pub mod common;
 pub mod data;
 pub mod defs;
+pub mod fns;
 pub mod infer;
 pub mod mods;
 pub mod oracle;
+pub mod params;
 pub mod stack;
 pub mod tuple;
 
@@ -30,4 +35,6 @@ ops! {
   stack_ops: StackOps,
   infer_ops: InferOps,
   common_def_ops: CommonDefOps,
+  fn_ops: FnOps,
+  param_ops: ParamOps,
 }

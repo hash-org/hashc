@@ -1,10 +1,8 @@
 // @@Docs
 use derive_more::Constructor;
 use hash_types::new::{
-    defs::DefParamsId,
     environment::env::AccessToEnv,
-    mods::{ModDef, ModDefId, ModKind, ModMember, ModMemberData, ModMembersId},
-    symbols::Symbol,
+    mods::{ModDef, ModDefData, ModDefId, ModMember, ModMemberData, ModMembersId},
 };
 use hash_utils::store::{SequenceStore, Store};
 
@@ -20,20 +18,14 @@ impl_access_to_tc_env!(ModOps<'tc>);
 
 impl<'tc> ModOps<'tc> {
     /// Create an empty module definition.
-    pub fn create_mod_def(
-        &self,
-        name: Symbol,
-        params: DefParamsId,
-        kind: ModKind,
-        self_ty_name: Option<Symbol>,
-    ) -> ModDefId {
+    pub fn create_mod_def(&self, data: ModDefData) -> ModDefId {
         self.stores().mod_def().create_with(|id| ModDef {
             id,
-            name,
-            params,
-            kind,
-            members: self.stores().mod_members().create_from_slice(&[]),
-            self_ty_name,
+            name: data.name,
+            params: data.params,
+            kind: data.kind,
+            members: data.members,
+            self_ty_name: data.self_ty_name,
         })
     }
 
@@ -43,6 +35,11 @@ impl<'tc> ModOps<'tc> {
             mod_def.members = members;
         });
         members
+    }
+
+    /// Create an empty set of module members.
+    pub fn create_empty_mod_members(&self) -> ModMembersId {
+        self.stores().mod_members().create_from_slice(&[])
     }
 
     /// Create module members from the given set of members as an iterator.

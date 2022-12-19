@@ -133,7 +133,7 @@ impl Display for WithEnv<'_, &ModDef> {
                     "mod [name={}, type=file, src=\"{source_name}\"] {} {{\n{}}}",
                     self.env().with(self.value.name),
                     self.env().with(self.value.params),
-                    indent(&members, "    ")
+                    indent(&members, "  ")
                 )
             }
         }
