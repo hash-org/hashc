@@ -94,7 +94,7 @@ impl<'tcx> Builder<'tcx> {
             }
         };
 
-        let rvalue_id = self.storage.rvalue_store().create(rvalue);
+        let rvalue_id = self.storage.rvalues().create(rvalue);
         block.and(rvalue_id)
     }
 
@@ -122,7 +122,7 @@ impl<'tcx> Builder<'tcx> {
 
             if let Some((scope, _, kind)) = self.lookup_item_scope(name) && kind != ScopeKind::Variable {
                 let rvalue = RValue::Const(ConstKind::Unevaluated { scope, name });
-                let rvalue_id = self.storage.rvalue_store().create(rvalue);
+                let rvalue_id = self.storage.rvalues().create(rvalue);
 
                 return block.and(rvalue_id);
             }
@@ -135,7 +135,7 @@ impl<'tcx> Builder<'tcx> {
                 let place = unpack!(block = self.as_place(block, expr, mutability));
 
                 let rvalue = RValue::Use(place);
-                let rvalue_id = self.storage.rvalue_store().create(rvalue);
+                let rvalue_id = self.storage.rvalues().create(rvalue);
 
                 block.and(rvalue_id)
             }
@@ -159,19 +159,17 @@ impl<'tcx> Builder<'tcx> {
         lhs: RValueId,
         rhs: RValueId,
     ) -> BlockAnd<RValueId> {
-        let is_lhs_const =
-            self.storage.rvalue_store().map_fast(lhs, |value| value.is_integral_const());
-        let is_rhs_const =
-            self.storage.rvalue_store().map_fast(rhs, |value| value.is_integral_const());
+        let is_lhs_const = self.storage.rvalues().map_fast(lhs, |value| value.is_integral_const());
+        let is_rhs_const = self.storage.rvalues().map_fast(rhs, |value| value.is_integral_const());
 
         // If both values are constant, see if we can perform a constant fold...
         if is_lhs_const && is_rhs_const {
-            let lhs = self.storage.rvalue_store().map_fast(lhs, |value| value.as_const());
-            let rhs = self.storage.rvalue_store().map_fast(rhs, |value| value.as_const());
+            let lhs = self.storage.rvalues().map_fast(lhs, |value| value.as_const());
+            let rhs = self.storage.rvalues().map_fast(rhs, |value| value.as_const());
 
             if let ConstKind::Value(lhs_value) = lhs && let ConstKind::Value(rhs_value) = rhs {
                 if let Some(folded) = self.try_fold_const_op(op, lhs_value, rhs_value) {
-                    return block.and(self.storage.rvalue_store().create(folded.into()));
+                    return block.and(self.storage.rvalues().create(folded.into()));
                 }
             }
         }
@@ -180,13 +178,12 @@ impl<'tcx> Builder<'tcx> {
         // operator is checkable, then use `CheckedBinaryOp` instead of `BinaryOp`.
         if self.settings.checked_operations && op.is_checkable() && ty.is_integral() {
             // Create a new tuple that contains the result of the operation
-            let expr_ty = self.storage.ty_store().create(ty);
-            let ty = IrTy::tuple(self.storage, &[expr_ty, self.storage.ty_store().make_bool()]);
-            let ty_id = self.storage.ty_store().create(ty);
+            let expr_ty = self.storage.tys().create(ty);
+            let ty = IrTy::tuple(self.storage, &[expr_ty, self.storage.tys().make_bool()]);
+            let ty_id = self.storage.tys().create(ty);
 
             let temp = self.temp_place(ty_id);
-            let rvalue_id =
-                self.storage.rvalue_store().create(RValue::CheckedBinaryOp(op, lhs, rhs));
+            let rvalue_id = self.storage.rvalues().create(RValue::CheckedBinaryOp(op, lhs, rhs));
 
             let result = temp.field(0, self.storage);
             let overflow = temp.field(1, self.storage);
@@ -196,11 +193,11 @@ impl<'tcx> Builder<'tcx> {
 
             block = self.assert(block, overflow, false, AssertKind::Overflow, span);
 
-            let value = self.storage.rvalue_store().create(RValue::Use(result));
+            let value = self.storage.rvalues().create(RValue::Use(result));
             block.and(value)
         } else {
             let binary_op = RValue::BinaryOp(op, lhs, rhs);
-            let rvalue_id = self.storage.rvalue_store().create(binary_op);
+            let rvalue_id = self.storage.rvalues().create(binary_op);
             block.and(rvalue_id)
         }
     }

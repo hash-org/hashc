@@ -94,7 +94,7 @@ impl Default for CompilerSettings {
 }
 
 /// What optimisation level the compiler should run at.
-#[derive(ValueEnum, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, ValueEnum, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum OptimisationLevel {
     /// Run the compiler using the debug optimisation level. This will
     /// disable most optimisations that the compiler would otherwise do.
@@ -117,6 +117,9 @@ impl Default for OptimisationLevel {
 /// whether the IR should use `checked` operations, etc.
 #[derive(Debug, Clone, Copy)]
 pub struct LoweringSettings {
+    /// The optimisation level that is to be performed.
+    pub optimisation_level: OptimisationLevel,
+
     /// Whether the IR should dump all lowered bodies, rather than
     /// relying on user directives to select specific bodies.
     pub dump_all: bool,
@@ -131,7 +134,12 @@ pub struct LoweringSettings {
 
 impl Default for LoweringSettings {
     fn default() -> Self {
-        Self { dump_mode: IrDumpMode::Pretty, checked_operations: true, dump_all: false }
+        Self {
+            dump_mode: IrDumpMode::Pretty,
+            checked_operations: true,
+            dump_all: false,
+            optimisation_level: OptimisationLevel::Debug,
+        }
     }
 }
 

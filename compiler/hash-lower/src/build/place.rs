@@ -68,9 +68,7 @@ impl PlaceBuilder {
     pub(crate) fn into_place(self, storage: &IrStorage) -> Place {
         Place {
             local: self.base,
-            projections: storage
-                .projection_store()
-                .create_from_iter_fast(self.projections.into_iter()),
+            projections: storage.projections().create_from_iter_fast(self.projections.into_iter()),
         }
     }
 }

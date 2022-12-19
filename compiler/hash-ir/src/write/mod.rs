@@ -57,7 +57,7 @@ impl WriteIr for Place {}
 
 impl fmt::Display for ForFormatting<'_, Place> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.storage.projection_store.map_fast(self.item.projections, |projections| {
+        self.storage.projections().map_fast(self.item.projections, |projections| {
             // First we, need to deal with the `deref` projections, since
             // they need to be printed in reverse
             for projection in projections.iter().rev() {
@@ -108,7 +108,7 @@ impl WriteIr for RValueId {}
 
 impl fmt::Display for ForFormatting<'_, RValueId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.storage.rvalue_store().map_fast(self.item, |rvalue| match rvalue {
+        self.storage.rvalues().map_fast(self.item, |rvalue| match rvalue {
             RValue::Use(place) => write!(f, "{}", place.for_fmt(self.storage)),
             RValue::Const(ConstKind::Value(Const::Zero(ty))) => {
                 write!(f, "{}", ty.for_fmt(self.storage))
@@ -153,7 +153,7 @@ impl fmt::Display for ForFormatting<'_, RValueId> {
                     AggregateKind::Tuple => fmt_operands(f, '(', ')'),
                     AggregateKind::Array(_) => fmt_operands(f, '[', ']'),
                     AggregateKind::Enum(adt, index) => {
-                        self.storage.adt_store().map_fast(*adt, |def| {
+                        self.storage.adts().map_fast(*adt, |def| {
                             let name = def.variants.get(*index).unwrap().name;
 
                             write!(f, "{}::{name}", adt.for_fmt(self.storage))
