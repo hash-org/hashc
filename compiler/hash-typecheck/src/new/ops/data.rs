@@ -1,5 +1,5 @@
 // @@Docs
-use std::iter::once;
+use std::iter::{empty, once};
 
 use derive_more::Constructor;
 use hash_types::new::{
@@ -14,7 +14,7 @@ use hash_types::new::{
     symbols::Symbol,
     terms::Term,
 };
-use hash_utils::store::{SequenceStore, Store};
+use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
 use itertools::Itertools;
 
 use super::{common::CommonOps, AccessToOps};
@@ -199,11 +199,14 @@ impl<'tc> DataOps<'tc> {
                     let fields_params =
                         self.param_ops().create_params(variant_fields.iter().copied());
                     // The field parameters correspond to a single parameter group
-                    let fields_def_params =
+                    let fields_def_params = if !fields_params.is_empty() {
                         self.param_ops().create_def_params(once(DefParamGroupData {
                             implicit: false,
                             params: fields_params,
-                        }));
+                        }))
+                    } else {
+                        self.param_ops().create_def_params(empty())
+                    };
 
                     // Create a constructor for each variant
                     move |ctor_id| CtorDef {
