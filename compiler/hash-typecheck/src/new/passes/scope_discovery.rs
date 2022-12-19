@@ -6,7 +6,10 @@
 /// - Function definitions in modules
 /// - Data definitions in modules, including struct, enum
 /// - Stack scopes, and their member names and mutabilities
-use std::cell::Cell;
+use std::{
+    cell::Cell,
+    iter::{empty, once},
+};
 
 use derive_more::From;
 use hash_ast::{
@@ -18,13 +21,16 @@ use hash_reporting::macros::panic_on_span;
 use hash_source::identifier::Identifier;
 use hash_types::new::{
     data::{CtorDefData, DataDefId},
+    defs::{DefParamGroupData, DefParamsId},
     environment::env::AccessToEnv,
-    fns::FnDefId,
-    mods::{ModDefId, ModKind, ModMemberData, ModMemberValue},
+    fns::{FnBody, FnDefData, FnDefId, FnTy},
+    mods::{ModDefData, ModDefId, ModKind, ModMemberData, ModMemberValue},
+    params::ParamsId,
     scopes::{StackId, StackMemberData},
     symbols::Symbol,
 };
 use hash_utils::store::{DefaultPartialStore, PartialStore, SequenceStoreKey, Store};
+use itertools::Itertools;
 use smallvec::{smallvec, SmallVec};
 
 use super::{ast_ops::AstOps, ast_pass::AstPass};
@@ -100,6 +106,41 @@ impl<'tc> ScopeDiscoveryPass<'tc> {
         let result = f();
         self.name_hint.set(prev_hint);
         result
+    }
+
+    /// Create a new symbol from the given optional AST node containing a name.
+    ///
+    /// If the AST node is `None`, a fresh symbol is created.
+    fn create_symbol_from_ast_name(&self, ast_name: &Option<ast::AstNode<ast::Name>>) -> Symbol {
+        match ast_name {
+            Some(ast_name) => self.new_symbol(ast_name.ident),
+            None => self.new_fresh_symbol(),
+        }
+    }
+
+    /// Create definition params from the iterator of parameter groups.
+    ///
+    /// The iterator elements are `(is_implicit, params)`.
+    fn create_hole_def_params<'a>(
+        &self,
+        groups: impl Iterator<Item = (bool, &'a ast::AstNodes<ast::Param>)> + ExactSizeIterator,
+    ) -> DefParamsId {
+        let params = groups
+            .filter(|group| !group.1.is_empty())
+            .map(|group| {
+                let (implicit, params) = group;
+                DefParamGroupData { params: self.create_hole_params(params), implicit }
+            })
+            .collect_vec();
+        self.param_ops().create_def_params(params.into_iter())
+    }
+
+    /// Create a parameter list from the given AST parameter list, where the
+    /// type of each parameter is a hole.
+    fn create_hole_params(&self, params: &ast::AstNodes<ast::Param>) -> ParamsId {
+        self.param_ops().create_hole_params(
+            params.iter().map(|param| self.create_symbol_from_ast_name(&param.name)),
+        )
     }
 
     /// Take the currently set name hint, or create a new internal name.
@@ -446,7 +487,17 @@ impl_access_to_tc_env!(ScopeDiscoveryPass<'tc>);
 
 impl<'tc> ast::AstVisitor for ScopeDiscoveryPass<'tc> {
     type Error = TcError;
-    ast_visitor_default_impl!(hiding: Declaration, Module, ModDef, TraitDef, StructDef, EnumDef);
+    ast_visitor_default_impl!(
+        hiding: Declaration,
+        Module,
+        ModDef,
+        TraitDef,
+        StructDef,
+        EnumDef,
+        FnDef,
+        TyFnDef,
+        BodyBlock,
+    );
 
     type DeclarationRet = ();
     fn visit_declaration(
@@ -501,17 +552,20 @@ impl<'tc> ast::AstVisitor for ScopeDiscoveryPass<'tc> {
         let module_name: Identifier = self.source_map().source_name(source_id).into();
 
         // Create a module definition, with empty members for now.
-        let mod_def_id = self.mod_ops().create_mod_def(
-            self.new_symbol(module_name),
-            // @@Future: context
-            // @@Todo: params
-            self.new_empty_def_params(),
-            ModKind::Source(source_id),
-            None,
-        );
+        // @@Future: context
+        let mod_def_id = self.mod_ops().create_mod_def(ModDefData {
+            name: self.new_symbol(module_name),
+            params: self.create_hole_def_params(empty()),
+            kind: ModKind::Source(source_id),
+            members: self.mod_ops().create_empty_mod_members(),
+            self_ty_name: None,
+        });
 
         // Traverse the module
         self.enter_def(node, mod_def_id, || walk::walk_module(self, node))?;
+
+        // Eventually remove @@Temporary
+        println!("Module: {}", self.env().with(mod_def_id));
 
         Ok(())
     }
@@ -525,13 +579,13 @@ impl<'tc> ast::AstVisitor for ScopeDiscoveryPass<'tc> {
         let mod_block_name = self.take_name_hint_or_create_internal_name();
 
         // Create a mod block definition, with empty members for now.
-        let mod_def_id = self.mod_ops().create_mod_def(
-            mod_block_name,
-            // @@Todo: params
-            self.new_empty_def_params(),
-            ModKind::ModBlock,
-            None,
-        );
+        let mod_def_id = self.mod_ops().create_mod_def(ModDefData {
+            name: mod_block_name,
+            params: self.create_hole_def_params(once((true, &node.ty_params))),
+            kind: ModKind::ModBlock,
+            members: self.mod_ops().create_empty_mod_members(),
+            self_ty_name: None,
+        });
 
         // Traverse the mod block
         self.enter_def(node, mod_def_id, || walk::walk_mod_def(self, node))?;
@@ -564,5 +618,80 @@ impl<'tc> ast::AstVisitor for ScopeDiscoveryPass<'tc> {
         self.diagnostics()
             .add_error(TcError::TraitsNotSupported { trait_location: self.node_location(node) });
         Ok(())
+    }
+
+    type FnDefRet = ();
+    fn visit_fn_def(&self, node: AstNodeRef<ast::FnDef>) -> Result<Self::FnDefRet, Self::Error> {
+        // Get the function name from the name hint.
+        let fn_def_name = self.take_name_hint_or_create_internal_name();
+
+        // Create a function definition
+        let fn_def_id = self.fn_ops().create_fn_def(FnDefData {
+            name: fn_def_name,
+            body: FnBody::Defined(self.new_term_hole()),
+            ty: FnTy {
+                implicit: false,
+                is_unsafe: false,
+                params: self.create_hole_params(&node.params),
+                pure: false,
+                return_type: self.new_ty_hole(),
+            },
+        });
+
+        // Traverse the function body
+        self.enter_def(node, fn_def_id, || walk::walk_fn_def(self, node))?;
+
+        Ok(())
+    }
+
+    type TyFnDefRet = ();
+    fn visit_ty_fn_def(
+        &self,
+        node: AstNodeRef<ast::TyFnDef>,
+    ) -> Result<Self::TyFnDefRet, Self::Error> {
+        // Type functions are interpreted as functions that are implicit.
+
+        // Get the function name from the name hint.
+        let fn_def_name = self.take_name_hint_or_create_internal_name();
+
+        // Create a function definition
+        let fn_def_id = self.fn_ops().create_fn_def(FnDefData {
+            name: fn_def_name,
+            body: FnBody::Defined(self.new_term_hole()),
+            ty: FnTy {
+                implicit: true,
+                is_unsafe: false,
+                params: self.create_hole_params(&node.params),
+                pure: true,
+                return_type: self.new_ty_hole(),
+            },
+        });
+
+        // Traverse the function body
+        self.enter_def(node, fn_def_id, || walk::walk_ty_fn_def(self, node))?;
+
+        Ok(())
+    }
+
+    type BodyBlockRet = ();
+    fn visit_body_block(
+        &self,
+        node: AstNodeRef<ast::BodyBlock>,
+    ) -> Result<Self::BodyBlockRet, Self::Error> {
+        match self.get_current_def() {
+            // If we are in a mod or data block, this isn't a stack scope so we don't do anything.
+            DefId::Mod(_) | DefId::Data(_) => {
+                walk::walk_body_block(self, node)?;
+                Ok(())
+            }
+            // If we are in a stack scope, this is a nested block, so we add a new stack
+            DefId::Stack(_) |
+            // If we are in a function, then this is the function's body, so we add a new stack
+            DefId::Fn(_) => {
+                let stack_id = self.stack_ops().create_stack();
+                self.enter_def(node, stack_id, || walk::walk_body_block(self, node))?;
+                Ok(())
+            }
+        }
     }
 }
