@@ -10,7 +10,7 @@ use hash_ir::{
     ir::{
         BasicBlock, BinOp, Const, PlaceProjection, RValue, RValueId, SwitchTargets, TerminatorKind,
     },
-    ty::{AdtId, IrTy, IrTyId},
+    ty::{AdtId, IrTy, IrTyId, VariantIdx},
     IrStorage,
 };
 use hash_reporting::macros::panic_on_span;
@@ -179,8 +179,8 @@ impl<'tcx> Builder<'tcx> {
             let span = self.span_of_pat(pair.pat);
 
             match pat {
-                Pat::Access(AccessPat { subject, .. }) => {
-                    let ty = self.ty_of_pat(*subject);
+                Pat::Access(AccessPat { .. }) => {
+                    let ty = self.ty_of_pat(pair.pat);
                     let (variant_count, adt) =
                         self.map_on_adt(ty, |adt, id| (adt.variants.len(), id));
 
@@ -285,11 +285,38 @@ impl<'tcx> Builder<'tcx> {
                     pair_index,
                     *adt,
                     variant_index,
-                    *args,
+                    Some(*args),
                     candidate,
                 );
 
-                Some(variant_index)
+                Some(variant_index.index())
+            }
+            // @@Todo: remove this branch since this is just for handling enumerations.
+            (TestKind::Switch { adt, .. }, Pat::Access(..) | Pat::Const(..)) => {
+                // If we are performing a variant switch, then this informs
+                // variant patterns, bu nothing else.
+                let test_adt = self.ty_of_pat(pair.pat);
+
+                let variant_index = self.map_on_adt(test_adt, |adt, _| {
+                    // If this is a struct, then we don't do anything
+                    // since we're expecting an enum. Although, this case shouldn't happen?
+                    if adt.flags.is_struct() {
+                        return None;
+                    }
+
+                    let pat_term = self.term_of_pat(pair.pat);
+                    Some(self.lower_enum_variant_ty(adt, pat_term))
+                })?;
+
+                self.candidate_after_variant_switch(
+                    pair_index,
+                    *adt,
+                    variant_index,
+                    None,
+                    candidate,
+                );
+
+                Some(variant_index.index())
             }
 
             (TestKind::Switch { .. }, _) => None,
@@ -459,12 +486,15 @@ impl<'tcx> Builder<'tcx> {
         );
     }
 
+    /// Perform a downcast on the given candidate, and adjust the candidate
+    /// sub-patterns if they exist on the variant. In principle, this means that
+    /// each sub-pattern now references the downcasted place of the enum.
     fn candidate_after_variant_switch(
         &mut self,
         pair_index: usize,
         adt: AdtId,
-        variant_index: usize,
-        sub_patterns: PatArgsId,
+        variant_index: VariantIdx,
+        sub_patterns: Option<PatArgsId>,
         candidate: &mut Candidate,
     ) {
         let pair = candidate.pairs.remove(pair_index);
@@ -473,28 +503,31 @@ impl<'tcx> Builder<'tcx> {
         // and add them to the candidate.
         let downcast_place = pair.place.downcast(variant_index);
 
-        let consequent_pairs: Vec<_> = self.storage.adt_store().map_fast(adt, |adt| {
-            let variant = &adt.variants[variant_index];
+        // Only deal with sub-patterns if they exist on the variant.
+        if let Some(sub_pats) = sub_patterns {
+            let consequent_pairs: Vec<_> = self.storage.adt_store().map_fast(adt, |adt| {
+                let variant = &adt.variants[variant_index];
 
-            self.tcx.pat_args_store.map_as_param_list_fast(sub_patterns, |pats| {
-                pats.positional()
-                    .iter()
-                    .enumerate()
-                    .map(|(index, arg)| {
-                        let field_index = match arg.name {
-                            Some(name) => variant.field_idx(name).unwrap(),
-                            _ => index,
-                        };
+                self.tcx.pat_args_store.map_as_param_list_fast(sub_pats, |pats| {
+                    pats.positional()
+                        .iter()
+                        .enumerate()
+                        .map(|(index, arg)| {
+                            let field_index = match arg.name {
+                                Some(name) => variant.field_idx(name).unwrap(),
+                                _ => index,
+                            };
 
-                        let place =
-                            downcast_place.clone_project(PlaceProjection::Field(field_index));
-                        MatchPair { place, pat: arg.pat }
-                    })
-                    .collect()
-            })
-        });
+                            let place =
+                                downcast_place.clone_project(PlaceProjection::Field(field_index));
+                            MatchPair { place, pat: arg.pat }
+                        })
+                        .collect()
+                })
+            });
 
-        candidate.pairs.extend(consequent_pairs);
+            candidate.pairs.extend(consequent_pairs);
+        }
     }
 
     /// This function is responsible for generating the code for the specified
@@ -508,7 +541,7 @@ impl<'tcx> Builder<'tcx> {
         make_target_blocks: impl FnOnce(&mut Self) -> Vec<BasicBlock>,
     ) {
         // Build the place from the provided place builder
-        let place = place_builder.clone().into_place();
+        let place = place_builder.clone().into_place(self.storage);
         let span = test.span;
 
         match test.kind {
@@ -552,11 +585,13 @@ impl<'tcx> Builder<'tcx> {
                 let value = self.storage.push_rvalue(RValue::Discriminant(place));
                 self.control_flow_graph.push_assign(block, discriminant_tmp, value, subject_span);
 
+                let switch_value = self.storage.push_rvalue(RValue::Use(discriminant_tmp));
+
                 // then terminate this block with the `switch` terminator
                 self.control_flow_graph.terminate(
                     block,
                     span,
-                    TerminatorKind::Switch { value, targets },
+                    TerminatorKind::Switch { value: switch_value, targets },
                 );
             }
             TestKind::SwitchInt { ty, ref options } => {
@@ -575,7 +610,8 @@ impl<'tcx> Builder<'tcx> {
                         _ => panic!("expected boolean switch to have only two options"),
                     };
 
-                    TerminatorKind::make_if(place, true_block, false_block, self.storage)
+                    let value = self.storage.push_rvalue(RValue::Use(place));
+                    TerminatorKind::make_if(value, true_block, false_block, self.storage)
                 } else {
                     debug_assert_eq!(options.len() + 1, target_blocks.len());
                     let otherwise_block = target_blocks.last().copied();
@@ -610,7 +646,7 @@ impl<'tcx> Builder<'tcx> {
                             panic!("expected two target blocks for `Eq` test");
                         };
 
-                    let expected = self.storage.push_rvalue(RValue::Const(value));
+                    let expected = self.storage.push_rvalue(value.into());
                     let value = self.storage.push_rvalue(RValue::Use(place));
 
                     self.compare(block, success, fail, BinOp::Eq, expected, value, span);
@@ -625,8 +661,8 @@ impl<'tcx> Builder<'tcx> {
                 let lb_success = self.control_flow_graph.start_new_block();
                 let target_blocks = make_target_blocks(self);
 
-                let lo = self.storage.push_rvalue(RValue::Const(lo));
-                let hi = self.storage.push_rvalue(RValue::Const(hi));
+                let lo = self.storage.push_rvalue(lo.into());
+                let hi = self.storage.push_rvalue(hi.into());
                 let val = self.storage.push_rvalue(RValue::Use(place));
 
                 let [success, fail] = *target_blocks else {
@@ -682,7 +718,7 @@ impl<'tcx> Builder<'tcx> {
 
                 // Assign `actual = length(place)`
                 let value = self.storage.push_rvalue(RValue::Len(place));
-                self.control_flow_graph.push_assign(block, actual.clone(), value, span);
+                self.control_flow_graph.push_assign(block, actual, value, span);
 
                 // @@Todo: can we not just use the `value` directly, there should be no
                 // dependency on it in other places, and it will always be a
@@ -693,7 +729,7 @@ impl<'tcx> Builder<'tcx> {
                 // compare the two.
                 let const_len =
                     Const::Int(CONSTANT_MAP.create_int_constant(IntConstant::from(len)));
-                let expected = self.storage.push_rvalue(RValue::Const(const_len));
+                let expected = self.storage.push_rvalue(const_len.into());
 
                 let [success, fail] = *target_blocks else {
                     panic!("expected two target blocks for `Len` test");
@@ -727,10 +763,11 @@ impl<'tcx> Builder<'tcx> {
         // Push an assignment with the result of the comparison, i.e. `result = op(lhs,
         // rhs)`
         let value = self.storage.push_rvalue(RValue::BinaryOp(op, lhs, rhs));
-        self.control_flow_graph.push_assign(block, result.clone(), value, span);
+        self.control_flow_graph.push_assign(block, result, value, span);
 
         // Then insert the switch statement, which determines where the cfg goes based
         // on if the comparison was true or false.
+        let result = self.storage.push_rvalue(RValue::Use(result));
         self.control_flow_graph.terminate(
             block,
             span,
@@ -760,14 +797,14 @@ impl<'tcx> Builder<'tcx> {
                 // @@Todo: when we switch over to the knew pattern representation, it
                 //         should be a lot easier to deduce which variant is being specified
                 //         here.
-                Pat::Access(AccessPat { subject, property }) => {
+                Pat::Access(AccessPat { property, .. }) => {
                     // Get the type of the subject, and then compute the
                     // variant index of the property.
-                    let ty = self.ty_of_pat(*subject);
+                    let ty = self.ty_of_pat(match_pair.pat);
 
                     self.map_on_adt(ty, |adt, _| {
                         let variant_index = adt.variant_idx(property).unwrap();
-                        variants.insert(variant_index);
+                        variants.insert(variant_index.index());
                         true
                     })
                 }

@@ -66,9 +66,9 @@ impl ControlFlowGraph {
     pub(crate) fn terminate(&mut self, block: BasicBlock, span: Span, kind: TerminatorKind) {
         debug_assert!(
             self.block_data(block).terminator.is_none(),
-            "terminate: block {:?}={:?} already has a terminator set",
+            "terminate: block `{:?}` already has a terminator `{:?}` set",
             block,
-            self.block_data(block)
+            self.block_data(block).terminator.as_ref().unwrap()
         );
 
         self.block_data_mut(block).terminator = Some(Terminator { span, kind });

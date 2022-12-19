@@ -9,7 +9,7 @@ use hash_ir::{
     ty::{AdtData, AdtId, IrTy, IrTyId, Mutability},
 };
 use hash_source::location::Span;
-use hash_types::pats::PatId;
+use hash_types::{pats::PatId, terms::TermId};
 use hash_utils::store::Store;
 
 use super::Builder;
@@ -19,13 +19,10 @@ impl<'tcx> Builder<'tcx> {
     /// provided [AstNodeId].
     #[inline]
     pub(crate) fn ty_id_of_node(&self, id: AstNodeId) -> IrTyId {
-        let term_id = self.tcx.node_info_store.node_info(id).map(|f| f.term_id()).unwrap();
-
         // We need to try and look up the type within the cache, if not
         // present then we create the type by converting the term into
         // the type.
-
-        self.convert_term_into_ir_ty(term_id)
+        self.convert_term_into_ir_ty(self.term_of_node(id))
     }
 
     /// Function to get the associated [IrTy] with the
@@ -33,12 +30,7 @@ impl<'tcx> Builder<'tcx> {
     /// type.
     #[inline]
     pub(crate) fn ty_of_node(&self, id: AstNodeId) -> IrTy {
-        let term_id = self.tcx.node_info_store.node_info(id).map(|f| f.term_id()).unwrap();
-
-        // We need to try and look up the type within the cache, if not
-        // present then we create the type by converting the term into
-        // the type.
-        self.lower_term(term_id)
+        self.lower_term(self.term_of_node(id))
     }
 
     /// Function to get the associated [PatId] with the
@@ -52,6 +44,20 @@ impl<'tcx> Builder<'tcx> {
     /// the type associated with this [AstNodeId].
     pub(crate) fn ty_of_pat(&self, id: PatId) -> IrTyId {
         self.tcx.node_info_store.pat_to_node_id(id).map(|id| self.ty_id_of_node(id)).unwrap()
+    }
+
+    /// Lookup the corresponding [TermId] of [PatId] and return it.
+    pub(crate) fn term_of_pat(&self, id: PatId) -> TermId {
+        self.tcx
+            .node_info_store
+            .pat_to_node_id(id)
+            .map(|id| self.tcx.node_info_store.node_info(id).unwrap().term_id())
+            .unwrap()
+    }
+
+    /// Lookup the corresponding [TermId] of a [AstNodeId] and return it.
+    pub(crate) fn term_of_node(&self, id: AstNodeId) -> TermId {
+        self.tcx.node_info_store.node_info(id).unwrap().term_id()
     }
 
     pub(crate) fn span_of_pat(&self, id: PatId) -> Span {
@@ -69,7 +75,7 @@ impl<'tcx> Builder<'tcx> {
     /// the results of expressions, i.e. blocks.
     pub(crate) fn make_tmp_unit(&mut self) -> Place {
         match &self.tmp_place {
-            Some(tmp) => tmp.clone(),
+            Some(tmp) => *tmp,
             None => {
                 let ty = IrTy::unit(self.storage);
                 let ty_id = self.storage.ty_store().create(ty);
@@ -77,9 +83,8 @@ impl<'tcx> Builder<'tcx> {
                 let local = LocalDecl::new_auxiliary(ty_id, Mutability::Immutable);
                 let local_id = self.declarations.push(local);
 
-                let place = Place::from(local_id);
-                self.tmp_place = Some(place.clone());
-
+                let place = Place::from_local(local_id, self.storage);
+                self.tmp_place = Some(place);
                 place
             }
         }

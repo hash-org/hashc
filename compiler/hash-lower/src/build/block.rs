@@ -28,8 +28,8 @@ impl<'tcx> Builder<'tcx> {
             }
 
             // Send this off into the `match` lowering logic
-            Block::Match(MatchBlock { subject, cases, .. }) => {
-                self.match_expr(place, block, span, subject.ast_ref(), cases)
+            Block::Match(MatchBlock { subject, cases, origin }) => {
+                self.match_expr(place, block, span, subject.ast_ref(), cases, *origin)
             }
 
             Block::Loop(LoopBlock { contents }) => {

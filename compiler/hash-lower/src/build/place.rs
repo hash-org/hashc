@@ -3,8 +3,10 @@
 use hash_ast::ast::{AccessExpr, AccessKind, AstNodeRef, DerefExpr, Expr, IndexExpr, PropertyKind};
 use hash_ir::{
     ir::{BasicBlock, Local, Place, PlaceProjection},
-    ty::{IrTyId, Mutability},
+    ty::{IrTyId, Mutability, VariantIdx},
+    IrStorage,
 };
+use hash_utils::store::SequenceStore;
 
 use super::{unpack, BlockAnd, BlockAndExtend, Builder};
 
@@ -41,7 +43,7 @@ impl PlaceBuilder {
     }
 
     /// Apply a [PlaceProjection::Downcast] to the [PlaceBuilder].
-    pub(crate) fn downcast(self, index: usize) -> Self {
+    pub(crate) fn downcast(self, index: VariantIdx) -> Self {
         self.project(PlaceProjection::Downcast(index))
     }
 
@@ -63,8 +65,13 @@ impl PlaceBuilder {
     }
 
     /// Build the [Place] from the [PlaceBuilder].
-    pub(crate) fn into_place(self) -> Place {
-        Place { local: self.base, projections: self.projections }
+    pub(crate) fn into_place(self, storage: &IrStorage) -> Place {
+        Place {
+            local: self.base,
+            projections: storage
+                .projection_store()
+                .create_from_iter_fast(self.projections.into_iter()),
+        }
     }
 }
 
@@ -82,7 +89,7 @@ impl<'tcx> Builder<'tcx> {
         mutability: Mutability,
     ) -> BlockAnd<Place> {
         let place_builder = unpack!(block = self.as_place_builder(block, expr, mutability));
-        block.and(place_builder.into_place())
+        block.and(place_builder.into_place(self.storage))
     }
 
     pub(crate) fn as_place_builder(
@@ -98,7 +105,9 @@ impl<'tcx> Builder<'tcx> {
                 // can then lookup the local that this variable is bound to.
                 let name = variable.name.ident;
 
-                let local = self.lookup_local(name).unwrap();
+                let local = self
+                    .lookup_local(name)
+                    .unwrap_or_else(|| panic!("failed to lookup local `{name}`"));
                 block.and(PlaceBuilder::from(local))
             }
             Expr::Access(AccessExpr { subject, property, kind: AccessKind::Property }) => {

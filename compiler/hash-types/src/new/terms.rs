@@ -177,7 +177,6 @@ impl fmt::Display for WithEnv<'_, TermListId> {
                 write!(f, "{}", self.env().with(*term))?;
             }
             Ok(())
-        })?;
-        Ok(())
+        })
     }
 }

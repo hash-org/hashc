@@ -10,7 +10,7 @@ pub mod pretty;
 
 use std::fmt;
 
-use hash_utils::store::Store;
+use hash_utils::store::{SequenceStore, Store};
 
 use super::ir::*;
 use crate::{
@@ -53,13 +53,66 @@ impl WriteIr for IrTyId {}
 impl WriteIr for IrTyListId {}
 impl WriteIr for AdtId {}
 
+impl WriteIr for Place {}
+
+impl fmt::Display for ForFormatting<'_, Place> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.storage.projection_store.map_fast(self.item.projections, |projections| {
+            // First we, need to deal with the `deref` projections, since
+            // they need to be printed in reverse
+            for projection in projections.iter().rev() {
+                match projection {
+                    PlaceProjection::Downcast(_) | PlaceProjection::Field(_) => write!(f, "(")?,
+                    PlaceProjection::Deref => write!(f, "(*")?,
+                    PlaceProjection::Subslice { .. }
+                    | PlaceProjection::ConstantIndex { .. }
+                    | PlaceProjection::Index(_) => {}
+                }
+            }
+
+            write!(f, "{:?}", self.item.local)?;
+
+            for projection in projections.iter() {
+                match projection {
+                    PlaceProjection::Downcast(index) => write!(f, " as variant#{index})")?,
+                    PlaceProjection::Index(local) => write!(f, "[{local:?}]")?,
+                    PlaceProjection::ConstantIndex { offset, min_length, from_end: true } => {
+                        write!(f, "[-{offset:?} of {min_length:?}]")?;
+                    }
+                    PlaceProjection::ConstantIndex { offset, min_length, from_end: false } => {
+                        write!(f, "[{offset:?} of {min_length:?}]")?;
+                    }
+                    PlaceProjection::Subslice { from, to, from_end: true } if *to == 0 => {
+                        write!(f, "[{from}:]")?;
+                    }
+                    PlaceProjection::Subslice { from, to, from_end: false } if *from == 0 => {
+                        write!(f, "[:-{to:?}]")?;
+                    }
+                    PlaceProjection::Subslice { from, to, from_end: true } => {
+                        write!(f, "[{from}:-{to:?}]")?;
+                    }
+                    PlaceProjection::Subslice { from, to, from_end: false } => {
+                        write!(f, "[{from:?}:{to:?}]")?;
+                    }
+                    PlaceProjection::Field(index) => write!(f, ".{index})")?,
+                    PlaceProjection::Deref => write!(f, ")")?,
+                }
+            }
+
+            Ok(())
+        })
+    }
+}
+
 impl WriteIr for RValueId {}
 
 impl fmt::Display for ForFormatting<'_, RValueId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.storage.rvalue_store().map_fast(self.item, |rvalue| match rvalue {
-            RValue::Use(place) => write!(f, "{place}"),
-            RValue::Const(Const::Zero(ty)) => write!(f, "{}", ty.for_fmt(self.storage)),
+            RValue::Use(place) => write!(f, "{}", place.for_fmt(self.storage)),
+            RValue::Const(ConstKind::Value(Const::Zero(ty))) => {
+                write!(f, "{}", ty.for_fmt(self.storage))
+            }
             RValue::Const(const_value) => write!(f, "const {const_value}"),
             RValue::BinaryOp(op, lhs, rhs) => {
                 write!(f, "{op:?}({}, {})", lhs.for_fmt(self.storage), rhs.for_fmt(self.storage))
@@ -72,17 +125,47 @@ impl fmt::Display for ForFormatting<'_, RValueId> {
                     rhs.for_fmt(self.storage)
                 )
             }
-            RValue::Len(place) => write!(f, "len({place})"),
+            RValue::Len(place) => write!(f, "len({})", place.for_fmt(self.storage)),
             RValue::UnaryOp(op, operand) => {
                 write!(f, "{op:?}({})", operand.for_fmt(self.storage))
             }
             RValue::ConstOp(op, operand) => write!(f, "{op:?}({operand:?})"),
-            RValue::Discriminant(place) => write!(f, "discriminant({place:?})"),
+            RValue::Discriminant(place) => {
+                write!(f, "discriminant({})", place.for_fmt(self.storage))
+            }
             RValue::Ref(region, borrow_kind, place) => {
                 write!(f, "&{region:?} {borrow_kind:?} {place:?}")
             }
             RValue::Aggregate(aggregate_kind, operands) => {
-                write!(f, "{aggregate_kind:?}({operands:?})")
+                let fmt_operands = |f: &mut fmt::Formatter, start: char, end: char| {
+                    write!(f, "{start}")?;
+                    for (i, operand) in operands.iter().enumerate() {
+                        if i != 0 {
+                            write!(f, ", ")?;
+                        }
+                        write!(f, "{}", operand.for_fmt(self.storage))?;
+                    }
+
+                    write!(f, "{end}")
+                };
+
+                match aggregate_kind {
+                    AggregateKind::Tuple => fmt_operands(f, '(', ')'),
+                    AggregateKind::Array(_) => fmt_operands(f, '[', ']'),
+                    AggregateKind::Enum(adt, index) => {
+                        self.storage.adt_store().map_fast(*adt, |def| {
+                            let name = def.variants.get(*index).unwrap().name;
+
+                            write!(f, "{}::{name}", adt.for_fmt(self.storage))
+                        })?;
+
+                        fmt_operands(f, '(', ')')
+                    }
+                    AggregateKind::Struct(adt) => {
+                        write!(f, "{}", adt.for_fmt(self.storage))?;
+                        fmt_operands(f, '(', ')')
+                    }
+                }
             }
         })
     }
@@ -95,7 +178,10 @@ impl fmt::Display for ForFormatting<'_, &Statement> {
         match &self.item.kind {
             StatementKind::Nop => write!(f, "nop"),
             StatementKind::Assign(place, value) => {
-                write!(f, "{place} = {}", (*value).for_fmt(self.storage))
+                write!(f, "{} = {}", place.for_fmt(self.storage), (*value).for_fmt(self.storage))
+            }
+            StatementKind::Discriminate(place, index) => {
+                write!(f, "discriminant({}) = {index}", place.for_fmt(self.storage))
             }
             // @@Todo: figure out format for printing out the allocations that
             // are made.
@@ -114,7 +200,7 @@ impl fmt::Display for ForFormatting<'_, &Terminator> {
             TerminatorKind::Goto(_) => write!(f, "goto"),
             TerminatorKind::Return => write!(f, "return"),
             TerminatorKind::Call { op, args, target, destination } => {
-                write!(f, "{destination} = {}(", op.for_fmt(self.storage))?;
+                write!(f, "{} = {}(", destination.for_fmt(self.storage), op.for_fmt(self.storage))?;
 
                 // write all of the arguments
                 for (i, arg) in args.iter().enumerate() {
@@ -164,10 +250,10 @@ impl fmt::Display for ForFormatting<'_, &Terminator> {
                 Ok(())
             }
             TerminatorKind::Assert { condition, expected, kind, target } => {
-                write!(f, "assert({condition}, {expected:?}, {kind:?})")?;
+                write!(f, "assert({}, {expected:?}, {kind:?})", condition.for_fmt(self.storage))?;
 
                 if self.with_edges {
-                    write!(f, "-> {target:?}")?;
+                    write!(f, " -> {target:?}")?;
                 }
 
                 Ok(())

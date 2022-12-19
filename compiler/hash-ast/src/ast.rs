@@ -1167,6 +1167,14 @@ define_tree! {
             )
         }
 
+        /// Check whether an operator is a comparator operator, i.e. `==`, `!=`, etc.
+        pub fn is_comparator(&self) -> bool {
+            matches!(
+                self,
+                BinOp::EqEq | BinOp::NotEq | BinOp::Gt | BinOp::GtEq | BinOp::Lt | BinOp::LtEq
+            )
+        }
+
         /// Checks whether this operator is a ordering comparison operator, i.e. `<`
         /// `<=`, `>`, etc.
         pub fn is_ordering_comparator(&self) -> bool {
@@ -1917,6 +1925,23 @@ define_tree! {
         BinaryExpr(BinaryExpr),
         /// Unary Expression composed of a unary operator and an expression
         UnaryExpr(UnaryExpr),
+    }
+
+    impl Expr {
+        pub fn is_def(&self) -> bool {
+            matches!(self,
+                Expr::Ty(_) |
+                Expr::Import(_) |
+                Expr::StructDef(_) |
+                Expr::EnumDef(_) |
+                Expr::TyFnDef(_) |
+                Expr::TraitDef(_) |
+                Expr::TraitImpl(_) |
+                Expr::ImplDef(_) |
+                Expr::ModDef(_) |
+                Expr::MergeDeclaration(_) |
+                Expr::FnDef(_))
+        }
     }
 
     /// A module.

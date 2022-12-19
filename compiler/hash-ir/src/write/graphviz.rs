@@ -10,7 +10,7 @@ use std::io;
 use html_escape::encode_text;
 
 use crate::{
-    ir::{BasicBlock, BasicBlockData, Body, Const, TerminatorKind},
+    ir::{BasicBlock, BasicBlockData, Body, BodySource, Const, TerminatorKind},
     write::WriteIr,
     IrStorage,
 };
@@ -75,16 +75,21 @@ impl<'ir> IrGraphWriter<'ir> {
         writeln!(w, "  node [fontname=\"{}\"];", self.options.font)?;
         writeln!(w, "  edge [fontname=\"{}\"];", self.options.font)?;
 
+        // Compute the header of the current graph.
+        let header = match self.body.info().source() {
+            BodySource::Item | BodySource::Intrinsic => {
+                format!("{}", self.body.info().ty().fmt_with_opts(self.ctx, true, false))
+            }
+            BodySource::Const => {
+                // @@Todo: maybe figure out a better format for this?
+                format!(": {}", self.body.info().ty().fmt_with_opts(self.ctx, true, false))
+            }
+        };
+
         // Now we write the `label` of the graph which is essentially the type of
         // the function and any local declarations that have been defined within the
         // body.
-        write!(
-            w,
-            "  label=<{}{}{}",
-            self.body.info().name,
-            encode_text(&format!("{}", self.body.info().ty().fmt_with_opts(self.ctx, true, false))),
-            LINE_SEPARATOR
-        )?;
+        write!(w, "  label=<{}{}{}", self.body.info().name, encode_text(&header), LINE_SEPARATOR)?;
 
         // Now we can emit the local declarations that have been defined within the
         // body...

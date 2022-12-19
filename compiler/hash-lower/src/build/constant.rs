@@ -121,10 +121,6 @@ where
 
         // Don't do anything for exponents, since not all integral kinds support this.
         BinOp::Exp => None,
-
-        // We don't deal with logical operations here since these are
-        // not integral operations
-        BinOp::Or | BinOp::And => None,
     };
 
     value.map(|val| {

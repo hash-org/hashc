@@ -3,16 +3,23 @@
 //! `strategies` can be found in [crate::build::rvalue] and
 //! [crate::build::temp].
 
+use std::collections::HashMap;
+
 use hash_ast::ast::{
-    AssignExpr, AssignOpExpr, AstNodeRef, AstNodes, BlockExpr, ConstructorCallArg,
-    ConstructorCallExpr, Declaration, Expr, RefExpr, RefKind, ReturnStatement, UnsafeExpr,
+    AccessExpr, AccessKind, AssignExpr, AssignOpExpr, AstNodeRef, AstNodes, BinOp, BinaryExpr,
+    BlockExpr, ConstructorCallArg, ConstructorCallExpr, Declaration, Expr, ListLit, Lit,
+    PropertyKind, RefExpr, RefKind, ReturnStatement, TupleLit, UnsafeExpr, VariableExpr,
 };
 use hash_ir::{
-    ir::{self, AddressMode, BasicBlock, Place, RValue, TerminatorKind},
-    ty::{IrTy, Mutability},
+    ir::{
+        self, AddressMode, AggregateKind, BasicBlock, Const, ConstKind, Place, RValue, Statement,
+        StatementKind, TerminatorKind,
+    },
+    ty::{IrTy, IrTyId, Mutability, VariantIdx},
 };
 use hash_reporting::macros::panic_on_span;
-use hash_source::location::Span;
+use hash_source::{identifier::Identifier, location::Span};
+use hash_types::scope::ScopeKind;
 use hash_utils::store::{SequenceStoreKey, Store};
 
 use super::{unpack, BlockAnd, BlockAndExtend, Builder, LoopBlockInfo};
@@ -40,18 +47,57 @@ impl<'tcx> Builder<'tcx> {
                     self.fn_call_into_dest(destination, block, subject.ast_ref(), args, span)
                 } else {
                     // This is a constructor call, so we need to handle it as such.
-                    self.constructor_into_dest(destination, block, subject.ast_ref(), args)
+                    self.constructor_into_dest(destination, block, subject.ast_ref(), args, span)
                 }
             }
             Expr::Directive(expr) => {
                 self.expr_into_dest(destination, block, expr.subject.ast_ref())
             }
-            Expr::Index(..) | Expr::Deref(..) | Expr::Access(..) | Expr::Variable(..) => {
-                let _term = self.ty_of_node(expr.id());
+            Expr::Index(..)
+            | Expr::Deref(..)
+            | Expr::Access(AccessExpr { kind: AccessKind::Property, .. }) => {
                 let place = unpack!(block = self.as_place(block, expr, Mutability::Immutable));
 
                 let rvalue = self.storage.push_rvalue(RValue::Use(place));
                 self.control_flow_graph.push_assign(block, destination, rvalue, span);
+
+                block.unit()
+            }
+            Expr::Variable(VariableExpr { name }) => {
+                let name = name.ident;
+                let (scope, _, scope_kind) = self.lookup_item_scope(name).unwrap();
+
+                // Here, if the scope is not variable, i.e. constant, then we essentially need
+                // to denote that this a constant that comes from outside of the function body.
+                if !matches!(scope_kind, ScopeKind::Variable) {
+                    // here, we emit an un-evaluated constant kind which will be resolved later
+                    // during IR simplification.
+                    let rvalue = self
+                        .storage
+                        .push_rvalue(RValue::Const(ConstKind::Unevaluated { scope, name }));
+                    self.control_flow_graph.push_assign(block, destination, rvalue, span);
+                } else {
+                    let local = self.lookup_local_from_scope(scope, name).unwrap();
+                    let place = RValue::Use(Place::from_local(local, self.storage));
+                    let rvalue = self.storage.push_rvalue(place);
+                    self.control_flow_graph.push_assign(block, destination, rvalue, span);
+                }
+
+                block.unit()
+            }
+            Expr::Access(AccessExpr { subject, kind: AccessKind::Namespace, property }) => {
+                // This is a special case, since we are creating an enum variant here with
+                // no arguments.
+                let subject_ty = self.ty_id_of_node(subject.id());
+                let index = self.map_on_adt(subject_ty, |adt, _| match property.body() {
+                    PropertyKind::NamedField(name) => adt.variant_idx(name).unwrap(),
+                    PropertyKind::NumericField(index) => VariantIdx::from_usize(*index),
+                });
+
+                self.control_flow_graph.push(
+                    block,
+                    Statement { kind: StatementKind::Discriminate(destination, index), span },
+                );
 
                 block.unit()
             }
@@ -123,7 +169,7 @@ impl<'tcx> Builder<'tcx> {
                 // Assign the `value` of the assignment into the `tmp_place`
                 let const_value = ir::Const::zero(self.storage);
 
-                let empty_value = self.storage.push_rvalue(RValue::Const(const_value));
+                let empty_value = self.storage.push_rvalue(const_value.into());
                 self.control_flow_graph.push_assign(block, destination, empty_value, span);
                 block.unit()
             }
@@ -139,7 +185,7 @@ impl<'tcx> Builder<'tcx> {
                 if let Some(return_expr) = &expr {
                     unpack!(
                         block = self.expr_into_dest(
-                            Place::return_place(),
+                            Place::return_place(self.storage),
                             block,
                             return_expr.ast_ref()
                         )
@@ -148,9 +194,14 @@ impl<'tcx> Builder<'tcx> {
                     // If no expression is attached to the return, then we need to push a
                     // `unit` value into the return place.
                     let const_value = ir::Const::zero(self.storage);
+                    let unit = self.storage.push_rvalue(const_value.into());
 
-                    let unit = self.storage.push_rvalue(RValue::Const(const_value));
-                    self.control_flow_graph.push_assign(block, Place::return_place(), unit, span);
+                    self.control_flow_graph.push_assign(
+                        block,
+                        Place::return_place(self.storage),
+                        unit,
+                        span,
+                    );
                 }
 
                 // Create a new block for the `return` statement and make this block
@@ -163,7 +214,6 @@ impl<'tcx> Builder<'tcx> {
                 self.control_flow_graph.start_new_block().unit()
             }
 
-            // These should be unreachable in this context
             Expr::Continue { .. } | Expr::Break { .. } => {
                 // Specify that we have reached the terminator of this block...
                 self.reached_terminator = true;
@@ -172,7 +222,11 @@ impl<'tcx> Builder<'tcx> {
                 // start of the loop block, and when this is a break, we need to
                 // **jump** to the proceeding block of the loop block
                 let Some(LoopBlockInfo { loop_body, next_block }) = self.loop_block_info else {
-                    panic!("`continue` or `break` outside of loop");
+                    panic_on_span!(
+                        span.into_location(self.source_id),
+                        self.source_map,
+                        "`continue` or `break` outside of loop"
+                    );
                 };
 
                 // Add terminators to this block to specify where this block will jump...
@@ -189,13 +243,143 @@ impl<'tcx> Builder<'tcx> {
                 block.unit()
             }
 
-            // Lower this as an Rvalue
             Expr::Lit(literal) => {
-                let constant = self.as_constant(literal.data.ast_ref());
-                let rvalue = self.storage.push_rvalue(constant.into());
-                self.control_flow_graph.push_assign(block, destination, rvalue, span);
+                // We lower primitive (integrals, strings, etc) literals as constants, and
+                // other literals like `sets`, `maps`, `lists`, and `tuples` as aggregates.
+                match literal.data.body() {
+                    Lit::Map(_) | Lit::Set(_) => unimplemented!(),
+                    Lit::List(ListLit { elements }) => {
+                        let ty = self.ty_id_of_node(expr.id());
+                        let el_ty = self.map_ty(ty, |ty| match ty {
+                            IrTy::Slice(ty) | IrTy::Array { ty, .. } => *ty,
+                            _ => unreachable!(),
+                        });
 
-                block.unit()
+                        let aggregate_kind = AggregateKind::Array(el_ty);
+                        let args = elements
+                            .iter()
+                            .enumerate()
+                            .map(|(index, element)| (index.into(), element.ast_ref()))
+                            .collect::<Vec<_>>();
+
+                        self.aggregate_into_dest(
+                            destination,
+                            block,
+                            ty,
+                            aggregate_kind,
+                            &args,
+                            span,
+                        )
+                    }
+                    Lit::Tuple(TupleLit { elements }) => {
+                        let ty = self.ty_id_of_node(expr.id());
+                        let aggregate_kind = AggregateKind::Tuple;
+                        let args = elements
+                            .iter()
+                            .enumerate()
+                            .map(|(index, element)| {
+                                let name = match &element.body().name {
+                                    Some(name) => name.ident,
+                                    None => index.into(),
+                                };
+
+                                (name, element.body().value.ast_ref())
+                            })
+                            .collect::<Vec<_>>();
+
+                        self.aggregate_into_dest(
+                            destination,
+                            block,
+                            ty,
+                            aggregate_kind,
+                            &args,
+                            span,
+                        )
+                    }
+                    Lit::Str(_) | Lit::Char(_) | Lit::Int(_) | Lit::Float(_) | Lit::Bool(_) => {
+                        let constant = self.as_constant(literal.data.ast_ref());
+                        let rvalue = self.storage.push_rvalue(constant.into());
+                        self.control_flow_graph.push_assign(block, destination, rvalue, span);
+
+                        block.unit()
+                    }
+                }
+            }
+
+            // We deal with logical binary expressions differently than other
+            // binary operators. In order to preserve the short-circuiting behaviour of
+            // these operators, we need to create the following schemes:
+            //
+            // AND operator:
+            // ```text
+            //  +-----+  true   +------------+
+            //  | lhs |-------->| dest = rhs |--+
+            //  +--+--+         +------------+  |
+            //     |                            |
+            //     | false                      |
+            //     v                            |
+            //  +--+-----------+                |   +------+
+            //  | dest = false |----------------+-->| join |
+            //  +--------------+                    +------+
+            // ```
+            //
+            // OR operator:
+            //
+            // ```text
+            //  +-----+  false  +------------+
+            //  | lhs |-------->| dest = rhs |--+
+            //  +--+--+         +------------+  |
+            //     |                            |
+            //     | true                       |
+            //     v                            |
+            //  +--+-----------+                |   +------+
+            //  | dest = true  |----------------+-->| join |
+            //  +--------------+                    +------+
+            // ```
+            Expr::BinaryExpr(BinaryExpr { lhs, rhs, operator }) if operator.is_lazy() => {
+                let (shortcircuiting_block, mut else_block, join_block) = (
+                    self.control_flow_graph.start_new_block(),
+                    self.control_flow_graph.start_new_block(),
+                    self.control_flow_graph.start_new_block(),
+                );
+
+                let lhs =
+                    unpack!(block = self.as_operand(block, lhs.ast_ref(), Mutability::Mutable));
+
+                let blocks = match *operator.body() {
+                    BinOp::And => (else_block, shortcircuiting_block),
+                    BinOp::Or => (shortcircuiting_block, else_block),
+                    _ => unreachable!(),
+                };
+
+                let term = TerminatorKind::make_if(lhs, blocks.0, blocks.1, self.storage);
+                self.control_flow_graph.terminate(block, span, term);
+
+                // Create the constant that we will assign in the `short_circuting` block.
+                let constant = match *operator.body() {
+                    BinOp::And => Const::Bool(false),
+                    BinOp::Or => Const::Bool(true),
+                    _ => unreachable!(),
+                };
+                let value = self.storage.push_rvalue(constant.into());
+                self.control_flow_graph.push_assign(
+                    shortcircuiting_block,
+                    destination,
+                    value,
+                    span,
+                );
+
+                // Join the branch to the joining block
+                self.control_flow_graph.goto(shortcircuiting_block, join_block, span);
+
+                // Now deal with the non-short-circuiting block
+                let rhs = unpack!(
+                    else_block = self.as_operand(else_block, rhs.ast_ref(), Mutability::Mutable)
+                );
+                self.control_flow_graph.push_assign(else_block, destination, rhs, span);
+                self.control_flow_graph.goto(else_block, join_block, span);
+
+                join_block.unit()
             }
 
             Expr::BinaryExpr(..) | Expr::UnaryExpr(..) => {
@@ -218,7 +402,7 @@ impl<'tcx> Builder<'tcx> {
     /// have dead ends...
     pub(crate) fn handle_expr_declaration(
         &mut self,
-        block: BasicBlock,
+        mut block: BasicBlock,
         decl: &'tcx Declaration,
     ) -> BlockAnd<()> {
         if self.dead_ends.contains(&decl.pat.id()) {
@@ -230,7 +414,7 @@ impl<'tcx> Builder<'tcx> {
         self.visit_bindings(decl.pat.ast_ref());
 
         if let Some(rvalue) = &decl.value {
-            self.expr_into_pat(block, decl.pat.ast_ref(), rvalue.ast_ref());
+            unpack!(block = self.expr_into_pat(block, decl.pat.ast_ref(), rvalue.ast_ref()));
         } else {
             panic_on_span!(
                 decl.pat.span().into_location(self.source_id),
@@ -324,13 +508,121 @@ impl<'tcx> Builder<'tcx> {
         success.unit()
     }
 
+    /// Function that deals with lowering a constructor call which might involve
+    /// either a `struct` or an `enum` constructor. This function constructs an
+    /// [RValue::Aggregate] and assigns it to the specified destination.
+    ///
+    /// However, due to the fact that we haven't decided whether it is easier to
+    /// deal with aggregate values or direct fields assignments, we might have
+    /// to end up de-aggregating the aggregate values into a series of
+    /// assignments as they are specified within their declaration order.
     pub fn constructor_into_dest(
         &mut self,
-        _destination: Place,
-        mut _block: BasicBlock,
-        _subject: AstNodeRef<'tcx, Expr>,
-        _args: &'tcx AstNodes<ConstructorCallArg>,
+        destination: Place,
+        mut block: BasicBlock,
+        subject: AstNodeRef<'tcx, Expr>,
+        args: &'tcx AstNodes<ConstructorCallArg>,
+        span: Span,
     ) -> BlockAnd<()> {
-        unimplemented!()
+        let subject_ty = self.ty_id_of_node(subject.id());
+        let aggregate_kind = self.map_on_adt(subject_ty, |adt, id| {
+            if adt.flags.is_enum() || adt.flags.is_union() {
+                // here, we have to work out which variant is being used, so we look at the
+                // subject type as an `enum variant` value, and extract the index
+                let index =
+                    if let Expr::Access(AccessExpr {
+                        property, kind: AccessKind::Namespace, ..
+                    }) = &subject.body
+                    {
+                        match property.body() {
+                            PropertyKind::NamedField(name) => adt.variant_idx(name).unwrap(),
+                            PropertyKind::NumericField(index) => VariantIdx::from_usize(*index),
+                        }
+                    } else {
+                        panic!("expected an enum variant")
+                    };
+
+                AggregateKind::Enum(id, index)
+            } else {
+                debug_assert!(adt.flags.is_struct());
+                AggregateKind::Struct(id)
+            }
+        });
+
+        // deal with the subject first, since it might involve creating a
+        // discriminant on the destination.
+        if matches!(aggregate_kind, AggregateKind::Enum(..)) {
+            unpack!(block = self.expr_into_dest(destination, block, subject));
+        }
+
+        let args = args
+            .iter()
+            .enumerate()
+            .map(|(index, arg)| {
+                let name = match &arg.name {
+                    Some(name) => name.ident,
+                    None => index.into(),
+                };
+
+                (name, arg.value.ast_ref())
+            })
+            .collect::<Vec<_>>();
+
+        self.aggregate_into_dest(destination, block, subject_ty, aggregate_kind, &args, span)
+    }
+
+    /// Place any aggregate value into the specified destination. This does not
+    /// currently deal with default arguments to a specified ADT, so it will
+    /// panic if the number of arguments provided is not equal to the number of
+    /// fields in the ADT.
+    fn aggregate_into_dest(
+        &mut self,
+        destination: Place,
+        mut block: BasicBlock,
+        ty: IrTyId,
+        aggregate_kind: AggregateKind,
+        args: &[(Identifier, AstNodeRef<'tcx, Expr>)],
+        span: Span,
+    ) -> BlockAnd<()> {
+        // @@Todo: deal with the situation where we need to fill in default
+        //  values for various parameters. For now, we ensure that all
+        //  values are specified for the particular definition, and ensure
+        // that the provided fields are equal. When we do add support for
+        // default field values, it should be that the type checker
+        // emits information about what fields need to be added to this
+        // aggregate value.
+        let fields: HashMap<_, _> = args
+            .iter()
+            .map(|(name, arg)| (name, unpack!(block = self.as_rvalue(block, *arg))))
+            .collect();
+
+        // We don't need to perform this check for arrays since they don't need
+        // to have a specific amount of arguments to the constructor.
+        if aggregate_kind.is_adt() {
+            let field_count = self.map_on_adt(ty, |adt, _| {
+                if let AggregateKind::Enum(_, index) = aggregate_kind {
+                    adt.variants[index].fields.len()
+                } else {
+                    adt.variants[0].fields.len()
+                }
+            });
+
+            // Ensure we have the exact amount of arguments as the definition expects.
+            if args.len() != field_count {
+                panic_on_span!(
+                    span.into_location(self.source_id),
+                    self.source_map,
+                    "default arguments on constructors are not currently supported",
+                );
+            }
+        }
+
+        let fields = fields.into_values().into_iter().collect();
+        let aggregate = RValue::Aggregate(aggregate_kind, fields);
+        let value = self.storage.push_rvalue(aggregate);
+
+        self.control_flow_graph.push_assign(block, destination, value, span);
+
+        block.unit()
     }
 }

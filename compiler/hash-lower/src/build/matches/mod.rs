@@ -9,9 +9,9 @@ mod utils;
 
 use std::mem;
 
-use hash_ast::ast::{self, AstNodeRef, AstNodes, BinOp, BinaryExpr, Expr, MatchCase};
+use hash_ast::ast::{self, AstNodeRef, AstNodes, BinOp, BinaryExpr, Expr, MatchCase, MatchOrigin};
 use hash_ir::{
-    ir::{AddressMode, BasicBlock, Place, RValue, TerminatorKind},
+    ir::{self, AddressMode, BasicBlock, Place, RValue, TerminatorKind},
     ty::Mutability,
 };
 use hash_source::location::Span;
@@ -38,9 +38,17 @@ impl<'tcx> Builder<'tcx> {
         span: Span,
         subject: AstNodeRef<'tcx, Expr>,
         arms: &'tcx AstNodes<MatchCase>,
+        origin: MatchOrigin,
     ) -> BlockAnd<()> {
-        let subject_place =
-            unpack!(block = self.as_place_builder(block, subject, Mutability::Immutable));
+        // @@Hack: if the match-origin is an `if`-chain, then we don't bother
+        // lowering the place since we always know that the branches are
+        // always matching, and it's only guards that are being tested. Therefore,
+        // we use the `subject_place` as the `return_place` in this instance.
+        let subject_place = if matches!(origin, MatchOrigin::If) {
+            PlaceBuilder::from(ir::RETURN_PLACE)
+        } else {
+            unpack!(block = self.as_place_builder(block, subject, Mutability::Mutable))
+        };
 
         // Make the decision tree here...
         let mut arm_candidates = self.create_match_candidates(&subject_place, arms);
@@ -96,11 +104,11 @@ impl<'tcx> Builder<'tcx> {
             }
             _ => {
                 let place = unpack!(block = self.as_place(block, expr, Mutability::Mutable));
-
                 let then_block = self.control_flow_graph.start_new_block();
 
+                let value = self.storage.push_rvalue(RValue::Use(place));
                 let terminator =
-                    TerminatorKind::make_if(place, then_block, else_block, self.storage);
+                    TerminatorKind::make_if(value, then_block, else_block, self.storage);
                 self.control_flow_graph.terminate(block, span, terminator);
 
                 then_block.unit()
@@ -170,7 +178,7 @@ impl<'tcx> Builder<'tcx> {
             let arm_block = self.declare_bindings(subject_span, arm, candidate);
 
             lowered_arms_edges.push(self.expr_into_dest(
-                destination.clone(),
+                destination,
                 arm_block,
                 arm.body.expr.ast_ref(),
             ));
@@ -662,11 +670,12 @@ impl<'tcx> Builder<'tcx> {
         // to avoid problems of mutation in the if-guard, and then affecting the
         // soundness of later match checks.
         for binding in bindings {
-            let value_place = self.lookup_local(binding.name).unwrap().into();
+            let value_place =
+                Place::from_local(self.lookup_local(binding.name).unwrap(), self.storage);
 
             // @@Todo: we might have to do some special rules for the `by-ref` case
             //         when we start to think about reference rules more concretely.
-            let rvalue = RValue::Ref(binding.mutability, binding.source.clone(), AddressMode::Raw);
+            let rvalue = RValue::Ref(binding.mutability, binding.source, AddressMode::Raw);
             let rvalue_id = self.storage.push_rvalue(rvalue);
             self.control_flow_graph.push_assign(block, value_place, rvalue_id, binding.span);
         }
@@ -680,7 +689,8 @@ impl<'tcx> Builder<'tcx> {
         'tcx: 'b,
     {
         for binding in bindings {
-            let value_place = self.lookup_local(binding.name).unwrap().into();
+            let value_place =
+                Place::from_local(self.lookup_local(binding.name).unwrap(), self.storage);
 
             let rvalue = match binding.mode {
                 candidate::BindingMode::ByValue => RValue::Use(value_place),
@@ -690,12 +700,7 @@ impl<'tcx> Builder<'tcx> {
             };
             let rvalue_id = self.storage.push_rvalue(rvalue);
 
-            self.control_flow_graph.push_assign(
-                block,
-                binding.source.clone(),
-                rvalue_id,
-                binding.span,
-            );
+            self.control_flow_graph.push_assign(block, binding.source, rvalue_id, binding.span);
         }
     }
 }

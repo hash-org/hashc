@@ -415,15 +415,12 @@ impl<'tc> Simplifier<'tc> {
                         // (namespace operation).
                         let name = does_not_support_prop_access(access_term)?;
 
+                        // Return a term that refers to the variant (level 0)
                         match enum_def.variants.get(&name) {
-                            Some(enum_variant) => {
-                                // Return a term that refers to the variant (level 0)
-                                let name = enum_variant.name;
-                                Ok(Some(
-                                    self.builder()
-                                        .create_enum_variant_value_term(name, *nominal_def_id),
-                                ))
-                            }
+                            Some(_) => Ok(Some(
+                                self.builder()
+                                    .create_enum_variant_value_term(name, *nominal_def_id),
+                            )),
                             None => name_not_found(access_term),
                         }
                     }
@@ -945,8 +942,7 @@ impl<'tc> Simplifier<'tc> {
                         // forward here, we need to somehow carry them forward while doing
                         // the access.
                         let variant = self.oracle().get_enum_variant_info(enum_variant);
-                        let enum_ty =
-                            self.builder().create_nominal_def_term(enum_variant.enum_def_id);
+                        let enum_ty = self.builder().create_nominal_def_term(enum_variant.def_id);
                         match variant.fields {
                             Some(fields) => Ok(FnTy {
                                 name: Some(variant.name),

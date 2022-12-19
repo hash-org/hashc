@@ -8,17 +8,29 @@ use std::fmt::Display;
 pub enum BlockOrigin {
     /// Root block of the file.
     Root,
+
     /// The block is a `mod` block.
     Mod,
+
     /// The block is from a `trait` definition.
     Trait,
+
     /// The block is an `impl` block.
     Impl,
+
     /// Block is a body of some kind.
     Body,
+
     /// A dummy [BlockOrigin] kind, only used for error
     /// reporting and grouping `constant` blocks together.
     Const,
+}
+
+impl BlockOrigin {
+    /// Check if the [BlockOrigin] is constant.
+    pub fn is_const(&self) -> bool {
+        !matches!(self, BlockOrigin::Body)
+    }
 }
 
 impl Display for BlockOrigin {

@@ -218,8 +218,7 @@ impl<'tc> Typer<'tc> {
                         // For an enum variant Foo::Bar(x: A, y: B), we create:
                         // (x: A, y: B) -> Bar
                         let variant = self.oracle().get_enum_variant_info(enum_variant);
-                        let enum_ty =
-                            self.builder().create_nominal_def_term(enum_variant.enum_def_id);
+                        let enum_ty = self.builder().create_nominal_def_term(enum_variant.def_id);
                         match variant.fields {
                             Some(fields) => Ok(self.builder().create_fn_ty_term(
                                 Some(variant.name),
@@ -412,14 +411,11 @@ impl<'tc> Typer<'tc> {
                 Ok(term)
             }
             Pat::Access(AccessPat { subject, property }) => {
-                let subject_id = self.get_term_of_pat(subject)?;
-
-                Ok(self.builder().create_access(subject_id, property, AccessOp::Namespace))
+                let term = self.get_term_of_pat(subject)?;
+                let access_term = self.builder().create_access(term, property, AccessOp::Namespace);
+                Ok(self.simplifier().potentially_simplify_term(access_term)?)
             }
-            Pat::Lit(lit_term) => {
-                // The term of a literal pattern is the literal (lol):
-                Ok(lit_term)
-            }
+            Pat::Lit(lit_term) => Ok(lit_term),
             Pat::Range(RangePat { lo, .. }) => {
                 copy_location_to_term = false;
 
