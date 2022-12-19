@@ -25,7 +25,7 @@ impl fmt::Display for WithEnv<'_, &CastTerm> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "cast({}, {})",
+            "({} as {})",
             self.env().with(self.value.target_ty),
             self.env().with(self.value.subject_term)
         )
