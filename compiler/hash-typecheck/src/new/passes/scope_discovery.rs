@@ -143,6 +143,22 @@ impl<'tc> ScopeDiscoveryPass<'tc> {
         )
     }
 
+    /// Create a parameter data list from the given AST parameter list, where
+    /// the type and default value of each parameter is a hole.
+    fn create_param_data_from_ast_params<'a>(
+        &self,
+        params: impl Iterator<Item = &'a ast::AstNode<ast::Param>> + ExactSizeIterator,
+    ) -> Vec<ParamData> {
+        params
+            .map(|param| {
+                let name = self.create_symbol_from_ast_name(&param.name);
+                let ty = self.new_ty_hole();
+                let default_value = param.default.as_ref().map(|_| self.new_term_hole());
+                ParamData { name, ty, default_value }
+            })
+            .collect_vec()
+    }
+
     /// Take the currently set name hint, or create a new internal name.
     fn take_name_hint_or_create_internal_name(&self) -> Symbol {
         self.name_hint.take().unwrap_or_else(|| self.new_fresh_symbol())
@@ -623,11 +639,7 @@ impl<'tc> ast::AstVisitor for ScopeDiscoveryPass<'tc> {
         let struct_def_id = self.data_ops().create_struct_def(
             struct_name,
             self.create_hole_def_params(once((true, &node.ty_params))),
-            node.fields.iter().map(|field| ParamData {
-                name: self.create_symbol_from_ast_name(&field.name),
-                ty: self.new_ty_hole(),
-                default_value: field.default.as_ref().map(|_| self.new_term_hole()),
-            }),
+            self.create_param_data_from_ast_params(node.fields.iter()).into_iter(),
         );
 
         // Traverse the struct; note that the fields have already been created, they
@@ -640,9 +652,26 @@ impl<'tc> ast::AstVisitor for ScopeDiscoveryPass<'tc> {
     type EnumDefRet = ();
     fn visit_enum_def(
         &self,
-        _node: ast::AstNodeRef<ast::EnumDef>,
+        node: ast::AstNodeRef<ast::EnumDef>,
     ) -> Result<Self::EnumDefRet, Self::Error> {
-        todo!()
+        let enum_name = self.take_name_hint_or_create_internal_name();
+
+        // Create a data definition for the enum
+        let enum_def_id = self.data_ops().create_enum_def(
+            enum_name,
+            self.create_hole_def_params(once((true, &node.ty_params))),
+            node.entries.iter().map(|variant| {
+                (
+                    self.new_symbol(variant.name.ident),
+                    self.create_param_data_from_ast_params(variant.fields.iter()).into_iter(),
+                )
+            }),
+        );
+
+        // Traverse the enum; the variants have already been created.
+        self.enter_def_without_members(node, enum_def_id, || walk::walk_enum_def(self, node))?;
+
+        Ok(())
     }
 
     type TraitDefRet = ();

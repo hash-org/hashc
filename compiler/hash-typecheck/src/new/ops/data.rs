@@ -1,6 +1,6 @@
+// @@Docs
 use std::iter::once;
 
-// @@Docs
 use derive_more::Constructor;
 use hash_types::new::{
     args::ArgData,
@@ -121,12 +121,11 @@ impl<'tc> DataOps<'tc> {
 
     /// Create a struct data definition, with some parameters.
     ///
-    /// The fields are given as an iterator of `Param`s, which are the names and
-    /// types of the fields.
+    /// The fields are given as an iterator of `ParamData`s, which are the names
+    /// and types of the fields.
     ///
     /// This will create a data definition with a single constructor, which
-    /// takes the fields as parameters and returns a struct with those
-    /// fields.
+    /// takes the fields as parameters and returns the data type.
     pub fn create_struct_def(
         &self,
         name: Symbol,
@@ -163,6 +162,60 @@ impl<'tc> DataOps<'tc> {
                     result_args: result_args(id),
                 }
             })),
+        })
+    }
+
+    /// Create an enum definition, with some parameters.
+    ///
+    /// The variants are given as an iterator of `(Symbol, Iter<ParamData>)`,
+    /// which are the names and fields of the variants.
+    ///
+    /// This will create a data definition with a constructor for each variant,
+    /// which takes the variant fields as parameters and returns the data
+    /// type.
+    pub fn create_enum_def(
+        &self,
+        name: Symbol,
+        params: DefParamsId,
+        variants: impl Iterator<Item = (Symbol, impl Iterator<Item = ParamData>)>,
+    ) -> DataDefId {
+        // Create the arguments for the constructor, which are the type
+        // parameters given.
+        let result_args =
+            |data_def_id| self.create_forwarded_data_args_from_params(data_def_id, params);
+
+        let variants = variants.collect_vec();
+
+        // Create the data definition for the enum
+        self.stores().data_def().create_with(|id| DataDef {
+            id,
+            name,
+            params,
+            ctors: self.stores().ctor_defs().create_from_iter_with(
+                variants.into_iter().enumerate().map(|(index, variant)| {
+                    let variant_name = variant.0;
+                    let variant_fields = variant.1.collect_vec();
+                    // Create the parameters for the fields
+                    let fields_params =
+                        self.param_ops().create_params(variant_fields.iter().copied());
+                    // The field parameters correspond to a single parameter group
+                    let fields_def_params =
+                        self.param_ops().create_def_params(once(DefParamGroupData {
+                            implicit: false,
+                            params: fields_params,
+                        }));
+
+                    // Create a constructor for each variant
+                    move |ctor_id| CtorDef {
+                        id: ctor_id,
+                        name: variant_name,
+                        data_def_ctor_index: index,
+                        data_def_id: id,
+                        params: fields_def_params,
+                        result_args: result_args(id),
+                    }
+                }),
+            ),
         })
     }
 }
