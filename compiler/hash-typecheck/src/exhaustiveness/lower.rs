@@ -547,7 +547,6 @@ impl<'tc> LowerPatOps<'tc> {
 
             // Trim the values within the stored range and then create
             // literal terms with those values...
-            println!("lo: {lo:#128b}\nhi: {hi:#128b}");
             let lo_val = CONSTANT_MAP.create_int_constant(IntConstant::new(
                 IntConstantValue::from_le_bytes(&lo.to_le_bytes()[0..size]),
                 kind,
