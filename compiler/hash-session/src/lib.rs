@@ -12,7 +12,7 @@ use hash_ast::node_map::NodeMap;
 use hash_ast_desugaring::{AstDesugaringCtx, AstDesugaringPass};
 use hash_ast_expand::{AstExpansionCtx, AstExpansionPass};
 use hash_ir::IrStorage;
-use hash_lower::{AstLowerer, IrLoweringCtx};
+use hash_lower::{AstLowerer, IrLoweringCtx, IrOptimiser};
 use hash_parser::{Parser, ParserCtx};
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerStage},
@@ -35,6 +35,7 @@ pub fn make_stages() -> Vec<Box<dyn CompilerStage<CompilerSession>>> {
         Box::new(SemanticAnalysis),
         Box::new(Typechecker::new()),
         Box::new(AstLowerer::new()),
+        Box::new(IrOptimiser::new()),
         Box::new(Interpreter::new()),
     ]
 }
@@ -147,8 +148,13 @@ impl TypecheckingCtx for CompilerSession {
 }
 
 impl IrLoweringCtx for CompilerSession {
-    fn data(&mut self) -> (&mut Workspace, &TyStorage, &mut IrStorage) {
-        (&mut self.workspace, &self.ty_storage, &mut self.ir_storage)
+    fn data(&mut self) -> hash_lower::LoweringCtx {
+        hash_lower::LoweringCtx::new(
+            &mut self.workspace,
+            &self.ty_storage,
+            &mut self.ir_storage,
+            &self.pool,
+        )
     }
 }
 

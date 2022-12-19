@@ -367,7 +367,7 @@ impl<'tcx> Builder<'tcx> {
         // If it is a function type, then we use the return type of the
         // funciton as the `return_ty`, otherwise we assume the type provided
         // is the `return_ty`
-        let (return_ty, params) = self.storage.ty_store().map_fast(ty, |item_ty| match item_ty {
+        let (return_ty, params) = self.storage.tys().map_fast(ty, |item_ty| match item_ty {
             IrTy::Fn { return_ty, params, .. } => (*return_ty, Some(*params)),
             _ => (ty, None),
         });
@@ -403,7 +403,7 @@ impl<'tcx> Builder<'tcx> {
         // Add each parameter as a declaration to the body.
         let scope = self.current_scope();
         for (index, param) in fn_params.iter().enumerate() {
-            let ir_ty = self.storage.ty_list_store().get_at_index(param_tys, index);
+            let ir_ty = self.storage.tls().get_at_index(param_tys, index);
             let param_name = param.name.unwrap();
 
             // @@Future: deal with parameter attributes that are mutable?

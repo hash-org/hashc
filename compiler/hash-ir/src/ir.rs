@@ -16,9 +16,10 @@ use hash_utils::{
     store::{DefaultSequenceStore, DefaultStore, SequenceStore, Store},
 };
 use index_vec::IndexVec;
-use smallvec::SmallVec;
+use smallvec::{smallvec, SmallVec};
 
 use crate::{
+    basic_blocks::BasicBlocks,
     ty::{AdtId, IrTy, IrTyId, Mutability, VariantIdx},
     IrStorage,
 };
@@ -51,7 +52,7 @@ pub enum Const {
 impl Const {
     /// Create a [Const::Zero] with a unit type, the total zero.
     pub fn zero(storage: &IrStorage) -> Self {
-        let unit = storage.ty_store().create(IrTy::unit(storage));
+        let unit = storage.tys().create(IrTy::unit(storage));
         Self::Zero(unit)
     }
 
@@ -63,7 +64,7 @@ impl Const {
     /// Create a new [Const] from a scalar value, with the appropriate
     /// type.
     pub fn from_scalar(value: u128, ty: IrTyId, storage: &IrStorage) -> Self {
-        storage.ty_store().map_fast(ty, |ty| match ty {
+        storage.tys().map_fast(ty, |ty| match ty {
             IrTy::Int(int_ty) => {
                 let interned_value = IntConstant::from_uint(value, (*int_ty).into());
                 Self::Int(CONSTANT_MAP.create_int_constant(interned_value))
@@ -396,21 +397,21 @@ pub struct Place {
 impl Place {
     /// Create a [Place] that points to the return `place` of a lowered  body.
     pub fn return_place(storage: &IrStorage) -> Self {
-        Self { local: RETURN_PLACE, projections: storage.projection_store.create_empty() }
+        Self { local: RETURN_PLACE, projections: storage.projections().create_empty() }
     }
 
     pub fn from_local(local: Local, storage: &IrStorage) -> Self {
-        Self { local, projections: storage.projection_store.create_empty() }
+        Self { local, projections: storage.projections().create_empty() }
     }
 
     /// Create a new [Place] from an existing place whilst also
     /// applying a a [PlaceProjection::Field] on the old one.
     pub fn field(&self, field: usize, storage: &IrStorage) -> Self {
-        let projections = storage.projection_store.get_vec(self.projections);
+        let projections = storage.projections().get_vec(self.projections);
 
         Self {
             local: self.local,
-            projections: storage.projection_store.create_from_iter_fast(
+            projections: storage.projections().create_from_iter_fast(
                 projections.iter().copied().chain(once(PlaceProjection::Field(field))),
             ),
         }
@@ -586,6 +587,40 @@ pub struct Terminator {
     pub span: Span,
 }
 
+impl Terminator {
+    /// Get all of the successors of a [Terminator].
+    pub fn successors(&self) -> SmallVec<[BasicBlock; 4]> {
+        match self.kind {
+            TerminatorKind::Goto(target) => smallvec![target],
+            TerminatorKind::Switch { ref targets, .. } => targets.iter_targets().collect(),
+            TerminatorKind::Call { target: Some(target), .. } => smallvec![target],
+            TerminatorKind::Assert { target, .. } => smallvec![target],
+            _ => smallvec![],
+        }
+    }
+
+    /// Function that replaces a specified successor with another
+    /// [BasicBlock].
+    pub fn replace_edge(&mut self, successor: BasicBlock, replacement: BasicBlock) {
+        match self.kind {
+            TerminatorKind::Goto(target) if target == successor => {
+                self.kind = TerminatorKind::Goto(replacement)
+            }
+            TerminatorKind::Switch { ref mut targets, .. } => {
+                targets.replace_edge(successor, replacement)
+            }
+            TerminatorKind::Call { target: Some(ref mut target), .. } if *target == successor => {
+                *target = replacement;
+            }
+            TerminatorKind::Assert { ref mut target, .. } => {
+                *target = replacement;
+            }
+            // All other edges cannot be replaced
+            _ => {}
+        }
+    }
+}
+
 /// Struct that represents all of the targets that a [TerminatorKind::Switch]
 /// can jump to. This also defines some useful methods on the block to iterate
 /// over all the targets, etc.
@@ -640,6 +675,21 @@ impl SwitchTargets {
     /// Iterate all of the associated targets.
     pub fn iter_targets(&self) -> impl Iterator<Item = BasicBlock> + '_ {
         self.table.iter().map(|(_, target)| *target).chain(self.otherwise.into_iter())
+    }
+
+    /// Replace a successor with another [BasicBlock].
+    pub fn replace_edge(&mut self, successor: BasicBlock, replacement: BasicBlock) {
+        for (_, target) in self.table.iter_mut() {
+            if *target == successor {
+                *target = replacement;
+            }
+        }
+
+        if let Some(otherwise) = self.otherwise {
+            if otherwise == successor {
+                self.otherwise = Some(replacement);
+            }
+        }
     }
 
     pub fn iter(&self) -> SwitchTargetsIter<'_> {
@@ -743,7 +793,7 @@ impl TerminatorKind {
     ) -> Self {
         let targets = SwitchTargets::new(
             std::iter::once((false.into(), false_block)),
-            storage.ty_store().make_bool(),
+            storage.tys().make_bool(),
             Some(true_block),
         );
 
@@ -772,6 +822,19 @@ impl BasicBlockData {
     /// later to the block.
     pub fn new(terminator: Option<Terminator>) -> Self {
         Self { statements: vec![], terminator }
+    }
+
+    /// Get a mutable reference to the terminator of this [BasicBlockData].
+    pub fn terminator_mut(&mut self) -> &mut Terminator {
+        self.terminator.as_mut().expect("expected terminator on block")
+    }
+
+    /// Return a list of all of the successors of this [BasicBlock].
+    pub fn successors(&self) -> SmallVec<[BasicBlock; 4]> {
+        match &self.terminator {
+            Some(terminator) => terminator.successors(),
+            None => smallvec![],
+        }
     }
 }
 
@@ -822,9 +885,11 @@ impl fmt::Display for BodySource {
     }
 }
 
+/// Represents a lowered IR body, which stores the created declarations,
+/// blocks and various other metadata about the lowered body.
 pub struct Body {
     /// The blocks that the function is represented with
-    pub blocks: IndexVec<BasicBlock, BasicBlockData>,
+    pub basic_blocks: BasicBlocks,
 
     /// Declarations of local variables:
     ///
@@ -868,7 +933,21 @@ impl Body {
         span: Span,
         source_id: SourceId,
     ) -> Self {
-        Self { blocks, info, declarations, arg_count, span, source_id, dump: false }
+        Self {
+            basic_blocks: BasicBlocks::new(blocks),
+            info,
+            declarations,
+            arg_count,
+            span,
+            source_id,
+            dump: false,
+        }
+    }
+
+    /// Get a reference to the stored basic blocks of this
+    /// [Body].
+    pub fn blocks(&self) -> &IndexVec<BasicBlock, BasicBlockData> {
+        &self.basic_blocks.blocks
     }
 
     /// Set the `dump` flag to `true` so that the IR Body that is generated
@@ -966,7 +1045,7 @@ mod tests {
 
         let place = Place {
             local: Local::new(0),
-            projections: storage.projection_store.create_from_slice(&[
+            projections: storage.projections().create_from_slice(&[
                 PlaceProjection::Deref,
                 PlaceProjection::Field(0),
                 PlaceProjection::Index(Local::new(1)),
@@ -978,7 +1057,7 @@ mod tests {
 
         let place = Place {
             local: Local::new(0),
-            projections: storage.projection_store.create_from_slice(&[
+            projections: storage.projections().create_from_slice(&[
                 PlaceProjection::Deref,
                 PlaceProjection::Deref,
                 PlaceProjection::Deref,

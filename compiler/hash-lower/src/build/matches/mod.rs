@@ -196,7 +196,14 @@ impl<'tcx> Builder<'tcx> {
                 .map(|stmt| stmt.span)
                 .unwrap_or(subject_span);
 
-            self.control_flow_graph.goto(unpack!(arm_edge), end_block, span);
+            let arm_block_edge = unpack!(arm_edge);
+
+            // In the event that this block has already been terminated
+            // due to a `break` or `continue` or `return` control flow
+            // statement, then we don't terminate this block again.
+            if !self.control_flow_graph.is_terminated(arm_block_edge) {
+                self.control_flow_graph.goto(arm_block_edge, end_block, span);
+            }
         }
 
         end_block.unit()

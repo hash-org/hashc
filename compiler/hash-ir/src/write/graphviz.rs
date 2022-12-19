@@ -110,12 +110,12 @@ impl<'ir> IrGraphWriter<'ir> {
         writeln!(w, ">;")?;
 
         // Now we write all of the blocks
-        for (id, block) in self.body.blocks.iter_enumerated() {
+        for (id, block) in self.body.blocks().iter_enumerated() {
             self.write_block(w, id, block)?;
         }
 
         // Now we need to write all of the edges of the control flow graph
-        for (id, block) in self.body.blocks.iter_enumerated() {
+        for (id, block) in self.body.blocks().iter_enumerated() {
             if let Some(terminator) = &block.terminator {
                 let prefix = if let Some(index) = self.options.use_subgraph {
                     format!("c{index}_")

@@ -102,10 +102,10 @@ impl Test {
                 // The switch will not (necessarily) generate branches
                 // for all of the variants, so we have a target for each
                 // variant, and an additional target for the `otherwise` case.
-                storage.adt_store().map_fast(adt, |adt| adt.variants.len() + 1)
+                storage.adts().map_fast(adt, |adt| adt.variants.len() + 1)
             }
             TestKind::SwitchInt { ty, ref options } => {
-                storage.ty_store().map_fast(ty, |ty| {
+                storage.tys().map_fast(ty, |ty| {
                     // The boolean branch is always 2...
                     if let IrTy::Bool = ty {
                         2
@@ -327,7 +327,7 @@ impl<'tcx> Builder<'tcx> {
             (TestKind::SwitchInt { ty, ref options }, Pat::Lit(lit)) => {
                 // We can't really do anything here since we can't compare them with
                 // the switch.
-                if !self.storage.ty_store().map_fast(*ty, |ty| ty.is_integral()) {
+                if !self.storage.tys().map_fast(*ty, |ty| ty.is_integral()) {
                     return None;
                 }
 
@@ -505,7 +505,7 @@ impl<'tcx> Builder<'tcx> {
 
         // Only deal with sub-patterns if they exist on the variant.
         if let Some(sub_pats) = sub_patterns {
-            let consequent_pairs: Vec<_> = self.storage.adt_store().map_fast(adt, |adt| {
+            let consequent_pairs: Vec<_> = self.storage.adts().map_fast(adt, |adt| {
                 let variant = &adt.variants[variant_index];
 
                 self.tcx.pat_args_store.map_as_param_list_fast(sub_pats, |pats| {
@@ -549,7 +549,7 @@ impl<'tcx> Builder<'tcx> {
                 let target_blocks = make_target_blocks(self);
                 let (variant_count, discriminant_ty) = self
                     .storage
-                    .adt_store()
+                    .adts()
                     .map_fast(adt, |adt| (adt.variants.len(), adt.discriminant_ty()));
 
                 // Assert that the number of variants is the same as the number of
@@ -560,9 +560,9 @@ impl<'tcx> Builder<'tcx> {
 
                 // Here we want to create a switch statement that will match on all of the
                 // specified discriminants of the ADT.
-                let discriminant_ty = self.storage.ty_store().create(discriminant_ty.into());
+                let discriminant_ty = self.storage.tys().create(discriminant_ty.into());
                 let targets = SwitchTargets::new(
-                    self.storage.adt_store().map_fast(adt, |adt| {
+                    self.storage.adts().map_fast(adt, |adt| {
                         // Map over all of the discriminants of the ADT, and filter out those that
                         // are not in the `options` set.
                         adt.discriminants().filter_map(|(var_idx, discriminant)| {
@@ -713,7 +713,7 @@ impl<'tcx> Builder<'tcx> {
             TestKind::Len { len, op } => {
                 let target_blocks = make_target_blocks(self);
 
-                let usize_ty = self.storage.ty_store().make_usize();
+                let usize_ty = self.storage.tys().make_usize();
                 let actual = self.temp_place(usize_ty);
 
                 // Assign `actual = length(place)`
@@ -757,7 +757,7 @@ impl<'tcx> Builder<'tcx> {
     ) {
         debug_assert!(op.is_comparator());
 
-        let bool_ty = self.storage.ty_store().make_bool();
+        let bool_ty = self.storage.tys().make_bool();
         let result = self.temp_place(bool_ty);
 
         // Push an assignment with the result of the comparison, i.e. `result = op(lhs,

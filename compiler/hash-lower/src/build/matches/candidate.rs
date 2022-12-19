@@ -333,7 +333,7 @@ impl<'tcx> Builder<'tcx> {
                     // get the type of the tuple so that we can read all of the
                     // fields
                     let ty = self.ty_of_pat(pair.pat);
-                    let adt = self.storage.ty_store().map_fast(ty, IrTy::as_adt);
+                    let adt = self.storage.tys().map_fast(ty, IrTy::as_adt);
 
                     candidate.pairs.extend(self.match_pat_fields(*pat_args, adt, pair.place));
                     Ok(())
@@ -434,7 +434,7 @@ impl<'tcx> Builder<'tcx> {
         ty: AdtId,
         place: PlaceBuilder,
     ) -> Vec<MatchPair> {
-        self.storage.adt_store().map_fast(ty, |adt| {
+        self.storage.adts().map_fast(ty, |adt| {
             debug_assert!(adt.flags.is_struct() || adt.flags.is_tuple());
 
             let variant = adt.variants.first().unwrap();

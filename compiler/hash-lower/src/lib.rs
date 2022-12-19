@@ -8,6 +8,8 @@
 mod build;
 mod cfg;
 mod discover;
+mod optimise;
+mod traversal;
 
 use discover::LoweringVisitor;
 use hash_ast::ast::{AstVisitorMutSelf, OwnsAstNode};
@@ -22,6 +24,7 @@ use hash_pipeline::{
 };
 use hash_source::SourceId;
 use hash_types::storage::TyStorage;
+use optimise::Optimiser;
 
 /// The Hash IR builder compiler stage. This will walk the AST, and
 /// lower all items within a particular module.
@@ -39,8 +42,26 @@ impl Default for AstLowerer {
     }
 }
 
+pub struct LoweringCtx<'ir> {
+    workspace: &'ir mut Workspace,
+    ty_storage: &'ir TyStorage,
+    ir_storage: &'ir mut IrStorage,
+    _pool: &'ir rayon::ThreadPool,
+}
+
+impl<'ir> LoweringCtx<'ir> {
+    pub fn new(
+        workspace: &'ir mut Workspace,
+        ty_storage: &'ir TyStorage,
+        ir_storage: &'ir mut IrStorage,
+        pool: &'ir rayon::ThreadPool,
+    ) -> Self {
+        Self { workspace, ty_storage, ir_storage, _pool: pool }
+    }
+}
+
 pub trait IrLoweringCtx: CompilerInterface {
-    fn data(&mut self) -> (&mut Workspace, &TyStorage, &mut IrStorage);
+    fn data(&mut self) -> LoweringCtx<'_>;
 }
 
 impl<Ctx: IrLoweringCtx> CompilerStage<Ctx> for AstLowerer {
@@ -58,7 +79,7 @@ impl<Ctx: IrLoweringCtx> CompilerStage<Ctx> for AstLowerer {
     fn run_stage(&mut self, _: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
         let settings = ctx.settings().lowering_settings;
 
-        let (workspace, ty_storage, ir_storage) = ctx.data();
+        let LoweringCtx { workspace, ty_storage, ir_storage, .. } = ctx.data();
         let source_map = &mut workspace.source_map;
         let source_stage_info = &mut workspace.source_stage_info;
 
@@ -89,20 +110,77 @@ impl<Ctx: IrLoweringCtx> CompilerStage<Ctx> for AstLowerer {
             lowered_bodies.extend(discoverer.into_bodies());
         }
 
-        // we need to check if any of the bodies have been marked for `dumping`
-        // and emit the IR that they have generated.
-
-        if settings.dump_mode == IrDumpMode::Graph {
-            graphviz::dump_ir_bodies(ir_storage, &lowered_bodies, settings.dump_all);
-        } else {
-            pretty::dump_ir_bodies(ir_storage, source_map, &lowered_bodies, settings.dump_all);
-        }
-
         // Mark all modules now as lowered, and all generated
         // bodies to the store.
         source_stage_info.set_all(SourceStageInfo::LOWERED);
         ir_storage.add_bodies(lowered_bodies);
 
         Ok(())
+    }
+}
+
+/// Compiler stage that is responsible for performing optimisations on the
+/// Hash IR. This will iterate over all of the bodies that have been generated
+/// and perform optimisations on them based on if they are applicable and the
+/// current configuration settings of the compiler.
+#[derive(Default)]
+pub struct IrOptimiser;
+
+impl IrOptimiser {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl<Ctx: IrLoweringCtx> CompilerStage<Ctx> for IrOptimiser {
+    /// Return that this is [CompilerStageKind::IrGen].
+    fn stage_kind(&self) -> CompilerStageKind {
+        CompilerStageKind::IrGen
+    }
+
+    fn run_stage(&mut self, _: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
+        let settings = ctx.settings().lowering_settings;
+
+        let LoweringCtx { workspace, ir_storage, .. } = ctx.data();
+        let source_map = &mut workspace.source_map;
+
+        let bodies = &mut ir_storage.generated_bodies;
+        let body_data = &ir_storage.body_data;
+        // let optimiser = Optimiser::new(ir_storage, source_map, settings);
+
+        // @@Todo: think about making optimisation passes in parallel...
+        // pool.scope(|scope| {
+        //     for body in &mut ir_storage.generated_bodies {
+        //         scope.spawn(|_| {
+        //             optimiser.optimise(body);
+        //         });
+        //     }
+        // });
+
+        for body in bodies.iter_mut() {
+            let optimiser = Optimiser::new(body_data, source_map, settings);
+            optimiser.optimise(body);
+        }
+
+        Ok(())
+    }
+
+    fn cleanup(&mut self, _entry_point: SourceId, ctx: &mut Ctx) {
+        let settings = ctx.settings().lowering_settings;
+        let LoweringCtx { workspace, ir_storage, .. } = ctx.data();
+        let source_map = &mut workspace.source_map;
+
+        // we need to check if any of the bodies have been marked for `dumping`
+        // and emit the IR that they have generated.
+        if settings.dump_mode == IrDumpMode::Graph {
+            graphviz::dump_ir_bodies(ir_storage, &ir_storage.generated_bodies, settings.dump_all);
+        } else {
+            pretty::dump_ir_bodies(
+                ir_storage,
+                source_map,
+                &ir_storage.generated_bodies,
+                settings.dump_all,
+            );
+        }
     }
 }
