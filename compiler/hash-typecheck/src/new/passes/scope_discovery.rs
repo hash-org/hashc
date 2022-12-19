@@ -25,7 +25,7 @@ use hash_types::new::{
     environment::env::AccessToEnv,
     fns::{FnBody, FnDefData, FnDefId, FnTy},
     mods::{ModDefData, ModDefId, ModKind, ModMemberData, ModMemberValue},
-    params::ParamsId,
+    params::{ParamData, ParamsId},
     scopes::{StackId, StackMemberData},
     symbols::Symbol,
 };
@@ -149,6 +149,31 @@ impl<'tc> ScopeDiscoveryPass<'tc> {
     }
 
     /// Run the given closure with the given definition as "current", resetting
+    /// it at the end. It does not handle definition members.
+    ///
+    /// This will add the definition to the originating node in `ast_info`. The
+    /// originating node is the node that represents the definition, e.g.
+    /// the `mod` node for `X := mod {...}`.
+    fn enter_def_without_members<T, U>(
+        &self,
+        originating_node: AstNodeRef<U>,
+        def_id: impl Into<DefId>,
+        mut f: impl FnMut() -> T,
+    ) -> T {
+        let def_id = def_id.into();
+
+        // Add the definition to the originating node.
+        self.add_def_to_ast_info(def_id, originating_node);
+
+        let prev_def = self.currently_in.get();
+        self.currently_in.set(Some(def_id));
+        let result = f();
+        self.currently_in.set(prev_def);
+
+        result
+    }
+
+    /// Run the given closure with the given definition as "current", resetting
     /// it at the end.
     ///
     /// This will add found sub-definitions/members to the entered definition
@@ -159,7 +184,7 @@ impl<'tc> ScopeDiscoveryPass<'tc> {
         &self,
         originating_node: AstNodeRef<U>,
         def_id: impl Into<DefId>,
-        mut f: impl FnMut() -> T,
+        f: impl FnMut() -> T,
     ) -> T {
         let def_id = def_id.into();
 
@@ -177,13 +202,7 @@ impl<'tc> ScopeDiscoveryPass<'tc> {
             DefId::Fn(_) => {}
         }
 
-        // Add the definition to the originating node.
-        self.add_def_to_ast_info(def_id, originating_node);
-
-        let prev_def = self.currently_in.get();
-        self.currently_in.set(Some(def_id));
-        let result = f();
-        self.currently_in.set(prev_def);
+        let result = self.enter_def_without_members(originating_node, def_id, f);
 
         // Add the found members to the definition.
         self.add_found_members_to_def(def_id);
@@ -596,9 +615,26 @@ impl<'tc> ast::AstVisitor for ScopeDiscoveryPass<'tc> {
     type StructDefRet = ();
     fn visit_struct_def(
         &self,
-        _node: ast::AstNodeRef<ast::StructDef>,
+        node: ast::AstNodeRef<ast::StructDef>,
     ) -> Result<Self::StructDefRet, Self::Error> {
-        todo!()
+        let struct_name = self.take_name_hint_or_create_internal_name();
+
+        // Create a data definition for the struct
+        let struct_def_id = self.data_ops().create_struct_def(
+            struct_name,
+            self.create_hole_def_params(once((true, &node.ty_params))),
+            node.fields.iter().map(|field| ParamData {
+                name: self.create_symbol_from_ast_name(&field.name),
+                ty: self.new_ty_hole(),
+                default_value: field.default.as_ref().map(|_| self.new_term_hole()),
+            }),
+        );
+
+        // Traverse the struct; note that the fields have already been created, they
+        // will not be created below like with mods.
+        self.enter_def_without_members(node, struct_def_id, || walk::walk_struct_def(self, node))?;
+
+        Ok(())
     }
 
     type EnumDefRet = ();
