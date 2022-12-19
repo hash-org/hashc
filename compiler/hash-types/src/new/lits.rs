@@ -1,5 +1,8 @@
 //! Contains structures related to literals, like numbers, strings, etc.
+use std::fmt::Display;
+
 use hash_ast::ast;
+use hash_source::constant::CONSTANT_MAP;
 
 /// An integer literal.
 ///
@@ -50,4 +53,49 @@ pub enum LitTerm {
     Str(StrLit),
     Char(CharLit),
     Float(FloatLit),
+}
+
+impl Display for IntLit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}{}", self.underlying.value, self.underlying.kind)
+    }
+}
+
+impl Display for StrLit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", CONSTANT_MAP.lookup_string(self.underlying.data))
+    }
+}
+
+impl Display for CharLit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.underlying.data)
+    }
+}
+
+impl Display for FloatLit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}{}", self.underlying.value, self.underlying.kind)
+    }
+}
+
+impl Display for LitPat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LitPat::Int(lit) => write!(f, "{lit}"),
+            LitPat::Str(lit) => write!(f, "{lit}"),
+            LitPat::Char(lit) => write!(f, "{lit}"),
+        }
+    }
+}
+
+impl Display for LitTerm {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LitTerm::Int(lit) => write!(f, "{lit}"),
+            LitTerm::Str(lit) => write!(f, "{lit}"),
+            LitTerm::Char(lit) => write!(f, "{lit}"),
+            LitTerm::Float(lit) => write!(f, "{lit}"),
+        }
+    }
 }

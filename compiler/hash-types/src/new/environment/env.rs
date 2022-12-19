@@ -2,7 +2,10 @@ use hash_ast::node_map::NodeMap;
 use hash_source::SourceMap;
 
 use super::source_info::CurrentSourceInfo;
-use crate::new::environment::{context::Context, stores::Stores};
+use crate::new::{
+    environment::{context::Context, stores::Stores},
+    utils::classifier::Classifier,
+};
 
 macro_rules! env {
     ($($name:ident: $ty:ty),* $(,)?) => {
@@ -28,6 +31,10 @@ macro_rules! env {
                     &self.env().$name
                 }
             )*
+
+            fn classifier(&self) -> Classifier {
+                Classifier::new(self.env())
+            }
         }
 
         impl<'tc> Env<'tc> {
@@ -57,9 +64,9 @@ env! {
 
 /// Implement [`AccessToEnv`] for some type that has a field `env: Env`.
 #[macro_export]
-macro_rules! impl_access_to_tc_env {
+macro_rules! impl_access_to_env {
     ($x:ident<$lt:lifetime>) => {
-        impl<$lt> $crate::new::data::env::AccessToEnv for $x<$lt> {
+        impl<$lt> $crate::new::environment::env::AccessToEnv for $x<$lt> {
             fn env(&self) -> &Env {
                 &self.env
             }

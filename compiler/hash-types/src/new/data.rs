@@ -1,14 +1,19 @@
 //! Definitions related to user-defined data-types.
 
+use core::fmt;
 use std::fmt::Display;
 
 use hash_utils::{
     new_sequence_store_key, new_store_key,
-    store::{DefaultSequenceStore, DefaultStore},
+    store::{DefaultSequenceStore, DefaultStore, SequenceStore, Store},
 };
+use textwrap::indent;
 use utility_types::omit;
 
-use super::{defs::DefPatArgsId, environment::env::WithEnv};
+use super::{
+    defs::DefPatArgsId,
+    environment::env::{AccessToEnv, WithEnv},
+};
 use crate::new::{
     defs::{DefArgsId, DefParamsId},
     symbols::Symbol,
@@ -116,20 +121,95 @@ pub struct DataTy {
     pub args: DefArgsId,
 }
 
-impl Display for WithEnv<'_, &DataTy> {
-    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
+impl fmt::Display for WithEnv<'_, &CtorDef> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}: ", self.env().with(self.value.name))?;
+
+        self.stores().def_params().map_fast(self.value.params, |params| {
+            for param in params.iter() {
+                write!(f, "{} -> ", self.env().with(param))?;
+            }
+            Ok(())
+        })?;
+
+        let data_def_name =
+            self.stores().data_def().map_fast(self.value.data_def_id, |def| def.name);
+        write!(f, "{}", self.env().with(data_def_name))?;
+        write!(f, "{}", self.env().with(self.value.result_args))?;
+
+        Ok(())
     }
 }
 
-impl Display for WithEnv<'_, DataDefId> {
-    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
+impl fmt::Display for WithEnv<'_, CtorDefId> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.stores().ctor_defs().map_fast(self.value.0, |ctor_defs| {
+            write!(f, "{}", self.env().with(&ctor_defs[self.value.1]))
+        })
+    }
+}
+
+impl fmt::Display for WithEnv<'_, CtorDefsId> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.stores().ctor_defs().map_fast(self.value, |ctor_defs| {
+            for ctor_def in ctor_defs.iter() {
+                writeln!(f, "{}", self.env().with(ctor_def))?;
+            }
+            Ok(())
+        })
+    }
+}
+
+impl Display for WithEnv<'_, &CtorTerm> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let ctor_name = self
+            .stores()
+            .ctor_defs()
+            .map_fast(self.value.ctor.0, |ctors| ctors[self.value.ctor.1].name);
+
+        write!(f, "{}", self.env().with(ctor_name))?;
+        write!(f, "{}", self.env().with(self.value.args))?;
+
+        Ok(())
+    }
+}
+
+impl Display for WithEnv<'_, &CtorPat> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let ctor_name = self
+            .stores()
+            .ctor_defs()
+            .map_fast(self.value.ctor.0, |ctors| ctors[self.value.ctor.1].name);
+
+        write!(f, "{}", self.env().with(ctor_name))?;
+        write!(f, "{}", self.env().with(self.value.args))?;
+
+        Ok(())
     }
 }
 
 impl Display for WithEnv<'_, &DataDef> {
-    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let ctors = self.env().with(self.value.ctors).to_string();
+        write!(
+            f,
+            "datatype [name={}] {} {{\n{}}}",
+            self.env().with(self.value.name),
+            self.env().with(self.value.params),
+            indent(&ctors, "  ")
+        )
+    }
+}
+
+impl Display for WithEnv<'_, DataDefId> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.stores().data_def().map_fast(self.value, |def| write!(f, "{}", self.env().with(def)))
+    }
+}
+
+impl Display for WithEnv<'_, &DataTy> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let data_def_name = self.stores().data_def().map_fast(self.value.data_def, |def| def.name);
+        write!(f, "{}{}", self.env().with(data_def_name), self.env().with(self.value.args))
     }
 }

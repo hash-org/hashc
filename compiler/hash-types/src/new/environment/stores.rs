@@ -14,6 +14,7 @@ use super::super::{
     terms::{TermListStore, TermStore},
     tys::TyStore,
 };
+use crate::new::fns::IntrinsicStore;
 
 /// This macro creates the `Stores` struct, as well as accompanying creation and
 /// access methods, for the given sequence of stores.
@@ -49,19 +50,20 @@ macro_rules! stores {
 // All the stores that contain definitions for the typechecker.
 stores! {
     args: ArgsStore,
-    pat_args: PatArgsStore,
     ctor_defs: CtorDefsStore,
     data_def: DataDefStore,
-    def_params: DefParamsStore,
     def_args: DefArgsStore,
+    def_params: DefParamsStore,
     def_pat_args: DefPatArgsStore,
     fn_def: FnDefStore,
     hole: HoleStore,
+    intrinsic: IntrinsicStore,
     location: LocationStore,
-    mod_members: ModMembersStore,
     mod_def: ModDefStore,
+    mod_members: ModMembersStore,
     params: ParamsStore,
     pat: PatStore,
+    pat_args: PatArgsStore,
     pat_list: PatListStore,
     stack: StackStore,
     symbol: SymbolStore,

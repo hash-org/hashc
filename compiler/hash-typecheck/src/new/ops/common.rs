@@ -11,7 +11,6 @@ use hash_types::new::{
     terms::{Term, TermId},
     tuples::TupleTy,
     tys::{Ty, TyId, UniverseTy},
-    unions::UnionTy,
 };
 use hash_utils::store::{CloneStore, SequenceStore, Store};
 
@@ -102,11 +101,6 @@ pub trait CommonOps: AccessToTcEnv {
     /// `n`.
     fn new_universe_ty(&self, n: usize) -> TyId {
         self.stores().ty().create(Ty::Universe(UniverseTy { size: n }))
-    }
-
-    /// Create a new empty union type.
-    fn new_never_ty(&self) -> TyId {
-        self.stores().ty().create(Ty::Union(UnionTy { variants: self.new_empty_params() }))
     }
 
     /// Create a new empty tuple type.

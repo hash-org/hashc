@@ -66,10 +66,10 @@ impl fmt::Display for WithEnv<'_, ParamsId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.stores().params().map_fast(self.value, |params| {
             for (i, param) in params.iter().enumerate() {
-                write!(f, "{}", self.env().with(param))?;
                 if i > 0 {
                     write!(f, ", ")?;
                 }
+                write!(f, "{}", self.env().with(param))?;
             }
             Ok(())
         })

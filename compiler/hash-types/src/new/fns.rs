@@ -3,10 +3,13 @@
 use core::fmt;
 use std::fmt::Display;
 
-use hash_utils::{new_store_key, store::DefaultStore};
+use hash_utils::{
+    new_store_key,
+    store::{DefaultStore, Store},
+};
 use utility_types::omit;
 
-use super::environment::env::{Env, WithEnv};
+use super::environment::env::{AccessToEnv, Env, WithEnv};
 use crate::new::{args::ArgsId, params::ParamsId, symbols::Symbol, terms::TermId, tys::TyId};
 
 /// A function type.
@@ -22,7 +25,7 @@ pub struct FnTy {
     ///
     /// Implicit functions look like `<A> -> B`, where as explicit
     /// functions look like `(A) -> B`.
-    pub is_implicit: bool,
+    pub implicit: bool,
     /// Whether the function is pure.
     ///
     /// A function is pure if:
@@ -30,7 +33,7 @@ pub struct FnTy {
     /// - it does not take any mutable references as parameters or captured
     ///   variables.
     // - @@Future: It is guaranteed to terminate
-    pub is_pure: bool,
+    pub pure: bool,
     /// Whether the function is unsafe.
     ///
     /// Unsafe functions can only be called from within unsafe blocks. Certain
@@ -125,18 +128,93 @@ pub struct FnCallTerm {
     ///
     /// Implicit function calls look like `A<B>`, where as explicit function
     /// calls look like `A(B)`.
-    pub is_implicit: bool,
+    pub implicit: bool,
     // @@Design: optional conditions
 }
 
-impl Display for WithEnv<'_, FnDefId> {
-    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
+impl Display for WithEnv<'_, &FnTy> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.value.is_unsafe {
+            write!(f, "unsafe ")?;
+        }
+        if self.value.pure && !self.value.implicit {
+            write!(f, "pure ")?;
+        }
+        if !self.value.pure && self.value.implicit {
+            write!(f, "impure ")?;
+        }
+
+        if self.value.implicit {
+            write!(f, "<")?;
+        } else {
+            write!(f, "(")?;
+        }
+
+        write!(f, "{}", self.env().with(self.value.params))?;
+
+        if self.value.implicit {
+            write!(f, ">")?;
+        } else {
+            write!(f, ")")?;
+        }
+
+        write!(f, " -> {}", self.env().with(self.value.return_type))?;
+
+        Ok(())
+    }
+}
+
+impl Display for WithEnv<'_, &Intrinsic> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "intrinsic {}", self.env().with(self.value.name))
+    }
+}
+
+impl Display for WithEnv<'_, IntrinsicId> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.stores()
+            .intrinsic()
+            .map_fast(self.value, |intrinsic| write!(f, "{}", self.env().with(intrinsic)))
     }
 }
 
 impl Display for WithEnv<'_, &FnDef> {
-    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.env().with(&self.value.ty))?;
+        match self.value.body {
+            FnBody::Defined(term) => write!(f, " => {}", self.env().with(term)),
+            FnBody::Intrinsic(intrinsic) => write!(f, " => {}", self.env().with(intrinsic)),
+            FnBody::Axiom => write!(f, " => axiom"),
+        }
+    }
+}
+
+impl Display for WithEnv<'_, FnDefId> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.stores()
+            .fn_def()
+            .map_fast(self.value, |fn_def| write!(f, "{}", self.env().with(fn_def)))
+    }
+}
+
+impl Display for WithEnv<'_, &FnCallTerm> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.env().with(self.value.subject))?;
+
+        if self.value.implicit {
+            write!(f, "<")?;
+        } else {
+            write!(f, "(")?;
+        }
+
+        write!(f, "{}", self.env().with(self.value.args))?;
+
+        if self.value.implicit {
+            write!(f, ">")?;
+        } else {
+            write!(f, ")")?;
+        }
+
+        Ok(())
     }
 }

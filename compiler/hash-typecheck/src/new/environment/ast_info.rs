@@ -6,7 +6,10 @@ use hash_types::new::{
     data::{CtorDefId, DataDefId},
     fns::FnDefId,
     mods::{ModDefId, ModMemberId},
+    pats::PatId,
     scopes::{StackId, StackMemberId},
+    terms::TermId,
+    tys::TyId,
 };
 
 /// A partial mapping from AST nodes to [`T`] and back.
@@ -79,4 +82,8 @@ ast_info! {
 
     stacks: AstMap<StackId>,
     stack_members: AstMap<StackMemberId>,
+
+    terms: AstMap<TermId>,
+    tys: AstMap<TyId>,
+    pats: AstMap<PatId>,
 }

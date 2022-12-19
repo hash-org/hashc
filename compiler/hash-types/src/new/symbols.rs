@@ -48,7 +48,7 @@ impl Display for WithEnv<'_, Symbol> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.stores().symbol().map_fast(self.value, |data| match data.name {
             Some(name) => write!(f, "{name}"),
-            None => write!(f, "S_{}", data.symbol.to_index()),
+            None => write!(f, "s{}", data.symbol.to_index()),
         })
     }
 }

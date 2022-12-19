@@ -21,4 +21,4 @@ pub mod symbols;
 pub mod terms;
 pub mod tuples;
 pub mod tys;
-pub mod unions;
+pub mod utils;

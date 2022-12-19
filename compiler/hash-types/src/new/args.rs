@@ -55,7 +55,12 @@ pub type PatArgsStore = DefaultSequenceStore<PatArgsId, PatArg>;
 
 impl fmt::Display for WithEnv<'_, &Arg> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} = {}", self.env().with(self.value.target), self.env().with(self.value.value))
+        match self.value.target {
+            ParamTarget::Name(name) => {
+                write!(f, "{} = {}", self.env().with(name), self.env().with(self.value.value))
+            }
+            ParamTarget::Position(_) => write!(f, "{}", self.env().with(self.value.value)),
+        }
     }
 }
 
@@ -69,10 +74,41 @@ impl fmt::Display for WithEnv<'_, ArgsId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.stores().args().map_fast(self.value, |args| {
             for (i, arg) in args.iter().enumerate() {
-                write!(f, "{}", self.env().with(arg))?;
                 if i > 0 {
                     write!(f, ", ")?;
                 }
+                write!(f, "{}", self.env().with(arg))?;
+            }
+            Ok(())
+        })
+    }
+}
+
+impl fmt::Display for WithEnv<'_, &PatArg> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.value.target {
+            ParamTarget::Name(name) => {
+                write!(f, "{} = {}", self.env().with(name), self.env().with(self.value.pat))
+            }
+            ParamTarget::Position(_) => write!(f, "{}", self.env().with(self.value.pat)),
+        }
+    }
+}
+
+impl fmt::Display for WithEnv<'_, PatArgId> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.env().with(&self.stores().pat_args().get_element(self.value)))
+    }
+}
+
+impl fmt::Display for WithEnv<'_, PatArgsId> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.stores().pat_args().map_fast(self.value, |pat_args| {
+            for (i, pat_arg) in pat_args.iter().enumerate() {
+                if i > 0 {
+                    write!(f, ", ")?;
+                }
+                write!(f, "{}", self.env().with(pat_arg))?;
             }
             Ok(())
         })

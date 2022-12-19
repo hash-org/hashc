@@ -15,9 +15,7 @@ use super::{
     },
     holes::HoleId,
 };
-use crate::new::{
-    data::DataTy, fns::FnTy, refs::RefTy, terms::TermId, tuples::TupleTy, unions::UnionTy,
-};
+use crate::new::{data::DataTy, fns::FnTy, refs::RefTy, terms::TermId, tuples::TupleTy};
 
 /// The type of types, i.e. a universe.
 #[derive(Debug, Clone, Copy)]
@@ -26,6 +24,8 @@ pub struct UniverseTy {
     ///
     /// `Universe(n + 1)` includes everything inside `Universe(n)` as well as
     /// the term `Universe(n)` itself.
+    ///
+    /// Root universe is Universe(0).
     pub size: usize,
 }
 
@@ -42,9 +42,6 @@ pub enum Ty {
 
     /// Type variable
     Var(Binding),
-
-    /// Union type
-    Union(UnionTy),
 
     /// Tuple type
     Tuple(TupleTy),
@@ -71,24 +68,40 @@ pub struct TypeOfTerm {
     pub term: TermId,
 }
 
-impl fmt::Display for WithEnv<'_, TyId> {
+impl fmt::Display for &UniverseTy {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.env().with(self.env().stores().ty().get(self.value)))
+        match self.size {
+            0 => write!(f, "Type"),
+            n => write!(f, "Type({n})"),
+        }
     }
 }
 
-impl fmt::Display for WithEnv<'_, Ty> {
+impl fmt::Display for WithEnv<'_, TyId> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.env().with(&self.env().stores().ty().get(self.value)))
+    }
+}
+
+impl fmt::Display for WithEnv<'_, &Ty> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.value {
-            Ty::Eval(_) => todo!(),
-            Ty::Hole(hole) => write!(f, "{}", self.env().with(hole)),
+            Ty::Eval(eval_ty) => {
+                write!(f, "{{{}}}", self.env().with(*eval_ty))
+            }
+            Ty::Hole(hole) => write!(f, "{}", self.env().with(*hole)),
             Ty::Var(resolved_var) => write!(f, "{}", self.env().with(resolved_var.name)),
-            Ty::Union(_) => todo!(),
-            Ty::Tuple(_) => todo!(),
-            Ty::Fn(_) => todo!(),
-            Ty::Ref(_) => todo!(),
-            Ty::Data(_) => todo!(),
-            Ty::Universe(_) => todo!(),
+            Ty::Tuple(tuple_ty) => write!(f, "{}", self.env().with(tuple_ty)),
+            Ty::Fn(fn_ty) => write!(f, "{}", self.env().with(fn_ty)),
+            Ty::Ref(ref_ty) => write!(f, "{}", self.env().with(ref_ty)),
+            Ty::Data(data_ty) => write!(f, "{}", self.env().with(data_ty)),
+            Ty::Universe(universe_ty) => write!(f, "{universe_ty}"),
         }
+    }
+}
+
+impl fmt::Display for WithEnv<'_, &TypeOfTerm> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "typeof {}", self.env().with(self.value.term))
     }
 }

@@ -1,6 +1,12 @@
 //! Definitions related to tuples.
 
-use super::{args::PatArgsId, pats::Spread};
+use std::fmt::Display;
+
+use super::{
+    args::PatArgsId,
+    environment::env::{AccessToEnv, WithEnv},
+    pats::Spread,
+};
 use crate::new::{args::ArgsId, params::ParamsId};
 
 /// A tuple type.
@@ -45,4 +51,28 @@ pub struct TuplePat {
 
     /// The spread in the data patterns, if any.
     pub data_spread: Option<Spread>,
+}
+
+impl Display for WithEnv<'_, &TupleTy> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "(")?;
+        write!(f, "{}", self.env().with(self.value.data))?;
+        write!(f, ")")
+    }
+}
+
+impl Display for WithEnv<'_, &TupleTerm> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "(")?;
+        write!(f, "{}", self.env().with(self.value.data))?;
+        write!(f, ")")
+    }
+}
+
+impl Display for WithEnv<'_, &TuplePat> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "(")?;
+        write!(f, "{}", self.env().with(self.value.data))?;
+        write!(f, ")")
+    }
 }

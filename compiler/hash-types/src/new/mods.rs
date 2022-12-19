@@ -112,6 +112,34 @@ pub struct ModDef {
 new_store_key!(pub ModDefId);
 new_store!(pub ModDefStore<ModDefId, ModDef>);
 
+impl Display for WithEnv<'_, &ModDef> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let members = self.env().with(self.value.members).to_string();
+        match self.value.kind {
+            ModKind::AnonImpl(_) => todo!(),
+            ModKind::ModBlock => {
+                write!(
+                    f,
+                    "mod [name={}, type=block] {} {{\n{}}}",
+                    self.env().with(self.value.name),
+                    self.env().with(self.value.params),
+                    indent(&members, "  ")
+                )
+            }
+            ModKind::Source(source_id) => {
+                let source_name = self.env().source_map().source_name(source_id);
+                write!(
+                    f,
+                    "mod [name={}, type=file, src=\"{source_name}\"] {} {{\n{}}}",
+                    self.env().with(self.value.name),
+                    self.env().with(self.value.params),
+                    indent(&members, "    ")
+                )
+            }
+        }
+    }
+}
+
 impl Display for WithEnv<'_, ModDefId> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.stores().mod_def().map_fast(self.value, |def| write!(f, "{}", self.env().with(def)))
@@ -134,6 +162,14 @@ impl Display for WithEnv<'_, &ModMember> {
     }
 }
 
+impl Display for WithEnv<'_, ModMemberId> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.stores().mod_members().map_fast(self.value.0, |members| {
+            writeln!(f, "{}", self.env().with(&members[self.value.1]))
+        })
+    }
+}
+
 impl Display for WithEnv<'_, ModMembersId> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.stores().mod_members().map_fast(self.value, |members| {
@@ -142,22 +178,5 @@ impl Display for WithEnv<'_, ModMembersId> {
             }
             Ok(())
         })
-    }
-}
-
-impl Display for WithEnv<'_, &ModDef> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.env().stores();
-        let members = self.env().with(self.value.members).to_string();
-        match self.value.kind {
-            ModKind::AnonImpl(_) => todo!(),
-            ModKind::ModBlock => {
-                write!(f, "mod {{\n{}\n}}", indent(&members, "    "))
-            }
-            ModKind::Source(source_id) => {
-                let source_name = self.env().source_map().source_name(source_id);
-                write!(f, "file \"{source_name}\" {{\n{}}}", indent(&members, "    "))
-            }
-        }
     }
 }
