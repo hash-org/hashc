@@ -2,12 +2,12 @@ error: spread patterns `...` can only be used once in a list pattern
  --> $DIR/multiple_spread.hash:4:15
 3 |   main := () => {
 4 |       [...x, t, ...] := a
-  |                 ^^^ here
+  |                 ^^^ 
 5 |   
 
 error: spread patterns `...` can only be used once in a list pattern
  --> $DIR/multiple_spread.hash:7:26
 6 |       match t {
 7 |           [...a, [...l, t, ..., c], t] => {};
-  |                            ^^^ here
+  |                            ^^^ 
 8 |           _ => {};

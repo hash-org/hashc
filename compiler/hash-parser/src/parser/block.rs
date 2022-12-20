@@ -120,13 +120,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let subject = self.parse_expr_with_precedence(0)?;
 
         let mut cases = AstNodes::empty();
-
         let mut gen = self.parse_delim_tree(Delimiter::Brace, None)?;
 
+        // @@Future: re-work syntax to avoid always specifying a semi-colon!!
         while gen.has_token() {
             cases.nodes.push(gen.parse_match_case()?);
             gen.parse_token(TokenKind::Semi)?;
         }
+        self.consume_gen(gen);
 
         Ok(self.node_with_joined_span(
             Block::Match(MatchBlock { subject, cases, origin: MatchOrigin::Match }),
