@@ -1,5 +1,6 @@
 //! Hash Compiler parser error utilities.
 use derive_more::Constructor;
+use hash_ast::origin::PatOrigin;
 use hash_pipeline::fs::ImportError;
 use hash_reporting::{
     report::{ReportElement, ReportNote, ReportNoteKind},
@@ -91,6 +92,13 @@ pub enum ParseErrorKind {
     ///
     /// - numeric fields attempt to access a field which is larger than [usize].
     InvalidPropertyAccess,
+
+    /// When multiple spread patterns `...` are present within a list, tuple
+    /// or constructor pattern.
+    MultipleSpreadPats {
+        /// Where the use of the pattern originated from
+        origin: PatOrigin,
+    },
 }
 
 /// Conversion implementation from an AST Generator Error into a Parser Error.
@@ -155,6 +163,9 @@ impl From<ParseError> for Reports {
                 "suffixes on property access fields are disallowed".to_string()
             }
             ParseErrorKind::InvalidPropertyAccess => "invalid property access".to_string(),
+            ParseErrorKind::MultipleSpreadPats { origin } => {
+                format!("spread patterns `...` can only be used once in a {origin} pattern")
+            }
         };
 
         // `AstGenErrorKind::Expected` format the error message in their own way,

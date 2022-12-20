@@ -415,20 +415,21 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// the end if applicable.
     pub(crate) fn parse_separated_fn<T>(
         &mut self,
-        mut item_fn: impl FnMut(&mut Self) -> ParseResult<AstNode<T>>,
-        mut separator_fn: impl FnMut(&mut Self) -> ParseResult<()>,
+        mut item: impl FnMut(&mut Self) -> ParseResult<AstNode<T>>,
+        mut separator: impl FnMut(&mut Self) -> ParseResult<()>,
     ) -> AstNodes<T> {
         let start = self.current_location();
         let mut args = vec![];
 
-        // flag specifying if the parser has errored but is trying to recover here
+        // flag specifying if the parser has errored but is trying to recover
+        // by parsing the next item
         let mut recovery = false;
 
-        // so parse the arguments to the function here... with potential type
-        // annotations
         while self.has_token() {
-            match item_fn(self) {
-                Ok(el) => args.push(el),
+            match item(self) {
+                Ok(element) => {
+                    args.push(element);
+                }
                 // Rather than immediately returning the error here, we will push it into
                 // the current diagnostics store, and then break the loop. If we couldn't
                 // previously parse the `separator`, then
@@ -441,7 +442,76 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
 
             if self.has_token() {
-                match separator_fn(self) {
+                match separator(self) {
+                    Ok(_) => {
+                        // reset recovery since we're in the 'green zone' despite
+                        // potentially erroring previously
+                        recovery = false;
+                    }
+                    // if we couldn't parse a separator, then let's try to
+                    // recover by resetting the loop and trying to parse
+                    // `item` again... if that also errors then we bail
+                    // completely
+                    Err(err) => {
+                        self.add_error(err);
+                        recovery = true;
+                    }
+                }
+            }
+        }
+
+        AstNodes::new(args, Some(start.join(self.current_location())))
+    }
+
+    /// This function behaves identically to [parse_separated_fn] except that it
+    /// might encounter items that don't produce an AST node. In this case,
+    /// the item closure will return `Ok(None)`. This is useful for parsing
+    /// items that are not required to be present, but if they are present,
+    /// they might be added into another AST node expect this `args` one
+    /// that is generated. Additionally, this provides an index for the the
+    /// `item` closure to keep track of how many items have already
+    /// been parsed.
+    pub(crate) fn parse_separated_fn_with_skips<T>(
+        &mut self,
+        mut item: impl FnMut(&mut Self, usize) -> ParseResult<Option<AstNode<T>>>,
+        mut separator: impl FnMut(&mut Self) -> ParseResult<()>,
+    ) -> AstNodes<T> {
+        let start = self.current_location();
+        let mut args = vec![];
+
+        // flag specifying if the parser has errored but is trying to recover
+        // by parsing the next item
+        let mut recovery = false;
+
+        // the current index of the item being parsed. this is passed
+        // to the item in order for it to use the current index of the
+        // item it is trying to parse.
+        let mut index = 0;
+
+        while self.has_token() {
+            match item(self, index) {
+                Ok(Some(element)) => {
+                    args.push(element);
+                    index += 1;
+                }
+                // In this case, we just continue parsing, and increase
+                // the element.
+                Ok(None) => {
+                    index += 1;
+                }
+                // Rather than immediately returning the error here, we will push it into
+                // the current diagnostics store, and then break the loop. If we couldn't
+                // previously parse the `separator`, then
+                Err(err) => {
+                    if !recovery {
+                        self.add_error(err);
+                    }
+                    break;
+                }
+            }
+
+            if self.has_token() {
+                match separator(self) {
                     Ok(_) => {
                         // reset recovery since we're in the 'green zone' despite
                         // potentially erroring previously
