@@ -102,6 +102,9 @@ impl Display for DefinitionKind {
     }
 }
 
+/// The [AstGen] struct it the primary parser for the Hash compiler. It
+/// will take a token stream and its accompanying token trees and will
+/// convert the stream into an AST.
 pub struct AstGen<'stream, 'resolver> {
     /// Current token stream offset.
     offset: Cell<usize>,
