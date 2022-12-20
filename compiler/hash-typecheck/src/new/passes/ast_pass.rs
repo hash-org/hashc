@@ -4,7 +4,7 @@ use hash_ast::{
 };
 
 use crate::new::{
-    diagnostics::error::TcResult, environment::tc_env::AccessToTcEnv, ops::common_ops::CommonOps,
+    diagnostics::error::TcResult, environment::tc_env::AccessToTcEnv, ops::common::CommonOps,
 };
 
 pub trait AstPass: AccessToTcEnv {

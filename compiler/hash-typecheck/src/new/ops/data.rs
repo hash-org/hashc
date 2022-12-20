@@ -17,7 +17,7 @@ use hash_types::new::{
 use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
 use itertools::Itertools;
 
-use super::{common_ops::CommonOps, AccessToOps};
+use super::{common::CommonOps, AccessToOps};
 use crate::{impl_access_to_tc_env, new::environment::tc_env::TcEnv};
 
 /// Data definition-related operations.

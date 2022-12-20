@@ -6,7 +6,7 @@ use hash_reporting::{
 use hash_source::location::SourceLocation;
 use hash_types::new::terms::TermId;
 
-use crate::new::{environment::tc_env::WithTcEnv, ops::common_ops::CommonOps};
+use crate::new::{environment::tc_env::WithTcEnv, ops::common::CommonOps};
 
 #[derive(Clone, Debug)]
 pub enum TcError {

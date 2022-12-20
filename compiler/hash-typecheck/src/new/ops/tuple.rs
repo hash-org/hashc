@@ -4,7 +4,7 @@ use hash_types::new::{
     tys::{Ty, TyId},
 };
 
-use super::common_ops::CommonOps;
+use super::common::CommonOps;
 use crate::{impl_access_to_tc_env, new::environment::tc_env::TcEnv};
 
 #[derive(Constructor)]
