@@ -3,6 +3,7 @@
 //! we have to create essentially a *jump* table each case that is specified in
 //! the `match` arms, which might also have `if` guards, `or` patterns, etc.
 mod candidate;
+mod declarations;
 mod optimise;
 mod test;
 mod utils;
@@ -175,7 +176,7 @@ impl<'tcx> Builder<'tcx> {
         let mut lowered_arms_edges: Vec<_> = Vec::with_capacity(arm_candidates.len());
 
         for (arm, candidate) in arm_candidates {
-            let arm_block = self.declare_bindings(subject_span, arm, candidate);
+            let arm_block = self.bind_pat(subject_span, arm.body.pat.ast_ref(), candidate);
 
             lowered_arms_edges.push(self.expr_into_dest(
                 destination,
@@ -575,13 +576,13 @@ impl<'tcx> Builder<'tcx> {
 
     /// This function is responsible for putting all of the declared bindings
     /// into scope.
-    fn declare_bindings(
+    fn bind_pat(
         &mut self,
         span: Span,
-        arm: AstNodeRef<'tcx, MatchCase>,
+        pat: AstNodeRef<'tcx, ast::Pat>,
         candidate: Candidate,
     ) -> BasicBlock {
-        let guard = match arm.body.pat.ast_ref().body {
+        let guard = match &pat.body {
             ast::Pat::If(ast::IfPat { condition, .. }) => Some(condition.ast_ref()),
             _ => None,
         };
@@ -696,18 +697,20 @@ impl<'tcx> Builder<'tcx> {
         'tcx: 'b,
     {
         for binding in bindings {
-            let value_place =
-                Place::from_local(self.lookup_local(binding.name).unwrap(), self.storage);
-
             let rvalue = match binding.mode {
-                candidate::BindingMode::ByValue => RValue::Use(value_place),
+                candidate::BindingMode::ByValue => RValue::Use(binding.source),
                 candidate::BindingMode::ByRef => {
-                    RValue::Ref(binding.mutability, value_place, AddressMode::Raw)
+                    RValue::Ref(binding.mutability, binding.source, AddressMode::Raw)
                 }
             };
             let rvalue_id = self.storage.push_rvalue(rvalue);
 
-            self.control_flow_graph.push_assign(block, binding.source, rvalue_id, binding.span);
+            // Now resolve where the binding place from, and then push
+            // an assign onto the binding source.
+            let value_place =
+                Place::from_local(self.lookup_local(binding.name).unwrap(), self.storage);
+
+            self.control_flow_graph.push_assign(block, value_place, rvalue_id, binding.span);
         }
     }
 }

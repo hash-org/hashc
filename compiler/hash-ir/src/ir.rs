@@ -253,7 +253,10 @@ impl From<ast::BinOp> for BinOp {
     }
 }
 
-/// Essentially a register for a value
+/// Essentially a register for a value, the local declaration
+/// is used to store some data within the function body, it contains
+/// an associated [Mutability], and [IrTy], as well as a name if the
+/// information is available.
 #[derive(Debug, PartialEq, Eq)]
 pub struct LocalDecl {
     /// Mutability of the local.

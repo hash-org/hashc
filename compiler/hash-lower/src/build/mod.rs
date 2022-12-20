@@ -5,7 +5,6 @@
 mod block;
 mod category;
 mod constant;
-mod declarations;
 mod expr;
 mod matches;
 mod place;

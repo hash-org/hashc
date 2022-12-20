@@ -133,7 +133,7 @@ impl<'tcx> Builder<'tcx> {
             // For declarations, we have to perform some bookkeeping in regards
             // to locals..., but this expression should never return any value
             // so we should just return a unit block here
-            Expr::Declaration(decl) => self.lower_declaration(block, decl),
+            Expr::Declaration(decl) => self.lower_declaration(block, decl, span),
 
             // Traverse the lhs of the cast, and then apply the cast
             // to the result... although this should be a no-op?
