@@ -5,9 +5,9 @@
 mod block;
 mod category;
 mod constant;
+mod declarations;
 mod expr;
 mod matches;
-mod pat;
 mod place;
 mod rvalue;
 mod temp;
@@ -27,11 +27,7 @@ use hash_ir::{
 };
 use hash_pipeline::settings::LoweringSettings;
 use hash_source::{identifier::Identifier, location::Span, SourceId, SourceMap};
-use hash_types::{
-    scope::{Member, ScopeId, ScopeKind},
-    storage::GlobalStorage,
-    terms::TermId,
-};
+use hash_types::{scope::ScopeId, storage::GlobalStorage, terms::TermId};
 use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
 use index_vec::IndexVec;
 
@@ -170,7 +166,7 @@ pub(crate) struct Builder<'tcx> {
     /// behaviour should be.
     settings: &'tcx LoweringSettings,
 
-    /// Info that is derived during the loweing process of the type.
+    /// Info that is derived during the lowering process of the type.
     info: BodyInfo,
 
     /// The item that is being lowered.
@@ -301,61 +297,6 @@ impl<'tcx> Builder<'tcx> {
         )
     }
 
-    /// Get the current [ScopeId] that is being used within the builder.
-    pub(crate) fn current_scope(&self) -> ScopeId {
-        *self.scope_stack.last().unwrap()
-    }
-
-    /// Push a [LocalDecl] in the current [Builder] with the associated
-    /// [ScopeId]. This will put the [LocalDecl] into the declarations, and
-    /// create an entry in the lookup map so that the [Local] can be looked up
-    /// via the name of the local and the scope that it is in.
-    pub(crate) fn push_local(&mut self, decl: LocalDecl, scope: ScopeId) -> Local {
-        let decl_name = decl.name;
-        let index = self.declarations.push(decl);
-
-        // If the declaration has a name i.e. not an auxiliary local, then
-        // we can push it into the `declaration_map`.
-        if let Some(name) = decl_name {
-            self.declaration_map.insert((scope, name), index);
-        }
-
-        index
-    }
-
-    /// Get the [Local] associated with the provided [ScopeId] and [Identifier].
-    pub(crate) fn lookup_local(&self, name: Identifier) -> Option<Local> {
-        self.lookup_item_scope(name)
-            .and_then(|(scope_id, _, _)| self.lookup_local_from_scope(scope_id, name))
-    }
-
-    /// Lookup a [Local] from a [ScopeId] and a [Identifier].
-    pub(crate) fn lookup_local_from_scope(
-        &self,
-        scope: ScopeId,
-        name: Identifier,
-    ) -> Option<Local> {
-        self.declaration_map.get(&(scope, name)).copied()
-    }
-
-    pub(crate) fn lookup_item_scope(
-        &self,
-        name: Identifier,
-    ) -> Option<(ScopeId, Member, ScopeKind)> {
-        for scope_id in self.scope_stack.iter().rev() {
-            // We need to walk up the scopes, and then find the first scope
-            // that contains this variable
-            match self.tcx.scope_store.map_fast(*scope_id, |scope| (scope.get(name), scope.kind)) {
-                // Found in this scope, return the member.
-                (Some((member, _)), kind) => return Some((*scope_id, member, kind)),
-                // Continue to the next (higher) scope:
-                _ => continue,
-            }
-        }
-
-        None
-    }
-
     pub(crate) fn build(&mut self) {
         let item_id = self.item.id();
         let term = self.tcx.node_info_store.node_info(item_id).map(|f| f.term_id()).unwrap();
@@ -365,7 +306,7 @@ impl<'tcx> Builder<'tcx> {
         self.info.set_ty(ty);
 
         // If it is a function type, then we use the return type of the
-        // funciton as the `return_ty`, otherwise we assume the type provided
+        // function as the `return_ty`, otherwise we assume the type provided
         // is the `return_ty`
         let (return_ty, params) = self.storage.tys().map_fast(ty, |item_ty| match item_ty {
             IrTy::Fn { return_ty, params, .. } => (*return_ty, Some(*params)),

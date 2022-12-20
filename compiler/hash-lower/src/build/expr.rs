@@ -7,8 +7,8 @@ use std::collections::HashMap;
 
 use hash_ast::ast::{
     AccessExpr, AccessKind, AssignExpr, AssignOpExpr, AstNodeRef, AstNodes, BinOp, BinaryExpr,
-    BlockExpr, ConstructorCallArg, ConstructorCallExpr, Declaration, Expr, ListLit, Lit,
-    PropertyKind, RefExpr, RefKind, ReturnStatement, TupleLit, UnsafeExpr, VariableExpr,
+    BlockExpr, ConstructorCallArg, ConstructorCallExpr, Expr, ListLit, Lit, PropertyKind, RefExpr,
+    RefKind, ReturnStatement, TupleLit, UnsafeExpr, VariableExpr,
 };
 use hash_ir::{
     ir::{
@@ -133,7 +133,7 @@ impl<'tcx> Builder<'tcx> {
             // For declarations, we have to perform some bookkeeping in regards
             // to locals..., but this expression should never return any value
             // so we should just return a unit block here
-            Expr::Declaration(decl) => self.handle_expr_declaration(block, decl),
+            Expr::Declaration(decl) => self.lower_declaration(block, decl),
 
             // Traverse the lhs of the cast, and then apply the cast
             // to the result... although this should be a no-op?
@@ -337,7 +337,7 @@ impl<'tcx> Builder<'tcx> {
             //  +--------------+                    +------+
             // ```
             Expr::BinaryExpr(BinaryExpr { lhs, rhs, operator }) if operator.is_lazy() => {
-                let (shortcircuiting_block, mut else_block, join_block) = (
+                let (short_circuiting_block, mut else_block, join_block) = (
                     self.control_flow_graph.start_new_block(),
                     self.control_flow_graph.start_new_block(),
                     self.control_flow_graph.start_new_block(),
@@ -347,15 +347,15 @@ impl<'tcx> Builder<'tcx> {
                     unpack!(block = self.as_operand(block, lhs.ast_ref(), Mutability::Mutable));
 
                 let blocks = match *operator.body() {
-                    BinOp::And => (else_block, shortcircuiting_block),
-                    BinOp::Or => (shortcircuiting_block, else_block),
+                    BinOp::And => (else_block, short_circuiting_block),
+                    BinOp::Or => (short_circuiting_block, else_block),
                     _ => unreachable!(),
                 };
 
                 let term = TerminatorKind::make_if(lhs, blocks.0, blocks.1, self.storage);
                 self.control_flow_graph.terminate(block, span, term);
 
-                // Create the constant that we will assign in the `short_circuting` block.
+                // Create the constant that we will assign in the `short_circuiting` block.
                 let constant = match *operator.body() {
                     BinOp::And => Const::Bool(false),
                     BinOp::Or => Const::Bool(true),
@@ -363,14 +363,14 @@ impl<'tcx> Builder<'tcx> {
                 };
                 let value = self.storage.push_rvalue(constant.into());
                 self.control_flow_graph.push_assign(
-                    shortcircuiting_block,
+                    short_circuiting_block,
                     destination,
                     value,
                     span,
                 );
 
                 // Join the branch to the joining block
-                self.control_flow_graph.goto(shortcircuiting_block, join_block, span);
+                self.control_flow_graph.goto(short_circuiting_block, join_block, span);
 
                 // Now deal with the non-short-circuiting block
                 let rhs = unpack!(
@@ -391,41 +391,6 @@ impl<'tcx> Builder<'tcx> {
         };
 
         block_and
-    }
-
-    /// This function handles the lowering of an expression declaration.
-    /// Internally, we check if this declaration needs to be lowered since
-    /// this might be declaring a free function within the current function
-    /// body, and thus we should not lower it.
-    ///
-    /// @@Todo: deal with non-trivial dead-ends, i.e. compound patterns that
-    /// have dead ends...
-    pub(crate) fn handle_expr_declaration(
-        &mut self,
-        mut block: BasicBlock,
-        decl: &'tcx Declaration,
-    ) -> BlockAnd<()> {
-        if self.dead_ends.contains(&decl.pat.id()) {
-            return block.unit();
-        }
-
-        // Declare all locals that need to be declared based on the
-        // pattern.
-        self.visit_bindings(decl.pat.ast_ref());
-
-        if let Some(rvalue) = &decl.value {
-            unpack!(block = self.expr_into_pat(block, decl.pat.ast_ref(), rvalue.ast_ref()));
-        } else {
-            panic_on_span!(
-                decl.pat.span().into_location(self.source_id),
-                self.source_map,
-                "expected initialisation value, declaration are expected to have values (for now)."
-            );
-        }
-
-        // if the declaration has an initialiser, then we need to deal with
-        // the initialisation block.
-        block.unit()
     }
 
     pub(crate) fn handle_statement_expr(

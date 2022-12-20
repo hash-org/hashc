@@ -79,7 +79,7 @@ impl<'tcx> Builder<'tcx> {
         // Create a projection as a a `sub-slice` of the original array
         if let Some(rest_pat) = rest {
             let suffix_len = suffix.len();
-            let place = place.clone_project(PlaceProjection::Subslice {
+            let place = place.clone_project(PlaceProjection::SubSlice {
                 from: prefix.len(),
                 to: if exact_size { min_length - suffix_len } else { suffix_len },
                 from_end: !exact_size,

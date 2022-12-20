@@ -64,7 +64,7 @@ impl fmt::Display for ForFormatting<'_, Place> {
                 match projection {
                     PlaceProjection::Downcast(_) | PlaceProjection::Field(_) => write!(f, "(")?,
                     PlaceProjection::Deref => write!(f, "(*")?,
-                    PlaceProjection::Subslice { .. }
+                    PlaceProjection::SubSlice { .. }
                     | PlaceProjection::ConstantIndex { .. }
                     | PlaceProjection::Index(_) => {}
                 }
@@ -82,16 +82,16 @@ impl fmt::Display for ForFormatting<'_, Place> {
                     PlaceProjection::ConstantIndex { offset, min_length, from_end: false } => {
                         write!(f, "[{offset:?} of {min_length:?}]")?;
                     }
-                    PlaceProjection::Subslice { from, to, from_end: true } if *to == 0 => {
+                    PlaceProjection::SubSlice { from, to, from_end: true } if *to == 0 => {
                         write!(f, "[{from}:]")?;
                     }
-                    PlaceProjection::Subslice { from, to, from_end: false } if *from == 0 => {
+                    PlaceProjection::SubSlice { from, to, from_end: false } if *from == 0 => {
                         write!(f, "[:-{to:?}]")?;
                     }
-                    PlaceProjection::Subslice { from, to, from_end: true } => {
+                    PlaceProjection::SubSlice { from, to, from_end: true } => {
                         write!(f, "[{from}:-{to:?}]")?;
                     }
-                    PlaceProjection::Subslice { from, to, from_end: false } => {
+                    PlaceProjection::SubSlice { from, to, from_end: false } => {
                         write!(f, "[{from:?}:{to:?}]")?;
                     }
                     PlaceProjection::Field(index) => write!(f, ".{index})")?,

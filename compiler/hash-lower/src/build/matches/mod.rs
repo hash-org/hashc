@@ -450,15 +450,15 @@ impl<'tcx> Builder<'tcx> {
     /// between the string literal and `x`. Using the standard approach, we
     /// wouldn't generate two distinct sets of two values, since `"a"` might
     /// be matched later by some other branch, which would then lead to an
-    /// exponential number of tests occurring. (@@Explain).
+    /// exponential number of tests occurring.
     ///
     /// To avoid this, we try to ensure that the amount of generated tests is
-    /// linear. We
-    // / do this by doing a k-way test, which returns an additional "unmatched" set alongside
-    /// the matches `k` set. When we encounter a candidate that would present in
-    /// more than one of the sets, we put it and all candidates below it in
-    /// an "unmatched" set. This ensures that these sets are disjoint, which
-    /// means we don't need to perform more than k + 1 tests.
+    /// linear. We do this by doing a k-way test, which returns an additional
+    /// "unmatched" set alongside the matches `k` set. When we encounter a
+    /// candidate that would present in more than one of the sets, we put it
+    /// and all candidates below it in an "unmatched" set. This ensures that
+    /// these sets are disjoint, which means we don't need to perform more
+    /// than k + 1 tests.
     ///
     /// Once a test is performed, we branch into the appropriate candidate set,
     /// and then recursively call `match_candidates`. These sub-matches are
@@ -573,7 +573,7 @@ impl<'tcx> Builder<'tcx> {
         self.perform_test(span, block, &match_place, &test, make_target_blocks);
     }
 
-    /// This function is responsible for putting all of the declared bindigs
+    /// This function is responsible for putting all of the declared bindings
     /// into scope.
     fn declare_bindings(
         &mut self,
@@ -672,7 +672,7 @@ impl<'tcx> Builder<'tcx> {
     ) where
         'tcx: 'b,
     {
-        // assign each of the bindings, since this the guard expressionm there
+        // assign each of the bindings, since this the guard expression there
         // should be only references to values that the if-guard references in order
         // to avoid problems of mutation in the if-guard, and then affecting the
         // soundness of later match checks.
