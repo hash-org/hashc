@@ -1,10 +1,12 @@
 // @@Docs
 use self::{
-    data::DataOps, defs::CommonDefOps, fns::FnOps, infer::InferOps, mods::ModOps, params::ParamOps,
-    stack::StackOps,
+    context::ContextOps, data::DataOps, defs::CommonDefOps, fns::FnOps, infer::InferOps,
+    mods::ModOps, params::ParamOps, stack::StackOps, tuple::TupleOps,
 };
 
+pub mod ast;
 pub mod common;
+pub mod context;
 pub mod data;
 pub mod defs;
 pub mod fns;
@@ -37,4 +39,6 @@ ops! {
   common_def_ops: CommonDefOps,
   fn_ops: FnOps,
   param_ops: ParamOps,
+  context_ops: ContextOps,
+  tuple_ops: TupleOps,
 }

@@ -7,8 +7,13 @@ use indexmap::IndexMap;
 
 use super::env::{AccessToEnv, WithEnv};
 use crate::new::{
-    data::DataDefId, defs::DefParamGroupId, fns::FnDefId, mods::ModDefId, params::ParamId,
-    scopes::StackId, symbols::Symbol,
+    data::DataDefId,
+    defs::DefParamGroupId,
+    fns::FnDefId,
+    mods::ModDefId,
+    params::ParamId,
+    scopes::{StackId, StackMemberId},
+    symbols::Symbol,
 };
 /// The kind of a binding.
 #[derive(Debug, Clone, Copy)]
@@ -41,6 +46,18 @@ where
 {
     pub id: Id,
     pub index: Index,
+}
+
+impl From<BindingOrigin<StackId, usize>> for StackMemberId {
+    fn from(value: BindingOrigin<StackId, usize>) -> Self {
+        (value.id, value.index)
+    }
+}
+
+impl From<StackMemberId> for BindingOrigin<StackId, usize> {
+    fn from(value: StackMemberId) -> Self {
+        BindingOrigin { id: value.0, index: value.1 }
+    }
 }
 
 /// All the different places a bound variable can originate from.
@@ -186,7 +203,7 @@ impl Context {
         let scope_levels = self.scope_levels.borrow();
         let current_level_member_index = scope_levels[level];
         let next_level_member_index =
-            scope_levels.get(level + 1).copied().unwrap_or(scope_levels.len());
+            scope_levels.get(level + 1).copied().unwrap_or(self.members.borrow().len());
         for (_, binding) in self
             .members
             .borrow()
@@ -289,7 +306,7 @@ impl fmt::Display for WithEnv<'_, &Context> {
             self.value.try_for_bindings_of_level(scope_level, |binding| {
                 let result = self.env().with(*binding).to_string();
                 for line in result.lines() {
-                    write!(f, "  {line}")?;
+                    writeln!(f, "  {line}")?;
                 }
                 Ok(())
             })?;

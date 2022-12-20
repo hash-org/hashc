@@ -37,8 +37,23 @@ pub trait CommonOps: AccessToTcEnv {
     fn get_fn_def(&self, fn_def_id: FnDefId) -> FnDef {
         self.stores().fn_def().get(fn_def_id)
     }
+
+    /// Get the location of a location target.
     fn get_location(&self, target: impl Into<LocationTarget>) -> Option<SourceLocation> {
         self.stores().location().get_location(target)
+    }
+
+    /// Get symbol data.
+    fn get_symbol(&self, symbol: Symbol) -> SymbolData {
+        self.stores().symbol().get(symbol)
+    }
+
+    /// Duplicate a symbol by creating a new symbol with the same name.
+    fn duplicate_symbol(&self, existing_symbol: Symbol) -> Symbol {
+        let existing_symbol_name = self.stores().symbol().map_fast(existing_symbol, |s| s.name);
+        self.stores()
+            .symbol()
+            .create_with(|symbol| SymbolData { name: existing_symbol_name, symbol })
     }
 
     /// Create a new type.
