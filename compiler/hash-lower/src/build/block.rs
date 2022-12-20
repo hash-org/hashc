@@ -81,7 +81,7 @@ impl<'tcx> Builder<'tcx> {
             // in order to not have to create a temporary for the declaration
             // which doesn't make sense because we are just declaring a local(s)
             if let Expr::Declaration(decl) = statement.body() {
-                unpack!(block = self.handle_expr_declaration(block, decl));
+                unpack!(block = self.lower_declaration(block, decl, statement.span()));
             } else {
                 // @@Investigate: do we need to deal with the temporary here?
                 unpack!(

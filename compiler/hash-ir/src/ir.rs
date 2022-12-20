@@ -220,7 +220,7 @@ impl BinOp {
         matches!(self, Self::Add | Self::Sub | Self::Mul | Self::Div | Self::Shl | Self::Shr)
     }
 
-    /// Check if the [BinOP] is a comparitor.
+    /// Check if the [BinOP] is a comparator.
     pub fn is_comparator(&self) -> bool {
         matches!(self, Self::Eq | Self::Neq | Self::Gt | Self::GtEq | Self::Lt | Self::LtEq)
     }
@@ -253,11 +253,15 @@ impl From<ast::BinOp> for BinOp {
     }
 }
 
-/// Essentially a register for a value
+/// Essentially a register for a value, the local declaration
+/// is used to store some data within the function body, it contains
+/// an associated [Mutability], and [IrTy], as well as a name if the
+/// information is available.
 #[derive(Debug, PartialEq, Eq)]
 pub struct LocalDecl {
     /// Mutability of the local.
     pub mutability: Mutability,
+
     /// The type of the local.
     pub ty: IrTyId,
 
@@ -366,7 +370,7 @@ pub enum PlaceProjection {
     /// [_, _, ...x, _]
     /// [_, ...x, _, _]
     /// ```
-    Subslice {
+    SubSlice {
         /// The initial offset of where the slice is referencing
         /// from.
         from: usize,
@@ -540,8 +544,8 @@ pub enum StatementKind {
     /// left hand-side pattern e.g. `x = 2`
     Assign(Place, RValueId),
 
-    /// Set the discriminant on a particular place, this is used to conceretly
-    /// specify what the discrimniant of a particular enum/union type is.
+    /// Set the discriminant on a particular place, this is used to concretely
+    /// specify what the discriminant of a particular enum/union type is.
     Discriminate(Place, VariantIdx),
 
     /// Allocate some value on the the heap using reference
@@ -782,7 +786,7 @@ pub enum TerminatorKind {
 }
 
 impl TerminatorKind {
-    /// Utility to createa a [TerminatorKind::Switch] which emulates the
+    /// Utility to create a [TerminatorKind::Switch] which emulates the
     /// behaviour of an `if` branch where the `true` branch is the
     /// `true_block` and the `false` branch is the `false_block`.
     pub fn make_if(

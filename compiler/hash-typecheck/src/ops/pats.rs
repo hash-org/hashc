@@ -563,7 +563,14 @@ impl<'tc> PatMatcher<'tc> {
                 let subject_params_id = self
                     .typer()
                     .infer_params_ty_of_tuple_term(subject)?
-                    .unwrap_or_else(|| tc_panic!(subject, self, "This is not a tuple term."));
+                    .unwrap_or_else(|| tc_panic!(subject, self, "expected a tuple term"));
+
+                // here, we want to register the type on this node
+                // so it can be queried later by later stages
+                if let Some(node) = self.node_info_store().pat_to_node_id(pat) {
+                    self.node_info_store().update_or_insert(node, subject.into())
+                }
+
                 self.match_pat_args_with_subject_params(members, subject_params_id)
             }
             Err(_) => Ok(None),
