@@ -1,19 +1,20 @@
 // @@Docs
 use self::{
-    data::DataOps, defs::CommonDefOps, fns::FnOps, infer::InferOps, mods::ModOps, params::ParamOps,
-    stack::StackOps,
+    data_ops::DataOps, def_ops::CommonDefOps, fn_ops::FnOps, infer_ops::InferOps, mod_ops::ModOps,
+    param_ops::ParamOps, stack_ops::StackOps,
 };
 
-pub mod common;
-pub mod data;
-pub mod defs;
-pub mod fns;
-pub mod infer;
-pub mod mods;
+pub mod ast_ops;
+pub mod common_ops;
+pub mod data_ops;
+pub mod def_ops;
+pub mod fn_ops;
+pub mod infer_ops;
+pub mod mod_ops;
 pub mod oracle;
-pub mod params;
-pub mod stack;
-pub mod tuple;
+pub mod param_ops;
+pub mod stack_ops;
+pub mod tuple_ops;
 
 macro_rules! ops {
     ($($name:ident: $ty:ty),* $(,)?) => {

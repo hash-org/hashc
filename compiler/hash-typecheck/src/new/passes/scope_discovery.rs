@@ -33,13 +33,13 @@ use hash_utils::store::{DefaultPartialStore, PartialStore, SequenceStoreKey, Sto
 use itertools::Itertools;
 use smallvec::{smallvec, SmallVec};
 
-use super::{ast_ops::AstOps, ast_pass::AstPass};
+use super::ast_pass::AstPass;
 use crate::{
     impl_access_to_tc_env,
     new::{
         diagnostics::error::TcError,
         environment::tc_env::{AccessToTcEnv, TcEnv},
-        ops::{common::CommonOps, AccessToOps},
+        ops::{ast_ops::AstOps, common_ops::CommonOps, AccessToOps},
     },
 };
 
@@ -70,6 +70,8 @@ pub struct ScopeDiscoveryPass<'tc> {
     /// The stack members we have seen, indexed by the stack ID.
     stack_members: DefaultPartialStore<StackId, Vec<(AstNodeId, StackMemberData)>>,
 }
+
+impl_access_to_tc_env!(ScopeDiscoveryPass<'tc>);
 
 impl<'tc> AstPass for ScopeDiscoveryPass<'tc> {
     fn pass_interactive(
@@ -517,8 +519,6 @@ impl<'tc> ScopeDiscoveryPass<'tc> {
         });
     }
 }
-
-impl_access_to_tc_env!(ScopeDiscoveryPass<'tc>);
 
 impl<'tc> ast::AstVisitor for ScopeDiscoveryPass<'tc> {
     type Error = TcError;

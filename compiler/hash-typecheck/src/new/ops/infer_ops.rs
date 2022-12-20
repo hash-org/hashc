@@ -8,7 +8,7 @@ use hash_types::new::{
 };
 use hash_utils::store::{CloneStore, Store};
 
-use super::common::CommonOps;
+use super::common_ops::CommonOps;
 use crate::{
     impl_access_to_tc_env,
     new::{
