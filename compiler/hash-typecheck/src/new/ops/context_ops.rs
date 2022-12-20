@@ -6,7 +6,7 @@ use hash_types::new::{
         env::AccessToEnv,
     },
     params::{ParamId, ParamsId},
-    symbols::Symbol,
+    scopes::StackMemberId,
 };
 use hash_utils::store::{SequenceStore, Store};
 
@@ -28,29 +28,27 @@ impl<'env> ContextOps<'env> {
     /// is a stack scope, in which case the bindings should be added to the
     /// context using [`ContextOps::add_stack_binding()`].
     pub fn enter_scope<T>(&self, kind: ScopeKind, f: impl FnOnce() -> T) -> T {
-        let result = self.context().enter_scope(kind, f);
-        self.add_bindings_from_scope_kind(kind);
+        let result = self.context().enter_scope(kind, || {
+            self.add_bindings_from_scope_kind(kind);
+            f()
+        });
         result
     }
 
     /// Add a new stack binding to the current scope context.
     ///
-    /// *Invariant*: It must be that the current scope is a stack scope,
-    /// containing a member with the given name.
-    pub fn add_stack_binding(&self, name: Symbol) {
+    /// *Invariant*: It must be that the member's scope is the current stack
+    /// scope.
+    pub fn add_stack_binding(&self, member_id: StackMemberId) {
         match self.context().get_scope_kind() {
             ScopeKind::Stack(stack_id) => {
-                let member_id = self.stores().stack().map_fast(stack_id, |stack| {
-                    stack.members.iter().find(|member| member.name == name).map(|member| member.id).unwrap_or_else(
-                        || {
-                            panic!(
-                                "add_stack_binding called with non-existent member name '{}' on stack {}",
-                                self.env().with(name), self.env().with(stack)
-                            )
-                        },
-                    )
-                });
-
+                if stack_id != member_id.0 {
+                    panic!("add_stack_binding called with member from different stack");
+                }
+                let name = self
+                    .stores()
+                    .stack()
+                    .map_fast(stack_id, |stack| stack.members[member_id.1].name);
                 self.context()
                     .add_binding(Binding { name, kind: BindingKind::StackMember(member_id.into()) })
             }

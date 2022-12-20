@@ -237,10 +237,10 @@ impl<'tc> ScopeDiscoveryPass<'tc> {
     fn add_def_to_ast_info<U>(&self, def_id: DefId, node: AstNodeRef<U>) {
         let ast_info = self.ast_info();
         match def_id {
-            DefId::Mod(id) => ast_info.mod_defs.insert(node.id(), id),
-            DefId::Data(id) => ast_info.data_defs.insert(node.id(), id),
-            DefId::Fn(id) => ast_info.fn_defs.insert(node.id(), id),
-            DefId::Stack(id) => ast_info.stacks.insert(node.id(), id),
+            DefId::Mod(id) => ast_info.mod_defs().insert(node.id(), id),
+            DefId::Data(id) => ast_info.data_defs().insert(node.id(), id),
+            DefId::Fn(id) => ast_info.fn_defs().insert(node.id(), id),
+            DefId::Stack(id) => ast_info.stacks().insert(node.id(), id),
         };
     }
 
@@ -269,7 +269,7 @@ impl<'tc> ScopeDiscoveryPass<'tc> {
                     for ((node_id, _), mod_member_index) in
                         members.iter().zip(mod_members.to_index_range())
                     {
-                        ast_info.mod_members.insert(*node_id, (mod_members, mod_member_index));
+                        ast_info.mod_members().insert(*node_id, (mod_members, mod_member_index));
                     }
                 }
             }),
@@ -291,7 +291,7 @@ impl<'tc> ScopeDiscoveryPass<'tc> {
                     for ((node_id, _), data_ctor_index) in
                         members.iter().zip(data_members.to_index_range())
                     {
-                        ast_info.ctor_defs.insert(*node_id, (data_members, data_ctor_index));
+                        ast_info.ctor_defs().insert(*node_id, (data_members, data_ctor_index));
                     }
                 }
             }),
@@ -315,7 +315,7 @@ impl<'tc> ScopeDiscoveryPass<'tc> {
 
                     // Set node for each stack member.
                     for ((node_id, _), member_index) in members.iter().zip(0..members_len) {
-                        ast_info.stack_members.insert(*node_id, (stack_id, member_index));
+                        ast_info.stack_members().insert(*node_id, (stack_id, member_index));
                     }
                 }
             }),
@@ -362,7 +362,7 @@ impl<'tc> ScopeDiscoveryPass<'tc> {
                 }
             };
 
-            if let Some(fn_def_id) = ast_info.fn_defs.get_data_by_node(def_node_id) {
+            if let Some(fn_def_id) = ast_info.fn_defs().get_data_by_node(def_node_id) {
                 // Function definition in a module
                 self.stores().fn_def().map_fast(fn_def_id, |fn_def| {
                     members.push((
@@ -370,7 +370,7 @@ impl<'tc> ScopeDiscoveryPass<'tc> {
                         ModMemberData { name: fn_def.name, value: ModMemberValue::Fn(fn_def_id) },
                     ));
                 })
-            } else if let Some(data_def_id) = ast_info.data_defs.get_data_by_node(def_node_id) {
+            } else if let Some(data_def_id) = ast_info.data_defs().get_data_by_node(def_node_id) {
                 // Data definition in a module
                 self.stores().data_def().map_fast(data_def_id, |data_def| {
                     members.push((
@@ -381,7 +381,8 @@ impl<'tc> ScopeDiscoveryPass<'tc> {
                         },
                     ));
                 })
-            } else if let Some(nested_mod_def_id) = ast_info.mod_defs.get_data_by_node(def_node_id)
+            } else if let Some(nested_mod_def_id) =
+                ast_info.mod_defs().get_data_by_node(def_node_id)
             {
                 // Nested module in a module
                 self.stores().mod_def().map_fast(nested_mod_def_id, |nested_mod_def| {
@@ -393,7 +394,7 @@ impl<'tc> ScopeDiscoveryPass<'tc> {
                         },
                     ));
                 })
-            } else if ast_info.stacks.get_data_by_node(def_node_id).is_some() {
+            } else if ast_info.stacks().get_data_by_node(def_node_id).is_some() {
                 panic_on_span!(
                     self.node_location(node),
                     self.source_map(),
@@ -599,9 +600,6 @@ impl<'tc> ast::AstVisitor for ScopeDiscoveryPass<'tc> {
 
         // Traverse the module
         self.enter_def(node, mod_def_id, || walk::walk_module(self, node))?;
-
-        // Eventually remove @@Temporary
-        println!("Module: {}", self.env().with(mod_def_id));
 
         Ok(())
     }

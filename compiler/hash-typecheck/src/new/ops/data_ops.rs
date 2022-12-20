@@ -153,8 +153,9 @@ impl<'tc> DataOps<'tc> {
             ctors: self.stores().ctor_defs().create_from_iter_with(once(|ctor_id| {
                 CtorDef {
                     id: ctor_id,
-                    // Name of the constructor is the same as the data definition
-                    name,
+                    // Name of the constructor is the same as the data definition, though we need to
+                    // create a new symbol for it
+                    name: self.duplicate_symbol(name),
                     // The constructor is the only one
                     data_def_ctor_index: 0,
                     data_def_id: id,

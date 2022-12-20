@@ -49,7 +49,7 @@ macro_rules! ast_info {
         #[derive(Debug, Clone)]
         pub struct AstInfo {
             $(
-                pub $name: $ty,
+                $name: $ty,
             )*
         }
 
@@ -61,6 +61,12 @@ macro_rules! ast_info {
                     )*
                 }
             }
+
+            $(
+                pub fn $name(&self) -> &$ty {
+                    &self.$name
+                }
+            )*
         }
 
         impl Default for AstInfo {

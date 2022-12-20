@@ -203,7 +203,7 @@ impl Context {
         let scope_levels = self.scope_levels.borrow();
         let current_level_member_index = scope_levels[level];
         let next_level_member_index =
-            scope_levels.get(level + 1).copied().unwrap_or(scope_levels.len());
+            scope_levels.get(level + 1).copied().unwrap_or(self.members.borrow().len());
         for (_, binding) in self
             .members
             .borrow()
@@ -306,7 +306,7 @@ impl fmt::Display for WithEnv<'_, &Context> {
             self.value.try_for_bindings_of_level(scope_level, |binding| {
                 let result = self.env().with(*binding).to_string();
                 for line in result.lines() {
-                    write!(f, "  {line}")?;
+                    writeln!(f, "  {line}")?;
                 }
                 Ok(())
             })?;
