@@ -1,6 +1,6 @@
 use hash_ast::ast::{
     self, AstNodeRef, BindingPat, ConstructorPat, Declaration, Expr, IfPat, ListPat, OrPat, Pat,
-    SpreadPat, TuplePat,
+    TuplePat,
 };
 use hash_ir::{
     ir::{BasicBlock, Local, LocalDecl, Place},
@@ -152,25 +152,56 @@ impl<'tcx> Builder<'tcx> {
                     ty,
                 );
             }
-            Pat::Constructor(ConstructorPat { fields, .. }) | Pat::Tuple(TuplePat { fields }) => {
+            Pat::Constructor(ConstructorPat { fields, spread, .. })
+            | Pat::Tuple(TuplePat { fields, spread }) => {
                 for field in fields.iter() {
                     self.visit_primary_pattern_bindings(field.pat.ast_ref(), f);
                 }
-            }
-            Pat::List(ListPat { .. }) => {
-                todo!()
-            }
-            Pat::Spread(SpreadPat { name }) => {
-                if name.is_some() {
+
+                if let Some(spread_pat) = spread && let Some(name) = &spread_pat.name {
                     f(
                         self,
                         // @@Todo: it should be possible to make this a mutable
                         // pattern reference, for now we assume it is always immutable.
                         Mutability::Immutable,
-                        name.as_ref().unwrap().ident,
+                        name.ident,
                         pat.span(),
                         self.ty_of_pat(self.pat_id_of_node(pat.id())),
                     )
+                }
+            }
+            Pat::List(ListPat { fields, spread }) => {
+                if let Some(spread_pat) = spread && let Some(name) = &spread_pat.name {
+                    let index = spread_pat.position;
+
+                    // Create the fields into an iterator, and only take the `prefix`
+                    // amount of fields to iterate
+                    let prefix_fields = fields.iter().take(index);
+
+                    for field in prefix_fields {
+                        self.visit_primary_pattern_bindings(field.ast_ref(), f);
+                    }
+
+                    f(
+                        self,
+                        // @@Todo: it should be possible to make this a mutable
+                        // pattern reference, for now we assume it is always immutable.
+                        Mutability::Immutable,
+                        name.ident,
+                        pat.span(),
+                        self.ty_of_pat(self.pat_id_of_node(pat.id())),
+                    );
+
+                    // Now deal with the suffix fields.
+                    let suffix_fields = fields.iter().skip(index);
+
+                    for field in suffix_fields {
+                        self.visit_primary_pattern_bindings(field.ast_ref(), f);
+                    }
+                } else {
+                    for field in fields.iter() {
+                        self.visit_primary_pattern_bindings(field.ast_ref(), f);
+                    }
                 }
             }
             Pat::Or(OrPat { ref variants }) => {

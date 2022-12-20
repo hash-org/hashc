@@ -489,7 +489,7 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
         &self,
         node: AstNodeRef<ast::TuplePat>,
     ) -> Result<Self::TuplePatRet, Self::Error> {
-        let walk::TuplePat { fields } = walk::walk_tuple_pat(self, node)?;
+        let walk::TuplePat { fields, .. } = walk::walk_tuple_pat(self, node)?;
 
         let members = self.builder().create_pat_args(fields, ParamOrigin::Tuple);
         self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), members);
@@ -600,10 +600,10 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
         &self,
         node: AstNodeRef<ast::ConstructorPat>,
     ) -> Result<Self::ConstructorPatRet, Self::Error> {
-        let walk::ConstructorPat { fields: args, subject } =
-            walk::walk_constructor_pat(self, node)?;
+        let walk::ConstructorPat { fields, subject, .. } = walk::walk_constructor_pat(self, node)?;
 
-        let constructor_params = self.builder().create_pat_args(args, ParamOrigin::ConstructorPat);
+        let constructor_params =
+            self.builder().create_pat_args(fields, ParamOrigin::ConstructorPat);
         self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), constructor_params);
 
         let subject = self.typer().get_term_of_pat(subject)?;
@@ -708,7 +708,7 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
         &self,
         node: AstNodeRef<ast::ListPat>,
     ) -> Result<Self::ListPatRet, Self::Error> {
-        let walk::ListPat { fields } = walk::walk_list_pat(self, node)?;
+        let walk::ListPat { fields, .. } = walk::walk_list_pat(self, node)?;
 
         // We need to collect all of the terms within the inner pattern, but we need
         // have a special case for `spread patterns` because they will return `[term]`
@@ -716,7 +716,6 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
         let inner_terms = fields
             .iter()
             .zip(node.fields.iter())
-            .filter(|(_, node)| !matches!(node.body(), ast::Pat::Spread(_)))
             .map(|(element, _)| -> TcResult<TermId> { self.typer().get_term_of_pat(*element) })
             .collect::<TcResult<Vec<_>>>()?;
 
