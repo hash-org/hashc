@@ -74,6 +74,7 @@ impl<'s> AstDesugaring<'s> {
         let pat = AstNode::new(
             Pat::Constructor(ConstructorPat {
                 subject: make_binding_pat("Some"),
+                spread: None,
                 fields: ast_nodes![AstNode::new(TuplePatEntry { name: None, pat }, pat_span)],
             }),
             pat_span,
@@ -94,6 +95,7 @@ impl<'s> AstDesugaring<'s> {
                     pat: AstNode::new(
                         Pat::Constructor(ConstructorPat {
                             subject: make_binding_pat("None"),
+                            spread: None,
                             fields: ast_nodes![],
                         },),
                         pat_span

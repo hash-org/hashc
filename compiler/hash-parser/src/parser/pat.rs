@@ -1,6 +1,7 @@
 //! Hash Compiler AST generation sources. This file contains the sources to the
 //! logic that transforms tokens into an AST.
-use hash_ast::{ast::*, ast_nodes};
+use hash_ast::{ast::*, ast_nodes, origin::PatOrigin};
+use hash_reporting::diagnostic::Diagnostics;
 use hash_source::{identifier::IDENTS, location::Span};
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind};
 
@@ -79,14 +80,28 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     let tree = self.token_trees.get(tree_index as usize).unwrap();
                     let mut gen = self.from_stream(tree, token.span);
 
-                    let fields = gen.parse_separated_fn(
-                        |g| g.parse_tuple_pat_entry(),
+                    // If we encounter a spread pattern, we keep it separate
+                    // to all of the other fields that are specified for the 
+                    // constructor pattern.
+                    let mut spread = None;
+
+                    let fields = gen.parse_separated_fn_with_skips(
+                        |g, pos| {
+                            // If the next token is a dot, then we try to parse a spread pattern
+                            // since this is the only case where a dot can appear in a tuple pattern.
+                            if matches!(g.peek(), Some(token) if token.has_kind(TokenKind::Dot)) {
+                                g.parse_spread_pat(&mut spread, pos, PatOrigin::Constructor)?;
+                                Ok(None)
+                            } else {
+                                Ok(Some(g.parse_tuple_pat_entry()?))
+                            }
+                        },
                         |g| g.parse_token(TokenKind::Comma),
                     );
                     self.consume_gen(gen);
 
                     self.node_with_joined_span(
-                        Pat::Constructor(ConstructorPat { subject, fields }),
+                        Pat::Constructor(ConstructorPat { subject, fields, spread }),
                         span,
                     )
                 }
@@ -134,8 +149,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     | TokenKind::Ident(_),
                 ..
             } => self.parse_binding_pat()?,
-            // Spread pattern
-            token if token.has_kind(TokenKind::Dot) => Pat::Spread(self.parse_spread_pat()?),
 
             // Literal patterns
             token
@@ -305,10 +318,27 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         parent_span: Span,
     ) -> ParseResult<AstNode<Pat>> {
         let mut gen = self.from_stream(tree, parent_span);
-        let fields = gen.parse_separated_fn(|g| g.parse_pat(), |g| g.parse_token(TokenKind::Comma));
+
+        // We keep the spread pattern as a separate part of the list pattern
+        // fields, so we must check for it separately.
+        let mut spread = None;
+
+        let fields = gen.parse_separated_fn_with_skips(
+            |g, pos| {
+                // Check if we encounter a dot, if so then we try to parse a
+                // spread pattern, if not then we parse a normal pattern.
+                if matches!(g.peek(), Some(token) if token.has_kind(TokenKind::Dot)) {
+                    g.parse_spread_pat(&mut spread, pos, PatOrigin::List)?;
+                    Ok(None)
+                } else {
+                    Ok(Some(g.parse_pat()?))
+                }
+            },
+            |g| g.parse_token(TokenKind::Comma),
+        );
         self.consume_gen(gen);
 
-        Ok(self.node_with_span(Pat::List(ListPat { fields }), parent_span))
+        Ok(self.node_with_span(Pat::List(ListPat { fields, spread }), parent_span))
     }
 
     /// Parse a [Pat::Tuple] from the token vector. A tuple pattern consists
@@ -328,7 +358,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         if let Some(token) = tree.get(0) {
             if token.has_kind(TokenKind::Comma) {
                 return Ok(self.node_with_span(
-                    Pat::Tuple(TuplePat { fields: AstNodes::empty() }),
+                    Pat::Tuple(TuplePat { fields: AstNodes::empty(), spread: None }),
                     parent_span,
                 ));
             }
@@ -340,26 +370,41 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // wrapped in parentheses and so we just unwrap it.
         let mut gen = self.from_stream(tree, parent_span);
 
-        let mut elements = gen
-            .parse_separated_fn(|g| g.parse_tuple_pat_entry(), |g| g.parse_token(TokenKind::Comma));
+        // We track the spread pattern separately because it is not a part of the
+        // tuple pattern fields.
+        let mut spread = None;
+
+        let mut fields = gen.parse_separated_fn_with_skips(
+            |g, pos| {
+                // If the next token is a dot, then we try to parse a spread pattern
+                // since this is the only case where a dot can appear in a tuple pattern.
+                if matches!(g.peek(), Some(token) if token.has_kind(TokenKind::Dot)) {
+                    g.parse_spread_pat(&mut spread, pos, PatOrigin::Tuple)?;
+                    Ok(None)
+                } else {
+                    Ok(Some(g.parse_tuple_pat_entry()?))
+                }
+            },
+            |g| g.parse_token(TokenKind::Comma),
+        );
 
         // If there is no associated name with the entry and there is only one entry
         // then we can be sure that it is only a nested entry.
-        if elements.len() == 1
-            && elements[0].name.is_none()
+        if spread.is_none()
+            && fields.len() == 1
+            && fields[0].name.is_none()
             && !matches!(gen.current_token().kind, TokenKind::Comma)
-            && !matches!(elements[0].pat.body(), Pat::Spread(_))
         {
             // @@Future: we want to check if there were any errors and then
             // if not we want to possibly emit a warning about redundant parentheses
             // for this particular pattern
             self.consume_gen(gen);
 
-            let element = elements.nodes.pop().unwrap().into_body();
+            let element = fields.nodes.pop().unwrap().into_body();
             Ok(element.pat)
         } else {
             self.consume_gen(gen);
-            Ok(self.node_with_span(Pat::Tuple(TuplePat { fields: elements }), parent_span))
+            Ok(self.node_with_span(Pat::Tuple(TuplePat { fields, spread }), parent_span))
         }
     }
 
@@ -396,7 +441,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// So the spread operator can only appear within either `list`, `tuple`
     /// patterns at the moment which means that any other location will mark
     /// it as `invalid` in the current implementation.
-    pub(crate) fn parse_spread_pat(&self) -> ParseResult<SpreadPat> {
+    pub(crate) fn parse_spread_pat(
+        &mut self,
+        spread: &mut Option<AstNode<SpreadPat>>,
+        position: usize,
+        origin: PatOrigin,
+    ) -> ParseResult<()> {
+        let start = self.next_location();
+
         for k in 0..3 {
             self.parse_token_fast(TokenKind::Dot).ok_or_else(|| {
                 self.make_err(
@@ -411,8 +463,23 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // Try and see if there is a identifier that is followed by the spread to try
         // and bind the capture to a variable
         let name = self.peek_resultant_fn(|g| g.parse_name());
+        let span = start.join(self.current_location());
 
-        Ok(SpreadPat { name })
+        // If the spread pattern is already present, then we need to
+        // report this as an error since, a spread pattern can only appear
+        // once within a tuple or list pattern.
+        if let Some(..) = spread {
+            self.add_error(self.make_err(
+                ParseErrorKind::MultipleSpreadPats { origin },
+                None,
+                None,
+                Some(span),
+            ));
+        } else {
+            *spread = Some(self.node_with_span(SpreadPat { name, position }, span));
+        }
+
+        Ok(())
     }
 
     /// Function to parse a [BindingPat] without considering whether it

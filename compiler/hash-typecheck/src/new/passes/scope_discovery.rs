@@ -13,7 +13,7 @@ use std::{
 
 use derive_more::From;
 use hash_ast::{
-    ast::{self, AstNodeId, AstNodeRef},
+    ast::{self, AstNode, AstNodeId, AstNodeRef},
     ast_visitor_default_impl,
     visitor::{walk, AstVisitor},
 };
@@ -422,6 +422,22 @@ impl<'tc> ScopeDiscoveryPass<'tc> {
         node: AstNodeRef<ast::Pat>,
         buf: &mut SmallVec<[(AstNodeId, StackMemberData); 3]>,
     ) {
+        let register_spread_pat =
+            |spread: &AstNode<ast::SpreadPat>,
+             buf: &mut SmallVec<[(AstNodeId, StackMemberData); 3]>| {
+                if let Some(name) = &spread.name {
+                    buf.push((
+                        node.id(),
+                        StackMemberData {
+                            name: self.new_symbol(name.ident),
+                            is_mutable: false,
+                            ty: self.new_ty_hole(),
+                            value: None,
+                        },
+                    ))
+                }
+            };
+
         match node.body() {
             ast::Pat::Binding(binding) => {
                 buf.push((
@@ -443,19 +459,31 @@ impl<'tc> ScopeDiscoveryPass<'tc> {
                     "Found module pattern in stack definition"
                 )
             }
-            ast::Pat::Tuple(tuple_pat) => {
-                for entry in tuple_pat.fields.ast_ref_iter() {
-                    self.add_stack_members_in_pat_to_buf(entry.pat.ast_ref(), buf);
-                }
-            }
-            ast::Pat::Constructor(constructor_pat) => {
-                for field in constructor_pat.fields.ast_ref_iter() {
+            ast::Pat::Tuple(ast::TuplePat { fields, spread }) => {
+                for (index, field) in fields.ast_ref_iter().enumerate() {
+                    if let Some(spread_node) = &spread && spread_node.position == index {
+                        register_spread_pat(spread_node, buf);
+                    }
+
                     self.add_stack_members_in_pat_to_buf(field.pat.ast_ref(), buf);
                 }
             }
-            ast::Pat::List(list_pat) => {
-                for pat in list_pat.fields.ast_ref_iter() {
-                    self.add_stack_members_in_pat_to_buf(pat, buf);
+            ast::Pat::Constructor(ast::ConstructorPat { fields, spread, .. }) => {
+                for (index, field) in fields.ast_ref_iter().enumerate() {
+                    if let Some(spread_node) = &spread && spread_node.position == index {
+                        register_spread_pat(spread_node, buf);
+                    }
+
+                    self.add_stack_members_in_pat_to_buf(field.pat.ast_ref(), buf);
+                }
+            }
+            ast::Pat::List(ast::ListPat { fields, spread }) => {
+                for (index, field) in fields.ast_ref_iter().enumerate() {
+                    if let Some(spread_node) = &spread && spread_node.position == index {
+                        register_spread_pat(spread_node, buf);
+                    }
+
+                    self.add_stack_members_in_pat_to_buf(field, buf);
                 }
             }
             ast::Pat::Or(or_pat) => match or_pat.variants.get(0) {
@@ -468,19 +496,6 @@ impl<'tc> ScopeDiscoveryPass<'tc> {
                     "Found empty or pattern"
                 ),
             },
-            ast::Pat::Spread(spread_pat) => {
-                if let Some(name) = spread_pat.name.as_ref() {
-                    buf.push((
-                        node.id(),
-                        StackMemberData {
-                            name: self.new_symbol(name.ident),
-                            is_mutable: false,
-                            ty: self.new_ty_hole(),
-                            value: None,
-                        },
-                    ))
-                }
-            }
             ast::Pat::If(if_pat) => self.add_stack_members_in_pat_to_buf(if_pat.pat.ast_ref(), buf),
             ast::Pat::Wild(_) => buf.push((
                 node.id(),

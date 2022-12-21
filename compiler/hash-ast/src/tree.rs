@@ -962,11 +962,17 @@ impl AstVisitor for AstTreeGenerator {
         &self,
         node: ast::AstNodeRef<ast::ConstructorPat>,
     ) -> Result<Self::ConstructorPatRet, Self::Error> {
-        let walk::ConstructorPat { subject, fields: args } =
+        let walk::ConstructorPat { subject, mut fields, spread } =
             walk::walk_constructor_pat(self, node)?;
 
+        // If the pattern contains a spread, place it in the position that it
+        // was specified in the source.
+        if let Some(spread) = spread && let Some(spread_node) = &node.spread {
+            fields.insert(spread_node.position, TreeNode::branch("spread", vec![spread]));
+        }
+
         let children = if !node.fields.is_empty() {
-            vec![TreeNode::branch("subject", vec![subject]), TreeNode::branch("args", args)]
+            vec![TreeNode::branch("subject", vec![subject]), TreeNode::branch("fields", fields)]
         } else {
             vec![TreeNode::branch("subject", vec![subject])]
         };
@@ -995,7 +1001,14 @@ impl AstVisitor for AstTreeGenerator {
         &self,
         node: ast::AstNodeRef<ast::TuplePat>,
     ) -> Result<Self::TuplePatRet, Self::Error> {
-        let walk::TuplePat { fields } = walk::walk_tuple_pat(self, node)?;
+        let walk::TuplePat { mut fields, spread } = walk::walk_tuple_pat(self, node)?;
+
+        // If the pattern contains a spread, place it in the position that it
+        // was specified in the source.
+        if let Some(spread) = spread && let Some(spread_node) = &node.spread {
+            fields.insert(spread_node.position, TreeNode::branch("spread", vec![spread]));
+        }
+
         Ok(TreeNode::branch("tuple", fields))
     }
 
@@ -1004,7 +1017,14 @@ impl AstVisitor for AstTreeGenerator {
         &self,
         node: ast::AstNodeRef<ast::ListPat>,
     ) -> Result<Self::TuplePatRet, Self::Error> {
-        let walk::ListPat { fields } = walk::walk_list_pat(self, node)?;
+        let walk::ListPat { mut fields, spread } = walk::walk_list_pat(self, node)?;
+
+        // If the pattern contains a spread, place it in the position that it
+        // was specified in the source.
+        if let Some(spread) = spread && let Some(spread_node) = node.spread.as_ref() {
+            fields.insert(spread_node.position, spread)
+        }
+
         Ok(TreeNode::branch("list", fields))
     }
 

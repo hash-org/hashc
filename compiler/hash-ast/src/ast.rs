@@ -760,8 +760,12 @@ define_tree! {
     pub struct ConstructorPat {
         /// The subject of the constructor pattern.
         pub subject: Child!(Pat),
+
         /// The arguments of the constructor pattern.
         pub fields: Children!(TuplePatEntry),
+
+        /// If there is a spread argument in the constructor pattern.
+        pub spread: OptionalChild!(SpreadPat),
     }
 
     /// A module pattern entry, e.g. `{..., name as (fst, snd), ...}`.
@@ -798,6 +802,9 @@ define_tree! {
     pub struct TuplePat {
         /// The element of the tuple, as patterns.
         pub fields: Children!(TuplePatEntry),
+
+        /// If there is a spread argument in the tuple pattern.
+        pub spread: OptionalChild!(SpreadPat),
     }
 
     impl TuplePat {
@@ -813,8 +820,10 @@ define_tree! {
     #[derive(Debug, PartialEq, Clone)]
     #[node]
     pub struct ListPat {
-        /// The element of the tuple, as patterns.
         pub fields: Children!(Pat),
+
+        /// If there is a spread argument in the tuple pattern.
+        pub spread: OptionalChild!(SpreadPat),
     }
 
     /// A literal pattern, limited to strings, character, floats, and integers, e.g.
@@ -854,6 +863,10 @@ define_tree! {
     pub struct SpreadPat {
         /// If the spread pattern binds the selected range
         pub name: OptionalChild!(Name),
+
+        /// The position of the spread pattern within parent
+        /// pattern.
+        pub position: usize,
     }
 
     /// The wildcard pattern.
@@ -929,10 +942,6 @@ define_tree! {
         /// Wildcard pattern, similar to a binding but it is not bound
         /// to any member.
         Wild(WildPat),
-        /// Similar to a [Pat::Wild], but does captures a collection of patterns,
-        /// which can be used to ignore a range of elements in a tuple or
-        /// a list.
-        Spread(SpreadPat),
         /// A range pattern which represents an open or closed range of primitives
         /// e.g. `'a'..'z'`, `3..27`... etc
         Range(RangePat),

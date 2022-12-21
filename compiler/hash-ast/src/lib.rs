@@ -1,6 +1,6 @@
 //! Hash Compiler AST library file
 
-#![feature(box_into_inner, iter_intersperse)]
+#![feature(box_into_inner, iter_intersperse, let_chains)]
 
 pub mod ast;
 pub mod node_map;

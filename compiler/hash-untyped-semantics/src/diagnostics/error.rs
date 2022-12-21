@@ -51,17 +51,6 @@ pub(crate) enum AnalysisErrorKind {
     /// When there is a non-declarative expression in either the root scope
     /// (module) or in a `impl` / `mod` block.
     NonDeclarativeExpression { origin: BlockOrigin },
-    /// When multiple spread patterns `...` are present within a list pattern
-    MultipleSpreadPats {
-        /// Where the use of the pattern originated from
-        origin: PatOrigin,
-    },
-    /// When a spread pattern is used within a parent pattern that does not
-    /// allow them to be used.
-    IllegalSpreadPatUse {
-        /// Where the use of the pattern originated from
-        origin: PatOrigin,
-    },
     /// When a pattern is used within a particular context that is not allowed
     ///
     /// Currently, this is only used to notify that `float` patterns aren't
@@ -132,24 +121,6 @@ impl From<AnalysisError> for Reports {
                 error.title("use of a `return` expression outside of a function").add_element(
                     ReportElement::CodeBlock(ReportCodeBlock::new(err.location, "here")),
                 );
-            }
-            AnalysisErrorKind::MultipleSpreadPats { origin } => {
-                error
-                    .title(format!(
-                        "spread patterns `...` can only be used once in a {origin} pattern"
-                    ))
-                    .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
-                        err.location,
-                        "here",
-                    )));
-            }
-            AnalysisErrorKind::IllegalSpreadPatUse { origin } => {
-                error
-                    .title(format!("spread patterns `...` cannot be used in a {origin} pattern"))
-                    .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
-                        err.location,
-                        "here",
-                    )));
             }
             AnalysisErrorKind::AmbiguousPatFieldOrder { origin } => {
                 error

@@ -50,7 +50,7 @@ fn extract_binds_from_bind(pat: ast::AstNodeRef<ast::Pat>, binds: &mut Vec<Bindi
             // so should we not do anything here?
             binds.push(Binding { name: IDENTS.underscore, node: pat.id() });
         }
-        ast::Pat::Tuple(ast::TuplePat { fields }) => {
+        ast::Pat::Tuple(ast::TuplePat { fields, spread }) => {
             for entry in fields.iter() {
                 let ast::TuplePatEntry { name, pat } = entry.body();
 
@@ -63,10 +63,18 @@ fn extract_binds_from_bind(pat: ast::AstNodeRef<ast::Pat>, binds: &mut Vec<Bindi
                     extract_binds_from_bind(pat.ast_ref(), binds);
                 }
             }
+
+            if let Some(spread_pat) = spread && let Some(name) = &spread_pat.name {
+                binds.push(Binding { name: name.ident, node: spread_pat.id() });
+            }
         }
-        ast::Pat::List(ast::ListPat { fields }) => {
+        ast::Pat::List(ast::ListPat { fields, spread }) => {
             for entry in fields.iter() {
                 extract_binds_from_bind(entry.ast_ref(), binds);
+            }
+
+            if let Some(spread_pat) = spread && let Some(name) = &spread_pat.name {
+                binds.push(Binding { name: name.ident, node: spread_pat.id() });
             }
         }
         ast::Pat::Or(ast::OrPat { variants }) => {
@@ -79,11 +87,11 @@ fn extract_binds_from_bind(pat: ast::AstNodeRef<ast::Pat>, binds: &mut Vec<Bindi
         }
         ast::Pat::If(ast::IfPat { pat, .. }) => extract_binds_from_bind(pat.ast_ref(), binds),
 
-        // These never bind anything, so we can just ignore them.
+        // These never bind anything that we need to track in terms
+        // of item discovery. @@Verify: what happens to constructor patterns here?
         ast::Pat::Constructor(_)
         | ast::Pat::Access(_)
         | ast::Pat::Module(_)
-        | ast::Pat::Spread(_)
         | ast::Pat::Range(_)
         | ast::Pat::Lit(_) => {}
     };

@@ -489,7 +489,13 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
         &self,
         node: AstNodeRef<ast::TuplePat>,
     ) -> Result<Self::TuplePatRet, Self::Error> {
-        let walk::TuplePat { fields } = walk::walk_tuple_pat(self, node)?;
+        let walk::TuplePat { mut fields, spread } = walk::walk_tuple_pat(self, node)?;
+
+        // @@Hack: if we have a spread pattern present, then we will insert it
+        // at the specified index.
+        if let Some(spread_pat) = spread && let Some(spread_node) = &node.spread {
+            fields.insert(spread_node.position, PatArg { pat: spread_pat, name: None })
+        }
 
         let members = self.builder().create_pat_args(fields, ParamOrigin::Tuple);
         self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), members);
@@ -600,10 +606,17 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
         &self,
         node: AstNodeRef<ast::ConstructorPat>,
     ) -> Result<Self::ConstructorPatRet, Self::Error> {
-        let walk::ConstructorPat { fields: args, subject } =
+        let walk::ConstructorPat { mut fields, subject, spread } =
             walk::walk_constructor_pat(self, node)?;
 
-        let constructor_params = self.builder().create_pat_args(args, ParamOrigin::ConstructorPat);
+        // @@Hack: if we have a spread pattern present, then we will insert it
+        // at the specified index.
+        if let Some(spread_pat) = spread && let Some(spread_node) = &node.spread {
+            fields.insert(spread_node.position, PatArg { pat: spread_pat, name: None })
+        }
+
+        let constructor_params =
+            self.builder().create_pat_args(fields, ParamOrigin::ConstructorPat);
         self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), constructor_params);
 
         let subject = self.typer().get_term_of_pat(subject)?;
@@ -708,7 +721,7 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
         &self,
         node: AstNodeRef<ast::ListPat>,
     ) -> Result<Self::ListPatRet, Self::Error> {
-        let walk::ListPat { fields } = walk::walk_list_pat(self, node)?;
+        let walk::ListPat { mut fields, spread } = walk::walk_list_pat(self, node)?;
 
         // We need to collect all of the terms within the inner pattern, but we need
         // have a special case for `spread patterns` because they will return `[term]`
@@ -716,11 +729,16 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
         let inner_terms = fields
             .iter()
             .zip(node.fields.iter())
-            .filter(|(_, node)| !matches!(node.body(), ast::Pat::Spread(_)))
             .map(|(element, _)| -> TcResult<TermId> { self.typer().get_term_of_pat(*element) })
             .collect::<TcResult<Vec<_>>>()?;
 
         let list_term = self.unifier().unify_rt_term_sequence(inner_terms)?;
+
+        // @@Hack: if we have a spread pattern present, then we will insert it
+        // at the specified index.
+        if let Some(spread_pat) = spread && let Some(spread_node) = &node.spread {
+            fields.insert(spread_node.position, spread_pat)
+        }
 
         let members = self.builder().create_pat_args(
             fields.into_iter().map(|pat| PatArg { name: None, pat }),

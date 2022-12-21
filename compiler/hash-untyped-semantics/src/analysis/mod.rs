@@ -3,7 +3,6 @@
 
 mod block;
 pub(crate) mod params;
-mod pat;
 
 use crossbeam_channel::Sender;
 use hash_ast::{ast::AstNodeRef, origin::BlockOrigin};

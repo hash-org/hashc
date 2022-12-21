@@ -8,7 +8,7 @@ use std::{collections::HashSet, convert::Infallible, mem};
 use hash_ast::{
     ast::{
         walk_mut_self, AstVisitorMutSelf, BindingPat, Block, BlockExpr, DirectiveExpr, Expr,
-        LitExpr, ModulePatEntry, Mutability, ParamOrigin, Pat, TuplePatEntry,
+        LitExpr, Mutability, ParamOrigin,
     },
     ast_visitor_mut_self_default_impl,
     origin::BlockOrigin,
@@ -19,8 +19,7 @@ use hash_source::{identifier::IDENTS, ModuleKind};
 use crate::{
     analysis::SemanticAnalyser,
     diagnostics::{
-        directives::DirectiveArgument, error::AnalysisErrorKind, origins::PatOrigin,
-        warning::AnalysisWarningKind,
+        directives::DirectiveArgument, error::AnalysisErrorKind, warning::AnalysisWarningKind,
     },
 };
 
@@ -47,13 +46,8 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
         EnumDefEntry,
         TraitDef,
         TraitImpl,
-        ConstructorPat,
-        TuplePatEntry,
-        TuplePat,
-        ListPat,
         LitPat,
         BindingPat,
-        ModulePatEntry,
         Module,
         StructDef
     );
@@ -436,78 +430,6 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
         Ok(())
     }
 
-    type ConstructorPatRet = ();
-
-    /// This function verifies that constructor patterns adhere to the following
-    /// rules:
-    ///
-    /// - All named fields must after before any nameless fields.
-    ///
-    /// - Only one spread pattern is ever present within a compound pattern.
-    fn visit_constructor_pat(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ConstructorPat>,
-    ) -> Result<Self::ConstructorPatRet, Self::Error> {
-        self.check_compound_pat_rules(&node.body().fields, PatOrigin::Constructor);
-
-        let _ = walk_mut_self::walk_constructor_pat(self, node);
-        Ok(())
-    }
-
-    type TuplePatEntryRet = ();
-
-    fn visit_tuple_pat_entry(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TuplePatEntry>,
-    ) -> Result<Self::TuplePatEntryRet, Self::Error> {
-        let TuplePatEntry { name, pat } = node.body();
-
-        // Spread patterns are always disallowed within a named field entry
-        if name.is_some() && matches!(pat.body(), Pat::Spread(_)) {
-            self.append_error(
-                AnalysisErrorKind::IllegalSpreadPatUse { origin: PatOrigin::NamedField },
-                pat.ast_ref(),
-            );
-        } else {
-            // We only need to walk the children if it hasn't error'd yet
-            let _ = walk_mut_self::walk_tuple_pat_entry(self, node);
-        }
-
-        Ok(())
-    }
-
-    type TuplePatRet = ();
-
-    /// This function verifies that tuple patterns adhere to the following
-    /// rules:
-    ///
-    /// - All named fields must after before any nameless fields.
-    ///
-    /// - Only one spread pattern is ever present within a compound pattern.
-    fn visit_tuple_pat(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TuplePat>,
-    ) -> Result<Self::TuplePatRet, Self::Error> {
-        self.check_compound_pat_rules(&node.body().fields, PatOrigin::Tuple);
-
-        // Continue walking the tree
-        let _ = walk_mut_self::walk_tuple_pat(self, node);
-        Ok(())
-    }
-
-    type ListPatRet = ();
-
-    fn visit_list_pat(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ListPat>,
-    ) -> Result<Self::ListPatRet, Self::Error> {
-        self.check_list_pat(&node.body().fields);
-
-        // Continue walking the tree
-        let _ = walk_mut_self::walk_list_pat(self, node);
-        Ok(())
-    }
-
     type LitPatRet = ();
 
     fn visit_lit_pat(
@@ -551,28 +473,6 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
                 },
                 visibility_annotation.ast_ref(),
             );
-        }
-
-        Ok(())
-    }
-
-    type ModulePatEntryRet = ();
-
-    fn visit_module_pat_entry(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ModulePatEntry>,
-    ) -> Result<Self::ModulePatEntryRet, Self::Error> {
-        let ModulePatEntry { pat, .. } = node.body();
-
-        // Spread patterns are always disallowed within a named field entry
-        if matches!(pat.body(), Pat::Spread(_)) {
-            self.append_error(
-                AnalysisErrorKind::IllegalSpreadPatUse { origin: PatOrigin::Namespace },
-                pat.ast_ref(),
-            );
-        } else {
-            // We only need to walk the children if it hasn't error'd yet
-            let _ = walk_mut_self::walk_module_pat_entry(self, node);
         }
 
         Ok(())
