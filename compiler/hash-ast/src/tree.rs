@@ -962,19 +962,20 @@ impl AstVisitor for AstTreeGenerator {
         &self,
         node: ast::AstNodeRef<ast::ConstructorPat>,
     ) -> Result<Self::ConstructorPatRet, Self::Error> {
-        let walk::ConstructorPat { subject, fields, spread } =
+        let walk::ConstructorPat { subject, mut fields, spread } =
             walk::walk_constructor_pat(self, node)?;
 
-        let mut children = if !node.fields.is_empty() {
+        // If the pattern contains a spread, place it in the position that it
+        // was specified in the source.
+        if let Some(spread) = spread && let Some(spread_node) = &node.spread {
+            fields.insert(spread_node.position, TreeNode::branch("spread", vec![spread]));
+        }
+
+        let children = if !node.fields.is_empty() {
             vec![TreeNode::branch("subject", vec![subject]), TreeNode::branch("fields", fields)]
         } else {
             vec![TreeNode::branch("subject", vec![subject])]
         };
-
-        // @@Note: this does not respect the order of the fields in the pattern
-        if let Some(spread) = spread {
-            children.push(TreeNode::branch("spread", vec![spread]));
-        }
 
         Ok(TreeNode::branch("constructor", children))
     }
@@ -1002,9 +1003,10 @@ impl AstVisitor for AstTreeGenerator {
     ) -> Result<Self::TuplePatRet, Self::Error> {
         let walk::TuplePat { mut fields, spread } = walk::walk_tuple_pat(self, node)?;
 
-        // @@Note: this does not respect the order of the fields in the pattern
-        if let Some(spread) = spread {
-            fields.push(TreeNode::branch("spread", vec![spread]));
+        // If the pattern contains a spread, place it in the position that it
+        // was specified in the source.
+        if let Some(spread) = spread && let Some(spread_node) = &node.spread {
+            fields.insert(spread_node.position, TreeNode::branch("spread", vec![spread]));
         }
 
         Ok(TreeNode::branch("tuple", fields))
@@ -1017,8 +1019,8 @@ impl AstVisitor for AstTreeGenerator {
     ) -> Result<Self::TuplePatRet, Self::Error> {
         let walk::ListPat { mut fields, spread } = walk::walk_list_pat(self, node)?;
 
-        // insert the spread pattern into the list based on where it
-        // was specified
+        // If the pattern contains a spread, place it in the position that it
+        // was specified in the source.
         if let Some(spread) = spread && let Some(spread_node) = node.spread.as_ref() {
             fields.insert(spread_node.position, spread)
         }

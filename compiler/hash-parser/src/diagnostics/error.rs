@@ -164,6 +164,8 @@ impl From<ParseError> for Reports {
             }
             ParseErrorKind::InvalidPropertyAccess => "invalid property access".to_string(),
             ParseErrorKind::MultipleSpreadPats { origin } => {
+                span_label = "cannot specify another spread pattern here".to_string();
+
                 format!("spread patterns `...` can only be used once in a {origin} pattern")
             }
         };

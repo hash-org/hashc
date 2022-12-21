@@ -460,30 +460,30 @@ impl<'tc> ScopeDiscoveryPass<'tc> {
                 )
             }
             ast::Pat::Tuple(ast::TuplePat { fields, spread }) => {
-                for entry in fields.ast_ref_iter() {
-                    self.add_stack_members_in_pat_to_buf(entry.pat.ast_ref(), buf);
-                }
+                for (index, field) in fields.ast_ref_iter().enumerate() {
+                    if let Some(spread_node) = &spread && spread_node.position == index {
+                        register_spread_pat(spread_node, buf);
+                    }
 
-                if let Some(spread) = spread {
-                    register_spread_pat(spread, buf);
+                    self.add_stack_members_in_pat_to_buf(field.pat.ast_ref(), buf);
                 }
             }
             ast::Pat::Constructor(ast::ConstructorPat { fields, spread, .. }) => {
-                for field in fields.ast_ref_iter() {
-                    self.add_stack_members_in_pat_to_buf(field.pat.ast_ref(), buf);
-                }
+                for (index, field) in fields.ast_ref_iter().enumerate() {
+                    if let Some(spread_node) = &spread && spread_node.position == index {
+                        register_spread_pat(spread_node, buf);
+                    }
 
-                if let Some(spread) = spread {
-                    register_spread_pat(spread, buf);
+                    self.add_stack_members_in_pat_to_buf(field.pat.ast_ref(), buf);
                 }
             }
             ast::Pat::List(ast::ListPat { fields, spread }) => {
-                for pat in fields.ast_ref_iter() {
-                    self.add_stack_members_in_pat_to_buf(pat, buf);
-                }
+                for (index, field) in fields.ast_ref_iter().enumerate() {
+                    if let Some(spread_node) = &spread && spread_node.position == index {
+                        register_spread_pat(spread_node, buf);
+                    }
 
-                if let Some(spread) = spread {
-                    register_spread_pat(spread, buf);
+                    self.add_stack_members_in_pat_to_buf(field, buf);
                 }
             }
             ast::Pat::Or(or_pat) => match or_pat.variants.get(0) {

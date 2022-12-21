@@ -53,15 +53,23 @@ impl Display for BlockOrigin {
 pub enum PatOrigin {
     /// The parent is a tuple, i.e `(x, 1, 2)`
     Tuple,
+
     /// The parent is a pseudo-pattern originating as a named field of some
     /// other parent pattern. Named fields could occur within tuples or
     /// constructor patterns, i.e `Bar(max = 123)`, where the `max` would be
     /// the named field.
+    ///
+    /// This is primarily used for checking if a collection of patterns (within
+    /// a constructor or tuple) don't introduce ambiguous pattern orders when
+    /// both named and un-named fields are used.
     NamedField,
+
     /// The parent pattern is a constructor, i.e `Some(x)`
     Constructor,
+
     /// The parent pattern is a list, i.e `[1, 2, 3, ...]`
     List,
+
     /// The parent pattern is a namespace, i.e `{ alloc, core }`
     Namespace,
 }
