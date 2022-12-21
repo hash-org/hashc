@@ -10,7 +10,7 @@ use hash_source::{
     location::{SourceLocation, Span},
     SourceId,
 };
-use hash_types::{scope::ScopeId, terms::TermId};
+use hash_types::scope::ScopeId;
 use hash_utils::{
     new_sequence_store_key, new_store_key,
     store::{DefaultSequenceStore, DefaultStore, SequenceStore, Store},
@@ -24,6 +24,8 @@ use crate::{
     IrStorage,
 };
 
+/// A specified constant value within the Hash IR. These values and their
+/// shape is always known at compile-time.
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub enum Const {
     /// Nothing, it has zero size, and is associated with a particular type.
@@ -471,7 +473,7 @@ pub enum RValue {
     /// @@Future: maybe in the future this should be replaced by a compile-time
     /// API variant which will just run some kind of operation and return the
     /// constant.
-    ConstOp(ConstOp, TermId),
+    ConstOp(ConstOp, IrTyId),
 
     /// A unary expression with a unary operator.
     UnaryOp(UnaryOp, RValueId),
@@ -809,7 +811,8 @@ impl TerminatorKind {
 /// terminator. Initially, the `terminator` begins as [None], and will
 /// be set when the lowering process is completed.
 ///
-/// N.B. It is an invariant for a [BasicBlock] to not have a terminator.
+/// N.B. It is an invariant for a [BasicBlock] to not have a terminator
+/// once it has been built.
 #[derive(Debug, PartialEq, Eq)]
 pub struct BasicBlockData {
     /// The statements that the block has.
