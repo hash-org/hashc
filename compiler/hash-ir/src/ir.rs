@@ -51,6 +51,12 @@ pub enum Const {
     Str(InternedStr),
 }
 
+impl From<Const> for ConstKind {
+    fn from(value: Const) -> Self {
+        Self::Value(value)
+    }
+}
+
 impl Const {
     /// Create a [Const::Zero] with a unit type, the total zero.
     pub fn zero(storage: &IrStorage) -> Self {
@@ -132,6 +138,18 @@ pub enum ConstKind {
         /// The name of the declaration that refers to the scope.
         name: Identifier,
     },
+}
+
+impl From<ConstKind> for Operand {
+    fn from(constant: ConstKind) -> Self {
+        Self::Const(constant)
+    }
+}
+
+impl From<ConstKind> for RValue {
+    fn from(constant: ConstKind) -> Self {
+        Self::Use(Operand::Const(constant))
+    }
 }
 
 impl fmt::Display for ConstKind {
@@ -424,6 +442,18 @@ impl Place {
     }
 }
 
+impl From<Place> for Operand {
+    fn from(value: Place) -> Self {
+        Self::Place(value)
+    }
+}
+
+impl From<Place> for RValue {
+    fn from(value: Place) -> Self {
+        Self::Use(Operand::Place(value))
+    }
+}
+
 /// [AggregateKind] represent an initialisation process of a particular
 /// structure be it a tuple, array, struct, etc.
 ///
@@ -456,16 +486,27 @@ impl AggregateKind {
     }
 }
 
-/// The representation of values that occur on the right-hand side of an
-/// assignment.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum RValue {
+pub enum Operand {
     /// A constant value.
     Const(ConstKind),
 
-    /// A local variable value, do we need to denote whether this is a
-    /// copy/move?
-    Use(Place),
+    /// A place that is being used.
+    Place(Place),
+}
+
+impl From<Operand> for RValue {
+    fn from(value: Operand) -> Self {
+        Self::Use(value)
+    }
+}
+
+/// The representation of values that occur on the right-hand side of an
+/// assignment.
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum RValue {
+    /// Some value that is being used. Could be a constant or a place.
+    Use(Operand),
 
     /// Compiler intrinsic operation, this will be computed in place and
     /// replaced by a constant.
@@ -476,16 +517,16 @@ pub enum RValue {
     ConstOp(ConstOp, IrTyId),
 
     /// A unary expression with a unary operator.
-    UnaryOp(UnaryOp, RValueId),
+    UnaryOp(UnaryOp, Operand),
 
     /// A binary expression with a binary operator and two inner expressions.
-    BinaryOp(BinOp, RValueId, RValueId),
+    BinaryOp(BinOp, Box<(Operand, Operand)>),
 
     /// A binary expression that is checked. The only difference between this
     /// and a normal [RValue::BinaryOp] is that this will return a boolean and
     /// the result of the operation in the form of `(T, bool)`. The boolean
     /// flag denotes whether the operation violated the check...
-    CheckedBinaryOp(BinOp, RValueId, RValueId),
+    CheckedBinaryOp(BinOp, Box<(Operand, Operand)>),
 
     /// Compute the `length` of a place, yielding a `usize`.
     ///
@@ -497,7 +538,7 @@ pub enum RValue {
     Ref(Mutability, Place, AddressMode),
     /// Used for initialising structs, tuples and other aggregate
     /// data structures
-    Aggregate(AggregateKind, AggregateId),
+    Aggregate(AggregateKind, Vec<Operand>),
     /// Compute the discriminant of a [Place], this is essentially checking
     /// which variant a union is. For types that don't have a discriminant
     /// (non-union types ) this will return the value as 0.
@@ -507,7 +548,7 @@ pub enum RValue {
 impl RValue {
     /// Check if an [RValue] is a constant.
     pub fn is_const(&self) -> bool {
-        matches!(self, RValue::Const(_))
+        matches!(self, RValue::Use(Operand::Const(_)))
     }
 
     /// Check if an [RValue] is a constant operation and involves a constant
@@ -515,7 +556,9 @@ impl RValue {
     pub fn is_integral_const(&self) -> bool {
         matches!(
             self,
-            RValue::Const(ConstKind::Value(Const::Int(_) | Const::Float(_) | Const::Char(_)))
+            RValue::Use(Operand::Const(ConstKind::Value(
+                Const::Int(_) | Const::Float(_) | Const::Char(_)
+            )))
         )
     }
 
@@ -523,7 +566,7 @@ impl RValue {
     /// checked that it is a constant.
     pub fn as_const(&self) -> ConstKind {
         match self {
-            RValue::Const(c) => *c,
+            RValue::Use(Operand::Const(c)) => *c,
             rvalue => unreachable!("Expected a constant, got {:?}", rvalue),
         }
     }
@@ -531,7 +574,7 @@ impl RValue {
 
 impl From<Const> for RValue {
     fn from(value: Const) -> Self {
-        Self::Const(ConstKind::Value(value))
+        Self::Use(Operand::Const(ConstKind::Value(value)))
     }
 }
 
@@ -754,11 +797,11 @@ pub enum TerminatorKind {
     /// Perform a function call
     Call {
         /// The function that is being called
-        op: RValueId,
+        op: Operand,
 
         /// Arguments to the function, later we might need to distinguish
         /// whether these are move or copy arguments.
-        args: Vec<RValueId>,
+        args: Vec<Operand>,
 
         /// Destination of the result...
         destination: Place,
@@ -775,7 +818,7 @@ pub enum TerminatorKind {
     /// the `otherwise` condition.
     Switch {
         /// The value to use when comparing against the cases.
-        value: RValueId,
+        value: Operand,
 
         /// All of the targets that are defined for the particular switch.
         targets: SwitchTargets,
@@ -803,7 +846,7 @@ impl TerminatorKind {
     /// behaviour of an `if` branch where the `true` branch is the
     /// `true_block` and the `false` branch is the `false_block`.
     pub fn make_if(
-        operand: RValueId,
+        value: Operand,
         true_block: BasicBlock,
         false_block: BasicBlock,
         storage: &IrStorage,
@@ -814,7 +857,7 @@ impl TerminatorKind {
             Some(true_block),
         );
 
-        TerminatorKind::Switch { value: operand, targets }
+        TerminatorKind::Switch { value, targets }
     }
 }
 

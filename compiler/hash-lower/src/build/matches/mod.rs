@@ -107,9 +107,8 @@ impl<'tcx> Builder<'tcx> {
                 let place = unpack!(block = self.as_place(block, expr, Mutability::Mutable));
                 let then_block = self.control_flow_graph.start_new_block();
 
-                let value = self.storage.rvalues().create(RValue::Use(place));
                 let terminator =
-                    TerminatorKind::make_if(value, then_block, else_block, self.storage);
+                    TerminatorKind::make_if(place.into(), then_block, else_block, self.storage);
                 self.control_flow_graph.terminate(block, span, terminator);
 
                 then_block.unit()
@@ -698,7 +697,7 @@ impl<'tcx> Builder<'tcx> {
     {
         for binding in bindings {
             let rvalue = match binding.mode {
-                candidate::BindingMode::ByValue => RValue::Use(binding.source),
+                candidate::BindingMode::ByValue => binding.source.into(),
                 candidate::BindingMode::ByRef => {
                     RValue::Ref(binding.mutability, binding.source, AddressMode::Raw)
                 }

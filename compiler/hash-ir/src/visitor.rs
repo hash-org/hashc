@@ -14,9 +14,9 @@
 ///    code for nodes that don't need to be dealt with.
 use crate::{
     ir::{
-        AddressMode, AggregateId, AggregateKind, AssertKind, BasicBlock, BasicBlockData, BinOp,
-        Body, ConstKind, ConstOp, Local, Place, PlaceProjection, RValue, RValueId, Statement,
-        SwitchTargets, Terminator, UnaryOp,
+        AddressMode, AggregateKind, AssertKind, BasicBlock, BasicBlockData, BinOp, Body, ConstKind,
+        ConstOp, Local, Operand, Place, PlaceProjection, RValue, Statement, SwitchTargets,
+        Terminator, UnaryOp,
     },
     ty::{IrTyId, Mutability, VariantIdx},
     BodyDataStore,
@@ -71,21 +71,21 @@ pub trait IrVisitorMut<'ir>: Sized {
 
     fn visit_const_rvalue(&mut self, _: &ConstKind) {}
 
-    fn visit_use_rvalue(&mut self, value: &Place) {
+    fn visit_use_rvalue(&mut self, value: &Operand) {
         walk_mut::walk_use_rvalue(self, value);
     }
 
     fn visit_const_op_rvalue(&mut self, _: ConstOp, _: IrTyId) {}
 
-    fn visit_unary_op_rvalue(&mut self, op: UnaryOp, value: &RValue) {
+    fn visit_unary_op_rvalue(&mut self, op: UnaryOp, value: &Operand) {
         walk_mut::walk_unary_op_rvalue(self, op, value);
     }
 
-    fn visit_binary_op_rvalue(&mut self, op: BinOp, lhs: &RValue, rhs: &RValue) {
+    fn visit_binary_op_rvalue(&mut self, op: BinOp, lhs: &Operand, rhs: &Operand) {
         walk_mut::walk_binary_op_rvalue(self, op, lhs, rhs);
     }
 
-    fn visit_checked_binary_op_rvalue(&mut self, op: BinOp, lhs: &RValue, rhs: &RValue) {
+    fn visit_checked_binary_op_rvalue(&mut self, op: BinOp, lhs: &Operand, rhs: &Operand) {
         walk_mut::walk_checked_binary_op_rvalue(self, op, lhs, rhs);
     }
 
@@ -97,7 +97,7 @@ pub trait IrVisitorMut<'ir>: Sized {
         walk_mut::walk_ref_rvalue(self, mutability, value, mode);
     }
 
-    fn visit_aggregate_rvalue(&mut self, kind: AggregateKind, values: &[&RValue]) {
+    fn visit_aggregate_rvalue(&mut self, kind: AggregateKind, values: &[Operand]) {
         walk_mut::walk_aggregate_rvalue(self, kind, values);
     }
 
@@ -117,15 +117,15 @@ pub trait IrVisitorMut<'ir>: Sized {
 
     fn visit_call_terminator(
         &mut self,
-        op: &RValue,
-        args: &[&RValue],
+        op: &Operand,
+        args: &[Operand],
         destination: &Place,
         target: Option<BasicBlock>,
     ) {
         walk_mut::walk_call_terminator(self, op, args, destination, target);
     }
 
-    fn visit_switch_terminator(&mut self, value: &RValue, targets: &SwitchTargets) {
+    fn visit_switch_terminator(&mut self, value: &Operand, targets: &SwitchTargets) {
         walk_mut::walk_switch_terminator(self, value, targets);
     }
 
@@ -138,6 +138,12 @@ pub trait IrVisitorMut<'ir>: Sized {
     ) {
         walk_mut::walk_assert_terminator(self, condition, expected, kind, target);
     }
+
+    fn visit_operand(&mut self, operand: &Operand) {
+        walk_mut::walk_operand(self, operand);
+    }
+
+    fn visit_const_value(&mut self, _: &ConstKind) {}
 
     fn visit_place(&mut self, place: &Place) {
         walk_mut::walk_place(self, place);
@@ -232,43 +238,96 @@ pub mod walk_mut {
         visitor.visit_local(local);
     }
 
+    pub fn walk_terminator<'ir, V: IrVisitorMut<'ir>>(visitor: &mut V, terminator: &Terminator)
+    /* -> V::TerminatorRet */
+    {
+        match &terminator.kind {
+            TerminatorKind::Goto(target) => visitor.visit_goto_terminator(*target),
+            TerminatorKind::Unreachable => visitor.visit_unreachable_terminator(),
+            TerminatorKind::Return => visitor.visit_return_terminator(),
+            TerminatorKind::Call { op, args, destination, target } => {
+                visitor.visit_call_terminator(op, args, destination, *target)
+            }
+            TerminatorKind::Switch { value, targets } => {
+                visitor.visit_switch_terminator(value, targets)
+            }
+            TerminatorKind::Assert { condition, expected, kind, target } => {
+                visitor.visit_assert_terminator(condition, *expected, *kind, *target)
+            }
+        }
+    }
+
+    // pub struct CallTerminatorRet<'ir, V: IrVisitorMut<'ir>> {
+    //     pub op: V::RValueRet,
+    //     pub args: Vec<V::RValueRet>,
+    //     pub destination: V::PlaceRet,
+    // }
+
+    pub fn walk_call_terminator<'ir, V: IrVisitorMut<'ir>>(
+        visitor: &mut V,
+        op: &Operand,
+        args: &[Operand],
+        destination: &Place,
+        _: Option<BasicBlock>,
+    ) /* -> CallTerminatorRet<'ir, V> */
+    {
+        // CallTerminatorRet {
+        //     op: visitor.visit_rvalue(op),
+        //     args: args.iter().map(|arg| visitor.visit_rvalue(arg)).collect(),
+        //     destination: visitor.visit_place(destination),
+        // }
+        visitor.visit_operand(op);
+        args.iter().for_each(|arg| visitor.visit_operand(arg));
+        visitor.visit_place(destination);
+    }
+
+    // pub struct SwitchTerminatorRet<'ir, V: IrVisitorMut<'ir>> {
+    //     pub value: V::RValueRet,
+    // }
+
+    pub fn walk_switch_terminator<'ir, V: IrVisitorMut<'ir>>(
+        visitor: &mut V,
+        value: &Operand,
+        _: &SwitchTargets,
+    ) /* -> SwitchTerminatorRet<'ir, V> */
+    {
+        // SwitchTerminatorRet { value: visitor.visit_rvalue(value) }
+        visitor.visit_operand(value)
+    }
+
+    // pub struct AssertTerminatorRet<'ir, V: IrVisitorMut<'ir>> {
+    //     pub condition: V::PlaceRet,
+    // }
+
+    pub fn walk_assert_terminator<'ir, V: IrVisitorMut<'ir>>(
+        visitor: &mut V,
+        condition: &Place,
+        _: bool,
+        _: AssertKind,
+        _: BasicBlock,
+    ) /* -> AssertTerminatorRet<'ir, V> */
+    {
+        // AssertTerminatorRet { condition: visitor.visit_place(condition) }
+        visitor.visit_place(condition)
+    }
+
     pub fn walk_rvalue<'ir, V: IrVisitorMut<'ir>>(visitor: &mut V, value: &RValue) /* -> V::RValueRet */
     {
-        let store = visitor.store().rvalues();
-
         match value {
-            RValue::Const(value) => visitor.visit_const_rvalue(value),
             RValue::Use(place) => visitor.visit_use_rvalue(place),
             RValue::ConstOp(op, ty) => visitor.visit_const_op_rvalue(*op, *ty),
-            RValue::UnaryOp(op, value) => {
-                store.map_fast(*value, |value| visitor.visit_unary_op_rvalue(*op, value))
+            RValue::UnaryOp(op, value) => visitor.visit_unary_op_rvalue(*op, value),
+            RValue::BinaryOp(op, operands) => {
+                visitor.visit_binary_op_rvalue(*op, &operands.0, &operands.1)
             }
-
-            RValue::BinaryOp(op, lhs, rhs) => store.map_many_fast([*lhs, *rhs], |values| {
-                let [lhs, rhs] = values else {
-                    unreachable!()
-                };
-
-                visitor.visit_binary_op_rvalue(*op, lhs, rhs)
-            }),
-            RValue::CheckedBinaryOp(op, lhs, rhs) => store.map_many_fast([*lhs, *rhs], |values| {
-                let [lhs, rhs] = values else {
-                    unreachable!()
-                };
-
-                visitor.visit_checked_binary_op_rvalue(*op, lhs, rhs)
-            }),
+            RValue::CheckedBinaryOp(op, operand) => {
+                visitor.visit_checked_binary_op_rvalue(*op, &operand.0, &operand.1)
+            }
             RValue::Len(place) => visitor.visit_len_rvalue(place),
             RValue::Ref(mutability, place, mode) => {
                 visitor.visit_ref_rvalue(*mutability, place, *mode)
             }
-            RValue::Aggregate(kind, values) => {
-                visitor.store().aggregates().map_fast(*values, |values| {
-                    store.map_many_fast(values.iter().copied(), |values| {
-                        visitor.visit_aggregate_rvalue(*kind, values)
-                    })
-                })
-            }
+            RValue::Aggregate(kind, values) => visitor.visit_aggregate_rvalue(*kind, values),
             RValue::Discriminant(place) => visitor.visit_discriminant_rvalue(place),
         }
     }
@@ -277,11 +336,11 @@ pub mod walk_mut {
     //     pub place: V::PlaceRet,
     // }
 
-    pub fn walk_use_rvalue<'ir, V: IrVisitorMut<'ir>>(visitor: &mut V, place: &Place)
+    pub fn walk_use_rvalue<'ir, V: IrVisitorMut<'ir>>(visitor: &mut V, operand: &Operand)
     /* -> UseRValueRet<'ir, V> */
     {
         // UseRValueRet { place: visitor.visit_place(place) }
-        visitor.visit_place(place)
+        visitor.visit_operand(operand)
     }
 
     // pub struct UnaryOpRValueRet<'ir, V: IrVisitorMut<'ir>> {
@@ -291,11 +350,11 @@ pub mod walk_mut {
     pub fn walk_unary_op_rvalue<'ir, V: IrVisitorMut<'ir>>(
         visitor: &mut V,
         _: UnaryOp,
-        value: &RValue,
+        value: &Operand,
     ) /* -> UnaryOpRValueRet<'ir, V> */
     {
         // UnaryOpRValueRet { value: visitor.visit_rvalue(value) }
-        visitor.visit_rvalue(value)
+        visitor.visit_operand(value)
     }
 
     // pub struct BinaryOpRValueRet<'ir, V: IrVisitorMut<'ir>> {
@@ -306,27 +365,27 @@ pub mod walk_mut {
     pub fn walk_binary_op_rvalue<'ir, V: IrVisitorMut<'ir>>(
         visitor: &mut V,
         _: BinOp,
-        lhs: &RValue,
-        rhs: &RValue,
+        lhs: &Operand,
+        rhs: &Operand,
     ) /* -> BinaryOpRValueRet<'ir, V> */
     {
         // BinaryOpRValueRet { lhs: visitor.visit_rvalue(lhs), rhs:
         // visitor.visit_rvalue(rhs) }
-        visitor.visit_rvalue(lhs);
-        visitor.visit_rvalue(rhs);
+        visitor.visit_operand(lhs);
+        visitor.visit_operand(rhs);
     }
 
     pub fn walk_checked_binary_op_rvalue<'ir, V: IrVisitorMut<'ir>>(
         visitor: &mut V,
         _: BinOp,
-        lhs: &RValue,
-        rhs: &RValue,
+        lhs: &Operand,
+        rhs: &Operand,
     ) /* -> BinaryOpRValueRet<'ir, V> */
     {
         // BinaryOpRValueRet { lhs: visitor.visit_rvalue(lhs), rhs:
         // visitor.visit_rvalue(rhs) }
-        visitor.visit_rvalue(lhs);
-        visitor.visit_rvalue(rhs);
+        visitor.visit_operand(lhs);
+        visitor.visit_operand(rhs);
     }
 
     // pub struct LenRValueRet<'ir, V: IrVisitorMut<'ir>> {
@@ -362,13 +421,13 @@ pub mod walk_mut {
     pub fn walk_aggregate_rvalue<'ir, V: IrVisitorMut<'ir>>(
         visitor: &mut V,
         _: AggregateKind,
-        values: &[&RValue],
+        values: &[Operand],
     ) /* -> AggregateRValueRet<'ir, V> */
     {
         // AggregateRValueRet {
         //     values: values.iter().map(|value| visitor.visit_rvalue(value)).collect(),
         // }
-        values.iter().for_each(|value| visitor.visit_rvalue(value))
+        values.iter().for_each(|value| visitor.visit_operand(value))
     }
 
     // pub struct DiscriminantRet<'ir, V: IrVisitorMut<'ir>> {
@@ -382,85 +441,11 @@ pub mod walk_mut {
         visitor.visit_place(place)
     }
 
-    pub fn walk_terminator<'ir, V: IrVisitorMut<'ir>>(visitor: &mut V, terminator: &Terminator)
-    /* -> V::TerminatorRet */
-    {
-        let store = visitor.store().rvalues();
-
-        match &terminator.kind {
-            TerminatorKind::Goto(target) => visitor.visit_goto_terminator(*target),
-            TerminatorKind::Unreachable => visitor.visit_unreachable_terminator(),
-            TerminatorKind::Return => visitor.visit_return_terminator(),
-            TerminatorKind::Call { op, args, destination, target } => {
-                let store = visitor.store().rvalues();
-
-                store.map_fast(*op, |op| {
-                    store.map_many_fast(args.clone(), |args| {
-                        visitor.visit_call_terminator(op, args, destination, *target)
-                    })
-                })
-            }
-            TerminatorKind::Switch { value, targets } => {
-                store.map_fast(*value, |value| visitor.visit_switch_terminator(value, targets))
-            }
-            TerminatorKind::Assert { condition, expected, kind, target } => {
-                visitor.visit_assert_terminator(condition, *expected, *kind, *target)
-            }
+    pub fn walk_operand<'ir, V: IrVisitorMut<'ir>>(visitor: &mut V, operand: &Operand) {
+        match operand {
+            Operand::Place(place) => visitor.visit_place(place),
+            Operand::Const(constant) => visitor.visit_const_value(constant),
         }
-    }
-
-    // pub struct CallTerminatorRet<'ir, V: IrVisitorMut<'ir>> {
-    //     pub op: V::RValueRet,
-    //     pub args: Vec<V::RValueRet>,
-    //     pub destination: V::PlaceRet,
-    // }
-
-    pub fn walk_call_terminator<'ir, V: IrVisitorMut<'ir>>(
-        visitor: &mut V,
-        op: &RValue,
-        args: &[&RValue],
-        destination: &Place,
-        _: Option<BasicBlock>,
-    ) /* -> CallTerminatorRet<'ir, V> */
-    {
-        // CallTerminatorRet {
-        //     op: visitor.visit_rvalue(op),
-        //     args: args.iter().map(|arg| visitor.visit_rvalue(arg)).collect(),
-        //     destination: visitor.visit_place(destination),
-        // }
-        visitor.visit_rvalue(op);
-        args.iter().for_each(|arg| visitor.visit_rvalue(arg));
-        visitor.visit_place(destination);
-    }
-
-    // pub struct SwitchTerminatorRet<'ir, V: IrVisitorMut<'ir>> {
-    //     pub value: V::RValueRet,
-    // }
-
-    pub fn walk_switch_terminator<'ir, V: IrVisitorMut<'ir>>(
-        visitor: &mut V,
-        value: &RValue,
-        _: &SwitchTargets,
-    ) /* -> SwitchTerminatorRet<'ir, V> */
-    {
-        // SwitchTerminatorRet { value: visitor.visit_rvalue(value) }
-        visitor.visit_rvalue(value)
-    }
-
-    // pub struct AssertTerminatorRet<'ir, V: IrVisitorMut<'ir>> {
-    //     pub condition: V::PlaceRet,
-    // }
-
-    pub fn walk_assert_terminator<'ir, V: IrVisitorMut<'ir>>(
-        visitor: &mut V,
-        condition: &Place,
-        _: bool,
-        _: AssertKind,
-        _: BasicBlock,
-    ) /* -> AssertTerminatorRet<'ir, V> */
-    {
-        // AssertTerminatorRet { condition: visitor.visit_place(condition) }
-        visitor.visit_place(condition)
     }
 
     pub fn walk_place<'ir, V: IrVisitorMut<'ir>>(visitor: &mut V, place: &Place) {
@@ -531,23 +516,21 @@ pub trait ModifyingIrVisitor<'ir>: Sized {
         walk_modifying::walk_rvalue(self, value);
     }
 
-    fn visit_const_rvalue(&self, _: &mut ConstKind) {}
-
     fn visit_use_rvalue(&self, value: &mut Place) {
         walk_modifying::walk_use_rvalue(self, value);
     }
 
     fn visit_const_op_rvalue(&self, _: &mut ConstOp, _: &mut IrTyId) {}
 
-    fn visit_unary_op_rvalue(&self, op: &mut UnaryOp, value: &mut RValue) {
+    fn visit_unary_op_rvalue(&self, op: &mut UnaryOp, value: &mut Operand) {
         walk_modifying::walk_unary_op_rvalue(self, op, value);
     }
 
-    fn visit_binary_op_rvalue(&self, op: &mut BinOp, lhs: &mut RValue, rhs: &mut RValue) {
+    fn visit_binary_op_rvalue(&self, op: &mut BinOp, lhs: &mut Operand, rhs: &mut Operand) {
         walk_modifying::walk_binary_op_rvalue(self, op, lhs, rhs);
     }
 
-    fn visit_checked_binary_op_rvalue(&self, op: &mut BinOp, lhs: &mut RValue, rhs: &mut RValue) {
+    fn visit_checked_binary_op_rvalue(&self, op: &mut BinOp, lhs: &mut Operand, rhs: &mut Operand) {
         walk_modifying::walk_checked_binary_op_rvalue(self, op, lhs, rhs);
     }
 
@@ -564,7 +547,7 @@ pub trait ModifyingIrVisitor<'ir>: Sized {
         walk_modifying::walk_ref_rvalue(self, mutability, value, mode);
     }
 
-    fn visit_aggregate_rvalue(&self, kind: &mut AggregateKind, values: AggregateId) {
+    fn visit_aggregate_rvalue(&self, kind: &mut AggregateKind, values: &mut [Operand]) {
         walk_modifying::walk_aggregate_rvalue(self, kind, values);
     }
 
@@ -584,15 +567,15 @@ pub trait ModifyingIrVisitor<'ir>: Sized {
 
     fn visit_call_terminator(
         &self,
-        op: &mut RValue,
-        args: &[RValueId],
+        op: &mut Operand,
+        args: &mut [Operand],
         destination: &mut Place,
         target: &mut Option<BasicBlock>,
     ) {
         walk_modifying::walk_call_terminator(self, op, args, destination, target);
     }
 
-    fn visit_switch_terminator(&self, value: &mut RValue, targets: &mut SwitchTargets) {
+    fn visit_switch_terminator(&self, value: &mut Operand, targets: &mut SwitchTargets) {
         walk_modifying::walk_switch_terminator(self, value, targets);
     }
 
@@ -605,6 +588,12 @@ pub trait ModifyingIrVisitor<'ir>: Sized {
     ) {
         walk_modifying::walk_assert_terminator(self, condition, expected, kind, target);
     }
+
+    fn visit_operand(&self, operand: &mut Operand) {
+        walk_modifying::walk_operand(self, operand);
+    }
+
+    fn visit_const_value(&self, _: &mut ConstKind) {}
 
     fn visit_place(&self, place: &mut Place) {
         walk_modifying::walk_place(self, place);
@@ -619,7 +608,7 @@ pub trait ModifyingIrVisitor<'ir>: Sized {
 
 /// Contains all of the walking methods for the [IrVisitorMut] trait.
 pub mod walk_modifying {
-    use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreCopy};
+    use hash_utils::store::{CloneStore, SequenceStoreCopy};
 
     use super::{ModifyingIrVisitor, *};
     use crate::ir::{StatementKind, TerminatorKind};
@@ -705,30 +694,103 @@ pub mod walk_modifying {
         visitor.visit_local(local);
     }
 
+    pub fn walk_terminator<'ir, V: ModifyingIrVisitor<'ir>>(
+        visitor: &V,
+        terminator: &mut Terminator,
+    )
+    /* -> V::TerminatorRet */
+    {
+        match &mut terminator.kind {
+            TerminatorKind::Goto(target) => visitor.visit_goto_terminator(*target),
+            TerminatorKind::Unreachable => visitor.visit_unreachable_terminator(),
+            TerminatorKind::Return => visitor.visit_return_terminator(),
+            TerminatorKind::Call { op, args, destination, target } => {
+                visitor.visit_call_terminator(op, args, destination, target)
+            }
+            TerminatorKind::Switch { value, targets } => {
+                visitor.visit_switch_terminator(value, targets)
+            }
+            TerminatorKind::Assert { condition, expected, kind, target } => {
+                visitor.visit_assert_terminator(condition, expected, kind, target)
+            }
+        }
+    }
+
+    // pub struct CallTerminatorRet<'ir, V: ModifyingIrVisitor<'ir>> {
+    //     pub op: V::RValueRet,
+    //     pub args: Vec<V::RValueRet>,
+    //     pub destination: V::PlaceRet,
+    // }
+
+    pub fn walk_call_terminator<'ir, V: ModifyingIrVisitor<'ir>>(
+        visitor: &V,
+        op: &mut Operand,
+        args: &mut [Operand],
+        destination: &mut Place,
+        _: &mut Option<BasicBlock>,
+    ) /* -> CallTerminatorRet<'ir, V> */
+    {
+        // CallTerminatorRet {
+        //     op: visitor.visit_rvalue(op),
+        //     args: args.iter().map(|arg| visitor.visit_rvalue(arg)).collect(),
+        //     destination: visitor.visit_place(destination),
+        // }
+        visitor.visit_operand(op);
+        args.iter_mut().for_each(|arg| visitor.visit_operand(arg));
+        visitor.visit_place(destination);
+    }
+
+    // pub struct SwitchTerminatorRet<'ir, V: ModifyingIrVisitor<'ir>> {
+    //     pub value: V::RValueRet,
+    // }
+
+    pub fn walk_switch_terminator<'ir, V: ModifyingIrVisitor<'ir>>(
+        visitor: &V,
+        value: &mut Operand,
+        _: &mut SwitchTargets,
+    ) /* -> SwitchTerminatorRet<'ir, V> */
+    {
+        // SwitchTerminatorRet { value: visitor.visit_rvalue(value) }
+        visitor.visit_operand(value)
+    }
+
+    // pub struct AssertTerminatorRet<'ir, V: ModifyingIrVisitor<'ir>> {
+    //     pub condition: V::PlaceRet,
+    // }
+
+    pub fn walk_assert_terminator<'ir, V: ModifyingIrVisitor<'ir>>(
+        visitor: &V,
+        condition: &mut Place,
+        _: &mut bool,
+        _: &mut AssertKind,
+        _: &mut BasicBlock,
+    ) /* -> AssertTerminatorRet<'ir, V> */
+    {
+        // AssertTerminatorRet { condition: visitor.visit_place(condition) }
+        visitor.visit_place(condition)
+    }
+
     pub fn walk_rvalue<'ir, V: ModifyingIrVisitor<'ir>>(visitor: &V, value: &mut RValue)
     /* -> V::RValueRet */
     {
-        let store = visitor.store().rvalues();
-
         match value {
-            RValue::Const(value) => visitor.visit_const_rvalue(value),
-            RValue::Use(place) => visitor.visit_use_rvalue(place),
+            RValue::Use(place) => visitor.visit_operand(place),
             RValue::ConstOp(op, ty) => visitor.visit_const_op_rvalue(op, ty),
-            RValue::UnaryOp(op, value) => {
-                store.modify(*value, |value| visitor.visit_unary_op_rvalue(op, value))
-            }
+            RValue::UnaryOp(op, value) => visitor.visit_unary_op_rvalue(op, value),
 
-            RValue::BinaryOp(op, lhs, rhs) => store.modify(*lhs, |lhs| {
-                store.modify(*rhs, |rhs| visitor.visit_binary_op_rvalue(op, lhs, rhs))
-            }),
-            RValue::CheckedBinaryOp(op, lhs, rhs) => store.modify(*lhs, |lhs| {
-                store.modify(*rhs, |rhs| visitor.visit_checked_binary_op_rvalue(op, lhs, rhs))
-            }),
+            RValue::BinaryOp(op, val) => {
+                let (lhs, rhs) = val.as_mut();
+                visitor.visit_binary_op_rvalue(op, lhs, rhs)
+            }
+            RValue::CheckedBinaryOp(op, val) => {
+                let (lhs, rhs) = val.as_mut();
+                visitor.visit_checked_binary_op_rvalue(op, lhs, rhs)
+            }
             RValue::Len(place) => visitor.visit_len_rvalue(place),
             RValue::Ref(mutability, place, mode) => {
                 visitor.visit_ref_rvalue(mutability, place, mode)
             }
-            RValue::Aggregate(kind, values) => visitor.visit_aggregate_rvalue(kind, *values),
+            RValue::Aggregate(kind, values) => visitor.visit_aggregate_rvalue(kind, values),
 
             RValue::Discriminant(place) => visitor.visit_discriminant_rvalue(place),
         }
@@ -752,11 +814,11 @@ pub mod walk_modifying {
     pub fn walk_unary_op_rvalue<'ir, V: ModifyingIrVisitor<'ir>>(
         visitor: &V,
         _: &mut UnaryOp,
-        value: &mut RValue,
+        value: &mut Operand,
     ) /* -> UnaryOpRValueRet<'ir, V> */
     {
         // UnaryOpRValueRet { value: visitor.visit_rvalue(value) }
-        visitor.visit_rvalue(value)
+        visitor.visit_operand(value)
     }
 
     // pub struct BinaryOpRValueRet<'ir, V: ModifyingIrVisitor<'ir>> {
@@ -767,27 +829,27 @@ pub mod walk_modifying {
     pub fn walk_binary_op_rvalue<'ir, V: ModifyingIrVisitor<'ir>>(
         visitor: &V,
         _: &mut BinOp,
-        lhs: &mut RValue,
-        rhs: &mut RValue,
+        lhs: &mut Operand,
+        rhs: &mut Operand,
     ) /* -> BinaryOpRValueRet<'ir, V> */
     {
         // BinaryOpRValueRet { lhs: visitor.visit_rvalue(lhs), rhs:
         // visitor.visit_rvalue(rhs) }
-        visitor.visit_rvalue(lhs);
-        visitor.visit_rvalue(rhs);
+        visitor.visit_operand(lhs);
+        visitor.visit_operand(rhs);
     }
 
     pub fn walk_checked_binary_op_rvalue<'ir, V: ModifyingIrVisitor<'ir>>(
         visitor: &V,
         _: &mut BinOp,
-        lhs: &mut RValue,
-        rhs: &mut RValue,
+        lhs: &mut Operand,
+        rhs: &mut Operand,
     ) /* -> BinaryOpRValueRet<'ir, V> */
     {
         // BinaryOpRValueRet { lhs: visitor.visit_rvalue(lhs), rhs:
         // visitor.visit_rvalue(rhs) }
-        visitor.visit_rvalue(lhs);
-        visitor.visit_rvalue(rhs);
+        visitor.visit_operand(lhs);
+        visitor.visit_operand(rhs);
     }
 
     // pub struct LenRValueRet<'ir, V: ModifyingIrVisitor<'ir>> {
@@ -823,17 +885,13 @@ pub mod walk_modifying {
     pub fn walk_aggregate_rvalue<'ir, V: ModifyingIrVisitor<'ir>>(
         visitor: &V,
         _: &mut AggregateKind,
-        aggregate: AggregateId,
+        aggregate: &mut [Operand],
     ) /* -> AggregateRValueRet<'ir, V> */
     {
         // AggregateRValueRet {
         //     values: values.iter().map(|value| visitor.visit_rvalue(value)).collect(),
         // }
-        visitor.store().aggregates().map_fast(aggregate, |values| {
-            values.iter().for_each(|key| {
-                visitor.store().rvalues().modify(*key, |value| visitor.visit_rvalue(value))
-            })
-        })
+        aggregate.iter_mut().for_each(|value| visitor.visit_operand(value))
     }
 
     // pub struct DiscriminantRet<'ir, V: ModifyingIrVisitor<'ir>> {
@@ -850,86 +908,11 @@ pub mod walk_modifying {
         visitor.visit_place(place)
     }
 
-    pub fn walk_terminator<'ir, V: ModifyingIrVisitor<'ir>>(
-        visitor: &V,
-        terminator: &mut Terminator,
-    )
-    /* -> V::TerminatorRet */
-    {
-        let store = visitor.store().rvalues();
-
-        match &mut terminator.kind {
-            TerminatorKind::Goto(target) => visitor.visit_goto_terminator(*target),
-            TerminatorKind::Unreachable => visitor.visit_unreachable_terminator(),
-            TerminatorKind::Return => visitor.visit_return_terminator(),
-            TerminatorKind::Call { op, args, destination, target } => {
-                let store = visitor.store().rvalues();
-
-                store.modify(*op, |op| visitor.visit_call_terminator(op, args, destination, target))
-            }
-            TerminatorKind::Switch { value, targets } => {
-                store.modify(*value, |value| visitor.visit_switch_terminator(value, targets))
-            }
-            TerminatorKind::Assert { condition, expected, kind, target } => {
-                visitor.visit_assert_terminator(condition, expected, kind, target)
-            }
+    pub fn walk_operand<'ir, V: ModifyingIrVisitor<'ir>>(visitor: &V, operand: &mut Operand) {
+        match operand {
+            Operand::Place(place) => visitor.visit_place(place),
+            Operand::Const(constant) => visitor.visit_const_value(constant),
         }
-    }
-
-    // pub struct CallTerminatorRet<'ir, V: ModifyingIrVisitor<'ir>> {
-    //     pub op: V::RValueRet,
-    //     pub args: Vec<V::RValueRet>,
-    //     pub destination: V::PlaceRet,
-    // }
-
-    pub fn walk_call_terminator<'ir, V: ModifyingIrVisitor<'ir>>(
-        visitor: &V,
-        op: &mut RValue,
-        args: &[RValueId],
-        destination: &mut Place,
-        _: &mut Option<BasicBlock>,
-    ) /* -> CallTerminatorRet<'ir, V> */
-    {
-        // CallTerminatorRet {
-        //     op: visitor.visit_rvalue(op),
-        //     args: args.iter().map(|arg| visitor.visit_rvalue(arg)).collect(),
-        //     destination: visitor.visit_place(destination),
-        // }
-        visitor.visit_rvalue(op);
-        args.iter().for_each(|arg| {
-            visitor.store().rvalues().modify(*arg, |value| visitor.visit_rvalue(value))
-        });
-        visitor.visit_place(destination);
-    }
-
-    // pub struct SwitchTerminatorRet<'ir, V: ModifyingIrVisitor<'ir>> {
-    //     pub value: V::RValueRet,
-    // }
-
-    pub fn walk_switch_terminator<'ir, V: ModifyingIrVisitor<'ir>>(
-        visitor: &V,
-        value: &mut RValue,
-        _: &mut SwitchTargets,
-    ) /* -> SwitchTerminatorRet<'ir, V> */
-    {
-        // SwitchTerminatorRet { value: visitor.visit_rvalue(value) }
-        visitor.visit_rvalue(value)
-    }
-
-    // pub struct AssertTerminatorRet<'ir, V: ModifyingIrVisitor<'ir>> {
-    //     pub condition: V::PlaceRet,
-    // }
-
-    pub fn walk_assert_terminator<'ir, V: ModifyingIrVisitor<'ir>>(
-        visitor: &V,
-        condition: &mut Place,
-        _: &mut bool,
-        _: &mut AssertKind,
-        _: &mut BasicBlock,
-    ) /* -> AssertTerminatorRet<'ir, V> */
-    {
-        // AssertTerminatorRet { condition: visitor.visit_place(condition) }
-        visitor.visit_place(condition)
     }
 
     pub fn walk_place<'ir, V: ModifyingIrVisitor<'ir>>(visitor: &V, place: &mut Place) {

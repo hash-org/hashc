@@ -4,8 +4,8 @@
 
 use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Rem, Shl, Shr, Sub};
 
-use hash_ast::ast::{AstNodeRef, Lit};
-use hash_ir::ir::{self, BinOp, Const};
+use hash_ast::ast::{AstNodeRef, Expr, Lit, LitExpr};
+use hash_ir::ir::{self, BinOp, Const, ConstKind};
 use hash_reporting::macros::panic_on_span;
 use hash_source::constant::{
     FloatConstant, FloatConstantValue, IntConstant, IntTy, SIntTy, UIntTy, CONSTANT_MAP,
@@ -16,8 +16,8 @@ use super::Builder;
 impl<'tcx> Builder<'tcx> {
     /// Lower a simple literal into an [ir::Const], this does not deal
     /// with literals that are arrays or other compound data structures.
-    pub(crate) fn as_constant(&mut self, lit: AstNodeRef<'tcx, Lit>) -> ir::Const {
-        match lit.body {
+    pub(crate) fn as_constant(&mut self, lit: AstNodeRef<'tcx, Lit>) -> ConstKind {
+        ConstKind::Value(match lit.body {
             Lit::Str(literal) => ir::Const::Str(literal.data),
             Lit::Char(literal) => ir::Const::Char(literal.data),
             Lit::Int(literal) => ir::Const::Int(literal.value),
@@ -30,6 +30,18 @@ impl<'tcx> Builder<'tcx> {
                     "cannot lower non-primitive literal into constant"
                 )
             }
+        })
+    }
+
+    /// Lower a constant expression, i.e. a literal value.
+    pub(crate) fn lower_constant_expr(&mut self, expr: AstNodeRef<'tcx, Expr>) -> ConstKind {
+        match expr.body {
+            Expr::Lit(LitExpr { data }) => self.as_constant(data.ast_ref()),
+            _ => panic_on_span!(
+                expr.span().into_location(self.source_id),
+                self.source_map,
+                "cannot lower non-literal expression into constant"
+            ),
         }
     }
 

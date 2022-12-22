@@ -20,7 +20,7 @@ use hash_ir::{
 use hash_reporting::macros::panic_on_span;
 use hash_source::{identifier::Identifier, location::Span};
 use hash_types::scope::ScopeKind;
-use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
+use hash_utils::store::{SequenceStoreKey, Store};
 
 use super::{unpack, BlockAnd, BlockAndExtend, Builder, LoopBlockInfo};
 
@@ -58,7 +58,7 @@ impl<'tcx> Builder<'tcx> {
             | Expr::Access(AccessExpr { kind: AccessKind::Property, .. }) => {
                 let place = unpack!(block = self.as_place(block, expr, Mutability::Immutable));
 
-                let rvalue = self.storage.rvalues().create(RValue::Use(place));
+                let rvalue = self.storage.rvalues().create(place.into());
                 self.control_flow_graph.push_assign(block, destination, rvalue, span);
 
                 block.unit()
@@ -75,11 +75,11 @@ impl<'tcx> Builder<'tcx> {
                     let rvalue = self
                         .storage
                         .rvalues()
-                        .create(RValue::Const(ConstKind::Unevaluated { scope, name }));
+                        .create(ConstKind::Unevaluated { scope, name }.into());
                     self.control_flow_graph.push_assign(block, destination, rvalue, span);
                 } else {
                     let local = self.lookup_local_from_scope(scope, name).unwrap();
-                    let place = RValue::Use(Place::from_local(local, self.storage));
+                    let place = Place::from_local(local, self.storage).into();
                     let rvalue = self.storage.rvalues().create(place);
                     self.control_flow_graph.push_assign(block, destination, rvalue, span);
                 }
@@ -377,7 +377,9 @@ impl<'tcx> Builder<'tcx> {
                 let rhs = unpack!(
                     else_block = self.as_operand(else_block, rhs.ast_ref(), Mutability::Mutable)
                 );
-                self.control_flow_graph.push_assign(else_block, destination, rhs, span);
+                let rhs_val = self.storage.rvalues().create(rhs.into());
+
+                self.control_flow_graph.push_assign(else_block, destination, rhs_val, span);
                 self.control_flow_graph.goto(else_block, join_block, span);
 
                 join_block.unit()
@@ -428,7 +430,7 @@ impl<'tcx> Builder<'tcx> {
         span: Span,
     ) -> BlockAnd<()> {
         // First we want to lower the subject of the function call
-        let func = unpack!(block = self.as_rvalue(block, subject));
+        let func = unpack!(block = self.as_operand(block, subject, Mutability::Immutable));
 
         // lower the arguments of the function...
         //
@@ -457,7 +459,7 @@ impl<'tcx> Builder<'tcx> {
             .iter()
             .map(|arg| {
                 let value = arg.value.ast_ref();
-                unpack!(block = self.as_rvalue(block, value))
+                unpack!(block = self.as_operand(block, value, Mutability::Immutable))
             })
             .collect::<Vec<_>>();
 
@@ -559,7 +561,9 @@ impl<'tcx> Builder<'tcx> {
         // aggregate value.
         let fields: HashMap<_, _> = args
             .iter()
-            .map(|(name, arg)| (name, unpack!(block = self.as_rvalue(block, *arg))))
+            .map(|(name, arg)| {
+                (name, unpack!(block = self.as_operand(block, *arg, Mutability::Immutable)))
+            })
             .collect();
 
         // We don't need to perform this check for arrays since they don't need
@@ -583,8 +587,7 @@ impl<'tcx> Builder<'tcx> {
             }
         }
 
-        let fields =
-            self.storage.aggregates().create_from_iter_fast(fields.into_values().into_iter());
+        let fields: Vec<_> = fields.into_values().into_iter().collect();
         let aggregate = RValue::Aggregate(aggregate_kind, fields);
         let value = self.storage.rvalues().create(aggregate);
 
