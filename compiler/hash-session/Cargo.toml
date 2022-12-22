@@ -11,19 +11,19 @@ rayon = "1.5.0"
 
 hash-alloc = { path = "../hash-alloc" }
 hash-ast = { path = "../hash-ast" }
-hash-source = { path = "../hash-source" }
 hash-interactive = { path = "../hash-interactive" }
-hash-reporting = { path = "../hash-reporting" }
+hash-ir = { path = "../hash-ir" }
 hash-pipeline = { path = "../hash-pipeline" }
+hash-reporting = { path = "../hash-reporting" }
+hash-source = { path = "../hash-source" }
 hash-tree-def = { path = "../hash-tree-def" }
 hash-types = { path = "../hash-types" }
-hash-ir = { path = "../hash-ir" }
 
 # Various stages that the pipeline interfaces with...
-hash-parser = { path = "../hash-parser" }
 hash-ast-desugaring = { path = "../hash-ast-desugaring" }
 hash-ast-expand = { path = "../hash-ast-expand" }
-hash-untyped-semantics = { path = "../hash-untyped-semantics" }
-hash-typecheck = { path = "../hash-typecheck" }
 hash-lower = { path = "../hash-lower" }
+hash-parser = { path = "../hash-parser" }
+hash-typecheck = { path = "../hash-typecheck" }
+hash-untyped-semantics = { path = "../hash-untyped-semantics" }
 hash-vm = { path = "../hash-vm" }
