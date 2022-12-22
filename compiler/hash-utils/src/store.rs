@@ -1,6 +1,16 @@
 //! Provides generic data structures to store values by generated keys in an
 //! efficient way, with interior mutability.
-use std::{cell::RefCell, collections::HashMap, hash::Hash, marker::PhantomData, ops::Range};
+// @@Organisation: Move this module to the `hash_alloc` crate and split it into
+// smaller modules.
+use std::{
+    cell::{Cell, RefCell},
+    collections::HashMap,
+    hash::Hash,
+    marker::PhantomData,
+    ops::Range,
+};
+
+use append_only_vec::AppendOnlyVec;
 
 /// Represents a key that can be used to index a [`Store`].
 pub trait StoreKey: Copy + Eq + Hash {
@@ -744,4 +754,123 @@ mod test_super {
     new_sequence_store_key!(pub TestSeqK);
     new_sequence_store!(pub TestSeq<TestSeqK, ()>);
     new_partial_store!(pub TestPartial<TestK, ()>);
+}
+
+/// This store uses [`AppendOnlyVec`] internally, rather than a
+/// [`RefCell<Vec<_>>`], so that there isn't additional overhead when
+/// reading/writing elements; you can take references out of it. The trade-off
+/// is that the value needs to implement [`Copy`].
+pub trait CellStore<Key: StoreKey, Value: Copy> {
+    /// Get a reference to the internal data of the store.
+    ///
+    /// This should only be used to implement new store methods, not to access
+    /// the store.
+    fn internal_data(&self) -> &AppendOnlyVec<Cell<Value>>;
+
+    /// Create a value inside the store, given its key, returning its key.
+    fn create_with(&self, value_fn: impl FnOnce(Key) -> Value) -> Key {
+        let data = self.internal_data();
+        let next_index = data.len();
+        let key = Key::from_index_unchecked(next_index);
+        data.push(Cell::new(value_fn(key)));
+        key
+    }
+
+    /// Create a value inside the store, returning its key.
+    fn create(&self, value: Value) -> Key {
+        let data = self.internal_data();
+        let next_index = data.len();
+        data.push(Cell::new(value));
+        Key::from_index_unchecked(next_index)
+    }
+
+    /// Get a reference to a value by its key, given that it exists.
+    fn get(&self, key: Key) -> &Cell<Value> {
+        let data = self.internal_data();
+        &data[key.to_index()]
+    }
+}
+
+/// This is the equivalent to [`CellStore`] but for sequences of values.
+///
+/// Note that you cannot get slices of values from this store, as the values
+/// are not necessarily stored contiguously in memory. You can, however, iterate
+/// the sequence store key and read the corresponding value references using
+/// [`SequenceCellStore::get_element()`].
+pub trait SequenceCellStore<Key: SequenceStoreKey, Value: Copy> {
+    /// Get a reference to the internal data of the store.
+    ///
+    /// This should only be used to implement new store methods, not to access
+    /// the store.
+    fn internal_data(&self) -> &AppendOnlyVec<Cell<Value>>;
+
+    /// Create a sequence inside the store from the given slice of values,
+    /// returning its key.
+    fn create_from_slice(&self, values: &[Value]) -> Key {
+        let data = self.internal_data();
+        let starting_index = data.len();
+        for value in values {
+            data.push(Cell::new(*value));
+        }
+        Key::from_index_and_len_unchecked(starting_index, values.len())
+    }
+
+    /// Create an empty sequence of values inside the store, returning its key.
+    fn create_empty(&self) -> Key {
+        let starting_index = self.internal_data().len();
+        Key::from_index_and_len_unchecked(starting_index, 0)
+    }
+
+    /// Same as [`SequenceStore::create_from_iter()`], but each value takes its
+    /// key and index.
+    ///
+    /// The given iterator must support [`ExactSizeIterator`].
+    fn create_from_iter_with<F: FnOnce((Key, usize)) -> Value, I: IntoIterator<Item = F>>(
+        &self,
+        values: I,
+    ) -> Key
+    where
+        I::IntoIter: ExactSizeIterator,
+    {
+        let starting_index = self.internal_data().len();
+
+        let (key, values_computed) = {
+            let values = values.into_iter();
+            let key = Key::from_index_and_len_unchecked(starting_index, values.len());
+            (key, values.enumerate().map(move |(i, f)| f((key, i))))
+        };
+
+        let data = self.internal_data();
+        for value in values_computed {
+            data.push(Cell::new(value));
+        }
+        key
+    }
+
+    /// Create a sequence of values inside the store from an iterator-like
+    /// object, returning its key.
+    fn create_from_iter(&self, values: impl IntoIterator<Item = Value>) -> Key {
+        let data = self.internal_data();
+        let starting_index = data.len();
+        for value in values {
+            data.push(Cell::new(value));
+        }
+        Key::from_index_and_len_unchecked(starting_index, data.len() - starting_index)
+    }
+
+    /// Same as [`SequenceStore::get_at_index`] but takes the element key and
+    /// index as a tuple.
+    fn get_element(&self, element_id: (Key, usize)) -> &Cell<Value> {
+        self.get_at_index(element_id.0, element_id.1)
+    }
+
+    /// Get the value at the given index in the value sequence corresponding to
+    /// the given key.
+    ///
+    /// Panics if the index is out of bounds for the given key.
+    fn get_at_index(&self, key: Key, index: usize) -> &Cell<Value> {
+        let (starting_index, len) = key.to_index_and_len();
+        assert!(index < len);
+        &self.internal_data()[starting_index + index]
+    }
 }

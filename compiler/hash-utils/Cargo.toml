@@ -7,3 +7,4 @@ edition = "2021"
 [dependencies]
 log = "0.4"
 stacker = "0.1.15"
+append-only-vec = "0.1"
