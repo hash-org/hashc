@@ -6,10 +6,7 @@
 /// - Function definitions in modules
 /// - Data definitions in modules, including struct, enum
 /// - Stack scopes, and their member names and mutabilities
-use std::{
-    cell::Cell,
-    iter::{empty, once},
-};
+use std::iter::{empty, once};
 
 use derive_more::From;
 use hash_ast::{
@@ -33,7 +30,7 @@ use hash_utils::store::{DefaultPartialStore, PartialStore, SequenceStoreKey, Sto
 use itertools::Itertools;
 use smallvec::{smallvec, SmallVec};
 
-use super::ast_pass::AstPass;
+use super::{ast_pass::AstPass, state::LightState};
 use crate::{
     impl_access_to_tc_env,
     new::{
@@ -60,9 +57,9 @@ enum DefId {
 pub struct ScopeDiscoveryPass<'tc> {
     tc_env: &'tc TcEnv<'tc>,
     /// The name hint for the current definition.
-    name_hint: Cell<Option<Symbol>>,
+    name_hint: LightState<Option<Symbol>>,
     /// The current definition we are in.
-    currently_in: Cell<Option<DefId>>,
+    currently_in: LightState<Option<DefId>>,
     /// The mod member we have seen, indexed by the mod ID.
     mod_members: DefaultPartialStore<ModDefId, Vec<(AstNodeId, ModMemberData)>>,
     /// The data ctor we have seen, indexed by the data definition ID.
@@ -93,21 +90,12 @@ impl<'tc> ScopeDiscoveryPass<'tc> {
     pub fn new(tc_env: &'tc TcEnv<'tc>) -> Self {
         Self {
             tc_env,
-            name_hint: Cell::new(None),
-            currently_in: Cell::new(None),
+            name_hint: LightState::new(None),
+            currently_in: LightState::new(None),
             data_ctors: DefaultPartialStore::new(),
             mod_members: DefaultPartialStore::new(),
             stack_members: DefaultPartialStore::new(),
         }
-    }
-
-    /// Run the given closure with the given name hint, resetting it at the end.
-    fn with_name_hint<T>(&self, name_hint: Option<Symbol>, mut f: impl FnMut() -> T) -> T {
-        let prev_hint = self.name_hint.get();
-        self.name_hint.set(name_hint);
-        let result = f();
-        self.name_hint.set(prev_hint);
-        result
     }
 
     /// Create a new symbol from the given optional AST node containing a name.
@@ -176,19 +164,14 @@ impl<'tc> ScopeDiscoveryPass<'tc> {
         &self,
         originating_node: AstNodeRef<U>,
         def_id: impl Into<DefId>,
-        mut f: impl FnMut() -> T,
+        f: impl FnOnce() -> T,
     ) -> T {
         let def_id = def_id.into();
 
         // Add the definition to the originating node.
         self.add_def_to_ast_info(def_id, originating_node);
 
-        let prev_def = self.currently_in.get();
-        self.currently_in.set(Some(def_id));
-        let result = f();
-        self.currently_in.set(prev_def);
-
-        result
+        self.currently_in.enter(Some(def_id), f)
     }
 
     /// Run the given closure with the given definition as "current", resetting
@@ -202,7 +185,7 @@ impl<'tc> ScopeDiscoveryPass<'tc> {
         &self,
         originating_node: AstNodeRef<U>,
         def_id: impl Into<DefId>,
-        f: impl FnMut() -> T,
+        f: impl FnOnce() -> T,
     ) -> T {
         let def_id = def_id.into();
 
@@ -563,7 +546,7 @@ impl<'tc> ast::AstVisitor for ScopeDiscoveryPass<'tc> {
                 _ => None,
             };
             // Walk the node
-            self.with_name_hint(name, || walk::walk_declaration(self, node))
+            self.name_hint.enter(name, || walk::walk_declaration(self, node))
         };
 
         // Add the declaration to the current definition as appropriate
