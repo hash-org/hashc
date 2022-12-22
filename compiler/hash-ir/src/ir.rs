@@ -458,7 +458,7 @@ impl AggregateKind {
 
 /// The representation of values that occur on the right-hand side of an
 /// assignment.
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum RValue {
     /// A constant value.
     Const(ConstKind),
@@ -497,7 +497,7 @@ pub enum RValue {
     Ref(Mutability, Place, AddressMode),
     /// Used for initialising structs, tuples and other aggregate
     /// data structures
-    Aggregate(AggregateKind, Vec<RValueId>),
+    Aggregate(AggregateKind, AggregateId),
     /// Compute the discriminant of a [Place], this is essentially checking
     /// which variant a union is. For types that don't have a discriminant
     /// (non-union types ) this will return the value as 0.
@@ -1044,6 +1044,12 @@ new_store_key!(pub RValueId);
 ///
 /// [Rvalue]s are accessed by an ID, of type [RValueId].
 pub type RValueStore = DefaultStore<RValueId, RValue>;
+
+new_sequence_store_key!(pub AggregateId);
+
+/// Stores an associated collection of [RValue]s that are used to represent
+/// aggregate values.
+pub type AggregateValueStore = DefaultSequenceStore<AggregateId, RValueId>;
 
 new_sequence_store_key!(pub ProjectionId);
 

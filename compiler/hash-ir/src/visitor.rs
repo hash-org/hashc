@@ -14,9 +14,9 @@
 ///    code for nodes that don't need to be dealt with.
 use crate::{
     ir::{
-        AddressMode, AggregateKind, AssertKind, BasicBlock, BasicBlockData, BinOp, Body, ConstKind,
-        ConstOp, Local, Place, PlaceProjection, RValue, RValueId, Statement, SwitchTargets,
-        Terminator, UnaryOp,
+        AddressMode, AggregateId, AggregateKind, AssertKind, BasicBlock, BasicBlockData, BinOp,
+        Body, ConstKind, ConstOp, Local, Place, PlaceProjection, RValue, RValueId, Statement,
+        SwitchTargets, Terminator, UnaryOp,
     },
     ty::{IrTyId, Mutability, VariantIdx},
     BodyDataStore,
@@ -262,10 +262,13 @@ pub mod walk_mut {
             RValue::Ref(mutability, place, mode) => {
                 visitor.visit_ref_rvalue(*mutability, place, *mode)
             }
-            RValue::Aggregate(kind, values) => store.map_many_fast(values.clone(), |values| {
-                visitor.visit_aggregate_rvalue(*kind, values)
-            }),
-
+            RValue::Aggregate(kind, values) => {
+                visitor.store().aggregates().map_fast(*values, |values| {
+                    store.map_many_fast(values.iter().copied(), |values| {
+                        visitor.visit_aggregate_rvalue(*kind, values)
+                    })
+                })
+            }
             RValue::Discriminant(place) => visitor.visit_discriminant_rvalue(place),
         }
     }
@@ -561,7 +564,7 @@ pub trait ModifyingIrVisitor<'ir>: Sized {
         walk_modifying::walk_ref_rvalue(self, mutability, value, mode);
     }
 
-    fn visit_aggregate_rvalue(&self, kind: &mut AggregateKind, values: &mut [RValueId]) {
+    fn visit_aggregate_rvalue(&self, kind: &mut AggregateKind, values: AggregateId) {
         walk_modifying::walk_aggregate_rvalue(self, kind, values);
     }
 
@@ -616,7 +619,7 @@ pub trait ModifyingIrVisitor<'ir>: Sized {
 
 /// Contains all of the walking methods for the [IrVisitorMut] trait.
 pub mod walk_modifying {
-    use hash_utils::store::{CloneStore, SequenceStoreCopy};
+    use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreCopy};
 
     use super::{ModifyingIrVisitor, *};
     use crate::ir::{StatementKind, TerminatorKind};
@@ -725,7 +728,7 @@ pub mod walk_modifying {
             RValue::Ref(mutability, place, mode) => {
                 visitor.visit_ref_rvalue(mutability, place, mode)
             }
-            RValue::Aggregate(kind, values) => visitor.visit_aggregate_rvalue(kind, values),
+            RValue::Aggregate(kind, values) => visitor.visit_aggregate_rvalue(kind, *values),
 
             RValue::Discriminant(place) => visitor.visit_discriminant_rvalue(place),
         }
@@ -820,14 +823,16 @@ pub mod walk_modifying {
     pub fn walk_aggregate_rvalue<'ir, V: ModifyingIrVisitor<'ir>>(
         visitor: &V,
         _: &mut AggregateKind,
-        values: &mut [RValueId],
+        aggregate: AggregateId,
     ) /* -> AggregateRValueRet<'ir, V> */
     {
         // AggregateRValueRet {
         //     values: values.iter().map(|value| visitor.visit_rvalue(value)).collect(),
         // }
-        values.iter().for_each(|key| {
-            visitor.store().rvalues().modify(*key, |value| visitor.visit_rvalue(value))
+        visitor.store().aggregates().map_fast(aggregate, |values| {
+            values.iter().for_each(|key| {
+                visitor.store().rvalues().modify(*key, |value| visitor.visit_rvalue(value))
+            })
         })
     }
 

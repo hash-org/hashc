@@ -139,12 +139,17 @@ impl fmt::Display for ForFormatting<'_, RValueId> {
             RValue::Aggregate(aggregate_kind, operands) => {
                 let fmt_operands = |f: &mut fmt::Formatter, start: char, end: char| {
                     write!(f, "{start}")?;
-                    for (i, operand) in operands.iter().enumerate() {
-                        if i != 0 {
-                            write!(f, ", ")?;
+
+                    self.storage.aggregates().map_fast(*operands, |operands| {
+                        for (i, operand) in operands.iter().enumerate() {
+                            if i != 0 {
+                                write!(f, ", ")?;
+                            }
+                            write!(f, "{}", operand.for_fmt(self.storage))?;
                         }
-                        write!(f, "{}", operand.for_fmt(self.storage))?;
-                    }
+
+                        Ok(())
+                    })?;
 
                     write!(f, "{end}")
                 };

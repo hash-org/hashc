@@ -20,7 +20,7 @@ use hash_ir::{
 use hash_reporting::macros::panic_on_span;
 use hash_source::{identifier::Identifier, location::Span};
 use hash_types::scope::ScopeKind;
-use hash_utils::store::{SequenceStoreKey, Store};
+use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
 
 use super::{unpack, BlockAnd, BlockAndExtend, Builder, LoopBlockInfo};
 
@@ -583,7 +583,8 @@ impl<'tcx> Builder<'tcx> {
             }
         }
 
-        let fields = fields.into_values().into_iter().collect();
+        let fields =
+            self.storage.aggregates().create_from_iter_fast(fields.into_values().into_iter());
         let aggregate = RValue::Aggregate(aggregate_kind, fields);
         let value = self.storage.rvalues().create(aggregate);
 

@@ -1,5 +1,6 @@
 //! Provides generic data structures to store values by generated keys in an
 //! efficient way, with interior mutability.
+
 // @@Organisation: Move this module to the `hash_alloc` crate and split it into
 // smaller modules.
 use std::{
@@ -112,6 +113,31 @@ macro_rules! new_sequence_store {
 
         impl $crate::store::SequenceStore<$Key, $Value> for $name {
             fn internal_data(&self) -> &std::cell::RefCell<Vec<$Value>> {
+                &self.data
+            }
+        }
+    };
+}
+
+/// Create a new [`CellStore`] with the given name, key and value type.
+#[macro_export]
+macro_rules! new_cell_store {
+    ($visibility:vis $name:ident<$Key:ty, $Value:ty>) => {
+        #[derive(Default, Debug)]
+        $visibility struct $name {
+            data: append_only_vec::AppendOnlyVec<Cell<Value>>>
+        }
+
+        #[allow(dead_code)]
+        impl $name {
+            /// Create a new empty store.
+            $visibility fn new() -> Self {
+                Self { data: append_only_vec::AppendOnlyVec::new() }
+            }
+        }
+
+        impl $crate::store::CellStore<$Key, $Value> for $name {
+            fn internal_data(&self) -> &append_only_vec::AppendOnlyVec<Cell<Value>> {
                 &self.data
             }
         }
@@ -608,7 +634,7 @@ pub struct DefaultSequenceStore<K, V> {
     _phantom: PhantomData<K>,
 }
 
-impl<K, V> std::default::Default for DefaultSequenceStore<K, V> {
+impl<K, V> Default for DefaultSequenceStore<K, V> {
     fn default() -> Self {
         Self { data: RefCell::new(Vec::new()), _phantom: PhantomData::default() }
     }
@@ -724,10 +750,10 @@ pub trait PartialStore<Key: Copy + Eq + Hash, Value: Clone> {
 /// A default implementation of [`PartialStore`].
 #[derive(Debug)]
 pub struct DefaultPartialStore<K, V> {
-    data: std::cell::RefCell<std::collections::HashMap<K, V>>,
+    data: RefCell<HashMap<K, V>>,
 }
 
-impl<K, V> std::default::Default for DefaultPartialStore<K, V> {
+impl<K, V> Default for DefaultPartialStore<K, V> {
     fn default() -> Self {
         Self { data: RefCell::new(HashMap::new()) }
     }
@@ -745,17 +771,6 @@ impl<K: Copy + Eq + Hash, V: Clone> PartialStore<K, V> for DefaultPartialStore<K
     }
 }
 
-#[cfg(test)]
-mod test_super {
-    use super::*;
-    // Ensuring macros expand correctly:
-    new_store_key!(pub TestK);
-    new_store!(pub Test<TestK, ()>);
-    new_sequence_store_key!(pub TestSeqK);
-    new_sequence_store!(pub TestSeq<TestSeqK, ()>);
-    new_partial_store!(pub TestPartial<TestK, ()>);
-}
-
 /// This store uses [`AppendOnlyVec`] internally, rather than a
 /// [`RefCell<Vec<_>>`], so that there isn't additional overhead when
 /// reading/writing elements; you can take references out of it. The trade-off
@@ -765,14 +780,14 @@ pub trait CellStore<Key: StoreKey, Value: Copy> {
     ///
     /// This should only be used to implement new store methods, not to access
     /// the store.
-    fn internal_data(&self) -> &AppendOnlyVec<Cell<Value>>;
+    fn internal_data(&self) -> &AppendOnlyVec<Value>;
 
     /// Create a value inside the store, given its key, returning its key.
     fn create_with(&self, value_fn: impl FnOnce(Key) -> Value) -> Key {
         let data = self.internal_data();
         let next_index = data.len();
         let key = Key::from_index_unchecked(next_index);
-        data.push(Cell::new(value_fn(key)));
+        data.push(value_fn(key));
         key
     }
 
@@ -780,14 +795,43 @@ pub trait CellStore<Key: StoreKey, Value: Copy> {
     fn create(&self, value: Value) -> Key {
         let data = self.internal_data();
         let next_index = data.len();
-        data.push(Cell::new(value));
+        data.push(value);
         Key::from_index_unchecked(next_index)
     }
 
     /// Get a reference to a value by its key, given that it exists.
-    fn get(&self, key: Key) -> &Cell<Value> {
+    fn get(&self, key: Key) -> &Value {
         let data = self.internal_data();
         &data[key.to_index()]
+    }
+
+    // fn set(&self, key: Key, value: Value) {
+    //     let data = self.internal_data();
+    //     data[key.to_index()] = value;
+    // }
+}
+
+/// A default implementation of [`PartialStore`].
+pub struct DefaultCellStore<K, V> {
+    data: AppendOnlyVec<V>,
+    _phantom: PhantomData<K>,
+}
+
+impl<K, V> Default for DefaultCellStore<K, V> {
+    fn default() -> Self {
+        Self { data: AppendOnlyVec::new(), _phantom: PhantomData }
+    }
+}
+
+impl<K, V> DefaultCellStore<K, V> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl<K: StoreKey, V: Copy> CellStore<K, V> for DefaultCellStore<K, V> {
+    fn internal_data(&self) -> &AppendOnlyVec<V> {
+        &self.data
     }
 }
 
@@ -873,4 +917,15 @@ pub trait SequenceCellStore<Key: SequenceStoreKey, Value: Copy> {
         assert!(index < len);
         &self.internal_data()[starting_index + index]
     }
+}
+
+#[cfg(test)]
+mod test_super {
+    use super::*;
+    // Ensuring macros expand correctly:
+    new_store_key!(pub TestK);
+    new_store!(pub Test<TestK, ()>);
+    new_sequence_store_key!(pub TestSeqK);
+    new_sequence_store!(pub TestSeq<TestSeqK, ()>);
+    new_partial_store!(pub TestPartial<TestK, ()>);
 }
