@@ -387,20 +387,13 @@ dependencies = [
  "clap",
  "hash-alloc",
  "hash-ast",
- "hash-ast-desugaring",
- "hash-ast-expand",
  "hash-interactive",
- "hash-lower",
- "hash-parser",
  "hash-pipeline",
  "hash-reporting",
  "hash-session",
  "hash-source",
  "hash-target",
  "hash-tree-def",
- "hash-typecheck",
- "hash-untyped-semantics",
- "hash-vm",
  "log",
  "num_cpus",
  "profiling",
@@ -453,6 +446,41 @@ dependencies = [
 ]
 
 [[package]]
+name = "hash-codegen"
+version = "0.1.0"
+dependencies = [
+ "hash-ir",
+ "hash-source",
+ "hash-target",
+ "hash-utils",
+ "rayon",
+]
+
+[[package]]
+name = "hash-codegen-bytecode"
+version = "0.1.0"
+dependencies = [
+ "hash-codegen",
+ "hash-ir",
+ "hash-source",
+ "hash-target",
+ "hash-utils",
+ "rayon",
+]
+
+[[package]]
+name = "hash-codegen-llvm"
+version = "0.1.0"
+dependencies = [
+ "hash-codegen",
+ "hash-ir",
+ "hash-source",
+ "hash-target",
+ "hash-utils",
+ "rayon",
+]
+
+[[package]]
 name = "hash-error-codes"
 version = "0.1.0"
 
@@ -461,16 +489,9 @@ name = "hash-interactive"
 version = "0.1.0"
 dependencies = [
  "hash-ast",
- "hash-ast-desugaring",
- "hash-ast-expand",
- "hash-lower",
- "hash-parser",
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
- "hash-typecheck",
- "hash-untyped-semantics",
- "hash-vm",
  "rayon",
  "rustyline",
 ]
@@ -671,7 +692,6 @@ dependencies = [
 name = "hash-token"
 version = "0.1.0"
 dependencies = [
- "derive_more",
  "hash-alloc",
  "hash-source",
  "smallvec",
