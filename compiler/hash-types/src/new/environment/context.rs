@@ -22,10 +22,6 @@ pub enum BindingKind {
     ///
     /// For example, `mod { Q := struct(); Q }`
     ModMember(BindingOrigin<ModDefId, usize>),
-    /// A binding that is a stack member.
-    ///
-    /// For example, `{ a := 3; a }`
-    StackMember(BindingOrigin<StackId, usize>),
     /// A binding that is a constructor definition.
     ///
     /// For example, `false`, `None`, `Some(_)`.
@@ -64,11 +60,21 @@ impl From<StackMemberId> for BindingOrigin<StackId, usize> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BoundVarOrigin {
     /// Module parameter.
+    ///
+    /// For example, `T` in `mod <T> { x: (t: T) -> void }`
     Mod(ModDefId, DefParamGroupId, ParamId),
     /// Function parameter.
+    ///
+    /// For example, `x` in `(x: i32) => x`
     Fn(FnDefId, ParamId),
     /// Data definition parameter.
+    ///
+    /// For example, `T` in `Foo := struct <T> (x: T)`
     Data(DataDefId, DefParamGroupId, ParamId),
+    /// Stack member.
+    ///
+    /// For example, `a` in `{ a := 3; a }`
+    StackMember(BindingOrigin<StackId, usize>),
 }
 
 /// A binding.
@@ -240,6 +246,9 @@ impl fmt::Display for WithEnv<'_, &BoundVarOrigin> {
             | BoundVarOrigin::Data(_, _, param_id) => {
                 write!(f, "{}", self.env().with(*param_id))
             }
+            BoundVarOrigin::StackMember(stack_member) => {
+                write!(f, "{}", self.env().with((stack_member.id, stack_member.index)))
+            }
         }
     }
 }
@@ -252,9 +261,6 @@ impl fmt::Display for WithEnv<'_, Binding> {
                     let member_id = (mod_def.members, mod_member.index);
                     write!(f, "{}", self.env().with(member_id))
                 })
-            }
-            BindingKind::StackMember(stack_member) => {
-                write!(f, "{}", self.env().with((stack_member.id, stack_member.index)))
             }
             BindingKind::Ctor(ctor) => self.stores().data_def().map_fast(ctor.id, |data_def| {
                 let ctor_id = (data_def.ctors, ctor.index);

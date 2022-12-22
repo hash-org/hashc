@@ -49,8 +49,10 @@ impl<'env> ContextOps<'env> {
                     .stores()
                     .stack()
                     .map_fast(stack_id, |stack| stack.members[member_id.1].name);
-                self.context()
-                    .add_binding(Binding { name, kind: BindingKind::StackMember(member_id.into()) })
+                self.context().add_binding(Binding {
+                    name,
+                    kind: BindingKind::BoundVar(BoundVarOrigin::StackMember(member_id.into())),
+                })
             }
             _ => panic!("add_stack_binding called in non-stack scope"),
         }
