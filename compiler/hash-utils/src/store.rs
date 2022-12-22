@@ -155,6 +155,22 @@ pub trait Store<Key: StoreKey, Value> {
         f(value)
     }
 
+    /// Get many values by a collection of keys, and map them to another value.
+    ///
+    /// *Warning*: Do not call mutating store methods (`create` etc) in `f`
+    /// otherwise there will be a panic. If you want to do this, consider using
+    /// [`CloneStore::map_many()`] instead.
+    fn map_many_fast<T>(
+        &self,
+        keys: impl IntoIterator<Item = Key>,
+        f: impl FnOnce(&[&Value]) -> T,
+    ) -> T {
+        let data = self.internal_data().borrow();
+        let values =
+            keys.into_iter().map(|key| data.get(key.to_index()).unwrap()).collect::<Vec<_>>();
+        f(&values)
+    }
+
     /// Modify a value by a key, possibly returning another value.
     ///
     /// *Warning*: Do not call mutating store methods (`create` etc) in `f`
