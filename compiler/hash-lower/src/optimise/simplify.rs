@@ -1,5 +1,5 @@
 //! Contains the `simplification` pass which simplifies the control
-//! flow graph by consiering the predecessors of each block and
+//! flow graph by considering the predecessors of each block and
 //! whether:
 //!
 //! - If the block has no predecessors, it is unreachable, and therefore we can
@@ -70,7 +70,7 @@ impl IrOptimisation for SimplifyGraph {
     }
 
     fn enabled(&self, settings: &LoweringSettings) -> bool {
-        settings.optimisation_level >= OptimisationLevel::Debug
+        settings.optimisation_level > OptimisationLevel::Debug
     }
 
     fn optimise(&self, body: &mut Body, _: &BodyDataStore) {
