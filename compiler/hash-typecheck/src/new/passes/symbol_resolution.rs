@@ -11,7 +11,7 @@ use hash_types::new::{
     scopes::StackMemberId,
 };
 
-use super::ast_pass::AstPass;
+use super::{ast_pass::AstPass, state::LightState};
 use crate::{
     impl_access_to_tc_env,
     new::{
@@ -21,10 +21,20 @@ use crate::{
     },
 };
 
+/// The current expression kind we are in.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+enum InExpr {
+    /// We are in a type expression.
+    Type,
+    /// We are in a value expression.
+    Value,
+}
+
 /// The second pass of the typechecker, which resolves all symbols to their
 /// referenced bindings.
 pub struct SymbolResolutionPass<'tc> {
     tc_env: &'tc TcEnv<'tc>,
+    in_expr: LightState<InExpr>,
 }
 
 impl_access_to_tc_env!(SymbolResolutionPass<'tc>);
@@ -47,11 +57,9 @@ impl<'tc> AstPass for SymbolResolutionPass<'tc> {
 
 impl<'tc> SymbolResolutionPass<'tc> {
     pub fn new(tc_env: &'tc TcEnv<'tc>) -> Self {
-        Self { tc_env }
+        Self { tc_env, in_expr: LightState::new(InExpr::Value) }
     }
-}
 
-impl<'tc> SymbolResolutionPass<'tc> {
     /// Run a function for each stack member in the given pattern.
     ///
     /// The stack members are found in the `AstInfo` store, specifically the
@@ -134,6 +142,14 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         TyFnDef,
         BodyBlock,
         MatchCase,
+        Expr,
+        Ty,
+        VariableExpr,
+        AccessExpr,
+        AccessPat,
+        COnstructorPat,
+        AccessTy,
+        NamedTy,
     );
 
     type ModuleRet = ();
@@ -255,5 +271,57 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
             walk::walk_match_case(self, node)?;
             Ok(())
         })
+    }
+
+    type TyRet = ();
+    fn visit_ty(&self, node: ast::AstNodeRef<ast::Ty>) -> Result<Self::TyRet, Self::Error> {
+        self.in_expr.enter(InExpr::Type, || walk::walk_ty(self, node))?;
+        Ok(())
+    }
+
+    type ExprRet = ();
+    fn visit_expr(&self, node: ast::AstNodeRef<ast::Expr>) -> Result<Self::ExprRet, Self::Error> {
+        self.in_expr.enter(InExpr::Value, || walk::walk_expr(self, node))?;
+        Ok(())
+    }
+
+    type VariableExprRet = ();
+    fn visit_variable_expr(
+        &self,
+        _node: ast::AstNodeRef<ast::VariableExpr>,
+    ) -> Result<Self::VariableExprRet, Self::Error> {
+        todo!()
+    }
+
+    type AccessTyRet = ();
+    fn visit_access_ty(
+        &self,
+        _node: ast::AstNodeRef<ast::AccessTy>,
+    ) -> Result<Self::AccessTyRet, Self::Error> {
+        todo!()
+    }
+
+    type NamedTyRet = ();
+    fn visit_named_ty(
+        &self,
+        _node: ast::AstNodeRef<ast::NamedTy>,
+    ) -> Result<Self::NamedTyRet, Self::Error> {
+        todo!()
+    }
+
+    type AccessPatRet = ();
+    fn visit_access_pat(
+        &self,
+        _node: ast::AstNodeRef<ast::AccessPat>,
+    ) -> Result<Self::AccessPatRet, Self::Error> {
+        todo!()
+    }
+
+    type AccessExprRet = ();
+    fn visit_access_expr(
+        &self,
+        _node: ast::AstNodeRef<ast::AccessExpr>,
+    ) -> Result<Self::AccessExprRet, Self::Error> {
+        todo!()
     }
 }
