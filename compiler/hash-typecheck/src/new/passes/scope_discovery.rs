@@ -510,14 +510,13 @@ impl<'tc> ScopeDiscoveryPass<'tc> {
         }
     }
 
-    /// Add a declaration node `a := b` to the given `stack_id` (which is
+    /// Add a pattern node to the given `stack_id` (which is
     /// "current").
     ///
-    /// This adds the declaration as a set of stack members, taking into account
-    /// all of the pattern bindings. It adds a set of tuples `(AstNodeId,
-    /// StackMemberData)`, one for each binding, where the `AstNodeId` is
-    /// the `AstNodeId` of the binding pattern node.
-    fn add_declaration_node_to_stack(&self, node: AstNodeRef<ast::Declaration>, stack_id: StackId) {
+    /// This adds the pattern binds as a set of stack members. It adds a set of
+    /// tuples `(AstNodeId, StackMemberData)`, one for each binding, where
+    /// the `AstNodeId` is the `AstNodeId` of the binding pattern node.
+    fn add_pat_node_binds_to_stack(&self, node: AstNodeRef<ast::Pat>, stack_id: StackId) {
         self.stack_members.modify_fast(stack_id, |members| {
             let members = match members {
                 Some(members) => members,
@@ -528,7 +527,7 @@ impl<'tc> ScopeDiscoveryPass<'tc> {
 
             // Add each stack member to the stack_members vector
             let mut found_members = smallvec![];
-            self.add_stack_members_in_pat_to_buf(node.pat.ast_ref(), &mut found_members);
+            self.add_stack_members_in_pat_to_buf(node, &mut found_members);
             for (node_id, stack_member) in found_members {
                 members.push((node_id, stack_member));
             }
@@ -548,7 +547,8 @@ impl<'tc> ast::AstVisitor for ScopeDiscoveryPass<'tc> {
         FnDef,
         TyFnDef,
         BodyBlock,
-        MergeDeclaration
+        MergeDeclaration,
+        MatchCase
     );
 
     type DeclarationRet = ();
@@ -581,7 +581,7 @@ impl<'tc> ast::AstVisitor for ScopeDiscoveryPass<'tc> {
             }
             DefId::Stack(stack_id) => {
                 walk_with_name_hint()?;
-                self.add_declaration_node_to_stack(node, stack_id)
+                self.add_pat_node_binds_to_stack(node.pat.ast_ref(), stack_id)
             }
             DefId::Fn(_) => {
                 panic_on_span!(
@@ -593,6 +593,31 @@ impl<'tc> ast::AstVisitor for ScopeDiscoveryPass<'tc> {
         };
 
         Ok(())
+    }
+
+    type MatchCaseRet = ();
+    fn visit_match_case(
+        &self,
+        node: AstNodeRef<ast::MatchCase>,
+    ) -> Result<Self::MatchCaseRet, Self::Error> {
+        match self.get_current_def() {
+            DefId::Stack(_) => {
+                // A match case creates its own stack scope.
+                let stack_id = self.stack_ops().create_stack();
+                self.enter_def(node, stack_id, || {
+                    self.add_pat_node_binds_to_stack(node.pat.ast_ref(), stack_id);
+                    walk::walk_match_case(self, node)
+                })?;
+                Ok(())
+            }
+            _ => {
+                panic_on_span!(
+                    self.node_location(node),
+                    self.source_map(),
+                    "found match in non-stack scope"
+                )
+            }
+        }
     }
 
     type ModuleRet = ();
