@@ -124,7 +124,6 @@ impl Context {
     /// Enter a new scope in the context.
     pub fn add_scope(&self, kind: ScopeKind) {
         self.scope_kinds.borrow_mut().push(kind);
-        self.scope_levels.borrow_mut().push(self.members.borrow().len());
     }
 
     /// Exit the last entered scope in the context
@@ -187,6 +186,15 @@ impl Context {
         self.scope_kinds.borrow().last().copied().unwrap_or_else(|| {
             panic!("tried to get the scope kind of a context with no scopes");
         })
+    }
+
+    /// Get the current scope level.
+    pub fn get_current_scope_level(&self) -> usize {
+        let scope_levels = self.scope_levels.borrow();
+        match scope_levels.last() {
+            Some(last_level) => *last_level,
+            None => panic!("tried to get the scope level of a context with no scopes"),
+        }
     }
 
     /// Get all the scope levels in the context.

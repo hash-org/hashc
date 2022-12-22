@@ -61,22 +61,27 @@ impl<T: Default + Copy> LightState<T> {
 ///
 /// Heavy state is state which is large in size and cannot be copied cheaply.
 /// Internally uses a [`RefCell`] to store the state.
-pub struct HeavyState<T: Clone> {
+pub struct HeavyState<T> {
     current: RefCell<T>,
 }
 
-impl<T: Clone> HeavyState<T> {
+impl<T> HeavyState<T> {
     pub fn new(initial: T) -> Self {
         Self { current: RefCell::new(initial) }
     }
 
-    /// Run a function to modify the state, then run the given callback with the
-    /// new value, and then restore the old value on exit.
-    pub fn enter<U>(&self, modify_value: impl FnOnce(&mut T), f: impl FnOnce() -> U) -> U {
-        let old_value = self.current.to_owned().into_inner();
+    /// Run a function to modify the state, then run the given function with the
+    /// new value, and then restore the old value on exit by running the other
+    /// callback.
+    pub fn enter<U>(
+        &self,
+        modify_value: impl FnOnce(&mut T),
+        undo_modification: impl FnOnce(&mut T),
+        f: impl FnOnce() -> U,
+    ) -> U {
         modify_value(&mut self.current.borrow_mut());
         let result = f();
-        *self.current.borrow_mut() = old_value;
+        undo_modification(&mut self.current.borrow_mut());
         result
     }
 

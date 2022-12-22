@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 /// The second pass of the typechecker, which resolves all symbols to their
 /// referenced bindings.
 ///
@@ -6,12 +8,18 @@ use hash_ast::{
     ast, ast_visitor_default_impl,
     visitor::{walk, AstVisitor},
 };
+use hash_source::identifier::Identifier;
 use hash_types::new::{
     environment::{context::ScopeKind, env::AccessToEnv},
     scopes::StackMemberId,
+    symbols::Symbol,
 };
+use hash_utils::store::{CloneStore, Store};
 
-use super::{ast_pass::AstPass, state::LightState};
+use super::{
+    ast_pass::AstPass,
+    state::{HeavyState, LightState},
+};
 use crate::{
     impl_access_to_tc_env,
     new::{
@@ -35,6 +43,7 @@ enum InExpr {
 pub struct SymbolResolutionPass<'tc> {
     tc_env: &'tc TcEnv<'tc>,
     in_expr: LightState<InExpr>,
+    bindings_by_name: HeavyState<Vec<HashMap<Identifier, Symbol>>>,
 }
 
 impl_access_to_tc_env!(SymbolResolutionPass<'tc>);
@@ -57,7 +66,65 @@ impl<'tc> AstPass for SymbolResolutionPass<'tc> {
 
 impl<'tc> SymbolResolutionPass<'tc> {
     pub fn new(tc_env: &'tc TcEnv<'tc>) -> Self {
-        Self { tc_env, in_expr: LightState::new(InExpr::Value) }
+        Self {
+            tc_env,
+            in_expr: LightState::new(InExpr::Value),
+            bindings_by_name: HeavyState::new(Vec::new()),
+        }
+    }
+
+    /// Run a function in a new scope, and then exit the scope.
+    ///
+    /// In addition to adding the appropriate bindings, this also adds the
+    /// appropriate names to `bindings_by_name`.
+    fn enter_scope<T>(&self, kind: ScopeKind, f: impl FnOnce() -> T) -> T {
+        self.context_ops().enter_scope(kind, || {
+            self.bindings_by_name.enter(
+                |b| {
+                    let current_level = self.context().get_current_scope_level();
+
+                    // Populate the map with all the bindings in the current
+                    // scope. Any duplicate names will be shadowed by the last entry.
+                    // @@Semantics: Should we report an error if there are duplicate names?
+                    let mut map = HashMap::new();
+                    self.context().for_bindings_of_level(current_level, |binding| {
+                        let symbol_data = self.stores().symbol().get(binding.name);
+                        if let Some(name) = symbol_data.name {
+                            map.insert(name, binding.name);
+                        }
+                    });
+
+                    b.push(map);
+                },
+                |b| {
+                    // Exit the scope on the context exit.
+                    b.pop();
+                },
+                f,
+            )
+        })
+    }
+
+    /// Add a stack member to the current scope, also adding it to the
+    /// `bindings_by_name` map.
+    fn add_stack_binding(&self, member_id: StackMemberId) {
+        // Get the data of the member.
+        let member_name =
+            self.stores().stack().map_fast(member_id.0, |stack| stack.members[member_id.1].name);
+        let member_name_data = self.stores().symbol().get(member_name);
+
+        // Add the binding to the current scope.
+        self.context_ops().add_stack_binding(member_id);
+
+        // Add the binding to the `bindings_by_name` map.
+        if let Some(name) = member_name_data.name {
+            match self.bindings_by_name.get_mut().last_mut() {
+                Some(bindings) => {
+                    bindings.insert(name, member_name);
+                }
+                None => panic!("No bindings_by_name map for current scope!"),
+            }
+        }
     }
 
     /// Run a function for each stack member in the given pattern.
@@ -158,8 +225,7 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         node: ast::AstNodeRef<ast::Module>,
     ) -> Result<Self::ModuleRet, Self::Error> {
         let mod_def_id = self.ast_info().mod_defs().get_data_by_node(node.id()).unwrap();
-        self.context_ops()
-            .enter_scope(ScopeKind::Mod(mod_def_id), || walk::walk_module(self, node))?;
+        self.enter_scope(ScopeKind::Mod(mod_def_id), || walk::walk_module(self, node))?;
         Ok(())
     }
 
@@ -169,8 +235,7 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         node: ast::AstNodeRef<ast::ModDef>,
     ) -> Result<Self::ModDefRet, Self::Error> {
         let mod_def_id = self.ast_info().mod_defs().get_data_by_node(node.id()).unwrap();
-        self.context_ops()
-            .enter_scope(ScopeKind::Mod(mod_def_id), || walk::walk_mod_def(self, node))?;
+        self.enter_scope(ScopeKind::Mod(mod_def_id), || walk::walk_mod_def(self, node))?;
         Ok(())
     }
 
@@ -180,8 +245,7 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         node: ast::AstNodeRef<ast::StructDef>,
     ) -> Result<Self::StructDefRet, Self::Error> {
         let data_def_id = self.ast_info().data_defs().get_data_by_node(node.id()).unwrap();
-        self.context_ops()
-            .enter_scope(ScopeKind::Data(data_def_id), || walk::walk_struct_def(self, node))?;
+        self.enter_scope(ScopeKind::Data(data_def_id), || walk::walk_struct_def(self, node))?;
         Ok(())
     }
 
@@ -191,8 +255,7 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         node: ast::AstNodeRef<ast::EnumDef>,
     ) -> Result<Self::EnumDefRet, Self::Error> {
         let data_def_id = self.ast_info().data_defs().get_data_by_node(node.id()).unwrap();
-        self.context_ops()
-            .enter_scope(ScopeKind::Data(data_def_id), || walk::walk_enum_def(self, node))?;
+        self.enter_scope(ScopeKind::Data(data_def_id), || walk::walk_enum_def(self, node))?;
         Ok(())
     }
 
@@ -202,8 +265,7 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         node: ast::AstNodeRef<ast::FnDef>,
     ) -> Result<Self::FnDefRet, Self::Error> {
         let fn_def_id = self.ast_info().fn_defs().get_data_by_node(node.id()).unwrap();
-        self.context_ops()
-            .enter_scope(ScopeKind::Fn(fn_def_id), || walk::walk_fn_def(self, node))?;
+        self.enter_scope(ScopeKind::Fn(fn_def_id), || walk::walk_fn_def(self, node))?;
         Ok(())
     }
 
@@ -213,8 +275,7 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         node: ast::AstNodeRef<ast::TyFnDef>,
     ) -> Result<Self::TyFnDefRet, Self::Error> {
         let fn_def_id = self.ast_info().fn_defs().get_data_by_node(node.id()).unwrap();
-        self.context_ops()
-            .enter_scope(ScopeKind::Fn(fn_def_id), || walk::walk_ty_fn_def(self, node))?;
+        self.enter_scope(ScopeKind::Fn(fn_def_id), || walk::walk_ty_fn_def(self, node))?;
         Ok(())
     }
 
@@ -226,7 +287,7 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         match self.ast_info().stacks().get_data_by_node(node.id()) {
             Some(stack_id) => {
                 // This is a stack, so we need to enter its scope.
-                self.context_ops().enter_scope(ScopeKind::Stack(stack_id), || {
+                self.enter_scope(ScopeKind::Stack(stack_id), || {
                     walk::walk_body_block(self, node)?;
                     Ok(())
                 })?;
@@ -249,7 +310,7 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         // stack's scope. Otherwise the declaration is handled higher up.
         if let ScopeKind::Stack(_) = self.context().get_scope_kind() {
             self.for_each_stack_member_of_pat(node.pat.ast_ref(), |member| {
-                self.context_ops().add_stack_binding(member);
+                self.add_stack_binding(member);
             });
         }
         walk::walk_declaration(self, node)?;
@@ -264,9 +325,9 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         let stack_id = self.ast_info().stacks().get_data_by_node(node.id()).unwrap();
         // Each match case has its own scope, so we need to enter it, and add all the
         // pattern bindings to the context.
-        self.context_ops().enter_scope(ScopeKind::Stack(stack_id), || {
+        self.enter_scope(ScopeKind::Stack(stack_id), || {
             self.for_each_stack_member_of_pat(node.pat.ast_ref(), |member| {
-                self.context_ops().add_stack_binding(member);
+                self.add_stack_binding(member);
             });
             walk::walk_match_case(self, node)?;
             Ok(())
