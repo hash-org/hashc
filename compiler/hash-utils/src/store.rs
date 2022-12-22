@@ -1,5 +1,7 @@
 //! Provides generic data structures to store values by generated keys in an
 //! efficient way, with interior mutability.
+// @@Organisation: Move this module to the `hash_alloc` crate and split it into
+// smaller modules.
 use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
