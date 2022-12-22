@@ -9,11 +9,9 @@ use hash_utils::{
 };
 
 use super::{
-    environment::{
-        context::Binding,
-        env::{AccessToEnv, WithEnv},
-    },
+    environment::env::{AccessToEnv, WithEnv},
     holes::HoleId,
+    scopes::BoundVar,
 };
 use crate::new::{data::DataTy, fns::FnTy, refs::RefTy, terms::TermId, tuples::TupleTy};
 
@@ -41,7 +39,7 @@ pub enum Ty {
     Hole(HoleId),
 
     /// Type variable
-    Var(Binding),
+    Var(BoundVar),
 
     /// Tuple type
     Tuple(TupleTy),

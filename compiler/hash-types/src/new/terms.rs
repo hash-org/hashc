@@ -10,12 +10,10 @@ use hash_utils::{
 
 use super::{
     casting::CastTerm,
-    environment::{
-        context::Binding,
-        env::{AccessToEnv, WithEnv},
-    },
+    environment::env::{AccessToEnv, WithEnv},
     holes::HoleId,
     lits::LitTerm,
+    scopes::BoundVar,
     tys::TypeOfTerm,
 };
 use crate::new::{
@@ -71,7 +69,7 @@ pub enum Term {
     Block(BlockTerm),
 
     // Variables
-    Var(Binding),
+    Var(BoundVar),
 
     // Loops
     Loop(LoopTerm),
