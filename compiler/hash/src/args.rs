@@ -1,6 +1,6 @@
 //! Hash Compiler arguments management.
 
-use clap::{self, command, Parser, Subcommand};
+use clap::{self, command, ArgAction, Parser, Subcommand};
 use hash_pipeline::settings::{
     CompilerSettings, CompilerStageKind, IrDumpMode, LoweringSettings, OptimisationLevel,
 };
@@ -136,7 +136,7 @@ pub(crate) struct IrGenMode {
     /// Whether the IR should use `checked` operations, if this flag
     /// is specified, this will insert `checked` operations regardless
     /// of the optimisation level.
-    #[arg(long, default_value_t = true)]
+    #[arg(long, default_value_t = true, action = ArgAction::Set)]
     pub(crate) checked_operations: bool,
 }
 
