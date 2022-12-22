@@ -5,14 +5,14 @@ authors = ["The Hash Language authors"]
 edition = "2021"
 
 [dependencies]
-lazy_static = "1.4.0"
-dashmap = "5.1"
-fnv = "1.0.7"
-slotmap = "1.0"
 bimap = "0.6.2"
-num-bigint = "0.4"
+dashmap = "5.1"
 derive_more = "0.99"
+fnv = "1.0.7"
+lazy_static = "1.4.0"
+num-bigint = "0.4"
+slotmap = "1.0"
 
-hash-utils = { path = "../hash-utils" } 
 hash-alloc = { path = "../hash-alloc" }
 hash-target = { path = "../hash-target" }
+hash-utils = { path = "../hash-utils" } 

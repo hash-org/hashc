@@ -5,7 +5,6 @@ authors = ["The Hash Language authors"]
 edition = "2021"
 
 [dependencies]
-derive_more = "0.99"
 strum_macros = "0.21"
 smallvec = "1.9.0"
 

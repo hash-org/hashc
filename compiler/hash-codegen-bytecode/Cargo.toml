@@ -1,18 +1,14 @@
 [package]
-name = "hash-ir"
+name = "hash-codegen-bytecode"
 version = "0.1.0"
 authors = ["The Hash Language authors"]
 edition = "2021"
 
 [dependencies]
-bitflags = "1.3.2"
-html-escape = "0.2.12"
-index_vec = "0.1.3"
-smallvec = "1.9.0"
+rayon = "1.5.0"
 
-hash-alloc = {path = "../hash-alloc" }
-hash-ast = {path = "../hash-ast" }
+hash-codegen = {path = "../hash-codegen" }
+hash-ir = {path = "../hash-ir" }
 hash-source = {path = "../hash-source" }
 hash-target = { path = "../hash-target" }
-hash-types = {path = "../hash-types" }
 hash-utils = {path = "../hash-utils" }

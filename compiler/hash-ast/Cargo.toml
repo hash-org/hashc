@@ -5,9 +5,9 @@ authors = ["The Hash Language authors"]
 edition = "2021"
 
 [dependencies]
-replace_with = "0.1.7"
 num-bigint = "0.4"
+replace_with = "0.1.7"
 
-hash-utils = { path = "../hash-utils" }
 hash-source = { path = "../hash-source" }
 hash-tree-def = { path = "../hash-tree-def" }
+hash-utils = { path = "../hash-utils" }

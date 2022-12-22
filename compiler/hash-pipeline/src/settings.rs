@@ -94,7 +94,7 @@ impl Default for CompilerSettings {
 }
 
 /// What optimisation level the compiler should run at.
-#[derive(Debug, ValueEnum, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum OptimisationLevel {
     /// Run the compiler using the debug optimisation level. This will
     /// disable most optimisations that the compiler would otherwise do.
@@ -143,7 +143,9 @@ impl Default for LoweringSettings {
     }
 }
 
-#[derive(ValueEnum, Debug, Clone, Copy, PartialEq, Eq)]
+/// Enum representing the different options for dumping the IR. It can either
+/// be emitted in the pretty-printing format, or in the `graphviz` format.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum IrDumpMode {
     /// Dump the generated IR using a pretty-printed format
     Pretty,
