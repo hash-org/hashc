@@ -582,10 +582,10 @@ impl<'tcx> Builder<'tcx> {
                 // can compare the discriminant to the specified value within the
                 // switch statement.
                 let discriminant_tmp = self.temp_place(discriminant_ty);
-                let value = self.storage.push_rvalue(RValue::Discriminant(place));
+                let value = self.storage.rvalues().create(RValue::Discriminant(place));
                 self.control_flow_graph.push_assign(block, discriminant_tmp, value, subject_span);
 
-                let switch_value = self.storage.push_rvalue(RValue::Use(discriminant_tmp));
+                let switch_value = self.storage.rvalues().create(RValue::Use(discriminant_tmp));
 
                 // then terminate this block with the `switch` terminator
                 self.control_flow_graph.terminate(
@@ -610,7 +610,7 @@ impl<'tcx> Builder<'tcx> {
                         _ => panic!("expected boolean switch to have only two options"),
                     };
 
-                    let value = self.storage.push_rvalue(RValue::Use(place));
+                    let value = self.storage.rvalues().create(RValue::Use(place));
                     TerminatorKind::make_if(value, true_block, false_block, self.storage)
                 } else {
                     debug_assert_eq!(options.len() + 1, target_blocks.len());
@@ -622,7 +622,7 @@ impl<'tcx> Builder<'tcx> {
                         otherwise_block,
                     );
 
-                    let value = self.storage.push_rvalue(RValue::Use(place));
+                    let value = self.storage.rvalues().create(RValue::Use(place));
                     TerminatorKind::Switch { value, targets }
                 };
 
@@ -646,8 +646,8 @@ impl<'tcx> Builder<'tcx> {
                             panic!("expected two target blocks for `Eq` test");
                         };
 
-                    let expected = self.storage.push_rvalue(value.into());
-                    let value = self.storage.push_rvalue(RValue::Use(place));
+                    let expected = self.storage.rvalues().create(value.into());
+                    let value = self.storage.rvalues().create(RValue::Use(place));
 
                     self.compare(block, success, fail, BinOp::Eq, expected, value, span);
                 } else {
@@ -661,9 +661,9 @@ impl<'tcx> Builder<'tcx> {
                 let lb_success = self.control_flow_graph.start_new_block();
                 let target_blocks = make_target_blocks(self);
 
-                let lo = self.storage.push_rvalue(lo.into());
-                let hi = self.storage.push_rvalue(hi.into());
-                let val = self.storage.push_rvalue(RValue::Use(place));
+                let lo = self.storage.rvalues().create(lo.into());
+                let hi = self.storage.rvalues().create(hi.into());
+                let val = self.storage.rvalues().create(RValue::Use(place));
 
                 let [success, fail] = *target_blocks else {
                     panic!("expected two target blocks for `Range` test");
@@ -717,19 +717,19 @@ impl<'tcx> Builder<'tcx> {
                 let actual = self.temp_place(usize_ty);
 
                 // Assign `actual = length(place)`
-                let value = self.storage.push_rvalue(RValue::Len(place));
+                let value = self.storage.rvalues().create(RValue::Len(place));
                 self.control_flow_graph.push_assign(block, actual, value, span);
 
                 // @@Todo: can we not just use the `value` directly, there should be no
                 // dependency on it in other places, and it will always be a
                 // `usize`.
-                let actual_operand = self.storage.push_rvalue(RValue::Use(actual));
+                let actual_operand = self.storage.rvalues().create(RValue::Use(actual));
 
                 // Now, we generate a temporary for the expected length, and then
                 // compare the two.
                 let const_len =
                     Const::Int(CONSTANT_MAP.create_int_constant(IntConstant::from(len)));
-                let expected = self.storage.push_rvalue(const_len.into());
+                let expected = self.storage.rvalues().create(const_len.into());
 
                 let [success, fail] = *target_blocks else {
                     panic!("expected two target blocks for `Len` test");
@@ -762,12 +762,12 @@ impl<'tcx> Builder<'tcx> {
 
         // Push an assignment with the result of the comparison, i.e. `result = op(lhs,
         // rhs)`
-        let value = self.storage.push_rvalue(RValue::BinaryOp(op, lhs, rhs));
+        let value = self.storage.rvalues().create(RValue::BinaryOp(op, lhs, rhs));
         self.control_flow_graph.push_assign(block, result, value, span);
 
         // Then insert the switch statement, which determines where the cfg goes based
         // on if the comparison was true or false.
-        let result = self.storage.push_rvalue(RValue::Use(result));
+        let result = self.storage.rvalues().create(RValue::Use(result));
         self.control_flow_graph.terminate(
             block,
             span,

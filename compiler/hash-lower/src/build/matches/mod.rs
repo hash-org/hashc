@@ -107,7 +107,7 @@ impl<'tcx> Builder<'tcx> {
                 let place = unpack!(block = self.as_place(block, expr, Mutability::Mutable));
                 let then_block = self.control_flow_graph.start_new_block();
 
-                let value = self.storage.push_rvalue(RValue::Use(place));
+                let value = self.storage.rvalues().create(RValue::Use(place));
                 let terminator =
                     TerminatorKind::make_if(value, then_block, else_block, self.storage);
                 self.control_flow_graph.terminate(block, span, terminator);
@@ -684,7 +684,7 @@ impl<'tcx> Builder<'tcx> {
             // @@Todo: we might have to do some special rules for the `by-ref` case
             //         when we start to think about reference rules more concretely.
             let rvalue = RValue::Ref(binding.mutability, binding.source, AddressMode::Raw);
-            let rvalue_id = self.storage.push_rvalue(rvalue);
+            let rvalue_id = self.storage.rvalues().create(rvalue);
             self.control_flow_graph.push_assign(block, value_place, rvalue_id, binding.span);
         }
     }
@@ -703,7 +703,7 @@ impl<'tcx> Builder<'tcx> {
                     RValue::Ref(binding.mutability, binding.source, AddressMode::Raw)
                 }
             };
-            let rvalue_id = self.storage.push_rvalue(rvalue);
+            let rvalue_id = self.storage.rvalues().create(rvalue);
 
             // Now resolve where the binding place from, and then push
             // an assign onto the binding source.

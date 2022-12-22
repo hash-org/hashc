@@ -1,6 +1,6 @@
 //! Hash Compiler Intermediate Representation (IR) crate.
 #![allow(clippy::too_many_arguments)]
-#![feature(let_chains, once_cell)]
+#![feature(let_chains, once_cell, associated_type_defaults)]
 
 pub mod basic_blocks;
 pub mod ir;
@@ -14,47 +14,53 @@ use std::{
 };
 
 use hash_types::terms::TermId;
-use hash_utils::store::Store;
-use ir::{Body, ProjectionStore, RValue, RValueId, RValueStore};
+use hash_utils::store::{SequenceStore, Store};
+use ir::{Body, Local, Place, PlaceProjection, ProjectionStore, RValue, RValueId, RValueStore};
 use ty::{AdtStore, IrTyId, TyListStore, TyStore};
 
-/// Storage that is used by the IR builder.
+/// Storage that is used by the lowering stage. This stores all of the
+/// generated [Body]s and all of the accompanying data for the bodies.
 #[derive(Default)]
 pub struct IrStorage {
     /// The type storage for the IR.
-    pub generated_bodies: Vec<Body>,
+    pub bodies: Vec<Body>,
 
+    /// All of the accompanying data for the bodies, such as [RValue]s,
+    /// [IrTy]s, etc. The bodies and the body data are stored separately
+    /// so that the data store can be passed into various passes that occur
+    /// on a particular [Body] and may perform transformations on the
+    /// data.
     pub body_data: BodyDataStore,
 }
 
 impl IrStorage {
     pub fn new() -> Self {
-        Self { generated_bodies: Vec::new(), body_data: BodyDataStore::default() }
+        Self { bodies: Vec::new(), body_data: BodyDataStore::default() }
     }
 
     /// Get a reference to the [TyStore]
     pub fn tys(&self) -> &TyStore {
-        &self.body_data.ty_store
+        self.body_data.tys()
     }
 
     /// Get a reference to the [TyListStore]
     pub fn tls(&self) -> &TyListStore {
-        &self.body_data.ty_list_store
+        self.body_data.tls()
     }
 
     /// Get a reference to the [AdtStore]
     pub fn adts(&self) -> &AdtStore {
-        &self.body_data.adt_store
+        self.body_data.adts()
     }
 
     /// Get a reference to the [RValueStore]
     pub fn rvalues(&self) -> &RValueStore {
-        &self.body_data.rvalue_store
+        self.body_data.rvalues()
     }
 
     /// Get a reference to the [ProjectionStore]
     pub fn projections(&self) -> &ProjectionStore {
-        &self.body_data.projection_store
+        self.body_data.projections()
     }
 
     /// Get a reference to the type cache.
@@ -67,14 +73,9 @@ impl IrStorage {
         self.body_data.ty_cache.borrow_mut().insert(term_id, ty_id);
     }
 
-    /// Push an [RValue] on the storage.
-    pub fn push_rvalue(&self, rvalue: RValue) -> RValueId {
-        self.body_data.rvalue_store.create(rvalue)
-    }
-
-    /// Extend the IR storage with the given bodies.
+    /// Extend the the [IrStorage] with the generated bodies.
     pub fn add_bodies(&mut self, bodies: impl IntoIterator<Item = Body>) {
-        self.generated_bodies.extend(bodies)
+        self.bodies.extend(bodies)
     }
 }
 
@@ -103,6 +104,7 @@ pub struct BodyDataStore {
 }
 
 impl BodyDataStore {
+    /// Create a new [BodyDataStore].
     pub fn new() -> Self {
         Self {
             rvalue_store: RValueStore::default(),
@@ -112,5 +114,48 @@ impl BodyDataStore {
             adt_store: AdtStore::default(),
             ty_cache: RefCell::new(HashMap::new()),
         }
+    }
+
+    /// Get a reference to the [TyStore]
+    pub fn tys(&self) -> &TyStore {
+        &self.ty_store
+    }
+
+    /// Get a reference to the [TyListStore]
+    pub fn tls(&self) -> &TyListStore {
+        &self.ty_list_store
+    }
+
+    /// Get a reference to the [AdtStore]
+    pub fn adts(&self) -> &AdtStore {
+        &self.adt_store
+    }
+
+    /// Get a reference to the [RValueStore]
+    pub fn rvalues(&self) -> &RValueStore {
+        &self.rvalue_store
+    }
+
+    /// Get a reference to the [ProjectionStore]
+    pub fn projections(&self) -> &ProjectionStore {
+        &self.projection_store
+    }
+
+    /// Perform a map on a [Place] by reading all of the [PlaceProjection]s
+    /// that are associated with the [Place] and then applying the provided
+    /// function.
+    pub fn map_place<T>(
+        &self,
+        place: Place,
+        map: impl FnOnce(Local, &[PlaceProjection]) -> T,
+    ) -> T {
+        let Place { local, projections } = place;
+
+        self.projections().map_fast(projections, |projections| map(local, projections))
+    }
+
+    /// Push an [RValue] on the storage.
+    pub fn push_rvalue(&self, rvalue: RValue) -> RValueId {
+        self.rvalue_store.create(rvalue)
     }
 }

@@ -144,7 +144,7 @@ impl<Ctx: IrLoweringCtx> CompilerStage<Ctx> for IrOptimiser {
         let LoweringCtx { workspace, ir_storage, .. } = ctx.data();
         let source_map = &mut workspace.source_map;
 
-        let bodies = &mut ir_storage.generated_bodies;
+        let bodies = &mut ir_storage.bodies;
         let body_data = &ir_storage.body_data;
         // let optimiser = Optimiser::new(ir_storage, source_map, settings);
 
@@ -173,14 +173,9 @@ impl<Ctx: IrLoweringCtx> CompilerStage<Ctx> for IrOptimiser {
         // we need to check if any of the bodies have been marked for `dumping`
         // and emit the IR that they have generated.
         if settings.dump_mode == IrDumpMode::Graph {
-            graphviz::dump_ir_bodies(ir_storage, &ir_storage.generated_bodies, settings.dump_all);
+            graphviz::dump_ir_bodies(ir_storage, &ir_storage.bodies, settings.dump_all);
         } else {
-            pretty::dump_ir_bodies(
-                ir_storage,
-                source_map,
-                &ir_storage.generated_bodies,
-                settings.dump_all,
-            );
+            pretty::dump_ir_bodies(ir_storage, source_map, &ir_storage.bodies, settings.dump_all);
         }
     }
 }

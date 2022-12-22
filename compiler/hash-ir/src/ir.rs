@@ -563,18 +563,26 @@ pub enum StatementKind {
 pub struct Statement {
     /// The kind of [Statement] that it is.
     pub kind: StatementKind,
+
     /// The [Span] of the statement, relative to the [Body]
-    /// `source-id`.
+    /// `source-id`. This is mostly used for error reporting or
+    /// generating debug information at later stages of lowering
+    /// beyond the IR.
     pub span: Span,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+/// The kind of assert terminator that it is.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum AssertKind {
+    /// A Division by zero assertion.
     DivisionByZero,
+
     /// Occurs when an attempt to take the remainder of some operand with zero.
     RemainderByZero,
+
     /// Performing an arithmetic operation has caused the operation to overflow
     Overflow,
+
     /// Performing an arithmetic operation has caused the operation to overflow
     /// whilst subtracting or terms that are signed
     NegativeOverflow,
@@ -588,8 +596,11 @@ pub enum AssertKind {
 pub struct Terminator {
     /// The kind of [Terminator] that it is.
     pub kind: TerminatorKind,
+
     /// The [Span] of the statement, relative to the [Body]
-    /// `source-id`.
+    /// `source-id`. This is mostly used for error reporting or
+    /// generating debug information at later stages of lowering
+    /// beyond the IR.
     pub span: Span,
 }
 
