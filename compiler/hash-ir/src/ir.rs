@@ -1122,12 +1122,6 @@ new_store_key!(pub RValueId);
 /// [Rvalue]s are accessed by an ID, of type [RValueId].
 pub type RValueStore = DefaultStore<RValueId, RValue>;
 
-new_sequence_store_key!(pub AggregateId);
-
-/// Stores an associated collection of [RValue]s that are used to represent
-/// aggregate values.
-pub type AggregateValueStore = DefaultSequenceStore<AggregateId, RValueId>;
-
 new_sequence_store_key!(pub ProjectionId);
 
 /// Stores all collections of projections that can occur on a place.

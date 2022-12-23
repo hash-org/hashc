@@ -14,11 +14,8 @@ use std::{
 };
 
 use hash_types::terms::TermId;
-use hash_utils::store::{SequenceStore, Store};
-use ir::{
-    AggregateValueStore, Body, Local, Place, PlaceProjection, ProjectionStore, RValue, RValueId,
-    RValueStore,
-};
+use hash_utils::store::SequenceStore;
+use ir::{Body, Local, Place, PlaceProjection, ProjectionStore, RValueStore};
 use ty::{AdtStore, IrTyId, TyListStore, TyStore};
 
 /// Storage that is used by the lowering stage. This stores all of the
@@ -56,11 +53,6 @@ impl IrStorage {
         self.body_data.adts()
     }
 
-    /// Get a reference to the [AggregateValueStore]
-    pub fn aggregates(&self) -> &AggregateValueStore {
-        self.body_data.aggregates()
-    }
-
     /// Get a reference to the [RValueStore]
     pub fn rvalues(&self) -> &RValueStore {
         self.body_data.rvalues()
@@ -92,10 +84,6 @@ pub struct BodyDataStore {
     /// The storage for all the [RValue]s.
     rvalue_store: ir::RValueStore,
 
-    /// Store collections of [RValue]s which are grouped
-    /// together, such as [RValue::Aggregate]s.
-    aggregate_rvalue_store: ir::AggregateValueStore,
-
     /// This the storage for all projection collections.
     projection_store: ir::ProjectionStore,
 
@@ -120,7 +108,6 @@ impl BodyDataStore {
     pub fn new() -> Self {
         Self {
             rvalue_store: RValueStore::default(),
-            aggregate_rvalue_store: AggregateValueStore::default(),
             projection_store: ProjectionStore::default(),
             ty_store: TyStore::default(),
             ty_list_store: TyListStore::default(),
@@ -149,11 +136,6 @@ impl BodyDataStore {
         &self.rvalue_store
     }
 
-    /// Get a reference to the [AggregateValueStore]
-    pub fn aggregates(&self) -> &AggregateValueStore {
-        &self.aggregate_rvalue_store
-    }
-
     /// Get a reference to the [ProjectionStore]
     pub fn projections(&self) -> &ProjectionStore {
         &self.projection_store
@@ -170,10 +152,5 @@ impl BodyDataStore {
         let Place { local, projections } = place;
 
         self.projections().map_fast(projections, |projections| map(local, projections))
-    }
-
-    /// Push an [RValue] on the storage.
-    pub fn push_rvalue(&self, rvalue: RValue) -> RValueId {
-        self.rvalue_store.create(rvalue)
     }
 }
