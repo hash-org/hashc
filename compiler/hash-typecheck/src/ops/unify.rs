@@ -353,10 +353,6 @@ impl<'tc> Unifier<'tc> {
             return Ok(Sub::empty());
         }
 
-        if let Some(sub) = self.cacher().has_been_unified((src_id, target_id)) {
-            return Ok(sub);
-        }
-
         // First we want to simplify the terms:
         let simplified_src_id = self.simplifier().potentially_simplify_term(src_id)?;
         let simplified_target_id = self.simplifier().potentially_simplify_term(target_id)?;
@@ -812,8 +808,6 @@ impl<'tc> Unifier<'tc> {
             (Term::Root, Term::Root) => Ok(Sub::empty()),
             (_, Term::Root) | (Term::Root, _) => cannot_unify(),
         }?;
-
-        self.cacher().add_unification_entry((src_id, target_id), &sub);
 
         Ok(sub)
     }

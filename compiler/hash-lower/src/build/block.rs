@@ -90,6 +90,10 @@ impl<'tcx> Builder<'tcx> {
             }
         }
 
+        // we finally reset the reached terminator flag so that we can
+        // continue to lower the rest of the program
+        self.reached_terminator = false;
+
         // If this block has an expression, we need to deal with it since
         // it might change the destination of this block.
         if let Some(expr) = body.expr.as_ref() && !self.reached_terminator {

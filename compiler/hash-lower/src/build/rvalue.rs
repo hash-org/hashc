@@ -1,6 +1,6 @@
 use hash_ast::ast::{self, AstNodeRef, BinaryExpr, Expr, UnaryExpr};
 use hash_ir::{
-    ir::{AssertKind, BasicBlock, BinOp, Const, ConstKind, RValue, RValueId},
+    ir::{AssertKind, BasicBlock, BinOp, Const, ConstKind, Operand, RValue},
     ty::{IrTy, Mutability},
 };
 use hash_source::location::Span;
@@ -10,23 +10,25 @@ use hash_utils::store::Store;
 use super::{category::Category, unpack, BlockAnd, BlockAndExtend, Builder};
 
 impl<'tcx> Builder<'tcx> {
-    /// Construct an [RValue] from the given [Expr] and return the [RValueId].
+    /// Construct an [RValue] from the given [Expr].
     pub(crate) fn as_rvalue(
         &mut self,
         mut block: BasicBlock,
         expr: AstNodeRef<'tcx, Expr>,
-    ) -> BlockAnd<RValueId> {
-        // @@Todo: use a notion of `categories` to determine if we should
-        // lower it as a constant or else, the `category` is derived from
-        // the expression itself,
-        let rvalue = match expr.body {
-            Expr::Lit(lit) => self.as_constant(lit.data.ast_ref()).into(),
+    ) -> BlockAnd<RValue> {
+        match expr.body {
+            Expr::Lit(lit) => {
+                let value = self.as_constant(lit.data.ast_ref()).into();
+                block.and(value)
+            }
 
             // @@SpecialCase: if this is a variable, and it is not in scope,
             // then we essentially assume that it is a zero-sized constant type.
             Expr::Variable(variable) if self.lookup_local(variable.name.ident).is_none() => {
                 let ty = self.ty_id_of_node(expr.id());
-                Const::Zero(ty).into()
+                let value = Const::Zero(ty).into();
+
+                block.and(value)
             }
 
             Expr::UnaryExpr(UnaryExpr { operator, expr }) => {
@@ -40,9 +42,10 @@ impl<'tcx> Builder<'tcx> {
                     unpack!(block = self.as_operand(block, expr.ast_ref(), Mutability::Mutable));
 
                 // @@Todo: depending on what mode we're running in (which should be derived from
-                // the compiler session, we         should emit a check here
+                // the compiler session, we should emit a check here
                 // determining if the operation might cause an overflow, or an underflow).
-                RValue::UnaryOp((*operator.body()).into(), arg)
+                let value = RValue::UnaryOp((*operator.body()).into(), arg);
+                block.and(value)
             }
             Expr::BinaryExpr(BinaryExpr { lhs, rhs, operator }) => {
                 let lhs =
@@ -90,12 +93,9 @@ impl<'tcx> Builder<'tcx> {
                 debug_assert!(!matches!(Category::of(expr), Category::RValue | Category::Constant));
 
                 let operand = unpack!(block = self.as_operand(block, expr, Mutability::Mutable));
-                return block.and(operand);
+                block.and(RValue::Use(operand))
             }
-        };
-
-        let rvalue_id = self.storage.rvalues().create(rvalue);
-        block.and(rvalue_id)
+        }
     }
 
     /// Convert the given expression into an [RValue] operand which means that
@@ -108,7 +108,7 @@ impl<'tcx> Builder<'tcx> {
         mut block: BasicBlock,
         expr: AstNodeRef<'tcx, Expr>,
         mutability: Mutability,
-    ) -> BlockAnd<RValueId> {
+    ) -> BlockAnd<Operand> {
         // We want to deal with variables in a special way since they might
         // be referencing values that are outside of the the body, i.e. un-evaluated
         // constants. In this case, we want to just create a constant value that is
@@ -121,23 +121,16 @@ impl<'tcx> Builder<'tcx> {
             let name = variable.name.ident;
 
             if let Some((scope, _, kind)) = self.lookup_item_scope(name) && kind != ScopeKind::Variable {
-                let rvalue = RValue::Const(ConstKind::Unevaluated { scope, name });
-                let rvalue_id = self.storage.rvalues().create(rvalue);
-
-                return block.and(rvalue_id);
+                return block.and(ConstKind::Unevaluated { scope, name }.into());
             }
         }
 
         match Category::of(expr) {
             // Just directly recurse and create the constant.
-            Category::Constant => self.as_rvalue(block, expr),
+            Category::Constant => block.and(self.lower_constant_expr(expr).into()),
             Category::Place | Category::RValue => {
                 let place = unpack!(block = self.as_place(block, expr, mutability));
-
-                let rvalue = RValue::Use(place);
-                let rvalue_id = self.storage.rvalues().create(rvalue);
-
-                block.and(rvalue_id)
+                block.and(place.into())
             }
         }
     }
@@ -156,23 +149,18 @@ impl<'tcx> Builder<'tcx> {
         ty: IrTy,
         span: Span,
         op: BinOp,
-        lhs: RValueId,
-        rhs: RValueId,
-    ) -> BlockAnd<RValueId> {
-        let is_lhs_const = self.storage.rvalues().map_fast(lhs, |value| value.is_integral_const());
-        let is_rhs_const = self.storage.rvalues().map_fast(rhs, |value| value.is_integral_const());
-
-        // If both values are constant, see if we can perform a constant fold...
-        if is_lhs_const && is_rhs_const {
-            let lhs = self.storage.rvalues().map_fast(lhs, |value| value.as_const());
-            let rhs = self.storage.rvalues().map_fast(rhs, |value| value.as_const());
-
-            if let ConstKind::Value(lhs_value) = lhs && let ConstKind::Value(rhs_value) = rhs {
-                if let Some(folded) = self.try_fold_const_op(op, lhs_value, rhs_value) {
-                    return block.and(self.storage.rvalues().create(folded.into()));
-                }
+        lhs: Operand,
+        rhs: Operand,
+    ) -> BlockAnd<RValue> {
+        // try to constant fold the two operands
+        if let Operand::Const(ConstKind::Value(lhs_value)) = lhs &&
+           let Operand::Const(ConstKind::Value(rhs_value)) = rhs {
+            if let Some(folded) = self.try_fold_const_op(op, lhs_value, rhs_value) {
+                return block.and(folded.into());
             }
         }
+
+        let operands = Box::new((lhs, rhs));
 
         // If we need have been instructed to insert overflow checks, and the
         // operator is checkable, then use `CheckedBinaryOp` instead of `BinaryOp`.
@@ -183,22 +171,20 @@ impl<'tcx> Builder<'tcx> {
             let ty_id = self.storage.tys().create(ty);
 
             let temp = self.temp_place(ty_id);
-            let rvalue_id = self.storage.rvalues().create(RValue::CheckedBinaryOp(op, lhs, rhs));
+            let rvalue = RValue::CheckedBinaryOp(op, operands);
 
             let result = temp.field(0, self.storage);
             let overflow = temp.field(1, self.storage);
 
             // Push an assignment to the tuple on the operation
-            self.control_flow_graph.push_assign(block, temp, rvalue_id, span);
+            self.control_flow_graph.push_assign(block, temp, rvalue, span);
 
             block = self.assert(block, overflow, false, AssertKind::Overflow, span);
 
-            let value = self.storage.rvalues().create(RValue::Use(result));
-            block.and(value)
+            block.and(result.into())
         } else {
-            let binary_op = RValue::BinaryOp(op, lhs, rhs);
-            let rvalue_id = self.storage.rvalues().create(binary_op);
-            block.and(rvalue_id)
+            let binary_op = RValue::BinaryOp(op, operands);
+            block.and(binary_op)
         }
     }
 }

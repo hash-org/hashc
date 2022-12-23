@@ -8,7 +8,7 @@ use std::{
     hash::Hash,
 };
 
-use hash_types::terms::{Sub, TermId};
+use hash_types::terms::TermId;
 use hash_utils::store::{DefaultPartialStore, PartialStore};
 use log::log_enabled;
 
@@ -100,11 +100,7 @@ impl<K: Copy + Hash + Eq, V: Clone> CacheStore<K, V> {
 #[derive(Debug, Default)]
 pub struct Cache {
     /// Inner store for the results from term simplifications
-    pub(crate) simplification_store: CacheStore<TermId, TermId>,
-    /// Inner store for the results from term simplifications
     pub(crate) validation_store: CacheStore<TermId, TermValidation>,
-    /// Inner store for the results from term unifications
-    pub(crate) unification_store: CacheStore<(TermId, TermId), Sub>,
     /// Inner store for the results from term inference operations
     pub(crate) inference_store: CacheStore<TermId, TermId>,
 }

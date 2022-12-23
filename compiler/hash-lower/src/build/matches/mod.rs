@@ -107,9 +107,8 @@ impl<'tcx> Builder<'tcx> {
                 let place = unpack!(block = self.as_place(block, expr, Mutability::Mutable));
                 let then_block = self.control_flow_graph.start_new_block();
 
-                let value = self.storage.rvalues().create(RValue::Use(place));
                 let terminator =
-                    TerminatorKind::make_if(value, then_block, else_block, self.storage);
+                    TerminatorKind::make_if(place.into(), then_block, else_block, self.storage);
                 self.control_flow_graph.terminate(block, span, terminator);
 
                 then_block.unit()
@@ -684,8 +683,7 @@ impl<'tcx> Builder<'tcx> {
             // @@Todo: we might have to do some special rules for the `by-ref` case
             //         when we start to think about reference rules more concretely.
             let rvalue = RValue::Ref(binding.mutability, binding.source, AddressMode::Raw);
-            let rvalue_id = self.storage.rvalues().create(rvalue);
-            self.control_flow_graph.push_assign(block, value_place, rvalue_id, binding.span);
+            self.control_flow_graph.push_assign(block, value_place, rvalue, binding.span);
         }
     }
 
@@ -698,19 +696,18 @@ impl<'tcx> Builder<'tcx> {
     {
         for binding in bindings {
             let rvalue = match binding.mode {
-                candidate::BindingMode::ByValue => RValue::Use(binding.source),
+                candidate::BindingMode::ByValue => binding.source.into(),
                 candidate::BindingMode::ByRef => {
                     RValue::Ref(binding.mutability, binding.source, AddressMode::Raw)
                 }
             };
-            let rvalue_id = self.storage.rvalues().create(rvalue);
 
             // Now resolve where the binding place from, and then push
             // an assign onto the binding source.
             let value_place =
                 Place::from_local(self.lookup_local(binding.name).unwrap(), self.storage);
 
-            self.control_flow_graph.push_assign(block, value_place, rvalue_id, binding.span);
+            self.control_flow_graph.push_assign(block, value_place, rvalue, binding.span);
         }
     }
 }

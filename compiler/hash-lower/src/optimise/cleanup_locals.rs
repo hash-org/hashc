@@ -35,7 +35,7 @@ impl IrOptimisation for CleanupLocalPass {
     /// Pass [CleanupLocalPass] is always enabled since it performs
     /// necessary cleanup of the initially generated IR.
     fn enabled(&self, settings: &LoweringSettings) -> bool {
-        settings.optimisation_level > OptimisationLevel::Debug
+        settings.optimisation_level >= OptimisationLevel::Debug
     }
 
     fn optimise(&self, body: &mut Body, store: &BodyDataStore) {

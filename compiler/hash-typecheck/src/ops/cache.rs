@@ -1,6 +1,6 @@
 //! Typechecking cache manager
 
-use hash_types::terms::{Sub, TermId};
+use hash_types::terms::TermId;
 use hash_utils::store::PartialStore;
 
 use super::validate::TermValidation;
@@ -29,22 +29,10 @@ impl<'tc> CacheManager<'tc> {
         Self { storage }
     }
 
-    /// Check whether `simplification` has been performed on the
-    /// given [TermId].
-    pub(crate) fn has_been_simplified(&self, term: TermId) -> Option<TermId> {
-        self.cache().simplification_store.get(term)
-    }
-
     /// Check whether a `validation` has been performed on the given
     /// [TermId].
     pub(crate) fn has_been_validated(&self, term: TermId) -> Option<TermValidation> {
         self.cache().validation_store.get(term)
-    }
-
-    /// Check whether a `unification` has been performed on the given
-    /// [TermId].
-    pub(crate) fn has_been_unified(&self, pair: (TermId, TermId)) -> Option<Sub> {
-        self.cache().unification_store.get(pair)
     }
 
     /// Check whether a `validation` has been performed on the given
@@ -53,19 +41,9 @@ impl<'tc> CacheManager<'tc> {
         self.cache().inference_store.get(term)
     }
 
-    /// Record an entry for a `simplification` operation.
-    pub(crate) fn add_simplification_entry(&self, key: TermId, value: TermId) {
-        self.cache().simplification_store.insert(key, value);
-    }
-
     /// Record an entry for a `validation` operation.
     pub(crate) fn add_validation_entry(&self, key: TermId, value: TermValidation) {
         self.cache().validation_store.insert(key, value);
-    }
-
-    /// Record an entry for a `unification` operation.
-    pub(crate) fn add_unification_entry(&self, key: (TermId, TermId), value: &Sub) {
-        self.cache().unification_store.insert(key, value.clone());
     }
 
     /// Record an entry for a `inference` operation.

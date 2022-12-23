@@ -8,7 +8,7 @@ use fixedbitset::FixedBitSet;
 use hash_ast::ast::RangeEnd;
 use hash_ir::{
     ir::{
-        BasicBlock, BinOp, Const, PlaceProjection, RValue, RValueId, SwitchTargets, TerminatorKind,
+        BasicBlock, BinOp, Const, Operand, PlaceProjection, RValue, SwitchTargets, TerminatorKind,
     },
     ty::{AdtId, IrTy, IrTyId, VariantIdx},
     IrStorage,
@@ -159,7 +159,7 @@ impl<'tcx> Builder<'tcx> {
         };
 
         // Perform the algorithm on these or-pats, and then attempt
-        // to simplify anthing trivial, and assume the starting block
+        // to simplify anything trivial, and assume the starting block
         // is the pre-binding block of the overall candidate.
         self.match_candidates(
             or_span,
@@ -488,7 +488,7 @@ impl<'tcx> Builder<'tcx> {
 
     /// Perform a downcast on the given candidate, and adjust the candidate
     /// sub-patterns if they exist on the variant. In principle, this means that
-    /// each sub-pattern now references the downcasted place of the enum.
+    /// each sub-pattern now references the downcast place of the enum.
     fn candidate_after_variant_switch(
         &mut self,
         pair_index: usize,
@@ -499,7 +499,7 @@ impl<'tcx> Builder<'tcx> {
     ) {
         let pair = candidate.pairs.remove(pair_index);
 
-        // we need to compute the subsequent match pairs after the downcastr
+        // we need to compute the subsequent match pairs after the downcast
         // and add them to the candidate.
         let downcast_place = pair.place.downcast(variant_index);
 
@@ -582,16 +582,14 @@ impl<'tcx> Builder<'tcx> {
                 // can compare the discriminant to the specified value within the
                 // switch statement.
                 let discriminant_tmp = self.temp_place(discriminant_ty);
-                let value = self.storage.rvalues().create(RValue::Discriminant(place));
+                let value = RValue::Discriminant(place);
                 self.control_flow_graph.push_assign(block, discriminant_tmp, value, subject_span);
-
-                let switch_value = self.storage.rvalues().create(RValue::Use(discriminant_tmp));
 
                 // then terminate this block with the `switch` terminator
                 self.control_flow_graph.terminate(
                     block,
                     span,
-                    TerminatorKind::Switch { value: switch_value, targets },
+                    TerminatorKind::Switch { value: discriminant_tmp.into(), targets },
                 );
             }
             TestKind::SwitchInt { ty, ref options } => {
@@ -610,8 +608,7 @@ impl<'tcx> Builder<'tcx> {
                         _ => panic!("expected boolean switch to have only two options"),
                     };
 
-                    let value = self.storage.rvalues().create(RValue::Use(place));
-                    TerminatorKind::make_if(value, true_block, false_block, self.storage)
+                    TerminatorKind::make_if(place.into(), true_block, false_block, self.storage)
                 } else {
                     debug_assert_eq!(options.len() + 1, target_blocks.len());
                     let otherwise_block = target_blocks.last().copied();
@@ -622,8 +619,7 @@ impl<'tcx> Builder<'tcx> {
                         otherwise_block,
                     );
 
-                    let value = self.storage.rvalues().create(RValue::Use(place));
-                    TerminatorKind::Switch { value, targets }
+                    TerminatorKind::Switch { value: place.into(), targets }
                 };
 
                 self.control_flow_graph.terminate(block, span, terminator_kind);
@@ -646,10 +642,10 @@ impl<'tcx> Builder<'tcx> {
                             panic!("expected two target blocks for `Eq` test");
                         };
 
-                    let expected = self.storage.rvalues().create(value.into());
-                    let value = self.storage.rvalues().create(RValue::Use(place));
+                    let expected = Operand::Const(value.into());
+                    let actual = place.into();
 
-                    self.compare(block, success, fail, BinOp::Eq, expected, value, span);
+                    self.compare(block, success, fail, BinOp::Eq, expected, actual, span);
                 } else {
                     // @@Todo: here we essentially have to make a call to some alternative
                     //         equality mechanism since the [BinOp::EqEq] cannot handle
@@ -661,16 +657,16 @@ impl<'tcx> Builder<'tcx> {
                 let lb_success = self.control_flow_graph.start_new_block();
                 let target_blocks = make_target_blocks(self);
 
-                let lo = self.storage.rvalues().create(lo.into());
-                let hi = self.storage.rvalues().create(hi.into());
-                let val = self.storage.rvalues().create(RValue::Use(place));
+                let lo = Operand::Const(lo.into());
+                let hi = Operand::Const(hi.into());
+                let val = place.into();
 
                 let [success, fail] = *target_blocks else {
                     panic!("expected two target blocks for `Range` test");
                 };
 
                 // So here, we generate the control flow checks for the range comparison.
-                // Firslty, we generate the check to see if the `value` is less
+                // Firstly, we generate the check to see if the `value` is less
                 // than or equal to the `lo` value. If so, the cfg progresses to
                 // `lb_success` which means that is has passed the first check.
                 // If not, then the cfg progresses to `fail` which means that the
@@ -717,31 +713,31 @@ impl<'tcx> Builder<'tcx> {
                 let actual = self.temp_place(usize_ty);
 
                 // Assign `actual = length(place)`
-                let value = self.storage.rvalues().create(RValue::Len(place));
+                let value = RValue::Len(place);
                 self.control_flow_graph.push_assign(block, actual, value, span);
 
                 // @@Todo: can we not just use the `value` directly, there should be no
                 // dependency on it in other places, and it will always be a
                 // `usize`.
-                let actual_operand = self.storage.rvalues().create(RValue::Use(actual));
+                let actual = actual.into();
 
                 // Now, we generate a temporary for the expected length, and then
                 // compare the two.
                 let const_len =
                     Const::Int(CONSTANT_MAP.create_int_constant(IntConstant::from(len)));
-                let expected = self.storage.rvalues().create(const_len.into());
+                let expected = Operand::Const(const_len.into());
 
                 let [success, fail] = *target_blocks else {
                     panic!("expected two target blocks for `Len` test");
                 };
 
-                self.compare(block, success, fail, op, actual_operand, expected, span);
+                self.compare(block, success, fail, op, actual, expected, span);
             }
         }
     }
 
     /// Generate IR for a comparison operation with a specified comparison
-    /// [BinOp]. This will take in the two [RValueId] operands, push a
+    /// [BinOp]. This will take in the two [Operand]s, push a
     /// [RValue::BinaryOp], and then insert a [TerminatorKind::Switch] which
     /// determines where the control flow goes based on the result of the
     /// comparison.
@@ -751,8 +747,8 @@ impl<'tcx> Builder<'tcx> {
         success: BasicBlock,
         fail: BasicBlock,
         op: BinOp,
-        lhs: RValueId,
-        rhs: RValueId,
+        lhs: Operand,
+        rhs: Operand,
         span: Span,
     ) {
         debug_assert!(op.is_comparator());
@@ -762,17 +758,16 @@ impl<'tcx> Builder<'tcx> {
 
         // Push an assignment with the result of the comparison, i.e. `result = op(lhs,
         // rhs)`
-        let value = self.storage.rvalues().create(RValue::BinaryOp(op, lhs, rhs));
+        let operands = Box::new((lhs, rhs));
+        let value = RValue::BinaryOp(op, operands);
         self.control_flow_graph.push_assign(block, result, value, span);
 
         // Then insert the switch statement, which determines where the cfg goes based
         // on if the comparison was true or false.
-        let result = self.storage.rvalues().create(RValue::Use(result));
         self.control_flow_graph.terminate(
             block,
             span,
-            // @@Todo: make `Place` copy!
-            TerminatorKind::make_if(result, success, fail, self.storage),
+            TerminatorKind::make_if(result.into(), success, fail, self.storage),
         );
     }
 
@@ -785,7 +780,7 @@ impl<'tcx> Builder<'tcx> {
         variants: &mut FixedBitSet,
     ) -> bool {
         // Find the common matching place between the candidate and this
-        // value, if there is none then we cannot merge these togegher.
+        // value, if there is none then we cannot merge these together.
         let Some(match_pair) = candidate.pairs.iter().find(|pair| pair.place == *test_place) else {
             return false;
         };

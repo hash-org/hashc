@@ -1,7 +1,11 @@
 //! Hash Compiler Intermediate Representation (IR) crate. This module is still
 //! under construction and is subject to change.
 use core::slice;
-use std::{cmp::Ordering, fmt, iter::once};
+use std::{
+    cmp::Ordering,
+    fmt,
+    iter::{self, once},
+};
 
 use hash_ast::ast;
 use hash_source::{
@@ -12,8 +16,8 @@ use hash_source::{
 };
 use hash_types::scope::ScopeId;
 use hash_utils::{
-    new_sequence_store_key, new_store_key,
-    store::{DefaultSequenceStore, DefaultStore, SequenceStore, Store},
+    new_sequence_store_key,
+    store::{DefaultSequenceStore, SequenceStore, Store},
 };
 use index_vec::IndexVec;
 use smallvec::{smallvec, SmallVec};
@@ -49,6 +53,12 @@ pub enum Const {
     /// str := struct(data: &raw u8, len: usize);
     /// ```
     Str(InternedStr),
+}
+
+impl From<Const> for ConstKind {
+    fn from(value: Const) -> Self {
+        Self::Value(value)
+    }
 }
 
 impl Const {
@@ -132,6 +142,18 @@ pub enum ConstKind {
         /// The name of the declaration that refers to the scope.
         name: Identifier,
     },
+}
+
+impl From<ConstKind> for Operand {
+    fn from(constant: ConstKind) -> Self {
+        Self::Const(constant)
+    }
+}
+
+impl From<ConstKind> for RValue {
+    fn from(constant: ConstKind) -> Self {
+        Self::Use(Operand::Const(constant))
+    }
 }
 
 impl fmt::Display for ConstKind {
@@ -424,6 +446,18 @@ impl Place {
     }
 }
 
+impl From<Place> for Operand {
+    fn from(value: Place) -> Self {
+        Self::Place(value)
+    }
+}
+
+impl From<Place> for RValue {
+    fn from(value: Place) -> Self {
+        Self::Use(Operand::Place(value))
+    }
+}
+
 /// [AggregateKind] represent an initialisation process of a particular
 /// structure be it a tuple, array, struct, etc.
 ///
@@ -456,16 +490,27 @@ impl AggregateKind {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum Operand {
+    /// A constant value.
+    Const(ConstKind),
+
+    /// A place that is being used.
+    Place(Place),
+}
+
+impl From<Operand> for RValue {
+    fn from(value: Operand) -> Self {
+        Self::Use(value)
+    }
+}
+
 /// The representation of values that occur on the right-hand side of an
 /// assignment.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum RValue {
-    /// A constant value.
-    Const(ConstKind),
-
-    /// A local variable value, do we need to denote whether this is a
-    /// copy/move?
-    Use(Place),
+    /// Some value that is being used. Could be a constant or a place.
+    Use(Operand),
 
     /// Compiler intrinsic operation, this will be computed in place and
     /// replaced by a constant.
@@ -476,16 +521,16 @@ pub enum RValue {
     ConstOp(ConstOp, IrTyId),
 
     /// A unary expression with a unary operator.
-    UnaryOp(UnaryOp, RValueId),
+    UnaryOp(UnaryOp, Operand),
 
     /// A binary expression with a binary operator and two inner expressions.
-    BinaryOp(BinOp, RValueId, RValueId),
+    BinaryOp(BinOp, Box<(Operand, Operand)>),
 
     /// A binary expression that is checked. The only difference between this
     /// and a normal [RValue::BinaryOp] is that this will return a boolean and
     /// the result of the operation in the form of `(T, bool)`. The boolean
     /// flag denotes whether the operation violated the check...
-    CheckedBinaryOp(BinOp, RValueId, RValueId),
+    CheckedBinaryOp(BinOp, Box<(Operand, Operand)>),
 
     /// Compute the `length` of a place, yielding a `usize`.
     ///
@@ -497,7 +542,7 @@ pub enum RValue {
     Ref(Mutability, Place, AddressMode),
     /// Used for initialising structs, tuples and other aggregate
     /// data structures
-    Aggregate(AggregateKind, Vec<RValueId>),
+    Aggregate(AggregateKind, Vec<Operand>),
     /// Compute the discriminant of a [Place], this is essentially checking
     /// which variant a union is. For types that don't have a discriminant
     /// (non-union types ) this will return the value as 0.
@@ -507,7 +552,7 @@ pub enum RValue {
 impl RValue {
     /// Check if an [RValue] is a constant.
     pub fn is_const(&self) -> bool {
-        matches!(self, RValue::Const(_))
+        matches!(self, RValue::Use(Operand::Const(_)))
     }
 
     /// Check if an [RValue] is a constant operation and involves a constant
@@ -515,7 +560,9 @@ impl RValue {
     pub fn is_integral_const(&self) -> bool {
         matches!(
             self,
-            RValue::Const(ConstKind::Value(Const::Int(_) | Const::Float(_) | Const::Char(_)))
+            RValue::Use(Operand::Const(ConstKind::Value(
+                Const::Int(_) | Const::Float(_) | Const::Char(_)
+            )))
         )
     }
 
@@ -523,7 +570,7 @@ impl RValue {
     /// checked that it is a constant.
     pub fn as_const(&self) -> ConstKind {
         match self {
-            RValue::Const(c) => *c,
+            RValue::Use(Operand::Const(c)) => *c,
             rvalue => unreachable!("Expected a constant, got {:?}", rvalue),
         }
     }
@@ -531,7 +578,7 @@ impl RValue {
 
 impl From<Const> for RValue {
     fn from(value: Const) -> Self {
-        Self::Const(ConstKind::Value(value))
+        Self::Use(Operand::Const(ConstKind::Value(value)))
     }
 }
 
@@ -544,7 +591,7 @@ pub enum StatementKind {
 
     /// An assignment expression, a right hand-side expression is assigned to a
     /// left hand-side pattern e.g. `x = 2`
-    Assign(Place, RValueId),
+    Assign(Place, RValue),
 
     /// Set the discriminant on a particular place, this is used to concretely
     /// specify what the discriminant of a particular enum/union type is.
@@ -604,15 +651,37 @@ pub struct Terminator {
     pub span: Span,
 }
 
+pub type SuccessorsMut<'a> =
+    iter::Chain<std::option::IntoIter<&'a mut BasicBlock>, slice::IterMut<'a, BasicBlock>>;
+
 impl Terminator {
     /// Get all of the successors of a [Terminator].
-    pub fn successors(&self) -> SmallVec<[BasicBlock; 4]> {
+    pub fn successors(&self) -> impl Iterator<Item = BasicBlock> + '_ {
         match self.kind {
-            TerminatorKind::Goto(target) => smallvec![target],
-            TerminatorKind::Switch { ref targets, .. } => targets.iter_targets().collect(),
-            TerminatorKind::Call { target: Some(target), .. } => smallvec![target],
-            TerminatorKind::Assert { target, .. } => smallvec![target],
-            _ => smallvec![],
+            TerminatorKind::Goto(target)
+            | TerminatorKind::Call { target: Some(target), .. }
+            | TerminatorKind::Assert { target, .. } => {
+                Some(target).into_iter().chain([].iter().copied())
+            }
+            TerminatorKind::Switch { ref targets, .. } => {
+                targets.otherwise.into_iter().chain(targets.targets.iter().copied())
+            }
+            _ => None.into_iter().chain([].iter().copied()),
+        }
+    }
+
+    /// Get all of the successors of a [Terminator] as mutable references.
+    pub fn successors_mut(&mut self) -> SuccessorsMut<'_> {
+        match self.kind {
+            TerminatorKind::Goto(ref mut target)
+            | TerminatorKind::Call { target: Some(ref mut target), .. }
+            | TerminatorKind::Assert { ref mut target, .. } => {
+                Some(target).into_iter().chain(&mut [])
+            }
+            TerminatorKind::Switch { ref mut targets, .. } => {
+                targets.otherwise.as_mut().into_iter().chain(targets.targets.iter_mut())
+            }
+            _ => None.into_iter().chain(&mut []),
         }
     }
 
@@ -643,18 +712,24 @@ impl Terminator {
 /// over all the targets, etc.
 #[derive(Debug, PartialEq, Eq)]
 pub struct SwitchTargets {
-    /// The jump table, contains corresponding values to *jump* on and the
-    /// location of where the jump goes to. The values are stored as an
-    /// [u128] because we only deal with **small** integral types, for larger
-    /// integer values, we default to using `Eq` check. Since the value is
-    /// stored as an [u128], this is nonsensical when it comes using these
-    /// values, which is why a **bias** needs to be applied before properly
-    /// reading the value which can be derived from the integral type that
-    /// is being matched on.
+    /// The values are stored as an [u128] because we only deal with **small**
+    /// integral types, for larger integer values, we default to using `Eq`
+    /// check. Since the value is stored as an [u128], this is nonsensical
+    /// when it comes using these values, which is why a **bias** needs to
+    /// be applied before properly reading the value which can be derived
+    /// from the integral type that is being matched on.
     ///
     /// N.B. All values within the table are unique, there cannot be multiple
     /// targets for the same value.
-    pub table: SmallVec<[(u128, BasicBlock); 1]>,
+    ///
+    /// @@Todo: It would be nice to have a unified `table`, but ~~fucking~~
+    /// iterators!
+    pub values: SmallVec<[u128; 1]>,
+
+    /// The jump table, contains corresponding values to *jump* on and the
+    /// location of where the jump goes to. The index within `values` is the
+    /// relative jump location that is used when performing the jump.
+    pub targets: SmallVec<[BasicBlock; 1]>,
 
     /// This is the type that is used to represent the values within
     /// the jump table. This will be used to create the appropriate
@@ -676,7 +751,9 @@ impl SwitchTargets {
         ty: IrTyId,
         otherwise: Option<BasicBlock>,
     ) -> Self {
-        Self { table: targets.collect(), ty, otherwise }
+        let (values, targets): (SmallVec<[_; 1]>, SmallVec<[_; 1]>) = targets.unzip();
+
+        Self { values, targets, ty, otherwise }
     }
 
     /// Check if there is an `otherwise` block.
@@ -691,12 +768,12 @@ impl SwitchTargets {
 
     /// Iterate all of the associated targets.
     pub fn iter_targets(&self) -> impl Iterator<Item = BasicBlock> + '_ {
-        self.table.iter().map(|(_, target)| *target).chain(self.otherwise.into_iter())
+        self.otherwise.into_iter().chain(self.targets.iter().copied())
     }
 
     /// Replace a successor with another [BasicBlock].
     pub fn replace_edge(&mut self, successor: BasicBlock, replacement: BasicBlock) {
-        for (_, target) in self.table.iter_mut() {
+        for target in self.targets.iter_mut() {
             if *target == successor {
                 *target = replacement;
             }
@@ -710,28 +787,28 @@ impl SwitchTargets {
     }
 
     pub fn iter(&self) -> SwitchTargetsIter<'_> {
-        SwitchTargetsIter { inner: self.table.iter() }
+        SwitchTargetsIter { inner: iter::zip(&self.values, &self.targets) }
     }
 
     /// Find the target for a specific value, if it exists.
     pub fn corresponding_target(&self, value: u128) -> BasicBlock {
-        self.table
+        self.values
             .iter()
-            .find(|(v, _)| *v == value)
-            .map(|(_, b)| *b)
+            .position(|v| *v == value)
+            .map(|pos| self.targets[pos])
             .unwrap_or_else(|| self.otherwise())
     }
 }
 
 pub struct SwitchTargetsIter<'a> {
-    inner: slice::Iter<'a, (u128, BasicBlock)>,
+    inner: iter::Zip<slice::Iter<'a, u128>, slice::Iter<'a, BasicBlock>>,
 }
 
 impl<'a> Iterator for SwitchTargetsIter<'a> {
     type Item = (u128, BasicBlock);
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next().copied()
+        self.inner.next().map(|(val, bb)| (*val, *bb))
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
@@ -754,11 +831,11 @@ pub enum TerminatorKind {
     /// Perform a function call
     Call {
         /// The function that is being called
-        op: RValueId,
+        op: Operand,
 
         /// Arguments to the function, later we might need to distinguish
         /// whether these are move or copy arguments.
-        args: Vec<RValueId>,
+        args: Vec<Operand>,
 
         /// Destination of the result...
         destination: Place,
@@ -775,7 +852,7 @@ pub enum TerminatorKind {
     /// the `otherwise` condition.
     Switch {
         /// The value to use when comparing against the cases.
-        value: RValueId,
+        value: Operand,
 
         /// All of the targets that are defined for the particular switch.
         targets: SwitchTargets,
@@ -803,7 +880,7 @@ impl TerminatorKind {
     /// behaviour of an `if` branch where the `true` branch is the
     /// `true_block` and the `false` branch is the `false_block`.
     pub fn make_if(
-        operand: RValueId,
+        value: Operand,
         true_block: BasicBlock,
         false_block: BasicBlock,
         storage: &IrStorage,
@@ -814,7 +891,7 @@ impl TerminatorKind {
             Some(true_block),
         );
 
-        TerminatorKind::Switch { value: operand, targets }
+        TerminatorKind::Switch { value, targets }
     }
 }
 
@@ -850,7 +927,7 @@ impl BasicBlockData {
     /// Return a list of all of the successors of this [BasicBlock].
     pub fn successors(&self) -> SmallVec<[BasicBlock; 4]> {
         match &self.terminator {
-            Some(terminator) => terminator.successors(),
+            Some(terminator) => terminator.successors().collect(),
             None => smallvec![],
         }
     }
@@ -1037,13 +1114,6 @@ impl BodyInfo {
         self.source
     }
 }
-
-new_store_key!(pub RValueId);
-
-/// Stores all the used [RValue]s.
-///
-/// [Rvalue]s are accessed by an ID, of type [RValueId].
-pub type RValueStore = DefaultStore<RValueId, RValue>;
 
 new_sequence_store_key!(pub ProjectionId);
 

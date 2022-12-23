@@ -32,6 +32,11 @@ pub struct Compiler<I: CompilerInterface> {
 
     /// A record of all of the stage metrics
     metrics: HashMap<CompilerStageKind, Duration>,
+
+    /// Whether the pipeline is currently bootstrapping, i.e. when
+    /// it is running the prelude module in order to place everything
+    /// that is required for the core of the language to work.
+    bootstrapping: bool,
 }
 
 impl<I: CompilerInterface> Compiler<I> {
@@ -48,7 +53,7 @@ impl<I: CompilerInterface> Compiler<I> {
         // stage.
         assert!(stages.windows(2).all(|w| w[0].stage_kind() <= w[1].stage_kind()));
 
-        Self { stages, metrics: HashMap::new() }
+        Self { stages, metrics: HashMap::new(), bootstrapping: false }
     }
 
     /// Function to report the collected metrics on the stages within the
@@ -98,8 +103,13 @@ impl<I: CompilerInterface> Compiler<I> {
             },
         )?;
 
-        // run the cleanup function
-        stage.cleanup(entry_point, workspace);
+        // If we are bootstrapping, we don't need to run the cleanup
+        // function since it will be invoked by the the second run of
+        // the pipeline for the actual compilation.
+        if !self.bootstrapping {
+            stage.cleanup(entry_point, workspace);
+        }
+
         Ok(())
     }
 
@@ -143,6 +153,8 @@ impl<I: CompilerInterface> Compiler<I> {
     /// the pipeline in order to load the prelude before any modules run.
     pub fn bootstrap(&mut self, mut ctx: I) -> I {
         if !ctx.settings().skip_prelude {
+            self.bootstrapping = true;
+
             // Temporarily swap the settings with a patched settings in order
             // for the prelude bootstrap to run
             let mut old_settings = std::mem::take(ctx.settings_mut());
@@ -159,6 +171,8 @@ impl<I: CompilerInterface> Compiler<I> {
             if ctx.diagnostics().iter().any(|r| r.is_error()) {
                 panic!("failed to bootstrap compiler");
             }
+
+            self.bootstrapping = false;
         }
 
         ctx

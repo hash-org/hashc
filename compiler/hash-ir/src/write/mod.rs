@@ -104,20 +104,34 @@ impl fmt::Display for ForFormatting<'_, Place> {
     }
 }
 
-impl WriteIr for RValueId {}
+impl WriteIr for Operand {}
 
-impl fmt::Display for ForFormatting<'_, RValueId> {
+impl fmt::Display for ForFormatting<'_, Operand> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.storage.rvalues().map_fast(self.item, |rvalue| match rvalue {
-            RValue::Use(place) => write!(f, "{}", place.for_fmt(self.storage)),
-            RValue::Const(ConstKind::Value(Const::Zero(ty))) => {
+        match self.item {
+            Operand::Place(place) => write!(f, "{}", place.for_fmt(self.storage)),
+            Operand::Const(ConstKind::Value(Const::Zero(ty))) => {
                 write!(f, "{}", ty.for_fmt(self.storage))
             }
-            RValue::Const(const_value) => write!(f, "const {const_value}"),
-            RValue::BinaryOp(op, lhs, rhs) => {
+            Operand::Const(const_value) => write!(f, "const {const_value}"),
+        }
+    }
+}
+
+impl WriteIr for &RValue {}
+
+impl fmt::Display for ForFormatting<'_, &RValue> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.item {
+            RValue::Use(operand) => write!(f, "{}", operand.for_fmt(self.storage)),
+            RValue::BinaryOp(op, operands) => {
+                let (lhs, rhs) = operands.as_ref();
+
                 write!(f, "{op:?}({}, {})", lhs.for_fmt(self.storage), rhs.for_fmt(self.storage))
             }
-            RValue::CheckedBinaryOp(op, lhs, rhs) => {
+            RValue::CheckedBinaryOp(op, operands) => {
+                let (lhs, rhs) = operands.as_ref();
+
                 write!(
                     f,
                     "Checked{op:?}({}, {})",
@@ -139,6 +153,7 @@ impl fmt::Display for ForFormatting<'_, RValueId> {
             RValue::Aggregate(aggregate_kind, operands) => {
                 let fmt_operands = |f: &mut fmt::Formatter, start: char, end: char| {
                     write!(f, "{start}")?;
+
                     for (i, operand) in operands.iter().enumerate() {
                         if i != 0 {
                             write!(f, ", ")?;
@@ -167,7 +182,7 @@ impl fmt::Display for ForFormatting<'_, RValueId> {
                     }
                 }
             }
-        })
+        }
     }
 }
 
@@ -178,7 +193,7 @@ impl fmt::Display for ForFormatting<'_, &Statement> {
         match &self.item.kind {
             StatementKind::Nop => write!(f, "nop"),
             StatementKind::Assign(place, value) => {
-                write!(f, "{} = {}", place.for_fmt(self.storage), (*value).for_fmt(self.storage))
+                write!(f, "{} = {}", place.for_fmt(self.storage), value.for_fmt(self.storage))
             }
             StatementKind::Discriminate(place, index) => {
                 write!(f, "discriminant({}) = {index}", place.for_fmt(self.storage))
