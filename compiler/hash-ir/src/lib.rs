@@ -15,7 +15,7 @@ use std::{
 
 use hash_types::terms::TermId;
 use hash_utils::store::SequenceStore;
-use ir::{Body, Local, Place, PlaceProjection, ProjectionStore, RValueStore};
+use ir::{Body, Local, Place, PlaceProjection, ProjectionStore};
 use ty::{AdtStore, IrTyId, TyListStore, TyStore};
 
 /// Storage that is used by the lowering stage. This stores all of the
@@ -53,11 +53,6 @@ impl IrStorage {
         self.body_data.adts()
     }
 
-    /// Get a reference to the [RValueStore]
-    pub fn rvalues(&self) -> &RValueStore {
-        self.body_data.rvalues()
-    }
-
     /// Get a reference to the [ProjectionStore]
     pub fn projections(&self) -> &ProjectionStore {
         self.body_data.projections()
@@ -81,9 +76,6 @@ impl IrStorage {
 
 #[derive(Default)]
 pub struct BodyDataStore {
-    /// The storage for all the [RValue]s.
-    rvalue_store: ir::RValueStore,
-
     /// This the storage for all projection collections.
     projection_store: ir::ProjectionStore,
 
@@ -107,7 +99,6 @@ impl BodyDataStore {
     /// Create a new [BodyDataStore].
     pub fn new() -> Self {
         Self {
-            rvalue_store: RValueStore::default(),
             projection_store: ProjectionStore::default(),
             ty_store: TyStore::default(),
             ty_list_store: TyListStore::default(),
@@ -129,11 +120,6 @@ impl BodyDataStore {
     /// Get a reference to the [AdtStore]
     pub fn adts(&self) -> &AdtStore {
         &self.adt_store
-    }
-
-    /// Get a reference to the [RValueStore]
-    pub fn rvalues(&self) -> &RValueStore {
-        &self.rvalue_store
     }
 
     /// Get a reference to the [ProjectionStore]

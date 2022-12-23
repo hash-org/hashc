@@ -582,7 +582,7 @@ impl<'tcx> Builder<'tcx> {
                 // can compare the discriminant to the specified value within the
                 // switch statement.
                 let discriminant_tmp = self.temp_place(discriminant_ty);
-                let value = self.storage.rvalues().create(RValue::Discriminant(place));
+                let value = RValue::Discriminant(place);
                 self.control_flow_graph.push_assign(block, discriminant_tmp, value, subject_span);
 
                 // then terminate this block with the `switch` terminator
@@ -713,7 +713,7 @@ impl<'tcx> Builder<'tcx> {
                 let actual = self.temp_place(usize_ty);
 
                 // Assign `actual = length(place)`
-                let value = self.storage.rvalues().create(RValue::Len(place));
+                let value = RValue::Len(place);
                 self.control_flow_graph.push_assign(block, actual, value, span);
 
                 // @@Todo: can we not just use the `value` directly, there should be no
@@ -737,7 +737,7 @@ impl<'tcx> Builder<'tcx> {
     }
 
     /// Generate IR for a comparison operation with a specified comparison
-    /// [BinOp]. This will take in the two [RValueId] operands, push a
+    /// [BinOp]. This will take in the two [Operand]s, push a
     /// [RValue::BinaryOp], and then insert a [TerminatorKind::Switch] which
     /// determines where the control flow goes based on the result of the
     /// comparison.
@@ -759,7 +759,7 @@ impl<'tcx> Builder<'tcx> {
         // Push an assignment with the result of the comparison, i.e. `result = op(lhs,
         // rhs)`
         let operands = Box::new((lhs, rhs));
-        let value = self.storage.rvalues().create(RValue::BinaryOp(op, operands));
+        let value = RValue::BinaryOp(op, operands);
         self.control_flow_graph.push_assign(block, result, value, span);
 
         // Then insert the switch statement, which determines where the cfg goes based

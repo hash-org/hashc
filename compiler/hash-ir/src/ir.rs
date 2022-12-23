@@ -16,8 +16,8 @@ use hash_source::{
 };
 use hash_types::scope::ScopeId;
 use hash_utils::{
-    new_sequence_store_key, new_store_key,
-    store::{DefaultSequenceStore, DefaultStore, SequenceStore, Store},
+    new_sequence_store_key,
+    store::{DefaultSequenceStore, SequenceStore, Store},
 };
 use index_vec::IndexVec;
 use smallvec::{smallvec, SmallVec};
@@ -591,7 +591,7 @@ pub enum StatementKind {
 
     /// An assignment expression, a right hand-side expression is assigned to a
     /// left hand-side pattern e.g. `x = 2`
-    Assign(Place, RValueId),
+    Assign(Place, RValue),
 
     /// Set the discriminant on a particular place, this is used to concretely
     /// specify what the discriminant of a particular enum/union type is.
@@ -1114,13 +1114,6 @@ impl BodyInfo {
         self.source
     }
 }
-
-new_store_key!(pub RValueId);
-
-/// Stores all the used [RValue]s.
-///
-/// [Rvalue]s are accessed by an ID, of type [RValueId].
-pub type RValueStore = DefaultStore<RValueId, RValue>;
 
 new_sequence_store_key!(pub ProjectionId);
 

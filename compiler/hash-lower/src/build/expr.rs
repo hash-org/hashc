@@ -20,7 +20,7 @@ use hash_ir::{
 use hash_reporting::macros::panic_on_span;
 use hash_source::{identifier::Identifier, location::Span};
 use hash_types::scope::ScopeKind;
-use hash_utils::store::{SequenceStoreKey, Store};
+use hash_utils::store::SequenceStoreKey;
 
 use super::{unpack, BlockAnd, BlockAndExtend, Builder, LoopBlockInfo};
 
@@ -57,9 +57,7 @@ impl<'tcx> Builder<'tcx> {
             | Expr::Deref(..)
             | Expr::Access(AccessExpr { kind: AccessKind::Property, .. }) => {
                 let place = unpack!(block = self.as_place(block, expr, Mutability::Immutable));
-
-                let rvalue = self.storage.rvalues().create(place.into());
-                self.control_flow_graph.push_assign(block, destination, rvalue, span);
+                self.control_flow_graph.push_assign(block, destination, place.into(), span);
 
                 block.unit()
             }
@@ -72,16 +70,12 @@ impl<'tcx> Builder<'tcx> {
                 if !matches!(scope_kind, ScopeKind::Variable) {
                     // here, we emit an un-evaluated constant kind which will be resolved later
                     // during IR simplification.
-                    let rvalue = self
-                        .storage
-                        .rvalues()
-                        .create(ConstKind::Unevaluated { scope, name }.into());
+                    let rvalue = ConstKind::Unevaluated { scope, name }.into();
                     self.control_flow_graph.push_assign(block, destination, rvalue, span);
                 } else {
                     let local = self.lookup_local_from_scope(scope, name).unwrap();
-                    let place = Place::from_local(local, self.storage).into();
-                    let rvalue = self.storage.rvalues().create(place);
-                    self.control_flow_graph.push_assign(block, destination, rvalue, span);
+                    let place = Place::from_local(local, self.storage);
+                    self.control_flow_graph.push_assign(block, destination, place.into(), span);
                 }
 
                 block.unit()
@@ -122,9 +116,7 @@ impl<'tcx> Builder<'tcx> {
 
                 // Create an RValue for this reference
                 let addr_of = RValue::Ref(mutability, place, kind);
-                let rvalue = self.storage.rvalues().create(addr_of);
-
-                self.control_flow_graph.push_assign(block, destination, rvalue, span);
+                self.control_flow_graph.push_assign(block, destination, addr_of, span);
                 block.unit()
             }
             Expr::Unsafe(UnsafeExpr { data }) => {
@@ -169,9 +161,8 @@ impl<'tcx> Builder<'tcx> {
 
                 // Assign the `value` of the assignment into the `tmp_place`
                 let const_value = ir::Const::zero(self.storage);
+                self.control_flow_graph.push_assign(block, destination, const_value.into(), span);
 
-                let empty_value = self.storage.rvalues().create(const_value.into());
-                self.control_flow_graph.push_assign(block, destination, empty_value, span);
                 block.unit()
             }
 
@@ -195,12 +186,11 @@ impl<'tcx> Builder<'tcx> {
                     // If no expression is attached to the return, then we need to push a
                     // `unit` value into the return place.
                     let const_value = ir::Const::zero(self.storage);
-                    let unit = self.storage.rvalues().create(const_value.into());
 
                     self.control_flow_graph.push_assign(
                         block,
                         Place::return_place(self.storage),
-                        unit,
+                        const_value.into(),
                         span,
                     );
                 }
@@ -299,8 +289,12 @@ impl<'tcx> Builder<'tcx> {
                     }
                     Lit::Str(_) | Lit::Char(_) | Lit::Int(_) | Lit::Float(_) | Lit::Bool(_) => {
                         let constant = self.as_constant(literal.data.ast_ref());
-                        let rvalue = self.storage.rvalues().create(constant.into());
-                        self.control_flow_graph.push_assign(block, destination, rvalue, span);
+                        self.control_flow_graph.push_assign(
+                            block,
+                            destination,
+                            constant.into(),
+                            span,
+                        );
 
                         block.unit()
                     }
@@ -362,11 +356,11 @@ impl<'tcx> Builder<'tcx> {
                     BinOp::Or => Const::Bool(true),
                     _ => unreachable!(),
                 };
-                let value = self.storage.rvalues().create(constant.into());
+
                 self.control_flow_graph.push_assign(
                     short_circuiting_block,
                     destination,
-                    value,
+                    constant.into(),
                     span,
                 );
 
@@ -377,9 +371,8 @@ impl<'tcx> Builder<'tcx> {
                 let rhs = unpack!(
                     else_block = self.as_operand(else_block, rhs.ast_ref(), Mutability::Mutable)
                 );
-                let rhs_val = self.storage.rvalues().create(rhs.into());
 
-                self.control_flow_graph.push_assign(else_block, destination, rhs_val, span);
+                self.control_flow_graph.push_assign(else_block, destination, rhs.into(), span);
                 self.control_flow_graph.goto(else_block, join_block, span);
 
                 join_block.unit()
@@ -589,9 +582,7 @@ impl<'tcx> Builder<'tcx> {
 
         let fields: Vec<_> = fields.into_values().into_iter().collect();
         let aggregate = RValue::Aggregate(aggregate_kind, fields);
-        let value = self.storage.rvalues().create(aggregate);
-
-        self.control_flow_graph.push_assign(block, destination, value, span);
+        self.control_flow_graph.push_assign(block, destination, aggregate, span);
 
         block.unit()
     }

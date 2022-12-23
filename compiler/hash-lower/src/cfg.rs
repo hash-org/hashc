@@ -4,8 +4,7 @@
 use std::fmt;
 
 use hash_ir::ir::{
-    BasicBlock, BasicBlockData, Place, RValueId, Statement, StatementKind, Terminator,
-    TerminatorKind,
+    BasicBlock, BasicBlockData, Place, RValue, Statement, StatementKind, Terminator, TerminatorKind,
 };
 use hash_source::location::Span;
 use index_vec::IndexVec;
@@ -89,7 +88,7 @@ impl ControlFlowGraph {
         &mut self,
         block: BasicBlock,
         place: Place,
-        value: RValueId,
+        value: RValue,
         span: Span,
     ) {
         self.push(block, Statement { kind: StatementKind::Assign(place, value), span });

@@ -118,11 +118,11 @@ impl fmt::Display for ForFormatting<'_, Operand> {
     }
 }
 
-impl WriteIr for RValueId {}
+impl WriteIr for &RValue {}
 
-impl fmt::Display for ForFormatting<'_, RValueId> {
+impl fmt::Display for ForFormatting<'_, &RValue> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.storage.rvalues().map_fast(self.item, |rvalue| match rvalue {
+        match self.item {
             RValue::Use(operand) => write!(f, "{}", operand.for_fmt(self.storage)),
             RValue::BinaryOp(op, operands) => {
                 let (lhs, rhs) = operands.as_ref();
@@ -182,7 +182,7 @@ impl fmt::Display for ForFormatting<'_, RValueId> {
                     }
                 }
             }
-        })
+        }
     }
 }
 
@@ -193,7 +193,7 @@ impl fmt::Display for ForFormatting<'_, &Statement> {
         match &self.item.kind {
             StatementKind::Nop => write!(f, "nop"),
             StatementKind::Assign(place, value) => {
-                write!(f, "{} = {}", place.for_fmt(self.storage), (*value).for_fmt(self.storage))
+                write!(f, "{} = {}", place.for_fmt(self.storage), value.for_fmt(self.storage))
             }
             StatementKind::Discriminate(place, index) => {
                 write!(f, "discriminant({}) = {index}", place.for_fmt(self.storage))

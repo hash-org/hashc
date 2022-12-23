@@ -158,7 +158,7 @@ pub trait IrVisitorMut<'ir>: Sized {
 
 /// Contains all of the walking methods for the [IrVisitorMut] trait.
 pub mod walk_mut {
-    use hash_utils::store::{SequenceStore, Store};
+    use hash_utils::store::SequenceStore;
 
     use super::{IrVisitorMut, *};
     use crate::ir::{StatementKind, TerminatorKind};
@@ -183,13 +183,9 @@ pub mod walk_mut {
     }
 
     pub fn walk_statement<'ir, V: IrVisitorMut<'ir>>(visitor: &mut V, statement: &Statement) {
-        let store = visitor.store().rvalues();
-
         match &statement.kind {
             StatementKind::Nop => {}
-            StatementKind::Assign(place, value) => {
-                store.map_fast(*value, |value| visitor.visit_assign_statement(place, value))
-            }
+            StatementKind::Assign(place, value) => visitor.visit_assign_statement(place, value),
 
             StatementKind::Discriminate(place, variant) => {
                 visitor.visit_discriminator_statement(place, *variant)
@@ -608,7 +604,7 @@ pub trait ModifyingIrVisitor<'ir>: Sized {
 
 /// Contains all of the walking methods for the [IrVisitorMut] trait.
 pub mod walk_modifying {
-    use hash_utils::store::{CloneStore, SequenceStoreCopy};
+    use hash_utils::store::SequenceStoreCopy;
 
     use super::{ModifyingIrVisitor, *};
     use crate::ir::{StatementKind, TerminatorKind};
@@ -636,13 +632,9 @@ pub mod walk_modifying {
     }
 
     pub fn walk_statement<'ir, V: ModifyingIrVisitor<'ir>>(visitor: &V, statement: &mut Statement) {
-        let store = visitor.store().rvalues();
-
         match &mut statement.kind {
             StatementKind::Nop => {}
-            StatementKind::Assign(place, value) => {
-                store.modify(*value, |value| visitor.visit_assign_statement(place, value))
-            }
+            StatementKind::Assign(place, value) => visitor.visit_assign_statement(place, value),
 
             StatementKind::Discriminate(place, variant) => {
                 visitor.visit_discriminator_statement(place, variant)

@@ -683,8 +683,7 @@ impl<'tcx> Builder<'tcx> {
             // @@Todo: we might have to do some special rules for the `by-ref` case
             //         when we start to think about reference rules more concretely.
             let rvalue = RValue::Ref(binding.mutability, binding.source, AddressMode::Raw);
-            let rvalue_id = self.storage.rvalues().create(rvalue);
-            self.control_flow_graph.push_assign(block, value_place, rvalue_id, binding.span);
+            self.control_flow_graph.push_assign(block, value_place, rvalue, binding.span);
         }
     }
 
@@ -702,14 +701,13 @@ impl<'tcx> Builder<'tcx> {
                     RValue::Ref(binding.mutability, binding.source, AddressMode::Raw)
                 }
             };
-            let rvalue_id = self.storage.rvalues().create(rvalue);
 
             // Now resolve where the binding place from, and then push
             // an assign onto the binding source.
             let value_place =
                 Place::from_local(self.lookup_local(binding.name).unwrap(), self.storage);
 
-            self.control_flow_graph.push_assign(block, value_place, rvalue_id, binding.span);
+            self.control_flow_graph.push_assign(block, value_place, rvalue, binding.span);
         }
     }
 }
