@@ -12,6 +12,7 @@ use hash_ast::{
 use hash_source::{identifier::Identifier, location::Span};
 use hash_types::new::{
     args::{ArgData, ArgsId},
+    defs::{DefArgGroupData, DefArgsId, DefParamsId},
     environment::{
         context::{Binding, BindingKind, ScopeKind},
         env::AccessToEnv,
@@ -23,7 +24,7 @@ use hash_types::new::{
     symbols::Symbol,
     terms::{Term, TermId},
 };
-use hash_utils::store::{CloneStore, SequenceStore, Store};
+use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
 
 use super::{
     ast_pass::AstPass,
@@ -32,7 +33,10 @@ use super::{
 use crate::{
     impl_access_to_tc_env,
     new::{
-        diagnostics::error::{TcError, TcResult},
+        diagnostics::{
+            error::{TcError, TcResult},
+            params::{SomeArgsId, SomeDefArgsId},
+        },
         environment::tc_env::{AccessToTcEnv, TcEnv},
         ops::{ast::AstOps, common::CommonOps, AccessToOps},
     },
@@ -236,6 +240,7 @@ enum AstArgGroup<'a> {
     ExplicitArgs(&'a ast::AstNodes<ast::ConstructorCallArg>),
     /// A group of implicit `<a, b, c>` arguments.
     ImplicitArgs(&'a ast::AstNodes<ast::TyArg>),
+    // @@Todo: add pattern args here
 }
 
 impl AstArgGroup<'_> {
@@ -352,6 +357,19 @@ impl<'tc> SymbolResolutionPass<'tc> {
         }
     }
 
+    fn make_def_args_from_ast_arg_groups(
+        &self,
+        groups: &[AstArgGroup],
+        originating_params: DefParamsId,
+    ) -> DefArgsId {
+        self.param_ops().create_def_args(groups.iter().enumerate().map(|(index, group)| {
+            DefArgGroupData {
+                args: self.make_args_from_ast_arg_group(group),
+                param_group: (originating_params, index),
+            }
+        }))
+    }
+
     /// Wrap a term in a function call, given a list of arguments as a list of
     /// [`AstArgGroup`].
     ///
@@ -370,6 +388,54 @@ impl<'tc> SymbolResolutionPass<'tc> {
         current_subject
     }
 
+    /// Apply the given list of AST arguments to the given definition
+    /// parameters, checking that the lengths match in the process.
+    ///
+    /// If successful, returns the [`DefArgsId`] that represents the arguments.
+    ///
+    /// Otherwise, returns an error.
+    fn apply_ast_args_to_def_params(
+        &self,
+        def_params: DefParamsId,
+        args: &[AstArgGroup],
+    ) -> TcResult<DefArgsId> {
+        // @@Todo: implicit args
+
+        // First ensure that the number of parameter and argument groups match.
+        let created_def_args = self.make_def_args_from_ast_arg_groups(args, def_params);
+        if def_params.len() != created_def_args.len() {
+            return Err(TcError::WrongDefArgLength {
+                def_params_id: def_params,
+                def_args_id: SomeDefArgsId::Args(created_def_args),
+            });
+        }
+
+        // Then ensure that the number of parameters and arguments in each group
+        // match.
+        let mut errors: Vec<TcError> = vec![];
+        for (param_group_index, arg_group_index) in
+            def_params.to_index_range().zip(created_def_args.to_index_range())
+        {
+            let def_param_group =
+                self.stores().def_params().get_element((def_params, param_group_index));
+            let def_arg_group =
+                self.stores().def_args().get_element((created_def_args, arg_group_index));
+
+            if def_param_group.params.len() != def_arg_group.args.len() {
+                // Collect errors and only report at the end.
+                errors.push(TcError::WrongArgLength {
+                    params_id: def_param_group.params,
+                    args_id: SomeArgsId::Args(def_arg_group.args),
+                });
+            }
+        }
+        if !errors.is_empty() {
+            return Err(TcError::Compound { errors });
+        }
+
+        Ok(created_def_args)
+    }
+
     /// Resolve a path component, starting from the given [`ModMemberValue`] if
     /// present, or the current context if not. Also takes into account if
     /// we are in a type or value context.
@@ -385,8 +451,14 @@ impl<'tc> SymbolResolutionPass<'tc> {
         let binding = self.resolve_ast_name(component.name, starting_from)?;
 
         match binding.kind {
-            BindingKind::ModMember(_, _) => todo!(),
-            BindingKind::Ctor(_, _) => todo!(),
+            BindingKind::ModMember(_, _mod_member_id) => {
+                //
+                todo!()
+            }
+            BindingKind::Ctor(_, _) => {
+                // Constructors cannot be namespaced further.
+                todo!()
+            }
             BindingKind::BoundVar(bound_var) => {
                 // If the subject without args is a bound variable, then the
                 // rest are function arguments.

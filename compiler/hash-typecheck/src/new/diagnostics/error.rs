@@ -14,6 +14,7 @@ use hash_utils::store::SequenceStoreKey;
 use super::params::{SomeArgsId, SomeDefArgsId};
 use crate::new::{environment::tc_env::WithTcEnv, ops::common::CommonOps};
 
+/// An error that occurs during typechecking.
 #[derive(Clone, Debug)]
 pub enum TcError {
     /// A series of errors.
@@ -36,7 +37,7 @@ pub enum TcError {
     WrongArgLength { params_id: ParamsId, args_id: SomeArgsId },
     /// The given definition arguments do not match the length of the target
     /// definition parameters.
-    WrongDefArgLength { params_id: DefParamsId, args_id: SomeDefArgsId },
+    WrongDefArgLength { def_params_id: DefParamsId, def_args_id: SomeDefArgsId },
 }
 
 pub type TcResult<T> = Result<T, TcError>;
@@ -50,6 +51,7 @@ impl<'tc> From<WithTcEnv<'tc, &TcError>> for Reports {
 }
 
 impl<'tc> WithTcEnv<'tc, &TcError> {
+    /// Format the error nicely and add it to the given reporter.
     fn add_to_reporter(&self, reporter: &mut Reporter) {
         let error = reporter.error();
         let locations = self.tc_env().stores().location();
@@ -140,7 +142,7 @@ impl<'tc> WithTcEnv<'tc, &TcError> {
                         .add_info(format!("got {arg_length} {} here", args_id.as_str()));
                 }
             }
-            TcError::WrongDefArgLength { params_id, args_id } => {
+            TcError::WrongDefArgLength { def_params_id: params_id, def_args_id: args_id } => {
                 let param_length = params_id.len();
                 let arg_length = args_id.len();
 
