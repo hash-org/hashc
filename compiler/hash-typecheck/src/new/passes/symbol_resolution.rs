@@ -12,6 +12,7 @@ use hash_ast::{
 use hash_source::{identifier::Identifier, location::Span};
 use hash_types::new::{
     args::{ArgData, ArgsId},
+    data::CtorTerm,
     defs::{DefArgGroupData, DefArgsId, DefParamsId},
     environment::{
         context::{Binding, BindingKind, ScopeKind},
@@ -23,6 +24,7 @@ use hash_types::new::{
     scopes::{BoundVar, StackMemberId},
     symbols::Symbol,
     terms::{Term, TermId},
+    tys::{Ty, TyId},
 };
 use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
 
@@ -46,7 +48,7 @@ use crate::{
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum InExpr {
     /// We are in a type expression.
-    Type,
+    Ty,
     /// We are in a value expression.
     Value,
 }
@@ -240,7 +242,6 @@ enum AstArgGroup<'a> {
     ExplicitArgs(&'a ast::AstNodes<ast::ConstructorCallArg>),
     /// A group of implicit `<a, b, c>` arguments.
     ImplicitArgs(&'a ast::AstNodes<ast::TyArg>),
-    // @@Todo: add pattern args here
 }
 
 impl AstArgGroup<'_> {
@@ -289,6 +290,7 @@ impl AstPathComponent<'_> {
 enum ResolvedAstPathComponent {
     ModMember(ModMemberValue),
     Term(TermId),
+    Ty(TyId),
 }
 
 impl<'tc> SymbolResolutionPass<'tc> {
@@ -440,32 +442,80 @@ impl<'tc> SymbolResolutionPass<'tc> {
     /// present, or the current context if not. Also takes into account if
     /// we are in a type or value context.
     ///
+    /// The `total_span` argument is the span of the entire path, and is used
+    /// for error reporting.
+    ///
     /// Returns a [`ResolvedAstPathComponent`] which might or might not support
     /// further accessing.
+    ///
+    /// Invariants:
+    /// - `in_expr == InExpr::Value` returns either a term or a mod member
+    /// - `in_expr == InExpr::Ty` returns either a type or a mod member
     fn resolve_ast_path_component(
         &self,
         component: AstPathComponent<'_>,
         starting_from: Option<(ModMemberValue, Span)>,
-        _in_expr: InExpr,
+        in_expr: InExpr,
+        total_span: Span,
     ) -> TcResult<ResolvedAstPathComponent> {
         let binding = self.resolve_ast_name(component.name, starting_from)?;
 
         match binding.kind {
-            BindingKind::ModMember(_, _mod_member_id) => {
-                //
-                todo!()
+            BindingKind::ModMember(_, mod_member_id) => {
+                let mod_member = self.stores().mod_members().get_element(mod_member_id);
+                match mod_member.value {
+                    ModMemberValue::Data(_) | ModMemberValue::Mod(_) => {
+                        Ok(ResolvedAstPathComponent::ModMember(mod_member.value))
+                    }
+                    ModMemberValue::Fn(fn_def_id) => {
+                        // If a function is used in a value position, then it is
+                        // the function's address that is used.
+                        if in_expr == InExpr::Ty {
+                            return Err(TcError::CannotUseFunctionInTypePosition {
+                                location: self.source_location(total_span),
+                            });
+                        }
+
+                        Ok(ResolvedAstPathComponent::Term(self.new_term(Term::FnRef(fn_def_id))))
+                    }
+                }
             }
-            BindingKind::Ctor(_, _) => {
-                // Constructors cannot be namespaced further.
-                todo!()
+            BindingKind::Ctor(_, ctor_def_id) => {
+                // A constructor cannot be namespaced further, so it becomes
+                // a term.
+                if in_expr == InExpr::Ty {
+                    // @@Improvement: support shorthand refinement like `None` as `Option<T> of
+                    // None`.
+                    return Err(TcError::CannotUseConstructorInTypePosition {
+                        location: self.source_location(total_span),
+                    });
+                }
+
+                let ctor_def = self.stores().ctor_defs().get_element(ctor_def_id);
+
+                // Apply the arguments to the constructor.
+                let args = self.apply_ast_args_to_def_params(ctor_def.params, &component.args)?;
+
+                // Create a constructor term.
+                Ok(ResolvedAstPathComponent::Term(
+                    self.new_term(Term::Ctor(CtorTerm { ctor: ctor_def_id, args })),
+                ))
             }
             BindingKind::BoundVar(bound_var) => {
                 // If the subject without args is a bound variable, then the
-                // rest are function arguments.
-                Ok(ResolvedAstPathComponent::Term(self.wrap_term_in_fn_call_from_ast_args(
+                // rest are function arguments, and it becomes a term.
+                let resultant_term = self.wrap_term_in_fn_call_from_ast_args(
                     self.new_term(Term::Var(BoundVar { name: binding.name, origin: bound_var })),
                     &component.args,
-                )))
+                );
+
+                // Return a term or a type as appropriate by `in_expr`.
+                match in_expr {
+                    InExpr::Ty => {
+                        Ok(ResolvedAstPathComponent::Ty(self.new_ty(Ty::Eval(resultant_term))))
+                    }
+                    InExpr::Value => Ok(ResolvedAstPathComponent::Term(resultant_term)),
+                }
             }
         }
     }
@@ -497,7 +547,7 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         VariableExpr,
         AccessExpr,
         AccessPat,
-        COnstructorPat,
+        ConstructorPat,
         AccessTy,
         NamedTy,
     );
@@ -619,7 +669,7 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
 
     type TyRet = ();
     fn visit_ty(&self, node: ast::AstNodeRef<ast::Ty>) -> Result<Self::TyRet, Self::Error> {
-        self.in_expr.enter(InExpr::Type, || walk::walk_ty(self, node))?;
+        self.in_expr.enter(InExpr::Ty, || walk::walk_ty(self, node))?;
         Ok(())
     }
 
@@ -747,6 +797,14 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         &self,
         _node: ast::AstNodeRef<ast::AccessExpr>,
     ) -> Result<Self::AccessExprRet, Self::Error> {
+        Ok(())
+    }
+
+    type ConstructorPatRet = ();
+    fn visit_constructor_pat(
+        &self,
+        _node: AstNodeRef<ast::ConstructorPat>,
+    ) -> Result<Self::ConstructorPatRet, Self::Error> {
         Ok(())
     }
 }

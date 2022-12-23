@@ -31,6 +31,10 @@ pub enum TcError {
     CannotUseModuleInValuePosition { location: SourceLocation },
     /// Cannot use a data type in a value position.
     CannotUseDataTypeInValuePosition { location: SourceLocation },
+    /// Cannot use a constructor in a type position.
+    CannotUseConstructorInTypePosition { location: SourceLocation },
+    /// Cannot use a function in type position.
+    CannotUseFunctionInTypePosition { location: SourceLocation },
     /// Cannot use the subject as a namespace.
     InvalidNamespaceSubject { location: SourceLocation },
     /// The given arguments do not match the length of the target parameters.
@@ -112,6 +116,24 @@ impl<'tc> WithTcEnv<'tc, &TcError> {
                 error
                     .add_span(*location)
                     .add_info("cannot use this in expression position as it is a data type");
+            }
+            TcError::CannotUseConstructorInTypePosition { location } => {
+                error
+                    .code(HashErrorCode::UnresolvedSymbol)
+                    .title("cannot use a constructor in type position");
+
+                error
+                    .add_span(*location)
+                    .add_info("cannot use this in type position as it is a constructor");
+            }
+            TcError::CannotUseFunctionInTypePosition { location } => {
+                error
+                    .code(HashErrorCode::UnresolvedSymbol)
+                    .title("cannot use a function in type position");
+
+                error.add_span(*location).add_info(
+                    "cannot use this in type position as it refers to a function definition",
+                );
             }
             TcError::InvalidNamespaceSubject { location } => {
                 error
