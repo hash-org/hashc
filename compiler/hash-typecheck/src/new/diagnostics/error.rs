@@ -1,11 +1,17 @@
+//! Error-related data structures for errors that occur during typechecking.
 use hash_error_codes::error_codes::HashErrorCode;
 use hash_reporting::{
     self,
     reporter::{Reporter, Reports},
 };
 use hash_source::location::SourceLocation;
-use hash_types::new::{environment::env::AccessToEnv, symbols::Symbol, terms::TermId};
+use hash_types::new::{
+    defs::DefParamsId, environment::env::AccessToEnv, params::ParamsId, symbols::Symbol,
+    terms::TermId,
+};
+use hash_utils::store::SequenceStoreKey;
 
+use super::params::{SomeArgsId, SomeDefArgsId};
 use crate::new::{environment::tc_env::WithTcEnv, ops::common::CommonOps};
 
 #[derive(Clone, Debug)]
@@ -26,6 +32,11 @@ pub enum TcError {
     CannotUseDataTypeInValuePosition { location: SourceLocation },
     /// Cannot use the subject as a namespace.
     InvalidNamespaceSubject { location: SourceLocation },
+    /// The given arguments do not match the length of the target parameters.
+    WrongArgLength { params_id: ParamsId, args_id: SomeArgsId },
+    /// The given definition arguments do not match the length of the target
+    /// definition parameters.
+    WrongDefArgLength { params_id: DefParamsId, args_id: SomeDefArgsId },
 }
 
 pub type TcResult<T> = Result<T, TcError>;
@@ -41,6 +52,7 @@ impl<'tc> From<WithTcEnv<'tc, &TcError>> for Reports {
 impl<'tc> WithTcEnv<'tc, &TcError> {
     fn add_to_reporter(&self, reporter: &mut Reporter) {
         let error = reporter.error();
+        let locations = self.tc_env().stores().location();
         match &self.value {
             TcError::NeedMoreTypeAnnotationsToInfer { term } => {
                 error
@@ -107,6 +119,46 @@ impl<'tc> WithTcEnv<'tc, &TcError> {
                 error
                     .add_span(*location)
                     .add_info("cannot use this as a subject of a namespace access");
+            }
+            TcError::WrongArgLength { params_id, args_id } => {
+                let param_length = params_id.len();
+                let arg_length = args_id.len();
+
+                error.code(HashErrorCode::ParameterLengthMismatch).title(format!(
+                    "mismatch in parameter length: expected {param_length} but got {arg_length}"
+                ));
+
+                if let Some(location) = locations.get_overall_location(*params_id) {
+                    error
+                        .add_span(location)
+                        .add_info(format!("expected {param_length} parameters here"));
+                }
+
+                if let Some(location) = locations.get_overall_location(*args_id) {
+                    error
+                        .add_span(location)
+                        .add_info(format!("got {arg_length} {} here", args_id.as_str()));
+                }
+            }
+            TcError::WrongDefArgLength { params_id, args_id } => {
+                let param_length = params_id.len();
+                let arg_length = args_id.len();
+
+                error.code(HashErrorCode::ParameterLengthMismatch).title(format!(
+                    "mismatch in parameter groups: expected {param_length} groups but got {arg_length}"
+                ));
+
+                if let Some(location) = locations.get_overall_location(*params_id) {
+                    error
+                        .add_span(location)
+                        .add_info(format!("expected {param_length} parameter groups here"));
+                }
+
+                if let Some(location) = locations.get_overall_location(*args_id) {
+                    error
+                        .add_span(location)
+                        .add_info(format!("got {arg_length} {} groups here", args_id.as_str()));
+                }
             }
         }
     }

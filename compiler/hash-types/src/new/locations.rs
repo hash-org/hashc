@@ -78,6 +78,16 @@ macro_rules! location_targets {
             }
         )*
 
+        $(
+            $(
+                impl From<$indexed_type> for IndexedLocationTarget {
+                    fn from(ty: $indexed_type) -> Self {
+                        Self::$indexed_name(ty)
+                    }
+                }
+            )?
+        )*
+
         impl From<(IndexedLocationTarget, usize)> for LocationTarget {
             fn from((ty, index): (IndexedLocationTarget, usize)) -> Self {
                 match ty {
@@ -150,6 +160,29 @@ impl LocationStore {
     /// Get the associated [Span] with from the specified [LocationTarget]
     pub fn get_span(&self, target: impl Into<LocationTarget>) -> Option<Span> {
         self.get_location(target).map(|loc| loc.span)
+    }
+
+    /// Get the overall [Span] covering all the members of a specified
+    /// [IndexedLocationTarget].
+    pub fn get_overall_span(&self, target: impl Into<IndexedLocationTarget>) -> Option<Span> {
+        let target = target.into();
+        target
+            .to_index_range()
+            .map(|index| self.get_span(LocationTarget::from((target, index))))
+            .fold(None, |acc, span| Some(acc?.join(span?)))
+    }
+
+    /// Get the overall [SourceLocation] covering all the members of a specified
+    /// [IndexedLocationTarget].
+    pub fn get_overall_location(
+        &self,
+        target: impl Into<IndexedLocationTarget>,
+    ) -> Option<SourceLocation> {
+        let target = target.into();
+        target
+            .to_index_range()
+            .map(|index| self.get_location(LocationTarget::from((target, index))))
+            .fold(None, |acc, loc| Some(acc?.join(loc?)))
     }
 
     /// Copy a set of locations from the first [IndexedLocationTarget] to the
