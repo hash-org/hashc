@@ -78,9 +78,7 @@ fn compute_predecessor_counts(body: &Body) -> IndexVec<BasicBlock, u32> {
     // it might not ever have any predecessors, but it is still reachable.
     counts[START_BLOCK] = 1;
 
-    let traverser = traversal::PreOrder::new_from_start(body);
-
-    for (_, data) in traverser {
+    for (_, data) in traversal::PreOrder::new_from_start(body) {
         if let Some(ref term) = data.terminator {
             for target in term.successors() {
                 counts[target] += 1;
@@ -99,7 +97,7 @@ impl IrOptimisation for SimplifyGraph {
     }
 
     fn enabled(&self, settings: &LoweringSettings) -> bool {
-        settings.optimisation_level > OptimisationLevel::Debug
+        settings.optimisation_level >= OptimisationLevel::Debug
     }
 
     fn optimise(&self, body: &mut Body, _: &BodyDataStore) {
