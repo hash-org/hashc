@@ -175,4 +175,16 @@ impl<Ctx: TypecheckingCtx> CompilerStage<Ctx> for Typechecker {
 
         Ok(())
     }
+
+    /// We use the cleanup function to report on cache metrics for the
+    /// typechecker.
+    fn cleanup(&mut self, _entry_point: SourceId, _stage_data: &mut Ctx) {
+        log::debug!(
+            "tc cache metrics:\n{: <8}: {}\n{: <8}: {}\n",
+            "validate",
+            self.cache.validation_store.metrics(),
+            "infer",
+            self.cache.inference_store.metrics()
+        );
+    }
 }
