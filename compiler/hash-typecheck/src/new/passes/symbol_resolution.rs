@@ -293,6 +293,15 @@ enum ResolvedAstPathComponent {
     Ty(TyId),
 }
 
+/// The result of resolving a path.
+///
+/// This is either a [`TermId`], or a [`TyId`].
+#[derive(Clone, Copy, Debug)]
+enum ResolvedAstPath {
+    Term(TermId),
+    Ty(TyId),
+}
+
 impl<'tc> SymbolResolutionPass<'tc> {
     /// Resolve a name starting from the given [`ModMemberValue`], or the
     /// current context if no such value is given.
@@ -453,7 +462,7 @@ impl<'tc> SymbolResolutionPass<'tc> {
     /// - `in_expr == InExpr::Ty` returns either a type or a mod member
     fn resolve_ast_path_component(
         &self,
-        component: AstPathComponent<'_>,
+        component: &AstPathComponent<'_>,
         starting_from: Option<(ModMemberValue, Span)>,
         in_expr: InExpr,
         total_span: Span,
@@ -520,11 +529,58 @@ impl<'tc> SymbolResolutionPass<'tc> {
         }
     }
 
-    /// Resolve a path in the current context.
+    /// Resolve a path in the current context, returning either a term or a type
+    /// as appropriate.
     ///
-    /// @@Todo: return
-    fn resolve_ast_path(&self, path: Vec<AstPathComponent<'_>>, _in_expr: InExpr) {
-        for _component in &path {}
+    /// Invariants:
+    /// - `in_expr == InExpr::Value` returns a term
+    /// - `in_expr == InExpr::Ty` returns a type
+    fn resolve_ast_path<T>(
+        &self,
+        path: Vec<AstPathComponent<'_>>,
+        in_expr: InExpr,
+        original_node: AstNodeRef<T>,
+    ) -> TcResult<ResolvedAstPath> {
+        assert!(!path.is_empty());
+
+        let mut resolved_path =
+            self.resolve_ast_path_component(&path[0], None, in_expr, original_node.span())?;
+
+        for (index, component) in path.iter().enumerate().skip(1) {
+            // For each component, we need to resolve it, and then namespace
+            // further if possible.
+            match resolved_path {
+                ResolvedAstPathComponent::ModMember(mod_member) => {
+                    // Namespace further if it is a mod member.
+                    resolved_path = self.resolve_ast_path_component(
+                        component,
+                        Some((mod_member, component.span())),
+                        in_expr,
+                        original_node.span(),
+                    )?;
+                }
+                ResolvedAstPathComponent::Term(_) | ResolvedAstPathComponent::Ty(_) => {
+                    // Cannot namespace further if it is a term or a type.
+                    return Err(TcError::InvalidNamespaceSubject {
+                        location: self.source_location(
+                            path[..index]
+                                .iter()
+                                .map(|c| c.span())
+                                .reduce(|a, b| a.join(b))
+                                .unwrap(),
+                        ),
+                    });
+                }
+            }
+        }
+
+        // Now we inspect the resultant resolved value and make sure it is compatible in
+        // the original context:
+        match resolved_path {
+            ResolvedAstPathComponent::ModMember(_) => todo!(),
+            ResolvedAstPathComponent::Term(_) => todo!(),
+            ResolvedAstPathComponent::Ty(_) => todo!(),
+        }
     }
 }
 
