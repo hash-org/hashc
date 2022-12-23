@@ -13,6 +13,7 @@ use super::{
     mods::{ModDefId, ModMemberId, ModMembersId},
     params::{ParamId, ParamsId},
     scopes::{StackId, StackMemberId},
+    symbols::Symbol,
     terms::TermId,
     tys::TyId,
 };
@@ -94,6 +95,7 @@ macro_rules! location_targets {
 location_targets! {
     Term: TermId,
     Ty: TyId,
+    Symbol: Symbol,
 
     DataDef: DataDefId,
     CtorDef: CtorDefId = sequence CtorDefs: CtorDefsId,

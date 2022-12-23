@@ -4,7 +4,7 @@ use hash_reporting::{
     reporter::{Reporter, Reports},
 };
 use hash_source::location::SourceLocation;
-use hash_types::new::terms::TermId;
+use hash_types::new::{environment::env::AccessToEnv, symbols::Symbol, terms::TermId};
 
 use crate::new::{environment::tc_env::WithTcEnv, ops::common::CommonOps};
 
@@ -18,6 +18,12 @@ pub enum TcError {
     TraitsNotSupported { trait_location: SourceLocation },
     /// Merge declarations are not yet supported.
     MergeDeclarationsNotSupported { merge_location: SourceLocation },
+    /// Some specified symbol was not found.
+    SymbolNotFound { symbol: Symbol, location: SourceLocation },
+    /// Cannot use a module in a value position.
+    CannotUseModuleInValuePosition { location: SourceLocation },
+    /// Cannot use a data type in a value position.
+    CannotUseDataTypeInValuePosition { location: SourceLocation },
 }
 
 pub type TcResult<T> = Result<T, TcError>;
@@ -63,6 +69,33 @@ impl<'tc> WithTcEnv<'tc, &TcError> {
                     .title("merge declarations are currently not supported".to_string());
 
                 error.add_span(*merge_location).add_help("cannot use merge declarations yet");
+            }
+            TcError::SymbolNotFound { symbol, location } => {
+                error.code(HashErrorCode::UnresolvedSymbol).title(format!(
+                    "cannot find name `{}` in the current scope",
+                    self.tc_env().env().with(*symbol)
+                ));
+
+                error.add_span(*location).add_info("not found in the current scope");
+            }
+            TcError::CannotUseModuleInValuePosition { location } => {
+                error
+                    .code(HashErrorCode::UnresolvedSymbol)
+                    .title("cannot use a module in expression position");
+
+                error
+                    .add_span(*location)
+                    .add_info("cannot use this in expression position as it is a module");
+            }
+            TcError::CannotUseDataTypeInValuePosition { location } => {
+                error
+                    .code(HashErrorCode::UnresolvedSymbol)
+                    .title("cannot use a data type in expression position")
+                    .add_help("consider using a constructor call instead");
+
+                error
+                    .add_span(*location)
+                    .add_info("cannot use this in expression position as it is a data type");
             }
         }
     }

@@ -7,10 +7,10 @@ use indexmap::IndexMap;
 
 use super::env::{AccessToEnv, WithEnv};
 use crate::new::{
-    data::DataDefId,
+    data::{CtorDefId, DataDefId},
     defs::DefParamGroupId,
     fns::FnDefId,
-    mods::ModDefId,
+    mods::{ModDefId, ModMemberId},
     params::ParamId,
     scopes::{StackId, StackMemberId},
     symbols::Symbol,
@@ -21,39 +21,15 @@ pub enum BindingKind {
     /// A binding that is a module member.
     ///
     /// For example, `mod { Q := struct(); Q }`
-    ModMember(BindingOrigin<ModDefId, usize>),
+    ModMember(ModDefId, ModMemberId),
     /// A binding that is a constructor definition.
     ///
     /// For example, `false`, `None`, `Some(_)`.
-    Ctor(BindingOrigin<DataDefId, usize>),
+    Ctor(DataDefId, CtorDefId),
     /// A binding that represents a parameter variable of a function.
     ///
     /// For example, `(x: i32) => x`
     BoundVar(BoundVarOrigin),
-}
-
-/// The origin of a binding, which consists of a definition (whatever it may be)
-/// ID, and an index into that definition's "members".
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BindingOrigin<Id, Index>
-where
-    Id: fmt::Debug + Copy + Eq,
-    Index: fmt::Debug + Copy + Eq,
-{
-    pub id: Id,
-    pub index: Index,
-}
-
-impl From<BindingOrigin<StackId, usize>> for StackMemberId {
-    fn from(value: BindingOrigin<StackId, usize>) -> Self {
-        (value.id, value.index)
-    }
-}
-
-impl From<StackMemberId> for BindingOrigin<StackId, usize> {
-    fn from(value: StackMemberId) -> Self {
-        BindingOrigin { id: value.0, index: value.1 }
-    }
 }
 
 /// All the different places a bound variable can originate from.
@@ -74,7 +50,7 @@ pub enum BoundVarOrigin {
     /// Stack member.
     ///
     /// For example, `a` in `{ a := 3; a }`
-    StackMember(BindingOrigin<StackId, usize>),
+    StackMember(StackMemberId),
 }
 
 /// A binding.
@@ -124,6 +100,7 @@ impl Context {
     /// Enter a new scope in the context.
     pub fn add_scope(&self, kind: ScopeKind) {
         self.scope_kinds.borrow_mut().push(kind);
+        self.scope_levels.borrow_mut().push(self.members.borrow().len());
     }
 
     /// Exit the last entered scope in the context
@@ -182,7 +159,7 @@ impl Context {
     }
 
     /// Get the kind of the current scope.
-    pub fn get_scope_kind(&self) -> ScopeKind {
+    pub fn get_current_scope_kind(&self) -> ScopeKind {
         self.scope_kinds.borrow().last().copied().unwrap_or_else(|| {
             panic!("tried to get the scope kind of a context with no scopes");
         })
@@ -191,10 +168,10 @@ impl Context {
     /// Get the current scope level.
     pub fn get_current_scope_level(&self) -> usize {
         let scope_levels = self.scope_levels.borrow();
-        match scope_levels.last() {
-            Some(last_level) => *last_level,
-            None => panic!("tried to get the scope level of a context with no scopes"),
+        if scope_levels.is_empty() {
+            panic!("tried to get the scope level of a context with no scopes");
         }
+        scope_levels.len() - 1
     }
 
     /// Get all the scope levels in the context.
@@ -255,7 +232,7 @@ impl fmt::Display for WithEnv<'_, &BoundVarOrigin> {
                 write!(f, "{}", self.env().with(*param_id))
             }
             BoundVarOrigin::StackMember(stack_member) => {
-                write!(f, "{}", self.env().with((stack_member.id, stack_member.index)))
+                write!(f, "{}", self.env().with(*stack_member))
             }
         }
     }
@@ -264,16 +241,12 @@ impl fmt::Display for WithEnv<'_, &BoundVarOrigin> {
 impl fmt::Display for WithEnv<'_, Binding> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.value.kind {
-            BindingKind::ModMember(mod_member) => {
-                self.stores().mod_def().map_fast(mod_member.id, |mod_def| {
-                    let member_id = (mod_def.members, mod_member.index);
-                    write!(f, "{}", self.env().with(member_id))
-                })
+            BindingKind::ModMember(_, member_id) => {
+                write!(f, "{}", self.env().with(member_id))
             }
-            BindingKind::Ctor(ctor) => self.stores().data_def().map_fast(ctor.id, |data_def| {
-                let ctor_id = (data_def.ctors, ctor.index);
+            BindingKind::Ctor(_, ctor_id) => {
                 write!(f, "{}", self.env().with(ctor_id))
-            }),
+            }
             BindingKind::BoundVar(bound_var) => {
                 write!(f, "{}", self.env().with(&bound_var))
             }

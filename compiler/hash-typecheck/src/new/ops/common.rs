@@ -71,6 +71,17 @@ pub trait CommonOps: AccessToTcEnv {
         self.stores().symbol().create_with(|symbol| SymbolData { name: Some(name.into()), symbol })
     }
 
+    /// Create a new symbol with the given name, at the given location.
+    fn new_symbol_at_location(
+        &self,
+        name: impl Into<Identifier>,
+        location: SourceLocation,
+    ) -> Symbol {
+        let symbol = self.new_symbol(name);
+        self.stores().location().add_location_to_target(symbol, location);
+        symbol
+    }
+
     /// Create a new internal symbol.
     fn new_fresh_symbol(&self) -> Symbol {
         self.stores().symbol().create_with(|symbol| SymbolData { name: None, symbol })

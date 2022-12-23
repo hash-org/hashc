@@ -10,11 +10,16 @@ use hash_ast::{
 };
 use hash_source::identifier::Identifier;
 use hash_types::new::{
-    environment::{context::ScopeKind, env::AccessToEnv},
-    scopes::StackMemberId,
+    environment::{
+        context::{BindingKind, ScopeKind},
+        env::AccessToEnv,
+    },
+    mods::ModMemberValue,
+    scopes::{BoundVar, StackMemberId},
     symbols::Symbol,
+    terms::Term,
 };
-use hash_utils::store::{CloneStore, Store};
+use hash_utils::store::{CloneStore, SequenceStore, Store};
 
 use super::{
     ast_pass::AstPass,
@@ -25,7 +30,7 @@ use crate::{
     new::{
         diagnostics::error::TcError,
         environment::tc_env::{AccessToTcEnv, TcEnv},
-        ops::AccessToOps,
+        ops::{ast::AstOps, common::CommonOps, AccessToOps},
     },
 };
 
@@ -71,6 +76,14 @@ impl<'tc> SymbolResolutionPass<'tc> {
             in_expr: LightState::new(InExpr::Value),
             bindings_by_name: HeavyState::new(Vec::new()),
         }
+    }
+
+    /// Find a binding by name, returning the symbol of the binding.
+    ///
+    /// This will search the current scope and all parent scopes.
+    /// If the binding is not found, it will return `None`.
+    fn lookup_binding_by_name(&self, name: Identifier) -> Option<Symbol> {
+        self.bindings_by_name.get().iter().rev().find_map(|b| b.get(&name).copied())
     }
 
     /// Run a function in a new scope, and then exit the scope.
@@ -195,6 +208,51 @@ impl<'tc> SymbolResolutionPass<'tc> {
     }
 }
 
+/// An argument group in the AST.
+///
+/// This is either a group of explicit `(a, b, c)` arguments, or a group of
+/// implicit `<a, b, c>` arguments. The former corresponds to the
+/// [`ast::ConstructorCallArg`], while the latter corresponds to the
+/// [`ast::TyArg`].
+#[derive(Copy, Clone, Debug)]
+enum AstArgGroup<'a> {
+    /// A group of explicit `(a, b, c)` arguments.
+    ExplicitArgs(&'a ast::AstNodes<ast::ConstructorCallArg>),
+    /// A group of implicit `<a, b, c>` arguments.
+    ImplicitArgs(&'a ast::AstNodes<ast::TyArg>),
+}
+
+/// A path component in the AST.
+///
+/// A path is a sequence of path components, separated by `::`.
+/// A path component is either a name, or a name followed by a list of
+/// argument groups, each of which is a [`AstArgGroup`].
+///
+/// For example: `Foo::Bar::Baz<T, U>(a, b, c)::Bin(3)`.
+#[derive(Clone, Debug)]
+struct AstPathComponent<'a> {
+    pub(self) name: Symbol,
+    pub(self) args: Vec<AstArgGroup<'a>>,
+}
+
+impl<'tc> SymbolResolutionPass<'tc> {
+    fn resolve_ast_path_component(
+        &self,
+        _component: AstPathComponent<'_>,
+        starting_from: Option<ModMemberValue>,
+        _in_expr: InExpr,
+    ) {
+        match starting_from {
+            Some(_) => todo!(),
+            None => todo!(),
+        }
+    }
+
+    fn resolve_ast_path(&self, path: Vec<AstPathComponent<'_>>, _in_expr: InExpr) {
+        for _component in &path {}
+    }
+}
+
 /// @@Temporary: for now this visitor just walks the AST and enters scopes. The
 /// next step is to resolve symbols in these scopes!.
 impl ast::AstVisitor for SymbolResolutionPass<'_> {
@@ -308,7 +366,7 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
     ) -> Result<Self::DeclarationRet, Self::Error> {
         // If we are in a stack, then we need to add the declaration to the
         // stack's scope. Otherwise the declaration is handled higher up.
-        if let ScopeKind::Stack(_) = self.context().get_scope_kind() {
+        if let ScopeKind::Stack(_) = self.context().get_current_scope_kind() {
             self.for_each_stack_member_of_pat(node.pat.ast_ref(), |member| {
                 self.add_stack_binding(member);
             });
@@ -349,9 +407,98 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
     type VariableExprRet = ();
     fn visit_variable_expr(
         &self,
-        _node: ast::AstNodeRef<ast::VariableExpr>,
+        node: ast::AstNodeRef<ast::VariableExpr>,
     ) -> Result<Self::VariableExprRet, Self::Error> {
-        todo!()
+        let var_name = node.name.ident;
+
+        // Try to lookup the variable in the current scope.
+        match self.lookup_binding_by_name(var_name) {
+            Some(binding_symbol) => {
+                let member = self.context().get_binding(binding_symbol).unwrap();
+                match member.kind {
+                    BindingKind::ModMember(_, mod_member) => {
+                        // This is a module member, so we need to check that it is
+                        // valid in expression position.
+                        let member_term = self.stores().mod_members().get_element(mod_member);
+                        match member_term.value {
+                            ModMemberValue::Data(_) => {
+                                // Cannot use a data type in a value position.
+                                // Constructor calls are handled by `TyFnCall`
+                                // and
+                                // `ConstructorCall` visits.
+                                //
+                                // To reference the type, we should be in a
+                                // type context instead.
+                                self.diagnostics().add_error(
+                                    TcError::CannotUseDataTypeInValuePosition {
+                                        location: self.node_location(node),
+                                    },
+                                );
+                            }
+                            ModMemberValue::Mod(_) => {
+                                // Cannot use a module in a value position.
+                                self.diagnostics().add_error(
+                                    TcError::CannotUseModuleInValuePosition {
+                                        location: self.node_location(node),
+                                    },
+                                );
+                            }
+                            ModMemberValue::Fn(fn_def_id) => {
+                                // If a function is used in a value position, then it is
+                                // the function's address that is used.
+                                self.ast_info()
+                                    .terms()
+                                    .insert(node.id(), self.new_term(Term::FnRef(fn_def_id)));
+                            }
+                        }
+                    }
+                    BindingKind::Ctor(_, _) => {
+                        // This is a constructor, so we need to check that it is
+                        // a unit constructor.
+                        todo!()
+                    }
+                    BindingKind::BoundVar(bound_var_origin) => {
+                        // A bound variable can be used in expression position.
+                        // Further typechecking will ensure this is valid.
+                        self.ast_info().terms().insert(
+                            node.id(),
+                            self.new_term(Term::Var(BoundVar {
+                                name: binding_symbol,
+                                origin: bound_var_origin,
+                            })),
+                        );
+                    }
+                }
+            }
+            None => {
+                // Symbol not found.
+                self.diagnostics().add_error(TcError::SymbolNotFound {
+                    symbol: self.new_symbol(var_name),
+                    location: self.node_location(node),
+                });
+            }
+        }
+
+        Ok(())
+    }
+
+    type NamedTyRet = ();
+    fn visit_named_ty(
+        &self,
+        node: ast::AstNodeRef<ast::NamedTy>,
+    ) -> Result<Self::NamedTyRet, Self::Error> {
+        let var_name = node.name.ident;
+        match self.lookup_binding_by_name(var_name) {
+            Some(binding_symbol) => {
+                println!("binding: {binding_symbol:?}");
+                Ok(())
+            }
+            None => {
+                // @@Todo: diagnostics
+                println!("unbound variable: {var_name}");
+                Ok(())
+            }
+        }
     }
 
     type AccessTyRet = ();
@@ -359,15 +506,7 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         &self,
         _node: ast::AstNodeRef<ast::AccessTy>,
     ) -> Result<Self::AccessTyRet, Self::Error> {
-        todo!()
-    }
-
-    type NamedTyRet = ();
-    fn visit_named_ty(
-        &self,
-        _node: ast::AstNodeRef<ast::NamedTy>,
-    ) -> Result<Self::NamedTyRet, Self::Error> {
-        todo!()
+        Ok(())
     }
 
     type AccessPatRet = ();
@@ -375,7 +514,7 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         &self,
         _node: ast::AstNodeRef<ast::AccessPat>,
     ) -> Result<Self::AccessPatRet, Self::Error> {
-        todo!()
+        Ok(())
     }
 
     type AccessExprRet = ();
@@ -383,6 +522,6 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         &self,
         _node: ast::AstNodeRef<ast::AccessExpr>,
     ) -> Result<Self::AccessExprRet, Self::Error> {
-        todo!()
+        Ok(())
     }
 }
