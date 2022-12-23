@@ -2,6 +2,7 @@
 use core::fmt;
 use std::fmt::Debug;
 
+use hash_source::identifier::Identifier;
 use hash_utils::{
     new_sequence_store_key,
     store::{DefaultSequenceStore, SequenceStore},
@@ -36,7 +37,7 @@ pub type ParamsStore = DefaultSequenceStore<ParamsId, Param>;
 /// positional one.
 #[derive(Debug, Clone, Hash, Copy)]
 pub enum ParamTarget {
-    Name(Symbol),
+    Name(Identifier),
     Position(usize),
 }
 
@@ -79,7 +80,7 @@ impl fmt::Display for WithEnv<'_, ParamsId> {
 impl fmt::Display for WithEnv<'_, ParamTarget> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.value {
-            ParamTarget::Name(name) => write!(f, "{}", self.env().with(name)),
+            ParamTarget::Name(name) => write!(f, "{name}"),
             ParamTarget::Position(pos) => write!(f, "{pos}"),
         }
     }

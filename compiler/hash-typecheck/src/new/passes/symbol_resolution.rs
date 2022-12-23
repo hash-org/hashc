@@ -5,19 +5,23 @@ use std::collections::HashMap;
 ///
 /// Any scoping errors are reported here.
 use hash_ast::{
-    ast, ast_visitor_default_impl,
+    ast::{self, AstNodeRef},
+    ast_visitor_default_impl,
     visitor::{walk, AstVisitor},
 };
-use hash_source::identifier::Identifier;
+use hash_source::{identifier::Identifier, location::Span};
 use hash_types::new::{
+    args::{ArgData, ArgsId},
     environment::{
-        context::{BindingKind, ScopeKind},
+        context::{Binding, BindingKind, ScopeKind},
         env::AccessToEnv,
     },
+    fns::FnCallTerm,
     mods::ModMemberValue,
+    params::ParamTarget,
     scopes::{BoundVar, StackMemberId},
     symbols::Symbol,
-    terms::Term,
+    terms::{Term, TermId},
 };
 use hash_utils::store::{CloneStore, SequenceStore, Store};
 
@@ -28,7 +32,7 @@ use super::{
 use crate::{
     impl_access_to_tc_env,
     new::{
-        diagnostics::error::TcError,
+        diagnostics::error::{TcError, TcResult},
         environment::tc_env::{AccessToTcEnv, TcEnv},
         ops::{ast::AstOps, common::CommonOps, AccessToOps},
     },
@@ -84,6 +88,18 @@ impl<'tc> SymbolResolutionPass<'tc> {
     /// If the binding is not found, it will return `None`.
     fn lookup_binding_by_name(&self, name: Identifier) -> Option<Symbol> {
         self.bindings_by_name.get().iter().rev().find_map(|b| b.get(&name).copied())
+    }
+
+    /// Find a binding by name, returning the symbol of the binding.
+    ///
+    /// Errors if the binding is not found.
+    ///
+    /// See [`SymbolResolutionPass::lookup_binding_by_name()`].
+    fn lookup_binding_by_name_or_error(&self, name: Identifier, span: Span) -> TcResult<Symbol> {
+        self.lookup_binding_by_name(name).ok_or_else(|| TcError::SymbolNotFound {
+            symbol: self.new_symbol(name),
+            location: self.source_location(span),
+        })
     }
 
     /// Run a function in a new scope, and then exit the scope.
@@ -222,6 +238,16 @@ enum AstArgGroup<'a> {
     ImplicitArgs(&'a ast::AstNodes<ast::TyArg>),
 }
 
+impl AstArgGroup<'_> {
+    /// Get the span of this argument group.
+    pub(self) fn span(&self) -> Option<Span> {
+        match self {
+            AstArgGroup::ExplicitArgs(args) => args.span(),
+            AstArgGroup::ImplicitArgs(args) => args.span(),
+        }
+    }
+}
+
 /// A path component in the AST.
 ///
 /// A path is a sequence of path components, separated by `::`.
@@ -231,23 +257,150 @@ enum AstArgGroup<'a> {
 /// For example: `Foo::Bar::Baz<T, U>(a, b, c)::Bin(3)`.
 #[derive(Clone, Debug)]
 struct AstPathComponent<'a> {
-    pub(self) name: Symbol,
+    pub(self) name: AstNodeRef<'a, ast::Name>,
     pub(self) args: Vec<AstArgGroup<'a>>,
 }
 
+impl AstPathComponent<'_> {
+    /// Get the name of this path component.
+    pub(self) fn name(&self) -> AstNodeRef<ast::Name> {
+        self.name
+    }
+
+    /// Get the span of this path component.
+    pub(self) fn span(&self) -> Span {
+        self.name.span.join(self.args.iter().fold(self.name.span(), |acc, arg| {
+            arg.span().map(|s| acc.join(s)).unwrap_or(self.name.span())
+        }))
+    }
+}
+
+/// The result of resolving a path component.
+///
+/// This is either a [`ModMemberValue`], which can
+/// support further access, or a [`TermId`], which
+/// is a terminal value.
+#[derive(Clone, Copy, Debug)]
+enum ResolvedAstPathComponent {
+    ModMember(ModMemberValue),
+    Term(TermId),
+}
+
 impl<'tc> SymbolResolutionPass<'tc> {
-    fn resolve_ast_path_component(
+    /// Resolve a name starting from the given [`ModMemberValue`], or the
+    /// current context if no such value is given.
+    ///
+    /// Returns the binding that the name resolves to.
+    fn resolve_ast_name(
         &self,
-        _component: AstPathComponent<'_>,
-        starting_from: Option<ModMemberValue>,
-        _in_expr: InExpr,
-    ) {
+        name: AstNodeRef<ast::Name>,
+        starting_from: Option<(ModMemberValue, Span)>,
+    ) -> TcResult<Binding> {
+        let var_name = name.ident;
+
         match starting_from {
-            Some(_) => todo!(),
-            None => todo!(),
+            Some((member_value, span)) => match member_value {
+                // If we are starting from a module or data type, we need to enter their scopes.
+                ModMemberValue::Data(data_def_id) => self
+                    .enter_scope(ScopeKind::Data(data_def_id), || {
+                        self.resolve_ast_name(name, None)
+                    }),
+                ModMemberValue::Mod(mod_def_id) => self
+                    .enter_scope(ScopeKind::Mod(mod_def_id), || self.resolve_ast_name(name, None)),
+                // Cannot use a function as a namespace.
+                ModMemberValue::Fn(_) => {
+                    Err(TcError::InvalidNamespaceSubject { location: self.source_location(span) })
+                }
+            },
+            None => {
+                // If there is no start point, try to lookup the variable in the current scope.
+                match self.lookup_binding_by_name(var_name) {
+                    Some(binding_symbol) => Ok(self.context().get_binding(binding_symbol).unwrap()),
+                    None => {
+                        // Symbol not found.
+                        Err(TcError::SymbolNotFound {
+                            symbol: self.new_symbol(var_name),
+                            location: self.node_location(name),
+                        })
+                    }
+                }
+            }
         }
     }
 
+    /// Make [`ArgsId`] from an AST argument group, with holes for all the
+    /// arguments.
+    fn make_args_from_ast_arg_group(&self, group: &AstArgGroup) -> ArgsId {
+        // @@Todo: register to ast info
+        macro_rules! make_args_from_ast_args {
+            ($args:expr) => {
+                self.param_ops().create_args($args.iter().enumerate().map(|(i, arg)| {
+                    return ArgData {
+                        target: arg
+                            .name
+                            .as_ref()
+                            .map(|name| ParamTarget::Name(name.ident))
+                            .unwrap_or_else(|| ParamTarget::Position(i)),
+                        value: self.new_term_hole(),
+                    };
+                }))
+            };
+        }
+        match group {
+            AstArgGroup::ExplicitArgs(args) => make_args_from_ast_args!(args),
+            AstArgGroup::ImplicitArgs(args) => make_args_from_ast_args!(args),
+        }
+    }
+
+    /// Wrap a term in a function call, given a list of arguments as a list of
+    /// [`AstArgGroup`].
+    ///
+    /// Creates a new [`TermId`], which is a term that represents the
+    /// function call, and might be nested depending on `args`.
+    fn wrap_term_in_fn_call_from_ast_args(&self, subject: TermId, args: &[AstArgGroup]) -> TermId {
+        let mut current_subject = subject;
+        for arg_group in args {
+            let args = self.make_args_from_ast_arg_group(arg_group);
+            current_subject = self.new_term(Term::FnCall(FnCallTerm {
+                subject: current_subject,
+                args,
+                implicit: matches!(arg_group, AstArgGroup::ImplicitArgs(_)),
+            }));
+        }
+        current_subject
+    }
+
+    /// Resolve a path component, starting from the given [`ModMemberValue`] if
+    /// present, or the current context if not. Also takes into account if
+    /// we are in a type or value context.
+    ///
+    /// Returns a [`ResolvedAstPathComponent`] which might or might not support
+    /// further accessing.
+    fn resolve_ast_path_component(
+        &self,
+        component: AstPathComponent<'_>,
+        starting_from: Option<(ModMemberValue, Span)>,
+        _in_expr: InExpr,
+    ) -> TcResult<ResolvedAstPathComponent> {
+        let binding = self.resolve_ast_name(component.name, starting_from)?;
+
+        match binding.kind {
+            BindingKind::ModMember(_, _) => todo!(),
+            BindingKind::Ctor(_, _) => todo!(),
+            BindingKind::BoundVar(bound_var) => {
+                // If the subject without args is a bound variable, then the
+                // rest are function arguments.
+                Ok(ResolvedAstPathComponent::Term(self.wrap_term_in_fn_call_from_ast_args(
+                    self.new_term(Term::Var(BoundVar { name: binding.name, origin: bound_var })),
+                    &component.args,
+                )))
+            }
+        }
+    }
+
+    /// Resolve a path in the current context.
+    ///
+    /// @@Todo: return
     fn resolve_ast_path(&self, path: Vec<AstPathComponent<'_>>, _in_expr: InExpr) {
         for _component in &path {}
     }

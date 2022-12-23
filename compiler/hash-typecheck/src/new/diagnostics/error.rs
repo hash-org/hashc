@@ -24,6 +24,8 @@ pub enum TcError {
     CannotUseModuleInValuePosition { location: SourceLocation },
     /// Cannot use a data type in a value position.
     CannotUseDataTypeInValuePosition { location: SourceLocation },
+    /// Cannot use the subject as a namespace.
+    InvalidNamespaceSubject { location: SourceLocation },
 }
 
 pub type TcResult<T> = Result<T, TcError>;
@@ -96,6 +98,15 @@ impl<'tc> WithTcEnv<'tc, &TcError> {
                 error
                     .add_span(*location)
                     .add_info("cannot use this in expression position as it is a data type");
+            }
+            TcError::InvalidNamespaceSubject { location } => {
+                error
+                    .code(HashErrorCode::UnresolvedSymbol)
+                    .title("only data types and modules can be used as namespacing subjects");
+
+                error
+                    .add_span(*location)
+                    .add_info("cannot use this as a subject of a namespace access");
             }
         }
     }
