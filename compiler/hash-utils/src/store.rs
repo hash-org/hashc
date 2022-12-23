@@ -775,7 +775,7 @@ impl<K: Copy + Eq + Hash, V: Clone> PartialStore<K, V> for DefaultPartialStore<K
 /// [`RefCell<Vec<_>>`], so that there isn't additional overhead when
 /// reading/writing elements; you can take references out of it. The trade-off
 /// is that the value needs to implement [`Copy`].
-pub trait CellStore<Key: StoreKey, Value: Copy> {
+pub trait AppendOnlyStore<Key: StoreKey, Value: Copy> {
     /// Get a reference to the internal data of the store.
     ///
     /// This should only be used to implement new store methods, not to access
@@ -804,32 +804,27 @@ pub trait CellStore<Key: StoreKey, Value: Copy> {
         let data = self.internal_data();
         &data[key.to_index()]
     }
-
-    // fn set(&self, key: Key, value: Value) {
-    //     let data = self.internal_data();
-    //     data[key.to_index()] = value;
-    // }
 }
 
-/// A default implementation of [`PartialStore`].
-pub struct DefaultCellStore<K, V> {
+/// A default implementation of [`DefaultAppendOnlyStore`].
+pub struct DefaultAppendOnlyStore<K, V> {
     data: AppendOnlyVec<V>,
     _phantom: PhantomData<K>,
 }
 
-impl<K, V> Default for DefaultCellStore<K, V> {
+impl<K, V> Default for DefaultAppendOnlyStore<K, V> {
     fn default() -> Self {
         Self { data: AppendOnlyVec::new(), _phantom: PhantomData }
     }
 }
 
-impl<K, V> DefaultCellStore<K, V> {
+impl<K, V> DefaultAppendOnlyStore<K, V> {
     pub fn new() -> Self {
         Self::default()
     }
 }
 
-impl<K: StoreKey, V: Copy> CellStore<K, V> for DefaultCellStore<K, V> {
+impl<K: StoreKey, V: Copy> AppendOnlyStore<K, V> for DefaultAppendOnlyStore<K, V> {
     fn internal_data(&self) -> &AppendOnlyVec<V> {
         &self.data
     }
