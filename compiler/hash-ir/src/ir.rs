@@ -1,7 +1,11 @@
 //! Hash Compiler Intermediate Representation (IR) crate. This module is still
 //! under construction and is subject to change.
 use core::slice;
-use std::{cmp::Ordering, fmt, iter::once};
+use std::{
+    cmp::Ordering,
+    fmt,
+    iter::{self, once},
+};
 
 use hash_ast::ast;
 use hash_source::{
@@ -647,15 +651,37 @@ pub struct Terminator {
     pub span: Span,
 }
 
+pub type SuccessorsMut<'a> =
+    iter::Chain<std::option::IntoIter<&'a mut BasicBlock>, slice::IterMut<'a, BasicBlock>>;
+
 impl Terminator {
     /// Get all of the successors of a [Terminator].
-    pub fn successors(&self) -> SmallVec<[BasicBlock; 4]> {
+    pub fn successors(&self) -> impl Iterator<Item = BasicBlock> + '_ {
         match self.kind {
-            TerminatorKind::Goto(target) => smallvec![target],
-            TerminatorKind::Switch { ref targets, .. } => targets.iter_targets().collect(),
-            TerminatorKind::Call { target: Some(target), .. } => smallvec![target],
-            TerminatorKind::Assert { target, .. } => smallvec![target],
-            _ => smallvec![],
+            TerminatorKind::Goto(target)
+            | TerminatorKind::Call { target: Some(target), .. }
+            | TerminatorKind::Assert { target, .. } => {
+                Some(target).into_iter().chain([].iter().copied())
+            }
+            TerminatorKind::Switch { ref targets, .. } => {
+                targets.otherwise.into_iter().chain(targets.targets.iter().copied())
+            }
+            _ => None.into_iter().chain([].iter().copied()),
+        }
+    }
+
+    /// Get all of the successors of a [Terminator] as mutable references.
+    pub fn successors_mut(&mut self) -> SuccessorsMut<'_> {
+        match self.kind {
+            TerminatorKind::Goto(ref mut target)
+            | TerminatorKind::Call { target: Some(ref mut target), .. }
+            | TerminatorKind::Assert { ref mut target, .. } => {
+                Some(target).into_iter().chain(&mut [])
+            }
+            TerminatorKind::Switch { ref mut targets, .. } => {
+                targets.otherwise.as_mut().into_iter().chain(targets.targets.iter_mut())
+            }
+            _ => None.into_iter().chain(&mut []),
         }
     }
 
@@ -686,18 +712,24 @@ impl Terminator {
 /// over all the targets, etc.
 #[derive(Debug, PartialEq, Eq)]
 pub struct SwitchTargets {
-    /// The jump table, contains corresponding values to *jump* on and the
-    /// location of where the jump goes to. The values are stored as an
-    /// [u128] because we only deal with **small** integral types, for larger
-    /// integer values, we default to using `Eq` check. Since the value is
-    /// stored as an [u128], this is nonsensical when it comes using these
-    /// values, which is why a **bias** needs to be applied before properly
-    /// reading the value which can be derived from the integral type that
-    /// is being matched on.
+    /// The values are stored as an [u128] because we only deal with **small**
+    /// integral types, for larger integer values, we default to using `Eq`
+    /// check. Since the value is stored as an [u128], this is nonsensical
+    /// when it comes using these values, which is why a **bias** needs to
+    /// be applied before properly reading the value which can be derived
+    /// from the integral type that is being matched on.
     ///
     /// N.B. All values within the table are unique, there cannot be multiple
     /// targets for the same value.
-    pub table: SmallVec<[(u128, BasicBlock); 1]>,
+    ///
+    /// @@Todo: It would be nice to have a unified `table`, but ~~fucking~~
+    /// iterators!
+    pub values: SmallVec<[u128; 1]>,
+
+    /// The jump table, contains corresponding values to *jump* on and the
+    /// location of where the jump goes to. The index within `values` is the
+    /// relative jump location that is used when performing the jump.
+    pub targets: SmallVec<[BasicBlock; 1]>,
 
     /// This is the type that is used to represent the values within
     /// the jump table. This will be used to create the appropriate
@@ -719,7 +751,9 @@ impl SwitchTargets {
         ty: IrTyId,
         otherwise: Option<BasicBlock>,
     ) -> Self {
-        Self { table: targets.collect(), ty, otherwise }
+        let (values, targets): (SmallVec<[_; 1]>, SmallVec<[_; 1]>) = targets.unzip();
+
+        Self { values, targets, ty, otherwise }
     }
 
     /// Check if there is an `otherwise` block.
@@ -734,12 +768,12 @@ impl SwitchTargets {
 
     /// Iterate all of the associated targets.
     pub fn iter_targets(&self) -> impl Iterator<Item = BasicBlock> + '_ {
-        self.table.iter().map(|(_, target)| *target).chain(self.otherwise.into_iter())
+        self.otherwise.into_iter().chain(self.targets.iter().copied())
     }
 
     /// Replace a successor with another [BasicBlock].
     pub fn replace_edge(&mut self, successor: BasicBlock, replacement: BasicBlock) {
-        for (_, target) in self.table.iter_mut() {
+        for target in self.targets.iter_mut() {
             if *target == successor {
                 *target = replacement;
             }
@@ -753,28 +787,28 @@ impl SwitchTargets {
     }
 
     pub fn iter(&self) -> SwitchTargetsIter<'_> {
-        SwitchTargetsIter { inner: self.table.iter() }
+        SwitchTargetsIter { inner: iter::zip(&self.values, &self.targets) }
     }
 
     /// Find the target for a specific value, if it exists.
     pub fn corresponding_target(&self, value: u128) -> BasicBlock {
-        self.table
+        self.values
             .iter()
-            .find(|(v, _)| *v == value)
-            .map(|(_, b)| *b)
+            .position(|v| *v == value)
+            .map(|pos| self.targets[pos])
             .unwrap_or_else(|| self.otherwise())
     }
 }
 
 pub struct SwitchTargetsIter<'a> {
-    inner: slice::Iter<'a, (u128, BasicBlock)>,
+    inner: iter::Zip<slice::Iter<'a, u128>, slice::Iter<'a, BasicBlock>>,
 }
 
 impl<'a> Iterator for SwitchTargetsIter<'a> {
     type Item = (u128, BasicBlock);
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next().copied()
+        self.inner.next().map(|(val, bb)| (*val, *bb))
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
@@ -893,7 +927,7 @@ impl BasicBlockData {
     /// Return a list of all of the successors of this [BasicBlock].
     pub fn successors(&self) -> SmallVec<[BasicBlock; 4]> {
         match &self.terminator {
-            Some(terminator) => terminator.successors(),
+            Some(terminator) => terminator.successors().collect(),
             None => smallvec![],
         }
     }
