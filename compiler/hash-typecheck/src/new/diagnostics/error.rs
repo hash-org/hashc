@@ -29,6 +29,8 @@ pub enum TcError {
     SymbolNotFound { symbol: Symbol, location: SourceLocation },
     /// Cannot use a module in a value position.
     CannotUseModuleInValuePosition { location: SourceLocation },
+    /// Cannot use a module in a type position.
+    CannotUseModuleInTypePosition { location: SourceLocation },
     /// Cannot use a data type in a value position.
     CannotUseDataTypeInValuePosition { location: SourceLocation },
     /// Cannot use a constructor in a type position.
@@ -100,16 +102,25 @@ impl<'tc> WithTcEnv<'tc, &TcError> {
             }
             TcError::CannotUseModuleInValuePosition { location } => {
                 error
-                    .code(HashErrorCode::UnresolvedSymbol)
+                    .code(HashErrorCode::NonRuntimeInstantiable)
                     .title("cannot use a module in expression position");
 
                 error
                     .add_span(*location)
                     .add_info("cannot use this in expression position as it is a module");
             }
+            TcError::CannotUseModuleInTypePosition { location } => {
+                error
+                    .code(HashErrorCode::ValueCannotBeUsedAsType)
+                    .title("cannot use a module in type position");
+
+                error
+                    .add_span(*location)
+                    .add_info("cannot use this in type position as it is a module");
+            }
             TcError::CannotUseDataTypeInValuePosition { location } => {
                 error
-                    .code(HashErrorCode::UnresolvedSymbol)
+                    .code(HashErrorCode::NonRuntimeInstantiable)
                     .title("cannot use a data type in expression position")
                     .add_help("consider using a constructor call instead");
 
@@ -119,7 +130,7 @@ impl<'tc> WithTcEnv<'tc, &TcError> {
             }
             TcError::CannotUseConstructorInTypePosition { location } => {
                 error
-                    .code(HashErrorCode::UnresolvedSymbol)
+                    .code(HashErrorCode::ValueCannotBeUsedAsType)
                     .title("cannot use a constructor in type position");
 
                 error
@@ -128,7 +139,7 @@ impl<'tc> WithTcEnv<'tc, &TcError> {
             }
             TcError::CannotUseFunctionInTypePosition { location } => {
                 error
-                    .code(HashErrorCode::UnresolvedSymbol)
+                    .code(HashErrorCode::ValueCannotBeUsedAsType)
                     .title("cannot use a function in type position");
 
                 error.add_span(*location).add_info(
@@ -137,7 +148,7 @@ impl<'tc> WithTcEnv<'tc, &TcError> {
             }
             TcError::InvalidNamespaceSubject { location } => {
                 error
-                    .code(HashErrorCode::UnresolvedSymbol)
+                    .code(HashErrorCode::UnsupportedAccess)
                     .title("only data types and modules can be used as namespacing subjects");
 
                 error

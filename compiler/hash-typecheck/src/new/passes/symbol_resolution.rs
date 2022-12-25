@@ -12,14 +12,14 @@ use hash_ast::{
 use hash_source::{identifier::Identifier, location::Span};
 use hash_types::new::{
     args::{ArgData, ArgsId},
-    data::CtorTerm,
+    data::{CtorTerm, DataDefId, DataTy},
     defs::{DefArgGroupData, DefArgsId, DefParamsId},
     environment::{
         context::{Binding, BindingKind, ScopeKind},
         env::AccessToEnv,
     },
     fns::FnCallTerm,
-    mods::ModMemberValue,
+    mods::{ModDefId, ModMemberValue},
     params::ParamTarget,
     scopes::{BoundVar, StackMemberId},
     symbols::Symbol,
@@ -237,6 +237,7 @@ impl<'tc> SymbolResolutionPass<'tc> {
 /// [`ast::ConstructorCallArg`], while the latter corresponds to the
 /// [`ast::TyArg`].
 #[derive(Copy, Clone, Debug)]
+#[allow(dead_code)]
 enum AstArgGroup<'a> {
     /// A group of explicit `(a, b, c)` arguments.
     ExplicitArgs(&'a ast::AstNodes<ast::ConstructorCallArg>),
@@ -268,11 +269,6 @@ struct AstPathComponent<'a> {
 }
 
 impl AstPathComponent<'_> {
-    /// Get the name of this path component.
-    pub(self) fn name(&self) -> AstNodeRef<ast::Name> {
-        self.name
-    }
-
     /// Get the span of this path component.
     pub(self) fn span(&self) -> Span {
         self.name.span.join(self.args.iter().fold(self.name.span(), |acc, arg| {
@@ -288,7 +284,8 @@ impl AstPathComponent<'_> {
 /// is a terminal value.
 #[derive(Clone, Copy, Debug)]
 enum ResolvedAstPathComponent {
-    ModMember(ModMemberValue),
+    Data(DataDefId, DefArgsId),
+    Mod(ModDefId, DefArgsId),
     Term(TermId),
     Ty(TyId),
 }
@@ -330,16 +327,8 @@ impl<'tc> SymbolResolutionPass<'tc> {
             },
             None => {
                 // If there is no start point, try to lookup the variable in the current scope.
-                match self.lookup_binding_by_name(var_name) {
-                    Some(binding_symbol) => Ok(self.context().get_binding(binding_symbol).unwrap()),
-                    None => {
-                        // Symbol not found.
-                        Err(TcError::SymbolNotFound {
-                            symbol: self.new_symbol(var_name),
-                            location: self.node_location(name),
-                        })
-                    }
-                }
+                let binding_symbol = self.lookup_binding_by_name_or_error(var_name, name.span())?;
+                Ok(self.context().get_binding(binding_symbol).unwrap())
             }
         }
     }
@@ -347,7 +336,6 @@ impl<'tc> SymbolResolutionPass<'tc> {
     /// Make [`ArgsId`] from an AST argument group, with holes for all the
     /// arguments.
     fn make_args_from_ast_arg_group(&self, group: &AstArgGroup) -> ArgsId {
-        // @@Todo: register to ast info
         macro_rules! make_args_from_ast_args {
             ($args:expr) => {
                 self.param_ops().create_args($args.iter().enumerate().map(|(i, arg)| {
@@ -368,6 +356,8 @@ impl<'tc> SymbolResolutionPass<'tc> {
         }
     }
 
+    /// Make [`DefArgsId`] from a list of AST argument groups, using
+    /// `make_args_from_ast_arg_group` to make each argument group.
     fn make_def_args_from_ast_arg_groups(
         &self,
         groups: &[AstArgGroup],
@@ -473,8 +463,19 @@ impl<'tc> SymbolResolutionPass<'tc> {
             BindingKind::ModMember(_, mod_member_id) => {
                 let mod_member = self.stores().mod_members().get_element(mod_member_id);
                 match mod_member.value {
-                    ModMemberValue::Data(_) | ModMemberValue::Mod(_) => {
-                        Ok(ResolvedAstPathComponent::ModMember(mod_member.value))
+                    ModMemberValue::Data(data_def_id) => {
+                        let data_def_params =
+                            self.stores().data_def().map_fast(data_def_id, |def| def.params);
+                        let args =
+                            self.apply_ast_args_to_def_params(data_def_params, &component.args)?;
+                        Ok(ResolvedAstPathComponent::Data(data_def_id, args))
+                    }
+                    ModMemberValue::Mod(mod_def_id) => {
+                        let mod_def_params =
+                            self.stores().mod_def().map_fast(mod_def_id, |def| def.params);
+                        let args =
+                            self.apply_ast_args_to_def_params(mod_def_params, &component.args)?;
+                        Ok(ResolvedAstPathComponent::Mod(mod_def_id, args))
                     }
                     ModMemberValue::Fn(fn_def_id) => {
                         // If a function is used in a value position, then it is
@@ -485,7 +486,19 @@ impl<'tc> SymbolResolutionPass<'tc> {
                             });
                         }
 
-                        Ok(ResolvedAstPathComponent::Term(self.new_term(Term::FnRef(fn_def_id))))
+                        // Apply any arguments to the function.
+                        let resultant_term = self.wrap_term_in_fn_call_from_ast_args(
+                            self.new_term(Term::FnRef(fn_def_id)),
+                            &component.args,
+                        );
+
+                        // Return a term or a type as appropriate by `in_expr`.
+                        match in_expr {
+                            InExpr::Ty => Ok(ResolvedAstPathComponent::Ty(
+                                self.new_ty(Ty::Eval(resultant_term)),
+                            )),
+                            InExpr::Value => Ok(ResolvedAstPathComponent::Term(resultant_term)),
+                        }
                     }
                 }
             }
@@ -550,11 +563,20 @@ impl<'tc> SymbolResolutionPass<'tc> {
             // For each component, we need to resolve it, and then namespace
             // further if possible.
             match resolved_path {
-                ResolvedAstPathComponent::ModMember(mod_member) => {
+                ResolvedAstPathComponent::Mod(mod_def_id, _) => {
                     // Namespace further if it is a mod member.
                     resolved_path = self.resolve_ast_path_component(
                         component,
-                        Some((mod_member, component.span())),
+                        Some((ModMemberValue::Mod(mod_def_id), component.span())),
+                        in_expr,
+                        original_node.span(),
+                    )?;
+                }
+                ResolvedAstPathComponent::Data(data_def_id, _) => {
+                    // Namespace further if it is a data member.
+                    resolved_path = self.resolve_ast_path_component(
+                        component,
+                        Some((ModMemberValue::Data(data_def_id), component.span())),
                         in_expr,
                         original_node.span(),
                     )?;
@@ -577,9 +599,68 @@ impl<'tc> SymbolResolutionPass<'tc> {
         // Now we inspect the resultant resolved value and make sure it is compatible in
         // the original context:
         match resolved_path {
-            ResolvedAstPathComponent::ModMember(_) => todo!(),
-            ResolvedAstPathComponent::Term(_) => todo!(),
-            ResolvedAstPathComponent::Ty(_) => todo!(),
+            ResolvedAstPathComponent::Data(data_def_id, args_id) => {
+                match in_expr {
+                    InExpr::Ty => {
+                        // If we are in a type position, then we need to wrap the data in a
+                        // `Ty::Data` type.
+                        Ok(ResolvedAstPath::Ty(
+                            self.new_ty(Ty::Data(DataTy { data_def: data_def_id, args: args_id })),
+                        ))
+                    }
+                    InExpr::Value => {
+                        // If we are in a value position, then it is not valid to use `Data`.
+                        // @@Todo: structs
+                        Err(TcError::CannotUseDataTypeInValuePosition {
+                            location: self.node_location(original_node),
+                        })
+                    }
+                }
+            }
+            ResolvedAstPathComponent::Mod(_, _) => {
+                // This is never valid, so we just return the appropriate error.
+                match in_expr {
+                    InExpr::Ty => Err(TcError::CannotUseModuleInValuePosition {
+                        location: self.node_location(original_node),
+                    }),
+                    InExpr::Value => Err(TcError::CannotUseModuleInTypePosition {
+                        location: self.node_location(original_node),
+                    }),
+                }
+            }
+            ResolvedAstPathComponent::Term(term_id) => {
+                assert!(in_expr == InExpr::Value);
+                Ok(ResolvedAstPath::Term(term_id))
+            }
+            ResolvedAstPathComponent::Ty(ty_id) => {
+                assert!(in_expr == InExpr::Ty);
+                Ok(ResolvedAstPath::Ty(ty_id))
+            }
+        }
+    }
+
+    /// Resolve a path in the current context, and add the result to the node.
+    ///
+    /// If there is an error, add it to the diagnostics.
+    fn resolve_ast_path_and_add_to_node<T: std::fmt::Debug>(
+        &self,
+        path: Vec<AstPathComponent<'_>>,
+        original_node: AstNodeRef<T>,
+    ) {
+        match self.resolve_ast_path(path, self.in_expr.get(), original_node) {
+            Ok(resolved) => match resolved {
+                ResolvedAstPath::Term(term_id) => {
+                    println!("Resolved term: {:?} -> {}", original_node, self.env().with(term_id));
+                    self.ast_info().terms().insert(original_node.id(), term_id);
+                }
+                ResolvedAstPath::Ty(ty_id) => {
+                    println!("Resolved type: {:?} -> {}", original_node, self.env().with(ty_id));
+                    self.ast_info().tys().insert(original_node.id(), ty_id);
+                }
+            },
+            Err(err) => {
+                self.diagnostics().add_error(err);
+            }
         }
     }
 }
@@ -740,76 +821,10 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         &self,
         node: ast::AstNodeRef<ast::VariableExpr>,
     ) -> Result<Self::VariableExprRet, Self::Error> {
-        let var_name = node.name.ident;
-
-        // Try to lookup the variable in the current scope.
-        match self.lookup_binding_by_name(var_name) {
-            Some(binding_symbol) => {
-                let member = self.context().get_binding(binding_symbol).unwrap();
-                match member.kind {
-                    BindingKind::ModMember(_, mod_member) => {
-                        // This is a module member, so we need to check that it is
-                        // valid in expression position.
-                        let member_term = self.stores().mod_members().get_element(mod_member);
-                        match member_term.value {
-                            ModMemberValue::Data(_) => {
-                                // Cannot use a data type in a value position.
-                                // Constructor calls are handled by `TyFnCall`
-                                // and
-                                // `ConstructorCall` visits.
-                                //
-                                // To reference the type, we should be in a
-                                // type context instead.
-                                self.diagnostics().add_error(
-                                    TcError::CannotUseDataTypeInValuePosition {
-                                        location: self.node_location(node),
-                                    },
-                                );
-                            }
-                            ModMemberValue::Mod(_) => {
-                                // Cannot use a module in a value position.
-                                self.diagnostics().add_error(
-                                    TcError::CannotUseModuleInValuePosition {
-                                        location: self.node_location(node),
-                                    },
-                                );
-                            }
-                            ModMemberValue::Fn(fn_def_id) => {
-                                // If a function is used in a value position, then it is
-                                // the function's address that is used.
-                                self.ast_info()
-                                    .terms()
-                                    .insert(node.id(), self.new_term(Term::FnRef(fn_def_id)));
-                            }
-                        }
-                    }
-                    BindingKind::Ctor(_, _) => {
-                        // This is a constructor, so we need to check that it is
-                        // a unit constructor.
-                        todo!()
-                    }
-                    BindingKind::BoundVar(bound_var_origin) => {
-                        // A bound variable can be used in expression position.
-                        // Further typechecking will ensure this is valid.
-                        self.ast_info().terms().insert(
-                            node.id(),
-                            self.new_term(Term::Var(BoundVar {
-                                name: binding_symbol,
-                                origin: bound_var_origin,
-                            })),
-                        );
-                    }
-                }
-            }
-            None => {
-                // Symbol not found.
-                self.diagnostics().add_error(TcError::SymbolNotFound {
-                    symbol: self.new_symbol(var_name),
-                    location: self.node_location(node),
-                });
-            }
-        }
-
+        self.resolve_ast_path_and_add_to_node(
+            vec![AstPathComponent { name: node.name.ast_ref(), args: vec![] }],
+            node,
+        );
         Ok(())
     }
 
@@ -818,18 +833,11 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         &self,
         node: ast::AstNodeRef<ast::NamedTy>,
     ) -> Result<Self::NamedTyRet, Self::Error> {
-        let var_name = node.name.ident;
-        match self.lookup_binding_by_name(var_name) {
-            Some(binding_symbol) => {
-                println!("binding: {binding_symbol:?}");
-                Ok(())
-            }
-            None => {
-                // @@Todo: diagnostics
-                println!("unbound variable: {var_name}");
-                Ok(())
-            }
-        }
+        self.resolve_ast_path_and_add_to_node(
+            vec![AstPathComponent { name: node.name.ast_ref(), args: vec![] }],
+            node,
+        );
+        Ok(())
     }
 
     type AccessTyRet = ();
