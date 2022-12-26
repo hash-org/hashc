@@ -9,8 +9,10 @@ use hash_ast::{
     ast_visitor_default_impl,
     visitor::{walk, AstVisitor},
 };
+use hash_reporting::macros::panic_on_span;
 use hash_source::{identifier::Identifier, location::Span};
 use hash_types::new::{
+    access::AccessTerm,
     args::{ArgData, ArgsId},
     data::{CtorTerm, DataDefId, DataTy},
     defs::{DefArgGroupData, DefArgsId, DefParamsId},
@@ -266,7 +268,8 @@ impl AstArgGroup<'_> {
 /// For example: `Foo::Bar::Baz<T, U>(a, b, c)::Bin(3)`.
 #[derive(Clone, Debug)]
 struct AstPathComponent<'a> {
-    pub(self) name: &'a ast::AstNode<ast::Name>,
+    pub(self) name: Identifier,
+    pub(self) name_span: Span,
     pub(self) args: Vec<AstArgGroup<'a>>,
 }
 
@@ -278,9 +281,11 @@ type AstPath<'a> = Vec<AstPathComponent<'a>>;
 impl AstPathComponent<'_> {
     /// Get the span of this path component.
     pub(self) fn span(&self) -> Span {
-        self.name.span().join(self.args.iter().fold(self.name.span(), |acc, arg| {
-            arg.span().map(|s| acc.join(s)).unwrap_or(self.name.span())
-        }))
+        self.name_span.join(
+            self.args
+                .iter()
+                .fold(self.name_span, |acc, arg| arg.span().map(|s| acc.join(s)).unwrap_or(acc)),
+        )
     }
 }
 
@@ -314,20 +319,21 @@ impl<'tc> SymbolResolutionPass<'tc> {
     /// Returns the binding that the name resolves to.
     fn resolve_ast_name(
         &self,
-        name: AstNodeRef<ast::Name>,
+        name: Identifier,
+        name_span: Span,
         starting_from: Option<(ModMemberValue, Span)>,
     ) -> TcResult<Binding> {
-        let var_name = name.ident;
-
         match starting_from {
             Some((member_value, span)) => match member_value {
                 // If we are starting from a module or data type, we need to enter their scopes.
                 ModMemberValue::Data(data_def_id) => self
                     .enter_scope(ScopeKind::Data(data_def_id), || {
-                        self.resolve_ast_name(name, None)
+                        self.resolve_ast_name(name, name_span, None)
                     }),
                 ModMemberValue::Mod(mod_def_id) => self
-                    .enter_scope(ScopeKind::Mod(mod_def_id), || self.resolve_ast_name(name, None)),
+                    .enter_scope(ScopeKind::Mod(mod_def_id), || {
+                        self.resolve_ast_name(name, name_span, None)
+                    }),
                 // Cannot use a function as a namespace.
                 ModMemberValue::Fn(_) => {
                     Err(TcError::InvalidNamespaceSubject { location: self.source_location(span) })
@@ -335,7 +341,7 @@ impl<'tc> SymbolResolutionPass<'tc> {
             },
             None => {
                 // If there is no start point, try to lookup the variable in the current scope.
-                let binding_symbol = self.lookup_binding_by_name_or_error(var_name, name.span())?;
+                let binding_symbol = self.lookup_binding_by_name_or_error(name, name_span)?;
                 Ok(self.context().get_binding(binding_symbol).unwrap())
             }
         }
@@ -465,7 +471,7 @@ impl<'tc> SymbolResolutionPass<'tc> {
         in_expr: InExpr,
         total_span: Span,
     ) -> TcResult<ResolvedAstPathComponent> {
-        let binding = self.resolve_ast_name(component.name.ast_ref(), starting_from)?;
+        let binding = self.resolve_ast_name(component.name, component.name_span, starting_from)?;
 
         match binding.kind {
             BindingKind::ModMember(_, mod_member_id) => {
@@ -681,7 +687,11 @@ impl<'tc> SymbolResolutionPass<'tc> {
         &self,
         node: AstNodeRef<'a, ast::VariableExpr>,
     ) -> TcResult<AstPath<'a>> {
-        Ok(vec![AstPathComponent { name: &node.body.name, args: vec![] }])
+        Ok(vec![AstPathComponent {
+            name: node.body.name.ident,
+            name_span: node.span(),
+            args: vec![],
+        }])
     }
 
     /// Use the given [`ast::NamedTy`] as a path.
@@ -689,7 +699,11 @@ impl<'tc> SymbolResolutionPass<'tc> {
         &self,
         node: AstNodeRef<'a, ast::NamedTy>,
     ) -> TcResult<AstPath<'a>> {
-        Ok(vec![AstPathComponent { name: &node.body.name, args: vec![] }])
+        Ok(vec![AstPathComponent {
+            name: node.body.name.ident,
+            name_span: node.span(),
+            args: vec![],
+        }])
     }
 
     /// Use the given [`ast::AccessTy`] as a path.
@@ -698,16 +712,44 @@ impl<'tc> SymbolResolutionPass<'tc> {
         node: AstNodeRef<'a, ast::AccessTy>,
     ) -> TcResult<AstPath<'a>> {
         let mut root = self.ty_as_ast_path(node.body.subject.ast_ref())?;
-        root.push(AstPathComponent { name: &node.body.property, args: vec![] });
+        root.push(AstPathComponent {
+            name: node.body.property.ident,
+            name_span: node.body.property.span(),
+            args: vec![],
+        });
         Ok(root)
     }
 
-    /// Use the given [`ast::AccessExpr`] as a path.
+    /// Use the given [`ast::AccessExpr`] as a path, if applicable.
+    ///
+    /// Otherwise, this might be a struct/tuple property access, which is not a
+    /// path, and this will return `None`.
     fn access_expr_as_ast_path<'a>(
         &self,
-        _node: AstNodeRef<'a, ast::AccessExpr>,
-    ) -> TcResult<AstPath<'a>> {
-        todo!()
+        node: AstNodeRef<'a, ast::AccessExpr>,
+    ) -> TcResult<Option<AstPath<'a>>> {
+        match node.kind {
+            ast::AccessKind::Namespace => match node.property.body() {
+                ast::PropertyKind::NamedField(name) => {
+                    let mut root = self.expr_as_ast_path(node.body.subject.ast_ref())?;
+                    root.push(AstPathComponent {
+                        name: *name,
+                        name_span: node.property.span(),
+                        args: vec![],
+                    });
+                    Ok(Some(root))
+                }
+                ast::PropertyKind::NumericField(_) => {
+                    // Should have been caught at semantics
+                    panic_on_span!(
+                        self.node_location(node),
+                        self.source_map(),
+                        "Namespace followed by numeric field found"
+                    )
+                }
+            },
+            ast::AccessKind::Property => Ok(None),
+        }
     }
 
     /// Use the given [`ast::Expr`] as a path, if possible.
@@ -738,7 +780,11 @@ impl<'tc> SymbolResolutionPass<'tc> {
                 match path.pop() {
                     Some(mut component) => {
                         component.args.push(AstArgGroup::ImplicitArgs(&ty_fn_call.args));
-                        path.push(AstPathComponent { name: component.name, args: component.args });
+                        path.push(AstPathComponent {
+                            name: component.name,
+                            name_span: component.name_span,
+                            args: component.args,
+                        });
                         Ok(path)
                     }
                     None => panic!("Expected at least one path component"),
@@ -944,6 +990,7 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         &self,
         _node: ast::AstNodeRef<ast::AccessPat>,
     ) -> Result<Self::AccessPatRet, Self::Error> {
+        // @@Todo
         Ok(())
     }
 
@@ -953,7 +1000,21 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         node: ast::AstNodeRef<ast::AccessExpr>,
     ) -> Result<Self::AccessExprRet, Self::Error> {
         let path = self.access_expr_as_ast_path(node)?;
-        self.resolve_ast_path_and_add_to_node(&path, node);
+        match path {
+            Some(path) => {
+                self.resolve_ast_path_and_add_to_node(&path, node);
+            }
+            None => {
+                // This is just a property access, so we create it here:
+                walk::walk_access_expr(self, node)?;
+
+                // @@Correctness: Might need to match instead of unwrap?
+                let subject = self.ast_info().terms().get_data_by_node(node.subject.id()).unwrap();
+                let access_term = self
+                    .new_term(Term::Access(AccessTerm { subject, field: (*node.property).into() }));
+                self.ast_info().terms().insert(node.id(), access_term);
+            }
+        }
         Ok(())
     }
 
@@ -962,6 +1023,7 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         &self,
         _node: AstNodeRef<ast::ConstructorPat>,
     ) -> Result<Self::ConstructorPatRet, Self::Error> {
+        // @@Todo
         Ok(())
     }
 }
