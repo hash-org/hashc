@@ -271,6 +271,7 @@ struct AstPathComponent<'a> {
     pub(self) name: Identifier,
     pub(self) name_span: Span,
     pub(self) args: Vec<AstArgGroup<'a>>,
+    pub(self) original_node_id: ast::AstNodeId,
 }
 
 /// A path in the AST.
@@ -556,6 +557,78 @@ impl<'tc> SymbolResolutionPass<'tc> {
         }
     }
 
+    /// Add the resolved path component to the AST info term and type stores.
+    ///
+    /// The given `path` is the original path that was resolved to `resolved`.
+    fn add_resolved_ast_path_component_to_ast_info(
+        &self,
+        resolved: &ResolvedAstPathComponent,
+        path: &AstPathComponent,
+    ) {
+        match resolved {
+            ResolvedAstPathComponent::Mod(_, _) | ResolvedAstPathComponent::Data(_, _) => {
+                // @@Future: we could record the data def etc id in the AST info
+            }
+            ResolvedAstPathComponent::Term(term_id) => {
+                self.ast_info().terms().insert(path.original_node_id, *term_id)
+            }
+            ResolvedAstPathComponent::Ty(ty_id) => {
+                self.ast_info().tys().insert(path.original_node_id, *ty_id)
+            }
+        }
+    }
+
+    /// Convert a resolved path component into a resolved path.
+    fn resolved_path_component_to_path<T>(
+        &self,
+        resolved_path: ResolvedAstPathComponent,
+        in_expr: InExpr,
+        original_node: AstNodeRef<T>,
+    ) -> TcResult<ResolvedAstPath> {
+        match resolved_path {
+            ResolvedAstPathComponent::Data(data_def_id, args_id) => {
+                match in_expr {
+                    InExpr::Ty => {
+                        // If we are in a type position, then we need to wrap the data in a
+                        // `Ty::Data` type.
+                        let ty =
+                            self.new_ty(Ty::Data(DataTy { data_def: data_def_id, args: args_id }));
+                        self.ast_info().tys().insert(original_node.id(), ty);
+                        Ok(ResolvedAstPath::Ty(ty))
+                    }
+                    InExpr::Value => {
+                        // If we are in a value position, then it is not valid to use `Data`.
+                        // @@Todo: structs
+                        Err(TcError::CannotUseDataTypeInValuePosition {
+                            location: self.node_location(original_node),
+                        })
+                    }
+                }
+            }
+            ResolvedAstPathComponent::Mod(_, _) => {
+                // This is never valid, so we just return the appropriate error.
+                match in_expr {
+                    InExpr::Ty => Err(TcError::CannotUseModuleInValuePosition {
+                        location: self.node_location(original_node),
+                    }),
+                    InExpr::Value => Err(TcError::CannotUseModuleInTypePosition {
+                        location: self.node_location(original_node),
+                    }),
+                }
+            }
+            ResolvedAstPathComponent::Term(term_id) => {
+                assert!(in_expr == InExpr::Value);
+                self.ast_info().terms().insert(original_node.id(), term_id);
+                Ok(ResolvedAstPath::Term(term_id))
+            }
+            ResolvedAstPathComponent::Ty(ty_id) => {
+                assert!(in_expr == InExpr::Ty);
+                self.ast_info().tys().insert(original_node.id(), ty_id);
+                Ok(ResolvedAstPath::Ty(ty_id))
+            }
+        }
+    }
+
     /// Resolve a path in the current context, returning either a term or a type
     /// as appropriate.
     ///
@@ -572,6 +645,7 @@ impl<'tc> SymbolResolutionPass<'tc> {
 
         let mut resolved_path =
             self.resolve_ast_path_component(&path[0], None, in_expr, original_node.span())?;
+        self.add_resolved_ast_path_component_to_ast_info(&resolved_path, &path[0]);
 
         for (index, component) in path.iter().enumerate().skip(1) {
             // For each component, we need to resolve it, and then namespace
@@ -607,75 +681,15 @@ impl<'tc> SymbolResolutionPass<'tc> {
                         ),
                     });
                 }
-            }
+            };
+
+            // Whatever we resolved, we need to add it to the AST info.
+            self.add_resolved_ast_path_component_to_ast_info(&resolved_path, component)
         }
 
         // Now we inspect the resultant resolved value and make sure it is compatible in
         // the original context:
-        match resolved_path {
-            ResolvedAstPathComponent::Data(data_def_id, args_id) => {
-                match in_expr {
-                    InExpr::Ty => {
-                        // If we are in a type position, then we need to wrap the data in a
-                        // `Ty::Data` type.
-                        Ok(ResolvedAstPath::Ty(
-                            self.new_ty(Ty::Data(DataTy { data_def: data_def_id, args: args_id })),
-                        ))
-                    }
-                    InExpr::Value => {
-                        // If we are in a value position, then it is not valid to use `Data`.
-                        // @@Todo: structs
-                        Err(TcError::CannotUseDataTypeInValuePosition {
-                            location: self.node_location(original_node),
-                        })
-                    }
-                }
-            }
-            ResolvedAstPathComponent::Mod(_, _) => {
-                // This is never valid, so we just return the appropriate error.
-                match in_expr {
-                    InExpr::Ty => Err(TcError::CannotUseModuleInValuePosition {
-                        location: self.node_location(original_node),
-                    }),
-                    InExpr::Value => Err(TcError::CannotUseModuleInTypePosition {
-                        location: self.node_location(original_node),
-                    }),
-                }
-            }
-            ResolvedAstPathComponent::Term(term_id) => {
-                assert!(in_expr == InExpr::Value);
-                Ok(ResolvedAstPath::Term(term_id))
-            }
-            ResolvedAstPathComponent::Ty(ty_id) => {
-                assert!(in_expr == InExpr::Ty);
-                Ok(ResolvedAstPath::Ty(ty_id))
-            }
-        }
-    }
-
-    /// Resolve a path in the current context, and add the result to the node.
-    ///
-    /// If there is an error, add it to the diagnostics.
-    fn resolve_ast_path_and_add_to_node<T: std::fmt::Debug>(
-        &self,
-        path: &AstPath,
-        original_node: AstNodeRef<T>,
-    ) {
-        match self.resolve_ast_path(path, self.in_expr.get(), original_node) {
-            Ok(resolved) => match resolved {
-                ResolvedAstPath::Term(term_id) => {
-                    println!("Resolved term: {:?} -> {}", original_node, self.env().with(term_id));
-                    self.ast_info().terms().insert(original_node.id(), term_id);
-                }
-                ResolvedAstPath::Ty(ty_id) => {
-                    println!("Resolved type: {:?} -> {}", original_node, self.env().with(ty_id));
-                    self.ast_info().tys().insert(original_node.id(), ty_id);
-                }
-            },
-            Err(err) => {
-                self.diagnostics().add_error(err);
-            }
-        }
+        self.resolved_path_component_to_path(resolved_path, in_expr, original_node)
     }
 }
 
@@ -691,33 +705,8 @@ impl<'tc> SymbolResolutionPass<'tc> {
             name: node.body.name.ident,
             name_span: node.span(),
             args: vec![],
+            original_node_id: node.id(),
         }])
-    }
-
-    /// Use the given [`ast::NamedTy`] as a path.
-    fn named_ty_as_ast_path<'a>(
-        &self,
-        node: AstNodeRef<'a, ast::NamedTy>,
-    ) -> TcResult<AstPath<'a>> {
-        Ok(vec![AstPathComponent {
-            name: node.body.name.ident,
-            name_span: node.span(),
-            args: vec![],
-        }])
-    }
-
-    /// Use the given [`ast::AccessTy`] as a path.
-    fn access_ty_as_ast_path<'a>(
-        &self,
-        node: AstNodeRef<'a, ast::AccessTy>,
-    ) -> TcResult<AstPath<'a>> {
-        let mut root = self.ty_as_ast_path(node.body.subject.ast_ref())?;
-        root.push(AstPathComponent {
-            name: node.body.property.ident,
-            name_span: node.body.property.span(),
-            args: vec![],
-        });
-        Ok(root)
     }
 
     /// Use the given [`ast::AccessExpr`] as a path, if applicable.
@@ -731,11 +720,15 @@ impl<'tc> SymbolResolutionPass<'tc> {
         match node.kind {
             ast::AccessKind::Namespace => match node.property.body() {
                 ast::PropertyKind::NamedField(name) => {
-                    let mut root = self.expr_as_ast_path(node.body.subject.ast_ref())?;
+                    let mut root =
+                        self.expr_as_ast_path(node.body.subject.ast_ref())?.ok_or_else(|| {
+                            TcError::InvalidNamespaceSubject { location: self.node_location(node) }
+                        })?;
                     root.push(AstPathComponent {
                         name: *name,
                         name_span: node.property.span(),
                         args: vec![],
+                        original_node_id: node.id(),
                     });
                     Ok(Some(root))
                 }
@@ -752,55 +745,115 @@ impl<'tc> SymbolResolutionPass<'tc> {
         }
     }
 
+    /// Use the given [`ast::ConstructorCallExpr`] as a path.
+    fn constructor_call_as_ast_path<'a>(
+        &self,
+        node: AstNodeRef<'a, ast::ConstructorCallExpr>,
+    ) -> TcResult<AstPath<'a>> {
+        let mut path = self.expr_as_ast_path(node.body.subject.ast_ref())?.ok_or_else(|| {
+            TcError::InvalidNamespaceSubject { location: self.node_location(node) }
+        })?;
+        match path.last_mut() {
+            Some(component) => {
+                component.args.push(AstArgGroup::ExplicitArgs(&node.body.args));
+                Ok(path)
+            }
+            None => panic!("Expected at least one path component"),
+        }
+    }
+
+    /// Use the given [`ast::NamedTy`] as a path.
+    fn named_ty_as_ast_path<'a>(
+        &self,
+        node: AstNodeRef<'a, ast::NamedTy>,
+    ) -> TcResult<AstPath<'a>> {
+        Ok(vec![AstPathComponent {
+            name: node.body.name.ident,
+            name_span: node.span(),
+            args: vec![],
+            original_node_id: node.id(),
+        }])
+    }
+
+    /// Use the given [`ast::AccessTy`] as a path.
+    fn access_ty_as_ast_path<'a>(
+        &self,
+        node: AstNodeRef<'a, ast::AccessTy>,
+    ) -> TcResult<AstPath<'a>> {
+        let mut root = self.ty_as_ast_path(node.body.subject.ast_ref())?.ok_or_else(|| {
+            TcError::InvalidNamespaceSubject { location: self.node_location(node) }
+        })?;
+
+        root.push(AstPathComponent {
+            name: node.body.property.ident,
+            name_span: node.body.property.span(),
+            args: vec![],
+            original_node_id: node.id(),
+        });
+        Ok(root)
+    }
+
+    /// Use the given [`ast::TyFnCall`] as a path.
+    fn ty_fn_call_as_ast_path<'a>(
+        &self,
+        node: AstNodeRef<'a, ast::TyFnCall>,
+    ) -> TcResult<AstPath<'a>> {
+        let mut path = self.expr_as_ast_path(node.body.subject.ast_ref())?.ok_or_else(|| {
+            TcError::InvalidNamespaceSubject { location: self.node_location(node) }
+        })?;
+        match path.last_mut() {
+            Some(component) => {
+                component.args.push(AstArgGroup::ImplicitArgs(&node.body.args));
+                Ok(path)
+            }
+            None => panic!("Expected at least one path component"),
+        }
+    }
+
     /// Use the given [`ast::Expr`] as a path, if possible.
     ///
-    /// Returns an error if the expression is not a path. This is meant to
+    /// Returns `None` if the expression is not a path. This is meant to
     /// be called from other `with_*_as_ast_path` functions.
-    fn expr_as_ast_path<'a>(&self, _node: AstNodeRef<'a, ast::Expr>) -> TcResult<AstPath<'a>> {
-        todo!()
+    fn expr_as_ast_path<'a>(
+        &self,
+        node: AstNodeRef<'a, ast::Expr>,
+    ) -> TcResult<Option<AstPath<'a>>> {
+        match node.body {
+            ast::Expr::Variable(variable_expr) => {
+                let variable_ref = node.with_body(variable_expr);
+                Ok(Some(self.variable_expr_as_ast_path(variable_ref)?))
+            }
+            ast::Expr::ConstructorCall(ctor_expr) => {
+                let ctor_ref = node.with_body(ctor_expr);
+                Ok(Some(self.constructor_call_as_ast_path(ctor_ref)?))
+            }
+            ast::Expr::Access(access_expr) => {
+                let access_ref = node.with_body(access_expr);
+                self.access_expr_as_ast_path(access_ref)
+            }
+            _ => Ok(None),
+        }
     }
 
     /// Use the given [`ast::Ty`] as a path, if possible.
     ///
-    /// Returns an error if the expression is not a path. This is meant to
+    /// Returns `None` if the expression is not a path. This is meant to
     /// be called from other `with_*_as_ast_path` functions.
-    fn ty_as_ast_path<'a>(&self, node: AstNodeRef<'a, ast::Ty>) -> TcResult<AstPath<'a>> {
+    fn ty_as_ast_path<'a>(&self, node: AstNodeRef<'a, ast::Ty>) -> TcResult<Option<AstPath<'a>>> {
         match node.body {
             ast::Ty::Access(access_ty) => {
                 let access_ref = node.with_body(access_ty);
-                self.access_ty_as_ast_path(access_ref)
+                Ok(Some(self.access_ty_as_ast_path(access_ref)?))
             }
             ast::Ty::Named(named_ty) => {
                 let named_ref = node.with_body(named_ty);
-                self.named_ty_as_ast_path(named_ref)
+                Ok(Some(self.named_ty_as_ast_path(named_ref)?))
             }
             ast::Ty::TyFnCall(ty_fn_call) => {
-                let ty_fn_call_ref = node.with_body(ty_fn_call.subject.body());
-                let mut path = self.expr_as_ast_path(ty_fn_call_ref)?;
-                match path.pop() {
-                    Some(mut component) => {
-                        component.args.push(AstArgGroup::ImplicitArgs(&ty_fn_call.args));
-                        path.push(AstPathComponent {
-                            name: component.name,
-                            name_span: component.name_span,
-                            args: component.args,
-                        });
-                        Ok(path)
-                    }
-                    None => panic!("Expected at least one path component"),
-                }
+                let ty_fn_call_ref = node.with_body(ty_fn_call);
+                Ok(Some(self.ty_fn_call_as_ast_path(ty_fn_call_ref)?))
             }
-            ast::Ty::Tuple(_)
-            | ast::Ty::List(_)
-            | ast::Ty::Set(_)
-            | ast::Ty::Map(_)
-            | ast::Ty::Fn(_)
-            | ast::Ty::Ref(_)
-            | ast::Ty::Merge(_)
-            | ast::Ty::Union(_)
-            | ast::Ty::TyFn(_) => {
-                Err(TcError::InvalidNamespaceSubject { location: self.node_location(node) })
-            }
+            _ => Ok(None),
         }
     }
 }
@@ -819,13 +872,10 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         BodyBlock,
         MatchCase,
         Expr,
-        Ty,
-        VariableExpr,
         AccessExpr,
+        Ty,
         AccessPat,
         ConstructorPat,
-        AccessTy,
-        NamedTy,
     );
 
     type ModuleRet = ();
@@ -945,44 +995,53 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
 
     type TyRet = ();
     fn visit_ty(&self, node: ast::AstNodeRef<ast::Ty>) -> Result<Self::TyRet, Self::Error> {
-        self.in_expr.enter(InExpr::Ty, || walk::walk_ty(self, node))?;
+        self.in_expr.enter(InExpr::Ty, || {
+            walk::walk_ty(self, node)?;
+            // For each node, try to resolve it as an ast path. If it is an ast path,
+            // it is added to the node.
+            match self.ty_as_ast_path(node) {
+                Ok(Some(path)) => {
+                    // Resolve the path, which which adds it to the node.
+                    match self.resolve_ast_path(&path, self.in_expr.get(), node) {
+                        Ok(_) => {}
+                        Err(err) => {
+                            self.diagnostics().add_error(err);
+                        }
+                    }
+                }
+                Ok(None) => {}
+                Err(err) => {
+                    self.diagnostics().add_error(err);
+                }
+            };
+            Ok(())
+        })?;
         Ok(())
     }
 
     type ExprRet = ();
     fn visit_expr(&self, node: ast::AstNodeRef<ast::Expr>) -> Result<Self::ExprRet, Self::Error> {
-        self.in_expr.enter(InExpr::Value, || walk::walk_expr(self, node))?;
-        Ok(())
-    }
-
-    type VariableExprRet = ();
-    fn visit_variable_expr(
-        &self,
-        node: ast::AstNodeRef<ast::VariableExpr>,
-    ) -> Result<Self::VariableExprRet, Self::Error> {
-        let path = self.variable_expr_as_ast_path(node)?;
-        self.resolve_ast_path_and_add_to_node(&path, node);
-        Ok(())
-    }
-
-    type NamedTyRet = ();
-    fn visit_named_ty(
-        &self,
-        node: ast::AstNodeRef<ast::NamedTy>,
-    ) -> Result<Self::NamedTyRet, Self::Error> {
-        let path = self.named_ty_as_ast_path(node)?;
-        self.resolve_ast_path_and_add_to_node(&path, node);
-        Ok(())
-    }
-
-    type AccessTyRet = ();
-    fn visit_access_ty(
-        &self,
-        node: ast::AstNodeRef<ast::AccessTy>,
-    ) -> Result<Self::AccessTyRet, Self::Error> {
-        let path = self.access_ty_as_ast_path(node)?;
-        self.resolve_ast_path_and_add_to_node(&path, node);
-        Ok(())
+        self.in_expr.enter(InExpr::Value, || {
+            walk::walk_expr(self, node)?;
+            // For each node, try to resolve it as an ast path. If it is an ast path,
+            // it is added to the node.
+            match self.expr_as_ast_path(node) {
+                Ok(Some(path)) => {
+                    // Resolve the path, which which adds it to the node.
+                    match self.resolve_ast_path(&path, self.in_expr.get(), node) {
+                        Ok(_) => {}
+                        Err(err) => {
+                            self.diagnostics().add_error(err);
+                        }
+                    }
+                }
+                Ok(None) => {}
+                Err(err) => {
+                    self.diagnostics().add_error(err);
+                }
+            };
+            Ok(())
+        })
     }
 
     type AccessPatRet = ();
@@ -994,6 +1053,15 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         Ok(())
     }
 
+    type ConstructorPatRet = ();
+    fn visit_constructor_pat(
+        &self,
+        _node: AstNodeRef<ast::ConstructorPat>,
+    ) -> Result<Self::ConstructorPatRet, Self::Error> {
+        // @@Todo
+        Ok(())
+    }
+
     type AccessExprRet = ();
     fn visit_access_expr(
         &self,
@@ -1001,8 +1069,8 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
     ) -> Result<Self::AccessExprRet, Self::Error> {
         let path = self.access_expr_as_ast_path(node)?;
         match path {
-            Some(path) => {
-                self.resolve_ast_path_and_add_to_node(&path, node);
+            Some(_) => {
+                // Will be handled by path resolution.
             }
             None => {
                 // This is just a property access, so we create it here:
@@ -1015,15 +1083,6 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
                 self.ast_info().terms().insert(node.id(), access_term);
             }
         }
-        Ok(())
-    }
-
-    type ConstructorPatRet = ();
-    fn visit_constructor_pat(
-        &self,
-        _node: AstNodeRef<ast::ConstructorPat>,
-    ) -> Result<Self::ConstructorPatRet, Self::Error> {
-        // @@Todo
         Ok(())
     }
 }
