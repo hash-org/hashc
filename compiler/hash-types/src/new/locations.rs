@@ -10,6 +10,7 @@ use super::{
     defs::{
         DefArgGroupId, DefArgsId, DefParamGroupId, DefParamsId, DefPatArgGroupId, DefPatArgsId,
     },
+    fns::FnDefId,
     mods::{ModDefId, ModMemberId, ModMembersId},
     params::{ParamId, ParamsId},
     scopes::{StackId, StackMemberId},
@@ -115,6 +116,8 @@ location_targets! {
 
     Stack: StackId,
     StackMember: StackMemberId,
+
+    FnDef: FnDefId,
 
     Arg: ArgId = sequence Args: ArgsId,
     Param: ParamId = sequence Params: ParamsId,

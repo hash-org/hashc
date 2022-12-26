@@ -21,6 +21,7 @@ use hash_types::new::{
         env::AccessToEnv,
     },
     fns::FnCallTerm,
+    locations::LocationTarget,
     mods::{ModDefId, ModMemberValue},
     params::ParamTarget,
     scopes::{BoundVar, StackMemberId},
@@ -55,12 +56,32 @@ enum InExpr {
     Value,
 }
 
+/// The kind of context we are in.
+///
+/// Either we are trying to resolve a symbol in the environment, or we are
+/// trying to resolve a symbol through access of another term.
+#[derive(Copy, Clone, Debug)]
+pub enum ContextKind {
+    /// An access context, where we are trying to resolve a symbol through
+    /// access of another term.
+    ///
+    /// The tuple contains the identifier accessing from and the location target
+    /// of the definition .
+    Access(ModMemberValue, LocationTarget),
+    /// Just the current scope.
+    Environment,
+}
+
 /// The second pass of the typechecker, which resolves all symbols to their
 /// referenced bindings.
 pub struct SymbolResolutionPass<'tc> {
     tc_env: &'tc TcEnv<'tc>,
     in_expr: LightState<InExpr>,
-    bindings_by_name: HeavyState<Vec<HashMap<Identifier, Symbol>>>,
+    /// Stores a list of contexts we are in, mirroring `ContextStore` but with
+    /// identifiers so that we can resolve them to symbols.
+    ///
+    /// Also keeps track of the kind of context we are in.
+    bindings_by_name: HeavyState<Vec<(ContextKind, HashMap<Identifier, Symbol>)>>,
 }
 
 impl_access_to_tc_env!(SymbolResolutionPass<'tc>);
@@ -96,8 +117,18 @@ impl<'tc> SymbolResolutionPass<'tc> {
     ///
     /// This will search the current scope and all parent scopes.
     /// If the binding is not found, it will return `None`.
+    ///
+    /// Will panic if there are no scopes in the context.
+    fn get_current_context_kind(&self) -> ContextKind {
+        self.bindings_by_name.get().last().unwrap().0
+    }
+
+    /// Find a binding by name, returning the symbol of the binding.
+    ///
+    /// This will search the current scope and all parent scopes.
+    /// If the binding is not found, it will return `None`.
     fn lookup_binding_by_name(&self, name: Identifier) -> Option<Symbol> {
-        self.bindings_by_name.get().iter().rev().find_map(|b| b.get(&name).copied())
+        self.bindings_by_name.get().iter().rev().find_map(|b| b.1.get(&name).copied())
     }
 
     /// Find a binding by name, returning the symbol of the binding.
@@ -105,10 +136,16 @@ impl<'tc> SymbolResolutionPass<'tc> {
     /// Errors if the binding is not found.
     ///
     /// See [`SymbolResolutionPass::lookup_binding_by_name()`].
-    fn lookup_binding_by_name_or_error(&self, name: Identifier, span: Span) -> TcResult<Symbol> {
+    fn lookup_binding_by_name_or_error(
+        &self,
+        name: Identifier,
+        span: Span,
+        looking_in: ContextKind,
+    ) -> TcResult<Symbol> {
         self.lookup_binding_by_name(name).ok_or_else(|| TcError::SymbolNotFound {
             symbol: self.new_symbol(name),
             location: self.source_location(span),
+            looking_in,
         })
     }
 
@@ -116,7 +153,12 @@ impl<'tc> SymbolResolutionPass<'tc> {
     ///
     /// In addition to adding the appropriate bindings, this also adds the
     /// appropriate names to `bindings_by_name`.
-    fn enter_scope<T>(&self, kind: ScopeKind, f: impl FnOnce() -> T) -> T {
+    fn enter_scope<T>(
+        &self,
+        kind: ScopeKind,
+        context_kind: ContextKind,
+        f: impl FnOnce() -> T,
+    ) -> T {
         self.context_ops().enter_scope(kind, || {
             self.bindings_by_name.enter(
                 |b| {
@@ -133,7 +175,7 @@ impl<'tc> SymbolResolutionPass<'tc> {
                         }
                     });
 
-                    b.push(map);
+                    b.push((context_kind, map));
                 },
                 |b| {
                     // Exit the scope on the context exit.
@@ -159,7 +201,7 @@ impl<'tc> SymbolResolutionPass<'tc> {
         if let Some(name) = member_name_data.name {
             match self.bindings_by_name.get_mut().last_mut() {
                 Some(bindings) => {
-                    bindings.insert(name, member_name);
+                    bindings.1.insert(name, member_name);
                 }
                 None => panic!("No bindings_by_name map for current scope!"),
             }
@@ -327,14 +369,16 @@ impl<'tc> SymbolResolutionPass<'tc> {
         match starting_from {
             Some((member_value, span)) => match member_value {
                 // If we are starting from a module or data type, we need to enter their scopes.
-                ModMemberValue::Data(data_def_id) => self
-                    .enter_scope(ScopeKind::Data(data_def_id), || {
-                        self.resolve_ast_name(name, name_span, None)
-                    }),
-                ModMemberValue::Mod(mod_def_id) => self
-                    .enter_scope(ScopeKind::Mod(mod_def_id), || {
-                        self.resolve_ast_name(name, name_span, None)
-                    }),
+                ModMemberValue::Data(data_def_id) => self.enter_scope(
+                    ScopeKind::Data(data_def_id),
+                    ContextKind::Access(member_value, data_def_id.into()),
+                    || self.resolve_ast_name(name, name_span, None),
+                ),
+                ModMemberValue::Mod(mod_def_id) => self.enter_scope(
+                    ScopeKind::Mod(mod_def_id),
+                    ContextKind::Access(member_value, mod_def_id.into()),
+                    || self.resolve_ast_name(name, name_span, None),
+                ),
                 // Cannot use a function as a namespace.
                 ModMemberValue::Fn(_) => {
                     Err(TcError::InvalidNamespaceSubject { location: self.source_location(span) })
@@ -342,7 +386,11 @@ impl<'tc> SymbolResolutionPass<'tc> {
             },
             None => {
                 // If there is no start point, try to lookup the variable in the current scope.
-                let binding_symbol = self.lookup_binding_by_name_or_error(name, name_span)?;
+                let binding_symbol = self.lookup_binding_by_name_or_error(
+                    name,
+                    name_span,
+                    self.get_current_context_kind(),
+                )?;
                 Ok(self.context().get_binding(binding_symbol).unwrap())
             }
         }
@@ -889,7 +937,9 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         node: ast::AstNodeRef<ast::Module>,
     ) -> Result<Self::ModuleRet, Self::Error> {
         let mod_def_id = self.ast_info().mod_defs().get_data_by_node(node.id()).unwrap();
-        self.enter_scope(ScopeKind::Mod(mod_def_id), || walk::walk_module(self, node))?;
+        self.enter_scope(ScopeKind::Mod(mod_def_id), ContextKind::Environment, || {
+            walk::walk_module(self, node)
+        })?;
         Ok(())
     }
 
@@ -899,7 +949,9 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         node: ast::AstNodeRef<ast::ModDef>,
     ) -> Result<Self::ModDefRet, Self::Error> {
         let mod_def_id = self.ast_info().mod_defs().get_data_by_node(node.id()).unwrap();
-        self.enter_scope(ScopeKind::Mod(mod_def_id), || walk::walk_mod_def(self, node))?;
+        self.enter_scope(ScopeKind::Mod(mod_def_id), ContextKind::Environment, || {
+            walk::walk_mod_def(self, node)
+        })?;
         Ok(())
     }
 
@@ -909,7 +961,9 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         node: ast::AstNodeRef<ast::StructDef>,
     ) -> Result<Self::StructDefRet, Self::Error> {
         let data_def_id = self.ast_info().data_defs().get_data_by_node(node.id()).unwrap();
-        self.enter_scope(ScopeKind::Data(data_def_id), || walk::walk_struct_def(self, node))?;
+        self.enter_scope(ScopeKind::Data(data_def_id), ContextKind::Environment, || {
+            walk::walk_struct_def(self, node)
+        })?;
         Ok(())
     }
 
@@ -919,7 +973,9 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         node: ast::AstNodeRef<ast::EnumDef>,
     ) -> Result<Self::EnumDefRet, Self::Error> {
         let data_def_id = self.ast_info().data_defs().get_data_by_node(node.id()).unwrap();
-        self.enter_scope(ScopeKind::Data(data_def_id), || walk::walk_enum_def(self, node))?;
+        self.enter_scope(ScopeKind::Data(data_def_id), ContextKind::Environment, || {
+            walk::walk_enum_def(self, node)
+        })?;
         Ok(())
     }
 
@@ -929,7 +985,9 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         node: ast::AstNodeRef<ast::FnDef>,
     ) -> Result<Self::FnDefRet, Self::Error> {
         let fn_def_id = self.ast_info().fn_defs().get_data_by_node(node.id()).unwrap();
-        self.enter_scope(ScopeKind::Fn(fn_def_id), || walk::walk_fn_def(self, node))?;
+        self.enter_scope(ScopeKind::Fn(fn_def_id), ContextKind::Environment, || {
+            walk::walk_fn_def(self, node)
+        })?;
         Ok(())
     }
 
@@ -939,7 +997,9 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         node: ast::AstNodeRef<ast::TyFnDef>,
     ) -> Result<Self::TyFnDefRet, Self::Error> {
         let fn_def_id = self.ast_info().fn_defs().get_data_by_node(node.id()).unwrap();
-        self.enter_scope(ScopeKind::Fn(fn_def_id), || walk::walk_ty_fn_def(self, node))?;
+        self.enter_scope(ScopeKind::Fn(fn_def_id), ContextKind::Environment, || {
+            walk::walk_ty_fn_def(self, node)
+        })?;
         Ok(())
     }
 
@@ -951,7 +1011,7 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         match self.ast_info().stacks().get_data_by_node(node.id()) {
             Some(stack_id) => {
                 // This is a stack, so we need to enter its scope.
-                self.enter_scope(ScopeKind::Stack(stack_id), || {
+                self.enter_scope(ScopeKind::Stack(stack_id), ContextKind::Environment, || {
                     walk::walk_body_block(self, node)?;
                     Ok(())
                 })?;
@@ -989,7 +1049,7 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         let stack_id = self.ast_info().stacks().get_data_by_node(node.id()).unwrap();
         // Each match case has its own scope, so we need to enter it, and add all the
         // pattern bindings to the context.
-        self.enter_scope(ScopeKind::Stack(stack_id), || {
+        self.enter_scope(ScopeKind::Stack(stack_id), ContextKind::Environment, || {
             self.for_each_stack_member_of_pat(node.pat.ast_ref(), |member| {
                 self.add_stack_binding(member);
             });
@@ -1026,6 +1086,11 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
 
     type ExprRet = ();
     fn visit_expr(&self, node: ast::AstNodeRef<ast::Expr>) -> Result<Self::ExprRet, Self::Error> {
+        if let ContextKind::Access(_, _) = self.get_current_context_kind() {
+            // Handled by path resolution.
+            return Ok(());
+        }
+
         self.in_expr.enter(InExpr::Value, || {
             walk::walk_expr(self, node)?;
             // For each node, try to resolve it as an ast path. If it is an ast path,

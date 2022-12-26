@@ -21,6 +21,7 @@ use hash_types::new::{
     defs::{DefParamGroupData, DefParamsId},
     environment::env::AccessToEnv,
     fns::{FnBody, FnDefData, FnDefId, FnTy},
+    locations::LocationTarget,
     mods::{ModDefData, ModDefId, ModKind, ModMemberData, ModMemberValue},
     params::{ParamData, ParamsId},
     scopes::{StackId, StackMemberData},
@@ -49,6 +50,17 @@ enum DefId {
     Data(DataDefId),
     Fn(FnDefId),
     Stack(StackId),
+}
+
+impl From<DefId> for LocationTarget {
+    fn from(def_id: DefId) -> Self {
+        match def_id {
+            DefId::Mod(mod_id) => LocationTarget::ModDef(mod_id),
+            DefId::Data(data_id) => LocationTarget::DataDef(data_id),
+            DefId::Fn(fn_id) => LocationTarget::FnDef(fn_id),
+            DefId::Stack(stack_id) => LocationTarget::Stack(stack_id),
+        }
+    }
 }
 
 /// Contains information about seen definitions, members of definitions, as well
@@ -207,6 +219,9 @@ impl<'tc> ScopeDiscoveryPass<'tc> {
 
         // Add the found members to the definition.
         self.add_found_members_to_def(def_id);
+
+        // Add location information to the definition.
+        self.add_node_location_to_def(def_id, originating_node);
 
         result
     }
@@ -515,6 +530,14 @@ impl<'tc> ScopeDiscoveryPass<'tc> {
                 members.push((node_id, stack_member));
             }
         });
+    }
+
+    /// Add the location of the given node to the given `DefId`, as appropriate
+    /// depending on the variant.
+    fn add_node_location_to_def<U>(&self, def_id: DefId, originating_node: AstNodeRef<U>) {
+        self.stores()
+            .location()
+            .add_location_to_target(def_id, self.node_location(originating_node));
     }
 }
 

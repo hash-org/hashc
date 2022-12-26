@@ -64,6 +64,39 @@ pub enum ModMemberValue {
     // @@Future: constants
 }
 
+impl Display for WithEnv<'_, ModMemberValue> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.value {
+            ModMemberValue::Data(data_def_id) => {
+                write!(f, "{}", self.env().with(data_def_id))
+            }
+            ModMemberValue::Mod(mod_def_id) => {
+                write!(f, "{}", self.env().with(mod_def_id))
+            }
+            ModMemberValue::Fn(fn_def_id) => {
+                write!(f, "{}", self.env().with(fn_def_id))
+            }
+        }
+    }
+}
+
+impl WithEnv<'_, ModMemberValue> {
+    /// Get the name of the module member.
+    pub fn name(&self) -> Symbol {
+        match self.value {
+            ModMemberValue::Data(data_def_id) => {
+                self.env().stores().data_def().map_fast(data_def_id, |def| def.name)
+            }
+            ModMemberValue::Mod(mod_def_id) => {
+                self.env().stores().mod_def().map_fast(mod_def_id, |def| def.name)
+            }
+            ModMemberValue::Fn(fn_def_id) => {
+                self.env().stores().fn_def().map_fast(fn_def_id, |def| def.name)
+            }
+        }
+    }
+}
+
 /// A member of a definition.
 ///
 /// A definition might be a trait, impl block, or a module.
@@ -143,16 +176,6 @@ impl Display for WithEnv<'_, &ModDef> {
 impl Display for WithEnv<'_, ModDefId> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.stores().mod_def().map_fast(self.value, |def| write!(f, "{}", self.env().with(def)))
-    }
-}
-
-impl Display for WithEnv<'_, ModMemberValue> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.value {
-            ModMemberValue::Data(data_def_id) => write!(f, "{}", self.env().with(data_def_id)),
-            ModMemberValue::Mod(mod_def_id) => write!(f, "{}", self.env().with(mod_def_id)),
-            ModMemberValue::Fn(fn_def_id) => write!(f, "{}", self.env().with(fn_def_id)),
-        }
     }
 }
 

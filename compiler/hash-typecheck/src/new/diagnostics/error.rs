@@ -12,7 +12,9 @@ use hash_types::new::{
 use hash_utils::store::SequenceStoreKey;
 
 use super::params::{SomeArgsId, SomeDefArgsId};
-use crate::new::{environment::tc_env::WithTcEnv, ops::common::CommonOps};
+use crate::new::{
+    environment::tc_env::WithTcEnv, ops::common::CommonOps, passes::symbol_resolution::ContextKind,
+};
 
 /// An error that occurs during typechecking.
 #[derive(Clone, Debug)]
@@ -26,7 +28,7 @@ pub enum TcError {
     /// Merge declarations are not yet supported.
     MergeDeclarationsNotSupported { merge_location: SourceLocation },
     /// Some specified symbol was not found.
-    SymbolNotFound { symbol: Symbol, location: SourceLocation },
+    SymbolNotFound { symbol: Symbol, location: SourceLocation, looking_in: ContextKind },
     /// Cannot use a module in a value position.
     CannotUseModuleInValuePosition { location: SourceLocation },
     /// Cannot use a module in a type position.
@@ -92,13 +94,39 @@ impl<'tc> WithTcEnv<'tc, &TcError> {
 
                 error.add_span(*merge_location).add_help("cannot use merge declarations yet");
             }
-            TcError::SymbolNotFound { symbol, location } => {
-                error.code(HashErrorCode::UnresolvedSymbol).title(format!(
-                    "cannot find name `{}` in the current scope",
-                    self.tc_env().env().with(*symbol)
-                ));
+            TcError::SymbolNotFound { symbol, location, looking_in } => {
+                let def_name = match looking_in {
+                    ContextKind::Access(subject, _) => {
+                        format!(
+                            "{}",
+                            self.tc_env().env().with(self.tc_env().env().with(*subject).name())
+                        )
+                    }
+                    ContextKind::Environment => "the current scope".to_string(),
+                };
+                let search_name = self.tc_env().env().with(*symbol);
+                let noun = match looking_in {
+                    ContextKind::Access(_, _) => "member",
+                    ContextKind::Environment => "name",
+                };
+                error
+                    .code(HashErrorCode::UnresolvedSymbol)
+                    .title(format!("cannot find {noun} `{search_name}` in `{def_name}`"))
+                    .add_labelled_span(
+                        *location,
+                        format!("tried to look for {noun} `{search_name}` in `{def_name}`",),
+                    );
 
-                error.add_span(*location).add_info("not found in the current scope");
+                if let ContextKind::Access(_, def) = looking_in {
+                    if let Some(location) = locations.get_location(def) {
+                        error.add_labelled_span(
+                            location,
+                            format!(
+                                "`{def_name}` is defined here, and has no member `{search_name}`",
+                            ),
+                        );
+                    }
+                }
             }
             TcError::CannotUseModuleInValuePosition { location } => {
                 error
