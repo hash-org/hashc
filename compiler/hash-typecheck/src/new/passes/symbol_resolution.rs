@@ -608,10 +608,10 @@ impl<'tc> SymbolResolutionPass<'tc> {
             ResolvedAstPathComponent::Mod(_, _) => {
                 // This is never valid, so we just return the appropriate error.
                 match in_expr {
-                    InExpr::Ty => Err(TcError::CannotUseModuleInValuePosition {
+                    InExpr::Ty => Err(TcError::CannotUseModuleInTypePosition {
                         location: self.node_location(original_node),
                     }),
-                    InExpr::Value => Err(TcError::CannotUseModuleInTypePosition {
+                    InExpr::Value => Err(TcError::CannotUseModuleInValuePosition {
                         location: self.node_location(original_node),
                     }),
                 }
@@ -873,7 +873,12 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         MatchCase,
         Expr,
         AccessExpr,
+        ConstructorCallExpr,
+        VariableExpr,
         Ty,
+        AccessTy,
+        NamedTy,
+        TyFnCall,
         AccessPat,
         ConstructorPat,
     );
@@ -1083,6 +1088,57 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
                 self.ast_info().terms().insert(node.id(), access_term);
             }
         }
+        Ok(())
+    }
+
+    type TyFnCallRet = ();
+    fn visit_ty_fn_call(
+        &self,
+        node: AstNodeRef<ast::TyFnCall>,
+    ) -> Result<Self::TyFnCallRet, Self::Error> {
+        // Do not visit the body, because the path resolution will handle it.
+        for arg in node.args.iter() {
+            self.visit_ty_arg(arg.ast_ref())?;
+        }
+        Ok(())
+    }
+
+    type NamedTyRet = ();
+    fn visit_named_ty(
+        &self,
+        _node: AstNodeRef<ast::NamedTy>,
+    ) -> Result<Self::NamedTyRet, Self::Error> {
+        // Handled by path resolution.
+        Ok(())
+    }
+
+    type AccessTyRet = ();
+    fn visit_access_ty(
+        &self,
+        _node: AstNodeRef<ast::AccessTy>,
+    ) -> Result<Self::AccessTyRet, Self::Error> {
+        // Handled by path resolution.
+        Ok(())
+    }
+
+    type ConstructorCallExprRet = ();
+    fn visit_constructor_call_expr(
+        &self,
+        node: AstNodeRef<ast::ConstructorCallExpr>,
+    ) -> Result<Self::ConstructorCallExprRet, Self::Error> {
+        // Do not visit the body, because the path resolution will handle it.
+        for arg in node.args.iter() {
+            self.visit_constructor_call_arg(arg.ast_ref())?;
+        }
+        Ok(())
+    }
+
+    type VariableExprRet = ();
+    fn visit_variable_expr(
+        &self,
+        _node: AstNodeRef<ast::VariableExpr>,
+    ) -> Result<Self::VariableExprRet, Self::Error> {
+        // Handled by path resolution.
         Ok(())
     }
 }
