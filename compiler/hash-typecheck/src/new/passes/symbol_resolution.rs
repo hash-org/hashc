@@ -79,6 +79,8 @@ impl<'tc> AstPass for SymbolResolutionPass<'tc> {
     }
 }
 
+/// This block contains general helper functions for traversing scopes and
+/// adding bindings.
 impl<'tc> SymbolResolutionPass<'tc> {
     pub fn new(tc_env: &'tc TcEnv<'tc>) -> Self {
         Self {
@@ -264,14 +266,19 @@ impl AstArgGroup<'_> {
 /// For example: `Foo::Bar::Baz<T, U>(a, b, c)::Bin(3)`.
 #[derive(Clone, Debug)]
 struct AstPathComponent<'a> {
-    pub(self) name: AstNodeRef<'a, ast::Name>,
+    pub(self) name: &'a ast::AstNode<ast::Name>,
     pub(self) args: Vec<AstArgGroup<'a>>,
 }
+
+/// A path in the AST.
+///
+/// For example, `Foo::Bar`.
+type AstPath<'a> = Vec<AstPathComponent<'a>>;
 
 impl AstPathComponent<'_> {
     /// Get the span of this path component.
     pub(self) fn span(&self) -> Span {
-        self.name.span.join(self.args.iter().fold(self.name.span(), |acc, arg| {
+        self.name.span().join(self.args.iter().fold(self.name.span(), |acc, arg| {
             arg.span().map(|s| acc.join(s)).unwrap_or(self.name.span())
         }))
     }
@@ -299,6 +306,7 @@ enum ResolvedAstPath {
     Ty(TyId),
 }
 
+/// This block performs resolution of AST paths.
 impl<'tc> SymbolResolutionPass<'tc> {
     /// Resolve a name starting from the given [`ModMemberValue`], or the
     /// current context if no such value is given.
@@ -457,7 +465,7 @@ impl<'tc> SymbolResolutionPass<'tc> {
         in_expr: InExpr,
         total_span: Span,
     ) -> TcResult<ResolvedAstPathComponent> {
-        let binding = self.resolve_ast_name(component.name, starting_from)?;
+        let binding = self.resolve_ast_name(component.name.ast_ref(), starting_from)?;
 
         match binding.kind {
             BindingKind::ModMember(_, mod_member_id) => {
@@ -550,7 +558,7 @@ impl<'tc> SymbolResolutionPass<'tc> {
     /// - `in_expr == InExpr::Ty` returns a type
     fn resolve_ast_path<T>(
         &self,
-        path: Vec<AstPathComponent<'_>>,
+        path: &AstPath,
         in_expr: InExpr,
         original_node: AstNodeRef<T>,
     ) -> TcResult<ResolvedAstPath> {
@@ -644,7 +652,7 @@ impl<'tc> SymbolResolutionPass<'tc> {
     /// If there is an error, add it to the diagnostics.
     fn resolve_ast_path_and_add_to_node<T: std::fmt::Debug>(
         &self,
-        path: Vec<AstPathComponent<'_>>,
+        path: &AstPath,
         original_node: AstNodeRef<T>,
     ) {
         match self.resolve_ast_path(path, self.in_expr.get(), original_node) {
@@ -665,8 +673,93 @@ impl<'tc> SymbolResolutionPass<'tc> {
     }
 }
 
-/// @@Temporary: for now this visitor just walks the AST and enters scopes. The
-/// next step is to resolve symbols in these scopes!.
+/// This block converts AST nodes of different kinds into [`AstPath`]s, in order
+/// to later resolve them into terms.
+impl<'tc> SymbolResolutionPass<'tc> {
+    /// Use the given [`ast::VariableExpr`] as a path.
+    fn variable_expr_as_ast_path<'a>(
+        &self,
+        node: AstNodeRef<'a, ast::VariableExpr>,
+    ) -> TcResult<AstPath<'a>> {
+        Ok(vec![AstPathComponent { name: &node.body.name, args: vec![] }])
+    }
+
+    /// Use the given [`ast::NamedTy`] as a path.
+    fn named_ty_as_ast_path<'a>(
+        &self,
+        node: AstNodeRef<'a, ast::NamedTy>,
+    ) -> TcResult<AstPath<'a>> {
+        Ok(vec![AstPathComponent { name: &node.body.name, args: vec![] }])
+    }
+
+    /// Use the given [`ast::AccessTy`] as a path.
+    fn access_ty_as_ast_path<'a>(
+        &self,
+        node: AstNodeRef<'a, ast::AccessTy>,
+    ) -> TcResult<AstPath<'a>> {
+        let mut root = self.ty_as_ast_path(node.body.subject.ast_ref())?;
+        root.push(AstPathComponent { name: &node.body.property, args: vec![] });
+        Ok(root)
+    }
+
+    /// Use the given [`ast::AccessExpr`] as a path.
+    fn access_expr_as_ast_path<'a>(
+        &self,
+        _node: AstNodeRef<'a, ast::AccessExpr>,
+    ) -> TcResult<AstPath<'a>> {
+        todo!()
+    }
+
+    /// Use the given [`ast::Expr`] as a path, if possible.
+    ///
+    /// Returns an error if the expression is not a path. This is meant to
+    /// be called from other `with_*_as_ast_path` functions.
+    fn expr_as_ast_path<'a>(&self, _node: AstNodeRef<'a, ast::Expr>) -> TcResult<AstPath<'a>> {
+        todo!()
+    }
+
+    /// Use the given [`ast::Ty`] as a path, if possible.
+    ///
+    /// Returns an error if the expression is not a path. This is meant to
+    /// be called from other `with_*_as_ast_path` functions.
+    fn ty_as_ast_path<'a>(&self, node: AstNodeRef<'a, ast::Ty>) -> TcResult<AstPath<'a>> {
+        match node.body {
+            ast::Ty::Access(access_ty) => {
+                let access_ref = node.with_body(access_ty);
+                self.access_ty_as_ast_path(access_ref)
+            }
+            ast::Ty::Named(named_ty) => {
+                let named_ref = node.with_body(named_ty);
+                self.named_ty_as_ast_path(named_ref)
+            }
+            ast::Ty::TyFnCall(ty_fn_call) => {
+                let ty_fn_call_ref = node.with_body(ty_fn_call.subject.body());
+                let mut path = self.expr_as_ast_path(ty_fn_call_ref)?;
+                match path.pop() {
+                    Some(mut component) => {
+                        component.args.push(AstArgGroup::ImplicitArgs(&ty_fn_call.args));
+                        path.push(AstPathComponent { name: component.name, args: component.args });
+                        Ok(path)
+                    }
+                    None => panic!("Expected at least one path component"),
+                }
+            }
+            ast::Ty::Tuple(_)
+            | ast::Ty::List(_)
+            | ast::Ty::Set(_)
+            | ast::Ty::Map(_)
+            | ast::Ty::Fn(_)
+            | ast::Ty::Ref(_)
+            | ast::Ty::Merge(_)
+            | ast::Ty::Union(_)
+            | ast::Ty::TyFn(_) => {
+                Err(TcError::InvalidNamespaceSubject { location: self.node_location(node) })
+            }
+        }
+    }
+}
+
+/// This visitor resolves all symbols and paths in the AST.
 impl ast::AstVisitor for SymbolResolutionPass<'_> {
     type Error = TcError;
     ast_visitor_default_impl!(
@@ -821,10 +914,8 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         &self,
         node: ast::AstNodeRef<ast::VariableExpr>,
     ) -> Result<Self::VariableExprRet, Self::Error> {
-        self.resolve_ast_path_and_add_to_node(
-            vec![AstPathComponent { name: node.name.ast_ref(), args: vec![] }],
-            node,
-        );
+        let path = self.variable_expr_as_ast_path(node)?;
+        self.resolve_ast_path_and_add_to_node(&path, node);
         Ok(())
     }
 
@@ -833,18 +924,18 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         &self,
         node: ast::AstNodeRef<ast::NamedTy>,
     ) -> Result<Self::NamedTyRet, Self::Error> {
-        self.resolve_ast_path_and_add_to_node(
-            vec![AstPathComponent { name: node.name.ast_ref(), args: vec![] }],
-            node,
-        );
+        let path = self.named_ty_as_ast_path(node)?;
+        self.resolve_ast_path_and_add_to_node(&path, node);
         Ok(())
     }
 
     type AccessTyRet = ();
     fn visit_access_ty(
         &self,
-        _node: ast::AstNodeRef<ast::AccessTy>,
+        node: ast::AstNodeRef<ast::AccessTy>,
     ) -> Result<Self::AccessTyRet, Self::Error> {
+        let path = self.access_ty_as_ast_path(node)?;
+        self.resolve_ast_path_and_add_to_node(&path, node);
         Ok(())
     }
 
@@ -859,8 +950,10 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
     type AccessExprRet = ();
     fn visit_access_expr(
         &self,
-        _node: ast::AstNodeRef<ast::AccessExpr>,
+        node: ast::AstNodeRef<ast::AccessExpr>,
     ) -> Result<Self::AccessExprRet, Self::Error> {
+        let path = self.access_expr_as_ast_path(node)?;
+        self.resolve_ast_path_and_add_to_node(&path, node);
         Ok(())
     }
 
