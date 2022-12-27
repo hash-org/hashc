@@ -645,11 +645,14 @@ impl<'tc> SymbolResolutionPass<'tc> {
                         Ok(ResolvedAstPath::Ty(ty))
                     }
                     InExpr::Value => {
-                        // If we are in a value position, then it is not valid to use `Data`.
-                        // @@Todo: structs
-                        Err(TcError::CannotUseDataTypeInValuePosition {
-                            location: self.node_location(original_node),
-                        })
+                        // If we are in a value position, then we use `Term::Ty`.
+                        let ty =
+                            self.new_term(Term::Ty(self.new_ty(Ty::Data(DataTy {
+                                data_def: data_def_id,
+                                args: args_id,
+                            }))));
+                        self.ast_info().terms().insert(original_node.id(), ty);
+                        Ok(ResolvedAstPath::Term(ty))
                     }
                 }
             }
