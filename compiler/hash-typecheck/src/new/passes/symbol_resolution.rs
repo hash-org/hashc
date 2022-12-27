@@ -797,16 +797,16 @@ impl<'tc> SymbolResolutionPass<'tc> {
     fn constructor_call_as_ast_path<'a>(
         &self,
         node: AstNodeRef<'a, ast::ConstructorCallExpr>,
-    ) -> TcResult<AstPath<'a>> {
-        let mut path = self.expr_as_ast_path(node.body.subject.ast_ref())?.ok_or_else(|| {
-            TcError::InvalidNamespaceSubject { location: self.node_location(node) }
-        })?;
-        match path.last_mut() {
-            Some(component) => {
-                component.args.push(AstArgGroup::ExplicitArgs(&node.body.args));
-                Ok(path)
-            }
-            None => panic!("Expected at least one path component"),
+    ) -> TcResult<Option<AstPath<'a>>> {
+        match self.expr_as_ast_path(node.body.subject.ast_ref())? {
+            Some(mut path) => match path.last_mut() {
+                Some(component) => {
+                    component.args.push(AstArgGroup::ExplicitArgs(&node.body.args));
+                    Ok(Some(path))
+                }
+                None => panic!("Expected at least one path component"),
+            },
+            None => Ok(None),
         }
     }
 
@@ -845,16 +845,16 @@ impl<'tc> SymbolResolutionPass<'tc> {
     fn ty_fn_call_as_ast_path<'a>(
         &self,
         node: AstNodeRef<'a, ast::TyFnCall>,
-    ) -> TcResult<AstPath<'a>> {
-        let mut path = self.expr_as_ast_path(node.body.subject.ast_ref())?.ok_or_else(|| {
-            TcError::InvalidNamespaceSubject { location: self.node_location(node) }
-        })?;
-        match path.last_mut() {
-            Some(component) => {
-                component.args.push(AstArgGroup::ImplicitArgs(&node.body.args));
-                Ok(path)
-            }
-            None => panic!("Expected at least one path component"),
+    ) -> TcResult<Option<AstPath<'a>>> {
+        match self.expr_as_ast_path(node.body.subject.ast_ref())? {
+            Some(mut path) => match path.last_mut() {
+                Some(component) => {
+                    component.args.push(AstArgGroup::ImplicitArgs(&node.body.args));
+                    Ok(Some(path))
+                }
+                None => panic!("Expected at least one path component"),
+            },
+            None => Ok(None),
         }
     }
 
@@ -873,11 +873,15 @@ impl<'tc> SymbolResolutionPass<'tc> {
             }
             ast::Expr::ConstructorCall(ctor_expr) => {
                 let ctor_ref = node.with_body(ctor_expr);
-                Ok(Some(self.constructor_call_as_ast_path(ctor_ref)?))
+                self.constructor_call_as_ast_path(ctor_ref)
             }
             ast::Expr::Access(access_expr) => {
                 let access_ref = node.with_body(access_expr);
                 self.access_expr_as_ast_path(access_ref)
+            }
+            ast::Expr::Ty(expr_ty) => {
+                let expr_ty_ref = node.with_body(expr_ty.ty.body());
+                self.ty_as_ast_path(expr_ty_ref)
             }
             _ => Ok(None),
         }
@@ -899,7 +903,7 @@ impl<'tc> SymbolResolutionPass<'tc> {
             }
             ast::Ty::TyFnCall(ty_fn_call) => {
                 let ty_fn_call_ref = node.with_body(ty_fn_call);
-                Ok(Some(self.ty_fn_call_as_ast_path(ty_fn_call_ref)?))
+                self.ty_fn_call_as_ast_path(ty_fn_call_ref)
             }
             _ => Ok(None),
         }
