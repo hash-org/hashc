@@ -1,6 +1,8 @@
 //! Represents all of the logic related to type sizes, and various
 //! utilities surrounding type sizes.
 
+use std::ops::{Add, Mul};
+
 /// Represents the size of some constant in bytes. [Size] is a
 /// utility type that allows one to perform various conversions
 /// on the size (bits and bytes), and to derive .
@@ -53,5 +55,34 @@ impl Size {
         // Truncate (shift left to drop out leftover values, shift right to fill with
         // zeroes).
         (value << shift) >> shift
+    }
+}
+
+impl Add for Size {
+    type Output = Size;
+    #[inline]
+    fn add(self, other: Size) -> Size {
+        Size::from_bytes(self.bytes().checked_add(other.bytes()).unwrap_or_else(|| {
+            panic!("Size::add: {} + {} doesn't fit in u64", self.bytes(), other.bytes())
+        }))
+    }
+}
+
+impl Mul<Size> for u64 {
+    type Output = Size;
+    #[inline]
+    fn mul(self, size: Size) -> Size {
+        size * self
+    }
+}
+
+impl Mul<u64> for Size {
+    type Output = Size;
+    #[inline]
+    fn mul(self, count: u64) -> Size {
+        match self.bytes().checked_mul(count) {
+            Some(bytes) => Size::from_bytes(bytes),
+            None => panic!("Size::mul: {} * {} doesn't fit in u64", self.bytes(), count),
+        }
     }
 }

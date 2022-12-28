@@ -1,5 +1,8 @@
 //! Definitions to describe the target of Hash compilation.
 
+pub mod abi;
+pub mod alignment;
+pub mod layout;
 pub mod size;
 
 use std::{
