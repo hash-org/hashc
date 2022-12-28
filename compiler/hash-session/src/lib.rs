@@ -24,8 +24,7 @@ use hash_reporting::report::Report;
 use hash_source::{SourceId, SourceMap};
 use hash_typecheck::{Typechecker, TypecheckingCtx};
 use hash_types::storage::{GlobalStorage, LocalStorage, TyStorage};
-use hash_untyped_semantics::{SemanticAnalysis, SemanticAnalysisCtx};
-use hash_vm::{vm::Interpreter, InterpreterCtx};
+use hash_untyped_semantics::{SemanticAnalysis, SemanticAnalysisCtx, SemanticAnalysisCtxQuery};
 
 /// Function to make all of the stages a nominal compiler pipeline accepts.
 pub fn make_stages() -> Vec<Box<dyn CompilerStage<CompilerSession>>> {
