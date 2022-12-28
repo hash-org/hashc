@@ -13,23 +13,42 @@ use visitor::AstExpander;
 
 mod visitor;
 
+/// The [AstExpansionPass] represents the stage in the pipeline that will
+/// expand any macros or directives that are present within the AST.
+///
+/// Currently, this stage doesn't have a big role to play within compilation,
+/// but once there is a more formal specification of directives, and a macro
+/// system, then this stage will be the center of that.
 pub struct AstExpansionPass;
 
-pub trait AstExpansionCtx: CompilerInterface {
-    fn data(&mut self) -> &mut Workspace;
+/// The [AstExpansionCtx] represents all of the required information
+/// that the [AstExpansionPass] stage needs to query from the pipeline.
+pub struct AstExpansionCtx<'ast> {
+    /// Reference to the current compiler workspace.
+    pub workspace: &'ast mut Workspace,
 }
 
-impl<Ctx: AstExpansionCtx> CompilerStage<Ctx> for AstExpansionPass {
-    fn stage_kind(&self) -> CompilerStageKind {
+/// A trait that allows the [AstExpansionPass] stage to query the
+/// pipeline for the required information.
+pub trait AstExpansionCtxQuery: CompilerInterface {
+    fn data(&mut self) -> AstExpansionCtx;
+}
+
+impl<Ctx: AstExpansionCtxQuery> CompilerStage<Ctx> for AstExpansionPass {
+    fn kind(&self) -> CompilerStageKind {
         CompilerStageKind::DeSugar
     }
 
-    fn run_stage(
+    /// This will perform a pass on the AST by expanding any macros or
+    /// directives that are present within the AST. Currently, this
+    /// stage deals with `#dump_ast` directives to dump AST after it
+    /// has been generated, and de-sugared.
+    fn run(
         &mut self,
         entry_point: SourceId,
         ctx: &mut Ctx,
     ) -> hash_pipeline::interface::CompilerResult<()> {
-        let workspace = ctx.data();
+        let AstExpansionCtx { workspace } = ctx.data();
 
         let node_map = &mut workspace.node_map;
         let source_map = &workspace.source_map;

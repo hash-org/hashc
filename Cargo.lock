@@ -474,12 +474,9 @@ name = "hash-codegen"
 version = "0.1.0"
 dependencies = [
  "hash-ir",
- "hash-pipeline",
- "hash-reporting",
  "hash-source",
  "hash-target",
  "hash-utils",
- "index_vec",
  "rayon",
 ]
 

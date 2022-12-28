@@ -26,6 +26,111 @@ use import_resolver::ImportResolver;
 use parser::AstGen;
 use source::ParseSource;
 
+/// The [Parser] stage is responsible for parsing the source code into an
+/// abstract syntax tree (AST). The parser will also perform some basic
+/// semantic analysis, such as resolving imports, and some other basic
+/// semantic checks (due to them being syntax bound)
+#[derive(Debug, Default)]
+pub struct Parser;
+
+/// The [ParserCtx] represents all of the required information that the
+/// [Parser] stage needs to query from the pipeline.
+pub struct ParserCtx<'p> {
+    /// Reference to the current compiler workspace.
+    pub workspace: &'p mut Workspace,
+
+    /// Reference to the rayon thread pool.
+    pub pool: &'p rayon::ThreadPool,
+}
+
+pub trait ParserCtxQuery: CompilerInterface {
+    fn data(&mut self) -> ParserCtx;
+}
+
+impl<Ctx: ParserCtxQuery> CompilerStage<Ctx> for Parser {
+    /// Return the [CompilerStageKind] of the parser.
+    fn kind(&self) -> CompilerStageKind {
+        CompilerStageKind::Parse
+    }
+
+    /// Entry point of the parser. Initialises a job from the specified
+    /// `entry_point`, and calls [Self::begin].
+    fn run(
+        &mut self,
+        entry_point: SourceId,
+        ctx: &mut Ctx,
+    ) -> hash_pipeline::interface::CompilerResult<()> {
+        let ParserCtx { workspace, pool } = &mut ctx.data();
+        let current_dir = env::current_dir().map_err(|err| vec![err.into()])?;
+
+        let mut collected_diagnostics = Vec::new();
+        let (sender, receiver) = unbounded::<ParserAction>();
+
+        assert!(pool.current_num_threads() > 1, "Parser loop requires at least 2 workers");
+
+        let node_map = &mut workspace.node_map;
+        let source_map = &mut workspace.source_map;
+
+        // Parse the entry point
+        let entry_source_kind =
+            ParseSource::from_source(entry_point, node_map, source_map, current_dir);
+        parse_source(entry_source_kind, sender);
+
+        pool.scope(|scope| {
+            while let Ok(message) = receiver.recv() {
+                match message {
+                    ParserAction::SetInteractiveNode { id, node, diagnostics } => {
+                        collected_diagnostics.extend(diagnostics);
+
+                        node_map.get_interactive_block_mut(id).set_node(node);
+                    }
+                    ParserAction::SetModuleNode { id, node, diagnostics } => {
+                        collected_diagnostics.extend(diagnostics);
+
+                        node_map.get_module_mut(id).set_node(node);
+                    }
+                    ParserAction::ParseImport { resolved_path, contents, sender } => {
+                        if source_map.get_id_by_path(&resolved_path).is_some() {
+                            continue;
+                        }
+
+                        let module_id = source_map.add_module(
+                            resolved_path.clone(),
+                            contents,
+                            ModuleKind::Normal,
+                        );
+
+                        let module = ModuleEntry::new(resolved_path);
+                        node_map.add_module(module);
+
+                        let source = ParseSource::from_module(module_id, node_map, source_map);
+                        scope.spawn(move |_| parse_source(source, sender));
+                    }
+                    ParserAction::Error(err) => {
+                        collected_diagnostics.extend(err);
+                    }
+                }
+            }
+        });
+
+        if collected_diagnostics.is_empty() {
+            Ok(())
+        } else {
+            Err(collected_diagnostics)
+        }
+    }
+
+    /// Any other stage than `semantic_pass` is valid when `--dump-ast` is
+    /// specified.
+    fn cleanup(&mut self, entry_point: SourceId, ctx: &mut Ctx) {
+        let settings = ctx.settings();
+
+        if settings.stage < CompilerStageKind::SemanticPass && settings.dump_ast {
+            ctx.workspace().print_sources(entry_point);
+        }
+    }
+}
+
 /// Messages that are passed from parser workers into the general message queue.
 #[derive(Debug)]
 pub enum ParserAction {
@@ -102,121 +207,4 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
 
     let sender = resolver.into_sender();
     sender.send(action).unwrap();
-}
-
-/// Implementation structure for the parser.
-#[derive(Debug, Default)]
-pub struct Parser;
-
-impl Parser {
-    /// Create a new [Parser].
-    pub fn new() -> Self {
-        Self
-    }
-
-    /// Entry point of the parsing job. This will parse the initial entry point
-    /// on the main thread to get a map of any dependencies, and then it
-    /// will initiate the thread pool message queue. Parser workers add more
-    /// `jobs` by sending [ParserAction::ParseImport] messages through the
-    /// channel, and other workers set the parsed contents of the modules.
-    /// When all message senders go out of scope, the parser finishes executing
-    pub fn begin(
-        &self,
-        entry_point_id: SourceId,
-        current_dir: PathBuf,
-        workspace: &mut Workspace,
-        pool: &rayon::ThreadPool,
-    ) -> Vec<Report> {
-        let mut collected_diagnostics = Vec::new();
-        let (sender, receiver) = unbounded::<ParserAction>();
-
-        assert!(pool.current_num_threads() > 1, "Parser loop requires at least 2 workers");
-
-        let node_map = &mut workspace.node_map;
-        let source_map = &mut workspace.source_map;
-
-        // Parse the entry point
-        let entry_source_kind =
-            ParseSource::from_source(entry_point_id, node_map, source_map, current_dir);
-        parse_source(entry_source_kind, sender);
-
-        pool.scope(|scope| {
-            while let Ok(message) = receiver.recv() {
-                match message {
-                    ParserAction::SetInteractiveNode { id, node, diagnostics } => {
-                        collected_diagnostics.extend(diagnostics);
-
-                        node_map.get_interactive_block_mut(id).set_node(node);
-                    }
-                    ParserAction::SetModuleNode { id, node, diagnostics } => {
-                        collected_diagnostics.extend(diagnostics);
-
-                        node_map.get_module_mut(id).set_node(node);
-                    }
-                    ParserAction::ParseImport { resolved_path, contents, sender } => {
-                        if source_map.get_id_by_path(&resolved_path).is_some() {
-                            continue;
-                        }
-
-                        let module_id = source_map.add_module(
-                            resolved_path.clone(),
-                            contents,
-                            ModuleKind::Normal,
-                        );
-
-                        let module = ModuleEntry::new(resolved_path);
-                        node_map.add_module(module);
-
-                        let source = ParseSource::from_module(module_id, node_map, source_map);
-                        scope.spawn(move |_| parse_source(source, sender));
-                    }
-                    ParserAction::Error(err) => {
-                        collected_diagnostics.extend(err);
-                    }
-                }
-            }
-        });
-
-        collected_diagnostics
-    }
-}
-
-pub trait ParserCtx: CompilerInterface {
-    fn data(&mut self) -> (&mut Workspace, &rayon::ThreadPool);
-}
-
-impl<Ctx: ParserCtx> CompilerStage<Ctx> for Parser {
-    /// Return the [CompilerStageKind] of the parser.
-    fn stage_kind(&self) -> CompilerStageKind {
-        CompilerStageKind::Parse
-    }
-
-    /// Entry point of the parser. Initialises a job from the specified
-    /// `entry_point`, and calls [Self::begin].
-    fn run_stage(
-        &mut self,
-        entry_point: SourceId,
-        ctx: &mut Ctx,
-    ) -> hash_pipeline::interface::CompilerResult<()> {
-        let (workspace, pool) = ctx.data();
-        let current_dir = env::current_dir().map_err(|err| vec![err.into()])?;
-
-        let errors = self.begin(entry_point, current_dir, workspace, pool);
-
-        if errors.is_empty() {
-            Ok(())
-        } else {
-            Err(errors)
-        }
-    }
-
-    /// Any other stage than `semantic_pass` is valid when `--dump-ast` is
-    /// specified.
-    fn cleanup(&mut self, entry_point: SourceId, ctx: &mut Ctx) {
-        let settings = ctx.settings();
-
-        if settings.stage < CompilerStageKind::SemanticPass && settings.dump_ast {
-            ctx.workspace().print_sources(entry_point);
-        }
-    }
 }

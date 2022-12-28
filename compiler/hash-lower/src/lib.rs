@@ -28,45 +28,35 @@ use optimise::Optimiser;
 
 /// The Hash IR builder compiler stage. This will walk the AST, and
 /// lower all items within a particular module.
-pub struct AstLowerer;
+#[derive(Default)]
+pub struct IrGen;
 
-impl AstLowerer {
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl Default for AstLowerer {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
+/// The [LoweringCtx] represents all of the required information
+/// that the [AstLowerer] stage needs to query from the pipeline
+/// in order to perform its lowering operations.
 pub struct LoweringCtx<'ir> {
-    workspace: &'ir mut Workspace,
-    ty_storage: &'ir TyStorage,
-    ir_storage: &'ir mut IrStorage,
-    _pool: &'ir rayon::ThreadPool,
+    /// Reference to the current compiler workspace.
+    pub workspace: &'ir mut Workspace,
+
+    /// Reference to the type storage that comes from
+    /// the typechecking compiler phase.
+    pub ty_storage: &'ir TyStorage,
+
+    /// Reference to the IR storage that is used to store
+    /// the lowered IR, and all metadata about the IR.
+    pub ir_storage: &'ir mut IrStorage,
+
+    /// Reference to the rayon thread pool.
+    pub _pool: &'ir rayon::ThreadPool,
 }
 
-impl<'ir> LoweringCtx<'ir> {
-    pub fn new(
-        workspace: &'ir mut Workspace,
-        ty_storage: &'ir TyStorage,
-        ir_storage: &'ir mut IrStorage,
-        pool: &'ir rayon::ThreadPool,
-    ) -> Self {
-        Self { workspace, ty_storage, ir_storage, _pool: pool }
-    }
-}
-
-pub trait IrLoweringCtx: CompilerInterface {
+pub trait LoweringCtxQuery: CompilerInterface {
     fn data(&mut self) -> LoweringCtx<'_>;
 }
 
-impl<Ctx: IrLoweringCtx> CompilerStage<Ctx> for AstLowerer {
+impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
     /// Return that this is [CompilerStageKind::IrGen].
-    fn stage_kind(&self) -> CompilerStageKind {
+    fn kind(&self) -> CompilerStageKind {
         CompilerStageKind::IrGen
     }
 
@@ -76,7 +66,7 @@ impl<Ctx: IrLoweringCtx> CompilerStage<Ctx> for AstLowerer {
     /// are lowered and the result is saved on the [IrStorage].
     /// Additionally, this module is responsible for performing
     /// optimisations on the IR (if specified via the [CompilerSettings]).
-    fn run_stage(&mut self, _: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
+    fn run(&mut self, _: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
         let settings = ctx.settings().lowering_settings;
 
         let LoweringCtx { workspace, ty_storage, ir_storage, .. } = ctx.data();
@@ -126,19 +116,13 @@ impl<Ctx: IrLoweringCtx> CompilerStage<Ctx> for AstLowerer {
 #[derive(Default)]
 pub struct IrOptimiser;
 
-impl IrOptimiser {
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl<Ctx: IrLoweringCtx> CompilerStage<Ctx> for IrOptimiser {
+impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrOptimiser {
     /// Return that this is [CompilerStageKind::IrGen].
-    fn stage_kind(&self) -> CompilerStageKind {
+    fn kind(&self) -> CompilerStageKind {
         CompilerStageKind::IrGen
     }
 
-    fn run_stage(&mut self, _: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
+    fn run(&mut self, _: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
         let settings = ctx.settings().lowering_settings;
 
         let LoweringCtx { workspace, ir_storage, .. } = ctx.data();
