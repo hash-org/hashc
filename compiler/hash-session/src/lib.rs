@@ -129,9 +129,9 @@ impl AstDesugaringCtx for CompilerSession {
     }
 }
 
-impl SemanticAnalysisCtx for CompilerSession {
-    fn data(&mut self) -> (&mut Workspace, &rayon::ThreadPool) {
-        (&mut self.workspace, &self.pool)
+impl SemanticAnalysisCtxQuery for CompilerSession {
+    fn data(&mut self) -> SemanticAnalysisCtx {
+        SemanticAnalysisCtx { workspace: &mut self.workspace, pool: &self.pool }
     }
 }
 

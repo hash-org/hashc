@@ -11,7 +11,7 @@ use hash_reporting::{
 };
 use hash_source::{identifier::Identifier, location::SourceLocation, ModuleKind, SourceId};
 
-use super::{directives::DirectiveArgument, origins::PatOrigin};
+use super::directives::DirectiveArgument;
 use crate::analysis::params::FieldNamingExpectation;
 
 /// An error that can occur during the semantic pass
@@ -57,9 +57,6 @@ pub(crate) enum AnalysisErrorKind {
     /// allowed in pattern positions. Later this will change as float
     /// patterns should be allowed within range patterns.
     DisallowedFloatPat,
-    /// When compound patterns such as constructors and tuples have named fields
-    /// before un-named fields.
-    AmbiguousPatFieldOrder { origin: PatOrigin },
     /// When a top-level declaration features a pattern that has a binding which
     /// is declared to be mutable.
     IllegalBindingMutability,
@@ -121,16 +118,6 @@ impl From<AnalysisError> for Reports {
                 error.title("use of a `return` expression outside of a function").add_element(
                     ReportElement::CodeBlock(ReportCodeBlock::new(err.location, "here")),
                 );
-            }
-            AnalysisErrorKind::AmbiguousPatFieldOrder { origin } => {
-                error
-                    .code(HashErrorCode::AmbiguousFieldOrder)
-                    .title(format!("ambiguous field order in `{origin}` pattern"));
-
-                error.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
-                    err.location,
-                    "un-named fields cannot appear after named fields",
-                )));
             }
             AnalysisErrorKind::NonDeclarativeExpression { origin } => {
                 error.title(format!(

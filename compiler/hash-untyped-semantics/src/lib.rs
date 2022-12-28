@@ -22,11 +22,27 @@ use hash_source::SourceId;
 
 pub struct SemanticAnalysis;
 
-pub trait SemanticAnalysisCtx: CompilerInterface {
-    fn data(&mut self) -> (&mut Workspace, &rayon::ThreadPool);
+/// The [SemanticAnalysisCtx] represents all of the required information
+/// that the [SemanticAnalysis] stage needs to query from the pipeline.
+pub struct SemanticAnalysisCtx<'s> {
+    /// Reference to the current compiler workspace.
+    pub workspace: &'s mut Workspace,
+
+    /// Reference to the rayon thread pool.
+    pub pool: &'s rayon::ThreadPool,
 }
 
-impl<Ctx: SemanticAnalysisCtx> CompilerStage<Ctx> for SemanticAnalysis {
+/// A trait that allows the [SemanticAnalysis] stage to query the
+/// pipeline for the required information.
+pub trait SemanticAnalysisCtxQuery: CompilerInterface {
+    fn data(&mut self) -> SemanticAnalysisCtx;
+}
+
+impl<Ctx: SemanticAnalysisCtxQuery> CompilerStage<Ctx> for SemanticAnalysis {
+    fn kind(&self) -> CompilerStageKind {
+        CompilerStageKind::SemanticPass
+    }
+
     /// This will perform a pass on the AST by checking the semantic rules that
     /// are within the language specification. The function will attempt to
     /// perform a pass on the `entry_point` which happens on the main
@@ -36,9 +52,9 @@ impl<Ctx: SemanticAnalysisCtx> CompilerStage<Ctx> for SemanticAnalysis {
     /// it always considers the `entry_point` which might not always occur
     /// within the modules map. Each time the pipeline runs (in the
     /// interactive case), the most recent block is always passed.
-    fn run_stage(&mut self, entry_point: SourceId, stage_data: &mut Ctx) -> CompilerResult<()> {
+    fn run(&mut self, entry_point: SourceId, stage_data: &mut Ctx) -> CompilerResult<()> {
         let (sender, receiver) = unbounded::<AnalysisDiagnostic>();
-        let (workspace, pool) = stage_data.data();
+        let SemanticAnalysisCtx { workspace, pool } = stage_data.data();
 
         let source_map = &workspace.source_map;
         let node_map = &mut workspace.node_map;
@@ -110,9 +126,5 @@ impl<Ctx: SemanticAnalysisCtx> CompilerStage<Ctx> for SemanticAnalysis {
 
             Err(messages.into_iter().flat_map(Reports::from).collect())
         }
-    }
-
-    fn stage_kind(&self) -> CompilerStageKind {
-        CompilerStageKind::SemanticPass
     }
 }
