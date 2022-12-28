@@ -9,8 +9,9 @@
 //! keeping the crate dependency graph clean.
 
 use hash_ast::node_map::NodeMap;
-use hash_ast_desugaring::{AstDesugaringCtx, AstDesugaringPass};
-use hash_ast_expand::{AstExpansionCtx, AstExpansionPass};
+use hash_ast_desugaring::{AstDesugaringCtx, AstDesugaringCtxQuery, AstDesugaringPass};
+use hash_ast_expand::{AstExpansionCtx, AstExpansionCtxQuery, AstExpansionPass};
+use hash_backend::{BackendCtx, BackendCtxQuery, HashBackend};
 use hash_ir::IrStorage;
 use hash_lower::{AstLowerer, IrLoweringCtx, IrOptimiser};
 use hash_parser::{Parser, ParserCtx};
@@ -34,9 +35,9 @@ pub fn make_stages() -> Vec<Box<dyn CompilerStage<CompilerSession>>> {
         Box::new(AstDesugaringPass),
         Box::new(SemanticAnalysis),
         Box::new(Typechecker::new()),
-        Box::new(AstLowerer::new()),
-        Box::new(IrOptimiser::new()),
-        Box::new(Interpreter::new()),
+        Box::new(IrGen),
+        Box::new(IrOptimiser),
+        Box::new(HashBackend::new()),
     ]
 }
 
@@ -158,4 +159,12 @@ impl IrLoweringCtx for CompilerSession {
     }
 }
 
-impl InterpreterCtx for CompilerSession {}
+impl BackendCtxQuery for CompilerSession {
+    fn data(&mut self) -> BackendCtx {
+        BackendCtx {
+            workspace: &mut self.workspace,
+            ir_storage: &self.ir_storage,
+            _pool: &self.pool,
+        }
+    }
+}

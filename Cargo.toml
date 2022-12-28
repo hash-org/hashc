@@ -4,6 +4,7 @@ members = [
   "compiler/hash-ast-desugaring",
   "compiler/hash-ast-expand",
   "compiler/hash-ast",
+  "compiler/hash-backend",
   "compiler/hash-codegen-bytecode",
   "compiler/hash-codegen-llvm",
   "compiler/hash-codegen",

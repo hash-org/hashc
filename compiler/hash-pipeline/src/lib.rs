@@ -51,7 +51,7 @@ impl<I: CompilerInterface> Compiler<I> {
         // Assert that all the provided stages have a correct stage order, as in
         // each stage has the same level or a higher order stage than the previous
         // stage.
-        assert!(stages.windows(2).all(|w| w[0].stage_kind() <= w[1].stage_kind()));
+        assert!(stages.windows(2).all(|w| w[0].kind() <= w[1].kind()));
 
         Self { stages, metrics: HashMap::new(), bootstrapping: false }
     }
@@ -88,10 +88,10 @@ impl<I: CompilerInterface> Compiler<I> {
         index: usize,
     ) -> CompilerResult<()> {
         let stage = &mut self.stages[index];
-        let stage_kind = stage.stage_kind();
+        let stage_kind = stage.kind();
 
         timed(
-            || stage.run_stage(entry_point, workspace),
+            || stage.run(entry_point, workspace),
             log::Level::Debug,
             |time| {
                 self.metrics
@@ -134,7 +134,7 @@ impl<I: CompilerInterface> Compiler<I> {
     /// `job_parameters`
     fn run_pipeline(&mut self, entry_point: SourceId, ctx: &mut I) -> Result<(), ()> {
         for stage in 0..self.stages.len() {
-            let kind = self.stages[stage].stage_kind();
+            let kind = self.stages[stage].kind();
 
             // Terminate the pipeline if we have reached a stage that is
             // beyond the currently specified stage.

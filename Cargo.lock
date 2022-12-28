@@ -453,13 +453,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "hash-backend"
+version = "0.1.0"
+dependencies = [
+ "hash-codegen",
+ "hash-codegen-bytecode",
+ "hash-codegen-llvm",
+ "hash-ir",
+ "hash-pipeline",
+ "hash-reporting",
+ "hash-source",
+ "hash-target",
+ "hash-utils",
+ "index_vec",
+ "rayon",
+]
+
+[[package]]
 name = "hash-codegen"
 version = "0.1.0"
 dependencies = [
  "hash-ir",
+ "hash-pipeline",
+ "hash-reporting",
  "hash-source",
  "hash-target",
  "hash-utils",
+ "index_vec",
  "rayon",
 ]
 
@@ -608,6 +628,7 @@ dependencies = [
  "hash-ast",
  "hash-ast-desugaring",
  "hash-ast-expand",
+ "hash-backend",
  "hash-interactive",
  "hash-ir",
  "hash-lower",
@@ -619,7 +640,6 @@ dependencies = [
  "hash-typecheck",
  "hash-types",
  "hash-untyped-semantics",
- "hash-vm",
  "log",
  "num_cpus",
  "rayon",

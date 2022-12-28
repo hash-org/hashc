@@ -20,8 +20,7 @@ pub trait CompilerStage<StageCtx> {
     /// Run the stage, with an initial `entry_point` module. For most
     /// stages this is irrelevant since the module dependency graph
     /// is not relevant for the stage.
-    fn run_stage(&mut self, entry_point: SourceId, stage_data: &mut StageCtx)
-        -> CompilerResult<()>;
+    fn run(&mut self, entry_point: SourceId, stage_data: &mut StageCtx) -> CompilerResult<()>;
 
     /// A function that is invoked after the stage completes successfully, this
     /// might be needed to perform some additional operations when the stage
@@ -37,7 +36,7 @@ pub trait CompilerStage<StageCtx> {
 
     /// This function is used to to return the `stage` kind of
     /// this [CompilerStage].
-    fn stage_kind(&self) -> CompilerStageKind;
+    fn kind(&self) -> CompilerStageKind;
 }
 
 /// The [CompilerInterface] serves as an interface between the created compiler
