@@ -311,7 +311,7 @@ struct AstPathComponent<'a> {
     pub(self) name: Identifier,
     pub(self) name_span: Span,
     pub(self) args: Vec<AstArgGroup<'a>>,
-    pub(self) original_node_id: ast::AstNodeId,
+    pub(self) node_id: ast::AstNodeId,
 }
 
 /// A path in the AST.
@@ -616,10 +616,10 @@ impl<'tc> SymbolResolutionPass<'tc> {
                 // @@Future: we could record the data def etc id in the AST info
             }
             ResolvedAstPathComponent::Term(term_id) => {
-                self.ast_info().terms().insert(path.original_node_id, *term_id)
+                self.ast_info().terms().insert(path.node_id, *term_id)
             }
             ResolvedAstPathComponent::Ty(ty_id) => {
-                self.ast_info().tys().insert(path.original_node_id, *ty_id)
+                self.ast_info().tys().insert(path.node_id, *ty_id)
             }
         }
     }
@@ -754,7 +754,7 @@ impl<'tc> SymbolResolutionPass<'tc> {
             name: node.body.name.ident,
             name_span: node.span(),
             args: vec![],
-            original_node_id: node.id(),
+            node_id: node.id(),
         }])
     }
 
@@ -777,7 +777,7 @@ impl<'tc> SymbolResolutionPass<'tc> {
                         name: *name,
                         name_span: node.property.span(),
                         args: vec![],
-                        original_node_id: node.id(),
+                        node_id: node.id(),
                     });
                     Ok(Some(root))
                 }
@@ -820,7 +820,7 @@ impl<'tc> SymbolResolutionPass<'tc> {
             name: node.body.name.ident,
             name_span: node.span(),
             args: vec![],
-            original_node_id: node.id(),
+            node_id: node.id(),
         }])
     }
 
@@ -837,7 +837,7 @@ impl<'tc> SymbolResolutionPass<'tc> {
             name: node.body.property.ident,
             name_span: node.body.property.span(),
             args: vec![],
-            original_node_id: node.id(),
+            node_id: node.id(),
         });
         Ok(root)
     }
