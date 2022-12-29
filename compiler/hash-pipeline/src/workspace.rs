@@ -16,7 +16,7 @@ use hash_ast::{
     node_map::{InteractiveBlock, ModuleEntry, NodeMap},
     tree::AstTreeGenerator,
 };
-use hash_source::{InteractiveId, ModuleId, ModuleKind, SourceId, SourceMap};
+use hash_source::{ModuleKind, SourceId, SourceMap};
 use hash_utils::tree_writing::TreeWriter;
 
 bitflags! {
@@ -145,7 +145,7 @@ impl Default for StageInfo {
 #[derive(Debug)]
 pub struct Workspace {
     /// Dependency map between sources and modules.
-    dependencies: HashMap<SourceId, HashSet<ModuleId>>,
+    dependencies: HashMap<SourceId, HashSet<SourceId>>,
     /// Stores all of the raw file contents of the interactive blocks and
     /// modules.
     pub source_map: SourceMap,
@@ -177,73 +177,67 @@ impl Workspace {
     /// Add a interactive block to the [Workspace] by providing the contents and
     /// the [InteractiveBlock]. Returns the created [InteractiveId] from
     /// adding it to the source map.
-    pub fn add_interactive_block(
-        &mut self,
-        input: String,
-        block: InteractiveBlock,
-    ) -> InteractiveId {
+    pub fn add_interactive_block(&mut self, input: String, block: InteractiveBlock) -> SourceId {
         let id = self.source_map.add_interactive_block(input);
 
         // Add this source to the node map, and to the stage info
-        self.node_map.add_interactive_block(id, block);
-        self.source_stage_info.add(SourceId::Interactive(id), SourceStageInfo::empty());
+        self.node_map.add_interactive_block(block);
+        self.source_stage_info.add(id, SourceStageInfo::empty());
 
         id
     }
 
     /// Add a module to the [Workspace] by providing the contents and the
-    /// [Module]. Returns the created [ModuleId] from adding it to the
+    /// [ModuleEntry]. Returns the created [SourceId] from adding it to the
     /// source map.
     pub fn add_module(
         &mut self,
         contents: String,
         module: ModuleEntry,
         kind: ModuleKind,
-    ) -> ModuleId {
+    ) -> SourceId {
         let id = self.source_map.add_module(module.path.to_owned(), contents, kind);
 
         // Add this source to the node map, and to the stage info
-        self.node_map.add_module(id, module);
-        self.source_stage_info.add(SourceId::Module(id), SourceStageInfo::empty());
+        self.node_map.add_module(module);
+        self.source_stage_info.add(id, SourceStageInfo::empty());
 
         id
     }
 
-    /// Get the [ModuleId] of the module by the specified [Path].
-    pub fn get_module_id_by_path(&self, path: &Path) -> Option<ModuleId> {
+    /// Get the [SourceId] of the module by the specified [Path].
+    pub fn get_module_id_by_path(&self, path: &Path) -> Option<SourceId> {
         self.source_map.get_module_id_by_path(path)
     }
 
-    /// Add a module dependency specified by a [ModuleId] to a specific source
+    /// Add a module dependency specified by a [SourceId] to a specific source
     /// specified by a [SourceId].
-    pub fn add_dependency(&mut self, source_id: SourceId, dependency: ModuleId) {
+    pub fn add_dependency(&mut self, source_id: SourceId, dependency: SourceId) {
+        debug_assert!(dependency.is_module());
         self.dependencies.entry(source_id).or_insert_with(HashSet::new).insert(dependency);
     }
 
     /// Utility function used by AST-like stages in order to print the
     /// current [NodeMap].
     pub fn print_sources(&self, entry_point: SourceId) {
-        match entry_point {
-            SourceId::Interactive(id) => {
-                // If this is an interactive statement, we want to print the statement that was
-                // just parsed.
-                let source = self.node_map.get_interactive_block(id);
-                let tree = AstTreeGenerator.visit_body_block(source.node_ref()).unwrap();
+        if entry_point.is_interactive() {
+            // If this is an interactive statement, we want to print the statement that was
+            // just parsed.
+            let source = self.node_map.get_interactive_block(entry_point);
+            let tree = AstTreeGenerator.visit_body_block(source.node_ref()).unwrap();
 
-                println!("{}", TreeWriter::new(&tree));
-            }
-            SourceId::Module(_) => {
-                // If this is a module, we want to print all of the generated modules from the
-                // parsing stage
-                for (_, generated_module) in self.node_map.iter_modules() {
-                    let tree = AstTreeGenerator.visit_module(generated_module.node_ref()).unwrap();
+            println!("{}", TreeWriter::new(&tree));
+        } else {
+            // If this is a module, we want to print all of the generated modules from the
+            // parsing stage
+            for generated_module in self.node_map.iter_modules() {
+                let tree = AstTreeGenerator.visit_module(generated_module.node_ref()).unwrap();
 
-                    println!(
-                        "AST for `{}`:\n{}",
-                        generated_module.canonicalised_path(),
-                        TreeWriter::new(&tree)
-                    );
-                }
+                println!(
+                    "AST for `{}`:\n{}",
+                    generated_module.canonicalised_path(),
+                    TreeWriter::new(&tree)
+                );
             }
         }
     }
