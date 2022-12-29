@@ -322,11 +322,12 @@ type AstPath<'a> = Vec<AstPathComponent<'a>>;
 impl AstPathComponent<'_> {
     /// Get the span of this path component.
     pub(self) fn span(&self) -> Span {
-        self.name_span.join(
-            self.args
-                .iter()
-                .fold(self.name_span, |acc, arg| arg.span().map(|s| acc.join(s)).unwrap_or(acc)),
-        )
+        let span = self.name_span;
+        if let Some(last_arg) = self.args.last() {
+            span.join(last_arg.span().unwrap())
+        } else {
+            span
+        }
     }
 }
 
@@ -462,6 +463,7 @@ impl<'tc> SymbolResolutionPass<'tc> {
         args: &[AstArgGroup],
     ) -> TcResult<DefArgsId> {
         // @@Todo: implicit args
+        // @@Todo: default params
 
         // First ensure that the number of parameter and argument groups match.
         let created_def_args = self.make_def_args_from_ast_arg_groups(args, def_params);
