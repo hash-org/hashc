@@ -24,6 +24,7 @@ use hash_types::new::{
     locations::LocationTarget,
     mods::{ModDefId, ModMemberValue},
     params::ParamTarget,
+    pats::PatId,
     scopes::{BoundVar, StackMemberId},
     symbols::Symbol,
     terms::{Term, TermId},
@@ -54,6 +55,8 @@ enum InExpr {
     Ty,
     /// We are in a value expression.
     Value,
+    /// We are in a pattern.
+    Pat,
 }
 
 /// The kind of context we are in.
@@ -342,6 +345,7 @@ enum ResolvedAstPathComponent {
     Mod(ModDefId, DefArgsId),
     Term(TermId),
     Ty(TyId),
+    Pat(PatId),
 }
 
 /// The result of resolving a path.
@@ -351,6 +355,7 @@ enum ResolvedAstPathComponent {
 enum ResolvedAstPath {
     Term(TermId),
     Ty(TyId),
+    Pat(PatId),
 }
 
 /// This block performs resolution of AST paths.
@@ -561,6 +566,10 @@ impl<'tc> SymbolResolutionPass<'tc> {
                                 self.new_ty(Ty::Eval(resultant_term)),
                             )),
                             InExpr::Value => Ok(ResolvedAstPathComponent::Term(resultant_term)),
+                            InExpr::Pat => {
+                                // @@Todo: invalid
+                                todo!()
+                            }
                         }
                     }
                 }
@@ -581,6 +590,8 @@ impl<'tc> SymbolResolutionPass<'tc> {
                 // Apply the arguments to the constructor.
                 let args = self.apply_ast_args_to_def_params(ctor_def.params, &component.args)?;
 
+                // @@Todo: possibly produce a pattern here instead of a term.
+
                 // Create a constructor term.
                 Ok(ResolvedAstPathComponent::Term(
                     self.new_term(Term::Ctor(CtorTerm { ctor: ctor_def_id, args })),
@@ -600,6 +611,10 @@ impl<'tc> SymbolResolutionPass<'tc> {
                         Ok(ResolvedAstPathComponent::Ty(self.new_ty(Ty::Eval(resultant_term))))
                     }
                     InExpr::Value => Ok(ResolvedAstPathComponent::Term(resultant_term)),
+                    InExpr::Pat => {
+                        // @@Todo: invalid
+                        todo!()
+                    }
                 }
             }
         }
@@ -622,6 +637,9 @@ impl<'tc> SymbolResolutionPass<'tc> {
             }
             ResolvedAstPathComponent::Ty(ty_id) => {
                 self.ast_info().tys().insert(path.node_id, *ty_id)
+            }
+            ResolvedAstPathComponent::Pat(pat_id) => {
+                self.ast_info().pats().insert(path.node_id, *pat_id)
             }
         }
     }
@@ -654,6 +672,10 @@ impl<'tc> SymbolResolutionPass<'tc> {
                         self.ast_info().terms().insert(original_node.id(), ty);
                         Ok(ResolvedAstPath::Term(ty))
                     }
+                    InExpr::Pat => {
+                        // @@Todo: invalid
+                        todo!()
+                    }
                 }
             }
             ResolvedAstPathComponent::Mod(_, _) => {
@@ -665,6 +687,10 @@ impl<'tc> SymbolResolutionPass<'tc> {
                     InExpr::Value => Err(TcError::CannotUseModuleInValuePosition {
                         location: self.node_location(original_node),
                     }),
+                    InExpr::Pat => {
+                        // @@Todo: invalid
+                        todo!()
+                    }
                 }
             }
             ResolvedAstPathComponent::Term(term_id) => {
@@ -677,6 +703,7 @@ impl<'tc> SymbolResolutionPass<'tc> {
                 self.ast_info().tys().insert(original_node.id(), ty_id);
                 Ok(ResolvedAstPath::Ty(ty_id))
             }
+            ResolvedAstPathComponent::Pat(_) => todo!(),
         }
     }
 
@@ -720,8 +747,10 @@ impl<'tc> SymbolResolutionPass<'tc> {
                         original_node.span(),
                     )?;
                 }
-                ResolvedAstPathComponent::Term(_) | ResolvedAstPathComponent::Ty(_) => {
-                    // Cannot namespace further if it is a term or a type.
+                ResolvedAstPathComponent::Pat(_)
+                | ResolvedAstPathComponent::Term(_)
+                | ResolvedAstPathComponent::Ty(_) => {
+                    // Cannot namespace further if it is a term, type or pattern.
                     return Err(TcError::InvalidNamespaceSubject {
                         location: self.source_location(
                             path[..index]
@@ -912,6 +941,27 @@ impl<'tc> SymbolResolutionPass<'tc> {
         }
     }
 }
+
+// impl SymbolResolutionPass<'_> {
+
+//     fn resolve_pattern(&self, pat: AstNodeRef<ast::Pat>) -> TcResult<PatId> {
+//         match pat.body {
+//             ast::Pat::Access(access_pat) => {
+//                 access_pat.subject
+//             }
+//             ast::Pat::Binding(_) => todo!(),
+//             ast::Pat::Constructor(_) => todo!(),
+//             ast::Pat::Module(_) => todo!(),
+//             ast::Pat::Tuple(_) => todo!(),
+//             ast::Pat::List(_) => todo!(),
+//             ast::Pat::Lit(_) => todo!(),
+//             ast::Pat::Or(_) => todo!(),
+//             ast::Pat::If(_) => todo!(),
+//             ast::Pat::Wild(_) => todo!(),
+//             ast::Pat::Range(_) => todo!(),
+//         }
+//     }
+// }
 
 /// This visitor resolves all symbols and paths in the AST.
 impl ast::AstVisitor for SymbolResolutionPass<'_> {
