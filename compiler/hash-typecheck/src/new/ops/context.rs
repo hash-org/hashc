@@ -2,7 +2,7 @@ use derive_more::Constructor;
 use hash_types::new::{
     defs::{DefParamGroupId, DefParamsId},
     environment::{
-        context::{Binding, BindingKind, BindingOrigin, BoundVarOrigin, ScopeKind},
+        context::{Binding, BindingKind, BoundVarOrigin, ScopeKind},
         env::AccessToEnv,
     },
     params::{ParamId, ParamsId},
@@ -40,7 +40,7 @@ impl<'env> ContextOps<'env> {
     /// *Invariant*: It must be that the member's scope is the current stack
     /// scope.
     pub fn add_stack_binding(&self, member_id: StackMemberId) {
-        match self.context().get_scope_kind() {
+        match self.context().get_current_scope_kind() {
             ScopeKind::Stack(stack_id) => {
                 if stack_id != member_id.0 {
                     panic!("add_stack_binding called with member from different stack");
@@ -49,8 +49,10 @@ impl<'env> ContextOps<'env> {
                     .stores()
                     .stack()
                     .map_fast(stack_id, |stack| stack.members[member_id.1].name);
-                self.context()
-                    .add_binding(Binding { name, kind: BindingKind::StackMember(member_id.into()) })
+                self.context().add_binding(Binding {
+                    name,
+                    kind: BindingKind::BoundVar(BoundVarOrigin::StackMember(member_id)),
+                })
             }
             _ => panic!("add_stack_binding called in non-stack scope"),
         }
@@ -118,10 +120,7 @@ impl<'env> ContextOps<'env> {
                         for member in members.iter() {
                             self.context().add_binding(Binding {
                                 name: member.name,
-                                kind: BindingKind::ModMember(BindingOrigin {
-                                    id: mod_def_id,
-                                    index: member.id.1,
-                                }),
+                                kind: BindingKind::ModMember(mod_def_id, member.id),
                             });
                         }
                     })
@@ -150,10 +149,7 @@ impl<'env> ContextOps<'env> {
                         for ctor in ctors.iter() {
                             self.context().add_binding(Binding {
                                 name: ctor.name,
-                                kind: BindingKind::Ctor(BindingOrigin {
-                                    id: data_def_id,
-                                    index: ctor.id.1,
-                                }),
+                                kind: BindingKind::Ctor(data_def_id, ctor.id),
                             });
                         }
                     })

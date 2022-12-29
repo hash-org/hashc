@@ -6,6 +6,7 @@ pub mod counter;
 pub mod path;
 pub mod printing;
 pub mod stack;
+pub mod state;
 pub mod store;
 pub mod timing;
 pub mod tree_writing;

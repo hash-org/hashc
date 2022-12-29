@@ -10,12 +10,10 @@ use hash_utils::{
 
 use super::{
     casting::CastTerm,
-    environment::{
-        context::Binding,
-        env::{AccessToEnv, WithEnv},
-    },
+    environment::env::{AccessToEnv, WithEnv},
     holes::HoleId,
     lits::LitTerm,
+    scopes::BoundVar,
     tys::TypeOfTerm,
 };
 use crate::new::{
@@ -64,14 +62,13 @@ pub enum Term {
 
     // Functions
     FnCall(FnCallTerm),
-    // @@Todo: create separate closure type ~= (FnDefId, CapturedVars)
-    Closure(FnDefId),
+    FnRef(FnDefId),
 
     // Scopes
     Block(BlockTerm),
 
     // Variables
-    Var(Binding),
+    Var(BoundVar),
 
     // Loops
     Loop(LoopTerm),
@@ -136,7 +133,7 @@ impl fmt::Display for WithEnv<'_, &Term> {
             Term::Lit(lit_term) => write!(f, "{lit_term}"),
             Term::Ctor(ctor_term) => write!(f, "{}", self.env().with(ctor_term)),
             Term::FnCall(fn_call_term) => write!(f, "{}", self.env().with(fn_call_term)),
-            Term::Closure(closure_term) => write!(f, "{}", self.env().with(*closure_term)),
+            Term::FnRef(closure_term) => write!(f, "{}", self.env().with(*closure_term)),
             Term::Block(block_term) => write!(f, "{}", self.env().with(block_term)),
             Term::Var(resolved_var) => write!(f, "{}", self.env().with(resolved_var.name)),
             Term::Loop(loop_term) => write!(f, "{}", self.env().with(loop_term)),

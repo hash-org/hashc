@@ -6,11 +6,9 @@ use hash_types::new::{
     args::ArgData,
     data::{CtorDef, CtorDefData, CtorDefsId, DataDef, DataDefId},
     defs::{DefArgGroupData, DefArgsId, DefParamGroupData, DefParamsId},
-    environment::{
-        context::{Binding, BindingKind, BoundVarOrigin},
-        env::AccessToEnv,
-    },
+    environment::{context::BoundVarOrigin, env::AccessToEnv},
     params::{ParamData, ParamTarget},
+    scopes::BoundVar,
     symbols::Symbol,
     terms::Term,
 };
@@ -99,13 +97,13 @@ impl<'tc> DataOps<'tc> {
                                 .iter()
                                 .enumerate()
                                 .map(|(j, param)| {
-                                    let value = self.new_term(Term::Var(Binding {
+                                    let value = self.new_term(Term::Var(BoundVar {
                                         name: param.name,
-                                        kind: BindingKind::BoundVar(BoundVarOrigin::Data(
+                                        origin: BoundVarOrigin::Data(
                                             data_def_id,
                                             (def_params_id, i),
                                             (def_param_group.params, j),
-                                        )),
+                                        ),
                                     }));
                                     ArgData { target: ParamTarget::Position(i), value }
                                 })

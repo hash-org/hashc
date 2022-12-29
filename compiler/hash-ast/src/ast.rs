@@ -121,7 +121,7 @@ impl<'t, T> AstNodeRef<'t, T> {
     }
 
     /// Get a reference to body of the [AstNodeRef].
-    pub fn body(&self) -> &T {
+    pub fn body(&self) -> &'t T {
         self.body
     }
 

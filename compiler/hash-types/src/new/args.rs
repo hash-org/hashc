@@ -25,7 +25,7 @@ use crate::new::terms::TermId;
 pub struct Arg {
     /// The ID of the argument in the argument list.
     pub id: ArgId,
-    /// Argument target (named or positional).
+    /// Argument target (named or positional), if known.
     pub target: ParamTarget,
     /// The term that is the value of the argument.
     pub value: TermId,
@@ -57,7 +57,7 @@ impl fmt::Display for WithEnv<'_, &Arg> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.value.target {
             ParamTarget::Name(name) => {
-                write!(f, "{} = {}", self.env().with(name), self.env().with(self.value.value))
+                write!(f, "{} = {}", name, self.env().with(self.value.value))
             }
             ParamTarget::Position(_) => write!(f, "{}", self.env().with(self.value.value)),
         }
@@ -88,7 +88,7 @@ impl fmt::Display for WithEnv<'_, &PatArg> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.value.target {
             ParamTarget::Name(name) => {
-                write!(f, "{} = {}", self.env().with(name), self.env().with(self.value.pat))
+                write!(f, "{} = {}", name, self.env().with(self.value.pat))
             }
             ParamTarget::Position(_) => write!(f, "{}", self.env().with(self.value.pat)),
         }
