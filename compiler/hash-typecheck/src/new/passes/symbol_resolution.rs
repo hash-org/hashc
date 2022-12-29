@@ -282,7 +282,6 @@ impl<'tc> SymbolResolutionPass<'tc> {
 /// [`ast::ConstructorCallArg`], while the latter corresponds to the
 /// [`ast::TyArg`].
 #[derive(Copy, Clone, Debug)]
-#[allow(dead_code)]
 enum AstArgGroup<'a> {
     /// A group of explicit `(a, b, c)` arguments.
     ExplicitArgs(&'a ast::AstNodes<ast::ConstructorCallArg>),
