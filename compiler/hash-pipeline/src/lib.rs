@@ -265,6 +265,6 @@ impl<I: CompilerInterface> Compiler<I> {
         let entry_point =
             ctx.workspace_mut().add_module(contents.unwrap(), ModuleEntry::new(filename), kind);
 
-        self.run(SourceId::Module(entry_point), ctx)
+        self.run(entry_point, ctx)
     }
 }

@@ -60,19 +60,17 @@ impl<Ctx: AstDesugaringCtx> CompilerStage<Ctx> for AstDesugaringPass {
 
         pool.scope(|scope| {
             // De-sugar the target if it isn't already de-sugared
-            if !source_stage_info.get(entry_point).is_desugared() {
-                if let SourceId::Interactive(id) = entry_point {
-                    let source = node_map.get_interactive_block_mut(id);
-                    let mut desugarer = AstDesugaring::new(source_map, entry_point);
+            if !source_stage_info.get(entry_point).is_desugared() && entry_point.is_interactive() {
+                let source = node_map.get_interactive_block_mut(entry_point.into());
+                let mut desugarer = AstDesugaring::new(source_map, entry_point);
 
-                    desugarer.visit_body_block(source.node_ref_mut()).unwrap();
-                }
+                desugarer.visit_body_block(source.node_ref_mut()).unwrap();
             }
 
             // Iterate over all of the modules and add the expressions
             // to the queue so it can be distributed over the threads
-            for (id, module) in node_map.iter_mut_modules() {
-                let source_id = SourceId::Module(*id);
+            for (id, module) in node_map.iter_mut_modules().enumerate() {
+                let source_id = SourceId::new_module(id as u32);
                 let stage_info = source_stage_info.get(source_id);
 
                 // Skip any modules that have already been de-sugared
@@ -89,8 +87,8 @@ impl<Ctx: AstDesugaringCtx> CompilerStage<Ctx> for AstDesugaringPass {
                 // process of adding these items to the queue. However, it might be worth
                 // investigating this in the future.
                 for expr in module.node_mut().contents.iter_mut() {
-                    scope.spawn(|_| {
-                        let mut desugarer = AstDesugaring::new(source_map, SourceId::Module(*id));
+                    scope.spawn(move |_| {
+                        let mut desugarer = AstDesugaring::new(source_map, source_id);
                         desugarer.visit_expr(expr.ast_ref_mut()).unwrap()
                     })
                 }

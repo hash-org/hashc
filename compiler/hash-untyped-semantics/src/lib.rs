@@ -45,22 +45,22 @@ impl<Ctx: SemanticAnalysisCtx> CompilerStage<Ctx> for SemanticAnalysis {
         let source_stage_info = &mut workspace.source_stage_info;
 
         pool.scope(|scope| {
-            if !source_stage_info.get(entry_point).is_semantics_checked() {
-                if let SourceId::Interactive(id) = entry_point {
-                    let source = node_map.get_interactive_block(id);
+            if !source_stage_info.get(entry_point).is_semantics_checked()
+                && entry_point.is_interactive()
+            {
+                let source = node_map.get_interactive_block(entry_point.into());
 
-                    // setup a visitor and the context
-                    let mut visitor = SemanticAnalyser::new(source_map, entry_point);
+                // setup a visitor and the context
+                let mut visitor = SemanticAnalyser::new(source_map, entry_point);
 
-                    visitor.visit_body_block(source.node_ref()).unwrap();
-                    visitor.send_generated_messages(&sender);
-                }
+                visitor.visit_body_block(source.node_ref()).unwrap();
+                visitor.send_generated_messages(&sender);
             }
 
             // Iterate over all of the modules and add the expressions
             // to the queue so it can be distributed over the threads
-            for (id, module) in node_map.iter_modules() {
-                let source_id = SourceId::Module(*id);
+            for (id, module) in node_map.iter_modules().enumerate() {
+                let source_id = SourceId::new_module(id as u32);
                 let stage_info = source_stage_info.get(source_id);
 
                 // Skip any modules that have already been checked

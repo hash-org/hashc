@@ -206,7 +206,6 @@ impl<'ir> LocalUseMap<'ir> {
     }
 }
 
-// @@Todo: Simplify this implementation by hiding away un-used implementations.
 impl<'ir> IrVisitorMut<'ir> for LocalUseMap<'ir> {
     fn store(&self) -> &'ir BodyDataStore {
         self.store

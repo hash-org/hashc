@@ -8,7 +8,6 @@ use command::InteractiveCommand;
 use hash_ast::node_map::InteractiveBlock;
 use hash_pipeline::{interface::CompilerInterface, settings::CompilerStageKind, Compiler};
 use hash_reporting::errors::{CompilerError, InteractiveCommandError};
-use hash_source::SourceId;
 use rustyline::{error::ReadlineError, Editor};
 
 type CompilerResult<T> = Result<T, CompilerError>;
@@ -117,7 +116,7 @@ fn execute<I: CompilerInterface>(input: &str, compiler: &mut Compiler<I>, mut ct
             // We don't want the old diagnostics
             // @@Refactor: we don't want to leak the diagnostics here..
             ctx.diagnostics_mut().clear();
-            let new_state = compiler.run(SourceId::Interactive(interactive_id), ctx);
+            let new_state = compiler.run(interactive_id, ctx);
             return new_state;
         }
         Err(e) => CompilerError::from(e).report(),

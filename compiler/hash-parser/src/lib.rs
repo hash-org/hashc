@@ -37,8 +37,8 @@ pub enum ParserAction {
     /// A worker has completed processing an interactive block and now provides
     /// the generated AST.
     SetInteractiveNode {
-        /// The corresponding id of the parsed interactive block.
-        interactive_id: InteractiveId,
+        /// The corresponding [InteractiveId] of the parsed interactive block.
+        id: InteractiveId,
         /// The resultant parsed interactive body block.
         node: ast::AstNode<ast::BodyBlock>,
         /// The parser may still produce diagnostics for this module, and so we
@@ -48,8 +48,8 @@ pub enum ParserAction {
     /// A worker has completed processing an module and now provides the
     /// generated AST.
     SetModuleNode {
-        /// The corresponding id of the parsed module.
-        module_id: ModuleId,
+        /// The corresponding [ModuleId] of the parsed module.
+        id: ModuleId,
         /// The resultant parsed module.
         node: ast::AstNode<ast::Module>,
         /// The parser may still produce diagnostics for this module, and so we
@@ -60,7 +60,7 @@ pub enum ParserAction {
 
 /// Parse a specific source specified by [ParseSource].
 fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
-    let source_id = source.source_id();
+    let source_id = source.id();
     let contents = source.contents();
 
     // Lex the contents of the module or interactive block
@@ -84,17 +84,16 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
 
     // Perform the parsing operation now... and send the result through the
     // message queue, regardless of it being an error or not.
-    let action = match &source.source_id() {
-        SourceId::Module(id) => {
+    let id = source.id();
+    let action = match id.is_interactive() {
+        false => {
             let node = gen.parse_module();
-
-            ParserAction::SetModuleNode { module_id: *id, node, diagnostics: gen.into_reports() }
+            ParserAction::SetModuleNode { id: id.into(), node, diagnostics: gen.into_reports() }
         }
-        SourceId::Interactive(id) => {
+        true => {
             let node = gen.parse_expr_from_interactive();
-
             ParserAction::SetInteractiveNode {
-                interactive_id: *id,
+                id: id.into(),
                 node,
                 diagnostics: gen.into_reports(),
             }
@@ -144,18 +143,18 @@ impl Parser {
         pool.scope(|scope| {
             while let Ok(message) = receiver.recv() {
                 match message {
-                    ParserAction::SetInteractiveNode { interactive_id, node, diagnostics } => {
+                    ParserAction::SetInteractiveNode { id, node, diagnostics } => {
                         collected_diagnostics.extend(diagnostics);
 
-                        node_map.get_interactive_block_mut(interactive_id).set_node(node);
+                        node_map.get_interactive_block_mut(id).set_node(node);
                     }
-                    ParserAction::SetModuleNode { module_id, node, diagnostics } => {
+                    ParserAction::SetModuleNode { id, node, diagnostics } => {
                         collected_diagnostics.extend(diagnostics);
 
-                        node_map.get_module_mut(module_id).set_node(node);
+                        node_map.get_module_mut(id).set_node(node);
                     }
                     ParserAction::ParseImport { resolved_path, contents, sender } => {
-                        if source_map.get_module_id_by_path(&resolved_path).is_some() {
+                        if source_map.get_id_by_path(&resolved_path).is_some() {
                             continue;
                         }
 
@@ -166,7 +165,7 @@ impl Parser {
                         );
 
                         let module = ModuleEntry::new(resolved_path);
-                        node_map.add_module(module_id, module);
+                        node_map.add_module(module);
 
                         let source = ParseSource::from_module(module_id, node_map, source_map);
                         scope.spawn(move |_| parse_source(source, sender));

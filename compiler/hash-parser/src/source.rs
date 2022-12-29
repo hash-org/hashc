@@ -4,7 +4,7 @@
 use std::{borrow::Cow, path::PathBuf};
 
 use hash_ast::node_map::NodeMap;
-use hash_source::{InteractiveId, ModuleId, SourceId, SourceMap};
+use hash_source::{SourceId, SourceMap};
 
 /// A [ParseSource] represents the pre-processed information before a module
 /// or an interactive block gets lexed and parsed. Logic related to
@@ -21,40 +21,31 @@ pub struct ParseSource {
 }
 
 impl ParseSource {
-    /// Create a new [ParseSource] from a [ModuleId].
-    pub fn from_module(module_id: ModuleId, node_map: &NodeMap, source_map: &SourceMap) -> Self {
-        let module = node_map.get_module(module_id);
-        let contents = source_map.contents_by_id(SourceId::Module(module_id)).to_owned();
+    /// Create a new [ParseSource] from a [SourceId].
+    pub(crate) fn from_module(id: SourceId, node_map: &NodeMap, source_map: &SourceMap) -> Self {
+        let module = node_map.get_module(id.into());
+        let contents = source_map.contents_by_id(id).to_owned();
 
-        Self {
-            id: SourceId::Module(module_id),
-            contents,
-            path: module.path().parent().unwrap().to_owned(),
-        }
+        Self { id, contents, path: module.path().parent().unwrap().to_owned() }
     }
     /// Create a new [ParseSource] from a [InteractiveId].
-    pub fn from_interactive(
-        interactive_id: InteractiveId,
-        source_map: &SourceMap,
-        current_dir: PathBuf,
-    ) -> Self {
-        let contents = source_map.contents_by_id(SourceId::Interactive(interactive_id)).to_owned();
+    fn from_interactive(id: SourceId, source_map: &SourceMap, current_dir: PathBuf) -> Self {
+        let contents = source_map.contents_by_id(id).to_owned();
 
-        Self { id: SourceId::Interactive(interactive_id), contents, path: current_dir }
+        Self { id, contents, path: current_dir }
     }
 
     /// Create a [ParseSource] from a general [SourceId]
     pub fn from_source(
-        source_id: SourceId,
+        id: SourceId,
         node_map: &NodeMap,
         source_map: &SourceMap,
         current_dir: PathBuf,
     ) -> Self {
-        match source_id {
-            SourceId::Interactive(interactive_id) => {
-                Self::from_interactive(interactive_id, source_map, current_dir)
-            }
-            SourceId::Module(module_id) => Self::from_module(module_id, node_map, source_map),
+        if id.is_interactive() {
+            Self::from_interactive(id, source_map, current_dir)
+        } else {
+            Self::from_module(id, node_map, source_map)
         }
     }
 
@@ -64,7 +55,7 @@ impl ParseSource {
     }
 
     /// Get the associated [SourceId] from the [ParseSource]
-    pub fn source_id(&self) -> SourceId {
+    pub fn id(&self) -> SourceId {
         self.id
     }
 

@@ -38,25 +38,23 @@ impl<Ctx: AstExpansionCtx> CompilerStage<Ctx> for AstExpansionPass {
         let source_info = source_stage_info.get(entry_point);
 
         // De-sugar the target if it isn't already de-sugared
-        if source_info.is_expanded() {
-            if let SourceId::Interactive(id) = entry_point {
-                let expander = AstExpander::new(source_map, entry_point);
-                let source = node_map.get_interactive_block(id);
+        if source_info.is_expanded() && entry_point.is_interactive() {
+            let expander = AstExpander::new(source_map, entry_point);
+            let source = node_map.get_interactive_block(entry_point.into());
 
-                expander.visit_body_block(source.node_ref()).unwrap();
-            }
+            expander.visit_body_block(source.node_ref()).unwrap();
         }
 
-        for (id, module) in node_map.iter_modules() {
-            let module_id = SourceId::Module(*id);
-            let stage_info = source_stage_info.get(module_id);
+        for (id, module) in node_map.iter_modules().enumerate() {
+            let source_id = SourceId::new_module(id as u32);
+            let stage_info = source_stage_info.get(source_id);
 
             // Skip any modules that have already been de-sugared
             if stage_info.is_expanded() {
                 continue;
             }
 
-            let expander = AstExpander::new(source_map, module_id);
+            let expander = AstExpander::new(source_map, source_id);
             expander.visit_module(module.node_ref()).unwrap();
         }
 

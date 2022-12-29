@@ -87,8 +87,8 @@ impl<Ctx: IrLoweringCtx> CompilerStage<Ctx> for AstLowerer {
 
         // We need to visit all of the modules in the workspace and discover
         // what needs to be lowered.
-        for (module_id, module) in workspace.node_map.iter_modules() {
-            let source_id = SourceId::Module(*module_id);
+        for (id, module) in workspace.node_map.iter_modules().enumerate() {
+            let source_id = SourceId::new_module(id as u32);
             let stage_info = source_stage_info.get(source_id);
 
             // Skip any modules that have already been checked

@@ -15,7 +15,7 @@ use hash_reporting::{diagnostic::Diagnostics, macros::panic_on_span};
 use hash_source::{
     identifier::{Identifier, IDENTS},
     location::{SourceLocation, Span},
-    ModuleKind, SourceId,
+    ModuleKind,
 };
 use hash_types::{
     args::Arg,
@@ -1336,11 +1336,9 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
 
     fn visit_import(&self, node: AstNodeRef<ast::Import>) -> Result<Self::ImportRet, Self::Error> {
         // Try resolve the path of the import to a SourceId:
-        let import_module_id = self.source_map().get_module_id_by_path(&node.resolved_path);
-        match import_module_id {
-            Some(import_module_id) => {
-                let id = SourceId::Module(import_module_id);
-
+        let source_id = self.source_map().get_id_by_path(&node.resolved_path);
+        match source_id {
+            Some(id) => {
                 // Resolve the ModDef corresponding to the SourceId if it exists:
                 match self.checked_sources().source_mod_def(id) {
                     Some(already_checked_mod_term) => {
