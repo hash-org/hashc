@@ -166,7 +166,6 @@ impl<'tc> SymbolResolutionPass<'tc> {
 
                     // Populate the map with all the bindings in the current
                     // scope. Any duplicate names will be shadowed by the last entry.
-                    // @@Semantics: Should we report an error if there are duplicate names?
                     let mut map = HashMap::new();
                     self.context().for_bindings_of_level(current_level, |binding| {
                         let symbol_data = self.stores().symbol().get(binding.name);
