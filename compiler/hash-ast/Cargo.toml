@@ -7,6 +7,7 @@ edition = "2021"
 [dependencies]
 num-bigint = "0.4"
 replace_with = "0.1.7"
+index_vec = "0.1.3"
 
 hash-source = { path = "../hash-source" }
 hash-tree-def = { path = "../hash-tree-def" }

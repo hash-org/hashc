@@ -21,7 +21,7 @@ use hash_pipeline::{
     workspace::Workspace,
 };
 use hash_reporting::{diagnostic::Diagnostics, report::Report};
-use hash_source::{ModuleKind, SourceId};
+use hash_source::{InteractiveId, ModuleId, ModuleKind, SourceId};
 use import_resolver::ImportResolver;
 use parser::AstGen;
 use source::ParseSource;
@@ -37,8 +37,8 @@ pub enum ParserAction {
     /// A worker has completed processing an interactive block and now provides
     /// the generated AST.
     SetInteractiveNode {
-        /// The corresponding [SourceId] of the parsed interactive block.
-        id: SourceId,
+        /// The corresponding [InteractiveId] of the parsed interactive block.
+        id: InteractiveId,
         /// The resultant parsed interactive body block.
         node: ast::AstNode<ast::BodyBlock>,
         /// The parser may still produce diagnostics for this module, and so we
@@ -48,8 +48,8 @@ pub enum ParserAction {
     /// A worker has completed processing an module and now provides the
     /// generated AST.
     SetModuleNode {
-        /// The corresponding [SourceId] of the parsed module.
-        id: SourceId,
+        /// The corresponding [ModuleId] of the parsed module.
+        id: ModuleId,
         /// The resultant parsed module.
         node: ast::AstNode<ast::Module>,
         /// The parser may still produce diagnostics for this module, and so we
@@ -88,11 +88,15 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
     let action = match id.is_interactive() {
         false => {
             let node = gen.parse_module();
-            ParserAction::SetModuleNode { id, node, diagnostics: gen.into_reports() }
+            ParserAction::SetModuleNode { id: id.into(), node, diagnostics: gen.into_reports() }
         }
         true => {
             let node = gen.parse_expr_from_interactive();
-            ParserAction::SetInteractiveNode { id, node, diagnostics: gen.into_reports() }
+            ParserAction::SetInteractiveNode {
+                id: id.into(),
+                node,
+                diagnostics: gen.into_reports(),
+            }
         }
     };
 
@@ -139,18 +143,18 @@ impl Parser {
         pool.scope(|scope| {
             while let Ok(message) = receiver.recv() {
                 match message {
-                    ParserAction::SetInteractiveNode { id: interactive_id, node, diagnostics } => {
+                    ParserAction::SetInteractiveNode { id, node, diagnostics } => {
                         collected_diagnostics.extend(diagnostics);
 
-                        node_map.get_interactive_block_mut(interactive_id).set_node(node);
+                        node_map.get_interactive_block_mut(id).set_node(node);
                     }
-                    ParserAction::SetModuleNode { id: module_id, node, diagnostics } => {
+                    ParserAction::SetModuleNode { id, node, diagnostics } => {
                         collected_diagnostics.extend(diagnostics);
 
-                        node_map.get_module_mut(module_id).set_node(node);
+                        node_map.get_module_mut(id).set_node(node);
                     }
                     ParserAction::ParseImport { resolved_path, contents, sender } => {
-                        if source_map.get_module_id_by_path(&resolved_path).is_some() {
+                        if source_map.get_id_by_path(&resolved_path).is_some() {
                             continue;
                         }
 

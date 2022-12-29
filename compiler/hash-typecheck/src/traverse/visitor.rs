@@ -1336,7 +1336,7 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
 
     fn visit_import(&self, node: AstNodeRef<ast::Import>) -> Result<Self::ImportRet, Self::Error> {
         // Try resolve the path of the import to a SourceId:
-        let source_id = self.source_map().get_module_id_by_path(&node.resolved_path);
+        let source_id = self.source_map().get_id_by_path(&node.resolved_path);
         match source_id {
             Some(id) => {
                 // Resolve the ModDef corresponding to the SourceId if it exists:

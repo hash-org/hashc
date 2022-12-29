@@ -40,7 +40,7 @@ impl<Ctx: AstExpansionCtx> CompilerStage<Ctx> for AstExpansionPass {
         // De-sugar the target if it isn't already de-sugared
         if source_info.is_expanded() && entry_point.is_interactive() {
             let expander = AstExpander::new(source_map, entry_point);
-            let source = node_map.get_interactive_block(entry_point);
+            let source = node_map.get_interactive_block(entry_point.into());
 
             expander.visit_body_block(source.node_ref()).unwrap();
         }

@@ -8,6 +8,7 @@ use std::{
 
 use bimap::BiMap;
 use hash_utils::path::adjust_canonicalisation;
+use index_vec::define_index_type;
 use location::{compute_row_col_from_offset, RowColSpan, SourceLocation};
 
 pub mod constant;
@@ -18,6 +19,26 @@ pub mod location;
 /// stored, i.e. the most significant bit denotes whether
 /// it is a module or an interactive block.
 const SOURCE_KIND_MASK: u32 = 0x8000_0000;
+
+define_index_type! {
+    /// A [ModuleId] is a [SourceId] which points to a module.
+    pub struct ModuleId = u32;
+
+    MAX_INDEX = u32::max_value() as usize;
+    DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
+
+    DEBUG_FORMAT = "module:{}";
+}
+
+define_index_type! {
+    /// An [InteractiveId] is a [SourceId] which points to an interactive block.
+    pub struct InteractiveId = u32;
+
+    MAX_INDEX = u32::max_value() as usize;
+    DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
+
+    DEBUG_FORMAT = "interactive:{}";
+}
 
 /// An identifier for a particular source within the compiler
 /// workspace. The internal representation of a [SourceId]
@@ -32,7 +53,7 @@ const SOURCE_KIND_MASK: u32 = 0x8000_0000;
 #[derive(Clone, Copy, Hash, PartialEq, Eq)]
 pub struct SourceId {
     /// The raw value of the identifier.
-    _id: u32,
+    _raw: u32,
 }
 
 impl fmt::Debug for SourceId {
@@ -48,7 +69,7 @@ impl fmt::Debug for SourceId {
 impl Default for SourceId {
     /// Creates a default [SourceId] which points to the `prelude` module.
     fn default() -> Self {
-        Self { _id: SOURCE_KIND_MASK }
+        Self { _raw: SOURCE_KIND_MASK }
     }
 }
 
@@ -57,37 +78,57 @@ impl SourceId {
     pub fn new_module(id: u32) -> Self {
         // Value cannot be greater than 2^31 - 1
         debug_assert!(id < SOURCE_KIND_MASK);
-        Self { _id: id | SOURCE_KIND_MASK }
+        Self { _raw: id | SOURCE_KIND_MASK }
     }
 
     /// Create a new "interactive" [SourceId] from the given value.
     pub fn new_interactive(id: u32) -> Self {
         // Value cannot be greater than 2^31 - 1
         debug_assert!(id < SOURCE_KIND_MASK);
-        Self { _id: id }
+        Self { _raw: id }
     }
 
     /// Check whether the [SourceId] points to a module.
     pub fn is_module(&self) -> bool {
-        self._id >> 31 == 1
+        self._raw >> 31 == 1
     }
 
     /// Check whether the [SourceId] points to a interactive block.
     pub fn is_interactive(&self) -> bool {
-        self._id >> 31 == 0
+        self._raw >> 31 == 0
     }
 
     /// Get the actual value of the [SourceId].
     #[inline]
-    pub fn value(&self) -> u32 {
+    fn value(&self) -> u32 {
         // clear the last bit
-        self._id & 0x7fff_ffff
+        self._raw & 0x7fff_ffff
     }
+}
 
-    /// Get the actual value of [SourceId] as a usize.
-    #[inline]
-    pub fn value_usize(&self) -> usize {
-        self.value() as usize
+impl From<ModuleId> for SourceId {
+    fn from(id: ModuleId) -> Self {
+        Self::new_module(id.raw())
+    }
+}
+
+impl From<InteractiveId> for SourceId {
+    fn from(id: InteractiveId) -> Self {
+        Self::new_interactive(id.raw())
+    }
+}
+
+impl From<SourceId> for ModuleId {
+    fn from(id: SourceId) -> Self {
+        debug_assert!(id.is_module());
+        ModuleId::from_raw(id.value())
+    }
+}
+
+impl From<SourceId> for InteractiveId {
+    fn from(id: SourceId) -> Self {
+        debug_assert!(id.is_interactive());
+        InteractiveId::from_raw(id.value())
     }
 }
 
@@ -113,7 +154,7 @@ pub enum ModuleKind {
 pub struct SourceMap {
     /// A map between [ModuleId] and [PathBuf]. This is a bi-directional map
     /// and such value and key lookups are available.
-    module_paths: BiMap<u32, PathBuf>,
+    module_paths: BiMap<ModuleId, PathBuf>,
     ///  A map between [ModuleId] and the actual sources of the module.
     module_content_map: Vec<String>,
     /// A map between [ModuleId] and the kind of module
@@ -136,11 +177,11 @@ impl SourceMap {
 
     /// Get a [Path] by a specific [SourceId]. If it is interactive, the path
     /// is always set as `<interactive>`.
-    pub fn path_by_id(&self, source_id: SourceId) -> &Path {
-        if source_id.is_interactive() {
+    pub fn path_by_id(&self, id: SourceId) -> &Path {
+        if id.is_interactive() {
             Path::new("<interactive>")
         } else {
-            let value = source_id.value();
+            let value = id.into();
             self.module_paths.get_by_left(&value).unwrap().as_path()
         }
     }
@@ -148,11 +189,11 @@ impl SourceMap {
     /// Get a canonicalised version of a [Path] for a [SourceId]. If it is
     /// interactive, the path is always set as `<interactive>`. The function
     /// automatically converts the value into a string.
-    pub fn canonicalised_path_by_id(&self, source_id: SourceId) -> String {
-        if source_id.is_interactive() {
+    pub fn canonicalised_path_by_id(&self, id: SourceId) -> String {
+        if id.is_interactive() {
             String::from("<interactive>")
         } else {
-            let value = source_id.value();
+            let value = id.into();
             adjust_canonicalisation(self.module_paths.get_by_left(&value).unwrap())
         }
     }
@@ -161,12 +202,12 @@ impl SourceMap {
     /// retrieving the stem of the filename as the name of the module. This
     /// function adheres to the rules of module naming conventions which are
     /// specified within the documentation book.
-    pub fn source_name(&self, source_id: SourceId) -> &str {
-        let path = self.path_by_id(source_id);
+    pub fn source_name(&self, id: SourceId) -> &str {
+        let path = self.path_by_id(id);
 
         // for interactive, there is no file and so we just default to using the whole
         // path
-        if source_id.is_interactive() {
+        if id.is_interactive() {
             path.to_str().unwrap()
         } else {
             let prefix = path.file_prefix().unwrap();
@@ -187,9 +228,11 @@ impl SourceMap {
     }
 
     /// Get a [ModuleId] by a specific [Path]. The function checks if there
-    /// is an entry for the specified `path` yielding a [ModuleId]
-    pub fn get_module_id_by_path(&self, path: &Path) -> Option<SourceId> {
-        self.module_paths.get_by_right(path).copied().map(SourceId::new_module)
+    /// is an entry for the specified `path` yielding a [ModuleId].
+    ///
+    /// N.B. This never returns a [InteractiveId] value.
+    pub fn get_id_by_path(&self, path: &Path) -> Option<SourceId> {
+        self.module_paths.get_by_right(path).copied().map(SourceId::from)
     }
 
     /// Get the raw contents of a module or interactive block by the
@@ -219,9 +262,10 @@ impl SourceMap {
         self.module_content_map.push(contents);
 
         // Create references for the paths reverse
+        let id = ModuleId::from_raw(id);
         self.module_paths.insert(id, path);
         self.module_kind_map.push(kind);
-        SourceId::new_module(id)
+        id.into()
     }
 
     /// Add an interactive block to the [SourceMap]

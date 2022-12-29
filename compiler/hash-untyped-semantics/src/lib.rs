@@ -48,7 +48,7 @@ impl<Ctx: SemanticAnalysisCtx> CompilerStage<Ctx> for SemanticAnalysis {
             if !source_stage_info.get(entry_point).is_semantics_checked()
                 && entry_point.is_interactive()
             {
-                let source = node_map.get_interactive_block(entry_point);
+                let source = node_map.get_interactive_block(entry_point.into());
 
                 // setup a visitor and the context
                 let mut visitor = SemanticAnalyser::new(source_map, entry_point);

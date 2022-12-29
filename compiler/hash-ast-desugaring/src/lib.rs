@@ -61,7 +61,7 @@ impl<Ctx: AstDesugaringCtx> CompilerStage<Ctx> for AstDesugaringPass {
         pool.scope(|scope| {
             // De-sugar the target if it isn't already de-sugared
             if !source_stage_info.get(entry_point).is_desugared() && entry_point.is_interactive() {
-                let source = node_map.get_interactive_block_mut(entry_point);
+                let source = node_map.get_interactive_block_mut(entry_point.into());
                 let mut desugarer = AstDesugaring::new(source_map, entry_point);
 
                 desugarer.visit_body_block(source.node_ref_mut()).unwrap();

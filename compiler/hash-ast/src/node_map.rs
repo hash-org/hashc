@@ -6,8 +6,9 @@ use std::{
     slice::{Iter, IterMut},
 };
 
-use hash_source::SourceId;
+use hash_source::{InteractiveId, ModuleId, SourceId};
 use hash_utils::path::adjust_canonicalisation;
+use index_vec::{index_vec, IndexVec};
 
 use crate::ast::{AstNode, BodyBlock, Module, OwnsAstNode};
 
@@ -122,15 +123,15 @@ pub enum SourceRef<'i> {
 #[derive(Debug, Default)]
 pub struct NodeMap {
     /// All [Module] nodes that have been parsed.
-    modules: Vec<ModuleEntry>,
+    modules: IndexVec<ModuleId, ModuleEntry>,
     /// All [InteractiveBlock] nodes that have been parsed.
-    interactive_blocks: Vec<InteractiveBlock>,
+    interactive_blocks: IndexVec<InteractiveId, InteractiveBlock>,
 }
 
 impl NodeMap {
     /// Create a new [NodeMap]
     pub fn new() -> Self {
-        Self { modules: vec![], interactive_blocks: vec![] }
+        Self { modules: index_vec![], interactive_blocks: index_vec![] }
     }
 
     /// Add a [InteractiveBlock] to the [NodeMap]
@@ -144,40 +145,36 @@ impl NodeMap {
     }
 
     /// Get a [SourceRef] by [SourceId].
-    pub fn get_source(&self, source_id: SourceId) -> SourceRef<'_> {
-        if source_id.is_interactive() {
-            SourceRef::Interactive(self.get_interactive_block(source_id))
+    pub fn get_source(&self, id: SourceId) -> SourceRef<'_> {
+        if id.is_interactive() {
+            SourceRef::Interactive(self.get_interactive_block(id.into()))
         } else {
-            SourceRef::Module(self.get_module(source_id))
+            SourceRef::Module(self.get_module(id.into()))
         }
     }
 
     /// Get a reference to an [InteractiveBlock], panics if the [InteractiveId]
     /// has no backing [InteractiveBlock].
-    pub fn get_interactive_block(&self, id: SourceId) -> &InteractiveBlock {
-        debug_assert!(id.is_interactive());
-        self.interactive_blocks.get(id.value_usize()).unwrap()
+    pub fn get_interactive_block(&self, id: InteractiveId) -> &InteractiveBlock {
+        self.interactive_blocks.get(id).unwrap()
     }
 
     /// Get a mutable reference to an [InteractiveBlock], panics if the
     /// [InteractiveId] has no backing [InteractiveBlock].
-    pub fn get_interactive_block_mut(&mut self, id: SourceId) -> &mut InteractiveBlock {
-        debug_assert!(id.is_interactive());
-        self.interactive_blocks.get_mut(id.value_usize()).unwrap()
+    pub fn get_interactive_block_mut(&mut self, id: InteractiveId) -> &mut InteractiveBlock {
+        self.interactive_blocks.get_mut(id).unwrap()
     }
 
     /// Get a mutable reference to an [Module], panics if the [SourceId]
     /// has no backing [Module].
-    pub fn get_module(&self, id: SourceId) -> &ModuleEntry {
-        debug_assert!(id.is_module());
-        self.modules.get(id.value_usize()).unwrap()
+    pub fn get_module(&self, id: ModuleId) -> &ModuleEntry {
+        self.modules.get(id).unwrap()
     }
 
     /// Get a reference to an [Module], panics if the [SourceId]
     /// has no backing [Module].
-    pub fn get_module_mut(&mut self, id: SourceId) -> &mut ModuleEntry {
-        debug_assert!(id.is_module());
-        self.modules.get_mut(id.value_usize()).unwrap()
+    pub fn get_module_mut(&mut self, id: ModuleId) -> &mut ModuleEntry {
+        self.modules.get_mut(id).unwrap()
     }
 
     /// /// Create an [Iter] over the currently stores modules within [NodeMap]

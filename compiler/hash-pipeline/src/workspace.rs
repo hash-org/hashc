@@ -16,7 +16,7 @@ use hash_ast::{
     node_map::{InteractiveBlock, ModuleEntry, NodeMap},
     tree::AstTreeGenerator,
 };
-use hash_source::{ModuleKind, SourceId, SourceMap};
+use hash_source::{ModuleId, ModuleKind, SourceId, SourceMap};
 use hash_utils::tree_writing::TreeWriter;
 
 bitflags! {
@@ -145,7 +145,7 @@ impl Default for StageInfo {
 #[derive(Debug)]
 pub struct Workspace {
     /// Dependency map between sources and modules.
-    dependencies: HashMap<SourceId, HashSet<SourceId>>,
+    dependencies: HashMap<SourceId, HashSet<ModuleId>>,
     /// Stores all of the raw file contents of the interactive blocks and
     /// modules.
     pub source_map: SourceMap,
@@ -206,14 +206,16 @@ impl Workspace {
     }
 
     /// Get the [SourceId] of the module by the specified [Path].
-    pub fn get_module_id_by_path(&self, path: &Path) -> Option<SourceId> {
-        self.source_map.get_module_id_by_path(path)
+    ///
+    /// N.B. This function will never return a [SourceId] for an interactive
+    /// block.
+    pub fn get_id_by_path(&self, path: &Path) -> Option<SourceId> {
+        self.source_map.get_id_by_path(path)
     }
 
     /// Add a module dependency specified by a [SourceId] to a specific source
     /// specified by a [SourceId].
-    pub fn add_dependency(&mut self, source_id: SourceId, dependency: SourceId) {
-        debug_assert!(dependency.is_module());
+    pub fn add_dependency(&mut self, source_id: SourceId, dependency: ModuleId) {
         self.dependencies.entry(source_id).or_insert_with(HashSet::new).insert(dependency);
     }
 
@@ -223,7 +225,7 @@ impl Workspace {
         if entry_point.is_interactive() {
             // If this is an interactive statement, we want to print the statement that was
             // just parsed.
-            let source = self.node_map.get_interactive_block(entry_point);
+            let source = self.node_map.get_interactive_block(entry_point.into());
             let tree = AstTreeGenerator.visit_body_block(source.node_ref()).unwrap();
 
             println!("{}", TreeWriter::new(&tree));
