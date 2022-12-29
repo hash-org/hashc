@@ -6,7 +6,6 @@ use crate::impl_access_to_tc_env;
 
 pub mod ast_pass;
 pub mod scope_discovery;
-pub mod state;
 pub mod symbol_resolution;
 
 /// The base TC visitor, which runs each typechecking pass in order on the AST.

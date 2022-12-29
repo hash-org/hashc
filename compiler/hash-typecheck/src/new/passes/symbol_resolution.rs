@@ -29,12 +29,12 @@ use hash_types::new::{
     terms::{Term, TermId},
     tys::{Ty, TyId},
 };
-use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
-
-use super::{
-    ast_pass::AstPass,
+use hash_utils::{
     state::{HeavyState, LightState},
+    store::{CloneStore, SequenceStore, SequenceStoreKey, Store},
 };
+
+use super::ast_pass::AstPass;
 use crate::{
     impl_access_to_tc_env,
     new::{

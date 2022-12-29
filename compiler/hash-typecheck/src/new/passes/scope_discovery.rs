@@ -27,11 +27,14 @@ use hash_types::new::{
     scopes::{StackId, StackMemberData},
     symbols::Symbol,
 };
-use hash_utils::store::{DefaultPartialStore, PartialStore, SequenceStoreKey, Store};
+use hash_utils::{
+    state::LightState,
+    store::{DefaultPartialStore, PartialStore, SequenceStoreKey, Store},
+};
 use itertools::Itertools;
 use smallvec::{smallvec, SmallVec};
 
-use super::{ast_pass::AstPass, state::LightState};
+use super::ast_pass::AstPass;
 use crate::{
     impl_access_to_tc_env,
     new::{
