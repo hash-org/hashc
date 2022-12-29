@@ -23,8 +23,10 @@ impl Stack {
     /// is sane and safe.
     pub fn verify_access(&self, access_kind: StackAccessKind, size: u8) -> RuntimeResult<()> {
         match access_kind {
-            StackAccessKind::Pop if self.stack_pointer > size.into() => Ok(()),
-            StackAccessKind::Push if self.data.len() - self.stack_pointer > size.into() => Ok(()),
+            StackAccessKind::Pop if self.stack_pointer > (size as usize) => Ok(()),
+            StackAccessKind::Push if self.data.len() - self.stack_pointer > (size as usize) => {
+                Ok(())
+            }
             _ => Err(RuntimeError::StackViolationAccess {
                 kind: access_kind,
                 size,

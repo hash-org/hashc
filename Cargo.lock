@@ -635,9 +635,9 @@ dependencies = [
  "hash-alloc",
  "hash-target",
  "hash-utils",
+ "index_vec",
  "lazy_static",
  "num-bigint",
- "slotmap",
 ]
 
 [[package]]

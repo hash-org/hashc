@@ -8,19 +8,33 @@ use std::{
 
 use bimap::BiMap;
 use hash_utils::path::adjust_canonicalisation;
+use index_vec::{define_index_type, index_vec, IndexVec};
 use location::{compute_row_col_from_offset, RowColSpan, SourceLocation};
-use slotmap::{new_key_type, Key, SlotMap};
 
 pub mod constant;
 pub mod identifier;
 pub mod location;
 
-new_key_type! {
-    pub struct ModuleId;
+define_index_type! {
+    pub struct ModuleId = u32;
+
+    MAX_INDEX = i32::max_value() as usize;
+    DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
+
+    DEBUG_FORMAT = "module#{}";
+
+    DISPLAY_FORMAT="{}";
 }
 
-new_key_type! {
-    pub struct InteractiveId;
+define_index_type! {
+    pub struct InteractiveId = u32;
+
+    MAX_INDEX = i32::max_value() as usize;
+    DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
+
+    DEBUG_FORMAT = "interactive#{}";
+
+    DISPLAY_FORMAT="{}";
 }
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
@@ -34,7 +48,7 @@ pub enum SourceId {
 impl Default for SourceId {
     /// Creates a [SourceId::Module] with a null key
     fn default() -> Self {
-        Self::Module(ModuleId::null())
+        Self::Module(ModuleId::new(0))
     }
 }
 
@@ -74,12 +88,12 @@ pub struct SourceMap {
     /// and such value and key lookups are available.
     module_paths: BiMap<ModuleId, PathBuf>,
     ///  A map between [ModuleId] and the actual sources of the module.
-    module_content_map: SlotMap<ModuleId, String>,
+    module_content_map: IndexVec<ModuleId, String>,
     /// A map between [ModuleId] and the kind of module
     module_kind_map: HashMap<ModuleId, ModuleKind>,
     /// A map between [InteractiveId] and the actual sources of the interactive
     /// block.
-    interactive_content_map: SlotMap<InteractiveId, String>,
+    interactive_content_map: IndexVec<InteractiveId, String>,
 }
 
 impl SourceMap {
@@ -88,8 +102,8 @@ impl SourceMap {
         Self {
             module_paths: BiMap::new(),
             module_kind_map: HashMap::new(),
-            module_content_map: SlotMap::with_key(),
-            interactive_content_map: SlotMap::with_key(),
+            module_content_map: index_vec![],
+            interactive_content_map: index_vec![],
         }
     }
 
@@ -167,7 +181,7 @@ impl SourceMap {
 
     /// Add a module to the [SourceMap]
     pub fn add_module(&mut self, path: PathBuf, contents: String, kind: ModuleKind) -> ModuleId {
-        let id = self.module_content_map.insert(contents);
+        let id = self.module_content_map.push(contents);
 
         // Create references for the paths reverse
         self.module_paths.insert(id, path);
@@ -177,7 +191,7 @@ impl SourceMap {
 
     /// Add an interactive block to the [SourceMap]
     pub fn add_interactive_block(&mut self, contents: String) -> InteractiveId {
-        self.interactive_content_map.insert(contents)
+        self.interactive_content_map.push(contents)
     }
 
     /// Function to get a friendly representation of the [SourceLocation] in

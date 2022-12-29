@@ -11,7 +11,7 @@ derive_more = "0.99"
 fnv = "1.0.7"
 lazy_static = "1.4.0"
 num-bigint = "0.4"
-slotmap = "1.0"
+index_vec = "0.1.3"
 
 hash-alloc = { path = "../hash-alloc" }
 hash-target = { path = "../hash-target" }
