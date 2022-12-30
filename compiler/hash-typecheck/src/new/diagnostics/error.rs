@@ -39,6 +39,8 @@ pub enum TcError {
     CannotUseConstructorInTypePosition { location: SourceLocation },
     /// Cannot use a function in type position.
     CannotUseFunctionInTypePosition { location: SourceLocation },
+    /// Cannot use a function in a pattern position.
+    CannotUseFunctionInPatternPosition { location: SourceLocation },
     /// Cannot use the subject as a namespace.
     InvalidNamespaceSubject { location: SourceLocation },
     /// The given arguments do not match the length of the target parameters.
@@ -95,15 +97,7 @@ impl<'tc> WithTcEnv<'tc, &TcError> {
                 error.add_span(*merge_location).add_help("cannot use merge declarations yet");
             }
             TcError::SymbolNotFound { symbol, location, looking_in } => {
-                let def_name = match looking_in {
-                    ContextKind::Access(subject, _) => {
-                        format!(
-                            "{}",
-                            self.tc_env().env().with(self.tc_env().env().with(*subject).name())
-                        )
-                    }
-                    ContextKind::Environment => "the current scope".to_string(),
-                };
+                let def_name = format!("{}", self.tc_env().with(looking_in));
                 let search_name = self.tc_env().env().with(*symbol);
                 let noun = match looking_in {
                     ContextKind::Access(_, _) => "member",
@@ -172,6 +166,15 @@ impl<'tc> WithTcEnv<'tc, &TcError> {
 
                 error.add_span(*location).add_info(
                     "cannot use this in type position as it refers to a function definition",
+                );
+            }
+            TcError::CannotUseFunctionInPatternPosition { location } => {
+                error
+                    .code(HashErrorCode::ValueCannotBeUsedAsType)
+                    .title("cannot use a function in pattern position");
+
+                error.add_span(*location).add_info(
+                    "cannot use this in pattern position as it refers to a function definition",
                 );
             }
             TcError::InvalidNamespaceSubject { location } => {

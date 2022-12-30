@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt};
 
 /// The second pass of the typechecker, which resolves all symbols to their
 /// referenced bindings.
@@ -15,13 +15,13 @@ use hash_types::new::{
     access::AccessTerm,
     args::{ArgData, ArgsId, PatArgData, PatArgsId},
     control::{IfPat, OrPat},
-    data::{CtorTerm, DataDefId, DataTy},
+    data::{CtorPat, CtorTerm, DataDefId},
     defs::{DefArgGroupData, DefArgsId, DefParamsId},
     environment::{
-        context::{Binding, BindingKind, ScopeKind},
+        context::{Binding, BindingKind, BoundVarOrigin, ScopeKind},
         env::AccessToEnv,
     },
-    fns::FnCallTerm,
+    fns::{FnCallTerm, FnDefId},
     lits::{CharLit, IntLit, LitPat, StrLit},
     locations::LocationTarget,
     mods::{ModDefId, ModMemberValue},
@@ -31,7 +31,6 @@ use hash_types::new::{
     symbols::Symbol,
     terms::{Term, TermId},
     tuples::TuplePat,
-    tys::{Ty, TyId},
 };
 use hash_utils::{
     state::{HeavyState, LightState},
@@ -46,7 +45,7 @@ use crate::{
             error::{TcError, TcResult},
             params::{SomeArgsId, SomeDefArgsId},
         },
-        environment::tc_env::{AccessToTcEnv, TcEnv},
+        environment::tc_env::{AccessToTcEnv, TcEnv, WithTcEnv},
         ops::{ast::AstOps, common::CommonOps, AccessToOps},
     },
 };
@@ -73,9 +72,20 @@ pub enum ContextKind {
     ///
     /// The tuple contains the identifier accessing from and the location target
     /// of the definition .
-    Access(ModMemberValue, LocationTarget),
+    Access(NonTerminalResolvedPathComponent, LocationTarget),
     /// Just the current scope.
     Environment,
+}
+
+impl fmt::Display for WithTcEnv<'_, &ContextKind> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.value {
+            ContextKind::Access(non_terminal, _loc) => {
+                write!(f, "{}", self.tc_env().with(non_terminal))
+            }
+            ContextKind::Environment => write!(f, "the current scope"),
+        }
+    }
 }
 
 /// The second pass of the typechecker, which resolves all symbols to their
@@ -344,6 +354,39 @@ impl AstPathComponent<'_> {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub enum NonTerminalResolvedPathComponent {
+    Data(DataDefId, DefArgsId),
+    Mod(ModDefId, DefArgsId),
+}
+
+impl From<NonTerminalResolvedPathComponent> for ModMemberValue {
+    fn from(value: NonTerminalResolvedPathComponent) -> Self {
+        match value {
+            NonTerminalResolvedPathComponent::Data(data_def_id, _) => {
+                ModMemberValue::Data(data_def_id)
+            }
+            NonTerminalResolvedPathComponent::Mod(mod_def_id, _) => ModMemberValue::Mod(mod_def_id),
+        }
+    }
+}
+
+impl fmt::Display for WithTcEnv<'_, &NonTerminalResolvedPathComponent> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let env = self.tc_env().env();
+        write!(f, "{}", env.with(env.with(ModMemberValue::from(*self.value)).name()))
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+enum TerminalResolvedPathComponent {
+    FnDef(FnDefId),
+    CtorPat(CtorPat),
+    CtorTerm(CtorTerm),
+    FnCall(FnCallTerm),
+    BoundVar(BoundVarOrigin),
+}
+
 /// The result of resolving a path component.
 ///
 /// This is either a [`ModMemberValue`], which can
@@ -351,22 +394,19 @@ impl AstPathComponent<'_> {
 /// is a terminal value.
 #[derive(Clone, Copy, Debug)]
 enum ResolvedAstPathComponent {
-    Data(DataDefId, DefArgsId),
-    Mod(ModDefId, DefArgsId),
-    Term(TermId),
-    Ty(TyId),
-    Pat(PatId),
+    NonTerminal(NonTerminalResolvedPathComponent),
+    Terminal(TerminalResolvedPathComponent),
 }
 
-/// The result of resolving a path.
-///
-/// This is either a [`TermId`], or a [`TyId`].
-#[derive(Clone, Copy, Debug)]
-enum ResolvedAstPath {
-    Term(TermId),
-    Ty(TyId),
-    Pat(PatId),
-}
+// /// The result of resolving a path.
+// ///
+// /// This is either a [`TermId`], or a [`TyId`].
+// #[derive(Clone, Copy, Debug)]
+// enum ResolvedAstPath {
+//     Term(TermId),
+//     Ty(TyId),
+//     Pat(PatId),
+// }
 
 /// This block performs resolution of AST paths.
 impl<'tc> SymbolResolutionPass<'tc> {
@@ -378,25 +418,21 @@ impl<'tc> SymbolResolutionPass<'tc> {
         &self,
         name: Identifier,
         name_span: Span,
-        starting_from: Option<(ModMemberValue, Span)>,
+        starting_from: Option<(NonTerminalResolvedPathComponent, Span)>,
     ) -> TcResult<Binding> {
         match starting_from {
-            Some((member_value, span)) => match member_value {
+            Some((member_value, _span)) => match member_value {
                 // If we are starting from a module or data type, we need to enter their scopes.
-                ModMemberValue::Data(data_def_id) => self.enter_scope(
+                NonTerminalResolvedPathComponent::Data(data_def_id, _) => self.enter_scope(
                     ScopeKind::Data(data_def_id),
                     ContextKind::Access(member_value, data_def_id.into()),
                     || self.resolve_ast_name(name, name_span, None),
                 ),
-                ModMemberValue::Mod(mod_def_id) => self.enter_scope(
+                NonTerminalResolvedPathComponent::Mod(mod_def_id, _) => self.enter_scope(
                     ScopeKind::Mod(mod_def_id),
                     ContextKind::Access(member_value, mod_def_id.into()),
                     || self.resolve_ast_name(name, name_span, None),
                 ),
-                // Cannot use a function as a namespace.
-                ModMemberValue::Fn(_) => {
-                    Err(TcError::InvalidNamespaceSubject { location: self.source_location(span) })
-                }
             },
             None => {
                 // If there is no start point, try to lookup the variable in the current scope.
@@ -430,7 +466,7 @@ impl<'tc> SymbolResolutionPass<'tc> {
         match group {
             AstArgGroup::ExplicitArgs(args) => make_args_from_ast_args!(args),
             AstArgGroup::ImplicitArgs(args) => make_args_from_ast_args!(args),
-            AstArgGroup::ExplicitPatArgs(_args, _spread) => {
+            AstArgGroup::ExplicitPatArgs(_, _) => {
                 todo!()
             }
         }
@@ -456,7 +492,12 @@ impl<'tc> SymbolResolutionPass<'tc> {
     ///
     /// Creates a new [`TermId`], which is a term that represents the
     /// function call, and might be nested depending on `args`.
-    fn wrap_term_in_fn_call_from_ast_args(&self, subject: TermId, args: &[AstArgGroup]) -> TermId {
+    fn wrap_term_in_fn_call_from_ast_args(
+        &self,
+        subject: TermId,
+        args: &[AstArgGroup],
+    ) -> FnCallTerm {
+        debug_assert!(!args.is_empty());
         let mut current_subject = subject;
         for arg_group in args {
             let args = self.make_args_from_ast_arg_group(arg_group);
@@ -466,7 +507,10 @@ impl<'tc> SymbolResolutionPass<'tc> {
                 implicit: matches!(arg_group, AstArgGroup::ImplicitArgs(_)),
             }));
         }
-        current_subject
+        match self.get_term(current_subject) {
+            Term::FnCall(call) => call,
+            _ => unreachable!(),
+        }
     }
 
     /// Apply the given list of AST arguments to the given definition
@@ -519,24 +563,18 @@ impl<'tc> SymbolResolutionPass<'tc> {
     }
 
     /// Resolve a path component, starting from the given [`ModMemberValue`] if
-    /// present, or the current context if not. Also takes into account if
-    /// we are in a type or value context.
+    /// present, or the current context if not.
     ///
     /// The `total_span` argument is the span of the entire path, and is used
     /// for error reporting.
     ///
     /// Returns a [`ResolvedAstPathComponent`] which might or might not support
     /// further accessing.
-    ///
-    /// Invariants:
-    /// - `in_expr == InExpr::Value` returns either a term or a mod member
-    /// - `in_expr == InExpr::Ty` returns either a type or a mod member
     fn resolve_ast_path_component(
         &self,
         component: &AstPathComponent<'_>,
-        starting_from: Option<(ModMemberValue, Span)>,
-        in_expr: InExpr,
-        total_span: Span,
+        starting_from: Option<(NonTerminalResolvedPathComponent, Span)>,
+        _total_span: Span,
     ) -> TcResult<ResolvedAstPathComponent> {
         let binding = self.resolve_ast_name(component.name, component.name_span, starting_from)?;
 
@@ -549,88 +587,74 @@ impl<'tc> SymbolResolutionPass<'tc> {
                             self.stores().data_def().map_fast(data_def_id, |def| def.params);
                         let args =
                             self.apply_ast_args_to_def_params(data_def_params, &component.args)?;
-                        Ok(ResolvedAstPathComponent::Data(data_def_id, args))
+                        Ok(ResolvedAstPathComponent::NonTerminal(
+                            NonTerminalResolvedPathComponent::Data(data_def_id, args),
+                        ))
                     }
                     ModMemberValue::Mod(mod_def_id) => {
                         let mod_def_params =
                             self.stores().mod_def().map_fast(mod_def_id, |def| def.params);
                         let args =
                             self.apply_ast_args_to_def_params(mod_def_params, &component.args)?;
-                        Ok(ResolvedAstPathComponent::Mod(mod_def_id, args))
+                        Ok(ResolvedAstPathComponent::NonTerminal(
+                            NonTerminalResolvedPathComponent::Mod(mod_def_id, args),
+                        ))
                     }
-                    ModMemberValue::Fn(fn_def_id) => {
-                        // If a function is used in a value position, then it is
-                        // the function's address that is used.
-                        if in_expr == InExpr::Ty {
-                            return Err(TcError::CannotUseFunctionInTypePosition {
-                                location: self.source_location(total_span),
-                            });
+                    ModMemberValue::Fn(fn_def_id) => match &component.args[..] {
+                        [] => Ok(ResolvedAstPathComponent::Terminal(
+                            TerminalResolvedPathComponent::FnDef(fn_def_id),
+                        )),
+                        args => {
+                            let resultant_term = self.wrap_term_in_fn_call_from_ast_args(
+                                self.new_term(Term::FnRef(fn_def_id)),
+                                args,
+                            );
+                            Ok(ResolvedAstPathComponent::Terminal(
+                                TerminalResolvedPathComponent::FnCall(resultant_term),
+                            ))
                         }
-
-                        // Apply any arguments to the function.
-                        let resultant_term = self.wrap_term_in_fn_call_from_ast_args(
-                            self.new_term(Term::FnRef(fn_def_id)),
-                            &component.args,
-                        );
-
-                        // Return a term or a type as appropriate by `in_expr`.
-                        match in_expr {
-                            InExpr::Ty => Ok(ResolvedAstPathComponent::Ty(
-                                self.new_ty(Ty::Eval(resultant_term)),
-                            )),
-                            InExpr::Value => Ok(ResolvedAstPathComponent::Term(resultant_term)),
-                            InExpr::Pat => {
-                                // @@Todo: invalid
-                                todo!()
-                            }
-                        }
-                    }
+                    },
                 }
             }
             BindingKind::Ctor(_, ctor_def_id) => {
                 // A constructor cannot be namespaced further.
-                match in_expr {
-                    InExpr::Ty => {
-                        // @@Improvement: support shorthand refinement like `None` as `Option<T> of
-                        // None`.
-                        Err(TcError::CannotUseConstructorInTypePosition {
-                            location: self.source_location(total_span),
-                        })
+                match component.args[0] {
+                    AstArgGroup::ExplicitPatArgs(_, _) => {
+                        todo!()
                     }
-                    InExpr::Value => {
+                    AstArgGroup::ExplicitArgs(_) | AstArgGroup::ImplicitArgs(_) => {
                         let ctor_def = self.stores().ctor_defs().get_element(ctor_def_id);
 
                         // Apply the arguments to the constructor.
                         let args =
                             self.apply_ast_args_to_def_params(ctor_def.params, &component.args)?;
-
-                        // Create a constructor term.
-                        Ok(ResolvedAstPathComponent::Term(
-                            self.new_term(Term::Ctor(CtorTerm { ctor: ctor_def_id, args })),
+                        Ok(ResolvedAstPathComponent::Terminal(
+                            TerminalResolvedPathComponent::CtorTerm(CtorTerm {
+                                ctor: ctor_def_id,
+                                args,
+                            }),
                         ))
-                    }
-                    InExpr::Pat => {
-                        todo!()
                     }
                 }
             }
             BindingKind::BoundVar(bound_var) => {
-                // If the subject without args is a bound variable, then the
-                // rest are function arguments, and it becomes a term.
-                let resultant_term = self.wrap_term_in_fn_call_from_ast_args(
-                    self.new_term(Term::Var(BoundVar { name: binding.name, origin: bound_var })),
-                    &component.args,
-                );
-
-                // Return a term or a type as appropriate by `in_expr`.
-                match in_expr {
-                    InExpr::Ty => {
-                        Ok(ResolvedAstPathComponent::Ty(self.new_ty(Ty::Eval(resultant_term))))
-                    }
-                    InExpr::Value => Ok(ResolvedAstPathComponent::Term(resultant_term)),
-                    InExpr::Pat => {
-                        // @@Todo: invalid
-                        todo!()
+                // If the subject has no args, it is a bound variable, otherwise it is a
+                // function call.
+                match &component.args[..] {
+                    [] => Ok(ResolvedAstPathComponent::Terminal(
+                        TerminalResolvedPathComponent::BoundVar(bound_var),
+                    )),
+                    args => {
+                        let resultant_term = self.wrap_term_in_fn_call_from_ast_args(
+                            self.new_term(Term::Var(BoundVar {
+                                name: binding.name,
+                                origin: bound_var,
+                            })),
+                            args,
+                        );
+                        Ok(ResolvedAstPathComponent::Terminal(
+                            TerminalResolvedPathComponent::FnCall(resultant_term),
+                        ))
                     }
                 }
             }
@@ -642,132 +666,117 @@ impl<'tc> SymbolResolutionPass<'tc> {
     /// The given `path` is the original path that was resolved to `resolved`.
     fn add_resolved_ast_path_component_to_ast_info(
         &self,
-        resolved: &ResolvedAstPathComponent,
-        path: &AstPathComponent,
+        _resolved: &ResolvedAstPathComponent,
+        _path: &AstPathComponent,
     ) {
-        match resolved {
-            ResolvedAstPathComponent::Mod(_, _) | ResolvedAstPathComponent::Data(_, _) => {
-                // @@Future: we could record the data def etc id in the AST info
-            }
-            ResolvedAstPathComponent::Term(term_id) => {
-                self.ast_info().terms().insert(path.node_id, *term_id)
-            }
-            ResolvedAstPathComponent::Ty(ty_id) => {
-                self.ast_info().tys().insert(path.node_id, *ty_id)
-            }
-            ResolvedAstPathComponent::Pat(pat_id) => {
-                self.ast_info().pats().insert(path.node_id, *pat_id)
-            }
-        }
+        todo!()
     }
 
     /// Convert a resolved path component into a resolved path.
-    fn resolved_path_component_to_path<T>(
-        &self,
-        resolved_path: ResolvedAstPathComponent,
-        in_expr: InExpr,
-        original_node: AstNodeRef<T>,
-    ) -> TcResult<ResolvedAstPath> {
-        match resolved_path {
-            ResolvedAstPathComponent::Data(data_def_id, args_id) => {
-                match in_expr {
-                    InExpr::Ty => {
-                        // If we are in a type position, then we need to wrap the data in a
-                        // `Ty::Data` type.
-                        let ty =
-                            self.new_ty(Ty::Data(DataTy { data_def: data_def_id, args: args_id }));
-                        self.ast_info().tys().insert(original_node.id(), ty);
-                        Ok(ResolvedAstPath::Ty(ty))
-                    }
-                    InExpr::Value => {
-                        // If we are in a value position, then we use `Term::Ty`.
-                        let ty =
-                            self.new_term(Term::Ty(self.new_ty(Ty::Data(DataTy {
-                                data_def: data_def_id,
-                                args: args_id,
-                            }))));
-                        self.ast_info().terms().insert(original_node.id(), ty);
-                        Ok(ResolvedAstPath::Term(ty))
-                    }
-                    InExpr::Pat => {
-                        // @@Todo: invalid
-                        todo!()
-                    }
-                }
-            }
-            ResolvedAstPathComponent::Mod(_, _) => {
-                // This is never valid, so we just return the appropriate error.
-                match in_expr {
-                    InExpr::Ty => Err(TcError::CannotUseModuleInTypePosition {
-                        location: self.node_location(original_node),
-                    }),
-                    InExpr::Value => Err(TcError::CannotUseModuleInValuePosition {
-                        location: self.node_location(original_node),
-                    }),
-                    InExpr::Pat => {
-                        // @@Todo: invalid
-                        todo!()
-                    }
-                }
-            }
-            ResolvedAstPathComponent::Term(term_id) => {
-                assert!(in_expr == InExpr::Value);
-                self.ast_info().terms().insert(original_node.id(), term_id);
-                Ok(ResolvedAstPath::Term(term_id))
-            }
-            ResolvedAstPathComponent::Ty(ty_id) => {
-                assert!(in_expr == InExpr::Ty);
-                self.ast_info().tys().insert(original_node.id(), ty_id);
-                Ok(ResolvedAstPath::Ty(ty_id))
-            }
-            ResolvedAstPathComponent::Pat(_) => todo!(),
-        }
-    }
+    // fn resolved_path_component_to_path<T>(
+    //     &self,
+    //     resolved_path: ResolvedAstPathComponent,
+    //     in_expr: InExpr,
+    //     original_node: AstNodeRef<T>,
+    // ) -> TcResult<ResolvedAstPath> {
+    //     match resolved_path {
+    //         ResolvedAstPathComponent::Data(data_def_id, args_id) => {
+    //             match in_expr {
+    //                 InExpr::Ty => {
+    //                     // If we are in a type position, then we need to wrap the data in a
+    //                     // `Ty::Data` type.
+    //                     let ty =
+    //                         self.new_ty(Ty::Data(DataTy { data_def: data_def_id, args: args_id
+    // }));                     self.ast_info().tys().insert(original_node.id(), ty);
+    //                     Ok(ResolvedAstPath::Ty(ty))
+    //                 }
+    //                 InExpr::Value => {
+    //                     // If we are in a value position, then we use `Term::Ty`.
+    //                     let ty =
+    //                         self.new_term(Term::Ty(self.new_ty(Ty::Data(DataTy {
+    //                             data_def: data_def_id,
+    //                             args: args_id,
+    //                         }))));
+    //                     self.ast_info().terms().insert(original_node.id(), ty);
+    //                     Ok(ResolvedAstPath::Term(ty))
+    //                 }
+    //                 InExpr::Pat => {
+    //                     // @@Todo: invalid
+    //                     todo!()
+    //                 }
+    //             }
+    //         }
+    //         ResolvedAstPathComponent::Mod(_, _) => {
+    //             // This is never valid, so we just return the appropriate error.
+    //             match in_expr {
+    //                 InExpr::Ty => Err(TcError::CannotUseModuleInTypePosition {
+    //                     location: self.node_location(original_node),
+    //                 }),
+    //                 InExpr::Value => Err(TcError::CannotUseModuleInValuePosition {
+    //                     location: self.node_location(original_node),
+    //                 }),
+    //                 InExpr::Pat => {
+    //                     // @@Todo: invalid
+    //                     todo!()
+    //                 }
+    //             }
+    //         }
+    //         ResolvedAstPathComponent::Term(term_id) => {
+    //             assert!(in_expr == InExpr::Value);
+    //             self.ast_info().terms().insert(original_node.id(), term_id);
+    //             Ok(ResolvedAstPath::Term(term_id))
+    //         }
+    //         ResolvedAstPathComponent::Ty(ty_id) => {
+    //             assert!(in_expr == InExpr::Ty);
+    //             self.ast_info().tys().insert(original_node.id(), ty_id);
+    //             Ok(ResolvedAstPath::Ty(ty_id))
+    //         }
+    //         ResolvedAstPathComponent::Pat(_) => todo!(),
+    //     }
+    // }
 
-    /// Resolve a path in the current context, returning either a term or a type
-    /// as appropriate.
-    ///
-    /// Invariants:
-    /// - `in_expr == InExpr::Value` returns a term
-    /// - `in_expr == InExpr::Ty` returns a type
+    /// Resolve a path in the current context.
     fn resolve_ast_path<T>(
         &self,
         path: &AstPath,
-        in_expr: InExpr,
         original_node: AstNodeRef<T>,
-    ) -> TcResult<ResolvedAstPath> {
-        assert!(!path.is_empty());
+    ) -> TcResult<ResolvedAstPathComponent> {
+        debug_assert!(!path.is_empty());
 
         let mut resolved_path =
-            self.resolve_ast_path_component(&path[0], None, in_expr, original_node.span())?;
+            self.resolve_ast_path_component(&path[0], None, original_node.span())?;
         self.add_resolved_ast_path_component_to_ast_info(&resolved_path, &path[0]);
 
         for (index, component) in path.iter().enumerate().skip(1) {
             // For each component, we need to resolve it, and then namespace
             // further if possible.
             match resolved_path {
-                ResolvedAstPathComponent::Mod(mod_def_id, _) => {
-                    // Namespace further if it is a mod member.
-                    resolved_path = self.resolve_ast_path_component(
-                        component,
-                        Some((ModMemberValue::Mod(mod_def_id), component.span())),
-                        in_expr,
-                        original_node.span(),
-                    )?;
-                }
-                ResolvedAstPathComponent::Data(data_def_id, _) => {
-                    // Namespace further if it is a data member.
-                    resolved_path = self.resolve_ast_path_component(
-                        component,
-                        Some((ModMemberValue::Data(data_def_id), component.span())),
-                        in_expr,
-                        original_node.span(),
-                    )?;
-                }
-                ResolvedAstPathComponent::Pat(_)
-                | ResolvedAstPathComponent::Term(_)
-                | ResolvedAstPathComponent::Ty(_) => {
-                    // Cannot namespace further if it is a term, type or pattern.
+                ResolvedAstPathComponent::NonTerminal(non_terminal) => match non_terminal {
+                    NonTerminalResolvedPathComponent::Data(data_def_id, args) => {
+                        // Namespace further if it is a data member.
+                        resolved_path = self.resolve_ast_path_component(
+                            component,
+                            Some((
+                                NonTerminalResolvedPathComponent::Data(data_def_id, args),
+                                component.span(),
+                            )),
+                            original_node.span(),
+                        )?;
+                    }
+                    NonTerminalResolvedPathComponent::Mod(mod_def_id, args) => {
+                        // Namespace further if it is a mod member.
+                        resolved_path = self.resolve_ast_path_component(
+                            component,
+                            Some((
+                                NonTerminalResolvedPathComponent::Mod(mod_def_id, args),
+                                component.span(),
+                            )),
+                            original_node.span(),
+                        )?;
+                    }
+                },
+                ResolvedAstPathComponent::Terminal(_) => {
+                    // Cannot namespace further
                     return Err(TcError::InvalidNamespaceSubject {
                         location: self.source_location(
                             path[..index]
@@ -784,9 +793,7 @@ impl<'tc> SymbolResolutionPass<'tc> {
             self.add_resolved_ast_path_component_to_ast_info(&resolved_path, component)
         }
 
-        // Now we inspect the resultant resolved value and make sure it is compatible in
-        // the original context:
-        self.resolved_path_component_to_path(resolved_path, in_expr, original_node)
+        Ok(resolved_path)
     }
 }
 
@@ -1292,7 +1299,7 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
             match self.ty_as_ast_path(node) {
                 Ok(Some(path)) => {
                     // Resolve the path, which which adds it to the node.
-                    match self.resolve_ast_path(&path, self.in_expr.get(), node) {
+                    match self.resolve_ast_path(&path, node) {
                         Ok(_) => {}
                         Err(err) => {
                             self.diagnostics().add_error(err);
@@ -1323,7 +1330,7 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
             match self.expr_as_ast_path(node) {
                 Ok(Some(path)) => {
                     // Resolve the path, which which adds it to the node.
-                    match self.resolve_ast_path(&path, self.in_expr.get(), node) {
+                    match self.resolve_ast_path(&path, node) {
                         Ok(_) => {}
                         Err(err) => {
                             self.diagnostics().add_error(err);
