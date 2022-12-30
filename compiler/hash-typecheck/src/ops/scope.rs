@@ -115,7 +115,7 @@ impl<'tc> ScopeManager<'tc> {
     /// functions. This is because it creates a variable scope, and assigns each
     /// argument to its type wrapped by `Rt(..)`.
     pub(crate) fn make_rt_param_scope(&self, params_id: ParamsId) -> ScopeId {
-        let params = self.reader().get_params_owned(params_id).clone();
+        let params = self.reader().get_params_owned(params_id);
         let builder = self.builder();
         let param_scope = builder.create_scope(
             ScopeKind::Variable,
@@ -205,7 +205,7 @@ impl<'tc> ScopeManager<'tc> {
     /// This function is meant to be used for type functions, because it creates
     /// a constant scope and does not assign parameters to any values.
     pub(crate) fn make_bound_scope(&self, params_id: ParamsId) -> ScopeId {
-        let params = self.reader().get_params_owned(params_id).clone();
+        let params = self.reader().get_params_owned(params_id);
         let builder = self.builder();
         let param_scope = builder.create_scope(
             ScopeKind::Bound,

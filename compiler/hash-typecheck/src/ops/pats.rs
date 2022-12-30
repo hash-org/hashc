@@ -122,7 +122,7 @@ impl<'tc> PatMatcher<'tc> {
         // Take the first member as we'll use it for our comparison
         let mut member_binds = HashSet::new();
 
-        for (lhs_members, lhs_pat) in member_maps.clone().iter() {
+        for (lhs_members, lhs_pat) in member_maps.iter() {
             member_binds = lhs_members.keys().copied().collect::<HashSet<Identifier>>();
 
             // Compute the difference in `name` keys, if there exists a
@@ -654,7 +654,7 @@ impl<'tc> PatMatcher<'tc> {
     ) -> TcResult<Option<Vec<PatMember>>> {
         // We need to collect all of the binds from the inner patterns of
         // the list
-        let params = self.reader().get_pat_args_owned(element_pats).clone();
+        let params = self.reader().get_pat_args_owned(element_pats);
 
         let mut bound_members = vec![];
         let shared_term = self.builder().create_rt_term(list_element_ty);
@@ -720,7 +720,7 @@ impl<'tc> PatMatcher<'tc> {
         ModPat { members }: ModPat,
         subject: TermId,
     ) -> TcResult<Option<Vec<PatMember>>> {
-        let members = self.reader().get_pat_args_owned(members).clone();
+        let members = self.reader().get_pat_args_owned(members);
 
         let mut bound_members = vec![];
 

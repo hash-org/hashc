@@ -75,7 +75,7 @@ impl<'tc> LowerPatOps<'tc> {
             // rest are wildcards, since this seems to be redundant, might need to introduce
             // some kind of special fields that doesn't care about all of the filled in fields...
             Pat::Mod(ModPat { members }) => {
-                let specified_members = reader.get_pat_args_owned(members).clone();
+                let specified_members = reader.get_pat_args_owned(members);
 
                 let (scope_id, mut scope_members) = match reader.get_term(ty) {
                     Term::Level1(Level1Term::ModDef(id)) => {
@@ -156,7 +156,7 @@ impl<'tc> LowerPatOps<'tc> {
                 match reader.get_term(ty) {
                     Term::Level1(Level1Term::Tuple(TupleTy { members })) => {
                         let fields = self.pat_lowerer().deconstruct_pat_fields(args, members);
-                        let members = reader.get_params_owned(members).clone();
+                        let members = reader.get_params_owned(members);
 
                         // Create wild-cards for all of the tuple inner members
                         let mut wilds: SmallVec<[_; 2]> = members

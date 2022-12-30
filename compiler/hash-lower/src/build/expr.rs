@@ -580,7 +580,7 @@ impl<'tcx> Builder<'tcx> {
             }
         }
 
-        let fields: Vec<_> = fields.into_values().into_iter().collect();
+        let fields: Vec<_> = fields.into_values().collect();
         let aggregate = RValue::Aggregate(aggregate_kind, fields);
         self.control_flow_graph.push_assign(block, destination, aggregate, span);
 

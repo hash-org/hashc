@@ -227,7 +227,6 @@ impl<'tc> UsefulnessOps<'tc> {
                     let new_pats = self
                         .split_wildcard_ops()
                         .iter_missing(&wildcard)
-                        .into_iter()
                         .map(|missing_ctor| {
                             let pat = self.deconstruct_pat_ops().wild_from_ctor(ctx, missing_ctor);
                             self.deconstructed_pat_store().create(pat)
