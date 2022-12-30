@@ -19,14 +19,14 @@
 //! This can then be used to create a term, type, or pattern, with appropriate
 //! restrictions on the arguments and item kind.
 
-use std::fmt;
+use std::{fmt, ops::Range};
 
 use hash_ast::ast;
 use hash_source::{identifier::Identifier, location::Span};
 use hash_types::new::{
-    args::{ArgData, ArgsId},
+    args::{ArgData, ArgsId, PatArgsId},
     data::{CtorPat, CtorTerm, DataDefId},
-    defs::{DefArgGroupData, DefArgsId, DefParamsId},
+    defs::{DefArgGroupData, DefArgsId, DefParamsId, DefPatArgGroupData, DefPatArgsId},
     environment::{
         context::{Binding, BindingKind, ScopeKind},
         env::AccessToEnv,
@@ -34,6 +34,7 @@ use hash_types::new::{
     fns::{FnCallTerm, FnDefId},
     mods::{ModDefId, ModMemberValue},
     params::ParamTarget,
+    pats::Spread,
     scopes::BoundVar,
     terms::{Term, TermId},
 };
@@ -75,7 +76,10 @@ impl AstArgGroup<'_> {
         match self {
             AstArgGroup::ExplicitArgs(args) => args.span(),
             AstArgGroup::ImplicitArgs(args) => args.span(),
-            AstArgGroup::ExplicitPatArgs(args, _) => args.span(),
+            AstArgGroup::ExplicitPatArgs(args, spread) => args
+                .span()
+                .and_then(|args_span| Some(args_span.join(spread.as_ref()?.span())))
+                .or_else(|| Some(spread.as_ref()?.span())),
         }
     }
 }
@@ -171,6 +175,73 @@ pub enum ResolvedAstPathComponent {
     Terminal(TerminalResolvedPathComponent),
 }
 
+/// Resolved arguments.
+///
+/// These are either term arguments, or pattern arguments.
+pub enum ResolvedArgs {
+    Term(ArgsId),
+    Pat(PatArgsId, Option<Spread>),
+}
+
+impl ResolvedArgs {
+    /// Get the number of arguments.
+    fn len(&self) -> usize {
+        match self {
+            ResolvedArgs::Term(args) => args.len(),
+            ResolvedArgs::Pat(args, _) => args.len(),
+        }
+    }
+}
+
+impl From<ResolvedArgs> for SomeArgsId {
+    fn from(value: ResolvedArgs) -> Self {
+        match value {
+            ResolvedArgs::Term(args) => SomeArgsId::Args(args),
+            ResolvedArgs::Pat(args, _) => SomeArgsId::PatArgs(args),
+        }
+    }
+}
+
+/// Resolved definition arguments.
+///
+/// These are either term arguments, or pattern arguments.
+pub enum ResolvedDefArgs {
+    Term(DefArgsId),
+    Pat(DefPatArgsId),
+}
+
+impl From<ResolvedDefArgs> for SomeDefArgsId {
+    fn from(value: ResolvedDefArgs) -> Self {
+        match value {
+            ResolvedDefArgs::Term(args) => SomeDefArgsId::Args(args),
+            ResolvedDefArgs::Pat(args) => SomeDefArgsId::PatArgs(args),
+        }
+    }
+}
+
+impl ResolvedDefArgs {
+    /// Get the number of arguments.
+    pub fn len(&self) -> usize {
+        match self {
+            ResolvedDefArgs::Term(args) => args.len(),
+            ResolvedDefArgs::Pat(args) => args.len(),
+        }
+    }
+
+    /// Check if there are no arguments.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Get the range of indices of the arguments.
+    pub fn to_index_range(&self) -> Range<usize> {
+        match self {
+            ResolvedDefArgs::Term(args) => args.to_index_range(),
+            ResolvedDefArgs::Pat(args) => args.to_index_range(),
+        }
+    }
+}
+
 /// This block performs resolution of AST paths.
 impl<'tc> SymbolResolutionPass<'tc> {
     /// Resolve a name starting from the given [`ModMemberValue`], or the
@@ -209,45 +280,137 @@ impl<'tc> SymbolResolutionPass<'tc> {
         }
     }
 
-    /// Make [`ArgsId`] from an AST argument group, with holes for all the
+    /// Make [`ResolvedArgs`] from an AST argument group, with holes for all the
     /// arguments.
-    pub fn make_args_from_ast_arg_group(&self, group: &AstArgGroup) -> ArgsId {
-        macro_rules! make_args_from_ast_args {
-            ($args:expr) => {
-                self.param_ops().create_args($args.iter().enumerate().map(|(i, arg)| {
-                    return ArgData {
-                        target: arg
-                            .name
-                            .as_ref()
-                            .map(|name| ParamTarget::Name(name.ident))
-                            .unwrap_or_else(|| ParamTarget::Position(i)),
-                        value: self.new_term_hole(),
-                    };
-                }))
-            };
-        }
+    ///
+    /// This will return either pattern arguments or term arguments, depending
+    /// on the kind of the argument group.
+    pub fn make_args_from_ast_arg_group(&self, group: &AstArgGroup) -> TcResult<ResolvedArgs> {
         match group {
-            AstArgGroup::ExplicitArgs(args) => make_args_from_ast_args!(args),
-            AstArgGroup::ImplicitArgs(args) => make_args_from_ast_args!(args),
-            AstArgGroup::ExplicitPatArgs(_, _) => {
-                todo!()
+            AstArgGroup::ExplicitArgs(args) => {
+                let args = args
+                    .iter()
+                    .enumerate()
+                    .map(|(i, arg)| {
+                        Ok(ArgData {
+                            target: arg
+                                .name
+                                .as_ref()
+                                .map(|name| ParamTarget::Name(name.ident))
+                                .unwrap_or_else(|| ParamTarget::Position(i)),
+                            value: self.make_term_from_ast_expr(arg.value.ast_ref())?,
+                        })
+                    })
+                    .collect::<TcResult<Vec<_>>>()?;
+                Ok(ResolvedArgs::Term(self.param_ops().create_args(args.into_iter())))
+            }
+            AstArgGroup::ImplicitArgs(args) => {
+                let args = args
+                    .iter()
+                    .enumerate()
+                    .map(|(i, arg)| {
+                        Ok(ArgData {
+                            target: arg
+                                .name
+                                .as_ref()
+                                .map(|name| ParamTarget::Name(name.ident))
+                                .unwrap_or_else(|| ParamTarget::Position(i)),
+                            value: self
+                                .new_term(Term::Ty(self.make_ty_from_ast_ty(arg.ty.ast_ref())?)),
+                        })
+                    })
+                    .collect::<TcResult<Vec<_>>>()?;
+                Ok(ResolvedArgs::Term(self.param_ops().create_args(args.into_iter())))
+            }
+            AstArgGroup::ExplicitPatArgs(pat_args, spread) => {
+                let spread = self.ast_spread_as_spread(spread)?;
+                let args = self.ast_tuple_pat_entries_as_pat_args(pat_args)?;
+                Ok(ResolvedArgs::Pat(args, spread))
             }
         }
     }
 
-    /// Make [`DefArgsId`] from a list of AST argument groups, using
+    /// Make [`ResolvedDefArgs`] from a list of AST argument groups, using
     /// `make_args_from_ast_arg_group` to make each argument group.
+    ///
+    /// Panics if the argument group list is empty.
+    ///
+    /// This will either create term arguments or pattern arguments, depending
+    /// on the argument groups given. If they mismatch in kinds, an error is
+    /// returned.
     fn make_def_args_from_ast_arg_groups(
         &self,
         groups: &[AstArgGroup],
         originating_params: DefParamsId,
-    ) -> DefArgsId {
-        self.param_ops().create_def_args(groups.iter().enumerate().map(|(index, group)| {
-            DefArgGroupData {
-                args: self.make_args_from_ast_arg_group(group),
-                param_group: (originating_params, index),
+    ) -> TcResult<ResolvedDefArgs> {
+        let mut is_pat_args: Option<bool> = None;
+
+        // Ensure that each argument group is of the same kind.
+        for group in groups {
+            match (group, is_pat_args) {
+                (AstArgGroup::ExplicitArgs(_) | AstArgGroup::ImplicitArgs(_), None) => {
+                    is_pat_args = Some(false);
+                }
+                (AstArgGroup::ExplicitPatArgs(_, _), None) => {
+                    is_pat_args = Some(true);
+                }
+                // Correct cases:
+                (AstArgGroup::ExplicitArgs(_) | AstArgGroup::ImplicitArgs(_), Some(false))
+                | (AstArgGroup::ExplicitPatArgs(_, _), Some(true)) => {}
+                // Error cases:
+                (AstArgGroup::ExplicitArgs(_) | AstArgGroup::ImplicitArgs(_), Some(true))
+                | (AstArgGroup::ExplicitPatArgs(_, _), Some(false)) => {
+                    // @@Correctness: should we make this a user error or will it never happen?
+                    panic!("Mixing pattern and non-pattern arguments is not allowed")
+                }
             }
-        }))
+        }
+
+        match is_pat_args {
+            Some(is_pat_args) => {
+                if is_pat_args {
+                    // Pattern arguments
+                    let arg_groups = groups
+                        .iter()
+                        .enumerate()
+                        .map(|(index, group)| {
+                            let (pat_args, spread) =
+                                match self.make_args_from_ast_arg_group(group)? {
+                                    ResolvedArgs::Term(_) => unreachable!(),
+                                    ResolvedArgs::Pat(pat_args, spread) => (pat_args, spread),
+                                };
+                            Ok(DefPatArgGroupData {
+                                pat_args,
+                                spread,
+                                param_group: (originating_params, index),
+                            })
+                        })
+                        .collect::<TcResult<Vec<_>>>()?;
+                    Ok(ResolvedDefArgs::Pat(
+                        self.param_ops().create_def_pat_args(arg_groups.into_iter()),
+                    ))
+                } else {
+                    // Term arguments
+                    let arg_groups = groups
+                        .iter()
+                        .enumerate()
+                        .map(|(index, group)| {
+                            let args = match self.make_args_from_ast_arg_group(group)? {
+                                ResolvedArgs::Term(term_args) => term_args,
+                                ResolvedArgs::Pat(_, _) => unreachable!(),
+                            };
+                            Ok(DefArgGroupData { args, param_group: (originating_params, index) })
+                        })
+                        .collect::<TcResult<Vec<_>>>()?;
+                    Ok(ResolvedDefArgs::Term(
+                        self.param_ops().create_def_args(arg_groups.into_iter()),
+                    ))
+                }
+            }
+            None => {
+                panic!("Empty arguments given to make_def_args_from_ast_arg_groups")
+            }
+        }
     }
 
     /// Wrap a term in a function call, given a list of arguments as a list of
@@ -255,23 +418,43 @@ impl<'tc> SymbolResolutionPass<'tc> {
     ///
     /// Creates a new [`TermId`], which is a term that represents the
     /// function call, and might be nested depending on `args`.
+    ///
+    /// It is not valid for `args` to be pattern arguments, and it will produce
+    /// an error if it is.
+    ///
+    /// If `args` is empty, this will panic.
     fn wrap_term_in_fn_call_from_ast_args(
         &self,
         subject: TermId,
         args: &[AstArgGroup],
-    ) -> FnCallTerm {
+        original_span: Span,
+    ) -> TcResult<FnCallTerm> {
         debug_assert!(!args.is_empty());
         let mut current_subject = subject;
         for arg_group in args {
-            let args = self.make_args_from_ast_arg_group(arg_group);
-            current_subject = self.new_term(Term::FnCall(FnCallTerm {
-                subject: current_subject,
-                args,
-                implicit: matches!(arg_group, AstArgGroup::ImplicitArgs(_)),
-            }));
+            let args = self.make_args_from_ast_arg_group(arg_group)?;
+
+            match args {
+                ResolvedArgs::Term(args) => {
+                    // Here we are trying to call a function with term arguments.
+                    // Apply the arguments to the current subject and continue.
+                    current_subject = self.new_term(Term::FnCall(FnCallTerm {
+                        subject: current_subject,
+                        args,
+                        implicit: matches!(arg_group, AstArgGroup::ImplicitArgs(_)),
+                    }));
+                }
+                ResolvedArgs::Pat(_, _) => {
+                    // Here we are trying to call a function with pattern arguments.
+                    // This is not allowed.
+                    return Err(TcError::CannotUseFunctionInPatternPosition {
+                        location: self.source_location(original_span),
+                    });
+                }
+            }
         }
         match self.get_term(current_subject) {
-            Term::FnCall(call) => call,
+            Term::FnCall(call) => Ok(call),
             _ => unreachable!(),
         }
     }
@@ -286,16 +469,16 @@ impl<'tc> SymbolResolutionPass<'tc> {
         &self,
         def_params: DefParamsId,
         args: &[AstArgGroup],
-    ) -> TcResult<DefArgsId> {
+    ) -> TcResult<ResolvedDefArgs> {
         // @@Todo: implicit args
         // @@Todo: default params
 
         // First ensure that the number of parameter and argument groups match.
-        let created_def_args = self.make_def_args_from_ast_arg_groups(args, def_params);
+        let created_def_args = self.make_def_args_from_ast_arg_groups(args, def_params)?;
         if def_params.len() != created_def_args.len() {
             return Err(TcError::WrongDefArgLength {
                 def_params_id: def_params,
-                def_args_id: SomeDefArgsId::Args(created_def_args),
+                def_args_id: created_def_args.into(),
             });
         }
 
@@ -307,14 +490,22 @@ impl<'tc> SymbolResolutionPass<'tc> {
         {
             let def_param_group =
                 self.stores().def_params().get_element((def_params, param_group_index));
-            let def_arg_group =
-                self.stores().def_args().get_element((created_def_args, arg_group_index));
 
-            if def_param_group.params.len() != def_arg_group.args.len() {
+            let def_arg_group = match created_def_args {
+                ResolvedDefArgs::Term(args) => ResolvedArgs::Term(
+                    self.stores().def_args().get_element((args, arg_group_index)).args,
+                ),
+                ResolvedDefArgs::Pat(args) => {
+                    let element = self.stores().def_pat_args().get_element((args, arg_group_index));
+                    ResolvedArgs::Pat(element.pat_args, element.spread)
+                }
+            };
+
+            if def_param_group.params.len() != def_arg_group.len() {
                 // Collect errors and only report at the end.
                 errors.push(TcError::WrongArgLength {
                     params_id: def_param_group.params,
-                    args_id: SomeArgsId::Args(def_arg_group.args),
+                    args_id: def_arg_group.into(),
                 });
             }
         }
@@ -347,18 +538,38 @@ impl<'tc> SymbolResolutionPass<'tc> {
                             self.stores().data_def().map_fast(data_def_id, |def| def.params);
                         let args =
                             self.apply_ast_args_to_def_params(data_def_params, &component.args)?;
-                        Ok(ResolvedAstPathComponent::NonTerminal(
-                            NonTerminalResolvedPathComponent::Data(data_def_id, args),
-                        ))
+
+                        match args {
+                            ResolvedDefArgs::Term(args) => {
+                                Ok(ResolvedAstPathComponent::NonTerminal(
+                                    NonTerminalResolvedPathComponent::Data(data_def_id, args),
+                                ))
+                            }
+                            ResolvedDefArgs::Pat(_) => {
+                                Err(TcError::CannotUseDataTypeInPatternPosition {
+                                    location: self.source_location(component.name_span),
+                                })
+                            }
+                        }
                     }
                     ModMemberValue::Mod(mod_def_id) => {
                         let mod_def_params =
                             self.stores().mod_def().map_fast(mod_def_id, |def| def.params);
                         let args =
                             self.apply_ast_args_to_def_params(mod_def_params, &component.args)?;
-                        Ok(ResolvedAstPathComponent::NonTerminal(
-                            NonTerminalResolvedPathComponent::Mod(mod_def_id, args),
-                        ))
+
+                        match args {
+                            ResolvedDefArgs::Term(args) => {
+                                Ok(ResolvedAstPathComponent::NonTerminal(
+                                    NonTerminalResolvedPathComponent::Mod(mod_def_id, args),
+                                ))
+                            }
+                            ResolvedDefArgs::Pat(_) => {
+                                Err(TcError::CannotUseModuleInPatternPosition {
+                                    location: self.source_location(component.name_span),
+                                })
+                            }
+                        }
                     }
                     ModMemberValue::Fn(fn_def_id) => match &component.args[..] {
                         [] => Ok(ResolvedAstPathComponent::Terminal(
@@ -368,7 +579,8 @@ impl<'tc> SymbolResolutionPass<'tc> {
                             let resultant_term = self.wrap_term_in_fn_call_from_ast_args(
                                 self.new_term(Term::FnRef(fn_def_id)),
                                 args,
-                            );
+                                component.span(),
+                            )?;
                             Ok(ResolvedAstPathComponent::Terminal(
                                 TerminalResolvedPathComponent::FnCall(resultant_term),
                             ))
@@ -377,24 +589,20 @@ impl<'tc> SymbolResolutionPass<'tc> {
                 }
             }
             BindingKind::Ctor(_, ctor_def_id) => {
-                // A constructor cannot be namespaced further.
-                match component.args[0] {
-                    AstArgGroup::ExplicitPatArgs(_, _) => {
-                        todo!()
-                    }
-                    AstArgGroup::ExplicitArgs(_) | AstArgGroup::ImplicitArgs(_) => {
-                        let ctor_def = self.stores().ctor_defs().get_element(ctor_def_id);
+                let ctor_def = self.stores().ctor_defs().get_element(ctor_def_id);
+                let applied_args =
+                    self.apply_ast_args_to_def_params(ctor_def.params, &component.args)?;
 
-                        // Apply the arguments to the constructor.
-                        let args =
-                            self.apply_ast_args_to_def_params(ctor_def.params, &component.args)?;
-                        Ok(ResolvedAstPathComponent::Terminal(
-                            TerminalResolvedPathComponent::CtorTerm(CtorTerm {
-                                ctor: ctor_def_id,
-                                args,
-                            }),
-                        ))
-                    }
+                match applied_args {
+                    ResolvedDefArgs::Term(args) => Ok(ResolvedAstPathComponent::Terminal(
+                        TerminalResolvedPathComponent::CtorTerm(CtorTerm {
+                            ctor: ctor_def_id,
+                            args,
+                        }),
+                    )),
+                    ResolvedDefArgs::Pat(args) => Ok(ResolvedAstPathComponent::Terminal(
+                        TerminalResolvedPathComponent::CtorPat(CtorPat { ctor: ctor_def_id, args }),
+                    )),
                 }
             }
             BindingKind::BoundVar(bound_var) => {
@@ -414,7 +622,8 @@ impl<'tc> SymbolResolutionPass<'tc> {
                                 origin: bound_var,
                             })),
                             args,
-                        );
+                            component.span(),
+                        )?;
                         Ok(ResolvedAstPathComponent::Terminal(
                             TerminalResolvedPathComponent::FnCall(resultant_term),
                         ))

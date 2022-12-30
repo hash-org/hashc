@@ -35,7 +35,7 @@ use crate::new::{
 
 impl SymbolResolutionPass<'_> {
     /// Create a [`PatArgsId`] from the given [`ast::TuplePatEntry`]s.
-    fn ast_tuple_pat_entries_as_pat_args(
+    pub fn ast_tuple_pat_entries_as_pat_args(
         &self,
         entries: &ast::AstNodes<ast::TuplePatEntry>,
     ) -> TcResult<PatArgsId> {
@@ -65,11 +65,21 @@ impl SymbolResolutionPass<'_> {
     }
 
     /// Create a [`Spread`] from the given [`ast::SpreadPat`].
-    fn ast_spread_as_spread(
+    ///
+    /// This assumes that the current scope already has a binding for the
+    /// given name if it is present, and will panic otherwise.
+    pub fn ast_spread_as_spread(
         &self,
-        _node: &Option<ast::AstNode<ast::SpreadPat>>,
+        node: &Option<ast::AstNode<ast::SpreadPat>>,
     ) -> TcResult<Option<Spread>> {
-        todo!()
+        Ok(node.as_ref().map(|node| Spread {
+            name: node
+                .name
+                .as_ref()
+                .map(|name| self.lookup_binding_by_name(name.ident).unwrap())
+                .unwrap_or_else(|| self.new_fresh_symbol()),
+            index: node.position,
+        }))
     }
 
     /// Create an [`AstPath`] from the given [`ast::AccessPat`].
