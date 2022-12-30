@@ -211,7 +211,7 @@ impl<'tc> SymbolResolutionPass<'tc> {
 
     /// Make [`ArgsId`] from an AST argument group, with holes for all the
     /// arguments.
-    fn make_args_from_ast_arg_group(&self, group: &AstArgGroup) -> ArgsId {
+    pub fn make_args_from_ast_arg_group(&self, group: &AstArgGroup) -> ArgsId {
         macro_rules! make_args_from_ast_args {
             ($args:expr) => {
                 self.param_ops().create_args($args.iter().enumerate().map(|(i, arg)| {
