@@ -1,8 +1,9 @@
 use derive_more::Constructor;
 use hash_types::new::{
-    args::{Arg, ArgData, ArgsId},
+    args::{Arg, ArgData, ArgsId, PatArg, PatArgData, PatArgsId},
     defs::{
         DefArgGroup, DefArgGroupData, DefArgsId, DefParamGroup, DefParamGroupData, DefParamsId,
+        DefPatArgGroup, DefPatArgGroupData, DefPatArgsId,
     },
     environment::env::AccessToEnv,
     params::{Param, ParamData, ParamsId},
@@ -45,6 +46,22 @@ impl<'tc> ParamOps<'tc> {
         }))
     }
 
+    /// Create definition pattern arguments from the given iterator of argument
+    /// group data.
+    pub fn create_def_pat_args(
+        &self,
+        arg_groups: impl Iterator<Item = DefPatArgGroupData> + ExactSizeIterator,
+    ) -> DefPatArgsId {
+        self.stores().def_pat_args().create_from_iter_with(arg_groups.map(|data| {
+            move |id| DefPatArgGroup {
+                id,
+                pat_args: data.pat_args,
+                spread: data.spread,
+                param_group: data.param_group,
+            }
+        }))
+    }
+
     /// Create definition arguments from the given iterator of argument group
     /// data.
     pub fn create_def_args(
@@ -70,6 +87,16 @@ impl<'tc> ParamOps<'tc> {
     pub fn create_args(&self, args: impl Iterator<Item = ArgData> + ExactSizeIterator) -> ArgsId {
         self.stores().args().create_from_iter_with(
             args.map(|data| move |id| Arg { id, target: data.target, value: data.value }),
+        )
+    }
+
+    /// Create pattern arguments from the given iterator of argument data.
+    pub fn create_pat_args(
+        &self,
+        args: impl Iterator<Item = PatArgData> + ExactSizeIterator,
+    ) -> PatArgsId {
+        self.stores().pat_args().create_from_iter_with(
+            args.map(|data| move |id| PatArg { id, target: data.target, pat: data.pat }),
         )
     }
 }

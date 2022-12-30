@@ -13,7 +13,8 @@ use hash_reporting::macros::panic_on_span;
 use hash_source::{identifier::Identifier, location::Span};
 use hash_types::new::{
     access::AccessTerm,
-    args::{ArgData, ArgsId},
+    args::{ArgData, ArgsId, PatArgData, PatArgsId},
+    control::{IfPat, OrPat},
     data::{CtorTerm, DataDefId, DataTy},
     defs::{DefArgGroupData, DefArgsId, DefParamsId},
     environment::{
@@ -21,13 +22,15 @@ use hash_types::new::{
         env::AccessToEnv,
     },
     fns::FnCallTerm,
+    lits::{CharLit, IntLit, LitPat, StrLit},
     locations::LocationTarget,
     mods::{ModDefId, ModMemberValue},
     params::ParamTarget,
-    pats::PatId,
+    pats::{ListPat, Pat, PatId, PatListId, Spread},
     scopes::{BoundVar, StackMemberId},
     symbols::Symbol,
     terms::{Term, TermId},
+    tuples::TuplePat,
     tys::{Ty, TyId},
 };
 use hash_utils::{
@@ -290,6 +293,12 @@ enum AstArgGroup<'a> {
     ExplicitArgs(&'a ast::AstNodes<ast::ConstructorCallArg>),
     /// A group of implicit `<a, b, c>` arguments.
     ImplicitArgs(&'a ast::AstNodes<ast::TyArg>),
+    /// A group of explicit `(p, q, r)` pattern arguments
+    ExplicitPatArgs(
+        &'a ast::AstNodes<ast::TuplePatEntry>,
+        &'a Option<ast::AstNode<ast::SpreadPat>>,
+    ),
+    // @@Todo: implicit pattern arguments when AST supports this
 }
 
 impl AstArgGroup<'_> {
@@ -298,6 +307,7 @@ impl AstArgGroup<'_> {
         match self {
             AstArgGroup::ExplicitArgs(args) => args.span(),
             AstArgGroup::ImplicitArgs(args) => args.span(),
+            AstArgGroup::ExplicitPatArgs(args, _) => args.span(),
         }
     }
 }
@@ -420,6 +430,9 @@ impl<'tc> SymbolResolutionPass<'tc> {
         match group {
             AstArgGroup::ExplicitArgs(args) => make_args_from_ast_args!(args),
             AstArgGroup::ImplicitArgs(args) => make_args_from_ast_args!(args),
+            AstArgGroup::ExplicitPatArgs(_args, _spread) => {
+                todo!()
+            }
         }
     }
 
@@ -575,27 +588,31 @@ impl<'tc> SymbolResolutionPass<'tc> {
                 }
             }
             BindingKind::Ctor(_, ctor_def_id) => {
-                // A constructor cannot be namespaced further, so it becomes
-                // a term.
-                if in_expr == InExpr::Ty {
-                    // @@Improvement: support shorthand refinement like `None` as `Option<T> of
-                    // None`.
-                    return Err(TcError::CannotUseConstructorInTypePosition {
-                        location: self.source_location(total_span),
-                    });
+                // A constructor cannot be namespaced further.
+                match in_expr {
+                    InExpr::Ty => {
+                        // @@Improvement: support shorthand refinement like `None` as `Option<T> of
+                        // None`.
+                        Err(TcError::CannotUseConstructorInTypePosition {
+                            location: self.source_location(total_span),
+                        })
+                    }
+                    InExpr::Value => {
+                        let ctor_def = self.stores().ctor_defs().get_element(ctor_def_id);
+
+                        // Apply the arguments to the constructor.
+                        let args =
+                            self.apply_ast_args_to_def_params(ctor_def.params, &component.args)?;
+
+                        // Create a constructor term.
+                        Ok(ResolvedAstPathComponent::Term(
+                            self.new_term(Term::Ctor(CtorTerm { ctor: ctor_def_id, args })),
+                        ))
+                    }
+                    InExpr::Pat => {
+                        todo!()
+                    }
                 }
-
-                let ctor_def = self.stores().ctor_defs().get_element(ctor_def_id);
-
-                // Apply the arguments to the constructor.
-                let args = self.apply_ast_args_to_def_params(ctor_def.params, &component.args)?;
-
-                // @@Todo: possibly produce a pattern here instead of a term.
-
-                // Create a constructor term.
-                Ok(ResolvedAstPathComponent::Term(
-                    self.new_term(Term::Ctor(CtorTerm { ctor: ctor_def_id, args })),
-                ))
             }
             BindingKind::BoundVar(bound_var) => {
                 // If the subject without args is a bound variable, then the
@@ -942,26 +959,177 @@ impl<'tc> SymbolResolutionPass<'tc> {
     }
 }
 
-// impl SymbolResolutionPass<'_> {
+impl SymbolResolutionPass<'_> {
+    /// Create a [`PatArgsId`] from the given [`ast::TuplePatEntry`]s.
+    fn ast_tuple_pat_entries_as_pat_args(
+        &self,
+        entries: &ast::AstNodes<ast::TuplePatEntry>,
+    ) -> TcResult<PatArgsId> {
+        let args = entries
+            .iter()
+            .enumerate()
+            .map(|(i, arg)| {
+                Ok(PatArgData {
+                    target: match arg.name.as_ref() {
+                        Some(name) => ParamTarget::Name(name.ident),
+                        None => ParamTarget::Position(i),
+                    },
+                    pat: self.ast_pat_as_pat(arg.pat.ast_ref())?,
+                })
+            })
+            .collect::<TcResult<Vec<_>>>()?;
+        Ok(self.param_ops().create_pat_args(args.into_iter()))
+    }
 
-//     fn resolve_pattern(&self, pat: AstNodeRef<ast::Pat>) -> TcResult<PatId> {
-//         match pat.body {
-//             ast::Pat::Access(access_pat) => {
-//                 access_pat.subject
-//             }
-//             ast::Pat::Binding(_) => todo!(),
-//             ast::Pat::Constructor(_) => todo!(),
-//             ast::Pat::Module(_) => todo!(),
-//             ast::Pat::Tuple(_) => todo!(),
-//             ast::Pat::List(_) => todo!(),
-//             ast::Pat::Lit(_) => todo!(),
-//             ast::Pat::Or(_) => todo!(),
-//             ast::Pat::If(_) => todo!(),
-//             ast::Pat::Wild(_) => todo!(),
-//             ast::Pat::Range(_) => todo!(),
-//         }
-//     }
-// }
+    /// Create a [`PatListId`] from the given [`ast::Pat`]s.
+    fn ast_pats_as_pat_list(&self, pats: &ast::AstNodes<ast::Pat>) -> TcResult<PatListId> {
+        let pats = pats
+            .iter()
+            .map(|pat| self.ast_pat_as_pat(pat.ast_ref()))
+            .collect::<TcResult<Vec<_>>>()?;
+        Ok(self.stores().pat_list().create_from_iter_fast(pats.into_iter()))
+    }
+
+    /// Create a [`Spread`] from the given [`ast::SpreadPat`].
+    fn ast_spread_as_spread(
+        &self,
+        _node: &Option<ast::AstNode<ast::SpreadPat>>,
+    ) -> TcResult<Option<Spread>> {
+        todo!()
+    }
+
+    /// Create a [`PatId`] from the given [`ast::Pat`].
+    fn ast_pat_as_pat(&self, node: AstNodeRef<ast::Pat>) -> TcResult<PatId> {
+        match node.body {
+            ast::Pat::Access(_access_pat) => {
+                // let path = self.access_pat_as_ast_path(node.with_body(access_pat))?;
+                todo!()
+            }
+            ast::Pat::Binding(_) => todo!(),
+            ast::Pat::Constructor(_) => todo!(),
+            ast::Pat::Module(_) => todo!(),
+            ast::Pat::Tuple(tuple_pat) => Ok(self.new_pat(Pat::Tuple(TuplePat {
+                data: self.ast_tuple_pat_entries_as_pat_args(&tuple_pat.fields)?,
+                original_ty: None,
+                data_spread: self.ast_spread_as_spread(&tuple_pat.spread)?,
+            }))),
+            ast::Pat::List(list_pat) => Ok(self.new_pat(Pat::List(ListPat {
+                pats: self.ast_pats_as_pat_list(&list_pat.fields)?,
+                spread: self.ast_spread_as_spread(&list_pat.spread)?,
+            }))),
+            ast::Pat::Lit(lit_pat) => match lit_pat.data.body() {
+                ast::Lit::Str(str_lit) => {
+                    Ok(self.new_pat(Pat::Lit(LitPat::Str(StrLit { underlying: *str_lit }))))
+                }
+                ast::Lit::Char(char_lit) => {
+                    Ok(self.new_pat(Pat::Lit(LitPat::Char(CharLit { underlying: *char_lit }))))
+                }
+                ast::Lit::Int(int_lit) => {
+                    Ok(self.new_pat(Pat::Lit(LitPat::Int(IntLit { underlying: *int_lit }))))
+                }
+                ast::Lit::Bool(_bool_lit) => {
+                    // @@Todo: bool constructor
+                    todo!()
+                }
+                ast::Lit::Float(_)
+                | ast::Lit::Set(_)
+                | ast::Lit::Map(_)
+                | ast::Lit::List(_)
+                | ast::Lit::Tuple(_) => panic!("Found invalid literal in pattern"),
+            },
+            ast::Pat::Or(or_pat) => Ok(self.new_pat(Pat::Or(OrPat {
+                alternatives: self.ast_pats_as_pat_list(&or_pat.variants)?,
+            }))),
+            ast::Pat::If(if_pat) => Ok(self.new_pat(Pat::If(IfPat {
+                condition: self.new_term_hole(), // @@Todo: queue up a term to be resolved
+                pat: self.ast_pat_as_pat(if_pat.pat.ast_ref())?,
+            }))),
+            ast::Pat::Wild(_) => todo!(),
+            ast::Pat::Range(_) => todo!(),
+        }
+    }
+
+    /// Create an [`AstPath`] from the given [`ast::AccessPat`].
+    fn access_pat_as_ast_path<'a>(
+        &self,
+        node: AstNodeRef<'a, ast::AccessPat>,
+    ) -> TcResult<AstPath<'a>> {
+        match self.ast_pat_as_ast_path(node.body.subject.ast_ref())? {
+            Some(mut subject_path) => {
+                subject_path.push(AstPathComponent {
+                    name: node.property.ident,
+                    name_span: node.property.span(),
+                    args: vec![],
+                    node_id: node.id(),
+                });
+                Ok(subject_path)
+            }
+            None => Err(TcError::InvalidNamespaceSubject {
+                location: self.node_location(node.subject.ast_ref()),
+            }),
+        }
+    }
+
+    /// Create an [`AstPath`] from the given [`ast::ConstructorPat`].
+    fn constructor_pat_as_ast_path<'a>(
+        &self,
+        node: AstNodeRef<'a, ast::ConstructorPat>,
+    ) -> TcResult<AstPath<'a>> {
+        match self.ast_pat_as_ast_path(node.body.subject.ast_ref())? {
+            Some(mut path) => match path.last_mut() {
+                Some(component) => {
+                    component
+                        .args
+                        .push(AstArgGroup::ExplicitPatArgs(&node.body.fields, &node.body.spread));
+                    Ok(path)
+                }
+                None => panic!("Expected at least one path component"),
+            },
+            None => Err(TcError::InvalidNamespaceSubject {
+                location: self.node_location(node.subject.ast_ref()),
+            }),
+        }
+    }
+
+    /// Create an [`AstPath`] from the given [`ast::BindingPat`].
+    fn binding_pat_as_ast_path<'a>(
+        &self,
+        node: AstNodeRef<'a, ast::BindingPat>,
+    ) -> TcResult<AstPath<'a>> {
+        Ok(vec![AstPathComponent {
+            name: node.name.ident,
+            name_span: node.name.span(),
+            args: vec![],
+            node_id: node.id(),
+        }])
+    }
+
+    /// Create an [`AstPath`] from the given [`ast::Pat`].
+    fn ast_pat_as_ast_path<'a>(
+        &self,
+        node: AstNodeRef<'a, ast::Pat>,
+    ) -> TcResult<Option<AstPath<'a>>> {
+        match node.body {
+            ast::Pat::Access(access_pat) => {
+                Ok(Some(self.access_pat_as_ast_path(node.with_body(access_pat))?))
+            }
+            ast::Pat::Constructor(ctor_pat) => {
+                Ok(Some(self.constructor_pat_as_ast_path(node.with_body(ctor_pat))?))
+            }
+            ast::Pat::Binding(binding_pat) => {
+                Ok(Some(self.binding_pat_as_ast_path(node.with_body(binding_pat))?))
+            }
+            ast::Pat::List(_)
+            | ast::Pat::Lit(_)
+            | ast::Pat::Or(_)
+            | ast::Pat::If(_)
+            | ast::Pat::Wild(_)
+            | ast::Pat::Range(_)
+            | ast::Pat::Module(_)
+            | ast::Pat::Tuple(_) => Ok(None),
+        }
+    }
+}
 
 /// This visitor resolves all symbols and paths in the AST.
 impl ast::AstVisitor for SymbolResolutionPass<'_> {
