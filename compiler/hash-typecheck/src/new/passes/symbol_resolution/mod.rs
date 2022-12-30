@@ -294,6 +294,12 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         MatchCase,
         Expr,
         Ty,
+        AccessTy,
+        AccessPat,
+        AccessExpr,
+        BindingPat,
+        NamedTy,
+        VariableExpr,
         Pat,
     );
 
@@ -461,11 +467,66 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
             return Ok(());
         }
 
-        self.in_expr.enter(InExpr::Pat, || {
-            walk::walk_pat(self, node)?;
-            // For each node, try to resolve it as a pattern.
-            self.unwrap_or_diagnostic(self.make_pat_from_ast_pat(node));
+        if let ScopeKind::Stack(_) = self.context().get_current_scope_kind() {
+            // Only look at patterns if we are in a stack.
+            self.in_expr.enter(InExpr::Pat, || {
+                walk::walk_pat(self, node)?;
+                // For each node, try to resolve it as a pattern.
+                self.unwrap_or_diagnostic(self.make_pat_from_ast_pat(node));
+                Ok(())
+            })
+        } else {
             Ok(())
-        })
+        }
+    }
+
+    // These are all handled by path resolution:
+
+    type AccessPatRet = ();
+    fn visit_access_pat(
+        &self,
+        _node: AstNodeRef<ast::AccessPat>,
+    ) -> Result<Self::AccessPatRet, Self::Error> {
+        Ok(())
+    }
+
+    type AccessTyRet = ();
+    fn visit_access_ty(
+        &self,
+        _node: AstNodeRef<ast::AccessTy>,
+    ) -> Result<Self::AccessTyRet, Self::Error> {
+        Ok(())
+    }
+
+    type AccessExprRet = ();
+    fn visit_access_expr(
+        &self,
+        _node: AstNodeRef<ast::AccessExpr>,
+    ) -> Result<Self::AccessExprRet, Self::Error> {
+        Ok(())
+    }
+
+    type BindingPatRet = ();
+    fn visit_binding_pat(
+        &self,
+        _node: AstNodeRef<ast::BindingPat>,
+    ) -> Result<Self::BindingPatRet, Self::Error> {
+        Ok(())
+    }
+
+    type VariableExprRet = ();
+    fn visit_variable_expr(
+        &self,
+        _node: AstNodeRef<ast::VariableExpr>,
+    ) -> Result<Self::VariableExprRet, Self::Error> {
+        Ok(())
+    }
+
+    type NamedTyRet = ();
+    fn visit_named_ty(
+        &self,
+        _node: AstNodeRef<ast::NamedTy>,
+    ) -> Result<Self::NamedTyRet, Self::Error> {
+        Ok(())
     }
 }

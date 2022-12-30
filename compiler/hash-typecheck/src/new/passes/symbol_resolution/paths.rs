@@ -19,7 +19,7 @@
 //! This can then be used to create a term, type, or pattern, with appropriate
 //! restrictions on the arguments and item kind.
 
-use std::{fmt, ops::Range};
+use std::{fmt, iter::empty, ops::Range};
 
 use hash_ast::ast;
 use hash_source::{identifier::Identifier, location::Span};
@@ -108,8 +108,8 @@ impl AstPathComponent<'_> {
     /// Get the span of this path component.
     pub fn span(&self) -> Span {
         let span = self.name_span;
-        if let Some(last_arg) = self.args.last() {
-            span.join(last_arg.span().unwrap())
+        if let Some(last_arg) = self.args.last() && let Some(arg_span) = last_arg.span() {
+            span.join(arg_span)
         } else {
             span
         }
@@ -407,9 +407,9 @@ impl<'tc> SymbolResolutionPass<'tc> {
                     ))
                 }
             }
-            None => {
-                panic!("Empty arguments given to make_def_args_from_ast_arg_groups")
-            }
+            // @@Hack: here we assume the args are term args; if they are meant to be pattern args
+            // it will be handled in [`super::pats`].
+            None => Ok(ResolvedDefArgs::Term(self.param_ops().create_def_args(empty()))),
         }
     }
 

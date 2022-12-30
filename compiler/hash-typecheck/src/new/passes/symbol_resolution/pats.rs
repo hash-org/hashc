@@ -4,12 +4,15 @@
 //! TC-patterns. It handles all patterns, but only resolves nested expressions
 //! that are paths, using [super::exprs].
 
+use std::iter::empty;
+
 use hash_ast::ast::{self, AstNodeRef};
 use hash_reporting::macros::panic_on_span;
 use hash_source::location::Span;
 use hash_types::new::{
     args::{PatArgData, PatArgsId},
     control::{IfPat, OrPat},
+    data::CtorPat,
     environment::env::AccessToEnv,
     lits::{CharLit, IntLit, LitPat, StrLit},
     params::ParamTarget,
@@ -17,7 +20,7 @@ use hash_types::new::{
     scopes::BindingPat,
     tuples::TuplePat,
 };
-use hash_utils::store::SequenceStore;
+use hash_utils::store::{SequenceStore, SequenceStoreKey};
 
 use super::{
     paths::{
@@ -193,6 +196,13 @@ impl SymbolResolutionPass<'_> {
                     Ok(self.new_pat(Pat::Binding(BindingPat {
                         name: bound_var.name,
                         is_mutable: false,
+                    })))
+                }
+                TerminalResolvedPathComponent::CtorTerm(ctor_term) if ctor_term.args.is_empty() => {
+                    // @@Hack: Constructor term without args is a valid pattern
+                    Ok(self.new_pat(Pat::Ctor(CtorPat {
+                        ctor: ctor_term.ctor,
+                        args: self.param_ops().create_def_pat_args(empty()),
                     })))
                 }
                 TerminalResolvedPathComponent::CtorTerm(_) => {
