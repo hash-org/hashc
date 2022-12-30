@@ -11,12 +11,10 @@ use hash_ast::{
 };
 use hash_source::{identifier::Identifier, location::Span};
 use hash_types::new::{
-    access::AccessTerm,
     environment::{context::ScopeKind, env::AccessToEnv},
     locations::LocationTarget,
     scopes::StackMemberId,
     symbols::Symbol,
-    terms::Term,
 };
 use hash_utils::{
     state::{HeavyState, LightState},
@@ -133,6 +131,7 @@ impl<'tc> SymbolResolutionPass<'tc> {
     /// This will search the current scope and all parent scopes.
     /// If the binding is not found, it will return `None`.
     fn lookup_binding_by_name(&self, name: Identifier) -> Option<Symbol> {
+        // @@Todo: do not iter up if the context kind is access
         self.bindings_by_name.get().iter().rev().find_map(|b| b.1.get(&name).copied())
     }
 
@@ -294,15 +293,8 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         BodyBlock,
         MatchCase,
         Expr,
-        AccessExpr,
-        ConstructorCallExpr,
-        VariableExpr,
         Ty,
-        AccessTy,
-        NamedTy,
-        TyFnCall,
-        AccessPat,
-        ConstructorPat,
+        Pat,
     );
 
     type ModuleRet = ();
@@ -434,28 +426,22 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
 
     type TyRet = ();
     fn visit_ty(&self, node: ast::AstNodeRef<ast::Ty>) -> Result<Self::TyRet, Self::Error> {
+        if let ContextKind::Access(_, _) = self.get_current_context_kind() {
+            // Handled by path resolution.
+            return Ok(());
+        }
+
         self.in_expr.enter(InExpr::Ty, || {
             walk::walk_ty(self, node)?;
-            // For each node, try to resolve it as an ast path. If it is an ast path,
-            // it is added to the node.
-            match self.ty_as_ast_path(node) {
-                Ok(Some(path)) => {
-                    // Resolve the path, which which adds it to the node.
-                    match self.resolve_ast_path(&path, node) {
-                        Ok(_) => {}
-                        Err(err) => {
-                            self.diagnostics().add_error(err);
-                        }
-                    }
-                }
-                Ok(None) => {}
+            // For each node, try to resolve it as a type.
+            match self.make_ty_from_ast_ty(node) {
+                Ok(_) => {}
                 Err(err) => {
                     self.diagnostics().add_error(err);
                 }
-            };
+            }
             Ok(())
-        })?;
-        Ok(())
+        })
     }
 
     type ExprRet = ();
@@ -467,117 +453,34 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
 
         self.in_expr.enter(InExpr::Value, || {
             walk::walk_expr(self, node)?;
-            // For each node, try to resolve it as an ast path. If it is an ast path,
-            // it is added to the node.
-            match self.expr_as_ast_path(node) {
-                Ok(Some(path)) => {
-                    // Resolve the path, which which adds it to the node.
-                    match self.resolve_ast_path(&path, node) {
-                        Ok(_) => {}
-                        Err(err) => {
-                            self.diagnostics().add_error(err);
-                        }
-                    }
-                }
-                Ok(None) => {}
+            // For each node, try to resolve it as a term.
+            match self.make_term_from_ast_expr(node) {
+                Ok(_) => {}
                 Err(err) => {
                     self.diagnostics().add_error(err);
                 }
-            };
+            }
             Ok(())
         })
     }
 
-    type AccessPatRet = ();
-    fn visit_access_pat(
-        &self,
-        _node: ast::AstNodeRef<ast::AccessPat>,
-    ) -> Result<Self::AccessPatRet, Self::Error> {
-        // @@Todo
-        Ok(())
-    }
+    type PatRet = ();
+    fn visit_pat(&self, node: AstNodeRef<ast::Pat>) -> Result<Self::PatRet, Self::Error> {
+        if let ContextKind::Access(_, _) = self.get_current_context_kind() {
+            // Handled by path resolution.
+            return Ok(());
+        }
 
-    type ConstructorPatRet = ();
-    fn visit_constructor_pat(
-        &self,
-        _node: AstNodeRef<ast::ConstructorPat>,
-    ) -> Result<Self::ConstructorPatRet, Self::Error> {
-        // @@Todo
-        Ok(())
-    }
-
-    type AccessExprRet = ();
-    fn visit_access_expr(
-        &self,
-        node: ast::AstNodeRef<ast::AccessExpr>,
-    ) -> Result<Self::AccessExprRet, Self::Error> {
-        let path = self.access_expr_as_ast_path(node)?;
-        match path {
-            Some(_) => {
-                // Will be handled by path resolution.
+        self.in_expr.enter(InExpr::Pat, || {
+            walk::walk_pat(self, node)?;
+            // For each node, try to resolve it as a pattern.
+            match self.make_pat_from_ast_pat(node) {
+                Ok(_) => {}
+                Err(err) => {
+                    self.diagnostics().add_error(err);
+                }
             }
-            None => {
-                // This is just a property access, so we create it here:
-                walk::walk_access_expr(self, node)?;
-
-                // @@Correctness: Might need to match instead of unwrap?
-                let subject = self.ast_info().terms().get_data_by_node(node.subject.id()).unwrap();
-                let access_term = self
-                    .new_term(Term::Access(AccessTerm { subject, field: (*node.property).into() }));
-                self.ast_info().terms().insert(node.id(), access_term);
-            }
-        }
-        Ok(())
-    }
-
-    type TyFnCallRet = ();
-    fn visit_ty_fn_call(
-        &self,
-        node: AstNodeRef<ast::TyFnCall>,
-    ) -> Result<Self::TyFnCallRet, Self::Error> {
-        // Do not visit the body, because the path resolution will handle it.
-        for arg in node.args.iter() {
-            self.visit_ty_arg(arg.ast_ref())?;
-        }
-        Ok(())
-    }
-
-    type NamedTyRet = ();
-    fn visit_named_ty(
-        &self,
-        _node: AstNodeRef<ast::NamedTy>,
-    ) -> Result<Self::NamedTyRet, Self::Error> {
-        // Handled by path resolution.
-        Ok(())
-    }
-
-    type AccessTyRet = ();
-    fn visit_access_ty(
-        &self,
-        _node: AstNodeRef<ast::AccessTy>,
-    ) -> Result<Self::AccessTyRet, Self::Error> {
-        // Handled by path resolution.
-        Ok(())
-    }
-
-    type ConstructorCallExprRet = ();
-    fn visit_constructor_call_expr(
-        &self,
-        node: AstNodeRef<ast::ConstructorCallExpr>,
-    ) -> Result<Self::ConstructorCallExprRet, Self::Error> {
-        // Do not visit the body, because the path resolution will handle it.
-        for arg in node.args.iter() {
-            self.visit_constructor_call_arg(arg.ast_ref())?;
-        }
-        Ok(())
-    }
-
-    type VariableExprRet = ();
-    fn visit_variable_expr(
-        &self,
-        _node: AstNodeRef<ast::VariableExpr>,
-    ) -> Result<Self::VariableExprRet, Self::Error> {
-        // Handled by path resolution.
-        Ok(())
+            Ok(())
+        })
     }
 }

@@ -34,7 +34,7 @@ impl SymbolResolutionPass<'_> {
                         Some(name) => ParamTarget::Name(name.ident),
                         None => ParamTarget::Position(i),
                     },
-                    pat: self.ast_pat_as_pat(arg.pat.ast_ref())?,
+                    pat: self.make_pat_from_ast_pat(arg.pat.ast_ref())?,
                 })
             })
             .collect::<TcResult<Vec<_>>>()?;
@@ -45,7 +45,7 @@ impl SymbolResolutionPass<'_> {
     fn ast_pats_as_pat_list(&self, pats: &ast::AstNodes<ast::Pat>) -> TcResult<PatListId> {
         let pats = pats
             .iter()
-            .map(|pat| self.ast_pat_as_pat(pat.ast_ref()))
+            .map(|pat| self.make_pat_from_ast_pat(pat.ast_ref()))
             .collect::<TcResult<Vec<_>>>()?;
         Ok(self.stores().pat_list().create_from_iter_fast(pats.into_iter()))
     }
@@ -59,7 +59,7 @@ impl SymbolResolutionPass<'_> {
     }
 
     /// Create a [`PatId`] from the given [`ast::Pat`].
-    fn ast_pat_as_pat(&self, node: AstNodeRef<ast::Pat>) -> TcResult<PatId> {
+    pub fn make_pat_from_ast_pat(&self, node: AstNodeRef<ast::Pat>) -> TcResult<PatId> {
         match node.body {
             ast::Pat::Access(_access_pat) => {
                 // let path = self.access_pat_as_ast_path(node.with_body(access_pat))?;
@@ -102,7 +102,7 @@ impl SymbolResolutionPass<'_> {
             }))),
             ast::Pat::If(if_pat) => Ok(self.new_pat(Pat::If(IfPat {
                 condition: self.new_term_hole(), // @@Todo: queue up a term to be resolved
-                pat: self.ast_pat_as_pat(if_pat.pat.ast_ref())?,
+                pat: self.make_pat_from_ast_pat(if_pat.pat.ast_ref())?,
             }))),
             ast::Pat::Wild(_) => todo!(),
             ast::Pat::Range(_) => todo!(),

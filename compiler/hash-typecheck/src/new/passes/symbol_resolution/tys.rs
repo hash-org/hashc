@@ -1,4 +1,5 @@
 use hash_ast::ast::{self, AstNodeRef};
+use hash_types::new::tys::TyId;
 
 use super::{
     ast_paths::{AstArgGroup, AstPath, AstPathComponent},
@@ -83,5 +84,27 @@ impl<'tc> SymbolResolutionPass<'tc> {
             }
             _ => Ok(None),
         }
+    }
+
+    pub fn make_ty_from_ast_ty(&self, _node: AstNodeRef<'_, ast::Ty>) -> TcResult<TyId> {
+        // // For each node, try to resolve it as an ast path. If it is an ast path,
+        // // it is added to the node.
+        // match self.ty_as_ast_path(node) {
+        //     Ok(Some(path)) => {
+        //         // Resolve the path, which which adds it to the node.
+        //         match self.resolve_ast_path(&path, node) {
+        //             Ok(_) => {}
+        //             Err(err) => {
+        //                 self.diagnostics().add_error(err);
+        //             }
+        //         }
+        //     }
+        //     Ok(None) => {}
+        //     Err(err) => {
+        //         self.diagnostics().add_error(err);
+        //     }
+        // };
+        // Ok(())
+        todo!()
     }
 }

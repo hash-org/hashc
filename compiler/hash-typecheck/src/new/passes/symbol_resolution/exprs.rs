@@ -1,6 +1,6 @@
 use hash_ast::ast::{self, AstNodeRef};
 use hash_reporting::macros::panic_on_span;
-use hash_types::new::environment::env::AccessToEnv;
+use hash_types::new::{environment::env::AccessToEnv, terms::TermId};
 
 use super::{
     ast_paths::{AstArgGroup, AstPath, AstPathComponent},
@@ -107,5 +107,26 @@ impl<'tc> SymbolResolutionPass<'tc> {
             }
             _ => Ok(None),
         }
+    }
+
+    pub fn make_term_from_ast_expr(&self, _node: AstNodeRef<'_, ast::Expr>) -> TcResult<TermId> {
+        // // For each node, try to resolve it as an ast path. If it is an ast path,
+        // // it is added to the node.
+        // match self.expr_as_ast_path(node) {
+        //     Ok(Some(path)) => {
+        //         // Resolve the path, which which adds it to the node.
+        //         match self.resolve_ast_path(&path, node) {
+        //             Ok(_) => {}
+        //             Err(err) => {
+        //                 self.diagnostics().add_error(err);
+        //             }
+        //         }
+        //     }
+        //     Ok(None) => {}
+        //     Err(err) => {
+        //         self.diagnostics().add_error(err);
+        //     }
+        // };
+        todo!()
     }
 }
