@@ -28,7 +28,7 @@ use hash_types::new::{
     data::{CtorPat, CtorTerm, DataDefId},
     defs::{DefArgGroupData, DefArgsId, DefParamsId},
     environment::{
-        context::{Binding, BindingKind, BoundVarOrigin, ScopeKind},
+        context::{Binding, BindingKind, ScopeKind},
         env::AccessToEnv,
     },
     fns::{FnCallTerm, FnDefId},
@@ -158,7 +158,7 @@ pub enum TerminalResolvedPathComponent {
     /// A function call term.
     FnCall(FnCallTerm),
     /// A variable bound in the current context.
-    BoundVar(BoundVarOrigin),
+    BoundVar(BoundVar),
 }
 
 /// The result of resolving a path component.
@@ -402,7 +402,10 @@ impl<'tc> SymbolResolutionPass<'tc> {
                 // function call.
                 match &component.args[..] {
                     [] => Ok(ResolvedAstPathComponent::Terminal(
-                        TerminalResolvedPathComponent::BoundVar(bound_var),
+                        TerminalResolvedPathComponent::BoundVar(BoundVar {
+                            name: binding.name,
+                            origin: bound_var,
+                        }),
                     )),
                     args => {
                         let resultant_term = self.wrap_term_in_fn_call_from_ast_args(
@@ -423,7 +426,7 @@ impl<'tc> SymbolResolutionPass<'tc> {
 
     /// Resolve a path in the current context, returning a
     /// [`ResolvedAstPathComponent`] if successful.
-    pub fn resolve_ast_path<T>(&self, path: &AstPath) -> TcResult<ResolvedAstPathComponent> {
+    pub fn resolve_ast_path(&self, path: &AstPath) -> TcResult<ResolvedAstPathComponent> {
         debug_assert!(!path.is_empty());
 
         let mut resolved_path = self.resolve_ast_path_component(&path[0], None)?;

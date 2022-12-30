@@ -21,7 +21,7 @@ use hash_utils::{
     store::{CloneStore, Store},
 };
 
-use self::ast_paths::*;
+use self::paths::*;
 use super::ast_pass::AstPass;
 use crate::{
     impl_access_to_tc_env,
@@ -32,8 +32,8 @@ use crate::{
     },
 };
 
-pub mod ast_paths;
 pub mod exprs;
+pub mod paths;
 pub mod pats;
 pub mod tys;
 

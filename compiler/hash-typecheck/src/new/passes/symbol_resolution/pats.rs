@@ -11,7 +11,7 @@ use hash_types::new::{
 use hash_utils::store::SequenceStore;
 
 use super::{
-    ast_paths::{AstArgGroup, AstPath, AstPathComponent},
+    paths::{AstArgGroup, AstPath, AstPathComponent},
     SymbolResolutionPass,
 };
 use crate::new::{

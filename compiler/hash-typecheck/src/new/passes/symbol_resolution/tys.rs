@@ -1,12 +1,29 @@
+//! Path-resolution for types.
+//!
+//! This uses the [super::paths] module to convert AST type nodes that
+//! correspond to paths into TC-types. It does not handle all types; non-path
+//! types are handled later.
+
 use hash_ast::ast::{self, AstNodeRef};
-use hash_types::new::tys::TyId;
+use hash_reporting::macros::panic_on_span;
+use hash_types::new::{
+    data::DataTy,
+    environment::env::AccessToEnv,
+    terms::Term,
+    tys::{Ty, TyId},
+};
 
 use super::{
-    ast_paths::{AstArgGroup, AstPath, AstPathComponent},
+    paths::{
+        AstArgGroup, AstPath, AstPathComponent, NonTerminalResolvedPathComponent,
+        ResolvedAstPathComponent, TerminalResolvedPathComponent,
+    },
     SymbolResolutionPass,
 };
 use crate::new::{
     diagnostics::error::{TcError, TcResult},
+    environment::tc_env::AccessToTcEnv,
+    ops::common::CommonOps,
     passes::ast_pass::AstPass,
 };
 
@@ -86,25 +103,63 @@ impl<'tc> SymbolResolutionPass<'tc> {
         }
     }
 
-    pub fn make_ty_from_ast_ty(&self, _node: AstNodeRef<'_, ast::Ty>) -> TcResult<TyId> {
-        // // For each node, try to resolve it as an ast path. If it is an ast path,
-        // // it is added to the node.
-        // match self.ty_as_ast_path(node) {
-        //     Ok(Some(path)) => {
-        //         // Resolve the path, which which adds it to the node.
-        //         match self.resolve_ast_path(&path, node) {
-        //             Ok(_) => {}
-        //             Err(err) => {
-        //                 self.diagnostics().add_error(err);
-        //             }
-        //         }
-        //     }
-        //     Ok(None) => {}
-        //     Err(err) => {
-        //         self.diagnostics().add_error(err);
-        //     }
-        // };
-        // Ok(())
-        todo!()
+    /// Make a type from the given [`ast::Ty`] and assign it to the node in
+    /// the AST info store.
+    ///
+    /// This only handles types which are paths, and otherwise creates a
+    /// hole to be resolved later.
+    pub fn make_ty_from_ast_ty(&self, node: AstNodeRef<ast::Ty>) -> TcResult<TyId> {
+        let ty_id = match self.ty_as_ast_path(node)? {
+            Some(path) => match self.resolve_ast_path(&path)? {
+                ResolvedAstPathComponent::NonTerminal(non_terminal) => match non_terminal {
+                    NonTerminalResolvedPathComponent::Data(data_def_id, data_def_args) => {
+                        // Data type
+                        self.new_ty(Ty::Data(DataTy { data_def: data_def_id, args: data_def_args }))
+                    }
+                    NonTerminalResolvedPathComponent::Mod(_, _) => {
+                        // Modules are not allowed in type positions
+                        return Err(TcError::CannotUseModuleInTypePosition {
+                            location: self.node_location(node),
+                        });
+                    }
+                },
+                ResolvedAstPathComponent::Terminal(terminal) => match terminal {
+                    TerminalResolvedPathComponent::FnDef(_) => {
+                        // Functions are not allowed in type positions
+                        return Err(TcError::CannotUseFunctionInTypePosition {
+                            location: self.node_location(node),
+                        });
+                    }
+                    TerminalResolvedPathComponent::CtorPat(_) => {
+                        panic_on_span!(
+                            self.node_location(node),
+                            self.source_map(),
+                            "found CtorPat in type ast path"
+                        )
+                    }
+                    TerminalResolvedPathComponent::CtorTerm(_) => {
+                        // Constructors are not allowed in type positions
+                        return Err(TcError::CannotUseConstructorInTypePosition {
+                            location: self.node_location(node),
+                        });
+                    }
+                    TerminalResolvedPathComponent::FnCall(fn_call_term) => {
+                        // Function call
+                        self.new_ty(Ty::Eval(self.new_term(Term::FnCall(fn_call_term))))
+                    }
+                    TerminalResolvedPathComponent::BoundVar(bound_var) => {
+                        // Bound variable
+                        self.new_ty(Ty::Var(bound_var))
+                    }
+                },
+            },
+            None => {
+                // Not a path, we will resolve it later
+                self.new_ty_hole()
+            }
+        };
+
+        self.ast_info().tys().insert(node.id(), ty_id);
+        Ok(ty_id)
     }
 }

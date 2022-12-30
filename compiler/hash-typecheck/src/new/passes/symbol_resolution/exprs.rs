@@ -1,17 +1,28 @@
+//! Path-resolution for expressions.
+//!
+//! This uses the [super::paths] module to convert AST expression nodes that
+//! correspond to paths into terms. It does not handle general expressions,
+//! which is handled later.
+
 use hash_ast::ast::{self, AstNodeRef};
 use hash_reporting::macros::panic_on_span;
 use hash_types::new::{
-    environment::{context::ScopeKind, env::AccessToEnv},
-    fns::FnCallTerm,
+    data::DataTy,
+    environment::env::AccessToEnv,
     terms::{Term, TermId},
+    tys::Ty,
 };
 
 use super::{
-    ast_paths::{AstArgGroup, AstPath, AstPathComponent},
+    paths::{
+        AstArgGroup, AstPath, AstPathComponent, NonTerminalResolvedPathComponent,
+        ResolvedAstPathComponent, TerminalResolvedPathComponent,
+    },
     SymbolResolutionPass,
 };
 use crate::new::{
     diagnostics::error::{TcError, TcResult},
+    environment::tc_env::AccessToTcEnv,
     ops::common::CommonOps,
     passes::ast_pass::AstPass,
 };
@@ -114,71 +125,62 @@ impl<'tc> SymbolResolutionPass<'tc> {
         }
     }
 
-    pub fn make_term_from_ast_path(&self, path: &AstPath) -> TcResult<TermId> {
-        todo!()
-    }
-
+    /// Make a term from the given [`ast::Expr`] and assign it to the node in
+    /// the AST info store.
+    ///
+    /// This only handles expressions which are paths, and otherwise creates a
+    /// hole to be resolved later.
     pub fn make_term_from_ast_expr(&self, node: AstNodeRef<ast::Expr>) -> TcResult<TermId> {
-        match node.body {
-            ast::Expr::ConstructorCall(ctor_expr) => {
-                let ctor_ref = node.with_body(ctor_expr);
-                let path = self.constructor_call_as_ast_path(ctor_ref)?;
-                match path {
-                    Some(path) => self.make_term_from_ast_path(&path),
-                    None => {
-                        let inner_term =
-                            self.make_term_from_ast_expr(ctor_ref.body.subject.ast_ref())?;
-                        let args = self.make_args_from_ast_arg_group(&AstArgGroup::ExplicitArgs(
-                            &ctor_expr.args,
-                        ));
-                        Ok(self.new_term(Term::FnCall(FnCallTerm {
-                            subject: inner_term,
-                            args,
-                            implicit: false,
-                        })))
+        let term_id = match self.expr_as_ast_path(node)? {
+            Some(path) => match self.resolve_ast_path(&path)? {
+                ResolvedAstPathComponent::NonTerminal(non_terminal) => match non_terminal {
+                    NonTerminalResolvedPathComponent::Data(data_def_id, data_def_args) => {
+                        // Data type
+                        self.new_term(Term::Ty(self.new_ty(Ty::Data(DataTy {
+                            data_def: data_def_id,
+                            args: data_def_args,
+                        }))))
                     }
-                }
+                    NonTerminalResolvedPathComponent::Mod(_, _) => {
+                        // Modules are not allowed in value positions
+                        return Err(TcError::CannotUseModuleInValuePosition {
+                            location: self.node_location(node),
+                        });
+                    }
+                },
+                ResolvedAstPathComponent::Terminal(terminal) => match terminal {
+                    TerminalResolvedPathComponent::FnDef(fn_def_id) => {
+                        // Reference to a function definition
+                        self.new_term(Term::FnRef(fn_def_id))
+                    }
+                    TerminalResolvedPathComponent::CtorPat(_) => {
+                        panic_on_span!(
+                            self.node_location(node),
+                            self.source_map(),
+                            "found CtorPat in value ast path"
+                        )
+                    }
+                    TerminalResolvedPathComponent::CtorTerm(ctor_term) => {
+                        // Constructor
+                        self.new_term(Term::Ctor(ctor_term))
+                    }
+                    TerminalResolvedPathComponent::FnCall(fn_call_term) => {
+                        // Function call
+                        self.new_term(Term::FnCall(fn_call_term))
+                    }
+                    TerminalResolvedPathComponent::BoundVar(bound_var) => {
+                        // Bound variable
+                        self.new_term(Term::Var(bound_var))
+                    }
+                },
+            },
+            None => {
+                // Not a path, we will resolve it later
+                self.new_term_hole()
             }
-            ast::Expr::Directive(directive_expr) => {
-                self.make_term_from_ast_expr(directive_expr.subject.ast_ref())
-            }
-            ast::Expr::Declaration(declaration) => {
-                // We must be in a stack scope
-                debug_assert!(matches!(
-                    self.context().get_current_scope_kind(),
-                    ScopeKind::Stack(_)
-                ));
-                // let bind_pat =
-                // self.make_pat_from_ast_pat(declaration.pat.ast_ref())?;
-                todo!()
-            }
-            ast::Expr::Variable(_) => todo!(),
-            ast::Expr::Access(_) => todo!(),
-            ast::Expr::Ref(_) => todo!(),
-            ast::Expr::Deref(_) => todo!(),
-            ast::Expr::Unsafe(_) => todo!(),
-            ast::Expr::Lit(_) => todo!(),
-            ast::Expr::Cast(_) => todo!(),
-            ast::Expr::Block(_) => todo!(),
-            ast::Expr::Import(_) => todo!(),
-            ast::Expr::StructDef(_) => todo!(),
-            ast::Expr::EnumDef(_) => todo!(),
-            ast::Expr::TyFnDef(_) => todo!(),
-            ast::Expr::TraitDef(_) => todo!(),
-            ast::Expr::ImplDef(_) => todo!(),
-            ast::Expr::ModDef(_) => todo!(),
-            ast::Expr::FnDef(_) => todo!(),
-            ast::Expr::Ty(_) => todo!(),
-            ast::Expr::Return(_) => todo!(),
-            ast::Expr::Break(_) => todo!(),
-            ast::Expr::Continue(_) => todo!(),
-            ast::Expr::Index(_) => todo!(),
-            ast::Expr::Assign(_) => todo!(),
-            ast::Expr::AssignOp(_) => todo!(),
-            ast::Expr::MergeDeclaration(_) => todo!(),
-            ast::Expr::TraitImpl(_) => todo!(),
-            ast::Expr::BinaryExpr(_) => todo!(),
-            ast::Expr::UnaryExpr(_) => todo!(),
-        }
+        };
+
+        self.ast_info().terms().insert(node.id(), term_id);
+        Ok(term_id)
     }
 }
