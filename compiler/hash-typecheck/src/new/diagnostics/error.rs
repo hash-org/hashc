@@ -33,8 +33,12 @@ pub enum TcError {
     CannotUseModuleInValuePosition { location: SourceLocation },
     /// Cannot use a module in a type position.
     CannotUseModuleInTypePosition { location: SourceLocation },
+    /// Cannot use a module in a pattern position.
+    CannotUseModuleInPatternPosition { location: SourceLocation },
     /// Cannot use a data type in a value position.
     CannotUseDataTypeInValuePosition { location: SourceLocation },
+    /// Cannot use a data type in a pattern position.
+    CannotUseDataTypeInPatternPosition { location: SourceLocation },
     /// Cannot use a constructor in a type position.
     CannotUseConstructorInTypePosition { location: SourceLocation },
     /// Cannot use a function in type position.
@@ -140,6 +144,15 @@ impl<'tc> WithTcEnv<'tc, &TcError> {
                     .add_span(*location)
                     .add_info("cannot use this in type position as it is a module");
             }
+            TcError::CannotUseModuleInPatternPosition { location } => {
+                error
+                    .code(HashErrorCode::ValueCannotBeUsedAsType)
+                    .title("cannot use a module in pattern position");
+
+                error
+                    .add_span(*location)
+                    .add_info("cannot use this in pattern position as it is a module");
+            }
             TcError::CannotUseDataTypeInValuePosition { location } => {
                 error
                     .code(HashErrorCode::NonRuntimeInstantiable)
@@ -149,6 +162,16 @@ impl<'tc> WithTcEnv<'tc, &TcError> {
                 error
                     .add_span(*location)
                     .add_info("cannot use this in expression position as it is a data type");
+            }
+            TcError::CannotUseDataTypeInPatternPosition { location } => {
+                error
+                    .code(HashErrorCode::NonRuntimeInstantiable)
+                    .title("cannot use a data type in pattern position")
+                    .add_help("consider using a constructor pattern instead");
+
+                error
+                    .add_span(*location)
+                    .add_info("cannot use this in pattern position as it is a data type");
             }
             TcError::CannotUseConstructorInTypePosition { location } => {
                 error

@@ -27,8 +27,6 @@ use crate::new::{
     passes::ast_pass::AstPass,
 };
 
-/// This block converts AST nodes of different kinds into [`AstPath`]s, in order
-/// to later resolve them into terms.
 impl<'tc> SymbolResolutionPass<'tc> {
     /// Use the given [`ast::NamedTy`] as a path.
     fn named_ty_as_ast_path<'a>(
