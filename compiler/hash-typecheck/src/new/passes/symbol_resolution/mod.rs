@@ -18,7 +18,7 @@ use hash_types::new::{
 };
 use hash_utils::{
     state::{HeavyState, LightState},
-    store::{CloneStore, SequenceStore, Store},
+    store::{CloneStore, Store},
 };
 
 use self::ast_paths::*;
@@ -28,7 +28,7 @@ use crate::{
     new::{
         diagnostics::error::{TcError, TcResult},
         environment::tc_env::{AccessToTcEnv, TcEnv, WithTcEnv},
-        ops::{ast::AstOps, common::CommonOps, AccessToOps},
+        ops::{common::CommonOps, AccessToOps},
     },
 };
 
@@ -434,12 +434,7 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         self.in_expr.enter(InExpr::Ty, || {
             walk::walk_ty(self, node)?;
             // For each node, try to resolve it as a type.
-            match self.make_ty_from_ast_ty(node) {
-                Ok(_) => {}
-                Err(err) => {
-                    self.diagnostics().add_error(err);
-                }
-            }
+            self.unwrap_or_diagnostic(self.make_ty_from_ast_ty(node));
             Ok(())
         })
     }
@@ -454,12 +449,7 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         self.in_expr.enter(InExpr::Value, || {
             walk::walk_expr(self, node)?;
             // For each node, try to resolve it as a term.
-            match self.make_term_from_ast_expr(node) {
-                Ok(_) => {}
-                Err(err) => {
-                    self.diagnostics().add_error(err);
-                }
-            }
+            self.unwrap_or_diagnostic(self.make_term_from_ast_expr(node));
             Ok(())
         })
     }
@@ -474,12 +464,7 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         self.in_expr.enter(InExpr::Pat, || {
             walk::walk_pat(self, node)?;
             // For each node, try to resolve it as a pattern.
-            match self.make_pat_from_ast_pat(node) {
-                Ok(_) => {}
-                Err(err) => {
-                    self.diagnostics().add_error(err);
-                }
-            }
+            self.unwrap_or_diagnostic(self.make_pat_from_ast_pat(node));
             Ok(())
         })
     }

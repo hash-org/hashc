@@ -8,7 +8,7 @@ use hash_types::new::{
     pats::{ListPat, Pat, PatId, PatListId, Spread},
     tuples::TuplePat,
 };
-use hash_utils::store::{CloneStore, SequenceStore};
+use hash_utils::store::SequenceStore;
 
 use super::{
     ast_paths::{AstArgGroup, AstPath, AstPathComponent},
@@ -16,7 +16,8 @@ use super::{
 };
 use crate::new::{
     diagnostics::error::{TcError, TcResult},
-    ops::{ast::AstOps, common::CommonOps, AccessToOps},
+    ops::{common::CommonOps, AccessToOps},
+    passes::ast_pass::AstPass,
 };
 
 impl SymbolResolutionPass<'_> {

@@ -4,7 +4,6 @@ use self::{
     mods::ModOps, params::ParamOps, stack::StackOps, tuple::TupleOps,
 };
 
-pub mod ast;
 pub mod common;
 pub mod context;
 pub mod data;

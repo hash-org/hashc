@@ -8,7 +8,7 @@ use super::{
 };
 use crate::new::{
     diagnostics::error::{TcError, TcResult},
-    ops::ast::AstOps,
+    passes::ast_pass::AstPass,
 };
 
 /// This block converts AST nodes of different kinds into [`AstPath`]s, in order

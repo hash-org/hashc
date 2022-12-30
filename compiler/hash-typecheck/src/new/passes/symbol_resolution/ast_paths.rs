@@ -16,7 +16,7 @@ use hash_types::new::{
     scopes::BoundVar,
     terms::{Term, TermId},
 };
-use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
+use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
 
 use super::{ContextKind, SymbolResolutionPass};
 use crate::new::{
@@ -24,8 +24,9 @@ use crate::new::{
         error::{TcError, TcResult},
         params::{SomeArgsId, SomeDefArgsId},
     },
-    environment::tc_env::{AccessToTcEnv, WithTcEnv},
-    ops::{ast::AstOps, common::CommonOps, AccessToOps},
+    environment::tc_env::WithTcEnv,
+    ops::{common::CommonOps, AccessToOps},
+    passes::ast_pass::AstPass,
 };
 /// An argument group in the AST.
 ///
