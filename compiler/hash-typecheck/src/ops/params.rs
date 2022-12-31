@@ -334,7 +334,7 @@ impl<'tc> ParamOps<'tc> {
         let rhs_names = self.names(other);
 
         // Compute the missing names and then sort them
-        let mut missing_names = lhs_names.difference(&rhs_names).into_iter().copied().collect_vec();
+        let mut missing_names = lhs_names.difference(&rhs_names).copied().collect_vec();
         missing_names.sort_unstable();
 
         missing_names

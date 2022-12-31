@@ -7,6 +7,7 @@ use hash_types::new::{
     holes::{Hole, HoleKind},
     locations::LocationTarget,
     params::ParamsId,
+    pats::{Pat, PatId},
     symbols::{Symbol, SymbolData},
     terms::{Term, TermId},
     tuples::TupleTy,
@@ -26,6 +27,11 @@ pub trait CommonOps: AccessToTcEnv {
     /// Get a type by its ID.
     fn get_ty(&self, ty_id: TyId) -> Ty {
         self.stores().ty().get(ty_id)
+    }
+
+    /// Get a pattern by its ID.
+    fn get_pat(&self, pat_id: PatId) -> Pat {
+        self.stores().pat().get(pat_id)
     }
 
     /// Get a data definition by its ID.
@@ -64,6 +70,11 @@ pub trait CommonOps: AccessToTcEnv {
     /// Create a new term.
     fn new_term(&self, term: Term) -> TermId {
         self.stores().term().create(term)
+    }
+
+    /// Create a new pattern.
+    fn new_pat(&self, pat: Pat) -> PatId {
+        self.stores().pat().create(pat)
     }
 
     /// Create a new symbol with the given name.

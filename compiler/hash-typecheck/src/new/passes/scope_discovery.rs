@@ -40,7 +40,7 @@ use crate::{
     new::{
         diagnostics::error::TcError,
         environment::tc_env::{AccessToTcEnv, TcEnv},
-        ops::{ast::AstOps, common::CommonOps, AccessToOps},
+        ops::{common::CommonOps, AccessToOps},
     },
 };
 
