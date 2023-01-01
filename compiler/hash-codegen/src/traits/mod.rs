@@ -2,9 +2,17 @@
 
 use std::fmt;
 
+use self::{
+    constants::BuildConstValueMethods, debug::BuildDebugInfoMethods, target::HasTargetSpec,
+    ty::BuildTypeMethods,
+};
+
+pub mod builder;
 pub mod constants;
 pub mod debug;
 pub mod intrinsics;
+pub mod target;
+pub mod ty;
 
 /// This trait represents all of the commonly accessed types that a
 /// code generation backend is supposed to have. It is used to provide
@@ -38,3 +46,33 @@ pub trait BackendTypes {
 
 pub trait CodeGenObject: Copy + PartialEq + fmt::Debug {}
 impl<T: Copy + PartialEq + fmt::Debug> CodeGenObject for T {}
+
+/// The core trait of the code generation backend which is used to
+/// generate code for a particular backend. This trait provides IR
+pub trait Backend<'b>: Sized + BackendTypes {}
+
+pub trait CodeGenMethods<'b>:
+    Backend<'b>
+    + BuildTypeMethods<'b>
+    + BuildConstValueMethods<'b>
+    + BuildDebugInfoMethods
+    + HasTargetSpec
+{
+}
+
+pub trait HasCodegen<'b>:
+    Backend<'b> + std::ops::Deref<Target = <Self as HasCodegen<'b>>::CodegenCtx>
+{
+    /// The type of the codegen context, all items within the context can access
+    /// all of the methods that are provided via [CodeGenMethods]
+    type CodegenCtx: CodeGenMethods<'b>
+        + BackendTypes<
+            Value = Self::Value,
+            Function = Self::Function,
+            BasicBlock = Self::BasicBlock,
+            Type = Self::Type,
+            DebugInfoLocation = Self::DebugInfoLocation,
+            DebugInfoScope = Self::DebugInfoScope,
+            DebugInfoVariable = Self::DebugInfoVariable,
+        >;
+}

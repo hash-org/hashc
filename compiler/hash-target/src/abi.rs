@@ -140,3 +140,14 @@ pub enum AbiRepresentation {
     /// An aggregate value.
     Aggregate,
 }
+
+/// An identifier that specifies the address space that some operation
+/// should operate on. Special address spaces have an effect on code generation,
+/// depending on the target and the address spaces it implements.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct AddressSpace(pub u32);
+
+impl AddressSpace {
+    /// The default address space, corresponding to data space.
+    pub const DATA: Self = AddressSpace(0);
+}

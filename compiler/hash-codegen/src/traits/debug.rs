@@ -22,7 +22,7 @@ pub enum VariableKind {
 
 /// This trait represents an interface for the building methods to generate
 /// debug information from the Hash IR.
-pub trait DebugInfoGen: BackendTypes {
+pub trait BuildDebugInfoMethods: BackendTypes {
     /// Create a new [`BackendTypes::DebugInfoScope`] object which represents a
     /// particular scope in the source code. This is attached to a function.
     fn create_debug_info_scope_for_fn(

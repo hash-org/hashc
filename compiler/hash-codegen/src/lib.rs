@@ -20,6 +20,7 @@
 //! generated.
 #![allow(dead_code)] // @@Temporary: until the codegen general purpose logic is completed.
 
+pub mod common;
 pub mod layout;
 pub mod traits;
 
