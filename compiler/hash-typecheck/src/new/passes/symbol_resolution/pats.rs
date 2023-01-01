@@ -15,7 +15,7 @@ use hash_types::new::{
     data::CtorPat,
     environment::env::AccessToEnv,
     lits::{CharLit, IntLit, LitPat, StrLit},
-    params::ParamTarget,
+    params::ParamIndex,
     pats::{ListPat, Pat, PatId, PatListId, RangePat, Spread},
     scopes::BindingPat,
     tuples::TuplePat,
@@ -48,8 +48,8 @@ impl SymbolResolutionPass<'_> {
             .map(|(i, arg)| {
                 Ok(PatArgData {
                     target: match arg.name.as_ref() {
-                        Some(name) => ParamTarget::Name(name.ident),
-                        None => ParamTarget::Position(i),
+                        Some(name) => ParamIndex::Name(name.ident),
+                        None => ParamIndex::Position(i),
                     },
                     pat: self.make_pat_from_ast_pat(arg.pat.ast_ref())?,
                 })

@@ -33,11 +33,14 @@ new_sequence_store_key!(pub ParamsId);
 pub type ParamId = (ParamsId, usize);
 pub type ParamsStore = DefaultSequenceStore<ParamsId, Param>;
 
-/// The parameter target of an argument. Either a named parameter or a
-/// positional one.
+/// An index into a parameter list.
+///
+/// Either a named parameter or a positional one.
 #[derive(Debug, Clone, Hash, Copy)]
-pub enum ParamTarget {
+pub enum ParamIndex {
+    /// A named parameter, like `foo(value=3)`.
     Name(Identifier),
+    /// A positional parameter, like `dot(x, y)`.
     Position(usize),
 }
 
@@ -77,11 +80,11 @@ impl fmt::Display for WithEnv<'_, ParamsId> {
     }
 }
 
-impl fmt::Display for WithEnv<'_, ParamTarget> {
+impl fmt::Display for WithEnv<'_, ParamIndex> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.value {
-            ParamTarget::Name(name) => write!(f, "{name}"),
-            ParamTarget::Position(pos) => write!(f, "{pos}"),
+            ParamIndex::Name(name) => write!(f, "{name}"),
+            ParamIndex::Position(pos) => write!(f, "{pos}"),
         }
     }
 }

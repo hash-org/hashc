@@ -9,7 +9,7 @@ use hash_types::new::{
     defs::{DefArgGroupData, DefArgsId, DefParamsId, DefPatArgGroupData, DefPatArgsId},
     environment::env::AccessToEnv,
     fns::FnCallTerm,
-    params::ParamTarget,
+    params::ParamIndex,
     pats::Spread,
     terms::{Term, TermId},
 };
@@ -112,8 +112,8 @@ impl<'tc> SymbolResolutionPass<'tc> {
                             target: arg
                                 .name
                                 .as_ref()
-                                .map(|name| ParamTarget::Name(name.ident))
-                                .unwrap_or_else(|| ParamTarget::Position(i)),
+                                .map(|name| ParamIndex::Name(name.ident))
+                                .unwrap_or_else(|| ParamIndex::Position(i)),
                             value: self.make_term_from_ast_expr(arg.value.ast_ref())?,
                         })
                     })
@@ -129,8 +129,8 @@ impl<'tc> SymbolResolutionPass<'tc> {
                             target: arg
                                 .name
                                 .as_ref()
-                                .map(|name| ParamTarget::Name(name.ident))
-                                .unwrap_or_else(|| ParamTarget::Position(i)),
+                                .map(|name| ParamIndex::Name(name.ident))
+                                .unwrap_or_else(|| ParamIndex::Position(i)),
                             value: self
                                 .new_term(Term::Ty(self.make_ty_from_ast_ty(arg.ty.ast_ref())?)),
                         })

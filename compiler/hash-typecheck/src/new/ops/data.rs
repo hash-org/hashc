@@ -7,7 +7,7 @@ use hash_types::new::{
     data::{CtorDef, CtorDefData, CtorDefsId, DataDef, DataDefId},
     defs::{DefArgGroupData, DefArgsId, DefParamGroupData, DefParamsId},
     environment::{context::BoundVarOrigin, env::AccessToEnv},
-    params::{ParamData, ParamTarget},
+    params::{ParamData, ParamIndex},
     scopes::BoundVar,
     symbols::Symbol,
     terms::Term,
@@ -105,7 +105,7 @@ impl<'tc> DataOps<'tc> {
                                             (def_param_group.params, j),
                                         ),
                                     }));
-                                    ArgData { target: ParamTarget::Position(i), value }
+                                    ArgData { target: ParamIndex::Position(i), value }
                                 })
                                 .collect_vec()
                                 .into_iter()
