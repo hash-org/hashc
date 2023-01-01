@@ -33,6 +33,7 @@ use crate::{
 };
 
 pub mod exprs;
+pub mod params;
 pub mod paths;
 pub mod pats;
 pub mod tys;
