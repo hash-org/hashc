@@ -63,8 +63,8 @@ pub trait CodeGenMethods<'b>:
 {
 }
 
-pub trait HasCodegen<'b>:
-    Backend<'b> + std::ops::Deref<Target = <Self as HasCodegen<'b>>::CodegenCtx>
+pub trait CodeGen<'b>:
+    Backend<'b> + std::ops::Deref<Target = <Self as CodeGen<'b>>::CodegenCtx>
 {
     /// The type of the codegen context, all items within the context can access
     /// all of the methods that are provided via [CodeGenMethods]

@@ -124,6 +124,23 @@ pub fn compare_constant_values(left: Const, right: Const) -> Option<Ordering> {
     }
 }
 
+/// An un-evaluated constant value within the Hash IR. These values are
+/// references to constant expressions that are defined outside of a
+/// particular function body or are marked as `const` and will need to
+/// be computed after all IR is built. A [UnevaluatedConst] refers to
+/// a scope of where the value originated, and the [Identifier] that
+/// is marked as `const`. However, once the new typechecking backend is
+/// implemented, this is likely to change to some kind of `DefId` which
+/// points to some declaration that needs to be evaluated.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub struct UnevaluatedConst {
+    /// The source scope of the constant.
+    pub scope: ScopeId,
+
+    /// The name of the constant.
+    pub name: Identifier,
+}
+
 /// A constant value that is used within the IR. A [ConstantValue] is either
 /// an actual [Const] value, or an un-evaluated reference to a constant
 /// expression that comes outside of a particular function body. These
@@ -135,13 +152,7 @@ pub enum ConstKind {
     Value(Const),
     /// A constant value that is defined within the program source, but is not
     /// evaluated yet.
-    Unevaluated {
-        /// The Id of the scope that the constant comes from.
-        scope: ScopeId,
-
-        /// The name of the declaration that refers to the scope.
-        name: Identifier,
-    },
+    Unevaluated(UnevaluatedConst),
 }
 
 impl From<ConstKind> for Operand {
@@ -160,7 +171,7 @@ impl fmt::Display for ConstKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Value(value) => write!(f, "{value}"),
-            Self::Unevaluated { name, .. } => write!(f, "<unevaluated> {name}"),
+            Self::Unevaluated(UnevaluatedConst { name, .. }) => write!(f, "<unevaluated> {name}"),
         }
     }
 }
@@ -999,6 +1010,9 @@ pub struct Body {
     /// - the remaining are temporaries that are used within the function.
     pub declarations: IndexVec<Local, LocalDecl>,
 
+    /// Constants that need to be resolved after IR building and pre-codegen.
+    pub needed_constants: Vec<UnevaluatedConst>,
+
     /// Information that is derived when the body in being
     /// lowered.
     pub info: BodyInfo,
@@ -1029,6 +1043,7 @@ impl Body {
         source_id: SourceId,
     ) -> Self {
         Self {
+            needed_constants: vec![],
             basic_blocks: BasicBlocks::new(blocks),
             info,
             declarations,

@@ -12,7 +12,7 @@ use hash_target::{
 
 use super::{
     ctx::HasCtxMethods, debug::BuildDebugInfoMethods, intrinsics::BuildIntrinsicCallMethods,
-    target::HasTargetSpec, HasCodegen,
+    target::HasTargetSpec, CodeGen,
 };
 use crate::{
     common::{CheckedOp, MemFlags},
@@ -23,7 +23,7 @@ use crate::{
 /// This trait defines all methods required to convert a Hash IR [BasicBlock]
 /// into the backend equivalent.
 pub trait BlockBuilderMethods<'a, 'b>:
-    HasCodegen<'b> + BuildIntrinsicCallMethods<'b> + BuildDebugInfoMethods + HasTargetSpec
+    CodeGen<'b> + BuildIntrinsicCallMethods<'b> + BuildDebugInfoMethods + HasTargetSpec
 {
     /// Function to build the given [BasicBlock] into the backend equivalent.
     fn build(ctx: &'a Self::CodegenCtx, block: Self::BasicBlock) -> Self;
