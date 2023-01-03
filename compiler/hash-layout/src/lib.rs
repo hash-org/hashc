@@ -4,7 +4,7 @@
 
 use hash_ir::ty::{IrTyId, VariantIdx};
 use hash_target::{
-    abi::{AbiRepresentation, Primitive},
+    abi::{AbiRepresentation, Scalar},
     alignment::Alignments,
     layout::HasDataLayout,
     size::Size,
@@ -14,6 +14,7 @@ use index_vec::IndexVec;
 
 /// [TyInfo] stores a reference to the type, and a reference to the
 /// layout information about the type.
+#[derive(Debug, Clone, Copy)]
 pub struct TyInfo {
     /// The type reference.
     pub ty: IrTyId,
@@ -41,25 +42,25 @@ new_store!(
 pub struct Layout {
     /// The shape of the layout, this stores information about
     /// where fields are located, their order, padding, etc.
-    shape: LayoutShape,
+    pub shape: LayoutShape,
 
     /// Represents layout information for types that have
     /// multiple variants
-    variants: Variants,
+    pub variants: Variants,
 
     /// Denotes how this layout value is represented in the ABI.
-    abi: AbiRepresentation,
+    pub abi: AbiRepresentation,
 
     /// Specified alignments by the ABI and a "preferred" alignment.
-    alignment: Alignments,
+    pub alignment: Alignments,
 
     /// The size of the layout.
-    size: Size,
+    pub size: Size,
 }
 
 impl Layout {
     /// Create a new [Layout] that represents a scalar.
-    pub fn scalar<C: HasDataLayout>(ctx: &C, scalar: Primitive, abi: AbiRepresentation) -> Self {
+    pub fn scalar<C: HasDataLayout>(ctx: &C, scalar: Scalar, abi: AbiRepresentation) -> Self {
         let size = scalar.size(ctx);
         let alignment = scalar.align(ctx);
 
@@ -196,7 +197,7 @@ pub enum Variants {
     /// position within the type layout.
     Multiple {
         /// The type of the tag that is used to represent the discriminant.
-        tag: Primitive,
+        tag: Scalar,
 
         /// The position of the field that is used to determine which
         /// discriminant is active.

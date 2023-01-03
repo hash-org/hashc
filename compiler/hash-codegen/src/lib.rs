@@ -21,7 +21,11 @@
 #![allow(dead_code)] // @@Temporary: until the codegen general purpose logic is completed.
 
 pub mod common;
-pub mod layout;
 pub mod traits;
 
 mod lower;
+
+// re-export `abi` and `layout` crates to make them available to the backend
+// implementations.
+pub use hash_abi as abi;
+pub use hash_layout as layout;

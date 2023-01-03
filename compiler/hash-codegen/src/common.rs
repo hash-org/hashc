@@ -1,6 +1,28 @@
 //! Common data structures and parameters that are used by the code generation
 //! backend and trait definitions.
 
+use bitflags::bitflags;
+
+/// Checked operations that a compiler backend can perform. All of these
+/// operations are checking the correctness of arithmetic operations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CheckedOp {
+    /// Addition
+    Add,
+
+    /// Subtraction
+    Sub,
+
+    /// Multiplication
+    Mul,
+
+    /// Division
+    Div,
+
+    /// Remainder
+    Rem,
+}
+
 /// This defines all of the type "kinds" that are used by LLVM.
 ///
 /// https://llvm.org/doxygen/classllvm_1_1Type.html#a5e9e1c0dd93557be1b4ad72860f3cbda
@@ -74,4 +96,20 @@ pub enum TypeKind {
 
     /// Target extension types
     TargetExtensionTy,
+}
+
+bitflags! {
+    /// Defines a collection of memory flags that can specify a cell of
+    /// memory that LLVM and other backends that may support it.
+    pub struct MemFlags: u8 {
+        /// The memory slot is marked as a volatile region.
+        const VOLATILE = 1 << 0;
+
+        /// This flag specifies to the LLVM Optimiser that the memory is
+        /// not expected to be re-used and thus should not be cached. This
+        /// is useful for things like atomic operations
+        ///
+        /// Ref: https://llvm.org/docs/LangRef.html#store-instruction
+        const NON_TEMPORAL = 1 << 1;
+    }
 }

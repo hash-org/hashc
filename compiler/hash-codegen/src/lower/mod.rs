@@ -3,4 +3,5 @@
 //! that needs to be shared between the different backends, so they can all
 //! deal with the specifics of each backend within the particular crate.
 
-pub mod operands;
+pub(crate) mod operands;
+pub(crate) mod place;

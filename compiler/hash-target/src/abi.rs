@@ -1,7 +1,6 @@
-//! This module defines types and logic that deal with ABIs (Application Binary
-//! Interfaces). This is needed in order to communicate with the outside world
-//! and to be able to call functions from other languages, but to also provide
-//! information to code generation backends about how values are represented.
+//! Contains primitives to define ABIs for various targets. These primitives
+//! live in `hash-target` in order to be shared between multiple other crates
+//! like `hash-abi` and `hash-codegen`.
 
 use crate::{alignment::Alignments, layout::HasDataLayout, size::Size};
 
@@ -81,7 +80,7 @@ impl Float {
 /// Represents all of the primitive [AbiRepresentation::Scalar]s that are
 /// supported within the ABI.
 #[derive(Clone, Copy, Debug)]
-pub enum Primitive {
+pub enum Scalar {
     /// An integer scalar.
     Int { kind: Integer, signed: bool },
 
@@ -92,16 +91,16 @@ pub enum Primitive {
     Pointer,
 }
 
-impl Primitive {
+impl Scalar {
     /// Align the [Primitive] with the current data layout
     /// specification.
     pub fn align<L: HasDataLayout>(&self, ctx: &L) -> Alignments {
         let dl = ctx.data_layout();
 
         match self {
-            Primitive::Int { kind, .. } => kind.align(ctx),
-            Primitive::Float { kind } => kind.align(ctx),
-            Primitive::Pointer => dl.pointer_align,
+            Scalar::Int { kind, .. } => kind.align(ctx),
+            Scalar::Float { kind } => kind.align(ctx),
+            Scalar::Pointer => dl.pointer_align,
         }
     }
 
@@ -110,9 +109,9 @@ impl Primitive {
         let dl = ctx.data_layout();
 
         match self {
-            Primitive::Int { kind, .. } => kind.size(),
-            Primitive::Float { kind } => kind.size(),
-            Primitive::Pointer => dl.pointer_size,
+            Scalar::Int { kind, .. } => kind.size(),
+            Scalar::Float { kind } => kind.size(),
+            Scalar::Pointer => dl.pointer_size,
         }
     }
 }
@@ -126,7 +125,7 @@ pub enum AbiRepresentation {
     Uninhabited,
 
     /// A scalar value.
-    Scalar { kind: Primitive },
+    Scalar { kind: Scalar },
 
     /// A vector value.
     Vector {
@@ -134,7 +133,7 @@ pub enum AbiRepresentation {
         elements: u64,
 
         /// The kind of the vector.
-        kind: Primitive,
+        kind: Scalar,
     },
 
     /// An aggregate value.

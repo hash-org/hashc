@@ -408,6 +408,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "hash-abi"
+version = "0.1.0"
+dependencies = [
+ "hash-ir",
+ "hash-layout",
+ "hash-source",
+ "hash-target",
+ "hash-utils",
+ "index_vec",
+]
+
+[[package]]
 name = "hash-alloc"
 version = "0.1.0"
 dependencies = [
@@ -473,10 +485,16 @@ dependencies = [
 name = "hash-codegen"
 version = "0.1.0"
 dependencies = [
+ "bitflags",
+ "hash-abi",
  "hash-ir",
+ "hash-layout",
+ "hash-pipeline",
+ "hash-reporting",
  "hash-source",
  "hash-target",
  "hash-utils",
+ "index_vec",
  "rayon",
 ]
 
@@ -534,6 +552,16 @@ dependencies = [
  "html-escape",
  "index_vec",
  "smallvec",
+]
+
+[[package]]
+name = "hash-layout"
+version = "0.1.0"
+dependencies = [
+ "hash-ir",
+ "hash-target",
+ "hash-utils",
+ "index_vec",
 ]
 
 [[package]]

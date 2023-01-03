@@ -1,5 +1,6 @@
 [workspace]
 members = [
+  "compiler/hash-abi",
   "compiler/hash-alloc",
   "compiler/hash-ast-desugaring",
   "compiler/hash-ast-expand",
@@ -11,6 +12,7 @@ members = [
   "compiler/hash-error-codes",
   "compiler/hash-interactive",
   "compiler/hash-ir",
+  "compiler/hash-layout",
   "compiler/hash-lexer",
   "compiler/hash-lower",
   "compiler/hash-parser",
