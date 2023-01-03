@@ -133,8 +133,16 @@ impl<'tc> SymbolResolutionPass<'tc> {
     /// This will search the current scope and all parent scopes.
     /// If the binding is not found, it will return `None`.
     fn lookup_binding_by_name(&self, name: Identifier) -> Option<Symbol> {
-        // @@Todo: do not iter up if the context kind is access
-        self.bindings_by_name.get().iter().rev().find_map(|b| b.1.get(&name).copied())
+        match self.get_current_context_kind() {
+            ContextKind::Access(_, _) => {
+                // If we are accessing we only want to look in the current scope
+                self.bindings_by_name.get().last().and_then(|binding| binding.1.get(&name).copied())
+            }
+            ContextKind::Environment => {
+                // Look up the scopes
+                self.bindings_by_name.get().iter().rev().find_map(|b| b.1.get(&name).copied())
+            }
+        }
     }
 
     /// Find a binding by name, returning the symbol of the binding.

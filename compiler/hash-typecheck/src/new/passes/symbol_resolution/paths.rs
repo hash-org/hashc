@@ -175,7 +175,7 @@ impl<'tc> SymbolResolutionPass<'tc> {
     /// current context if no such value is given.
     ///
     /// Returns the binding that the name resolves to.
-    pub fn resolve_ast_name(
+    fn resolve_ast_name(
         &self,
         name: Identifier,
         name_span: Span,
@@ -220,6 +220,7 @@ impl<'tc> SymbolResolutionPass<'tc> {
     ) -> TcResult<ResolvedAstPathComponent> {
         let binding = self.resolve_ast_name(component.name, component.name_span, starting_from)?;
 
+        println!("##Resolving component {:?} \n##to {}", component, self.env().with(binding));
         match binding.kind {
             BindingKind::ModMember(_, mod_member_id) => {
                 let mod_member = self.stores().mod_members().get_element(mod_member_id);
@@ -246,6 +247,9 @@ impl<'tc> SymbolResolutionPass<'tc> {
                     ModMemberValue::Mod(mod_def_id) => {
                         let mod_def_params =
                             self.stores().mod_def().map_fast(mod_def_id, |def| def.params);
+                        println!("Got args: {:?}", component.args);
+                        println!("Params: {}", self.env().with(mod_def_params));
+
                         let args =
                             self.apply_ast_args_to_def_params(mod_def_params, &component.args)?;
 

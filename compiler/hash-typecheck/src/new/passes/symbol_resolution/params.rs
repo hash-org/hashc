@@ -28,6 +28,7 @@ use crate::new::{
 /// Resolved arguments.
 ///
 /// These are either term arguments, or pattern arguments.
+#[derive(Copy, Clone, Debug)]
 pub enum ResolvedArgs {
     Term(ArgsId),
     Pat(PatArgsId, Option<Spread>),
@@ -55,6 +56,7 @@ impl From<ResolvedArgs> for SomeArgsId {
 /// Resolved definition arguments.
 ///
 /// These are either term arguments, or pattern arguments.
+#[derive(Copy, Clone, Debug)]
 pub enum ResolvedDefArgs {
     Term(DefArgsId),
     Pat(DefPatArgsId),
@@ -202,9 +204,11 @@ impl<'tc> SymbolResolutionPass<'tc> {
                             })
                         })
                         .collect::<TcResult<Vec<_>>>()?;
-                    Ok(ResolvedDefArgs::Pat(
-                        self.param_ops().create_def_pat_args(arg_groups.into_iter()),
-                    ))
+                    let def_pat_args = self.param_ops().create_def_pat_args(arg_groups.into_iter());
+                    self.stores().location().add_locations_to_targets(def_pat_args, |i| {
+                        Some(self.source_location(groups[i].span()?))
+                    });
+                    Ok(ResolvedDefArgs::Pat(def_pat_args))
                 } else {
                     // Term arguments
                     let arg_groups = groups
@@ -218,9 +222,11 @@ impl<'tc> SymbolResolutionPass<'tc> {
                             Ok(DefArgGroupData { args, param_group: (originating_params, index) })
                         })
                         .collect::<TcResult<Vec<_>>>()?;
-                    Ok(ResolvedDefArgs::Term(
-                        self.param_ops().create_def_args(arg_groups.into_iter()),
-                    ))
+                    let def_args = self.param_ops().create_def_args(arg_groups.into_iter());
+                    self.stores().location().add_locations_to_targets(def_args, |i| {
+                        Some(self.source_location(groups[i].span()?))
+                    });
+                    Ok(ResolvedDefArgs::Term(def_args))
                 }
             }
             // @@Hack: here we assume the args are term args; if they are meant to be pattern args
@@ -288,6 +294,8 @@ impl<'tc> SymbolResolutionPass<'tc> {
     ) -> TcResult<ResolvedDefArgs> {
         // @@Todo: implicit args
         // @@Todo: default params
+
+        println!("apply_ast_args_to_def_params: {} {:?}", self.env().with(def_params), args);
 
         // First ensure that the number of parameter and argument groups match.
         let created_def_args = self.make_def_args_from_ast_arg_groups(args, def_params)?;
