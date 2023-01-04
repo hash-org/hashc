@@ -1,17 +1,18 @@
 //! Hash IR visitor and walker trait definitions.
-/// In an ideal world, this should be generated using a similar
-/// approach to as the AST. Most of the time, we don't want to
-/// write the visitor code by hand. Ideally, we want:
-///
-/// 1. A cartesian product of the IR Visitor traits, so that we
-///    can both visit with a mutable and immutable context, and an
-///    a visitor that can modify the IR in place and one that can't.
-///
-/// 2. The ability to generate walking methods for the IR that can accompany
-///    all variants fo the visiting traits.
-///
-/// 3. The ability to hide away the boilerplate of the visitor and walking
-///    code for nodes that don't need to be dealt with.
+//!
+//! In an ideal world, this should be generated using a similar
+//! approach to as the AST. Most of the time, we don't want to
+//! write the visitor code by hand. Ideally, we want:
+//!
+//! 1. A cartesian product of the IR Visitor traits, so that we
+//!    can both visit with a mutable and immutable context, and an
+//!    a visitor that can modify the IR in place and one that can't.
+//!
+//! 2. The ability to generate walking methods for the IR that can accompany
+//!    all variants fo the visiting traits.
+//!
+//! 3. The ability to hide away the boilerplate of the visitor and walking
+//!    code for nodes that don't need to be dealt with.
 use crate::{
     ir::{
         AddressMode, AggregateKind, AssertKind, BasicBlock, BasicBlockData, BinOp, Body, ConstKind,
@@ -41,8 +42,8 @@ pub trait IrVisitorMut<'ir>: Sized {
         walk_mut::walk_body(self, body);
     }
 
-    fn visit_basic_block(&mut self, block: &BasicBlockData) {
-        walk_mut::walk_basic_block(self, block);
+    fn visit_basic_block(&mut self, _: BasicBlock, data: &BasicBlockData) {
+        walk_mut::walk_basic_block(self, data);
     }
 
     fn visit_statement(&mut self, statement: &Statement) {
@@ -166,18 +167,18 @@ pub mod walk_mut {
     /// Walk over all the [BasicBlock]s in the [Body] of the given
     /// to the visitor.
     pub fn walk_body<'ir, V: IrVisitorMut<'ir>>(visitor: &mut V, body: &Body) {
-        for block in body.blocks() {
-            visitor.visit_basic_block(block);
+        for (block, data) in body.blocks().iter_enumerated() {
+            visitor.visit_basic_block(block, data);
         }
     }
 
     /// Walk over all the [Statement]s in the given [BasicBlock] to the
-    pub fn walk_basic_block<'ir, V: IrVisitorMut<'ir>>(visitor: &mut V, block: &BasicBlockData) {
-        for statement in block.statements.iter() {
+    pub fn walk_basic_block<'ir, V: IrVisitorMut<'ir>>(visitor: &mut V, data: &BasicBlockData) {
+        for statement in data.statements.iter() {
             visitor.visit_statement(statement);
         }
 
-        if let Some(terminator) = &block.terminator {
+        if let Some(terminator) = &data.terminator {
             visitor.visit_terminator(terminator);
         }
     }
@@ -195,34 +196,20 @@ pub mod walk_mut {
         }
     }
 
-    // pub struct AssignStatementRet<'ir, V: IrVisitorMut<'ir>> {
-    //     pub place: V::PlaceRet,
-    //     pub value: V::RValueRet,
-    // }
-
     pub fn walk_assign_statement<'ir, V: IrVisitorMut<'ir>>(
         visitor: &mut V,
         place: &Place,
         value: &RValue,
-    ) /* -> AssignStatementRet<'ir, V> */
-    {
-        // AssignStatementRet { place: visitor.visit_place(place), value:
-        // visitor.visit_rvalue(value) }
+    ) {
         visitor.visit_place(place);
         visitor.visit_rvalue(value);
     }
-
-    // pub struct DiscriminatingStatementRet<'ir, V: IrVisitorMut<'ir>> {
-    //     pub place: V::PlaceRet,
-    // }
 
     pub fn walk_discriminating_statement<'ir, V: IrVisitorMut<'ir>>(
         visitor: &mut V,
         place: &Place,
         _: VariantIdx,
-    ) /* -> DiscriminatingStatementRet<'ir, V> */
-    {
-        // DiscriminatingStatementRet { place: visitor.visit_place(place) }
+    ) {
         visitor.visit_place(place);
     }
 
@@ -234,9 +221,7 @@ pub mod walk_mut {
         visitor.visit_local(local);
     }
 
-    pub fn walk_terminator<'ir, V: IrVisitorMut<'ir>>(visitor: &mut V, terminator: &Terminator)
-    /* -> V::TerminatorRet */
-    {
+    pub fn walk_terminator<'ir, V: IrVisitorMut<'ir>>(visitor: &mut V, terminator: &Terminator) {
         match &terminator.kind {
             TerminatorKind::Goto(target) => visitor.visit_goto_terminator(*target),
             TerminatorKind::Unreachable => visitor.visit_unreachable_terminator(),
@@ -253,47 +238,25 @@ pub mod walk_mut {
         }
     }
 
-    // pub struct CallTerminatorRet<'ir, V: IrVisitorMut<'ir>> {
-    //     pub op: V::RValueRet,
-    //     pub args: Vec<V::RValueRet>,
-    //     pub destination: V::PlaceRet,
-    // }
-
     pub fn walk_call_terminator<'ir, V: IrVisitorMut<'ir>>(
         visitor: &mut V,
         op: &Operand,
         args: &[Operand],
         destination: &Place,
         _: Option<BasicBlock>,
-    ) /* -> CallTerminatorRet<'ir, V> */
-    {
-        // CallTerminatorRet {
-        //     op: visitor.visit_rvalue(op),
-        //     args: args.iter().map(|arg| visitor.visit_rvalue(arg)).collect(),
-        //     destination: visitor.visit_place(destination),
-        // }
+    ) {
         visitor.visit_operand(op);
         args.iter().for_each(|arg| visitor.visit_operand(arg));
         visitor.visit_place(destination);
     }
 
-    // pub struct SwitchTerminatorRet<'ir, V: IrVisitorMut<'ir>> {
-    //     pub value: V::RValueRet,
-    // }
-
     pub fn walk_switch_terminator<'ir, V: IrVisitorMut<'ir>>(
         visitor: &mut V,
         value: &Operand,
         _: &SwitchTargets,
-    ) /* -> SwitchTerminatorRet<'ir, V> */
-    {
-        // SwitchTerminatorRet { value: visitor.visit_rvalue(value) }
+    ) {
         visitor.visit_operand(value)
     }
-
-    // pub struct AssertTerminatorRet<'ir, V: IrVisitorMut<'ir>> {
-    //     pub condition: V::PlaceRet,
-    // }
 
     pub fn walk_assert_terminator<'ir, V: IrVisitorMut<'ir>>(
         visitor: &mut V,
@@ -301,14 +264,11 @@ pub mod walk_mut {
         _: bool,
         _: AssertKind,
         _: BasicBlock,
-    ) /* -> AssertTerminatorRet<'ir, V> */
-    {
-        // AssertTerminatorRet { condition: visitor.visit_place(condition) }
+    ) {
         visitor.visit_place(condition)
     }
 
-    pub fn walk_rvalue<'ir, V: IrVisitorMut<'ir>>(visitor: &mut V, value: &RValue) /* -> V::RValueRet */
-    {
+    pub fn walk_rvalue<'ir, V: IrVisitorMut<'ir>>(visitor: &mut V, value: &RValue) {
         match value {
             RValue::Use(place) => visitor.visit_use_rvalue(place),
             RValue::ConstOp(op, ty) => visitor.visit_const_op_rvalue(*op, *ty),
@@ -328,45 +288,24 @@ pub mod walk_mut {
         }
     }
 
-    // pub struct UseRValueRet<'ir, V: IrVisitorMut<'ir>> {
-    //     pub place: V::PlaceRet,
-    // }
-
-    pub fn walk_use_rvalue<'ir, V: IrVisitorMut<'ir>>(visitor: &mut V, operand: &Operand)
-    /* -> UseRValueRet<'ir, V> */
-    {
-        // UseRValueRet { place: visitor.visit_place(place) }
+    pub fn walk_use_rvalue<'ir, V: IrVisitorMut<'ir>>(visitor: &mut V, operand: &Operand) {
         visitor.visit_operand(operand)
     }
-
-    // pub struct UnaryOpRValueRet<'ir, V: IrVisitorMut<'ir>> {
-    //     pub value: V::RValueRet,
-    // }
 
     pub fn walk_unary_op_rvalue<'ir, V: IrVisitorMut<'ir>>(
         visitor: &mut V,
         _: UnaryOp,
         value: &Operand,
-    ) /* -> UnaryOpRValueRet<'ir, V> */
-    {
-        // UnaryOpRValueRet { value: visitor.visit_rvalue(value) }
+    ) {
         visitor.visit_operand(value)
     }
-
-    // pub struct BinaryOpRValueRet<'ir, V: IrVisitorMut<'ir>> {
-    //     pub lhs: V::RValueRet,
-    //     pub rhs: V::RValueRet,
-    // }
 
     pub fn walk_binary_op_rvalue<'ir, V: IrVisitorMut<'ir>>(
         visitor: &mut V,
         _: BinOp,
         lhs: &Operand,
         rhs: &Operand,
-    ) /* -> BinaryOpRValueRet<'ir, V> */
-    {
-        // BinaryOpRValueRet { lhs: visitor.visit_rvalue(lhs), rhs:
-        // visitor.visit_rvalue(rhs) }
+    ) {
         visitor.visit_operand(lhs);
         visitor.visit_operand(rhs);
     }
@@ -376,64 +315,33 @@ pub mod walk_mut {
         _: BinOp,
         lhs: &Operand,
         rhs: &Operand,
-    ) /* -> BinaryOpRValueRet<'ir, V> */
-    {
-        // BinaryOpRValueRet { lhs: visitor.visit_rvalue(lhs), rhs:
-        // visitor.visit_rvalue(rhs) }
+    ) {
         visitor.visit_operand(lhs);
         visitor.visit_operand(rhs);
     }
 
-    // pub struct LenRValueRet<'ir, V: IrVisitorMut<'ir>> {
-    //     pub place: V::PlaceRet,
-    // }
-
-    pub fn walk_len_rvalue<'ir, V: IrVisitorMut<'ir>>(visitor: &mut V, place: &Place)
-    /* -> LenRValueRet<'ir, V> */
-    {
-        // LenRValueRet { place: visitor.visit_place(place) }
+    pub fn walk_len_rvalue<'ir, V: IrVisitorMut<'ir>>(visitor: &mut V, place: &Place) {
         visitor.visit_place(place)
     }
-
-    // pub struct RefRValueRet<'ir, V: IrVisitorMut<'ir>> {
-    //     pub place: V::PlaceRet,
-    // }
 
     pub fn walk_ref_rvalue<'ir, V: IrVisitorMut<'ir>>(
         visitor: &mut V,
         _: Mutability,
         place: &Place,
         _: AddressMode,
-    ) /* -> RefRValueRet<'ir, V> */
-    {
-        // RefRValueRet { place: visitor.visit_place(place) }
+    ) {
         visitor.visit_place(place)
     }
-
-    // pub struct AggregateRValueRet<'ir, V: IrVisitorMut<'ir>> {
-    //     pub values: Vec<V::RValueRet>,
-    // }
 
     pub fn walk_aggregate_rvalue<'ir, V: IrVisitorMut<'ir>>(
         visitor: &mut V,
         _: AggregateKind,
         values: &[Operand],
-    ) /* -> AggregateRValueRet<'ir, V> */
-    {
-        // AggregateRValueRet {
-        //     values: values.iter().map(|value| visitor.visit_rvalue(value)).collect(),
-        // }
+    ) {
         values.iter().for_each(|value| visitor.visit_operand(value))
     }
 
-    // pub struct DiscriminantRet<'ir, V: IrVisitorMut<'ir>> {
-    //     pub place: V::PlaceRet,
-    // }
-
-    pub fn walk_discriminant_rvalue<'ir, V: IrVisitorMut<'ir>>(visitor: &mut V, place: &Place)
-    /* -> DiscriminantRet<'ir, V> */
-    {
-        // DiscriminantRet { place: visitor.visit_place(place) }
+    pub fn walk_discriminant_rvalue<'ir, V: IrVisitorMut<'ir>>(visitor: &mut V, place: &Place) {
         visitor.visit_place(place)
     }
 
@@ -464,16 +372,6 @@ pub mod walk_mut {
     }
 }
 
-// @@Todo: fill these in when the general structure of `IrVisitorMut` is
-// finalised.
-pub trait IrVisitor<'ir> {
-    /// Return a reference to the [BodyDataStore].
-    fn storage(&self) -> &'ir BodyDataStore;
-
-    /// Return the [Body] of the current visitor.
-    fn body(&self) -> &'ir Body;
-}
-
 pub trait ModifyingIrVisitor<'ir>: Sized {
     /// Return a reference to the [BodyDataStore].
     fn store(&self) -> &'ir BodyDataStore;
@@ -484,8 +382,8 @@ pub trait ModifyingIrVisitor<'ir>: Sized {
         walk_modifying::walk_body(self, body);
     }
 
-    fn visit_basic_block(&self, block: &mut BasicBlockData) {
-        walk_modifying::walk_basic_block(self, block);
+    fn visit_basic_block(&self, _: BasicBlock, data: &mut BasicBlockData) {
+        walk_modifying::walk_basic_block(self, data);
     }
 
     fn visit_statement(&self, statement: &mut Statement) {
@@ -612,8 +510,8 @@ pub mod walk_modifying {
     /// Walk over all the [BasicBlock]s in the [Body] of the given
     /// to the visitor.
     pub fn walk_body<'ir, V: ModifyingIrVisitor<'ir>>(visitor: &V, body: &mut Body) {
-        for block in body.basic_blocks.blocks_mut() {
-            visitor.visit_basic_block(block);
+        for (block, data) in body.basic_blocks.blocks_mut().iter_mut_enumerated() {
+            visitor.visit_basic_block(block, data);
         }
     }
 
@@ -644,34 +542,20 @@ pub mod walk_modifying {
         }
     }
 
-    // pub struct AssignStatementRet<'ir, V: ModifyingIrVisitor<'ir>> {
-    //     pub place: V::PlaceRet,
-    //     pub value: V::RValueRet,
-    // }
-
     pub fn walk_assign_statement<'ir, V: ModifyingIrVisitor<'ir>>(
         visitor: &V,
         place: &mut Place,
         value: &mut RValue,
-    ) /* -> AssignStatementRet<'ir, V> */
-    {
-        // AssignStatementRet { place: visitor.visit_place(place), value:
-        // visitor.visit_rvalue(value) }
+    ) {
         visitor.visit_place(place);
         visitor.visit_rvalue(value);
     }
-
-    // pub struct DiscriminatingStatementRet<'ir, V: ModifyingIrVisitor<'ir>> {
-    //     pub place: V::PlaceRet,
-    // }
 
     pub fn walk_discriminating_statement<'ir, V: ModifyingIrVisitor<'ir>>(
         visitor: &V,
         place: &mut Place,
         _: &mut VariantIdx,
-    ) /* -> DiscriminatingStatementRet<'ir, V> */
-    {
-        // DiscriminatingStatementRet { place: visitor.visit_place(place) }
+    ) {
         visitor.visit_place(place);
     }
 
@@ -689,9 +573,7 @@ pub mod walk_modifying {
     pub fn walk_terminator<'ir, V: ModifyingIrVisitor<'ir>>(
         visitor: &V,
         terminator: &mut Terminator,
-    )
-    /* -> V::TerminatorRet */
-    {
+    ) {
         match &mut terminator.kind {
             TerminatorKind::Goto(target) => visitor.visit_goto_terminator(*target),
             TerminatorKind::Unreachable => visitor.visit_unreachable_terminator(),
@@ -708,47 +590,25 @@ pub mod walk_modifying {
         }
     }
 
-    // pub struct CallTerminatorRet<'ir, V: ModifyingIrVisitor<'ir>> {
-    //     pub op: V::RValueRet,
-    //     pub args: Vec<V::RValueRet>,
-    //     pub destination: V::PlaceRet,
-    // }
-
     pub fn walk_call_terminator<'ir, V: ModifyingIrVisitor<'ir>>(
         visitor: &V,
         op: &mut Operand,
         args: &mut [Operand],
         destination: &mut Place,
         _: &mut Option<BasicBlock>,
-    ) /* -> CallTerminatorRet<'ir, V> */
-    {
-        // CallTerminatorRet {
-        //     op: visitor.visit_rvalue(op),
-        //     args: args.iter().map(|arg| visitor.visit_rvalue(arg)).collect(),
-        //     destination: visitor.visit_place(destination),
-        // }
+    ) {
         visitor.visit_operand(op);
         args.iter_mut().for_each(|arg| visitor.visit_operand(arg));
         visitor.visit_place(destination);
     }
 
-    // pub struct SwitchTerminatorRet<'ir, V: ModifyingIrVisitor<'ir>> {
-    //     pub value: V::RValueRet,
-    // }
-
     pub fn walk_switch_terminator<'ir, V: ModifyingIrVisitor<'ir>>(
         visitor: &V,
         value: &mut Operand,
         _: &mut SwitchTargets,
-    ) /* -> SwitchTerminatorRet<'ir, V> */
-    {
-        // SwitchTerminatorRet { value: visitor.visit_rvalue(value) }
+    ) {
         visitor.visit_operand(value)
     }
-
-    // pub struct AssertTerminatorRet<'ir, V: ModifyingIrVisitor<'ir>> {
-    //     pub condition: V::PlaceRet,
-    // }
 
     pub fn walk_assert_terminator<'ir, V: ModifyingIrVisitor<'ir>>(
         visitor: &V,
@@ -756,15 +616,11 @@ pub mod walk_modifying {
         _: &mut bool,
         _: &mut AssertKind,
         _: &mut BasicBlock,
-    ) /* -> AssertTerminatorRet<'ir, V> */
-    {
-        // AssertTerminatorRet { condition: visitor.visit_place(condition) }
+    ) {
         visitor.visit_place(condition)
     }
 
-    pub fn walk_rvalue<'ir, V: ModifyingIrVisitor<'ir>>(visitor: &V, value: &mut RValue)
-    /* -> V::RValueRet */
-    {
+    pub fn walk_rvalue<'ir, V: ModifyingIrVisitor<'ir>>(visitor: &V, value: &mut RValue) {
         match value {
             RValue::Use(place) => visitor.visit_operand(place),
             RValue::ConstOp(op, ty) => visitor.visit_const_op_rvalue(op, ty),
@@ -788,45 +644,24 @@ pub mod walk_modifying {
         }
     }
 
-    // pub struct UseRValueRet<'ir, V: ModifyingIrVisitor<'ir>> {
-    //     pub place: V::PlaceRet,
-    // }
-
-    pub fn walk_use_rvalue<'ir, V: ModifyingIrVisitor<'ir>>(visitor: &V, place: &mut Place)
-    /* -> UseRValueRet<'ir, V> */
-    {
-        // UseRValueRet { place: visitor.visit_place(place) }
+    pub fn walk_use_rvalue<'ir, V: ModifyingIrVisitor<'ir>>(visitor: &V, place: &mut Place) {
         visitor.visit_place(place)
     }
-
-    // pub struct UnaryOpRValueRet<'ir, V: ModifyingIrVisitor<'ir>> {
-    //     pub value: V::RValueRet,
-    // }
 
     pub fn walk_unary_op_rvalue<'ir, V: ModifyingIrVisitor<'ir>>(
         visitor: &V,
         _: &mut UnaryOp,
         value: &mut Operand,
-    ) /* -> UnaryOpRValueRet<'ir, V> */
-    {
-        // UnaryOpRValueRet { value: visitor.visit_rvalue(value) }
+    ) {
         visitor.visit_operand(value)
     }
-
-    // pub struct BinaryOpRValueRet<'ir, V: ModifyingIrVisitor<'ir>> {
-    //     pub lhs: V::RValueRet,
-    //     pub rhs: V::RValueRet,
-    // }
 
     pub fn walk_binary_op_rvalue<'ir, V: ModifyingIrVisitor<'ir>>(
         visitor: &V,
         _: &mut BinOp,
         lhs: &mut Operand,
         rhs: &mut Operand,
-    ) /* -> BinaryOpRValueRet<'ir, V> */
-    {
-        // BinaryOpRValueRet { lhs: visitor.visit_rvalue(lhs), rhs:
-        // visitor.visit_rvalue(rhs) }
+    ) {
         visitor.visit_operand(lhs);
         visitor.visit_operand(rhs);
     }
@@ -836,67 +671,36 @@ pub mod walk_modifying {
         _: &mut BinOp,
         lhs: &mut Operand,
         rhs: &mut Operand,
-    ) /* -> BinaryOpRValueRet<'ir, V> */
-    {
-        // BinaryOpRValueRet { lhs: visitor.visit_rvalue(lhs), rhs:
-        // visitor.visit_rvalue(rhs) }
+    ) {
         visitor.visit_operand(lhs);
         visitor.visit_operand(rhs);
     }
 
-    // pub struct LenRValueRet<'ir, V: ModifyingIrVisitor<'ir>> {
-    //     pub place: V::PlaceRet,
-    // }
-
-    pub fn walk_len_rvalue<'ir, V: ModifyingIrVisitor<'ir>>(visitor: &V, place: &mut Place)
-    /* -> LenRValueRet<'ir, V> */
-    {
-        // LenRValueRet { place: visitor.visit_place(place) }
+    pub fn walk_len_rvalue<'ir, V: ModifyingIrVisitor<'ir>>(visitor: &V, place: &mut Place) {
         visitor.visit_place(place)
     }
-
-    // pub struct RefRValueRet<'ir, V: ModifyingIrVisitor<'ir>> {
-    //     pub place: V::PlaceRet,
-    // }
 
     pub fn walk_ref_rvalue<'ir, V: ModifyingIrVisitor<'ir>>(
         visitor: &V,
         _: &mut Mutability,
         place: &mut Place,
         _: &mut AddressMode,
-    ) /* -> RefRValueRet<'ir, V> */
-    {
-        // RefRValueRet { place: visitor.visit_place(place) }
+    ) {
         visitor.visit_place(place)
     }
-
-    // pub struct AggregateRValueRet<'ir, V: ModifyingIrVisitor<'ir>> {
-    //     pub values: Vec<V::RValueRet>,
-    // }
 
     pub fn walk_aggregate_rvalue<'ir, V: ModifyingIrVisitor<'ir>>(
         visitor: &V,
         _: &mut AggregateKind,
         aggregate: &mut [Operand],
-    ) /* -> AggregateRValueRet<'ir, V> */
-    {
-        // AggregateRValueRet {
-        //     values: values.iter().map(|value| visitor.visit_rvalue(value)).collect(),
-        // }
+    ) {
         aggregate.iter_mut().for_each(|value| visitor.visit_operand(value))
     }
-
-    // pub struct DiscriminantRet<'ir, V: ModifyingIrVisitor<'ir>> {
-    //     pub place: V::PlaceRet,
-    // }
 
     pub fn walk_discriminant_rvalue<'ir, V: ModifyingIrVisitor<'ir>>(
         visitor: &V,
         place: &mut Place,
-    )
-    /* -> DiscriminantRet<'ir, V> */
-    {
-        // DiscriminantRet { place: visitor.visit_place(place) }
+    ) {
         visitor.visit_place(place)
     }
 
