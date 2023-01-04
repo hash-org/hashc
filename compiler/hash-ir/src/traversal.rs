@@ -205,7 +205,7 @@ impl<'ir> Iterator for PostOrder<'ir> {
 /// node before visiting the node itself. Reverse post-order traversal
 /// represents a natural linearisation of a control flow graph. To illustrate
 /// the order, consider the following graph:
-/// ```ignore
+/// ```notrust, ignore
 ///    A
 ///   / \
 ///  B   C

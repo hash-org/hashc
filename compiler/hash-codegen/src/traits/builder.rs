@@ -20,12 +20,12 @@ use crate::{
     lower::{operands::OperandRef, place::PlaceRef},
 };
 
-/// This trait defines all methods required to convert a Hash IR [BasicBlock]
+/// This trait defines all methods required to convert a Hash IR `BasicBlock`
 /// into the backend equivalent.
 pub trait BlockBuilderMethods<'a, 'b>:
     CodeGen<'b> + BuildIntrinsicCallMethods<'b> + BuildDebugInfoMethods + HasTargetSpec
 {
-    /// Function to build the given [BasicBlock] into the backend equivalent.
+    /// Function to build the given `BasicBlock` into the backend equivalent.
     fn build(ctx: &'a Self::CodegenCtx, block: Self::BasicBlock) -> Self;
 
     /// Get the current context
@@ -38,7 +38,7 @@ pub trait BlockBuilderMethods<'a, 'b>:
     fn append_block(&mut self, name: &str) -> Self::BasicBlock;
 
     /// Switch the current building context to the provided
-    /// [`Self::BasicBlock`].
+    /// basic block.
     fn switch_to_block(&mut self, block: Self::BasicBlock);
 
     // --- Branching/Block termination ---
@@ -209,17 +209,17 @@ pub trait BlockBuilderMethods<'a, 'b>:
 
     /// Perform a truncation from type of `value` to `dest_ty`.
     ///
-    /// Ref: https://llvm.org/docs/LangRef.html#trunc-to-instruction
+    /// Ref: <https://llvm.org/docs/LangRef.html#trunc-to-instruction>
     fn truncate(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value;
 
     /// Perform a sign extension from type of `value` to `dest_ty`.
     ///
-    /// Ref: https://llvm.org/docs/LangRef.html#sext-to-instruction
+    /// Ref: <https://llvm.org/docs/LangRef.html#sext-to-instruction>
     fn sign_extend(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value;
 
     /// Perform a zero extension from type of `value` to `dest_ty`.
     ///
-    /// Ref: https://llvm.org/docs/LangRef.html#zext-to-instruction
+    /// Ref: <https://llvm.org/docs/LangRef.html#zext-to-instruction>
     fn zero_extend(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value;
 
     /// The `fptoui` converts a floating-point value to its unsigned integer
@@ -227,7 +227,7 @@ pub trait BlockBuilderMethods<'a, 'b>:
     ///
     /// N.B. This performs a saturating conversion.
     ///
-    /// Ref: https://llvm.org/docs/LangRef.html#fptoui-to-instruction
+    /// Ref: <https://llvm.org/docs/LangRef.html#fptoui-to-instruction>
     fn fp_to_ui_sat(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value;
 
     /// The `fptosi` converts a floating-point value to its signed integer
@@ -235,38 +235,38 @@ pub trait BlockBuilderMethods<'a, 'b>:
     ///
     /// N.B. This performs a saturating conversion.
     ///
-    /// Ref: https://llvm.org/docs/LangRef.html#fptosi-to-instruction
+    /// Ref: <https://llvm.org/docs/LangRef.html#fptosi-to-instruction>
     fn fp_to_si_sat(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value;
 
     /// The `fptoui` converts a floating-point value to its unsigned integer
     /// equivalent of type `dest_ty`.
     ///
     ///
-    /// Ref: https://llvm.org/docs/LangRef.html#fptoui-to-instruction
+    /// Ref: <https://llvm.org/docs/LangRef.html#fptoui-to-instruction>
     fn fp_to_ui(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value;
 
     /// The `fptosi` converts a floating-point value to its signed integer
     /// equivalent of type `dest_ty`.
     ///
-    /// Ref: https://llvm.org/docs/LangRef.html#fptosi-to-instruction     
+    /// Ref: <https://llvm.org/docs/LangRef.html#fptosi-to-instruction>
     fn fp_to_si(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value;
 
     /// The `uitofp` converts an unsigned integer value to its floating-point
     /// equivalent of type `dest_ty`.
     ///
-    /// Ref: https://llvm.org/docs/LangRef.html#uitofp-to-instruction
+    /// Ref: <https://llvm.org/docs/LangRef.html#uitofp-to-instruction>
     fn ui_to_fp(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value;
 
     /// The `sitofp` converts a signed integer value to its floating-point
     /// equivalent of type `dest_ty`.
     ///
-    /// Ref: https://llvm.org/docs/LangRef.html#sitofp-to-instruction
+    /// Ref: <https://llvm.org/docs/LangRef.html#sitofp-to-instruction>
     fn si_to_fp(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value;
 
     /// The `fptrunc` instruction converts a floating-point value to a
     /// floating-point value of smaller width.
     ///
-    /// Ref: https://llvm.org/docs/LangRef.html#fptrunc-to-instruction
+    /// Ref: <https://llvm.org/docs/LangRef.html#fptrunc-to-instruction>
     fn fp_truncate(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value;
 
     /// The `fpext` instruction converts a floating-point value to a
@@ -277,30 +277,30 @@ pub trait BlockBuilderMethods<'a, 'b>:
 
     /// The `ptrtoint` instruction converts a pointer value to an integer value.
     ///
-    /// Ref: https://llvm.org/docs/LangRef.html#ptrtoint-to-instruction
+    /// Ref: <https://llvm.org/docs/LangRef.html#ptrtoint-to-instruction>
     fn ptr_to_int(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value;
 
     /// The `inttoptr` instruction converts an integer value to a pointer value.
     ///
-    /// Ref: https://llvm.org/docs/LangRef.html#inttoptr-to-instruction
+    /// Ref: <https://llvm.org/docs/LangRef.html#inttoptr-to-instruction>
     fn int_to_ptr(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value;
 
     /// The `bitcast` instruction converts a value from one type to another type
     /// without changing any bits.
     ///
-    /// Ref: https://llvm.org/docs/LangRef.html#bitcast-to-instruction
+    /// Ref: <https://llvm.org/docs/LangRef.html#bitcast-to-instruction>
     fn bit_cast(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value;
 
     /// The `intcast` instruction converts a value from one integer type to
     /// another integer type.
     ///
-    /// Ref: https://llvm.org/docs/LangRef.html#intcast-to-instruction
+    /// Ref: <https://llvm.org/docs/LangRef.html#intcast-to-instruction>
     fn int_cast(&mut self, val: Self::Value, dest_ty: Self::Type, is_signed: bool) -> Self::Value;
 
     /// The `pointercast` instruction converts a value from one pointer type to
     /// another pointer type.
     ///
-    /// Ref: https://llvm.org/docs/LangRef.html#addrspacecast-to-instruction
+    /// Ref: <https://llvm.org/docs/LangRef.html#addrspacecast-to-instruction>
     fn pointer_cast(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value;
 
     // --- Intrinsic & Memory operations ---
@@ -318,19 +318,19 @@ pub trait BlockBuilderMethods<'a, 'b>:
         }
     }
 
-    /// Convert the given [`Self::Value`] to a scalar value of the given kind.
+    /// Convert the given value to a [Scalar] value.
     fn to_immediate_scalar(&mut self, v: Self::Value, kind: Scalar) -> Self::Value;
 
     /// Create a store operation on the stack to given type and [Alignment]
     /// specification, returning a reference to the data location.
     ///
-    /// Ref: https://llvm.org/docs/LangRef.html#alloca-instruction    
+    /// Ref: <https://llvm.org/docs/LangRef.html#alloca-instruction>
     fn alloca(&mut self, ty: Self::Type, alignment: Alignment) -> Self::Value;
 
     /// Allocate a byte array of a specified length and [Alignment] on the
     /// stack.
     ///
-    /// Ref: https://llvm.org/docs/LangRef.html#alloca-instruction
+    /// Ref: <https://llvm.org/docs/LangRef.html#alloca-instruction>
     fn byte_array_alloca(&mut self, len: Self::Value, alignment: Alignment) -> Self::Value;
 
     /// Write an [OperandRef] value repeatedly into a given destination.
@@ -343,13 +343,13 @@ pub trait BlockBuilderMethods<'a, 'b>:
 
     /// Load a value from a given pointer of a type and a specified [Alignment].
     ///
-    /// Ref: https://llvm.org/docs/LangRef.html#load-instruction
+    /// Ref: <https://llvm.org/docs/LangRef.html#load-instruction>
     fn load(&mut self, ty: Self::Type, ptr: Self::Value, alignment: Alignment) -> Self::Value;
 
     /// Emit an instruction for a volatile load from a given pointer of a type
     /// and a specified [Alignment].
     ///
-    /// Ref: https://llvm.org/docs/LangRef.html#load-instruction
+    /// Ref: <https://llvm.org/docs/LangRef.html#load-instruction>
     fn volatile_load(
         &mut self,
         ty: Self::Type,
@@ -360,7 +360,7 @@ pub trait BlockBuilderMethods<'a, 'b>:
     /// Emit an instruction for an atomic load from a given pointer of a type
     /// and a specified [Alignment].
     ///
-    /// Ref: https://llvm.org/docs/LangRef.html#load-instruction
+    /// Ref: <https://llvm.org/docs/LangRef.html#load-instruction>
     fn atomic_load(
         &mut self,
         ty: Self::Type,
@@ -374,12 +374,12 @@ pub trait BlockBuilderMethods<'a, 'b>:
     /// Emit a `store` instruction to a given pointer of a type and a specified
     /// [Alignment].
     ///
-    /// Ref: https://llvm.org/docs/LangRef.html#store-instruction
+    /// Ref: <https://llvm.org/docs/LangRef.html#store-instruction>
     fn store(&mut self, value: Self::Value, ptr: Self::Value, alignment: Alignment) -> Self::Value;
 
     /// Emit a `store` instruction with specified [MemFlags].
     ///
-    /// Ref: https://llvm.org/docs/LangRef.html#store-instruction
+    /// Ref: <https://llvm.org/docs/LangRef.html#store-instruction>
     fn store_with_flags(
         &mut self,
         value: Self::Value,
@@ -390,7 +390,7 @@ pub trait BlockBuilderMethods<'a, 'b>:
 
     /// Emit an instruction for an atomic `store`.
     ///
-    /// Ref: https://llvm.org/docs/LangRef.html#store-instruction
+    /// Ref: <https://llvm.org/docs/LangRef.html#store-instruction>
     fn atomic_store(
         &mut self,
         value: Self::Value,
@@ -401,7 +401,7 @@ pub trait BlockBuilderMethods<'a, 'b>:
 
     /// Emit an instruction for a `gep` or `getelementptr` operation.
     ///
-    /// Ref: https://llvm.org/docs/LangRef.html#getelementptr-instruction
+    /// Ref: <https://llvm.org/docs/LangRef.html#getelementptr-instruction>
     fn get_element_pointer(
         &mut self,
         ty: Self::Type,
@@ -413,7 +413,7 @@ pub trait BlockBuilderMethods<'a, 'b>:
     /// the `inbounds` flag set as true. The exact semantics of `inbounds`
     /// is detailed in the LLVM language manual.
     ///
-    /// Ref: https://llvm.org/docs/LangRef.html#getelementptr-instruction
+    /// Ref: <https://llvm.org/docs/LangRef.html#getelementptr-instruction>
     fn bounded_get_element_pointer(
         &mut self,
         ty: Self::Type,
@@ -425,12 +425,12 @@ pub trait BlockBuilderMethods<'a, 'b>:
     /// an aggregate data structure. This will emit an instruction to get an
     /// element pointer with the specified field index.
     ///
-    /// Ref: https://llvm.org/docs/LangRef.html#getelementptr-instruction
+    /// Ref: <https://llvm.org/docs/LangRef.html#getelementptr-instruction>
     fn structural_get_element_pointer(ty: Self::Type, ptr: Self::Value, index: u64) -> Self::Value;
 
     /// Emit an instruction for a `memcpy` operation.
     ///
-    /// Ref: https://llvm.org/docs/LangRef.html#llvm-memcpy-intrinsics
+    /// Ref: <https://llvm.org/docs/LangRef.html#llvm-memcpy-intrinsics>
     fn memcpy(
         &mut self,
         destination: (Self::Value, Alignment),
@@ -441,7 +441,7 @@ pub trait BlockBuilderMethods<'a, 'b>:
 
     /// Emit an instruction for a `memmove` operation.
     ///
-    /// Ref: https://llvm.org/docs/LangRef.html#llvm-memmove-intrinsics
+    /// Ref: <https://llvm.org/docs/LangRef.html#llvm-memmove-intrinsics>
     fn memmove(
         &mut self,
         destination: (Self::Value, Alignment),
@@ -454,7 +454,7 @@ pub trait BlockBuilderMethods<'a, 'b>:
     ///
     /// N.B. the `fill` argument is a `u8` value, not a pointer to a byte.
     ///
-    /// Ref: https://llvm.org/docs/LangRef.html#llvm-memset-intrinsics
+    /// Ref: <https://llvm.org/docs/LangRef.html#llvm-memset-intrinsics>
     fn memset(
         &mut self,
         ptr: Self::Value,
@@ -466,7 +466,7 @@ pub trait BlockBuilderMethods<'a, 'b>:
 
     /// Emit an instruction for a `select` operation.
     ///
-    /// Ref: https://llvm.org/docs/LangRef.html#select-instruction
+    /// Ref: <https://llvm.org/docs/LangRef.html#select-instruction>
     fn select(
         &mut self,
         condition: Self::Value,

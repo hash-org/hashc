@@ -1,3 +1,6 @@
+//! Module that contains logic for handling and creating [RValue]s from
+//! [Expr]s.
+
 use hash_ast::ast::{self, AstNodeRef, BinaryExpr, Expr, UnaryExpr};
 use hash_ir::{
     ir::{AssertKind, BasicBlock, BinOp, Const, ConstKind, Operand, RValue, UnevaluatedConst},

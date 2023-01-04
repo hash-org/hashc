@@ -11,7 +11,7 @@ use crate::{
 };
 
 /// [IrBodyWriter] is used to encapsulate the logic of pretty-printing a
-/// [IrBody] to a [fmt::Formatter]. The [IrBodyWriter] is uses the standalone
+/// [Body] to a [fmt::Formatter]. The [IrBodyWriter] is uses the standalone
 /// implementations for displaying each IR component with the addition of adding
 /// formatting, and additional information about the IR in the style of comments
 /// on each IR line (if additional information exists).

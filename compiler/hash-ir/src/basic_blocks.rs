@@ -1,6 +1,6 @@
 //! Module that contains a manager for basic blocks of a particular
-//! IR [Body]. The manager stores all of the basic blocks and provides
-//! functionality for computing the predecessors and successors of
+//! IR [crate::ir::Body]. The manager stores all of the basic blocks and
+//! provides functionality for computing the predecessors and successors of
 //! each basic block, and stores a cache on various traversal orders
 //! of the stored basic blocks.
 
@@ -13,8 +13,8 @@ use smallvec::{smallvec, SmallVec};
 use crate::ir::{BasicBlock, BasicBlockData, Successors};
 
 /// [BasicBlocks] is a manager for basic blocks of a particular
-/// IR [Body]. The manager stores all of the basic blocks and provides
-/// functionality for computing the predecessors and successors of
+/// IR [`crate::ir::Body`]. The manager stores all of the basic blocks and
+/// provides functionality for computing the predecessors and successors of
 /// each basic block, and stores a cache on various traversal orders
 /// of the stored basic blocks.
 pub struct BasicBlocks {

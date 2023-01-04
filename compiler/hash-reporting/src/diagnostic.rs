@@ -36,7 +36,7 @@ pub trait Diagnostics<E, W> {
         self.has_errors() || self.has_warnings()
     }
 
-    /// Convert the [Diagnostics] into a [Vec<Report>].
+    /// Convert the [Diagnostics] into a [`Vec<Report>`].
     fn into_reports(self) -> Vec<Report>;
 
     /// Convert the [Diagnostics] into it's respective parts.

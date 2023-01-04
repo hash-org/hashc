@@ -377,7 +377,7 @@ new_store_key!(pub AdtId);
 
 /// Stores all the used [IrTy]s.
 ///
-/// [Rvalue]s are accessed by an ID, of type [IrTyId].
+/// [IrTy]s are accessed by an ID, of type [IrTyId].
 pub type AdtStore = DefaultStore<AdtId, AdtData>;
 
 impl fmt::Display for ForFormatting<'_, AdtId> {

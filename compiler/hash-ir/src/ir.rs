@@ -141,7 +141,7 @@ pub struct UnevaluatedConst {
     pub name: Identifier,
 }
 
-/// A constant value that is used within the IR. A [ConstantValue] is either
+/// A constant value that is used within the IR. A [ConstKind] is either
 /// an actual [Const] value, or an un-evaluated reference to a constant
 /// expression that comes outside of a particular function body. These
 /// "unevaluated" values will be removed during IR simplification stages since
@@ -250,12 +250,12 @@ pub enum BinOp {
 }
 
 impl BinOp {
-    /// Returns whether the binary operator can be "checked".
+    /// Returns whether the [BinOp] can be "checked".
     pub fn is_checkable(&self) -> bool {
         matches!(self, Self::Add | Self::Sub | Self::Mul | Self::Div | Self::Shl | Self::Shr)
     }
 
-    /// Check if the [BinOP] is a comparator.
+    /// Check if the [BinOp] is a comparator.
     pub fn is_comparator(&self) -> bool {
         matches!(self, Self::Eq | Self::Neq | Self::Gt | Self::GtEq | Self::Lt | Self::LtEq)
     }

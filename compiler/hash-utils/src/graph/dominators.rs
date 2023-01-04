@@ -5,6 +5,8 @@
 //!
 //! This module implements the algorithm described in the paper
 //! "A Simple, Fast Dominance Algorithm" by Keith D. Cooper, Timothy J. Harvey.
+//!
+//! Ref: https://www.cs.rice.edu/~keith/EMBED/dom.pdf
 
 use std::{cmp::Ordering, collections::HashSet};
 

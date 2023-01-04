@@ -25,13 +25,6 @@ use crate::{
 
 /// A trait for visiting the IR with a mutable context. This trait should
 /// not be used for when modifications to the IR need to be made in place.
-/// This is because the IR values are mapped from the [RValueStore] and
-/// other stores in such a way that prevents in place modification. Any
-/// modifications should be made by modifying the [RValue]s after the process
-/// of visiting is complete or use the [ModifyingIrVisitor] trait families.
-///
-/// @@Temporary: we don't support function returns yet, since we should do this
-/// when we can hide away implementation to simplify implementers.
 pub trait IrVisitorMut<'ir>: Sized {
     /// Return a reference to the [BodyDataStore].
     fn store(&self) -> &'ir BodyDataStore;
