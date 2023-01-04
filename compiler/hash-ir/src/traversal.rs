@@ -239,7 +239,7 @@ impl<'ir> ReversePostOrder<'ir> {
     /// Creates a new instance of [ReversePostOrder] that will
     /// traverse the body in reverse post-order.
     pub fn new(body: &'ir Body, root: BasicBlock) -> Self {
-        let blocks: Vec<_> = PostOrder::new(&body, root).map(|(bb, _)| bb).collect();
+        let blocks: Vec<_> = PostOrder::new(body, root).map(|(bb, _)| bb).collect();
         let index = blocks.len();
 
         Self { body, blocks, index }

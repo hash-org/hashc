@@ -486,7 +486,6 @@ name = "hash-codegen"
 version = "0.1.0"
 dependencies = [
  "bitflags",
- "fixedbitset",
  "hash-abi",
  "hash-ir",
  "hash-layout",
