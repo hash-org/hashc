@@ -709,7 +709,7 @@ impl<'tcx> Builder<'tcx> {
             TestKind::Len { len, op } => {
                 let target_blocks = make_target_blocks(self);
 
-                let usize_ty = self.storage.tys().make_usize();
+                let usize_ty = self.storage.tys().create(self.storage.tys().make_usize());
                 let actual = self.temp_place(usize_ty);
 
                 // Assign `actual = length(place)`

@@ -165,7 +165,7 @@ impl fmt::Display for ForFormatting<'_, &RValue> {
                 };
 
                 match aggregate_kind {
-                    AggregateKind::Tuple => fmt_operands(f, '(', ')'),
+                    AggregateKind::Tuple(_) => fmt_operands(f, '(', ')'),
                     AggregateKind::Array(_) => fmt_operands(f, '[', ']'),
                     AggregateKind::Enum(adt, index) => {
                         self.storage.adts().map_fast(*adt, |def| {
