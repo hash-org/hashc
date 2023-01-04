@@ -13,14 +13,13 @@
 
 use hash_ir::{
     ir::{BasicBlock, BasicBlockData, Body, Terminator, TerminatorKind, START_BLOCK},
-    BodyDataStore,
+    traversal, BodyDataStore,
 };
 use hash_pipeline::settings::{LoweringSettings, OptimisationLevel};
 use index_vec::{index_vec, Idx, IndexVec};
 use smallvec::{smallvec, SmallVec};
 
 use super::IrOptimisation;
-use crate::traversal;
 
 /// Function that will iterate over all of the blocks and remove them
 /// from the body source.

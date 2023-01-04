@@ -662,12 +662,14 @@ pub struct Terminator {
     pub span: Span,
 }
 
+pub type Successors<'a> = impl Iterator<Item = BasicBlock> + 'a;
+
 pub type SuccessorsMut<'a> =
     iter::Chain<std::option::IntoIter<&'a mut BasicBlock>, slice::IterMut<'a, BasicBlock>>;
 
 impl Terminator {
     /// Get all of the successors of a [Terminator].
-    pub fn successors(&self) -> impl Iterator<Item = BasicBlock> + '_ {
+    pub fn successors(&self) -> Successors<'_> {
         match self.kind {
             TerminatorKind::Goto(target)
             | TerminatorKind::Call { target: Some(target), .. }
@@ -928,6 +930,11 @@ impl BasicBlockData {
     /// later to the block.
     pub fn new(terminator: Option<Terminator>) -> Self {
         Self { statements: vec![], terminator }
+    }
+
+    /// Get a reference to the terminator of this [BasicBlockData].
+    pub fn terminator(&self) -> &Terminator {
+        self.terminator.as_ref().expect("expected terminator on block")
     }
 
     /// Get a mutable reference to the terminator of this [BasicBlockData].

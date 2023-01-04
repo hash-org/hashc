@@ -1,9 +1,10 @@
 //! Hash Compiler Intermediate Representation (IR) crate.
 #![allow(clippy::too_many_arguments)]
-#![feature(let_chains, once_cell, associated_type_defaults)]
+#![feature(let_chains, once_cell, associated_type_defaults, type_alias_impl_trait, decl_macro)]
 
 pub mod basic_blocks;
 pub mod ir;
+pub mod traversal;
 pub mod ty;
 pub mod visitor;
 pub mod write;

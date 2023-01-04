@@ -543,6 +543,7 @@ name = "hash-ir"
 version = "0.1.0"
 dependencies = [
  "bitflags",
+ "fixedbitset",
  "hash-alloc",
  "hash-ast",
  "hash-source",
