@@ -5,11 +5,14 @@
 
 use fixedbitset::FixedBitSet;
 use hash_ir::{
-    ir::{self, IrRef, Local, START_BLOCK},
+    ir::{self, IrRef, Local, PlaceProjection, START_BLOCK},
     traversal,
-    visitor::IrVisitorMut,
+    visitor::{ImmutablePlaceContext, IrVisitorMut, MutablePlaceContext, PlaceContext},
 };
-use hash_utils::graph::dominators::Dominators;
+use hash_utils::{
+    graph::dominators::Dominators,
+    store::{SequenceStore, SequenceStoreKey},
+};
 use index_vec::IndexVec;
 
 use super::FnBuilder;
@@ -153,13 +156,122 @@ impl<'ir, 'b, Builder: CodeGen<'b>> IrVisitorMut<'ir> for LocalKindAnalyser<'ir,
         } else {
             // we need to go the long way since projections might affect
             // the kind of memory that is used.
-            self.visit_place(place, reference);
+            self.visit_place(place, PlaceContext::Mutable(MutablePlaceContext::Store), reference);
         }
 
         self.visit_rvalue(value, reference);
     }
 
-    fn visit_place(&mut self, _place: &ir::Place, _reference: IrRef) {}
+    fn visit_place(&mut self, place: &ir::Place, ctx: PlaceContext, reference: IrRef) {
+        if place.projections.is_empty() {
+            return self.visit_local(place.local, ctx, reference);
+        }
 
-    fn visit_local(&mut self, _: Local, _reference: IrRef) {}
+        // If the place base type is a ZST then we can short-circuit
+        // since they don't require any memory accesses.
+        let base_ty = self.fn_builder.body.declarations[place.local].ty;
+        let base_layout = self.fn_builder.ctx.layout_of_id(base_ty);
+
+        if base_layout.is_zst(self.fn_builder.ctx.layouts()) {
+            return;
+        }
+
+        // we want to check if any of the projections affect the
+        // base local, if so then we need to check it as a local...
+        let projections = self.fn_builder.ctx.body_data().projections().get_vec(place.projections);
+
+        let mut base_ctx = if ctx.is_mutating() {
+            PlaceContext::Mutable(MutablePlaceContext::Projection)
+        } else {
+            PlaceContext::Immutable(ImmutablePlaceContext::Projection)
+        };
+
+        // @@Hack: in order to preserve the order of the traversal, we
+        // save any locals that come from `Index` projections and then
+        // traverse them after we have traversed the base local.
+        let mut index_locals = vec![];
+
+        // loop over the projections in reverse order
+        for projection in projections.iter().rev() {
+            // @@Todo: if the projection yields a ZST, then we can
+            // also short-circuit here.
+
+            // If the projection is a field, and the type of the
+            // base can be represented as an immediate value, then
+            // we use the `ctx` as the base context since this
+            // is still an operand.
+            match projection {
+                PlaceProjection::Field(_) if ctx.is_operand() => {
+                    if self.fn_builder.ctx.is_backend_immediate(base_layout) {
+                        base_ctx = ctx;
+                    }
+                }
+                PlaceProjection::Index(local) => {
+                    index_locals.push(*local);
+                }
+                PlaceProjection::Field(_)
+                | PlaceProjection::Downcast(_)
+                | PlaceProjection::ConstantIndex { .. }
+                | PlaceProjection::SubSlice { .. }
+                | PlaceProjection::Deref => {}
+            }
+        }
+
+        // Once we have determined the base context, we can now visit
+        // the local.
+        self.visit_local(place.local, base_ctx, reference);
+
+        // now traverse the index locals, we set the `ctx` as being
+        // an operand since they are always just being read in this
+        // context.
+        for local in index_locals {
+            self.visit_local(
+                local,
+                PlaceContext::Immutable(ImmutablePlaceContext::Operand),
+                reference,
+            );
+        }
+    }
+
+    fn visit_local(&mut self, local: Local, ctx: PlaceContext, reference: IrRef) {
+        match ctx {
+            // If it is being used as a destination for a value, then treat
+            // it as an assignment
+            PlaceContext::Mutable(MutablePlaceContext::Call) => {
+                self.assign(local, reference);
+            }
+
+            PlaceContext::Immutable(ImmutablePlaceContext::Operand) => {
+                match &mut self.locals[local] {
+                    // @@Investigate: do we need to deal with in any way here?
+                    LocalMemoryKind::Unused => {}
+
+                    // ZSTs can disregard the rules, and memory values are already in memory.
+                    LocalMemoryKind::Zst | LocalMemoryKind::Memory => {}
+                    LocalMemoryKind::Ssa(def) if def.dominates(reference, &self.dominators) => {}
+
+                    // If the value does not dominate the use, then it is no longer
+                    // SSA and we need to convert it into a memory value.
+                    kind @ LocalMemoryKind::Ssa(_) => {
+                        *kind = LocalMemoryKind::Memory;
+                    }
+                }
+            }
+
+            // Everything else is a memory value.
+            PlaceContext::Mutable(
+                MutablePlaceContext::Store
+                | MutablePlaceContext::Projection
+                | MutablePlaceContext::Ref
+                | MutablePlaceContext::Discriminant,
+            )
+            | PlaceContext::Immutable(
+                ImmutablePlaceContext::Inspect
+                | ImmutablePlaceContext::Ref
+                | ImmutablePlaceContext::Projection,
+            ) => {
+                self.locals[local] = LocalMemoryKind::Memory;
+            }
+        }
+    }
 }

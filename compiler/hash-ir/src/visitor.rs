@@ -23,6 +23,69 @@ use crate::{
     BodyDataStore,
 };
 
+/// A [PlaceContext] is a reference of where a a particular [Place] is
+/// being used. This is computed as the IR [Body] is being traversed.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum PlaceContext {
+    /// Immutable context use.
+    Immutable(ImmutablePlaceContext),
+
+    /// Mutable context use.
+    Mutable(MutablePlaceContext),
+}
+
+impl PlaceContext {
+    /// Check whether the [PlaceContext] is mutating
+    pub fn is_mutating(self) -> bool {
+        matches!(self, PlaceContext::Mutable(_))
+    }
+
+    /// Check whether the [PlaceContext] is referring to
+    /// an [Operand] context.
+    pub fn is_operand(self) -> bool {
+        matches!(self, PlaceContext::Immutable(ImmutablePlaceContext::Operand))
+    }
+}
+
+/// [ImmutablePlaceContext] is a reference of where a a particular [Place] is
+/// being used in an immutable context.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum ImmutablePlaceContext {
+    /// This [Place] is being loaded and read by something.
+    Inspect,
+
+    /// This [Place] is being used in an operand.
+    Operand,
+
+    /// The place is being used as a immutable reference.
+    Ref,
+
+    /// This [Place] is being used in an immutable projection.
+    Projection,
+}
+
+/// [MutablePlaceContext] is a reference of where a a particular [Place] is
+/// being used in a mutable context.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum MutablePlaceContext {
+    /// This [Place] occurs on the left hand side of an assignment.
+    Store,
+
+    /// This [Place] occurs on the left hand side of a statement with kind
+    /// [`StatementKind::Discriminate`].
+    Discriminant,
+
+    /// This [Place] is being used as the destination value of a call
+    /// instruction.
+    Call,
+
+    /// This [Place] is used as a base of a mutable projection.
+    Projection,
+
+    /// The place is being used as a mutable reference.
+    Ref,
+}
+
 /// A trait for visiting the IR with a mutable context. This trait should
 /// not be used for when modifications to the IR need to be made in place.
 pub trait IrVisitorMut<'ir>: Sized {
@@ -54,14 +117,6 @@ pub trait IrVisitorMut<'ir>: Sized {
         reference: IrRef,
     ) {
         walk_mut::walk_discriminating_statement(self, place, variant, reference);
-    }
-
-    fn visit_alloc_statement(&mut self, local: Local, reference: IrRef) {
-        walk_mut::walk_alloc_statement(self, local, reference);
-    }
-
-    fn visit_alloc_raw_statement(&mut self, local: Local, reference: IrRef) {
-        walk_mut::walk_alloc_raw_statement(self, local, reference);
     }
 
     fn visit_rvalue(&mut self, value: &RValue, reference: IrRef) {
@@ -159,7 +214,7 @@ pub trait IrVisitorMut<'ir>: Sized {
 
     fn visit_assert_terminator(
         &mut self,
-        condition: &Place,
+        condition: &Operand,
         expected: bool,
         kind: AssertKind,
         target: BasicBlock,
@@ -174,14 +229,19 @@ pub trait IrVisitorMut<'ir>: Sized {
 
     fn visit_const_value(&mut self, _: &ConstKind, _reference: IrRef) {}
 
-    fn visit_place(&mut self, place: &Place, reference: IrRef) {
-        walk_mut::walk_place(self, place, reference);
+    fn visit_place(&mut self, place: &Place, ctx: PlaceContext, reference: IrRef) {
+        walk_mut::walk_place(self, place, ctx, reference);
     }
 
-    fn visit_local(&mut self, _: Local, _reference: IrRef) {}
+    fn visit_local(&mut self, _: Local, _ctx: PlaceContext, _reference: IrRef) {}
 
-    fn visit_projection(&mut self, projection: &PlaceProjection, reference: IrRef) {
-        walk_mut::walk_projection(self, projection, reference);
+    fn visit_projection(
+        &mut self,
+        projection: &PlaceProjection,
+        ctx: PlaceContext,
+        reference: IrRef,
+    ) {
+        walk_mut::walk_projection(self, projection, ctx, reference);
     }
 }
 
@@ -233,8 +293,6 @@ pub mod walk_mut {
             StatementKind::Discriminate(place, variant) => {
                 visitor.visit_discriminator_statement(place, *variant, reference)
             }
-            StatementKind::Alloc(local) => visitor.visit_alloc_statement(*local, reference),
-            StatementKind::AllocRaw(local) => visitor.visit_alloc_raw_statement(*local, reference),
         }
     }
 
@@ -244,7 +302,7 @@ pub mod walk_mut {
         value: &RValue,
         reference: IrRef,
     ) {
-        visitor.visit_place(place, reference);
+        visitor.visit_place(place, PlaceContext::Mutable(MutablePlaceContext::Store), reference);
         visitor.visit_rvalue(value, reference);
     }
 
@@ -254,23 +312,11 @@ pub mod walk_mut {
         _: VariantIdx,
         reference: IrRef,
     ) {
-        visitor.visit_place(place, reference);
-    }
-
-    pub fn walk_alloc_statement<'ir, V: IrVisitorMut<'ir>>(
-        visitor: &mut V,
-        local: Local,
-        reference: IrRef,
-    ) {
-        visitor.visit_local(local, reference);
-    }
-
-    pub fn walk_alloc_raw_statement<'ir, V: IrVisitorMut<'ir>>(
-        visitor: &mut V,
-        local: Local,
-        reference: IrRef,
-    ) {
-        visitor.visit_local(local, reference);
+        visitor.visit_place(
+            place,
+            PlaceContext::Mutable(MutablePlaceContext::Discriminant),
+            reference,
+        );
     }
 
     pub fn walk_terminator<'ir, V: IrVisitorMut<'ir>>(
@@ -304,7 +350,12 @@ pub mod walk_mut {
     ) {
         visitor.visit_operand(op, reference);
         args.iter().for_each(|arg| visitor.visit_operand(arg, reference));
-        visitor.visit_place(destination, reference);
+
+        visitor.visit_place(
+            destination,
+            PlaceContext::Mutable(MutablePlaceContext::Call),
+            reference,
+        );
     }
 
     pub fn walk_switch_terminator<'ir, V: IrVisitorMut<'ir>>(
@@ -318,13 +369,13 @@ pub mod walk_mut {
 
     pub fn walk_assert_terminator<'ir, V: IrVisitorMut<'ir>>(
         visitor: &mut V,
-        condition: &Place,
+        condition: &Operand,
         _: bool,
         _: AssertKind,
         _: BasicBlock,
         reference: IrRef,
     ) {
-        visitor.visit_place(condition, reference)
+        visitor.visit_operand(condition, reference)
     }
 
     pub fn walk_rvalue<'ir, V: IrVisitorMut<'ir>>(
@@ -397,17 +448,28 @@ pub mod walk_mut {
         place: &Place,
         reference: IrRef,
     ) {
-        visitor.visit_place(place, reference)
+        visitor.visit_place(
+            place,
+            PlaceContext::Immutable(ImmutablePlaceContext::Inspect),
+            reference,
+        )
     }
 
     pub fn walk_ref_rvalue<'ir, V: IrVisitorMut<'ir>>(
         visitor: &mut V,
-        _: Mutability,
+        mutability: Mutability,
         place: &Place,
         _: AddressMode,
         reference: IrRef,
     ) {
-        visitor.visit_place(place, reference)
+        // @@Todo: do we need to have different contexts for different
+        // kinds of refs?
+        let ctx = match mutability {
+            Mutability::Mutable => PlaceContext::Mutable(MutablePlaceContext::Ref),
+            Mutability::Immutable => PlaceContext::Immutable(ImmutablePlaceContext::Ref),
+        };
+
+        visitor.visit_place(place, ctx, reference)
     }
 
     pub fn walk_aggregate_rvalue<'ir, V: IrVisitorMut<'ir>>(
@@ -424,7 +486,11 @@ pub mod walk_mut {
         place: &Place,
         reference: IrRef,
     ) {
-        visitor.visit_place(place, reference)
+        visitor.visit_place(
+            place,
+            PlaceContext::Immutable(ImmutablePlaceContext::Inspect),
+            reference,
+        )
     }
 
     pub fn walk_operand<'ir, V: IrVisitorMut<'ir>>(
@@ -433,17 +499,26 @@ pub mod walk_mut {
         reference: IrRef,
     ) {
         match operand {
-            Operand::Place(place) => visitor.visit_place(place, reference),
+            Operand::Place(place) => visitor.visit_place(
+                place,
+                PlaceContext::Immutable(ImmutablePlaceContext::Operand),
+                reference,
+            ),
             Operand::Const(constant) => visitor.visit_const_value(constant, reference),
         }
     }
 
-    pub fn walk_place<'ir, V: IrVisitorMut<'ir>>(visitor: &mut V, place: &Place, reference: IrRef) {
-        visitor.visit_local(place.local, reference);
+    pub fn walk_place<'ir, V: IrVisitorMut<'ir>>(
+        visitor: &mut V,
+        place: &Place,
+        ctx: PlaceContext,
+        reference: IrRef,
+    ) {
+        visitor.visit_local(place.local, ctx, reference);
 
         visitor.store().projections().map_fast(place.projections, |projection| {
             for projection in projection.iter() {
-                visitor.visit_projection(projection, reference)
+                visitor.visit_projection(projection, ctx, reference)
             }
         })
     }
@@ -451,10 +526,11 @@ pub mod walk_mut {
     pub fn walk_projection<'ir, V: IrVisitorMut<'ir>>(
         visitor: &mut V,
         projection: &PlaceProjection,
+        ctx: PlaceContext,
         reference: IrRef,
     ) {
         if let PlaceProjection::Index(local) = projection {
-            visitor.visit_local(*local, reference)
+            visitor.visit_local(*local, ctx, reference)
         }
     }
 }
@@ -488,14 +564,6 @@ pub trait ModifyingIrVisitor<'ir>: Sized {
         reference: IrRef,
     ) {
         walk_modifying::walk_discriminating_statement(self, place, variant, reference);
-    }
-
-    fn visit_alloc_statement(&self, local: &mut Local, reference: IrRef) {
-        walk_modifying::walk_alloc_statement(self, local, reference);
-    }
-
-    fn visit_alloc_raw_statement(&self, local: &mut Local, reference: IrRef) {
-        walk_modifying::walk_alloc_raw_statement(self, local, reference);
     }
 
     fn visit_rvalue(&self, value: &mut RValue, reference: IrRef) {
@@ -591,7 +659,7 @@ pub trait ModifyingIrVisitor<'ir>: Sized {
 
     fn visit_assert_terminator(
         &self,
-        condition: &mut Place,
+        condition: &mut Operand,
         expected: &mut bool,
         kind: &mut AssertKind,
         target: &mut BasicBlock,
@@ -606,14 +674,19 @@ pub trait ModifyingIrVisitor<'ir>: Sized {
 
     fn visit_const_value(&self, _: &mut ConstKind, _reference: IrRef) {}
 
-    fn visit_place(&self, place: &mut Place, reference: IrRef) {
-        walk_modifying::walk_place(self, place, reference);
+    fn visit_place(&self, place: &mut Place, ctx: PlaceContext, reference: IrRef) {
+        walk_modifying::walk_place(self, place, ctx, reference);
     }
 
-    fn visit_local(&self, _: &mut Local, _reference: IrRef) {}
+    fn visit_local(&self, _: &mut Local, _ctx: PlaceContext, _reference: IrRef) {}
 
-    fn visit_projection(&self, projection: &mut PlaceProjection, reference: IrRef) {
-        walk_modifying::walk_projection(self, projection, reference);
+    fn visit_projection(
+        &self,
+        projection: &mut PlaceProjection,
+        ctx: PlaceContext,
+        reference: IrRef,
+    ) {
+        walk_modifying::walk_projection(self, projection, ctx, reference);
     }
 }
 
@@ -666,8 +739,6 @@ pub mod walk_modifying {
             StatementKind::Discriminate(place, variant) => {
                 visitor.visit_discriminator_statement(place, variant, reference)
             }
-            StatementKind::Alloc(local) => visitor.visit_alloc_statement(local, reference),
-            StatementKind::AllocRaw(local) => visitor.visit_alloc_raw_statement(local, reference),
         }
     }
 
@@ -677,7 +748,7 @@ pub mod walk_modifying {
         value: &mut RValue,
         reference: IrRef,
     ) {
-        visitor.visit_place(place, reference);
+        visitor.visit_place(place, PlaceContext::Mutable(MutablePlaceContext::Store), reference);
         visitor.visit_rvalue(value, reference);
     }
 
@@ -687,23 +758,11 @@ pub mod walk_modifying {
         _: &mut VariantIdx,
         reference: IrRef,
     ) {
-        visitor.visit_place(place, reference);
-    }
-
-    pub fn walk_alloc_statement<'ir, V: ModifyingIrVisitor<'ir>>(
-        visitor: &V,
-        local: &mut Local,
-        reference: IrRef,
-    ) {
-        visitor.visit_local(local, reference);
-    }
-
-    pub fn walk_alloc_raw_statement<'ir, V: ModifyingIrVisitor<'ir>>(
-        visitor: &V,
-        local: &mut Local,
-        reference: IrRef,
-    ) {
-        visitor.visit_local(local, reference);
+        visitor.visit_place(
+            place,
+            PlaceContext::Mutable(MutablePlaceContext::Discriminant),
+            reference,
+        );
     }
 
     pub fn walk_terminator<'ir, V: ModifyingIrVisitor<'ir>>(
@@ -735,9 +794,16 @@ pub mod walk_modifying {
         _: &mut Option<BasicBlock>,
         reference: IrRef,
     ) {
+        // visit the args and call operand
         visitor.visit_operand(op, reference);
         args.iter_mut().for_each(|arg| visitor.visit_operand(arg, reference));
-        visitor.visit_place(destination, reference);
+
+        // visit the call destination place
+        visitor.visit_place(
+            destination,
+            PlaceContext::Mutable(MutablePlaceContext::Call),
+            reference,
+        );
     }
 
     pub fn walk_switch_terminator<'ir, V: ModifyingIrVisitor<'ir>>(
@@ -751,13 +817,13 @@ pub mod walk_modifying {
 
     pub fn walk_assert_terminator<'ir, V: ModifyingIrVisitor<'ir>>(
         visitor: &V,
-        condition: &mut Place,
+        condition: &mut Operand,
         _: &mut bool,
         _: &mut AssertKind,
         _: &mut BasicBlock,
         reference: IrRef,
     ) {
-        visitor.visit_place(condition, reference)
+        visitor.visit_operand(condition, reference)
     }
 
     pub fn walk_rvalue<'ir, V: ModifyingIrVisitor<'ir>>(
@@ -795,7 +861,11 @@ pub mod walk_modifying {
         place: &mut Place,
         reference: IrRef,
     ) {
-        visitor.visit_place(place, reference)
+        visitor.visit_place(
+            place,
+            PlaceContext::Immutable(ImmutablePlaceContext::Operand),
+            reference,
+        )
     }
 
     pub fn walk_unary_op_rvalue<'ir, V: ModifyingIrVisitor<'ir>>(
@@ -834,17 +904,28 @@ pub mod walk_modifying {
         place: &mut Place,
         reference: IrRef,
     ) {
-        visitor.visit_place(place, reference)
+        visitor.visit_place(
+            place,
+            PlaceContext::Immutable(ImmutablePlaceContext::Inspect),
+            reference,
+        )
     }
 
     pub fn walk_ref_rvalue<'ir, V: ModifyingIrVisitor<'ir>>(
         visitor: &V,
-        _: &mut Mutability,
+        mutability: &mut Mutability,
         place: &mut Place,
         _: &mut AddressMode,
         reference: IrRef,
     ) {
-        visitor.visit_place(place, reference)
+        // @@Todo: do we need to have different contexts for different
+        // kinds of refs?
+        let ctx = match mutability {
+            Mutability::Mutable => PlaceContext::Mutable(MutablePlaceContext::Ref),
+            Mutability::Immutable => PlaceContext::Immutable(ImmutablePlaceContext::Ref),
+        };
+
+        visitor.visit_place(place, ctx, reference)
     }
 
     pub fn walk_aggregate_rvalue<'ir, V: ModifyingIrVisitor<'ir>>(
@@ -861,7 +942,11 @@ pub mod walk_modifying {
         place: &mut Place,
         reference: IrRef,
     ) {
-        visitor.visit_place(place, reference)
+        visitor.visit_place(
+            place,
+            PlaceContext::Immutable(ImmutablePlaceContext::Inspect),
+            reference,
+        )
     }
 
     pub fn walk_operand<'ir, V: ModifyingIrVisitor<'ir>>(
@@ -870,7 +955,11 @@ pub mod walk_modifying {
         reference: IrRef,
     ) {
         match operand {
-            Operand::Place(place) => visitor.visit_place(place, reference),
+            Operand::Place(place) => visitor.visit_place(
+                place,
+                PlaceContext::Immutable(ImmutablePlaceContext::Operand),
+                reference,
+            ),
             Operand::Const(constant) => visitor.visit_const_value(constant, reference),
         }
     }
@@ -878,13 +967,14 @@ pub mod walk_modifying {
     pub fn walk_place<'ir, V: ModifyingIrVisitor<'ir>>(
         visitor: &V,
         place: &mut Place,
+        ctx: PlaceContext,
         reference: IrRef,
     ) {
-        visitor.visit_local(&mut place.local, reference);
+        visitor.visit_local(&mut place.local, ctx, reference);
 
         visitor.store().projections().modify_copied(place.projections, |projection| {
             for projection in projection.iter_mut() {
-                visitor.visit_projection(projection, reference)
+                visitor.visit_projection(projection, ctx, reference)
             }
         })
     }
@@ -892,10 +982,11 @@ pub mod walk_modifying {
     pub fn walk_projection<'ir, V: ModifyingIrVisitor<'ir>>(
         visitor: &V,
         projection: &mut PlaceProjection,
+        ctx: PlaceContext,
         reference: IrRef,
     ) {
         if let PlaceProjection::Index(local) = projection {
-            visitor.visit_local(local, reference)
+            visitor.visit_local(local, ctx, reference)
         }
     }
 }

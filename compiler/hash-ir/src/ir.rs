@@ -16,6 +16,7 @@ use hash_source::{
 };
 use hash_types::scope::ScopeId;
 use hash_utils::{
+    graph::dominators::Dominators,
     new_sequence_store_key,
     store::{DefaultSequenceStore, SequenceStore, SequenceStoreKey, Store},
 };
@@ -658,13 +659,6 @@ pub enum StatementKind {
     /// Set the discriminant on a particular place, this is used to concretely
     /// specify what the discriminant of a particular enum/union type is.
     Discriminate(Place, VariantIdx),
-
-    /// Allocate some value on the the heap using reference
-    /// counting.
-    Alloc(Local),
-
-    /// Allocate a value on the heap without reference counting
-    AllocRaw(Local),
 }
 
 /// A [Statement] is a intermediate transformation step within a [BasicBlock].
@@ -925,10 +919,10 @@ pub enum TerminatorKind {
     /// This terminator is used to verify that the result of some operation has
     /// no violated a some condition. Usually, this is combined with operations
     /// that perform a `checked` operation and sets some flag in the form of a
-    /// [Place] and expects it to be equal to the `expected` boolean value.
+    /// [Operand] and expects it to be equal to the `expected` boolean value.
     Assert {
         /// The condition that is to be checked against the `expected value
-        condition: Place,
+        condition: Operand,
         /// What the assert terminator expects the `condition` to be
         expected: bool,
         /// What condition is the assert verifying that it holds
@@ -1250,6 +1244,18 @@ impl IrRef {
     /// Create a new [IrRef] with the given `block` and `index`.
     pub fn new(block: BasicBlock, index: usize) -> Self {
         Self { block, index }
+    }
+
+    /// Check if this [IrRef] dominates the given `other` [IrRef]
+    /// with the set of dominators. If the two [IrRef]s are in the
+    /// same block, then the index of the [IrRef] is checked to see
+    /// if it is less than or equal to the other [IrRef].
+    pub fn dominates(&self, other: IrRef, dominators: &Dominators<BasicBlock>) -> bool {
+        if self.block == other.block {
+            self.index <= other.index
+        } else {
+            dominators.is_dominated_by(self.block, other.block)
+        }
     }
 }
 

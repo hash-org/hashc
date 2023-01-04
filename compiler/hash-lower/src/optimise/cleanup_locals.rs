@@ -13,7 +13,7 @@ use hash_ir::{
         Body, IrRef, Local, LocalDecl, Place, PlaceProjection, RValue, Statement, StatementKind,
         RETURN_PLACE,
     },
-    visitor::{walk_mut, IrVisitorMut, ModifyingIrVisitor},
+    visitor::{walk_mut, IrVisitorMut, ModifyingIrVisitor, PlaceContext},
     BodyDataStore,
 };
 use hash_pipeline::settings::{LoweringSettings, OptimisationLevel};
@@ -233,7 +233,7 @@ impl<'ir> IrVisitorMut<'ir> for LocalUseMap<'ir> {
     /// This function will update the count for the referenced local in this
     /// place. We don't count places that "assign something" since this does
     /// not inherently use the local.
-    fn visit_local(&mut self, local: Local, _: IrRef) {
+    fn visit_local(&mut self, local: Local, _: PlaceContext, _: IrRef) {
         self.update_count_for(local);
     }
 }
@@ -262,7 +262,7 @@ impl<'ir> ModifyingIrVisitor<'ir> for LocalUpdater<'ir> {
     }
 
     /// Perform a remapping of the [Local] within the [Place] to a new [Local].
-    fn visit_local(&self, local: &mut Local, _: IrRef) {
+    fn visit_local(&self, local: &mut Local, _: PlaceContext, _: IrRef) {
         if let Some(new_local) = self.remap[*local] {
             *local = new_local;
         }

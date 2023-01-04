@@ -5,7 +5,7 @@
 
 use hash_ast::ast::{AstNodeId, AstNodeRef};
 use hash_ir::{
-    ir::{AssertKind, BasicBlock, LocalDecl, Place, TerminatorKind},
+    ir::{AssertKind, BasicBlock, LocalDecl, Operand, Place, TerminatorKind},
     ty::{AdtData, AdtId, IrTy, IrTyId, Mutability},
 };
 use hash_source::location::Span;
@@ -94,7 +94,7 @@ impl<'tcx> Builder<'tcx> {
     pub(crate) fn assert(
         &mut self,
         block: BasicBlock,
-        condition: Place,
+        condition: Operand,
         expected: bool,
         kind: AssertKind,
         span: Span,

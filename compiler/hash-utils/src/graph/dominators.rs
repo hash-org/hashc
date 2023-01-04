@@ -91,13 +91,25 @@ impl<Node: Idx> Dominators<Node> {
         debug_assert!(self.dominators[node] != self.root);
         self.dominators[node]
     }
+
+    /// Get all of the dominators of a particular node.
+    pub fn dominators(&self, node: Node) -> DominatorsIter<'_, Node> {
+        DominatorsIter { dominators: self, node: Some(node) }
+    }
+
+    /// Check if a particular node is a dominator of another node.
+    pub fn is_dominated_by(&self, node: Node, dominator: Node) -> bool {
+        self.dominators(node).any(|node| node == dominator)
+    }
 }
 
+/// An iterator over the dominators of a particular node.
 pub struct DominatorsIter<'dom, Node: Idx> {
     /// The computed dominators of a graph.
     dominators: &'dom Dominators<Node>,
 
-    ///
+    /// The node to find dominators against. Whilst the iterator is
+    /// active, this will be set to the current dominator.
     node: Option<Node>,
 }
 
