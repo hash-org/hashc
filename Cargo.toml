@@ -1,15 +1,18 @@
 [workspace]
 members = [
+  "compiler/hash-abi",
   "compiler/hash-alloc",
   "compiler/hash-ast-desugaring",
   "compiler/hash-ast-expand",
   "compiler/hash-ast",
+  "compiler/hash-backend",
   "compiler/hash-codegen-bytecode",
   "compiler/hash-codegen-llvm",
   "compiler/hash-codegen",
   "compiler/hash-error-codes",
   "compiler/hash-interactive",
   "compiler/hash-ir",
+  "compiler/hash-layout",
   "compiler/hash-lexer",
   "compiler/hash-lower",
   "compiler/hash-parser",

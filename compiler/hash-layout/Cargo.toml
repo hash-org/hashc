@@ -1,0 +1,12 @@
+[package]
+name = "hash-layout"
+version = "0.1.0"
+authors = ["The Hash Language authors"]
+edition = "2021"
+
+[dependencies]
+index_vec = "0.1.3"
+
+hash-utils = { path = "../hash-utils" }
+hash-ir = { path = "../hash-ir" }
+hash-target = { path = "../hash-target" }

@@ -41,7 +41,9 @@ pub mod ops;
 pub mod storage;
 pub mod traverse;
 
-/// The entry point of the typechecker.
+/// The Hash typechecker compiler stage. This will walk the AST, and
+/// typecheck all items within the current compiler [Workspace].
+#[derive(Default)]
 pub struct Typechecker {
     /// Map representing a relation between the typechecked module and it's
     /// relevant [SourceId].
@@ -79,23 +81,31 @@ impl Typechecker {
     }
 }
 
-impl Default for Typechecker {
-    fn default() -> Self {
-        Self::new()
-    }
+/// The [TypecheckingCtx] represents all of the information that is
+/// required by the [Typechecker] to perform all typechecking operations.
+pub struct TypecheckingCtx<'tc> {
+    /// The workspace. This is used to retrieve the AST and other
+    /// information about the source.
+    pub workspace: &'tc Workspace,
+
+    /// The typechecking storage. This is used to store the typechecked
+    /// items.
+    pub ty_storage: &'tc mut TyStorage,
 }
 
-pub trait TypecheckingCtx: CompilerInterface {
-    fn data(&mut self) -> (&Workspace, &mut TyStorage);
+/// The typechecking context query. This is used to retrieve the
+/// [TyStorage] and [Workspace] from the compiler context.
+pub trait TypecheckingCtxQuery: CompilerInterface {
+    fn data(&mut self) -> TypecheckingCtx;
 }
 
-impl<Ctx: TypecheckingCtx> CompilerStage<Ctx> for Typechecker {
-    fn stage_kind(&self) -> CompilerStageKind {
+impl<Ctx: TypecheckingCtxQuery> CompilerStage<Ctx> for Typechecker {
+    fn kind(&self) -> CompilerStageKind {
         CompilerStageKind::Typecheck
     }
 
-    fn run_stage(&mut self, entry_point: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
-        let (workspace, ty_storage) = ctx.data();
+    fn run(&mut self, entry_point: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
+        let TypecheckingCtx { workspace, ty_storage } = ctx.data();
 
         // Clear the diagnostics store of any previous errors and warnings. This needs
         // to be done for both the `interactive` pipeline and the `module`

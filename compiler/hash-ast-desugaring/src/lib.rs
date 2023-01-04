@@ -15,14 +15,27 @@ use visitor::AstDesugaring;
 pub mod desugaring;
 mod visitor;
 
+/// The AST desugaring compiler stage. This will walk the AST, and
+/// desugar all items within the [Workspace]. Desugaring is described
+/// in more detail in [crate::desugaring].
 pub struct AstDesugaringPass;
 
-pub trait AstDesugaringCtx: CompilerInterface {
-    fn data(&mut self) -> (&mut Workspace, &rayon::ThreadPool);
+/// The [AstDesugaringCtx] represents all of the required information
+/// that the [AstDesugaring] stage needs to query from the pipeline.
+pub struct AstDesugaringCtx<'a> {
+    /// Reference to the current compiler workspace.
+    pub workspace: &'a mut Workspace,
+
+    /// Reference to the rayon thread pool.
+    pub pool: &'a rayon::ThreadPool,
 }
 
-impl<Ctx: AstDesugaringCtx> CompilerStage<Ctx> for AstDesugaringPass {
-    fn stage_kind(&self) -> CompilerStageKind {
+pub trait AstDesugaringCtxQuery: CompilerInterface {
+    fn data(&mut self) -> AstDesugaringCtx;
+}
+
+impl<Ctx: AstDesugaringCtxQuery> CompilerStage<Ctx> for AstDesugaringPass {
+    fn kind(&self) -> CompilerStageKind {
         CompilerStageKind::DeSugar
     }
 
@@ -47,12 +60,12 @@ impl<Ctx: AstDesugaringCtx> CompilerStage<Ctx> for AstDesugaringPass {
     /// This function utilised the pipeline thread pool in order to make the
     /// transformations as parallel as possible. There is a queue that is
     /// queues all of the expressions within each [hash_ast::ast::Module].
-    fn run_stage(
+    fn run(
         &mut self,
         entry_point: SourceId,
         ctx: &mut Ctx,
     ) -> hash_pipeline::interface::CompilerResult<()> {
-        let (workspace, pool) = &mut ctx.data();
+        let AstDesugaringCtx { workspace, pool } = &mut ctx.data();
 
         let node_map = &mut workspace.node_map;
         let source_map = &workspace.source_map;

@@ -22,8 +22,8 @@ hash-types = { path = "../hash-types" }
 # Various stages that the pipeline interfaces with...
 hash-ast-desugaring = { path = "../hash-ast-desugaring" }
 hash-ast-expand = { path = "../hash-ast-expand" }
+hash-backend = { path = "../hash-backend" }
 hash-lower = { path = "../hash-lower" }
 hash-parser = { path = "../hash-parser" }
 hash-typecheck = { path = "../hash-typecheck" }
 hash-untyped-semantics = { path = "../hash-untyped-semantics" }
-hash-vm = { path = "../hash-vm" }

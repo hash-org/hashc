@@ -18,3 +18,14 @@
 //! artifacts since it will run the bytecode directly using the VM. On the other
 //! hand, LLVM backend will emit a runnable executable after the code is
 //! generated.
+#![allow(dead_code)] // @@Temporary: until the codegen general purpose logic is completed.
+
+pub mod common;
+pub mod traits;
+
+mod lower;
+
+// re-export `abi` and `layout` crates to make them available to the backend
+// implementations.
+pub use hash_abi as abi;
+pub use hash_layout as layout;

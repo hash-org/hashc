@@ -1,5 +1,4 @@
 //! Hash AST semantic passes diagnostic definitions and logic.
-#![allow(dead_code)]
 
 use hash_ast::ast::AstNodeId;
 use hash_reporting::{diagnostic::Diagnostics, report::Report, reporter::Reports};
@@ -9,7 +8,6 @@ use crate::analysis::SemanticAnalyser;
 
 pub(crate) mod directives;
 pub(crate) mod error;
-pub(crate) mod origins;
 pub(crate) mod warning;
 
 /// A representation of either a [AnalysisWarning] or [AnalysisError]. This

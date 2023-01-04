@@ -156,6 +156,8 @@ pub enum IrDumpMode {
 
 /// Enum representing what mode the compiler should run in. Specifically, if the
 /// compiler should only run up to a particular stage within the pipeline.
+///
+/// @@Todo: consider removing "full" since it is implied by `codegen`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum CompilerStageKind {
     Parse,
@@ -164,6 +166,7 @@ pub enum CompilerStageKind {
     Typecheck,
     Lower,
     IrGen,
+    CodeGen,
     Full,
 }
 
@@ -182,6 +185,7 @@ impl Display for CompilerStageKind {
             CompilerStageKind::Typecheck => write!(f, "typecheck"),
             CompilerStageKind::Lower => write!(f, "lowering"),
             CompilerStageKind::IrGen => write!(f, "ir"),
+            CompilerStageKind::CodeGen => write!(f, "codegen"),
             CompilerStageKind::Full => write!(f, "total"),
         }
     }

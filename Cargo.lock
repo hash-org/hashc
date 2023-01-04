@@ -408,6 +408,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "hash-abi"
+version = "0.1.0"
+dependencies = [
+ "hash-ir",
+ "hash-layout",
+ "hash-source",
+ "hash-target",
+ "hash-utils",
+ "index_vec",
+]
+
+[[package]]
 name = "hash-alloc"
 version = "0.1.0"
 dependencies = [
@@ -453,13 +465,36 @@ dependencies = [
 ]
 
 [[package]]
-name = "hash-codegen"
+name = "hash-backend"
 version = "0.1.0"
 dependencies = [
+ "hash-codegen",
+ "hash-codegen-bytecode",
+ "hash-codegen-llvm",
  "hash-ir",
+ "hash-pipeline",
+ "hash-reporting",
  "hash-source",
  "hash-target",
  "hash-utils",
+ "index_vec",
+ "rayon",
+]
+
+[[package]]
+name = "hash-codegen"
+version = "0.1.0"
+dependencies = [
+ "bitflags",
+ "hash-abi",
+ "hash-ir",
+ "hash-layout",
+ "hash-pipeline",
+ "hash-reporting",
+ "hash-source",
+ "hash-target",
+ "hash-utils",
+ "index_vec",
  "rayon",
 ]
 
@@ -517,6 +552,16 @@ dependencies = [
  "html-escape",
  "index_vec",
  "smallvec",
+]
+
+[[package]]
+name = "hash-layout"
+version = "0.1.0"
+dependencies = [
+ "hash-ir",
+ "hash-target",
+ "hash-utils",
+ "index_vec",
 ]
 
 [[package]]
@@ -608,6 +653,7 @@ dependencies = [
  "hash-ast",
  "hash-ast-desugaring",
  "hash-ast-expand",
+ "hash-backend",
  "hash-interactive",
  "hash-ir",
  "hash-lower",
@@ -619,7 +665,6 @@ dependencies = [
  "hash-typecheck",
  "hash-types",
  "hash-untyped-semantics",
- "hash-vm",
  "log",
  "num_cpus",
  "rayon",

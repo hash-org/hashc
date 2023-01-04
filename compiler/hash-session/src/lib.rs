@@ -9,11 +9,12 @@
 //! keeping the crate dependency graph clean.
 
 use hash_ast::node_map::NodeMap;
-use hash_ast_desugaring::{AstDesugaringCtx, AstDesugaringPass};
-use hash_ast_expand::{AstExpansionCtx, AstExpansionPass};
+use hash_ast_desugaring::{AstDesugaringCtx, AstDesugaringCtxQuery, AstDesugaringPass};
+use hash_ast_expand::{AstExpansionCtx, AstExpansionCtxQuery, AstExpansionPass};
+use hash_backend::{BackendCtx, BackendCtxQuery, HashBackend};
 use hash_ir::IrStorage;
-use hash_lower::{AstLowerer, IrLoweringCtx, IrOptimiser};
-use hash_parser::{Parser, ParserCtx};
+use hash_lower::{IrGen, IrOptimiser, LoweringCtx, LoweringCtxQuery};
+use hash_parser::{Parser, ParserCtx, ParserCtxQuery};
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerStage},
     settings::CompilerSettings,
@@ -21,22 +22,21 @@ use hash_pipeline::{
 };
 use hash_reporting::report::Report;
 use hash_source::{SourceId, SourceMap};
-use hash_typecheck::{Typechecker, TypecheckingCtx};
+use hash_typecheck::{Typechecker, TypecheckingCtx, TypecheckingCtxQuery};
 use hash_types::storage::{GlobalStorage, LocalStorage, TyStorage};
-use hash_untyped_semantics::{SemanticAnalysis, SemanticAnalysisCtx};
-use hash_vm::{vm::Interpreter, InterpreterCtx};
+use hash_untyped_semantics::{SemanticAnalysis, SemanticAnalysisCtx, SemanticAnalysisCtxQuery};
 
 /// Function to make all of the stages a nominal compiler pipeline accepts.
 pub fn make_stages() -> Vec<Box<dyn CompilerStage<CompilerSession>>> {
     vec![
-        Box::new(Parser::new()),
+        Box::new(Parser),
         Box::new(AstExpansionPass),
         Box::new(AstDesugaringPass),
         Box::new(SemanticAnalysis),
         Box::new(Typechecker::new()),
-        Box::new(AstLowerer::new()),
-        Box::new(IrOptimiser::new()),
-        Box::new(Interpreter::new()),
+        Box::new(IrGen),
+        Box::new(IrOptimiser),
+        Box::new(HashBackend::new()),
     ]
 }
 
@@ -117,45 +117,53 @@ impl CompilerInterface for CompilerSession {
     }
 }
 
-impl ParserCtx for CompilerSession {
-    fn data(&mut self) -> (&mut Workspace, &rayon::ThreadPool) {
-        (&mut self.workspace, &self.pool)
+impl ParserCtxQuery for CompilerSession {
+    fn data(&mut self) -> ParserCtx {
+        ParserCtx { workspace: &mut self.workspace, pool: &self.pool }
     }
 }
 
-impl AstDesugaringCtx for CompilerSession {
-    fn data(&mut self) -> (&mut Workspace, &rayon::ThreadPool) {
-        (&mut self.workspace, &self.pool)
+impl AstDesugaringCtxQuery for CompilerSession {
+    fn data(&mut self) -> AstDesugaringCtx {
+        AstDesugaringCtx { workspace: &mut self.workspace, pool: &self.pool }
     }
 }
 
-impl SemanticAnalysisCtx for CompilerSession {
-    fn data(&mut self) -> (&mut Workspace, &rayon::ThreadPool) {
-        (&mut self.workspace, &self.pool)
+impl SemanticAnalysisCtxQuery for CompilerSession {
+    fn data(&mut self) -> SemanticAnalysisCtx {
+        SemanticAnalysisCtx { workspace: &mut self.workspace, pool: &self.pool }
     }
 }
 
-impl AstExpansionCtx for CompilerSession {
-    fn data(&mut self) -> &mut Workspace {
-        &mut self.workspace
+impl AstExpansionCtxQuery for CompilerSession {
+    fn data(&mut self) -> AstExpansionCtx {
+        AstExpansionCtx { workspace: &mut self.workspace }
     }
 }
 
-impl TypecheckingCtx for CompilerSession {
-    fn data(&mut self) -> (&Workspace, &mut TyStorage) {
-        (&self.workspace, &mut self.ty_storage)
+impl TypecheckingCtxQuery for CompilerSession {
+    fn data(&mut self) -> TypecheckingCtx {
+        TypecheckingCtx { workspace: &mut self.workspace, ty_storage: &mut self.ty_storage }
     }
 }
 
-impl IrLoweringCtx for CompilerSession {
-    fn data(&mut self) -> hash_lower::LoweringCtx {
-        hash_lower::LoweringCtx::new(
-            &mut self.workspace,
-            &self.ty_storage,
-            &mut self.ir_storage,
-            &self.pool,
-        )
+impl LoweringCtxQuery for CompilerSession {
+    fn data(&mut self) -> LoweringCtx {
+        LoweringCtx {
+            workspace: &mut self.workspace,
+            ty_storage: &self.ty_storage,
+            ir_storage: &mut self.ir_storage,
+            _pool: &self.pool,
+        }
     }
 }
 
-impl InterpreterCtx for CompilerSession {}
+impl BackendCtxQuery for CompilerSession {
+    fn data(&mut self) -> BackendCtx {
+        BackendCtx {
+            workspace: &mut self.workspace,
+            ir_storage: &self.ir_storage,
+            _pool: &self.pool,
+        }
+    }
+}
