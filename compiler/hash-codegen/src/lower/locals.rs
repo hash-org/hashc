@@ -88,7 +88,7 @@ enum LocalMemoryKind {
 
     /// A scalar value that has a single definition and a single use
     /// in all block dominators.
-    SSA(ir::IrRef),
+    Ssa(ir::IrRef),
 }
 
 struct LocalKindAnalyser<'ir, 'b, Builder: CodeGen<'b>> {
@@ -124,9 +124,9 @@ impl<'ir, 'b, Builder: CodeGen<'b>> LocalKindAnalyser<'ir, 'b, Builder> {
         match local_kind {
             LocalMemoryKind::Zst | LocalMemoryKind::Memory => {}
             LocalMemoryKind::Unused => {
-                *local_kind = LocalMemoryKind::SSA(reference);
+                *local_kind = LocalMemoryKind::Ssa(reference);
             }
-            LocalMemoryKind::SSA(_) => {
+            LocalMemoryKind::Ssa(_) => {
                 *local_kind = LocalMemoryKind::Memory;
             }
         }
@@ -138,28 +138,28 @@ impl<'ir, 'b, Builder: CodeGen<'b>> IrVisitorMut<'ir> for LocalKindAnalyser<'ir,
         self.fn_builder.ctx.body_data()
     }
 
-    fn visit_assign_statement(&mut self, place: &ir::Place, value: &ir::RValue) {
+    fn visit_assign_statement(&mut self, place: &ir::Place, value: &ir::RValue, reference: IrRef) {
         if let Some(local) = place.as_local() {
-            self.assign(local, todo!());
+            self.assign(local, reference);
 
             // Short-circuit: if the RValue doesn't create an operand, i.e. an
             // aggregate value or a repeated value, then we can immediately
             // conclude that this will be in "memory"
-            if self.locals[local] != LocalMemoryKind::Memory {
-                if !self.fn_builder.rvalue_creates_operand(value) {
-                    self.locals[local] = LocalMemoryKind::Memory;
-                }
+            if self.locals[local] != LocalMemoryKind::Memory
+                && !self.fn_builder.rvalue_creates_operand(value)
+            {
+                self.locals[local] = LocalMemoryKind::Memory;
             }
         } else {
             // we need to go the long way since projections might affect
             // the kind of memory that is used.
-            self.visit_place(place);
+            self.visit_place(place, reference);
         }
 
-        self.visit_rvalue(value);
+        self.visit_rvalue(value, reference);
     }
 
-    fn visit_place(&mut self, place: &ir::Place) {}
+    fn visit_place(&mut self, _place: &ir::Place, _reference: IrRef) {}
 
-    fn visit_local(&mut self, _: Local) {}
+    fn visit_local(&mut self, _: Local, _reference: IrRef) {}
 }

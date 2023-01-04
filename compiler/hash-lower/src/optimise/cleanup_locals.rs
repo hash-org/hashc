@@ -10,7 +10,7 @@
 
 use hash_ir::{
     ir::{
-        Body, Local, LocalDecl, Place, PlaceProjection, RValue, Statement, StatementKind,
+        Body, IrRef, Local, LocalDecl, Place, PlaceProjection, RValue, Statement, StatementKind,
         RETURN_PLACE,
     },
     visitor::{walk_mut, IrVisitorMut, ModifyingIrVisitor},
@@ -169,8 +169,9 @@ impl<'ir> LocalUseMap<'ir> {
     pub fn statement_removed(&mut self, statement: &Statement) {
         self.increment = false;
 
-        // re-visit this particular statement since we've just removed it.
-        self.visit_statement(statement);
+        // re-visit this particular statement since we've just removed it, use a
+        // dummy reference since we don't care here.
+        self.visit_statement(statement, IrRef::default());
     }
 
     /// Perform a remapping of the locals within the [Body] that was
@@ -214,7 +215,7 @@ impl<'ir> IrVisitorMut<'ir> for LocalUseMap<'ir> {
     /// Visit an assignment [Statement], we only visit the [RValue] part of the
     /// assignment fully, and only check the projections of the [Place] in case
     /// it is referenced within a [PlaceProjection::Index].
-    fn visit_assign_statement(&mut self, place: &Place, value: &RValue) {
+    fn visit_assign_statement(&mut self, place: &Place, value: &RValue, reference: IrRef) {
         self.store().map_place(*place, |_, projections| {
             for projection in projections {
                 if let PlaceProjection::Index(index_local) = projection {
@@ -226,13 +227,13 @@ impl<'ir> IrVisitorMut<'ir> for LocalUseMap<'ir> {
         // @@Safety: currently it is safe to remove all variants of an RValue, however
         // if we add more rvalues (specifically casts), then we might need to be
         // more careful about whether the rvalue is safe to remove or not.
-        walk_mut::walk_rvalue(self, value);
+        walk_mut::walk_rvalue(self, value, reference);
     }
 
     /// This function will update the count for the referenced local in this
     /// place. We don't count places that "assign something" since this does
     /// not inherently use the local.
-    fn visit_local(&mut self, local: Local) {
+    fn visit_local(&mut self, local: Local, _: IrRef) {
         self.update_count_for(local);
     }
 }
@@ -261,7 +262,7 @@ impl<'ir> ModifyingIrVisitor<'ir> for LocalUpdater<'ir> {
     }
 
     /// Perform a remapping of the [Local] within the [Place] to a new [Local].
-    fn visit_local(&self, local: &mut Local) {
+    fn visit_local(&self, local: &mut Local, _: IrRef) {
         if let Some(new_local) = self.remap[*local] {
             *local = new_local;
         }

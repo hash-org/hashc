@@ -1234,6 +1234,12 @@ pub struct IrRef {
     pub index: usize,
 }
 
+impl Default for IrRef {
+    fn default() -> Self {
+        Self { block: START_BLOCK, index: Default::default() }
+    }
+}
+
 impl fmt::Debug for IrRef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:?}[{}]", self.block, self.index)
