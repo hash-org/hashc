@@ -6,7 +6,7 @@
 use hash_abi::FnAbi;
 use hash_ir::ir;
 
-use crate::traits::{builder::BlockBuilderMethods, CodeGen};
+use crate::traits::CodeGen;
 
 pub(crate) mod operands;
 pub(crate) mod place;

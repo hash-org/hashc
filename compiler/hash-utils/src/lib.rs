@@ -3,6 +3,7 @@
 
 pub mod assert;
 pub mod counter;
+pub mod graph;
 pub mod path;
 pub mod printing;
 pub mod stack;
