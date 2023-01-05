@@ -240,20 +240,20 @@ impl Display for WithEnv<'_, &PrimitiveCtorInfo> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.value {
             PrimitiveCtorInfo::Numeric(numeric) => {
-                write!(
+                writeln!(
                     f,
                     "numeric [bits={}, float={}, signed={}]",
                     numeric.bits, numeric.is_float, numeric.is_signed,
                 )
             }
             PrimitiveCtorInfo::Str => {
-                write!(f, "str")
+                writeln!(f, "str")
             }
             PrimitiveCtorInfo::Char => {
-                write!(f, "char")
+                writeln!(f, "char")
             }
             PrimitiveCtorInfo::List(list) => {
-                write!(f, "list [{}]", self.env().with(list.element_ty))
+                writeln!(f, "list [{}]", self.env().with(list.element_ty))
             }
         }
     }

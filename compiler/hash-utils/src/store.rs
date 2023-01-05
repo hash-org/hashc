@@ -159,10 +159,11 @@ pub trait Store<Key: StoreKey, Value> {
 
     /// Create a value inside the store, given its key, returning its key.
     fn create_with(&self, value_fn: impl FnOnce(Key) -> Value) -> Key {
-        let mut data = self.internal_data().borrow_mut();
-        let next_index = data.len();
+        let next_index = self.internal_data().borrow().len();
         let key = Key::from_index_unchecked(next_index);
-        data.push(value_fn(key));
+        let value = value_fn(key);
+        let mut data = self.internal_data().borrow_mut();
+        data.push(value);
         key
     }
 

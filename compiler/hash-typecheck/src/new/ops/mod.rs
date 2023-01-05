@@ -1,7 +1,7 @@
 // @@Docs
 use self::{
-    context::ContextOps, data::DataOps, defs::CommonDefOps, fns::FnOps, infer::InferOps,
-    mods::ModOps, params::ParamOps, stack::StackOps, tuple::TupleOps,
+    bootstrap::BootstrapOps, context::ContextOps, data::DataOps, defs::CommonDefOps, fns::FnOps,
+    infer::InferOps, mods::ModOps, params::ParamOps, stack::StackOps, tuple::TupleOps,
 };
 
 pub mod bootstrap;
@@ -42,4 +42,5 @@ ops! {
   param_ops: ParamOps,
   context_ops: ContextOps,
   tuple_ops: TupleOps,
+  bootstrap_ops: BootstrapOps,
 }

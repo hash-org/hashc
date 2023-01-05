@@ -6,9 +6,8 @@ use hash_types::new::{
     args::ArgData,
     data::{CtorDef, CtorDefData, CtorDefsId, DataDef, DataDefCtors, DataDefId, PrimitiveCtorInfo},
     defs::{DefArgGroupData, DefArgsId, DefParamGroupData, DefParamsId},
-    environment::{context::BoundVarOrigin, env::AccessToEnv},
+    environment::env::AccessToEnv,
     params::{ParamData, ParamIndex},
-    scopes::BoundVar,
     symbols::Symbol,
     terms::Term,
 };
@@ -107,7 +106,7 @@ impl<'tc> DataOps<'tc> {
     /// ```
     pub fn create_forwarded_data_args_from_params(
         &self,
-        data_def_id: DataDefId,
+        _data_def_id: DataDefId,
         def_params_id: DefParamsId,
     ) -> DefArgsId {
         self.stores().def_params().map(def_params_id, |def_params| {
@@ -123,16 +122,9 @@ impl<'tc> DataOps<'tc> {
                             params
                                 .iter()
                                 .enumerate()
-                                .map(|(j, param)| {
-                                    let value = self.new_term(Term::Var(BoundVar {
-                                        name: param.name,
-                                        origin: BoundVarOrigin::Data(
-                                            data_def_id,
-                                            (def_params_id, i),
-                                            (def_param_group.params, j),
-                                        ),
-                                    }));
-                                    ArgData { target: ParamIndex::Position(i), value }
+                                .map(|(_j, param)| ArgData {
+                                    target: ParamIndex::Position(i),
+                                    value: self.new_term(Term::Var(param.name)),
                                 })
                                 .collect_vec()
                                 .into_iter()

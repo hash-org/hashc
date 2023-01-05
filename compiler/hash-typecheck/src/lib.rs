@@ -7,6 +7,8 @@
 
 #![feature(decl_macro, slice_pattern, option_result_contains, let_chains, if_let_guard)]
 
+use std::cell::Cell;
+
 use diagnostics::DiagnosticsStore;
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerStage},
@@ -122,6 +124,8 @@ impl<Ctx: TypecheckingCtx> CompilerStage<Ctx> for Typechecker {
             &current_source_info,
         );
 
+        let primitives = Cell::new(None);
+
         // Instantiate a visitor with the source and visit the source, using the
         // previous local storage.
         let storage = StorageRef {
@@ -132,7 +136,7 @@ impl<Ctx: TypecheckingCtx> CompilerStage<Ctx> for Typechecker {
             source_map: &workspace.source_map,
             diagnostics_store: &self.diagnostics_store,
             cache: &self.cache,
-            _new: TcEnv::new(&env, &self._new_diagnostic, &self._new_ast_info),
+            _new: TcEnv::new(&env, &self._new_diagnostic, &self._new_ast_info, &primitives),
         };
 
         // @@Hack: for now we use the `USE_NEW_TC` env variable to switch between the

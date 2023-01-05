@@ -1,4 +1,4 @@
-use std::iter::once;
+use std::{cell::Cell, iter::once};
 
 use derive_more::Constructor;
 use hash_types::new::{
@@ -11,7 +11,10 @@ use hash_types::new::{
 use hash_utils::store::Store;
 
 use super::{common::CommonOps, AccessToOps};
-use crate::{impl_access_to_tc_env, new::environment::tc_env::TcEnv};
+use crate::{
+    impl_access_to_tc_env,
+    new::environment::tc_env::{AccessToTcEnv, TcEnv},
+};
 
 #[derive(Constructor)]
 pub struct BootstrapOps<'tc> {
@@ -20,13 +23,21 @@ pub struct BootstrapOps<'tc> {
 
 macro_rules! defined_primitives {
     ($($name:ident: $type:ty),* $(,)?) => {
+        #[derive(Debug, Copy, Clone)]
         pub struct DefinedPrimitives {
-            $(pub $name: DataDefId),*
+            $($name: DataDefId),*
+        }
+
+        impl DefinedPrimitives {
+            $(
+                pub fn $name(&self) -> DataDefId {
+                    self.$name
+                }
+            )*
         }
 
         impl<'tc> BootstrapOps<'tc> {
-            pub fn make_primitive_mod_members(&self) -> Vec<ModMemberData> {
-                let primitives = self.make_primitives();
+            pub fn make_primitive_mod_members(&self, primitives: &DefinedPrimitives) -> Vec<ModMemberData> {
                 vec![
                     $(
                         ModMemberData {
@@ -60,23 +71,26 @@ defined_primitives! {
     list: DataDefId,
 }
 
+pub type DefinedPrimitivesOrUnset = Cell<Option<DefinedPrimitives>>;
+
 impl_access_to_tc_env!(BootstrapOps<'tc>);
 
 impl<'tc> BootstrapOps<'tc> {
-    pub fn bootstrap(&self) {
-        self.make_primitives();
+    pub fn bootstrap<T>(&self, f: impl FnOnce() -> T) -> T {
+        let primitives = self.make_primitives();
+        let primitive_mod = self.make_primitive_mod(&primitives);
+        self.primitives_or_unset().set(Some(primitives));
+        let result = self.context_ops().enter_scope(ScopeKind::Mod(primitive_mod), f);
+        self.primitives_or_unset().take();
+        result
     }
 
-    pub fn make_and_enter_primitive_mod(&self) {
-        self.context_ops().add_scope(ScopeKind::Mod(self.make_primitive_mod()));
-    }
-
-    pub fn make_primitive_mod(&self) -> ModDefId {
+    pub fn make_primitive_mod(&self, primitives: &DefinedPrimitives) -> ModDefId {
         self.mod_ops().create_mod_def(ModDefData {
             name: self.new_symbol("Primitives"),
             params: self.new_empty_def_params(),
             kind: ModKind::Transparent,
-            members: self.mod_ops().create_mod_members(self.make_primitive_mod_members()),
+            members: self.mod_ops().create_mod_members(self.make_primitive_mod_members(primitives)),
             self_ty_name: None,
         })
     }
@@ -130,22 +144,17 @@ impl<'tc> BootstrapOps<'tc> {
             list: {
                 let list_sym = self.new_symbol("List");
                 let t_sym = self.new_symbol("T");
-                self.data_ops().create_primitive_data_def_with_params(
-                    list_sym,
-                    self.param_ops().create_def_params(once(DefParamGroupData {
-                        implicit: true,
-                        params: self.param_ops().create_params(once(ParamData {
-                            name: t_sym,
-                            ty: self.new_small_universe_ty(),
-                            default_value: None,
-                        })),
-                    })),
-                    |id| {
-                        PrimitiveCtorInfo::List(ListCtorInfo {
-                            element_ty: self.new_var_in_data_params(t_sym, id),
-                        })
-                    },
-                )
+                let params = self.param_ops().create_params(once(ParamData {
+                    name: t_sym,
+                    ty: self.new_small_universe_ty(),
+                    default_value: None,
+                }));
+                let def_params = self
+                    .param_ops()
+                    .create_def_params(once(DefParamGroupData { implicit: true, params }));
+                self.data_ops().create_primitive_data_def_with_params(list_sym, def_params, |_| {
+                    PrimitiveCtorInfo::List(ListCtorInfo { element_ty: self.new_var_ty(t_sym) })
+                })
             },
 
             // option
@@ -154,30 +163,27 @@ impl<'tc> BootstrapOps<'tc> {
                 let none_sym = self.new_symbol("None");
                 let some_sym = self.new_symbol("Some");
                 let t_sym = self.new_symbol("T");
-                self.data_ops().create_enum_def(
-                    option_sym,
-                    self.param_ops().create_def_params(once(DefParamGroupData {
-                        implicit: true,
-                        params: self.param_ops().create_params(once(ParamData {
-                            name: t_sym,
-                            ty: self.new_small_universe_ty(),
-                            default_value: None,
-                        })),
-                    })),
-                    |id| {
-                        vec![
-                            (none_sym, vec![]),
-                            (
-                                some_sym,
-                                vec![ParamData {
-                                    name: self.new_symbol("value"),
-                                    ty: self.new_var_in_data_params(t_sym, id),
-                                    default_value: None,
-                                }],
-                            ),
-                        ]
-                    },
-                )
+                let params = self.param_ops().create_params(once(ParamData {
+                    name: t_sym,
+                    ty: self.new_small_universe_ty(),
+                    default_value: None,
+                }));
+                let def_params = self
+                    .param_ops()
+                    .create_def_params(once(DefParamGroupData { implicit: true, params }));
+                self.data_ops().create_enum_def(option_sym, def_params, |_| {
+                    vec![
+                        (none_sym, vec![]),
+                        (
+                            some_sym,
+                            vec![ParamData {
+                                name: self.new_symbol("value"),
+                                ty: self.new_var_ty(t_sym),
+                                default_value: None,
+                            }],
+                        ),
+                    ]
+                })
             },
         }
     }

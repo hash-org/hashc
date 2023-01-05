@@ -32,7 +32,6 @@ use hash_types::new::{
     },
     fns::{FnCallTerm, FnDefId},
     mods::{ModDefId, ModMemberValue},
-    scopes::BoundVar,
     terms::Term,
 };
 use hash_utils::store::{SequenceStore, Store};
@@ -156,7 +155,7 @@ pub enum TerminalResolvedPathComponent {
     /// A function call term.
     FnCall(FnCallTerm),
     /// A variable bound in the current context.
-    BoundVar(BoundVar),
+    Var(Binding),
 }
 
 /// The result of resolving a path component.
@@ -197,7 +196,7 @@ impl<'tc> SymbolResolutionPass<'tc> {
             },
             None => {
                 // If there is no start point, try to lookup the variable in the current scope.
-                let binding_symbol = self.lookup_binding_by_name_or_error(
+                let binding_symbol = self.lookup_symbol_by_name_or_error(
                     name,
                     name_span,
                     self.get_current_context_kind(),
@@ -304,18 +303,14 @@ impl<'tc> SymbolResolutionPass<'tc> {
                 // If the subject has no args, it is a bound variable, otherwise it is a
                 // function call.
                 match &component.args[..] {
-                    [] => Ok(ResolvedAstPathComponent::Terminal(
-                        TerminalResolvedPathComponent::BoundVar(BoundVar {
-                            name: binding.name,
-                            origin: bound_var,
-                        }),
-                    )),
+                    [] => {
+                        Ok(ResolvedAstPathComponent::Terminal(TerminalResolvedPathComponent::Var(
+                            Binding { name: binding.name, kind: BindingKind::BoundVar(bound_var) },
+                        )))
+                    }
                     args => {
                         let resultant_term = self.wrap_term_in_fn_call_from_ast_args(
-                            self.new_term(Term::Var(BoundVar {
-                                name: binding.name,
-                                origin: bound_var,
-                            })),
+                            self.new_term(Term::Var(binding.name)),
                             args,
                             component.span(),
                         )?;

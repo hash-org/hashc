@@ -13,7 +13,7 @@ use super::{
     environment::env::{AccessToEnv, WithEnv},
     holes::HoleId,
     lits::PrimTerm,
-    scopes::BoundVar,
+    symbols::Symbol,
     tys::TypeOfTerm,
 };
 use crate::new::{
@@ -68,7 +68,7 @@ pub enum Term {
     Block(BlockTerm),
 
     // Variables
-    Var(BoundVar),
+    Var(Symbol),
 
     // Loops
     Loop(LoopTerm),
@@ -135,7 +135,7 @@ impl fmt::Display for WithEnv<'_, &Term> {
             Term::FnCall(fn_call_term) => write!(f, "{}", self.env().with(fn_call_term)),
             Term::FnRef(closure_term) => write!(f, "{}", self.env().with(*closure_term)),
             Term::Block(block_term) => write!(f, "{}", self.env().with(block_term)),
-            Term::Var(resolved_var) => write!(f, "{}", self.env().with(resolved_var.name)),
+            Term::Var(resolved_var) => write!(f, "{}", self.env().with(*resolved_var)),
             Term::Loop(loop_term) => write!(f, "{}", self.env().with(loop_term)),
             Term::LoopControl(loop_control_term) => {
                 write!(f, "{}", self.env().with(loop_control_term))
