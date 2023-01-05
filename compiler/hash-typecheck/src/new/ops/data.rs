@@ -4,7 +4,7 @@ use std::iter::{empty, once};
 use derive_more::Constructor;
 use hash_types::new::{
     args::ArgData,
-    data::{CtorDef, CtorDefData, CtorDefsId, DataDef, DataDefId},
+    data::{CtorDef, CtorDefData, CtorDefsId, DataDef, DataDefCtors, DataDefId, PrimitiveCtorInfo},
     defs::{DefArgGroupData, DefArgsId, DefParamGroupData, DefParamsId},
     environment::{context::BoundVarOrigin, env::AccessToEnv},
     params::{ParamData, ParamIndex},
@@ -28,21 +28,48 @@ impl_access_to_tc_env!(DataOps<'tc>);
 
 impl<'tc> DataOps<'tc> {
     /// Create an empty data definition.
-    pub fn create_empty_data_def(&self, name: Symbol, params: DefParamsId) -> DataDefId {
+    pub fn new_empty_data_def(&self, name: Symbol, params: DefParamsId) -> DataDefId {
         self.stores().data_def().create_with(|id| DataDef {
             id,
             name,
             params,
-            ctors: self.stores().ctor_defs().create_from_slice(&[]),
+            ctors: DataDefCtors::Defined(self.stores().ctor_defs().create_from_slice(&[])),
         })
     }
 
     /// Set the constructors of the given data definition.
     pub fn set_data_def_ctors(&self, data_def: DataDefId, ctors: CtorDefsId) -> CtorDefsId {
         self.stores().data_def().modify_fast(data_def, |data_def| {
-            data_def.ctors = ctors;
+            data_def.ctors = DataDefCtors::Defined(ctors);
         });
         ctors
+    }
+
+    /// Create a primitive data definition.
+    pub fn create_primitive_data_def(&self, name: Symbol, info: PrimitiveCtorInfo) -> DataDefId {
+        self.stores().data_def().create_with(|id| DataDef {
+            id,
+            name,
+            params: self.new_empty_def_params(),
+            ctors: DataDefCtors::Primitive(info),
+        })
+    }
+
+    /// Create a primitive data definition with parameters.
+    ///
+    /// These may be referenced in `info`.
+    pub fn create_primitive_data_def_with_params(
+        &self,
+        name: Symbol,
+        params: DefParamsId,
+        info: impl FnOnce(DataDefId) -> PrimitiveCtorInfo,
+    ) -> DataDefId {
+        self.stores().data_def().create_with(|id| DataDef {
+            id,
+            name,
+            params,
+            ctors: DataDefCtors::Primitive(info(id)),
+        })
     }
 
     /// Create data constructors from the given iterator, for the given data
@@ -148,19 +175,21 @@ impl<'tc> DataOps<'tc> {
             id,
             name,
             params,
-            ctors: self.stores().ctor_defs().create_from_iter_with(once(|ctor_id| {
-                CtorDef {
-                    id: ctor_id,
-                    // Name of the constructor is the same as the data definition, though we need to
-                    // create a new symbol for it
-                    name: self.duplicate_symbol(name),
-                    // The constructor is the only one
-                    data_def_ctor_index: 0,
-                    data_def_id: id,
-                    params: fields_def_params,
-                    result_args: result_args(id),
-                }
-            })),
+            ctors: DataDefCtors::Defined(self.stores().ctor_defs().create_from_iter_with(once(
+                |ctor_id| {
+                    CtorDef {
+                        id: ctor_id,
+                        // Name of the constructor is the same as the data definition, though we
+                        // need to create a new symbol for it
+                        name: self.duplicate_symbol(name),
+                        // The constructor is the only one
+                        data_def_ctor_index: 0,
+                        data_def_id: id,
+                        params: fields_def_params,
+                        result_args: result_args(id),
+                    }
+                },
+            ))),
         })
     }
 
@@ -176,27 +205,26 @@ impl<'tc> DataOps<'tc> {
         &self,
         name: Symbol,
         params: DefParamsId,
-        variants: impl Iterator<Item = (Symbol, impl Iterator<Item = ParamData>)>,
+        variants: impl Fn(DataDefId) -> Vec<(Symbol, Vec<ParamData>)>,
     ) -> DataDefId {
         // Create the arguments for the constructor, which are the type
         // parameters given.
         let result_args =
             |data_def_id| self.create_forwarded_data_args_from_params(data_def_id, params);
 
-        let variants = variants.collect_vec();
-
         // Create the data definition for the enum
         self.stores().data_def().create_with(|id| DataDef {
             id,
             name,
             params,
-            ctors: self.stores().ctor_defs().create_from_iter_with(
-                variants.into_iter().enumerate().map(|(index, variant)| {
+            ctors: DataDefCtors::Defined(self.stores().ctor_defs().create_from_iter_with(
+                variants(id).into_iter().enumerate().map(|(index, variant)| {
                     let variant_name = variant.0;
-                    let variant_fields = variant.1.collect_vec();
+                    let variant_fields = variant.1;
+
                     // Create the parameters for the fields
-                    let fields_params =
-                        self.param_ops().create_params(variant_fields.iter().copied());
+                    let fields_params = self.param_ops().create_params(variant_fields.into_iter());
+
                     // The field parameters correspond to a single parameter group
                     let fields_def_params = if !fields_params.is_empty() {
                         self.param_ops().create_def_params(once(DefParamGroupData {
@@ -217,7 +245,7 @@ impl<'tc> DataOps<'tc> {
                         result_args: result_args(id),
                     }
                 }),
-            ),
+            )),
         })
     }
 }

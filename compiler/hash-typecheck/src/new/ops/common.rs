@@ -3,11 +3,13 @@ use hash_source::{identifier::Identifier, location::SourceLocation};
 use hash_types::new::{
     data::{DataDef, DataDefId},
     defs::DefParamsId,
+    environment::context::BoundVarOrigin,
     fns::{FnDef, FnDefId},
     holes::{Hole, HoleKind},
     locations::LocationTarget,
     params::ParamsId,
     pats::{Pat, PatId},
+    scopes::BoundVar,
     symbols::{Symbol, SymbolData},
     terms::{Term, TermId},
     tuples::TupleTy,
@@ -143,6 +145,45 @@ pub trait CommonOps: AccessToTcEnv {
     /// Create a new empty tuple type.
     fn new_void_ty(&self) -> TyId {
         self.stores().ty().create(Ty::Tuple(TupleTy { data: self.new_empty_params() }))
+    }
+
+    /// Create a new variable in the given data definition's parameter list.
+    fn new_var_in_data_params(&self, name: Symbol, data_def_id: DataDefId) -> TyId {
+        self.new_ty(Ty::Var(BoundVar {
+            name,
+            origin: {
+                // Here we search the params for the variable
+                self.stores().data_def().map_fast(data_def_id, |data_def| {
+                    self.stores().def_params().map_fast(data_def.params, |def_params| {
+                        def_params
+                            .iter()
+                            .enumerate()
+                            .find_map(|(def_param_index, def_param)| {
+                                self.stores().params().map_fast(def_param.params, |params| {
+                                    params.iter().enumerate().find_map(|(param_index, param)| {
+                                        if param.name == name {
+                                            Some(BoundVarOrigin::Data(
+                                                data_def_id,
+                                                (data_def.params, def_param_index),
+                                                (def_param.params, param_index),
+                                            ))
+                                        } else {
+                                            None
+                                        }
+                                    })
+                                })
+                            })
+                            .unwrap_or_else(|| {
+                                panic!(
+                                "Could not find parameter {} provided to new_var_in_data_params {}",
+                                self.env().with(name),
+                                self.env().with(data_def_id),
+                            )
+                            })
+                    })
+                })
+            },
+        }))
     }
 }
 

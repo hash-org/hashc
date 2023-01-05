@@ -717,12 +717,17 @@ impl<'tc> ast::AstVisitor for ScopeDiscoveryPass<'tc> {
         let enum_def_id = self.data_ops().create_enum_def(
             enum_name,
             self.create_hole_def_params(once((true, &node.ty_params))),
-            node.entries.iter().map(|variant| {
-                (
-                    self.new_symbol(variant.name.ident),
-                    self.create_param_data_from_ast_params(variant.fields.iter()).into_iter(),
-                )
-            }),
+            |_| {
+                node.entries
+                    .iter()
+                    .map(|variant| {
+                        (
+                            self.new_symbol(variant.name.ident),
+                            self.create_param_data_from_ast_params(variant.fields.iter()),
+                        )
+                    })
+                    .collect_vec()
+            },
         );
 
         // Traverse the enum; the variants have already been created.

@@ -4,6 +4,7 @@ use self::{
     mods::ModOps, params::ParamOps, stack::StackOps, tuple::TupleOps,
 };
 
+pub mod bootstrap;
 pub mod common;
 pub mod context;
 pub mod data;
@@ -11,6 +12,7 @@ pub mod defs;
 pub mod fns;
 pub mod infer;
 pub mod mods;
+pub mod normalise;
 pub mod oracle;
 pub mod params;
 pub mod stack;
