@@ -270,7 +270,9 @@ impl<'tcx> Builder<'tcx> {
                     }
                     Lit::Tuple(TupleLit { elements }) => {
                         let ty = self.ty_id_of_node(expr.id());
-                        let aggregate_kind = AggregateKind::Tuple;
+                        let adt = self.map_on_adt(ty, |_, id| id);
+                        let aggregate_kind = AggregateKind::Tuple(adt);
+
                         let args = elements
                             .iter()
                             .enumerate()

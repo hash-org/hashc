@@ -4,9 +4,10 @@ use std::fmt;
 
 use self::{
     constants::BuildConstValueMethods, ctx::HasCtxMethods, debug::BuildDebugInfoMethods,
-    target::HasTargetSpec, ty::BuildTypeMethods,
+    layout::LayoutMethods, target::HasTargetSpec, ty::BuildTypeMethods,
 };
 
+pub mod abi;
 pub mod builder;
 pub mod constants;
 pub mod ctx;
@@ -55,6 +56,7 @@ pub trait Backend<'b>: Sized + BackendTypes {}
 
 pub trait CodeGenMethods<'b>:
     Backend<'b>
+    + LayoutMethods<'b>
     + HasCtxMethods<'b>
     + BuildTypeMethods<'b>
     + BuildConstValueMethods<'b>

@@ -165,7 +165,7 @@ impl fmt::Display for ForFormatting<'_, &RValue> {
                 };
 
                 match aggregate_kind {
-                    AggregateKind::Tuple => fmt_operands(f, '(', ')'),
+                    AggregateKind::Tuple(_) => fmt_operands(f, '(', ')'),
                     AggregateKind::Array(_) => fmt_operands(f, '[', ']'),
                     AggregateKind::Enum(adt, index) => {
                         self.storage.adts().map_fast(*adt, |def| {
@@ -198,10 +198,6 @@ impl fmt::Display for ForFormatting<'_, &Statement> {
             StatementKind::Discriminate(place, index) => {
                 write!(f, "discriminant({}) = {index}", place.for_fmt(self.storage))
             }
-            // @@Todo: figure out format for printing out the allocations that
-            // are made.
-            StatementKind::Alloc(_) => todo!(),
-            StatementKind::AllocRaw(_) => todo!(),
         }
     }
 }

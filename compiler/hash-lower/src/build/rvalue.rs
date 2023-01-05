@@ -187,7 +187,7 @@ impl<'tcx> Builder<'tcx> {
             // Push an assignment to the tuple on the operation
             self.control_flow_graph.push_assign(block, temp, rvalue, span);
 
-            block = self.assert(block, overflow, false, AssertKind::Overflow, span);
+            block = self.assert(block, Operand::Place(overflow), false, AssertKind::Overflow, span);
 
             block.and(result.into())
         } else {

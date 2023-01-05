@@ -121,7 +121,7 @@ impl Scalar {
 #[derive(Debug)]
 pub enum AbiRepresentation {
     /// A value that is not represented in memory, but is instead passed
-    /// by value. This is used for values that are smaller than a pointer
+    /// by value. This is used for values that are smaller than a pointer.
     Uninhabited,
 
     /// A scalar value.

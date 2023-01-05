@@ -9,7 +9,7 @@ use hash_target::{
     layout::HasDataLayout,
     size::Size,
 };
-use hash_utils::{new_store, new_store_key};
+use hash_utils::{new_store, new_store_key, store::Store};
 use index_vec::IndexVec;
 
 /// [TyInfo] stores a reference to the type, and a reference to the
@@ -21,6 +21,23 @@ pub struct TyInfo {
 
     /// The layout information for the particular type.  
     pub layout: LayoutId,
+}
+
+impl TyInfo {
+    /// Create a new [TyInfo] with the given type and layout.
+    pub fn new(ty: IrTyId, layout: LayoutId) -> Self {
+        Self { ty, layout }
+    }
+
+    /// Check if the type is a zero-sized type.
+    pub fn is_zst(&self, store: &LayoutStore) -> bool {
+        store.map_fast(self.layout, |layout| match layout.abi {
+            AbiRepresentation::Scalar { .. } | AbiRepresentation::Vector { .. } => false,
+            AbiRepresentation::Aggregate | AbiRepresentation::Uninhabited => {
+                layout.size.bytes() == 0
+            }
+        })
+    }
 }
 
 // Define a new key to represent a particular layout.
