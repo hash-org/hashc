@@ -1,5 +1,7 @@
 //! This module contains graph algorithms and utilities that are used by the
 //! compiler.
+//!
+//! Based on rustc: https://github.com/rust-lang/rust/blob/master/compiler/rustc_data_structures/src/graph/mod.rs
 
 pub mod dominators;
 pub mod visit;
