@@ -88,7 +88,7 @@ pub struct CtorPat {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NumericCtorInfo {
     /// The number of bits in the number.
-    pub bits: u16,
+    pub bits: u8,
     /// Whether the number is signed or not.
     pub is_signed: bool,
     /// Whether the number is floating-point or not.
