@@ -1,3 +1,5 @@
+//! This module contains code that can bootstrap the typechecker, by creating
+//! and injecting primitive definitions into the context.
 use std::{cell::Cell, iter::once};
 
 use derive_more::Constructor;
@@ -37,6 +39,9 @@ macro_rules! defined_primitives {
         }
 
         impl<'tc> BootstrapOps<'tc> {
+            /// Create a list of [`ModMemberData`] that corresponds to the defined primitives.
+            ///
+            /// This can be used to make a module and enter its scope.
             pub fn make_primitive_mod_members(&self, primitives: &DefinedPrimitives) -> Vec<ModMemberData> {
                 vec![
                     $(
@@ -52,6 +57,7 @@ macro_rules! defined_primitives {
 
 }
 
+// All the primitive types:
 defined_primitives! {
     never: DataDefId,
     bool: DataDefId,
@@ -76,6 +82,10 @@ pub type DefinedPrimitivesOrUnset = Cell<Option<DefinedPrimitives>>;
 impl_access_to_tc_env!(BootstrapOps<'tc>);
 
 impl<'tc> BootstrapOps<'tc> {
+    /// Bootstrap the typechecker, by creating and injecting primitive
+    /// definitions into the context.
+    ///
+    /// The callback `f` is called with the primitives in scope.
     pub fn bootstrap<T>(&self, f: impl FnOnce() -> T) -> T {
         let primitives = self.make_primitives();
         let primitive_mod = self.make_primitive_mod(&primitives);
@@ -85,6 +95,8 @@ impl<'tc> BootstrapOps<'tc> {
         result
     }
 
+    /// From the given [`DefinedPrimitives`], create a module that contains
+    /// them as members.
     pub fn make_primitive_mod(&self, primitives: &DefinedPrimitives) -> ModDefId {
         self.mod_ops().create_mod_def(ModDefData {
             name: self.new_symbol("Primitives"),
@@ -95,7 +107,9 @@ impl<'tc> BootstrapOps<'tc> {
         })
     }
 
+    /// Make the primitive definitions.
     pub fn make_primitives(&self) -> DefinedPrimitives {
+        // Helper function to create a numeric primitive.
         let numeric = |name, bits, signed, float| {
             self.data_ops().create_primitive_data_def(
                 self.new_symbol(name),
@@ -106,6 +120,7 @@ impl<'tc> BootstrapOps<'tc> {
                 }),
             )
         };
+
         DefinedPrimitives {
             // Never
             never: self.data_ops().new_empty_data_def(
