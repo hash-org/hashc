@@ -1,6 +1,6 @@
-//! This file defines a trait [`ConstMethods`] that enables the backend
-//! builder to emit constants of all primitive types when converting Hash IR
-//! into the target backend.
+//! This file defines a trait [`BuildConstValueMethods`] that enables the
+//! backend builder to emit constants of all primitive types when converting
+//! Hash IR into the target backend.
 
 use super::BackendTypes;
 

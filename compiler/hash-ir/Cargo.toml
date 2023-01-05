@@ -6,6 +6,7 @@ edition = "2021"
 
 [dependencies]
 bitflags = "1.3.2"
+fixedbitset = "0.4.2"
 html-escape = "0.2.12"
 index_vec = "0.1.3"
 smallvec = "1.9.0"

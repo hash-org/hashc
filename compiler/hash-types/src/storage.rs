@@ -132,8 +132,7 @@ impl LocalStorage {
         self.id.get()
     }
 
-    /// Set the current [SourceId], it does not matter whether
-    /// this is a [SourceId::Module] or [SourceId::Interactive]
+    /// Set the current [SourceId].
     pub fn set_current_source(&self, id: SourceId) {
         self.id.set(id);
     }

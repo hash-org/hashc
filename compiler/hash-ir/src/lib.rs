@@ -1,9 +1,10 @@
 //! Hash Compiler Intermediate Representation (IR) crate.
 #![allow(clippy::too_many_arguments)]
-#![feature(let_chains, once_cell, associated_type_defaults)]
+#![feature(let_chains, once_cell, associated_type_defaults, type_alias_impl_trait, decl_macro)]
 
 pub mod basic_blocks;
 pub mod ir;
+pub mod traversal;
 pub mod ty;
 pub mod visitor;
 pub mod write;
@@ -25,8 +26,8 @@ pub struct IrStorage {
     /// The type storage for the IR.
     pub bodies: Vec<Body>,
 
-    /// All of the accompanying data for the bodies, such as [RValue]s,
-    /// [IrTy]s, etc. The bodies and the body data are stored separately
+    /// All of the accompanying data for the bodies, such as [`ir::RValue`]s,
+    /// [`ty::IrTy`]s, etc. The bodies and the body data are stored separately
     /// so that the data store can be passed into various passes that occur
     /// on a particular [Body] and may perform transformations on the
     /// data.

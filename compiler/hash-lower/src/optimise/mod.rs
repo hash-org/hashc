@@ -3,6 +3,8 @@
 //! pass is implemented as a function that takes a mutable reference to a
 //! `Body` and may modify the body by removing, or adding instructions and
 //! or basic blocks.
+//!
+//! @@Todo: write a constant value propagation pass.
 
 use hash_ir::{ir::Body, BodyDataStore};
 use hash_pipeline::settings::{LoweringSettings, OptimisationLevel};

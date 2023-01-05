@@ -9,7 +9,6 @@ mod build;
 mod cfg;
 mod discover;
 mod optimise;
-mod traversal;
 
 use discover::LoweringVisitor;
 use hash_ast::ast::{AstVisitorMutSelf, OwnsAstNode};

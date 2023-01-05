@@ -19,7 +19,7 @@ use crate::{
 /// Trait to be implemented by primitives which contain a `name` field that is
 /// an optional identifier.
 pub trait GetNameOpt {
-    /// Get the name of [Self], which should be an [Option<Identifier>].
+    /// Get the name of [Self], which should be an [`Option<Identifier>`].
     fn get_name_opt(&self) -> Option<Identifier>;
 }
 

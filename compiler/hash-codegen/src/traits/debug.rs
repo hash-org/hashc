@@ -1,7 +1,7 @@
 //! Contains a trait for emitting debug information for specific
 //! backends. This trait is used to provide a common interface for
 //! when this crate `hash-codegen` converts the IR into the target
-//! backend via the [BackendBuilder] interface, and when it adds
+//! backend via the [crate::traits::CodeGen] interface, and when it adds
 //! debug information to all of the generated IR.
 
 use hash_ir::ty::IrTyId;

@@ -1,19 +1,20 @@
 //! Module that contains a manager for basic blocks of a particular
-//! IR [Body]. The manager stores all of the basic blocks and provides
-//! functionality for computing the predecessors and successors of
+//! IR [crate::ir::Body]. The manager stores all of the basic blocks and
+//! provides functionality for computing the predecessors and successors of
 //! each basic block, and stores a cache on various traversal orders
 //! of the stored basic blocks.
 
 use std::{cell::OnceCell, fmt};
 
+use hash_utils::graph::{self, dominators::Dominators};
 use index_vec::IndexVec;
 use smallvec::{smallvec, SmallVec};
 
-use crate::ir::{BasicBlock, BasicBlockData};
+use crate::ir::{BasicBlock, BasicBlockData, Successors};
 
 /// [BasicBlocks] is a manager for basic blocks of a particular
-/// IR [Body]. The manager stores all of the basic blocks and provides
-/// functionality for computing the predecessors and successors of
+/// IR [`crate::ir::Body`]. The manager stores all of the basic blocks and
+/// provides functionality for computing the predecessors and successors of
 /// each basic block, and stores a cache on various traversal orders
 /// of the stored basic blocks.
 pub struct BasicBlocks {
@@ -77,12 +78,17 @@ impl BasicBlocks {
         &mut self.blocks
     }
 
-    /// Compute the predecessors of a basic block, or return the cached
-    /// value if it has already been computed.
-    pub fn predecessors_of(&self, block: BasicBlock) -> SmallVec<[BasicBlock; 4]> {
-        self.predecessor_cache.compute(&self.blocks)[block].clone()
+    /// Compute all of the predecessors of this [BasicBlocks] graph.
+    pub fn predecessors(&self) -> &Predecessors {
+        self.predecessor_cache.compute(&self.blocks)
     }
 
+    /// Compute all of the dominators of the this [BasicBlocks] graph.
+    pub fn dominators(&self) -> Dominators<BasicBlock> {
+        Dominators::new(self)
+    }
+
+    /// Invalidate the cache for all [BasicBlock]s.
     pub fn clear_cache(&mut self) {
         self.predecessor_cache.invalidate();
     }
@@ -133,5 +139,37 @@ impl PredecessorCache {
 
             predecessors
         })
+    }
+}
+
+// Implement generic graph methods for [BasicBlocks].
+
+impl graph::DirectedGraph for BasicBlocks {
+    type Node = BasicBlock;
+
+    fn num_nodes(&self) -> usize {
+        self.len()
+    }
+}
+
+impl<'s> graph::GraphSuccessors<'s> for BasicBlocks {
+    type Item = BasicBlock;
+    type Iter = Successors<'s>;
+}
+
+impl graph::WithSuccessors for BasicBlocks {
+    fn successors(&self, node: BasicBlock) -> <Self as graph::GraphSuccessors>::Iter {
+        self.blocks[node].terminator().successors()
+    }
+}
+
+impl<'graph> graph::GraphPredecessors<'graph> for BasicBlocks {
+    type Item = BasicBlock;
+    type Iter = std::iter::Copied<std::slice::Iter<'graph, BasicBlock>>;
+}
+
+impl graph::WithPredecessors for BasicBlocks {
+    fn predecessors(&self, node: Self::Node) -> <Self as graph::GraphPredecessors<'_>>::Iter {
+        self.predecessors()[node].iter().copied()
     }
 }

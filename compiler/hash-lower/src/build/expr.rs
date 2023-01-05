@@ -13,7 +13,7 @@ use hash_ast::ast::{
 use hash_ir::{
     ir::{
         self, AddressMode, AggregateKind, BasicBlock, Const, ConstKind, Place, RValue, Statement,
-        StatementKind, TerminatorKind,
+        StatementKind, TerminatorKind, UnevaluatedConst,
     },
     ty::{IrTy, IrTyId, Mutability, VariantIdx},
 };
@@ -70,7 +70,13 @@ impl<'tcx> Builder<'tcx> {
                 if !matches!(scope_kind, ScopeKind::Variable) {
                     // here, we emit an un-evaluated constant kind which will be resolved later
                     // during IR simplification.
-                    let rvalue = ConstKind::Unevaluated { scope, name }.into();
+                    let unevaluated_const = UnevaluatedConst { scope, name };
+                    let rvalue = (ConstKind::Unevaluated(unevaluated_const)).into();
+
+                    // we also need to save this un-evaluated const in the builder
+                    // so we can easily know what should and shouldn't be resolved.
+                    self.needed_constants.push(unevaluated_const);
+
                     self.control_flow_graph.push_assign(block, destination, rvalue, span);
                 } else {
                     let local = self.lookup_local_from_scope(scope, name).unwrap();

@@ -25,7 +25,7 @@ pub enum CheckedOp {
 
 /// This defines all of the type "kinds" that are used by LLVM.
 ///
-/// https://llvm.org/doxygen/classllvm_1_1Type.html#a5e9e1c0dd93557be1b4ad72860f3cbda
+/// <https://llvm.org/doxygen/classllvm_1_1Type.html#a5e9e1c0dd93557be1b4ad72860f3cbda>
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TypeKind {
     /// 16-bit floating point type.
@@ -58,7 +58,7 @@ pub enum TypeKind {
     /// Metadata type, only used in LLVM metadata.
     ///
     /// More information can be found here:
-    /// https://llvm.org/doxygen/classllvm_1_1Metadata.html
+    /// <https://llvm.org/doxygen/classllvm_1_1Metadata.html>
     MetadataTy,
 
     /// X86 MMX vector type (64 bits, X86 specific).

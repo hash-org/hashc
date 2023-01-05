@@ -14,14 +14,14 @@ pub enum CallingConvention {
     ///
     /// Equivalent to the `ccc` calling convention in LLVM.
     ///
-    /// Ref: https://llvm.org/docs/LangRef.html#calling-conventions (ccc)
+    /// Ref: <https://llvm.org/docs/LangRef.html#calling-conventions> (ccc)
     C,
 
     /// Cold calling convention for functions that are unlikely to be called.
     ///
     /// Equivalent to the `coldcc` calling convention in LLVM.
     ///
-    /// Ref: https://llvm.org/docs/LangRef.html#calling-conventions (coldcc)
+    /// Ref: <https://llvm.org/docs/LangRef.html#calling-conventions> (coldcc)
     Cold,
 }
 

@@ -19,7 +19,7 @@ use hash_ast::ast::{AstNodeId, AstNodeRef, Expr, FnDef};
 use hash_ir::{
     ir::{
         BasicBlock, Body, BodyInfo, BodySource, Local, LocalDecl, Place, TerminatorKind,
-        START_BLOCK,
+        UnevaluatedConst, START_BLOCK,
     },
     ty::{IrTy, IrTyListId, Mutability},
     IrStorage,
@@ -184,6 +184,10 @@ pub(crate) struct Builder<'tcx> {
     /// Any local declarations that have been made.
     declarations: IndexVec<Local, LocalDecl>,
 
+    /// Constants that will need to be resolved after all IR
+    /// is built.
+    needed_constants: Vec<UnevaluatedConst>,
+
     /// A map that is used by the [Builder] to lookup which variables correspond
     /// to which locals.
     declaration_map: HashMap<(ScopeId, Identifier), Local>,
@@ -268,6 +272,7 @@ impl<'tcx> Builder<'tcx> {
             source_id,
             control_flow_graph: ControlFlowGraph::new(),
             declarations: IndexVec::new(),
+            needed_constants: Vec::new(),
             declaration_map: HashMap::new(),
             reached_terminator: false,
             loop_block_info: None,
