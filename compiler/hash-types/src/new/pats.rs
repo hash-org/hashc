@@ -12,7 +12,7 @@ use super::{
     control::{IfPat, OrPat},
     data::CtorPat,
     environment::env::{AccessToEnv, WithEnv},
-    lits::LitPat,
+    lits::{ListPat, LitPat},
     scopes::BindingPat,
     symbols::Symbol,
     tuples::TuplePat,
@@ -53,6 +53,7 @@ pub enum Pat {
     Range(RangePat),
     Lit(LitPat),
     Tuple(TuplePat),
+    List(ListPat),
     Ctor(CtorPat),
     Or(OrPat),
     If(IfPat),
@@ -96,6 +97,7 @@ impl fmt::Display for WithEnv<'_, &Pat> {
             Pat::Ctor(ctor_pat) => write!(f, "{}", self.env().with(ctor_pat)),
             Pat::Or(or_pat) => write!(f, "{}", self.env().with(or_pat)),
             Pat::If(if_pat) => write!(f, "{}", self.env().with(if_pat)),
+            Pat::List(list_pat) => write!(f, "{}", self.env().with(list_pat)),
         }
     }
 }

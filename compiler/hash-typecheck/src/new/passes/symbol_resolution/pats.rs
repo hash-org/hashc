@@ -277,10 +277,10 @@ impl SymbolResolutionPass<'_> {
                 original_ty: None,
                 data_spread: self.ast_spread_as_spread(&tuple_pat.spread)?,
             })),
-            ast::Pat::List(list_pat) => self.new_pat(Pat::Lit(LitPat::List(ListPat {
+            ast::Pat::List(list_pat) => self.new_pat(Pat::List(ListPat {
                 pats: self.ast_pats_as_pat_list(&list_pat.fields)?,
                 spread: self.ast_spread_as_spread(&list_pat.spread)?,
-            }))),
+            })),
             ast::Pat::Lit(lit_pat) => {
                 self.new_pat(Pat::Lit(self.make_lit_pat_from_ast_lit(lit_pat.data.ast_ref())))
             }

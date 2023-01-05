@@ -51,24 +51,30 @@ pub struct ListCtor {
     pub elements: TermListId,
 }
 
+/// A literal
+#[derive(Copy, Clone, Debug)]
+pub enum Lit {
+    Int(IntLit),
+    Str(StrLit),
+    Char(CharLit),
+    Float(FloatLit),
+}
+
 /// A literal pattern
 ///
-/// Floats are not valid patterns, so they are not included here.
+/// This is a literal that can appear in a pattern, which does not include
+/// floats.
 #[derive(Copy, Clone, Debug)]
 pub enum LitPat {
     Int(IntLit),
     Str(StrLit),
     Char(CharLit),
-    List(ListPat),
 }
 
 /// A primitive term
 #[derive(Copy, Clone, Debug)]
 pub enum PrimTerm {
-    Int(IntLit),
-    Str(StrLit),
-    Char(CharLit),
-    Float(FloatLit),
+    Lit(Lit),
     List(ListCtor),
 }
 
@@ -114,7 +120,6 @@ impl Display for WithEnv<'_, &LitPat> {
             LitPat::Int(lit) => write!(f, "{lit}"),
             LitPat::Str(lit) => write!(f, "{lit}"),
             LitPat::Char(lit) => write!(f, "{lit}"),
-            LitPat::List(list_pat) => write!(f, "{}", self.env().with(list_pat)),
         }
     }
 }
@@ -148,13 +153,21 @@ impl Display for WithEnv<'_, &ListCtor> {
     }
 }
 
+impl Display for Lit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Lit::Int(lit) => write!(f, "{lit}"),
+            Lit::Str(lit) => write!(f, "{lit}"),
+            Lit::Char(lit) => write!(f, "{lit}"),
+            Lit::Float(lit) => write!(f, "{lit}"),
+        }
+    }
+}
+
 impl Display for WithEnv<'_, &PrimTerm> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.value {
-            PrimTerm::Int(lit) => write!(f, "{lit}"),
-            PrimTerm::Str(lit) => write!(f, "{lit}"),
-            PrimTerm::Char(lit) => write!(f, "{lit}"),
-            PrimTerm::Float(lit) => write!(f, "{lit}"),
+            PrimTerm::Lit(lit) => write!(f, "{lit}"),
             PrimTerm::List(list_term) => write!(f, "{}", self.env().with(list_term)),
         }
     }
