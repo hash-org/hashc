@@ -33,6 +33,7 @@ use crate::{
 };
 
 pub mod exprs;
+pub mod params;
 pub mod paths;
 pub mod pats;
 pub mod tys;
@@ -95,14 +96,17 @@ impl<'tc> AstPass for SymbolResolutionPass<'tc> {
         &self,
         node: ast::AstNodeRef<ast::BodyBlock>,
     ) -> crate::new::diagnostics::error::TcResult<()> {
-        self.visit_body_block(node)
+        self.bootstrap_ops().bootstrap(|| self.visit_body_block(node))
     }
 
     fn pass_module(
         &self,
         node: ast::AstNodeRef<ast::Module>,
     ) -> crate::new::diagnostics::error::TcResult<()> {
-        self.visit_module(node)
+        self.bootstrap_ops().bootstrap(|| {
+            println!("{}", self.env().with(self.primitives().option()));
+            self.visit_module(node)
+        })
     }
 }
 
@@ -131,9 +135,18 @@ impl<'tc> SymbolResolutionPass<'tc> {
     ///
     /// This will search the current scope and all parent scopes.
     /// If the binding is not found, it will return `None`.
-    fn lookup_binding_by_name(&self, name: Identifier) -> Option<Symbol> {
-        // @@Todo: do not iter up if the context kind is access
-        self.bindings_by_name.get().iter().rev().find_map(|b| b.1.get(&name).copied())
+    fn lookup_symbol_by_name(&self, name: impl Into<Identifier>) -> Option<Symbol> {
+        let name = name.into();
+        match self.get_current_context_kind() {
+            ContextKind::Access(_, _) => {
+                // If we are accessing we only want to look in the current scope
+                self.bindings_by_name.get().last().and_then(|binding| binding.1.get(&name).copied())
+            }
+            ContextKind::Environment => {
+                // Look up the scopes
+                self.bindings_by_name.get().iter().rev().find_map(|b| b.1.get(&name).copied())
+            }
+        }
     }
 
     /// Find a binding by name, returning the symbol of the binding.
@@ -141,13 +154,14 @@ impl<'tc> SymbolResolutionPass<'tc> {
     /// Errors if the binding is not found.
     ///
     /// See [`SymbolResolutionPass::lookup_binding_by_name()`].
-    fn lookup_binding_by_name_or_error(
+    fn lookup_symbol_by_name_or_error(
         &self,
-        name: Identifier,
+        name: impl Into<Identifier>,
         span: Span,
         looking_in: ContextKind,
     ) -> TcResult<Symbol> {
-        self.lookup_binding_by_name(name).ok_or_else(|| TcError::SymbolNotFound {
+        let name = name.into();
+        self.lookup_symbol_by_name(name).ok_or_else(|| TcError::SymbolNotFound {
             symbol: self.new_symbol(name),
             location: self.source_location(span),
             looking_in,

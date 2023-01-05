@@ -155,6 +155,20 @@ impl LocationStore {
         self.data.borrow_mut().insert(target.into(), location);
     }
 
+    /// Add a set of [SourceLocation]s to a specified [IndexedLocationTarget]
+    pub fn add_locations_to_targets(
+        &self,
+        targets: impl Into<IndexedLocationTarget>,
+        location: impl Fn(usize) -> Option<SourceLocation>,
+    ) {
+        let targets = targets.into();
+        for target in targets.to_index_range() {
+            if let Some(loc) = location(target) {
+                self.add_location_to_target(LocationTarget::from((targets, target)), loc);
+            }
+        }
+    }
+
     /// Get a [SourceLocation] from a specified [LocationTarget]
     pub fn get_location(&self, target: impl Into<LocationTarget>) -> Option<SourceLocation> {
         self.data.borrow().get_by_left(&target.into()).copied()

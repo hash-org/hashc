@@ -15,6 +15,7 @@ use hash_types::new::{
 };
 use hash_utils::store::{CloneStore, SequenceStore, Store};
 
+use super::bootstrap::DefinedPrimitives;
 use crate::new::{diagnostics::error::TcResult, environment::tc_env::AccessToTcEnv};
 
 /// Common operations during typechecking.
@@ -143,6 +144,19 @@ pub trait CommonOps: AccessToTcEnv {
     /// Create a new empty tuple type.
     fn new_void_ty(&self) -> TyId {
         self.stores().ty().create(Ty::Tuple(TupleTy { data: self.new_empty_params() }))
+    }
+
+    /// Create a new variable type.
+    fn new_var_ty(&self, symbol: Symbol) -> TyId {
+        self.stores().ty().create(Ty::Var(symbol))
+    }
+
+    /// Access the primitive definitions.
+    fn primitives(&self) -> DefinedPrimitives {
+        match self.primitives_or_unset().get() {
+            Some(primitives) => primitives,
+            None => panic!("called primitives() before they were set"),
+        }
     }
 }
 

@@ -11,7 +11,7 @@ use hash_utils::{
 use super::{
     environment::env::{AccessToEnv, WithEnv},
     holes::HoleId,
-    scopes::BoundVar,
+    symbols::Symbol,
 };
 use crate::new::{data::DataTy, fns::FnTy, refs::RefTy, terms::TermId, tuples::TupleTy};
 
@@ -39,7 +39,7 @@ pub enum Ty {
     Hole(HoleId),
 
     /// Type variable
-    Var(BoundVar),
+    Var(Symbol),
 
     /// Tuple type
     Tuple(TupleTy),
@@ -88,7 +88,7 @@ impl fmt::Display for WithEnv<'_, &Ty> {
                 write!(f, "{{{}}}", self.env().with(*eval_ty))
             }
             Ty::Hole(hole) => write!(f, "{}", self.env().with(*hole)),
-            Ty::Var(resolved_var) => write!(f, "{}", self.env().with(resolved_var.name)),
+            Ty::Var(resolved_var) => write!(f, "{}", self.env().with(*resolved_var)),
             Ty::Tuple(tuple_ty) => write!(f, "{}", self.env().with(tuple_ty)),
             Ty::Fn(fn_ty) => write!(f, "{}", self.env().with(fn_ty)),
             Ty::Ref(ref_ty) => write!(f, "{}", self.env().with(ref_ty)),

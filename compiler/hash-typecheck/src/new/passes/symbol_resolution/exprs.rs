@@ -168,9 +168,9 @@ impl<'tc> SymbolResolutionPass<'tc> {
                         // Function call
                         self.new_term(Term::FnCall(fn_call_term))
                     }
-                    TerminalResolvedPathComponent::BoundVar(bound_var) => {
+                    TerminalResolvedPathComponent::Var(bound_var) => {
                         // Bound variable
-                        self.new_term(Term::Var(bound_var))
+                        self.new_term(Term::Var(bound_var.name))
                     }
                 },
             },

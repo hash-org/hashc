@@ -6,7 +6,7 @@ use hash_ast::ast;
 
 use super::{
     environment::env::{AccessToEnv, WithEnv},
-    params::ParamTarget,
+    params::ParamIndex,
     terms::TermId,
 };
 
@@ -30,7 +30,7 @@ pub struct AccessTerm {
     // /// The kind of access.
     // pub kind: AccessKind,
     /// The target field of the accessing operation.
-    pub field: ParamTarget,
+    pub field: ParamIndex,
 }
 
 impl fmt::Display for WithEnv<'_, &AccessTerm> {
@@ -49,11 +49,11 @@ impl fmt::Display for WithEnv<'_, &AccessTerm> {
     }
 }
 
-impl From<ast::PropertyKind> for ParamTarget {
+impl From<ast::PropertyKind> for ParamIndex {
     fn from(kind: ast::PropertyKind) -> Self {
         match kind {
-            ast::PropertyKind::NamedField(f) => ParamTarget::Name(f),
-            ast::PropertyKind::NumericField(f) => ParamTarget::Position(f),
+            ast::PropertyKind::NamedField(f) => ParamIndex::Name(f),
+            ast::PropertyKind::NumericField(f) => ParamIndex::Position(f),
         }
     }
 }

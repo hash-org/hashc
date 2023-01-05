@@ -14,9 +14,9 @@ use hash_types::new::{
     control::{IfPat, OrPat},
     data::CtorPat,
     environment::env::AccessToEnv,
-    lits::{CharLit, IntLit, LitPat, StrLit},
-    params::ParamTarget,
-    pats::{ListPat, Pat, PatId, PatListId, RangePat, Spread},
+    lits::{CharLit, IntLit, ListPat, LitPat, StrLit},
+    params::ParamIndex,
+    pats::{Pat, PatId, PatListId, RangePat, Spread},
     scopes::BindingPat,
     tuples::TuplePat,
 };
@@ -48,8 +48,8 @@ impl SymbolResolutionPass<'_> {
             .map(|(i, arg)| {
                 Ok(PatArgData {
                     target: match arg.name.as_ref() {
-                        Some(name) => ParamTarget::Name(name.ident),
-                        None => ParamTarget::Position(i),
+                        Some(name) => ParamIndex::Name(name.ident),
+                        None => ParamIndex::Position(i),
                     },
                     pat: self.make_pat_from_ast_pat(arg.pat.ast_ref())?,
                 })
@@ -79,7 +79,7 @@ impl SymbolResolutionPass<'_> {
             name: node
                 .name
                 .as_ref()
-                .map(|name| self.lookup_binding_by_name(name.ident).unwrap())
+                .map(|name| self.lookup_symbol_by_name(name.ident).unwrap())
                 .unwrap_or_else(|| self.new_fresh_symbol()),
             index: node.position,
         }))
@@ -190,7 +190,7 @@ impl SymbolResolutionPass<'_> {
                     // Constructor pattern
                     Ok(self.new_pat(Pat::Ctor(*ctor_pat)))
                 }
-                TerminalResolvedPathComponent::BoundVar(bound_var) => {
+                TerminalResolvedPathComponent::Var(bound_var) => {
                     // Binding pattern
                     // @@Todo: is_mutable, perhaps refactor `BindingPat`?
                     Ok(self.new_pat(Pat::Binding(BindingPat {

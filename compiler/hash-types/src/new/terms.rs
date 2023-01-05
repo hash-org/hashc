@@ -12,8 +12,8 @@ use super::{
     casting::CastTerm,
     environment::env::{AccessToEnv, WithEnv},
     holes::HoleId,
-    lits::LitTerm,
-    scopes::BoundVar,
+    lits::PrimTerm,
+    symbols::Symbol,
     tys::TypeOfTerm,
 };
 use crate::new::{
@@ -55,7 +55,7 @@ pub enum Term {
 
     // Primitives
     Tuple(TupleTerm),
-    Lit(LitTerm),
+    Lit(PrimTerm),
 
     // Constructors
     Ctor(CtorTerm),
@@ -68,7 +68,7 @@ pub enum Term {
     Block(BlockTerm),
 
     // Variables
-    Var(BoundVar),
+    Var(Symbol),
 
     // Loops
     Loop(LoopTerm),
@@ -130,12 +130,12 @@ impl fmt::Display for WithEnv<'_, &Term> {
         match self.value {
             Term::Runtime(runtime_term) => write!(f, "{}", self.env().with(runtime_term)),
             Term::Tuple(tuple_term) => write!(f, "{}", self.env().with(tuple_term)),
-            Term::Lit(lit_term) => write!(f, "{lit_term}"),
+            Term::Lit(lit_term) => write!(f, "{}", self.env().with(lit_term)),
             Term::Ctor(ctor_term) => write!(f, "{}", self.env().with(ctor_term)),
             Term::FnCall(fn_call_term) => write!(f, "{}", self.env().with(fn_call_term)),
             Term::FnRef(closure_term) => write!(f, "{}", self.env().with(*closure_term)),
             Term::Block(block_term) => write!(f, "{}", self.env().with(block_term)),
-            Term::Var(resolved_var) => write!(f, "{}", self.env().with(resolved_var.name)),
+            Term::Var(resolved_var) => write!(f, "{}", self.env().with(*resolved_var)),
             Term::Loop(loop_term) => write!(f, "{}", self.env().with(loop_term)),
             Term::LoopControl(loop_control_term) => {
                 write!(f, "{}", self.env().with(loop_control_term))

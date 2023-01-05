@@ -1,5 +1,6 @@
 use derive_more::Constructor;
 use hash_types::new::{
+    data::DataDefCtors,
     defs::{DefParamGroupId, DefParamsId},
     environment::{
         context::{Binding, BindingKind, BoundVarOrigin, ScopeKind},
@@ -24,15 +25,28 @@ impl<'env> ContextOps<'env> {
     /// Enter a new scope, and add all the appropriate bindings to it depending
     /// on the scope kind.
     ///
-    /// This will add all the scope bindings to the context, unless the scope
-    /// is a stack scope, in which case the bindings should be added to the
-    /// context using [`ContextOps::add_stack_binding()`].
+    /// This will add all the scope bindings to the context for the duration of
+    /// the closure, unless the scope is a stack scope, in which case the
+    /// bindings should be added to the context using
+    /// [`ContextOps::add_stack_binding()`].
     pub fn enter_scope<T>(&self, kind: ScopeKind, f: impl FnOnce() -> T) -> T {
         let result = self.context().enter_scope(kind, || {
             self.add_bindings_from_scope_kind(kind);
             f()
         });
         result
+    }
+
+    /// Add the given scope to the context.
+    ///
+    /// This will add all the scope bindings to the context, and the scope
+    /// should be manually exited using [`Context::remove_scope()`] if
+    /// necessary.
+    ///
+    /// Prefer `enter_scope` if possible.
+    pub fn add_scope(&self, kind: ScopeKind) {
+        self.context().add_scope(kind);
+        self.add_bindings_from_scope_kind(kind);
     }
 
     /// Add a new stack binding to the current scope context.
@@ -145,14 +159,21 @@ impl<'env> ContextOps<'env> {
                     );
 
                     // Add all the constructors
-                    self.stores().ctor_defs().map_fast(data_def.ctors, |ctors| {
-                        for ctor in ctors.iter() {
-                            self.context().add_binding(Binding {
-                                name: ctor.name,
-                                kind: BindingKind::Ctor(data_def_id, ctor.id),
-                            });
+                    match data_def.ctors {
+                        DataDefCtors::Defined(ctors) => {
+                            self.stores().ctor_defs().map_fast(ctors, |ctors| {
+                                for ctor in ctors.iter() {
+                                    self.context().add_binding(Binding {
+                                        name: ctor.name,
+                                        kind: BindingKind::Ctor(data_def_id, ctor.id),
+                                    });
+                                }
+                            })
                         }
-                    })
+                        DataDefCtors::Primitive(_) => {
+                            // No-op
+                        }
+                    }
                 })
             }
         }

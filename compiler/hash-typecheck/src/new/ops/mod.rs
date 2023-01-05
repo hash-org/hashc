@@ -1,9 +1,10 @@
 // @@Docs
 use self::{
-    context::ContextOps, data::DataOps, defs::CommonDefOps, fns::FnOps, infer::InferOps,
-    mods::ModOps, params::ParamOps, stack::StackOps, tuple::TupleOps,
+    bootstrap::BootstrapOps, context::ContextOps, data::DataOps, defs::CommonDefOps, fns::FnOps,
+    infer::InferOps, mods::ModOps, params::ParamOps, stack::StackOps, tuple::TupleOps,
 };
 
+pub mod bootstrap;
 pub mod common;
 pub mod context;
 pub mod data;
@@ -11,6 +12,7 @@ pub mod defs;
 pub mod fns;
 pub mod infer;
 pub mod mods;
+pub mod normalise;
 pub mod oracle;
 pub mod params;
 pub mod stack;
@@ -40,4 +42,5 @@ ops! {
   param_ops: ParamOps,
   context_ops: ContextOps,
   tuple_ops: TupleOps,
+  bootstrap_ops: BootstrapOps,
 }

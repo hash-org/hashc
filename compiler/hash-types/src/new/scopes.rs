@@ -12,10 +12,7 @@ use hash_utils::{
 use textwrap::indent;
 use utility_types::omit;
 
-use super::environment::{
-    context::BoundVarOrigin,
-    env::{AccessToEnv, WithEnv},
-};
+use super::environment::env::{AccessToEnv, WithEnv};
 use crate::new::{
     pats::PatId,
     symbols::Symbol,
@@ -53,13 +50,6 @@ pub struct DeclStackMemberTerm {
 pub struct AssignTerm {
     pub subject: TermId,
     pub value: TermId,
-}
-
-/// A bound variable, containing a name and an origin.
-#[derive(Debug, Copy, Clone)]
-pub struct BoundVar {
-    pub name: Symbol,
-    pub origin: BoundVarOrigin,
 }
 
 /// A variable on the stack.

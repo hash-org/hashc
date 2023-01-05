@@ -45,6 +45,10 @@ pub enum ModKind {
     ModBlock,
     /// Defined as a file module or interactive.
     Source(SourceId),
+    /// Transparent
+    ///
+    /// Added by the compiler, used for primitives
+    Transparent,
 }
 
 /// The right-hand side of a module member definition.
@@ -164,6 +168,15 @@ impl Display for WithEnv<'_, &ModDef> {
                 write!(
                     f,
                     "mod [name={}, type=file, src=\"{source_name}\"] {} {{\n{}}}",
+                    self.env().with(self.value.name),
+                    self.env().with(self.value.params),
+                    indent(&members, "  ")
+                )
+            }
+            ModKind::Transparent => {
+                write!(
+                    f,
+                    "mod [name={}, type=transparent] {} {{\n{}}}",
                     self.env().with(self.value.name),
                     self.env().with(self.value.params),
                     indent(&members, "  ")

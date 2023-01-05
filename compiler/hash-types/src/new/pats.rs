@@ -5,14 +5,14 @@ use core::fmt;
 use hash_ast::ast::RangeEnd;
 use hash_utils::{
     new_sequence_store_key, new_store, new_store_key,
-    store::{CloneStore, DefaultSequenceStore, SequenceStore, Store},
+    store::{CloneStore, DefaultSequenceStore, Store},
 };
 
 use super::{
     control::{IfPat, OrPat},
     data::CtorPat,
     environment::env::{AccessToEnv, WithEnv},
-    lits::LitPat,
+    lits::{ListPat, LitPat},
     scopes::BindingPat,
     symbols::Symbol,
     tuples::TuplePat,
@@ -28,18 +28,6 @@ pub struct Spread {
     pub name: Symbol,
     /// The index in the sequence of target patterns, of this spread pattern.
     pub index: usize,
-}
-
-/// A list pattern.
-///
-/// This is in the form `[x_1,...,x_n]`, with an optional spread `...(name?)` at
-/// some position.
-#[derive(Copy, Clone, Debug)]
-pub struct ListPat {
-    /// The sequence of patterns in the list pattern.
-    pub pats: PatListId,
-    /// The spread pattern, if any.
-    pub spread: Option<Spread>,
 }
 
 /// A range pattern containing two bounds `start` and `end`.
@@ -65,8 +53,8 @@ pub enum Pat {
     Range(RangePat),
     Lit(LitPat),
     Tuple(TuplePat),
-    Ctor(CtorPat),
     List(ListPat),
+    Ctor(CtorPat),
     Or(OrPat),
     If(IfPat),
 }
@@ -88,37 +76,14 @@ impl fmt::Display for WithEnv<'_, Spread> {
     }
 }
 
-impl fmt::Display for WithEnv<'_, &ListPat> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[")?;
-        self.stores().pat_list().map_fast(self.value.pats, |pat_list| {
-            let mut pat_args_formatted =
-                pat_list.iter().map(|arg| self.env().with(*arg).to_string()).collect::<Vec<_>>();
-
-            if let Some(spread) = self.value.spread {
-                pat_args_formatted.insert(spread.index, self.env().with(spread).to_string());
-            }
-
-            for (i, pat_arg) in pat_args_formatted.iter().enumerate() {
-                if i > 0 {
-                    write!(f, ", ")?;
-                }
-                write!(f, "{pat_arg}")?;
-            }
-            Ok(())
-        })?;
-        write!(f, "]")
-    }
-}
-
 impl fmt::Display for WithEnv<'_, &RangePat> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.value.start)?;
+        write!(f, "{}", self.env().with(&self.value.start))?;
         match self.value.range_end {
             RangeEnd::Included => write!(f, "..=")?,
             RangeEnd::Excluded => write!(f, "..")?,
         }
-        write!(f, "{}", self.value.end)
+        write!(f, "{}", self.env().with(&self.value.end))
     }
 }
 
@@ -127,12 +92,12 @@ impl fmt::Display for WithEnv<'_, &Pat> {
         match self.value {
             Pat::Binding(binding_pat) => write!(f, "{}", self.env().with(binding_pat)),
             Pat::Range(range_pat) => write!(f, "{}", self.env().with(range_pat)),
-            Pat::Lit(lit_pat) => write!(f, "{lit_pat}"),
+            Pat::Lit(lit_pat) => write!(f, "{}", self.env().with(lit_pat)),
             Pat::Tuple(tuple_pat) => write!(f, "{}", self.env().with(tuple_pat)),
             Pat::Ctor(ctor_pat) => write!(f, "{}", self.env().with(ctor_pat)),
-            Pat::List(list_pat) => write!(f, "{}", self.env().with(list_pat)),
             Pat::Or(or_pat) => write!(f, "{}", self.env().with(or_pat)),
             Pat::If(if_pat) => write!(f, "{}", self.env().with(if_pat)),
+            Pat::List(list_pat) => write!(f, "{}", self.env().with(list_pat)),
         }
     }
 }

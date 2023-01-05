@@ -13,6 +13,7 @@ use utility_types::omit;
 use super::{
     defs::DefPatArgsId,
     environment::env::{AccessToEnv, WithEnv},
+    tys::TyId,
 };
 use crate::new::{
     defs::{DefArgsId, DefParamsId},
@@ -81,6 +82,53 @@ pub struct CtorPat {
     pub args: DefPatArgsId,
 }
 
+/// A numeric constructor definition.
+///
+/// This is a constructor which accepts numeric literals
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NumericCtorInfo {
+    /// The number of bits in the number.
+    pub bits: u8,
+    /// Whether the number is signed or not.
+    pub is_signed: bool,
+    /// Whether the number is floating-point or not.
+    pub is_float: bool,
+    // @@Future: allowable range?
+}
+
+/// A list constructor definition.
+/// This is a constructor which accepts list literals.
+#[derive(Debug, Clone, Copy)]
+pub struct ListCtorInfo {
+    /// The type of the elements in the list.
+    pub element_ty: TyId,
+}
+
+/// A primitive constructor definition.
+///
+/// This is a constructor which accepts a primitive literal.
+#[derive(Debug, Clone, Copy)]
+pub enum PrimitiveCtorInfo {
+    /// A numeric literal constructor.
+    Numeric(NumericCtorInfo),
+    /// A string literal constructor.
+    Str,
+    /// A character literal constructor.
+    Char,
+    /// A list literal constructor.
+    List(ListCtorInfo),
+}
+
+/// The constructors of a data-type definition.
+///
+/// These are either a given set of predefined constructors, or a primitive
+/// constructor (numeric, string, character).
+#[derive(Debug, Clone, Copy)]
+pub enum DataDefCtors {
+    Defined(CtorDefsId),
+    Primitive(PrimitiveCtorInfo),
+}
+
 /// A data-type definition.
 ///
 /// This is a "nominal" inductively defined data type, which is how user-defined
@@ -104,7 +152,7 @@ pub struct DataDef {
     ///
     /// This list is ordered so that a constructor can refer back to its
     /// location in this list using a `usize` index.
-    pub ctors: CtorDefsId,
+    pub ctors: DataDefCtors,
 }
 new_store_key!(pub DataDefId);
 pub type DataDefStore = DefaultStore<DataDefId, DataDef>;
@@ -185,6 +233,38 @@ impl Display for WithEnv<'_, &CtorPat> {
         write!(f, "{}", self.env().with(self.value.args))?;
 
         Ok(())
+    }
+}
+
+impl Display for WithEnv<'_, &PrimitiveCtorInfo> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.value {
+            PrimitiveCtorInfo::Numeric(numeric) => {
+                writeln!(
+                    f,
+                    "numeric [bits={}, float={}, signed={}]",
+                    numeric.bits, numeric.is_float, numeric.is_signed,
+                )
+            }
+            PrimitiveCtorInfo::Str => {
+                writeln!(f, "str")
+            }
+            PrimitiveCtorInfo::Char => {
+                writeln!(f, "char")
+            }
+            PrimitiveCtorInfo::List(list) => {
+                writeln!(f, "list [{}]", self.env().with(list.element_ty))
+            }
+        }
+    }
+}
+
+impl Display for WithEnv<'_, DataDefCtors> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.value {
+            DataDefCtors::Primitive(ctor) => write!(f, "{}", self.env().with(&ctor)),
+            DataDefCtors::Defined(ctors) => write!(f, "{}", self.env().with(ctors)),
+        }
     }
 }
 

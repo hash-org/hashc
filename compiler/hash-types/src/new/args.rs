@@ -11,7 +11,7 @@ use utility_types::omit;
 
 use super::{
     environment::env::{AccessToEnv, WithEnv},
-    params::ParamTarget,
+    params::ParamIndex,
     pats::PatId,
 };
 use crate::new::terms::TermId;
@@ -26,7 +26,7 @@ pub struct Arg {
     /// The ID of the argument in the argument list.
     pub id: ArgId,
     /// Argument target (named or positional), if known.
-    pub target: ParamTarget,
+    pub target: ParamIndex,
     /// The term that is the value of the argument.
     pub value: TermId,
 }
@@ -44,7 +44,7 @@ pub struct PatArg {
     /// The ID of the argument in the argument pattern list.
     pub id: PatArgId,
     /// Argument target (named or positional).
-    pub target: ParamTarget,
+    pub target: ParamIndex,
     /// The pattern in place for this argument.
     pub pat: PatId,
 }
@@ -56,10 +56,10 @@ pub type PatArgsStore = DefaultSequenceStore<PatArgsId, PatArg>;
 impl fmt::Display for WithEnv<'_, &Arg> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.value.target {
-            ParamTarget::Name(name) => {
+            ParamIndex::Name(name) => {
                 write!(f, "{} = {}", name, self.env().with(self.value.value))
             }
-            ParamTarget::Position(_) => write!(f, "{}", self.env().with(self.value.value)),
+            ParamIndex::Position(_) => write!(f, "{}", self.env().with(self.value.value)),
         }
     }
 }
@@ -87,10 +87,10 @@ impl fmt::Display for WithEnv<'_, ArgsId> {
 impl fmt::Display for WithEnv<'_, &PatArg> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.value.target {
-            ParamTarget::Name(name) => {
+            ParamIndex::Name(name) => {
                 write!(f, "{} = {}", name, self.env().with(self.value.pat))
             }
-            ParamTarget::Position(_) => write!(f, "{}", self.env().with(self.value.pat)),
+            ParamIndex::Position(_) => write!(f, "{}", self.env().with(self.value.pat)),
         }
     }
 }

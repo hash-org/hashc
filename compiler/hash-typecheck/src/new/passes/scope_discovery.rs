@@ -128,16 +128,23 @@ impl<'tc> ScopeDiscoveryPass<'tc> {
     /// The iterator elements are `(is_implicit, params)`.
     fn create_hole_def_params<'a>(
         &self,
-        groups: impl Iterator<Item = (bool, &'a ast::AstNodes<ast::Param>)> + ExactSizeIterator,
+        groups: impl Iterator<Item = (bool, &'a ast::AstNodes<ast::Param>)>,
     ) -> DefParamsId {
+        let groups = groups.collect_vec();
         let params = groups
-            .filter(|group| !group.1.is_empty())
+            .iter()
+            .copied()
             .map(|group| {
                 let (implicit, params) = group;
                 DefParamGroupData { params: self.create_hole_params(params), implicit }
             })
             .collect_vec();
-        self.param_ops().create_def_params(params.into_iter())
+
+        let def_params = self.param_ops().create_def_params(params.into_iter());
+        self.stores().location().add_locations_to_targets(def_params, |i| {
+            Some(self.source_location(groups[i].1.span()?))
+        });
+        def_params
     }
 
     /// Create a parameter list from the given AST parameter list, where the
@@ -664,7 +671,9 @@ impl<'tc> ast::AstVisitor for ScopeDiscoveryPass<'tc> {
         // Create a mod block definition, with empty members for now.
         let mod_def_id = self.mod_ops().create_mod_def(ModDefData {
             name: mod_block_name,
-            params: self.create_hole_def_params(once((true, &node.ty_params))),
+            params: self.create_hole_def_params(
+                node.ty_params.first().iter().map(|_| (true, &node.ty_params)),
+            ),
             kind: ModKind::ModBlock,
             members: self.mod_ops().create_empty_mod_members(),
             self_ty_name: None,
@@ -708,12 +717,17 @@ impl<'tc> ast::AstVisitor for ScopeDiscoveryPass<'tc> {
         let enum_def_id = self.data_ops().create_enum_def(
             enum_name,
             self.create_hole_def_params(once((true, &node.ty_params))),
-            node.entries.iter().map(|variant| {
-                (
-                    self.new_symbol(variant.name.ident),
-                    self.create_param_data_from_ast_params(variant.fields.iter()).into_iter(),
-                )
-            }),
+            |_| {
+                node.entries
+                    .iter()
+                    .map(|variant| {
+                        (
+                            self.new_symbol(variant.name.ident),
+                            self.create_param_data_from_ast_params(variant.fields.iter()),
+                        )
+                    })
+                    .collect_vec()
+            },
         );
 
         // Traverse the enum; the variants have already been created.

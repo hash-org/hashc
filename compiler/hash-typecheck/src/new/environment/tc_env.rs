@@ -2,7 +2,7 @@
 use hash_types::new::environment::env::{AccessToEnv, Env};
 
 use super::ast_info::AstInfo;
-use crate::new::diagnostics::store::DiagnosticsStore;
+use crate::new::{diagnostics::store::DiagnosticsStore, ops::bootstrap::DefinedPrimitivesOrUnset};
 
 macro_rules! tc_env {
     ($($(#$hide:ident)? $name:ident: $ty:ident $(<$lt:lifetime> )?),* $(,)?) => {
@@ -55,6 +55,7 @@ tc_env! {
     #hide env: Env<'tc>,
     diagnostics: DiagnosticsStore,
     ast_info: AstInfo,
+    primitives_or_unset: DefinedPrimitivesOrUnset,
 }
 
 /// Implement [`AccessToEnv`] for some type that has a field `env: Env`.
