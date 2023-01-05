@@ -74,6 +74,7 @@ defined_primitives! {
     str: DataDefId,
     char: DataDefId,
     option: DataDefId,
+    result: DataDefId,
     list: DataDefId,
 }
 
@@ -194,6 +195,53 @@ impl<'tc> BootstrapOps<'tc> {
                             vec![ParamData {
                                 name: self.new_symbol("value"),
                                 ty: self.new_var_ty(t_sym),
+                                default_value: None,
+                            }],
+                        ),
+                    ]
+                })
+            },
+
+            // result
+            result: {
+                let result_sym = self.new_symbol("Result");
+                let ok_sym = self.new_symbol("Ok");
+                let err_sym = self.new_symbol("Err");
+                let t_sym = self.new_symbol("T");
+                let e_sym = self.new_symbol("E");
+                let params = self.param_ops().create_params(
+                    [
+                        ParamData {
+                            name: t_sym,
+                            ty: self.new_small_universe_ty(),
+                            default_value: None,
+                        },
+                        ParamData {
+                            name: e_sym,
+                            ty: self.new_small_universe_ty(),
+                            default_value: None,
+                        },
+                    ]
+                    .into_iter(),
+                );
+                let def_params = self
+                    .param_ops()
+                    .create_def_params(once(DefParamGroupData { implicit: true, params }));
+                self.data_ops().create_enum_def(result_sym, def_params, |_| {
+                    vec![
+                        (
+                            ok_sym,
+                            vec![ParamData {
+                                name: self.new_symbol("value"),
+                                ty: self.new_var_ty(t_sym),
+                                default_value: None,
+                            }],
+                        ),
+                        (
+                            err_sym,
+                            vec![ParamData {
+                                name: self.new_symbol("error"),
+                                ty: self.new_var_ty(e_sym),
                                 default_value: None,
                             }],
                         ),

@@ -295,8 +295,6 @@ impl<'tc> SymbolResolutionPass<'tc> {
         // @@Todo: implicit args
         // @@Todo: default params
 
-        println!("apply_ast_args_to_def_params: {} {:?}", self.env().with(def_params), args);
-
         // First ensure that the number of parameter and argument groups match.
         let created_def_args = self.make_def_args_from_ast_arg_groups(args, def_params)?;
         if def_params.len() != created_def_args.len() {
