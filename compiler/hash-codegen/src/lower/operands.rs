@@ -3,7 +3,10 @@
 
 use hash_target::alignment::Alignment;
 
-use crate::layout::TyInfo;
+use crate::{
+    layout::TyInfo,
+    traits::{constants::BuildConstValueMethods, ty::BuildTypeMethods, CodeGen, CodeGenObject},
+};
 
 /// Represents an operand value for the IR. The `V` is a backend
 /// specific value type.
@@ -27,4 +30,16 @@ pub struct OperandRef<V> {
 
     /// The alignment and type of the operand.
     pub info: TyInfo,
+}
+
+impl<'b, V: CodeGenObject> OperandRef<V> {
+    /// Create a new zero-sized type [OperandRef].
+    pub fn new_zst<Builder: CodeGen<'b, Value = V>>(builder: &Builder, info: TyInfo) -> Self {
+        Self {
+            value: OperandValue::Immediate(
+                builder.const_undef(builder.immediate_backend_type(info)),
+            ),
+            info,
+        }
+    }
 }

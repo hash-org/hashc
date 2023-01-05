@@ -9,17 +9,46 @@ use hash_ir::{
     traversal,
     visitor::{ImmutablePlaceContext, IrVisitorMut, MutablePlaceContext, PlaceContext},
 };
+use hash_layout::TyInfo;
 use hash_utils::{
     graph::dominators::Dominators,
     store::{SequenceStore, SequenceStoreKey},
 };
 use index_vec::IndexVec;
 
-use super::FnBuilder;
-use crate::traits::{ctx::HasCtxMethods, layout::LayoutMethods, CodeGen};
+use super::{operands::OperandRef, place::PlaceRef, FnBuilder};
+use crate::traits::{
+    builder::BlockBuilderMethods, ctx::HasCtxMethods, layout::LayoutMethods, CodeGen, CodeGenObject,
+};
 
-pub fn compute_non_ssa_locals<'b, 'ir, Builder: CodeGen<'b>>(
-    fn_builder: &FnBuilder<'b, 'ir, Builder>,
+/// Defines what kind of reference a local has. A [LocalRef::Place]
+/// is a reference to a stack allocation, and a [LocalRef::Operand]
+/// is a reference to an immediate value.
+pub enum LocalRef<V> {
+    /// A reference to a stack allocation.
+    Place(PlaceRef<V>),
+
+    /// An immediate value. If this is not a ZST, then the `Value` is
+    /// not present.
+    Operand(Option<OperandRef<V>>),
+}
+
+impl<'b, V: CodeGenObject> LocalRef<V> {
+    /// Create a new [LocalRef::Operand] instance.
+    pub fn new_operand<Builder: CodeGen<'b, Value = V>>(
+        builder: &mut Builder,
+        layout: TyInfo,
+    ) -> Self {
+        if layout.is_zst(builder.layouts()) {
+            LocalRef::Operand(Some(OperandRef::new_zst(builder, layout)))
+        } else {
+            LocalRef::Operand(None)
+        }
+    }
+}
+
+pub fn compute_non_ssa_locals<'b, Builder: BlockBuilderMethods<'b>>(
+    fn_builder: &FnBuilder<'b, Builder>,
 ) -> FixedBitSet {
     let body = fn_builder.body;
     let dominators = body.basic_blocks.dominators();
@@ -94,9 +123,9 @@ enum LocalMemoryKind {
     Ssa(ir::IrRef),
 }
 
-struct LocalKindAnalyser<'ir, 'b, Builder: CodeGen<'b>> {
+struct LocalKindAnalyser<'ir, 'b, Builder: BlockBuilderMethods<'b>> {
     /// The function lowering context.
-    fn_builder: &'ir FnBuilder<'b, 'ir, Builder>,
+    fn_builder: &'ir FnBuilder<'b, Builder>,
 
     /// The [Dominator]s of the the function body.
     dominators: Dominators<ir::BasicBlock>,
@@ -107,7 +136,7 @@ struct LocalKindAnalyser<'ir, 'b, Builder: CodeGen<'b>> {
     locals: IndexVec<Local, LocalMemoryKind>,
 }
 
-impl<'ir, 'b, Builder: CodeGen<'b>> LocalKindAnalyser<'ir, 'b, Builder> {
+impl<'ir, 'b, Builder: BlockBuilderMethods<'b>> LocalKindAnalyser<'ir, 'b, Builder> {
     /// Perform an "assignment" to a particular local. This will
     /// change the previous kind of memory with the following rules:
     ///
@@ -136,8 +165,10 @@ impl<'ir, 'b, Builder: CodeGen<'b>> LocalKindAnalyser<'ir, 'b, Builder> {
     }
 }
 
-impl<'ir, 'b, Builder: CodeGen<'b>> IrVisitorMut<'ir> for LocalKindAnalyser<'ir, 'b, Builder> {
-    fn store(&self) -> &'ir hash_ir::BodyDataStore {
+impl<'ir, 'b, Builder: BlockBuilderMethods<'b>> IrVisitorMut<'b>
+    for LocalKindAnalyser<'ir, 'b, Builder>
+{
+    fn store(&self) -> &'b hash_ir::BodyDataStore {
         self.fn_builder.ctx.body_data()
     }
 

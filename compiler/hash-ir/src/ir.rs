@@ -1138,6 +1138,13 @@ impl Body {
         (1..self.arg_count + 1).map(Local::new)
     }
 
+    /// Returns an iterator over all variables and temporaries. This
+    /// excludes the return place and function arguments.
+    #[inline]
+    pub fn vars_iter(&self) -> impl Iterator<Item = Local> + ExactSizeIterator {
+        (self.arg_count + 1..self.declarations.len()).map(Local::new)
+    }
+
     /// Set the `dump` flag to `true` so that the IR Body that is generated
     /// will be printed when the generation process is finalised.
     pub fn mark_to_dump(&mut self) {
