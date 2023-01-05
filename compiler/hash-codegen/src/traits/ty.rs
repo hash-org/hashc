@@ -1,5 +1,6 @@
 //! Trait methods to do with emitting types for the backend.
 
+use hash_layout::TyInfo;
 use hash_target::abi::AddressSpace;
 
 use super::Backend;
@@ -61,4 +62,11 @@ pub trait BuildTypeMethods<'b>: Backend<'b> {
 
     /// Retrieves the bit width of the integer type `self`.
     fn int_width(&self, ty: Self::Type) -> u64;
+
+    /// Create a new "immediate" backend type. This is mainly
+    /// used for constants and ZSTs.
+    fn immediate_backend_type(&self, info: TyInfo) -> Self::Type;
+
+    /// Create a backend specific type from a [TyInfo].
+    fn backend_type(&self, info: TyInfo) -> Self::Type;
 }

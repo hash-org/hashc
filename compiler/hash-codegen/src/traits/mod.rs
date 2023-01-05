@@ -7,6 +7,7 @@ use self::{
     layout::LayoutMethods, target::HasTargetSpec, ty::BuildTypeMethods,
 };
 
+pub mod abi;
 pub mod builder;
 pub mod constants;
 pub mod ctx;

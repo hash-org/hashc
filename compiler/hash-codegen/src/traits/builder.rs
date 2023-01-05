@@ -11,8 +11,8 @@ use hash_target::{
 };
 
 use super::{
-    ctx::HasCtxMethods, debug::BuildDebugInfoMethods, intrinsics::BuildIntrinsicCallMethods,
-    target::HasTargetSpec, CodeGen,
+    abi::AbiBuilderMethods, ctx::HasCtxMethods, debug::BuildDebugInfoMethods,
+    intrinsics::BuildIntrinsicCallMethods, target::HasTargetSpec, CodeGen,
 };
 use crate::{
     common::{CheckedOp, MemFlags},
@@ -22,20 +22,28 @@ use crate::{
 
 /// This trait defines all methods required to convert a Hash IR `BasicBlock`
 /// into the backend equivalent.
-pub trait BlockBuilderMethods<'a, 'b>:
-    CodeGen<'b> + BuildIntrinsicCallMethods<'b> + BuildDebugInfoMethods + HasTargetSpec
+pub trait BlockBuilderMethods<'b>:
+    CodeGen<'b>
+    + AbiBuilderMethods<'b>
+    + BuildIntrinsicCallMethods<'b>
+    + BuildDebugInfoMethods
+    + HasTargetSpec
 {
     /// Function to build the given `BasicBlock` into the backend equivalent.
-    fn build(ctx: &'a Self::CodegenCtx, block: Self::BasicBlock) -> Self;
+    fn build(ctx: &'b Self::CodegenCtx, block: Self::BasicBlock) -> Self;
+
+    /// Add a block to the current function.
+    fn append_block(
+        ctx: &'b Self::CodegenCtx,
+        func: Self::Function,
+        name: &str,
+    ) -> Self::BasicBlock;
 
     /// Get the current context
     fn ctx(&self) -> &Self::CodegenCtx;
 
     /// Create a new basic block within the current function.
     fn basic_block(&self) -> Self::BasicBlock;
-
-    /// Add a block to the current function.
-    fn append_block(&mut self, name: &str) -> Self::BasicBlock;
 
     /// Switch the current building context to the provided
     /// basic block.
