@@ -4,9 +4,9 @@
 use hash_ir::ir;
 
 use super::FnBuilder;
-use crate::traits::{ctx::HasCtxMethods, layout::LayoutMethods, CodeGen};
+use crate::traits::{builder::BlockBuilderMethods, ctx::HasCtxMethods, layout::LayoutMethods};
 
-impl<'b, 'ir, Builder: CodeGen<'b>> FnBuilder<'b, 'ir, Builder> {
+impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
     /// Check whether the given [RValue] will create an
     /// operand or not.
     pub fn rvalue_creates_operand(&self, rvalue: &ir::RValue) -> bool {

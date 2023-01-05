@@ -14,10 +14,14 @@ use index_vec::IndexVec;
 use self::{locals::LocalRef, place::PlaceRef};
 use crate::traits::{builder::BlockBuilderMethods, layout::LayoutMethods};
 
+pub(crate) mod block;
+pub(crate) mod debug_info;
 pub(crate) mod locals;
 pub(crate) mod operands;
 pub(crate) mod place;
 pub(crate) mod rvalue;
+pub(crate) mod statement;
+pub(crate) mod terminator;
 
 /// This struct contains all the information required to convert Hash IR into
 /// the target code backend.
