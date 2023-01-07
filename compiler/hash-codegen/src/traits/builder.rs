@@ -78,6 +78,9 @@ pub trait BlockBuilderMethods<'b>:
         otherwise_block: Self::BasicBlock,
     );
 
+    /// Generate an unreachable terminator for the current block.
+    fn unreachable(&mut self);
+
     /// Generate a function call as a terminator of the current block. A
     /// `checked_call` is a call that can throw an exception, and thus
     /// requires a `then_block` and `catch_block` to be specified. If a

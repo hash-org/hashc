@@ -22,6 +22,23 @@ pub(crate) mod place;
 pub(crate) mod rvalue;
 pub(crate) mod statement;
 pub(crate) mod terminator;
+pub(crate) mod utils;
+
+/// This enum is used to track the status of a basic block during the
+/// lowering process. This is used to avoid creating multiple basic blocks IDs
+/// for the same Hash IR block.
+pub enum BlockStatus<BasicBlock> {
+    /// The block has not been lowered yet.
+    Unlowered,
+
+    /// Nothing has been lowered for this block, and nothing will
+    /// be lowered. This occurs when two blocks have been merged
+    /// into a single backend basic block.
+    Skip,
+
+    /// The block has been lowered, and the basic block ID is stored here.
+    Lowered(BasicBlock),
+}
 
 /// This struct contains all the information required to convert Hash IR into
 /// the target code backend.
@@ -59,6 +76,8 @@ pub struct FnBuilder<'b, Builder: BlockBuilderMethods<'b>> {
     /// immediate values as judged by [`Self::rvalue_creates_operand`].
     locals: IndexVec<Local, LocalRef<Builder::Value>>,
 
+    block_map: IndexVec<ir::BasicBlock, BlockStatus<Builder::BasicBlock>>,
+
     /// A commonly shared "unreachable" block in order to avoid
     /// having multiple basic blocks that are "unreachable".
     unreachable_block: Option<Builder::BasicBlock>,
@@ -83,6 +102,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
             ctx,
             function,
             fn_abi,
+            block_map: IndexVec::new(),
             locals: IndexVec::with_capacity(body.declarations.len()),
             unreachable_block: None,
         }

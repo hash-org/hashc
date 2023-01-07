@@ -1,8 +1,13 @@
 //! Defines logic for lowering Hash IR places into the target backend
 //! IR.
 
+use hash_ir::{
+    ir::Place,
+    ty::{IrTy, VariantIdx},
+};
 use hash_target::alignment::Alignment;
 
+use super::FnBuilder;
 use crate::{
     layout::TyInfo,
     traits::{
@@ -50,5 +55,41 @@ impl<'b, V: CodeGenObject> PlaceRef<V> {
         let temp = builder.alloca(builder.ctx().backend_type(info), alignment);
 
         Self::new(builder, temp, info)
+    }
+}
+
+impl<'b, V: CodeGenObject> PlaceRef<V> {
+    /// Apply a "discriminant" onto the [PlaceRef].
+    pub fn codegen_set_discriminant<Builder: BlockBuilderMethods<'b, Value = V>>(
+        &self,
+        _builder: &mut Builder,
+        _discriminant: VariantIdx,
+    ) {
+        todo!()
+    }
+
+    /// Get the "discriminant" of the [PlaceRef] and cast it
+    /// to a specified type (which must be an integer type).
+    pub fn codegen_get_discriminant<Builder: BlockBuilderMethods<'b, Value = V>>(
+        self,
+        _builder: &mut Builder,
+        _cast_to: IrTy,
+    ) -> V {
+        todo!()
+    }
+}
+
+impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
+    /// Emit backend specific code for handling a [Place].
+    ///
+    /// This function will return a [PlaceRef] which can be used to
+    /// store a value into the place which can be used by the called
+    /// to `store` a value into the place.
+    pub fn codegen_place(
+        &mut self,
+        _builder: &mut Builder,
+        _place: &Place,
+    ) -> PlaceRef<Builder::Value> {
+        todo!()
     }
 }
