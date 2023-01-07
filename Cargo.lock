@@ -411,6 +411,7 @@ dependencies = [
 name = "hash-abi"
 version = "0.1.0"
 dependencies = [
+ "bitflags",
  "hash-ir",
  "hash-layout",
  "hash-source",

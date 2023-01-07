@@ -42,4 +42,9 @@ impl<'b, V: CodeGenObject> OperandRef<V> {
             info,
         }
     }
+
+    /// Create a new [OperandRef] from an immediate value.
+    pub fn from_immediate(value: V, info: TyInfo) -> Self {
+        Self { value: OperandValue::Immediate(value), info }
+    }
 }
