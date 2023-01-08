@@ -530,6 +530,18 @@ impl AggregateKind {
     pub fn is_adt(&self) -> bool {
         !matches!(self, AggregateKind::Array(_))
     }
+
+    /// Get the [AdtId] of the [AggregateKind] if it is an ADT.
+    ///
+    /// N.B. This will panic if the [AggregateKind] is not an ADT.
+    pub fn adt_id(&self) -> AdtId {
+        match self {
+            AggregateKind::Tuple(id) | AggregateKind::Enum(id, _) | AggregateKind::Struct(id) => {
+                *id
+            }
+            AggregateKind::Array(_) => panic!("cannot get adt_id of non-adt aggregate kind"),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
