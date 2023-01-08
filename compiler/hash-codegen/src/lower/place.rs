@@ -3,7 +3,7 @@
 
 use hash_ir::{
     ir::Place,
-    ty::{IrTy, VariantIdx},
+    ty::{IrTy, TyOfPlace, VariantIdx},
 };
 use hash_target::alignment::Alignment;
 
@@ -11,7 +11,8 @@ use super::FnBuilder;
 use crate::{
     layout::TyInfo,
     traits::{
-        builder::BlockBuilderMethods, ctx::HasCtxMethods, ty::BuildTypeMethods, CodeGenObject,
+        builder::BlockBuilderMethods, ctx::HasCtxMethods, layout::LayoutMethods,
+        ty::BuildTypeMethods, CodeGenObject,
     },
 };
 
@@ -80,6 +81,13 @@ impl<'b, V: CodeGenObject> PlaceRef<V> {
 }
 
 impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
+    /// Compute the type and layout of a [Place]. This deals with
+    /// all projections that occur on the [Place].
+    pub fn compute_place_ty_info(&self, builder: &mut Builder, place: Place) -> TyInfo {
+        let place_ty = TyOfPlace::from_place(place, self.body, self.ctx.body_data());
+        builder.layout_of_id(place_ty.ty)
+    }
+
     /// Emit backend specific code for handling a [Place].
     ///
     /// This function will return a [PlaceRef] which can be used to
@@ -88,7 +96,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
     pub fn codegen_place(
         &mut self,
         _builder: &mut Builder,
-        _place: &Place,
+        _place: Place,
     ) -> PlaceRef<Builder::Value> {
         todo!()
     }

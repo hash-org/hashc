@@ -140,6 +140,18 @@ pub enum AbiRepresentation {
     Aggregate,
 }
 
+impl AbiRepresentation {
+    /// Check if the [AbiRepresentation] is a scalar.
+    pub fn is_scalar(&self) -> bool {
+        matches!(self, AbiRepresentation::Scalar { .. })
+    }
+
+    /// Check if the [AbiRepresentation] is uninhabited.
+    pub fn is_uninhabited(&self) -> bool {
+        matches!(self, AbiRepresentation::Uninhabited)
+    }
+}
+
 /// An identifier that specifies the address space that some operation
 /// should operate on. Special address spaces have an effect on code generation,
 /// depending on the target and the address spaces it implements.

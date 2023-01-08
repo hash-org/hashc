@@ -13,7 +13,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
         // of the statement.
 
         match statement.kind {
-            StatementKind::Assign(ref place, ref value) => {
+            StatementKind::Assign(place, ref value) => {
                 if let Some(local) = place.as_local() {
                     match self.locals[local] {
                         LocalRef::Place(destination) => {
@@ -50,7 +50,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
                     self.codegen_rvalue(builder, destination, value);
                 }
             }
-            StatementKind::Discriminate(ref place, discriminant) => {
+            StatementKind::Discriminate(place, discriminant) => {
                 self.codegen_place(builder, place).codegen_set_discriminant(builder, discriminant);
             }
             StatementKind::Nop => {}

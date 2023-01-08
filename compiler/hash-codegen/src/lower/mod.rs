@@ -215,7 +215,7 @@ fn allocate_argument_locals<'b, Builder: BlockBuilderMethods<'b>>(
                         let arg_value = builder.get_param(param_index);
                         param_index += 1;
 
-                        return local(OperandRef::from_immediate(arg_value, arg_abi.info));
+                        return local(OperandRef::from_immediate_value(arg_value, arg_abi.info));
                     }
 
                     // All other pass modes imply that there must be an allocation

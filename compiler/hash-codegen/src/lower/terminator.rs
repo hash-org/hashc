@@ -9,10 +9,11 @@
 //! into a single [BasicBlock]. The builder API will denote
 //! whether two blocks have been merged together.
 
+use hash_abi::PassMode;
 use hash_ir::ir::{BasicBlock, Operand, Place, SwitchTargets, Terminator, TerminatorKind};
 
-use super::FnBuilder;
-use crate::traits::builder::BlockBuilderMethods;
+use super::{operands::OperandValue, FnBuilder};
+use crate::traits::{builder::BlockBuilderMethods, ctx::HasCtxMethods, ty::BuildTypeMethods};
 
 impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
     /// Emit the target backend IR for a Hash IR [Terminator]. This
@@ -104,8 +105,43 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
         can_merge
     }
 
-    fn codegen_return_terminator(&mut self, _builder: &mut Builder) {
-        todo!()
+    /// Emit code for a [`TerminatorKind::Return`]. If the return type of the
+    /// function is uninhabited, then this function will emit a
+    /// `unreachable` instruction.
+    // Additionally, unit types `()` are considered as a `void` return type.
+    fn codegen_return_terminator(&mut self, builder: &mut Builder) {
+        let layout = builder.layout_info(self.fn_abi.ret_abi.info.layout);
+
+        // if the return type is uninhabited, then we can emit an
+        // `abort` call to exit the program, and then close the
+        // block with a `unreachable` instruction.
+        if layout.abi.is_uninhabited() {
+            builder.abort();
+            builder.unreachable();
+
+            return;
+        }
+
+        let value = match &self.fn_abi.ret_abi.mode {
+            PassMode::Ignore | PassMode::Indirect { .. } => {
+                builder.return_void();
+                return;
+            }
+            PassMode::Direct(_) => {
+                let op = self
+                    .codegen_consume_operand(builder, Place::return_place(self.ctx.body_data()));
+
+                if let OperandValue::Ref(value, alignment) = op.value {
+                    let ty = builder.backend_type(op.info);
+                    builder.load(ty, value, alignment)
+                } else {
+                    // @@Todo: deal with `Pair` operand refs
+                    op.immediate_value()
+                }
+            }
+        };
+
+        builder.return_value(value);
     }
 
     fn codegen_switch_terminator(

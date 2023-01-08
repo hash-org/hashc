@@ -20,4 +20,8 @@ pub trait BuildIntrinsicCallMethods<'b>: BackendTypes {
         args: &[Self::Value],
         result: Self::Value,
     ) -> Self::Value;
+
+    /// Generate a call to the `abort` intrinsic function. This
+    /// will terminate the program unconditionally.
+    fn abort(&mut self);
 }

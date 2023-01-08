@@ -1,9 +1,10 @@
 //! Defines the lowering process for Hash IR operands into the
 //! target backend.
 
+use hash_ir::ir::Place;
 use hash_target::alignment::Alignment;
 
-use super::{place::PlaceRef, utils};
+use super::{place::PlaceRef, utils, FnBuilder};
 use crate::{
     common::MemFlags,
     layout::TyInfo,
@@ -80,6 +81,42 @@ impl<'b, V: CodeGenObject> OperandValue<V> {
     }
 }
 
+impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
+    /// Generate code for consuming an "operand", i.e. generate code that
+    /// resolves the references [Place] and the load it from memory as
+    /// a [OperandRef].
+    pub fn codegen_consume_operand(
+        &mut self,
+        builder: &mut Builder,
+        place: Place,
+    ) -> OperandRef<Builder::Value> {
+        // compute the type of the place and the corresponding layout...
+        let info = self.compute_place_ty_info(builder, place);
+        let layout = builder.layout_info(info.layout);
+
+        if layout.is_zst() {
+            return OperandRef::new_zst(builder, info);
+        }
+
+        // Try generate a direct reference to the operand...
+        if let Some(value) = self.codegen_direct_operand_ref(builder, place) {
+            return value;
+        }
+
+        // Otherwise, we need to load the operand from memory...
+        let place_ref = self.codegen_place(builder, place);
+        builder.load_operand(place_ref)
+    }
+
+    pub fn codegen_direct_operand_ref(
+        &mut self,
+        _builder: &mut Builder,
+        _place: Place,
+    ) -> Option<OperandRef<Builder::Value>> {
+        todo!()
+    }
+}
+
 /// Represents an operand within the IR. The `V` is a backend specific
 /// value type.
 #[derive(Clone, Copy)]
@@ -103,7 +140,16 @@ impl<'b, V: CodeGenObject> OperandRef<V> {
     }
 
     /// Create a new [OperandRef] from an immediate value.
-    pub fn from_immediate(value: V, info: TyInfo) -> Self {
+    pub fn from_immediate_value(value: V, info: TyInfo) -> Self {
         Self { value: OperandValue::Immediate(value), info }
+    }
+
+    /// Assume that the [OperandRef] is an immediate value, and
+    /// convert the [OperandRef] into an immediate value.
+    pub fn immediate_value(self) -> V {
+        match self.value {
+            OperandValue::Immediate(value) => value,
+            _ => panic!("not an immediate value"),
+        }
     }
 }
