@@ -80,7 +80,7 @@ impl<'tcx> Builder<'tcx> {
                     self.control_flow_graph.push_assign(block, destination, rvalue, span);
                 } else {
                     let local = self.lookup_local_from_scope(scope, name).unwrap();
-                    let place = Place::from_local(local, self.storage);
+                    let place = Place::from_local(local, self.ctx);
                     self.control_flow_graph.push_assign(block, destination, place.into(), span);
                 }
 
@@ -166,7 +166,7 @@ impl<'tcx> Builder<'tcx> {
                 block = unpack!(self.handle_statement_expr(block, expr));
 
                 // Assign the `value` of the assignment into the `tmp_place`
-                let const_value = ir::Const::zero(self.storage);
+                let const_value = ir::Const::zero(self.ctx);
                 self.control_flow_graph.push_assign(block, destination, const_value.into(), span);
 
                 block.unit()
@@ -183,7 +183,7 @@ impl<'tcx> Builder<'tcx> {
                 if let Some(return_expr) = &expr {
                     unpack!(
                         block = self.expr_into_dest(
-                            Place::return_place(self.storage),
+                            Place::return_place(self.ctx),
                             block,
                             return_expr.ast_ref()
                         )
@@ -191,11 +191,11 @@ impl<'tcx> Builder<'tcx> {
                 } else {
                     // If no expression is attached to the return, then we need to push a
                     // `unit` value into the return place.
-                    let const_value = ir::Const::zero(self.storage);
+                    let const_value = ir::Const::zero(self.ctx);
 
                     self.control_flow_graph.push_assign(
                         block,
-                        Place::return_place(self.storage),
+                        Place::return_place(self.ctx),
                         const_value.into(),
                         span,
                     );
@@ -355,7 +355,7 @@ impl<'tcx> Builder<'tcx> {
                     _ => unreachable!(),
                 };
 
-                let term = TerminatorKind::make_if(lhs, blocks.0, blocks.1, self.storage);
+                let term = TerminatorKind::make_if(lhs, blocks.0, blocks.1, self.ctx);
                 self.control_flow_graph.terminate(block, span, term);
 
                 // Create the constant that we will assign in the `short_circuiting` block.

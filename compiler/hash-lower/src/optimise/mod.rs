@@ -6,7 +6,7 @@
 //!
 //! @@Todo: write a constant value propagation pass.
 
-use hash_ir::{ir::Body, BodyDataStore};
+use hash_ir::{ir::Body, IrCtx};
 use hash_pipeline::settings::{LoweringSettings, OptimisationLevel};
 use hash_source::SourceMap;
 
@@ -25,14 +25,14 @@ pub trait IrOptimisation {
     }
 
     /// Perform the optimisation pass on the body.
-    fn optimise(&self, body: &mut Body, store: &BodyDataStore);
+    fn optimise(&self, body: &mut Body, store: &IrCtx);
 }
 
 /// The optimiser is responsible for running all of the optimisation passes.
 /// Since all bodies are already lowered, and they have no interdependencies,
 /// we can run all of the optimisation passes on each body in parallel.
 pub struct Optimiser<'ir> {
-    store: &'ir BodyDataStore,
+    store: &'ir IrCtx,
 
     /// The compiler source map.
     _source_map: &'ir SourceMap,
@@ -47,11 +47,7 @@ pub struct Optimiser<'ir> {
 }
 
 impl<'ir> Optimiser<'ir> {
-    pub fn new(
-        store: &'ir BodyDataStore,
-        source_map: &'ir SourceMap,
-        settings: LoweringSettings,
-    ) -> Self {
+    pub fn new(store: &'ir IrCtx, source_map: &'ir SourceMap, settings: LoweringSettings) -> Self {
         Self {
             store,
             _source_map: source_map,

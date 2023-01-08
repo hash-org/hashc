@@ -26,7 +26,7 @@ use smallvec::{smallvec, SmallVec};
 use crate::{
     basic_blocks::BasicBlocks,
     ty::{AdtId, IrTy, IrTyId, Mutability, VariantIdx},
-    BodyDataStore, IrStorage,
+    IrCtx,
 };
 
 /// A specified constant value within the Hash IR. These values and their
@@ -64,8 +64,8 @@ impl From<Const> for ConstKind {
 
 impl Const {
     /// Create a [Const::Zero] with a unit type, the total zero.
-    pub fn zero(storage: &IrStorage) -> Self {
-        let unit = storage.tys().create(IrTy::unit(storage));
+    pub fn zero(ctx: &IrCtx) -> Self {
+        let unit = ctx.tys().create(IrTy::unit(ctx));
         Self::Zero(unit)
     }
 
@@ -76,8 +76,8 @@ impl Const {
 
     /// Create a new [Const] from a scalar value, with the appropriate
     /// type.
-    pub fn from_scalar(value: u128, ty: IrTyId, storage: &IrStorage) -> Self {
-        storage.tys().map_fast(ty, |ty| match ty {
+    pub fn from_scalar(value: u128, ty: IrTyId, ctx: &IrCtx) -> Self {
+        ctx.tys().map_fast(ty, |ty| match ty {
             IrTy::Int(int_ty) => {
                 let interned_value = IntConstant::from_uint(value, (*int_ty).into());
                 Self::Int(CONSTANT_MAP.create_int_constant(interned_value))
@@ -455,23 +455,23 @@ pub struct Place {
 
 impl Place {
     /// Create a [Place] that points to the return `place` of a lowered  body.
-    pub fn return_place(storage: &IrStorage) -> Self {
-        Self { local: RETURN_PLACE, projections: storage.projections().create_empty() }
+    pub fn return_place(ctx: &IrCtx) -> Self {
+        Self { local: RETURN_PLACE, projections: ctx.projections().create_empty() }
     }
 
     /// Create a new [Place] from a [Local] with no projections.
-    pub fn from_local(local: Local, storage: &IrStorage) -> Self {
-        Self { local, projections: storage.projections().create_empty() }
+    pub fn from_local(local: Local, ctx: &IrCtx) -> Self {
+        Self { local, projections: ctx.projections().create_empty() }
     }
 
     /// Create a new [Place] from an existing place whilst also
     /// applying a a [PlaceProjection::Field] on the old one.
-    pub fn field(&self, field: usize, storage: &IrStorage) -> Self {
-        let projections = storage.projections().get_vec(self.projections);
+    pub fn field(&self, field: usize, ctx: &IrCtx) -> Self {
+        let projections = ctx.projections().get_vec(self.projections);
 
         Self {
             local: self.local,
-            projections: storage.projections().create_from_iter_fast(
+            projections: ctx.projections().create_from_iter_fast(
                 projections.iter().copied().chain(once(PlaceProjection::Field(field))),
             ),
         }
@@ -618,7 +618,7 @@ impl RValue {
     }
 
     /// Get the [IrTy] of the [RValue].
-    pub fn ty(&self, store: &BodyDataStore) -> IrTy {
+    pub fn ty(&self, store: &IrCtx) -> IrTy {
         match self {
             RValue::Use(Operand::Const(_)) => todo!(),
             RValue::Use(Operand::Place(_)) => todo!(),
@@ -941,11 +941,11 @@ impl TerminatorKind {
         value: Operand,
         true_block: BasicBlock,
         false_block: BasicBlock,
-        storage: &IrStorage,
+        ctx: &IrCtx,
     ) -> Self {
         let targets = SwitchTargets::new(
             std::iter::once((false.into(), false_block)),
-            storage.tys().make_bool(),
+            ctx.tys().make_bool(),
             Some(true_block),
         );
 
@@ -1272,7 +1272,7 @@ mod tests {
 
     #[test]
     fn test_place_display() {
-        let storage = IrStorage::new();
+        let storage = IrCtx::new();
 
         let place = Place {
             local: Local::new(0),

@@ -88,7 +88,7 @@ impl<'tcx> Builder<'tcx> {
 
                     let variants = index_vec![AdtVariant { name: 0usize.into(), fields }];
                     let adt = AdtData::new_with_flags("tuple".into(), variants, AdtFlags::TUPLE);
-                    let adt_id = self.storage.adts().create(adt);
+                    let adt_id = self.ctx.adts().create(adt);
                     IrTy::Adt(adt_id)
                 }
                 Level0Term::Lit(lit_term) => match lit_term {
@@ -127,7 +127,7 @@ impl<'tcx> Builder<'tcx> {
 
                     let variants = index_vec![AdtVariant { name: 0usize.into(), fields }];
                     let adt = AdtData::new_with_flags("tuple".into(), variants, AdtFlags::TUPLE);
-                    let adt_id = self.storage.adts().create(adt);
+                    let adt_id = self.ctx.adts().create(adt);
                     IrTy::Adt(adt_id)
                 }
                 Level1Term::Fn(FnTy { name, params, return_ty }) => {
@@ -140,7 +140,7 @@ impl<'tcx> Builder<'tcx> {
                         .into_iter()
                         .map(|param| self.convert_term_into_ir_ty(param.ty));
 
-                    let params = self.storage.tls().create_from_iter(params);
+                    let params = self.ctx.tls().create_from_iter(params);
                     IrTy::Fn { name, params, return_ty }
                 }
                 Level1Term::ModDef(_) => unreachable!(),
@@ -187,7 +187,7 @@ impl<'tcx> Builder<'tcx> {
 
                 // @@Future: figure out what name to use when printing the name of the union.
                 let adt = AdtData::new_with_flags("union{...}".into(), variants, AdtFlags::UNION);
-                let adt_id = self.storage.adts().create(adt);
+                let adt_id = self.ctx.adts().create(adt);
 
                 IrTy::Adt(adt_id)
             }
@@ -195,7 +195,7 @@ impl<'tcx> Builder<'tcx> {
             // @@FixMe: we assume that a merge term is going to be either a
             // list or some other collection type.
             Term::TyFnCall(_) | Term::Merge(_) => {
-                IrTy::Slice(self.storage.tys().create(IrTy::Int(SIntTy::I32)))
+                IrTy::Slice(self.ctx.tys().create(IrTy::Int(SIntTy::I32)))
             }
             Term::Var(_)
             | Term::Access(_)
@@ -271,7 +271,7 @@ impl<'tcx> Builder<'tcx> {
                                 let variants = index_vec![AdtVariant { name, fields }];
 
                                 let adt = AdtData::new_with_flags(name, variants, AdtFlags::STRUCT);
-                                let adt_id = self.storage.adts().create(adt);
+                                let adt_id = self.ctx.adts().create(adt);
 
                                 IrTy::Adt(adt_id)
                             } else {
@@ -316,7 +316,7 @@ impl<'tcx> Builder<'tcx> {
                             .collect();
 
                         let adt = AdtData::new_with_flags(name, variants, AdtFlags::ENUM);
-                        let adt_id = self.storage.adts().create(adt);
+                        let adt_id = self.ctx.adts().create(adt);
 
                         IrTy::Adt(adt_id)
                     }
@@ -347,15 +347,15 @@ impl<'tcx> Builder<'tcx> {
     pub(crate) fn convert_term_into_ir_ty(&self, term: TermId) -> IrTyId {
         // Check if the term is present within the cache, and if so, return the
         // cached value.
-        if let Some(ty) = self.storage.ty_cache().get(&term) {
+        if let Some(ty) = self.ctx.ty_cache().get(&term) {
             return *ty;
         }
 
         let ir_ty = self.lower_term(term);
-        let ir_ty_id = self.storage.tys().create(ir_ty);
+        let ir_ty_id = self.ctx.tys().create(ir_ty);
 
         // Add an entry into the cache for this term
-        self.storage.add_ty_cache_entry(term, ir_ty_id);
+        self.ctx.add_ty_cache_entry(term, ir_ty_id);
         ir_ty_id
     }
 }

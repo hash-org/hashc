@@ -11,7 +11,7 @@ use hash_ast::{
     origin::BlockOrigin,
     visitor::{walk_mut_self, AstVisitorMutSelf},
 };
-use hash_ir::{ir::Body, IrStorage};
+use hash_ir::{ir::Body, IrCtx};
 use hash_pipeline::settings::LoweringSettings;
 use hash_source::{
     identifier::{Identifier, IDENTS},
@@ -108,7 +108,7 @@ pub(crate) struct LoweringVisitor<'ir> {
     tcx: &'ir GlobalStorage,
 
     /// Used to store all of the generated bodies and rvalues.
-    storage: &'ir mut IrStorage,
+    lcx: &'ir mut IrCtx,
 
     /// The map of all sources that are currently registered in the
     /// compiler.
@@ -153,7 +153,7 @@ pub(crate) struct LoweringVisitor<'ir> {
 impl<'ir> LoweringVisitor<'ir> {
     pub fn new(
         tcx: &'ir GlobalStorage,
-        storage: &'ir mut IrStorage,
+        lcx: &'ir mut IrCtx,
         source_map: &'ir SourceMap,
         source_id: SourceId,
         settings: LoweringSettings,
@@ -162,7 +162,7 @@ impl<'ir> LoweringVisitor<'ir> {
             settings,
             tcx,
             block_origin: BlockOrigin::Const,
-            storage,
+            lcx,
             source_id,
             source_map,
             in_dump_ir_directive: false,
@@ -220,7 +220,7 @@ impl<'ir> LoweringVisitor<'ir> {
             self.source_id,
             self.scope_stack.clone(),
             self.tcx,
-            self.storage,
+            self.lcx,
             self.source_map,
             &self.dead_ends,
             &self.settings,

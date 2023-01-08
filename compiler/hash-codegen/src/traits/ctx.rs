@@ -5,7 +5,7 @@
 
 use hash_ir::{
     ty::{IrTy, IrTyId},
-    BodyDataStore,
+    IrCtx,
 };
 use hash_layout::LayoutStore;
 use hash_target::layout::HasDataLayout;
@@ -24,5 +24,5 @@ pub trait HasCtxMethods<'b>: HasDataLayout {
     fn layouts(&self) -> &LayoutStore;
 
     /// Returns a reference to the IR [BodyDataStore].
-    fn body_data(&self) -> &BodyDataStore;
+    fn body_data(&self) -> &IrCtx;
 }

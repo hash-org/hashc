@@ -133,16 +133,16 @@ pub enum IrTy {
 
 impl IrTy {
     /// Make a unit type, i.e. `()`
-    pub fn unit(ir_storage: &IrStorage) -> Self {
+    pub fn unit(ctx: &IrCtx) -> Self {
         let variants = index_vec![AdtVariant { name: 0usize.into(), fields: vec![] }];
         let adt = AdtData::new_with_flags("unit".into(), variants, AdtFlags::TUPLE);
-        let adt_id = ir_storage.adts().create(adt);
+        let adt_id = ctx.adts().create(adt);
 
         Self::Adt(adt_id)
     }
 
     /// Make a tuple type, i.e. `(T1, T2, T3, ...)`
-    pub fn tuple(ir_storage: &IrStorage, tys: &[IrTyId]) -> Self {
+    pub fn tuple(ctx: &IrCtx, tys: &[IrTyId]) -> Self {
         let variants = index_vec![AdtVariant {
             name: 0usize.into(),
             fields: tys
@@ -153,7 +153,7 @@ impl IrTy {
                 .collect(),
         }];
         let adt = AdtData::new_with_flags("tuple".into(), variants, AdtFlags::TUPLE);
-        let adt_id = ir_storage.adts().create(adt);
+        let adt_id = ctx.adts().create(adt);
 
         Self::Adt(adt_id)
     }
@@ -439,7 +439,7 @@ pub type AdtStore = DefaultStore<AdtId, AdtData>;
 
 impl fmt::Display for ForFormatting<'_, AdtId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.storage.adts().map_fast(self.item, |adt| {
+        self.ctx.adts().map_fast(self.item, |adt| {
             match adt.flags {
                 AdtFlags::TUPLE => {
                     assert!(adt.variants.len() == 1);
@@ -451,7 +451,7 @@ impl fmt::Display for ForFormatting<'_, AdtId> {
                             write!(f, ", ")?;
                         }
 
-                        write!(f, "{}", field.ty.for_fmt(self.storage))?;
+                        write!(f, "{}", field.ty.for_fmt(self.ctx))?;
                     }
 
                     write!(f, ")")
@@ -508,7 +508,7 @@ impl Store<IrTyId, IrTy> for TyStore {
 
 impl fmt::Display for ForFormatting<'_, IrTyId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let ty = self.storage.tys().get(self.item);
+        let ty = self.ctx.tys().get(self.item);
 
         match ty {
             IrTy::Int(variant) => write!(f, "{variant}"),
@@ -519,10 +519,10 @@ impl fmt::Display for ForFormatting<'_, IrTyId> {
             IrTy::Char => write!(f, "char"),
             IrTy::Never => write!(f, "!"),
             IrTy::Ref(inner, mutability) => {
-                write!(f, "&{mutability}{}", inner.for_fmt(self.storage))
+                write!(f, "&{mutability}{}", inner.for_fmt(self.ctx))
             }
             IrTy::RawRef(inner, mutability) => {
-                write!(f, "&raw {mutability}{}", inner.for_fmt(self.storage))
+                write!(f, "&raw {mutability}{}", inner.for_fmt(self.ctx))
             }
             IrTy::Rc(inner, mutability) => {
                 let name = match mutability {
@@ -530,28 +530,18 @@ impl fmt::Display for ForFormatting<'_, IrTyId> {
                     Mutability::Immutable => "",
                 };
 
-                write!(f, "Rc{name}<{}>", inner.for_fmt(self.storage))
+                write!(f, "Rc{name}<{}>", inner.for_fmt(self.ctx))
             }
-            IrTy::Adt(adt) => write!(f, "{}", adt.for_fmt(self.storage)),
+            IrTy::Adt(adt) => write!(f, "{}", adt.for_fmt(self.ctx)),
             IrTy::Fn { params, return_ty, name: None } => {
-                write!(
-                    f,
-                    "({}) -> {}",
-                    params.for_fmt(self.storage),
-                    return_ty.for_fmt(self.storage)
-                )
+                write!(f, "({}) -> {}", params.for_fmt(self.ctx), return_ty.for_fmt(self.ctx))
             }
             IrTy::Fn { params, return_ty, .. } if self.verbose => {
-                write!(
-                    f,
-                    "({}) -> {}",
-                    params.for_fmt(self.storage),
-                    return_ty.for_fmt(self.storage)
-                )
+                write!(f, "({}) -> {}", params.for_fmt(self.ctx), return_ty.for_fmt(self.ctx))
             }
             IrTy::Fn { name: Some(name), .. } => write!(f, "{name}"),
-            IrTy::Slice(ty) => write!(f, "[{}]", ty.for_fmt(self.storage)),
-            IrTy::Array { ty, size } => write!(f, "[{}; {size}]", ty.for_fmt(self.storage)),
+            IrTy::Slice(ty) => write!(f, "[{}]", ty.for_fmt(self.ctx)),
+            IrTy::Array { ty, size } => write!(f, "[{}; {size}]", ty.for_fmt(self.ctx)),
         }
     }
 }
@@ -564,14 +554,14 @@ pub type TyListStore = DefaultSequenceStore<IrTyListId, IrTyId>;
 
 impl fmt::Display for ForFormatting<'_, IrTyListId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let items = self.storage.tls().get_vec(self.item);
+        let items = self.ctx.tls().get_vec(self.item);
         let mut tys = items.iter();
 
         if let Some(first) = tys.next() {
-            write!(f, "{first}", first = first.for_fmt(self.storage))?;
+            write!(f, "{first}", first = first.for_fmt(self.ctx))?;
 
             for ty in tys {
-                write!(f, ", {ty}", ty = ty.for_fmt(self.storage))?;
+                write!(f, ", {ty}", ty = ty.for_fmt(self.ctx))?;
             }
         }
 

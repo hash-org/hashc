@@ -168,7 +168,7 @@ impl<'ir, 'b, Builder: BlockBuilderMethods<'b>> LocalKindAnalyser<'ir, 'b, Build
 impl<'ir, 'b, Builder: BlockBuilderMethods<'b>> IrVisitorMut<'b>
     for LocalKindAnalyser<'ir, 'b, Builder>
 {
-    fn store(&self) -> &'b hash_ir::BodyDataStore {
+    fn ctx(&self) -> &'b hash_ir::IrCtx {
         self.fn_builder.ctx.body_data()
     }
 

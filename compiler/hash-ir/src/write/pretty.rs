@@ -7,7 +7,7 @@ use hash_source::SourceMap;
 use super::WriteIr;
 use crate::{
     ir::{BasicBlock, Body, BodySource},
-    IrStorage,
+    IrCtx,
 };
 
 /// [IrBodyWriter] is used to encapsulate the logic of pretty-printing a
@@ -18,14 +18,14 @@ use crate::{
 pub struct IrBodyWriter<'ir> {
     /// The type context allowing for printing any additional
     /// metadata about types within the ir.
-    ctx: &'ir IrStorage,
+    ctx: &'ir IrCtx,
     /// The body that is being printed
     body: &'ir Body,
 }
 
 impl<'ir> IrBodyWriter<'ir> {
     /// Create a new IR writer for the given body.
-    pub fn new(ctx: &'ir IrStorage, body: &'ir Body) -> Self {
+    pub fn new(ctx: &'ir IrCtx, body: &'ir Body) -> Self {
         Self { ctx, body }
     }
 
@@ -131,12 +131,7 @@ impl fmt::Display for IrBodyWriter<'_> {
 }
 
 /// Dump all of the provided [Body]s to standard output using the `dot` format.
-pub fn dump_ir_bodies(
-    storage: &IrStorage,
-    source_map: &SourceMap,
-    bodies: &[Body],
-    dump_all: bool,
-) {
+pub fn dump_ir_bodies(ctx: &IrCtx, source_map: &SourceMap, bodies: &[Body], dump_all: bool) {
     for (index, body) in bodies.iter().enumerate() {
         // Check if we need to print this body (or if we're printing all of them)
         // and then skip bodies that we didn't request to print.
@@ -154,7 +149,7 @@ pub fn dump_ir_bodies(
             body.info().source(),
             body.info().name(),
             source_map.fmt_location(body.location()),
-            IrBodyWriter::new(storage, body)
+            IrBodyWriter::new(ctx, body)
         );
     }
 }

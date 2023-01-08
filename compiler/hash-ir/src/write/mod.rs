@@ -15,7 +15,7 @@ use hash_utils::store::{SequenceStore, Store};
 use super::ir::*;
 use crate::{
     ty::{AdtId, IrTyId, IrTyListId},
-    IrStorage,
+    IrCtx,
 };
 
 /// Struct that is used to write [IrTy]s.
@@ -31,21 +31,16 @@ pub struct ForFormatting<'ir, T> {
     pub with_edges: bool,
 
     /// The storage used to print various IR constructs.
-    pub storage: &'ir IrStorage,
+    pub ctx: &'ir IrCtx,
 }
 
 pub trait WriteIr: Sized {
-    fn for_fmt(self, storage: &IrStorage) -> ForFormatting<Self> {
-        ForFormatting { item: self, storage, verbose: false, with_edges: true }
+    fn for_fmt(self, ctx: &IrCtx) -> ForFormatting<Self> {
+        ForFormatting { item: self, ctx, verbose: false, with_edges: true }
     }
 
-    fn fmt_with_opts(
-        self,
-        storage: &IrStorage,
-        verbose: bool,
-        with_edges: bool,
-    ) -> ForFormatting<Self> {
-        ForFormatting { item: self, storage, verbose, with_edges }
+    fn fmt_with_opts(self, ctx: &IrCtx, verbose: bool, with_edges: bool) -> ForFormatting<Self> {
+        ForFormatting { item: self, ctx, verbose, with_edges }
     }
 }
 
@@ -57,7 +52,7 @@ impl WriteIr for Place {}
 
 impl fmt::Display for ForFormatting<'_, Place> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.storage.projections().map_fast(self.item.projections, |projections| {
+        self.ctx.projections().map_fast(self.item.projections, |projections| {
             // First we, need to deal with the `deref` projections, since
             // they need to be printed in reverse
             for projection in projections.iter().rev() {
@@ -109,9 +104,9 @@ impl WriteIr for Operand {}
 impl fmt::Display for ForFormatting<'_, Operand> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.item {
-            Operand::Place(place) => write!(f, "{}", place.for_fmt(self.storage)),
+            Operand::Place(place) => write!(f, "{}", place.for_fmt(self.ctx)),
             Operand::Const(ConstKind::Value(Const::Zero(ty))) => {
-                write!(f, "{}", ty.for_fmt(self.storage))
+                write!(f, "{}", ty.for_fmt(self.ctx))
             }
             Operand::Const(const_value) => write!(f, "const {const_value}"),
         }
@@ -123,29 +118,24 @@ impl WriteIr for &RValue {}
 impl fmt::Display for ForFormatting<'_, &RValue> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.item {
-            RValue::Use(operand) => write!(f, "{}", operand.for_fmt(self.storage)),
+            RValue::Use(operand) => write!(f, "{}", operand.for_fmt(self.ctx)),
             RValue::BinaryOp(op, operands) => {
                 let (lhs, rhs) = operands.as_ref();
 
-                write!(f, "{op:?}({}, {})", lhs.for_fmt(self.storage), rhs.for_fmt(self.storage))
+                write!(f, "{op:?}({}, {})", lhs.for_fmt(self.ctx), rhs.for_fmt(self.ctx))
             }
             RValue::CheckedBinaryOp(op, operands) => {
                 let (lhs, rhs) = operands.as_ref();
 
-                write!(
-                    f,
-                    "Checked{op:?}({}, {})",
-                    lhs.for_fmt(self.storage),
-                    rhs.for_fmt(self.storage)
-                )
+                write!(f, "Checked{op:?}({}, {})", lhs.for_fmt(self.ctx), rhs.for_fmt(self.ctx))
             }
-            RValue::Len(place) => write!(f, "len({})", place.for_fmt(self.storage)),
+            RValue::Len(place) => write!(f, "len({})", place.for_fmt(self.ctx)),
             RValue::UnaryOp(op, operand) => {
-                write!(f, "{op:?}({})", operand.for_fmt(self.storage))
+                write!(f, "{op:?}({})", operand.for_fmt(self.ctx))
             }
             RValue::ConstOp(op, operand) => write!(f, "{op:?}({operand:?})"),
             RValue::Discriminant(place) => {
-                write!(f, "discriminant({})", place.for_fmt(self.storage))
+                write!(f, "discriminant({})", place.for_fmt(self.ctx))
             }
             RValue::Ref(region, borrow_kind, place) => {
                 write!(f, "&{region:?} {borrow_kind:?} {place:?}")
@@ -158,7 +148,7 @@ impl fmt::Display for ForFormatting<'_, &RValue> {
                         if i != 0 {
                             write!(f, ", ")?;
                         }
-                        write!(f, "{}", operand.for_fmt(self.storage))?;
+                        write!(f, "{}", operand.for_fmt(self.ctx))?;
                     }
 
                     write!(f, "{end}")
@@ -168,16 +158,16 @@ impl fmt::Display for ForFormatting<'_, &RValue> {
                     AggregateKind::Tuple(_) => fmt_operands(f, '(', ')'),
                     AggregateKind::Array(_) => fmt_operands(f, '[', ']'),
                     AggregateKind::Enum(adt, index) => {
-                        self.storage.adts().map_fast(*adt, |def| {
+                        self.ctx.adts().map_fast(*adt, |def| {
                             let name = def.variants.get(*index).unwrap().name;
 
-                            write!(f, "{}::{name}", adt.for_fmt(self.storage))
+                            write!(f, "{}::{name}", adt.for_fmt(self.ctx))
                         })?;
 
                         fmt_operands(f, '(', ')')
                     }
                     AggregateKind::Struct(adt) => {
-                        write!(f, "{}", adt.for_fmt(self.storage))?;
+                        write!(f, "{}", adt.for_fmt(self.ctx))?;
                         fmt_operands(f, '(', ')')
                     }
                 }
@@ -193,10 +183,10 @@ impl fmt::Display for ForFormatting<'_, &Statement> {
         match &self.item.kind {
             StatementKind::Nop => write!(f, "nop"),
             StatementKind::Assign(place, value) => {
-                write!(f, "{} = {}", place.for_fmt(self.storage), value.for_fmt(self.storage))
+                write!(f, "{} = {}", place.for_fmt(self.ctx), value.for_fmt(self.ctx))
             }
             StatementKind::Discriminate(place, index) => {
-                write!(f, "discriminant({}) = {index}", place.for_fmt(self.storage))
+                write!(f, "discriminant({}) = {index}", place.for_fmt(self.ctx))
             }
         }
     }
@@ -211,7 +201,7 @@ impl fmt::Display for ForFormatting<'_, &Terminator> {
             TerminatorKind::Goto(_) => write!(f, "goto"),
             TerminatorKind::Return => write!(f, "return"),
             TerminatorKind::Call { op, args, target, destination } => {
-                write!(f, "{} = {}(", destination.for_fmt(self.storage), op.for_fmt(self.storage))?;
+                write!(f, "{} = {}(", destination.for_fmt(self.ctx), op.for_fmt(self.ctx))?;
 
                 // write all of the arguments
                 for (i, arg) in args.iter().enumerate() {
@@ -219,7 +209,7 @@ impl fmt::Display for ForFormatting<'_, &Terminator> {
                         write!(f, ", ")?;
                     }
 
-                    write!(f, "{}", arg.for_fmt(self.storage))?;
+                    write!(f, "{}", arg.for_fmt(self.ctx))?;
                 }
 
                 // Only print the target if there is a target, and if the formatting
@@ -232,7 +222,7 @@ impl fmt::Display for ForFormatting<'_, &Terminator> {
             }
             TerminatorKind::Unreachable => write!(f, "unreachable"),
             TerminatorKind::Switch { value, targets } => {
-                write!(f, "switch({})", value.for_fmt(self.storage))?;
+                write!(f, "switch({})", value.for_fmt(self.ctx))?;
 
                 if self.with_edges {
                     write!(f, " [")?;
@@ -247,7 +237,7 @@ impl fmt::Display for ForFormatting<'_, &Terminator> {
 
                         // We want to create an a constant from this value
                         // with the type, and then print it.
-                        let value = Const::from_scalar(value, targets.ty, self.storage);
+                        let value = Const::from_scalar(value, targets.ty, self.ctx);
 
                         write!(f, "{value} -> {target:?}")?;
                     }
@@ -261,7 +251,7 @@ impl fmt::Display for ForFormatting<'_, &Terminator> {
                 Ok(())
             }
             TerminatorKind::Assert { condition, expected, kind, target } => {
-                write!(f, "assert({}, {expected:?}, {kind:?})", condition.for_fmt(self.storage))?;
+                write!(f, "assert({}, {expected:?}, {kind:?})", condition.for_fmt(self.ctx))?;
 
                 if self.with_edges {
                     write!(f, " -> {target:?}")?;

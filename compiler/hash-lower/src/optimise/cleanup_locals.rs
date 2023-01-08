@@ -14,7 +14,7 @@ use hash_ir::{
         RETURN_PLACE,
     },
     visitor::{walk_mut, IrVisitorMut, ModifyingIrVisitor, PlaceContext},
-    BodyDataStore,
+    IrCtx,
 };
 use hash_pipeline::settings::{LoweringSettings, OptimisationLevel};
 use index_vec::{index_vec, IndexVec};
@@ -38,7 +38,7 @@ impl IrOptimisation for CleanupLocalPass {
         settings.optimisation_level >= OptimisationLevel::Debug
     }
 
-    fn optimise(&self, body: &mut Body, store: &BodyDataStore) {
+    fn optimise(&self, body: &mut Body, store: &IrCtx) {
         let mut local_map = LocalUseMap::new(body, store);
         self.simplify_locals(body, &mut local_map);
 
@@ -127,18 +127,18 @@ pub struct LocalUseMap<'ir> {
 
     /// A reference to the [BodyDataStore] in order to access and
     /// read values references by the [Body].
-    store: &'ir BodyDataStore,
+    ctx: &'ir IrCtx,
 }
 
 impl<'ir> LocalUseMap<'ir> {
     /// Create a new [LocalUseMap] for the specified [Body].
-    pub fn new(body: &Body, store: &'ir BodyDataStore) -> Self {
+    pub fn new(body: &Body, ctx: &'ir IrCtx) -> Self {
         let mut counts = vec![0; body.declarations.len()];
 
         // always set to `_0` to 1 since it is the return value and
         // is always used
         counts[RETURN_PLACE.index()] = 1;
-        let mut this = Self { uses: counts, store, arg_count: body.arg_count, increment: true };
+        let mut this = Self { uses: counts, ctx, arg_count: body.arg_count, increment: true };
 
         // visit the body and record the counts for each local, then
         // return the
@@ -208,15 +208,15 @@ impl<'ir> LocalUseMap<'ir> {
 }
 
 impl<'ir> IrVisitorMut<'ir> for LocalUseMap<'ir> {
-    fn store(&self) -> &'ir BodyDataStore {
-        self.store
+    fn ctx(&self) -> &'ir IrCtx {
+        self.ctx
     }
 
     /// Visit an assignment [Statement], we only visit the [RValue] part of the
     /// assignment fully, and only check the projections of the [Place] in case
     /// it is referenced within a [PlaceProjection::Index].
     fn visit_assign_statement(&mut self, place: &Place, value: &RValue, reference: IrRef) {
-        self.store().map_place(*place, |_, projections| {
+        self.ctx().map_place(*place, |_, projections| {
             for projection in projections {
                 if let PlaceProjection::Index(index_local) = projection {
                     self.update_count_for(*index_local);
@@ -246,18 +246,18 @@ pub struct LocalUpdater<'ir> {
     remap: IndexVec<Local, Option<Local>>,
 
     /// Reference to body data store
-    store: &'ir BodyDataStore,
+    store: &'ir IrCtx,
 }
 
 impl<'ir> LocalUpdater<'ir> {
     /// Create a new [LocalUpdater].
-    pub fn new(remap: IndexVec<Local, Option<Local>>, store: &'ir BodyDataStore) -> Self {
+    pub fn new(remap: IndexVec<Local, Option<Local>>, store: &'ir IrCtx) -> Self {
         Self { remap, store }
     }
 }
 
 impl<'ir> ModifyingIrVisitor<'ir> for LocalUpdater<'ir> {
-    fn store(&self) -> &'ir BodyDataStore {
+    fn store(&self) -> &'ir IrCtx {
         self.store
     }
 

@@ -28,7 +28,7 @@ impl<'tcx> Builder<'tcx> {
 
             self.push_local(local, scope)
         };
-        let temp_place = Place::from_local(temp, self.storage);
+        let temp_place = Place::from_local(temp, self.ctx);
 
         unpack!(block = self.expr_into_dest(temp_place, block, expr));
         block.and(temp)
@@ -39,6 +39,6 @@ impl<'tcx> Builder<'tcx> {
         let local = LocalDecl::new_auxiliary(ty, Mutability::Immutable);
         let scope = self.current_scope();
 
-        Place::from_local(self.push_local(local, scope), self.storage)
+        Place::from_local(self.push_local(local, scope), self.ctx)
     }
 }
