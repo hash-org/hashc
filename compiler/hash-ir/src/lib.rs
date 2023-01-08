@@ -35,7 +35,7 @@ pub struct IrStorage {
 
 impl IrStorage {
     pub fn new() -> Self {
-        Self { bodies: Vec::new(), ctx: IrCtx::default() }
+        Self { bodies: Vec::new(), ctx: IrCtx::new() }
     }
 
     /// Extend the the [IrStorage] with the generated bodies.
@@ -44,6 +44,9 @@ impl IrStorage {
     }
 }
 
+/// The [IrCtx] is used to store all interned information that
+/// IR [Body]s might use or reference. This includes IR types, place
+/// projections, etc.
 #[derive(Default)]
 pub struct IrCtx {
     /// This the storage for all projection collections.
@@ -70,7 +73,7 @@ impl IrCtx {
     pub fn new() -> Self {
         Self {
             projection_store: ProjectionStore::default(),
-            ty_store: TyStore::default(),
+            ty_store: TyStore::new(),
             ty_list_store: TyListStore::default(),
             adt_store: AdtStore::default(),
             ty_cache: RefCell::new(HashMap::new()),

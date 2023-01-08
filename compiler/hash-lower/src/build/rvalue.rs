@@ -175,7 +175,7 @@ impl<'tcx> Builder<'tcx> {
         if self.settings.checked_operations && op.is_checkable() && ty.is_integral() {
             // Create a new tuple that contains the result of the operation
             let expr_ty = self.ctx.tys().create(ty);
-            let ty = IrTy::tuple(self.ctx, &[expr_ty, self.ctx.tys().make_bool()]);
+            let ty = IrTy::tuple(self.ctx, &[expr_ty, self.ctx.tys().common_tys.bool]);
             let ty_id = self.ctx.tys().create(ty);
 
             let temp = self.temp_place(ty_id);

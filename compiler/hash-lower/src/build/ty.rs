@@ -352,10 +352,17 @@ impl<'tcx> Builder<'tcx> {
         }
 
         let ir_ty = self.lower_term(term);
-        let ir_ty_id = self.ctx.tys().create(ir_ty);
+
+        // @@Hack: avoid re-creating "commonly" used types in order
+        // to allow for type_id equality to work
+        let id = match ir_ty {
+            IrTy::Bool => self.ctx.tys().common_tys.bool,
+            IrTy::UInt(UIntTy::USize) => self.ctx.tys().common_tys.usize,
+            _ => self.ctx.tys().create(ir_ty),
+        };
 
         // Add an entry into the cache for this term
-        self.ctx.add_ty_cache_entry(term, ir_ty_id);
-        ir_ty_id
+        self.ctx.add_ty_cache_entry(term, id);
+        id
     }
 }

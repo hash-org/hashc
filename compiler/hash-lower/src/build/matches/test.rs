@@ -753,7 +753,7 @@ impl<'tcx> Builder<'tcx> {
     ) {
         debug_assert!(op.is_comparator());
 
-        let bool_ty = self.ctx.tys().make_bool();
+        let bool_ty = self.ctx.tys().common_tys.bool;
         let result = self.temp_place(bool_ty);
 
         // Push an assignment with the result of the comparison, i.e. `result = op(lhs,

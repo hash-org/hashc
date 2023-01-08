@@ -4,7 +4,7 @@
 //! complexity from types that are required for IR generation and
 //! analysis.
 
-use std::{cell::Cell, cmp, fmt};
+use std::{cmp, fmt};
 
 use bitflags::bitflags;
 use hash_source::{
@@ -467,29 +467,53 @@ impl fmt::Display for ForFormatting<'_, AdtId> {
 
 new_store_key!(pub IrTyId);
 
+/// Defines a map of common types that might be used in the IR
+/// and general IR operations. When creating new types that refer
+/// to these common types, they should be created using the
+/// using the associated [IrTyId]s of this map.
+pub struct CommonIrTys {
+    /// Boolean type.
+    pub bool: IrTyId,
+
+    /// Unsigned machine word type.
+    pub usize: IrTyId,
+}
+
+impl CommonIrTys {
+    fn new(data: &DefaultStore<IrTyId, IrTy>) -> Self {
+        let bool = data.create(IrTy::Bool);
+        let usize = data.create(IrTy::UInt(UIntTy::USize));
+
+        Self { bool, usize }
+    }
+}
+
 /// Stores all the used [IrTy]s.
 ///
 /// [Rvalue]s are accessed by an ID, of type [IrTyId].
-#[derive(Debug, Default)]
 pub struct TyStore {
+    /// The map that relates [IrTyId]s to the underlying
+    /// [IrTy]s.
     data: DefaultStore<IrTyId, IrTy>,
 
-    /// Internal boolean used sometimes when lowering binary expressions
-    /// that need to be checked.
-    bool_ty: Cell<Option<IrTyId>>,
+    /// A map of common types that are used in the IR.
+    pub common_tys: CommonIrTys,
+}
+
+impl Default for TyStore {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl TyStore {
-    /// Create a [IrTy::Bool], this will re-use the previously created boolean
-    /// type if it exists.
-    pub fn make_bool(&self) -> IrTyId {
-        if let Some(id) = self.bool_ty.get() {
-            id
-        } else {
-            let id = self.create(IrTy::Bool);
-            self.bool_ty.set(Some(id));
-            id
-        }
+    pub(crate) fn new() -> Self {
+        let data = DefaultStore::new();
+
+        // create the common types map using the created data store
+        let common_tys = CommonIrTys::new(&data);
+
+        Self { common_tys, data }
     }
 
     /// Create a a [IrTy::UInt(UintTy::USize)], which is often used for

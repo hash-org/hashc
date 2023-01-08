@@ -945,7 +945,7 @@ impl TerminatorKind {
     ) -> Self {
         let targets = SwitchTargets::new(
             std::iter::once((false.into(), false_block)),
-            ctx.tys().make_bool(),
+            ctx.tys().common_tys.bool,
             Some(true_block),
         );
 
