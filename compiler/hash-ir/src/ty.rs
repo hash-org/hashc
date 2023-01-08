@@ -19,8 +19,9 @@ use hash_utils::{
 use index_vec::{index_vec, IndexVec};
 
 use crate::{
+    ir::{Body, Place, PlaceProjection},
     write::{ForFormatting, WriteIr},
-    IrStorage,
+    IrCtx,
 };
 
 /// Mutability of a particular variable, reference, etc.
@@ -191,6 +192,45 @@ impl IrTy {
             _ => panic!("expected ADT"),
         }
     }
+
+    /// Get the type of this [IrTy] if a dereference is performed on it.
+    pub fn on_deref(&self) -> Option<IrTyId> {
+        match self {
+            Self::RawRef(ty, _) | Self::Ref(ty, _) | Self::Rc(ty, _) => Some(*ty),
+            _ => None,
+        }
+    }
+
+    /// Get the type of this [IrTy] if an index operation
+    /// is performed on it.
+    pub fn on_index(&self) -> Option<IrTyId> {
+        match self {
+            Self::Slice(ty) | Self::Array { ty, .. } => Some(*ty),
+            _ => None,
+        }
+    }
+
+    /// Get the type of this [IrTy] if a field access is performed on it.
+    /// Optionally, the function can be supplied a [VariantIdx] in order to
+    /// access a particular variant of the ADT (for `enum`s and `union`s).
+    pub fn on_field_access(
+        &self,
+        field: usize,
+        variant: Option<VariantIdx>,
+        ctx: &IrCtx,
+    ) -> Option<IrTyId> {
+        match self {
+            IrTy::Adt(id) => ctx.map_adt(*id, |_, adt| {
+                let variant = match variant {
+                    Some(variant) => adt.variant(variant),
+                    None => adt.univariant(),
+                };
+
+                Some(variant.field(field).ty)
+            }),
+            _ => None,
+        }
+    }
 }
 
 impl From<IntTy> for IrTy {
@@ -254,6 +294,18 @@ impl AdtData {
         flags: AdtFlags,
     ) -> Self {
         Self { name, variants, representation: AdtRepresentation::default(), flags }
+    }
+
+    /// Get the variant at the given [VariantIdx].
+    pub fn variant(&self, idx: VariantIdx) -> &AdtVariant {
+        &self.variants[idx]
+    }
+
+    /// Get the univariant of the ADT. This is only valid for ADTs that
+    /// have a single variant, i.e. `struct`s and `tuple`s.`
+    pub fn univariant(&self) -> &AdtVariant {
+        assert!(self.flags.is_struct() || self.flags.is_tuple());
+        &self.variants[VariantIdx::new(0)]
     }
 
     /// Lookup the index of a variant by its name.
@@ -358,6 +410,11 @@ impl AdtVariant {
     /// Find the index of a field by name.
     pub fn field_idx(&self, name: Identifier) -> Option<usize> {
         self.fields.iter().position(|field| field.name == name)
+    }
+
+    /// Get the field at the given index.
+    pub fn field(&self, idx: usize) -> &AdtField {
+        &self.fields[idx]
     }
 }
 
@@ -519,5 +576,76 @@ impl fmt::Display for ForFormatting<'_, IrTyListId> {
         }
 
         Ok(())
+    }
+}
+
+/// An auxilliary data structure that is used to compute the
+/// [IrTy] of a [Place].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct TyOfPlace {
+    /// The [IrTy] of the place.
+    pub ty: IrTyId,
+
+    /// If the place has been downcasted, then this records
+    /// the index of the variant that it has been downcasted to.
+    pub index: Option<VariantIdx>,
+}
+
+impl TyOfPlace {
+    /// Create a [TyPlace] from a [Place].
+    pub fn from_place(place: Place, body: &Body, ctx: &IrCtx) -> TyOfPlace {
+        // get the type of the local from the body.
+        let mut base = TyOfPlace { ty: body.declarations[place.local].ty, index: None };
+
+        ctx.projections().map_fast(place.projections, |projections| {
+            for projection in projections {
+                match *projection {
+                    PlaceProjection::Downcast(index) => {
+                        base = TyOfPlace { ty: base.ty, index: Some(index) }
+                    }
+                    PlaceProjection::Field(index) => {
+                        let ty = ctx
+                            .tys()
+                            .map_fast(base.ty, |ty| ty.on_field_access(index, base.index, ctx))
+                            .unwrap_or_else(|| panic!("expected an ADT, got {base:?}"));
+
+                        base = TyOfPlace { ty, index: None }
+                    }
+                    PlaceProjection::Deref => {
+                        let ty = ctx
+                            .tys()
+                            .map_fast(base.ty, |ty| ty.on_deref())
+                            .unwrap_or_else(|| panic!("expected a reference, got {base:?}"));
+
+                        base = TyOfPlace { ty, index: None }
+                    }
+                    PlaceProjection::Index(_) | PlaceProjection::ConstantIndex { .. } => {
+                        let ty = ctx
+                            .tys()
+                            .map_fast(base.ty, |ty| ty.on_index())
+                            .unwrap_or_else(|| panic!("expected an array or slice, got {base:?}"));
+
+                        base = TyOfPlace { ty, index: None }
+                    }
+                    PlaceProjection::SubSlice { from, to, from_end } => {
+                        let base_ty = ctx.tys().get(base.ty);
+                        let ty = match base_ty {
+                            IrTy::Slice(_) => base.ty,
+                            IrTy::Array { ty, .. } if !from_end => {
+                                ctx.tys().create(IrTy::Array { ty, size: to - from })
+                            }
+                            IrTy::Array { ty, size } if from_end => {
+                                ctx.tys().create(IrTy::Array { ty, size: size - from - to })
+                            }
+                            _ => panic!("expected an array or slice, got {base:?}"),
+                        };
+
+                        base = TyOfPlace { ty, index: None }
+                    }
+                }
+            }
+        });
+
+        base
     }
 }
