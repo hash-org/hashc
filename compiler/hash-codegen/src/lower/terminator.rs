@@ -13,7 +13,13 @@ use hash_abi::PassMode;
 use hash_ir::ir::{BasicBlock, Operand, Place, SwitchTargets, Terminator, TerminatorKind};
 
 use super::{operands::OperandValue, FnBuilder};
-use crate::traits::{builder::BlockBuilderMethods, ctx::HasCtxMethods, ty::BuildTypeMethods};
+use crate::{
+    common::IntComparisonKind,
+    traits::{
+        builder::BlockBuilderMethods, constants::BuildConstValueMethods, ctx::HasCtxMethods,
+        ty::BuildTypeMethods,
+    },
+};
 
 impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
     /// Emit the target backend IR for a Hash IR [Terminator]. This
@@ -144,13 +150,75 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
         builder.return_value(value);
     }
 
+    /// Emit code for a [`TerminatorKind::Switch`]. This function will
+    /// convert the `switch` into the relevant target backend IR. If the
+    /// `switch` terminator represents an `if` statement, then the function
+    /// will avoid generating an `switch` instruction and instead emit a
+    /// single conditional jump.
     fn codegen_switch_terminator(
         &mut self,
-        _builder: &mut Builder,
-        _value: &Operand,
-        _targets: &SwitchTargets,
+        builder: &mut Builder,
+        subject: &Operand,
+        targets: &SwitchTargets,
     ) {
-        todo!()
+        let subject = self.codegen_operand(builder, subject);
+        let ty = subject.info.ty;
+
+        // If there are only two targets, then we can emit a single
+        // conditional jump.
+        let mut targets_iter = targets.iter();
+
+        if targets_iter.len() == 1 {
+            let (value, target) = targets_iter.next().unwrap();
+
+            let true_block = self.get_codegen_block_id(target);
+            let false_block = self.get_codegen_block_id(targets.otherwise());
+
+            // If this type is a `bool`, then we can generate conditional
+            // branches rather than an `icmp` and `br`.
+            if self.ctx.body_data().tys().common_tys.bool == ty {
+                match value {
+                    0 => builder.conditional_branch(
+                        subject.immediate_value(),
+                        false_block,
+                        true_block,
+                    ),
+                    1 => builder.conditional_branch(
+                        subject.immediate_value(),
+                        true_block,
+                        false_block,
+                    ),
+                    _ => unreachable!(),
+                }
+            } else {
+                // If this isn't a boolean type, then we have to emit an
+                // `icmp` instruction to compare the subject value with
+                // the target value.
+                let subject_ty = builder.backend_type(subject.info);
+                let target_value = builder.const_uint_big(subject_ty, value);
+                let comparison =
+                    builder.icmp(IntComparisonKind::Eq, subject.immediate_value(), target_value);
+                builder.conditional_branch(comparison, true_block, false_block);
+            }
+        } else if targets_iter.len() == 2
+            && self.body.blocks()[targets.otherwise()].is_empty_and_unreacheable()
+        {
+            // @@Todo: If the build is targeting "debug" mode, then we can
+            // emit a `br` branch instead of switch to improve code generation
+            // time on the (LLVM) backend.
+            //
+            // We should only do this for LLVM builds since this behaviour is specific
+            // to LLVM. This means that we need to have access to `CodeGenSettings` here.
+            todo!()
+        } else {
+            let otherwise_block = self.get_codegen_block_id(targets.otherwise());
+
+            builder.switch(
+                subject.immediate_value(),
+                targets_iter.map(|(value, target)| (value, self.get_codegen_block_id(target))),
+                otherwise_block,
+            )
+        }
     }
 
     fn codegen_assert_terminator(

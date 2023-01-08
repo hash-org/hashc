@@ -44,6 +44,10 @@ pub trait BuildConstValueMethods<'b>: BackendTypes {
     /// Emit a constant `i128` value.
     fn const_i128(&self, i: i128) -> Self::Value;
 
+    /// Emit a large integer constant of a particular type. This
+    /// is a common function to emit unsigned interger types.
+    fn const_uint_big(&self, ty: Self::Type, i: u128) -> Self::Value;
+
     /// Emit a constant `usize` value.
     fn const_usize(&self, i: u64) -> Self::Value;
 

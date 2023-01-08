@@ -1,7 +1,7 @@
 //! Defines the lowering process for Hash IR operands into the
 //! target backend.
 
-use hash_ir::ir::Place;
+use hash_ir::ir::{Operand, Place};
 use hash_target::alignment::Alignment;
 
 use super::{place::PlaceRef, utils, FnBuilder};
@@ -82,10 +82,24 @@ impl<'b, V: CodeGenObject> OperandValue<V> {
 }
 
 impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
+    /// Generate code for a [Operand].
+    pub(super) fn codegen_operand(
+        &mut self,
+        builder: &mut Builder,
+        operand: &Operand,
+    ) -> OperandRef<Builder::Value> {
+        match operand {
+            Operand::Place(place) => self.codegen_consume_operand(builder, *place),
+            Operand::Const(ref _constant) => {
+                todo!()
+            }
+        }
+    }
+
     /// Generate code for consuming an "operand", i.e. generate code that
     /// resolves the references [Place] and the load it from memory as
     /// a [OperandRef].
-    pub fn codegen_consume_operand(
+    pub(super) fn codegen_consume_operand(
         &mut self,
         builder: &mut Builder,
         place: Place,

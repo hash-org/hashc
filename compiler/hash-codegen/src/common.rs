@@ -98,6 +98,101 @@ pub enum TypeKind {
     TargetExtensionTy,
 }
 
+/// Rerpesents all of the comparison kinds that can occur between
+/// two integer operands. This is a backend-agnostic representation
+/// of the comparison kinds.
+///
+/// This is a direct mapping of LLVM `IntPredicate` types:
+/// <https://llvm.org/doxygen/classllvm_1_1CmpInst.html#a2be3583dac92a031fa1458d4d992c78b>
+#[derive(Clone, Copy)]
+pub enum IntComparisonKind {
+    /// Equal integer comparison.
+    Eq,
+
+    /// Not-equal integer comparison.
+    Ne,
+
+    /// Unsigned greater-than integer comparison.
+    Ugt,
+
+    /// Unsigned greater-than-or-equal integer comparison.
+    Uge,
+
+    /// Unsigned less-than integer comparison.
+    Ult,
+
+    /// Unsigned less-than-or-equal integer comparison.
+    Ule,
+
+    /// Signed greater-than integer comparison.
+    Sgt,
+
+    /// Signed greater-than-or-equal integer comparison.
+    Sge,
+
+    /// Signed less-than integer comparison.
+    Slt,
+
+    /// Signed less-than-or-equal integer comparison.
+    Sle,
+}
+
+/// Represents all of the comparison kinds that can occur between
+/// two floating point operands. This is a backend-agnostic representation
+/// of the comparison kinds.
+///
+/// This is a direct mapping of LLVM `RealPredicate` types:
+/// <https://llvm.org/doxygen/classllvm_1_1CmpInst.html#a2be3583dac92a031fa1458d4d992c78b>
+pub enum RealComparisonKind {
+    /// Folded comparison, always equal to "false".
+    False,
+
+    /// Ordered and equal.
+    Oeq,
+
+    /// Ordered and greater than.
+    Ogt,
+
+    /// Ordered and greater than or equal.
+    Oge,
+
+    /// Ordered and less than.
+    Olt,
+
+    /// Ordered and less than or equal.
+    Ole,
+
+    /// Ordered and not equal.
+    One,
+
+    /// Ordered (no nans).
+    Ord,
+
+    /// Unordered: isnan(X) | isnan(Y).
+    Uno,
+
+    /// Unordered or equal.
+    Ueq,
+
+    /// Unordered or greater than.
+    Ugt,
+
+    /// Unordered or greater than or equal.
+    Uge,
+
+    /// Unordered or less than.
+    Ult,
+
+    /// Unordered or less than or equal.
+    Ule,
+
+    /// Unordered or not equal.
+    Une,
+
+    /// Folded comparison, always equal to "true".
+    True,
+}
+
 bitflags! {
     /// Defines a collection of memory flags that can specify a cell of
     /// memory that LLVM and other backends that may support it.

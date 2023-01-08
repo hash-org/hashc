@@ -15,7 +15,7 @@ use super::{
     intrinsics::BuildIntrinsicCallMethods, target::HasTargetSpec, CodeGen,
 };
 use crate::{
-    common::{CheckedOp, MemFlags},
+    common::{CheckedOp, IntComparisonKind, MemFlags, RealComparisonKind},
     layout::LayoutId,
     lower::{operands::OperandRef, place::PlaceRef},
 };
@@ -215,6 +215,16 @@ pub trait BlockBuilderMethods<'b>:
     /// Perform a checked binary operation on the given values. The [CheckedOp]s
     /// include either addition, multiplication, or subtraction.
     fn checked_bin_op(&mut self, op: CheckedOp, lhs: Self::Value, rhs: Self::Value) -> Self::Value;
+
+    /// Integer comparison operation.
+    ///
+    /// Ref: <https://llvm.org/docs/LangRef.html#icmp-instruction>
+    fn icmp(&mut self, op: IntComparisonKind, lhs: Self::Value, rhs: Self::Value) -> Self::Value;
+
+    /// Floating point comparison operation.
+    ///
+    /// Ref: <https://llvm.org/docs/LangRef.html#fcmp-instruction>
+    fn fcmp(&mut self, op: RealComparisonKind, lhs: Self::Value, rhs: Self::Value) -> Self::Value;
 
     // --- Type conversions ---
 

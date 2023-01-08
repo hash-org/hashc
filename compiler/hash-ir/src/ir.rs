@@ -886,6 +886,8 @@ impl<'a> Iterator for SwitchTargetsIter<'a> {
     }
 }
 
+impl ExactSizeIterator for SwitchTargetsIter<'_> {}
+
 /// The kind of [Terminator] that it is.
 ///
 /// @@Future: does this need an `Intrinsic(...)` variant for substituting
@@ -1005,6 +1007,13 @@ impl BasicBlockData {
             Some(terminator) => terminator.successors().collect(),
             None => smallvec![],
         }
+    }
+
+    /// Check if the [BasicBlockData] is empty, i.e. has no statements and
+    /// the terminator is of kind [TerminatorKind::Unreachable].
+    pub fn is_empty_and_unreacheable(&self) -> bool {
+        self.statements.is_empty()
+            && self.terminator.as_ref().map_or(false, |t| t.kind == TerminatorKind::Unreachable)
     }
 }
 
