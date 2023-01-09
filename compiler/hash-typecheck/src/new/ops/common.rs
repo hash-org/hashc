@@ -8,16 +8,30 @@ use hash_types::new::{
     holes::{Hole, HoleKind},
     locations::LocationTarget,
     params::ParamsId,
-    pats::{Pat, PatId},
+    pats::{Pat, PatId, PatListId},
     symbols::{Symbol, SymbolData},
-    terms::{Term, TermId},
+    terms::{Term, TermId, TermListId},
     tuples::{TupleTerm, TupleTy},
     tys::{Ty, TyId, UniverseTy},
 };
 use hash_utils::store::{CloneStore, SequenceStore, Store};
+use itertools::Itertools;
 
 use super::bootstrap::DefinedPrimitives;
 use crate::new::{diagnostics::error::TcResult, environment::tc_env::AccessToTcEnv};
+
+/// Assert that the given term is of the given variant, and return it.
+#[macro_export]
+macro_rules! term_as_variant {
+    ($self:expr, $term:expr, $variant:ident) => {{
+        let term = $term;
+        if let Term::$variant(term) = $self.get_term(term) {
+            term
+        } else {
+            panic!("Expected term to be a {}", stringify!($variant))
+        }
+    }};
+}
 
 /// Common operations during typechecking.
 pub trait CommonOps: AccessToTcEnv {
@@ -74,9 +88,21 @@ pub trait CommonOps: AccessToTcEnv {
         self.stores().term().create(term)
     }
 
+    /// Create a new term list.
+    fn new_term_list(&self, terms: impl IntoIterator<Item = TermId>) -> TermListId {
+        let terms = terms.into_iter().collect_vec();
+        self.stores().term_list().create_from_slice(&terms)
+    }
+
     /// Create a new pattern.
     fn new_pat(&self, pat: Pat) -> PatId {
         self.stores().pat().create(pat)
+    }
+
+    /// Create a new pattern list.
+    fn new_pat_list(&self, pats: impl IntoIterator<Item = PatId>) -> PatListId {
+        let pats = pats.into_iter().collect_vec();
+        self.stores().pat_list().create_from_slice(&pats)
     }
 
     /// Create a new symbol with the given name.

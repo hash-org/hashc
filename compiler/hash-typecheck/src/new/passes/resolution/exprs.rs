@@ -10,19 +10,19 @@ use hash_source::location::Span;
 use hash_types::new::{
     access::AccessTerm,
     casting::CastTerm,
-    control::{LoopControlTerm, ReturnTerm},
+    control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
     data::DataTy,
     environment::env::AccessToEnv,
     fns::FnCallTerm,
     lits::{CharLit, FloatLit, IntLit, Lit, PrimTerm, StrLit},
     params::ParamIndex,
     refs::{DerefTerm, RefKind, RefTerm},
-    scopes::{AssignTerm, DeclStackMemberTerm},
+    scopes::{AssignTerm, BlockTerm, DeclStackMemberTerm},
     terms::{Term, TermId, UnsafeTerm},
     tuples::TupleTerm,
     tys::Ty,
 };
-use itertools::Itertools;
+use itertools::{multiunzip, Itertools};
 
 use super::{
     paths::{
@@ -31,11 +31,14 @@ use super::{
     },
     ResolutionPass,
 };
-use crate::new::{
-    diagnostics::error::{TcError, TcResult},
-    environment::tc_env::AccessToTcEnv,
-    ops::common::CommonOps,
-    passes::{ast_utils::AstUtils, resolution::params::ResolvedArgs},
+use crate::{
+    new::{
+        diagnostics::error::{TcError, TcResult},
+        environment::tc_env::AccessToTcEnv,
+        ops::common::CommonOps,
+        passes::{ast_utils::AstUtils, resolution::params::ResolvedArgs},
+    },
+    term_as_variant,
 };
 
 /// This block converts AST nodes of different kinds into [`AstPath`]s, in order
@@ -69,7 +72,7 @@ impl<'tc> ResolutionPass<'tc> {
                 self.make_term_from_ast_directive_expr(node.with_body(directive_expr))?
             }
             ast::Expr::Declaration(declaration) => {
-                self.make_term_from_ast_stack_declaration_expr(node.with_body(declaration))?
+                self.make_term_from_ast_stack_declaration(node.with_body(declaration))?
             }
             ast::Expr::Ref(ref_expr) => {
                 self.make_term_from_ast_ref_expr(node.with_body(ref_expr))?
@@ -371,7 +374,7 @@ impl<'tc> ResolutionPass<'tc> {
     }
 
     /// Make a term from an [`ast::Declaration`] in non-constant scope.
-    fn make_term_from_ast_stack_declaration_expr(
+    fn make_term_from_ast_stack_declaration(
         &self,
         node: AstNodeRef<ast::Declaration>,
     ) -> TcResult<TermId> {
@@ -526,27 +529,115 @@ impl<'tc> ResolutionPass<'tc> {
         }
     }
 
+    /// Make a term from an [`ast::MatchBlock`].
+    fn make_term_from_ast_match_block(
+        &self,
+        node: AstNodeRef<ast::MatchBlock>,
+    ) -> TcResult<TermId> {
+        // First convert the subject
+        let subject = self.try_or_add_error(self.make_term_from_ast_expr(node.subject.ast_ref()));
+
+        // Convert all the cases and their bodies
+        let cases_and_decisions: (Vec<_>, Vec<_>) =
+            multiunzip(node.cases.iter().filter_map(|case| {
+                self.scoping().enter_match_case(case.ast_ref(), || {
+                    let pattern =
+                        self.try_or_add_error(self.make_pat_from_ast_pat(case.pat.ast_ref()));
+                    let body =
+                        self.try_or_add_error(self.make_term_from_ast_expr(case.expr.ast_ref()));
+                    match (pattern, body) {
+                        (Some(pattern), Some(body)) => Some((pattern, body)),
+                        _ => None,
+                    }
+                })
+            }));
+
+        // Create a term if all ok
+        match (subject, cases_and_decisions.0.len() == node.cases.len()) {
+            (Some(subject), true) => {
+                let cases = self.new_pat_list(cases_and_decisions.0);
+                let decisions = self.new_term_list(cases_and_decisions.1);
+                Ok(self.new_term(Term::Match(MatchTerm { subject, cases, decisions })))
+            }
+            _ => Err(TcError::Signal),
+        }
+    }
+
+    /// Make a term from an [`ast::BodyBlock`].
+    ///
+    /// If this block is not from a stack scope, this will panic.
+    fn make_term_from_ast_body_block(&self, node: AstNodeRef<ast::BodyBlock>) -> TcResult<TermId> {
+        self.scoping()
+            .enter_body_block(node, || {
+                // Traverse the statements and the end expression
+                let statements = node
+                    .statements
+                    .iter()
+                    .filter_map(|statement| {
+                        if let ast::Expr::Declaration(declaration) = statement.body() {
+                            self.scoping().register_declaration(node.with_body(declaration));
+                        }
+                        self.unwrap_or_diagnostic(self.make_term_from_ast_expr(statement.ast_ref()))
+                    })
+                    .collect_vec();
+                let expr = node.expr.as_ref().map(|expr| {
+                    self.unwrap_or_diagnostic(self.make_term_from_ast_expr(expr.ast_ref()))
+                });
+
+                // If all ok, create a block term
+                match (expr, statements.len() == node.statements.len()) {
+                    (Some(expr), true) => {
+                        let statements = self.new_term_list(statements);
+                        let return_value = expr.unwrap_or_else(|| self.new_void_term());
+                        Ok(self.new_term(Term::Block(BlockTerm { statements, return_value })))
+                    }
+                    _ => Err(TcError::Signal),
+                }
+            })
+            .unwrap_or_else(|| {
+                panic_on_span!(
+                    self.node_location(node),
+                    self.source_map(),
+                    "Found non-stack body block in make_term_from_ast_body_block"
+                )
+            })
+    }
+
+    /// Make a term from an [`ast::LoopBlock`].
+    fn make_term_from_ast_loop_block(&self, node: AstNodeRef<ast::LoopBlock>) -> TcResult<TermId> {
+        let inner = self.make_term_from_ast_body_block(match node.contents.body() {
+            ast::Block::Body(body_block) => node.with_body(body_block),
+            _ => panic_on_span!(
+                self.node_location(node),
+                self.source_map(),
+                "Found non-body block in loop contents"
+            ),
+        })?;
+        let block = term_as_variant!(self, inner, Block);
+        Ok(self.new_term(Term::Loop(LoopTerm { block })))
+    }
+
     /// Make a term from an [`ast::BlockExpr`].
     fn make_term_from_ast_block_expr(&self, node: AstNodeRef<ast::BlockExpr>) -> TcResult<TermId> {
         match node.data.body() {
             ast::Block::Match(match_block) => {
-                let _pats: Vec<_> = match_block
-                    .cases
-                    .iter()
-                    .map(|case| self.make_pat_from_ast_pat(case.pat.ast_ref()))
-                    .try_collect()?;
-                let _terms: Vec<_> = match_block
-                    .cases
-                    .iter()
-                    .map(|case| self.make_term_from_ast_expr(case.expr.ast_ref()))
-                    .try_collect()?;
-                todo!()
+                self.make_term_from_ast_match_block(node.with_body(match_block))
             }
-            ast::Block::Loop(_) => todo!(),
-            ast::Block::Body(_) => todo!(),
+            ast::Block::Loop(loop_block) => {
+                self.make_term_from_ast_loop_block(node.with_body(loop_block))
+            }
+            ast::Block::Body(body_block) => {
+                self.make_term_from_ast_body_block(node.with_body(body_block))
+            }
 
             // Others done during de-sugaring:
-            ast::Block::For(_) | ast::Block::While(_) | ast::Block::If(_) => unreachable!(),
+            ast::Block::For(_) | ast::Block::While(_) | ast::Block::If(_) => {
+                panic_on_span!(
+                    self.node_location(node),
+                    self.source_map(),
+                    "Found non-desugared block in make_term_from_ast_block_expr"
+                )
+            }
         }
     }
 

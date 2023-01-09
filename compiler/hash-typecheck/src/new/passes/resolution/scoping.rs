@@ -2,7 +2,6 @@
 use std::{collections::HashMap, fmt};
 
 use hash_ast::ast;
-use hash_reporting::macros::panic_on_span;
 use hash_source::{identifier::Identifier, location::Span};
 use hash_types::new::{
     environment::{context::ScopeKind, env::AccessToEnv},
@@ -324,7 +323,7 @@ impl<'tc> Scoping<'tc> {
 
     /// Register a declaration, which will add it to the current stack scope.
     ///
-    /// The declaration must be in a stack scope.
+    /// If the declaration is not in a stack scope, this is a no-op.
     pub(super) fn register_declaration(&self, node: ast::AstNodeRef<ast::Declaration>) {
         if let ScopeKind::Stack(_) = self.context().get_current_scope_kind() {
             self.for_each_stack_member_of_pat(node.pat.ast_ref(), |member| {
