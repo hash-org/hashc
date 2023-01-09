@@ -3,6 +3,7 @@
 use core::fmt;
 use std::fmt::Debug;
 
+use derive_more::From;
 use hash_utils::{
     new_store_key,
     store::{CloneStore, DefaultStore},
@@ -28,7 +29,7 @@ pub struct UniverseTy {
 }
 
 /// Represents a type in a Hash program.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, From)]
 pub enum Ty {
     /// A term which evaluates to a type.
     Eval(TermId),

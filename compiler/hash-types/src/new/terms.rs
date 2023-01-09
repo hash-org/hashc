@@ -3,6 +3,7 @@
 use core::fmt;
 use std::fmt::Debug;
 
+use derive_more::From;
 use hash_utils::{
     new_sequence_store_key, new_store_key,
     store::{CloneStore, DefaultSequenceStore, DefaultStore, SequenceStore},
@@ -48,7 +49,7 @@ pub struct RuntimeTerm {
 /// constructors, etc. This is because they might have extra data attached to
 /// them; for example, function definitions might have AST node IDs attached to
 /// them through some secondary map.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, From)]
 pub enum Term {
     // Runtime
     Runtime(RuntimeTerm),

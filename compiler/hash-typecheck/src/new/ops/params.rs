@@ -1,15 +1,18 @@
 use derive_more::Constructor;
 use hash_types::new::{
     args::{Arg, ArgData, ArgsId, PatArg, PatArgData, PatArgsId},
+    data::DataDefId,
     defs::{
         DefArgGroup, DefArgGroupData, DefArgsId, DefParamGroup, DefParamGroupData, DefParamsId,
         DefPatArgGroup, DefPatArgGroupData, DefPatArgsId,
     },
     environment::env::AccessToEnv,
-    params::{Param, ParamData, ParamsId},
+    params::{Param, ParamData, ParamIndex, ParamsId},
     symbols::Symbol,
+    terms::TermId,
 };
-use hash_utils::store::SequenceStore;
+use hash_utils::store::{SequenceStore, Store};
+use itertools::Itertools;
 
 use super::common::CommonOps;
 use crate::{impl_access_to_tc_env, new::environment::tc_env::TcEnv};
@@ -97,6 +100,34 @@ impl<'tc> ParamOps<'tc> {
     ) -> PatArgsId {
         self.stores().pat_args().create_from_iter_with(
             args.map(|data| move |id| PatArg { id, target: data.target, pat: data.pat }),
+        )
+    }
+
+    /// Create definition arguments for the given data definition
+    ///
+    /// Each argument will be a positional argument. Note that the outer
+    /// iterator is for the argument groups, and the inner iterator is for
+    /// the arguments in each group.
+    pub fn create_positional_args_for_data_def(
+        &self,
+        def: DataDefId,
+        args: impl Iterator<Item = impl Iterator<Item = TermId>>,
+    ) -> DefArgsId {
+        let data_def_params = self.stores().data_def().map_fast(def, |def| def.params);
+        self.create_def_args(
+            args.enumerate()
+                .map(|(i, arg_group)| DefArgGroupData {
+                    args: self.create_args(
+                        arg_group
+                            .enumerate()
+                            .map(|(j, value)| ArgData { target: ParamIndex::Position(j), value })
+                            .collect_vec()
+                            .into_iter(),
+                    ),
+                    param_group: (data_def_params, i),
+                })
+                .collect_vec()
+                .into_iter(),
         )
     }
 }

@@ -15,6 +15,7 @@ use crate::new::{
     params::ParamId,
     scopes::{StackId, StackMemberId},
     symbols::Symbol,
+    tys::TyId,
 };
 /// The kind of a binding.
 #[derive(Debug, Clone, Copy)]
@@ -44,6 +45,12 @@ pub enum BoundVarOrigin {
     ///
     /// For example, `x` in `(x: i32) => x`
     Fn(FnDefId, ParamId),
+    /// Function type.
+    ///
+    /// Invariant: the inner type is `FnTy`.
+    ///
+    /// For example, `x` in `type (x: i32) -> Foo<x>`
+    FnTy(TyId, ParamId),
     /// Data definition parameter.
     ///
     /// For example, `T` in `Foo := struct <T> (x: T)`
@@ -77,6 +84,10 @@ pub enum ScopeKind {
     Fn(FnDefId),
     /// A data definition.
     Data(DataDefId),
+    /// A function type scope.
+    ///
+    /// The inner type points to an `FnTy` variant.
+    FnTy(TyId),
 }
 
 /// Data structure managing the typechecking context.
@@ -228,6 +239,7 @@ impl fmt::Display for WithEnv<'_, &BoundVarOrigin> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.value {
             BoundVarOrigin::Mod(_, _, param_id)
+            | BoundVarOrigin::FnTy(_, param_id)
             | BoundVarOrigin::Fn(_, param_id)
             | BoundVarOrigin::Data(_, _, param_id) => {
                 write!(f, "{}", self.env().with(*param_id))
@@ -282,6 +294,10 @@ impl fmt::Display for WithEnv<'_, ScopeKind> {
                 "stack {}",
                 self.stores().stack().map_fast(stack_def_id, |stack_def| stack_def.id.to_index())
             ),
+            ScopeKind::FnTy(fn_ty) => self
+                .stores()
+                .ty()
+                .map_fast(fn_ty, |fn_ty| write!(f, "fn ty {}", self.env().with(fn_ty),)),
         }
     }
 }

@@ -23,12 +23,45 @@ use crate::new::{diagnostics::error::TcResult, environment::tc_env::AccessToTcEn
 /// Assert that the given term is of the given variant, and return it.
 #[macro_export]
 macro_rules! term_as_variant {
-    ($self:expr, $term:expr, $variant:ident) => {{
+    ($self:expr, value $term:expr, $variant:ident) => {{
         let term = $term;
-        if let Term::$variant(term) = $self.get_term(term) {
+        if let hash_types::new::terms::Term::$variant(term) = term {
             term
         } else {
             panic!("Expected term to be a {}", stringify!($variant))
+        }
+    }};
+    ($self:expr, $term:expr, $variant:ident) => {{
+        let term = $term;
+        if let hash_types::new::terms::Term::$variant(term) =
+            $crate::new::ops::common::CommonOps::get_term($self, term)
+        {
+            term
+        } else {
+            panic!("Expected term to be a {}", stringify!($variant))
+        }
+    }};
+}
+
+/// Assert that the given type is of the given variant, and return it.
+#[macro_export]
+macro_rules! ty_as_variant {
+    ($self:expr, value $ty:expr, $variant:ident) => {{
+        let ty = $ty;
+        if let hash_types::new::tys::Ty::$variant(ty) = ty {
+            ty
+        } else {
+            panic!("Expected type to be a {}", stringify!($variant))
+        }
+    }};
+    ($self:expr, $ty:expr, $variant:ident) => {{
+        let ty = $ty;
+        if let hash_types::new::tys::Ty::$variant(ty) =
+            $crate::new::ops::common::CommonOps::get_ty($self, ty)
+        {
+            ty
+        } else {
+            panic!("Expected type to be a {}", stringify!($variant))
         }
     }};
 }
@@ -79,13 +112,13 @@ pub trait CommonOps: AccessToTcEnv {
     }
 
     /// Create a new type.
-    fn new_ty(&self, ty: Ty) -> TyId {
-        self.stores().ty().create(ty)
+    fn new_ty(&self, ty: impl Into<Ty>) -> TyId {
+        self.stores().ty().create(ty.into())
     }
 
     /// Create a new term.
-    fn new_term(&self, term: Term) -> TermId {
-        self.stores().term().create(term)
+    fn new_term(&self, term: impl Into<Term>) -> TermId {
+        self.stores().term().create(term.into())
     }
 
     /// Create a new term list.
@@ -108,17 +141,6 @@ pub trait CommonOps: AccessToTcEnv {
     /// Create a new symbol with the given name.
     fn new_symbol(&self, name: impl Into<Identifier>) -> Symbol {
         self.stores().symbol().create_with(|symbol| SymbolData { name: Some(name.into()), symbol })
-    }
-
-    /// Create a new symbol with the given name, at the given location.
-    fn new_symbol_at_location(
-        &self,
-        name: impl Into<Identifier>,
-        location: SourceLocation,
-    ) -> Symbol {
-        let symbol = self.new_symbol(name);
-        self.stores().location().add_location_to_target(symbol, location);
-        symbol
     }
 
     /// Create a new internal symbol.

@@ -11,6 +11,7 @@ use hash_types::new::{
     mods::ModDefId,
     scopes::{StackId, StackMemberId},
     symbols::Symbol,
+    tys::TyId,
 };
 use hash_utils::{
     state::HeavyState,
@@ -322,6 +323,26 @@ impl<'tc> Scoping<'tc> {
         self.ast_info().stacks().get_data_by_node(node.id()).map(|stack_id| {
             self.enter_scope(ScopeKind::Stack(stack_id), ContextKind::Environment, || f(stack_id))
         })
+    }
+
+    /// Enter the scope of a type function type
+    pub(super) fn enter_ty_fn_ty<T>(
+        &self,
+        node: ast::AstNodeRef<ast::TyFn>,
+        f: impl FnOnce(TyId) -> T,
+    ) -> T {
+        let fn_ty_id = self.ast_info().tys().get_data_by_node(node.id()).unwrap();
+        self.enter_scope(ScopeKind::FnTy(fn_ty_id), ContextKind::Environment, || f(fn_ty_id))
+    }
+
+    /// Enter the scope of a function type
+    pub(super) fn enter_fn_ty<T>(
+        &self,
+        node: ast::AstNodeRef<ast::FnTy>,
+        f: impl FnOnce(TyId) -> T,
+    ) -> T {
+        let fn_ty_id = self.ast_info().tys().get_data_by_node(node.id()).unwrap();
+        self.enter_scope(ScopeKind::FnTy(fn_ty_id), ContextKind::Environment, || f(fn_ty_id))
     }
 
     /// Register a declaration, which will add it to the current stack scope.
