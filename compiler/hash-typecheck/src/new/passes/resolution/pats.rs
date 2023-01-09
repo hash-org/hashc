@@ -23,9 +23,10 @@ use hash_types::new::{
 use hash_utils::store::{SequenceStore, SequenceStoreKey};
 
 use super::{
+    params::AstArgGroup,
     paths::{
-        AstArgGroup, AstPath, AstPathComponent, NonTerminalResolvedPathComponent,
-        ResolvedAstPathComponent, TerminalResolvedPathComponent,
+        AstPath, AstPathComponent, NonTerminalResolvedPathComponent, ResolvedAstPathComponent,
+        TerminalResolvedPathComponent,
     },
     ResolutionPass,
 };
@@ -37,8 +38,8 @@ use crate::new::{
 };
 
 impl ResolutionPass<'_> {
-    /// Create a [`PatArgsId`] from the given [`ast::TuplePatEntry`]s.
-    pub(super) fn ast_tuple_pat_entries_as_pat_args(
+    /// Make TC pattern arguments from the given set of AST pattern arguments.
+    pub(super) fn make_pat_args_from_ast_pat_args(
         &self,
         entries: &ast::AstNodes<ast::TuplePatEntry>,
     ) -> TcResult<PatArgsId> {
@@ -59,7 +60,7 @@ impl ResolutionPass<'_> {
     }
 
     /// Create a [`PatListId`] from the given [`ast::Pat`]s.
-    fn ast_pats_as_pat_list(&self, pats: &ast::AstNodes<ast::Pat>) -> TcResult<PatListId> {
+    fn make_pat_list_from_ast_pats(&self, pats: &ast::AstNodes<ast::Pat>) -> TcResult<PatListId> {
         let pats = pats
             .iter()
             .map(|pat| self.make_pat_from_ast_pat(pat.ast_ref()))
@@ -71,7 +72,7 @@ impl ResolutionPass<'_> {
     ///
     /// This assumes that the current scope already has a binding for the
     /// given name if it is present, and will panic otherwise.
-    pub(super) fn ast_spread_as_spread(
+    pub(super) fn make_spread_from_ast_spread(
         &self,
         node: &Option<ast::AstNode<ast::SpreadPat>>,
     ) -> TcResult<Option<Spread>> {
@@ -278,19 +279,19 @@ impl ResolutionPass<'_> {
                 )
             }
             ast::Pat::Tuple(tuple_pat) => self.new_pat(Pat::Tuple(TuplePat {
-                data: self.ast_tuple_pat_entries_as_pat_args(&tuple_pat.fields)?,
+                data: self.make_pat_args_from_ast_pat_args(&tuple_pat.fields)?,
                 original_ty: None,
-                data_spread: self.ast_spread_as_spread(&tuple_pat.spread)?,
+                data_spread: self.make_spread_from_ast_spread(&tuple_pat.spread)?,
             })),
             ast::Pat::List(list_pat) => self.new_pat(Pat::List(ListPat {
-                pats: self.ast_pats_as_pat_list(&list_pat.fields)?,
-                spread: self.ast_spread_as_spread(&list_pat.spread)?,
+                pats: self.make_pat_list_from_ast_pats(&list_pat.fields)?,
+                spread: self.make_spread_from_ast_spread(&list_pat.spread)?,
             })),
             ast::Pat::Lit(lit_pat) => {
                 self.new_pat(Pat::Lit(self.make_lit_pat_from_ast_lit(lit_pat.data.ast_ref())))
             }
             ast::Pat::Or(or_pat) => self.new_pat(Pat::Or(OrPat {
-                alternatives: self.ast_pats_as_pat_list(&or_pat.variants)?,
+                alternatives: self.make_pat_list_from_ast_pats(&or_pat.variants)?,
             })),
             ast::Pat::If(if_pat) => self.new_pat(Pat::If(IfPat {
                 condition: self.make_term_from_ast_expr(if_pat.condition.ast_ref())?,

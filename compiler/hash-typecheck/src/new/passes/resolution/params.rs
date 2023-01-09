@@ -3,19 +3,19 @@
 
 use std::{iter::empty, ops::Range};
 
+use hash_ast::ast;
 use hash_source::location::Span;
 use hash_types::new::{
-    args::{ArgData, ArgsId, PatArgsId},
+    args::{ArgsId, PatArgsId},
     defs::{DefArgGroupData, DefArgsId, DefParamsId, DefPatArgGroupData, DefPatArgsId},
     environment::env::AccessToEnv,
     fns::FnCallTerm,
-    params::ParamIndex,
     pats::Spread,
     terms::{Term, TermId},
 };
 use hash_utils::store::{SequenceStore, SequenceStoreKey};
 
-use super::{paths::AstArgGroup, ResolutionPass};
+use super::ResolutionPass;
 use crate::new::{
     diagnostics::{
         error::{TcError, TcResult},
@@ -24,6 +24,38 @@ use crate::new::{
     ops::{common::CommonOps, AccessToOps},
     passes::ast_utils::AstUtils,
 };
+
+/// An argument group in the AST.
+#[derive(Copy, Clone, Debug)]
+pub enum AstArgGroup<'a> {
+    /// A group of explicit `(a, b, c)` arguments.
+    ExplicitArgs(&'a ast::AstNodes<ast::ConstructorCallArg>),
+    /// A group of tuple `(a, b, c)` arguments
+    TupleArgs(&'a ast::AstNodes<ast::TupleLitEntry>),
+    /// A group of implicit `<a, b, c>` arguments.
+    ImplicitArgs(&'a ast::AstNodes<ast::TyArg>),
+    /// A group of explicit `(p, q, r)` pattern arguments
+    ExplicitPatArgs(
+        &'a ast::AstNodes<ast::TuplePatEntry>,
+        &'a Option<ast::AstNode<ast::SpreadPat>>,
+    ),
+    // @@Todo: implicit pattern arguments when AST supports this
+}
+
+impl AstArgGroup<'_> {
+    /// Get the span of this argument group.
+    pub fn span(&self) -> Option<Span> {
+        match self {
+            AstArgGroup::ExplicitArgs(args) => args.span(),
+            AstArgGroup::ImplicitArgs(args) => args.span(),
+            AstArgGroup::ExplicitPatArgs(args, spread) => args
+                .span()
+                .and_then(|args_span| Some(args_span.join(spread.as_ref()?.span())))
+                .or_else(|| Some(spread.as_ref()?.span())),
+            AstArgGroup::TupleArgs(args) => args.span(),
+        }
+    }
+}
 
 /// Resolved arguments.
 ///
@@ -95,8 +127,7 @@ impl ResolvedDefArgs {
 }
 
 impl<'tc> ResolutionPass<'tc> {
-    /// Make [`ResolvedArgs`] from an AST argument group, with holes for all the
-    /// arguments.
+    /// Make [`ResolvedArgs`] from an AST argument group.
     ///
     /// This will return either pattern arguments or term arguments, depending
     /// on the kind of the argument group.
@@ -106,63 +137,22 @@ impl<'tc> ResolutionPass<'tc> {
     ) -> TcResult<ResolvedArgs> {
         match group {
             AstArgGroup::ExplicitArgs(args) => {
-                let args = args
-                    .iter()
-                    .enumerate()
-                    .map(|(i, arg)| {
-                        Ok(ArgData {
-                            target: arg
-                                .name
-                                .as_ref()
-                                .map(|name| ParamIndex::Name(name.ident))
-                                .unwrap_or_else(|| ParamIndex::Position(i)),
-                            value: self.make_term_from_ast_expr(arg.value.ast_ref())?,
-                        })
-                    })
-                    .collect::<TcResult<Vec<_>>>()?;
-                Ok(ResolvedArgs::Term(self.param_ops().create_args(args.into_iter())))
+                Ok(ResolvedArgs::Term(self.make_args_from_constructor_call_args(args)?))
             }
             AstArgGroup::ImplicitArgs(args) => {
-                let args = args
-                    .iter()
-                    .enumerate()
-                    .map(|(i, arg)| {
-                        Ok(ArgData {
-                            target: arg
-                                .name
-                                .as_ref()
-                                .map(|name| ParamIndex::Name(name.ident))
-                                .unwrap_or_else(|| ParamIndex::Position(i)),
-                            value: self
-                                .new_term(Term::Ty(self.make_ty_from_ast_ty(arg.ty.ast_ref())?)),
-                        })
-                    })
-                    .collect::<TcResult<Vec<_>>>()?;
-                Ok(ResolvedArgs::Term(self.param_ops().create_args(args.into_iter())))
+                Ok(ResolvedArgs::Term(self.make_args_from_ast_ty_args(args)?))
             }
             AstArgGroup::TupleArgs(args) => {
-                // @@Todo: create type for the tuple as some annotations
-                // might be given.
-                let args = args
-                    .iter()
-                    .enumerate()
-                    .map(|(i, arg)| {
-                        Ok(ArgData {
-                            target: arg
-                                .name
-                                .as_ref()
-                                .map(|name| ParamIndex::Name(name.ident))
-                                .unwrap_or_else(|| ParamIndex::Position(i)),
-                            value: self.make_term_from_ast_expr(arg.value.ast_ref())?,
-                        })
-                    })
-                    .collect::<TcResult<Vec<_>>>()?;
-                Ok(ResolvedArgs::Term(self.param_ops().create_args(args.into_iter())))
+                Ok(ResolvedArgs::Term(self.make_args_from_ast_tuple_lit_args(args)?))
             }
             AstArgGroup::ExplicitPatArgs(pat_args, spread) => {
-                let spread = self.ast_spread_as_spread(spread)?;
-                let args = self.ast_tuple_pat_entries_as_pat_args(pat_args)?;
-                Ok(ResolvedArgs::Pat(args, spread))
+                let pat_args =
+                    self.try_or_add_error(self.make_pat_args_from_ast_pat_args(pat_args));
+                let spread = self.try_or_add_error(self.make_spread_from_ast_spread(spread));
+                match (pat_args, spread) {
+                    (Some(pat_args), Some(spread)) => Ok(ResolvedArgs::Pat(pat_args, spread)),
+                    _ => Err(TcError::Signal),
+                }
             }
         }
     }

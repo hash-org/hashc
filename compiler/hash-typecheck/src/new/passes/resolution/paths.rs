@@ -36,44 +36,17 @@ use hash_types::new::{
 };
 use hash_utils::store::{SequenceStore, Store};
 
-use super::{params::ResolvedDefArgs, scoping::ContextKind, ResolutionPass};
+use super::{
+    params::{AstArgGroup, ResolvedDefArgs},
+    scoping::ContextKind,
+    ResolutionPass,
+};
 use crate::new::{
     diagnostics::error::{TcError, TcResult},
     environment::tc_env::WithTcEnv,
     ops::common::CommonOps,
     passes::ast_utils::AstUtils,
 };
-/// An argument group in the AST.
-#[derive(Copy, Clone, Debug)]
-pub enum AstArgGroup<'a> {
-    /// A group of explicit `(a, b, c)` arguments.
-    ExplicitArgs(&'a ast::AstNodes<ast::ConstructorCallArg>),
-    /// A group of tuple `(a, b, c)` arguments
-    TupleArgs(&'a ast::AstNodes<ast::TupleLitEntry>),
-    /// A group of implicit `<a, b, c>` arguments.
-    ImplicitArgs(&'a ast::AstNodes<ast::TyArg>),
-    /// A group of explicit `(p, q, r)` pattern arguments
-    ExplicitPatArgs(
-        &'a ast::AstNodes<ast::TuplePatEntry>,
-        &'a Option<ast::AstNode<ast::SpreadPat>>,
-    ),
-    // @@Todo: implicit pattern arguments when AST supports this
-}
-
-impl AstArgGroup<'_> {
-    /// Get the span of this argument group.
-    pub fn span(&self) -> Option<Span> {
-        match self {
-            AstArgGroup::ExplicitArgs(args) => args.span(),
-            AstArgGroup::ImplicitArgs(args) => args.span(),
-            AstArgGroup::ExplicitPatArgs(args, spread) => args
-                .span()
-                .and_then(|args_span| Some(args_span.join(spread.as_ref()?.span())))
-                .or_else(|| Some(spread.as_ref()?.span())),
-            AstArgGroup::TupleArgs(args) => args.span(),
-        }
-    }
-}
 
 /// A path component in the AST.
 ///

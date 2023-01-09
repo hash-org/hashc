@@ -35,15 +35,4 @@ pub trait AstUtils: AccessToTcEnv {
         let node_span = node.span();
         self.source_location(node_span)
     }
-
-    /// Unwrap a [`TcResult`] or add the error to the diagnostics.
-    fn unwrap_or_diagnostic<T>(&self, result: TcResult<T>) -> Option<T> {
-        match result {
-            Ok(ok) => Some(ok),
-            Err(err) => {
-                self.diagnostics().add_error(err);
-                None
-            }
-        }
-    }
 }

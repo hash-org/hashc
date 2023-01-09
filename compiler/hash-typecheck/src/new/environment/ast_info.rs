@@ -3,9 +3,11 @@ use std::{cell::RefCell, hash::Hash};
 use bimap::BiMap;
 use hash_ast::ast::AstNodeId;
 use hash_types::new::{
+    args::ArgId,
     data::{CtorDefId, DataDefId},
     fns::FnDefId,
     mods::{ModDefId, ModMemberId},
+    params::ParamId,
     pats::PatId,
     scopes::{StackId, StackMemberId},
     terms::TermId,
@@ -92,4 +94,7 @@ ast_info! {
     terms: AstMap<TermId>,
     tys: AstMap<TyId>,
     pats: AstMap<PatId>,
+
+    params: AstMap<ParamId>,
+    args: AstMap<ArgId>,
 }

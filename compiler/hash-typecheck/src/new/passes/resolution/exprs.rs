@@ -9,25 +9,28 @@ use hash_reporting::macros::panic_on_span;
 use hash_source::location::Span;
 use hash_types::new::{
     access::AccessTerm,
+    args::{ArgData, ArgsId},
     casting::CastTerm,
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
     data::DataTy,
     environment::env::AccessToEnv,
     fns::FnCallTerm,
     lits::{CharLit, FloatLit, IntLit, Lit, PrimTerm, StrLit},
-    params::ParamIndex,
+    params::{ParamIndex, ParamsId},
     refs::{DerefTerm, RefKind, RefTerm},
     scopes::{AssignTerm, BlockTerm, DeclStackMemberTerm},
     terms::{Term, TermId, UnsafeTerm},
     tuples::TupleTerm,
     tys::Ty,
 };
+use hash_utils::store::SequenceStoreCopy;
 use itertools::{multiunzip, Itertools};
 
 use super::{
+    params::AstArgGroup,
     paths::{
-        AstArgGroup, AstPath, AstPathComponent, NonTerminalResolvedPathComponent,
-        ResolvedAstPathComponent, TerminalResolvedPathComponent,
+        AstPath, AstPathComponent, NonTerminalResolvedPathComponent, ResolvedAstPathComponent,
+        TerminalResolvedPathComponent,
     },
     ResolutionPass,
 };
@@ -35,8 +38,8 @@ use crate::{
     new::{
         diagnostics::error::{TcError, TcResult},
         environment::tc_env::AccessToTcEnv,
-        ops::common::CommonOps,
-        passes::{ast_utils::AstUtils, resolution::params::ResolvedArgs},
+        ops::{common::CommonOps, AccessToOps},
+        passes::ast_utils::AstUtils,
     },
     term_as_variant,
 };
@@ -44,7 +47,110 @@ use crate::{
 /// This block converts AST nodes of different kinds into [`AstPath`]s, in order
 /// to later resolve them into terms.
 impl<'tc> ResolutionPass<'tc> {
-    /// Make a term from an [`ast::TupleExpr`].
+    /// Make TC parameters ([`ParamsId`]) from the given set of AST type
+    /// function arguments ([`ast::Param`] list).
+    ///
+    /// This assumes that the parameters were initially traversed during
+    /// discovery, and are set in the AST info store. It gets the existing
+    /// parameter definition and enriches it with the resolved type and
+    /// default value.
+    pub(super) fn make_params_from_ast_params(
+        &self,
+        params: &ast::AstNodes<ast::Param>,
+    ) -> TcResult<ParamsId> {
+        let mut found_error = false;
+        let mut params_id: Option<ParamsId> = None;
+
+        for ast_param in params.ast_ref_iter() {
+            // Resolve the default value and type annotation:
+            let default_value = self.try_or_add_error(
+                ast_param
+                    .default
+                    .as_ref()
+                    .map(|default_value| self.make_term_from_ast_expr(default_value.ast_ref()))
+                    .transpose(),
+            );
+            let resolved_ty = self.try_or_add_error(
+                ast_param.ty.as_ref().map(|ty| self.make_ty_from_ast_ty(ty.ast_ref())).transpose(),
+            );
+
+            // @@Todo: actually register this in discovery
+            let param_id = self.ast_info().params().get_data_by_node(ast_param.id()).unwrap();
+            params_id = Some(param_id.0);
+
+            match (resolved_ty, default_value) {
+                (Some(resolved_ty), Some(resolved_default_value)) => {
+                    self.stores().params().modify_copied(param_id.0, |params| {
+                        // If this is None, it wasn't given as an annotation, so we just leave it as
+                        // a hole
+                        if let Some(resolved_ty) = resolved_ty {
+                            params[param_id.1].ty = resolved_ty;
+                        }
+                        params[param_id.1].default_value = resolved_default_value;
+                    });
+                }
+                _ => {
+                    // Continue resolving the rest of the parameters and report the error at the
+                    // end.
+                    found_error = true;
+                }
+            }
+        }
+
+        if found_error {
+            Err(TcError::Signal)
+        } else {
+            Ok(params_id.unwrap_or_else(|| self.new_empty_params()))
+        }
+    }
+
+    /// Make TC arguments from the given set of AST tuple arguments.
+    pub(super) fn make_args_from_ast_tuple_lit_args(
+        &self,
+        args: &ast::AstNodes<ast::TupleLitEntry>,
+    ) -> TcResult<ArgsId> {
+        // @@Todo: create type for the tuple as some annotations
+        // might be given.
+        // @@Todo: error recovery
+        let args = args
+            .iter()
+            .enumerate()
+            .map(|(i, arg)| {
+                Ok(ArgData {
+                    target: arg
+                        .name
+                        .as_ref()
+                        .map(|name| ParamIndex::Name(name.ident))
+                        .unwrap_or_else(|| ParamIndex::Position(i)),
+                    value: self.make_term_from_ast_expr(arg.value.ast_ref())?,
+                })
+            })
+            .collect::<TcResult<Vec<_>>>()?;
+        Ok(self.param_ops().create_args(args.into_iter()))
+    }
+
+    /// Make TC arguments from the given set of AST constructor call arguments
+    pub(super) fn make_args_from_constructor_call_args(
+        &self,
+        args: &ast::AstNodes<ast::ConstructorCallArg>,
+    ) -> TcResult<ArgsId> {
+        // @@Todo: error recovery
+        let args = args
+            .iter()
+            .enumerate()
+            .map(|(i, arg)| {
+                Ok(ArgData {
+                    target: arg
+                        .name
+                        .as_ref()
+                        .map(|name| ParamIndex::Name(name.ident))
+                        .unwrap_or_else(|| ParamIndex::Position(i)),
+                    value: self.make_term_from_ast_expr(arg.value.ast_ref())?,
+                })
+            })
+            .collect::<TcResult<Vec<_>>>()?;
+        Ok(self.param_ops().create_args(args.into_iter()))
+    }
 
     /// Make a term from the given [`ast::Expr`] and assign it to the node in
     /// the AST info store.
@@ -314,17 +420,13 @@ impl<'tc> ResolutionPass<'tc> {
                 // Otherwise, it must be a computed function call
                 let subject =
                     self.try_or_add_error(self.make_term_from_ast_expr(node.subject.ast_ref()));
-                let args = self.try_or_add_error(
-                    self.make_args_from_ast_arg_group(&AstArgGroup::ExplicitArgs(&node.args)),
-                );
+                let args =
+                    self.try_or_add_error(self.make_args_from_constructor_call_args(&node.args));
 
                 match (subject, args) {
                     (Some(subject), Some(args)) => Ok(self.new_term(Term::FnCall(FnCallTerm {
                         subject,
-                        args: match args {
-                            ResolvedArgs::Term(args) => args,
-                            ResolvedArgs::Pat(_, _) => unreachable!(),
-                        },
+                        args,
                         implicit: false,
                     }))),
                     _ => Err(TcError::Signal),
@@ -458,13 +560,7 @@ impl<'tc> ResolutionPass<'tc> {
             ast::Lit::Float(float_lit) => Ok(lit_prim!(Float, FloatLit, *float_lit)),
             ast::Lit::Bool(bool_lit) => Ok(self.new_bool_term(bool_lit.data)),
             ast::Lit::Tuple(tuple_lit) => {
-                let args = match self
-                    .make_args_from_ast_arg_group(&AstArgGroup::TupleArgs(&tuple_lit.elements))?
-                {
-                    ResolvedArgs::Term(args) => args,
-                    ResolvedArgs::Pat(_, _) => unreachable!(),
-                };
-
+                let args = self.make_args_from_ast_tuple_lit_args(&tuple_lit.elements)?;
                 // @@Todo: original_ty
                 Ok(self.new_term(Term::Tuple(TupleTerm { data: args, original_ty: None })))
             }
@@ -577,11 +673,11 @@ impl<'tc> ResolutionPass<'tc> {
                         if let ast::Expr::Declaration(declaration) = statement.body() {
                             self.scoping().register_declaration(node.with_body(declaration));
                         }
-                        self.unwrap_or_diagnostic(self.make_term_from_ast_expr(statement.ast_ref()))
+                        self.try_or_add_error(self.make_term_from_ast_expr(statement.ast_ref()))
                     })
                     .collect_vec();
                 let expr = node.expr.as_ref().map(|expr| {
-                    self.unwrap_or_diagnostic(self.make_term_from_ast_expr(expr.ast_ref()))
+                    self.try_or_add_error(self.make_term_from_ast_expr(expr.ast_ref()))
                 });
 
                 // If all ok, create a block term

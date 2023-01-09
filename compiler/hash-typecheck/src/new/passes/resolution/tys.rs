@@ -7,27 +7,53 @@
 use hash_ast::ast::{self, AstNodeRef};
 use hash_reporting::macros::panic_on_span;
 use hash_types::new::{
+    args::{ArgData, ArgsId},
     data::DataTy,
     environment::env::AccessToEnv,
+    params::ParamIndex,
     terms::Term,
     tys::{Ty, TyId},
 };
 
 use super::{
+    params::AstArgGroup,
     paths::{
-        AstArgGroup, AstPath, AstPathComponent, NonTerminalResolvedPathComponent,
-        ResolvedAstPathComponent, TerminalResolvedPathComponent,
+        AstPath, AstPathComponent, NonTerminalResolvedPathComponent, ResolvedAstPathComponent,
+        TerminalResolvedPathComponent,
     },
     ResolutionPass,
 };
 use crate::new::{
     diagnostics::error::{TcError, TcResult},
     environment::tc_env::AccessToTcEnv,
-    ops::common::CommonOps,
+    ops::{common::CommonOps, AccessToOps},
     passes::ast_utils::AstUtils,
 };
 
 impl<'tc> ResolutionPass<'tc> {
+    /// Make TC arguments from the given set of AST type arguments.
+    pub(super) fn make_args_from_ast_ty_args(
+        &self,
+        args: &ast::AstNodes<ast::TyArg>,
+    ) -> TcResult<ArgsId> {
+        // @@Todo: error recovery
+        let args = args
+            .iter()
+            .enumerate()
+            .map(|(i, arg)| {
+                Ok(ArgData {
+                    target: arg
+                        .name
+                        .as_ref()
+                        .map(|name| ParamIndex::Name(name.ident))
+                        .unwrap_or_else(|| ParamIndex::Position(i)),
+                    value: self.new_term(Term::Ty(self.make_ty_from_ast_ty(arg.ty.ast_ref())?)),
+                })
+            })
+            .collect::<TcResult<Vec<_>>>()?;
+        Ok(self.param_ops().create_args(args.into_iter()))
+    }
+
     /// Use the given [`ast::NamedTy`] as a path.
     fn named_ty_as_ast_path<'a>(
         &self,

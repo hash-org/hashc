@@ -9,7 +9,7 @@ use hash_types::new::environment::{context::ScopeKind, env::AccessToEnv};
 
 use super::{scoping::ContextKind, InExpr, ResolutionPass};
 use crate::new::{
-    diagnostics::error::TcError, environment::tc_env::AccessToTcEnv, passes::ast_utils::AstUtils,
+    diagnostics::error::TcError, environment::tc_env::AccessToTcEnv, ops::common::CommonOps,
 };
 
 impl ast::AstVisitor for ResolutionPass<'_> {
@@ -180,7 +180,7 @@ impl ast::AstVisitor for ResolutionPass<'_> {
         self.in_expr.enter(InExpr::Ty, || {
             walk::walk_ty(self, node)?;
             // For each node, try to resolve it as a type.
-            self.unwrap_or_diagnostic(self.make_ty_from_ast_ty(node));
+            self.try_or_add_error(self.make_ty_from_ast_ty(node));
             Ok(())
         })
     }
@@ -195,7 +195,7 @@ impl ast::AstVisitor for ResolutionPass<'_> {
         self.in_expr.enter(InExpr::Value, || {
             walk::walk_expr(self, node)?;
             // For each node, try to resolve it as a term.
-            self.unwrap_or_diagnostic(self.make_term_from_ast_expr(node));
+            self.try_or_add_error(self.make_term_from_ast_expr(node));
             Ok(())
         })
     }
@@ -212,7 +212,7 @@ impl ast::AstVisitor for ResolutionPass<'_> {
             self.in_expr.enter(InExpr::Pat, || {
                 walk::walk_pat(self, node)?;
                 // For each node, try to resolve it as a pattern.
-                self.unwrap_or_diagnostic(self.make_pat_from_ast_pat(node));
+                self.try_or_add_error(self.make_pat_from_ast_pat(node));
                 Ok(())
             })
         } else {

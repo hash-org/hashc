@@ -172,6 +172,8 @@ pub trait CommonOps: AccessToTcEnv {
     fn new_small_universe_ty(&self) -> TyId {
         self.stores().ty().create(Ty::Universe(UniverseTy { size: 0 }))
     }
+
+    /// If the result is an error, add it to the diagnostics and return `None`.
     fn try_or_add_error<T>(&self, result: TcResult<T>) -> Option<T> {
         match result {
             Ok(t) => Some(t),
