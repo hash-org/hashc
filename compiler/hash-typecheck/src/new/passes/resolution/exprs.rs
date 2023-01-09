@@ -354,14 +354,13 @@ impl<'tc> ResolutionPass<'tc> {
         &self,
         node: AstNodeRef<ast::ConstructorCallExpr>,
     ) -> TcResult<TermId> {
+        // This is either a path or a computed function call
         match self.constructor_call_as_ast_path(node)? {
             Some(path) => {
-                // Check if we can resolve the subject as a path
                 let resolved_path = self.resolve_ast_path(&path)?;
                 self.make_term_from_resolved_ast_path(&resolved_path, node.span())
             }
             None => {
-                // Otherwise, it must be a computed function call
                 let subject =
                     self.try_or_add_error(self.make_term_from_ast_expr(node.subject.ast_ref()));
                 let args =

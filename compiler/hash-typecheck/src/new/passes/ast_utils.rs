@@ -1,8 +1,9 @@
 use hash_ast::{
-    ast::{AstNodeRef, BodyBlock, Module, OwnsAstNode},
+    ast::{self, AstNodeRef, BodyBlock, Module, OwnsAstNode},
     node_map::SourceRef,
 };
 use hash_source::location::{SourceLocation, Span};
+use hash_types::new::symbols::Symbol;
 
 use crate::new::{
     diagnostics::error::TcResult, environment::tc_env::AccessToTcEnv, ops::common::CommonOps,
@@ -24,7 +25,7 @@ pub trait AstPass: AccessToTcEnv {
     }
 }
 
-pub trait AstUtils: AccessToTcEnv {
+pub trait AstUtils: AccessToTcEnv + Sized {
     /// Create a [SourceLocation] from a [Span].
     fn source_location(&self, span: Span) -> SourceLocation {
         SourceLocation { span, id: self.current_source_info().source_id }
@@ -34,5 +35,14 @@ pub trait AstUtils: AccessToTcEnv {
     fn node_location<N>(&self, node: AstNodeRef<N>) -> SourceLocation {
         let node_span = node.span();
         self.source_location(node_span)
+    }
+
+    /// Create a [`Symbol`] for the given [`ast::Name`], or a fresh symbol if no
+    /// name is provided.
+    fn new_symbol_from_ast_name(&self, name: &Option<ast::AstNode<ast::Name>>) -> Symbol {
+        match name {
+            Some(name) => self.new_symbol(name.ident),
+            None => self.new_fresh_symbol(),
+        }
     }
 }

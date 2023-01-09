@@ -4,16 +4,23 @@
 //! correspond to paths into TC-types. It does not handle all types; non-path
 //! types are handled later.
 
-use hash_ast::ast::{self, AstNodeRef};
+use std::iter::once;
+
+use hash_ast::ast::{self, AstNodeRef, AstNodes};
 use hash_reporting::macros::panic_on_span;
+use hash_source::location::Span;
 use hash_types::new::{
     args::{ArgData, ArgsId},
     data::DataTy,
     environment::env::AccessToEnv,
-    params::ParamIndex,
+    fns::FnCallTerm,
+    params::{ParamData, ParamIndex, ParamsId},
+    refs::{RefKind, RefTy},
     terms::Term,
+    tuples::TupleTy,
     tys::{Ty, TyId},
 };
+use itertools::Itertools;
 
 use super::{
     params::AstArgGroup,
@@ -52,6 +59,28 @@ impl<'tc> ResolutionPass<'tc> {
             })
             .collect::<TcResult<Vec<_>>>()?;
         Ok(self.param_ops().create_args(args.into_iter()))
+    }
+
+    /// Make TC parameters from the given [`ast::TyArg`] list.
+    fn make_params_from_ast_ty_args(&self, ty_args: &AstNodes<ast::TyArg>) -> TcResult<ParamsId> {
+        let params = ty_args
+            .ast_ref_iter()
+            .filter_map(|ty_arg| {
+                self.try_or_add_error(self.make_ty_from_ast_ty(ty_arg.ty.ast_ref())).map(|ty| {
+                    ParamData {
+                        name: self.new_symbol_from_ast_name(&ty_arg.name),
+                        ty,
+                        default_value: None,
+                    }
+                })
+            })
+            .collect_vec();
+
+        if params.len() != ty_args.len() {
+            Err(TcError::Signal)
+        } else {
+            Ok(self.param_ops().create_params(params.into_iter()))
+        }
     }
 
     /// Use the given [`ast::NamedTy`] as a path.
@@ -102,6 +131,58 @@ impl<'tc> ResolutionPass<'tc> {
         }
     }
 
+    /// Make a type from the given [`ResolvedAstPathComponent`].
+    fn make_ty_from_resolved_ast_path(
+        &self,
+        path: &ResolvedAstPathComponent,
+        original_node_span: Span,
+    ) -> TcResult<TyId> {
+        match path {
+            ResolvedAstPathComponent::NonTerminal(non_terminal) => match non_terminal {
+                NonTerminalResolvedPathComponent::Data(data_def_id, data_def_args) => {
+                    // Data type
+                    Ok(self
+                        .new_ty(Ty::Data(DataTy { data_def: *data_def_id, args: *data_def_args })))
+                }
+                NonTerminalResolvedPathComponent::Mod(_, _) => {
+                    // Modules are not allowed in type positions
+                    Err(TcError::CannotUseModuleInTypePosition {
+                        location: self.source_location(original_node_span),
+                    })
+                }
+            },
+            ResolvedAstPathComponent::Terminal(terminal) => match terminal {
+                TerminalResolvedPathComponent::FnDef(_) => {
+                    // Functions are not allowed in type positions
+                    Err(TcError::CannotUseFunctionInTypePosition {
+                        location: self.source_location(original_node_span),
+                    })
+                }
+                TerminalResolvedPathComponent::CtorPat(_) => {
+                    panic_on_span!(
+                        self.source_location(original_node_span),
+                        self.source_map(),
+                        "found CtorPat in type ast path"
+                    )
+                }
+                TerminalResolvedPathComponent::CtorTerm(_) => {
+                    // Constructors are not allowed in type positions
+                    Err(TcError::CannotUseConstructorInTypePosition {
+                        location: self.source_location(original_node_span),
+                    })
+                }
+                TerminalResolvedPathComponent::FnCall(fn_call_term) => {
+                    // Function call
+                    Ok(self.new_ty(Ty::Eval(self.new_term(Term::FnCall(*fn_call_term)))))
+                }
+                TerminalResolvedPathComponent::Var(bound_var) => {
+                    // Bound variable
+                    Ok(self.new_ty(Ty::Var(bound_var.name)))
+                }
+            },
+        }
+    }
+
     /// Use the given [`ast::Ty`] as a path, if possible.
     ///
     /// Returns `None` if the expression is not a path. This is meant to
@@ -112,8 +193,8 @@ impl<'tc> ResolutionPass<'tc> {
     ) -> TcResult<Option<AstPath<'a>>> {
         match node.body {
             ast::Ty::Access(access_ty) => {
-                let access_ref = node.with_body(access_ty);
-                Ok(Some(self.access_ty_as_ast_path(access_ref)?))
+                let access_ty_ref = node.with_body(access_ty);
+                Ok(Some(self.access_ty_as_ast_path(access_ty_ref)?))
             }
             ast::Ty::Named(named_ty) => {
                 let named_ref = node.with_body(named_ty);
@@ -127,59 +208,137 @@ impl<'tc> ResolutionPass<'tc> {
         }
     }
 
+    /// Make a type from the given [`ast::AccessTy`].
+    fn make_ty_from_ast_access_ty(&self, node: AstNodeRef<ast::AccessTy>) -> TcResult<TyId> {
+        let path = self.access_ty_as_ast_path(node)?;
+        let resolved_path = self.resolve_ast_path(&path)?;
+        self.make_ty_from_resolved_ast_path(&resolved_path, node.span())
+    }
+
+    /// Make a type from the given [`ast::NamedTy`].
+    fn make_ty_from_ast_named_ty(&self, node: AstNodeRef<ast::NamedTy>) -> TcResult<TyId> {
+        let path = self.named_ty_as_ast_path(node)?;
+        let resolved_path = self.resolve_ast_path(&path)?;
+        self.make_ty_from_resolved_ast_path(&resolved_path, node.span())
+    }
+
+    /// Make a type from the given [`ast::TyFnCall`].
+    fn make_ty_from_ast_ty_fn_call(&self, node: AstNodeRef<ast::TyFnCall>) -> TcResult<TyId> {
+        // This is either a path or a computed function call
+        match self.ty_fn_call_as_ast_path(node)? {
+            Some(path) => {
+                let resolved_path = self.resolve_ast_path(&path)?;
+                self.make_ty_from_resolved_ast_path(&resolved_path, node.span())
+            }
+            None => {
+                let subject =
+                    self.try_or_add_error(self.make_term_from_ast_expr(node.subject.ast_ref()));
+                let args = self.try_or_add_error(self.make_args_from_ast_ty_args(&node.args));
+
+                match (subject, args) {
+                    (Some(subject), Some(args)) => {
+                        Ok(self.new_ty(Ty::Eval(self.new_term(Term::FnCall(FnCallTerm {
+                            subject,
+                            args,
+                            implicit: true,
+                        })))))
+                    }
+                    _ => Err(TcError::Signal),
+                }
+            }
+        }
+    }
+
+    /// Make a type from the given [`ast::TupleTy`].
+    fn make_ty_from_ast_tuple_ty(&self, node: AstNodeRef<ast::TupleTy>) -> TcResult<TyId> {
+        // @@Todo: traverse parameters of tuple types in discovery
+        let data = self.make_params_from_ast_ty_args(&node.entries)?;
+        Ok(self.new_ty(Ty::Tuple(TupleTy { data })))
+    }
+
+    /// Make a type from the given [`ast::ListTy`].
+    fn make_ty_from_ast_list_ty(&self, node: AstNodeRef<ast::ListTy>) -> TcResult<TyId> {
+        let inner_ty = self.make_ty_from_ast_ty(node.inner.ast_ref())?;
+        let list_def = self.primitives().list();
+        Ok(self.new_ty(Ty::Data(DataTy {
+            data_def: list_def,
+            args: self.param_ops().create_positional_args_for_data_def(
+                list_def,
+                once(once(self.new_term(Term::Ty(inner_ty)))),
+            ),
+        })))
+    }
+
+    /// Make a type from the given [`ast::RefTy`].
+    fn make_ty_from_ref_ty(&self, node: AstNodeRef<ast::RefTy>) -> TcResult<TyId> {
+        let inner_ty = self.make_ty_from_ast_ty(node.inner.ast_ref())?;
+        Ok(self.new_ty(Ty::Ref(RefTy {
+            ty: inner_ty,
+            kind: match node.kind.as_ref() {
+                Some(kind) => match kind.body() {
+                    ast::RefKind::Raw => RefKind::Raw,
+                    ast::RefKind::Normal => RefKind::Local,
+                },
+                None => RefKind::Local,
+            },
+            mutable: match node.mutability.as_ref() {
+                Some(mutability) => match mutability.body() {
+                    ast::Mutability::Mutable => true,
+                    ast::Mutability::Immutable => false,
+                },
+                None => false,
+            },
+        })))
+    }
+
+    /// Make a type from the given [`ast::FnTy`].
+    pub(super) fn make_ty_from_ast_fn_ty(&self, _node: AstNodeRef<ast::FnTy>) -> TcResult<TyId> {
+        // @@Todo: traverse parameters of function types in discovery
+        // @@Todo: allow function types in context
+        todo!()
+    }
+
+    /// Make a type from the given [`ast::TyFn`].
+    pub(super) fn make_ty_from_ast_ty_fn(&self, _node: AstNodeRef<ast::TyFn>) -> TcResult<TyId> {
+        // @@Todo: traverse parameters of function types in discovery
+        // @@Todo: allow function types in context
+        todo!()
+    }
+
     /// Make a type from the given [`ast::Ty`] and assign it to the node in
     /// the AST info store.
     ///
     /// This only handles types which are paths, and otherwise creates a
     /// hole to be resolved later.
     pub(super) fn make_ty_from_ast_ty(&self, node: AstNodeRef<ast::Ty>) -> TcResult<TyId> {
-        let ty_id = match self.ty_as_ast_path(node)? {
-            Some(path) => match self.resolve_ast_path(&path)? {
-                ResolvedAstPathComponent::NonTerminal(non_terminal) => match non_terminal {
-                    NonTerminalResolvedPathComponent::Data(data_def_id, data_def_args) => {
-                        // Data type
-                        self.new_ty(Ty::Data(DataTy { data_def: data_def_id, args: data_def_args }))
-                    }
-                    NonTerminalResolvedPathComponent::Mod(_, _) => {
-                        // Modules are not allowed in type positions
-                        return Err(TcError::CannotUseModuleInTypePosition {
-                            location: self.node_location(node),
-                        });
-                    }
-                },
-                ResolvedAstPathComponent::Terminal(terminal) => match terminal {
-                    TerminalResolvedPathComponent::FnDef(_) => {
-                        // Functions are not allowed in type positions
-                        return Err(TcError::CannotUseFunctionInTypePosition {
-                            location: self.node_location(node),
-                        });
-                    }
-                    TerminalResolvedPathComponent::CtorPat(_) => {
-                        panic_on_span!(
-                            self.node_location(node),
-                            self.source_map(),
-                            "found CtorPat in type ast path"
-                        )
-                    }
-                    TerminalResolvedPathComponent::CtorTerm(_) => {
-                        // Constructors are not allowed in type positions
-                        return Err(TcError::CannotUseConstructorInTypePosition {
-                            location: self.node_location(node),
-                        });
-                    }
-                    TerminalResolvedPathComponent::FnCall(fn_call_term) => {
-                        // Function call
-                        self.new_ty(Ty::Eval(self.new_term(Term::FnCall(fn_call_term))))
-                    }
-                    TerminalResolvedPathComponent::Var(bound_var) => {
-                        // Bound variable
-                        self.new_ty(Ty::Var(bound_var.name))
-                    }
-                },
-            },
-            None => {
-                // Not a path, we will resolve it later
-                self.new_ty_hole()
+        let ty_id = match node.body {
+            ast::Ty::Access(access_ty) => {
+                self.make_ty_from_ast_access_ty(node.with_body(access_ty))?
+            }
+            ast::Ty::Named(named_ty) => self.make_ty_from_ast_named_ty(node.with_body(named_ty))?,
+            ast::Ty::TyFnCall(ty_fn_call) => {
+                self.make_ty_from_ast_ty_fn_call(node.with_body(ty_fn_call))?
+            }
+            ast::Ty::Tuple(tuple_ty) => self.make_ty_from_ast_tuple_ty(node.with_body(tuple_ty))?,
+            ast::Ty::List(list_ty) => self.make_ty_from_ast_list_ty(node.with_body(list_ty))?,
+            ast::Ty::Ref(ref_ty) => self.make_ty_from_ref_ty(node.with_body(ref_ty))?,
+            ast::Ty::Fn(fn_ty) => self.make_ty_from_ast_fn_ty(node.with_body(fn_ty))?,
+            ast::Ty::TyFn(ty_fn_ty) => self.make_ty_from_ast_ty_fn(node.with_body(ty_fn_ty))?,
+            ast::Ty::Union(_) | ast::Ty::Merge(_) => {
+                // @@Todo: actually catch this at discovery, these are currently not supported.
+                panic_on_span!(
+                    self.node_location(node),
+                    self.source_map(),
+                    "Found merge type after discovery"
+                )
+            }
+            ast::Ty::Set(_) | ast::Ty::Map(_) => {
+                // @@Todo
+                panic_on_span!(
+                    self.node_location(node),
+                    self.source_map(),
+                    "Sets and maps not implemented yet"
+                )
             }
         };
 
