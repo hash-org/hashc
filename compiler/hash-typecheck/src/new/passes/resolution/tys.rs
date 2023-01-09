@@ -20,6 +20,7 @@ use hash_types::new::{
     tuples::TupleTy,
     tys::{Ty, TyId},
 };
+use hash_utils::store::CloneStore;
 use itertools::Itertools;
 
 use super::{
@@ -30,11 +31,14 @@ use super::{
     },
     ResolutionPass,
 };
-use crate::new::{
-    diagnostics::error::{TcError, TcResult},
-    environment::tc_env::AccessToTcEnv,
-    ops::{common::CommonOps, AccessToOps},
-    passes::ast_utils::AstUtils,
+use crate::{
+    new::{
+        diagnostics::error::{TcError, TcResult},
+        environment::tc_env::AccessToTcEnv,
+        ops::{common::CommonOps, AccessToOps},
+        passes::ast_utils::AstUtils,
+    },
+    ty_as_variant,
 };
 
 impl<'tc> ResolutionPass<'tc> {
@@ -291,18 +295,58 @@ impl<'tc> ResolutionPass<'tc> {
         })))
     }
 
-    /// Make a type from the given [`ast::FnTy`].
-    pub(super) fn make_ty_from_ast_fn_ty(&self, _node: AstNodeRef<ast::FnTy>) -> TcResult<TyId> {
-        // @@Todo: traverse parameters of function types in discovery
-        // @@Todo: allow function types in context
-        todo!()
+    /// Make a type from the given [`ast::Ty`].
+    pub(super) fn make_ty_from_ast_ty_fn_ty(&self, node: AstNodeRef<ast::TyFn>) -> TcResult<TyId> {
+        // First, make the params
+        let params = self.try_or_add_error(self.make_params_from_ast_params(&node.params));
+        self.scoping().enter_ty_fn_ty(node, |ty_fn_id| {
+            self.stores().ty().modify(ty_fn_id, |ty| {
+                let ty_fn = ty_as_variant!(self, value ty, Fn);
+                // Add the params if they exist
+                if let Some(params) = params {
+                    ty_fn.params = params;
+                }
+
+                // Make the return type if it exists
+                let return_ty =
+                    self.try_or_add_error(self.make_ty_from_ast_ty(node.return_ty.ast_ref()));
+                if let Some(return_ty) = return_ty {
+                    ty_fn.return_ty = return_ty;
+                }
+
+                match (params, return_ty) {
+                    (Some(_params), Some(_return_ty)) => Ok(ty_fn_id),
+                    _ => Err(TcError::Signal),
+                }
+            })
+        })
     }
 
-    /// Make a type from the given [`ast::TyFn`].
-    pub(super) fn make_ty_from_ast_ty_fn(&self, _node: AstNodeRef<ast::TyFn>) -> TcResult<TyId> {
-        // @@Todo: traverse parameters of function types in discovery
-        // @@Todo: allow function types in context
-        todo!()
+    /// Make a type from the given [`ast::FnTy`].
+    pub(super) fn make_ty_from_ast_fn_ty(&self, node: AstNodeRef<ast::FnTy>) -> TcResult<TyId> {
+        // First, make the params
+        let params = self.try_or_add_error(self.make_params_from_ast_ty_args(&node.params));
+        self.scoping().enter_fn_ty(node, |fn_ty_id| {
+            self.stores().ty().modify(fn_ty_id, |ty| {
+                let fn_ty = ty_as_variant!(self, value ty, Fn);
+                // Add the params if they exist
+                if let Some(params) = params {
+                    fn_ty.params = params;
+                }
+
+                // Make the return type if it exists
+                let return_ty =
+                    self.try_or_add_error(self.make_ty_from_ast_ty(node.return_ty.ast_ref()));
+                if let Some(return_ty) = return_ty {
+                    fn_ty.return_ty = return_ty;
+                }
+
+                match (params, return_ty) {
+                    (Some(_params), Some(_return_ty)) => Ok(fn_ty_id),
+                    _ => Err(TcError::Signal),
+                }
+            })
+        })
     }
 
     /// Make a type from the given [`ast::Ty`] and assign it to the node in
@@ -323,7 +367,7 @@ impl<'tc> ResolutionPass<'tc> {
             ast::Ty::List(list_ty) => self.make_ty_from_ast_list_ty(node.with_body(list_ty))?,
             ast::Ty::Ref(ref_ty) => self.make_ty_from_ref_ty(node.with_body(ref_ty))?,
             ast::Ty::Fn(fn_ty) => self.make_ty_from_ast_fn_ty(node.with_body(fn_ty))?,
-            ast::Ty::TyFn(ty_fn_ty) => self.make_ty_from_ast_ty_fn(node.with_body(ty_fn_ty))?,
+            ast::Ty::TyFn(ty_fn_ty) => self.make_ty_from_ast_ty_fn_ty(node.with_body(ty_fn_ty))?,
             ast::Ty::Union(_) | ast::Ty::Merge(_) => {
                 // @@Todo: actually catch this at discovery, these are currently not supported.
                 panic_on_span!(

@@ -32,6 +32,8 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         StructDef,
         EnumDef,
         FnDef,
+        FnTy,
+        TyFn,
         TyFnDef,
         BodyBlock,
         MergeDeclaration,
@@ -74,7 +76,14 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
                 panic_on_span!(
                     self.node_location(node),
                     self.source_map(),
-                    "found declaration in function scope, which should instead be in its stack scope"
+                    "found declaration in function scope, which should instead be in a stack scope"
+                )
+            }
+            DefId::FnTy(_) => {
+                panic_on_span!(
+                    self.node_location(node),
+                    self.source_map(),
+                    "found declaration in function type scope, which should instead be in a stack scope"
                 )
             }
         };
@@ -274,12 +283,46 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
             // If we are in a stack scope, this is a nested block, so we add a new stack
             DefId::Stack(_) |
             // If we are in a function, then this is the function's body, so we add a new stack
-            DefId::Fn(_) => {
+            DefId::FnTy(_) | DefId::Fn(_) => {
                 let stack_id = self.stack_ops().create_stack();
                 self.enter_def(node, stack_id, || walk::walk_body_block(self, node))?;
                 Ok(())
             }
         }
+    }
+
+    type TyFnRet = ();
+    fn visit_ty_fn(&self, node: AstNodeRef<ast::TyFn>) -> Result<Self::TyFnRet, Self::Error> {
+        // This will be filled in during resolution
+        let fn_ty_id = self.new_ty(FnTy {
+            implicit: true,
+            is_unsafe: false,
+            params: self.create_hole_params(&node.params),
+            pure: true,
+            return_ty: self.new_ty_hole(),
+        });
+
+        // Traverse the type function body
+        self.enter_def(node, fn_ty_id, || walk::walk_ty_fn(self, node))?;
+
+        Ok(())
+    }
+
+    type FnTyRet = ();
+    fn visit_fn_ty(&self, node: AstNodeRef<ast::FnTy>) -> Result<Self::FnTyRet, Self::Error> {
+        // This will be filled in during resolution
+        let fn_ty_id = self.new_ty(FnTy {
+            implicit: false,
+            is_unsafe: false,
+            params: self.create_hole_params_from(&node.params, |params| &params.name),
+            pure: true,
+            return_ty: self.new_ty_hole(),
+        });
+
+        // Traverse the function body
+        self.enter_def(node, fn_ty_id, || walk::walk_fn_ty(self, node))?;
+
+        Ok(())
     }
 
     type TraitDefRet = ();

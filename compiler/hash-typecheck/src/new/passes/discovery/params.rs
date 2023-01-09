@@ -38,12 +38,26 @@ impl<'tc> DiscoveryPass<'tc> {
         def_params
     }
 
+    /// Create a parameter list from the given AST generic parameter list, where
+    /// the type of each parameter is a hole.
+    pub(super) fn create_hole_params_from<T>(
+        &self,
+        params: &ast::AstNodes<T>,
+        name: impl Fn(&T) -> &Option<ast::AstNode<ast::Name>>,
+    ) -> ParamsId {
+        let params_id = self.param_ops().create_hole_params(
+            params.iter().map(|param| self.create_symbol_from_ast_name(name(param))),
+        );
+        self.stores()
+            .location()
+            .add_locations_to_targets(params_id, |i| Some(self.source_location(params[i].span())));
+        params_id
+    }
+
     /// Create a parameter list from the given AST parameter list, where the
     /// type of each parameter is a hole.
     pub(super) fn create_hole_params(&self, params: &ast::AstNodes<ast::Param>) -> ParamsId {
-        self.param_ops().create_hole_params(
-            params.iter().map(|param| self.create_symbol_from_ast_name(&param.name)),
-        )
+        self.create_hole_params_from(params, |param| &param.name)
     }
 
     /// Create a parameter data list from the given AST parameter list, where
