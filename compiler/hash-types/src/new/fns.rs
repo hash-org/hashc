@@ -45,7 +45,7 @@ pub struct FnTy {
     /// The return type of the function.
     ///
     /// This might depend on `params` and `conditions`.
-    pub return_type: TyId,
+    pub return_ty: TyId,
 }
 
 /// Intrinsics live in a store.
@@ -158,7 +158,7 @@ impl Display for WithEnv<'_, &FnTy> {
             write!(f, ")")?;
         }
 
-        write!(f, " -> {}", self.env().with(self.value.return_type))?;
+        write!(f, " -> {}", self.env().with(self.value.return_ty))?;
 
         Ok(())
     }

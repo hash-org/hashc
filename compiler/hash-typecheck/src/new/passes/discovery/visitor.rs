@@ -221,7 +221,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
                 is_unsafe: false,
                 params: self.create_hole_params(&node.params),
                 pure: false,
-                return_type: self.new_ty_hole(),
+                return_ty: self.new_ty_hole(),
             },
         });
 
@@ -250,7 +250,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
                 is_unsafe: false,
                 params: self.create_hole_params(&node.params),
                 pure: true,
-                return_type: self.new_ty_hole(),
+                return_ty: self.new_ty_hole(),
             },
         });
 

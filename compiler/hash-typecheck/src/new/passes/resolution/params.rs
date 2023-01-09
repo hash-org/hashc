@@ -10,6 +10,7 @@ use hash_types::new::{
     defs::{DefArgGroupData, DefArgsId, DefParamsId, DefPatArgGroupData, DefPatArgsId},
     environment::env::AccessToEnv,
     fns::FnCallTerm,
+    params::ParamsId,
     pats::Spread,
     terms::{Term, TermId},
 };
@@ -21,6 +22,7 @@ use crate::new::{
         error::{TcError, TcResult},
         params::{SomeArgsId, SomeDefArgsId},
     },
+    environment::tc_env::AccessToTcEnv,
     ops::{common::CommonOps, AccessToOps},
     passes::ast_utils::AstUtils,
 };
@@ -127,6 +129,65 @@ impl ResolvedDefArgs {
 }
 
 impl<'tc> ResolutionPass<'tc> {
+    // @@Todo: def params
+
+    /// Make TC parameters ([`ParamsId`]) from the given set of AST type
+    /// function arguments ([`ast::Param`] list).
+    ///
+    /// This assumes that the parameters were initially traversed during
+    /// discovery, and are set in the AST info store. It gets the existing
+    /// parameter definition and enriches it with the resolved type and
+    /// default value.
+    pub(super) fn make_params_from_ast_params(
+        &self,
+        params: &ast::AstNodes<ast::Param>,
+    ) -> TcResult<ParamsId> {
+        let mut found_error = false;
+        let mut params_id: Option<ParamsId> = None;
+
+        for ast_param in params.ast_ref_iter() {
+            // Resolve the default value and type annotation:
+            let default_value = self.try_or_add_error(
+                ast_param
+                    .default
+                    .as_ref()
+                    .map(|default_value| self.make_term_from_ast_expr(default_value.ast_ref()))
+                    .transpose(),
+            );
+            let resolved_ty = self.try_or_add_error(
+                ast_param.ty.as_ref().map(|ty| self.make_ty_from_ast_ty(ty.ast_ref())).transpose(),
+            );
+
+            // @@Todo: actually register this in discovery
+            let param_id = self.ast_info().params().get_data_by_node(ast_param.id()).unwrap();
+            params_id = Some(param_id.0);
+
+            match (resolved_ty, default_value) {
+                (Some(resolved_ty), Some(resolved_default_value)) => {
+                    self.stores().params().modify_fast(param_id.0, |params| {
+                        // If this is None, it wasn't given as an annotation, so we just leave it as
+                        // a hole
+                        if let Some(resolved_ty) = resolved_ty {
+                            params[param_id.1].ty = resolved_ty;
+                        }
+                        params[param_id.1].default_value = resolved_default_value;
+                    });
+                }
+                _ => {
+                    // Continue resolving the rest of the parameters and report the error at the
+                    // end.
+                    found_error = true;
+                }
+            }
+        }
+
+        if found_error {
+            Err(TcError::Signal)
+        } else {
+            Ok(params_id.unwrap_or_else(|| self.new_empty_params()))
+        }
+    }
+
     /// Make [`ResolvedArgs`] from an AST argument group.
     ///
     /// This will return either pattern arguments or term arguments, depending

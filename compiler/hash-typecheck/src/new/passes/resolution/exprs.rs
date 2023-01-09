@@ -4,7 +4,7 @@
 //! correspond to paths into terms. It does not handle general expressions,
 //! which is handled later.
 
-use hash_ast::ast::{self, AstNodeRef};
+use hash_ast::ast::{self, AstNode, AstNodeId, AstNodeRef};
 use hash_reporting::macros::panic_on_span;
 use hash_source::location::Span;
 use hash_types::new::{
@@ -13,17 +13,17 @@ use hash_types::new::{
     casting::CastTerm,
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
     data::DataTy,
-    environment::env::AccessToEnv,
-    fns::FnCallTerm,
+    environment::{context::ScopeKind, env::AccessToEnv},
+    fns::{FnBody, FnCallTerm},
     lits::{CharLit, FloatLit, IntLit, Lit, PrimTerm, StrLit},
-    params::{ParamIndex, ParamsId},
+    params::ParamIndex,
     refs::{DerefTerm, RefKind, RefTerm},
     scopes::{AssignTerm, BlockTerm, DeclStackMemberTerm},
     terms::{Term, TermId, UnsafeTerm},
     tuples::TupleTerm,
     tys::Ty,
 };
-use hash_utils::store::SequenceStoreCopy;
+use hash_utils::store::Store;
 use itertools::{multiunzip, Itertools};
 
 use super::{
@@ -32,6 +32,7 @@ use super::{
         AstPath, AstPathComponent, NonTerminalResolvedPathComponent, ResolvedAstPathComponent,
         TerminalResolvedPathComponent,
     },
+    scoping::ContextKind,
     ResolutionPass,
 };
 use crate::{
@@ -47,63 +48,6 @@ use crate::{
 /// This block converts AST nodes of different kinds into [`AstPath`]s, in order
 /// to later resolve them into terms.
 impl<'tc> ResolutionPass<'tc> {
-    /// Make TC parameters ([`ParamsId`]) from the given set of AST type
-    /// function arguments ([`ast::Param`] list).
-    ///
-    /// This assumes that the parameters were initially traversed during
-    /// discovery, and are set in the AST info store. It gets the existing
-    /// parameter definition and enriches it with the resolved type and
-    /// default value.
-    pub(super) fn make_params_from_ast_params(
-        &self,
-        params: &ast::AstNodes<ast::Param>,
-    ) -> TcResult<ParamsId> {
-        let mut found_error = false;
-        let mut params_id: Option<ParamsId> = None;
-
-        for ast_param in params.ast_ref_iter() {
-            // Resolve the default value and type annotation:
-            let default_value = self.try_or_add_error(
-                ast_param
-                    .default
-                    .as_ref()
-                    .map(|default_value| self.make_term_from_ast_expr(default_value.ast_ref()))
-                    .transpose(),
-            );
-            let resolved_ty = self.try_or_add_error(
-                ast_param.ty.as_ref().map(|ty| self.make_ty_from_ast_ty(ty.ast_ref())).transpose(),
-            );
-
-            // @@Todo: actually register this in discovery
-            let param_id = self.ast_info().params().get_data_by_node(ast_param.id()).unwrap();
-            params_id = Some(param_id.0);
-
-            match (resolved_ty, default_value) {
-                (Some(resolved_ty), Some(resolved_default_value)) => {
-                    self.stores().params().modify_copied(param_id.0, |params| {
-                        // If this is None, it wasn't given as an annotation, so we just leave it as
-                        // a hole
-                        if let Some(resolved_ty) = resolved_ty {
-                            params[param_id.1].ty = resolved_ty;
-                        }
-                        params[param_id.1].default_value = resolved_default_value;
-                    });
-                }
-                _ => {
-                    // Continue resolving the rest of the parameters and report the error at the
-                    // end.
-                    found_error = true;
-                }
-            }
-        }
-
-        if found_error {
-            Err(TcError::Signal)
-        } else {
-            Ok(params_id.unwrap_or_else(|| self.new_empty_params()))
-        }
-    }
-
     /// Make TC arguments from the given set of AST tuple arguments.
     pub(super) fn make_args_from_ast_tuple_lit_args(
         &self,
@@ -636,7 +580,7 @@ impl<'tc> ResolutionPass<'tc> {
         // Convert all the cases and their bodies
         let cases_and_decisions: (Vec<_>, Vec<_>) =
             multiunzip(node.cases.iter().filter_map(|case| {
-                self.scoping().enter_match_case(case.ast_ref(), || {
+                self.scoping().enter_match_case(case.ast_ref(), |_| {
                     let pattern =
                         self.try_or_add_error(self.make_pat_from_ast_pat(case.pat.ast_ref()));
                     let body =
@@ -664,7 +608,7 @@ impl<'tc> ResolutionPass<'tc> {
     /// If this block is not from a stack scope, this will panic.
     fn make_term_from_ast_body_block(&self, node: AstNodeRef<ast::BodyBlock>) -> TcResult<TermId> {
         self.scoping()
-            .enter_body_block(node, || {
+            .enter_body_block(node, |_| {
                 // Traverse the statements and the end expression
                 let statements = node
                     .statements
@@ -737,14 +681,77 @@ impl<'tc> ResolutionPass<'tc> {
         }
     }
 
+    /// Make a function term from an AST function definition, which is either a
+    /// [`ast::TyFnDef`] or a [`ast::FnDef`].
+    fn make_term_from_some_ast_fn_def(
+        &self,
+        params: &ast::AstNodes<ast::Param>,
+        body: &AstNode<ast::Expr>,
+        return_ty: &Option<AstNode<ast::Ty>>,
+        node_id: AstNodeId,
+    ) -> TcResult<TermId> {
+        // Function should already be discovered
+        let fn_def_id = self.ast_info().fn_defs().get_data_by_node(node_id).unwrap();
+
+        // First resolve the parameters
+        let params = self.try_or_add_error(self.make_params_from_ast_params(params));
+
+        // Modify the existing fn def for the params:
+        if let Some(params) = params {
+            self.stores().fn_def().modify_fast(fn_def_id, |fn_def| {
+                fn_def.ty.params = params;
+            });
+        }
+
+        let (return_ty, return_value, fn_def_id) =
+            self.scoping().enter_scope(ScopeKind::Fn(fn_def_id), ContextKind::Environment, || {
+                // In the scope of the parameters, resolve the return type and value
+                let return_ty = return_ty.as_ref().map(|return_ty| {
+                    self.try_or_add_error(self.make_ty_from_ast_ty(return_ty.ast_ref()))
+                });
+
+                // Modify the existing fn def for the return type:
+                if let Some(Some(return_ty)) = return_ty {
+                    self.stores().fn_def().modify_fast(fn_def_id, |fn_def| {
+                        // This is a double option: one for potential error, another for not
+                        // specifying return type.
+                        fn_def.ty.return_ty = return_ty;
+                    });
+                }
+
+                let return_value =
+                    self.try_or_add_error(self.make_term_from_ast_expr(body.ast_ref()));
+
+                // Modify the existing fn def for the return value:
+                self.stores().fn_def().modify_fast(fn_def_id, |fn_def| {
+                    if let Some(return_value) = return_value {
+                        fn_def.body = FnBody::Defined(return_value);
+                    }
+                });
+
+                (return_ty, return_value, fn_def_id)
+            });
+
+        // If all ok, create a fn ref term
+        match (params, return_ty, return_value) {
+            (Some(_), Some(_), Some(_)) => Ok(self.new_term(Term::FnRef(fn_def_id))),
+            _ => Err(TcError::Signal),
+        }
+    }
+
     /// Make a term from an [`ast::TyFnDef`].
-    fn make_term_from_ast_ty_fn_def(&self, _node: AstNodeRef<ast::TyFnDef>) -> TcResult<TermId> {
-        todo!()
+    fn make_term_from_ast_ty_fn_def(&self, node: AstNodeRef<ast::TyFnDef>) -> TcResult<TermId> {
+        self.make_term_from_some_ast_fn_def(
+            &node.params,
+            &node.ty_fn_body,
+            &node.return_ty,
+            node.id(),
+        )
     }
 
     /// Make a term from an [`ast::FnDef`].
-    fn make_term_from_ast_fn_def(&self, _node: AstNodeRef<ast::FnDef>) -> TcResult<TermId> {
-        todo!()
+    fn make_term_from_ast_fn_def(&self, node: AstNodeRef<ast::FnDef>) -> TcResult<TermId> {
+        self.make_term_from_some_ast_fn_def(&node.params, &node.fn_body, &node.return_ty, node.id())
     }
 
     /// Make a term from an [`ast::AssignOpExpr`].
