@@ -18,7 +18,7 @@ use hash_ir::{
 };
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerResult, CompilerStage},
-    settings::{CompilerStageKind, IrDumpMode},
+    settings::{CompilerSettings, CompilerStageKind, IrDumpMode},
     workspace::{SourceStageInfo, Workspace},
 };
 use hash_source::SourceId;
@@ -36,6 +36,9 @@ pub struct IrGen;
 pub struct LoweringCtx<'ir> {
     /// Reference to the current compiler workspace.
     pub workspace: &'ir mut Workspace,
+
+    /// The settings of the current session.
+    pub settings: &'ir CompilerSettings,
 
     /// Reference to the type storage that comes from
     /// the typechecking compiler phase.
@@ -66,9 +69,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
     /// Additionally, this module is responsible for performing
     /// optimisations on the IR (if specified via the [CompilerSettings]).
     fn run(&mut self, _: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
-        let settings = ctx.settings().lowering_settings;
-
-        let LoweringCtx { workspace, ty_storage, ir_storage, .. } = ctx.data();
+        let LoweringCtx { workspace, ty_storage, ir_storage, settings, .. } = ctx.data();
         let source_map = &mut workspace.source_map;
         let source_stage_info = &mut workspace.source_stage_info;
 
@@ -122,9 +123,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrOptimiser {
     }
 
     fn run(&mut self, _: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
-        let settings = ctx.settings().lowering_settings;
-
-        let LoweringCtx { workspace, ir_storage, .. } = ctx.data();
+        let LoweringCtx { workspace, ir_storage, settings, .. } = ctx.data();
         let source_map = &mut workspace.source_map;
 
         let bodies = &mut ir_storage.bodies;

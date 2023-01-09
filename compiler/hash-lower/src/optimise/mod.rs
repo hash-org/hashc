@@ -7,7 +7,7 @@
 //! @@Todo: write a constant value propagation pass.
 
 use hash_ir::{ir::Body, IrCtx};
-use hash_pipeline::settings::{LoweringSettings, OptimisationLevel};
+use hash_pipeline::settings::{CompilerSettings, OptimisationLevel};
 use hash_source::SourceMap;
 
 // Various passes that are used to optimise the generated IR bodies.
@@ -20,7 +20,7 @@ pub trait IrOptimisation {
 
     /// Check if this optimisation pas is enabled with accordance to
     /// the current [LoweringSettings].
-    fn enabled(&self, settings: &LoweringSettings) -> bool {
+    fn enabled(&self, settings: &CompilerSettings) -> bool {
         settings.optimisation_level > OptimisationLevel::Debug
     }
 
@@ -39,7 +39,7 @@ pub struct Optimiser<'ir> {
 
     /// Stores all of the lowering settings that are used to
     /// determine which passes are enabled.
-    settings: LoweringSettings,
+    settings: &'ir CompilerSettings,
 
     /// The various passes that have been added to the optimisation
     /// pipeline.
@@ -47,7 +47,11 @@ pub struct Optimiser<'ir> {
 }
 
 impl<'ir> Optimiser<'ir> {
-    pub fn new(store: &'ir IrCtx, source_map: &'ir SourceMap, settings: LoweringSettings) -> Self {
+    pub fn new(
+        store: &'ir IrCtx,
+        source_map: &'ir SourceMap,
+        settings: &'ir CompilerSettings,
+    ) -> Self {
         Self {
             store,
             _source_map: source_map,
@@ -63,7 +67,7 @@ impl<'ir> Optimiser<'ir> {
     /// on the body.
     pub fn optimise(&self, body: &mut Body) {
         for pass in self.passes.iter() {
-            if pass.enabled(&self.settings) {
+            if pass.enabled(self.settings) {
                 pass.optimise(body, self.store);
             }
         }

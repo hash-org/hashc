@@ -114,10 +114,12 @@ impl<Ctx: AstDesugaringCtxQuery> CompilerStage<Ctx> for AstDesugaringPass {
         Ok(())
     }
 
+    /// Check whether the compiler settings specify that the generated
+    /// AST needs to be dumped.
     fn cleanup(&mut self, entry_point: SourceId, ctx: &mut Ctx) {
         let settings = ctx.settings();
 
-        if settings.stage > CompilerStageKind::Parse && settings.dump_ast {
+        if settings.stage > CompilerStageKind::Parse && settings.ast_settings().dump_tree {
             ctx.workspace().print_sources(entry_point);
         }
     }

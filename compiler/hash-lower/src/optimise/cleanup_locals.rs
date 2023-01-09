@@ -16,7 +16,7 @@ use hash_ir::{
     visitor::{walk_mut, IrVisitorMut, ModifyingIrVisitor, PlaceContext},
     IrCtx,
 };
-use hash_pipeline::settings::{LoweringSettings, OptimisationLevel};
+use hash_pipeline::settings::{CompilerSettings, OptimisationLevel};
 use index_vec::{index_vec, IndexVec};
 
 use super::IrOptimisation;
@@ -34,7 +34,7 @@ impl IrOptimisation for CleanupLocalPass {
 
     /// Pass [CleanupLocalPass] is always enabled since it performs
     /// necessary cleanup of the initially generated IR.
-    fn enabled(&self, settings: &LoweringSettings) -> bool {
+    fn enabled(&self, settings: &CompilerSettings) -> bool {
         settings.optimisation_level >= OptimisationLevel::Debug
     }
 

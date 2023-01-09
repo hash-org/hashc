@@ -2,7 +2,8 @@
 
 use clap::{self, command, ArgAction, Parser, Subcommand};
 use hash_pipeline::settings::{
-    CompilerSettings, CompilerStageKind, IrDumpMode, LoweringSettings, OptimisationLevel,
+    AstSettings, CodeGenSettings, CompilerSettings, CompilerStageKind, IrDumpMode,
+    LoweringSettings, OptimisationLevel,
 };
 use hash_reporting::errors::CompilerError;
 use hash_target::{Target, TargetInfo};
@@ -145,6 +146,7 @@ impl TryInto<CompilerSettings> for CompilerOptions {
 
     fn try_into(self) -> Result<CompilerSettings, Self::Error> {
         let mut lowering_settings = LoweringSettings::default();
+        let ast_settings = AstSettings { dump_tree: self.dump_ast };
 
         let stage = match self.mode {
             Some(SubCmd::AstGen { .. }) => CompilerStageKind::Parse,
@@ -152,27 +154,24 @@ impl TryInto<CompilerSettings> for CompilerOptions {
 
             Some(SubCmd::Check { .. }) => CompilerStageKind::Typecheck,
             Some(SubCmd::IrGen(opts)) => {
+                let checked_operations = if self.optimisation_level == OptimisationLevel::Release {
+                    false
+                } else {
+                    opts.checked_operations
+                };
+
+                // @@Todo: this should be configurable outside of the
+                // "ir-gen" mode.
                 lowering_settings = LoweringSettings {
                     dump_mode: opts.dump_mode,
                     dump_all: opts.dump,
-                    checked_operations: opts.checked_operations,
-                    optimisation_level: self.optimisation_level,
+                    checked_operations,
                 };
 
                 CompilerStageKind::IrGen
             }
             _ => CompilerStageKind::Full,
         };
-
-        // If we are running in release mode, we should disable
-        // checked operations.
-        //
-        // @@Todo: make this nicer when we have more affected settings, we could
-        // potentially even move this into another kind of settings that is
-        // determined from the optimisation level, and then derived from that.
-        if self.optimisation_level == OptimisationLevel::Release {
-            lowering_settings.checked_operations = false;
-        }
 
         // We can use the default value of target since we are running
         // on the current system...
@@ -183,15 +182,18 @@ impl TryInto<CompilerSettings> for CompilerOptions {
 
         let target_info = TargetInfo::new(host, target);
 
+        let codegen_settings = CodeGenSettings { target_info, ..CodeGenSettings::default() };
+
         Ok(CompilerSettings {
-            target_info,
+            ast_settings,
             lowering_settings,
+            codegen_settings,
+            optimisation_level: self.optimisation_level,
             output_stage_results: self.output_stage_results,
             output_metrics: self.output_metrics,
             worker_count: self.worker_count,
             skip_prelude: false,
             emit_errors: true,
-            dump_ast: self.dump_ast,
             stage,
         })
     }

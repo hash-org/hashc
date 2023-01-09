@@ -24,7 +24,7 @@ use hash_ir::{
     ty::{IrTy, IrTyListId, Mutability},
     IrCtx,
 };
-use hash_pipeline::settings::LoweringSettings;
+use hash_pipeline::settings::CompilerSettings;
 use hash_source::{identifier::Identifier, location::Span, SourceId, SourceMap};
 use hash_types::{scope::ScopeId, storage::GlobalStorage, terms::TermId};
 use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
@@ -163,7 +163,7 @@ pub(crate) struct Builder<'tcx> {
 
     /// The stage settings, sometimes used to determine what the lowering
     /// behaviour should be.
-    settings: &'tcx LoweringSettings,
+    settings: &'tcx CompilerSettings,
 
     /// Info that is derived during the lowering process of the type.
     info: BodyInfo,
@@ -235,17 +235,17 @@ pub(crate) struct Builder<'tcx> {
     dead_ends: &'tcx HashSet<AstNodeId>,
 }
 
-impl<'tcx> Builder<'tcx> {
+impl<'ctx> Builder<'ctx> {
     pub(crate) fn new(
         name: Identifier,
-        item: BuildItem<'tcx>,
+        item: BuildItem<'ctx>,
         source_id: SourceId,
         scope_stack: Vec<ScopeId>,
-        tcx: &'tcx GlobalStorage,
-        ctx: &'tcx mut IrCtx,
-        source_map: &'tcx SourceMap,
-        dead_ends: &'tcx HashSet<AstNodeId>,
-        settings: &'tcx LoweringSettings,
+        tcx: &'ctx GlobalStorage,
+        ctx: &'ctx mut IrCtx,
+        source_map: &'ctx SourceMap,
+        dead_ends: &'ctx HashSet<AstNodeId>,
+        settings: &'ctx CompilerSettings,
     ) -> Self {
         let (arg_count, source) = match item {
             BuildItem::FnDef(node) => {
@@ -377,7 +377,7 @@ impl<'tcx> Builder<'tcx> {
     /// Function that builds the main body of a [BuildItem]. This will lower the
     /// expression that is provided, and store the result into the
     /// `RETURN_PLACE`.
-    fn build_body(&mut self, body: AstNodeRef<'tcx, Expr>) {
+    fn build_body(&mut self, body: AstNodeRef<'ctx, Expr>) {
         // Now we begin by lowering the body of the function.
         let start = self.control_flow_graph.start_new_block();
         debug_assert!(start == START_BLOCK);

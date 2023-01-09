@@ -11,7 +11,7 @@ use std::{
 };
 
 /// The target that the compiler should compile for.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy)]
 pub struct Target {
     /// The size of the pointer for the target in bytes.
     ///
@@ -25,7 +25,7 @@ pub struct Target {
 }
 
 /// Represents the available targets that the compiler can compiler for.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy)]
 pub enum TargetName {
     /// x86 32-bit target architecture.
     X86,
@@ -98,7 +98,7 @@ impl Default for Target {
 
 /// Holds information about various targets that are currently used by the
 /// compiler.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct TargetInfo {
     /// The target value of the host that the compiler is running
     /// for.

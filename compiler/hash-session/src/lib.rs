@@ -69,7 +69,8 @@ pub struct CompilerSession {
 impl CompilerSession {
     /// Create a new [CompilerSession].
     pub fn new(workspace: Workspace, pool: rayon::ThreadPool, settings: CompilerSettings) -> Self {
-        let global = GlobalStorage::new(settings.target_info.target());
+        let target = settings.codegen_settings().target_info.target();
+        let global = GlobalStorage::new(target);
         let local = LocalStorage::new(&global, SourceId::default());
 
         Self {
@@ -152,6 +153,7 @@ impl LoweringCtxQuery for CompilerSession {
         LoweringCtx {
             workspace: &mut self.workspace,
             ty_storage: &self.ty_storage,
+            settings: &self.settings,
             ir_storage: &mut self.ir_storage,
             _pool: &self.pool,
         }

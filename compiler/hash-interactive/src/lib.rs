@@ -100,15 +100,15 @@ fn execute<I: CompilerInterface>(input: &str, compiler: &mut Compiler<I>, mut ct
                 InteractiveCommand::Type(_) => {
                     // @@Hack: if display is previously set `:d`, then this interferes with this
                     // mode.
-                    settings.dump_ast = false;
+                    settings.ast_settings_mut().dump_tree = false;
                     settings.set_stage(CompilerStageKind::Typecheck)
                 }
                 InteractiveCommand::Display(_) => {
-                    settings.dump_ast = true;
+                    settings.ast_settings_mut().dump_tree = true;
                     settings.set_stage(CompilerStageKind::Parse)
                 }
                 _ => {
-                    settings.dump_ast = false;
+                    settings.ast_settings_mut().dump_tree = false;
                     settings.set_stage(CompilerStageKind::Full)
                 }
             }
