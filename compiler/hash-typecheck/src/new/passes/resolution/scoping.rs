@@ -2,6 +2,7 @@
 use std::{collections::HashMap, fmt};
 
 use hash_ast::ast;
+use hash_reporting::macros::panic_on_span;
 use hash_source::{identifier::Identifier, location::Span};
 use hash_types::new::{
     environment::{context::ScopeKind, env::AccessToEnv},
@@ -248,7 +249,104 @@ impl<'tc> Scoping<'tc> {
         }
     }
 
-    pub(super) fn _enter_module<T>(&self, _node: ast::AstNodeRef<ast::Module>) -> TcResult<T> {
-        todo!()
+    /// Enter the scope of a module.
+    pub(super) fn enter_module<T>(
+        &self,
+        node: ast::AstNodeRef<ast::Module>,
+        f: impl FnOnce() -> T,
+    ) -> T {
+        let mod_def_id = self.ast_info().mod_defs().get_data_by_node(node.id()).unwrap();
+        self.enter_scope(ScopeKind::Mod(mod_def_id), ContextKind::Environment, f)
+    }
+
+    /// Enter the scope of a module block.
+    pub(super) fn enter_mod_def<T>(
+        &self,
+        node: ast::AstNodeRef<ast::ModDef>,
+        f: impl FnOnce() -> T,
+    ) -> T {
+        let mod_def_id = self.ast_info().mod_defs().get_data_by_node(node.id()).unwrap();
+        self.enter_scope(ScopeKind::Mod(mod_def_id), ContextKind::Environment, f)
+    }
+
+    /// Enter the scope of a function definition.
+    pub(super) fn enter_struct_def<T>(
+        &self,
+        node: ast::AstNodeRef<ast::StructDef>,
+        f: impl FnOnce() -> T,
+    ) -> T {
+        let data_def_id = self.ast_info().data_defs().get_data_by_node(node.id()).unwrap();
+        self.enter_scope(ScopeKind::Data(data_def_id), ContextKind::Environment, f)
+    }
+
+    /// Enter the scope of an enum definition.
+    pub(super) fn enter_enum_def<T>(
+        &self,
+        node: ast::AstNodeRef<ast::EnumDef>,
+        f: impl FnOnce() -> T,
+    ) -> T {
+        let data_def_id = self.ast_info().data_defs().get_data_by_node(node.id()).unwrap();
+        self.enter_scope(ScopeKind::Data(data_def_id), ContextKind::Environment, f)
+    }
+
+    /// Enter the scope of a function definition.
+    pub(super) fn enter_fn_def<T>(
+        &self,
+        node: ast::AstNodeRef<ast::FnDef>,
+        f: impl FnOnce() -> T,
+    ) -> T {
+        let fn_def_id = self.ast_info().fn_defs().get_data_by_node(node.id()).unwrap();
+        self.enter_scope(ScopeKind::Fn(fn_def_id), ContextKind::Environment, f)
+    }
+
+    /// Enter the scope of a type function definition.
+    pub(super) fn enter_ty_fn_def<T>(
+        &self,
+        node: ast::AstNodeRef<ast::TyFnDef>,
+        f: impl FnOnce() -> T,
+    ) -> T {
+        let fn_def_id = self.ast_info().fn_defs().get_data_by_node(node.id()).unwrap();
+        self.enter_scope(ScopeKind::Fn(fn_def_id), ContextKind::Environment, f)
+    }
+
+    /// Enter the scope of a body block.
+    ///
+    /// If called on a non-stack body block, it will return none.
+    pub(super) fn enter_body_block<T>(
+        &self,
+        node: ast::AstNodeRef<ast::BodyBlock>,
+        f: impl FnOnce() -> T,
+    ) -> Option<T> {
+        self.ast_info().stacks().get_data_by_node(node.id()).map(|stack_id| {
+            self.enter_scope(ScopeKind::Stack(stack_id), ContextKind::Environment, f)
+        })
+    }
+
+    /// Register a declaration, which will add it to the current stack scope.
+    ///
+    /// The declaration must be in a stack scope.
+    pub(super) fn register_declaration(&self, node: ast::AstNodeRef<ast::Declaration>) {
+        if let ScopeKind::Stack(_) = self.context().get_current_scope_kind() {
+            self.for_each_stack_member_of_pat(node.pat.ast_ref(), |member| {
+                self.add_stack_binding(member);
+            });
+        }
+    }
+
+    /// Enter a match case, adding the bindings to the current stack scope.
+    pub(super) fn enter_match_case<T>(
+        &self,
+        node: ast::AstNodeRef<ast::MatchCase>,
+        f: impl FnOnce() -> T,
+    ) -> T {
+        let stack_id = self.ast_info().stacks().get_data_by_node(node.id()).unwrap();
+        // Each match case has its own scope, so we need to enter it, and add all the
+        // pattern bindings to the context.
+        self.enter_scope(ScopeKind::Stack(stack_id), ContextKind::Environment, || {
+            self.for_each_stack_member_of_pat(node.pat.ast_ref(), |member| {
+                self.add_stack_binding(member);
+            });
+            f()
+        })
     }
 }
