@@ -15,7 +15,7 @@ use hash_types::new::{
 };
 use hash_utils::store::{SequenceStore, SequenceStoreKey};
 
-use super::{paths::AstArgGroup, SymbolResolutionPass};
+use super::{paths::AstArgGroup, ResolutionPass};
 use crate::new::{
     diagnostics::{
         error::{TcError, TcResult},
@@ -94,7 +94,7 @@ impl ResolvedDefArgs {
     }
 }
 
-impl<'tc> SymbolResolutionPass<'tc> {
+impl<'tc> ResolutionPass<'tc> {
     /// Make [`ResolvedArgs`] from an AST argument group, with holes for all the
     /// arguments.
     ///

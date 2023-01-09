@@ -27,7 +27,7 @@ use super::{
         AstArgGroup, AstPath, AstPathComponent, NonTerminalResolvedPathComponent,
         ResolvedAstPathComponent, TerminalResolvedPathComponent,
     },
-    SymbolResolutionPass,
+    ResolutionPass,
 };
 use crate::new::{
     diagnostics::error::{TcError, TcResult},
@@ -36,9 +36,9 @@ use crate::new::{
     passes::ast_utils::AstUtils,
 };
 
-impl SymbolResolutionPass<'_> {
+impl ResolutionPass<'_> {
     /// Create a [`PatArgsId`] from the given [`ast::TuplePatEntry`]s.
-    pub fn ast_tuple_pat_entries_as_pat_args(
+    pub(super) fn ast_tuple_pat_entries_as_pat_args(
         &self,
         entries: &ast::AstNodes<ast::TuplePatEntry>,
     ) -> TcResult<PatArgsId> {
@@ -71,7 +71,7 @@ impl SymbolResolutionPass<'_> {
     ///
     /// This assumes that the current scope already has a binding for the
     /// given name if it is present, and will panic otherwise.
-    pub fn ast_spread_as_spread(
+    pub(super) fn ast_spread_as_spread(
         &self,
         node: &Option<ast::AstNode<ast::SpreadPat>>,
     ) -> TcResult<Option<Spread>> {
@@ -247,7 +247,7 @@ impl SymbolResolutionPass<'_> {
     /// node in the AST info store.
     ///
     /// This handles all patterns.
-    pub fn make_pat_from_ast_pat(&self, node: AstNodeRef<ast::Pat>) -> TcResult<PatId> {
+    pub(super) fn make_pat_from_ast_pat(&self, node: AstNodeRef<ast::Pat>) -> TcResult<PatId> {
         // Maybe it has already been made:
         if let Some(pat_id) = self.ast_info().pats().get_data_by_node(node.id()) {
             return Ok(pat_id);

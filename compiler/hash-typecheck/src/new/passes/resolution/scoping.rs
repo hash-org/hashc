@@ -1,10 +1,11 @@
 //! General helper functions for traversing scopes and adding bindings.
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt};
 
 use hash_ast::ast;
 use hash_source::{identifier::Identifier, location::Span};
 use hash_types::new::{
     environment::{context::ScopeKind, env::AccessToEnv},
+    locations::LocationTarget,
     scopes::StackMemberId,
     symbols::Symbol,
 };
@@ -13,16 +14,43 @@ use hash_utils::{
     store::{CloneStore, Store},
 };
 
-use super::ContextKind;
+use super::paths::NonTerminalResolvedPathComponent;
 use crate::{
     impl_access_to_tc_env,
     new::{
         diagnostics::error::{TcError, TcResult},
-        environment::tc_env::{AccessToTcEnv, TcEnv},
+        environment::tc_env::{AccessToTcEnv, TcEnv, WithTcEnv},
         ops::{common::CommonOps, AccessToOps},
         passes::ast_utils::AstUtils,
     },
 };
+
+/// The kind of context we are in.
+///
+/// Either we are trying to resolve a symbol in the environment, or we are
+/// trying to resolve a symbol through access of another term.
+#[derive(Copy, Clone, Debug)]
+pub enum ContextKind {
+    /// An access context, where we are trying to resolve a symbol through
+    /// access of another term.
+    ///
+    /// The tuple contains the identifier accessing from and the location target
+    /// of the definition .
+    Access(NonTerminalResolvedPathComponent, LocationTarget),
+    /// Just the current scope.
+    Environment,
+}
+
+impl fmt::Display for WithTcEnv<'_, &ContextKind> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.value {
+            ContextKind::Access(non_terminal, _loc) => {
+                write!(f, "{}", self.tc_env().with(non_terminal))
+            }
+            ContextKind::Environment => write!(f, "the current scope"),
+        }
+    }
+}
 
 /// Contains helper functions for traversing scopes and adding bindings.
 ///
@@ -30,7 +58,7 @@ use crate::{
 /// [`crate::new::ops::context::ContextOps`] to enter scopes, but also
 /// keeps track of identifier names so that names can be matched to the correct
 /// symbols when creating `Var` terms.
-pub struct Scoping<'tc> {
+pub(super) struct Scoping<'tc> {
     tc_env: &'tc TcEnv<'tc>,
     /// Stores a list of contexts we are in, mirroring `ContextStore` but with
     /// identifiers so that we can resolve them to symbols.
@@ -44,7 +72,7 @@ impl_access_to_tc_env!(Scoping<'tc>);
 impl AstUtils for Scoping<'_> {}
 
 impl<'tc> Scoping<'tc> {
-    pub fn new(tc_env: &'tc TcEnv<'tc>) -> Self {
+    pub(super) fn new(tc_env: &'tc TcEnv<'tc>) -> Self {
         Self { tc_env, bindings_by_name: HeavyState::new(Vec::new()) }
     }
 
@@ -54,7 +82,7 @@ impl<'tc> Scoping<'tc> {
     /// If the binding is not found, it will return `None`.
     ///
     /// Will panic if there are no scopes in the context.
-    pub fn get_current_context_kind(&self) -> ContextKind {
+    pub(super) fn get_current_context_kind(&self) -> ContextKind {
         self.bindings_by_name.get().last().unwrap().0
     }
 
@@ -62,7 +90,7 @@ impl<'tc> Scoping<'tc> {
     ///
     /// This will search the current scope and all parent scopes.
     /// If the binding is not found, it will return `None`.
-    pub fn lookup_symbol_by_name(&self, name: impl Into<Identifier>) -> Option<Symbol> {
+    pub(super) fn lookup_symbol_by_name(&self, name: impl Into<Identifier>) -> Option<Symbol> {
         let name = name.into();
         match self.get_current_context_kind() {
             ContextKind::Access(_, _) => {
@@ -81,7 +109,7 @@ impl<'tc> Scoping<'tc> {
     /// Errors if the binding is not found.
     ///
     /// See [`SymbolResolutionPass::lookup_binding_by_name()`].
-    pub fn lookup_symbol_by_name_or_error(
+    pub(super) fn lookup_symbol_by_name_or_error(
         &self,
         name: impl Into<Identifier>,
         span: Span,
@@ -99,7 +127,7 @@ impl<'tc> Scoping<'tc> {
     ///
     /// In addition to adding the appropriate bindings, this also adds the
     /// appropriate names to `bindings_by_name`.
-    pub fn enter_scope<T>(
+    pub(super) fn enter_scope<T>(
         &self,
         kind: ScopeKind,
         context_kind: ContextKind,
@@ -133,7 +161,7 @@ impl<'tc> Scoping<'tc> {
 
     /// Add a stack member to the current scope, also adding it to the
     /// `bindings_by_name` map.
-    pub fn add_stack_binding(&self, member_id: StackMemberId) {
+    pub(super) fn add_stack_binding(&self, member_id: StackMemberId) {
         // Get the data of the member.
         let member_name =
             self.stores().stack().map_fast(member_id.0, |stack| stack.members[member_id.1].name);
@@ -159,7 +187,7 @@ impl<'tc> Scoping<'tc> {
     /// `stack_members` map. They are looked up using the IDs of the pattern
     /// binds, as added by the `add_stack_members_in_pat_to_buf` method of the
     /// `ScopeDiscoveryPass`.
-    pub fn for_each_stack_member_of_pat(
+    pub(super) fn for_each_stack_member_of_pat(
         &self,
         node: ast::AstNodeRef<ast::Pat>,
         f: impl Fn(StackMemberId) + Copy,
@@ -220,7 +248,7 @@ impl<'tc> Scoping<'tc> {
         }
     }
 
-    pub fn enter_module<T>(&self, _node: ast::AstNodeRef<ast::Module>) -> TcResult<T> {
+    pub(super) fn _enter_module<T>(&self, _node: ast::AstNodeRef<ast::Module>) -> TcResult<T> {
         todo!()
     }
 }

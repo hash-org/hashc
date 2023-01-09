@@ -36,7 +36,7 @@ use hash_types::new::{
 };
 use hash_utils::store::{SequenceStore, Store};
 
-use super::{params::ResolvedDefArgs, ContextKind, SymbolResolutionPass};
+use super::{params::ResolvedDefArgs, scoping::ContextKind, ResolutionPass};
 use crate::new::{
     diagnostics::error::{TcError, TcResult},
     environment::tc_env::WithTcEnv,
@@ -167,7 +167,7 @@ pub enum ResolvedAstPathComponent {
 }
 
 /// This block performs resolution of AST paths.
-impl<'tc> SymbolResolutionPass<'tc> {
+impl<'tc> ResolutionPass<'tc> {
     /// Resolve a name starting from the given [`ModMemberValue`], or the
     /// current context if no such value is given.
     ///

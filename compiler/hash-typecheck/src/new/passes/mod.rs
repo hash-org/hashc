@@ -1,4 +1,4 @@
-use self::{ast_utils::AstPass, discovery::DiscoveryPass, resolution::SymbolResolutionPass};
+use self::{ast_utils::AstPass, discovery::DiscoveryPass, resolution::ResolutionPass};
 use super::environment::tc_env::TcEnv;
 use crate::impl_access_to_tc_env;
 
@@ -21,6 +21,6 @@ impl<'tc> TcVisitor<'tc> {
     /// Visits the source passed in as an argument to [Self::new_in_source]
     pub fn visit_source(&self) {
         DiscoveryPass::new(self.tc_env).pass_source();
-        SymbolResolutionPass::new(self.tc_env).pass_source();
+        ResolutionPass::new(self.tc_env).pass_source();
     }
 }

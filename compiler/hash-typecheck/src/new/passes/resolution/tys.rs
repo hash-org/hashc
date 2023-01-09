@@ -18,7 +18,7 @@ use super::{
         AstArgGroup, AstPath, AstPathComponent, NonTerminalResolvedPathComponent,
         ResolvedAstPathComponent, TerminalResolvedPathComponent,
     },
-    SymbolResolutionPass,
+    ResolutionPass,
 };
 use crate::new::{
     diagnostics::error::{TcError, TcResult},
@@ -27,7 +27,7 @@ use crate::new::{
     passes::ast_utils::AstUtils,
 };
 
-impl<'tc> SymbolResolutionPass<'tc> {
+impl<'tc> ResolutionPass<'tc> {
     /// Use the given [`ast::NamedTy`] as a path.
     fn named_ty_as_ast_path<'a>(
         &self,
@@ -80,7 +80,7 @@ impl<'tc> SymbolResolutionPass<'tc> {
     ///
     /// Returns `None` if the expression is not a path. This is meant to
     /// be called from other `with_*_as_ast_path` functions.
-    pub fn ty_as_ast_path<'a>(
+    pub(super) fn ty_as_ast_path<'a>(
         &self,
         node: AstNodeRef<'a, ast::Ty>,
     ) -> TcResult<Option<AstPath<'a>>> {
@@ -106,7 +106,7 @@ impl<'tc> SymbolResolutionPass<'tc> {
     ///
     /// This only handles types which are paths, and otherwise creates a
     /// hole to be resolved later.
-    pub fn make_ty_from_ast_ty(&self, node: AstNodeRef<ast::Ty>) -> TcResult<TyId> {
+    pub(super) fn make_ty_from_ast_ty(&self, node: AstNodeRef<ast::Ty>) -> TcResult<TyId> {
         let ty_id = match self.ty_as_ast_path(node)? {
             Some(path) => match self.resolve_ast_path(&path)? {
                 ResolvedAstPathComponent::NonTerminal(non_terminal) => match non_terminal {

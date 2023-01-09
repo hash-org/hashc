@@ -29,7 +29,7 @@ use super::{
         AstArgGroup, AstPath, AstPathComponent, NonTerminalResolvedPathComponent,
         ResolvedAstPathComponent, TerminalResolvedPathComponent,
     },
-    SymbolResolutionPass,
+    ResolutionPass,
 };
 use crate::new::{
     diagnostics::error::{TcError, TcResult},
@@ -40,7 +40,105 @@ use crate::new::{
 
 /// This block converts AST nodes of different kinds into [`AstPath`]s, in order
 /// to later resolve them into terms.
-impl<'tc> SymbolResolutionPass<'tc> {
+impl<'tc> ResolutionPass<'tc> {
+    /// Make a term from an [`ast::TupleExpr`].
+
+    /// Make a term from the given [`ast::Expr`] and assign it to the node in
+    /// the AST info store.
+    ///
+    /// This handles all expressions, some of which might be holes to be
+    /// resolved later.
+    pub(super) fn make_term_from_ast_expr(&self, node: AstNodeRef<ast::Expr>) -> TcResult<TermId> {
+        // Maybe it has already been made:
+        if let Some(term_id) = self.ast_info().terms().get_data_by_node(node.id()) {
+            return Ok(term_id);
+        }
+
+        let term_id = match node.body {
+            ast::Expr::Variable(variable_expr) => {
+                self.make_term_from_ast_variable_expr(node.with_body(variable_expr))?
+            }
+            ast::Expr::ConstructorCall(ctor_expr) => {
+                self.make_term_from_ast_constructor_call_expr(node.with_body(ctor_expr))?
+            }
+            ast::Expr::Access(access_expr) => {
+                self.make_term_from_ast_access_expr(node.with_body(access_expr))?
+            }
+            ast::Expr::Ty(expr_ty) => self.make_term_from_ast_ty_expr(node.with_body(expr_ty))?,
+            ast::Expr::Directive(directive_expr) => {
+                self.make_term_from_ast_directive_expr(node.with_body(directive_expr))?
+            }
+            ast::Expr::Declaration(declaration) => {
+                self.make_term_from_ast_stack_declaration_expr(node.with_body(declaration))?
+            }
+            ast::Expr::Ref(ref_expr) => {
+                self.make_term_from_ast_ref_expr(node.with_body(ref_expr))?
+            }
+            ast::Expr::Deref(deref_expr) => {
+                self.make_term_from_ast_deref_expr(node.with_body(deref_expr))?
+            }
+            ast::Expr::Unsafe(unsafe_expr) => {
+                self.make_term_from_ast_unsafe_expr(node.with_body(unsafe_expr))?
+            }
+            ast::Expr::Lit(lit_term) => {
+                self.make_term_from_ast_lit_expr(node.with_body(lit_term))?
+            }
+            ast::Expr::Cast(cast_expr) => {
+                self.make_term_from_ast_cast_expr(node.with_body(cast_expr))?
+            }
+            ast::Expr::Return(return_statement) => {
+                self.make_term_from_ast_return_statement(node.with_body(return_statement))?
+            }
+            ast::Expr::Break(break_statement) => {
+                self.make_term_from_ast_break_statement(node.with_body(break_statement))?
+            }
+            ast::Expr::Continue(continue_statement) => {
+                self.make_term_from_ast_continue_statement(node.with_body(continue_statement))?
+            }
+            ast::Expr::Assign(assign_statement) => {
+                self.make_term_from_ast_assign_expr(node.with_body(assign_statement))?
+            }
+            ast::Expr::Block(block_expr) => {
+                self.make_term_from_ast_block_expr(node.with_body(block_expr))?
+            }
+            ast::Expr::TyFnDef(ty_fn_def) => {
+                self.make_term_from_ast_ty_fn_def(node.with_body(ty_fn_def))?
+            }
+            ast::Expr::FnDef(fn_def) => self.make_term_from_ast_fn_def(node.with_body(fn_def))?,
+            ast::Expr::AssignOp(assign_op_expr) => {
+                self.make_term_from_ast_assign_op_expr(node.with_body(assign_op_expr))?
+            }
+            ast::Expr::Index(index_expr) => {
+                self.make_term_from_ast_index_expr(node.with_body(index_expr))?
+            }
+            ast::Expr::BinaryExpr(binary_expr) => {
+                self.make_term_from_ast_binary_expr(node.with_body(binary_expr))?
+            }
+            ast::Expr::UnaryExpr(unary_expr) => {
+                self.make_term_from_ast_unary_expr(node.with_body(unary_expr))?
+            }
+
+            // @@Todo: re-traverse some defs to resolve inner terms
+            ast::Expr::Import(_)
+            | ast::Expr::TraitDef(_)
+            | ast::Expr::MergeDeclaration(_)
+            | ast::Expr::TraitImpl(_)
+            | ast::Expr::StructDef(_)
+            | ast::Expr::EnumDef(_)
+            | ast::Expr::ImplDef(_)
+            | ast::Expr::ModDef(_) => {
+                panic_on_span!(
+                    self.node_location(node),
+                    self.source_map(),
+                    "Found a definition expression or import during resolution"
+                )
+            }
+        };
+
+        self.ast_info().terms().insert(node.id(), term_id);
+        Ok(term_id)
+    }
+
     /// Use the given [`ast::VariableExpr`] as a path.
     fn variable_expr_as_ast_path<'a>(
         &self,
@@ -58,7 +156,7 @@ impl<'tc> SymbolResolutionPass<'tc> {
     ///
     /// Otherwise, this might be a struct/tuple property access, which is not a
     /// path, and this will return `None`.
-    pub fn access_expr_as_ast_path<'a>(
+    pub(super) fn access_expr_as_ast_path<'a>(
         &self,
         node: AstNodeRef<'a, ast::AccessExpr>,
     ) -> TcResult<Option<AstPath<'a>>> {
@@ -111,7 +209,7 @@ impl<'tc> SymbolResolutionPass<'tc> {
     ///
     /// Returns `None` if the expression is not a path. This is meant to
     /// be called from other `with_*_as_ast_path` functions.
-    pub fn expr_as_ast_path<'a>(
+    pub(super) fn expr_as_ast_path<'a>(
         &self,
         node: AstNodeRef<'a, ast::Expr>,
     ) -> TcResult<Option<AstPath<'a>>> {
@@ -137,7 +235,7 @@ impl<'tc> SymbolResolutionPass<'tc> {
     }
 
     /// Make a term from the given [`ResolvedAstPathComponent`].
-    pub fn make_term_from_resolved_ast_path(
+    pub(super) fn make_term_from_resolved_ast_path(
         &self,
         path: &ResolvedAstPathComponent,
         original_node_span: Span,
@@ -486,103 +584,5 @@ impl<'tc> SymbolResolutionPass<'tc> {
     /// Make a term from an [`ast::UnaryExpr`].
     fn make_term_from_ast_unary_expr(&self, _node: AstNodeRef<ast::UnaryExpr>) -> TcResult<TermId> {
         todo!()
-    }
-
-    /// Make a term from an [`ast::TupleExpr`].
-
-    /// Make a term from the given [`ast::Expr`] and assign it to the node in
-    /// the AST info store.
-    ///
-    /// This handles all expressions, some of which might be holes to be
-    /// resolved later.
-    pub fn make_term_from_ast_expr(&self, node: AstNodeRef<ast::Expr>) -> TcResult<TermId> {
-        // Maybe it has already been made:
-        if let Some(term_id) = self.ast_info().terms().get_data_by_node(node.id()) {
-            return Ok(term_id);
-        }
-
-        let term_id = match node.body {
-            ast::Expr::Variable(variable_expr) => {
-                self.make_term_from_ast_variable_expr(node.with_body(variable_expr))?
-            }
-            ast::Expr::ConstructorCall(ctor_expr) => {
-                self.make_term_from_ast_constructor_call_expr(node.with_body(ctor_expr))?
-            }
-            ast::Expr::Access(access_expr) => {
-                self.make_term_from_ast_access_expr(node.with_body(access_expr))?
-            }
-            ast::Expr::Ty(expr_ty) => self.make_term_from_ast_ty_expr(node.with_body(expr_ty))?,
-            ast::Expr::Directive(directive_expr) => {
-                self.make_term_from_ast_directive_expr(node.with_body(directive_expr))?
-            }
-            ast::Expr::Declaration(declaration) => {
-                self.make_term_from_ast_stack_declaration_expr(node.with_body(declaration))?
-            }
-            ast::Expr::Ref(ref_expr) => {
-                self.make_term_from_ast_ref_expr(node.with_body(ref_expr))?
-            }
-            ast::Expr::Deref(deref_expr) => {
-                self.make_term_from_ast_deref_expr(node.with_body(deref_expr))?
-            }
-            ast::Expr::Unsafe(unsafe_expr) => {
-                self.make_term_from_ast_unsafe_expr(node.with_body(unsafe_expr))?
-            }
-            ast::Expr::Lit(lit_term) => {
-                self.make_term_from_ast_lit_expr(node.with_body(lit_term))?
-            }
-            ast::Expr::Cast(cast_expr) => {
-                self.make_term_from_ast_cast_expr(node.with_body(cast_expr))?
-            }
-            ast::Expr::Return(return_statement) => {
-                self.make_term_from_ast_return_statement(node.with_body(return_statement))?
-            }
-            ast::Expr::Break(break_statement) => {
-                self.make_term_from_ast_break_statement(node.with_body(break_statement))?
-            }
-            ast::Expr::Continue(continue_statement) => {
-                self.make_term_from_ast_continue_statement(node.with_body(continue_statement))?
-            }
-            ast::Expr::Assign(assign_statement) => {
-                self.make_term_from_ast_assign_expr(node.with_body(assign_statement))?
-            }
-            ast::Expr::Block(block_expr) => {
-                self.make_term_from_ast_block_expr(node.with_body(block_expr))?
-            }
-            ast::Expr::TyFnDef(ty_fn_def) => {
-                self.make_term_from_ast_ty_fn_def(node.with_body(ty_fn_def))?
-            }
-            ast::Expr::FnDef(fn_def) => self.make_term_from_ast_fn_def(node.with_body(fn_def))?,
-            ast::Expr::AssignOp(assign_op_expr) => {
-                self.make_term_from_ast_assign_op_expr(node.with_body(assign_op_expr))?
-            }
-            ast::Expr::Index(index_expr) => {
-                self.make_term_from_ast_index_expr(node.with_body(index_expr))?
-            }
-            ast::Expr::BinaryExpr(binary_expr) => {
-                self.make_term_from_ast_binary_expr(node.with_body(binary_expr))?
-            }
-            ast::Expr::UnaryExpr(unary_expr) => {
-                self.make_term_from_ast_unary_expr(node.with_body(unary_expr))?
-            }
-
-            // @@Todo: re-traverse some defs to resolve inner terms
-            ast::Expr::Import(_)
-            | ast::Expr::TraitDef(_)
-            | ast::Expr::MergeDeclaration(_)
-            | ast::Expr::TraitImpl(_)
-            | ast::Expr::StructDef(_)
-            | ast::Expr::EnumDef(_)
-            | ast::Expr::ImplDef(_)
-            | ast::Expr::ModDef(_) => {
-                panic_on_span!(
-                    self.node_location(node),
-                    self.source_map(),
-                    "Found a definition expression or import during resolution"
-                )
-            }
-        };
-
-        self.ast_info().terms().insert(node.id(), term_id);
-        Ok(term_id)
     }
 }

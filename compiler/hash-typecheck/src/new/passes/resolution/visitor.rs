@@ -7,12 +7,12 @@ use hash_ast::{
 };
 use hash_types::new::environment::{context::ScopeKind, env::AccessToEnv};
 
-use super::{ContextKind, InExpr, SymbolResolutionPass};
+use super::{scoping::ContextKind, InExpr, ResolutionPass};
 use crate::new::{
     diagnostics::error::TcError, environment::tc_env::AccessToTcEnv, passes::ast_utils::AstUtils,
 };
 
-impl ast::AstVisitor for SymbolResolutionPass<'_> {
+impl ast::AstVisitor for ResolutionPass<'_> {
     type Error = TcError;
     ast_visitor_default_impl!(
         hiding: Module,

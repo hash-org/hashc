@@ -13,7 +13,8 @@ use hash_utils::store::SequenceStoreKey;
 
 use super::params::{SomeArgsId, SomeDefArgsId};
 use crate::new::{
-    environment::tc_env::WithTcEnv, ops::common::CommonOps, passes::resolution::ContextKind,
+    environment::tc_env::WithTcEnv, ops::common::CommonOps,
+    passes::resolution::scoping::ContextKind,
 };
 
 /// An error that occurs during typechecking.
