@@ -41,7 +41,7 @@ use crate::new::{
     diagnostics::error::{TcError, TcResult},
     environment::tc_env::WithTcEnv,
     ops::common::CommonOps,
-    passes::ast_pass::AstPass,
+    passes::ast_utils::AstUtils,
 };
 /// An argument group in the AST.
 #[derive(Copy, Clone, Debug)]
@@ -181,12 +181,14 @@ impl<'tc> SymbolResolutionPass<'tc> {
         match starting_from {
             Some((member_value, _span)) => match member_value {
                 // If we are starting from a module or data type, we need to enter their scopes.
-                NonTerminalResolvedPathComponent::Data(data_def_id, _) => self.enter_scope(
-                    ScopeKind::Data(data_def_id),
-                    ContextKind::Access(member_value, data_def_id.into()),
-                    || self.resolve_ast_name(name, name_span, None),
-                ),
-                NonTerminalResolvedPathComponent::Mod(mod_def_id, _) => self.enter_scope(
+                NonTerminalResolvedPathComponent::Data(data_def_id, _) => {
+                    self.scoping().enter_scope(
+                        ScopeKind::Data(data_def_id),
+                        ContextKind::Access(member_value, data_def_id.into()),
+                        || self.resolve_ast_name(name, name_span, None),
+                    )
+                }
+                NonTerminalResolvedPathComponent::Mod(mod_def_id, _) => self.scoping().enter_scope(
                     ScopeKind::Mod(mod_def_id),
                     ContextKind::Access(member_value, mod_def_id.into()),
                     || self.resolve_ast_name(name, name_span, None),
@@ -194,10 +196,10 @@ impl<'tc> SymbolResolutionPass<'tc> {
             },
             None => {
                 // If there is no start point, try to lookup the variable in the current scope.
-                let binding_symbol = self.lookup_symbol_by_name_or_error(
+                let binding_symbol = self.scoping().lookup_symbol_by_name_or_error(
                     name,
                     name_span,
-                    self.get_current_context_kind(),
+                    self.scoping().get_current_context_kind(),
                 )?;
                 Ok(self.context().get_binding(binding_symbol).unwrap())
             }

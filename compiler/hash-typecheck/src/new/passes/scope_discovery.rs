@@ -34,7 +34,7 @@ use hash_utils::{
 use itertools::Itertools;
 use smallvec::{smallvec, SmallVec};
 
-use super::ast_pass::AstPass;
+use super::ast_utils::{AstPass, AstUtils};
 use crate::{
     impl_access_to_tc_env,
     new::{
@@ -82,6 +82,8 @@ pub struct ScopeDiscoveryPass<'tc> {
     /// The stack members we have seen, indexed by the stack ID.
     stack_members: DefaultPartialStore<StackId, Vec<(AstNodeId, StackMemberData)>>,
 }
+
+impl AstUtils for ScopeDiscoveryPass<'_> {}
 
 impl_access_to_tc_env!(ScopeDiscoveryPass<'tc>);
 

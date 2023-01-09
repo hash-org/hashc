@@ -1,10 +1,11 @@
 use self::{
-    ast_pass::AstPass, scope_discovery::ScopeDiscoveryPass, symbol_resolution::SymbolResolutionPass,
+    ast_utils::AstPass, scope_discovery::ScopeDiscoveryPass,
+    symbol_resolution::SymbolResolutionPass,
 };
 use super::environment::tc_env::TcEnv;
 use crate::impl_access_to_tc_env;
 
-pub mod ast_pass;
+pub mod ast_utils;
 pub mod scope_discovery;
 pub mod symbol_resolution;
 

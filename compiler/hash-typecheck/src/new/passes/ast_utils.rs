@@ -22,7 +22,9 @@ pub trait AstPass: AccessToTcEnv {
         };
         self.tc_env().try_or_add_error(result);
     }
+}
 
+pub trait AstUtils: AccessToTcEnv {
     /// Create a [SourceLocation] from a [Span].
     fn source_location(&self, span: Span) -> SourceLocation {
         SourceLocation { span, id: self.current_source_info().source_id }

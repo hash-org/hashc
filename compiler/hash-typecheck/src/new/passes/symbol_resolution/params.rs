@@ -22,7 +22,7 @@ use crate::new::{
         params::{SomeArgsId, SomeDefArgsId},
     },
     ops::{common::CommonOps, AccessToOps},
-    passes::ast_pass::AstPass,
+    passes::ast_utils::AstUtils,
 };
 
 /// Resolved arguments.

@@ -33,7 +33,7 @@ use crate::new::{
     diagnostics::error::{TcError, TcResult},
     environment::tc_env::AccessToTcEnv,
     ops::{common::CommonOps, AccessToOps},
-    passes::ast_pass::AstPass,
+    passes::ast_utils::AstUtils,
 };
 
 impl SymbolResolutionPass<'_> {
@@ -79,7 +79,7 @@ impl SymbolResolutionPass<'_> {
             name: node
                 .name
                 .as_ref()
-                .map(|name| self.lookup_symbol_by_name(name.ident).unwrap())
+                .map(|name| self.scoping().lookup_symbol_by_name(name.ident).unwrap())
                 .unwrap_or_else(|| self.new_fresh_symbol()),
             index: node.position,
         }))

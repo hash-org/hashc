@@ -9,7 +9,7 @@ use hash_types::new::environment::{context::ScopeKind, env::AccessToEnv};
 
 use super::{ContextKind, InExpr, SymbolResolutionPass};
 use crate::new::{
-    diagnostics::error::TcError, environment::tc_env::AccessToTcEnv, passes::ast_pass::AstPass,
+    diagnostics::error::TcError, environment::tc_env::AccessToTcEnv, passes::ast_utils::AstUtils,
 };
 
 /// This visitor resolves all symbols and paths in the AST.
@@ -42,7 +42,7 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         node: ast::AstNodeRef<ast::Module>,
     ) -> Result<Self::ModuleRet, Self::Error> {
         let mod_def_id = self.ast_info().mod_defs().get_data_by_node(node.id()).unwrap();
-        self.enter_scope(ScopeKind::Mod(mod_def_id), ContextKind::Environment, || {
+        self.scoping().enter_scope(ScopeKind::Mod(mod_def_id), ContextKind::Environment, || {
             walk::walk_module(self, node)
         })?;
         Ok(())
@@ -54,7 +54,7 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         node: ast::AstNodeRef<ast::ModDef>,
     ) -> Result<Self::ModDefRet, Self::Error> {
         let mod_def_id = self.ast_info().mod_defs().get_data_by_node(node.id()).unwrap();
-        self.enter_scope(ScopeKind::Mod(mod_def_id), ContextKind::Environment, || {
+        self.scoping().enter_scope(ScopeKind::Mod(mod_def_id), ContextKind::Environment, || {
             walk::walk_mod_def(self, node)
         })?;
         Ok(())
@@ -66,9 +66,11 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         node: ast::AstNodeRef<ast::StructDef>,
     ) -> Result<Self::StructDefRet, Self::Error> {
         let data_def_id = self.ast_info().data_defs().get_data_by_node(node.id()).unwrap();
-        self.enter_scope(ScopeKind::Data(data_def_id), ContextKind::Environment, || {
-            walk::walk_struct_def(self, node)
-        })?;
+        self.scoping().enter_scope(
+            ScopeKind::Data(data_def_id),
+            ContextKind::Environment,
+            || walk::walk_struct_def(self, node),
+        )?;
         Ok(())
     }
 
@@ -78,9 +80,11 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         node: ast::AstNodeRef<ast::EnumDef>,
     ) -> Result<Self::EnumDefRet, Self::Error> {
         let data_def_id = self.ast_info().data_defs().get_data_by_node(node.id()).unwrap();
-        self.enter_scope(ScopeKind::Data(data_def_id), ContextKind::Environment, || {
-            walk::walk_enum_def(self, node)
-        })?;
+        self.scoping().enter_scope(
+            ScopeKind::Data(data_def_id),
+            ContextKind::Environment,
+            || walk::walk_enum_def(self, node),
+        )?;
         Ok(())
     }
 
@@ -90,7 +94,7 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         node: ast::AstNodeRef<ast::FnDef>,
     ) -> Result<Self::FnDefRet, Self::Error> {
         let fn_def_id = self.ast_info().fn_defs().get_data_by_node(node.id()).unwrap();
-        self.enter_scope(ScopeKind::Fn(fn_def_id), ContextKind::Environment, || {
+        self.scoping().enter_scope(ScopeKind::Fn(fn_def_id), ContextKind::Environment, || {
             walk::walk_fn_def(self, node)
         })?;
         Ok(())
@@ -102,7 +106,7 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         node: ast::AstNodeRef<ast::TyFnDef>,
     ) -> Result<Self::TyFnDefRet, Self::Error> {
         let fn_def_id = self.ast_info().fn_defs().get_data_by_node(node.id()).unwrap();
-        self.enter_scope(ScopeKind::Fn(fn_def_id), ContextKind::Environment, || {
+        self.scoping().enter_scope(ScopeKind::Fn(fn_def_id), ContextKind::Environment, || {
             walk::walk_ty_fn_def(self, node)
         })?;
         Ok(())
@@ -116,10 +120,14 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         match self.ast_info().stacks().get_data_by_node(node.id()) {
             Some(stack_id) => {
                 // This is a stack, so we need to enter its scope.
-                self.enter_scope(ScopeKind::Stack(stack_id), ContextKind::Environment, || {
-                    walk::walk_body_block(self, node)?;
-                    Ok(())
-                })?;
+                self.scoping().enter_scope(
+                    ScopeKind::Stack(stack_id),
+                    ContextKind::Environment,
+                    || {
+                        walk::walk_body_block(self, node)?;
+                        Ok(())
+                    },
+                )?;
             }
             None => {
                 // This is not a stack, so it must be some other block handled
@@ -138,8 +146,8 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         // If we are in a stack, then we need to add the declaration to the
         // stack's scope. Otherwise the declaration is handled higher up.
         if let ScopeKind::Stack(_) = self.context().get_current_scope_kind() {
-            self.for_each_stack_member_of_pat(node.pat.ast_ref(), |member| {
-                self.add_stack_binding(member);
+            self.scoping().for_each_stack_member_of_pat(node.pat.ast_ref(), |member| {
+                self.scoping().add_stack_binding(member);
             });
         }
         walk::walk_declaration(self, node)?;
@@ -154,9 +162,9 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
         let stack_id = self.ast_info().stacks().get_data_by_node(node.id()).unwrap();
         // Each match case has its own scope, so we need to enter it, and add all the
         // pattern bindings to the context.
-        self.enter_scope(ScopeKind::Stack(stack_id), ContextKind::Environment, || {
-            self.for_each_stack_member_of_pat(node.pat.ast_ref(), |member| {
-                self.add_stack_binding(member);
+        self.scoping().enter_scope(ScopeKind::Stack(stack_id), ContextKind::Environment, || {
+            self.scoping().for_each_stack_member_of_pat(node.pat.ast_ref(), |member| {
+                self.scoping().add_stack_binding(member);
             });
             walk::walk_match_case(self, node)?;
             Ok(())
@@ -165,7 +173,7 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
 
     type TyRet = ();
     fn visit_ty(&self, node: ast::AstNodeRef<ast::Ty>) -> Result<Self::TyRet, Self::Error> {
-        if let ContextKind::Access(_, _) = self.get_current_context_kind() {
+        if let ContextKind::Access(_, _) = self.scoping().get_current_context_kind() {
             // Handled by path resolution.
             return Ok(());
         }
@@ -180,7 +188,7 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
 
     type ExprRet = ();
     fn visit_expr(&self, node: ast::AstNodeRef<ast::Expr>) -> Result<Self::ExprRet, Self::Error> {
-        if let ContextKind::Access(_, _) = self.get_current_context_kind() {
+        if let ContextKind::Access(_, _) = self.scoping().get_current_context_kind() {
             // Handled by path resolution.
             return Ok(());
         }
@@ -195,7 +203,7 @@ impl ast::AstVisitor for SymbolResolutionPass<'_> {
 
     type PatRet = ();
     fn visit_pat(&self, node: AstNodeRef<ast::Pat>) -> Result<Self::PatRet, Self::Error> {
-        if let ContextKind::Access(_, _) = self.get_current_context_kind() {
+        if let ContextKind::Access(_, _) = self.scoping().get_current_context_kind() {
             // Handled by path resolution.
             return Ok(());
         }

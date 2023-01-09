@@ -24,7 +24,7 @@ use crate::new::{
     diagnostics::error::{TcError, TcResult},
     environment::tc_env::AccessToTcEnv,
     ops::common::CommonOps,
-    passes::ast_pass::AstPass,
+    passes::ast_utils::AstUtils,
 };
 
 impl<'tc> SymbolResolutionPass<'tc> {

@@ -22,6 +22,7 @@ use hash_types::new::{
     tuples::TupleTerm,
     tys::Ty,
 };
+use itertools::Itertools;
 
 use super::{
     paths::{
@@ -34,7 +35,7 @@ use crate::new::{
     diagnostics::error::{TcError, TcResult},
     environment::tc_env::AccessToTcEnv,
     ops::common::CommonOps,
-    passes::{ast_pass::AstPass, symbol_resolution::params::ResolvedArgs},
+    passes::{ast_utils::AstUtils, symbol_resolution::params::ResolvedArgs},
 };
 
 /// This block converts AST nodes of different kinds into [`AstPath`]s, in order
@@ -430,7 +431,19 @@ impl<'tc> SymbolResolutionPass<'tc> {
     /// Make a term from an [`ast::BlockExpr`].
     fn make_term_from_ast_block_expr(&self, node: AstNodeRef<ast::BlockExpr>) -> TcResult<TermId> {
         match node.data.body() {
-            ast::Block::Match(_) => todo!(),
+            ast::Block::Match(match_block) => {
+                let _pats: Vec<_> = match_block
+                    .cases
+                    .iter()
+                    .map(|case| self.make_pat_from_ast_pat(case.pat.ast_ref()))
+                    .try_collect()?;
+                let _terms: Vec<_> = match_block
+                    .cases
+                    .iter()
+                    .map(|case| self.make_term_from_ast_expr(case.expr.ast_ref()))
+                    .try_collect()?;
+                todo!()
+            }
             ast::Block::Loop(_) => todo!(),
             ast::Block::Body(_) => todo!(),
 
