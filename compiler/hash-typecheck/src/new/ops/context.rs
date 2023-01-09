@@ -11,7 +11,7 @@ use hash_types::new::{
 };
 use hash_utils::store::{SequenceStore, Store};
 
-use crate::{impl_access_to_tc_env, new::environment::tc_env::TcEnv};
+use crate::{impl_access_to_tc_env, new::environment::tc_env::TcEnv, ty_as_variant};
 
 /// Context-related operations.
 #[derive(Constructor)]
@@ -174,6 +174,13 @@ impl<'env> ContextOps<'env> {
                             // No-op
                         }
                     }
+                })
+            }
+            ScopeKind::FnTy(fn_ty_id) => {
+                // Add all the parameters
+                let fn_ty = ty_as_variant!(self, fn_ty_id, Fn);
+                self.add_params_to_context(fn_ty.params, |param_id| {
+                    BoundVarOrigin::FnTy(fn_ty_id, param_id)
                 })
             }
         }

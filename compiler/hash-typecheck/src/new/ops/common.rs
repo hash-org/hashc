@@ -25,10 +25,27 @@ use crate::new::{diagnostics::error::TcResult, environment::tc_env::AccessToTcEn
 macro_rules! term_as_variant {
     ($self:expr, $term:expr, $variant:ident) => {{
         let term = $term;
-        if let Term::$variant(term) = $self.get_term(term) {
+        if let hash_types::new::terms::Term::$variant(term) =
+            $crate::new::ops::common::CommonOps::get_term($self, term)
+        {
             term
         } else {
             panic!("Expected term to be a {}", stringify!($variant))
+        }
+    }};
+}
+
+/// Assert that the given type is of the given variant, and return it.
+#[macro_export]
+macro_rules! ty_as_variant {
+    ($self:expr, $ty:expr, $variant:ident) => {{
+        let ty = $ty;
+        if let hash_types::new::tys::Ty::$variant(ty) =
+            $crate::new::ops::common::CommonOps::get_ty($self, ty)
+        {
+            ty
+        } else {
+            panic!("Expected type to be a {}", stringify!($variant))
         }
     }};
 }
