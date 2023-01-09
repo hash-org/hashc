@@ -1,54 +1,32 @@
-//! The second pass of the typechecker, which resolves all symbols to their
-//! referenced bindings.
-//!
-//! Any scoping errors are reported here.
-
+//! General helper functions for traversing scopes and adding bindings.
 use std::{collections::HashMap, fmt};
 
-use hash_ast::{
-    ast::{self},
-    visitor::AstVisitor,
-};
+use hash_ast::ast;
 use hash_source::{identifier::Identifier, location::Span};
 use hash_types::new::{
+    data::DataDefId,
     environment::{context::ScopeKind, env::AccessToEnv},
+    fns::FnDefId,
     locations::LocationTarget,
-    scopes::StackMemberId,
+    mods::ModDefId,
+    scopes::{StackId, StackMemberId},
     symbols::Symbol,
 };
 use hash_utils::{
-    state::{HeavyState, LightState},
+    state::HeavyState,
     store::{CloneStore, Store},
 };
 
-use self::paths::*;
-use super::ast_pass::AstPass;
+use super::paths::NonTerminalResolvedPathComponent;
 use crate::{
     impl_access_to_tc_env,
     new::{
         diagnostics::error::{TcError, TcResult},
         environment::tc_env::{AccessToTcEnv, TcEnv, WithTcEnv},
         ops::{common::CommonOps, AccessToOps},
+        passes::ast_utils::AstUtils,
     },
 };
-
-pub mod exprs;
-pub mod params;
-pub mod paths;
-pub mod pats;
-pub mod tys;
-pub mod visitor;
-
-/// The current expression kind we are in.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-enum InExpr {
-    /// We are in a type expression.
-    Ty,
-    /// We are in a value expression.
-    Value,
-    /// We are in a pattern.
-    Pat,
-}
 
 /// The kind of context we are in.
 ///
@@ -77,11 +55,14 @@ impl fmt::Display for WithTcEnv<'_, &ContextKind> {
     }
 }
 
-/// The second pass of the typechecker, which resolves all symbols to their
-/// referenced bindings.
-pub struct SymbolResolutionPass<'tc> {
+/// Contains helper functions for traversing scopes and adding bindings.
+///
+/// It uses [`hash_types::new::environment::context::Context`] and
+/// [`crate::new::ops::context::ContextOps`] to enter scopes, but also
+/// keeps track of identifier names so that names can be matched to the correct
+/// symbols when creating `Var` terms.
+pub(super) struct Scoping<'tc> {
     tc_env: &'tc TcEnv<'tc>,
-    in_expr: LightState<InExpr>,
     /// Stores a list of contexts we are in, mirroring `ContextStore` but with
     /// identifiers so that we can resolve them to symbols.
     ///
@@ -89,36 +70,13 @@ pub struct SymbolResolutionPass<'tc> {
     bindings_by_name: HeavyState<Vec<(ContextKind, HashMap<Identifier, Symbol>)>>,
 }
 
-impl_access_to_tc_env!(SymbolResolutionPass<'tc>);
+impl_access_to_tc_env!(Scoping<'tc>);
 
-impl<'tc> AstPass for SymbolResolutionPass<'tc> {
-    fn pass_interactive(
-        &self,
-        node: ast::AstNodeRef<ast::BodyBlock>,
-    ) -> crate::new::diagnostics::error::TcResult<()> {
-        self.bootstrap_ops().bootstrap(|| self.visit_body_block(node))
-    }
+impl AstUtils for Scoping<'_> {}
 
-    fn pass_module(
-        &self,
-        node: ast::AstNodeRef<ast::Module>,
-    ) -> crate::new::diagnostics::error::TcResult<()> {
-        self.bootstrap_ops().bootstrap(|| {
-            println!("{}", self.env().with(self.primitives().option()));
-            self.visit_module(node)
-        })
-    }
-}
-
-/// This block contains general helper functions for traversing scopes and
-/// adding bindings.
-impl<'tc> SymbolResolutionPass<'tc> {
-    pub fn new(tc_env: &'tc TcEnv<'tc>) -> Self {
-        Self {
-            tc_env,
-            in_expr: LightState::new(InExpr::Value),
-            bindings_by_name: HeavyState::new(Vec::new()),
-        }
+impl<'tc> Scoping<'tc> {
+    pub(super) fn new(tc_env: &'tc TcEnv<'tc>) -> Self {
+        Self { tc_env, bindings_by_name: HeavyState::new(Vec::new()) }
     }
 
     /// Find a binding by name, returning the symbol of the binding.
@@ -127,7 +85,7 @@ impl<'tc> SymbolResolutionPass<'tc> {
     /// If the binding is not found, it will return `None`.
     ///
     /// Will panic if there are no scopes in the context.
-    fn get_current_context_kind(&self) -> ContextKind {
+    pub(super) fn get_current_context_kind(&self) -> ContextKind {
         self.bindings_by_name.get().last().unwrap().0
     }
 
@@ -135,7 +93,7 @@ impl<'tc> SymbolResolutionPass<'tc> {
     ///
     /// This will search the current scope and all parent scopes.
     /// If the binding is not found, it will return `None`.
-    fn lookup_symbol_by_name(&self, name: impl Into<Identifier>) -> Option<Symbol> {
+    pub(super) fn lookup_symbol_by_name(&self, name: impl Into<Identifier>) -> Option<Symbol> {
         let name = name.into();
         match self.get_current_context_kind() {
             ContextKind::Access(_, _) => {
@@ -154,7 +112,7 @@ impl<'tc> SymbolResolutionPass<'tc> {
     /// Errors if the binding is not found.
     ///
     /// See [`SymbolResolutionPass::lookup_binding_by_name()`].
-    fn lookup_symbol_by_name_or_error(
+    pub(super) fn lookup_symbol_by_name_or_error(
         &self,
         name: impl Into<Identifier>,
         span: Span,
@@ -172,7 +130,7 @@ impl<'tc> SymbolResolutionPass<'tc> {
     ///
     /// In addition to adding the appropriate bindings, this also adds the
     /// appropriate names to `bindings_by_name`.
-    fn enter_scope<T>(
+    pub(super) fn enter_scope<T>(
         &self,
         kind: ScopeKind,
         context_kind: ContextKind,
@@ -206,7 +164,7 @@ impl<'tc> SymbolResolutionPass<'tc> {
 
     /// Add a stack member to the current scope, also adding it to the
     /// `bindings_by_name` map.
-    fn add_stack_binding(&self, member_id: StackMemberId) {
+    pub(super) fn add_stack_binding(&self, member_id: StackMemberId) {
         // Get the data of the member.
         let member_name =
             self.stores().stack().map_fast(member_id.0, |stack| stack.members[member_id.1].name);
@@ -232,7 +190,7 @@ impl<'tc> SymbolResolutionPass<'tc> {
     /// `stack_members` map. They are looked up using the IDs of the pattern
     /// binds, as added by the `add_stack_members_in_pat_to_buf` method of the
     /// `ScopeDiscoveryPass`.
-    fn for_each_stack_member_of_pat(
+    pub(super) fn for_each_stack_member_of_pat(
         &self,
         node: ast::AstNodeRef<ast::Pat>,
         f: impl Fn(StackMemberId) + Copy,
@@ -291,5 +249,106 @@ impl<'tc> SymbolResolutionPass<'tc> {
             }
             ast::Pat::Module(_) | ast::Pat::Access(_) | ast::Pat::Lit(_) | ast::Pat::Range(_) => {}
         }
+    }
+
+    /// Enter the scope of a module.
+    pub(super) fn enter_module<T>(
+        &self,
+        node: ast::AstNodeRef<ast::Module>,
+        f: impl FnOnce(ModDefId) -> T,
+    ) -> T {
+        let mod_def_id = self.ast_info().mod_defs().get_data_by_node(node.id()).unwrap();
+        self.enter_scope(ScopeKind::Mod(mod_def_id), ContextKind::Environment, || f(mod_def_id))
+    }
+
+    /// Enter the scope of a module block.
+    pub(super) fn enter_mod_def<T>(
+        &self,
+        node: ast::AstNodeRef<ast::ModDef>,
+        f: impl FnOnce(ModDefId) -> T,
+    ) -> T {
+        let mod_def_id = self.ast_info().mod_defs().get_data_by_node(node.id()).unwrap();
+        self.enter_scope(ScopeKind::Mod(mod_def_id), ContextKind::Environment, || f(mod_def_id))
+    }
+
+    /// Enter the scope of a function definition.
+    pub(super) fn enter_struct_def<T>(
+        &self,
+        node: ast::AstNodeRef<ast::StructDef>,
+        f: impl FnOnce(DataDefId) -> T,
+    ) -> T {
+        let data_def_id = self.ast_info().data_defs().get_data_by_node(node.id()).unwrap();
+        self.enter_scope(ScopeKind::Data(data_def_id), ContextKind::Environment, || f(data_def_id))
+    }
+
+    /// Enter the scope of an enum definition.
+    pub(super) fn enter_enum_def<T>(
+        &self,
+        node: ast::AstNodeRef<ast::EnumDef>,
+        f: impl FnOnce(DataDefId) -> T,
+    ) -> T {
+        let data_def_id = self.ast_info().data_defs().get_data_by_node(node.id()).unwrap();
+        self.enter_scope(ScopeKind::Data(data_def_id), ContextKind::Environment, || f(data_def_id))
+    }
+
+    /// Enter the scope of a function definition.
+    pub(super) fn enter_fn_def<T>(
+        &self,
+        node: ast::AstNodeRef<ast::FnDef>,
+        f: impl FnOnce(FnDefId) -> T,
+    ) -> T {
+        let fn_def_id = self.ast_info().fn_defs().get_data_by_node(node.id()).unwrap();
+        self.enter_scope(ScopeKind::Fn(fn_def_id), ContextKind::Environment, || f(fn_def_id))
+    }
+
+    /// Enter the scope of a type function definition.
+    pub(super) fn enter_ty_fn_def<T>(
+        &self,
+        node: ast::AstNodeRef<ast::TyFnDef>,
+        f: impl FnOnce(FnDefId) -> T,
+    ) -> T {
+        let fn_def_id = self.ast_info().fn_defs().get_data_by_node(node.id()).unwrap();
+        self.enter_scope(ScopeKind::Fn(fn_def_id), ContextKind::Environment, || f(fn_def_id))
+    }
+
+    /// Enter the scope of a body block.
+    ///
+    /// If called on a non-stack body block, it will return none.
+    pub(super) fn enter_body_block<T>(
+        &self,
+        node: ast::AstNodeRef<ast::BodyBlock>,
+        f: impl FnOnce(StackId) -> T,
+    ) -> Option<T> {
+        self.ast_info().stacks().get_data_by_node(node.id()).map(|stack_id| {
+            self.enter_scope(ScopeKind::Stack(stack_id), ContextKind::Environment, || f(stack_id))
+        })
+    }
+
+    /// Register a declaration, which will add it to the current stack scope.
+    ///
+    /// If the declaration is not in a stack scope, this is a no-op.
+    pub(super) fn register_declaration(&self, node: ast::AstNodeRef<ast::Declaration>) {
+        if let ScopeKind::Stack(_) = self.context().get_current_scope_kind() {
+            self.for_each_stack_member_of_pat(node.pat.ast_ref(), |member| {
+                self.add_stack_binding(member);
+            });
+        }
+    }
+
+    /// Enter a match case, adding the bindings to the current stack scope.
+    pub(super) fn enter_match_case<T>(
+        &self,
+        node: ast::AstNodeRef<ast::MatchCase>,
+        f: impl FnOnce(StackId) -> T,
+    ) -> T {
+        let stack_id = self.ast_info().stacks().get_data_by_node(node.id()).unwrap();
+        // Each match case has its own scope, so we need to enter it, and add all the
+        // pattern bindings to the context.
+        self.enter_scope(ScopeKind::Stack(stack_id), ContextKind::Environment, || {
+            self.for_each_stack_member_of_pat(node.pat.ast_ref(), |member| {
+                self.add_stack_binding(member);
+            });
+            f(stack_id)
+        })
     }
 }

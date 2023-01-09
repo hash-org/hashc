@@ -13,7 +13,8 @@ use hash_utils::store::SequenceStoreKey;
 
 use super::params::{SomeArgsId, SomeDefArgsId};
 use crate::new::{
-    environment::tc_env::WithTcEnv, ops::common::CommonOps, passes::symbol_resolution::ContextKind,
+    environment::tc_env::WithTcEnv, ops::common::CommonOps,
+    passes::resolution::scoping::ContextKind,
 };
 
 /// An error that occurs during typechecking.
@@ -21,6 +22,8 @@ use crate::new::{
 pub enum TcError {
     /// A series of errors.
     Compound { errors: Vec<TcError> },
+    /// An error exists, this is just a signal to stop typechecking.
+    Signal,
     /// More type annotations are needed to infer the type of the given term.
     NeedMoreTypeAnnotationsToInfer { term: TermId },
     /// Traits are not yet supported.
@@ -67,16 +70,18 @@ impl<'tc> From<WithTcEnv<'tc, &TcError>> for Reports {
 impl<'tc> WithTcEnv<'tc, &TcError> {
     /// Format the error nicely and add it to the given reporter.
     fn add_to_reporter(&self, reporter: &mut Reporter) {
-        let error = reporter.error();
         let locations = self.tc_env().stores().location();
         match &self.value {
+            TcError::Signal => {}
             TcError::NeedMoreTypeAnnotationsToInfer { term } => {
-                error
+                reporter
+                    .error()
                     .code(HashErrorCode::UnresolvedType)
                     .title("cannot infer the type of this term".to_string());
 
                 if let Some(location) = self.tc_env().get_location(term) {
-                    error
+                    reporter
+                        .error()
                         .add_span(location)
                         .add_help("consider adding more type annotations to this expression");
                 }
@@ -87,18 +92,23 @@ impl<'tc> WithTcEnv<'tc, &TcError> {
                 }
             }
             TcError::TraitsNotSupported { trait_location } => {
-                error
+                reporter
+                    .error()
                     .code(HashErrorCode::UnsupportedTraits)
                     .title("traits are work-in-progress and currently not supported".to_string());
 
-                error.add_span(*trait_location).add_help("cannot use traits yet");
+                reporter.error().add_span(*trait_location).add_help("cannot use traits yet");
             }
             TcError::MergeDeclarationsNotSupported { merge_location } => {
-                error
+                reporter
+                    .error()
                     .code(HashErrorCode::UnsupportedTraits)
                     .title("merge declarations are currently not supported".to_string());
 
-                error.add_span(*merge_location).add_help("cannot use merge declarations yet");
+                reporter
+                    .error()
+                    .add_span(*merge_location)
+                    .add_help("cannot use merge declarations yet");
             }
             TcError::SymbolNotFound { symbol, location, looking_in } => {
                 let def_name = format!("{}", self.tc_env().with(looking_in));
@@ -107,7 +117,8 @@ impl<'tc> WithTcEnv<'tc, &TcError> {
                     ContextKind::Access(_, _) => "member",
                     ContextKind::Environment => "name",
                 };
-                error
+                reporter
+                    .error()
                     .code(HashErrorCode::UnresolvedSymbol)
                     .title(format!("cannot find {noun} `{search_name}` in `{def_name}`"))
                     .add_labelled_span(
@@ -117,7 +128,7 @@ impl<'tc> WithTcEnv<'tc, &TcError> {
 
                 if let ContextKind::Access(_, def) = looking_in {
                     if let Some(location) = locations.get_location(def) {
-                        error.add_labelled_span(
+                        reporter.error().add_labelled_span(
                             location,
                             format!(
                                 "`{def_name}` is defined here, and has no member `{search_name}`",
@@ -127,85 +138,101 @@ impl<'tc> WithTcEnv<'tc, &TcError> {
                 }
             }
             TcError::CannotUseModuleInValuePosition { location } => {
-                error
+                reporter
+                    .error()
                     .code(HashErrorCode::NonRuntimeInstantiable)
                     .title("cannot use a module in expression position");
 
-                error
+                reporter
+                    .error()
                     .add_span(*location)
                     .add_info("cannot use this in expression position as it is a module");
             }
             TcError::CannotUseModuleInTypePosition { location } => {
-                error
+                reporter
+                    .error()
                     .code(HashErrorCode::ValueCannotBeUsedAsType)
                     .title("cannot use a module in type position");
 
-                error
+                reporter
+                    .error()
                     .add_span(*location)
                     .add_info("cannot use this in type position as it is a module");
             }
             TcError::CannotUseModuleInPatternPosition { location } => {
-                error
+                reporter
+                    .error()
                     .code(HashErrorCode::ValueCannotBeUsedAsType)
                     .title("cannot use a module in pattern position");
 
-                error
+                reporter
+                    .error()
                     .add_span(*location)
                     .add_info("cannot use this in pattern position as it is a module");
             }
             TcError::CannotUseDataTypeInValuePosition { location } => {
-                error
+                reporter
+                    .error()
                     .code(HashErrorCode::NonRuntimeInstantiable)
                     .title("cannot use a data type in expression position")
                     .add_help("consider using a constructor call instead");
 
-                error
+                reporter
+                    .error()
                     .add_span(*location)
                     .add_info("cannot use this in expression position as it is a data type");
             }
             TcError::CannotUseDataTypeInPatternPosition { location } => {
-                error
+                reporter
+                    .error()
                     .code(HashErrorCode::NonRuntimeInstantiable)
                     .title("cannot use a data type in pattern position")
                     .add_help("consider using a constructor pattern instead");
 
-                error
+                reporter
+                    .error()
                     .add_span(*location)
                     .add_info("cannot use this in pattern position as it is a data type");
             }
             TcError::CannotUseConstructorInTypePosition { location } => {
-                error
+                reporter
+                    .error()
                     .code(HashErrorCode::ValueCannotBeUsedAsType)
                     .title("cannot use a constructor in type position");
 
-                error
+                reporter
+                    .error()
                     .add_span(*location)
                     .add_info("cannot use this in type position as it is a constructor");
             }
             TcError::CannotUseFunctionInTypePosition { location } => {
-                error
+                reporter
+                    .error()
                     .code(HashErrorCode::ValueCannotBeUsedAsType)
                     .title("cannot use a function in type position");
 
-                error.add_span(*location).add_info(
+                reporter.error().add_span(*location).add_info(
                     "cannot use this in type position as it refers to a function definition",
                 );
             }
             TcError::CannotUseFunctionInPatternPosition { location } => {
-                error
+                reporter
+                    .error()
                     .code(HashErrorCode::ValueCannotBeUsedAsType)
                     .title("cannot use a function in pattern position");
 
-                error.add_span(*location).add_info(
+                reporter.error().add_span(*location).add_info(
                     "cannot use this in pattern position as it refers to a function definition",
                 );
             }
             TcError::InvalidNamespaceSubject { location } => {
-                error
+                reporter
+                    .error()
                     .code(HashErrorCode::UnsupportedAccess)
                     .title("only data types and modules can be used as namespacing subjects");
 
-                error
+                reporter
+                    .error()
                     .add_span(*location)
                     .add_info("cannot use this as a subject of a namespace access");
             }
@@ -213,18 +240,20 @@ impl<'tc> WithTcEnv<'tc, &TcError> {
                 let param_length = params_id.len();
                 let arg_length = args_id.len();
 
-                error.code(HashErrorCode::ParameterLengthMismatch).title(format!(
+                reporter.error().code(HashErrorCode::ParameterLengthMismatch).title(format!(
                     "mismatch in parameter length: expected {param_length} but got {arg_length}"
                 ));
 
                 if let Some(location) = locations.get_overall_location(*params_id) {
-                    error
+                    reporter
+                        .error()
                         .add_span(location)
                         .add_info(format!("expected {param_length} parameters here"));
                 }
 
                 if let Some(location) = locations.get_overall_location(*args_id) {
-                    error
+                    reporter
+                        .error()
                         .add_span(location)
                         .add_info(format!("got {arg_length} {} here", args_id.as_str()));
                 }
@@ -233,18 +262,20 @@ impl<'tc> WithTcEnv<'tc, &TcError> {
                 let param_length = params_id.len();
                 let arg_length = args_id.len();
 
-                error.code(HashErrorCode::ParameterLengthMismatch).title(format!(
+                reporter.error().code(HashErrorCode::ParameterLengthMismatch).title(format!(
                     "mismatch in parameter groups: expected {param_length} groups but got {arg_length}"
                 ));
 
                 if let Some(location) = locations.get_overall_location(*params_id) {
-                    error
+                    reporter
+                        .error()
                         .add_span(location)
                         .add_info(format!("expected {param_length} parameter groups here"));
                 }
 
                 if let Some(location) = locations.get_overall_location(*args_id) {
-                    error
+                    reporter
+                        .error()
                         .add_span(location)
                         .add_info(format!("got {arg_length} {} groups here", args_id.as_str()));
                 }

@@ -36,46 +36,17 @@ use hash_types::new::{
 };
 use hash_utils::store::{SequenceStore, Store};
 
-use super::{params::ResolvedDefArgs, ContextKind, SymbolResolutionPass};
+use super::{
+    params::{AstArgGroup, ResolvedDefArgs},
+    scoping::ContextKind,
+    ResolutionPass,
+};
 use crate::new::{
     diagnostics::error::{TcError, TcResult},
     environment::tc_env::WithTcEnv,
     ops::common::CommonOps,
-    passes::ast_pass::AstPass,
+    passes::ast_utils::AstUtils,
 };
-/// An argument group in the AST.
-///
-/// This is either a group of explicit `(a, b, c)` arguments, or a group of
-/// implicit `<a, b, c>` arguments. The former corresponds to the
-/// [`ast::ConstructorCallArg`], while the latter corresponds to the
-/// [`ast::TyArg`].
-#[derive(Copy, Clone, Debug)]
-pub enum AstArgGroup<'a> {
-    /// A group of explicit `(a, b, c)` arguments.
-    ExplicitArgs(&'a ast::AstNodes<ast::ConstructorCallArg>),
-    /// A group of implicit `<a, b, c>` arguments.
-    ImplicitArgs(&'a ast::AstNodes<ast::TyArg>),
-    /// A group of explicit `(p, q, r)` pattern arguments
-    ExplicitPatArgs(
-        &'a ast::AstNodes<ast::TuplePatEntry>,
-        &'a Option<ast::AstNode<ast::SpreadPat>>,
-    ),
-    // @@Todo: implicit pattern arguments when AST supports this
-}
-
-impl AstArgGroup<'_> {
-    /// Get the span of this argument group.
-    pub fn span(&self) -> Option<Span> {
-        match self {
-            AstArgGroup::ExplicitArgs(args) => args.span(),
-            AstArgGroup::ImplicitArgs(args) => args.span(),
-            AstArgGroup::ExplicitPatArgs(args, spread) => args
-                .span()
-                .and_then(|args_span| Some(args_span.join(spread.as_ref()?.span())))
-                .or_else(|| Some(spread.as_ref()?.span())),
-        }
-    }
-}
 
 /// A path component in the AST.
 ///
@@ -169,7 +140,7 @@ pub enum ResolvedAstPathComponent {
 }
 
 /// This block performs resolution of AST paths.
-impl<'tc> SymbolResolutionPass<'tc> {
+impl<'tc> ResolutionPass<'tc> {
     /// Resolve a name starting from the given [`ModMemberValue`], or the
     /// current context if no such value is given.
     ///
@@ -183,12 +154,14 @@ impl<'tc> SymbolResolutionPass<'tc> {
         match starting_from {
             Some((member_value, _span)) => match member_value {
                 // If we are starting from a module or data type, we need to enter their scopes.
-                NonTerminalResolvedPathComponent::Data(data_def_id, _) => self.enter_scope(
-                    ScopeKind::Data(data_def_id),
-                    ContextKind::Access(member_value, data_def_id.into()),
-                    || self.resolve_ast_name(name, name_span, None),
-                ),
-                NonTerminalResolvedPathComponent::Mod(mod_def_id, _) => self.enter_scope(
+                NonTerminalResolvedPathComponent::Data(data_def_id, _) => {
+                    self.scoping().enter_scope(
+                        ScopeKind::Data(data_def_id),
+                        ContextKind::Access(member_value, data_def_id.into()),
+                        || self.resolve_ast_name(name, name_span, None),
+                    )
+                }
+                NonTerminalResolvedPathComponent::Mod(mod_def_id, _) => self.scoping().enter_scope(
                     ScopeKind::Mod(mod_def_id),
                     ContextKind::Access(member_value, mod_def_id.into()),
                     || self.resolve_ast_name(name, name_span, None),
@@ -196,10 +169,10 @@ impl<'tc> SymbolResolutionPass<'tc> {
             },
             None => {
                 // If there is no start point, try to lookup the variable in the current scope.
-                let binding_symbol = self.lookup_symbol_by_name_or_error(
+                let binding_symbol = self.scoping().lookup_symbol_by_name_or_error(
                     name,
                     name_span,
-                    self.get_current_context_kind(),
+                    self.scoping().get_current_context_kind(),
                 )?;
                 Ok(self.context().get_binding(binding_symbol).unwrap())
             }

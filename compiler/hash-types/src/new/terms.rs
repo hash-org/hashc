@@ -55,7 +55,7 @@ pub enum Term {
 
     // Primitives
     Tuple(TupleTerm),
-    Lit(PrimTerm),
+    Prim(PrimTerm),
 
     // Constructors
     Ctor(CtorTerm),
@@ -130,7 +130,7 @@ impl fmt::Display for WithEnv<'_, &Term> {
         match self.value {
             Term::Runtime(runtime_term) => write!(f, "{}", self.env().with(runtime_term)),
             Term::Tuple(tuple_term) => write!(f, "{}", self.env().with(tuple_term)),
-            Term::Lit(lit_term) => write!(f, "{}", self.env().with(lit_term)),
+            Term::Prim(lit_term) => write!(f, "{}", self.env().with(lit_term)),
             Term::Ctor(ctor_term) => write!(f, "{}", self.env().with(ctor_term)),
             Term::FnCall(fn_call_term) => write!(f, "{}", self.env().with(fn_call_term)),
             Term::FnRef(closure_term) => write!(f, "{}", self.env().with(*closure_term)),

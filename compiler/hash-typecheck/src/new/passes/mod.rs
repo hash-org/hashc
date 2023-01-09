@@ -1,12 +1,10 @@
-use self::{
-    ast_pass::AstPass, scope_discovery::ScopeDiscoveryPass, symbol_resolution::SymbolResolutionPass,
-};
+use self::{ast_utils::AstPass, discovery::DiscoveryPass, resolution::ResolutionPass};
 use super::environment::tc_env::TcEnv;
 use crate::impl_access_to_tc_env;
 
-pub mod ast_pass;
-pub mod scope_discovery;
-pub mod symbol_resolution;
+pub mod ast_utils;
+pub mod discovery;
+pub mod resolution;
 
 /// The base TC visitor, which runs each typechecking pass in order on the AST.
 pub struct TcVisitor<'tc> {
@@ -22,7 +20,7 @@ impl<'tc> TcVisitor<'tc> {
 
     /// Visits the source passed in as an argument to [Self::new_in_source]
     pub fn visit_source(&self) {
-        ScopeDiscoveryPass::new(self.tc_env).pass_source();
-        SymbolResolutionPass::new(self.tc_env).pass_source();
+        DiscoveryPass::new(self.tc_env).pass_source();
+        ResolutionPass::new(self.tc_env).pass_source();
     }
 }

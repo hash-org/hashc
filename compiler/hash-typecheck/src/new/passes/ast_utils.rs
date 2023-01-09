@@ -22,7 +22,9 @@ pub trait AstPass: AccessToTcEnv {
         };
         self.tc_env().try_or_add_error(result);
     }
+}
 
+pub trait AstUtils: AccessToTcEnv {
     /// Create a [SourceLocation] from a [Span].
     fn source_location(&self, span: Span) -> SourceLocation {
         SourceLocation { span, id: self.current_source_info().source_id }
@@ -32,16 +34,5 @@ pub trait AstPass: AccessToTcEnv {
     fn node_location<N>(&self, node: AstNodeRef<N>) -> SourceLocation {
         let node_span = node.span();
         self.source_location(node_span)
-    }
-
-    /// Unwrap a [`TcResult`] or add the error to the diagnostics.
-    fn unwrap_or_diagnostic<T>(&self, result: TcResult<T>) -> Option<T> {
-        match result {
-            Ok(ok) => Some(ok),
-            Err(err) => {
-                self.diagnostics().add_error(err);
-                None
-            }
-        }
     }
 }

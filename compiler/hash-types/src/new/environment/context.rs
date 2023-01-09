@@ -2,6 +2,7 @@
 use core::fmt;
 use std::{cell::RefCell, convert::Infallible};
 
+use derive_more::From;
 use hash_utils::store::{Store, StoreKey};
 use indexmap::IndexMap;
 
@@ -66,7 +67,7 @@ pub struct Binding {
 }
 
 /// All the different kinds of scope there are, and their associated data.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, From)]
 pub enum ScopeKind {
     /// A module scope.
     Mod(ModDefId),
