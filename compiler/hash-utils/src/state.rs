@@ -1,4 +1,5 @@
 //! Helper structs for keeping track of state during AST traversal.
+use core::fmt;
 use std::{
     cell::{Cell, RefCell},
     ops::{Deref, DerefMut},
@@ -8,11 +9,12 @@ use std::{
 ///
 /// Light state is state which is small in size and can be copied cheaply.
 /// Internally uses a [`Cell`] to store the state.
-pub struct LightState<T: Copy> {
+#[derive(Clone, Debug)]
+pub struct LightState<T: Copy + fmt::Debug> {
     current: Cell<T>,
 }
 
-impl<T: Copy> LightState<T> {
+impl<T: Copy + fmt::Debug> LightState<T> {
     pub fn new(initial: T) -> Self {
         Self { current: Cell::new(initial) }
     }
@@ -43,13 +45,13 @@ impl<T: Copy> LightState<T> {
     }
 }
 
-impl<T: Default + Copy> Default for LightState<T> {
+impl<T: Default + Copy + fmt::Debug> Default for LightState<T> {
     fn default() -> Self {
         Self { current: Default::default() }
     }
 }
 
-impl<T: Default + Copy> LightState<T> {
+impl<T: Default + Copy + fmt::Debug> LightState<T> {
     /// Take the current value of the state, and replace it with the default
     /// value.
     pub fn take(&self) -> T {
@@ -61,11 +63,12 @@ impl<T: Default + Copy> LightState<T> {
 ///
 /// Heavy state is state which is large in size and cannot be copied cheaply.
 /// Internally uses a [`RefCell`] to store the state.
-pub struct HeavyState<T> {
+#[derive(Debug)]
+pub struct HeavyState<T: fmt::Debug> {
     current: RefCell<T>,
 }
 
-impl<T> HeavyState<T> {
+impl<T: fmt::Debug> HeavyState<T> {
     pub fn new(initial: T) -> Self {
         Self { current: RefCell::new(initial) }
     }

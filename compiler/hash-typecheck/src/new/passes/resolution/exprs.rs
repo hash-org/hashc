@@ -35,7 +35,7 @@ use crate::new::{
     diagnostics::error::{TcError, TcResult},
     environment::tc_env::AccessToTcEnv,
     ops::common::CommonOps,
-    passes::{ast_utils::AstUtils, symbol_resolution::params::ResolvedArgs},
+    passes::{ast_utils::AstUtils, resolution::params::ResolvedArgs},
 };
 
 /// This block converts AST nodes of different kinds into [`AstPath`]s, in order
