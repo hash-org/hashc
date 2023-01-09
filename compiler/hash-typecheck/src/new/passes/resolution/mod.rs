@@ -12,7 +12,7 @@ use hash_ast::{
 use hash_types::new::{environment::env::AccessToEnv, locations::LocationTarget};
 use hash_utils::state::LightState;
 
-use self::{ast_scopes::AstScoping, paths::*};
+use self::{paths::*, scoping::Scoping};
 use super::ast_utils::{AstPass, AstUtils};
 use crate::{
     impl_access_to_tc_env,
@@ -22,11 +22,11 @@ use crate::{
     },
 };
 
-pub mod ast_scopes;
 pub mod exprs;
 pub mod params;
 pub mod paths;
 pub mod pats;
+pub mod scoping;
 pub mod tys;
 pub mod visitor;
 
@@ -73,7 +73,7 @@ impl fmt::Display for WithTcEnv<'_, &ContextKind> {
 pub struct SymbolResolutionPass<'tc> {
     tc_env: &'tc TcEnv<'tc>,
     in_expr: LightState<InExpr>,
-    scoping: AstScoping<'tc>,
+    scoping: Scoping<'tc>,
 }
 
 impl_access_to_tc_env!(SymbolResolutionPass<'tc>);
@@ -101,10 +101,11 @@ impl AstUtils for SymbolResolutionPass<'_> {}
 
 impl<'tc> SymbolResolutionPass<'tc> {
     pub fn new(tc_env: &'tc TcEnv<'tc>) -> Self {
-        Self { tc_env, in_expr: LightState::new(InExpr::Value), scoping: AstScoping::new(tc_env) }
+        Self { tc_env, in_expr: LightState::new(InExpr::Value), scoping: Scoping::new(tc_env) }
     }
 
-    pub fn scoping(&self) -> &AstScoping {
+    /// Get access to the current scoping state and operations.
+    pub fn scoping(&self) -> &Scoping {
         &self.scoping
     }
 }

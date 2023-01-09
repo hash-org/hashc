@@ -1,4 +1,4 @@
-//! Visitor for the symbol resolution pass.
+//! AST visitor for the resolution pass.
 
 use hash_ast::{
     ast::{self, AstNodeRef},
@@ -12,7 +12,6 @@ use crate::new::{
     diagnostics::error::TcError, environment::tc_env::AccessToTcEnv, passes::ast_utils::AstUtils,
 };
 
-/// This visitor resolves all symbols and paths in the AST.
 impl ast::AstVisitor for SymbolResolutionPass<'_> {
     type Error = TcError;
     ast_visitor_default_impl!(

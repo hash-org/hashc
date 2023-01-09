@@ -1,4 +1,4 @@
-//! This module contains functionality to resolve AST parameters and arguments
+//! Contains functionality to resolve AST parameters and arguments
 //! to terms.
 
 use std::{iter::empty, ops::Range};

@@ -1,5 +1,4 @@
-//! Contains general helper functions for traversing scopes and
-//! adding bindings.
+//! General helper functions for traversing scopes and adding bindings.
 use std::collections::HashMap;
 
 use hash_ast::ast;
@@ -25,7 +24,13 @@ use crate::{
     },
 };
 
-pub struct AstScoping<'tc> {
+/// Contains helper functions for traversing scopes and adding bindings.
+///
+/// It uses [`hash_types::new::environment::context::Context`] and
+/// [`crate::new::ops::context::ContextOps`] to enter scopes, but also
+/// keeps track of identifier names so that names can be matched to the correct
+/// symbols when creating `Var` terms.
+pub struct Scoping<'tc> {
     tc_env: &'tc TcEnv<'tc>,
     /// Stores a list of contexts we are in, mirroring `ContextStore` but with
     /// identifiers so that we can resolve them to symbols.
@@ -34,11 +39,11 @@ pub struct AstScoping<'tc> {
     bindings_by_name: HeavyState<Vec<(ContextKind, HashMap<Identifier, Symbol>)>>,
 }
 
-impl_access_to_tc_env!(AstScoping<'tc>);
+impl_access_to_tc_env!(Scoping<'tc>);
 
-impl AstUtils for AstScoping<'_> {}
+impl AstUtils for Scoping<'_> {}
 
-impl<'tc> AstScoping<'tc> {
+impl<'tc> Scoping<'tc> {
     pub fn new(tc_env: &'tc TcEnv<'tc>) -> Self {
         Self { tc_env, bindings_by_name: HeavyState::new(Vec::new()) }
     }
