@@ -262,3 +262,36 @@ impl fmt::Display for ForFormatting<'_, &Terminator> {
         }
     }
 }
+
+impl WriteIr for &AssertKind {}
+
+impl fmt::Display for ForFormatting<'_, &AssertKind> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.item {
+            AssertKind::DivisionByZero { operand } => {
+                write!(f, "attempt to divide `{}` by zero", operand.for_fmt(self.ctx))
+            }
+            AssertKind::RemainderByZero { operand } => write!(
+                f,
+                "attempt to take the remainder of `{}` by zero",
+                operand.for_fmt(self.ctx)
+            ),
+            AssertKind::Overflow { op, lhs, rhs } => write!(
+                f,
+                "attempt to compute `{lhs} {op} {rhs}`, which would overflow",
+                op = op,
+                lhs = lhs.for_fmt(self.ctx),
+                rhs = rhs.for_fmt(self.ctx)
+            ),
+            AssertKind::NegativeOverflow { operand } => {
+                write!(f, "attempt to negate `{}`, which would overflow", operand.for_fmt(self.ctx))
+            }
+            AssertKind::BoundsCheck { len, index } => write!(
+                f,
+                "index out of bounds: the length is `{}` but index is `{}`",
+                len.for_fmt(self.ctx),
+                index.for_fmt(self.ctx)
+            ),
+        }
+    }
+}

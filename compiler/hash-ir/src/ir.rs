@@ -262,6 +262,30 @@ impl BinOp {
     }
 }
 
+impl fmt::Display for BinOp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BinOp::Eq => write!(f, "=="),
+            BinOp::Neq => write!(f, "!="),
+            BinOp::BitOr => write!(f, "|"),
+            BinOp::BitAnd => write!(f, "&"),
+            BinOp::BitXor => write!(f, "^"),
+            BinOp::Exp => write!(f, "**"),
+            BinOp::Gt => write!(f, ">"),
+            BinOp::GtEq => write!(f, ">="),
+            BinOp::Lt => write!(f, "<"),
+            BinOp::LtEq => write!(f, "<="),
+            BinOp::Shr => write!(f, ">>"),
+            BinOp::Shl => write!(f, "<<"),
+            BinOp::Add => write!(f, "+"),
+            BinOp::Sub => write!(f, "-"),
+            BinOp::Mul => write!(f, "*"),
+            BinOp::Div => write!(f, "/"),
+            BinOp::Mod => write!(f, "%"),
+        }
+    }
+}
+
 impl From<ast::BinOp> for BinOp {
     fn from(value: ast::BinOp) -> Self {
         match value {
@@ -690,17 +714,61 @@ pub struct Statement {
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum AssertKind {
     /// A Division by zero assertion.
-    DivisionByZero,
+    DivisionByZero { operand: Operand },
 
     /// Occurs when an attempt to take the remainder of some operand with zero.
-    RemainderByZero,
+    RemainderByZero { operand: Operand },
 
     /// Performing an arithmetic operation has caused the operation to overflow
-    Overflow,
+    Overflow {
+        /// The operation that is being performed.
+        op: BinOp,
+
+        /// The left hand-side operand in the operation.
+        lhs: Operand,
+
+        /// The right hand-side operand in the operation.
+        rhs: Operand,
+    },
 
     /// Performing an arithmetic operation has caused the operation to overflow
     /// whilst subtracting or terms that are signed
-    NegativeOverflow,
+    NegativeOverflow { operand: Operand },
+
+    /// Bounds check assertion.
+    BoundsCheck {
+        /// The length of the array that is being checked.
+        len: Operand,
+
+        /// The index that is being checked.
+        index: Operand,
+    },
+}
+
+impl AssertKind {
+    /// Get a general message of what the [AssertKind] is
+    /// checking. This is used to generate a readable message
+    /// within the executable for when the assert is triggered.
+    pub fn message(&self) -> &'static str {
+        match self {
+            AssertKind::Overflow { op: BinOp::Add, .. } => "attempt to add with overflow",
+            AssertKind::Overflow { op: BinOp::Sub, .. } => "attempt to subtract with overflow",
+            AssertKind::Overflow { op: BinOp::Mul, .. } => "attempt to multiply with overflow",
+            AssertKind::Overflow { op: BinOp::Div, .. } => "attempt to divide with overflow",
+            AssertKind::Overflow { op: BinOp::Mod, .. } => {
+                "attempt to calculate the remainder with overflow"
+            }
+            AssertKind::Overflow { op: BinOp::Shl, .. } => "attempt to shift left with overflow",
+            AssertKind::Overflow { op: BinOp::Shr, .. } => "attempt to shift right with overflow",
+            AssertKind::Overflow { op, .. } => panic!("unexpected overflow operator `{op}`"),
+            AssertKind::DivisionByZero { .. } => "attempt to divide by zero",
+            AssertKind::RemainderByZero { .. } => {
+                "attempt to take remainder with a divisor of zero"
+            }
+            AssertKind::NegativeOverflow { .. } => "attempt to negate with overflow",
+            AssertKind::BoundsCheck { .. } => "attempt to index array out of bounds",
+        }
+    }
 }
 
 /// [Terminator] statements are those that affect control
