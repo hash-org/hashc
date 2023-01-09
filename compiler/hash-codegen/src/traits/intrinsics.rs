@@ -23,5 +23,11 @@ pub trait BuildIntrinsicCallMethods<'b>: BackendTypes {
 
     /// Generate a call to the `abort` intrinsic function. This
     /// will terminate the program unconditionally.
-    fn abort(&mut self);
+    fn codegen_abort_intrinsic(&mut self);
+
+    /// Generare a call to the `expect` intrinsic function. This
+    /// will generate a panic if the `expected` value is `false`.
+    ///
+    /// Ref: <https://llvm.org/docs/LangRef.html#llvm-expect-intrinsic>
+    fn codegen_expect_intrinsic(&mut self, value: Self::Value, expected: bool) -> Self::Value;
 }

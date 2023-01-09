@@ -16,6 +16,7 @@ use crate::traits::{builder::BlockBuilderMethods, layout::LayoutMethods};
 
 pub(crate) mod block;
 pub(crate) mod debug_info;
+pub(crate) mod intrinsics;
 pub(crate) mod locals;
 pub(crate) mod operands;
 pub(crate) mod place;

@@ -5,9 +5,11 @@
 
 use std::sync::atomic::Ordering;
 
+use hash_abi::FnAbi;
 use hash_target::{
     abi::{AbiRepresentation, Scalar},
     alignment::Alignment,
+    size::Size,
 };
 
 use super::{
@@ -38,6 +40,8 @@ pub trait BlockBuilderMethods<'b>:
         func: Self::Function,
         name: &str,
     ) -> Self::BasicBlock;
+
+    fn append_sibling_block(&mut self, name: &str) -> Self::BasicBlock;
 
     /// Get the current context
     fn ctx(&self) -> &Self::CodegenCtx;
@@ -98,11 +102,17 @@ pub trait BlockBuilderMethods<'b>:
         catch_block: Self::BasicBlock,
     ) -> Self::Value;
 
+    /// Emit code for performing a function call with the provided
+    /// function ABI, pointer and arguments.
+    ///
+    /// The function returns the corresponding "return" value of the
+    /// function.
     fn call(
         &mut self,
         ty: Self::Type,
+        fn_abi: Option<&FnAbi>,
+        fn_ptr: Self::Value,
         args: &[Self::Value],
-        then_block: Self::BasicBlock,
     ) -> Self::Value;
 
     // --- Arithmetic ---
@@ -494,4 +504,10 @@ pub trait BlockBuilderMethods<'b>:
         then: Self::Value,
         otherwise: Self::Value,
     ) -> Self::Value;
+
+    /// Emit a hint to denote that a particular value is now "live".
+    fn lifetime_start(&mut self, ptr: Self::Value, size: Size);
+
+    /// Emit a hint to denote that a particular value is now "dead".
+    fn lifetime_end(&mut self, ptr: Self::Value, size: Size);
 }

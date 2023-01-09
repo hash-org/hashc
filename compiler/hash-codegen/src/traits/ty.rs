@@ -1,5 +1,6 @@
 //! Trait methods to do with emitting types for the backend.
 
+use hash_abi::FnAbi;
 use hash_layout::TyInfo;
 use hash_target::abi::AddressSpace;
 
@@ -69,4 +70,8 @@ pub trait BuildTypeMethods<'b>: Backend<'b> {
 
     /// Create a backend specific type from a [TyInfo].
     fn backend_type(&self, info: TyInfo) -> Self::Type;
+
+    /// Create a backend type that represents the provided [FnAbi]. This
+    /// is used to compute a function type from a [FnAbi].
+    fn backend_type_from_abi(&self, abi: &FnAbi) -> Self::Type;
 }

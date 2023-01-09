@@ -10,6 +10,15 @@ pub trait AbiBuilderMethods<'b>: BackendTypes {
     /// Get a particular parameter from the ABI.
     fn get_param(&mut self, index: usize) -> Self::Value;
 
+    /// Store an argument that is passed or returned from a
+    /// function call.
+    fn store_arg(
+        &mut self,
+        arg_abi: &ArgAbi,
+        value: Self::Value,
+        destination: PlaceRef<Self::Value>,
+    );
+
     /// Specify that a particular function argument is to be
     /// stored in the specified [PlaceRef].
     fn store_fn_arg(

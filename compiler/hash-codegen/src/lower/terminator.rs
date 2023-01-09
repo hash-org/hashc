@@ -9,10 +9,16 @@
 //! into a single [BasicBlock]. The builder API will denote
 //! whether two blocks have been merged together.
 
-use hash_abi::PassMode;
-use hash_ir::ir::{BasicBlock, Operand, Place, SwitchTargets, Terminator, TerminatorKind};
+use hash_abi::{ArgAbi, FnAbi, PassMode};
+use hash_ir::ir::{self};
 
-use super::{operands::OperandValue, FnBuilder};
+use super::{
+    intrinsics::Intrinsic,
+    locals::LocalRef,
+    operands::{OperandRef, OperandValue},
+    place::PlaceRef,
+    FnBuilder,
+};
 use crate::{
     common::IntComparisonKind,
     traits::{
@@ -20,6 +26,24 @@ use crate::{
         ty::BuildTypeMethods,
     },
 };
+
+/// [ReturnDestinationKind] defines the different ways that a
+/// function call returns it's value, and which way the value
+/// needs to be saved from the function call.
+pub enum ReturnDestinationKind<V> {
+    /// The return value is indirect or ignored.
+    Nothing,
+
+    /// The return value should be stored to the provided
+    /// pointer.
+    Store(PlaceRef<V>),
+
+    /// Store an indirect return value to an operand local place.
+    IndirectOperand(PlaceRef<V>, ir::Local),
+
+    /// Store the return value to an operand local place.
+    DirectOperand(ir::Local),
+}
 
 impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
     /// Emit the target backend IR for a Hash IR [Terminator]. This
@@ -35,8 +59,8 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
     pub(super) fn codegen_terminator(
         &mut self,
         builder: &mut Builder,
-        block: BasicBlock,
-        terminator: &Terminator,
+        block: ir::BasicBlock,
+        terminator: &ir::Terminator,
     ) -> bool {
         let can_merge = || {
             let mut successors = terminator.successors();
@@ -54,23 +78,23 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
         };
 
         match terminator.kind {
-            TerminatorKind::Goto(_) => todo!(),
-            TerminatorKind::Call { op, ref args, destination, target } => {
+            ir::TerminatorKind::Goto(_) => todo!(),
+            ir::TerminatorKind::Call { op, ref args, destination, target } => {
                 self.codegen_call_terminator(builder, op, args, destination, target, can_merge())
             }
-            TerminatorKind::Return => {
+            ir::TerminatorKind::Return => {
                 self.codegen_return_terminator(builder);
                 false
             }
-            TerminatorKind::Unreachable => {
+            ir::TerminatorKind::Unreachable => {
                 builder.unreachable();
                 false
             }
-            TerminatorKind::Switch { ref value, ref targets } => {
+            ir::TerminatorKind::Switch { ref value, ref targets } => {
                 self.codegen_switch_terminator(builder, value, targets);
                 false
             }
-            TerminatorKind::Assert { condition, expected, kind, target } => self
+            ir::TerminatorKind::Assert { ref condition, expected, kind, target } => self
                 .codegen_assert_terminator(builder, condition, expected, kind, target, can_merge()),
         }
     }
@@ -83,7 +107,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
     fn codegen_goto_terminator(
         &mut self,
         builder: &mut Builder,
-        target: BasicBlock,
+        target: ir::BasicBlock,
         can_merge: bool,
     ) -> bool {
         // If we cannot merge the successor and this block, then
@@ -102,17 +126,17 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
     fn codegen_call_terminator(
         &mut self,
         _builder: &mut Builder,
-        _op: Operand,
-        _args: &[Operand],
-        _destination: Place,
-        _target: Option<BasicBlock>,
+        _op: ir::Operand,
+        _args: &[ir::Operand],
+        _destination: ir::Place,
+        _target: Option<ir::BasicBlock>,
         can_merge: bool,
     ) -> bool {
         can_merge
     }
 
-    /// Emit code for a [`TerminatorKind::Return`]. If the return type of the
-    /// function is uninhabited, then this function will emit a
+    /// Emit code for a [`ir::TerminatorKind::Return`]. If the return type of
+    /// the function is uninhabited, then this function will emit a
     /// `unreachable` instruction.
     // Additionally, unit types `()` are considered as a `void` return type.
     fn codegen_return_terminator(&mut self, builder: &mut Builder) {
@@ -122,7 +146,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
         // `abort` call to exit the program, and then close the
         // block with a `unreachable` instruction.
         if layout.abi.is_uninhabited() {
-            builder.abort();
+            builder.codegen_abort_intrinsic();
             builder.unreachable();
 
             return;
@@ -134,8 +158,10 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
                 return;
             }
             PassMode::Direct(_) => {
-                let op = self
-                    .codegen_consume_operand(builder, Place::return_place(self.ctx.body_data()));
+                let op = self.codegen_consume_operand(
+                    builder,
+                    ir::Place::return_place(self.ctx.body_data()),
+                );
 
                 if let OperandValue::Ref(value, alignment) = op.value {
                     let ty = builder.backend_type(op.info);
@@ -150,7 +176,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
         builder.return_value(value);
     }
 
-    /// Emit code for a [`TerminatorKind::Switch`]. This function will
+    /// Emit code for a [`ir::TerminatorKind::Switch`]. This function will
     /// convert the `switch` into the relevant target backend IR. If the
     /// `switch` terminator represents an `if` statement, then the function
     /// will avoid generating an `switch` instruction and instead emit a
@@ -158,8 +184,8 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
     fn codegen_switch_terminator(
         &mut self,
         builder: &mut Builder,
-        subject: &Operand,
-        targets: &SwitchTargets,
+        subject: &ir::Operand,
+        targets: &ir::SwitchTargets,
     ) {
         let subject = self.codegen_operand(builder, subject);
         let ty = subject.info.ty;
@@ -221,15 +247,124 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
         }
     }
 
+    /// Emit code for an "assert" block terminator. This will create two
+    /// branches, one where the assertion is not triggered, and the control
+    /// flow continues, and the second block `failure_block` which contains
+    /// a single function call to `panic` intrinsic, and which terminates
+    /// the program.
     fn codegen_assert_terminator(
         &mut self,
-        _builder: &mut Builder,
-        _condition: hash_ir::ir::Operand,
-        _expected: bool,
-        _kind: hash_ir::ir::AssertKind,
-        _target: BasicBlock,
+        builder: &mut Builder,
+        condition: &ir::Operand,
+        expected: bool,
+        assert_kind: ir::AssertKind,
+        target: ir::BasicBlock,
         can_merge: bool,
     ) -> bool {
-        can_merge
+        let condition = self.codegen_operand(builder, condition).immediate_value();
+
+        // try and evaluate the condition at compile time to determine
+        // if we can avoid generating the panic block if the condition
+        // is always true or false.
+        let const_condition =
+            builder.const_to_optional_u128(condition, false).map(|value| value == 1);
+
+        if const_condition == Some(expected) {
+            return self.codegen_goto_terminator(builder, target, can_merge);
+        }
+
+        // Add a hint for the condition as "expecting" the provided value
+        let condition = builder.codegen_expect_intrinsic(condition, expected);
+
+        // Create a failure blockm and a conditional branch to it.
+        let failure_block = builder.append_sibling_block("assert_failure");
+        let target = self.get_codegen_block_id(target);
+
+        if expected {
+            builder.conditional_branch(condition, target, failure_block);
+        } else {
+            builder.conditional_branch(condition, failure_block, target);
+        }
+
+        // It must be that after this point, the block goes to the `failure_block`
+        builder.switch_to_block(failure_block);
+
+        // we need to convert the assert into a message.
+        let message = builder.const_str(assert_kind.message());
+        let args = &[message.0, message.1];
+
+        // @@Todo: we need to create a call to `panic`, as in resolve the funciton
+        // abi to `panic` and the relative function pointer.
+        let (fn_abi, fn_ptr) = self.resolve_intrinsic(builder, Intrinsic::Panic);
+
+        // Finally we emit this as a call to panic...
+        self.codegen_fn_call(builder, fn_abi, fn_ptr, args, None, false)
+    }
+
+    /// Function that prepares a function call to be generated, and the emits
+    /// relevant code to execute the function, and deal with saving the
+    /// function return value, and jumping to the next block on success or
+    /// failure of the function.
+    fn codegen_fn_call(
+        &mut self,
+        builder: &mut Builder,
+        fn_abi: FnAbi,
+        fn_ptr: Builder::Value,
+        args: &[Builder::Value],
+        destination: Option<(ir::BasicBlock, ReturnDestinationKind<Builder::Value>)>,
+        can_merge: bool,
+    ) -> bool {
+        let fn_ty = builder.backend_type_from_abi(&fn_abi);
+
+        //@@Future: when we deal with unwinding functions, we will have to use the
+        // `builder::invoke()` API in order to instruct the backends to emit relevant
+        // clean-up code for when the function starts to unwind (i.e. panic).
+        // However for now, we simply emit a `builder::call()`
+        let return_value = builder.call(fn_ty, Some(&fn_abi), fn_ptr, args);
+
+        if let Some((destination_block, return_destination)) = destination {
+            // we need to store the return value in the appropriate place.
+            self.store_return_value(builder, return_destination, &fn_abi.ret_abi, return_value);
+            self.codegen_goto_terminator(builder, destination_block, can_merge)
+        } else {
+            builder.unreachable();
+            false
+        }
+    }
+
+    /// Generates code that handles of how to save the return value from a
+    /// function call.
+    fn store_return_value(
+        &mut self,
+        builder: &mut Builder,
+        destination: ReturnDestinationKind<Builder::Value>,
+        return_abi: &ArgAbi,
+        value: Builder::Value,
+    ) {
+        // @@DebugInfo: since is this where there is the possibility of locals
+        // being assigned (direct/indirect), we need to generate debug information
+        // for the fact that they were "introduced" here.
+
+        match destination {
+            ReturnDestinationKind::Nothing => {}
+            ReturnDestinationKind::Store(destination) => {
+                builder.store_arg(return_abi, value, destination)
+            }
+            ReturnDestinationKind::DirectOperand(local) => {
+                // @@CastPassMode: if it is a casting pass mode, then it needs to be stored
+                // as an alloca, then stored by `store_arg`m and then loaded, i.e. reloaded
+                // of the stack.
+
+                let op = OperandRef::from_immediate_value(value, return_abi.info);
+                self.locals[local] = LocalRef::Operand(Some(op));
+            }
+            ReturnDestinationKind::IndirectOperand(temp, local) => {
+                let op = builder.load_operand(temp);
+
+                // declare that the `temporary` is now dead
+                temp.storage_dead(builder);
+                self.locals[local] = LocalRef::Operand(Some(op));
+            }
+        }
     }
 }

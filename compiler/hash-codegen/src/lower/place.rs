@@ -78,6 +78,20 @@ impl<'b, V: CodeGenObject> PlaceRef<V> {
     ) -> V {
         todo!()
     }
+
+    /// Emit a hint to the code generation backend that this [PlaceRef] is
+    /// alive after this point.
+    pub fn storage_live<Builder: BlockBuilderMethods<'b, Value = V>>(&self, builder: &mut Builder) {
+        let layout = builder.ctx().layout_info(self.info.layout);
+        builder.lifetime_start(self.value, layout.size);
+    }
+
+    /// Emit a hint to the code generation backend that this [PlaceRef] is
+    /// now dead after this point and can be discarded.
+    pub fn storage_dead<Builder: BlockBuilderMethods<'b, Value = V>>(&self, builder: &mut Builder) {
+        let layout = builder.ctx().layout_info(self.info.layout);
+        builder.lifetime_end(self.value, layout.size);
+    }
 }
 
 impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
