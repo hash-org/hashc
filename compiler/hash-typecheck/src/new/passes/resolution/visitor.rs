@@ -8,9 +8,7 @@ use hash_ast::{
 use hash_types::new::environment::{context::ScopeKind, env::AccessToEnv};
 
 use super::{scoping::ContextKind, InExpr, ResolutionPass};
-use crate::new::{
-    diagnostics::error::TcError, environment::tc_env::AccessToTcEnv, ops::common::CommonOps,
-};
+use crate::new::{diagnostics::error::TcError, ops::common::CommonOps};
 
 impl ast::AstVisitor for ResolutionPass<'_> {
     type Error = TcError;
@@ -40,10 +38,7 @@ impl ast::AstVisitor for ResolutionPass<'_> {
         &self,
         node: ast::AstNodeRef<ast::Module>,
     ) -> Result<Self::ModuleRet, Self::Error> {
-        let mod_def_id = self.ast_info().mod_defs().get_data_by_node(node.id()).unwrap();
-        self.scoping().enter_scope(ScopeKind::Mod(mod_def_id), ContextKind::Environment, || {
-            walk::walk_module(self, node)
-        })?;
+        self.scoping().enter_module(node, |_| walk::walk_module(self, node))?;
         Ok(())
     }
 
@@ -52,10 +47,7 @@ impl ast::AstVisitor for ResolutionPass<'_> {
         &self,
         node: ast::AstNodeRef<ast::ModDef>,
     ) -> Result<Self::ModDefRet, Self::Error> {
-        let mod_def_id = self.ast_info().mod_defs().get_data_by_node(node.id()).unwrap();
-        self.scoping().enter_scope(ScopeKind::Mod(mod_def_id), ContextKind::Environment, || {
-            walk::walk_mod_def(self, node)
-        })?;
+        self.scoping().enter_mod_def(node, |_| walk::walk_mod_def(self, node))?;
         Ok(())
     }
 
@@ -64,12 +56,7 @@ impl ast::AstVisitor for ResolutionPass<'_> {
         &self,
         node: ast::AstNodeRef<ast::StructDef>,
     ) -> Result<Self::StructDefRet, Self::Error> {
-        let data_def_id = self.ast_info().data_defs().get_data_by_node(node.id()).unwrap();
-        self.scoping().enter_scope(
-            ScopeKind::Data(data_def_id),
-            ContextKind::Environment,
-            || walk::walk_struct_def(self, node),
-        )?;
+        self.scoping().enter_struct_def(node, |_| walk::walk_struct_def(self, node))?;
         Ok(())
     }
 
@@ -78,12 +65,7 @@ impl ast::AstVisitor for ResolutionPass<'_> {
         &self,
         node: ast::AstNodeRef<ast::EnumDef>,
     ) -> Result<Self::EnumDefRet, Self::Error> {
-        let data_def_id = self.ast_info().data_defs().get_data_by_node(node.id()).unwrap();
-        self.scoping().enter_scope(
-            ScopeKind::Data(data_def_id),
-            ContextKind::Environment,
-            || walk::walk_enum_def(self, node),
-        )?;
+        self.scoping().enter_enum_def(node, |_| walk::walk_enum_def(self, node))?;
         Ok(())
     }
 
@@ -92,10 +74,7 @@ impl ast::AstVisitor for ResolutionPass<'_> {
         &self,
         node: ast::AstNodeRef<ast::FnDef>,
     ) -> Result<Self::FnDefRet, Self::Error> {
-        let fn_def_id = self.ast_info().fn_defs().get_data_by_node(node.id()).unwrap();
-        self.scoping().enter_scope(ScopeKind::Fn(fn_def_id), ContextKind::Environment, || {
-            walk::walk_fn_def(self, node)
-        })?;
+        self.scoping().enter_fn_def(node, |_| walk::walk_fn_def(self, node))?;
         Ok(())
     }
 
@@ -104,10 +83,7 @@ impl ast::AstVisitor for ResolutionPass<'_> {
         &self,
         node: ast::AstNodeRef<ast::TyFnDef>,
     ) -> Result<Self::TyFnDefRet, Self::Error> {
-        let fn_def_id = self.ast_info().fn_defs().get_data_by_node(node.id()).unwrap();
-        self.scoping().enter_scope(ScopeKind::Fn(fn_def_id), ContextKind::Environment, || {
-            walk::walk_ty_fn_def(self, node)
-        })?;
+        self.scoping().enter_ty_fn_def(node, |_| walk::walk_ty_fn_def(self, node))?;
         Ok(())
     }
 
@@ -116,17 +92,9 @@ impl ast::AstVisitor for ResolutionPass<'_> {
         &self,
         node: ast::AstNodeRef<ast::BodyBlock>,
     ) -> Result<Self::BodyBlockRet, Self::Error> {
-        match self.ast_info().stacks().get_data_by_node(node.id()) {
-            Some(stack_id) => {
-                // This is a stack, so we need to enter its scope.
-                self.scoping().enter_scope(
-                    ScopeKind::Stack(stack_id),
-                    ContextKind::Environment,
-                    || {
-                        walk::walk_body_block(self, node)?;
-                        Ok(())
-                    },
-                )?;
+        match self.scoping().enter_body_block(node, |_| walk::walk_body_block(self, node)) {
+            Some(_) => {
+                // This is a stack
             }
             None => {
                 // This is not a stack, so it must be some other block handled
@@ -144,11 +112,7 @@ impl ast::AstVisitor for ResolutionPass<'_> {
     ) -> Result<Self::DeclarationRet, Self::Error> {
         // If we are in a stack, then we need to add the declaration to the
         // stack's scope. Otherwise the declaration is handled higher up.
-        if let ScopeKind::Stack(_) = self.context().get_current_scope_kind() {
-            self.scoping().for_each_stack_member_of_pat(node.pat.ast_ref(), |member| {
-                self.scoping().add_stack_binding(member);
-            });
-        }
+        self.scoping().register_declaration(node);
         walk::walk_declaration(self, node)?;
         Ok(())
     }
@@ -158,16 +122,8 @@ impl ast::AstVisitor for ResolutionPass<'_> {
         &self,
         node: ast::AstNodeRef<ast::MatchCase>,
     ) -> Result<Self::MatchCaseRet, Self::Error> {
-        let stack_id = self.ast_info().stacks().get_data_by_node(node.id()).unwrap();
-        // Each match case has its own scope, so we need to enter it, and add all the
-        // pattern bindings to the context.
-        self.scoping().enter_scope(ScopeKind::Stack(stack_id), ContextKind::Environment, || {
-            self.scoping().for_each_stack_member_of_pat(node.pat.ast_ref(), |member| {
-                self.scoping().add_stack_binding(member);
-            });
-            walk::walk_match_case(self, node)?;
-            Ok(())
-        })
+        self.scoping().enter_match_case(node, |_| walk::walk_match_case(self, node))?;
+        Ok(())
     }
 
     type TyRet = ();

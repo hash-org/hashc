@@ -759,11 +759,13 @@ impl<'tc> ResolutionPass<'tc> {
         &self,
         _node: AstNodeRef<ast::AssignOpExpr>,
     ) -> TcResult<TermId> {
+        // @@Todo: deal with operators
         todo!()
     }
 
     /// Make a term from an [`ast::IndexExpr`].
     fn make_term_from_ast_index_expr(&self, _node: AstNodeRef<ast::IndexExpr>) -> TcResult<TermId> {
+        // @@Todo: deal with indexing
         todo!()
     }
 
@@ -772,11 +774,13 @@ impl<'tc> ResolutionPass<'tc> {
         &self,
         _node: AstNodeRef<ast::BinaryExpr>,
     ) -> TcResult<TermId> {
+        // @@Todo: deal with operators
         todo!()
     }
 
     /// Make a term from an [`ast::UnaryExpr`].
     fn make_term_from_ast_unary_expr(&self, _node: AstNodeRef<ast::UnaryExpr>) -> TcResult<TermId> {
+        // @@Todo: deal with operators
         todo!()
     }
 }
