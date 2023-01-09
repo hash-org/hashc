@@ -15,12 +15,12 @@ use hash_ir::{
         self, AddressMode, AggregateKind, BasicBlock, Const, ConstKind, Place, RValue, Statement,
         StatementKind, TerminatorKind, UnevaluatedConst,
     },
-    ty::{IrTy, IrTyId, Mutability, VariantIdx},
+    ty::{AdtId, IrTy, Mutability, VariantIdx},
 };
 use hash_reporting::macros::panic_on_span;
 use hash_source::{identifier::Identifier, location::Span};
 use hash_types::scope::ScopeKind;
-use hash_utils::store::SequenceStoreKey;
+use hash_utils::store::{SequenceStoreKey, Store};
 
 use super::{unpack, BlockAnd, BlockAndExtend, Builder, LoopBlockInfo};
 
@@ -40,14 +40,31 @@ impl<'tcx> Builder<'tcx> {
                 // Check the type of the subject, and if we need to
                 // handle it as a constructor initialisation, or if it is a
                 // function call.
-
                 let subject_ty = self.ty_of_node(subject.id());
 
                 if let IrTy::Fn { .. } = subject_ty {
-                    self.fn_call_into_dest(destination, block, subject.ast_ref(), args, span)
-                } else {
+                    self.fn_call_into_dest(
+                        destination,
+                        block,
+                        subject.ast_ref(),
+                        subject_ty,
+                        args,
+                        span,
+                    )
+                } else if let IrTy::Adt(adt) = subject_ty {
                     // This is a constructor call, so we need to handle it as such.
-                    self.constructor_into_dest(destination, block, subject.ast_ref(), args, span)
+                    self.constructor_into_dest(
+                        destination,
+                        block,
+                        subject.ast_ref(),
+                        adt,
+                        args,
+                        span,
+                    )
+                } else {
+                    // A constructor cannot be typed anything but either a function or some
+                    // ADT.
+                    unreachable!()
                 }
             }
             Expr::Directive(expr) => {
@@ -80,7 +97,7 @@ impl<'tcx> Builder<'tcx> {
                     self.control_flow_graph.push_assign(block, destination, rvalue, span);
                 } else {
                     let local = self.lookup_local_from_scope(scope, name).unwrap();
-                    let place = Place::from_local(local, self.storage);
+                    let place = Place::from_local(local, self.ctx);
                     self.control_flow_graph.push_assign(block, destination, place.into(), span);
                 }
 
@@ -166,7 +183,7 @@ impl<'tcx> Builder<'tcx> {
                 block = unpack!(self.handle_statement_expr(block, expr));
 
                 // Assign the `value` of the assignment into the `tmp_place`
-                let const_value = ir::Const::zero(self.storage);
+                let const_value = ir::Const::zero(self.ctx);
                 self.control_flow_graph.push_assign(block, destination, const_value.into(), span);
 
                 block.unit()
@@ -183,7 +200,7 @@ impl<'tcx> Builder<'tcx> {
                 if let Some(return_expr) = &expr {
                     unpack!(
                         block = self.expr_into_dest(
-                            Place::return_place(self.storage),
+                            Place::return_place(self.ctx),
                             block,
                             return_expr.ast_ref()
                         )
@@ -191,11 +208,11 @@ impl<'tcx> Builder<'tcx> {
                 } else {
                     // If no expression is attached to the return, then we need to push a
                     // `unit` value into the return place.
-                    let const_value = ir::Const::zero(self.storage);
+                    let const_value = ir::Const::zero(self.ctx);
 
                     self.control_flow_graph.push_assign(
                         block,
-                        Place::return_place(self.storage),
+                        Place::return_place(self.ctx),
                         const_value.into(),
                         span,
                     );
@@ -259,14 +276,7 @@ impl<'tcx> Builder<'tcx> {
                             .map(|(index, element)| (index.into(), element.ast_ref()))
                             .collect::<Vec<_>>();
 
-                        self.aggregate_into_dest(
-                            destination,
-                            block,
-                            ty,
-                            aggregate_kind,
-                            &args,
-                            span,
-                        )
+                        self.aggregate_into_dest(destination, block, aggregate_kind, &args, span)
                     }
                     Lit::Tuple(TupleLit { elements }) => {
                         let ty = self.ty_id_of_node(expr.id());
@@ -286,14 +296,7 @@ impl<'tcx> Builder<'tcx> {
                             })
                             .collect::<Vec<_>>();
 
-                        self.aggregate_into_dest(
-                            destination,
-                            block,
-                            ty,
-                            aggregate_kind,
-                            &args,
-                            span,
-                        )
+                        self.aggregate_into_dest(destination, block, aggregate_kind, &args, span)
                     }
                     Lit::Str(_) | Lit::Char(_) | Lit::Int(_) | Lit::Float(_) | Lit::Bool(_) => {
                         let constant = self.as_constant(literal.data.ast_ref());
@@ -355,7 +358,7 @@ impl<'tcx> Builder<'tcx> {
                     _ => unreachable!(),
                 };
 
-                let term = TerminatorKind::make_if(lhs, blocks.0, blocks.1, self.storage);
+                let term = TerminatorKind::make_if(lhs, blocks.0, blocks.1, self.ctx);
                 self.control_flow_graph.terminate(block, span, term);
 
                 // Create the constant that we will assign in the `short_circuiting` block.
@@ -427,6 +430,7 @@ impl<'tcx> Builder<'tcx> {
         destination: Place,
         mut block: BasicBlock,
         subject: AstNodeRef<'tcx, Expr>,
+        fn_ty: IrTy,
         args: &'tcx AstNodes<ConstructorCallArg>,
         span: Span,
     ) -> BlockAnd<()> {
@@ -444,8 +448,6 @@ impl<'tcx> Builder<'tcx> {
         // the AST. One way could be to build a map when traversing the AST that
         // can map between the argument and the default value, later being fetched
         // when we need to **fill** in the missing argument.
-        let fn_ty = self.ty_of_node(subject.id());
-
         if let IrTy::Fn { params, .. } = fn_ty {
             if args.len() != params.len() {
                 panic_on_span!(
@@ -490,11 +492,11 @@ impl<'tcx> Builder<'tcx> {
         destination: Place,
         mut block: BasicBlock,
         subject: AstNodeRef<'tcx, Expr>,
+        adt_id: AdtId,
         args: &'tcx AstNodes<ConstructorCallArg>,
         span: Span,
     ) -> BlockAnd<()> {
-        let subject_ty = self.ty_id_of_node(subject.id());
-        let aggregate_kind = self.map_on_adt(subject_ty, |adt, id| {
+        let aggregate_kind = self.ctx.adts().map_fast(adt_id, |adt| {
             if adt.flags.is_enum() || adt.flags.is_union() {
                 // here, we have to work out which variant is being used, so we look at the
                 // subject type as an `enum variant` value, and extract the index
@@ -511,10 +513,10 @@ impl<'tcx> Builder<'tcx> {
                         panic!("expected an enum variant")
                     };
 
-                AggregateKind::Enum(id, index)
+                AggregateKind::Enum(adt_id, index)
             } else {
                 debug_assert!(adt.flags.is_struct());
-                AggregateKind::Struct(id)
+                AggregateKind::Struct(adt_id)
             }
         });
 
@@ -537,7 +539,7 @@ impl<'tcx> Builder<'tcx> {
             })
             .collect::<Vec<_>>();
 
-        self.aggregate_into_dest(destination, block, subject_ty, aggregate_kind, &args, span)
+        self.aggregate_into_dest(destination, block, aggregate_kind, &args, span)
     }
 
     /// Place any aggregate value into the specified destination. This does not
@@ -548,7 +550,6 @@ impl<'tcx> Builder<'tcx> {
         &mut self,
         destination: Place,
         mut block: BasicBlock,
-        ty: IrTyId,
         aggregate_kind: AggregateKind,
         args: &[(Identifier, AstNodeRef<'tcx, Expr>)],
         span: Span,
@@ -570,7 +571,9 @@ impl<'tcx> Builder<'tcx> {
         // We don't need to perform this check for arrays since they don't need
         // to have a specific amount of arguments to the constructor.
         if aggregate_kind.is_adt() {
-            let field_count = self.map_on_adt(ty, |adt, _| {
+            let adt_id = aggregate_kind.adt_id();
+
+            let field_count = self.ctx.adts().map_fast(adt_id, |adt| {
                 if let AggregateKind::Enum(_, index) = aggregate_kind {
                     adt.variants[index].fields.len()
                 } else {

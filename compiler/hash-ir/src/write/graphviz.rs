@@ -12,7 +12,7 @@ use html_escape::encode_text;
 use crate::{
     ir::{BasicBlock, BasicBlockData, Body, BodySource, Const, TerminatorKind},
     write::WriteIr,
-    IrStorage,
+    IrCtx,
 };
 
 /// Used to separate line statements between each declaration within
@@ -20,8 +20,8 @@ use crate::{
 const LINE_SEPARATOR: &str = r#"<br align="left"/>"#;
 
 pub struct IrGraphWriter<'ir> {
-    /// The IR storage that contains
-    ctx: &'ir IrStorage,
+    /// Store that contains all interned data for the IR.
+    ctx: &'ir IrCtx,
 
     /// The body that is being outputted as a graph
     body: &'ir Body,
@@ -57,8 +57,8 @@ impl Default for IrGraphOptions {
 }
 
 impl<'ir> IrGraphWriter<'ir> {
-    pub fn new(storage: &'ir IrStorage, body: &'ir Body, options: IrGraphOptions) -> Self {
-        Self { ctx: storage, body, options }
+    pub fn new(ctx: &'ir IrCtx, body: &'ir Body, options: IrGraphOptions) -> Self {
+        Self { ctx, body, options }
     }
 
     /// Function that writes the body to the appropriate writer.
@@ -247,7 +247,7 @@ impl<'ir> IrGraphWriter<'ir> {
 }
 
 /// Dump all of the provided [Body]s to standard output using the `dot` format.
-pub fn dump_ir_bodies(storage: &IrStorage, bodies: &[Body], dump_all: bool) {
+pub fn dump_ir_bodies(ctx: &IrCtx, bodies: &[Body], dump_all: bool) {
     let mut w = io::stdout();
 
     println!("digraph program {{");
@@ -260,7 +260,7 @@ pub fn dump_ir_bodies(storage: &IrStorage, bodies: &[Body], dump_all: bool) {
         }
 
         let opts = IrGraphOptions { use_subgraph: Some(id), ..IrGraphOptions::default() };
-        let dumper = IrGraphWriter::new(storage, body, opts);
+        let dumper = IrGraphWriter::new(ctx, body, opts);
         dumper.write_body(&mut w).unwrap();
     }
 

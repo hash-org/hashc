@@ -1,5 +1,4 @@
 //! Hash Compiler Intermediate Representation (IR) crate.
-#![allow(clippy::too_many_arguments)]
 #![feature(let_chains, once_cell, associated_type_defaults, type_alias_impl_trait, decl_macro)]
 
 pub mod basic_blocks;
@@ -15,9 +14,9 @@ use std::{
 };
 
 use hash_types::terms::TermId;
-use hash_utils::store::SequenceStore;
+use hash_utils::store::{SequenceStore, Store};
 use ir::{Body, Local, Place, PlaceProjection, ProjectionStore};
-use ty::{AdtStore, IrTyId, TyListStore, TyStore};
+use ty::{AdtData, AdtId, AdtStore, IrTyId, TyListStore, TyStore};
 
 /// Storage that is used by the lowering stage. This stores all of the
 /// generated [Body]s and all of the accompanying data for the bodies.
@@ -31,42 +30,12 @@ pub struct IrStorage {
     /// so that the data store can be passed into various passes that occur
     /// on a particular [Body] and may perform transformations on the
     /// data.
-    pub body_data: BodyDataStore,
+    pub ctx: IrCtx,
 }
 
 impl IrStorage {
     pub fn new() -> Self {
-        Self { bodies: Vec::new(), body_data: BodyDataStore::default() }
-    }
-
-    /// Get a reference to the [TyStore]
-    pub fn tys(&self) -> &TyStore {
-        self.body_data.tys()
-    }
-
-    /// Get a reference to the [TyListStore]
-    pub fn tls(&self) -> &TyListStore {
-        self.body_data.tls()
-    }
-
-    /// Get a reference to the [AdtStore]
-    pub fn adts(&self) -> &AdtStore {
-        self.body_data.adts()
-    }
-
-    /// Get a reference to the [ProjectionStore]
-    pub fn projections(&self) -> &ProjectionStore {
-        self.body_data.projections()
-    }
-
-    /// Get a reference to the type cache.
-    pub fn ty_cache(&self) -> Ref<HashMap<TermId, IrTyId>> {
-        self.body_data.ty_cache.borrow()
-    }
-
-    /// Add an entry to the type cache.
-    pub fn add_ty_cache_entry(&self, term_id: TermId, ty_id: IrTyId) {
-        self.body_data.ty_cache.borrow_mut().insert(term_id, ty_id);
+        Self { bodies: Vec::new(), ctx: IrCtx::new() }
     }
 
     /// Extend the the [IrStorage] with the generated bodies.
@@ -75,8 +44,11 @@ impl IrStorage {
     }
 }
 
+/// The [IrCtx] is used to store all interned information that
+/// IR [Body]s might use or reference. This includes IR types, place
+/// projections, etc.
 #[derive(Default)]
-pub struct BodyDataStore {
+pub struct IrCtx {
     /// This the storage for all projection collections.
     projection_store: ir::ProjectionStore,
 
@@ -96,12 +68,12 @@ pub struct BodyDataStore {
     ty_cache: RefCell<HashMap<TermId, IrTyId>>,
 }
 
-impl BodyDataStore {
+impl IrCtx {
     /// Create a new [BodyDataStore].
     pub fn new() -> Self {
         Self {
             projection_store: ProjectionStore::default(),
-            ty_store: TyStore::default(),
+            ty_store: TyStore::new(),
             ty_list_store: TyListStore::default(),
             adt_store: AdtStore::default(),
             ty_cache: RefCell::new(HashMap::new()),
@@ -111,6 +83,16 @@ impl BodyDataStore {
     /// Get a reference to the [TyStore]
     pub fn tys(&self) -> &TyStore {
         &self.ty_store
+    }
+
+    /// Get a reference to the [IrTyId] cache.
+    pub fn ty_cache(&self) -> Ref<HashMap<TermId, IrTyId>> {
+        self.ty_cache.borrow()
+    }
+
+    /// Add an entry to the type cache.
+    pub fn add_ty_cache_entry(&self, term_id: TermId, ty_id: IrTyId) {
+        self.ty_cache.borrow_mut().insert(term_id, ty_id);
     }
 
     /// Get a reference to the [TyListStore]
@@ -139,5 +121,11 @@ impl BodyDataStore {
         let Place { local, projections } = place;
 
         self.projections().map_fast(projections, |projections| map(local, projections))
+    }
+
+    /// Perform a map on a [AdtId] by reading the [AdtData] that is associated
+    /// with the [AdtId] and then applying the provided function.
+    pub fn map_adt<T>(&self, id: AdtId, map: impl FnOnce(AdtId, &AdtData) -> T) -> T {
+        self.adts().map_fast(id, |data| map(id, data))
     }
 }

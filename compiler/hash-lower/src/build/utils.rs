@@ -66,9 +66,9 @@ impl<'tcx> Builder<'tcx> {
 
     /// Apply a function on a [IrTy::Adt].
     pub(crate) fn map_on_adt<T>(&self, ty: IrTyId, f: impl FnOnce(&AdtData, AdtId) -> T) -> T {
-        self.storage
+        self.ctx
             .tys()
-            .map_fast(ty, |ty| self.storage.adts().map_fast(ty.as_adt(), |adt| f(adt, ty.as_adt())))
+            .map_fast(ty, |ty| self.ctx.adts().map_fast(ty.as_adt(), |adt| f(adt, ty.as_adt())))
     }
 
     /// Function to create a new [Place] that is used to ignore
@@ -77,13 +77,13 @@ impl<'tcx> Builder<'tcx> {
         match &self.tmp_place {
             Some(tmp) => *tmp,
             None => {
-                let ty = IrTy::unit(self.storage);
-                let ty_id = self.storage.tys().create(ty);
+                let ty = IrTy::unit(self.ctx);
+                let ty_id = self.ctx.tys().create(ty);
 
                 let local = LocalDecl::new_auxiliary(ty_id, Mutability::Immutable);
                 let local_id = self.declarations.push(local);
 
-                let place = Place::from_local(local_id, self.storage);
+                let place = Place::from_local(local_id, self.ctx);
                 self.tmp_place = Some(place);
                 place
             }
@@ -136,6 +136,6 @@ impl<'tcx> Builder<'tcx> {
     ///      new [IrTy]s, whislt this is checking, this is only meant as a
     /// read-only      context over the whole type storage.
     pub(crate) fn map_ty<T>(&mut self, ty: IrTyId, f: impl FnOnce(&IrTy) -> T) -> T {
-        self.storage.tys().map_fast(ty, f)
+        self.ctx.tys().map_fast(ty, f)
     }
 }

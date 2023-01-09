@@ -4,7 +4,7 @@
 //! complexity from types that are required for IR generation and
 //! analysis.
 
-use std::{cell::Cell, cmp, fmt};
+use std::{cmp, fmt};
 
 use bitflags::bitflags;
 use hash_source::{
@@ -19,8 +19,9 @@ use hash_utils::{
 use index_vec::{index_vec, IndexVec};
 
 use crate::{
+    ir::{Body, Place, PlaceProjection},
     write::{ForFormatting, WriteIr},
-    IrStorage,
+    IrCtx,
 };
 
 /// Mutability of a particular variable, reference, etc.
@@ -80,6 +81,26 @@ impl fmt::Display for Mutability {
     }
 }
 
+/// This is a temporary struct that identifies a unique instance of a
+/// function within the generated code, and is later used to resolve
+/// function references later on.
+///
+/// @@Temporary
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub struct Instance {
+    _id: u32,
+}
+
+impl Instance {
+    pub fn dummy() -> Self {
+        Self { _id: 0 }
+    }
+
+    pub fn new(id: u32) -> Self {
+        Self { _id: id }
+    }
+}
+
 /// Simplified type structure used by the IR and other stages to reason about
 /// Hash programs once types have been erased and simplified.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -127,21 +148,21 @@ pub enum IrTy {
     /// The first item is the interned parameter types to the function, and the
     /// second item is the return type of the function. If the function has no
     /// explicit return type, this will always be inferred at this stage.
-    Fn { name: Option<Identifier>, params: IrTyListId, return_ty: IrTyId },
+    Fn { name: Option<Identifier>, instance: Instance, params: IrTyListId, return_ty: IrTyId },
 }
 
 impl IrTy {
     /// Make a unit type, i.e. `()`
-    pub fn unit(ir_storage: &IrStorage) -> Self {
+    pub fn unit(ctx: &IrCtx) -> Self {
         let variants = index_vec![AdtVariant { name: 0usize.into(), fields: vec![] }];
         let adt = AdtData::new_with_flags("unit".into(), variants, AdtFlags::TUPLE);
-        let adt_id = ir_storage.adts().create(adt);
+        let adt_id = ctx.adts().create(adt);
 
         Self::Adt(adt_id)
     }
 
     /// Make a tuple type, i.e. `(T1, T2, T3, ...)`
-    pub fn tuple(ir_storage: &IrStorage, tys: &[IrTyId]) -> Self {
+    pub fn tuple(ctx: &IrCtx, tys: &[IrTyId]) -> Self {
         let variants = index_vec![AdtVariant {
             name: 0usize.into(),
             fields: tys
@@ -152,7 +173,7 @@ impl IrTy {
                 .collect(),
         }];
         let adt = AdtData::new_with_flags("tuple".into(), variants, AdtFlags::TUPLE);
-        let adt_id = ir_storage.adts().create(adt);
+        let adt_id = ctx.adts().create(adt);
 
         Self::Adt(adt_id)
     }
@@ -189,6 +210,45 @@ impl IrTy {
         match self {
             Self::Adt(adt_id) => *adt_id,
             _ => panic!("expected ADT"),
+        }
+    }
+
+    /// Get the type of this [IrTy] if a dereference is performed on it.
+    pub fn on_deref(&self) -> Option<IrTyId> {
+        match self {
+            Self::RawRef(ty, _) | Self::Ref(ty, _) | Self::Rc(ty, _) => Some(*ty),
+            _ => None,
+        }
+    }
+
+    /// Get the type of this [IrTy] if an index operation
+    /// is performed on it.
+    pub fn on_index(&self) -> Option<IrTyId> {
+        match self {
+            Self::Slice(ty) | Self::Array { ty, .. } => Some(*ty),
+            _ => None,
+        }
+    }
+
+    /// Get the type of this [IrTy] if a field access is performed on it.
+    /// Optionally, the function can be supplied a [VariantIdx] in order to
+    /// access a particular variant of the ADT (for `enum`s and `union`s).
+    pub fn on_field_access(
+        &self,
+        field: usize,
+        variant: Option<VariantIdx>,
+        ctx: &IrCtx,
+    ) -> Option<IrTyId> {
+        match self {
+            IrTy::Adt(id) => ctx.map_adt(*id, |_, adt| {
+                let variant = match variant {
+                    Some(variant) => adt.variant(variant),
+                    None => adt.univariant(),
+                };
+
+                Some(variant.field(field).ty)
+            }),
+            _ => None,
         }
     }
 }
@@ -254,6 +314,18 @@ impl AdtData {
         flags: AdtFlags,
     ) -> Self {
         Self { name, variants, representation: AdtRepresentation::default(), flags }
+    }
+
+    /// Get the variant at the given [VariantIdx].
+    pub fn variant(&self, idx: VariantIdx) -> &AdtVariant {
+        &self.variants[idx]
+    }
+
+    /// Get the univariant of the ADT. This is only valid for ADTs that
+    /// have a single variant, i.e. `struct`s and `tuple`s.`
+    pub fn univariant(&self) -> &AdtVariant {
+        assert!(self.flags.is_struct() || self.flags.is_tuple());
+        &self.variants[VariantIdx::new(0)]
     }
 
     /// Lookup the index of a variant by its name.
@@ -359,6 +431,11 @@ impl AdtVariant {
     pub fn field_idx(&self, name: Identifier) -> Option<usize> {
         self.fields.iter().position(|field| field.name == name)
     }
+
+    /// Get the field at the given index.
+    pub fn field(&self, idx: usize) -> &AdtField {
+        &self.fields[idx]
+    }
 }
 
 /// An [AdtField] is a field that is defined for a variant of an ADT. It
@@ -382,7 +459,7 @@ pub type AdtStore = DefaultStore<AdtId, AdtData>;
 
 impl fmt::Display for ForFormatting<'_, AdtId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.storage.adts().map_fast(self.item, |adt| {
+        self.ctx.adts().map_fast(self.item, |adt| {
             match adt.flags {
                 AdtFlags::TUPLE => {
                     assert!(adt.variants.len() == 1);
@@ -394,7 +471,7 @@ impl fmt::Display for ForFormatting<'_, AdtId> {
                             write!(f, ", ")?;
                         }
 
-                        write!(f, "{}", field.ty.for_fmt(self.storage))?;
+                        write!(f, "{}", field.ty.for_fmt(self.ctx))?;
                     }
 
                     write!(f, ")")
@@ -410,29 +487,53 @@ impl fmt::Display for ForFormatting<'_, AdtId> {
 
 new_store_key!(pub IrTyId);
 
+/// Defines a map of common types that might be used in the IR
+/// and general IR operations. When creating new types that refer
+/// to these common types, they should be created using the
+/// using the associated [IrTyId]s of this map.
+pub struct CommonIrTys {
+    /// Boolean type.
+    pub bool: IrTyId,
+
+    /// Unsigned machine word type.
+    pub usize: IrTyId,
+}
+
+impl CommonIrTys {
+    fn new(data: &DefaultStore<IrTyId, IrTy>) -> Self {
+        let bool = data.create(IrTy::Bool);
+        let usize = data.create(IrTy::UInt(UIntTy::USize));
+
+        Self { bool, usize }
+    }
+}
+
 /// Stores all the used [IrTy]s.
 ///
 /// [Rvalue]s are accessed by an ID, of type [IrTyId].
-#[derive(Debug, Default)]
 pub struct TyStore {
+    /// The map that relates [IrTyId]s to the underlying
+    /// [IrTy]s.
     data: DefaultStore<IrTyId, IrTy>,
 
-    /// Internal boolean used sometimes when lowering binary expressions
-    /// that need to be checked.
-    bool_ty: Cell<Option<IrTyId>>,
+    /// A map of common types that are used in the IR.
+    pub common_tys: CommonIrTys,
+}
+
+impl Default for TyStore {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl TyStore {
-    /// Create a [IrTy::Bool], this will re-use the previously created boolean
-    /// type if it exists.
-    pub fn make_bool(&self) -> IrTyId {
-        if let Some(id) = self.bool_ty.get() {
-            id
-        } else {
-            let id = self.create(IrTy::Bool);
-            self.bool_ty.set(Some(id));
-            id
-        }
+    pub(crate) fn new() -> Self {
+        let data = DefaultStore::new();
+
+        // create the common types map using the created data store
+        let common_tys = CommonIrTys::new(&data);
+
+        Self { common_tys, data }
     }
 
     /// Create a a [IrTy::UInt(UintTy::USize)], which is often used for
@@ -451,7 +552,7 @@ impl Store<IrTyId, IrTy> for TyStore {
 
 impl fmt::Display for ForFormatting<'_, IrTyId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let ty = self.storage.tys().get(self.item);
+        let ty = self.ctx.tys().get(self.item);
 
         match ty {
             IrTy::Int(variant) => write!(f, "{variant}"),
@@ -462,10 +563,10 @@ impl fmt::Display for ForFormatting<'_, IrTyId> {
             IrTy::Char => write!(f, "char"),
             IrTy::Never => write!(f, "!"),
             IrTy::Ref(inner, mutability) => {
-                write!(f, "&{mutability}{}", inner.for_fmt(self.storage))
+                write!(f, "&{mutability}{}", inner.for_fmt(self.ctx))
             }
             IrTy::RawRef(inner, mutability) => {
-                write!(f, "&raw {mutability}{}", inner.for_fmt(self.storage))
+                write!(f, "&raw {mutability}{}", inner.for_fmt(self.ctx))
             }
             IrTy::Rc(inner, mutability) => {
                 let name = match mutability {
@@ -473,28 +574,18 @@ impl fmt::Display for ForFormatting<'_, IrTyId> {
                     Mutability::Immutable => "",
                 };
 
-                write!(f, "Rc{name}<{}>", inner.for_fmt(self.storage))
+                write!(f, "Rc{name}<{}>", inner.for_fmt(self.ctx))
             }
-            IrTy::Adt(adt) => write!(f, "{}", adt.for_fmt(self.storage)),
-            IrTy::Fn { params, return_ty, name: None } => {
-                write!(
-                    f,
-                    "({}) -> {}",
-                    params.for_fmt(self.storage),
-                    return_ty.for_fmt(self.storage)
-                )
+            IrTy::Adt(adt) => write!(f, "{}", adt.for_fmt(self.ctx)),
+            IrTy::Fn { params, return_ty, name: None, .. } => {
+                write!(f, "({}) -> {}", params.for_fmt(self.ctx), return_ty.for_fmt(self.ctx))
             }
             IrTy::Fn { params, return_ty, .. } if self.verbose => {
-                write!(
-                    f,
-                    "({}) -> {}",
-                    params.for_fmt(self.storage),
-                    return_ty.for_fmt(self.storage)
-                )
+                write!(f, "({}) -> {}", params.for_fmt(self.ctx), return_ty.for_fmt(self.ctx))
             }
             IrTy::Fn { name: Some(name), .. } => write!(f, "{name}"),
-            IrTy::Slice(ty) => write!(f, "[{}]", ty.for_fmt(self.storage)),
-            IrTy::Array { ty, size } => write!(f, "[{}; {size}]", ty.for_fmt(self.storage)),
+            IrTy::Slice(ty) => write!(f, "[{}]", ty.for_fmt(self.ctx)),
+            IrTy::Array { ty, size } => write!(f, "[{}; {size}]", ty.for_fmt(self.ctx)),
         }
     }
 }
@@ -507,17 +598,88 @@ pub type TyListStore = DefaultSequenceStore<IrTyListId, IrTyId>;
 
 impl fmt::Display for ForFormatting<'_, IrTyListId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let items = self.storage.tls().get_vec(self.item);
+        let items = self.ctx.tls().get_vec(self.item);
         let mut tys = items.iter();
 
         if let Some(first) = tys.next() {
-            write!(f, "{first}", first = first.for_fmt(self.storage))?;
+            write!(f, "{first}", first = first.for_fmt(self.ctx))?;
 
             for ty in tys {
-                write!(f, ", {ty}", ty = ty.for_fmt(self.storage))?;
+                write!(f, ", {ty}", ty = ty.for_fmt(self.ctx))?;
             }
         }
 
         Ok(())
+    }
+}
+
+/// An auxilliary data structure that is used to compute the
+/// [IrTy] of a [Place].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct TyOfPlace {
+    /// The [IrTy] of the place.
+    pub ty: IrTyId,
+
+    /// If the place has been downcasted, then this records
+    /// the index of the variant that it has been downcasted to.
+    pub index: Option<VariantIdx>,
+}
+
+impl TyOfPlace {
+    /// Create a [TyPlace] from a [Place].
+    pub fn from_place(place: Place, body: &Body, ctx: &IrCtx) -> TyOfPlace {
+        // get the type of the local from the body.
+        let mut base = TyOfPlace { ty: body.declarations[place.local].ty, index: None };
+
+        ctx.projections().map_fast(place.projections, |projections| {
+            for projection in projections {
+                match *projection {
+                    PlaceProjection::Downcast(index) => {
+                        base = TyOfPlace { ty: base.ty, index: Some(index) }
+                    }
+                    PlaceProjection::Field(index) => {
+                        let ty = ctx
+                            .tys()
+                            .map_fast(base.ty, |ty| ty.on_field_access(index, base.index, ctx))
+                            .unwrap_or_else(|| panic!("expected an ADT, got {base:?}"));
+
+                        base = TyOfPlace { ty, index: None }
+                    }
+                    PlaceProjection::Deref => {
+                        let ty = ctx
+                            .tys()
+                            .map_fast(base.ty, |ty| ty.on_deref())
+                            .unwrap_or_else(|| panic!("expected a reference, got {base:?}"));
+
+                        base = TyOfPlace { ty, index: None }
+                    }
+                    PlaceProjection::Index(_) | PlaceProjection::ConstantIndex { .. } => {
+                        let ty = ctx
+                            .tys()
+                            .map_fast(base.ty, |ty| ty.on_index())
+                            .unwrap_or_else(|| panic!("expected an array or slice, got {base:?}"));
+
+                        base = TyOfPlace { ty, index: None }
+                    }
+                    PlaceProjection::SubSlice { from, to, from_end } => {
+                        let base_ty = ctx.tys().get(base.ty);
+                        let ty = match base_ty {
+                            IrTy::Slice(_) => base.ty,
+                            IrTy::Array { ty, .. } if !from_end => {
+                                ctx.tys().create(IrTy::Array { ty, size: to - from })
+                            }
+                            IrTy::Array { ty, size } if from_end => {
+                                ctx.tys().create(IrTy::Array { ty, size: size - from - to })
+                            }
+                            _ => panic!("expected an array or slice, got {base:?}"),
+                        };
+
+                        base = TyOfPlace { ty, index: None }
+                    }
+                }
+            }
+        });
+
+        base
     }
 }

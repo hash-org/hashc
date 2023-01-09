@@ -2,6 +2,8 @@
 //! live in `hash-target` in order to be shared between multiple other crates
 //! like `hash-abi` and `hash-codegen`.
 
+use std::fmt;
+
 use crate::{alignment::Alignments, layout::HasDataLayout, size::Size};
 
 /// ABI representation of an integer scalar type.
@@ -80,7 +82,7 @@ impl Float {
 /// Represents all of the primitive [AbiRepresentation::Scalar]s that are
 /// supported within the ABI.
 #[derive(Clone, Copy, Debug)]
-pub enum Scalar {
+pub enum ScalarKind {
     /// An integer scalar.
     Int { kind: Integer, signed: bool },
 
@@ -91,28 +93,110 @@ pub enum Scalar {
     Pointer,
 }
 
+/// This range is used to represent the valid range of a scalar value.
+/// It has the properties that it is wrapping and inclusive, i.e. if the
+/// `start` value is larger than the smaller value, this implies that is
+/// greater that `start` until the logical end, and everything up to the `end`
+/// is valid as well. For example:
+/// ```ignore
+/// let range = ValidScalarRange { start: 254, end: 5 }; // `i8` primitive
+///
+/// /// Sequence is...
+///
+/// 254 (-2), 255 (-1), 0 (0), 1 (1), 2 (2), 3 (3), 4 (4), 5 (5)
+/// ```
+///
+/// This is used to represent `range!` metadata within LLVM metadata, and
+/// possibly other compiler backends that allow for rich range metadata to
+/// be emitted. LLVM `range!` metadata reference is at:
+///  
+/// Language ref: <https://llvm.org/docs/LangRef.html#range-metadata>
+///
+/// Source: <https://github.com/llvm/llvm-project/blob/main/llvm/lib/IR/ConstantRange.cpp>
+#[derive(Clone, Copy)]
+pub struct ValidScalarRange {
+    /// The minimum value that is valid for this scalar.
+    pub start: u128,
+
+    /// The end value of the valid range.
+    pub end: u128,
+}
+
+impl ValidScalarRange {
+    /// Create a "full" range for a valid integer size
+    pub fn full(size: Size) -> Self {
+        Self { start: 0, end: size.unsigned_int_max() }
+    }
+
+    /// Check if a certain value is contained within the
+    /// [ValidScalarRange].
+    pub fn contains(&self, value: u128) -> bool {
+        if self.start > self.end {
+            value >= self.start || value <= self.end
+        } else {
+            value >= self.start && value <= self.end
+        }
+    }
+}
+
+impl fmt::Debug for ValidScalarRange {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.start > self.end {
+            write!(f, "(..<{}) | ({}..)", self.start, self.end)
+        } else {
+            write!(f, "({}..{})", self.start, self.end)
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct Scalar {
+    /// The kind of the scalar.
+    pub kind: ScalarKind,
+
+    /// The valid range of the scalar, this is used
+    /// to provide aditional information about values
+    /// that might be encoded as scalars (for efficiency
+    /// purposes), but are not actually scalars, e.g. `bool`s
+    /// will be encoded as [ScalarKind::Int{..}], and have
+    /// a valid range of `0..1`.
+    pub valid_range: ValidScalarRange,
+}
+
 impl Scalar {
-    /// Align the [Primitive] with the current data layout
+    /// Align the [Scalar] with the current data layout
     /// specification.
     pub fn align<L: HasDataLayout>(&self, ctx: &L) -> Alignments {
         let dl = ctx.data_layout();
 
-        match self {
-            Scalar::Int { kind, .. } => kind.align(ctx),
-            Scalar::Float { kind } => kind.align(ctx),
-            Scalar::Pointer => dl.pointer_align,
+        match self.kind {
+            ScalarKind::Int { kind, .. } => kind.align(ctx),
+            ScalarKind::Float { kind } => kind.align(ctx),
+            ScalarKind::Pointer => dl.pointer_align,
         }
     }
 
-    /// Compute the size of the [Primitive].
+    /// Compute the size of the [Scalar].
     pub fn size<L: HasDataLayout>(&self, ctx: &L) -> Size {
         let dl = ctx.data_layout();
 
-        match self {
-            Scalar::Int { kind, .. } => kind.size(),
-            Scalar::Float { kind } => kind.size(),
-            Scalar::Pointer => dl.pointer_size,
+        match self.kind {
+            ScalarKind::Int { kind, .. } => kind.size(),
+            ScalarKind::Float { kind } => kind.size(),
+            ScalarKind::Pointer => dl.pointer_size,
         }
+    }
+
+    /// Check if the [Scalar] represents a boolean value, i.e. a
+    /// [`ScalarKind::Int`] that is an  `i8` with a valid range of `0..1`.
+    pub fn is_bool(&self) -> bool {
+        matches!(
+            self,
+            Scalar {
+                kind: ScalarKind::Int { kind: Integer::I8, signed: false },
+                valid_range: ValidScalarRange { start: 0, end: 1 }
+            }
+        )
     }
 }
 
@@ -138,6 +222,18 @@ pub enum AbiRepresentation {
 
     /// An aggregate value.
     Aggregate,
+}
+
+impl AbiRepresentation {
+    /// Check if the [AbiRepresentation] is a scalar.
+    pub fn is_scalar(&self) -> bool {
+        matches!(self, AbiRepresentation::Scalar { .. })
+    }
+
+    /// Check if the [AbiRepresentation] is uninhabited.
+    pub fn is_uninhabited(&self) -> bool {
+        matches!(self, AbiRepresentation::Uninhabited)
+    }
 }
 
 /// An identifier that specifies the address space that some operation

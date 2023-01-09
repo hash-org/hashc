@@ -44,12 +44,29 @@ pub trait BuildConstValueMethods<'b>: BackendTypes {
     /// Emit a constant `i128` value.
     fn const_i128(&self, i: i128) -> Self::Value;
 
+    /// Emit a large integer constant of a particular type. This
+    /// is a common function to emit unsigned interger types.
+    fn const_uint_big(&self, ty: Self::Type, i: u128) -> Self::Value;
+
     /// Emit a constant `usize` value.
     fn const_usize(&self, i: u64) -> Self::Value;
 
     /// Emit a constant float value.
     fn const_float(&self, t: Self::Type, val: f64) -> Self::Value;
 
-    /// Emit a constant string value.
+    /// Emit a constant string value. This will return a  
+    /// pointer value to the string characters, and a
+    /// second value for the length of the string. Essentially,
+    /// this mimics the following structure:
+    /// ```ignore
+    /// str := struct {
+    ///     raw: &char, // <--- first value
+    ///     len: usize, // <--- second value
+    /// }
+    /// ```
     fn const_str(&self, s: &str) -> (Self::Value, Self::Value);
+
+    /// Attempt to convert a constant value into a `u128` value. If
+    /// the conversion fails, then [`None`] is returned.
+    fn const_to_optional_u128(&self, val: Self::Value, sign_extend: bool) -> Option<u128>;
 }

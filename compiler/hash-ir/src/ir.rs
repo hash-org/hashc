@@ -26,7 +26,7 @@ use smallvec::{smallvec, SmallVec};
 use crate::{
     basic_blocks::BasicBlocks,
     ty::{AdtId, IrTy, IrTyId, Mutability, VariantIdx},
-    BodyDataStore, IrStorage,
+    IrCtx,
 };
 
 /// A specified constant value within the Hash IR. These values and their
@@ -64,8 +64,8 @@ impl From<Const> for ConstKind {
 
 impl Const {
     /// Create a [Const::Zero] with a unit type, the total zero.
-    pub fn zero(storage: &IrStorage) -> Self {
-        let unit = storage.tys().create(IrTy::unit(storage));
+    pub fn zero(ctx: &IrCtx) -> Self {
+        let unit = ctx.tys().create(IrTy::unit(ctx));
         Self::Zero(unit)
     }
 
@@ -76,8 +76,8 @@ impl Const {
 
     /// Create a new [Const] from a scalar value, with the appropriate
     /// type.
-    pub fn from_scalar(value: u128, ty: IrTyId, storage: &IrStorage) -> Self {
-        storage.tys().map_fast(ty, |ty| match ty {
+    pub fn from_scalar(value: u128, ty: IrTyId, ctx: &IrCtx) -> Self {
+        ctx.tys().map_fast(ty, |ty| match ty {
             IrTy::Int(int_ty) => {
                 let interned_value = IntConstant::from_uint(value, (*int_ty).into());
                 Self::Int(CONSTANT_MAP.create_int_constant(interned_value))
@@ -259,6 +259,30 @@ impl BinOp {
     /// Check if the [BinOp] is a comparator.
     pub fn is_comparator(&self) -> bool {
         matches!(self, Self::Eq | Self::Neq | Self::Gt | Self::GtEq | Self::Lt | Self::LtEq)
+    }
+}
+
+impl fmt::Display for BinOp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BinOp::Eq => write!(f, "=="),
+            BinOp::Neq => write!(f, "!="),
+            BinOp::BitOr => write!(f, "|"),
+            BinOp::BitAnd => write!(f, "&"),
+            BinOp::BitXor => write!(f, "^"),
+            BinOp::Exp => write!(f, "**"),
+            BinOp::Gt => write!(f, ">"),
+            BinOp::GtEq => write!(f, ">="),
+            BinOp::Lt => write!(f, "<"),
+            BinOp::LtEq => write!(f, "<="),
+            BinOp::Shr => write!(f, ">>"),
+            BinOp::Shl => write!(f, "<<"),
+            BinOp::Add => write!(f, "+"),
+            BinOp::Sub => write!(f, "-"),
+            BinOp::Mul => write!(f, "*"),
+            BinOp::Div => write!(f, "/"),
+            BinOp::Mod => write!(f, "%"),
+        }
     }
 }
 
@@ -455,23 +479,23 @@ pub struct Place {
 
 impl Place {
     /// Create a [Place] that points to the return `place` of a lowered  body.
-    pub fn return_place(storage: &IrStorage) -> Self {
-        Self { local: RETURN_PLACE, projections: storage.projections().create_empty() }
+    pub fn return_place(ctx: &IrCtx) -> Self {
+        Self { local: RETURN_PLACE, projections: ctx.projections().create_empty() }
     }
 
     /// Create a new [Place] from a [Local] with no projections.
-    pub fn from_local(local: Local, storage: &IrStorage) -> Self {
-        Self { local, projections: storage.projections().create_empty() }
+    pub fn from_local(local: Local, ctx: &IrCtx) -> Self {
+        Self { local, projections: ctx.projections().create_empty() }
     }
 
     /// Create a new [Place] from an existing place whilst also
     /// applying a a [PlaceProjection::Field] on the old one.
-    pub fn field(&self, field: usize, storage: &IrStorage) -> Self {
-        let projections = storage.projections().get_vec(self.projections);
+    pub fn field(&self, field: usize, ctx: &IrCtx) -> Self {
+        let projections = ctx.projections().get_vec(self.projections);
 
         Self {
             local: self.local,
-            projections: storage.projections().create_from_iter_fast(
+            projections: ctx.projections().create_from_iter_fast(
                 projections.iter().copied().chain(once(PlaceProjection::Field(field))),
             ),
         }
@@ -529,6 +553,18 @@ impl AggregateKind {
     /// Check if the [AggregateKind] represents an ADT.
     pub fn is_adt(&self) -> bool {
         !matches!(self, AggregateKind::Array(_))
+    }
+
+    /// Get the [AdtId] of the [AggregateKind] if it is an ADT.
+    ///
+    /// N.B. This will panic if the [AggregateKind] is not an ADT.
+    pub fn adt_id(&self) -> AdtId {
+        match self {
+            AggregateKind::Tuple(id) | AggregateKind::Enum(id, _) | AggregateKind::Struct(id) => {
+                *id
+            }
+            AggregateKind::Array(_) => panic!("cannot get adt_id of non-adt aggregate kind"),
+        }
     }
 }
 
@@ -618,7 +654,7 @@ impl RValue {
     }
 
     /// Get the [IrTy] of the [RValue].
-    pub fn ty(&self, store: &BodyDataStore) -> IrTy {
+    pub fn ty(&self, store: &IrCtx) -> IrTy {
         match self {
             RValue::Use(Operand::Const(_)) => todo!(),
             RValue::Use(Operand::Place(_)) => todo!(),
@@ -678,17 +714,61 @@ pub struct Statement {
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum AssertKind {
     /// A Division by zero assertion.
-    DivisionByZero,
+    DivisionByZero { operand: Operand },
 
     /// Occurs when an attempt to take the remainder of some operand with zero.
-    RemainderByZero,
+    RemainderByZero { operand: Operand },
 
     /// Performing an arithmetic operation has caused the operation to overflow
-    Overflow,
+    Overflow {
+        /// The operation that is being performed.
+        op: BinOp,
+
+        /// The left hand-side operand in the operation.
+        lhs: Operand,
+
+        /// The right hand-side operand in the operation.
+        rhs: Operand,
+    },
 
     /// Performing an arithmetic operation has caused the operation to overflow
     /// whilst subtracting or terms that are signed
-    NegativeOverflow,
+    NegativeOverflow { operand: Operand },
+
+    /// Bounds check assertion.
+    BoundsCheck {
+        /// The length of the array that is being checked.
+        len: Operand,
+
+        /// The index that is being checked.
+        index: Operand,
+    },
+}
+
+impl AssertKind {
+    /// Get a general message of what the [AssertKind] is
+    /// checking. This is used to generate a readable message
+    /// within the executable for when the assert is triggered.
+    pub fn message(&self) -> &'static str {
+        match self {
+            AssertKind::Overflow { op: BinOp::Add, .. } => "attempt to add with overflow",
+            AssertKind::Overflow { op: BinOp::Sub, .. } => "attempt to subtract with overflow",
+            AssertKind::Overflow { op: BinOp::Mul, .. } => "attempt to multiply with overflow",
+            AssertKind::Overflow { op: BinOp::Div, .. } => "attempt to divide with overflow",
+            AssertKind::Overflow { op: BinOp::Mod, .. } => {
+                "attempt to calculate the remainder with overflow"
+            }
+            AssertKind::Overflow { op: BinOp::Shl, .. } => "attempt to shift left with overflow",
+            AssertKind::Overflow { op: BinOp::Shr, .. } => "attempt to shift right with overflow",
+            AssertKind::Overflow { op, .. } => panic!("unexpected overflow operator `{op}`"),
+            AssertKind::DivisionByZero { .. } => "attempt to divide by zero",
+            AssertKind::RemainderByZero { .. } => {
+                "attempt to take remainder with a divisor of zero"
+            }
+            AssertKind::NegativeOverflow { .. } => "attempt to negate with overflow",
+            AssertKind::BoundsCheck { .. } => "attempt to index array out of bounds",
+        }
+    }
 }
 
 /// [Terminator] statements are those that affect control
@@ -874,6 +954,8 @@ impl<'a> Iterator for SwitchTargetsIter<'a> {
     }
 }
 
+impl ExactSizeIterator for SwitchTargetsIter<'_> {}
+
 /// The kind of [Terminator] that it is.
 ///
 /// @@Future: does this need an `Intrinsic(...)` variant for substituting
@@ -941,11 +1023,11 @@ impl TerminatorKind {
         value: Operand,
         true_block: BasicBlock,
         false_block: BasicBlock,
-        storage: &IrStorage,
+        ctx: &IrCtx,
     ) -> Self {
         let targets = SwitchTargets::new(
             std::iter::once((false.into(), false_block)),
-            storage.tys().make_bool(),
+            ctx.tys().common_tys.bool,
             Some(true_block),
         );
 
@@ -993,6 +1075,13 @@ impl BasicBlockData {
             Some(terminator) => terminator.successors().collect(),
             None => smallvec![],
         }
+    }
+
+    /// Check if the [BasicBlockData] is empty, i.e. has no statements and
+    /// the terminator is of kind [TerminatorKind::Unreachable].
+    pub fn is_empty_and_unreacheable(&self) -> bool {
+        self.statements.is_empty()
+            && self.terminator.as_ref().map_or(false, |t| t.kind == TerminatorKind::Unreachable)
     }
 }
 
@@ -1272,7 +1361,7 @@ mod tests {
 
     #[test]
     fn test_place_display() {
-        let storage = IrStorage::new();
+        let storage = IrCtx::new();
 
         let place = Place {
             local: Local::new(0),

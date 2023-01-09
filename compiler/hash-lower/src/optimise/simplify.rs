@@ -13,9 +13,9 @@
 
 use hash_ir::{
     ir::{BasicBlock, BasicBlockData, Body, Terminator, TerminatorKind, START_BLOCK},
-    traversal, BodyDataStore,
+    traversal, IrCtx,
 };
-use hash_pipeline::settings::{LoweringSettings, OptimisationLevel};
+use hash_pipeline::settings::{CompilerSettings, OptimisationLevel};
 use index_vec::{index_vec, Idx, IndexVec};
 use smallvec::{smallvec, SmallVec};
 
@@ -95,11 +95,11 @@ impl IrOptimisation for SimplifyGraph {
         "simplify-graph"
     }
 
-    fn enabled(&self, settings: &LoweringSettings) -> bool {
+    fn enabled(&self, settings: &CompilerSettings) -> bool {
         settings.optimisation_level >= OptimisationLevel::Debug
     }
 
-    fn optimise(&self, body: &mut Body, _: &BodyDataStore) {
+    fn optimise(&self, body: &mut Body, _: &IrCtx) {
         GraphSimplifier::new(body).simplify();
 
         // Now we can remove the blocks that we no longer need.

@@ -22,9 +22,9 @@ use hash_ir::{
         UnevaluatedConst, START_BLOCK,
     },
     ty::{IrTy, IrTyListId, Mutability},
-    IrStorage,
+    IrCtx,
 };
-use hash_pipeline::settings::LoweringSettings;
+use hash_pipeline::settings::CompilerSettings;
 use hash_source::{identifier::Identifier, location::Span, SourceId, SourceMap};
 use hash_types::{scope::ScopeId, storage::GlobalStorage, terms::TermId};
 use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
@@ -153,7 +153,7 @@ pub(crate) struct Builder<'tcx> {
     tcx: &'tcx GlobalStorage,
 
     /// The IR storage needed for storing all of the created values and bodies
-    storage: &'tcx mut IrStorage,
+    ctx: &'tcx mut IrCtx,
 
     /// The sources of the current program, this is only used
     /// to give more contextual panics when the compiler unexpectedly
@@ -163,7 +163,7 @@ pub(crate) struct Builder<'tcx> {
 
     /// The stage settings, sometimes used to determine what the lowering
     /// behaviour should be.
-    settings: &'tcx LoweringSettings,
+    settings: &'tcx CompilerSettings,
 
     /// Info that is derived during the lowering process of the type.
     info: BodyInfo,
@@ -235,17 +235,17 @@ pub(crate) struct Builder<'tcx> {
     dead_ends: &'tcx HashSet<AstNodeId>,
 }
 
-impl<'tcx> Builder<'tcx> {
+impl<'ctx> Builder<'ctx> {
     pub(crate) fn new(
         name: Identifier,
-        item: BuildItem<'tcx>,
+        item: BuildItem<'ctx>,
         source_id: SourceId,
         scope_stack: Vec<ScopeId>,
-        tcx: &'tcx GlobalStorage,
-        storage: &'tcx mut IrStorage,
-        source_map: &'tcx SourceMap,
-        dead_ends: &'tcx HashSet<AstNodeId>,
-        settings: &'tcx LoweringSettings,
+        tcx: &'ctx GlobalStorage,
+        ctx: &'ctx mut IrCtx,
+        source_map: &'ctx SourceMap,
+        dead_ends: &'ctx HashSet<AstNodeId>,
+        settings: &'ctx CompilerSettings,
     ) -> Self {
         let (arg_count, source) = match item {
             BuildItem::FnDef(node) => {
@@ -266,7 +266,7 @@ impl<'tcx> Builder<'tcx> {
             item,
             tcx,
             info: BodyInfo::new(name, source),
-            storage,
+            ctx,
             source_map,
             arg_count,
             source_id,
@@ -312,7 +312,7 @@ impl<'tcx> Builder<'tcx> {
         // If it is a function type, then we use the return type of the
         // function as the `return_ty`, otherwise we assume the type provided
         // is the `return_ty`
-        let (return_ty, params) = self.storage.tys().map_fast(ty, |item_ty| match item_ty {
+        let (return_ty, params) = self.ctx.tys().map_fast(ty, |item_ty| match item_ty {
             IrTy::Fn { return_ty, params, .. } => (*return_ty, Some(*params)),
             _ => (ty, None),
         });
@@ -348,7 +348,7 @@ impl<'tcx> Builder<'tcx> {
         // Add each parameter as a declaration to the body.
         let scope = self.current_scope();
         for (index, param) in fn_params.iter().enumerate() {
-            let ir_ty = self.storage.tls().get_at_index(param_tys, index);
+            let ir_ty = self.ctx.tls().get_at_index(param_tys, index);
             let param_name = param.name.unwrap();
 
             // @@Future: deal with parameter attributes that are mutable?
@@ -377,15 +377,14 @@ impl<'tcx> Builder<'tcx> {
     /// Function that builds the main body of a [BuildItem]. This will lower the
     /// expression that is provided, and store the result into the
     /// `RETURN_PLACE`.
-    fn build_body(&mut self, body: AstNodeRef<'tcx, Expr>) {
+    fn build_body(&mut self, body: AstNodeRef<'ctx, Expr>) {
         // Now we begin by lowering the body of the function.
         let start = self.control_flow_graph.start_new_block();
         debug_assert!(start == START_BLOCK);
 
         // Now that we have built the inner body block, we then need to terminate
         // the current basis block with a return terminator.
-        let return_block =
-            unpack!(self.expr_into_dest(Place::return_place(self.storage), start, body));
+        let return_block = unpack!(self.expr_into_dest(Place::return_place(self.ctx), start, body));
 
         self.control_flow_graph.terminate(return_block, body.span(), TerminatorKind::Return);
     }

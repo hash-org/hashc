@@ -168,8 +168,8 @@ impl<'ir, 'b, Builder: BlockBuilderMethods<'b>> LocalKindAnalyser<'ir, 'b, Build
 impl<'ir, 'b, Builder: BlockBuilderMethods<'b>> IrVisitorMut<'b>
     for LocalKindAnalyser<'ir, 'b, Builder>
 {
-    fn store(&self) -> &'b hash_ir::BodyDataStore {
-        self.fn_builder.ctx.body_data()
+    fn ctx(&self) -> &'b hash_ir::IrCtx {
+        self.fn_builder.ctx.ir_ctx()
     }
 
     fn visit_assign_statement(&mut self, place: &ir::Place, value: &ir::RValue, reference: IrRef) {
@@ -209,7 +209,7 @@ impl<'ir, 'b, Builder: BlockBuilderMethods<'b>> IrVisitorMut<'b>
 
         // we want to check if any of the projections affect the
         // base local, if so then we need to check it as a local...
-        let projections = self.fn_builder.ctx.body_data().projections().get_vec(place.projections);
+        let projections = self.fn_builder.ctx.ir_ctx().projections().get_vec(place.projections);
 
         let mut base_ctx = if ctx.is_mutating() {
             PlaceContext::Mutable(MutablePlaceContext::Projection)

@@ -233,7 +233,7 @@ impl<'tcx> Builder<'tcx> {
                 // we lookup the local from the current scope, and get the place of where
                 // to place this value.
                 let local = self.lookup_local(name.ident).unwrap();
-                let place = Place::from_local(local, self.storage);
+                let place = Place::from_local(local, self.ctx);
 
                 unpack!(block = self.expr_into_dest(place, block, expr));
                 block.unit()

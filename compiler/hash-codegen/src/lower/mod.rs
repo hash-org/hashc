@@ -11,17 +11,35 @@ use hash_ir::{
 };
 use index_vec::IndexVec;
 
-use self::{locals::LocalRef, place::PlaceRef};
+use self::{locals::LocalRef, operands::OperandRef, place::PlaceRef};
 use crate::traits::{builder::BlockBuilderMethods, layout::LayoutMethods};
 
 pub(crate) mod block;
 pub(crate) mod debug_info;
+pub(crate) mod intrinsics;
 pub(crate) mod locals;
 pub(crate) mod operands;
 pub(crate) mod place;
 pub(crate) mod rvalue;
 pub(crate) mod statement;
 pub(crate) mod terminator;
+pub(crate) mod utils;
+
+/// This enum is used to track the status of a basic block during the
+/// lowering process. This is used to avoid creating multiple basic blocks IDs
+/// for the same Hash IR block.
+pub enum BlockStatus<BasicBlock> {
+    /// The block has not been lowered yet.
+    Unlowered,
+
+    /// Nothing has been lowered for this block, and nothing will
+    /// be lowered. This occurs when two blocks have been merged
+    /// into a single backend basic block.
+    Skip,
+
+    /// The block has been lowered, and the basic block ID is stored here.
+    Lowered(BasicBlock),
+}
 
 /// This struct contains all the information required to convert Hash IR into
 /// the target code backend.
@@ -59,6 +77,8 @@ pub struct FnBuilder<'b, Builder: BlockBuilderMethods<'b>> {
     /// immediate values as judged by [`Self::rvalue_creates_operand`].
     locals: IndexVec<Local, LocalRef<Builder::Value>>,
 
+    block_map: IndexVec<ir::BasicBlock, BlockStatus<Builder::BasicBlock>>,
+
     /// A commonly shared "unreachable" block in order to avoid
     /// having multiple basic blocks that are "unreachable".
     unreachable_block: Option<Builder::BasicBlock>,
@@ -83,6 +103,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
             ctx,
             function,
             fn_abi,
+            block_map: IndexVec::new(),
             locals: IndexVec::with_capacity(body.declarations.len()),
             unreachable_block: None,
         }
@@ -166,8 +187,48 @@ pub fn codegen_ir_body<'b, Builder: BlockBuilderMethods<'b>>(
 /// when dealing with ABI specifications, and possibly (in the future)
 /// variadic arguments that are passed to the function.
 fn allocate_argument_locals<'b, Builder: BlockBuilderMethods<'b>>(
-    _fn_ctx: &mut FnBuilder<'b, Builder>,
-    _builder: &mut Builder,
-    _memory_locals: &FixedBitSet,
-) {
+    fn_ctx: &mut FnBuilder<'b, Builder>,
+    builder: &mut Builder,
+    memory_locals: &FixedBitSet,
+) -> Vec<LocalRef<Builder::Value>> {
+    let body = fn_ctx.body;
+
+    // If the return_ty is `indirect`, then this should be set to one?
+    let mut param_index = 0;
+
+    body.args_iter()
+        .enumerate()
+        .map(|(arg_index, local)| {
+            let arg_abi = &fn_ctx.fn_abi.args[arg_index];
+
+            // Check if we can just pass these arguments directly...
+            if !memory_locals.contains(local.index()) {
+                let local = |op| LocalRef::Operand(Some(op));
+
+                // Based on the pass mode of the argument, we might have
+                // to do some extra work to get the argument into the
+                // correct form.
+                match arg_abi.mode {
+                    hash_abi::PassMode::Ignore => {
+                        return local(OperandRef::new_zst(builder, arg_abi.info));
+                    }
+                    hash_abi::PassMode::Direct(_) => {
+                        let arg_value = builder.get_param(param_index);
+                        param_index += 1;
+
+                        return local(OperandRef::from_immediate_value(arg_value, arg_abi.info));
+                    }
+
+                    // All other pass modes imply that there must be an allocation
+                    // made to pass this argument
+                    _ => {}
+                }
+            }
+
+            // Otherwise, just allocate it on the stack
+            let tmp = PlaceRef::new_stack(builder, arg_abi.info);
+            builder.store_fn_arg(arg_abi, &mut param_index, tmp);
+            LocalRef::Place(tmp)
+        })
+        .collect()
 }

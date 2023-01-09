@@ -100,6 +100,14 @@ impl Layout {
     ) -> Self {
         Self { shape, variants, abi, alignment, size }
     }
+
+    /// Check whether this particular [Layout] represents a zero-sized type.
+    pub fn is_zst(&self) -> bool {
+        match self.abi {
+            AbiRepresentation::Scalar { .. } | AbiRepresentation::Vector { .. } => false,
+            AbiRepresentation::Aggregate | AbiRepresentation::Uninhabited => self.size.bytes() == 0,
+        }
+    }
 }
 
 /// Represents the shape of the [Layout] for the fields. All layouts

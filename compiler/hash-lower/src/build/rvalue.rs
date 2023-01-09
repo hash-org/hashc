@@ -172,22 +172,31 @@ impl<'tcx> Builder<'tcx> {
 
         // If we need have been instructed to insert overflow checks, and the
         // operator is checkable, then use `CheckedBinaryOp` instead of `BinaryOp`.
-        if self.settings.checked_operations && op.is_checkable() && ty.is_integral() {
+        if self.settings.lowering_settings().checked_operations
+            && op.is_checkable()
+            && ty.is_integral()
+        {
             // Create a new tuple that contains the result of the operation
-            let expr_ty = self.storage.tys().create(ty);
-            let ty = IrTy::tuple(self.storage, &[expr_ty, self.storage.tys().make_bool()]);
-            let ty_id = self.storage.tys().create(ty);
+            let expr_ty = self.ctx.tys().create(ty);
+            let ty = IrTy::tuple(self.ctx, &[expr_ty, self.ctx.tys().common_tys.bool]);
+            let ty_id = self.ctx.tys().create(ty);
 
             let temp = self.temp_place(ty_id);
             let rvalue = RValue::CheckedBinaryOp(op, operands);
 
-            let result = temp.field(0, self.storage);
-            let overflow = temp.field(1, self.storage);
+            let result = temp.field(0, self.ctx);
+            let overflow = temp.field(1, self.ctx);
 
             // Push an assignment to the tuple on the operation
             self.control_flow_graph.push_assign(block, temp, rvalue, span);
 
-            block = self.assert(block, Operand::Place(overflow), false, AssertKind::Overflow, span);
+            block = self.assert(
+                block,
+                Operand::Place(overflow),
+                false,
+                AssertKind::Overflow { op, lhs, rhs },
+                span,
+            );
 
             block.and(result.into())
         } else {

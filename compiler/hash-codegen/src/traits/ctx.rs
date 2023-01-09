@@ -5,14 +5,22 @@
 
 use hash_ir::{
     ty::{IrTy, IrTyId},
-    BodyDataStore,
+    IrCtx,
 };
 use hash_layout::LayoutStore;
+use hash_pipeline::settings::CompilerSettings;
 use hash_target::layout::HasDataLayout;
 
 use crate::layout::{Layout, LayoutId};
 
 pub trait HasCtxMethods<'b>: HasDataLayout {
+    /// Return a reference to the current [CompilerSettings] for the
+    /// workspace.
+    fn settings(&self) -> &CompilerSettings;
+
+    /// Returns a reference to the IR [IrCtx].
+    fn ir_ctx(&self) -> &IrCtx;
+
     /// Returns a reference to an IR type from the context.
     fn ty_info(&self, ty: IrTyId) -> &IrTy;
 
@@ -22,7 +30,4 @@ pub trait HasCtxMethods<'b>: HasDataLayout {
 
     /// Returns a reference to the [LayoutStore].
     fn layouts(&self) -> &LayoutStore;
-
-    /// Returns a reference to the IR [BodyDataStore].
-    fn body_data(&self) -> &BodyDataStore;
 }

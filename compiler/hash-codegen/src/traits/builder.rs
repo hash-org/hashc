@@ -5,9 +5,11 @@
 
 use std::sync::atomic::Ordering;
 
+use hash_abi::FnAbi;
 use hash_target::{
-    abi::{AbiRepresentation, Scalar},
+    abi::{AbiRepresentation, Scalar, ValidScalarRange},
     alignment::Alignment,
+    size::Size,
 };
 
 use super::{
@@ -15,7 +17,7 @@ use super::{
     intrinsics::BuildIntrinsicCallMethods, target::HasTargetSpec, CodeGen,
 };
 use crate::{
-    common::{CheckedOp, MemFlags},
+    common::{CheckedOp, IntComparisonKind, MemFlags, RealComparisonKind},
     layout::LayoutId,
     lower::{operands::OperandRef, place::PlaceRef},
 };
@@ -38,6 +40,8 @@ pub trait BlockBuilderMethods<'b>:
         func: Self::Function,
         name: &str,
     ) -> Self::BasicBlock;
+
+    fn append_sibling_block(&mut self, name: &str) -> Self::BasicBlock;
 
     /// Get the current context
     fn ctx(&self) -> &Self::CodegenCtx;
@@ -78,6 +82,9 @@ pub trait BlockBuilderMethods<'b>:
         otherwise_block: Self::BasicBlock,
     );
 
+    /// Generate an unreachable terminator for the current block.
+    fn unreachable(&mut self);
+
     /// Generate a function call as a terminator of the current block. A
     /// `checked_call` is a call that can throw an exception, and thus
     /// requires a `then_block` and `catch_block` to be specified. If a
@@ -95,11 +102,17 @@ pub trait BlockBuilderMethods<'b>:
         catch_block: Self::BasicBlock,
     ) -> Self::Value;
 
+    /// Emit code for performing a function call with the provided
+    /// function ABI, pointer and arguments.
+    ///
+    /// The function returns the corresponding "return" value of the
+    /// function.
     fn call(
         &mut self,
         ty: Self::Type,
+        fn_abi: Option<&FnAbi>,
+        fn_ptr: Self::Value,
         args: &[Self::Value],
-        then_block: Self::BasicBlock,
     ) -> Self::Value;
 
     // --- Arithmetic ---
@@ -212,6 +225,16 @@ pub trait BlockBuilderMethods<'b>:
     /// Perform a checked binary operation on the given values. The [CheckedOp]s
     /// include either addition, multiplication, or subtraction.
     fn checked_bin_op(&mut self, op: CheckedOp, lhs: Self::Value, rhs: Self::Value) -> Self::Value;
+
+    /// Integer comparison operation.
+    ///
+    /// Ref: <https://llvm.org/docs/LangRef.html#icmp-instruction>
+    fn icmp(&mut self, op: IntComparisonKind, lhs: Self::Value, rhs: Self::Value) -> Self::Value;
+
+    /// Floating point comparison operation.
+    ///
+    /// Ref: <https://llvm.org/docs/LangRef.html#fcmp-instruction>
+    fn fcmp(&mut self, op: RealComparisonKind, lhs: Self::Value, rhs: Self::Value) -> Self::Value;
 
     // --- Type conversions ---
 
@@ -481,4 +504,17 @@ pub trait BlockBuilderMethods<'b>:
         then: Self::Value,
         otherwise: Self::Value,
     ) -> Self::Value;
+
+    /// Emit a hint to denote that a particular value is now "live".
+    fn lifetime_start(&mut self, ptr: Self::Value, size: Size);
+
+    /// Emit a hint to denote that a particular value is now "dead".
+    fn lifetime_end(&mut self, ptr: Self::Value, size: Size);
+
+    // --- Metadata ---
+
+    /// Emit `range!` metadata for a particular value. Range metadata
+    /// specifies the valid range of a scalar-like value, i.e. for boolean
+    /// scalars, it would be an `i8` with a valid range of `0..1`.
+    fn add_range_metadata_to(&mut self, value: Self::Value, range: ValidScalarRange);
 }
