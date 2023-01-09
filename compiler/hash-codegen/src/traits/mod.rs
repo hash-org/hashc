@@ -3,8 +3,9 @@
 use std::fmt;
 
 use self::{
-    constants::BuildConstValueMethods, ctx::HasCtxMethods, debug::BuildDebugInfoMethods,
-    layout::LayoutMethods, target::HasTargetSpec, ty::BuildTypeMethods,
+    abi::FnAbiOf, constants::BuildConstValueMethods, ctx::HasCtxMethods,
+    debug::BuildDebugInfoMethods, layout::LayoutMethods, misc::MiscBuilderMethods,
+    target::HasTargetSpec, ty::BuildTypeMethods,
 };
 
 pub mod abi;
@@ -14,6 +15,7 @@ pub mod ctx;
 pub mod debug;
 pub mod intrinsics;
 pub mod layout;
+pub mod misc;
 pub mod target;
 pub mod ty;
 
@@ -52,11 +54,11 @@ impl<T: Copy + PartialEq + fmt::Debug> CodeGenObject for T {}
 
 /// The core trait of the code generation backend which is used to
 /// generate code for a particular backend. This trait provides IR
-pub trait Backend<'b>: Sized + BackendTypes {}
+pub trait Backend<'b>: Sized + BackendTypes + LayoutMethods<'b> + FnAbiOf<'b> {}
 
 pub trait CodeGenMethods<'b>:
     Backend<'b>
-    + LayoutMethods<'b>
+    + MiscBuilderMethods<'b>
     + HasCtxMethods<'b>
     + BuildTypeMethods<'b>
     + BuildConstValueMethods<'b>

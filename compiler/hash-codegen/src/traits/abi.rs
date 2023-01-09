@@ -1,7 +1,8 @@
 //! Defines a trait for representing ABI information about function, and
 //! function arguments.
 
-use hash_abi::ArgAbi;
+use hash_abi::{ArgAbi, FnAbi};
+use hash_ir::ty::IrTyId;
 
 use super::BackendTypes;
 use crate::lower::place::PlaceRef;
@@ -27,4 +28,8 @@ pub trait AbiBuilderMethods<'b>: BackendTypes {
         index: &mut usize,
         destination: PlaceRef<Self::Value>,
     );
+}
+
+pub trait FnAbiOf<'b> {
+    fn fn_abi_of_instance(&self, ty: IrTyId) -> &'b FnAbi;
 }

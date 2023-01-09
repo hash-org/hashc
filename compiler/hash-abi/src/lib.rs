@@ -54,6 +54,18 @@ pub struct ArgAbi {
     pub mode: PassMode,
 }
 
+impl ArgAbi {
+    /// Check if the [PassMode] of the [ArgAbi] is "indirect".
+    pub fn is_indirect(&self) -> bool {
+        matches!(self.mode, PassMode::Indirect { .. })
+    }
+
+    /// Check if the [PassMode] of the [ArgAbi] is "ignored".
+    pub fn is_ignored(&self) -> bool {
+        matches!(self.mode, PassMode::Ignore)
+    }
+}
+
 bitflags::bitflags! {
     /// Defines the relevant attributes to ABI arguments.
     pub struct ArgAttributeFlags: u16 {

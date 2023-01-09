@@ -56,6 +56,13 @@ impl Size {
         // zeroes).
         (value << shift) >> shift
     }
+
+    /// Get the maximum unsigned integer value that is
+    /// representable within this size.
+    #[inline]
+    pub fn unsigned_int_max(&self) -> u128 {
+        u128::MAX >> (128 - self.bits())
+    }
 }
 
 impl Add for Size {

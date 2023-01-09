@@ -81,6 +81,26 @@ impl fmt::Display for Mutability {
     }
 }
 
+/// This is a temporary struct that identifies a unique instance of a
+/// function within the generated code, and is later used to resolve
+/// function references later on.
+///
+/// @@Temporary
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub struct Instance {
+    _id: u32,
+}
+
+impl Instance {
+    pub fn dummy() -> Self {
+        Self { _id: 0 }
+    }
+
+    pub fn new(id: u32) -> Self {
+        Self { _id: id }
+    }
+}
+
 /// Simplified type structure used by the IR and other stages to reason about
 /// Hash programs once types have been erased and simplified.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -128,7 +148,7 @@ pub enum IrTy {
     /// The first item is the interned parameter types to the function, and the
     /// second item is the return type of the function. If the function has no
     /// explicit return type, this will always be inferred at this stage.
-    Fn { name: Option<Identifier>, params: IrTyListId, return_ty: IrTyId },
+    Fn { name: Option<Identifier>, instance: Instance, params: IrTyListId, return_ty: IrTyId },
 }
 
 impl IrTy {
@@ -557,7 +577,7 @@ impl fmt::Display for ForFormatting<'_, IrTyId> {
                 write!(f, "Rc{name}<{}>", inner.for_fmt(self.ctx))
             }
             IrTy::Adt(adt) => write!(f, "{}", adt.for_fmt(self.ctx)),
-            IrTy::Fn { params, return_ty, name: None } => {
+            IrTy::Fn { params, return_ty, name: None, .. } => {
                 write!(f, "({}) -> {}", params.for_fmt(self.ctx), return_ty.for_fmt(self.ctx))
             }
             IrTy::Fn { params, return_ty, .. } if self.verbose => {

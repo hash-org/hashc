@@ -7,7 +7,7 @@ use std::sync::atomic::Ordering;
 
 use hash_abi::FnAbi;
 use hash_target::{
-    abi::{AbiRepresentation, Scalar},
+    abi::{AbiRepresentation, Scalar, ValidScalarRange},
     alignment::Alignment,
     size::Size,
 };
@@ -510,4 +510,11 @@ pub trait BlockBuilderMethods<'b>:
 
     /// Emit a hint to denote that a particular value is now "dead".
     fn lifetime_end(&mut self, ptr: Self::Value, size: Size);
+
+    // --- Metadata ---
+
+    /// Emit `range!` metadata for a particular value. Range metadata
+    /// specifies the valid range of a scalar-like value, i.e. for boolean
+    /// scalars, it would be an `i8` with a valid range of `0..1`.
+    fn add_range_metadata_to(&mut self, value: Self::Value, range: ValidScalarRange);
 }

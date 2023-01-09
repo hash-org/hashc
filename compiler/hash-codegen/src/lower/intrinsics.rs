@@ -17,11 +17,11 @@ pub enum Intrinsic {
 
 impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
     /// Resolve a reference to an [Intrinsic].
-    pub(super) fn resolve_intrinsic(
+    pub(super) fn resolve_intrinsic<'a>(
         &self,
         _builder: &mut Builder,
         _intrinsic: Intrinsic,
-    ) -> (FnAbi, Builder::Value) {
+    ) -> (&'a FnAbi, Builder::Value) {
         todo!()
     }
 }

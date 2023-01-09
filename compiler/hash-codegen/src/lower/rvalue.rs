@@ -59,7 +59,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
             | ir::RValue::Ref(_, _, _)
             | ir::RValue::Discriminant(_) => true,
             ir::RValue::Aggregate(_, _) => {
-                let ty = rvalue.ty(self.ctx.body_data());
+                let ty = rvalue.ty(self.ctx.ir_ctx());
 
                 // check if the type is a ZST, and if so this satisfies the
                 // case that the rvalue creates an operand...

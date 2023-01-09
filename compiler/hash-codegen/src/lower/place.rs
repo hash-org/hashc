@@ -11,8 +11,7 @@ use super::FnBuilder;
 use crate::{
     layout::TyInfo,
     traits::{
-        builder::BlockBuilderMethods, ctx::HasCtxMethods, layout::LayoutMethods,
-        ty::BuildTypeMethods, CodeGenObject,
+        builder::BlockBuilderMethods, ctx::HasCtxMethods, ty::BuildTypeMethods, CodeGenObject,
     },
 };
 
@@ -98,7 +97,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
     /// Compute the type and layout of a [Place]. This deals with
     /// all projections that occur on the [Place].
     pub fn compute_place_ty_info(&self, builder: &mut Builder, place: Place) -> TyInfo {
-        let place_ty = TyOfPlace::from_place(place, self.body, self.ctx.body_data());
+        let place_ty = TyOfPlace::from_place(place, self.body, self.ctx.ir_ctx());
         builder.layout_of_id(place_ty.ty)
     }
 

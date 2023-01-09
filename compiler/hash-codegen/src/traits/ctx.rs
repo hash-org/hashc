@@ -23,6 +23,6 @@ pub trait HasCtxMethods<'b>: HasDataLayout {
     /// Returns a reference to the [LayoutStore].
     fn layouts(&self) -> &LayoutStore;
 
-    /// Returns a reference to the IR [BodyDataStore].
-    fn body_data(&self) -> &IrCtx;
+    /// Returns a reference to the IR [IrCtx].
+    fn ir_ctx(&self) -> &IrCtx;
 }

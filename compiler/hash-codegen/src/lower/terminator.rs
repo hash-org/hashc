@@ -10,20 +10,26 @@
 //! whether two blocks have been merged together.
 
 use hash_abi::{ArgAbi, FnAbi, PassMode};
-use hash_ir::ir::{self};
+use hash_ir::{
+    ir::{self},
+    ty::IrTy,
+};
+use hash_target::abi::AbiRepresentation;
+use hash_utils::store::Store;
 
 use super::{
     intrinsics::Intrinsic,
     locals::LocalRef,
     operands::{OperandRef, OperandValue},
     place::PlaceRef,
+    utils::mem_copy_ty,
     FnBuilder,
 };
 use crate::{
-    common::IntComparisonKind,
+    common::{IntComparisonKind, MemFlags},
     traits::{
         builder::BlockBuilderMethods, constants::BuildConstValueMethods, ctx::HasCtxMethods,
-        ty::BuildTypeMethods,
+        misc::MiscBuilderMethods, ty::BuildTypeMethods,
     },
 };
 
@@ -78,8 +84,10 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
         };
 
         match terminator.kind {
-            ir::TerminatorKind::Goto(_) => todo!(),
-            ir::TerminatorKind::Call { op, ref args, destination, target } => {
+            ir::TerminatorKind::Goto(target) => {
+                self.codegen_goto_terminator(builder, target, can_merge())
+            }
+            ir::TerminatorKind::Call { ref op, ref args, destination, target } => {
                 self.codegen_call_terminator(builder, op, args, destination, target, can_merge())
             }
             ir::TerminatorKind::Return => {
@@ -123,16 +131,226 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
         can_merge
     }
 
+    /// Emit code for a call terminator. This function will emit code
+    /// for a function call.
+    ///
+    /// @@Todo: maybe introduce a new intrinsic IR terminator which
+    /// resembles a function call, but actually points to a language
+    /// intrinsic function.
     fn codegen_call_terminator(
         &mut self,
-        _builder: &mut Builder,
-        _op: ir::Operand,
-        _args: &[ir::Operand],
-        _destination: ir::Place,
-        _target: Option<ir::BasicBlock>,
+        builder: &mut Builder,
+        op: &ir::Operand,
+        fn_args: &[ir::Operand],
+        destination: ir::Place,
+        target: Option<ir::BasicBlock>,
         can_merge: bool,
     ) -> bool {
-        can_merge
+        // generate the operand as the function call...
+        let callee = self.codegen_operand(builder, op);
+
+        let instance = self.ctx.ir_ctx().tys().map_fast(callee.info.ty, |ty| match ty {
+            IrTy::Fn { instance, .. } => *instance,
+            _ => panic!("item is not callable"),
+        });
+
+        // compute the function pointer value and the ABI
+        let fn_abi = builder.fn_abi_of_instance(callee.info.ty);
+        let fn_ptr = builder.get_fn_ptr(instance);
+
+        // If the return ABI pass mode is "indirect", then this means that
+        // we have to create a temporary in order to represent the "outptr"
+        // of the function.
+        let mut args = Vec::with_capacity(fn_args.len() + (fn_abi.ret_abi.is_indirect() as usize));
+
+        // compute the return destination of the function. If the function
+        // return is indirect, `compute_fn_return_destination` will push
+        // an operand which represents the "outptr" as the first argument.
+        let return_destination = if target.is_some() {
+            self.compute_fn_return_destination(
+                builder,
+                destination,
+                &fn_abi.ret_abi,
+                &mut args,
+                false,
+            )
+        } else {
+            ReturnDestinationKind::Nothing
+        };
+
+        // Keep track of all of the copied "constant" arguments to a function
+        // if the value is being passed as a reference.
+        let mut copied_const_args = vec![];
+
+        // Deal with the function arguments
+        for (index, arg) in fn_args.iter().enumerate() {
+            let mut arg_operand = self.codegen_operand(builder, arg);
+
+            if let (ir::Operand::Const(_), OperandValue::Ref(_, _)) = (arg, arg_operand.value) {
+                let temp = PlaceRef::new_stack(builder, arg_operand.info);
+                let arg_layout = builder.layout_info(arg_operand.info.layout);
+
+                builder.lifetime_start(temp.value, arg_layout.size);
+                arg_operand.value.store(builder, temp);
+                arg_operand.value = OperandValue::Ref(temp.value, temp.alignment);
+
+                copied_const_args.push(temp);
+            }
+
+            self.codegen_fn_argument(builder, arg_operand, &mut args, &fn_abi.args[index]);
+        }
+
+        // Finally, generate the code for the function call and
+        // cleanup
+        self.codegen_fn_call(
+            builder,
+            fn_abi,
+            fn_ptr,
+            &args,
+            &copied_const_args,
+            target.as_ref().map(|&target| (target, return_destination)),
+            can_merge,
+        )
+    }
+
+    /// Emit code for a function argument. Depending on the [PassMode] of
+    /// the argument ABI, this may change what code is generated for the
+    /// particular argument.
+    fn codegen_fn_argument(
+        &mut self,
+        builder: &mut Builder,
+        arg: OperandRef<Builder::Value>,
+        args: &mut Vec<Builder::Value>,
+        arg_abi: &ArgAbi,
+    ) {
+        // We don't need to do anything if the argument is ignored.
+        if arg_abi.is_ignored() {
+            return;
+        }
+
+        // Despite something being an immediate value, if it is passed
+        // indirectly, we have to force to be passed by reference.
+        let (mut value, alignment, by_ref) = match arg.value {
+            OperandValue::Immediate(_) | OperandValue::Pair(_, _) => match arg_abi.mode {
+                PassMode::Indirect { .. } => {
+                    let temp = PlaceRef::new_stack(builder, arg_abi.info);
+                    arg.value.store(builder, temp);
+
+                    (temp.value, temp.alignment, true)
+                }
+                _ => {
+                    let abi_layout = builder.layout_info(arg_abi.info.layout);
+
+                    (arg.immediate_value(), abi_layout.alignment.abi, false)
+                }
+            },
+            OperandValue::Ref(value, alignment) => {
+                let abi_layout = builder.layout_info(arg_abi.info.layout);
+
+                // If the argument is indirect, and the alignment of the operand is
+                // smaller than the ABI alignment, then we need to put this value in a
+                // temporary with the ABI argument layout.
+                if arg_abi.is_indirect() && alignment < abi_layout.alignment.abi {
+                    let temp = PlaceRef::new_stack(builder, arg_abi.info);
+
+                    mem_copy_ty(
+                        builder,
+                        (temp.value, temp.alignment),
+                        (value, alignment),
+                        arg.info,
+                        MemFlags::empty(),
+                    );
+                    (temp.value, temp.alignment, true)
+                } else {
+                    (value, alignment, true)
+                }
+            }
+        };
+
+        if by_ref && !arg_abi.is_indirect() {
+            // @@CastPassMode: here we might have to deal with a casting pass mode
+            // which means that we load the operand and then cast it
+
+            // If it is direct, Here, we know that this value must be a boolean. In
+            // the case that it is a boolean, we add additional metadata to the scalar
+            // value, and convert the `value` to an immediate bool for LLVM (other backends
+            // don't do anything and it's just a NOP).
+            //
+            if matches!(arg_abi.mode, PassMode::Direct(..)) {
+                value = builder.load(builder.backend_type(arg_abi.info), value, alignment);
+
+                // @@Future: we will probably introduce as `with_layout`
+                let abi_layout = builder.layout_info(arg_abi.info.layout);
+
+                if let AbiRepresentation::Scalar { kind } = abi_layout.abi {
+                    if kind.is_bool() {
+                        builder.add_range_metadata_to(value, kind.valid_range);
+                    }
+
+                    // @@Performance: we could just pass a ptr to layout here??
+                    value = builder.to_immediate(value, arg_abi.info.layout);
+                }
+            }
+        }
+
+        // Push the value that was generated
+        args.push(value);
+    }
+
+    /// Compute the kind of operation that is required when callers deal
+    /// with the return value of a function. For example, it is possible for the
+    /// return value of a function to be ignored (and thus nothing happens),
+    /// or if the value is indirect which means that it will be passed
+    /// through an argument to the function rather than the actual pointer
+    /// directly ( which is then represented as a
+    /// [`ReturnDestinationKind::Store`]).
+    fn compute_fn_return_destination(
+        &mut self,
+        builder: &mut Builder,
+        destination: ir::Place,
+        return_abi: &ArgAbi,
+        fn_args: &mut Vec<Builder::Value>,
+        is_instrinsic: bool,
+    ) -> ReturnDestinationKind<Builder::Value> {
+        // We don't need to do anything if the return value is ignored.
+        if return_abi.is_ignored() {
+            return ReturnDestinationKind::Nothing;
+        }
+
+        let destination = if let Some(local) = destination.as_local() {
+            match self.locals[local] {
+                LocalRef::Place(destination) => destination,
+                LocalRef::Operand(None) => {
+                    // If the return value is specified as indirect, but the value is
+                    // a local, we have to push into a stack slot.
+                    //
+                    // Or, intrinsics need a place to store their result due to it being
+                    // unclear on how to transfer the result directly...
+                    //
+                    return if return_abi.is_indirect() || is_instrinsic {
+                        let temp = PlaceRef::new_stack(builder, return_abi.info);
+                        temp.storage_live(builder);
+                        ReturnDestinationKind::IndirectOperand(temp, local)
+                    } else {
+                        ReturnDestinationKind::DirectOperand(local)
+                    };
+                }
+                LocalRef::Operand(Some(_)) => panic!("return place already assigned to"),
+            }
+        } else {
+            self.codegen_place(builder, destination)
+        };
+
+        // If the return value is specified as indirect, the value
+        // is passed through the argument and not the return type...
+        if return_abi.is_indirect() {
+            fn_args.push(destination.value);
+            ReturnDestinationKind::Nothing
+        } else {
+            // Otherwise the caller must store/read it from the
+            // computed destination.
+            ReturnDestinationKind::Store(destination)
+        }
     }
 
     /// Emit code for a [`ir::TerminatorKind::Return`]. If the return type of
@@ -158,10 +376,8 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
                 return;
             }
             PassMode::Direct(_) => {
-                let op = self.codegen_consume_operand(
-                    builder,
-                    ir::Place::return_place(self.ctx.body_data()),
-                );
+                let op = self
+                    .codegen_consume_operand(builder, ir::Place::return_place(self.ctx.ir_ctx()));
 
                 if let OperandValue::Ref(value, alignment) = op.value {
                     let ty = builder.backend_type(op.info);
@@ -202,7 +418,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
 
             // If this type is a `bool`, then we can generate conditional
             // branches rather than an `icmp` and `br`.
-            if self.ctx.body_data().tys().common_tys.bool == ty {
+            if self.ctx.ir_ctx().tys().common_tys.bool == ty {
                 match value {
                     0 => builder.conditional_branch(
                         subject.immediate_value(),
@@ -229,6 +445,8 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
         } else if targets_iter.len() == 2
             && self.body.blocks()[targets.otherwise()].is_empty_and_unreacheable()
         {
+            // Ref: <https://llvm.org/doxygen/classllvm_1_1FastISel.html>
+
             // @@Todo: If the build is targeting "debug" mode, then we can
             // emit a `br` branch instead of switch to improve code generation
             // time on the (LLVM) backend.
@@ -298,31 +516,40 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
         let (fn_abi, fn_ptr) = self.resolve_intrinsic(builder, Intrinsic::Panic);
 
         // Finally we emit this as a call to panic...
-        self.codegen_fn_call(builder, fn_abi, fn_ptr, args, None, false)
+        self.codegen_fn_call(builder, fn_abi, fn_ptr, args, &[], None, false)
     }
 
     /// Function that prepares a function call to be generated, and the emits
     /// relevant code to execute the function, and deal with saving the
     /// function return value, and jumping to the next block on success or
     /// failure of the function.
+    #[allow(clippy::too_many_arguments)]
     fn codegen_fn_call(
         &mut self,
         builder: &mut Builder,
-        fn_abi: FnAbi,
+        fn_abi: &FnAbi,
         fn_ptr: Builder::Value,
         args: &[Builder::Value],
+        copied_const_args: &[PlaceRef<Builder::Value>],
         destination: Option<(ir::BasicBlock, ReturnDestinationKind<Builder::Value>)>,
         can_merge: bool,
     ) -> bool {
-        let fn_ty = builder.backend_type_from_abi(&fn_abi);
+        let fn_ty = builder.backend_type_from_abi(fn_abi);
 
         //@@Future: when we deal with unwinding functions, we will have to use the
         // `builder::invoke()` API in order to instruct the backends to emit relevant
         // clean-up code for when the function starts to unwind (i.e. panic).
         // However for now, we simply emit a `builder::call()`
-        let return_value = builder.call(fn_ty, Some(&fn_abi), fn_ptr, args);
+        let return_value = builder.call(fn_ty, Some(fn_abi), fn_ptr, args);
 
         if let Some((destination_block, return_destination)) = destination {
+            // now that the function has finished, we essentially mark all of the
+            // copied constants as being "dead"...
+            for temporary in copied_const_args {
+                let layout = builder.layout_info(temporary.info.layout);
+                builder.lifetime_end(temporary.value, layout.size)
+            }
+
             // we need to store the return value in the appropriate place.
             self.store_return_value(builder, return_destination, &fn_abi.ret_abi, return_value);
             self.codegen_goto_terminator(builder, destination_block, can_merge)

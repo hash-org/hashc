@@ -7,7 +7,7 @@
 
 use hash_ir::{
     ir::Const,
-    ty::{AdtData, AdtField, AdtFlags, AdtVariant, IrTy, IrTyId, VariantIdx},
+    ty::{AdtData, AdtField, AdtFlags, AdtVariant, Instance, IrTy, IrTyId, VariantIdx},
 };
 use hash_source::{
     constant::{FloatTy, SIntTy, UIntTy, CONSTANT_MAP},
@@ -141,7 +141,10 @@ impl<'tcx> Builder<'tcx> {
                         .map(|param| self.convert_term_into_ir_ty(param.ty));
 
                     let params = self.ctx.tls().create_from_iter(params);
-                    IrTy::Fn { name, params, return_ty }
+
+                    // @@Temporary: `Instance` is not being properly initalised. This is until the
+                    // new typechecking introduces `FnDefId`s.
+                    IrTy::Fn { name, params, return_ty, instance: Instance::dummy() }
                 }
                 Level1Term::ModDef(_) => unreachable!(),
             },
