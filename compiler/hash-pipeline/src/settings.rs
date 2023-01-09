@@ -204,7 +204,7 @@ pub struct CodeGenSettings {
 
 /// All of the current possible code generation backends that
 /// are available.
-#[derive(Debug, Clone, Copy, ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum CodeGenBackend {
     /// The LLVM backend is target for code generation.
     LLVM,

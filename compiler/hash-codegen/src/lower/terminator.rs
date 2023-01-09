@@ -14,6 +14,7 @@ use hash_ir::{
     ir::{self},
     ty::IrTy,
 };
+use hash_pipeline::settings::{CodeGenBackend, OptimisationLevel};
 use hash_target::abi::AbiRepresentation;
 use hash_utils::store::Store;
 
@@ -442,18 +443,36 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
                     builder.icmp(IntComparisonKind::Eq, subject.immediate_value(), target_value);
                 builder.conditional_branch(comparison, true_block, false_block);
             }
+            // If the build is targeting "debug" mode, then we can
+            // emit a `br` branch instead of switch to improve code generation
+            // time on the (LLVM) backend. On debug builds, LLVM will use the
+            // [FastISel](https://llvm.org/doxygen/classllvm_1_1FastISel.html) block
+            // for dealing with `br` instructions, which is faster on debug than
+            // switches.
+            //
+            // This only applies to debug builds, as `FastISel` should not be
+            // used on release builds as it looses some potential
+            // optimisations.
+            //
+            // This optimisation comes from the "rustc" compiler:
+            //
+            // Ref: https://cs.github.com/rust-lang/rust/blob/3020239de947ec52677e9b4e853a6a9fc073d1f9/compiler/rustc_codegen_ssa/src/mir/block.rs#L335
         } else if targets_iter.len() == 2
             && self.body.blocks()[targets.otherwise()].is_empty_and_unreacheable()
+            && self.ctx.settings().optimisation_level == OptimisationLevel::Debug
+            && self.ctx.settings().codegen_settings().backend == CodeGenBackend::LLVM
         {
-            // Ref: <https://llvm.org/doxygen/classllvm_1_1FastISel.html>
+            let (value, target_1) = targets_iter.next().unwrap();
+            let (_, target_2) = targets_iter.next().unwrap();
 
-            // @@Todo: If the build is targeting "debug" mode, then we can
-            // emit a `br` branch instead of switch to improve code generation
-            // time on the (LLVM) backend.
-            //
-            // We should only do this for LLVM builds since this behaviour is specific
-            // to LLVM. This means that we need to have access to `CodeGenSettings` here.
-            todo!()
+            let target_block_1 = self.get_codegen_block_id(target_1);
+            let target_block_2 = self.get_codegen_block_id(target_2);
+
+            let subject_ty = builder.immediate_backend_type(builder.layout_of_id(ty));
+            let target_value = builder.const_uint_big(subject_ty, value);
+            let comparison =
+                builder.icmp(IntComparisonKind::Eq, subject.immediate_value(), target_value);
+            builder.conditional_branch(comparison, target_block_1, target_block_2);
         } else {
             let otherwise_block = self.get_codegen_block_id(targets.otherwise());
 
