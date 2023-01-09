@@ -248,6 +248,11 @@ impl SymbolResolutionPass<'_> {
     ///
     /// This handles all patterns.
     pub fn make_pat_from_ast_pat(&self, node: AstNodeRef<ast::Pat>) -> TcResult<PatId> {
+        // Maybe it has already been made:
+        if let Some(pat_id) = self.ast_info().pats().get_data_by_node(node.id()) {
+            return Ok(pat_id);
+        }
+
         let pat_id = match node.body {
             ast::Pat::Access(access_pat) => {
                 let path = self.access_pat_as_ast_path(node.with_body(access_pat))?;

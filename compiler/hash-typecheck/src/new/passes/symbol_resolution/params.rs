@@ -140,6 +140,25 @@ impl<'tc> SymbolResolutionPass<'tc> {
                     .collect::<TcResult<Vec<_>>>()?;
                 Ok(ResolvedArgs::Term(self.param_ops().create_args(args.into_iter())))
             }
+            AstArgGroup::TupleArgs(args) => {
+                // @@Todo: create type for the tuple as some annotations
+                // might be given.
+                let args = args
+                    .iter()
+                    .enumerate()
+                    .map(|(i, arg)| {
+                        Ok(ArgData {
+                            target: arg
+                                .name
+                                .as_ref()
+                                .map(|name| ParamIndex::Name(name.ident))
+                                .unwrap_or_else(|| ParamIndex::Position(i)),
+                            value: self.make_term_from_ast_expr(arg.value.ast_ref())?,
+                        })
+                    })
+                    .collect::<TcResult<Vec<_>>>()?;
+                Ok(ResolvedArgs::Term(self.param_ops().create_args(args.into_iter())))
+            }
             AstArgGroup::ExplicitPatArgs(pat_args, spread) => {
                 let spread = self.ast_spread_as_spread(spread)?;
                 let args = self.ast_tuple_pat_entries_as_pat_args(pat_args)?;
@@ -180,6 +199,9 @@ impl<'tc> SymbolResolutionPass<'tc> {
                 | (AstArgGroup::ExplicitPatArgs(_, _), Some(false)) => {
                     // @@Correctness: should we make this a user error or will it never happen?
                     panic!("Mixing pattern and non-pattern arguments is not allowed")
+                }
+                (AstArgGroup::TupleArgs(_), _) => {
+                    panic!("Found tuple arguments in def args")
                 }
             }
         }

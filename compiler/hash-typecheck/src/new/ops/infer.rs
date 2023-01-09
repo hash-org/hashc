@@ -44,7 +44,7 @@ impl<'tc> InferOps<'tc> {
         match self.stores().term().get(term) {
             Term::Runtime(rt_term) => Ok(rt_term.term_ty),
             Term::Tuple(_) => todo!(),
-            Term::Lit(_) => todo!(),
+            Term::Prim(_) => todo!(),
             Term::Ctor(_) => {
                 todo!()
             }

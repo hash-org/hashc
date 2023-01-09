@@ -6,10 +6,20 @@
 
 use hash_ast::ast::{self, AstNodeRef};
 use hash_reporting::macros::panic_on_span;
+use hash_source::location::Span;
 use hash_types::new::{
+    access::AccessTerm,
+    casting::CastTerm,
+    control::{LoopControlTerm, ReturnTerm},
     data::DataTy,
     environment::env::AccessToEnv,
-    terms::{Term, TermId},
+    fns::FnCallTerm,
+    lits::{CharLit, FloatLit, IntLit, Lit, PrimTerm, StrLit},
+    params::ParamIndex,
+    refs::{DerefTerm, RefKind, RefTerm},
+    scopes::{AssignTerm, DeclStackMemberTerm},
+    terms::{Term, TermId, UnsafeTerm},
+    tuples::TupleTerm,
     tys::Ty,
 };
 
@@ -24,7 +34,7 @@ use crate::new::{
     diagnostics::error::{TcError, TcResult},
     environment::tc_env::AccessToTcEnv,
     ops::common::CommonOps,
-    passes::ast_pass::AstPass,
+    passes::{ast_pass::AstPass, symbol_resolution::params::ResolvedArgs},
 };
 
 /// This block converts AST nodes of different kinds into [`AstPath`]s, in order
@@ -125,58 +135,437 @@ impl<'tc> SymbolResolutionPass<'tc> {
         }
     }
 
-    /// Make a term from the given [`ast::Expr`] and assign it to the node in
-    /// the AST info store.
-    ///
-    /// This only handles expressions which are paths, and otherwise creates a
-    /// hole to be resolved later.
-    pub fn make_term_from_ast_expr(&self, node: AstNodeRef<ast::Expr>) -> TcResult<TermId> {
-        let term_id = match self.expr_as_ast_path(node)? {
-            Some(path) => match self.resolve_ast_path(&path)? {
-                ResolvedAstPathComponent::NonTerminal(non_terminal) => match non_terminal {
+    /// Make a term from the given [`ResolvedAstPathComponent`].
+    pub fn make_term_from_resolved_ast_path(
+        &self,
+        path: &ResolvedAstPathComponent,
+        original_node_span: Span,
+    ) -> TcResult<TermId> {
+        match path {
+            ResolvedAstPathComponent::NonTerminal(non_terminal) => {
+                match non_terminal {
                     NonTerminalResolvedPathComponent::Data(data_def_id, data_def_args) => {
                         // Data type
-                        self.new_term(Term::Ty(self.new_ty(Ty::Data(DataTy {
-                            data_def: data_def_id,
-                            args: data_def_args,
-                        }))))
+                        Ok(self.new_term(Term::Ty(self.new_ty(Ty::Data(DataTy {
+                            data_def: *data_def_id,
+                            args: *data_def_args,
+                        })))))
                     }
                     NonTerminalResolvedPathComponent::Mod(_, _) => {
                         // Modules are not allowed in value positions
-                        return Err(TcError::CannotUseModuleInValuePosition {
-                            location: self.node_location(node),
-                        });
+                        Err(TcError::CannotUseModuleInValuePosition {
+                            location: self.source_location(original_node_span),
+                        })
                     }
-                },
-                ResolvedAstPathComponent::Terminal(terminal) => match terminal {
-                    TerminalResolvedPathComponent::FnDef(fn_def_id) => {
-                        // Reference to a function definition
-                        self.new_term(Term::FnRef(fn_def_id))
-                    }
-                    TerminalResolvedPathComponent::CtorPat(_) => {
-                        panic_on_span!(
-                            self.node_location(node),
-                            self.source_map(),
-                            "found CtorPat in value ast path"
-                        )
-                    }
-                    TerminalResolvedPathComponent::CtorTerm(ctor_term) => {
-                        // Constructor
-                        self.new_term(Term::Ctor(ctor_term))
-                    }
-                    TerminalResolvedPathComponent::FnCall(fn_call_term) => {
-                        // Function call
-                        self.new_term(Term::FnCall(fn_call_term))
-                    }
-                    TerminalResolvedPathComponent::Var(bound_var) => {
-                        // Bound variable
-                        self.new_term(Term::Var(bound_var.name))
-                    }
-                },
+                }
+            }
+            ResolvedAstPathComponent::Terminal(terminal) => match terminal {
+                TerminalResolvedPathComponent::FnDef(fn_def_id) => {
+                    // Reference to a function definition
+                    Ok(self.new_term(Term::FnRef(*fn_def_id)))
+                }
+                TerminalResolvedPathComponent::CtorPat(_) => {
+                    panic_on_span!(
+                        self.source_location(original_node_span),
+                        self.source_map(),
+                        "found CtorPat in value ast path"
+                    )
+                }
+                TerminalResolvedPathComponent::CtorTerm(ctor_term) => {
+                    // Constructor
+                    Ok(self.new_term(Term::Ctor(*ctor_term)))
+                }
+                TerminalResolvedPathComponent::FnCall(fn_call_term) => {
+                    // Function call
+                    Ok(self.new_term(Term::FnCall(*fn_call_term)))
+                }
+                TerminalResolvedPathComponent::Var(bound_var) => {
+                    // Bound variable
+                    Ok(self.new_term(Term::Var(bound_var.name)))
+                }
             },
+        }
+    }
+
+    /// Make a term from an [`ast::VariableExpr`].
+    fn make_term_from_ast_variable_expr(
+        &self,
+        node: AstNodeRef<ast::VariableExpr>,
+    ) -> TcResult<TermId> {
+        let path = self.variable_expr_as_ast_path(node)?;
+        let resolved_path = self.resolve_ast_path(&path)?;
+        self.make_term_from_resolved_ast_path(&resolved_path, node.span())
+    }
+
+    /// Make a term from an [`ast::ConstructorCallExpr`].
+    fn make_term_from_ast_constructor_call_expr(
+        &self,
+        node: AstNodeRef<ast::ConstructorCallExpr>,
+    ) -> TcResult<TermId> {
+        match self.constructor_call_as_ast_path(node)? {
+            Some(path) => {
+                // Check if we can resolve the subject as a path
+                let resolved_path = self.resolve_ast_path(&path)?;
+                self.make_term_from_resolved_ast_path(&resolved_path, node.span())
+            }
             None => {
-                // Not a path, we will resolve it later
-                self.new_term_hole()
+                // Otherwise, it must be a computed function call
+                let subject =
+                    self.try_or_add_error(self.make_term_from_ast_expr(node.subject.ast_ref()));
+                let args = self.try_or_add_error(
+                    self.make_args_from_ast_arg_group(&AstArgGroup::ExplicitArgs(&node.args)),
+                );
+
+                match (subject, args) {
+                    (Some(subject), Some(args)) => Ok(self.new_term(Term::FnCall(FnCallTerm {
+                        subject,
+                        args: match args {
+                            ResolvedArgs::Term(args) => args,
+                            ResolvedArgs::Pat(_, _) => unreachable!(),
+                        },
+                        implicit: false,
+                    }))),
+                    _ => Err(TcError::Signal),
+                }
+            }
+        }
+    }
+
+    /// Make a term from an [`ast::AccessExpr`].
+    fn make_term_from_ast_access_expr(
+        &self,
+        node: AstNodeRef<ast::AccessExpr>,
+    ) -> TcResult<TermId> {
+        match self.access_expr_as_ast_path(node)? {
+            Some(path) => {
+                let resolved_path = self.resolve_ast_path(&path)?;
+                self.make_term_from_resolved_ast_path(&resolved_path, node.span())
+            }
+            None => {
+                // Namespace handled above.
+                assert!(matches!(node.kind, ast::AccessKind::Property));
+
+                let subject = self.make_term_from_ast_expr(node.subject.ast_ref())?;
+                let field = match node.property.body() {
+                    ast::PropertyKind::NamedField(name) => ParamIndex::Name(*name),
+                    ast::PropertyKind::NumericField(number) => ParamIndex::Position(*number),
+                };
+
+                Ok(self.new_term(Term::Access(AccessTerm { subject, field })))
+            }
+        }
+    }
+
+    /// Make a term from an [`ast::TyExpr`].
+    fn make_term_from_ast_ty_expr(&self, node: AstNodeRef<ast::TyExpr>) -> TcResult<TermId> {
+        Ok(self.new_term(Term::Ty(self.make_ty_from_ast_ty(node.ty.ast_ref())?)))
+    }
+
+    /// Make a term from an [`ast::DirectiveExpr`].
+    fn make_term_from_ast_directive_expr(
+        &self,
+        node: AstNodeRef<ast::DirectiveExpr>,
+    ) -> TcResult<TermId> {
+        // Pass to the inner expression
+        // @@Future: keep directive in term structure
+        self.make_term_from_ast_expr(node.subject.ast_ref())
+    }
+
+    /// Make a term from an [`ast::Declaration`] in non-constant scope.
+    fn make_term_from_ast_stack_declaration_expr(
+        &self,
+        node: AstNodeRef<ast::Declaration>,
+    ) -> TcResult<TermId> {
+        // Inner expression:
+        let value = node
+            .value
+            .as_ref()
+            .and_then(|v| self.try_or_add_error(self.make_term_from_ast_expr(v.ast_ref())));
+
+        // Type annotation:
+        let ty = node
+            .ty
+            .as_ref()
+            .and_then(|ty| self.try_or_add_error(self.make_ty_from_ast_ty(ty.ast_ref())))
+            .unwrap_or_else(|| self.new_ty_hole());
+
+        // Pattern
+        let pat = self.try_or_add_error(self.make_pat_from_ast_pat(node.pat.ast_ref()));
+
+        match pat {
+            Some(pat) => Ok(self.new_term(Term::DeclStackMember(DeclStackMemberTerm {
+                bind_pat: pat,
+                ty,
+                value,
+            }))),
+            None => {
+                // If pat had an error, then we can't make a term, and the
+                // error will have been added already.
+                Err(TcError::Signal)
+            }
+        }
+    }
+
+    /// Make a term from an [`ast::RefExpr`].
+    fn make_term_from_ast_ref_expr(&self, node: AstNodeRef<ast::RefExpr>) -> TcResult<TermId> {
+        let subject = self.make_term_from_ast_expr(node.inner_expr.ast_ref())?;
+        Ok(self.new_term(Term::Ref(RefTerm {
+            kind: match node.kind {
+                ast::RefKind::Raw => RefKind::Raw,
+                ast::RefKind::Normal => RefKind::Local,
+            },
+            mutable: node
+                .mutability
+                .as_ref()
+                .map(|m| *m.body())
+                .contains(&ast::Mutability::Mutable),
+            subject,
+        })))
+    }
+
+    /// Make a term from an [`ast::DerefExpr`].
+    fn make_term_from_ast_deref_expr(&self, node: AstNodeRef<ast::DerefExpr>) -> TcResult<TermId> {
+        let subject = self.make_term_from_ast_expr(node.data.ast_ref())?;
+        Ok(self.new_term(Term::Deref(DerefTerm { subject })))
+    }
+
+    /// Make a term from an [`ast::UnsafeExpr`].
+    fn make_term_from_ast_unsafe_expr(
+        &self,
+        node: AstNodeRef<ast::UnsafeExpr>,
+    ) -> TcResult<TermId> {
+        let inner = self.make_term_from_ast_expr(node.data.ast_ref())?;
+        Ok(self.new_term(Term::Unsafe(UnsafeTerm { inner })))
+    }
+
+    /// Make a term from an [`ast::LitExpr`].
+    fn make_term_from_ast_lit_expr(&self, node: AstNodeRef<ast::LitExpr>) -> TcResult<TermId> {
+        // Macro to make a literal primitive term
+        macro_rules! lit_prim {
+            ($name:ident,$lit_name:ident, $contents:expr) => {
+                self.new_term(Term::Prim(PrimTerm::Lit(Lit::$name($lit_name {
+                    underlying: $contents,
+                }))))
+            };
+        }
+
+        match node.data.body() {
+            ast::Lit::Str(str_lit) => Ok(lit_prim!(Str, StrLit, *str_lit)),
+            ast::Lit::Char(char_lit) => Ok(lit_prim!(Char, CharLit, *char_lit)),
+            ast::Lit::Int(int_lit) => Ok(lit_prim!(Int, IntLit, *int_lit)),
+            ast::Lit::Float(float_lit) => Ok(lit_prim!(Float, FloatLit, *float_lit)),
+            ast::Lit::Bool(bool_lit) => Ok(self.new_bool_term(bool_lit.data)),
+            ast::Lit::Tuple(tuple_lit) => {
+                let args = match self
+                    .make_args_from_ast_arg_group(&AstArgGroup::TupleArgs(&tuple_lit.elements))?
+                {
+                    ResolvedArgs::Term(args) => args,
+                    ResolvedArgs::Pat(_, _) => unreachable!(),
+                };
+
+                // @@Todo: original_ty
+                Ok(self.new_term(Term::Tuple(TupleTerm { data: args, original_ty: None })))
+            }
+            ast::Lit::Set(_) | ast::Lit::Map(_) | ast::Lit::List(_) => {
+                unimplemented!("List, set, and map literals are not yet implemented")
+            }
+        }
+    }
+
+    /// Make a term from an [`ast::CastExpr`].
+    fn make_term_from_ast_cast_expr(&self, node: AstNodeRef<ast::CastExpr>) -> TcResult<TermId> {
+        let subject = self.try_or_add_error(self.make_term_from_ast_expr(node.expr.ast_ref()));
+        let ty = self.try_or_add_error(self.make_ty_from_ast_ty(node.ty.ast_ref()));
+        match (subject, ty) {
+            (Some(subject), Some(ty)) => {
+                Ok(self.new_term(Term::Cast(CastTerm { subject_term: subject, target_ty: ty })))
+            }
+            _ => Err(TcError::Signal),
+        }
+    }
+
+    /// Make a term from an [`ast::ReturnStatement`].
+    fn make_term_from_ast_return_statement(
+        &self,
+        node: AstNodeRef<ast::ReturnStatement>,
+    ) -> TcResult<TermId> {
+        let expression = match node.expr.as_ref() {
+            Some(expr) => self.make_term_from_ast_expr(expr.ast_ref())?,
+            None => self.new_void_term(),
+        };
+        Ok(self.new_term(Term::Return(ReturnTerm { expression })))
+    }
+
+    /// Make a term from an [`ast::BreakStatement`].
+    fn make_term_from_ast_break_statement(
+        &self,
+        _: AstNodeRef<ast::BreakStatement>,
+    ) -> TcResult<TermId> {
+        Ok(self.new_term(Term::LoopControl(LoopControlTerm::Break)))
+    }
+
+    /// Make a term from an [`ast::ContinueStatement`].
+    fn make_term_from_ast_continue_statement(
+        &self,
+        _: AstNodeRef<ast::ContinueStatement>,
+    ) -> TcResult<TermId> {
+        Ok(self.new_term(Term::LoopControl(LoopControlTerm::Continue)))
+    }
+
+    /// Make a term from an [`ast::AssignExpr`].
+    fn make_term_from_ast_assign_expr(
+        &self,
+        node: AstNodeRef<ast::AssignExpr>,
+    ) -> TcResult<TermId> {
+        let lhs = self.try_or_add_error(self.make_term_from_ast_expr(node.lhs.ast_ref()));
+        let rhs = self.try_or_add_error(self.make_term_from_ast_expr(node.rhs.ast_ref()));
+        match (lhs, rhs) {
+            (Some(lhs), Some(rhs)) => {
+                Ok(self.new_term(Term::Assign(AssignTerm { subject: lhs, value: rhs })))
+            }
+            _ => Err(TcError::Signal),
+        }
+    }
+
+    /// Make a term from an [`ast::BlockExpr`].
+    fn make_term_from_ast_block_expr(&self, node: AstNodeRef<ast::BlockExpr>) -> TcResult<TermId> {
+        match node.data.body() {
+            ast::Block::Match(_) => todo!(),
+            ast::Block::Loop(_) => todo!(),
+            ast::Block::Body(_) => todo!(),
+
+            // Others done during de-sugaring:
+            ast::Block::For(_) | ast::Block::While(_) | ast::Block::If(_) => unreachable!(),
+        }
+    }
+
+    /// Make a term from an [`ast::TyFnDef`].
+    fn make_term_from_ast_ty_fn_def(&self, _node: AstNodeRef<ast::TyFnDef>) -> TcResult<TermId> {
+        todo!()
+    }
+
+    /// Make a term from an [`ast::FnDef`].
+    fn make_term_from_ast_fn_def(&self, _node: AstNodeRef<ast::FnDef>) -> TcResult<TermId> {
+        todo!()
+    }
+
+    /// Make a term from an [`ast::AssignOpExpr`].
+    fn make_term_from_ast_assign_op_expr(
+        &self,
+        _node: AstNodeRef<ast::AssignOpExpr>,
+    ) -> TcResult<TermId> {
+        todo!()
+    }
+
+    /// Make a term from an [`ast::IndexExpr`].
+    fn make_term_from_ast_index_expr(&self, _node: AstNodeRef<ast::IndexExpr>) -> TcResult<TermId> {
+        todo!()
+    }
+
+    /// Make a term from an [`ast::BinaryExpr`].
+    fn make_term_from_ast_binary_expr(
+        &self,
+        _node: AstNodeRef<ast::BinaryExpr>,
+    ) -> TcResult<TermId> {
+        todo!()
+    }
+
+    /// Make a term from an [`ast::UnaryExpr`].
+    fn make_term_from_ast_unary_expr(&self, _node: AstNodeRef<ast::UnaryExpr>) -> TcResult<TermId> {
+        todo!()
+    }
+
+    /// Make a term from an [`ast::TupleExpr`].
+
+    /// Make a term from the given [`ast::Expr`] and assign it to the node in
+    /// the AST info store.
+    ///
+    /// This handles all expressions, some of which might be holes to be
+    /// resolved later.
+    pub fn make_term_from_ast_expr(&self, node: AstNodeRef<ast::Expr>) -> TcResult<TermId> {
+        // Maybe it has already been made:
+        if let Some(term_id) = self.ast_info().terms().get_data_by_node(node.id()) {
+            return Ok(term_id);
+        }
+
+        let term_id = match node.body {
+            ast::Expr::Variable(variable_expr) => {
+                self.make_term_from_ast_variable_expr(node.with_body(variable_expr))?
+            }
+            ast::Expr::ConstructorCall(ctor_expr) => {
+                self.make_term_from_ast_constructor_call_expr(node.with_body(ctor_expr))?
+            }
+            ast::Expr::Access(access_expr) => {
+                self.make_term_from_ast_access_expr(node.with_body(access_expr))?
+            }
+            ast::Expr::Ty(expr_ty) => self.make_term_from_ast_ty_expr(node.with_body(expr_ty))?,
+            ast::Expr::Directive(directive_expr) => {
+                self.make_term_from_ast_directive_expr(node.with_body(directive_expr))?
+            }
+            ast::Expr::Declaration(declaration) => {
+                self.make_term_from_ast_stack_declaration_expr(node.with_body(declaration))?
+            }
+            ast::Expr::Ref(ref_expr) => {
+                self.make_term_from_ast_ref_expr(node.with_body(ref_expr))?
+            }
+            ast::Expr::Deref(deref_expr) => {
+                self.make_term_from_ast_deref_expr(node.with_body(deref_expr))?
+            }
+            ast::Expr::Unsafe(unsafe_expr) => {
+                self.make_term_from_ast_unsafe_expr(node.with_body(unsafe_expr))?
+            }
+            ast::Expr::Lit(lit_term) => {
+                self.make_term_from_ast_lit_expr(node.with_body(lit_term))?
+            }
+            ast::Expr::Cast(cast_expr) => {
+                self.make_term_from_ast_cast_expr(node.with_body(cast_expr))?
+            }
+            ast::Expr::Return(return_statement) => {
+                self.make_term_from_ast_return_statement(node.with_body(return_statement))?
+            }
+            ast::Expr::Break(break_statement) => {
+                self.make_term_from_ast_break_statement(node.with_body(break_statement))?
+            }
+            ast::Expr::Continue(continue_statement) => {
+                self.make_term_from_ast_continue_statement(node.with_body(continue_statement))?
+            }
+            ast::Expr::Assign(assign_statement) => {
+                self.make_term_from_ast_assign_expr(node.with_body(assign_statement))?
+            }
+            ast::Expr::Block(block_expr) => {
+                self.make_term_from_ast_block_expr(node.with_body(block_expr))?
+            }
+            ast::Expr::TyFnDef(ty_fn_def) => {
+                self.make_term_from_ast_ty_fn_def(node.with_body(ty_fn_def))?
+            }
+            ast::Expr::FnDef(fn_def) => self.make_term_from_ast_fn_def(node.with_body(fn_def))?,
+            ast::Expr::AssignOp(assign_op_expr) => {
+                self.make_term_from_ast_assign_op_expr(node.with_body(assign_op_expr))?
+            }
+            ast::Expr::Index(index_expr) => {
+                self.make_term_from_ast_index_expr(node.with_body(index_expr))?
+            }
+            ast::Expr::BinaryExpr(binary_expr) => {
+                self.make_term_from_ast_binary_expr(node.with_body(binary_expr))?
+            }
+            ast::Expr::UnaryExpr(unary_expr) => {
+                self.make_term_from_ast_unary_expr(node.with_body(unary_expr))?
+            }
+
+            // @@Todo: re-traverse some defs to resolve inner terms
+            ast::Expr::Import(_)
+            | ast::Expr::TraitDef(_)
+            | ast::Expr::MergeDeclaration(_)
+            | ast::Expr::TraitImpl(_)
+            | ast::Expr::StructDef(_)
+            | ast::Expr::EnumDef(_)
+            | ast::Expr::ImplDef(_)
+            | ast::Expr::ModDef(_) => {
+                panic_on_span!(
+                    self.node_location(node),
+                    self.source_map(),
+                    "Found a definition expression or import during resolution"
+                )
             }
         };
 

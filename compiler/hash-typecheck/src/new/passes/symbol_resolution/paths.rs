@@ -44,15 +44,12 @@ use crate::new::{
     passes::ast_pass::AstPass,
 };
 /// An argument group in the AST.
-///
-/// This is either a group of explicit `(a, b, c)` arguments, or a group of
-/// implicit `<a, b, c>` arguments. The former corresponds to the
-/// [`ast::ConstructorCallArg`], while the latter corresponds to the
-/// [`ast::TyArg`].
 #[derive(Copy, Clone, Debug)]
 pub enum AstArgGroup<'a> {
     /// A group of explicit `(a, b, c)` arguments.
     ExplicitArgs(&'a ast::AstNodes<ast::ConstructorCallArg>),
+    /// A group of tuple `(a, b, c)` arguments
+    TupleArgs(&'a ast::AstNodes<ast::TupleLitEntry>),
     /// A group of implicit `<a, b, c>` arguments.
     ImplicitArgs(&'a ast::AstNodes<ast::TyArg>),
     /// A group of explicit `(p, q, r)` pattern arguments
@@ -73,6 +70,7 @@ impl AstArgGroup<'_> {
                 .span()
                 .and_then(|args_span| Some(args_span.join(spread.as_ref()?.span())))
                 .or_else(|| Some(spread.as_ref()?.span())),
+            AstArgGroup::TupleArgs(args) => args.span(),
         }
     }
 }
