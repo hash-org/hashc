@@ -178,9 +178,19 @@ impl IrTy {
         Self::Adt(adt_id)
     }
 
-    /// Check if the type is an integral type.
+    /// Check if the [IrTy] is an integral type.
     pub fn is_integral(&self) -> bool {
         matches!(self, Self::Int(_) | Self::UInt(_) | Self::Float(_) | Self::Char)
+    }
+
+    /// Check if the [IrTy] is a floating point type.
+    pub fn is_float(&self) -> bool {
+        matches!(self, Self::Float(_))
+    }
+
+    /// Check if the [IrTy] is a signed integral type.
+    pub fn is_signed(&self) -> bool {
+        matches!(self, Self::Int(_))
     }
 
     /// Check if a type is a scalar, i.e. it cannot be divided into
