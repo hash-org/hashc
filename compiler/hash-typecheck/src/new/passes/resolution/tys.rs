@@ -1,4 +1,4 @@
-//! Path-resolution for types.
+//! Resolution for types.
 //!
 //! This uses the [super::paths] module to convert AST type nodes that
 //! correspond to paths into TC-types. It does not handle all types; non-path
@@ -298,7 +298,7 @@ impl<'tc> ResolutionPass<'tc> {
     /// Make a type from the given [`ast::Ty`].
     pub(super) fn make_ty_from_ast_ty_fn_ty(&self, node: AstNodeRef<ast::TyFn>) -> TcResult<TyId> {
         // First, make the params
-        let params = self.try_or_add_error(self.make_params_from_ast_params(&node.params));
+        let params = self.try_or_add_error(self.resolve_params_from_ast_params(&node.params));
         self.scoping().enter_ty_fn_ty(node, |ty_fn_id| {
             self.stores().ty().modify(ty_fn_id, |ty| {
                 let ty_fn = ty_as_variant!(self, value ty, Fn);

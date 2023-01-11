@@ -21,6 +21,7 @@ use crate::{
     },
 };
 
+pub mod defs;
 pub mod exprs;
 pub mod params;
 pub mod paths;
@@ -33,6 +34,8 @@ pub mod visitor;
 /// The current expression kind we are in.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum InExpr {
+    // Not in an expr, but in some kind of definition
+    Def,
     /// We are in a type expression.
     Ty,
     /// We are in a value expression.
@@ -45,7 +48,10 @@ enum InExpr {
 /// referenced bindings.
 pub struct ResolutionPass<'tc> {
     tc_env: &'tc TcEnv<'tc>,
+    /// Keeps track of the current state of the visitor in terms of if it is
+    /// currently traversing an expression/pattern/type or not.
     in_expr: LightState<InExpr>,
+    /// Tools for entering scopes and looking up symbols by name in them.
     scoping: Scoping<'tc>,
 }
 
@@ -74,7 +80,7 @@ impl AstUtils for ResolutionPass<'_> {}
 
 impl<'tc> ResolutionPass<'tc> {
     pub(crate) fn new(tc_env: &'tc TcEnv<'tc>) -> Self {
-        Self { tc_env, in_expr: LightState::new(InExpr::Value), scoping: Scoping::new(tc_env) }
+        Self { tc_env, in_expr: LightState::new(InExpr::Def), scoping: Scoping::new(tc_env) }
     }
 
     /// Get access to the current scoping state and operations.

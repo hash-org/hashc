@@ -1,4 +1,4 @@
-//! Path-resolution for patterns.
+//! Resolution for patterns.
 //!
 //! This uses the [super::paths] module to convert AST pattern nodes into
 //! TC-patterns. It handles all patterns, but only resolves nested expressions

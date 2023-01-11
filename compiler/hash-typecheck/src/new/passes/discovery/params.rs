@@ -9,6 +9,7 @@ use itertools::Itertools;
 
 use super::DiscoveryPass;
 use crate::new::{
+    environment::tc_env::AccessToTcEnv,
     ops::{common::CommonOps, AccessToOps},
     passes::ast_utils::AstUtils,
 };
@@ -51,6 +52,11 @@ impl<'tc> DiscoveryPass<'tc> {
         self.stores()
             .location()
             .add_locations_to_targets(params_id, |i| Some(self.source_location(params[i].span())));
+
+        for (i, param) in params.iter().enumerate() {
+            self.ast_info().params().insert(param.id(), (params_id, i));
+        }
+
         params_id
     }
 

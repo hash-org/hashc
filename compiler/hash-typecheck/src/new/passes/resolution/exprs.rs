@@ -1,4 +1,4 @@
-//! Path-resolution for expressions.
+//! Resolution for expressions.
 //!
 //! This uses the [super::paths] module to convert AST expression nodes that
 //! correspond to paths into terms. It does not handle general expressions,
@@ -171,20 +171,21 @@ impl<'tc> ResolutionPass<'tc> {
                 self.make_term_from_ast_unary_expr(node.with_body(unary_expr))?
             }
 
-            // @@Todo: re-traverse some defs to resolve inner terms
+            // No-ops (not supported or handled earlier):
             ast::Expr::Import(_)
             | ast::Expr::TraitDef(_)
             | ast::Expr::MergeDeclaration(_)
-            | ast::Expr::TraitImpl(_)
-            | ast::Expr::StructDef(_)
-            | ast::Expr::EnumDef(_)
             | ast::Expr::ImplDef(_)
-            | ast::Expr::ModDef(_) => {
-                panic_on_span!(
-                    self.node_location(node),
-                    self.source_map(),
-                    "Found a definition expression or import during resolution"
-                )
+            | ast::Expr::TraitImpl(_) => self.new_void_term(),
+
+            ast::Expr::StructDef(struct_def) => {
+                self.resolve_ast_struct_def_inner_terms(node.with_body(struct_def))?
+            }
+            ast::Expr::EnumDef(enum_def) => {
+                self.resolve_ast_enum_def_inner_terms(node.with_body(enum_def))?
+            }
+            ast::Expr::ModDef(mod_def) => {
+                self.resolve_ast_mod_def_inner_terms(node.with_body(mod_def))?
             }
         };
 
@@ -693,7 +694,7 @@ impl<'tc> ResolutionPass<'tc> {
         let fn_def_id = self.ast_info().fn_defs().get_data_by_node(node_id).unwrap();
 
         // First resolve the parameters
-        let params = self.try_or_add_error(self.make_params_from_ast_params(params));
+        let params = self.try_or_add_error(self.resolve_params_from_ast_params(params));
 
         // Modify the existing fn def for the params:
         if let Some(params) = params {
@@ -739,7 +740,10 @@ impl<'tc> ResolutionPass<'tc> {
     }
 
     /// Make a term from an [`ast::TyFnDef`].
-    fn make_term_from_ast_ty_fn_def(&self, node: AstNodeRef<ast::TyFnDef>) -> TcResult<TermId> {
+    pub(super) fn make_term_from_ast_ty_fn_def(
+        &self,
+        node: AstNodeRef<ast::TyFnDef>,
+    ) -> TcResult<TermId> {
         self.make_term_from_some_ast_fn_def(
             &node.params,
             &node.ty_fn_body,
@@ -749,7 +753,10 @@ impl<'tc> ResolutionPass<'tc> {
     }
 
     /// Make a term from an [`ast::FnDef`].
-    fn make_term_from_ast_fn_def(&self, node: AstNodeRef<ast::FnDef>) -> TcResult<TermId> {
+    pub(super) fn make_term_from_ast_fn_def(
+        &self,
+        node: AstNodeRef<ast::FnDef>,
+    ) -> TcResult<TermId> {
         self.make_term_from_some_ast_fn_def(&node.params, &node.fn_body, &node.return_ty, node.id())
     }
 

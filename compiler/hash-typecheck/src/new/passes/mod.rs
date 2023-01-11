@@ -1,5 +1,5 @@
 use self::{ast_utils::AstPass, discovery::DiscoveryPass, resolution::ResolutionPass};
-use super::environment::tc_env::TcEnv;
+use super::environment::tc_env::{AccessToTcEnv, TcEnv};
 use crate::impl_access_to_tc_env;
 
 pub mod ast_utils;
@@ -21,6 +21,10 @@ impl<'tc> TcVisitor<'tc> {
     /// Visits the source passed in as an argument to [Self::new_in_source]
     pub fn visit_source(&self) {
         DiscoveryPass::new(self.tc_env).pass_source();
+        if self.diagnostics().has_errors() {
+            return;
+        }
+
         ResolutionPass::new(self.tc_env).pass_source();
     }
 }
