@@ -3,6 +3,8 @@
 
 use std::ops::{Add, Mul};
 
+use crate::alignment::Alignment;
+
 /// Represents the size of some constant in bytes. [Size] is a
 /// utility type that allows one to perform various conversions
 /// on the size (bits and bytes), and to derive .
@@ -62,6 +64,16 @@ impl Size {
     #[inline]
     pub fn unsigned_int_max(&self) -> u128 {
         u128::MAX >> (128 - self.bits())
+    }
+
+    /// Take the current [Size] and align it to a
+    /// specified [Alignment].
+    pub fn align_to(&self, alignment: Alignment) -> Size {
+        // Create a mask for the alignment, add it to the
+        // current size to account for the alignment, and then
+        // trim the size to remove any slack.
+        let mask = alignment.bytes() - 1;
+        Size::from_bytes((self.bytes() + mask) & !mask)
     }
 }
 

@@ -472,7 +472,12 @@ pub trait BlockBuilderMethods<'b>:
     /// element pointer with the specified field index.
     ///
     /// Ref: <https://llvm.org/docs/LangRef.html#getelementptr-instruction>
-    fn structural_get_element_pointer(ty: Self::Type, ptr: Self::Value, index: u64) -> Self::Value;
+    fn structural_get_element_pointer(
+        &mut self,
+        ty: Self::Type,
+        ptr: Self::Value,
+        index: u64,
+    ) -> Self::Value;
 
     /// Emit an instruction for a `memcpy` operation.
     ///

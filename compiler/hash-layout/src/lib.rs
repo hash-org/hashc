@@ -2,7 +2,10 @@
 //! representing the said layouts in a way that is usable by the
 //! code generation backends.
 
-use hash_ir::ty::{IrTyId, VariantIdx};
+use hash_ir::{
+    ty::{IrTyId, VariantIdx},
+    IrCtx,
+};
 use hash_target::{
     abi::{AbiRepresentation, Scalar},
     alignment::Alignments,
@@ -11,6 +14,47 @@ use hash_target::{
 };
 use hash_utils::{new_store, new_store_key, store::Store};
 use index_vec::IndexVec;
+
+// Define a new key to represent a particular layout.
+new_store_key!(pub LayoutId);
+
+// Storage for all of the generated layouts.
+new_store!(
+    pub LayoutStore<LayoutId, Layout>
+);
+
+/// A auxialliary context for methods defined on [Layout]
+/// which require access to other [Layout]s and information
+/// generated in the [IrCtx].
+pub struct LayoutCtx<'abi> {
+    /// A reference tot the [LayoutStore].
+    layouts: &'abi LayoutStore,
+
+    /// A reference to the [IrCtx].
+    ir_ctx: &'abi IrCtx,
+}
+
+impl<'abi> LayoutCtx<'abi> {
+    /// Create a new [LayoutCtx].
+    pub fn new(layouts: &'abi LayoutStore, ir_ctx: &'abi IrCtx) -> Self {
+        Self { layouts, ir_ctx }
+    }
+
+    /// Returns a reference to the [LayoutStore].
+    pub fn layouts(&self) -> &LayoutStore {
+        self.layouts
+    }
+
+    /// Map a function on a particular layout.
+    pub fn map_layout<T>(&self, id: LayoutId, func: impl FnOnce(&Layout) -> T) -> T {
+        self.layouts.map_fast(id, func)
+    }
+
+    /// Returns a reference to the [IrCtx].
+    pub fn ir_ctx(&self) -> &IrCtx {
+        self.ir_ctx
+    }
+}
 
 /// [TyInfo] stores a reference to the type, and a reference to the
 /// layout information about the type.
@@ -32,7 +76,9 @@ impl TyInfo {
     /// Check if the type is a zero-sized type.
     pub fn is_zst(&self, store: &LayoutStore) -> bool {
         store.map_fast(self.layout, |layout| match layout.abi {
-            AbiRepresentation::Scalar { .. } | AbiRepresentation::Vector { .. } => false,
+            AbiRepresentation::Scalar { .. }
+            | AbiRepresentation::Pair(..)
+            | AbiRepresentation::Vector { .. } => false,
             AbiRepresentation::Aggregate | AbiRepresentation::Uninhabited => {
                 layout.size.bytes() == 0
             }
@@ -40,13 +86,13 @@ impl TyInfo {
     }
 }
 
-// Define a new key to represent a particular layout.
-new_store_key!(pub LayoutId);
-
-// Storage for all of the generated layouts.
-new_store!(
-    pub LayoutStore<LayoutId, Layout>
-);
+impl TyInfo {
+    /// Compute the type of a "field with in a layout" and return the
+    /// [LayoutId] associated with the field.
+    pub fn field(&self, _ctx: LayoutCtx, _index: usize) -> Self {
+        todo!()
+    }
+}
 
 /// Represents the [Layout] of a particular type in Hash. This captures
 /// all possible kinds of type, including primitives, structs, enums, etc.
@@ -104,7 +150,9 @@ impl Layout {
     /// Check whether this particular [Layout] represents a zero-sized type.
     pub fn is_zst(&self) -> bool {
         match self.abi {
-            AbiRepresentation::Scalar { .. } | AbiRepresentation::Vector { .. } => false,
+            AbiRepresentation::Scalar { .. }
+            | AbiRepresentation::Pair(..)
+            | AbiRepresentation::Vector { .. } => false,
             AbiRepresentation::Aggregate | AbiRepresentation::Uninhabited => self.size.bytes() == 0,
         }
     }
@@ -115,9 +163,10 @@ impl Layout {
 /// etc), an array with a known size (which isn't supported in the language
 /// yet), or a `struct`-like type.
 ///
-/// For [LayoutShape::Struct], there are two maps stored, the first being all of
-/// the field **offset**s in "source" definition order, and a `memory_map` which
-/// specifies the actual order of fields in memory in relation to their offsets.
+/// For [`LayoutShape::Struct`], there are two maps stored, the first being all
+/// of the field **offset**s in "source" definition order, and a `memory_map`
+/// which specifies the actual order of fields in memory in relation to their
+/// offsets.
 #[derive(Clone, Debug)]
 pub enum LayoutShape {
     /// Primitives, `!` and other scalar-like types have only one specific
@@ -164,7 +213,7 @@ impl LayoutShape {
     /// Get a specific `offset` from the layout shape, and given an
     /// index into the layout.
     #[inline]
-    pub fn offset(&self, index: u32) -> Size {
+    pub fn offset(&self, index: usize) -> Size {
         match *self {
             LayoutShape::Primitive => unreachable!("primitive layout has no defined offsets"),
             LayoutShape::Array { stride, elements } => {
@@ -172,7 +221,7 @@ impl LayoutShape {
                 assert!(index < elements);
                 stride * index
             }
-            LayoutShape::Struct { ref offsets, .. } => offsets[index as usize],
+            LayoutShape::Struct { ref offsets, .. } => offsets[index],
         }
     }
 

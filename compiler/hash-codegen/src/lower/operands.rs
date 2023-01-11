@@ -2,12 +2,13 @@
 //! target backend.
 
 use hash_ir::ir;
+use hash_layout::TyInfo;
 use hash_target::{abi::AbiRepresentation, alignment::Alignment};
+use hash_utils::store::SequenceStore;
 
-use super::{place::PlaceRef, utils, FnBuilder};
+use super::{locals::LocalRef, place::PlaceRef, utils, FnBuilder};
 use crate::{
     common::MemFlags,
-    layout::TyInfo,
     traits::{
         builder::BlockBuilderMethods, constants::BuildConstValueMethods, ctx::HasCtxMethods,
         ty::BuildTypeMethods, CodeGen, CodeGenObject,
@@ -45,11 +46,13 @@ impl<'b, V: CodeGenObject> OperandValue<V> {
         destination: PlaceRef<V>,
         flags: MemFlags,
     ) {
+        let layout_info = builder.layout_info(destination.info.layout);
+
         // We don't emit storing of zero-sized types, because they don't
         // actually take up any space and the only way to mimic this would
         // be to emit a `undef` value for the store, which would then
         // be eliminated by the backend (which would be useless).
-        if builder.layout_info(destination.info.layout).is_zst() {
+        if layout_info.is_zst() {
             return;
         }
 
@@ -74,10 +77,142 @@ impl<'b, V: CodeGenObject> OperandValue<V> {
                 let value = builder.bool_from_immediate(value);
                 builder.store_with_flags(value, destination.value, destination.alignment, flags);
             }
-            OperandValue::Pair(_, _) => {
-                todo!()
+            OperandValue::Pair(value_a, value_b) => {
+                let AbiRepresentation::Pair(scalar_a, scalar_b) = layout_info.abi else {
+                    panic!("invalid ABI representation for a pair operand value");
+                };
+
+                let ty = builder.backend_type(destination.info);
+
+                // Emit the code to place the value into the first slot...
+                let ptr = builder.structural_get_element_pointer(ty, destination.value, 0);
+                let value = builder.bool_from_immediate(value_a);
+                let alignment = destination.alignment;
+
+                builder.store_with_flags(value, ptr, alignment, flags);
+
+                // Then deal with the second field...
+                let b_offset = scalar_a.size(builder).align_to(scalar_b.align(builder).abi);
+
+                let ptr = builder.structural_get_element_pointer(ty, destination.value, 1);
+                let value = builder.bool_from_immediate(value_b);
+                let alignment = destination.alignment.restrict_to(b_offset);
+                builder.store_with_flags(value, ptr, alignment, flags);
             }
         }
+    }
+}
+
+/// Represents an operand within the IR. The `V` is a backend specific
+/// value type.
+#[derive(Clone, Copy)]
+pub struct OperandRef<V> {
+    /// The value of the operand.
+    pub value: OperandValue<V>,
+
+    /// The alignment and type of the operand.
+    pub info: TyInfo,
+}
+
+impl<'b, V: CodeGenObject> OperandRef<V> {
+    /// Create a new zero-sized type [OperandRef].
+    pub fn new_zst<Builder: CodeGen<'b, Value = V>>(builder: &Builder, info: TyInfo) -> Self {
+        Self {
+            value: OperandValue::Immediate(
+                builder.const_undef(builder.immediate_backend_type(info)),
+            ),
+            info,
+        }
+    }
+
+    /// Create a new [OperandRef] from an immediate value.
+    pub fn from_immediate_value(value: V, info: TyInfo) -> Self {
+        Self { value: OperandValue::Immediate(value), info }
+    }
+
+    /// Assume that the [OperandRef] is an immediate value, and
+    /// convert the [OperandRef] into an immediate value.
+    pub fn immediate_value(self) -> V {
+        match self.value {
+            OperandValue::Immediate(value) => value,
+            _ => panic!("not an immediate value"),
+        }
+    }
+
+    /// Compute a new [OperandRef] from the current operand and a field
+    /// projection.
+    pub fn extract_field<Builder: BlockBuilderMethods<'b, Value = V>>(
+        &self,
+        builder: &mut Builder,
+        index: usize,
+    ) -> Self {
+        let layout_info = builder.layout_info(self.info.layout);
+
+        let field_info = self.info.field(builder.layout_ctx(), index);
+        let field_layout = builder.layout_info(field_info.layout);
+
+        // If the field is a ZST, we return early
+        if field_layout.is_zst() {
+            return Self::new_zst(builder, field_info);
+        }
+
+        let field_offset = field_layout.shape.offset(index);
+
+        let mut value = match (self.value, field_layout.abi) {
+            // The new type is a scalar, pair, or vector.
+            (OperandValue::Pair(..) | OperandValue::Immediate(_), _)
+                if field_layout.size == layout_info.size =>
+            {
+                assert_eq!(field_offset.bytes(), 0);
+                self.value
+            }
+            (OperandValue::Pair(value_a, value_b), AbiRepresentation::Pair(scalar_a, scalar_b)) => {
+                if field_offset.bytes() == 0 {
+                    debug_assert_eq!(field_layout.size, scalar_a.size(builder.ctx()));
+                    OperandValue::Immediate(value_a)
+                } else {
+                    debug_assert_eq!(
+                        field_offset,
+                        scalar_a.size(builder.ctx()).align_to(scalar_b.align(builder.ctx()).abi)
+                    );
+                    debug_assert_eq!(field_layout.size, scalar_b.size(builder.ctx()));
+                    OperandValue::Immediate(value_b)
+                }
+            }
+            _ => unreachable!("cannot extract field from this operand"),
+        };
+
+        // Convert booleans into `i1`s for immediate and pairs, everything
+        // else should be unreachable.
+        //
+        // @@BitCasts: since LLVM requires pointer types (we apply a bitcast here),
+        // The bitcasts can be removed, unless we don't use LLVM 15.
+        match (&mut value, field_layout.abi) {
+            (OperandValue::Immediate(value), _) => {
+                *value = builder.to_immediate(*value, field_info.layout);
+
+                // @@BitCasts
+                *value = builder.bit_cast(*value, builder.immediate_backend_type(field_info));
+            }
+            (OperandValue::Pair(value_a, value_b), AbiRepresentation::Pair(scalar_a, scalar_b)) => {
+                *value_a = builder.to_immediate_scalar(*value_a, scalar_a);
+                *value_b = builder.to_immediate_scalar(*value_b, scalar_b);
+
+                // @@BitCasts
+                *value_a = builder.bit_cast(
+                    *value_a,
+                    builder.scalar_pair_element_backend_type(field_info, 0, true),
+                );
+                *value_b = builder.bit_cast(
+                    *value_b,
+                    builder.scalar_pair_element_backend_type(field_info, 0, true),
+                );
+            }
+            (OperandValue::Pair(..), _) => unreachable!(),
+            (OperandValue::Ref(..), _) => unreachable!(),
+        }
+
+        OperandRef { value, info: field_info }
     }
 }
 
@@ -91,7 +226,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
         match operand {
             ir::Operand::Place(place) => self.codegen_consume_operand(builder, *place),
             ir::Operand::Const(ref constant) => {
-                let ty = constant.ty(builder.ctx().ir_ctx());
+                let ty = constant.ty(builder.ir_ctx());
                 let info = builder.layout_of(ty);
 
                 let value = match constant {
@@ -143,7 +278,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
         }
 
         // Try generate a direct reference to the operand...
-        if let Some(value) = self.codegen_direct_operand_ref(builder, place) {
+        if let Some(value) = self.maybe_codegen_direct_operand_ref(builder, place) {
             return value;
         }
 
@@ -152,48 +287,49 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
         builder.load_operand(place_ref)
     }
 
-    pub fn codegen_direct_operand_ref(
+    /// Attempt to generate code for a "direct" operand when it can
+    /// be referenced in place rather than looking through an allocation.
+    ///
+    /// If the operand cannot be represented directly, this function will
+    /// return [None].
+    pub fn maybe_codegen_direct_operand_ref(
         &mut self,
-        _builder: &mut Builder,
-        _place: ir::Place,
+        builder: &mut Builder,
+        place: ir::Place,
     ) -> Option<OperandRef<Builder::Value>> {
-        todo!()
-    }
-}
+        match self.locals[place.local] {
+            LocalRef::Operand(Some(mut operand)) => {
+                self.ctx.ir_ctx().projections().map_fast(place.projections, |projections| {
+                    for projection in projections {
+                        match *projection {
+                            ir::PlaceProjection::Field(index) => {
+                                operand = operand.extract_field(builder, index);
+                            }
+                            ir::PlaceProjection::Index(_)
+                            | ir::PlaceProjection::ConstantIndex { .. } => {
+                                let element_info = operand.info.field(builder.layout_ctx(), 0);
+                                let element_layout = builder.layout_info(element_info.layout);
 
-/// Represents an operand within the IR. The `V` is a backend specific
-/// value type.
-#[derive(Clone, Copy)]
-pub struct OperandRef<V> {
-    /// The value of the operand.
-    pub value: OperandValue<V>,
+                                if element_layout.is_zst() {
+                                    operand = OperandRef::new_zst(builder, element_info)
+                                } else {
+                                    return None;
+                                }
+                            }
+                            _ => return None,
+                        }
+                    }
 
-    /// The alignment and type of the operand.
-    pub info: TyInfo,
-}
+                    Some(operand)
+                })
+            }
+            LocalRef::Operand(None) => {
+                panic!("use of operand before defiition")
+            }
 
-impl<'b, V: CodeGenObject> OperandRef<V> {
-    /// Create a new zero-sized type [OperandRef].
-    pub fn new_zst<Builder: CodeGen<'b, Value = V>>(builder: &Builder, info: TyInfo) -> Self {
-        Self {
-            value: OperandValue::Immediate(
-                builder.const_undef(builder.immediate_backend_type(info)),
-            ),
-            info,
-        }
-    }
-
-    /// Create a new [OperandRef] from an immediate value.
-    pub fn from_immediate_value(value: V, info: TyInfo) -> Self {
-        Self { value: OperandValue::Immediate(value), info }
-    }
-
-    /// Assume that the [OperandRef] is an immediate value, and
-    /// convert the [OperandRef] into an immediate value.
-    pub fn immediate_value(self) -> V {
-        match self.value {
-            OperandValue::Immediate(value) => value,
-            _ => panic!("not an immediate value"),
+            // We don't deal with locals that refer to a place, and
+            // thus they can't be directly referenced.
+            LocalRef::Place(_) => None,
         }
     }
 }
