@@ -410,7 +410,13 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
             | ir::BinOp::Lt
             | ir::BinOp::LtEq => {
                 if is_float {
-                    builder.fcmp(operator.into(), lhs_value, rhs_value)
+                    builder.fcmp(
+                        operator.try_into().expect(
+                            "cannot convert `BinOp` into floating-point comparison operator",
+                        ),
+                        lhs_value,
+                        rhs_value,
+                    )
                 } else {
                     builder.icmp(
                         IntComparisonKind::from_bin_op(operator, is_signed),

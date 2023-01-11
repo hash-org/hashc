@@ -228,16 +228,18 @@ pub enum RealComparisonKind {
     True,
 }
 
-impl From<ir::BinOp> for RealComparisonKind {
-    fn from(operator: ir::BinOp) -> Self {
+impl TryFrom<ir::BinOp> for RealComparisonKind {
+    type Error = ();
+
+    fn try_from(operator: ir::BinOp) -> Result<Self, Self::Error> {
         match operator {
-            ir::BinOp::Eq => Self::Oeq,
-            ir::BinOp::Neq => Self::Une,
-            ir::BinOp::Gt => Self::Ogt,
-            ir::BinOp::GtEq => Self::Oge,
-            ir::BinOp::Lt => Self::Olt,
-            ir::BinOp::LtEq => Self::Ole,
-            _ => unreachable!(),
+            ir::BinOp::Eq => Ok(Self::Oeq),
+            ir::BinOp::Neq => Ok(Self::Une),
+            ir::BinOp::Gt => Ok(Self::Ogt),
+            ir::BinOp::GtEq => Ok(Self::Oge),
+            ir::BinOp::Lt => Ok(Self::Olt),
+            ir::BinOp::LtEq => Ok(Self::Ole),
+            _ => Err(()),
         }
     }
 }
