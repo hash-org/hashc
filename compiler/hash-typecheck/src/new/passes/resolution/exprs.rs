@@ -1,4 +1,4 @@
-//! Path-resolution for expressions.
+//! Resolution for expressions.
 //!
 //! This uses the [super::paths] module to convert AST expression nodes that
 //! correspond to paths into terms. It does not handle general expressions,
@@ -7,21 +7,24 @@
 use hash_ast::ast::{self, AstNode, AstNodeId, AstNodeRef};
 use hash_reporting::macros::panic_on_span;
 use hash_source::location::Span;
-use hash_types::new::{
-    access::AccessTerm,
-    args::{ArgData, ArgsId},
-    casting::CastTerm,
-    control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
-    data::DataTy,
-    environment::{context::ScopeKind, env::AccessToEnv},
-    fns::{FnBody, FnCallTerm},
-    lits::{CharLit, FloatLit, IntLit, Lit, PrimTerm, StrLit},
-    params::ParamIndex,
-    refs::{DerefTerm, RefKind, RefTerm},
-    scopes::{AssignTerm, BlockTerm, DeclStackMemberTerm},
-    terms::{Term, TermId, UnsafeTerm},
-    tuples::TupleTerm,
-    tys::Ty,
+use hash_types::{
+    new::{
+        access::AccessTerm,
+        args::{ArgData, ArgsId},
+        casting::CastTerm,
+        control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
+        data::DataTy,
+        environment::{context::ScopeKind, env::AccessToEnv},
+        fns::{FnBody, FnCallTerm},
+        lits::{CharLit, FloatLit, IntLit, Lit, PrimTerm, StrLit},
+        params::ParamIndex,
+        refs::{DerefTerm, RefKind, RefTerm},
+        scopes::{AssignTerm, BlockTerm, DeclStackMemberTerm},
+        terms::{Term, TermId, UnsafeTerm},
+        tuples::TupleTerm,
+        tys::Ty,
+    },
+    term_as_variant,
 };
 use hash_utils::store::Store;
 use itertools::{multiunzip, Itertools};
@@ -35,14 +38,11 @@ use super::{
     scoping::ContextKind,
     ResolutionPass,
 };
-use crate::{
-    new::{
-        diagnostics::error::{TcError, TcResult},
-        environment::tc_env::AccessToTcEnv,
-        ops::{common::CommonOps, AccessToOps},
-        passes::ast_utils::AstUtils,
-    },
-    term_as_variant,
+use crate::new::{
+    diagnostics::error::{TcError, TcResult},
+    environment::tc_env::AccessToTcEnv,
+    ops::{common::CommonOps, AccessToOps},
+    passes::ast_utils::AstUtils,
 };
 
 /// This block converts AST nodes of different kinds into [`AstPath`]s, in order
@@ -171,20 +171,24 @@ impl<'tc> ResolutionPass<'tc> {
                 self.make_term_from_ast_unary_expr(node.with_body(unary_expr))?
             }
 
-            // @@Todo: re-traverse some defs to resolve inner terms
+            // No-ops (not supported or handled earlier):
             ast::Expr::Import(_)
             | ast::Expr::TraitDef(_)
             | ast::Expr::MergeDeclaration(_)
-            | ast::Expr::TraitImpl(_)
-            | ast::Expr::StructDef(_)
-            | ast::Expr::EnumDef(_)
             | ast::Expr::ImplDef(_)
-            | ast::Expr::ModDef(_) => {
-                panic_on_span!(
-                    self.node_location(node),
-                    self.source_map(),
-                    "Found a definition expression or import during resolution"
-                )
+            | ast::Expr::TraitImpl(_) => self.new_void_term(),
+
+            ast::Expr::StructDef(_) => {
+                self.resolve_data_def_inner_terms(node)?;
+                self.new_void_term()
+            }
+            ast::Expr::EnumDef(_) => {
+                self.resolve_data_def_inner_terms(node)?;
+                self.new_void_term()
+            }
+            ast::Expr::ModDef(mod_def) => {
+                self.resolve_ast_mod_def_inner_terms(node.with_body(mod_def))?;
+                self.new_void_term()
             }
         };
 
@@ -605,7 +609,10 @@ impl<'tc> ResolutionPass<'tc> {
     /// Make a term from an [`ast::BodyBlock`].
     ///
     /// If this block is not from a stack scope, this will panic.
-    fn make_term_from_ast_body_block(&self, node: AstNodeRef<ast::BodyBlock>) -> TcResult<TermId> {
+    pub(super) fn make_term_from_ast_body_block(
+        &self,
+        node: AstNodeRef<ast::BodyBlock>,
+    ) -> TcResult<TermId> {
         self.scoping()
             .enter_body_block(node, |_| {
                 // Traverse the statements and the end expression
@@ -645,14 +652,15 @@ impl<'tc> ResolutionPass<'tc> {
     /// Make a term from an [`ast::LoopBlock`].
     fn make_term_from_ast_loop_block(&self, node: AstNodeRef<ast::LoopBlock>) -> TcResult<TermId> {
         let inner = self.make_term_from_ast_body_block(match node.contents.body() {
-            ast::Block::Body(body_block) => node.with_body(body_block),
+            ast::Block::Body(body_block) => node.contents.with_body(body_block),
             _ => panic_on_span!(
                 self.node_location(node),
                 self.source_map(),
                 "Found non-body block in loop contents"
             ),
         })?;
-        let block = term_as_variant!(self, inner, Block);
+
+        let block = term_as_variant!(self, value self.get_term(inner), Block);
         Ok(self.new_term(Term::Loop(LoopTerm { block })))
     }
 
@@ -660,13 +668,13 @@ impl<'tc> ResolutionPass<'tc> {
     fn make_term_from_ast_block_expr(&self, node: AstNodeRef<ast::BlockExpr>) -> TcResult<TermId> {
         match node.data.body() {
             ast::Block::Match(match_block) => {
-                self.make_term_from_ast_match_block(node.with_body(match_block))
+                self.make_term_from_ast_match_block(node.data.with_body(match_block))
             }
             ast::Block::Loop(loop_block) => {
-                self.make_term_from_ast_loop_block(node.with_body(loop_block))
+                self.make_term_from_ast_loop_block(node.data.with_body(loop_block))
             }
             ast::Block::Body(body_block) => {
-                self.make_term_from_ast_body_block(node.with_body(body_block))
+                self.make_term_from_ast_body_block(node.data.with_body(body_block))
             }
 
             // Others done during de-sugaring:
@@ -693,7 +701,7 @@ impl<'tc> ResolutionPass<'tc> {
         let fn_def_id = self.ast_info().fn_defs().get_data_by_node(node_id).unwrap();
 
         // First resolve the parameters
-        let params = self.try_or_add_error(self.make_params_from_ast_params(params));
+        let params = self.try_or_add_error(self.resolve_params_from_ast_params(params));
 
         // Modify the existing fn def for the params:
         if let Some(params) = params {
@@ -733,13 +741,16 @@ impl<'tc> ResolutionPass<'tc> {
 
         // If all ok, create a fn ref term
         match (params, return_ty, return_value) {
-            (Some(_), Some(_), Some(_)) => Ok(self.new_term(Term::FnRef(fn_def_id))),
+            (Some(_), None | Some(Some(_)), Some(_)) => Ok(self.new_term(Term::FnRef(fn_def_id))),
             _ => Err(TcError::Signal),
         }
     }
 
     /// Make a term from an [`ast::TyFnDef`].
-    fn make_term_from_ast_ty_fn_def(&self, node: AstNodeRef<ast::TyFnDef>) -> TcResult<TermId> {
+    pub(super) fn make_term_from_ast_ty_fn_def(
+        &self,
+        node: AstNodeRef<ast::TyFnDef>,
+    ) -> TcResult<TermId> {
         self.make_term_from_some_ast_fn_def(
             &node.params,
             &node.ty_fn_body,
@@ -749,7 +760,10 @@ impl<'tc> ResolutionPass<'tc> {
     }
 
     /// Make a term from an [`ast::FnDef`].
-    fn make_term_from_ast_fn_def(&self, node: AstNodeRef<ast::FnDef>) -> TcResult<TermId> {
+    pub(super) fn make_term_from_ast_fn_def(
+        &self,
+        node: AstNodeRef<ast::FnDef>,
+    ) -> TcResult<TermId> {
         self.make_term_from_some_ast_fn_def(&node.params, &node.fn_body, &node.return_ty, node.id())
     }
 

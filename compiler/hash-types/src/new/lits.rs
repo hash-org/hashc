@@ -92,25 +92,25 @@ pub struct ListPat {
 
 impl Display for IntLit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}{}", self.underlying.value, self.underlying.kind)
+        write!(f, "{}{}", self.underlying.value, self.underlying.kind)
     }
 }
 
 impl Display for StrLit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", CONSTANT_MAP.lookup_string(self.underlying.data))
+        write!(f, "\"{:?}\"", CONSTANT_MAP.lookup_string(self.underlying.data))
     }
 }
 
 impl Display for CharLit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.underlying.data)
+        write!(f, "\'{:?}\'", self.underlying.data)
     }
 }
 
 impl Display for FloatLit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}{}", self.underlying.value, self.underlying.kind)
+        write!(f, "{}{}", self.underlying.value, self.underlying.kind)
     }
 }
 

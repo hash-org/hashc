@@ -7,7 +7,7 @@ use hash_types::new::{
     data::{CtorDef, CtorDefData, CtorDefsId, DataDef, DataDefCtors, DataDefId, PrimitiveCtorInfo},
     defs::{DefArgGroupData, DefArgsId, DefParamGroupData, DefParamsId},
     environment::env::AccessToEnv,
-    params::{ParamData, ParamIndex},
+    params::{ParamIndex, ParamsId},
     symbols::Symbol,
     terms::Term,
 };
@@ -147,11 +147,8 @@ impl<'tc> DataOps<'tc> {
         &self,
         name: Symbol,
         params: DefParamsId,
-        fields: impl Iterator<Item = ParamData>,
+        fields_params: ParamsId,
     ) -> DataDefId {
-        let fields = fields.collect_vec();
-        // Create the parameters for the fields
-        let fields_params = self.param_ops().create_params(fields.iter().copied());
         // The field parameters correspond to a single parameter group
         let fields_def_params = self
             .param_ops()
@@ -197,7 +194,7 @@ impl<'tc> DataOps<'tc> {
         &self,
         name: Symbol,
         params: DefParamsId,
-        variants: impl Fn(DataDefId) -> Vec<(Symbol, Vec<ParamData>)>,
+        variants: impl Fn(DataDefId) -> Vec<(Symbol, ParamsId)>,
     ) -> DataDefId {
         // Create the arguments for the constructor, which are the type
         // parameters given.
@@ -212,10 +209,7 @@ impl<'tc> DataOps<'tc> {
             ctors: DataDefCtors::Defined(self.stores().ctor_defs().create_from_iter_with(
                 variants(id).into_iter().enumerate().map(|(index, variant)| {
                     let variant_name = variant.0;
-                    let variant_fields = variant.1;
-
-                    // Create the parameters for the fields
-                    let fields_params = self.param_ops().create_params(variant_fields.into_iter());
+                    let fields_params = variant.1;
 
                     // The field parameters correspond to a single parameter group
                     let fields_def_params = if !fields_params.is_empty() {

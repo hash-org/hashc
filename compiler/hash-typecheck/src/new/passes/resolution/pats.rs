@@ -1,4 +1,4 @@
-//! Path-resolution for patterns.
+//! Resolution for patterns.
 //!
 //! This uses the [super::paths] module to convert AST pattern nodes into
 //! TC-patterns. It handles all patterns, but only resolves nested expressions
@@ -298,7 +298,7 @@ impl ResolutionPass<'_> {
                 pat: self.make_pat_from_ast_pat(if_pat.pat.ast_ref())?,
             })),
             ast::Pat::Wild(_) => self.new_pat(Pat::Binding(BindingPat {
-                name: self.new_fresh_symbol(),
+                name: self.new_symbol("_"),
                 is_mutable: false,
             })),
             ast::Pat::Range(range_pat) => {

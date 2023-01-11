@@ -4,7 +4,7 @@ use hash_source::SourceMap;
 use super::source_info::CurrentSourceInfo;
 use crate::new::{
     environment::{context::Context, stores::Stores},
-    utils::classifier::Classifier,
+    utils::common::CommonUtils,
 };
 
 macro_rules! env {
@@ -32,8 +32,8 @@ macro_rules! env {
                 }
             )*
 
-            fn classifier(&self) -> Classifier {
-                Classifier::new(self.env())
+            fn utils(&self) -> CommonUtils {
+                CommonUtils::new(self.env())
             }
         }
 

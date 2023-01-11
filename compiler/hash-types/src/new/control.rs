@@ -3,6 +3,7 @@
 use core::fmt;
 
 use hash_utils::store::{SequenceStore, SequenceStoreKey};
+use textwrap::indent;
 
 use super::{
     environment::env::{AccessToEnv, WithEnv},
@@ -96,22 +97,13 @@ impl fmt::Display for WithEnv<'_, &LoopTerm> {
 
 impl fmt::Display for WithEnv<'_, &MatchTerm> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "match {{")?;
+        writeln!(f, "match {{")?;
         for index in self.value.cases.to_index_range() {
             let pat = self.stores().pat_list().get_at_index(self.value.cases, index);
             let term = self.stores().term_list().get_at_index(self.value.decisions, index);
-            let term_str = self.env().with(term).to_string();
-            let term_lines = term_str.lines();
-
-            let mut first = true;
-            for line in term_lines {
-                if first {
-                    write!(f, "{} => {}", self.env().with(pat), line)?;
-                    first = false;
-                } else {
-                    write!(f, "  {line}")?;
-                }
-            }
+            let case = format!("{} => {};\n", self.env().with(pat), self.env().with(term));
+            let lines = indent(&case, "  ");
+            write!(f, "{lines}")?;
         }
         write!(f, "}}")?;
         Ok(())
@@ -120,7 +112,7 @@ impl fmt::Display for WithEnv<'_, &MatchTerm> {
 
 impl fmt::Display for WithEnv<'_, &ReturnTerm> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.classifier().term_is_void(self.value.expression) {
+        if self.utils().term_is_void(self.value.expression) {
             write!(f, "return")
         } else {
             write!(f, "return {}", self.env().with(self.value.expression))

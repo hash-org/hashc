@@ -1,16 +1,15 @@
-//! Contains functionality to resolve AST parameters and arguments
-//! to terms.
+//! Resolution of AST parameters and arguments to terms.
 
 use std::{iter::empty, ops::Range};
 
-use hash_ast::ast;
+use hash_ast::ast::{self, AstNodeRef};
 use hash_source::location::Span;
 use hash_types::new::{
     args::{ArgsId, PatArgsId},
     defs::{DefArgGroupData, DefArgsId, DefParamsId, DefPatArgGroupData, DefPatArgsId},
     environment::env::AccessToEnv,
     fns::FnCallTerm,
-    params::ParamsId,
+    params::{ParamId, ParamsId},
     pats::Spread,
     terms::{Term, TermId},
 };
@@ -129,16 +128,77 @@ impl ResolvedDefArgs {
 }
 
 impl<'tc> ResolutionPass<'tc> {
-    // @@Todo: def params
-
-    /// Make TC parameters ([`ParamsId`]) from the given set of AST type
-    /// function arguments ([`ast::Param`] list).
+    /// Resolve the given set of AST definition parameters into [`DefParamsId`].
     ///
     /// This assumes that the parameters were initially traversed during
-    /// discovery, and are set in the AST info store. It gets the existing
+    /// discovery, and are set in the AST info store.
+    ///
+    /// Note that this does not return the [`DefParamsId`] as it is inaccessible
+    /// just from the node itself. @@Improvement: store this in the AST info
+    /// store which means that it should have its own Node ID.
+    pub(super) fn _resolve_def_params_from_ast_param_groups<'a>(
+        &self,
+        ast_def_params: impl Iterator<Item = &'a ast::AstNodes<ast::Param>>,
+    ) -> TcResult<()> {
+        let mut found_error = false;
+        for ast_def_param_group in ast_def_params {
+            if self
+                .try_or_add_error(self.resolve_params_from_ast_params(ast_def_param_group))
+                .is_none()
+            {
+                found_error = true;
+            }
+        }
+        if found_error {
+            Err(TcError::Signal)
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Resolve the given AST parameter into [`ParamId`].
+    ///
+    /// This assumes that this was initially traversed during
+    /// discovery, and is set in the AST info store. It gets the existing
     /// parameter definition and enriches it with the resolved type and
     /// default value.
-    pub(super) fn make_params_from_ast_params(
+    fn resolve_param_from_ast_param(&self, ast_param: AstNodeRef<ast::Param>) -> TcResult<ParamId> {
+        // Resolve the default value and type annotation:
+        let default_value = self.try_or_add_error(
+            ast_param
+                .default
+                .as_ref()
+                .map(|default_value| self.make_term_from_ast_expr(default_value.ast_ref()))
+                .transpose(),
+        );
+        let resolved_ty = self.try_or_add_error(
+            ast_param.ty.as_ref().map(|ty| self.make_ty_from_ast_ty(ty.ast_ref())).transpose(),
+        );
+
+        // Get the existing param id from the AST info store:
+        let param_id = self.ast_info().params().get_data_by_node(ast_param.id()).unwrap();
+        match (resolved_ty, default_value) {
+            (Some(resolved_ty), Some(resolved_default_value)) => {
+                self.stores().params().modify_fast(param_id.0, |params| {
+                    // If this is None, it wasn't given as an annotation, so we just leave it as
+                    // a hole
+                    if let Some(resolved_ty) = resolved_ty {
+                        params[param_id.1].ty = resolved_ty;
+                    }
+                    params[param_id.1].default_value = resolved_default_value;
+                });
+
+                Ok(param_id)
+            }
+            _ => Err(TcError::Signal),
+        }
+    }
+
+    /// Resolve the given set of AST parameters into [`ParamsId`].
+    ///
+    /// This assumes that the parameters were initially traversed during
+    /// discovery, and are set in the AST info store.
+    pub(super) fn resolve_params_from_ast_params(
         &self,
         params: &ast::AstNodes<ast::Param>,
     ) -> TcResult<ParamsId> {
@@ -146,34 +206,13 @@ impl<'tc> ResolutionPass<'tc> {
         let mut params_id: Option<ParamsId> = None;
 
         for ast_param in params.ast_ref_iter() {
-            // Resolve the default value and type annotation:
-            let default_value = self.try_or_add_error(
-                ast_param
-                    .default
-                    .as_ref()
-                    .map(|default_value| self.make_term_from_ast_expr(default_value.ast_ref()))
-                    .transpose(),
-            );
-            let resolved_ty = self.try_or_add_error(
-                ast_param.ty.as_ref().map(|ty| self.make_ty_from_ast_ty(ty.ast_ref())).transpose(),
-            );
-
-            // @@Todo: actually register this in discovery
-            let param_id = self.ast_info().params().get_data_by_node(ast_param.id()).unwrap();
-            params_id = Some(param_id.0);
-
-            match (resolved_ty, default_value) {
-                (Some(resolved_ty), Some(resolved_default_value)) => {
-                    self.stores().params().modify_fast(param_id.0, |params| {
-                        // If this is None, it wasn't given as an annotation, so we just leave it as
-                        // a hole
-                        if let Some(resolved_ty) = resolved_ty {
-                            params[param_id.1].ty = resolved_ty;
-                        }
-                        params[param_id.1].default_value = resolved_default_value;
-                    });
+            let param_id = self.try_or_add_error(self.resolve_param_from_ast_param(ast_param));
+            match param_id {
+                Some(param_id) => {
+                    // Remember the params ID to return at the end
+                    params_id = Some(param_id.0);
                 }
-                _ => {
+                None => {
                     // Continue resolving the rest of the parameters and report the error at the
                     // end.
                     found_error = true;

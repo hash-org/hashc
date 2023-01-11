@@ -1,17 +1,20 @@
 use derive_more::Constructor;
-use hash_types::new::{
-    data::DataDefCtors,
-    defs::{DefParamGroupId, DefParamsId},
-    environment::{
-        context::{Binding, BindingKind, BoundVarOrigin, ScopeKind},
-        env::AccessToEnv,
+use hash_types::{
+    new::{
+        data::DataDefCtors,
+        defs::DefParamsId,
+        environment::{
+            context::{Binding, BindingKind, BoundVarOrigin, ScopeKind},
+            env::AccessToEnv,
+        },
+        params::{DefParamIndex, ParamId, ParamsId},
+        scopes::StackMemberId,
     },
-    params::{ParamId, ParamsId},
-    scopes::StackMemberId,
+    ty_as_variant,
 };
 use hash_utils::store::{SequenceStore, Store};
 
-use crate::{impl_access_to_tc_env, new::environment::tc_env::TcEnv, ty_as_variant};
+use crate::{impl_access_to_tc_env, new::environment::tc_env::TcEnv};
 
 /// Context-related operations.
 #[derive(Constructor)]
@@ -100,12 +103,15 @@ impl<'env> ContextOps<'env> {
     fn add_def_params_to_context(
         &self,
         def_params_id: DefParamsId,
-        bound_var_origin_from_param: impl Fn(DefParamGroupId, ParamId) -> BoundVarOrigin,
+        bound_var_origin_from_param: impl Fn(DefParamIndex) -> BoundVarOrigin,
     ) {
         self.stores().def_params().map_fast(def_params_id, |def_params| {
-            for def_param_group in def_params.iter() {
+            for (i, def_param_group) in def_params.iter().enumerate() {
                 self.add_params_to_context(def_param_group.params, |param| {
-                    bound_var_origin_from_param(def_param_group.id, param)
+                    bound_var_origin_from_param(DefParamIndex {
+                        group_index: i,
+                        param_index: param.1.into(),
+                    })
                 })
             }
         })
@@ -122,12 +128,9 @@ impl<'env> ContextOps<'env> {
             ScopeKind::Mod(mod_def_id) => {
                 self.stores().mod_def().map_fast(mod_def_id, |mod_def| {
                     // Add all the parameters
-                    self.add_def_params_to_context(
-                        mod_def.params,
-                        |def_param_group_id, param_id| {
-                            BoundVarOrigin::Mod(mod_def_id, def_param_group_id, param_id)
-                        },
-                    );
+                    self.add_def_params_to_context(mod_def.params, |def_param_index| {
+                        BoundVarOrigin::Mod(mod_def_id, def_param_index)
+                    });
 
                     // Add all the module bindings
                     self.stores().mod_members().map_fast(mod_def.members, |members| {
@@ -144,19 +147,16 @@ impl<'env> ContextOps<'env> {
                 self.stores().fn_def().map_fast(fn_def_id, |fn_def| {
                     // Add all the parameters
                     self.add_params_to_context(fn_def.ty.params, |param_id| {
-                        BoundVarOrigin::Fn(fn_def_id, param_id)
+                        BoundVarOrigin::Fn(fn_def_id, param_id.into())
                     })
                 })
             }
             ScopeKind::Data(data_def_id) => {
                 self.stores().data_def().map_fast(data_def_id, |data_def| {
                     // Add all the parameters
-                    self.add_def_params_to_context(
-                        data_def.params,
-                        |def_param_group_id, param_id| {
-                            BoundVarOrigin::Data(data_def_id, def_param_group_id, param_id)
-                        },
-                    );
+                    self.add_def_params_to_context(data_def.params, |def_param_index| {
+                        BoundVarOrigin::Data(data_def_id, def_param_index)
+                    });
 
                     // Add all the constructors
                     match data_def.ctors {
@@ -178,9 +178,12 @@ impl<'env> ContextOps<'env> {
             }
             ScopeKind::FnTy(fn_ty_id) => {
                 // Add all the parameters
-                let fn_ty = ty_as_variant!(self, fn_ty_id, Fn);
+                let fn_ty = self
+                    .stores()
+                    .ty()
+                    .map_fast(fn_ty_id, |fn_ty_val| ty_as_variant!(self, value {*fn_ty_val}, Fn));
                 self.add_params_to_context(fn_ty.params, |param_id| {
-                    BoundVarOrigin::FnTy(fn_ty_id, param_id)
+                    BoundVarOrigin::FnTy(fn_ty_id, param_id.into())
                 })
             }
         }

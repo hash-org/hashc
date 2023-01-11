@@ -1,4 +1,4 @@
-//! This module contains functionality to resolve item paths in the AST.
+//! Resolution of item paths in the AST.
 //!
 //! An item path is something that follows the grammar:
 //!
@@ -192,7 +192,6 @@ impl<'tc> ResolutionPass<'tc> {
     ) -> TcResult<ResolvedAstPathComponent> {
         let binding = self.resolve_ast_name(component.name, component.name_span, starting_from)?;
 
-        println!("##Resolving component {:?} \n##to {}", component, self.env().with(binding));
         match binding.kind {
             BindingKind::ModMember(_, mod_member_id) => {
                 let mod_member = self.stores().mod_members().get_element(mod_member_id);
@@ -219,9 +218,6 @@ impl<'tc> ResolutionPass<'tc> {
                     ModMemberValue::Mod(mod_def_id) => {
                         let mod_def_params =
                             self.stores().mod_def().map_fast(mod_def_id, |def| def.params);
-                        println!("Got args: {:?}", component.args);
-                        println!("Params: {}", self.env().with(mod_def_params));
-
                         let args =
                             self.apply_ast_args_to_def_params(mod_def_params, &component.args)?;
 
