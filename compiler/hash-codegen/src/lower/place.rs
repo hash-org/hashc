@@ -5,13 +5,15 @@ use hash_ir::{
     ir::Place,
     ty::{IrTy, TyOfPlace, VariantIdx},
 };
+use hash_layout::LayoutShape;
 use hash_target::alignment::Alignment;
 
 use super::FnBuilder;
 use crate::{
     layout::TyInfo,
     traits::{
-        builder::BlockBuilderMethods, ctx::HasCtxMethods, ty::BuildTypeMethods, CodeGenObject,
+        builder::BlockBuilderMethods, constants::BuildConstValueMethods, ctx::HasCtxMethods,
+        ty::BuildTypeMethods, CodeGenObject,
     },
 };
 
@@ -56,6 +58,20 @@ impl<'b, V: CodeGenObject> PlaceRef<V> {
 
         Self::new(builder, temp, info)
     }
+
+    /// Given that the underlying [PlaceRef] refers to an array
+    /// being stored on the stack, we lookup the layout of the
+    /// array and access the `size` stored on it to get the
+    /// `len` of the place.
+    pub fn len<Builder: BlockBuilderMethods<'b, Value = V>>(&self, builder: &Builder) -> V {
+        let layout = builder.ctx().layout_info(self.info.layout);
+
+        if let LayoutShape::Array { elements, .. } = layout.shape {
+            builder.const_usize(elements)
+        } else {
+            panic!("PlaceRef::len called on non-array type");
+        }
+    }
 }
 
 impl<'b, V: CodeGenObject> PlaceRef<V> {
@@ -75,6 +91,44 @@ impl<'b, V: CodeGenObject> PlaceRef<V> {
         _builder: &mut Builder,
         _cast_to: IrTy,
     ) -> V {
+        todo!()
+    }
+
+    /// Apply a downcasting (selecting an `enum` variant on a place) projection
+    /// onto the [PlaceRef].
+    pub fn project_downcast<Builder: BlockBuilderMethods<'b, Value = V>>(
+        &self,
+        _builder: &mut Builder,
+        _variant: VariantIdx,
+    ) -> Self {
+        todo!()
+    }
+
+    /// Apply a indexing projection onto the [PlaceRef].
+    pub fn project_index<Builder: BlockBuilderMethods<'b, Value = V>>(
+        &self,
+        _builder: &mut Builder,
+        _index: V,
+    ) -> Self {
+        todo!()
+    }
+
+    /// Apply a field projection on a [PlaceRef].
+    pub fn project_field<Builder: BlockBuilderMethods<'b, Value = V>>(
+        &self,
+        _builder: &mut Builder,
+        _field: usize,
+    ) -> Self {
+        todo!()
+    }
+
+    /// Cast the [PlaceRef] value to the provided type
+    /// (which must be a pointer type).
+    pub fn cast_to<Builder: BlockBuilderMethods<'b, Value = V>>(
+        &self,
+        _builder: &mut Builder,
+        _cast_to: IrTy,
+    ) -> Self {
         todo!()
     }
 

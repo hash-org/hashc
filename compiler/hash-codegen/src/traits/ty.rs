@@ -44,9 +44,6 @@ pub trait BuildTypeMethods<'b>: Backend<'b> {
     /// Create a struct type.
     fn type_struct(&self, els: &[Self::Type], packed: bool) -> Self::Type;
 
-    /// Get the [TypeKind] of a particular type.
-    fn type_kind(&self, ty: Self::Type) -> TypeKind;
-
     /// Create a pointer type to `ty`.
     fn type_ptr_to(&self, ty: Self::Type) -> Self::Type;
 
@@ -63,6 +60,12 @@ pub trait BuildTypeMethods<'b>: Backend<'b> {
 
     /// Retrieves the bit width of the integer type `self`.
     fn int_width(&self, ty: Self::Type) -> u64;
+
+    /// Compute the type of a particular backend value.
+    fn type_of_value(&self, value: Self::Value) -> Self::Type;
+
+    /// Get the [TypeKind] of a particular type.
+    fn kind_of_type(&self, ty: Self::Type) -> TypeKind;
 
     /// Create a new "immediate" backend type. This is mainly
     /// used for constants and ZSTs.
