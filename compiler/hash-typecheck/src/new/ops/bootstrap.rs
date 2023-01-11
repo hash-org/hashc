@@ -6,7 +6,7 @@ use derive_more::Constructor;
 use hash_types::new::{
     data::{DataDefId, ListCtorInfo, NumericCtorInfo, PrimitiveCtorInfo},
     defs::DefParamGroupData,
-    environment::{context::ScopeKind, env::AccessToEnv},
+    environment::env::AccessToEnv,
     mods::{ModDefData, ModDefId, ModKind, ModMemberData, ModMemberValue},
     params::ParamData,
 };
@@ -83,15 +83,13 @@ pub type DefinedPrimitivesOrUnset = Cell<Option<DefinedPrimitives>>;
 impl_access_to_tc_env!(BootstrapOps<'tc>);
 
 impl<'tc> BootstrapOps<'tc> {
-    /// Bootstrap the typechecker, by creating and injecting primitive
-    /// definitions into the context.
-    ///
-    /// The callback `f` is called with the primitives in scope.
-    pub fn bootstrap<T>(&self, f: impl FnOnce() -> T) -> T {
+    /// Bootstrap the typechecker, by creating a module of primitive
+    /// definitions and giving them to the provided closure.
+    pub fn bootstrap<T>(&self, f: impl FnOnce(ModDefId) -> T) -> T {
         let primitives = self.make_primitives();
         let primitive_mod = self.make_primitive_mod(&primitives);
         self.primitives_or_unset().set(Some(primitives));
-        let result = self.context_ops().enter_scope(ScopeKind::Mod(primitive_mod), f);
+        let result = f(primitive_mod);
         self.primitives_or_unset().take();
         result
     }

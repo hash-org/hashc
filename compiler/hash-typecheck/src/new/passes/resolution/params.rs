@@ -136,14 +136,14 @@ impl<'tc> ResolutionPass<'tc> {
     /// Note that this does not return the [`DefParamsId`] as it is inaccessible
     /// just from the node itself. @@Improvement: store this in the AST info
     /// store which means that it should have its own Node ID.
-    pub(super) fn resolve_def_params_from_ast_param_groups(
+    pub(super) fn _resolve_def_params_from_ast_param_groups<'a>(
         &self,
-        ast_def_params: impl Iterator<Item = ast::AstNodes<ast::Param>>,
+        ast_def_params: impl Iterator<Item = &'a ast::AstNodes<ast::Param>>,
     ) -> TcResult<()> {
         let mut found_error = false;
         for ast_def_param_group in ast_def_params {
             if self
-                .try_or_add_error(self.resolve_params_from_ast_params(&ast_def_param_group))
+                .try_or_add_error(self.resolve_params_from_ast_params(ast_def_param_group))
                 .is_none()
             {
                 found_error = true;

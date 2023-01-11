@@ -7,21 +7,24 @@
 use hash_ast::ast::{self, AstNode, AstNodeId, AstNodeRef};
 use hash_reporting::macros::panic_on_span;
 use hash_source::location::Span;
-use hash_types::new::{
-    access::AccessTerm,
-    args::{ArgData, ArgsId},
-    casting::CastTerm,
-    control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
-    data::DataTy,
-    environment::{context::ScopeKind, env::AccessToEnv},
-    fns::{FnBody, FnCallTerm},
-    lits::{CharLit, FloatLit, IntLit, Lit, PrimTerm, StrLit},
-    params::ParamIndex,
-    refs::{DerefTerm, RefKind, RefTerm},
-    scopes::{AssignTerm, BlockTerm, DeclStackMemberTerm},
-    terms::{Term, TermId, UnsafeTerm},
-    tuples::TupleTerm,
-    tys::Ty,
+use hash_types::{
+    new::{
+        access::AccessTerm,
+        args::{ArgData, ArgsId},
+        casting::CastTerm,
+        control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
+        data::DataTy,
+        environment::{context::ScopeKind, env::AccessToEnv},
+        fns::{FnBody, FnCallTerm},
+        lits::{CharLit, FloatLit, IntLit, Lit, PrimTerm, StrLit},
+        params::ParamIndex,
+        refs::{DerefTerm, RefKind, RefTerm},
+        scopes::{AssignTerm, BlockTerm, DeclStackMemberTerm},
+        terms::{Term, TermId, UnsafeTerm},
+        tuples::TupleTerm,
+        tys::Ty,
+    },
+    term_as_variant,
 };
 use hash_utils::store::Store;
 use itertools::{multiunzip, Itertools};
@@ -35,14 +38,11 @@ use super::{
     scoping::ContextKind,
     ResolutionPass,
 };
-use crate::{
-    new::{
-        diagnostics::error::{TcError, TcResult},
-        environment::tc_env::AccessToTcEnv,
-        ops::{common::CommonOps, AccessToOps},
-        passes::ast_utils::AstUtils,
-    },
-    term_as_variant,
+use crate::new::{
+    diagnostics::error::{TcError, TcResult},
+    environment::tc_env::AccessToTcEnv,
+    ops::{common::CommonOps, AccessToOps},
+    passes::ast_utils::AstUtils,
 };
 
 /// This block converts AST nodes of different kinds into [`AstPath`]s, in order
@@ -179,13 +179,16 @@ impl<'tc> ResolutionPass<'tc> {
             | ast::Expr::TraitImpl(_) => self.new_void_term(),
 
             ast::Expr::StructDef(struct_def) => {
-                self.resolve_ast_struct_def_inner_terms(node.with_body(struct_def))?
+                self.resolve_ast_struct_def_inner_terms(node.with_body(struct_def))?;
+                self.new_void_term()
             }
             ast::Expr::EnumDef(enum_def) => {
-                self.resolve_ast_enum_def_inner_terms(node.with_body(enum_def))?
+                self.resolve_ast_enum_def_inner_terms(node.with_body(enum_def))?;
+                self.new_void_term()
             }
             ast::Expr::ModDef(mod_def) => {
-                self.resolve_ast_mod_def_inner_terms(node.with_body(mod_def))?
+                self.resolve_ast_mod_def_inner_terms(node.with_body(mod_def))?;
+                self.new_void_term()
             }
         };
 
@@ -606,7 +609,10 @@ impl<'tc> ResolutionPass<'tc> {
     /// Make a term from an [`ast::BodyBlock`].
     ///
     /// If this block is not from a stack scope, this will panic.
-    fn make_term_from_ast_body_block(&self, node: AstNodeRef<ast::BodyBlock>) -> TcResult<TermId> {
+    pub(super) fn make_term_from_ast_body_block(
+        &self,
+        node: AstNodeRef<ast::BodyBlock>,
+    ) -> TcResult<TermId> {
         self.scoping()
             .enter_body_block(node, |_| {
                 // Traverse the statements and the end expression
@@ -646,14 +652,15 @@ impl<'tc> ResolutionPass<'tc> {
     /// Make a term from an [`ast::LoopBlock`].
     fn make_term_from_ast_loop_block(&self, node: AstNodeRef<ast::LoopBlock>) -> TcResult<TermId> {
         let inner = self.make_term_from_ast_body_block(match node.contents.body() {
-            ast::Block::Body(body_block) => node.with_body(body_block),
+            ast::Block::Body(body_block) => node.contents.with_body(body_block),
             _ => panic_on_span!(
                 self.node_location(node),
                 self.source_map(),
                 "Found non-body block in loop contents"
             ),
         })?;
-        let block = term_as_variant!(self, inner, Block);
+
+        let block = term_as_variant!(self, value self.get_term(inner), Block);
         Ok(self.new_term(Term::Loop(LoopTerm { block })))
     }
 
@@ -661,13 +668,13 @@ impl<'tc> ResolutionPass<'tc> {
     fn make_term_from_ast_block_expr(&self, node: AstNodeRef<ast::BlockExpr>) -> TcResult<TermId> {
         match node.data.body() {
             ast::Block::Match(match_block) => {
-                self.make_term_from_ast_match_block(node.with_body(match_block))
+                self.make_term_from_ast_match_block(node.data.with_body(match_block))
             }
             ast::Block::Loop(loop_block) => {
-                self.make_term_from_ast_loop_block(node.with_body(loop_block))
+                self.make_term_from_ast_loop_block(node.data.with_body(loop_block))
             }
             ast::Block::Body(body_block) => {
-                self.make_term_from_ast_body_block(node.with_body(body_block))
+                self.make_term_from_ast_body_block(node.data.with_body(body_block))
             }
 
             // Others done during de-sugaring:
@@ -734,7 +741,7 @@ impl<'tc> ResolutionPass<'tc> {
 
         // If all ok, create a fn ref term
         match (params, return_ty, return_value) {
-            (Some(_), Some(_), Some(_)) => Ok(self.new_term(Term::FnRef(fn_def_id))),
+            (Some(_), None | Some(Some(_)), Some(_)) => Ok(self.new_term(Term::FnRef(fn_def_id))),
             _ => Err(TcError::Signal),
         }
     }

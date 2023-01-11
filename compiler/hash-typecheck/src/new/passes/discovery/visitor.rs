@@ -9,13 +9,14 @@ use hash_ast::{
 use hash_reporting::macros::panic_on_span;
 use hash_source::identifier::Identifier;
 use hash_types::new::{
+    defs::DefId,
     environment::env::AccessToEnv,
     fns::{FnBody, FnDefData, FnTy},
     mods::{ModDefData, ModKind},
 };
 use itertools::Itertools;
 
-use super::{super::ast_utils::AstUtils, defs::DefId, DiscoveryPass};
+use super::{super::ast_utils::AstUtils, defs::ItemId, DiscoveryPass};
 use crate::new::{
     diagnostics::error::TcError,
     environment::tc_env::AccessToTcEnv,
@@ -56,30 +57,32 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         };
 
         // Add the declaration to the current definition as appropriate
-        match self.get_current_def() {
-            DefId::Mod(mod_def_id) => {
-                walk_with_name_hint()?;
-                self.add_declaration_node_to_mod_def(node, mod_def_id)
-            }
-            DefId::Data(_) => {
-                panic_on_span!(
+        match self.get_current_item() {
+            ItemId::Def(def_id) => match def_id {
+                DefId::Mod(mod_def_id) => {
+                    walk_with_name_hint()?;
+                    self.add_declaration_node_to_mod_def(node, mod_def_id)
+                }
+                DefId::Data(_) => {
+                    panic_on_span!(
                     self.node_location(node),
                     self.source_map(),
                     "found declaration in data definition scope, which should have been handled earlier"
                 )
-            }
-            DefId::Stack(stack_id) => {
-                walk_with_name_hint()?;
-                self.add_pat_node_binds_to_stack(node.pat.ast_ref(), stack_id)
-            }
-            DefId::Fn(_) => {
-                panic_on_span!(
+                }
+                DefId::Stack(stack_id) => {
+                    walk_with_name_hint()?;
+                    self.add_pat_node_binds_to_stack(node.pat.ast_ref(), stack_id)
+                }
+                DefId::Fn(_) => {
+                    panic_on_span!(
                     self.node_location(node),
                     self.source_map(),
                     "found declaration in function scope, which should instead be in a stack scope"
                 )
-            }
-            DefId::FnTy(_) => {
+                }
+            },
+            ItemId::FnTy(_) => {
                 panic_on_span!(
                     self.node_location(node),
                     self.source_map(),
@@ -96,8 +99,8 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         &self,
         node: AstNodeRef<ast::MatchCase>,
     ) -> Result<Self::MatchCaseRet, Self::Error> {
-        match self.get_current_def() {
-            DefId::Stack(_) => {
+        match self.get_current_item() {
+            ItemId::Def(DefId::Stack(_)) => {
                 // A match case creates its own stack scope.
                 let stack_id = self.stack_ops().create_stack();
                 self.enter_def(node, stack_id, || {
@@ -181,7 +184,9 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
 
         // Traverse the struct; note that the fields have already been created, they
         // will not be created below like with mods.
-        self.enter_def_without_members(node, struct_def_id, || walk::walk_struct_def(self, node))?;
+        self.enter_item(node, ItemId::Def(struct_def_id.into()), || {
+            walk::walk_struct_def(self, node)
+        })?;
 
         Ok(())
     }
@@ -211,7 +216,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         );
 
         // Traverse the enum; the variants have already been created.
-        self.enter_def_without_members(node, enum_def_id, || walk::walk_enum_def(self, node))?;
+        self.enter_item(node, ItemId::Def(enum_def_id.into()), || walk::walk_enum_def(self, node))?;
 
         Ok(())
     }
@@ -274,16 +279,25 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         &self,
         node: AstNodeRef<ast::BodyBlock>,
     ) -> Result<Self::BodyBlockRet, Self::Error> {
-        match self.get_current_def() {
-            // If we are in a mod or data block, this isn't a stack scope so we don't do anything.
-            DefId::Mod(_) | DefId::Data(_) => {
-                walk::walk_body_block(self, node)?;
-                Ok(())
-            }
-            // If we are in a stack scope, this is a nested block, so we add a new stack
-            DefId::Stack(_) |
-            // If we are in a function, then this is the function's body, so we add a new stack
-            DefId::FnTy(_) | DefId::Fn(_) => {
+        match self.get_current_item() {
+            ItemId::Def(def_id) => match def_id {
+                // If we are in a mod or data block, this isn't a stack scope so we don't do anything.
+                DefId::Mod(_) | DefId::Data(_) => {
+                    walk::walk_body_block(self, node)?;
+                    Ok(())
+                }
+                // If we are in a stack scope, this is a nested block, so we add a new stack
+                DefId::Stack(_) |
+                // If we are in a function, then this is the function's body, so we add a new stack
+                DefId::Fn(_) => {
+                    let stack_id = self.stack_ops().create_stack();
+                    self.enter_def(node, stack_id, || walk::walk_body_block(self, node))?;
+                    Ok(())
+                }
+            },
+            ItemId::FnTy(_) => {
+                // If we are in a function type, then this is the function's type return, so we
+                // add a new stack
                 let stack_id = self.stack_ops().create_stack();
                 self.enter_def(node, stack_id, || walk::walk_body_block(self, node))?;
                 Ok(())
@@ -303,7 +317,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         });
 
         // Traverse the type function body
-        self.enter_def(node, fn_ty_id, || walk::walk_ty_fn(self, node))?;
+        self.enter_item(node, fn_ty_id, || walk::walk_ty_fn(self, node))?;
 
         Ok(())
     }
@@ -320,7 +334,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         });
 
         // Traverse the function body
-        self.enter_def(node, fn_ty_id, || walk::walk_fn_ty(self, node))?;
+        self.enter_item(node, fn_ty_id, || walk::walk_fn_ty(self, node))?;
 
         Ok(())
     }

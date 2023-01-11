@@ -163,12 +163,12 @@ impl fmt::Display for WithEnv<'_, &BlockTerm> {
         self.stores().term_list().map_fast(self.value.statements, |list| {
             for term in list {
                 let term = self.env().with(*term).to_string();
-                write!(f, "{}", indent(&term, "  "))?;
+                writeln!(f, "{};", indent(&term, "  "))?;
             }
             Ok(())
         })?;
         let return_value = self.env().with(self.value.return_value).to_string();
         write!(f, "{}", indent(&return_value, "  "))?;
-        write!(f, "}}")
+        write!(f, "\n}}")
     }
 }

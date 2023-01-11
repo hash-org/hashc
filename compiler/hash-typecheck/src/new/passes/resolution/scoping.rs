@@ -253,7 +253,7 @@ impl<'tc> Scoping<'tc> {
     }
 
     /// Enter the scope of a module.
-    pub(super) fn enter_module<T>(
+    pub(super) fn _enter_module<T>(
         &self,
         node: ast::AstNodeRef<ast::Module>,
         f: impl FnOnce(ModDefId) -> T,
@@ -263,7 +263,7 @@ impl<'tc> Scoping<'tc> {
     }
 
     /// Enter the scope of a module block.
-    pub(super) fn enter_mod_def<T>(
+    pub(super) fn _enter_mod_def<T>(
         &self,
         node: ast::AstNodeRef<ast::ModDef>,
         f: impl FnOnce(ModDefId) -> T,
@@ -273,7 +273,7 @@ impl<'tc> Scoping<'tc> {
     }
 
     /// Enter the scope of a function definition.
-    pub(super) fn enter_struct_def<T>(
+    pub(super) fn _enter_struct_def<T>(
         &self,
         node: ast::AstNodeRef<ast::StructDef>,
         f: impl FnOnce(DataDefId) -> T,
@@ -283,7 +283,7 @@ impl<'tc> Scoping<'tc> {
     }
 
     /// Enter the scope of an enum definition.
-    pub(super) fn enter_enum_def<T>(
+    pub(super) fn _enter_enum_def<T>(
         &self,
         node: ast::AstNodeRef<ast::EnumDef>,
         f: impl FnOnce(DataDefId) -> T,
@@ -293,7 +293,7 @@ impl<'tc> Scoping<'tc> {
     }
 
     /// Enter the scope of a function definition.
-    pub(super) fn enter_fn_def<T>(
+    pub(super) fn _enter_fn_def<T>(
         &self,
         node: ast::AstNodeRef<ast::FnDef>,
         f: impl FnOnce(FnDefId) -> T,
@@ -303,7 +303,7 @@ impl<'tc> Scoping<'tc> {
     }
 
     /// Enter the scope of a type function definition.
-    pub(super) fn enter_ty_fn_def<T>(
+    pub(super) fn _enter_ty_fn_def<T>(
         &self,
         node: ast::AstNodeRef<ast::TyFnDef>,
         f: impl FnOnce(FnDefId) -> T,

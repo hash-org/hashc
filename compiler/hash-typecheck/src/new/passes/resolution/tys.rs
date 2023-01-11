@@ -9,16 +9,19 @@ use std::iter::once;
 use hash_ast::ast::{self, AstNodeRef, AstNodes};
 use hash_reporting::macros::panic_on_span;
 use hash_source::location::Span;
-use hash_types::new::{
-    args::{ArgData, ArgsId},
-    data::DataTy,
-    environment::env::AccessToEnv,
-    fns::FnCallTerm,
-    params::{ParamData, ParamIndex, ParamsId},
-    refs::{RefKind, RefTy},
-    terms::Term,
-    tuples::TupleTy,
-    tys::{Ty, TyId},
+use hash_types::{
+    new::{
+        args::{ArgData, ArgsId},
+        data::DataTy,
+        environment::env::AccessToEnv,
+        fns::FnCallTerm,
+        params::{ParamData, ParamIndex, ParamsId},
+        refs::{RefKind, RefTy},
+        terms::Term,
+        tuples::TupleTy,
+        tys::{Ty, TyId},
+    },
+    ty_as_variant,
 };
 use hash_utils::store::CloneStore;
 use itertools::Itertools;
@@ -31,14 +34,11 @@ use super::{
     },
     ResolutionPass,
 };
-use crate::{
-    new::{
-        diagnostics::error::{TcError, TcResult},
-        environment::tc_env::AccessToTcEnv,
-        ops::{common::CommonOps, AccessToOps},
-        passes::ast_utils::AstUtils,
-    },
-    ty_as_variant,
+use crate::new::{
+    diagnostics::error::{TcError, TcResult},
+    environment::tc_env::AccessToTcEnv,
+    ops::{common::CommonOps, AccessToOps},
+    passes::ast_utils::AstUtils,
 };
 
 impl<'tc> ResolutionPass<'tc> {

@@ -4,9 +4,8 @@ use hash_ast::ast::{self, AstNode, AstNodeId, AstNodeRef};
 use hash_reporting::macros::panic_on_span;
 use hash_types::new::{
     data::{CtorDefData, DataDefId},
+    defs::DefId,
     environment::env::AccessToEnv,
-    fns::FnDefId,
-    locations::LocationTarget,
     mods::{ModDefId, ModMemberData, ModMemberValue},
     scopes::{StackId, StackMemberData},
     tys::TyId,
@@ -23,16 +22,11 @@ use crate::new::{
     ops::{common::CommonOps, AccessToOps},
 };
 
-/// The ID of some definition.
-///
-/// These definitions are the ones handled by this pass.
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, From)]
-pub(super) enum DefId {
-    Mod(ModDefId),
-    Data(DataDefId),
-    Fn(FnDefId),
+/// An item that is discovered: either a definition or a function type.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, From)]
+pub(super) enum ItemId {
+    Def(DefId),
     FnTy(TyId),
-    Stack(StackId),
 }
 
 /// Contains information about seen definitions, members of definitions, as well
@@ -41,7 +35,7 @@ pub(super) enum DefId {
 #[derive(Debug, Default)]
 pub(super) struct DefDiscoveryState {
     /// The current definition we are in.
-    currently_in: LightState<Option<DefId>>,
+    currently_in: LightState<Option<ItemId>>,
     /// The mod member we have seen, indexed by the mod ID.
     mod_members: DefaultPartialStore<ModDefId, Vec<(AstNodeId, ModMemberData)>>,
     /// The data ctor we have seen, indexed by the data definition ID.
@@ -56,29 +50,17 @@ impl DefDiscoveryState {
     }
 }
 
-impl From<DefId> for LocationTarget {
-    fn from(def_id: DefId) -> Self {
-        match def_id {
-            DefId::Mod(mod_id) => LocationTarget::ModDef(mod_id),
-            DefId::Data(data_id) => LocationTarget::DataDef(data_id),
-            DefId::Fn(fn_id) => LocationTarget::FnDef(fn_id),
-            DefId::Stack(stack_id) => LocationTarget::Stack(stack_id),
-            DefId::FnTy(fn_ty_id) => LocationTarget::Ty(fn_ty_id),
-        }
-    }
-}
-
 impl<'tc> DiscoveryPass<'tc> {
-    /// Run the given closure with the given definition as "current", resetting
+    /// Run the given closure with the given item as "current", resetting
     /// it at the end. It does not handle definition members.
     ///
     /// This will add the definition to the originating node in `ast_info`. The
     /// originating node is the node that represents the definition, e.g.
     /// the `mod` node for `X := mod {...}`.
-    pub(super) fn enter_def_without_members<T, U>(
+    pub(super) fn enter_item<T, U>(
         &self,
         originating_node: AstNodeRef<U>,
-        def_id: impl Into<DefId>,
+        def_id: impl Into<ItemId>,
         f: impl FnOnce() -> T,
     ) -> T {
         let def_id = def_id.into();
@@ -115,10 +97,10 @@ impl<'tc> DiscoveryPass<'tc> {
             DefId::Stack(id) => {
                 self.def_state().stack_members.insert(id, vec![]);
             }
-            DefId::FnTy(_) | DefId::Fn(_) => {}
+            DefId::Fn(_) => {}
         }
 
-        let result = self.enter_def_without_members(originating_node, def_id, f);
+        let result = self.enter_item(originating_node, ItemId::Def(def_id), f);
 
         // Add the found members to the definition.
         self.add_found_members_to_def(def_id);
@@ -130,7 +112,7 @@ impl<'tc> DiscoveryPass<'tc> {
     }
 
     /// Get the "current" definition, or panic if there is none.
-    pub(super) fn get_current_def(&self) -> DefId {
+    pub(super) fn get_current_item(&self) -> ItemId {
         self.def_state()
             .currently_in
             .get()
@@ -138,15 +120,17 @@ impl<'tc> DiscoveryPass<'tc> {
     }
 
     /// Add the given definition to the AST info of the given node.
-    pub(super) fn add_def_to_ast_info<U>(&self, def_id: DefId, node: AstNodeRef<U>) {
+    pub(super) fn add_def_to_ast_info<U>(&self, item_id: ItemId, node: AstNodeRef<U>) {
         // @@Todo: add locations of params from somewhere
         let ast_info = self.ast_info();
-        match def_id {
-            DefId::Mod(id) => ast_info.mod_defs().insert(node.id(), id),
-            DefId::Data(id) => ast_info.data_defs().insert(node.id(), id),
-            DefId::Fn(id) => ast_info.fn_defs().insert(node.id(), id),
-            DefId::Stack(id) => ast_info.stacks().insert(node.id(), id),
-            DefId::FnTy(id) => ast_info.tys().insert(node.id(), id),
+        match item_id {
+            ItemId::Def(def_id) => match def_id {
+                DefId::Mod(id) => ast_info.mod_defs().insert(node.id(), id),
+                DefId::Data(id) => ast_info.data_defs().insert(node.id(), id),
+                DefId::Fn(id) => ast_info.fn_defs().insert(node.id(), id),
+                DefId::Stack(id) => ast_info.stacks().insert(node.id(), id),
+            },
+            ItemId::FnTy(id) => ast_info.tys().insert(node.id(), id),
         };
     }
 
@@ -208,7 +192,7 @@ impl<'tc> DiscoveryPass<'tc> {
                     }
                 })
             }
-            DefId::FnTy(_) | DefId::Fn(_) => {
+            DefId::Fn(_) => {
                 // Nothing to do here, functions don't have members.
             }
             DefId::Stack(stack_id) => {

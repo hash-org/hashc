@@ -9,10 +9,9 @@ use indexmap::IndexMap;
 use super::env::{AccessToEnv, WithEnv};
 use crate::new::{
     data::{CtorDefId, DataDefId},
-    defs::DefParamGroupId,
     fns::FnDefId,
     mods::{ModDefId, ModMemberId},
-    params::ParamId,
+    params::{DefParamIndex, ParamIndex},
     scopes::{StackId, StackMemberId},
     symbols::Symbol,
     tys::TyId,
@@ -40,21 +39,21 @@ pub enum BoundVarOrigin {
     /// Module parameter.
     ///
     /// For example, `T` in `mod <T> { x: (t: T) -> void }`
-    Mod(ModDefId, DefParamGroupId, ParamId),
+    Mod(ModDefId, DefParamIndex),
     /// Function parameter.
     ///
     /// For example, `x` in `(x: i32) => x`
-    Fn(FnDefId, ParamId),
+    Fn(FnDefId, ParamIndex),
     /// Function type.
     ///
     /// Invariant: the inner type is `FnTy`.
     ///
     /// For example, `x` in `type (x: i32) -> Foo<x>`
-    FnTy(TyId, ParamId),
+    FnTy(TyId, ParamIndex),
     /// Data definition parameter.
     ///
     /// For example, `T` in `Foo := struct <T> (x: T)`
-    Data(DataDefId, DefParamGroupId, ParamId),
+    Data(DataDefId, DefParamIndex),
     /// Stack member.
     ///
     /// For example, `a` in `{ a := 3; a }`
@@ -238,12 +237,22 @@ impl Context {
 impl fmt::Display for WithEnv<'_, &BoundVarOrigin> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.value {
-            BoundVarOrigin::Mod(_, _, param_id)
-            | BoundVarOrigin::FnTy(_, param_id)
-            | BoundVarOrigin::Fn(_, param_id)
-            | BoundVarOrigin::Data(_, _, param_id) => {
-                write!(f, "{}", self.env().with(*param_id))
+            BoundVarOrigin::Mod(mod_def_id, param_index) => {
+                let def_params_id =
+                    self.stores().mod_def().map_fast(*mod_def_id, |mod_def| mod_def.params);
+                let param = self.utils().get_def_param_by_index(def_params_id, *param_index);
+                write!(f, "{}", self.env().with(&param))
             }
+            BoundVarOrigin::Data(data_def_id, param_index) => {
+                let def_params_id =
+                    self.stores().data_def().map_fast(*data_def_id, |mod_def| mod_def.params);
+                let param = self.utils().get_def_param_by_index(def_params_id, *param_index);
+                write!(f, "{}", self.env().with(&param))
+            }
+            BoundVarOrigin::FnTy(_fn_ty_id, _param_index) => {
+                todo!()
+            }
+            BoundVarOrigin::Fn(_, _param_id) => todo!(),
             BoundVarOrigin::StackMember(stack_member) => {
                 write!(f, "{}", self.env().with(*stack_member))
             }

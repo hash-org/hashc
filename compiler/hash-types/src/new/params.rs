@@ -2,6 +2,7 @@
 use core::fmt;
 use std::fmt::Debug;
 
+use derive_more::From;
 use hash_source::identifier::Identifier;
 use hash_utils::{
     new_sequence_store_key,
@@ -33,15 +34,36 @@ new_sequence_store_key!(pub ParamsId);
 pub type ParamId = (ParamsId, usize);
 pub type ParamsStore = DefaultSequenceStore<ParamsId, Param>;
 
-/// An index into a parameter list.
+/// An index of a parameter of a parameter list.
 ///
 /// Either a named parameter or a positional one.
-#[derive(Debug, Clone, Hash, Copy)]
+#[derive(Debug, Clone, Hash, Copy, PartialEq, Eq, From)]
 pub enum ParamIndex {
     /// A named parameter, like `foo(value=3)`.
     Name(Identifier),
     /// A positional parameter, like `dot(x, y)`.
     Position(usize),
+}
+
+impl From<ParamId> for ParamIndex {
+    fn from(value: ParamId) -> Self {
+        ParamIndex::Position(value.1)
+    }
+}
+
+/// An index of a parameter of a definition parameter list.
+///
+/// This is a combination of the group index and the parameter index.
+/// Group index is
+/// ```notrust
+/// (a, b)(c, d)(e, f)
+/// ^0    ^1    ^2
+/// ```
+/// and parameter index is [`ParamIndex`].
+#[derive(Debug, Clone, Hash, Copy, PartialEq, Eq)]
+pub struct DefParamIndex {
+    pub group_index: usize,
+    pub param_index: ParamIndex,
 }
 
 impl fmt::Display for WithEnv<'_, &Param> {
