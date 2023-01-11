@@ -179,7 +179,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         let struct_def_id = self.data_ops().create_struct_def(
             struct_name,
             self.create_hole_def_params(once((true, &node.ty_params))),
-            self.create_param_data_from_ast_params(node.fields.iter()).into_iter(),
+            self.create_hole_params(&node.fields),
         );
 
         // Traverse the struct; note that the fields have already been created, they
@@ -208,7 +208,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
                     .map(|variant| {
                         (
                             self.new_symbol(variant.name.ident),
-                            self.create_param_data_from_ast_params(variant.fields.iter()),
+                            self.create_hole_params(&variant.fields),
                         )
                     })
                     .collect_vec()

@@ -131,7 +131,12 @@ impl<'tc> BootstrapOps<'tc> {
             bool: self.data_ops().create_enum_def(
                 self.new_symbol("bool"),
                 self.new_empty_def_params(),
-                |_| vec![(self.new_symbol("true"), vec![]), (self.new_symbol("false"), vec![])],
+                |_| {
+                    vec![
+                        (self.new_symbol("true"), self.new_empty_params()),
+                        (self.new_symbol("false"), self.new_empty_params()),
+                    ]
+                },
             ),
 
             // numerics
@@ -185,18 +190,13 @@ impl<'tc> BootstrapOps<'tc> {
                 let def_params = self
                     .param_ops()
                     .create_def_params(once(DefParamGroupData { implicit: true, params }));
+                let some_params = self.param_ops().create_params(once(ParamData {
+                    name: self.new_symbol("value"),
+                    ty: self.new_var_ty(t_sym),
+                    default_value: None,
+                }));
                 self.data_ops().create_enum_def(option_sym, def_params, |_| {
-                    vec![
-                        (none_sym, vec![]),
-                        (
-                            some_sym,
-                            vec![ParamData {
-                                name: self.new_symbol("value"),
-                                ty: self.new_var_ty(t_sym),
-                                default_value: None,
-                            }],
-                        ),
-                    ]
+                    vec![(none_sym, self.new_empty_params()), (some_sym, some_params)]
                 })
             },
 
@@ -225,25 +225,18 @@ impl<'tc> BootstrapOps<'tc> {
                 let def_params = self
                     .param_ops()
                     .create_def_params(once(DefParamGroupData { implicit: true, params }));
+                let ok_params = self.param_ops().create_params(once(ParamData {
+                    name: self.new_symbol("value"),
+                    ty: self.new_var_ty(t_sym),
+                    default_value: None,
+                }));
+                let err_params = self.param_ops().create_params(once(ParamData {
+                    name: self.new_symbol("error"),
+                    ty: self.new_var_ty(e_sym),
+                    default_value: None,
+                }));
                 self.data_ops().create_enum_def(result_sym, def_params, |_| {
-                    vec![
-                        (
-                            ok_sym,
-                            vec![ParamData {
-                                name: self.new_symbol("value"),
-                                ty: self.new_var_ty(t_sym),
-                                default_value: None,
-                            }],
-                        ),
-                        (
-                            err_sym,
-                            vec![ParamData {
-                                name: self.new_symbol("error"),
-                                ty: self.new_var_ty(e_sym),
-                                default_value: None,
-                            }],
-                        ),
-                    ]
+                    vec![(ok_sym, ok_params), (err_sym, err_params)]
                 })
             },
         }

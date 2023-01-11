@@ -178,12 +178,12 @@ impl<'tc> ResolutionPass<'tc> {
             | ast::Expr::ImplDef(_)
             | ast::Expr::TraitImpl(_) => self.new_void_term(),
 
-            ast::Expr::StructDef(struct_def) => {
-                self.resolve_ast_struct_def_inner_terms(node.with_body(struct_def))?;
+            ast::Expr::StructDef(_) => {
+                self.resolve_data_def_inner_terms(node)?;
                 self.new_void_term()
             }
-            ast::Expr::EnumDef(enum_def) => {
-                self.resolve_ast_enum_def_inner_terms(node.with_body(enum_def))?;
+            ast::Expr::EnumDef(_) => {
+                self.resolve_data_def_inner_terms(node)?;
                 self.new_void_term()
             }
             ast::Expr::ModDef(mod_def) => {

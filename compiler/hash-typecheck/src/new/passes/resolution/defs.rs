@@ -5,42 +5,19 @@
 
 use hash_ast::ast::{self, AstNodeRef};
 use hash_types::new::{
-    data::{DataDefCtors, DataDefId},
     environment::env::AccessToEnv,
     mods::{ModDefId, ModMemberValue},
 };
 use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
 
-use super::ResolutionPass;
+use super::{scoping::ContextKind, ResolutionPass};
 use crate::new::{
     diagnostics::error::{TcError, TcResult},
     environment::tc_env::AccessToTcEnv,
-    ops::{common::CommonOps, AccessToOps},
+    ops::common::CommonOps,
 };
 
 impl<'tc> ResolutionPass<'tc> {
-    /// Resolve the inner terms of the given [`ast::StructDef`].
-    pub(super) fn resolve_ast_struct_def_inner_terms(
-        &self,
-        node: AstNodeRef<ast::StructDef>,
-    ) -> TcResult<DataDefId> {
-        let data_def_id = self.ast_info().data_defs().get_data_by_node(node.id()).unwrap();
-        self.resolve_data_def_inner_terms(data_def_id)?;
-        // @@Reconsider: is void the right thing to return here? Maybe we should have
-        // meta-terms for defs?
-        Ok(data_def_id)
-    }
-
-    /// Resolve the inner terms of the given [`ast::EnumDef`].
-    pub(super) fn resolve_ast_enum_def_inner_terms(
-        &self,
-        node: AstNodeRef<ast::EnumDef>,
-    ) -> TcResult<DataDefId> {
-        let data_def_id = self.ast_info().data_defs().get_data_by_node(node.id()).unwrap();
-        self.resolve_data_def_inner_terms(data_def_id)?;
-        Ok(data_def_id)
-    }
-
     /// Resolve the inner terms of the given [`ast::ModDef`].
     ///
     /// Returns a void term to assign to the mod def.
@@ -63,32 +40,66 @@ impl<'tc> ResolutionPass<'tc> {
         Ok(mod_def_id)
     }
 
-    /// Resolve the inner terms of the given data definition, by calling
-    /// `make_{term,ty,pat}_from_*` on its contents.
+    /// Resolve the inner terms of the given data definition, which must be
+    /// either a struct or enum node.
     ///
     /// This modifies the given data definition.
-    fn resolve_data_def_inner_terms(
+    pub(super) fn resolve_data_def_inner_terms(
         &self,
-        data_def_id: DataDefId,
-        // The two indices of the function are `(def_param_index,
-        // param_index)`.
-        // ctor_params: impl Fn(usize, usize) -> AstNodeRef<'a, ast::Param>,
+        originating_node: ast::AstNodeRef<ast::Expr>,
     ) -> TcResult<()> {
-        self.context_ops().enter_scope(data_def_id.into(), || {
-            let _found_error = false;
-            let ctors = self.stores().data_def().map_fast(data_def_id, |def| def.ctors);
+        let data_def_id =
+            self.ast_info().data_defs().get_data_by_node(originating_node.id()).unwrap();
+        self.scoping().enter_scope(data_def_id.into(), ContextKind::Environment, || {
+            let mut found_error = false;
 
-            match ctors {
-                DataDefCtors::Primitive(_) => {} // Nothing to do
-                DataDefCtors::Defined(ctors) => {
-                    for _i in ctors.to_index_range() {
-                        self.stores().ctor_defs().map_fast(ctors, |_ctor_def| {})
+            match originating_node.body() {
+                // Resolve the data of the definition depending on its kind:
+                ast::Expr::StructDef(struct_def) => {
+                    // Type parameters
+                    if self
+                        .try_or_add_error(
+                            self.resolve_params_from_ast_params(&struct_def.ty_params),
+                        )
+                        .is_none()
+                    {
+                        found_error = true;
                     }
-                    // @@Todo: data defs
+
+                    // Struct fields
+                    if self
+                        .try_or_add_error(self.resolve_params_from_ast_params(&struct_def.fields))
+                        .is_none()
+                    {
+                        found_error = true;
+                    }
                 }
+                ast::Expr::EnumDef(enum_def) => {
+                    // Type parameters
+                    if self
+                        .try_or_add_error(self.resolve_params_from_ast_params(&enum_def.ty_params))
+                        .is_none()
+                    {
+                        found_error = true;
+                    }
+                    for variant in enum_def.entries.ast_ref_iter() {
+                        // Variant fields
+                        if self
+                            .try_or_add_error(self.resolve_params_from_ast_params(&variant.fields))
+                            .is_none()
+                        {
+                            found_error = true;
+                        }
+                    }
+                }
+                _ => unreachable!(),
             }
 
-            Ok(())
+            if found_error {
+                Err(TcError::Signal)
+            } else {
+                Ok(())
+            }
         })
     }
 
@@ -101,7 +112,7 @@ impl<'tc> ResolutionPass<'tc> {
         mod_def_id: ModDefId,
         member_exprs: impl Iterator<Item = ast::AstNodeRef<'a, ast::Expr>>,
     ) -> TcResult<()> {
-        self.context_ops().enter_scope(mod_def_id.into(), || {
+        self.scoping().enter_scope(mod_def_id.into(), ContextKind::Environment, || {
             let mut found_error = false;
             let members = self.stores().mod_def().map_fast(mod_def_id, |def| def.members);
 
@@ -116,9 +127,10 @@ impl<'tc> ResolutionPass<'tc> {
                 };
 
                 match member_value {
-                    ModMemberValue::Data(data_def_id) => {
+                    ModMemberValue::Data(_) => {
+                        // Must be a struct or enum (handled in `resolve_data_def_inner_terms`)
                         if self
-                            .try_or_add_error(self.resolve_data_def_inner_terms(data_def_id))
+                            .try_or_add_error(self.resolve_data_def_inner_terms(member_rhs_expr))
                             .is_none()
                         {
                             found_error = true;

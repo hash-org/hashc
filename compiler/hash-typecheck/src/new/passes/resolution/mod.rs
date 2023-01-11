@@ -51,8 +51,8 @@ impl<'tc> AstPass for ResolutionPass<'tc> {
     ) -> crate::new::diagnostics::error::TcResult<()> {
         self.bootstrap_ops().bootstrap(|prim_mod| {
             self.scoping().enter_scope(prim_mod.into(), ContextKind::Environment, || {
-                let mod_def_id = self.resolve_ast_module_inner_terms(node);
-                println!("Resolved module: {}", self.env().with(mod_def_id.unwrap()));
+                let mod_def_id = self.resolve_ast_module_inner_terms(node)?;
+                println!("Resolved module: {}", self.env().with(mod_def_id));
                 Ok(())
             })
         })
