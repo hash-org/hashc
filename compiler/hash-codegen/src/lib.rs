@@ -18,7 +18,7 @@
 //! artifacts since it will run the bytecode directly using the VM. On the other
 //! hand, LLVM backend will emit a runnable executable after the code is
 //! generated.
-#![feature(let_chains)]
+#![feature(let_chains, box_patterns)]
 #![allow(dead_code)] // @@Temporary: until the codegen general purpose logic is completed.
 
 pub mod common;

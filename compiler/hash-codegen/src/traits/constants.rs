@@ -11,6 +11,10 @@ pub trait BuildConstValueMethods<'b>: BackendTypes {
     /// zero-sized types.
     fn const_undef(&self, ty: Self::Type) -> Self::Value;
 
+    /// Emit a constant null value for a particular type. This essentially
+    /// just emits a zero'd out value for the type.
+    fn const_null(&self, ty: Self::Type) -> Self::Value;
+
     /// Emit a constant boolean value.
     fn const_bool(&self, val: bool) -> Self::Value;
 
@@ -44,9 +48,15 @@ pub trait BuildConstValueMethods<'b>: BackendTypes {
     /// Emit a constant `i128` value.
     fn const_i128(&self, i: i128) -> Self::Value;
 
+    /// Emit a constant unsigned integer with a specified size.
+    fn const_uint(&self, ty: Self::Type, value: u64) -> Self::Value;
+
     /// Emit a large integer constant of a particular type. This
     /// is a common function to emit unsigned interger types.
     fn const_uint_big(&self, ty: Self::Type, i: u128) -> Self::Value;
+
+    /// Emit a constant signed integer with a specific size.
+    fn const_int(&self, ty: Self::Type, value: i64) -> Self::Value;
 
     /// Emit a constant `usize` value.
     fn const_usize(&self, i: u64) -> Self::Value;

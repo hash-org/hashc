@@ -260,6 +260,34 @@ impl BinOp {
     pub fn is_comparator(&self) -> bool {
         matches!(self, Self::Eq | Self::Neq | Self::Gt | Self::GtEq | Self::Lt | Self::LtEq)
     }
+
+    /// Compute the type of [BinOp] operator when applied to
+    /// a particular [IrTy].
+    pub fn ty(&self, ctx: &IrCtx, lhs: IrTyId, rhs: IrTyId) -> IrTyId {
+        match self {
+            BinOp::BitOr
+            | BinOp::BitAnd
+            | BinOp::BitXor
+            | BinOp::Div
+            | BinOp::Sub
+            | BinOp::Mod
+            | BinOp::Add
+            | BinOp::Mul
+            | BinOp::Exp => {
+                // Both `lhs` and `rhs` should be of the same type...
+                debug_assert_eq!(lhs, rhs);
+                lhs
+            }
+
+            // Always the `lhs`, but `lhs` and `rhs` can be different types.
+            BinOp::Shr | BinOp::Shl => lhs,
+
+            // Comparisons
+            BinOp::Eq | BinOp::Neq | BinOp::Gt | BinOp::GtEq | BinOp::Lt | BinOp::LtEq => {
+                ctx.tys().common_tys.bool
+            }
+        }
+    }
 }
 
 impl fmt::Display for BinOp {

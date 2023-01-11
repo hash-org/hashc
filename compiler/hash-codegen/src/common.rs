@@ -2,6 +2,7 @@
 //! backend and trait definitions.
 
 use bitflags::bitflags;
+use hash_ir::ir;
 
 /// Checked operations that a compiler backend can perform. All of these
 /// operations are checking the correctness of arithmetic operations.
@@ -15,12 +16,6 @@ pub enum CheckedOp {
 
     /// Multiplication
     Mul,
-
-    /// Division
-    Div,
-
-    /// Remainder
-    Rem,
 }
 
 /// This defines all of the type "kinds" that are used by LLVM.
@@ -137,6 +132,46 @@ pub enum IntComparisonKind {
     Sle,
 }
 
+impl IntComparisonKind {
+    /// Create a [IntComparisonKind] from a [ir::BinOp] and
+    /// a boolean flag specifying if the operands are signed.
+    pub fn from_bin_op(operator: ir::BinOp, signed: bool) -> Self {
+        match operator {
+            ir::BinOp::Eq => Self::Eq,
+            ir::BinOp::Neq => Self::Ne,
+            ir::BinOp::Gt => {
+                if signed {
+                    Self::Sgt
+                } else {
+                    Self::Ugt
+                }
+            }
+            ir::BinOp::GtEq => {
+                if signed {
+                    Self::Sge
+                } else {
+                    Self::Uge
+                }
+            }
+            ir::BinOp::Lt => {
+                if signed {
+                    Self::Slt
+                } else {
+                    Self::Ult
+                }
+            }
+            ir::BinOp::LtEq => {
+                if signed {
+                    Self::Sle
+                } else {
+                    Self::Ule
+                }
+            }
+            _ => unreachable!(),
+        }
+    }
+}
+
 /// Represents all of the comparison kinds that can occur between
 /// two floating point operands. This is a backend-agnostic representation
 /// of the comparison kinds.
@@ -191,6 +226,22 @@ pub enum RealComparisonKind {
 
     /// Folded comparison, always equal to "true".
     True,
+}
+
+impl TryFrom<ir::BinOp> for RealComparisonKind {
+    type Error = ();
+
+    fn try_from(operator: ir::BinOp) -> Result<Self, Self::Error> {
+        match operator {
+            ir::BinOp::Eq => Ok(Self::Oeq),
+            ir::BinOp::Neq => Ok(Self::Une),
+            ir::BinOp::Gt => Ok(Self::Ogt),
+            ir::BinOp::GtEq => Ok(Self::Oge),
+            ir::BinOp::Lt => Ok(Self::Olt),
+            ir::BinOp::LtEq => Ok(Self::Ole),
+            _ => Err(()),
+        }
+    }
 }
 
 bitflags! {

@@ -175,6 +175,13 @@ pub trait BlockBuilderMethods<'b>:
     /// Perform a fast floating point remainder operation on the given values.
     fn frem_fast(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value;
 
+    /// Perform a exponentiation of two given values.
+    ///
+    /// N.B. the values must be floating-point or vector types.
+    ///
+    /// Ref: <https://llvm.org/docs/LangRef.html#llvm-pow-intrinsic>
+    fn fpow(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value;
+
     /// Perform a left shift operation on the given values.
     fn shl(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value;
 
@@ -224,7 +231,15 @@ pub trait BlockBuilderMethods<'b>:
 
     /// Perform a checked binary operation on the given values. The [CheckedOp]s
     /// include either addition, multiplication, or subtraction.
-    fn checked_bin_op(&mut self, op: CheckedOp, lhs: Self::Value, rhs: Self::Value) -> Self::Value;
+    ///
+    /// The result of the operation is a tuple of the result of the operation
+    /// and a flag denoting whether the operation trigged an overflow.
+    fn checked_bin_op(
+        &mut self,
+        op: CheckedOp,
+        lhs: Self::Value,
+        rhs: Self::Value,
+    ) -> (Self::Value, Self::Value);
 
     /// Integer comparison operation.
     ///
