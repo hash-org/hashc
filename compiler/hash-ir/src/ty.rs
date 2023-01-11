@@ -152,6 +152,11 @@ pub enum IrTy {
 }
 
 impl IrTy {
+    /// Make a `usize` type.
+    pub fn usize() -> Self {
+        Self::UInt(UIntTy::USize)
+    }
+
     /// Make a unit type, i.e. `()`
     pub fn unit(ctx: &IrCtx) -> Self {
         let variants = index_vec![AdtVariant { name: 0usize.into(), fields: vec![] }];
@@ -497,26 +502,72 @@ impl fmt::Display for ForFormatting<'_, AdtId> {
 
 new_store_key!(pub IrTyId);
 
-/// Defines a map of common types that might be used in the IR
-/// and general IR operations. When creating new types that refer
-/// to these common types, they should be created using the
-/// using the associated [IrTyId]s of this map.
-pub struct CommonIrTys {
-    /// Boolean type.
-    pub bool: IrTyId,
+/// Macro that is used to create the "common" IR types. Each
+/// entry has an associated name, and then followed by the type
+/// expression that represents the [IrTy].
+macro_rules! create_common_ty_table {
+    ($($name:ident, $value:expr),* $(,)?) => {
 
-    /// Unsigned machine word type.
-    pub usize: IrTyId,
+        /// Defines a map of common types that might be used in the IR
+        /// and general IR operations. When creating new types that refer
+        /// to these common types, they should be created using the
+        /// using the associated [IrTyId]s of this map.
+        pub struct CommonIrTys {
+            $(pub $name: IrTyId, )*
+        }
+
+        impl CommonIrTys {
+            pub fn new(data: &DefaultStore<IrTyId, IrTy>) -> CommonIrTys {
+                CommonIrTys {
+                    $($name: data.create($value), )*
+                }
+            }
+        }
+    };
 }
 
-impl CommonIrTys {
-    fn new(data: &DefaultStore<IrTyId, IrTy>) -> Self {
-        let bool = data.create(IrTy::Bool);
-        let usize = data.create(IrTy::UInt(UIntTy::USize));
-
-        Self { bool, usize }
-    }
-}
+create_common_ty_table!(
+    // Primitive types
+    bool,
+    IrTy::Bool,
+    char,
+    IrTy::Char,
+    str,
+    IrTy::Str,
+    never,
+    IrTy::Never,
+    // Floating point types
+    f32,
+    IrTy::Float(FloatTy::F32),
+    f64,
+    IrTy::Float(FloatTy::F64),
+    // Signed integer types
+    i8,
+    IrTy::Int(SIntTy::I8),
+    i16,
+    IrTy::Int(SIntTy::I16),
+    i32,
+    IrTy::Int(SIntTy::I32),
+    i64,
+    IrTy::Int(SIntTy::I64),
+    i128,
+    IrTy::Int(SIntTy::I128),
+    isize,
+    IrTy::Int(SIntTy::ISize),
+    // Unsigned integer types
+    u8,
+    IrTy::UInt(UIntTy::U8),
+    u16,
+    IrTy::UInt(UIntTy::U16),
+    u32,
+    IrTy::UInt(UIntTy::U32),
+    u64,
+    IrTy::UInt(UIntTy::U64),
+    u128,
+    IrTy::UInt(UIntTy::U128),
+    usize,
+    IrTy::UInt(UIntTy::USize),
+);
 
 /// Stores all the used [IrTy]s.
 ///
@@ -544,13 +595,6 @@ impl TyStore {
         let common_tys = CommonIrTys::new(&data);
 
         Self { common_tys, data }
-    }
-
-    /// Create a a [IrTy::UInt(UintTy::USize)], which is often used for
-    /// generating internal comparisons of values that are used for
-    /// indexing.
-    pub fn make_usize(&self) -> IrTy {
-        IrTy::UInt(UIntTy::USize)
     }
 }
 

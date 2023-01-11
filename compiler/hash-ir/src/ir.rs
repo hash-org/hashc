@@ -9,7 +9,7 @@ use std::{
 
 use hash_ast::ast;
 use hash_source::{
-    constant::{IntConstant, InternedFloat, InternedInt, InternedStr, CONSTANT_MAP},
+    constant::{IntConstant, IntTy, InternedFloat, InternedInt, InternedStr, CONSTANT_MAP},
     identifier::Identifier,
     location::{SourceLocation, Span},
     SourceId,
@@ -154,6 +154,36 @@ pub enum ConstKind {
     /// A constant value that is defined within the program source, but is not
     /// evaluated yet.
     Unevaluated(UnevaluatedConst),
+}
+
+impl ConstKind {
+    /// Compute the type of the [ConstKind] provided
+    /// with an IR context.
+    pub fn ty(&self, ctx: &IrCtx) -> IrTy {
+        match self {
+            Self::Value(value) => match value {
+                Const::Zero(_) => IrTy::unit(ctx),
+                Const::Bool(_) => IrTy::Bool,
+                Const::Char(_) => IrTy::Char,
+                Const::Int(interned_int) => {
+                    CONSTANT_MAP.map_int_constant(*interned_int, |int| match int.ty {
+                        IntTy::Int(int_ty) => IrTy::Int(int_ty),
+                        IntTy::UInt(uint_ty) => IrTy::UInt(uint_ty),
+                    })
+                }
+                Const::Float(interned_float) => {
+                    CONSTANT_MAP.map_float_constant(*interned_float, |float| IrTy::Float(float.ty))
+                }
+                Const::Str(_) => IrTy::Str,
+            },
+            Self::Unevaluated(UnevaluatedConst { .. }) => {
+                // @@Todo: This will be implemented when constants are clearly
+                // associated with a definition ID making it easy to look them
+                // up within the context.
+                todo!()
+            }
+        }
+    }
 }
 
 impl From<ConstKind> for Operand {
@@ -684,13 +714,13 @@ impl RValue {
     /// Get the [IrTy] of the [RValue].
     pub fn ty(&self, store: &IrCtx) -> IrTy {
         match self {
-            RValue::Use(Operand::Const(_)) => todo!(),
+            RValue::Use(Operand::Const(const_kind)) => const_kind.ty(store),
             RValue::Use(Operand::Place(_)) => todo!(),
-            RValue::ConstOp(ConstOp::AlignOf | ConstOp::SizeOf, _) => store.tys().make_usize(),
+            RValue::ConstOp(ConstOp::AlignOf | ConstOp::SizeOf, _) => IrTy::usize(),
             RValue::UnaryOp(_, _) => todo!(),
             RValue::BinaryOp(_, _) => todo!(),
             RValue::CheckedBinaryOp(_, _) => todo!(),
-            RValue::Len(_) => store.tys().make_usize(),
+            RValue::Len(_) => IrTy::usize(),
             RValue::Ref(_, _, _) => todo!(),
             RValue::Aggregate(kind, _) => match kind {
                 AggregateKind::Enum(id, _)

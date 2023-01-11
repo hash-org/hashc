@@ -209,7 +209,7 @@ pub enum AbiRepresentation {
     Uninhabited,
 
     /// A scalar value.
-    Scalar { kind: Scalar },
+    Scalar(Scalar),
 
     /// A vector value.
     Vector {

@@ -2,6 +2,10 @@
 //! backend builder to emit constants of all primitive types when converting
 //! Hash IR into the target backend.
 
+use hash_ir::ir;
+use hash_source::constant::InternedStr;
+use hash_target::abi::Scalar;
+
 use super::BackendTypes;
 
 /// Trait that represents methods for emitting constants
@@ -75,6 +79,21 @@ pub trait BuildConstValueMethods<'b>: BackendTypes {
     /// }
     /// ```
     fn const_str(&self, s: &str) -> (Self::Value, Self::Value);
+
+    /// Emit a constant string value from an interned string. This returns
+    /// a value representing the pointer to the string characters, and a
+    /// second value representing the length of the string.
+    fn const_interned_str(&self, s: InternedStr) -> (Self::Value, Self::Value);
+
+    /// Emit a constant value from a `Const` value. This only deals with
+    /// constant "scalar" values, for string values, there is specific code
+    /// to emit this constant.
+    fn const_scalar_value(
+        &self,
+        const_value: ir::Const,
+        abi: Scalar,
+        ty: Self::Type,
+    ) -> Self::Value;
 
     /// Attempt to convert a constant value into a `u128` value. If
     /// the conversion fails, then [`None`] is returned.

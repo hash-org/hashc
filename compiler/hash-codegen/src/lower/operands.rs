@@ -1,8 +1,8 @@
 //! Defines the lowering process for Hash IR operands into the
 //! target backend.
 
-use hash_ir::ir::{Operand, Place};
-use hash_target::alignment::Alignment;
+use hash_ir::ir;
+use hash_target::{abi::AbiRepresentation, alignment::Alignment};
 
 use super::{place::PlaceRef, utils, FnBuilder};
 use crate::{
@@ -86,12 +86,42 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
     pub(super) fn codegen_operand(
         &mut self,
         builder: &mut Builder,
-        operand: &Operand,
+        operand: &ir::Operand,
     ) -> OperandRef<Builder::Value> {
         match operand {
-            Operand::Place(place) => self.codegen_consume_operand(builder, *place),
-            Operand::Const(ref _constant) => {
-                todo!()
+            ir::Operand::Place(place) => self.codegen_consume_operand(builder, *place),
+            ir::Operand::Const(ref constant) => {
+                let ty = constant.ty(builder.ctx().ir_ctx());
+                let info = builder.layout_of(ty);
+
+                let value = match constant {
+                    ir::ConstKind::Value(const_value) => match const_value {
+                        ir::Const::Zero(_) => return OperandRef::new_zst(builder, info),
+                        value @ (ir::Const::Bool(_)
+                        | ir::Const::Char(_)
+                        | ir::Const::Int(_)
+                        | ir::Const::Float(_)) => {
+                            let ty = builder.immediate_backend_type(info);
+                            let AbiRepresentation::Scalar(scalar) = builder.layout_info(info.layout).abi else {
+                                panic!("scalar constant doesn't have a scalar ABI rerpresentation")
+                            };
+
+                            // We convert the constant to a backend equivalent scalar
+                            // value and then emit it as an immediate operand value.
+                            let value = builder.const_scalar_value(*value, scalar, ty);
+                            OperandValue::Immediate(value)
+                        }
+                        ir::Const::Str(interned_str) => {
+                            let (ptr, size) = builder.const_interned_str(*interned_str);
+                            OperandValue::Pair(ptr, size)
+                        }
+                    },
+                    ir::ConstKind::Unevaluated(_) => {
+                        panic!("un-evaluated constant at code generation")
+                    }
+                };
+
+                OperandRef { value, info }
             }
         }
     }
@@ -102,7 +132,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
     pub(super) fn codegen_consume_operand(
         &mut self,
         builder: &mut Builder,
-        place: Place,
+        place: ir::Place,
     ) -> OperandRef<Builder::Value> {
         // compute the type of the place and the corresponding layout...
         let info = self.compute_place_ty_info(builder, place);
@@ -125,7 +155,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
     pub fn codegen_direct_operand_ref(
         &mut self,
         _builder: &mut Builder,
-        _place: Place,
+        _place: ir::Place,
     ) -> Option<OperandRef<Builder::Value>> {
         todo!()
     }
