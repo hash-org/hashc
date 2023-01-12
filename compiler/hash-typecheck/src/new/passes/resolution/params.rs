@@ -139,11 +139,14 @@ impl<'tc> ResolutionPass<'tc> {
     pub(super) fn _resolve_def_params_from_ast_param_groups<'a>(
         &self,
         ast_def_params: impl Iterator<Item = &'a ast::AstNodes<ast::Param>>,
+        implicit: bool,
     ) -> TcResult<()> {
         let mut found_error = false;
         for ast_def_param_group in ast_def_params {
             if self
-                .try_or_add_error(self.resolve_params_from_ast_params(ast_def_param_group))
+                .try_or_add_error(
+                    self.resolve_params_from_ast_params(ast_def_param_group, implicit),
+                )
                 .is_none()
             {
                 found_error = true;
@@ -162,7 +165,11 @@ impl<'tc> ResolutionPass<'tc> {
     /// discovery, and is set in the AST info store. It gets the existing
     /// parameter definition and enriches it with the resolved type and
     /// default value.
-    fn resolve_param_from_ast_param(&self, ast_param: AstNodeRef<ast::Param>) -> TcResult<ParamId> {
+    fn resolve_param_from_ast_param(
+        &self,
+        ast_param: AstNodeRef<ast::Param>,
+        implicit: bool,
+    ) -> TcResult<ParamId> {
         // Resolve the default value and type annotation:
         let default_value = self.try_or_add_error(
             ast_param
@@ -172,7 +179,19 @@ impl<'tc> ResolutionPass<'tc> {
                 .transpose(),
         );
         let resolved_ty = self.try_or_add_error(
-            ast_param.ty.as_ref().map(|ty| self.make_ty_from_ast_ty(ty.ast_ref())).transpose(),
+            ast_param
+                .ty
+                .as_ref()
+                .map(|ty| self.make_ty_from_ast_ty(ty.ast_ref()))
+                .or_else(|| {
+                    if implicit {
+                        // Default as "Type"
+                        Some(Ok(self.new_small_universe_ty()))
+                    } else {
+                        None
+                    }
+                })
+                .transpose(),
         );
 
         // Get the existing param id from the AST info store:
@@ -201,12 +220,14 @@ impl<'tc> ResolutionPass<'tc> {
     pub(super) fn resolve_params_from_ast_params(
         &self,
         params: &ast::AstNodes<ast::Param>,
+        implicit: bool,
     ) -> TcResult<ParamsId> {
         let mut found_error = false;
         let mut params_id: Option<ParamsId> = None;
 
         for ast_param in params.ast_ref_iter() {
-            let param_id = self.try_or_add_error(self.resolve_param_from_ast_param(ast_param));
+            let param_id =
+                self.try_or_add_error(self.resolve_param_from_ast_param(ast_param, implicit));
             match param_id {
                 Some(param_id) => {
                     // Remember the params ID to return at the end

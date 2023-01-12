@@ -8,7 +8,7 @@ use std::iter::once;
 
 use hash_ast::ast::{self, AstNodeRef, AstNodes};
 use hash_reporting::macros::panic_on_span;
-use hash_source::location::Span;
+use hash_source::{identifier::IDENTS, location::Span};
 use hash_types::{
     new::{
         args::{ArgData, ArgsId},
@@ -221,9 +221,13 @@ impl<'tc> ResolutionPass<'tc> {
 
     /// Make a type from the given [`ast::NamedTy`].
     fn make_ty_from_ast_named_ty(&self, node: AstNodeRef<ast::NamedTy>) -> TcResult<TyId> {
-        let path = self.named_ty_as_ast_path(node)?;
-        let resolved_path = self.resolve_ast_path(&path)?;
-        self.make_ty_from_resolved_ast_path(&resolved_path, node.span())
+        if node.name.is(IDENTS.Type) {
+            Ok(self.new_small_universe_ty())
+        } else {
+            let path = self.named_ty_as_ast_path(node)?;
+            let resolved_path = self.resolve_ast_path(&path)?;
+            self.make_ty_from_resolved_ast_path(&resolved_path, node.span())
+        }
     }
 
     /// Make a type from the given [`ast::TyFnCall`].
@@ -298,7 +302,7 @@ impl<'tc> ResolutionPass<'tc> {
     /// Make a type from the given [`ast::Ty`].
     pub(super) fn make_ty_from_ast_ty_fn_ty(&self, node: AstNodeRef<ast::TyFn>) -> TcResult<TyId> {
         // First, make the params
-        let params = self.try_or_add_error(self.resolve_params_from_ast_params(&node.params));
+        let params = self.try_or_add_error(self.resolve_params_from_ast_params(&node.params, true));
         self.scoping().enter_ty_fn_ty(node, |ty_fn_id| {
             self.stores().ty().modify(ty_fn_id, |ty| {
                 let ty_fn = ty_as_variant!(self, value ty, Fn);

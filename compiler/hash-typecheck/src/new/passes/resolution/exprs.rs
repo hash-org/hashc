@@ -701,7 +701,10 @@ impl<'tc> ResolutionPass<'tc> {
         let fn_def_id = self.ast_info().fn_defs().get_data_by_node(node_id).unwrap();
 
         // First resolve the parameters
-        let params = self.try_or_add_error(self.resolve_params_from_ast_params(params));
+        let params = self.try_or_add_error(self.resolve_params_from_ast_params(
+            params,
+            self.stores().fn_def().map_fast(fn_def_id, |fn_def| fn_def.ty.implicit),
+        ));
 
         // Modify the existing fn def for the params:
         if let Some(params) = params {

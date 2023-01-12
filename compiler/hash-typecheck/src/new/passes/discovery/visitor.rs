@@ -53,7 +53,8 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
                 _ => None,
             };
             // Walk the node
-            self.name_hint.enter(name, || walk::walk_declaration(self, node))
+            self.name_hint.enter(name, || walk::walk_declaration(self, node))?;
+            Ok(name)
         };
 
         // Add the declaration to the current definition as appropriate
@@ -65,29 +66,29 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
                 }
                 DefId::Data(_) => {
                     panic_on_span!(
-                    self.node_location(node),
-                    self.source_map(),
-                    "found declaration in data definition scope, which should have been handled earlier"
-                )
+                        self.node_location(node),
+                        self.source_map(),
+                        "found declaration in data definition scope, which should have been handled earlier"
+                    )
                 }
                 DefId::Stack(stack_id) => {
-                    walk_with_name_hint()?;
-                    self.add_pat_node_binds_to_stack(node.pat.ast_ref(), stack_id)
+                    let name = walk_with_name_hint()?;
+                    self.add_pat_node_binds_to_stack(node.pat.ast_ref(), stack_id, name)
                 }
                 DefId::Fn(_) => {
                     panic_on_span!(
-                    self.node_location(node),
-                    self.source_map(),
-                    "found declaration in function scope, which should instead be in a stack scope"
-                )
+                        self.node_location(node),
+                        self.source_map(),
+                        "found declaration in function scope, which should instead be in a stack scope"
+                    )
                 }
             },
             ItemId::FnTy(_) => {
                 panic_on_span!(
-                    self.node_location(node),
-                    self.source_map(),
-                    "found declaration in function type scope, which should instead be in a stack scope"
-                )
+                        self.node_location(node),
+                        self.source_map(),
+                        "found declaration in function type scope, which should instead be in a stack scope"
+                    )
             }
         };
 
@@ -104,7 +105,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
                 // A match case creates its own stack scope.
                 let stack_id = self.stack_ops().create_stack();
                 self.enter_def(node, stack_id, || {
-                    self.add_pat_node_binds_to_stack(node.pat.ast_ref(), stack_id);
+                    self.add_pat_node_binds_to_stack(node.pat.ast_ref(), stack_id, None);
                     walk::walk_match_case(self, node)
                 })?;
                 Ok(())
