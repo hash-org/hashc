@@ -100,7 +100,7 @@ pub enum ScopeKind {
 #[derive(Debug, Clone, Default)]
 pub struct Context {
     scope_levels: RefCell<Vec<usize>>,
-    members: RefCell<IndexMap<Symbol, Binding>>,
+    members: RefCell<IndexMap<Symbol, BindingKind>>,
     scope_kinds: RefCell<Vec<ScopeKind>>,
 }
 
@@ -162,12 +162,12 @@ impl Context {
 
     /// Add a new binding to the current scope context.
     pub fn add_binding(&self, binding: Binding) {
-        self.members.borrow_mut().insert(binding.name, binding);
+        self.members.borrow_mut().insert(binding.name, binding.kind);
     }
 
     /// Get a binding from the context, reading all accessible scopes.
     pub fn get_binding(&self, name: Symbol) -> Option<Binding> {
-        self.members.borrow().get(&name).copied()
+        Some(Binding { name, kind: self.members.borrow().get(&name).copied()? })
     }
 
     /// Get the kind of the current scope.
@@ -207,14 +207,14 @@ impl Context {
         let current_level_member_index = scope_levels[level];
         let next_level_member_index =
             scope_levels.get(level + 1).copied().unwrap_or(self.members.borrow().len());
-        for (_, binding) in self
+        for (&name, &kind) in self
             .members
             .borrow()
             .iter()
             .skip(current_level_member_index)
             .take(next_level_member_index - current_level_member_index)
         {
-            f(binding)?
+            f(&Binding { name, kind })?
         }
         Ok(())
     }

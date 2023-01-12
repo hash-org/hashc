@@ -427,29 +427,28 @@ impl<'tc> ResolutionPass<'tc> {
         &self,
         node: AstNodeRef<ast::Declaration>,
     ) -> TcResult<TermId> {
+        self.scoping().register_declaration(node);
+
+        // Pattern
+        let pat = self.try_or_add_error(self.make_pat_from_ast_pat(node.pat.ast_ref()));
+
         // Inner expression:
         let value = node
             .value
             .as_ref()
-            .and_then(|v| self.try_or_add_error(self.make_term_from_ast_expr(v.ast_ref())));
+            .map(|v| self.try_or_add_error(self.make_term_from_ast_expr(v.ast_ref())));
 
         // Type annotation:
         let ty = node
             .ty
             .as_ref()
-            .and_then(|ty| self.try_or_add_error(self.make_ty_from_ast_ty(ty.ast_ref())))
-            .unwrap_or_else(|| self.new_ty_hole());
+            .map(|ty| self.try_or_add_error(self.make_ty_from_ast_ty(ty.ast_ref())))
+            .unwrap_or_else(|| Some(self.new_ty_hole()));
 
-        // Pattern
-        let pat = self.try_or_add_error(self.make_pat_from_ast_pat(node.pat.ast_ref()));
-
-        match pat {
-            Some(pat) => Ok(self.new_term(Term::DeclStackMember(DeclStackMemberTerm {
-                bind_pat: pat,
-                ty,
-                value,
-            }))),
-            None => {
+        match (pat, ty, value) {
+            (Some(pat), Some(ty), Some(value)) => Ok(self
+                .new_term(Term::DeclStackMember(DeclStackMemberTerm { bind_pat: pat, ty, value }))),
+            _ => {
                 // If pat had an error, then we can't make a term, and the
                 // error will have been added already.
                 Err(TcError::Signal)

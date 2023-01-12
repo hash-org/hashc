@@ -421,6 +421,7 @@ impl<'tc> DiscoveryPass<'tc> {
         node: AstNodeRef<ast::Pat>,
         stack_id: StackId,
         declaration_name: Option<Symbol>,
+        rhs: Option<&ast::AstNode<ast::Expr>>,
     ) {
         self.def_state().stack_members.modify_fast(stack_id, |members| {
             let members = match members {
@@ -447,7 +448,7 @@ impl<'tc> DiscoveryPass<'tc> {
                             is_mutable: binding_pat.mutability.as_ref().map(|m| *m.body())
                                 == Some(ast::Mutability::Mutable),
                             ty: self.new_ty_hole(),
-                            value: None,
+                            value: rhs.as_ref().map(|_| self.new_term_hole()),
                         },
                     ))
                 }

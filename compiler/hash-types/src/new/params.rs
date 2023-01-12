@@ -6,7 +6,7 @@ use derive_more::From;
 use hash_source::identifier::Identifier;
 use hash_utils::{
     new_sequence_store_key,
-    store::{DefaultSequenceStore, SequenceStore},
+    store::{DefaultSequenceStore, SequenceStore, Store},
 };
 use utility_types::omit;
 
@@ -70,8 +70,14 @@ impl fmt::Display for WithEnv<'_, &Param> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{}: {}{}",
-            self.env().with(self.value.name),
+            "{}{}{}",
+            self.stores().symbol().map_fast(self.value.name, |sym| {
+                match (sym.name, self.value.default_value) {
+                    (None, None) => "".to_string(),
+                    (Some(name), _) => format!("{name}: "),
+                    (_, _) => "_: ".to_string(),
+                }
+            }),
             self.env().with(self.value.ty),
             if let Some(default_value) = self.value.default_value {
                 format!(" = {}", self.env().with(default_value))
