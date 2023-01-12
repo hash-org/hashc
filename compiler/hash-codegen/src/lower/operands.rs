@@ -62,7 +62,17 @@ impl<'b, V: CodeGenObject> OperandValue<V> {
                 // need to load the value from the source, and then store
                 // it into the destination.
                 if flags.contains(MemFlags::NON_TEMPORAL) {
-                    todo!()
+                    let ty = builder.backend_type(destination.info);
+                    let ptr = builder.pointer_cast(value, builder.type_ptr_to(ty));
+                    let value = builder.load(ty, ptr, source_alignment);
+
+                    builder.store_with_flags(
+                        value,
+                        destination.value,
+                        destination.alignment,
+                        flags,
+                    );
+                    return;
                 }
 
                 utils::mem_copy_ty(
