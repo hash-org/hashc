@@ -67,8 +67,10 @@ pub type CtorDefId = (CtorDefsId, usize);
 pub struct CtorTerm {
     /// The constructor definition that this term is an invocation of.
     pub ctor: CtorDefId,
+    /// The arguments to the data definition.
+    pub data_args: DefArgsId,
     /// The arguments to the constructor.
-    pub args: DefArgsId,
+    pub ctor_args: DefArgsId,
 }
 
 /// A constructor pattern.
@@ -79,7 +81,9 @@ pub struct CtorPat {
     /// The constructor definition that this pattern references.
     pub ctor: CtorDefId,
     /// The pattern arguments to the constructor.
-    pub args: DefPatArgsId,
+    pub ctor_pat_args: DefPatArgsId,
+    /// The data arguments to the constructor.
+    pub data_args: DefArgsId,
 }
 
 /// A numeric constructor definition.
@@ -210,13 +214,17 @@ impl fmt::Display for WithEnv<'_, CtorDefsId> {
 
 impl Display for WithEnv<'_, &CtorTerm> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let ctor_name = self
-            .stores()
-            .ctor_defs()
-            .map_fast(self.value.ctor.0, |ctors| ctors[self.value.ctor.1].name);
+        let (ctor_name, data_def_id) =
+            self.stores().ctor_defs().map_fast(self.value.ctor.0, |ctors| {
+                (ctors[self.value.ctor.1].name, ctors[self.value.ctor.1].data_def_id)
+            });
+        let data_def_name = self.stores().data_def().map_fast(data_def_id, |def| def.name);
+
+        write!(f, "{}", self.env().with(data_def_name))?;
+        write!(f, "{}::", self.env().with(self.value.data_args))?;
 
         write!(f, "{}", self.env().with(ctor_name))?;
-        write!(f, "{}", self.env().with(self.value.args))?;
+        write!(f, "{}", self.env().with(self.value.ctor_args))?;
 
         Ok(())
     }
@@ -224,13 +232,17 @@ impl Display for WithEnv<'_, &CtorTerm> {
 
 impl Display for WithEnv<'_, &CtorPat> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let ctor_name = self
-            .stores()
-            .ctor_defs()
-            .map_fast(self.value.ctor.0, |ctors| ctors[self.value.ctor.1].name);
+        let (ctor_name, data_def_id) =
+            self.stores().ctor_defs().map_fast(self.value.ctor.0, |ctors| {
+                (ctors[self.value.ctor.1].name, ctors[self.value.ctor.1].data_def_id)
+            });
+        let data_def_name = self.stores().data_def().map_fast(data_def_id, |def| def.name);
+
+        write!(f, "{}", self.env().with(data_def_name))?;
+        write!(f, "{}::", self.env().with(self.value.data_args))?;
 
         write!(f, "{}", self.env().with(ctor_name))?;
-        write!(f, "{}", self.env().with(self.value.args))?;
+        write!(f, "{}", self.env().with(self.value.ctor_pat_args))?;
 
         Ok(())
     }

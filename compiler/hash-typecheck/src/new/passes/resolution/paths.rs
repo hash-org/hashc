@@ -154,7 +154,7 @@ impl<'tc> ResolutionPass<'tc> {
         match starting_from {
             Some((member_value, _span)) => match member_value {
                 // If we are starting from a module or data type, we need to enter their scopes.
-                NonTerminalResolvedPathComponent::Data(data_def_id, _) => {
+                NonTerminalResolvedPathComponent::Data(data_def_id, _def_args_id) => {
                     self.scoping().enter_scope(
                         ScopeKind::Data(data_def_id),
                         ContextKind::Access(member_value, data_def_id.into()),
@@ -199,8 +199,8 @@ impl<'tc> ResolutionPass<'tc> {
                     ModMemberValue::Data(data_def_id) => {
                         let data_def_params =
                             self.stores().data_def().map_fast(data_def_id, |def| def.params);
-                        let args =
-                            self.apply_ast_args_to_def_params(data_def_params, &component.args)?;
+                        let args = self
+                            .make_def_args_from_ast_arg_groups(&component.args, data_def_params)?;
 
                         match args {
                             ResolvedDefArgs::Term(args) => {
@@ -235,21 +235,42 @@ impl<'tc> ResolutionPass<'tc> {
                     },
                 }
             }
-            BindingKind::Ctor(_, ctor_def_id) => {
+            BindingKind::Ctor(data_def_id, ctor_def_id) => {
                 let ctor_def = self.stores().ctor_defs().get_element(ctor_def_id);
                 let applied_args =
-                    self.apply_ast_args_to_def_params(ctor_def.params, &component.args)?;
+                    self.make_def_args_from_ast_arg_groups(&component.args, ctor_def.params)?;
 
-                match applied_args {
-                    ResolvedDefArgs::Term(args) => Ok(ResolvedAstPathComponent::Terminal(
-                        TerminalResolvedPathComponent::CtorTerm(CtorTerm {
-                            ctor: ctor_def_id,
-                            args,
-                        }),
-                    )),
-                    ResolvedDefArgs::Pat(args) => Ok(ResolvedAstPathComponent::Terminal(
-                        TerminalResolvedPathComponent::CtorPat(CtorPat { ctor: ctor_def_id, args }),
-                    )),
+                match starting_from {
+                    Some((starting_from, _)) => match starting_from {
+                        NonTerminalResolvedPathComponent::Data(
+                            starting_from_data_def_id,
+                            data_args,
+                        ) => {
+                            assert!(starting_from_data_def_id == data_def_id);
+                            match applied_args {
+                                ResolvedDefArgs::Term(ctor_args) => {
+                                    Ok(ResolvedAstPathComponent::Terminal(
+                                        TerminalResolvedPathComponent::CtorTerm(CtorTerm {
+                                            ctor: ctor_def_id,
+                                            ctor_args,
+                                            data_args,
+                                        }),
+                                    ))
+                                }
+                                ResolvedDefArgs::Pat(ctor_pat_args) => {
+                                    Ok(ResolvedAstPathComponent::Terminal(
+                                        TerminalResolvedPathComponent::CtorPat(CtorPat {
+                                            ctor: ctor_def_id,
+                                            ctor_pat_args,
+                                            data_args,
+                                        }),
+                                    ))
+                                }
+                            }
+                        }
+                        NonTerminalResolvedPathComponent::Mod(_) => unreachable!(), /* Can never have a constructor starting from a module */
+                    },
+                    None => todo!(),
                 }
             }
             BindingKind::BoundVar(bound_var) => {

@@ -214,7 +214,8 @@ pub trait CommonOps: AccessToTcEnv {
     fn new_bool_term(&self, value: bool) -> TermId {
         self.new_term(Term::Ctor(CtorTerm {
             ctor: self.get_bool_ctor(value),
-            args: self.new_empty_def_args(),
+            ctor_args: self.new_empty_def_args(),
+            data_args: self.new_empty_def_args(),
         }))
     }
 
@@ -222,7 +223,8 @@ pub trait CommonOps: AccessToTcEnv {
     fn bool_pat(&self, value: bool) -> PatId {
         self.new_pat(Pat::Ctor(CtorPat {
             ctor: self.get_bool_ctor(value),
-            args: self.new_empty_def_pat_args(),
+            ctor_pat_args: self.new_empty_def_pat_args(),
+            data_args: self.new_empty_def_args(),
         }))
     }
 }

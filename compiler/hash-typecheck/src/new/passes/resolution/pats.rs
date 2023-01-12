@@ -199,11 +199,14 @@ impl ResolutionPass<'_> {
                         is_mutable: false,
                     })))
                 }
-                TerminalResolvedPathComponent::CtorTerm(ctor_term) if ctor_term.args.is_empty() => {
+                TerminalResolvedPathComponent::CtorTerm(ctor_term)
+                    if ctor_term.ctor_args.is_empty() =>
+                {
                     // @@Hack: Constructor term without args is a valid pattern
                     Ok(self.new_pat(Pat::Ctor(CtorPat {
                         ctor: ctor_term.ctor,
-                        args: self.param_ops().create_def_pat_args(empty()),
+                        ctor_pat_args: self.param_ops().create_def_pat_args(empty()),
+                        data_args: ctor_term.data_args,
                     })))
                 }
                 TerminalResolvedPathComponent::CtorTerm(_) => {
