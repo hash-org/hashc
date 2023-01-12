@@ -39,7 +39,7 @@ impl<'b, V: CodeGenObject> LocalRef<V> {
         builder: &mut Builder,
         layout: TyInfo,
     ) -> Self {
-        if layout.is_zst(builder.layouts()) {
+        if layout.is_zst(builder.layout_ctx()) {
             LocalRef::Operand(Some(OperandRef::new_zst(builder, layout)))
         } else {
             LocalRef::Operand(None)
@@ -62,7 +62,7 @@ pub fn compute_non_ssa_locals<'b, Builder: BlockBuilderMethods<'b>>(
             let ty = local.ty();
             let layout = fn_builder.ctx.layout_of_id(ty);
 
-            if layout.is_zst(fn_builder.ctx.layouts()) {
+            if layout.is_zst(fn_builder.ctx.layout_ctx()) {
                 LocalMemoryKind::Zst
             } else if fn_builder.ctx.is_backend_immediate(layout) {
                 LocalMemoryKind::Unused
@@ -203,7 +203,7 @@ impl<'ir, 'b, Builder: BlockBuilderMethods<'b>> IrVisitorMut<'b>
         let base_ty = self.fn_builder.body.declarations[place.local].ty;
         let base_layout = self.fn_builder.ctx.layout_of_id(base_ty);
 
-        if base_layout.is_zst(self.fn_builder.ctx.layouts()) {
+        if base_layout.is_zst(self.fn_builder.ctx.layout_ctx()) {
             return;
         }
 

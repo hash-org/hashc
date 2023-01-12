@@ -152,6 +152,11 @@ pub enum IrTy {
 }
 
 impl IrTy {
+    /// Make a `usize` type.
+    pub fn usize() -> Self {
+        Self::UInt(UIntTy::USize)
+    }
+
     /// Make a unit type, i.e. `()`
     pub fn unit(ctx: &IrCtx) -> Self {
         let variants = index_vec![AdtVariant { name: 0usize.into(), fields: vec![] }];
@@ -261,6 +266,36 @@ impl IrTy {
             _ => None,
         }
     }
+
+    /// Compute the discriminant value for a particular [IrTy] and
+    /// evaluate it to a raw value.
+    pub fn discriminant_for_variant(
+        &self,
+        ctx: &IrCtx,
+        variant: VariantIdx,
+    ) -> Option<(UIntTy, u128)> {
+        match self {
+            IrTy::Adt(id) => {
+                ctx.adts().map_fast(*id, |data| {
+                    if !data.flags.is_enum() || data.variants.is_empty() {
+                        None
+                    } else {
+                        // We get the offset of the current discriminant and then
+                        // we also compute the "initial" value of the discriminant
+                        // for this type. Currently, this is quite trivial to do
+                        // since the user cannot (yet) modify what the discriminant
+                        // of each enum variant is, and thus we don't need to account
+                        // for this.
+                        let discriminant_value = data.discriminant_value_for(variant);
+                        let discriminant_type = data.discriminant_ty();
+
+                        Some((discriminant_type, discriminant_value as u128))
+                    }
+                })
+            }
+            _ => None,
+        }
+    }
 }
 
 impl From<IntTy> for IrTy {
@@ -349,7 +384,7 @@ impl AdtData {
     /// @@Future(discriminants): This is incomplete because it does not account
     /// for the `repr` attribute, and the fact that enums might have
     /// explicit discriminants specified on them.
-    pub fn discriminant_ty(&self) -> IntTy {
+    pub fn discriminant_ty(&self) -> UIntTy {
         debug_assert!(self.flags.is_enum() || self.flags.is_union());
 
         // Compute the maximum number of bits needed for the discriminant.
@@ -357,7 +392,17 @@ impl AdtData {
         let bits = max.leading_zeros();
         let size = Size::from_bits(cmp::max(1, 64 - bits));
 
-        IntTy::UInt(UIntTy::from_size(size))
+        UIntTy::from_size(size)
+    }
+
+    /// Compute the discriminant value for a particular variant.
+    pub fn discriminant_value_for(&self, variant: VariantIdx) -> u32 {
+        debug_assert!(self.flags.is_enum());
+
+        // @@Future(discriminants): We don't account for user specified
+        // discriminants just yet, so this is simply the index of the
+        // variant.
+        variant._raw
     }
 
     /// Create an iterator of all of the discriminants of this ADT.
@@ -497,26 +542,72 @@ impl fmt::Display for ForFormatting<'_, AdtId> {
 
 new_store_key!(pub IrTyId);
 
-/// Defines a map of common types that might be used in the IR
-/// and general IR operations. When creating new types that refer
-/// to these common types, they should be created using the
-/// using the associated [IrTyId]s of this map.
-pub struct CommonIrTys {
-    /// Boolean type.
-    pub bool: IrTyId,
+/// Macro that is used to create the "common" IR types. Each
+/// entry has an associated name, and then followed by the type
+/// expression that represents the [IrTy].
+macro_rules! create_common_ty_table {
+    ($($name:ident, $value:expr),* $(,)?) => {
 
-    /// Unsigned machine word type.
-    pub usize: IrTyId,
+        /// Defines a map of common types that might be used in the IR
+        /// and general IR operations. When creating new types that refer
+        /// to these common types, they should be created using the
+        /// using the associated [IrTyId]s of this map.
+        pub struct CommonIrTys {
+            $(pub $name: IrTyId, )*
+        }
+
+        impl CommonIrTys {
+            pub fn new(data: &DefaultStore<IrTyId, IrTy>) -> CommonIrTys {
+                CommonIrTys {
+                    $($name: data.create($value), )*
+                }
+            }
+        }
+    };
 }
 
-impl CommonIrTys {
-    fn new(data: &DefaultStore<IrTyId, IrTy>) -> Self {
-        let bool = data.create(IrTy::Bool);
-        let usize = data.create(IrTy::UInt(UIntTy::USize));
-
-        Self { bool, usize }
-    }
-}
+create_common_ty_table!(
+    // Primitive types
+    bool,
+    IrTy::Bool,
+    char,
+    IrTy::Char,
+    str,
+    IrTy::Str,
+    never,
+    IrTy::Never,
+    // Floating point types
+    f32,
+    IrTy::Float(FloatTy::F32),
+    f64,
+    IrTy::Float(FloatTy::F64),
+    // Signed integer types
+    i8,
+    IrTy::Int(SIntTy::I8),
+    i16,
+    IrTy::Int(SIntTy::I16),
+    i32,
+    IrTy::Int(SIntTy::I32),
+    i64,
+    IrTy::Int(SIntTy::I64),
+    i128,
+    IrTy::Int(SIntTy::I128),
+    isize,
+    IrTy::Int(SIntTy::ISize),
+    // Unsigned integer types
+    u8,
+    IrTy::UInt(UIntTy::U8),
+    u16,
+    IrTy::UInt(UIntTy::U16),
+    u32,
+    IrTy::UInt(UIntTy::U32),
+    u64,
+    IrTy::UInt(UIntTy::U64),
+    u128,
+    IrTy::UInt(UIntTy::U128),
+    usize,
+    IrTy::UInt(UIntTy::USize),
+);
 
 /// Stores all the used [IrTy]s.
 ///
@@ -544,13 +635,6 @@ impl TyStore {
         let common_tys = CommonIrTys::new(&data);
 
         Self { common_tys, data }
-    }
-
-    /// Create a a [IrTy::UInt(UintTy::USize)], which is often used for
-    /// generating internal comparisons of values that are used for
-    /// indexing.
-    pub fn make_usize(&self) -> IrTy {
-        IrTy::UInt(UIntTy::USize)
     }
 }
 
@@ -626,7 +710,7 @@ impl fmt::Display for ForFormatting<'_, IrTyListId> {
 /// An auxilliary data structure that is used to compute the
 /// [IrTy] of a [Place].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct TyOfPlace {
+pub struct PlaceTy {
     /// The [IrTy] of the place.
     pub ty: IrTyId,
 
@@ -635,58 +719,75 @@ pub struct TyOfPlace {
     pub index: Option<VariantIdx>,
 }
 
-impl TyOfPlace {
-    /// Create a [TyPlace] from a [Place].
-    pub fn from_place(place: Place, body: &Body, ctx: &IrCtx) -> TyOfPlace {
+impl PlaceTy {
+    /// Create a [PlaceTy] from a base [IrTy]. This is useful for when
+    /// you want to apply a single projection on the current type
+    /// and create a new [PlaceTy] from the projection.
+    pub fn from_ty(ty: IrTyId) -> Self {
+        Self { ty, index: None }
+    }
+
+    /// Apply a projection to the current [PlaceTy].
+    fn apply_projection(self, ctx: &IrCtx, projection: PlaceProjection) -> Self {
+        match projection {
+            PlaceProjection::Downcast(index) => PlaceTy { ty: self.ty, index: Some(index) },
+            PlaceProjection::Field(index) => {
+                let ty = ctx
+                    .tys()
+                    .map_fast(self.ty, |ty| ty.on_field_access(index, self.index, ctx))
+                    .unwrap_or_else(|| panic!("expected an ADT, got {self:?}"));
+
+                PlaceTy { ty, index: None }
+            }
+            PlaceProjection::Deref => {
+                let ty = ctx
+                    .tys()
+                    .map_fast(self.ty, |ty| ty.on_deref())
+                    .unwrap_or_else(|| panic!("expected a reference, got {self:?}"));
+
+                PlaceTy { ty, index: None }
+            }
+            PlaceProjection::Index(_) | PlaceProjection::ConstantIndex { .. } => {
+                let ty = ctx
+                    .tys()
+                    .map_fast(self.ty, |ty| ty.on_index())
+                    .unwrap_or_else(|| panic!("expected an array or slice, got {self:?}"));
+
+                PlaceTy { ty, index: None }
+            }
+            PlaceProjection::SubSlice { from, to, from_end } => {
+                let base_ty = ctx.tys().get(self.ty);
+                let ty = match base_ty {
+                    IrTy::Slice(_) => self.ty,
+                    IrTy::Array { ty, .. } if !from_end => {
+                        ctx.tys().create(IrTy::Array { ty, size: to - from })
+                    }
+                    IrTy::Array { ty, size } if from_end => {
+                        ctx.tys().create(IrTy::Array { ty, size: size - from - to })
+                    }
+                    _ => panic!("expected an array or slice, got {self:?}"),
+                };
+
+                PlaceTy { ty, index: None }
+            }
+        }
+    }
+
+    /// Apply a projection on [PlaceTy] and convert it into
+    /// the underlying type.
+    pub fn projection_ty(self, ctx: &IrCtx, projection: PlaceProjection) -> IrTyId {
+        let projected_place = self.apply_projection(ctx, projection);
+        projected_place.ty
+    }
+
+    /// Create a [PlaceTy] from a [Place].
+    pub fn from_place(place: Place, body: &Body, ctx: &IrCtx) -> Self {
         // get the type of the local from the body.
-        let mut base = TyOfPlace { ty: body.declarations[place.local].ty, index: None };
+        let mut base = PlaceTy { ty: body.declarations[place.local].ty, index: None };
 
         ctx.projections().map_fast(place.projections, |projections| {
             for projection in projections {
-                match *projection {
-                    PlaceProjection::Downcast(index) => {
-                        base = TyOfPlace { ty: base.ty, index: Some(index) }
-                    }
-                    PlaceProjection::Field(index) => {
-                        let ty = ctx
-                            .tys()
-                            .map_fast(base.ty, |ty| ty.on_field_access(index, base.index, ctx))
-                            .unwrap_or_else(|| panic!("expected an ADT, got {base:?}"));
-
-                        base = TyOfPlace { ty, index: None }
-                    }
-                    PlaceProjection::Deref => {
-                        let ty = ctx
-                            .tys()
-                            .map_fast(base.ty, |ty| ty.on_deref())
-                            .unwrap_or_else(|| panic!("expected a reference, got {base:?}"));
-
-                        base = TyOfPlace { ty, index: None }
-                    }
-                    PlaceProjection::Index(_) | PlaceProjection::ConstantIndex { .. } => {
-                        let ty = ctx
-                            .tys()
-                            .map_fast(base.ty, |ty| ty.on_index())
-                            .unwrap_or_else(|| panic!("expected an array or slice, got {base:?}"));
-
-                        base = TyOfPlace { ty, index: None }
-                    }
-                    PlaceProjection::SubSlice { from, to, from_end } => {
-                        let base_ty = ctx.tys().get(base.ty);
-                        let ty = match base_ty {
-                            IrTy::Slice(_) => base.ty,
-                            IrTy::Array { ty, .. } if !from_end => {
-                                ctx.tys().create(IrTy::Array { ty, size: to - from })
-                            }
-                            IrTy::Array { ty, size } if from_end => {
-                                ctx.tys().create(IrTy::Array { ty, size: size - from - to })
-                            }
-                            _ => panic!("expected an array or slice, got {base:?}"),
-                        };
-
-                        base = TyOfPlace { ty, index: None }
-                    }
-                }
+                base = base.apply_projection(ctx, *projection);
             }
         });
 

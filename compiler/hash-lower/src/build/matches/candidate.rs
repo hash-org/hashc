@@ -340,7 +340,8 @@ impl<'tcx> Builder<'tcx> {
                 }
                 Pat::Constructor(ConstructorPat { subject, args }) => {
                     let ty = self.convert_term_into_ir_ty(*subject);
-                    let adt = self.map_on_adt(ty, |adt, id| adt.flags.is_struct().then_some(id));
+                    let adt =
+                        self.ctx.map_on_adt(ty, |adt, id| adt.flags.is_struct().then_some(id));
 
                     // If this is a struct then we need to match on the fields of
                     // the struct since it is an *irrefutable* pattern.

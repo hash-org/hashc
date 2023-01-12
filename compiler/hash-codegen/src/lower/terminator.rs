@@ -283,9 +283,9 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
                 // @@Future: we will probably introduce as `with_layout`
                 let abi_layout = builder.layout_info(arg_abi.info.layout);
 
-                if let AbiRepresentation::Scalar { kind } = abi_layout.abi {
-                    if kind.is_bool() {
-                        builder.add_range_metadata_to(value, kind.valid_range);
+                if let AbiRepresentation::Scalar(scalar_kind) = abi_layout.abi {
+                    if scalar_kind.is_bool() {
+                        builder.add_range_metadata_to(value, scalar_kind.valid_range);
                     }
 
                     // @@Performance: we could just pass a ptr to layout here??

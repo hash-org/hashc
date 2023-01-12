@@ -182,7 +182,7 @@ impl<'tcx> Builder<'tcx> {
                 Pat::Access(AccessPat { .. }) => {
                     let ty = self.ty_of_pat(pair.pat);
                     let (variant_count, adt) =
-                        self.map_on_adt(ty, |adt, id| (adt.variants.len(), id));
+                        self.ctx.map_on_adt(ty, |adt, id| (adt.variants.len(), id));
 
                     Test {
                         kind: TestKind::Switch {
@@ -271,7 +271,7 @@ impl<'tcx> Builder<'tcx> {
                 // variant patterns, bu nothing else.
                 let test_adt = self.convert_term_into_ir_ty(*subject);
 
-                let variant_index = self.map_on_adt(test_adt, |adt, _| {
+                let variant_index = self.ctx.map_on_adt(test_adt, |adt, _| {
                     // If this is a struct, then we don't do anything
                     // since we're expecting an enum. Although, this case shouldn't happen?
                     if adt.flags.is_struct() {
@@ -297,7 +297,7 @@ impl<'tcx> Builder<'tcx> {
                 // variant patterns, bu nothing else.
                 let test_adt = self.ty_of_pat(pair.pat);
 
-                let variant_index = self.map_on_adt(test_adt, |adt, _| {
+                let variant_index = self.ctx.map_on_adt(test_adt, |adt, _| {
                     // If this is a struct, then we don't do anything
                     // since we're expecting an enum. Although, this case shouldn't happen?
                     if adt.flags.is_struct() {
@@ -560,7 +560,7 @@ impl<'tcx> Builder<'tcx> {
 
                 // Here we want to create a switch statement that will match on all of the
                 // specified discriminants of the ADT.
-                let discriminant_ty = self.ctx.tys().create(discriminant_ty.into());
+                let discriminant_ty = self.ctx.tys().create(IrTy::UInt(discriminant_ty));
                 let targets = SwitchTargets::new(
                     self.ctx.adts().map_fast(adt, |adt| {
                         // Map over all of the discriminants of the ADT, and filter out those that
@@ -709,7 +709,7 @@ impl<'tcx> Builder<'tcx> {
             TestKind::Len { len, op } => {
                 let target_blocks = make_target_blocks(self);
 
-                let usize_ty = self.ctx.tys().create(self.ctx.tys().make_usize());
+                let usize_ty = self.ctx.tys().common_tys.usize;
                 let actual = self.temp_place(usize_ty);
 
                 // Assign `actual = length(place)`
@@ -797,7 +797,7 @@ impl<'tcx> Builder<'tcx> {
                     // variant index of the property.
                     let ty = self.ty_of_pat(match_pair.pat);
 
-                    self.map_on_adt(ty, |adt, _| {
+                    self.ctx.map_on_adt(ty, |adt, _| {
                         let variant_index = adt.variant_idx(property).unwrap();
                         variants.insert(variant_index.index());
                         true

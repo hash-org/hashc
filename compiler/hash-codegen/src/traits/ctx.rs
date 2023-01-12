@@ -7,7 +7,7 @@ use hash_ir::{
     ty::{IrTy, IrTyId},
     IrCtx,
 };
-use hash_layout::LayoutStore;
+use hash_layout::{LayoutCtx, LayoutStore};
 use hash_pipeline::settings::CompilerSettings;
 use hash_target::layout::HasDataLayout;
 
@@ -20,6 +20,11 @@ pub trait HasCtxMethods<'b>: HasDataLayout {
 
     /// Returns a reference to the IR [IrCtx].
     fn ir_ctx(&self) -> &IrCtx;
+
+    /// Create a [LayoutCtx]
+    fn layout_ctx(&self) -> LayoutCtx<'_> {
+        LayoutCtx::new(self.layouts(), self.data_layout(), self.ir_ctx())
+    }
 
     /// Returns a reference to an IR type from the context.
     fn ty_info(&self, ty: IrTyId) -> &IrTy;

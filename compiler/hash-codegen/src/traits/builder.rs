@@ -13,8 +13,8 @@ use hash_target::{
 };
 
 use super::{
-    abi::AbiBuilderMethods, ctx::HasCtxMethods, debug::BuildDebugInfoMethods,
-    intrinsics::BuildIntrinsicCallMethods, target::HasTargetSpec, CodeGen,
+    abi::AbiBuilderMethods, debug::BuildDebugInfoMethods, intrinsics::BuildIntrinsicCallMethods,
+    target::HasTargetSpec, CodeGen,
 };
 use crate::{
     common::{CheckedOp, IntComparisonKind, MemFlags, RealComparisonKind},
@@ -357,15 +357,15 @@ pub trait BlockBuilderMethods<'b>:
 
     /// Convert a value to an immediate value of the given layout.
     fn to_immediate(&mut self, v: Self::Value, layout: LayoutId) -> Self::Value {
-        if let AbiRepresentation::Scalar { kind } = self.layout_info(layout).abi {
-            self.to_immediate_scalar(v, kind)
+        if let AbiRepresentation::Scalar(scalar) = self.layout_info(layout).abi {
+            self.to_immediate_scalar(v, scalar)
         } else {
             v
         }
     }
 
     /// Convert the given value to a [Scalar] value.
-    fn to_immediate_scalar(&mut self, v: Self::Value, kind: Scalar) -> Self::Value;
+    fn to_immediate_scalar(&mut self, v: Self::Value, scalar_kind: Scalar) -> Self::Value;
 
     /// Create a store operation on the stack to given type and [Alignment]
     /// specification, returning a reference to the data location.
@@ -472,7 +472,12 @@ pub trait BlockBuilderMethods<'b>:
     /// element pointer with the specified field index.
     ///
     /// Ref: <https://llvm.org/docs/LangRef.html#getelementptr-instruction>
-    fn structural_get_element_pointer(ty: Self::Type, ptr: Self::Value, index: u64) -> Self::Value;
+    fn structural_get_element_pointer(
+        &mut self,
+        ty: Self::Type,
+        ptr: Self::Value,
+        index: u64,
+    ) -> Self::Value;
 
     /// Emit an instruction for a `memcpy` operation.
     ///

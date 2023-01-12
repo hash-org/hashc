@@ -251,9 +251,17 @@ bitflags! {
         /// The memory slot is marked as a volatile region.
         const VOLATILE = 1 << 0;
 
-        /// This flag specifies to the LLVM Optimiser that the memory is
-        /// not expected to be re-used and thus should not be cached. This
-        /// is useful for things like atomic operations
+        /// This flag specifies to the code generation backend that
+        /// this data is not to be re-used and thus should not be cached.
+        /// This is useful for things like atomic operations.
+        ///
+        /// Extract from documentation:
+        /// ```text
+        /// The existence of the `!nontemporal` metadata on the instruction tells the
+        /// optimizer and code generator that this load is not expected to be reused
+        /// in the cache. The code generator may select special instructions to save
+        /// cache bandwidth, such as the `MOVNT` instruction on x86.
+        /// ```
         ///
         /// Ref: https://llvm.org/docs/LangRef.html#store-instruction
         const NON_TEMPORAL = 1 << 1;

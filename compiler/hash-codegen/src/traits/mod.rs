@@ -67,6 +67,19 @@ pub trait CodeGenMethods<'b>:
 {
 }
 
+// Dummy implementation for `CodeGenMethods` for any T that implements
+// those methods too.
+impl<'b, T> CodeGenMethods<'b> for T where
+    Self: Backend<'b>
+        + MiscBuilderMethods<'b>
+        + HasCtxMethods<'b>
+        + BuildTypeMethods<'b>
+        + BuildConstValueMethods<'b>
+        + BuildDebugInfoMethods
+        + HasTargetSpec
+{
+}
+
 pub trait CodeGen<'b>:
     Backend<'b> + std::ops::Deref<Target = <Self as CodeGen<'b>>::CodegenCtx>
 {

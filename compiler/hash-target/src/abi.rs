@@ -149,6 +149,8 @@ impl fmt::Debug for ValidScalarRange {
     }
 }
 
+/// The representation of a scalar-like value within an
+/// ABI, what type it is, and what its valid range is.
 #[derive(Clone, Copy, Debug)]
 pub struct Scalar {
     /// The kind of the scalar.
@@ -158,7 +160,7 @@ pub struct Scalar {
     /// to provide aditional information about values
     /// that might be encoded as scalars (for efficiency
     /// purposes), but are not actually scalars, e.g. `bool`s
-    /// will be encoded as [ScalarKind::Int{..}], and have
+    /// will be encoded as [`ScalarKind::Int`], and have
     /// a valid range of `0..1`.
     pub valid_range: ValidScalarRange,
 }
@@ -202,14 +204,23 @@ impl Scalar {
 
 /// This defined how values are being represented and are passed by target
 /// ABIs in the terms of c-type categories.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum AbiRepresentation {
     /// A value that is not represented in memory, but is instead passed
     /// by value. This is used for values that are smaller than a pointer.
     Uninhabited,
 
     /// A scalar value.
-    Scalar { kind: Scalar },
+    Scalar(Scalar),
+
+    /// A pair of two scalar values, this is useful to group
+    /// operations or types that produce a pair of values, i.e.
+    /// `str` is a pointer to char bytes and an associated length,
+    /// thus:
+    /// ```ignore
+    /// AbiRepresentation::Pair(<...bytes_scalar>..., ...<length_scalar>...)
+    /// ```
+    Pair(Scalar, Scalar),
 
     /// A vector value.
     Vector {
