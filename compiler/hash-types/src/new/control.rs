@@ -98,7 +98,7 @@ impl fmt::Display for WithEnv<'_, &LoopTerm> {
 
 impl fmt::Display for WithEnv<'_, &MatchTerm> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "match {{")?;
+        writeln!(f, "match {} {{", self.env().with(self.value.subject))?;
         for index in self.value.cases.to_index_range() {
             let pat = self.stores().pat_list().get_at_index(self.value.cases, index);
             let term = self.stores().term_list().get_at_index(self.value.decisions, index);
