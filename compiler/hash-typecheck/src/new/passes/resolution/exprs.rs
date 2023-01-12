@@ -307,7 +307,7 @@ impl<'tc> ResolutionPass<'tc> {
                             args: *data_def_args,
                         })))))
                     }
-                    NonTerminalResolvedPathComponent::Mod(_, _) => {
+                    NonTerminalResolvedPathComponent::Mod(_) => {
                         // Modules are not allowed in value positions
                         Err(TcError::CannotUseModuleInValuePosition {
                             location: self.source_location(original_node_span),
@@ -427,29 +427,28 @@ impl<'tc> ResolutionPass<'tc> {
         &self,
         node: AstNodeRef<ast::Declaration>,
     ) -> TcResult<TermId> {
+        self.scoping().register_declaration(node);
+
+        // Pattern
+        let pat = self.try_or_add_error(self.make_pat_from_ast_pat(node.pat.ast_ref()));
+
         // Inner expression:
         let value = node
             .value
             .as_ref()
-            .and_then(|v| self.try_or_add_error(self.make_term_from_ast_expr(v.ast_ref())));
+            .map(|v| self.try_or_add_error(self.make_term_from_ast_expr(v.ast_ref())));
 
         // Type annotation:
         let ty = node
             .ty
             .as_ref()
-            .and_then(|ty| self.try_or_add_error(self.make_ty_from_ast_ty(ty.ast_ref())))
-            .unwrap_or_else(|| self.new_ty_hole());
+            .map(|ty| self.try_or_add_error(self.make_ty_from_ast_ty(ty.ast_ref())))
+            .unwrap_or_else(|| Some(self.new_ty_hole()));
 
-        // Pattern
-        let pat = self.try_or_add_error(self.make_pat_from_ast_pat(node.pat.ast_ref()));
-
-        match pat {
-            Some(pat) => Ok(self.new_term(Term::DeclStackMember(DeclStackMemberTerm {
-                bind_pat: pat,
-                ty,
-                value,
-            }))),
-            None => {
+        match (pat, ty, value) {
+            (Some(pat), Some(ty), Some(value)) => Ok(self
+                .new_term(Term::DeclStackMember(DeclStackMemberTerm { bind_pat: pat, ty, value }))),
+            _ => {
                 // If pat had an error, then we can't make a term, and the
                 // error will have been added already.
                 Err(TcError::Signal)
@@ -701,7 +700,10 @@ impl<'tc> ResolutionPass<'tc> {
         let fn_def_id = self.ast_info().fn_defs().get_data_by_node(node_id).unwrap();
 
         // First resolve the parameters
-        let params = self.try_or_add_error(self.resolve_params_from_ast_params(params));
+        let params = self.try_or_add_error(self.resolve_params_from_ast_params(
+            params,
+            self.stores().fn_def().map_fast(fn_def_id, |fn_def| fn_def.ty.implicit),
+        ));
 
         // Modify the existing fn def for the params:
         if let Some(params) = params {

@@ -1,5 +1,5 @@
 //! AST visitor for the discovery pass.
-use std::iter::{empty, once};
+use std::iter::once;
 
 use hash_ast::{
     ast::{self, AstNodeRef},
@@ -38,6 +38,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         TyFnDef,
         BodyBlock,
         MergeDeclaration,
+        Expr,
         MatchCase
     );
 
@@ -53,7 +54,8 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
                 _ => None,
             };
             // Walk the node
-            self.name_hint.enter(name, || walk::walk_declaration(self, node))
+            self.name_hint.enter(name, || walk::walk_declaration(self, node))?;
+            Ok(name)
         };
 
         // Add the declaration to the current definition as appropriate
@@ -65,29 +67,34 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
                 }
                 DefId::Data(_) => {
                     panic_on_span!(
-                    self.node_location(node),
-                    self.source_map(),
-                    "found declaration in data definition scope, which should have been handled earlier"
-                )
+                        self.node_location(node),
+                        self.source_map(),
+                        "found declaration in data definition scope, which should have been handled earlier"
+                    )
                 }
                 DefId::Stack(stack_id) => {
-                    walk_with_name_hint()?;
-                    self.add_pat_node_binds_to_stack(node.pat.ast_ref(), stack_id)
+                    let name = walk_with_name_hint()?;
+                    self.add_pat_node_binds_to_stack(
+                        node.pat.ast_ref(),
+                        stack_id,
+                        name,
+                        node.value.as_ref(),
+                    );
                 }
                 DefId::Fn(_) => {
                     panic_on_span!(
-                    self.node_location(node),
-                    self.source_map(),
-                    "found declaration in function scope, which should instead be in a stack scope"
-                )
+                        self.node_location(node),
+                        self.source_map(),
+                        "found declaration in function scope, which should instead be in a stack scope"
+                    )
                 }
             },
             ItemId::FnTy(_) => {
                 panic_on_span!(
-                    self.node_location(node),
-                    self.source_map(),
-                    "found declaration in function type scope, which should instead be in a stack scope"
-                )
+                        self.node_location(node),
+                        self.source_map(),
+                        "found declaration in function type scope, which should instead be in a stack scope"
+                    )
             }
         };
 
@@ -99,24 +106,13 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         &self,
         node: AstNodeRef<ast::MatchCase>,
     ) -> Result<Self::MatchCaseRet, Self::Error> {
-        match self.get_current_item() {
-            ItemId::Def(DefId::Stack(_)) => {
-                // A match case creates its own stack scope.
-                let stack_id = self.stack_ops().create_stack();
-                self.enter_def(node, stack_id, || {
-                    self.add_pat_node_binds_to_stack(node.pat.ast_ref(), stack_id);
-                    walk::walk_match_case(self, node)
-                })?;
-                Ok(())
-            }
-            _ => {
-                panic_on_span!(
-                    self.node_location(node),
-                    self.source_map(),
-                    "found match in non-stack scope"
-                )
-            }
-        }
+        // A match case creates its own stack scope.
+        let stack_id = self.stack_ops().create_stack();
+        self.enter_def(node, stack_id, || {
+            self.add_pat_node_binds_to_stack(node.pat.ast_ref(), stack_id, None, Some(&node.expr));
+            walk::walk_match_case(self, node)
+        })?;
+        Ok(())
     }
 
     type ModuleRet = ();
@@ -131,10 +127,8 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         // @@Future: context
         let mod_def_id = self.mod_ops().create_mod_def(ModDefData {
             name: self.new_symbol(module_name),
-            params: self.create_hole_def_params(empty()),
             kind: ModKind::Source(source_id),
             members: self.mod_ops().create_empty_mod_members(),
-            self_ty_name: None,
         });
 
         // Traverse the module
@@ -151,15 +145,13 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         // Get the mod block name from the name hint.
         let mod_block_name = self.take_name_hint_or_create_internal_name();
 
+        // @@Todo: error if the mod block has generics
+
         // Create a mod block definition, with empty members for now.
         let mod_def_id = self.mod_ops().create_mod_def(ModDefData {
             name: mod_block_name,
-            params: self.create_hole_def_params(
-                node.ty_params.first().iter().map(|_| (true, &node.ty_params)),
-            ),
             kind: ModKind::ModBlock,
             members: self.mod_ops().create_empty_mod_members(),
-            self_ty_name: None,
         });
 
         // Traverse the mod block
@@ -329,7 +321,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
             implicit: false,
             is_unsafe: false,
             params: self.create_hole_params_from(&node.params, |params| &params.name),
-            pure: true,
+            pure: false,
             return_ty: self.new_ty_hole(),
         });
 
@@ -358,6 +350,27 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         // Merge declarations are not yet supported
         self.diagnostics()
             .add_error(TcError::TraitsNotSupported { trait_location: self.node_location(node) });
+        Ok(())
+    }
+
+    type ExprRet = ();
+    fn visit_expr(&self, node: AstNodeRef<ast::Expr>) -> Result<Self::ExprRet, Self::Error> {
+        match node.body {
+            ast::Expr::StructDef(_)
+            | ast::Expr::EnumDef(_)
+            | ast::Expr::TyFnDef(_)
+            | ast::Expr::TraitDef(_)
+            | ast::Expr::ImplDef(_)
+            | ast::Expr::ModDef(_)
+            | ast::Expr::FnDef(_)
+            | ast::Expr::TraitImpl(_)
+            | ast::Expr::Directive(_) => {} // These accept a name hint
+            _ => {
+                // Everything else should not have a name hint
+                self.name_hint.take();
+            }
+        }
+        walk::walk_expr(self, node)?;
         Ok(())
     }
 }

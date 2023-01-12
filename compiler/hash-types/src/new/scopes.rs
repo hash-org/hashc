@@ -12,7 +12,11 @@ use hash_utils::{
 use textwrap::indent;
 use utility_types::omit;
 
-use super::environment::env::{AccessToEnv, WithEnv};
+use super::{
+    environment::env::{AccessToEnv, WithEnv},
+    pats::Pat,
+    terms::Term,
+};
 use crate::new::{
     pats::PatId,
     symbols::Symbol,
@@ -97,15 +101,35 @@ impl fmt::Display for WithEnv<'_, &BindingPat> {
 
 impl fmt::Display for WithEnv<'_, &DeclStackMemberTerm> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let value = match self.value.value {
+            Some(term_id) => self.stores().pat().map_fast(self.value.bind_pat, |pat| match pat {
+                Pat::Binding(binding_pat) => {
+                    self.stores().term().map_fast(term_id, |term| {
+                        match term {
+                            // If a function is being declared, print the body, otherwise just its
+                            // name.
+                            Term::FnRef(fn_def_id)
+                                if self.stores().fn_def().map_fast(*fn_def_id, |fn_def| {
+                                    fn_def.name == binding_pat.name
+                                }) =>
+                            {
+                                self.env().with(*fn_def_id).to_string()
+                            }
+                            _ => self.env().with(term_id).to_string(),
+                        }
+                    })
+                }
+                _ => self.env().with(term_id).to_string(),
+            }),
+            None => "{uninitialised}".to_string(),
+        };
+
         write!(
             f,
             "{}: {} = {}",
             self.env().with(self.value.bind_pat),
             self.env().with(self.value.ty),
-            self.value
-                .value
-                .map(|val| self.env().with(val).to_string())
-                .unwrap_or_else(|| "{uninitialised}".to_string()),
+            value,
         )
     }
 }

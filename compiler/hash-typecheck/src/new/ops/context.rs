@@ -127,11 +127,6 @@ impl<'env> ContextOps<'env> {
             }
             ScopeKind::Mod(mod_def_id) => {
                 self.stores().mod_def().map_fast(mod_def_id, |mod_def| {
-                    // Add all the parameters
-                    self.add_def_params_to_context(mod_def.params, |def_param_index| {
-                        BoundVarOrigin::Mod(mod_def_id, def_param_index)
-                    });
-
                     // Add all the module bindings
                     self.stores().mod_members().map_fast(mod_def.members, |members| {
                         for member in members.iter() {

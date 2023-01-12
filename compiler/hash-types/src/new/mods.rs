@@ -15,7 +15,7 @@ use super::{
     environment::env::{AccessToEnv, WithEnv},
     fns::FnDefId,
 };
-use crate::new::{defs::DefParamsId, symbols::Symbol};
+use crate::new::symbols::Symbol;
 
 // @@Todo: examples
 
@@ -131,19 +131,19 @@ pub struct ModDef {
 
     /// The name of the module.
     pub name: Symbol,
-
-    /// The parameters of the module, if any.
-    pub params: DefParamsId,
-
     /// The kind is parametrised over `params`.
     pub kind: ModKind,
 
     /// The members of the module.
     pub members: ModMembersId,
+    // @@Future:
+    // /// The name of the "Self" type in the scope of the trait definition, if
+    // /// present.
+    // pub self_ty_name: Option<Symbol>,
 
-    /// The name of the "Self" type in the scope of the trait definition, if
-    /// present.
-    pub self_ty_name: Option<Symbol>,
+    // @@Future:
+    // /// The parameters of the module, if any.
+    // pub params: DefParamsId,
 }
 
 new_store_key!(pub ModDefId);
@@ -157,9 +157,8 @@ impl Display for WithEnv<'_, &ModDef> {
             ModKind::ModBlock => {
                 write!(
                     f,
-                    "mod [name={}, type=block] {} {{\n{}}}",
+                    "mod [name={}, type=block] {{\n{}}}",
                     self.env().with(self.value.name),
-                    self.env().with(self.value.params),
                     indent(&members, "  ")
                 )
             }
@@ -167,18 +166,16 @@ impl Display for WithEnv<'_, &ModDef> {
                 let source_name = self.env().source_map().source_name(source_id);
                 write!(
                     f,
-                    "mod [name={}, type=file, src=\"{source_name}\"] {} {{\n{}}}",
+                    "mod [name={}, type=file, src=\"{source_name}\"] {{\n{}}}",
                     self.env().with(self.value.name),
-                    self.env().with(self.value.params),
                     indent(&members, "  ")
                 )
             }
             ModKind::Transparent => {
                 write!(
                     f,
-                    "mod [name={}, type=transparent] {} {{\n{}}}",
+                    "mod [name={}, type=transparent] {{\n{}}}",
                     self.env().with(self.value.name),
-                    self.env().with(self.value.params),
                     indent(&members, "  ")
                 )
             }

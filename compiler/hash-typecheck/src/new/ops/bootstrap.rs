@@ -69,6 +69,8 @@ defined_primitives! {
     i16: DataDefId,
     i32: DataDefId,
     i64: DataDefId,
+    usize: DataDefId,
+    isize: DataDefId,
     f32: DataDefId,
     f64: DataDefId,
     str: DataDefId,
@@ -99,10 +101,8 @@ impl<'tc> BootstrapOps<'tc> {
     pub fn make_primitive_mod(&self, primitives: &DefinedPrimitives) -> ModDefId {
         self.mod_ops().create_mod_def(ModDefData {
             name: self.new_symbol("Primitives"),
-            params: self.new_empty_def_params(),
             kind: ModKind::Transparent,
             members: self.mod_ops().create_mod_members(self.make_primitive_mod_members(primitives)),
-            self_ty_name: None,
         })
     }
 
@@ -144,10 +144,12 @@ impl<'tc> BootstrapOps<'tc> {
             i16: numeric("i16", 16, true, false),
             i32: numeric("i32", 32, true, false),
             i64: numeric("i64", 64, true, false),
+            isize: numeric("isize", 64, true, false),
             u8: numeric("u8", 8, false, false),
             u16: numeric("u16", 16, false, false),
             u32: numeric("u32", 32, false, false),
             u64: numeric("u64", 64, false, false),
+            usize: numeric("usize", 64, false, false),
             f32: numeric("f32", 32, false, true),
             f64: numeric("f64", 64, false, true),
 

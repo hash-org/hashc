@@ -15,6 +15,7 @@ use crate::new::{
     scopes::{StackId, StackMemberId},
     symbols::Symbol,
     tys::TyId,
+    utils::common::CommonUtils,
 };
 /// The kind of a binding.
 #[derive(Debug, Clone, Copy)]
@@ -36,10 +37,11 @@ pub enum BindingKind {
 /// All the different places a bound variable can originate from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BoundVarOrigin {
-    /// Module parameter.
-    ///
-    /// For example, `T` in `mod <T> { x: (t: T) -> void }`
-    Mod(ModDefId, DefParamIndex),
+    // @@Future:
+    // /// Module parameter.
+    // ///
+    // /// For example, `T` in `mod <T> { x: (t: T) -> void }`
+    // Mod(ModDefId, DefParamIndex),
     /// Function parameter.
     ///
     /// For example, `x` in `(x: i32) => x`
@@ -99,7 +101,7 @@ pub enum ScopeKind {
 #[derive(Debug, Clone, Default)]
 pub struct Context {
     scope_levels: RefCell<Vec<usize>>,
-    members: RefCell<IndexMap<Symbol, Binding>>,
+    members: RefCell<IndexMap<Symbol, BindingKind>>,
     scope_kinds: RefCell<Vec<ScopeKind>>,
 }
 
@@ -161,12 +163,12 @@ impl Context {
 
     /// Add a new binding to the current scope context.
     pub fn add_binding(&self, binding: Binding) {
-        self.members.borrow_mut().insert(binding.name, binding);
+        self.members.borrow_mut().insert(binding.name, binding.kind);
     }
 
     /// Get a binding from the context, reading all accessible scopes.
     pub fn get_binding(&self, name: Symbol) -> Option<Binding> {
-        self.members.borrow().get(&name).copied()
+        Some(Binding { name, kind: self.members.borrow().get(&name).copied()? })
     }
 
     /// Get the kind of the current scope.
@@ -206,14 +208,14 @@ impl Context {
         let current_level_member_index = scope_levels[level];
         let next_level_member_index =
             scope_levels.get(level + 1).copied().unwrap_or(self.members.borrow().len());
-        for (_, binding) in self
+        for (&name, &kind) in self
             .members
             .borrow()
             .iter()
             .skip(current_level_member_index)
             .take(next_level_member_index - current_level_member_index)
         {
-            f(binding)?
+            f(&Binding { name, kind })?
         }
         Ok(())
     }
@@ -237,16 +239,10 @@ impl Context {
 impl fmt::Display for WithEnv<'_, &BoundVarOrigin> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.value {
-            BoundVarOrigin::Mod(mod_def_id, param_index) => {
-                let def_params_id =
-                    self.stores().mod_def().map_fast(*mod_def_id, |mod_def| mod_def.params);
-                let param = self.utils().get_def_param_by_index(def_params_id, *param_index);
-                write!(f, "{}", self.env().with(&param))
-            }
             BoundVarOrigin::Data(data_def_id, param_index) => {
                 let def_params_id =
                     self.stores().data_def().map_fast(*data_def_id, |mod_def| mod_def.params);
-                let param = self.utils().get_def_param_by_index(def_params_id, *param_index);
+                let param = self.get_def_param_by_index(def_params_id, *param_index);
                 write!(f, "{}", self.env().with(&param))
             }
             BoundVarOrigin::FnTy(_fn_ty_id, _param_index) => {

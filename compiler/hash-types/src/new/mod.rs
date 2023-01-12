@@ -10,6 +10,7 @@ pub mod defs;
 pub mod environment;
 pub mod fns;
 pub mod holes;
+pub mod intrinsics;
 pub mod lits;
 pub mod locations;
 pub mod mods;

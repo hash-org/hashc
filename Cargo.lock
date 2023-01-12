@@ -541,6 +541,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "hash-intrinsics"
+version = "0.1.0"
+dependencies = [
+ "derive_more",
+ "hash-ast",
+ "hash-source",
+ "hash-target",
+ "hash-types",
+ "hash-utils",
+]
+
+[[package]]
 name = "hash-ir"
 version = "0.1.0"
 dependencies = [

@@ -88,8 +88,8 @@ impl AstPathComponent<'_> {
 pub enum NonTerminalResolvedPathComponent {
     /// A data definition with some arguments.
     Data(DataDefId, DefArgsId),
-    /// A module definition with some arguments.
-    Mod(ModDefId, DefArgsId),
+    /// A module definition.
+    Mod(ModDefId),
 }
 
 /// Each non-terminal resolved path component is a module member.
@@ -99,7 +99,7 @@ impl From<NonTerminalResolvedPathComponent> for ModMemberValue {
             NonTerminalResolvedPathComponent::Data(data_def_id, _) => {
                 ModMemberValue::Data(data_def_id)
             }
-            NonTerminalResolvedPathComponent::Mod(mod_def_id, _) => ModMemberValue::Mod(mod_def_id),
+            NonTerminalResolvedPathComponent::Mod(mod_def_id) => ModMemberValue::Mod(mod_def_id),
         }
     }
 }
@@ -154,14 +154,14 @@ impl<'tc> ResolutionPass<'tc> {
         match starting_from {
             Some((member_value, _span)) => match member_value {
                 // If we are starting from a module or data type, we need to enter their scopes.
-                NonTerminalResolvedPathComponent::Data(data_def_id, _) => {
+                NonTerminalResolvedPathComponent::Data(data_def_id, _def_args_id) => {
                     self.scoping().enter_scope(
                         ScopeKind::Data(data_def_id),
                         ContextKind::Access(member_value, data_def_id.into()),
                         || self.resolve_ast_name(name, name_span, None),
                     )
                 }
-                NonTerminalResolvedPathComponent::Mod(mod_def_id, _) => self.scoping().enter_scope(
+                NonTerminalResolvedPathComponent::Mod(mod_def_id) => self.scoping().enter_scope(
                     ScopeKind::Mod(mod_def_id),
                     ContextKind::Access(member_value, mod_def_id.into()),
                     || self.resolve_ast_name(name, name_span, None),
@@ -199,8 +199,8 @@ impl<'tc> ResolutionPass<'tc> {
                     ModMemberValue::Data(data_def_id) => {
                         let data_def_params =
                             self.stores().data_def().map_fast(data_def_id, |def| def.params);
-                        let args =
-                            self.apply_ast_args_to_def_params(data_def_params, &component.args)?;
+                        let args = self
+                            .make_def_args_from_ast_arg_groups(&component.args, data_def_params)?;
 
                         match args {
                             ResolvedDefArgs::Term(args) => {
@@ -215,25 +215,9 @@ impl<'tc> ResolutionPass<'tc> {
                             }
                         }
                     }
-                    ModMemberValue::Mod(mod_def_id) => {
-                        let mod_def_params =
-                            self.stores().mod_def().map_fast(mod_def_id, |def| def.params);
-                        let args =
-                            self.apply_ast_args_to_def_params(mod_def_params, &component.args)?;
-
-                        match args {
-                            ResolvedDefArgs::Term(args) => {
-                                Ok(ResolvedAstPathComponent::NonTerminal(
-                                    NonTerminalResolvedPathComponent::Mod(mod_def_id, args),
-                                ))
-                            }
-                            ResolvedDefArgs::Pat(_) => {
-                                Err(TcError::CannotUseModuleInPatternPosition {
-                                    location: self.source_location(component.name_span),
-                                })
-                            }
-                        }
-                    }
+                    ModMemberValue::Mod(mod_def_id) => Ok(ResolvedAstPathComponent::NonTerminal(
+                        NonTerminalResolvedPathComponent::Mod(mod_def_id),
+                    )),
                     ModMemberValue::Fn(fn_def_id) => match &component.args[..] {
                         [] => Ok(ResolvedAstPathComponent::Terminal(
                             TerminalResolvedPathComponent::FnDef(fn_def_id),
@@ -251,21 +235,42 @@ impl<'tc> ResolutionPass<'tc> {
                     },
                 }
             }
-            BindingKind::Ctor(_, ctor_def_id) => {
+            BindingKind::Ctor(data_def_id, ctor_def_id) => {
                 let ctor_def = self.stores().ctor_defs().get_element(ctor_def_id);
                 let applied_args =
-                    self.apply_ast_args_to_def_params(ctor_def.params, &component.args)?;
+                    self.make_def_args_from_ast_arg_groups(&component.args, ctor_def.params)?;
 
-                match applied_args {
-                    ResolvedDefArgs::Term(args) => Ok(ResolvedAstPathComponent::Terminal(
-                        TerminalResolvedPathComponent::CtorTerm(CtorTerm {
-                            ctor: ctor_def_id,
-                            args,
-                        }),
-                    )),
-                    ResolvedDefArgs::Pat(args) => Ok(ResolvedAstPathComponent::Terminal(
-                        TerminalResolvedPathComponent::CtorPat(CtorPat { ctor: ctor_def_id, args }),
-                    )),
+                match starting_from {
+                    Some((starting_from, _)) => match starting_from {
+                        NonTerminalResolvedPathComponent::Data(
+                            starting_from_data_def_id,
+                            data_args,
+                        ) => {
+                            assert!(starting_from_data_def_id == data_def_id);
+                            match applied_args {
+                                ResolvedDefArgs::Term(ctor_args) => {
+                                    Ok(ResolvedAstPathComponent::Terminal(
+                                        TerminalResolvedPathComponent::CtorTerm(CtorTerm {
+                                            ctor: ctor_def_id,
+                                            ctor_args,
+                                            data_args,
+                                        }),
+                                    ))
+                                }
+                                ResolvedDefArgs::Pat(ctor_pat_args) => {
+                                    Ok(ResolvedAstPathComponent::Terminal(
+                                        TerminalResolvedPathComponent::CtorPat(CtorPat {
+                                            ctor: ctor_def_id,
+                                            ctor_pat_args,
+                                            data_args,
+                                        }),
+                                    ))
+                                }
+                            }
+                        }
+                        NonTerminalResolvedPathComponent::Mod(_) => unreachable!(), /* Can never have a constructor starting from a module */
+                    },
+                    None => todo!(),
                 }
             }
             BindingKind::BoundVar(bound_var) => {
@@ -314,12 +319,12 @@ impl<'tc> ResolutionPass<'tc> {
                             )),
                         )?;
                     }
-                    NonTerminalResolvedPathComponent::Mod(mod_def_id, args) => {
+                    NonTerminalResolvedPathComponent::Mod(mod_def_id) => {
                         // Namespace further if it is a mod member.
                         resolved_path = self.resolve_ast_path_component(
                             component,
                             Some((
-                                NonTerminalResolvedPathComponent::Mod(mod_def_id, args),
+                                NonTerminalResolvedPathComponent::Mod(mod_def_id),
                                 component.span(),
                             )),
                         )?;

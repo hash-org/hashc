@@ -8,6 +8,7 @@ use hash_types::new::{
     environment::env::AccessToEnv,
     mods::{ModDefId, ModMemberData, ModMemberValue},
     scopes::{StackId, StackMemberData},
+    symbols::Symbol,
     tys::TyId,
 };
 use hash_utils::{
@@ -419,6 +420,8 @@ impl<'tc> DiscoveryPass<'tc> {
         &self,
         node: AstNodeRef<ast::Pat>,
         stack_id: StackId,
+        declaration_name: Option<Symbol>,
+        rhs: Option<&ast::AstNode<ast::Expr>>,
     ) {
         self.def_state().stack_members.modify_fast(stack_id, |members| {
             let members = match members {
@@ -430,7 +433,27 @@ impl<'tc> DiscoveryPass<'tc> {
 
             // Add each stack member to the stack_members vector
             let mut found_members = smallvec![];
-            self.add_stack_members_in_pat_to_buf(node, &mut found_members);
+            match (declaration_name, node.body()) {
+                (Some(declaration_name), ast::Pat::Binding(binding_pat))
+                    if self
+                        .stores()
+                        .symbol()
+                        .map_fast(declaration_name, |sym| Some(binding_pat.name.ident == sym.name?))
+                        .contains(&true) =>
+                {
+                    found_members.push((
+                        node.id(),
+                        StackMemberData {
+                            name: declaration_name,
+                            is_mutable: binding_pat.mutability.as_ref().map(|m| *m.body())
+                                == Some(ast::Mutability::Mutable),
+                            ty: self.new_ty_hole(),
+                            value: rhs.as_ref().map(|_| self.new_term_hole()),
+                        },
+                    ))
+                }
+                _ => self.add_stack_members_in_pat_to_buf(node, &mut found_members),
+            }
             for (node_id, stack_member) in found_members {
                 members.push((node_id, stack_member));
             }

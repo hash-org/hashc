@@ -22,10 +22,8 @@ impl<'tc> ModOps<'tc> {
         self.stores().mod_def().create_with(|id| ModDef {
             id,
             name: data.name,
-            params: data.params,
             kind: data.kind,
             members: data.members,
-            self_ty_name: data.self_ty_name,
         })
     }
 

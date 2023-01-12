@@ -59,7 +59,7 @@ impl<'tc> ResolutionPass<'tc> {
                     // Type parameters
                     if self
                         .try_or_add_error(
-                            self.resolve_params_from_ast_params(&struct_def.ty_params),
+                            self.resolve_params_from_ast_params(&struct_def.ty_params, true),
                         )
                         .is_none()
                     {
@@ -68,7 +68,9 @@ impl<'tc> ResolutionPass<'tc> {
 
                     // Struct fields
                     if self
-                        .try_or_add_error(self.resolve_params_from_ast_params(&struct_def.fields))
+                        .try_or_add_error(
+                            self.resolve_params_from_ast_params(&struct_def.fields, false),
+                        )
                         .is_none()
                     {
                         found_error = true;
@@ -77,7 +79,9 @@ impl<'tc> ResolutionPass<'tc> {
                 ast::Expr::EnumDef(enum_def) => {
                     // Type parameters
                     if self
-                        .try_or_add_error(self.resolve_params_from_ast_params(&enum_def.ty_params))
+                        .try_or_add_error(
+                            self.resolve_params_from_ast_params(&enum_def.ty_params, true),
+                        )
                         .is_none()
                     {
                         found_error = true;
@@ -85,7 +89,9 @@ impl<'tc> ResolutionPass<'tc> {
                     for variant in enum_def.entries.ast_ref_iter() {
                         // Variant fields
                         if self
-                            .try_or_add_error(self.resolve_params_from_ast_params(&variant.fields))
+                            .try_or_add_error(
+                                self.resolve_params_from_ast_params(&variant.fields, false),
+                            )
                             .is_none()
                         {
                             found_error = true;

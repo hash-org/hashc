@@ -6,7 +6,7 @@ use std::fmt::Debug;
 use derive_more::From;
 use hash_utils::{
     new_sequence_store_key, new_store_key,
-    store::{CloneStore, DefaultSequenceStore, DefaultStore, SequenceStore},
+    store::{CloneStore, DefaultSequenceStore, DefaultStore, SequenceStore, Store},
 };
 
 use super::{
@@ -134,7 +134,17 @@ impl fmt::Display for WithEnv<'_, &Term> {
             Term::Prim(lit_term) => write!(f, "{}", self.env().with(lit_term)),
             Term::Ctor(ctor_term) => write!(f, "{}", self.env().with(ctor_term)),
             Term::FnCall(fn_call_term) => write!(f, "{}", self.env().with(fn_call_term)),
-            Term::FnRef(closure_term) => write!(f, "{}", self.env().with(*closure_term)),
+            Term::FnRef(fn_def_id) => write!(
+                f,
+                "{}",
+                self.stores().fn_def().map_fast(*fn_def_id, |fn_def| {
+                    if self.stores().symbol().map_fast(fn_def.name, |sym| sym.name).is_none() {
+                        self.env().with(*fn_def_id).to_string()
+                    } else {
+                        self.env().with(fn_def.name).to_string()
+                    }
+                })
+            ),
             Term::Block(block_term) => write!(f, "{}", self.env().with(block_term)),
             Term::Var(resolved_var) => write!(f, "{}", self.env().with(*resolved_var)),
             Term::Loop(loop_term) => write!(f, "{}", self.env().with(loop_term)),

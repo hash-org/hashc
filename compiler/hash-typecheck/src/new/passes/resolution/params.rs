@@ -69,11 +69,16 @@ pub enum ResolvedArgs {
 
 impl ResolvedArgs {
     /// Get the number of arguments.
-    fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         match self {
             ResolvedArgs::Term(args) => args.len(),
             ResolvedArgs::Pat(args, _) => args.len(),
         }
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }
 
@@ -139,11 +144,14 @@ impl<'tc> ResolutionPass<'tc> {
     pub(super) fn _resolve_def_params_from_ast_param_groups<'a>(
         &self,
         ast_def_params: impl Iterator<Item = &'a ast::AstNodes<ast::Param>>,
+        implicit: bool,
     ) -> TcResult<()> {
         let mut found_error = false;
         for ast_def_param_group in ast_def_params {
             if self
-                .try_or_add_error(self.resolve_params_from_ast_params(ast_def_param_group))
+                .try_or_add_error(
+                    self.resolve_params_from_ast_params(ast_def_param_group, implicit),
+                )
                 .is_none()
             {
                 found_error = true;
@@ -162,7 +170,11 @@ impl<'tc> ResolutionPass<'tc> {
     /// discovery, and is set in the AST info store. It gets the existing
     /// parameter definition and enriches it with the resolved type and
     /// default value.
-    fn resolve_param_from_ast_param(&self, ast_param: AstNodeRef<ast::Param>) -> TcResult<ParamId> {
+    fn resolve_param_from_ast_param(
+        &self,
+        ast_param: AstNodeRef<ast::Param>,
+        implicit: bool,
+    ) -> TcResult<ParamId> {
         // Resolve the default value and type annotation:
         let default_value = self.try_or_add_error(
             ast_param
@@ -172,7 +184,19 @@ impl<'tc> ResolutionPass<'tc> {
                 .transpose(),
         );
         let resolved_ty = self.try_or_add_error(
-            ast_param.ty.as_ref().map(|ty| self.make_ty_from_ast_ty(ty.ast_ref())).transpose(),
+            ast_param
+                .ty
+                .as_ref()
+                .map(|ty| self.make_ty_from_ast_ty(ty.ast_ref()))
+                .or_else(|| {
+                    if implicit {
+                        // Default as "Type"
+                        Some(Ok(self.new_small_universe_ty()))
+                    } else {
+                        None
+                    }
+                })
+                .transpose(),
         );
 
         // Get the existing param id from the AST info store:
@@ -201,12 +225,14 @@ impl<'tc> ResolutionPass<'tc> {
     pub(super) fn resolve_params_from_ast_params(
         &self,
         params: &ast::AstNodes<ast::Param>,
+        implicit: bool,
     ) -> TcResult<ParamsId> {
         let mut found_error = false;
         let mut params_id: Option<ParamsId> = None;
 
         for ast_param in params.ast_ref_iter() {
-            let param_id = self.try_or_add_error(self.resolve_param_from_ast_param(ast_param));
+            let param_id =
+                self.try_or_add_error(self.resolve_param_from_ast_param(ast_param, implicit));
             match param_id {
                 Some(param_id) => {
                     // Remember the params ID to return at the end
@@ -391,62 +417,5 @@ impl<'tc> ResolutionPass<'tc> {
             Term::FnCall(call) => Ok(call),
             _ => unreachable!(),
         }
-    }
-
-    /// Apply the given list of AST arguments to the given definition
-    /// parameters, checking that the lengths match in the process.
-    ///
-    /// If successful, returns the [`DefArgsId`] that represents the arguments.
-    ///
-    /// Otherwise, returns an error.
-    pub(super) fn apply_ast_args_to_def_params(
-        &self,
-        def_params: DefParamsId,
-        args: &[AstArgGroup],
-    ) -> TcResult<ResolvedDefArgs> {
-        // @@Todo: implicit args
-        // @@Todo: default params
-
-        // First ensure that the number of parameter and argument groups match.
-        let created_def_args = self.make_def_args_from_ast_arg_groups(args, def_params)?;
-        if def_params.len() != created_def_args.len() {
-            return Err(TcError::WrongDefArgLength {
-                def_params_id: def_params,
-                def_args_id: created_def_args.into(),
-            });
-        }
-
-        // Then ensure that the number of parameters and arguments in each group
-        // match.
-        let mut errors: Vec<TcError> = vec![];
-        for (param_group_index, arg_group_index) in
-            def_params.to_index_range().zip(created_def_args.to_index_range())
-        {
-            let def_param_group =
-                self.stores().def_params().get_element((def_params, param_group_index));
-
-            let def_arg_group = match created_def_args {
-                ResolvedDefArgs::Term(args) => ResolvedArgs::Term(
-                    self.stores().def_args().get_element((args, arg_group_index)).args,
-                ),
-                ResolvedDefArgs::Pat(args) => {
-                    let element = self.stores().def_pat_args().get_element((args, arg_group_index));
-                    ResolvedArgs::Pat(element.pat_args, element.spread)
-                }
-            };
-
-            if def_param_group.params.len() != def_arg_group.len() {
-                // Collect errors and only report at the end.
-                errors.push(TcError::WrongArgLength {
-                    params_id: def_param_group.params,
-                    args_id: def_arg_group.into(),
-                });
-            }
-        }
-        if !errors.is_empty() {
-            return Err(TcError::Compound { errors });
-        }
-
-        Ok(created_def_args)
     }
 }
