@@ -8,6 +8,7 @@ use textwrap::indent;
 use super::{
     environment::env::{AccessToEnv, WithEnv},
     pats::{PatId, PatListId},
+    utils::common::CommonUtils,
 };
 use crate::new::{
     scopes::BlockTerm,
@@ -112,7 +113,7 @@ impl fmt::Display for WithEnv<'_, &MatchTerm> {
 
 impl fmt::Display for WithEnv<'_, &ReturnTerm> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.utils().term_is_void(self.value.expression) {
+        if self.term_is_void(self.value.expression) {
             write!(f, "return")
         } else {
             write!(f, "return {}", self.env().with(self.value.expression))

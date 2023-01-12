@@ -1,6 +1,5 @@
 //! Definitions related to functions.
 
-use core::fmt;
 use std::fmt::Display;
 
 use hash_utils::{
@@ -9,7 +8,10 @@ use hash_utils::{
 };
 use utility_types::omit;
 
-use super::environment::env::{AccessToEnv, Env, WithEnv};
+use super::{
+    environment::env::{AccessToEnv, WithEnv},
+    intrinsics::IntrinsicId,
+};
 use crate::new::{args::ArgsId, params::ParamsId, symbols::Symbol, terms::TermId, tys::TyId};
 
 /// A function type.
@@ -46,26 +48,6 @@ pub struct FnTy {
     ///
     /// This might depend on `params` and `conditions`.
     pub return_ty: TyId,
-}
-
-/// Intrinsics live in a store.
-///
-/// Each intrinsic is essentially a function pointer that takes some arguments
-#[derive(Clone, Copy)]
-pub struct Intrinsic {
-    pub name: Symbol,
-    pub fn_def: FnDefId,
-    pub call: fn(&Env, ArgsId) -> TermId,
-}
-new_store_key!(pub IntrinsicId);
-pub type IntrinsicStore = DefaultStore<IntrinsicId, Intrinsic>;
-
-// Debug for intrinsics needs to be explicit to omit `call`, otherwise rust
-// complains.
-impl fmt::Debug for Intrinsic {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Intrinsic").field("name", &self.name).finish()
-    }
 }
 
 /// A function body.
@@ -161,20 +143,6 @@ impl Display for WithEnv<'_, &FnTy> {
         write!(f, " -> {}", self.env().with(self.value.return_ty))?;
 
         Ok(())
-    }
-}
-
-impl Display for WithEnv<'_, &Intrinsic> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "intrinsic {}", self.env().with(self.value.name))
-    }
-}
-
-impl Display for WithEnv<'_, IntrinsicId> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.stores()
-            .intrinsic()
-            .map_fast(self.value, |intrinsic| write!(f, "{}", self.env().with(intrinsic)))
     }
 }
 

@@ -14,7 +14,7 @@ use super::super::{
     terms::{TermListStore, TermStore},
     tys::TyStore,
 };
-use crate::new::fns::IntrinsicStore;
+use crate::new::intrinsics::IntrinsicStore;
 
 /// This macro creates the `Stores` struct, as well as accompanying creation and
 /// access methods, for the given sequence of stores.

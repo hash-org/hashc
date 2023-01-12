@@ -15,6 +15,7 @@ use crate::new::{
     scopes::{StackId, StackMemberId},
     symbols::Symbol,
     tys::TyId,
+    utils::common::CommonUtils,
 };
 /// The kind of a binding.
 #[derive(Debug, Clone, Copy)]
@@ -240,13 +241,13 @@ impl fmt::Display for WithEnv<'_, &BoundVarOrigin> {
             BoundVarOrigin::Mod(mod_def_id, param_index) => {
                 let def_params_id =
                     self.stores().mod_def().map_fast(*mod_def_id, |mod_def| mod_def.params);
-                let param = self.utils().get_def_param_by_index(def_params_id, *param_index);
+                let param = self.get_def_param_by_index(def_params_id, *param_index);
                 write!(f, "{}", self.env().with(&param))
             }
             BoundVarOrigin::Data(data_def_id, param_index) => {
                 let def_params_id =
                     self.stores().data_def().map_fast(*data_def_id, |mod_def| mod_def.params);
-                let param = self.utils().get_def_param_by_index(def_params_id, *param_index);
+                let param = self.get_def_param_by_index(def_params_id, *param_index);
                 write!(f, "{}", self.env().with(&param))
             }
             BoundVarOrigin::FnTy(_fn_ty_id, _param_index) => {

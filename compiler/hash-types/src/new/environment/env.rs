@@ -2,10 +2,7 @@ use hash_ast::node_map::NodeMap;
 use hash_source::SourceMap;
 
 use super::source_info::CurrentSourceInfo;
-use crate::new::{
-    environment::{context::Context, stores::Stores},
-    utils::common::CommonUtils,
-};
+use crate::new::environment::{context::Context, stores::Stores};
 
 macro_rules! env {
     ($($name:ident: $ty:ty),* $(,)?) => {
@@ -31,10 +28,6 @@ macro_rules! env {
                     &self.env().$name
                 }
             )*
-
-            fn utils(&self) -> CommonUtils {
-                CommonUtils::new(self.env())
-            }
         }
 
         impl<'tc> Env<'tc> {
