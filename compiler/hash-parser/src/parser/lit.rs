@@ -148,6 +148,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     self.offset.set(offset);
                     None
                 }
+                Some(Token { kind: TokenKind::Colon, .. })
+                    if self.peek_second().map_or(false, |t| t.has_kind(TokenKind::Colon)) =>
+                {
+                    self.offset.set(offset);
+                    None
+                }
                 Some(Token { kind, .. }) if !matches!(kind, TokenKind::Colon | TokenKind::Eq) => {
                     self.offset.set(offset);
                     None

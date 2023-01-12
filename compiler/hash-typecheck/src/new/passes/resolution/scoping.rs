@@ -49,7 +49,7 @@ impl fmt::Display for WithTcEnv<'_, &ContextKind> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.value {
             ContextKind::Access(non_terminal, _loc) => {
-                write!(f, "{}", self.tc_env().with(non_terminal))
+                write!(f, "`{}`", self.tc_env().with(non_terminal))
             }
             ContextKind::Environment => write!(f, "the current scope"),
         }
