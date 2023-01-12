@@ -1,5 +1,5 @@
 //! AST visitor for the discovery pass.
-use std::iter::{empty, once};
+use std::iter::once;
 
 use hash_ast::{
     ast::{self, AstNodeRef},
@@ -127,10 +127,8 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         // @@Future: context
         let mod_def_id = self.mod_ops().create_mod_def(ModDefData {
             name: self.new_symbol(module_name),
-            params: self.create_hole_def_params(empty()),
             kind: ModKind::Source(source_id),
             members: self.mod_ops().create_empty_mod_members(),
-            self_ty_name: None,
         });
 
         // Traverse the module
@@ -147,15 +145,13 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         // Get the mod block name from the name hint.
         let mod_block_name = self.take_name_hint_or_create_internal_name();
 
+        // @@Todo: error if the mod block has generics
+
         // Create a mod block definition, with empty members for now.
         let mod_def_id = self.mod_ops().create_mod_def(ModDefData {
             name: mod_block_name,
-            params: self.create_hole_def_params(
-                node.ty_params.first().iter().map(|_| (true, &node.ty_params)),
-            ),
             kind: ModKind::ModBlock,
             members: self.mod_ops().create_empty_mod_members(),
-            self_ty_name: None,
         });
 
         // Traverse the mod block

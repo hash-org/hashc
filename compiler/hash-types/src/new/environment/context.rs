@@ -37,10 +37,11 @@ pub enum BindingKind {
 /// All the different places a bound variable can originate from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BoundVarOrigin {
-    /// Module parameter.
-    ///
-    /// For example, `T` in `mod <T> { x: (t: T) -> void }`
-    Mod(ModDefId, DefParamIndex),
+    // @@Future:
+    // /// Module parameter.
+    // ///
+    // /// For example, `T` in `mod <T> { x: (t: T) -> void }`
+    // Mod(ModDefId, DefParamIndex),
     /// Function parameter.
     ///
     /// For example, `x` in `(x: i32) => x`
@@ -238,12 +239,6 @@ impl Context {
 impl fmt::Display for WithEnv<'_, &BoundVarOrigin> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.value {
-            BoundVarOrigin::Mod(mod_def_id, param_index) => {
-                let def_params_id =
-                    self.stores().mod_def().map_fast(*mod_def_id, |mod_def| mod_def.params);
-                let param = self.get_def_param_by_index(def_params_id, *param_index);
-                write!(f, "{}", self.env().with(&param))
-            }
             BoundVarOrigin::Data(data_def_id, param_index) => {
                 let def_params_id =
                     self.stores().data_def().map_fast(*data_def_id, |mod_def| mod_def.params);

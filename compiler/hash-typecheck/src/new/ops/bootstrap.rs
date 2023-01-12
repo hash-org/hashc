@@ -101,10 +101,8 @@ impl<'tc> BootstrapOps<'tc> {
     pub fn make_primitive_mod(&self, primitives: &DefinedPrimitives) -> ModDefId {
         self.mod_ops().create_mod_def(ModDefData {
             name: self.new_symbol("Primitives"),
-            params: self.new_empty_def_params(),
             kind: ModKind::Transparent,
             members: self.mod_ops().create_mod_members(self.make_primitive_mod_members(primitives)),
-            self_ty_name: None,
         })
     }
 

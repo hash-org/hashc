@@ -307,7 +307,7 @@ impl<'tc> ResolutionPass<'tc> {
                             args: *data_def_args,
                         })))))
                     }
-                    NonTerminalResolvedPathComponent::Mod(_, _) => {
+                    NonTerminalResolvedPathComponent::Mod(_) => {
                         // Modules are not allowed in value positions
                         Err(TcError::CannotUseModuleInValuePosition {
                             location: self.source_location(original_node_span),

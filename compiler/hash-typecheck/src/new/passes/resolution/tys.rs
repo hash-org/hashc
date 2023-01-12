@@ -148,7 +148,7 @@ impl<'tc> ResolutionPass<'tc> {
                     Ok(self
                         .new_ty(Ty::Data(DataTy { data_def: *data_def_id, args: *data_def_args })))
                 }
-                NonTerminalResolvedPathComponent::Mod(_, _) => {
+                NonTerminalResolvedPathComponent::Mod(_) => {
                     // Modules are not allowed in type positions
                     Err(TcError::CannotUseModuleInTypePosition {
                         location: self.source_location(original_node_span),

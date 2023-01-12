@@ -69,11 +69,16 @@ pub enum ResolvedArgs {
 
 impl ResolvedArgs {
     /// Get the number of arguments.
-    fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         match self {
             ResolvedArgs::Term(args) => args.len(),
             ResolvedArgs::Pat(args, _) => args.len(),
         }
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }
 
@@ -430,43 +435,44 @@ impl<'tc> ResolutionPass<'tc> {
 
         // First ensure that the number of parameter and argument groups match.
         let created_def_args = self.make_def_args_from_ast_arg_groups(args, def_params)?;
-        if def_params.len() != created_def_args.len() {
-            return Err(TcError::WrongDefArgLength {
-                def_params_id: def_params,
-                def_args_id: created_def_args.into(),
-            });
-        }
+        // if def_params.len() != created_def_args.len() {
+        //     return Err(TcError::WrongDefArgLength {
+        //         def_params_id: def_params,
+        //         def_args_id: created_def_args.into(),
+        //     });
+        // }
 
-        // Then ensure that the number of parameters and arguments in each group
-        // match.
-        let mut errors: Vec<TcError> = vec![];
-        for (param_group_index, arg_group_index) in
-            def_params.to_index_range().zip(created_def_args.to_index_range())
-        {
-            let def_param_group =
-                self.stores().def_params().get_element((def_params, param_group_index));
+        // // Then ensure that the number of parameters and arguments in each group
+        // // match.
+        // let mut errors: Vec<TcError> = vec![];
+        // for (param_group_index, arg_group_index) in
+        //     def_params.to_index_range().zip(created_def_args.to_index_range())
+        // {
+        //     let def_param_group =
+        //         self.stores().def_params().get_element((def_params,
+        // param_group_index));
 
-            let def_arg_group = match created_def_args {
-                ResolvedDefArgs::Term(args) => ResolvedArgs::Term(
-                    self.stores().def_args().get_element((args, arg_group_index)).args,
-                ),
-                ResolvedDefArgs::Pat(args) => {
-                    let element = self.stores().def_pat_args().get_element((args, arg_group_index));
-                    ResolvedArgs::Pat(element.pat_args, element.spread)
-                }
-            };
+        //     let def_arg_group = match created_def_args {
+        //         ResolvedDefArgs::Term(args) => ResolvedArgs::Term(
+        //             self.stores().def_args().get_element((args,
+        // arg_group_index)).args,         ),
+        //         ResolvedDefArgs::Pat(args) => {
+        //             let element = self.stores().def_pat_args().get_element((args,
+        // arg_group_index));             ResolvedArgs::Pat(element.pat_args,
+        // element.spread)         }
+        //     };
 
-            if def_param_group.params.len() != def_arg_group.len() {
-                // Collect errors and only report at the end.
-                errors.push(TcError::WrongArgLength {
-                    params_id: def_param_group.params,
-                    args_id: def_arg_group.into(),
-                });
-            }
-        }
-        if !errors.is_empty() {
-            return Err(TcError::Compound { errors });
-        }
+        //     if def_param_group.params.len() != def_arg_group.len() {
+        //         // Collect errors and only report at the end.
+        //         errors.push(TcError::WrongArgLength {
+        //             params_id: def_param_group.params,
+        //             args_id: def_arg_group.into(),
+        //         });
+        //     }
+        // }
+        // if !errors.is_empty() {
+        //     return Err(TcError::Compound { errors });
+        // }
 
         Ok(created_def_args)
     }

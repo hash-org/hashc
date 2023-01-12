@@ -179,7 +179,7 @@ impl ResolutionPass<'_> {
                         location: self.source_location(original_node_span),
                     })
                 }
-                NonTerminalResolvedPathComponent::Mod(_, _) => {
+                NonTerminalResolvedPathComponent::Mod(_) => {
                     // Cannot use a module in a pattern position
                     Err(TcError::CannotUseModuleInPatternPosition {
                         location: self.source_location(original_node_span),
