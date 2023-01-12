@@ -23,7 +23,7 @@ pub trait HasCtxMethods<'b>: HasDataLayout {
 
     /// Create a [LayoutCtx]
     fn layout_ctx(&self) -> LayoutCtx<'_> {
-        LayoutCtx::new(self.layouts(), self.ir_ctx())
+        LayoutCtx::new(self.layouts(), self.data_layout(), self.ir_ctx())
     }
 
     /// Returns a reference to an IR type from the context.

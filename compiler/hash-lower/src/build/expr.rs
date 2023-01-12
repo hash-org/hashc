@@ -107,7 +107,7 @@ impl<'tcx> Builder<'tcx> {
                 // This is a special case, since we are creating an enum variant here with
                 // no arguments.
                 let subject_ty = self.ty_id_of_node(subject.id());
-                let index = self.map_on_adt(subject_ty, |adt, _| match property.body() {
+                let index = self.ctx.map_on_adt(subject_ty, |adt, _| match property.body() {
                     PropertyKind::NamedField(name) => adt.variant_idx(name).unwrap(),
                     PropertyKind::NumericField(index) => VariantIdx::from_usize(*index),
                 });
@@ -280,7 +280,7 @@ impl<'tcx> Builder<'tcx> {
                     }
                     Lit::Tuple(TupleLit { elements }) => {
                         let ty = self.ty_id_of_node(expr.id());
-                        let adt = self.map_on_adt(ty, |_, id| id);
+                        let adt = self.ctx.map_on_adt(ty, |_, id| id);
                         let aggregate_kind = AggregateKind::Tuple(adt);
 
                         let args = elements

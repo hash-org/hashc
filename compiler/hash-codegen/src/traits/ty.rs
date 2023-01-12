@@ -44,6 +44,11 @@ pub trait BuildTypeMethods<'b>: Backend<'b> {
     /// Create a struct type.
     fn type_struct(&self, els: &[Self::Type], packed: bool) -> Self::Type;
 
+    /// Create a `&i8` pointer type.
+    fn type_i8p(&self) -> Self::Type {
+        self.type_ptr_to_ext(self.type_i8(), AddressSpace::DATA)
+    }
+
     /// Create a pointer type to `ty`.
     fn type_ptr_to(&self, ty: Self::Type) -> Self::Type;
 

@@ -2,18 +2,27 @@
 //! within a backend.
 
 use hash_ir::ty::{IrTy, IrTyId};
-use hash_target::layout::HasDataLayout;
+use hash_layout::{Layout, LayoutId};
+use hash_utils::store::Store;
 
-use super::BackendTypes;
+use super::{ctx::HasCtxMethods, BackendTypes};
 use crate::layout::TyInfo;
 
 /// Methods for calculating and querying the layout of types within a backend.
-pub trait LayoutMethods<'b>: BackendTypes + HasDataLayout {
+pub trait LayoutMethods<'b>: BackendTypes + HasCtxMethods<'b> {
     /// Compute the layout of a interned type via [IrTyId].
     fn layout_of_id(&self, ty: IrTyId) -> TyInfo;
 
     /// Compute the layout of a [IrTy].
     fn layout_of(&self, ty: IrTy) -> TyInfo;
+
+    /// Perform a mapping on a [Layout]
+    fn map_layout<T>(&self, id: LayoutId, func: impl FnOnce(&Layout) -> T) -> T {
+        self.layouts().map_fast(id, func)
+    }
+
+    /// Compute the field index from the backend specific type.
+    fn backend_field_index(&self, info: TyInfo, index: usize) -> u64;
 
     /// Check whether the [TyInfo] layout can be represented as an
     /// immediate value.

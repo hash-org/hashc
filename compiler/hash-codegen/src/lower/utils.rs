@@ -9,7 +9,7 @@ use hash_target::alignment::Alignment;
 use super::FnBuilder;
 use crate::{
     common::MemFlags,
-    traits::{builder::BlockBuilderMethods, constants::BuildConstValueMethods, ctx::HasCtxMethods},
+    traits::{builder::BlockBuilderMethods, constants::BuildConstValueMethods},
 };
 
 /// Emit a `memcpy` instruction for a particular value with the provided

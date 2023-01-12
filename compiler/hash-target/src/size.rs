@@ -3,7 +3,7 @@
 
 use std::ops::{Add, Mul};
 
-use crate::alignment::Alignment;
+use crate::{alignment::Alignment, layout::HasDataLayout};
 
 /// Represents the size of some constant in bytes. [Size] is a
 /// utility type that allows one to perform various conversions
@@ -74,6 +74,19 @@ impl Size {
         // trim the size to remove any slack.
         let mask = alignment.bytes() - 1;
         Size::from_bytes((self.bytes() + mask) & !mask)
+    }
+
+    /// Compute a checked multiplication operation with a provided
+    /// [TargetDataLayout] context;
+    pub fn checked_mul<C: HasDataLayout>(self, count: u64, ctx: &C) -> Option<Size> {
+        let layout = ctx.data_layout();
+        let bytes = self.bytes().checked_mul(count)?;
+
+        if bytes < layout.obj_size_bound() {
+            Some(Size::from_bytes(bytes))
+        } else {
+            None
+        }
     }
 }
 

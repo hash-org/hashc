@@ -97,5 +97,9 @@ pub trait BuildConstValueMethods<'b>: BackendTypes {
 
     /// Attempt to convert a constant value into a `u128` value. If
     /// the conversion fails, then [`None`] is returned.
-    fn const_to_optional_u128(&self, val: Self::Value, sign_extend: bool) -> Option<u128>;
+    fn const_to_optional_u128(&self, value: Self::Value, sign_extend: bool) -> Option<u128>;
+
+    /// Attempt to convert a constant calue into a unsigned integer `u64`
+    /// value.
+    fn const_to_optional_uint(&self, value: Self::Value) -> Option<u64>;
 }

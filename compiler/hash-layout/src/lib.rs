@@ -9,10 +9,13 @@ use hash_ir::{
 use hash_target::{
     abi::{AbiRepresentation, Scalar},
     alignment::Alignments,
-    layout::HasDataLayout,
+    layout::{HasDataLayout, TargetDataLayout},
     size::Size,
 };
-use hash_utils::{new_store, new_store_key, store::Store};
+use hash_utils::{
+    new_store, new_store_key,
+    store::{CloneStore, Store},
+};
 use index_vec::IndexVec;
 
 // Define a new key to represent a particular layout.
@@ -32,12 +35,20 @@ pub struct LayoutCtx<'abi> {
 
     /// A reference to the [IrCtx].
     ir_ctx: &'abi IrCtx,
+
+    /// A reference to the [TargetDataLayout] of the current
+    /// session.
+    data_layout: &'abi TargetDataLayout,
 }
 
 impl<'abi> LayoutCtx<'abi> {
     /// Create a new [LayoutCtx].
-    pub fn new(layouts: &'abi LayoutStore, ir_ctx: &'abi IrCtx) -> Self {
-        Self { layouts, ir_ctx }
+    pub fn new(
+        layouts: &'abi LayoutStore,
+        data_layout: &'abi TargetDataLayout,
+        ir_ctx: &'abi IrCtx,
+    ) -> Self {
+        Self { layouts, data_layout, ir_ctx }
     }
 
     /// Returns a reference to the [LayoutStore].
@@ -48,6 +59,12 @@ impl<'abi> LayoutCtx<'abi> {
     /// Map a function on a particular layout.
     pub fn map_layout<T>(&self, id: LayoutId, func: impl FnOnce(&Layout) -> T) -> T {
         self.layouts.map_fast(id, func)
+    }
+
+    /// Get a reference to the data layout of the current
+    /// session.
+    pub fn data_layout(&self) -> &TargetDataLayout {
+        self.data_layout
     }
 
     /// Returns a reference to the [IrCtx].
@@ -74,8 +91,8 @@ impl TyInfo {
     }
 
     /// Check if the type is a zero-sized type.
-    pub fn is_zst(&self, store: &LayoutStore) -> bool {
-        store.map_fast(self.layout, |layout| match layout.abi {
+    pub fn is_zst(&self, ctx: LayoutCtx) -> bool {
+        ctx.layouts().map_fast(self.layout, |layout| match layout.abi {
             AbiRepresentation::Scalar { .. }
             | AbiRepresentation::Pair(..)
             | AbiRepresentation::Vector { .. } => false,
@@ -84,13 +101,57 @@ impl TyInfo {
             }
         })
     }
-}
 
-impl TyInfo {
     /// Compute the type of a "field with in a layout" and return the
     /// [LayoutId] associated with the field.
     pub fn field(&self, _ctx: LayoutCtx, _index: usize) -> Self {
         todo!()
+    }
+
+    /// Fetch the [Layout] for a variant of the currently
+    /// given [Layout].
+    pub fn for_variant(&self, ctx: LayoutCtx, variant: VariantIdx) -> Self {
+        let layout = ctx.layouts().get(self.layout);
+
+        let variant = match layout.variants {
+            // For enums that have only one variant that is inhabited, this
+            // is represented as a single variant enum, so we need to account
+            // for this situation
+            Variants::Single { index }
+                if index == variant && layout.shape != LayoutShape::Primitive =>
+            {
+                self.layout
+            }
+            Variants::Single { .. } => {
+                let fields = ctx.ir_ctx().map_on_adt(self.ty, |adt, _| {
+                    if adt.variants.is_empty() {
+                        panic!("layout::for_variant called on a zero-variant enum")
+                    }
+
+                    adt.variant(variant).fields.len()
+                });
+
+                // Create a new layout with basically a ZST that is
+                // un-inhabited... i.e. `never`
+                let shape = if fields == 0 {
+                    LayoutShape::Struct { offsets: vec![], memory_map: vec![] }
+                } else {
+                    // @@Todo: this should become a union?
+                    todo!()
+                };
+
+                ctx.layouts().create(Layout::new(
+                    shape,
+                    Variants::Single { index: variant },
+                    AbiRepresentation::Uninhabited,
+                    ctx.data_layout().i8_align,
+                    Size::ZERO,
+                ))
+            }
+            Variants::Multiple { ref variants, .. } => variants[variant],
+        };
+
+        Self::new(self.ty, variant)
     }
 }
 
@@ -100,7 +161,7 @@ impl TyInfo {
 /// The [Layout] contains a `shape` which stores fields that are shared
 /// across all *variants* (if the type has multiple variants), and a
 /// [Variants] enum which stores information about the variants of the type.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 
 pub struct Layout {
     /// The shape of the layout, this stores information about
@@ -167,7 +228,7 @@ impl Layout {
 /// of the field **offset**s in "source" definition order, and a `memory_map`
 /// which specifies the actual order of fields in memory in relation to their
 /// offsets.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LayoutShape {
     /// Primitives, `!` and other scalar-like types have only one specific
     /// layout.

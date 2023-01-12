@@ -88,6 +88,25 @@ pub struct TargetDataLayout {
     pub c_style_enum_min_size: Integer,
 }
 
+impl TargetDataLayout {
+    /// Returns the exclusive upper bound on an object size. This is the maximum
+    /// size of an object that can be allocated on the target.
+    ///
+    /// The upper bound on 64-bit currently needs to be lower because LLVM uses
+    /// a 64-bit integer to represent object size in bits. It would need to
+    /// be 1 << 61 to account for this, but is currently conservatively
+    /// bounded to 1 << 47 as that is enough to cover the current usable
+    /// address space on 64-bit ARMv8 and x86_64.
+    pub fn obj_size_bound(&self) -> u64 {
+        match self.pointer_size.bits() {
+            16 => 1 << 15,
+            32 => 1 << 31,
+            64 => 1 << 47,
+            _ => unreachable!(),
+        }
+    }
+}
+
 impl Default for TargetDataLayout {
     /// Create a default value for [`TargetDataLayout`] based on the
     /// LLVM specification for the default data layout

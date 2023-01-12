@@ -13,8 +13,8 @@ use hash_target::{
 };
 
 use super::{
-    abi::AbiBuilderMethods, ctx::HasCtxMethods, debug::BuildDebugInfoMethods,
-    intrinsics::BuildIntrinsicCallMethods, target::HasTargetSpec, CodeGen,
+    abi::AbiBuilderMethods, debug::BuildDebugInfoMethods, intrinsics::BuildIntrinsicCallMethods,
+    target::HasTargetSpec, CodeGen,
 };
 use crate::{
     common::{CheckedOp, IntComparisonKind, MemFlags, RealComparisonKind},

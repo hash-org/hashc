@@ -123,6 +123,12 @@ impl IrCtx {
         self.projections().map_fast(projections, |projections| map(local, projections))
     }
 
+    /// Apply a function on a [IrTy::Adt].
+    pub fn map_on_adt<T>(&self, ty: IrTyId, f: impl FnOnce(&AdtData, AdtId) -> T) -> T {
+        self.ty_store
+            .map_fast(ty, |ty| self.adt_store.map_fast(ty.as_adt(), |adt| f(adt, ty.as_adt())))
+    }
+
     /// Perform a map on a [AdtId] by reading the [AdtData] that is associated
     /// with the [AdtId] and then applying the provided function.
     pub fn map_adt<T>(&self, id: AdtId, map: impl FnOnce(AdtId, &AdtData) -> T) -> T {

@@ -4,14 +4,13 @@
 use hash_ir::ir::{Statement, StatementKind};
 
 use super::{locals::LocalRef, FnBuilder};
-use crate::traits::{builder::BlockBuilderMethods, ctx::HasCtxMethods};
+use crate::traits::builder::BlockBuilderMethods;
 
 impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
     /// Lower a Hash IR [Statement] into a target backend code.
     pub fn codegen_statement(&mut self, builder: &mut Builder, statement: &Statement) {
         // @@DebugInfo: deal with debug information here for the location
         // of the statement.
-
         match statement.kind {
             StatementKind::Assign(place, ref value) => {
                 if let Some(local) = place.as_local() {

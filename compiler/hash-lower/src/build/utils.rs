@@ -6,7 +6,7 @@
 use hash_ast::ast::{AstNodeId, AstNodeRef};
 use hash_ir::{
     ir::{AssertKind, BasicBlock, LocalDecl, Operand, Place, TerminatorKind},
-    ty::{AdtData, AdtId, IrTy, IrTyId, Mutability},
+    ty::{IrTy, IrTyId, Mutability},
 };
 use hash_source::location::Span;
 use hash_types::{pats::PatId, terms::TermId};
@@ -62,13 +62,6 @@ impl<'tcx> Builder<'tcx> {
 
     pub(crate) fn span_of_pat(&self, id: PatId) -> Span {
         self.tcx.location_store.get_span(id).unwrap()
-    }
-
-    /// Apply a function on a [IrTy::Adt].
-    pub(crate) fn map_on_adt<T>(&self, ty: IrTyId, f: impl FnOnce(&AdtData, AdtId) -> T) -> T {
-        self.ctx
-            .tys()
-            .map_fast(ty, |ty| self.ctx.adts().map_fast(ty.as_adt(), |adt| f(adt, ty.as_adt())))
     }
 
     /// Function to create a new [Place] that is used to ignore

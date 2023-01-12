@@ -4,14 +4,14 @@
 use hash_ir::ir;
 use hash_layout::TyInfo;
 use hash_target::{abi::AbiRepresentation, alignment::Alignment};
-use hash_utils::store::SequenceStore;
+use hash_utils::store::{SequenceStore, Store};
 
 use super::{locals::LocalRef, place::PlaceRef, utils, FnBuilder};
 use crate::{
     common::MemFlags,
     traits::{
         builder::BlockBuilderMethods, constants::BuildConstValueMethods, ctx::HasCtxMethods,
-        ty::BuildTypeMethods, CodeGen, CodeGenObject,
+        layout::LayoutMethods, ty::BuildTypeMethods, CodeGen, CodeGenObject,
     },
 };
 
@@ -137,6 +137,28 @@ impl<'b, V: CodeGenObject> OperandRef<V> {
             OperandValue::Immediate(value) => value,
             _ => panic!("not an immediate value"),
         }
+    }
+
+    /// Apply a dereference operation on a [OperandRef], effectively
+    /// producing a [PlaceRef].
+    pub fn deref<Builder: LayoutMethods<'b>>(self, builder: &Builder) -> PlaceRef<V> {
+        let projected_ty =
+            builder.ir_ctx().tys().map_fast(self.info.ty, |ty| ty.on_deref()).unwrap();
+
+        // If we have a pair, then we move the extra data into the place ref.
+        let ptr_value = match self.value {
+            OperandValue::Immediate(value) => value,
+
+            // This will not occur since we don't have unsized pointer
+            // references (i.e. fat pointers).
+            OperandValue::Pair(..) => panic!("cannot perform deref on pair value"),
+            OperandValue::Ref(..) => panic!("deref on a by-ref operand"),
+        };
+
+        let info = builder.layout_of_id(projected_ty);
+        let layout = builder.layout_info(info.layout);
+
+        PlaceRef { value: ptr_value, info, alignment: layout.alignment.abi }
     }
 
     /// Compute a new [OperandRef] from the current operand and a field
