@@ -3,7 +3,7 @@ use hash_ast::{
     node_map::SourceRef,
 };
 use hash_source::location::{SourceLocation, Span};
-use hash_types::new::symbols::Symbol;
+use hash_types::new::{symbols::Symbol, utils::common::CommonUtils};
 
 use crate::new::{
     diagnostics::error::TcResult, environment::tc_env::AccessToTcEnv, ops::common::CommonOps,

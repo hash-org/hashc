@@ -33,6 +33,7 @@ use hash_types::new::{
     fns::{FnCallTerm, FnDefId},
     mods::{ModDefId, ModMemberValue},
     terms::Term,
+    utils::common::CommonUtils,
 };
 use hash_utils::store::{SequenceStore, Store};
 
@@ -44,7 +45,6 @@ use super::{
 use crate::new::{
     diagnostics::error::{TcError, TcResult},
     environment::tc_env::WithTcEnv,
-    ops::common::CommonOps,
     passes::ast_utils::AstUtils,
 };
 

@@ -1,22 +1,24 @@
 // @@Docs
 use derive_more::Constructor;
-use hash_types::new::{
-    environment::env::AccessToEnv,
-    mods::{ModDef, ModDefData, ModDefId, ModMember, ModMemberData, ModMembersId},
-};
 use hash_utils::store::{SequenceStore, Store};
 
-use crate::{impl_access_to_tc_env, new::environment::tc_env::TcEnv};
+use crate::{
+    impl_access_to_env,
+    new::{
+        environment::env::{AccessToEnv, Env},
+        mods::{ModDef, ModDefData, ModDefId, ModMember, ModMemberData, ModMembersId},
+    },
+};
 
 /// Operations related to module definitions.
 #[derive(Constructor)]
-pub struct ModOps<'tc> {
-    tc_env: &'tc TcEnv<'tc>,
+pub struct ModUtils<'tc> {
+    env: &'tc Env<'tc>,
 }
 
-impl_access_to_tc_env!(ModOps<'tc>);
+impl_access_to_env!(ModUtils<'tc>);
 
-impl<'tc> ModOps<'tc> {
+impl<'tc> ModUtils<'tc> {
     /// Create an empty module definition.
     pub fn create_mod_def(&self, data: ModDefData) -> ModDefId {
         self.stores().mod_def().create_with(|id| ModDef {

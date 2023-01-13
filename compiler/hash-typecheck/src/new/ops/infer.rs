@@ -5,10 +5,10 @@ use hash_types::new::{
     refs::RefTy,
     terms::{Term, TermId},
     tys::{Ty, TyId},
+    utils::common::CommonUtils,
 };
 use hash_utils::store::{CloneStore, Store};
 
-use super::common::CommonOps;
 use crate::{
     impl_access_to_tc_env,
     new::{

@@ -29,12 +29,12 @@ macro_rules! defined_primitives {
             /// Create a list of [`ModMemberData`] that corresponds to the defined primitives.
             ///
             /// This can be used to make a module and enter its scope.
-            pub fn as_mod_members(&self, env: &Env, primitives: &DefinedPrimitives) -> Vec<ModMemberData> {
+            pub fn as_mod_members(&self, env: &Env) -> Vec<ModMemberData> {
                 vec![
                     $(
                         ModMemberData {
-                            name: env.stores().data_def().map_fast(primitives.$name, |def| def.name),
-                            value: ModMemberValue::Data(primitives.$name)
+                            name: env.stores().data_def().map_fast(self.$name, |def| def.name),
+                            value: ModMemberValue::Data(self.$name)
                         },
                     )*
                 ]
@@ -68,7 +68,7 @@ defined_primitives! {
 }
 
 impl DefinedPrimitives {
-    pub fn create(env: Env) -> Self {
+    pub fn create(env: &Env) -> Self {
         // Helper function to create a numeric primitive.
         let numeric = |name, bits, signed, float| {
             env.data_utils().create_primitive_data_def(

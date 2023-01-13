@@ -13,15 +13,12 @@ use hash_types::new::{
     environment::env::AccessToEnv,
     fns::{FnBody, FnDefData, FnTy},
     mods::{ModDefData, ModKind},
+    utils::{common::CommonUtils, AccessToUtils},
 };
 use itertools::Itertools;
 
 use super::{super::ast_utils::AstUtils, defs::ItemId, DiscoveryPass};
-use crate::new::{
-    diagnostics::error::TcError,
-    environment::tc_env::AccessToTcEnv,
-    ops::{common::CommonOps, AccessToOps},
-};
+use crate::new::{diagnostics::error::TcError, environment::tc_env::AccessToTcEnv};
 
 impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
     type Error = TcError;
@@ -107,7 +104,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         node: AstNodeRef<ast::MatchCase>,
     ) -> Result<Self::MatchCaseRet, Self::Error> {
         // A match case creates its own stack scope.
-        let stack_id = self.stack_ops().create_stack();
+        let stack_id = self.stack_utils().create_stack();
         self.enter_def(node, stack_id, || {
             self.add_pat_node_binds_to_stack(node.pat.ast_ref(), stack_id, None, Some(&node.expr));
             walk::walk_match_case(self, node)
@@ -125,10 +122,10 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
 
         // Create a module definition, with empty members for now.
         // @@Future: context
-        let mod_def_id = self.mod_ops().create_mod_def(ModDefData {
+        let mod_def_id = self.mod_utils().create_mod_def(ModDefData {
             name: self.new_symbol(module_name),
             kind: ModKind::Source(source_id),
-            members: self.mod_ops().create_empty_mod_members(),
+            members: self.mod_utils().create_empty_mod_members(),
         });
 
         // Traverse the module
@@ -148,10 +145,10 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         // @@Todo: error if the mod block has generics
 
         // Create a mod block definition, with empty members for now.
-        let mod_def_id = self.mod_ops().create_mod_def(ModDefData {
+        let mod_def_id = self.mod_utils().create_mod_def(ModDefData {
             name: mod_block_name,
             kind: ModKind::ModBlock,
-            members: self.mod_ops().create_empty_mod_members(),
+            members: self.mod_utils().create_empty_mod_members(),
         });
 
         // Traverse the mod block
@@ -168,7 +165,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         let struct_name = self.take_name_hint_or_create_internal_name();
 
         // Create a data definition for the struct
-        let struct_def_id = self.data_ops().create_struct_def(
+        let struct_def_id = self.data_utils().create_struct_def(
             struct_name,
             self.create_hole_def_params(once((true, &node.ty_params))),
             self.create_hole_params(&node.fields),
@@ -191,7 +188,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         let enum_name = self.take_name_hint_or_create_internal_name();
 
         // Create a data definition for the enum
-        let enum_def_id = self.data_ops().create_enum_def(
+        let enum_def_id = self.data_utils().create_enum_def(
             enum_name,
             self.create_hole_def_params(once((true, &node.ty_params))),
             |_| {
@@ -219,7 +216,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         let fn_def_name = self.take_name_hint_or_create_internal_name();
 
         // Create a function definition
-        let fn_def_id = self.fn_ops().create_fn_def(FnDefData {
+        let fn_def_id = self.fn_utils().create_fn_def(FnDefData {
             name: fn_def_name,
             body: FnBody::Defined(self.new_term_hole()),
             ty: FnTy {
@@ -248,7 +245,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         let fn_def_name = self.take_name_hint_or_create_internal_name();
 
         // Create a function definition
-        let fn_def_id = self.fn_ops().create_fn_def(FnDefData {
+        let fn_def_id = self.fn_utils().create_fn_def(FnDefData {
             name: fn_def_name,
             body: FnBody::Defined(self.new_term_hole()),
             ty: FnTy {
@@ -282,7 +279,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
                 DefId::Stack(_) |
                 // If we are in a function, then this is the function's body, so we add a new stack
                 DefId::Fn(_) => {
-                    let stack_id = self.stack_ops().create_stack();
+                    let stack_id = self.stack_utils().create_stack();
                     self.enter_def(node, stack_id, || walk::walk_body_block(self, node))?;
                     Ok(())
                 }
@@ -290,7 +287,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
             ItemId::FnTy(_) => {
                 // If we are in a function type, then this is the function's type return, so we
                 // add a new stack
-                let stack_id = self.stack_ops().create_stack();
+                let stack_id = self.stack_utils().create_stack();
                 self.enter_def(node, stack_id, || walk::walk_body_block(self, node))?;
                 Ok(())
             }

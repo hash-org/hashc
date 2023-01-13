@@ -12,6 +12,7 @@ use hash_types::new::{
     scopes::{StackId, StackMemberId},
     symbols::Symbol,
     tys::TyId,
+    utils::common::CommonUtils,
 };
 use hash_utils::{
     state::HeavyState,
@@ -24,7 +25,7 @@ use crate::{
     new::{
         diagnostics::error::{TcError, TcResult},
         environment::tc_env::{AccessToTcEnv, TcEnv, WithTcEnv},
-        ops::{common::CommonOps, AccessToOps},
+        ops::AccessToOps,
         passes::ast_utils::AstUtils,
     },
 };

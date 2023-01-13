@@ -1,8 +1,16 @@
-use self::{data::DataUtils, params::ParamUtils};
+use self::{
+    data::DataUtils, defs::DefUtils, fns::FnUtils, mods::ModUtils, params::ParamUtils,
+    stack::StackUtils, tuples::TupleUtils,
+};
 
 pub mod common;
 pub mod data;
+pub mod defs;
+pub mod fns;
+pub mod mods;
 pub mod params;
+pub mod stack;
+pub mod tuples;
 
 macro_rules! utils {
     ($($name:ident: $ty:ty),* $(,)?) => {
@@ -19,5 +27,10 @@ macro_rules! utils {
 
 utils! {
   data_utils: DataUtils,
+  def_utils: DefUtils,
   param_utils: ParamUtils     ,
+  fn_utils: FnUtils,
+  mod_utils: ModUtils,
+  stack_utils: StackUtils,
+  tuple_utils: TupleUtils,
 }
