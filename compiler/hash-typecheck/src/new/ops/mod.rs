@@ -1,6 +1,7 @@
 // @@Docs
 use self::{
     bootstrap::BootstrapOps, context::ContextOps, infer::InferOps, normalise::NormalisationOps,
+    unify::UnifyOps,
 };
 
 pub mod bootstrap;
@@ -8,6 +9,7 @@ pub mod common;
 pub mod context;
 pub mod infer;
 pub mod normalise;
+pub mod unify;
 
 macro_rules! ops {
     ($($name:ident: $ty:ty),* $(,)?) => {
@@ -25,6 +27,7 @@ macro_rules! ops {
 
 ops! {
   infer_ops: InferOps,
+  unify_ops: UnifyOps,
   context_ops: ContextOps,
   bootstrap_ops: BootstrapOps,
   normalisation_ops: NormalisationOps,
