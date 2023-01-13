@@ -1,3 +1,4 @@
+//! Utilities for working with tuples.
 use derive_more::Constructor;
 
 use super::common::CommonUtils;

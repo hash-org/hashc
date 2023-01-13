@@ -1,3 +1,4 @@
+//! Definition and lookup of primitive types.
 use std::iter::once;
 
 use hash_types::new::{
@@ -68,7 +69,8 @@ defined_primitives! {
 }
 
 impl DefinedPrimitives {
-    pub fn create(env: &Env) -> Self {
+    /// Create the primitive types using the given environment.
+    pub fn create<T: AccessToEnv>(env: &T) -> Self {
         // Helper function to create a numeric primitive.
         let numeric = |name, bits, signed, float| {
             env.data_utils().create_primitive_data_def(
@@ -204,4 +206,11 @@ impl DefinedPrimitives {
             },
         }
     }
+}
+
+/// Trait to be able to access the defined primitives.
+///
+/// More traits can be defined on top of this one.
+pub trait AccessToPrimitives: AccessToEnv {
+    fn primitives(&self) -> &DefinedPrimitives;
 }

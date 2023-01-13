@@ -659,18 +659,13 @@ impl<K: SequenceStoreKey, V: Clone> SequenceStore<K, V> for DefaultSequenceStore
 ///
 /// *Warning*: The `Value`'s `Clone` implementation must not interact with the
 /// store, otherwise it might lead to a panic.
-pub trait PartialStore<Key: Copy + Eq + Hash, Value: Clone> {
+pub trait PartialStore<Key: Copy + Eq + Hash, Value> {
     fn internal_data(&self) -> &RefCell<HashMap<Key, Value>>;
 
     /// Insert a key-value pair inside the store, returning the old value if it
     /// exists.
     fn insert(&self, key: Key, value: Value) -> Option<Value> {
         self.internal_data().borrow_mut().insert(key, value)
-    }
-
-    /// Get a value by its key, if it exists.
-    fn get(&self, key: Key) -> Option<Value> {
-        self.internal_data().borrow().get(&key).cloned()
     }
 
     /// Whether the store has the given key.
@@ -690,17 +685,6 @@ pub trait PartialStore<Key: Copy + Eq + Hash, Value: Clone> {
         f(value)
     }
 
-    /// Get a value by a key, and map it to another value given its reference,
-    /// if it exists.
-    ///
-    /// It is safe to provide a closure `f` to this function that modifies the
-    /// store in some way (`create` etc). If you do not need to modify the
-    /// store, consider using [`Self::map_fast()`] instead.
-    fn map<T>(&self, key: Key, f: impl FnOnce(Option<&Value>) -> T) -> T {
-        let value = self.get(key);
-        f(value.as_ref())
-    }
-
     /// Modify a value by a key, possibly returning another value, if it exists.
     ///
     /// *Warning*: Do not call mutating store methods (`create` etc) in `f`
@@ -710,20 +694,6 @@ pub trait PartialStore<Key: Copy + Eq + Hash, Value: Clone> {
         let mut data = self.internal_data().borrow_mut();
         let value = data.get_mut(&key);
         f(value)
-    }
-
-    /// Modify a value by a key, possibly returning another value, if it exists.
-    ///
-    /// It is safe to provide a closure `f` to this function that modifies the
-    /// store in some way (`create` etc). If you do not need to modify the
-    /// store, consider using [`Self::modify_fast()`] instead.
-    fn modify<T>(&self, key: Key, f: impl FnOnce(Option<&mut Value>) -> T) -> T {
-        let mut value = self.get(key);
-        let ret = f(value.as_mut());
-        if let Some(value) = value {
-            self.insert(key, value);
-        }
-        ret
     }
 
     /// The number of entries in the store.
@@ -740,6 +710,44 @@ pub trait PartialStore<Key: Copy + Eq + Hash, Value: Clone> {
     fn clear(&self) {
         self.internal_data().borrow_mut().clear()
     }
+}
+
+/// Extra methods for [`PartialStore`] that require the `Value` to be `Clone`.
+pub trait PartialCloneStore<Key: Copy + Eq + Hash, Value: Clone>: PartialStore<Key, Value> {
+    /// Get a value by its key, if it exists.
+    fn get(&self, key: Key) -> Option<Value> {
+        self.internal_data().borrow().get(&key).cloned()
+    }
+
+    /// Get a value by a key, and map it to another value given its reference,
+    /// if it exists.
+    ///
+    /// It is safe to provide a closure `f` to this function that modifies the
+    /// store in some way (`create` etc). If you do not need to modify the
+    /// store, consider using [`Self::map_fast()`] instead.
+    fn map<T>(&self, key: Key, f: impl FnOnce(Option<&Value>) -> T) -> T {
+        let value = self.get(key);
+        f(value.as_ref())
+    }
+
+    /// Modify a value by a key, possibly returning another value, if it exists.
+    ///
+    /// It is safe to provide a closure `f` to this function that modifies the
+    /// store in some way (`create` etc). If you do not need to modify the
+    /// store, consider using [`Self::modify_fast()`] instead.
+    fn modify<T>(&self, key: Key, f: impl FnOnce(Option<&mut Value>) -> T) -> T {
+        let mut value = self.get(key);
+        let ret = f(value.as_mut());
+        if let Some(value) = value {
+            self.insert(key, value);
+        }
+        ret
+    }
+}
+
+impl<Key: Copy + Eq + Hash, Value: Clone, T: PartialStore<Key, Value>> PartialCloneStore<Key, Value>
+    for T
+{
 }
 
 /// A default implementation of [`PartialStore`].
@@ -760,7 +768,7 @@ impl<K, V> DefaultPartialStore<K, V> {
     }
 }
 
-impl<K: Copy + Eq + Hash, V: Clone> PartialStore<K, V> for DefaultPartialStore<K, V> {
+impl<K: Copy + Eq + Hash, V> PartialStore<K, V> for DefaultPartialStore<K, V> {
     fn internal_data(&self) -> &RefCell<HashMap<K, V>> {
         &self.data
     }

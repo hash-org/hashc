@@ -1,5 +1,3 @@
-use hash_intrinsics::{primitives::DefinedPrimitives, utils::IntrinsicUtils};
-
 // @@Docs
 use crate::new::{diagnostics::error::TcResult, environment::tc_env::AccessToTcEnv};
 
@@ -14,18 +12,6 @@ pub trait CommonOps: AccessToTcEnv {
                 None
             }
         }
-    }
-
-    /// Access the primitive definitions.
-    fn primitives(&self) -> &DefinedPrimitives {
-        match self.primitives_or_unset().get() {
-            Some(primitives) => primitives,
-            None => panic!("called primitives() before they were set"),
-        }
-    }
-
-    fn intrinsic_utils(&self) -> IntrinsicUtils {
-        IntrinsicUtils::new(self.env(), self.primitives())
     }
 }
 

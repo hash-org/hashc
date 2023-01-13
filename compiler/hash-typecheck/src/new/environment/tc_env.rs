@@ -1,8 +1,15 @@
+use hash_intrinsics::{
+    intrinsics::{AccessToIntrinsics, DefinedIntrinsics},
+    primitives::{AccessToPrimitives, DefinedPrimitives},
+};
 // @@Docs
 use hash_types::new::environment::env::{AccessToEnv, Env};
 
 use super::ast_info::AstInfo;
-use crate::new::{diagnostics::store::DiagnosticsStore, ops::bootstrap::DefinedPrimitivesOrUnset};
+use crate::new::{
+    diagnostics::store::DiagnosticsStore,
+    ops::bootstrap::{DefinedIntrinsicsOrUnset, DefinedPrimitivesOrUnset},
+};
 
 macro_rules! tc_env {
     ($($(#$hide:ident)? $name:ident: $ty:ident $(<$lt:lifetime> )?),* $(,)?) => {
@@ -56,6 +63,7 @@ tc_env! {
     diagnostics: DiagnosticsStore,
     ast_info: AstInfo,
     primitives_or_unset: DefinedPrimitivesOrUnset,
+    intrinsics_or_unset: DefinedIntrinsicsOrUnset,
 }
 
 /// Implement [`AccessToEnv`] for some type that has a field `env: Env`.
@@ -73,6 +81,22 @@ macro_rules! impl_access_to_tc_env {
                 <TcEnv<'_> as hash_types::new::environment::env::AccessToEnv>::env(self.tc_env)
             }
         }
+
+        impl<$lt> hash_intrinsics::primitives::AccessToPrimitives for $x<$lt> {
+            fn primitives(&self) -> &hash_intrinsics::primitives::DefinedPrimitives {
+                <TcEnv<'_> as hash_intrinsics::primitives::AccessToPrimitives>::primitives(
+                    self.tc_env,
+                )
+            }
+        }
+
+        impl<$lt> hash_intrinsics::intrinsics::AccessToIntrinsics for $x<$lt> {
+            fn intrinsics(&self) -> &hash_intrinsics::intrinsics::DefinedIntrinsics {
+                <TcEnv<'_> as hash_intrinsics::intrinsics::AccessToIntrinsics>::intrinsics(
+                    self.tc_env,
+                )
+            }
+        }
     };
 }
 
@@ -85,6 +109,24 @@ impl<'tc> AccessToTcEnv for TcEnv<'tc> {
 impl<'tc> AccessToEnv for TcEnv<'tc> {
     fn env(&self) -> &Env {
         self.env
+    }
+}
+
+impl<'tc> AccessToPrimitives for TcEnv<'tc> {
+    fn primitives(&self) -> &DefinedPrimitives {
+        match self.primitives_or_unset().get() {
+            Some(primitives) => primitives,
+            None => panic!("Tried to get primitives but they are not set yet"),
+        }
+    }
+}
+
+impl<'tc> AccessToIntrinsics for TcEnv<'tc> {
+    fn intrinsics(&self) -> &DefinedIntrinsics {
+        match self.intrinsics_or_unset().get() {
+            Some(intrinsics) => intrinsics,
+            None => panic!("Tried to get intrinsics but they are not set yet"),
+        }
     }
 }
 

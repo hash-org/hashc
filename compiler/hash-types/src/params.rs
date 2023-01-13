@@ -7,7 +7,8 @@ use hash_source::identifier::Identifier;
 use hash_utils::{
     new_sequence_store_key,
     store::{
-        DefaultPartialStore, DefaultSequenceStore, PartialStore, SequenceStore, SequenceStoreKey,
+        DefaultPartialStore, DefaultSequenceStore, PartialCloneStore, PartialStore, SequenceStore,
+        SequenceStoreKey,
     },
 };
 

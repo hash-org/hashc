@@ -1,4 +1,4 @@
-// @@Docs
+//! Function-related utilities.
 use derive_more::Constructor;
 use hash_utils::store::Store;
 

@@ -1,4 +1,4 @@
-// @@Docs
+//! Data definition-related utilities.
 use std::iter::{empty, once};
 
 use derive_more::Constructor;

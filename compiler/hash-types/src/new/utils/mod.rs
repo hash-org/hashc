@@ -1,3 +1,4 @@
+//! Utility functions for working with TC primitives.
 use self::{
     data::DataUtils, defs::DefUtils, fns::FnUtils, mods::ModUtils, params::ParamUtils,
     stack::StackUtils, tuples::TupleUtils,

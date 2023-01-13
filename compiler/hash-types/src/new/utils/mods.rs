@@ -1,4 +1,4 @@
-// @@Docs
+//! Module-related utilities.
 use derive_more::Constructor;
 use hash_utils::store::{SequenceStore, Store};
 

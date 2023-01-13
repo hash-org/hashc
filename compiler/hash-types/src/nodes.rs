@@ -1,7 +1,10 @@
 //! Storage that holds type information about AST nodes.
 
 use hash_ast::ast::AstNodeId;
-use hash_utils::{new_partial_store, store::PartialStore};
+use hash_utils::{
+    new_partial_store,
+    store::{PartialCloneStore, PartialStore},
+};
 
 use super::{pats::PatId, terms::TermId};
 use crate::scope::ScopeId;

@@ -1,19 +1,15 @@
 // @@Docs
 
 use hash_source::{identifier::Identifier, location::SourceLocation};
-use hash_utils::store::{CloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store};
+use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
 
 use crate::new::{
     args::{ArgsId, PatArgsId},
-    data::{DataDef, DataDefId},
+    data::{DataDef, DataDefId, DataTy},
     defs::{DefArgsId, DefParamGroup, DefParamsId, DefPatArgsId},
-    environment::env::{AccessToEnv, Env},
-    fns::{
-        FnBody::{self},
-        FnDef, FnDefId, FnTy,
-    },
+    environment::env::AccessToEnv,
+    fns::{FnDef, FnDefId},
     holes::{Hole, HoleKind},
-    intrinsics::{Intrinsic, IntrinsicId},
     locations::LocationTarget,
     params::{DefParamIndex, Param, ParamIndex, ParamsId},
     pats::{Pat, PatId, PatListId},
@@ -108,24 +104,6 @@ pub trait CommonUtils: AccessToEnv {
     /// Create a new symbol with the given name.
     fn new_symbol(&self, name: impl Into<Identifier>) -> Symbol {
         self.stores().symbol().create_with(|symbol| SymbolData { name: Some(name.into()), symbol })
-    }
-
-    /// Create an intrinsic function.
-    fn make_intrinsic(
-        &self,
-        name: impl Into<Identifier>,
-        ty: FnTy,
-        implementation: fn(&Env, ArgsId) -> TermId,
-    ) -> IntrinsicId {
-        let intrinsic_id = IntrinsicId(self.new_symbol(name));
-        let _fn_def_id = self.stores().fn_def().create_with(|fn_def_id| {
-            self.stores().intrinsic().insert(
-                intrinsic_id,
-                Intrinsic { name: intrinsic_id.0, fn_def: fn_def_id, call: implementation },
-            );
-            FnDef { id: fn_def_id, name: intrinsic_id.0, ty, body: FnBody::Intrinsic(intrinsic_id) }
-        });
-        intrinsic_id
     }
 
     /// Create a new empty parameter list.
@@ -233,6 +211,18 @@ pub trait CommonUtils: AccessToEnv {
     /// Create a new empty argument list.
     fn new_empty_args(&self) -> ArgsId {
         self.stores().args().create_from_slice(&[])
+    }
+
+    /// Create a new positional parameter list with the given types.
+    fn new_params(&self, types: &[TyId]) -> ParamsId {
+        self.stores().params().create_from_iter_with(types.iter().copied().map(|ty| {
+            move |id| Param { id, name: self.new_fresh_symbol(), ty, default_value: None }
+        }))
+    }
+
+    /// Create a new data type with no arguments.
+    fn new_data_ty(&self, data_def: DataDefId) -> TyId {
+        self.stores().ty().create(Ty::Data(DataTy { data_def, args: self.new_empty_def_args() }))
     }
 
     /// Create a new empty pattern argument list.

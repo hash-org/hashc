@@ -14,7 +14,6 @@ use super::super::{
     terms::{TermListStore, TermStore},
     tys::TyStore,
 };
-use crate::new::intrinsics::IntrinsicStore;
 
 /// This macro creates the `Stores` struct, as well as accompanying creation and
 /// access methods, for the given sequence of stores.
@@ -57,7 +56,6 @@ stores! {
     def_pat_args: DefPatArgsStore,
     fn_def: FnDefStore,
     hole: HoleStore,
-    intrinsic: IntrinsicStore,
     location: LocationStore,
     mod_def: ModDefStore,
     mod_members: ModMembersStore,

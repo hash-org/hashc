@@ -134,6 +134,7 @@ impl<Ctx: TypecheckingCtxQuery> CompilerStage<Ctx> for Typechecker {
         );
 
         let primitives = OnceCell::new();
+        let intrinsics = OnceCell::new();
 
         // Instantiate a visitor with the source and visit the source, using the
         // previous local storage.
@@ -145,7 +146,13 @@ impl<Ctx: TypecheckingCtxQuery> CompilerStage<Ctx> for Typechecker {
             source_map: &workspace.source_map,
             diagnostics_store: &self.diagnostics_store,
             cache: &self.cache,
-            _new: TcEnv::new(&env, &self._new_diagnostic, &self._new_ast_info, &primitives),
+            _new: TcEnv::new(
+                &env,
+                &self._new_diagnostic,
+                &self._new_ast_info,
+                &primitives,
+                &intrinsics,
+            ),
         };
 
         // @@Hack: for now we use the `USE_NEW_TC` env variable to switch between the

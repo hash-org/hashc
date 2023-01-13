@@ -2,7 +2,7 @@
 //! and injecting primitive definitions into the context.
 
 use derive_more::Constructor;
-use hash_intrinsics::primitives::DefinedPrimitives;
+use hash_intrinsics::{intrinsics::DefinedIntrinsics, primitives::DefinedPrimitives};
 use hash_types::new::{
     environment::env::AccessToEnv,
     mods::{ModDefData, ModDefId, ModKind},
@@ -21,16 +21,21 @@ pub struct BootstrapOps<'tc> {
 }
 
 pub type DefinedPrimitivesOrUnset = OnceCell<DefinedPrimitives>;
+pub type DefinedIntrinsicsOrUnset = OnceCell<DefinedIntrinsics>;
 
 impl_access_to_tc_env!(BootstrapOps<'tc>);
 
 impl<'tc> BootstrapOps<'tc> {
-    /// Bootstrap the typechecker, by creating a module of primitive
-    /// definitions and giving them to the provided closure.
+    /// Bootstrap the typechecker, by constructing primitives and intrinsics,
+    /// then creating modules of the two and giving them to
+    /// the provided closure.
     pub fn bootstrap<T>(&self, f: impl FnOnce(ModDefId) -> T) -> T {
         let primitives = DefinedPrimitives::create(self.env());
-        let primitive_mod = self.make_primitive_mod(&primitives);
+        let intrinsics = DefinedIntrinsics::create(*self.tc_env());
         self.primitives_or_unset().set(primitives).unwrap();
+        self.intrinsics_or_unset().set(intrinsics).unwrap();
+
+        let primitive_mod = self.make_primitive_mod(&primitives);
         f(primitive_mod)
     }
 
