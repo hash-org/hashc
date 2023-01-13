@@ -11,7 +11,11 @@ use hash_source::{
     constant::{FloatTy, IntTy, SIntTy, UIntTy},
     identifier::Identifier,
 };
-use hash_target::size::Size;
+use hash_target::{
+    abi::{self, Integer},
+    layout::HasDataLayout,
+    size::Size,
+};
 use hash_utils::{
     new_sequence_store_key, new_store_key,
     store::{CloneStore, DefaultSequenceStore, DefaultStore, SequenceStore, Store},
@@ -403,6 +407,30 @@ impl AdtData {
         UIntTy::from_size(size)
     }
 
+    /// Compute the representation of the discriminant of this [AdtData]
+    /// in terms of a [abi::Integer].
+    ///
+    /// @@Future(discriminants): we would need to acount for different
+    /// representations of the discriminant, e.g. `repr(u8)`, and specified
+    /// values on the discriminant.
+    ///
+    /// For now, we always use the "unsigned" integer representation, and try
+    /// to minimuse the size of the discriminant.
+    pub fn discriminant_representation<C: HasDataLayout>(&self, ctx: &C) -> abi::Integer {
+        let max = self.variants.len() as u128;
+        let computed_fit = abi::Integer::fit_unsigned(max);
+
+        // If this is a C-like representation, then we always
+        // default to the tag enum size specified by the target.
+        let minimum = if self.representation.is_c_like() {
+            ctx.data_layout().c_style_enum_min_size
+        } else {
+            Integer::I8
+        };
+
+        cmp::max(computed_fit, minimum)
+    }
+
     /// Compute the discriminant value for a particular variant.
     pub fn discriminant_value_for(&self, variant: VariantIdx) -> u32 {
         debug_assert!(self.flags.is_enum());
@@ -475,6 +503,12 @@ impl AdtRepresentation {
         AdtRepresentation {}
     }
 
+    /// Check if the representation of the ADT is specified to
+    /// be in C-style layout.
+    pub fn is_c_like(&self) -> bool {
+        false
+    }
+
     /// Check whether the [AdtRepresentation] permits the re-ordering
     /// of struct fields in order to optimise for memory layout.
     pub fn inhibits_struct_field_reordering(&self) -> bool {
@@ -506,6 +540,9 @@ impl AdtVariant {
         &self.fields[idx]
     }
 }
+
+/// A alias for the variants of an ADT.
+pub type AdtVariants = IndexVec<VariantIdx, AdtVariant>;
 
 /// An [AdtField] is a field that is defined for a variant of an ADT. It
 /// contains an associated name, and a type. If no user defined name was

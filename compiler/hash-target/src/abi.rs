@@ -5,7 +5,7 @@
 use std::fmt;
 
 use crate::{
-    alignment::Alignments,
+    alignment::{Alignment, Alignments},
     layout::HasDataLayout,
     primitives::{FloatTy, SIntTy, UIntTy},
     size::Size,
@@ -17,7 +17,7 @@ use crate::{
 /// not "machine" dependent in size, i.e. `usize` and `isize` types
 /// are converted into the appropriate [Integer] based on the
 /// [TargetDataLayout] of the machine.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Integer {
     I8,
     I16,
@@ -54,11 +54,36 @@ impl Integer {
             I128 => dl.i128_align,
         }
     }
+
+    /// Finds the smallest [Integer] type which can represent the unsigned
+    /// value.
+    #[inline]
+    #[allow(clippy::match_overlapping_arm)]
+    pub fn fit_unsigned(value: u128) -> Integer {
+        use Integer::*;
+
+        match value {
+            0..=0x0000_0000_0000_00ff => I8,
+            0..=0x0000_0000_0000_ffff => I16,
+            0..=0x0000_0000_ffff_ffff => I32,
+            0..=0xffff_ffff_ffff_ffff => I64,
+            _ => I128,
+        }
+    }
+
+    /// Finds the smallest [Integer] with the specified alignment.
+    pub fn for_alignment<C: HasDataLayout>(ctx: &C, alignment: Alignment) -> Option<Self> {
+        use Integer::*;
+
+        [I8, I16, I32, I64, I128].into_iter().find(|&candidate| {
+            alignment == candidate.align(ctx).abi && alignment.bytes() >= candidate.size().bytes()
+        })
+    }
 }
 
 /// Represents all of the primitive [AbiRepresentation::Scalar]s that are
 /// supported within the ABI.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ScalarKind {
     /// An integer scalar.
     Int { kind: Integer, signed: bool },

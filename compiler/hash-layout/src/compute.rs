@@ -3,9 +3,9 @@
 //! as possible, thus using a [LayoutCache] in order to cache all the
 //! previously computed layouts, and re-use them as much as possible
 
-use std::cmp;
+use std::{cmp, iter};
 
-use hash_ir::ty::{AdtData, AdtId, AdtRepresentation, IrTy, IrTyId, RefKind, VariantIdx};
+use hash_ir::ty::{AdtData, AdtRepresentation, IrTy, IrTyId, RefKind, VariantIdx};
 use hash_target::{
     abi::{AbiRepresentation, Integer, Scalar, ScalarKind, ValidScalarRange},
     alignment::{Alignment, Alignments},
@@ -23,7 +23,17 @@ use crate::{Layout, LayoutCtx, LayoutId, LayoutShape, Variants};
 /// report that either a type within a layout cannot be
 /// computed because the size is unknown, it is too large, or
 /// it is an invalid type.
-pub(crate) enum LayoutError {}
+pub enum LayoutError {
+    /// Overflow. The computed layout exceeds the maximum object size
+    /// specified on the target platform. For more information, see
+    /// [`TargetDataLayout::obj_size_bound()`].
+    Overflow,
+
+    /// The layout of the type is unknown, this is used
+    /// for when the type that is given does not have a well
+    /// defined layout.
+    Unknown(IrTyId),
+}
 
 /// This is an auxiliary implementation of computing the
 /// layouts of primitive types only, this does not handle ADTs
@@ -94,7 +104,7 @@ impl<'l> LayoutCtx<'l> {
     /// This is the entry point of the layout computation engine. From
     /// here, the [Layout] of a type will be computed all the way recursively
     /// until all of the leaves of the type are also turned into [Layout]s.
-    pub fn compute_layout_of_ty(&self, ty: IrTyId) -> LayoutId {
+    pub fn compute_layout_of_ty(&self, ty_id: IrTyId) -> Result<LayoutId, LayoutError> {
         let dl = self.data_layout;
 
         let scalar_unit = |value: ScalarKind| {
@@ -102,52 +112,52 @@ impl<'l> LayoutCtx<'l> {
             Scalar { kind: value, valid_range: ValidScalarRange::full(size) }
         };
 
-        self.ir_ctx.tys().map_fast(ty, |ty| match ty {
+        self.ir_ctx.tys().map_fast(ty_id, |ty| match ty {
             IrTy::Int(ty) => match ty {
-                SIntTy::I8 => self.common_layouts.i8,
-                SIntTy::I16 => self.common_layouts.i16,
-                SIntTy::I32 => self.common_layouts.i32,
-                SIntTy::I64 => self.common_layouts.i64,
-                SIntTy::I128 => self.common_layouts.i128,
-                SIntTy::ISize => self.common_layouts.isize,
+                SIntTy::I8 => Ok(self.common_layouts.i8),
+                SIntTy::I16 => Ok(self.common_layouts.i16),
+                SIntTy::I32 => Ok(self.common_layouts.i32),
+                SIntTy::I64 => Ok(self.common_layouts.i64),
+                SIntTy::I128 => Ok(self.common_layouts.i128),
+                SIntTy::ISize => Ok(self.common_layouts.isize),
 
                 // @@Layout: for bigints, we will probably use a ScalarPair
                 // to represent a pointer to the digit array, and then a
                 // length of the digits.
-                SIntTy::IBig => todo!(),
+                SIntTy::IBig => Err(LayoutError::Unknown(ty_id)),
             },
             IrTy::UInt(ty) => match ty {
-                UIntTy::U8 => self.common_layouts.u8,
-                UIntTy::U16 => self.common_layouts.u16,
-                UIntTy::U32 => self.common_layouts.u32,
-                UIntTy::U64 => self.common_layouts.u64,
-                UIntTy::U128 => self.common_layouts.u128,
-                UIntTy::USize => self.common_layouts.usize,
-                UIntTy::UBig => todo!(),
+                UIntTy::U8 => Ok(self.common_layouts.u8),
+                UIntTy::U16 => Ok(self.common_layouts.u16),
+                UIntTy::U32 => Ok(self.common_layouts.u32),
+                UIntTy::U64 => Ok(self.common_layouts.u64),
+                UIntTy::U128 => Ok(self.common_layouts.u128),
+                UIntTy::USize => Ok(self.common_layouts.usize),
+                UIntTy::UBig => Err(LayoutError::Unknown(ty_id)),
             },
-            IrTy::Float(ty) => match ty {
+            IrTy::Float(ty) => Ok(match ty {
                 FloatTy::F32 => self.common_layouts.f32,
                 FloatTy::F64 => self.common_layouts.f64,
-            },
-            IrTy::Str => self.common_layouts.str,
-            IrTy::Bool => self.common_layouts.bool,
-            IrTy::Char => self.common_layouts.char,
-            IrTy::Never => self.common_layouts.never,
+            }),
+            IrTy::Str => Ok(self.common_layouts.str),
+            IrTy::Bool => Ok(self.common_layouts.bool),
+            IrTy::Char => Ok(self.common_layouts.char),
+            IrTy::Never => Ok(self.common_layouts.never),
             IrTy::Ref(_, _, RefKind::Raw | RefKind::Normal) => {
                 let data_ptr = scalar_unit(ScalarKind::Pointer);
-                self.layouts().create(Layout::scalar(dl, data_ptr))
+                Ok(self.layouts().create(Layout::scalar(dl, data_ptr)))
             }
 
             // @@Todo: figure out how to handle rc pointers, probably the same
             // as normal ones, but the underlying type of the pointer may be
             // wrapped in some kind of `Rc` struct?
-            IrTy::Ref(_, _, RefKind::Rc) => todo!(),
-            IrTy::Slice(_) => todo!(),
+            IrTy::Ref(_, _, RefKind::Rc) => Err(LayoutError::Unknown(ty_id)),
+            IrTy::Slice(_) => Err(LayoutError::Unknown(ty_id)),
             IrTy::Array { ty, size } => self.compute_layout_of_array(*ty, *size as u64),
-            IrTy::Adt(adt) => self.ir_ctx.map_adt(*adt, |id, adt| {
+            IrTy::Adt(adt) => self.ir_ctx.map_adt(*adt, |_id, adt| -> Result<_, LayoutError> {
                 // We have to compute the layouts of all of the variants
                 // and all of the fields of the variants
-                let child_layouts = adt
+                let field_layout_table = adt
                     .variants
                     .iter()
                     .map(|variant| {
@@ -155,9 +165,9 @@ impl<'l> LayoutCtx<'l> {
                             .fields
                             .iter()
                             .map(|field| self.compute_layout_of_ty(field.ty))
-                            .collect::<Vec<_>>()
+                            .collect::<Result<Vec<_>, _>>()
                     })
-                    .collect::<IndexVec<VariantIdx, _>>();
+                    .collect::<Result<IndexVec<VariantIdx, _>, _>>()?;
 
                 // This is used to check whether a particular variant of the
                 // ADT is uninhabited or all of the fields are zero-sized-types.
@@ -180,8 +190,8 @@ impl<'l> LayoutCtx<'l> {
                 // uni-variant enum.
                 let (first_present, second_present) = {
                     let mut present_variants =
-                        child_layouts.iter_enumerated().filter_map(|(variant, layouts)| {
-                            if absent(&layouts) {
+                        field_layout_table.iter_enumerated().filter_map(|(variant, layouts)| {
+                            if absent(layouts) {
                                 None
                             } else {
                                 Some(variant)
@@ -198,7 +208,7 @@ impl<'l> LayoutCtx<'l> {
                     Some(variant) => variant,
                     // In the case of where an enum has no inhabited variants,
                     // we return early and return the "never" layout.
-                    None if adt.flags.is_enum() => return self.common_layouts.never,
+                    None if adt.flags.is_enum() => return Ok(self.common_layouts.never),
                     None => VariantIdx::new(0),
                 };
 
@@ -212,20 +222,21 @@ impl<'l> LayoutCtx<'l> {
                     // then we can't perform this optimisation.
                     || (adt.flags.is_enum() && second_present.is_none())
                 {
-                    self.layouts().create(self.compute_layout_of_univariant(
+                    Ok(self.layouts().create(self.compute_layout_of_univariant(
                         first_present,
                         None,
-                        &child_layouts[first_present],
+                        &field_layout_table[first_present],
                         &adt.representation,
-                    ))
+                    )))
                 } else if adt.flags.is_union() {
-                    self.compute_layout_of_union(id, adt)
+                    self.compute_layout_of_union(field_layout_table, adt)
+                        .ok_or(LayoutError::Unknown(ty_id))
                 } else {
                     // This must be an enum...
-                    self.compute_layout_of_enum(id, adt)
+                    Ok(self.layouts().create(self.compute_layout_of_enum(field_layout_table, adt)))
                 }
             }),
-            IrTy::Fn { .. } => todo!(),
+            IrTy::Fn { .. } => Err(LayoutError::Unknown(ty_id)),
         })
     }
 
@@ -342,24 +353,300 @@ impl<'l> LayoutCtx<'l> {
     }
 
     /// Compute the layout of a `union` type.
-    fn compute_layout_of_union(&self, _id: AdtId, data: &AdtData) -> LayoutId {
+    fn compute_layout_of_union(
+        &self,
+        _field_layout_table: IndexVec<VariantIdx, Vec<LayoutId>>,
+        data: &AdtData,
+    ) -> Option<LayoutId> {
         debug_assert!(data.flags.is_union());
 
-        todo!()
+        None
     }
 
     /// Compute the layout of a `enum` type.
-    fn compute_layout_of_enum(&self, _id: AdtId, data: &AdtData) -> LayoutId {
-        debug_assert!(data.flags.is_enum());
+    fn compute_layout_of_enum(
+        &self,
+        field_layout_table: IndexVec<VariantIdx, Vec<LayoutId>>,
+        adt: &AdtData,
+    ) -> Layout {
+        debug_assert!(adt.flags.is_enum());
+        let mut alignment = self.data_layout.aggregate_align;
+        let mut size = Size::ZERO;
 
-        todo!()
+        // Deal with the alignment of the prefix value
+        let prefix_ty = adt.discriminant_representation(self.data_layout);
+        let mut prefix_alignment = prefix_ty.align(self.data_layout).abi;
+
+        if adt.representation.is_c_like() {
+            // We need to set the alignment of the prefix to the largest
+            // field alignment value.
+            for field_row in &field_layout_table {
+                for field in field_row {
+                    prefix_alignment = prefix_alignment
+                        .max(self.layouts().map_fast(*field, |field| field.alignment.abi));
+                }
+            }
+        }
+
+        // ##ExpandEnumTagSize
+        //
+        // Represents the smallest alignment amongst all of the data
+        // type variants. Start of from a large alignment value, and
+        // work with their way down.
+        //
+        // This value is used to store the minimum alignment of each
+        // field so that we can perform a re-sizing of the enum tag
+        // value. On LLVM, we can reduce the amount of un-aligned
+        // `load`/`stores` and excessive memcpy/memset operations
+        // caused by the un-alignment from the current `prefix_ty`
+        // and the alignments of the variants.
+        //
+        // So, what we do is we take smallest alignment out all of the
+        // variants, and try to expand the size of the `prefix_ty` to
+        // the alignment size integer.
+        //
+        // @@BackendDependant(llvm): this "optimisation" might not necessarily
+        // apply to other backends than LLVM, so we might not necessarily
+        // want to perform this optimisation.
+        let mut starting_alignment = Alignment::from_bytes(256).unwrap();
+
+        // Now construct layouts for each variant, and then intern
+        // them.
+        let mut variant_layouts = field_layout_table
+            .iter_enumerated()
+            .map(|(index, field_layouts)| {
+                let variant = self.compute_layout_of_univariant(
+                    index,
+                    Some((prefix_ty.size(), prefix_alignment)),
+                    field_layouts,
+                    &adt.representation,
+                );
+
+                // Compute the layout of the starting field, and take the
+                // minimum between the existing value, and the variant
+                self.layouts().map_many_fast(field_layouts.iter().copied(), |fields| {
+                    // skip items that are ZSTs or fields with alignment of one
+                    // and then compute the min(starting_alignment, field.alignment.abi).
+                    for field in
+                        variant.shape.iter_increasing_offsets().map(|offset| fields[offset])
+                    {
+                        if !field.is_zst() || field.alignment.abi.bytes() != 1 {
+                            starting_alignment = starting_alignment.min(field.alignment.abi);
+                            break;
+                        }
+                    }
+                });
+
+                // update the size and alignment of this value based on the
+                // layout and size of the variant.
+                size = size.max(variant.size);
+                alignment = alignment.max(variant.alignment);
+
+                variant
+            })
+            .collect::<IndexVec<VariantIdx, _>>();
+
+        // Now that we have computed all of the variants, and figured out the
+        // smallest alignment amongst all of the variants, we can now see if
+        // we can expand the size of the enum tag value to apply the aforementioned
+        // optimisation at ##ExpandEnumTagSize.
+        let mut new_prefix_ty = if adt.representation.is_c_like() {
+            // @@Todo: or used specified type value.
+            prefix_ty
+        } else {
+            // If the alignment is still greater than the maximum integer
+            // size, then we will avoid computing thi
+            Integer::for_alignment(self.data_layout, starting_alignment).unwrap_or(prefix_ty)
+        };
+
+        // If the `new_prefix_ty` is larger than the size of the `prefix_ty`,
+        // then we perform the re-sizing.
+
+        if new_prefix_ty > prefix_ty {
+            let old_prefix_ty_size = prefix_ty.size();
+            let new_prefix_ty_size = new_prefix_ty.size();
+
+            for variant in &mut variant_layouts {
+                match variant.shape {
+                    LayoutShape::Struct { ref mut offsets, .. } => {
+                        for i in offsets {
+                            if *i <= old_prefix_ty_size {
+                                *i = new_prefix_ty_size;
+                            }
+                        }
+                    }
+                    _ => panic!("layout of struct-like enum variant is not a struct"),
+                }
+
+                // If the variant size is smaller or equal to
+                // the old size type, we need to expand the struct
+                // variant.
+                if variant.size <= old_prefix_ty_size {
+                    variant.size = new_prefix_ty_size;
+                }
+            }
+        } else {
+            new_prefix_ty = prefix_ty;
+        }
+
+        // Create the tag value for the enum discriminant
+        let tag = Scalar {
+            kind: ScalarKind::Int { kind: new_prefix_ty, signed: false },
+
+            // @@Discriminants: since we don't yet have a way to assign
+            // specific values to each enum variant which then assigns
+            // a particular value to the enum variant, we always assume
+            // the valid range is from "0" to the number of variants the
+            // enum has.
+            //
+            // When this is added, we will be able to construct the valid
+            // discriminant range and use that here.
+            valid_range: ValidScalarRange { start: 0, end: field_layout_table.len() as u128 },
+        };
+
+        let abi =
+            self.compute_enum_abi(&tag, size, alignment, &field_layout_table, &variant_layouts);
+
+        // Now we need to allocate each of the created layouts for the
+        // variants.
+        let variants = variant_layouts
+            .into_iter()
+            .map(|variant| self.layouts.create(variant))
+            .collect::<IndexVec<VariantIdx, _>>();
+
+        Layout {
+            shape: LayoutShape::Struct { offsets: vec![Size::ZERO], memory_map: vec![0] },
+            variants: Variants::Multiple { tag, field: 0, variants },
+            abi,
+            alignment,
+            size,
+        }
     }
 
-    /// Compute the layout of a given [`IrTy::Array`].
-    fn compute_layout_of_array(&self, element_ty: IrTyId, element_count: u64) -> LayoutId {
+    /// Function that computes the ABI of an `enum` like type. This tries
+    /// to make the enum be represented as a scalar since this simplifies
+    /// code generation (for the enums that can be represented as scalars)
+    /// and it can lead from more beneficial optimisations.
+    fn compute_enum_abi(
+        &self,
+        tag: &Scalar,
+        enum_size: Size,
+        enum_alignment: Alignments,
+        field_layouts: &IndexVec<VariantIdx, Vec<LayoutId>>,
+        variant_layouts: &IndexVec<VariantIdx, Layout>,
+    ) -> AbiRepresentation {
+        let mut abi = AbiRepresentation::Aggregate;
+
+        // If all of the variants are un-inhabited, then this layout
+        // is also considered to be un-habited
+        if variant_layouts.iter().all(|variant| variant.abi.is_uninhabited()) {
+            abi = AbiRepresentation::Uninhabited;
+        } else if tag.size(self.data_layout) == enum_size {
+            // if this enum only contains tags, we represent this enum
+            // as a scalar.
+            abi = AbiRepresentation::Scalar(*tag);
+        } else {
+            // If we can represent all of the variant layouts as a scalar,
+            // we can then use a scalar-pair representation
+
+            let mut common_prim = None;
+
+            for (field_layouts, variant_layout) in field_layouts.iter().zip(variant_layouts) {
+                // All variant layouts must be a struct
+                let LayoutShape::Struct { ref offsets, .. } = variant_layout.shape else {
+                    panic!()
+                };
+
+                let (first, second) =
+                    self.layouts().map_many_fast(field_layouts.iter().copied(), |field_layouts| {
+                        let mut fields =
+                            iter::zip(field_layouts, offsets).filter(|p| !p.0.is_zst());
+
+                        // @@Hack: ugh we're copying this here because we don't have the accessed
+                        // here, maybe we should avoid immediately writing
+                        // the fields into the store so we can pass them
+                        // down without constantly re-reading them?
+                        let first =
+                            fields.next().map(|(field, offset)| ((*field).clone(), *offset));
+                        let second =
+                            fields.next().map(|(field, offset)| ((*field).clone(), *offset));
+
+                        (first, second)
+                    });
+
+                let (field, offset) = match (first, second) {
+                    (None, None) => {
+                        continue;
+                    }
+                    (Some(field), None) => field,
+                    _ => {
+                        common_prim = None;
+                        break;
+                    }
+                };
+
+                let prim = match field.abi {
+                    AbiRepresentation::Scalar(scalar) => {
+                        // common_prim_initialised_in_all &=
+                        scalar.kind
+                    }
+                    _ => {
+                        common_prim = None;
+                        break;
+                    }
+                };
+
+                // If we found a common primitive type in the previous iteration,
+                // then we need to check if it is equal to the current primitive
+                // and offset.
+                if let Some(pair) = common_prim {
+                    if pair != (prim, offset) {
+                        common_prim = None;
+                        break;
+                    }
+                } else {
+                    common_prim = Some((prim, offset));
+                }
+            }
+
+            // If we found a common primitive type, then we can use a
+            // scalar-pair representation in form of `(tag, prim_scalar)`
+            if let Some((prim, offset)) = common_prim {
+                let primitive_size = prim.size(self.data_layout);
+                let primitive_scalar =
+                    Scalar { kind: prim, valid_range: ValidScalarRange::full(primitive_size) };
+
+                let pair = Layout::scalar_pair(self.data_layout, *tag, primitive_scalar);
+                let pair_offsets = match pair.shape {
+                    LayoutShape::Struct { ref offsets, .. } => offsets,
+                    _ => unreachable!(),
+                };
+
+                // If the offsets are equal to the common offset, then we can
+                // use this as the ABI representation of the enum.
+                if pair_offsets[0] == Size::ZERO
+                    && pair_offsets[1] == offset
+                    && enum_alignment == pair.alignment
+                    && enum_size == pair.size
+                {
+                    abi = pair.abi;
+                }
+            }
+        }
+
+        abi
+    }
+
+    /// Compute the layout of a given [`IrTy::Array`]. This function returns
+    /// an optional
+    fn compute_layout_of_array(
+        &self,
+        element_ty: IrTyId,
+        element_count: u64,
+    ) -> Result<LayoutId, LayoutError> {
         // first, we compute the layout of the element type
 
-        let element = self.compute_layout_of_ty(element_ty);
+        let element = self.compute_layout_of_ty(element_ty)?;
         let (element_size, element_alignment) =
             self.layouts().map_fast(element, |element| (element.size, element.alignment));
 
@@ -371,16 +658,19 @@ impl<'l> LayoutCtx<'l> {
             AbiRepresentation::Aggregate
         };
 
-        // @@LayoutErrors: handle the overflow here as a layout error
-        // and then emit an equivalent diagnostic within the compiler.
-        let size = element_size.checked_mul(element_count, self.data_layout()).unwrap();
+        // Now compute the size by multiplying the element size by the
+        // element count. If the multiplication overflows, then we
+        // return an error since the array is too big.
+        let size = element_size
+            .checked_mul(element_count, self.data_layout())
+            .ok_or(LayoutError::Overflow)?;
 
-        self.layouts().create(Layout {
+        Ok(self.layouts().create(Layout {
             shape: LayoutShape::Array { stride: element_size, elements: element_count },
             abi,
             size,
             alignment: element_alignment,
             variants: Variants::Single { index: VariantIdx::new(0) },
-        })
+        }))
     }
 }
