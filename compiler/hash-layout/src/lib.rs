@@ -193,7 +193,7 @@ impl TyInfo {
                 // Create a new layout with basically a ZST that is
                 // un-inhabited... i.e. `never`
                 let shape = if fields == 0 {
-                    LayoutShape::Struct { offsets: vec![], memory_map: vec![] }
+                    LayoutShape::Aggregate { offsets: vec![], memory_map: vec![] }
                 } else {
                     // @@Todo: this should become a union?
                     todo!()
@@ -270,7 +270,7 @@ impl Layout {
         let size = (offset_2 + scalar_2.size(ctx)).align_to(alignment.abi);
 
         Layout {
-            shape: LayoutShape::Struct {
+            shape: LayoutShape::Aggregate {
                 offsets: vec![Size::ZERO, offset_2],
                 memory_map: vec![0, 1],
             },
@@ -333,12 +333,13 @@ pub enum LayoutShape {
         elements: u64,
     },
 
-    /// Layout for struct-like types.
+    /// Layout for aggregate types. The layout contains a collection of fields
+    /// with specified offsets.
     ///
     /// Fields of the `struct`-like type are guaranteed to never overlap, and
     /// gaps between fields are either padding between a field, or space left
     /// over to denote a **discriminant** alignment (in the case of `enum`s).
-    Struct {
+    Aggregate {
         /// Offsets of the the first byte of each field in the struct. This
         /// is in the "source order" of the `struct`-like type.
         offsets: Vec<Size>,
@@ -357,7 +358,7 @@ impl LayoutShape {
             LayoutShape::Primitive => 1,
             LayoutShape::Union { count } => count.get(),
             LayoutShape::Array { elements, .. } => elements.try_into().unwrap(),
-            LayoutShape::Struct { ref offsets, .. } => offsets.len(),
+            LayoutShape::Aggregate { ref offsets, .. } => offsets.len(),
         }
     }
 
@@ -373,7 +374,7 @@ impl LayoutShape {
                 assert!(index < elements);
                 stride * index
             }
-            LayoutShape::Struct { ref offsets, .. } => offsets[index],
+            LayoutShape::Aggregate { ref offsets, .. } => offsets[index],
         }
     }
 
@@ -384,7 +385,7 @@ impl LayoutShape {
         match self {
             LayoutShape::Primitive => unreachable!("primitive layout has no defined offsets"),
             LayoutShape::Union { .. } | LayoutShape::Array { .. } => index,
-            LayoutShape::Struct { memory_map, .. } => memory_map[index as usize],
+            LayoutShape::Aggregate { memory_map, .. } => memory_map[index as usize],
         }
     }
 
@@ -394,7 +395,7 @@ impl LayoutShape {
 
         // iterate over the memory map and create the inverse map
         // for the fields in the layout.
-        if let LayoutShape::Struct { memory_map, .. } = self {
+        if let LayoutShape::Aggregate { memory_map, .. } = self {
             for (i, &index) in memory_map.iter().enumerate() {
                 inverse[index as usize] = i;
             }
@@ -402,7 +403,7 @@ impl LayoutShape {
 
         (0..self.count()).map(move |i| match *self {
             LayoutShape::Primitive | LayoutShape::Union { .. } | LayoutShape::Array { .. } => i,
-            LayoutShape::Struct { .. } => inverse[i],
+            LayoutShape::Aggregate { .. } => inverse[i],
         })
     }
 }

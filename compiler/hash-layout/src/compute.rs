@@ -356,7 +356,7 @@ impl<'l> LayoutCtx<'l> {
 
         Layout {
             variants: Variants::Single { index },
-            shape: LayoutShape::Struct { offsets, memory_map },
+            shape: LayoutShape::Aggregate { offsets, memory_map },
             abi,
             alignment,
             size,
@@ -553,14 +553,14 @@ impl<'l> LayoutCtx<'l> {
 
             for variant in &mut variant_layouts {
                 match variant.shape {
-                    LayoutShape::Struct { ref mut offsets, .. } => {
+                    LayoutShape::Aggregate { ref mut offsets, .. } => {
                         for i in offsets {
                             if *i <= old_prefix_ty_size {
                                 *i = new_prefix_ty_size;
                             }
                         }
                     }
-                    _ => panic!("layout of struct-like enum variant is not a struct"),
+                    _ => panic!("layout of enum variant is non-aggregate"),
                 }
 
                 // If the variant size is smaller or equal to
@@ -600,7 +600,7 @@ impl<'l> LayoutCtx<'l> {
             .collect::<IndexVec<VariantIdx, _>>();
 
         Layout {
-            shape: LayoutShape::Struct { offsets: vec![Size::ZERO], memory_map: vec![0] },
+            shape: LayoutShape::Aggregate { offsets: vec![Size::ZERO], memory_map: vec![0] },
             variants: Variants::Multiple { tag, field: 0, variants },
             abi,
             alignment,
@@ -639,8 +639,8 @@ impl<'l> LayoutCtx<'l> {
 
             for (field_layouts, variant_layout) in field_layouts.iter().zip(variant_layouts) {
                 // All variant layouts must be a struct
-                let LayoutShape::Struct { ref offsets, .. } = variant_layout.shape else {
-                    panic!()
+                let LayoutShape::Aggregate { ref offsets, .. } = variant_layout.shape else {
+                    panic!("layout of enum variant is non-aggregate");
                 };
 
                 let (first, second) =
@@ -714,8 +714,8 @@ impl<'l> LayoutCtx<'l> {
 
                 let pair = Layout::scalar_pair(self.data_layout, *tag, primitive_scalar);
                 let pair_offsets = match pair.shape {
-                    LayoutShape::Struct { ref offsets, .. } => offsets,
-                    _ => unreachable!(),
+                    LayoutShape::Aggregate { ref offsets, .. } => offsets,
+                    _ => panic!("layout of scalar pair is non-aggregate"),
                 };
 
                 // If the offsets are equal to the common offset, then we can
