@@ -101,6 +101,19 @@ impl Instance {
     }
 }
 
+/// Reference kind, e.g. `&T`, `&mut T`, `&raw T` or `Rc<T>`.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum RefKind {
+    /// Normal reference kind, e.g. `&T` or `&mut T`
+    Normal,
+
+    /// Raw reference kind e.g. `&raw T`
+    Raw,
+
+    /// Reference counted reference kind.
+    Rc,
+}
+
 /// Simplified type structure used by the IR and other stages to reason about
 /// Hash programs once types have been erased and simplified.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -126,14 +139,9 @@ pub enum IrTy {
     /// The never type
     Never,
 
-    /// A reference type, referring to a another type, e.g. `&T`
-    Ref(IrTyId, Mutability),
-
-    /// A raw reference type, referring to a another type, e.g. `&raw T`
-    RawRef(IrTyId, Mutability),
-
-    /// A reference counted pointer type, e.g. `Rc<T>`
-    Rc(IrTyId, Mutability),
+    /// A reference type, referring to a another type, e.g. `&T`, `&mut T`
+    /// or `&raw T`, or `Rc<T>`.
+    Ref(IrTyId, Mutability, RefKind),
 
     /// A slice type
     Slice(IrTyId),
@@ -210,7 +218,7 @@ impl IrTy {
                 | Self::Float(_)
                 | Self::Char
                 | Self::Bool
-                | Self::RawRef(_, _)
+                | Self::Ref(_, _, RefKind::Normal | RefKind::Raw)
         )
     }
 
@@ -231,7 +239,7 @@ impl IrTy {
     /// Get the type of this [IrTy] if a dereference is performed on it.
     pub fn on_deref(&self) -> Option<IrTyId> {
         match self {
-            Self::RawRef(ty, _) | Self::Ref(ty, _) | Self::Rc(ty, _) => Some(*ty),
+            Self::Ref(ty, _, _) => Some(*ty),
             _ => None,
         }
     }
@@ -546,7 +554,7 @@ new_store_key!(pub IrTyId);
 /// entry has an associated name, and then followed by the type
 /// expression that represents the [IrTy].
 macro_rules! create_common_ty_table {
-    ($($name:ident, $value:expr),* $(,)?) => {
+    ($($name:ident: $value:expr),* $(,)?) => {
 
         /// Defines a map of common types that might be used in the IR
         /// and general IR operations. When creating new types that refer
@@ -568,45 +576,27 @@ macro_rules! create_common_ty_table {
 
 create_common_ty_table!(
     // Primitive types
-    bool,
-    IrTy::Bool,
-    char,
-    IrTy::Char,
-    str,
-    IrTy::Str,
-    never,
-    IrTy::Never,
+    bool: IrTy::Bool,
+    char: IrTy::Char,
+    str: IrTy::Str,
+    never: IrTy::Never,
     // Floating point types
-    f32,
-    IrTy::Float(FloatTy::F32),
-    f64,
-    IrTy::Float(FloatTy::F64),
+    f32: IrTy::Float(FloatTy::F32),
+    f64: IrTy::Float(FloatTy::F64),
     // Signed integer types
-    i8,
-    IrTy::Int(SIntTy::I8),
-    i16,
-    IrTy::Int(SIntTy::I16),
-    i32,
-    IrTy::Int(SIntTy::I32),
-    i64,
-    IrTy::Int(SIntTy::I64),
-    i128,
-    IrTy::Int(SIntTy::I128),
-    isize,
-    IrTy::Int(SIntTy::ISize),
+    i8: IrTy::Int(SIntTy::I8),
+    i16: IrTy::Int(SIntTy::I16),
+    i32: IrTy::Int(SIntTy::I32),
+    i64: IrTy::Int(SIntTy::I64),
+    i128: IrTy::Int(SIntTy::I128),
+    isize: IrTy::Int(SIntTy::ISize),
     // Unsigned integer types
-    u8,
-    IrTy::UInt(UIntTy::U8),
-    u16,
-    IrTy::UInt(UIntTy::U16),
-    u32,
-    IrTy::UInt(UIntTy::U32),
-    u64,
-    IrTy::UInt(UIntTy::U64),
-    u128,
-    IrTy::UInt(UIntTy::U128),
-    usize,
-    IrTy::UInt(UIntTy::USize),
+    u8: IrTy::UInt(UIntTy::U8),
+    u16: IrTy::UInt(UIntTy::U16),
+    u32: IrTy::UInt(UIntTy::U32),
+    u64: IrTy::UInt(UIntTy::U64),
+    u128: IrTy::UInt(UIntTy::U128),
+    usize: IrTy::UInt(UIntTy::USize),
 );
 
 /// Stores all the used [IrTy]s.
@@ -656,13 +646,13 @@ impl fmt::Display for ForFormatting<'_, IrTyId> {
             IrTy::Str => write!(f, "str"),
             IrTy::Char => write!(f, "char"),
             IrTy::Never => write!(f, "!"),
-            IrTy::Ref(inner, mutability) => {
+            IrTy::Ref(inner, mutability, RefKind::Normal) => {
                 write!(f, "&{mutability}{}", inner.for_fmt(self.ctx))
             }
-            IrTy::RawRef(inner, mutability) => {
+            IrTy::Ref(inner, mutability, RefKind::Raw) => {
                 write!(f, "&raw {mutability}{}", inner.for_fmt(self.ctx))
             }
-            IrTy::Rc(inner, mutability) => {
+            IrTy::Ref(inner, mutability, RefKind::Rc) => {
                 let name = match mutability {
                     Mutability::Mutable => "Mut",
                     Mutability::Immutable => "",
