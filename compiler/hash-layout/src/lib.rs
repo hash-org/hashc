@@ -2,14 +2,17 @@
 //! representing the said layouts in a way that is usable by the
 //! code generation backends.
 
+pub mod compute;
+
 use hash_ir::{
-    ty::{IrTyId, VariantIdx},
+    ty::{IrTy, IrTyId, VariantIdx},
     IrCtx,
 };
 use hash_target::{
     abi::{AbiRepresentation, Scalar},
     alignment::Alignments,
     layout::{HasDataLayout, TargetDataLayout},
+    primitives::{FloatTy, SIntTy, UIntTy},
     size::Size,
 };
 use hash_utils::{
@@ -39,7 +42,60 @@ pub struct LayoutCtx<'abi> {
     /// A reference to the [TargetDataLayout] of the current
     /// session.
     data_layout: &'abi TargetDataLayout,
+
+    /// A table of common layouts that are used by the compiler often
+    /// enough to keep in a "common" place, this also avoids re-making
+    /// alot of layouts for the same frequent typs.
+    pub(crate) common_layouts: CommonLayouts,
 }
+
+macro_rules! create_common_layout_table {
+    ($($name:ident: $value:expr),* $(,)?) => {
+        /// Defines a map of commonly used and accessed layouts. All of the
+        /// primitive types will contain a entry referring to their specific
+        /// layout_id.
+        pub(crate) struct CommonLayouts {
+            $(pub $name: LayoutId, )*
+        }
+
+        impl CommonLayouts {
+            /// Create a new [CommonLayouts] table.
+            pub fn new(data_layout: &TargetDataLayout, layouts: &LayoutStore) -> Self {
+                use crate::compute::compute_primitive_ty_layout;
+
+                Self {
+                    $($name: layouts.create(compute_primitive_ty_layout($value, data_layout)), )*
+                }
+            }
+        }
+    }
+}
+
+// Create common layouts for all of the primitive types
+create_common_layout_table!(
+    // Primitive types
+    bool: IrTy::Bool,
+    char: IrTy::Char,
+    str: IrTy::Str,
+    never: IrTy::Never,
+    // Floating point types
+    f32: IrTy::Float(FloatTy::F32),
+    f64: IrTy::Float(FloatTy::F64),
+    // Signed integer types
+    i8: IrTy::Int(SIntTy::I8),
+    i16: IrTy::Int(SIntTy::I16),
+    i32: IrTy::Int(SIntTy::I32),
+    i64: IrTy::Int(SIntTy::I64),
+    i128: IrTy::Int(SIntTy::I128),
+    isize: IrTy::Int(SIntTy::ISize),
+    // Unsigned integer types
+    u8: IrTy::UInt(UIntTy::U8),
+    u16: IrTy::UInt(UIntTy::U16),
+    u32: IrTy::UInt(UIntTy::U32),
+    u64: IrTy::UInt(UIntTy::U64),
+    u128: IrTy::UInt(UIntTy::U128),
+    usize: IrTy::UInt(UIntTy::USize),
+);
 
 impl<'abi> LayoutCtx<'abi> {
     /// Create a new [LayoutCtx].
@@ -48,7 +104,8 @@ impl<'abi> LayoutCtx<'abi> {
         data_layout: &'abi TargetDataLayout,
         ir_ctx: &'abi IrCtx,
     ) -> Self {
-        Self { layouts, data_layout, ir_ctx }
+        let common_layouts = CommonLayouts::new(data_layout, layouts);
+        Self { layouts, data_layout, common_layouts, ir_ctx }
     }
 
     /// Returns a reference to the [LayoutStore].
@@ -184,14 +241,39 @@ pub struct Layout {
 
 impl Layout {
     /// Create a new [Layout] that represents a scalar.
-    pub fn scalar<C: HasDataLayout>(ctx: &C, scalar: Scalar, abi: AbiRepresentation) -> Self {
+    pub fn scalar<C: HasDataLayout>(ctx: &C, scalar: Scalar) -> Self {
         let size = scalar.size(ctx);
         let alignment = scalar.align(ctx);
 
         Self {
             shape: LayoutShape::Primitive,
             variants: Variants::Single { index: VariantIdx::new(0) },
-            abi,
+            abi: AbiRepresentation::Scalar(scalar),
+            alignment,
+            size,
+        }
+    }
+
+    /// Create a new [Layout] that represents a scalar pair.
+    pub fn scalar_pair<C: HasDataLayout>(ctx: &C, scalar_1: Scalar, scalar_2: Scalar) -> Self {
+        let dl = ctx.data_layout();
+
+        let alignment_2 = scalar_2.align(ctx);
+
+        // Take the maximum of `scalar_1`, `scalar_2` and the `aggregate` target
+        // alignment
+        let alignment = scalar_1.align(ctx).max(alignment_2).max(dl.aggregate_align);
+
+        let offset_2 = scalar_1.size(ctx).align_to(alignment.abi);
+        let size = (offset_2 + scalar_2.size(ctx)).align_to(alignment.abi);
+
+        Layout {
+            shape: LayoutShape::Struct {
+                offsets: vec![Size::ZERO, offset_2],
+                memory_map: vec![0, 1],
+            },
+            variants: Variants::Single { index: VariantIdx::new(0) },
+            abi: AbiRepresentation::Pair(scalar_1, scalar_2),
             alignment,
             size,
         }

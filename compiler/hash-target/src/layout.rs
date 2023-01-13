@@ -89,6 +89,17 @@ pub struct TargetDataLayout {
 }
 
 impl TargetDataLayout {
+    /// Get an equivalent [Integer] representation for a pointer
+    /// on the current target.
+    pub fn ptr_sized_integer(&self) -> Integer {
+        match self.pointer_size.bits() {
+            16 => Integer::I16,
+            32 => Integer::I32,
+            64 => Integer::I64,
+            size => unreachable!("unknown pointer size of `{size}`"),
+        }
+    }
+
     /// Returns the exclusive upper bound on an object size. This is the maximum
     /// size of an object that can be allocated on the target.
     ///

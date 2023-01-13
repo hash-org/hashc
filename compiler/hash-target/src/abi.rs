@@ -4,9 +4,19 @@
 
 use std::fmt;
 
-use crate::{alignment::Alignments, layout::HasDataLayout, size::Size};
+use crate::{
+    alignment::Alignments,
+    layout::HasDataLayout,
+    primitives::{FloatTy, SIntTy, UIntTy},
+    size::Size,
+};
 
-/// ABI representation of an integer scalar type.
+/// ABI representation of an [`ScalarKind::Int`] type. This is
+/// agnostic from [SIntTy] and [UIntTy] because it is used to
+/// to concretely represent integers that are primitive and are
+/// not "machine" dependent in size, i.e. `usize` and `isize` types
+/// are converted into the appropriate [Integer] based on the
+/// [TargetDataLayout] of the machine.
 #[derive(Clone, Copy, Debug)]
 pub enum Integer {
     I8,
@@ -46,39 +56,6 @@ impl Integer {
     }
 }
 
-/// ABI representation of a float scalar type.
-#[derive(Clone, Copy, Debug)]
-pub enum Float {
-    /// A 32-bit float.
-    F32,
-
-    /// A 64-bit float.
-    F64,
-}
-
-impl Float {
-    /// Compute the [Size] of the [Float].
-    #[inline]
-    pub fn size(self) -> Size {
-        use Float::*;
-        match self {
-            F32 => Size::from_bytes(2),
-            F64 => Size::from_bytes(4),
-        }
-    }
-
-    /// Get the [Alignments] of the [Float].
-    pub fn align<C: HasDataLayout>(self, cx: &C) -> Alignments {
-        use Float::*;
-        let dl = cx.data_layout();
-
-        match self {
-            F32 => dl.f32_align,
-            F64 => dl.f64_align,
-        }
-    }
-}
-
 /// Represents all of the primitive [AbiRepresentation::Scalar]s that are
 /// supported within the ABI.
 #[derive(Clone, Copy, Debug)]
@@ -87,10 +64,72 @@ pub enum ScalarKind {
     Int { kind: Integer, signed: bool },
 
     /// A float scalar.
-    Float { kind: Float },
+    Float { kind: FloatTy },
 
     /// A pointer primitive scalar value.
     Pointer,
+}
+
+impl ScalarKind {
+    /// Compute the [Alignments] of the given [ScalarKind].
+    #[inline]
+    pub fn align<L: HasDataLayout>(&self, ctx: &L) -> Alignments {
+        let dl = ctx.data_layout();
+
+        match self {
+            ScalarKind::Int { kind, .. } => kind.align(ctx),
+            ScalarKind::Float { kind } => kind.align(ctx),
+            ScalarKind::Pointer => dl.pointer_align,
+        }
+    }
+
+    /// Compute the [Size] of the [ScalarKind].
+    #[inline]
+    pub fn size<L: HasDataLayout>(&self, ctx: &L) -> Size {
+        let dl = ctx.data_layout();
+
+        match self {
+            ScalarKind::Int { kind, .. } => kind.size(),
+            ScalarKind::Float { kind } => kind.size(),
+            ScalarKind::Pointer => dl.pointer_size,
+        }
+    }
+
+    /// Convert a [UIntTy] into a [ScalarKind].
+    pub fn from_unsigned_int_ty<C: HasDataLayout>(ty: UIntTy, ctx: &C) -> Self {
+        let kind = match ty {
+            UIntTy::U8 => Integer::I8,
+            UIntTy::U16 => Integer::I16,
+            UIntTy::U32 => Integer::I32,
+            UIntTy::U64 => Integer::I64,
+            UIntTy::U128 => Integer::I128,
+            UIntTy::USize => ctx.data_layout().ptr_sized_integer(),
+            UIntTy::UBig => unreachable!("`ubig` cannot be converted into a scalar"),
+        };
+
+        Self::Int { kind, signed: false }
+    }
+
+    /// Convert a [SIntTy] into a [ScalarKind].
+    pub fn from_signed_int_ty<C: HasDataLayout>(ty: SIntTy, ctx: &C) -> Self {
+        let kind = match ty {
+            SIntTy::I8 => Integer::I8,
+            SIntTy::I16 => Integer::I16,
+            SIntTy::I32 => Integer::I32,
+            SIntTy::I64 => Integer::I64,
+            SIntTy::I128 => Integer::I128,
+            SIntTy::ISize => ctx.data_layout().ptr_sized_integer(),
+            SIntTy::IBig => unreachable!("`ibig` cannot be converted into a scalar"),
+        };
+
+        Self::Int { kind, signed: false }
+    }
+}
+
+impl From<FloatTy> for ScalarKind {
+    fn from(kind: FloatTy) -> Self {
+        ScalarKind::Float { kind }
+    }
 }
 
 /// This range is used to represent the valid range of a scalar value.
@@ -169,24 +208,12 @@ impl Scalar {
     /// Align the [Scalar] with the current data layout
     /// specification.
     pub fn align<L: HasDataLayout>(&self, ctx: &L) -> Alignments {
-        let dl = ctx.data_layout();
-
-        match self.kind {
-            ScalarKind::Int { kind, .. } => kind.align(ctx),
-            ScalarKind::Float { kind } => kind.align(ctx),
-            ScalarKind::Pointer => dl.pointer_align,
-        }
+        self.kind.align(ctx)
     }
 
     /// Compute the size of the [Scalar].
     pub fn size<L: HasDataLayout>(&self, ctx: &L) -> Size {
-        let dl = ctx.data_layout();
-
-        match self.kind {
-            ScalarKind::Int { kind, .. } => kind.size(),
-            ScalarKind::Float { kind } => kind.size(),
-            ScalarKind::Pointer => dl.pointer_size,
-        }
+        self.kind.size(ctx)
     }
 
     /// Check if the [Scalar] represents a boolean value, i.e. a
