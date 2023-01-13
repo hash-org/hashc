@@ -26,6 +26,9 @@ pub struct Intrinsic {
     /// The function definition of the intrinsic.
     pub fn_def: FnDefId,
     /// The implementation of the intrinsic.
+    ///
+    /// This will be used by the compile-time evaluation part of typechecking,
+    /// and as a reference for the behaviour of the intrinsic.
     pub implementation: fn(&(dyn AccessToPrimitives), &[TermId]) -> TermId,
 }
 
