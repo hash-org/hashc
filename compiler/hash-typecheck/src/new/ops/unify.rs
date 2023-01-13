@@ -1,3 +1,4 @@
+//! Operations for unifying types.
 use derive_more::Constructor;
 use hash_types::new::tys::TyId;
 

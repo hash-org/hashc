@@ -1,4 +1,4 @@
-// @@Docs
+//! Operations to infer types of terms and patterns.
 use derive_more::Constructor;
 use hash_types::new::{
     args::{ArgsId, PatArgsId},

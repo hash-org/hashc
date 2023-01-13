@@ -1,3 +1,6 @@
+//! Contains context-related operations, building on top of `Context` defined in
+//! hash-types.
+// @@Todo: move this to hash-types?
 use derive_more::Constructor;
 use hash_types::{
     new::{

@@ -1,3 +1,4 @@
+//! Operations for normalising terms and types.
 use derive_more::Constructor;
 use hash_types::new::terms::TermId;
 

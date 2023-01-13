@@ -1,5 +1,5 @@
-//! This module contains code that can bootstrap the typechecker, by creating
-//! and injecting primitive definitions into the context.
+//! Bootstrap the typechecker, by creating and injecting primitive definitions
+//! into the context.
 
 use derive_more::Constructor;
 use hash_intrinsics::{intrinsics::DefinedIntrinsics, primitives::DefinedPrimitives};
