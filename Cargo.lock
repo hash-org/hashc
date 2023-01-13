@@ -812,6 +812,7 @@ dependencies = [
  "hash-target",
  "hash-utils",
  "indexmap",
+ "itertools",
  "log",
  "num-bigint",
  "textwrap",

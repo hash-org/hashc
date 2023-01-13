@@ -12,6 +12,8 @@ log = "0.4"
 num-bigint = "0.4"
 textwrap = "0.16"
 utility-types = "0.0.2"
+itertools = "0.10"
+
 
 hash-ast = { path = "../hash-ast" }
 hash-source = { path = "../hash-source" }
