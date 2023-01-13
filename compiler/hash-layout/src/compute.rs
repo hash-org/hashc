@@ -245,19 +245,28 @@ impl<'l> LayoutCtx<'l> {
     /// Compute the layout of a "univariant" type. This is a type which only
     /// has one variant, but potentially many fields. This function takes a
     /// [VariantIdx] as an argument since this function may be used to compute
-    /// the layout of a single variant of an enum.
+    /// the layout of a single variant of an enum./// If the [AdtRepresentation]
+    /// specifies that the representation should follow the standard "C"
+    /// layout, as specified in the following
+    /// [C standard](https://web.archive.org/web/20181230041359if_/http://www.open-std.org/jtc1/sc22/wg14/www/abq/c17_updated_proposed_fdis.pdf).
     ///
     /// The algorithm for computing the layout of this type is as follows:
     ///
     /// 1. Compute the layout of all of the fields of the type.
     ///
-    /// If the [AdtRepresentation] does not specify any kind of options that
-    /// may prevent layout optimisation, then the following algorithm is used:
+    /// 2. push all of the ZST-like fields to the start of the struct to avoid
+    /// dealing with them between other fields.
     ///
+    /// 3. Sort the remaining fields in order of "effective" alignment of each
+    /// field, essentially the largest fields by size and alignment are
+    /// grouped first, and then descending down.
     ///
-    /// If the [AdtRepresentation] specifies that the representation should
-    /// follow the standard "C" layout, as specified in the following
-    /// [C standard](https://web.archive.org/web/20181230041359if_/http://www.open-std.org/jtc1/sc22/wg14/www/abq/c17_updated_proposed_fdis.pdf).
+    /// 4. try and optimise the ABI of the given type to represent it as a
+    /// scalar which means it can reach more optimisations when code is
+    /// generated for this kind.
+    ///
+    /// N.B. If layout optimisations are not applicable, then steps 2-3 are not
+    /// applied.
     fn compute_layout_of_univariant(
         &self,
         index: VariantIdx,
@@ -354,7 +363,12 @@ impl<'l> LayoutCtx<'l> {
         }
     }
 
-    /// Compute the layout of a `union` type.
+    /// Compute the layout of a `union` type. Take the layouts of all of the
+    /// specified fields, take the maximum size and alignment, and the create
+    /// the [Layout].
+    ///
+    /// N.B. the [Layout] of a union cannot be known if there are no fields
+    /// within the union.
     fn compute_layout_of_union(
         &self,
         field_layout_table: IndexVec<VariantIdx, Vec<LayoutId>>,
@@ -418,7 +432,23 @@ impl<'l> LayoutCtx<'l> {
         })
     }
 
-    /// Compute the layout of a `enum` type.
+    /// Compute the layout of a `enum` type. The algorithm for computing an
+    /// `enum` type layout is the following:
+    ///
+    /// 1. Figure out the type layout of the enum "prefix" tag.
+    ///
+    /// 2. Compute the layouts of each variant sub-structure, with the applied
+    /// prefix offset.
+    ///
+    /// 3. Check if the tag can be neatly aligned with the smallest alignment
+    /// from all the variants, which means that the tag is expanded to align
+    /// the type and avoid redundant padding being created when performing
+    /// `load` / `store` operations.
+    ///
+    /// 4. Attempt to optimise the ABI of the enum by looking at if it can be
+    /// represented as a scalar value.
+    ///
+    /// 5. Then, collect all of the variant layouts, and build the final layout.
     fn compute_layout_of_enum(
         &self,
         field_layout_table: IndexVec<VariantIdx, Vec<LayoutId>>,
