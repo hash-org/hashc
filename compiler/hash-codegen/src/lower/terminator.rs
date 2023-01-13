@@ -15,7 +15,7 @@ use hash_ir::{
     ty::IrTy,
 };
 use hash_pipeline::settings::{CodeGenBackend, OptimisationLevel};
-use hash_target::abi::AbiRepresentation;
+use hash_target::abi::{AbiRepresentation, ValidScalarRange};
 use hash_utils::store::Store;
 
 use super::{
@@ -285,7 +285,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
 
                 if let AbiRepresentation::Scalar(scalar_kind) = abi_layout.abi {
                     if scalar_kind.is_bool() {
-                        builder.add_range_metadata_to(value, scalar_kind.valid_range);
+                        builder.add_range_metadata_to(value, ValidScalarRange { start: 0, end: 1 });
                     }
 
                     // @@Performance: we could just pass a ptr to layout here??

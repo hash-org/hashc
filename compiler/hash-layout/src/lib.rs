@@ -2,14 +2,19 @@
 //! representing the said layouts in a way that is usable by the
 //! code generation backends.
 
+pub mod compute;
+
+use std::num::NonZeroUsize;
+
 use hash_ir::{
-    ty::{IrTyId, VariantIdx},
+    ty::{IrTy, IrTyId, VariantIdx},
     IrCtx,
 };
 use hash_target::{
     abi::{AbiRepresentation, Scalar},
     alignment::Alignments,
     layout::{HasDataLayout, TargetDataLayout},
+    primitives::{FloatTy, SIntTy, UIntTy},
     size::Size,
 };
 use hash_utils::{
@@ -39,7 +44,60 @@ pub struct LayoutCtx<'abi> {
     /// A reference to the [TargetDataLayout] of the current
     /// session.
     data_layout: &'abi TargetDataLayout,
+
+    /// A table of common layouts that are used by the compiler often
+    /// enough to keep in a "common" place, this also avoids re-making
+    /// alot of layouts for the same frequent typs.
+    pub(crate) common_layouts: CommonLayouts,
 }
+
+macro_rules! create_common_layout_table {
+    ($($name:ident: $value:expr),* $(,)?) => {
+        /// Defines a map of commonly used and accessed layouts. All of the
+        /// primitive types will contain a entry referring to their specific
+        /// layout_id.
+        pub(crate) struct CommonLayouts {
+            $(pub $name: LayoutId, )*
+        }
+
+        impl CommonLayouts {
+            /// Create a new [CommonLayouts] table.
+            pub fn new(data_layout: &TargetDataLayout, layouts: &LayoutStore) -> Self {
+                use crate::compute::compute_primitive_ty_layout;
+
+                Self {
+                    $($name: layouts.create(compute_primitive_ty_layout($value, data_layout)), )*
+                }
+            }
+        }
+    }
+}
+
+// Create common layouts for all of the primitive types
+create_common_layout_table!(
+    // Primitive types
+    bool: IrTy::Bool,
+    char: IrTy::Char,
+    str: IrTy::Str,
+    never: IrTy::Never,
+    // Floating point types
+    f32: IrTy::Float(FloatTy::F32),
+    f64: IrTy::Float(FloatTy::F64),
+    // Signed integer types
+    i8: IrTy::Int(SIntTy::I8),
+    i16: IrTy::Int(SIntTy::I16),
+    i32: IrTy::Int(SIntTy::I32),
+    i64: IrTy::Int(SIntTy::I64),
+    i128: IrTy::Int(SIntTy::I128),
+    isize: IrTy::Int(SIntTy::ISize),
+    // Unsigned integer types
+    u8: IrTy::UInt(UIntTy::U8),
+    u16: IrTy::UInt(UIntTy::U16),
+    u32: IrTy::UInt(UIntTy::U32),
+    u64: IrTy::UInt(UIntTy::U64),
+    u128: IrTy::UInt(UIntTy::U128),
+    usize: IrTy::UInt(UIntTy::USize),
+);
 
 impl<'abi> LayoutCtx<'abi> {
     /// Create a new [LayoutCtx].
@@ -48,7 +106,8 @@ impl<'abi> LayoutCtx<'abi> {
         data_layout: &'abi TargetDataLayout,
         ir_ctx: &'abi IrCtx,
     ) -> Self {
-        Self { layouts, data_layout, ir_ctx }
+        let common_layouts = CommonLayouts::new(data_layout, layouts);
+        Self { layouts, data_layout, common_layouts, ir_ctx }
     }
 
     /// Returns a reference to the [LayoutStore].
@@ -134,7 +193,7 @@ impl TyInfo {
                 // Create a new layout with basically a ZST that is
                 // un-inhabited... i.e. `never`
                 let shape = if fields == 0 {
-                    LayoutShape::Struct { offsets: vec![], memory_map: vec![] }
+                    LayoutShape::Aggregate { offsets: vec![], memory_map: vec![] }
                 } else {
                     // @@Todo: this should become a union?
                     todo!()
@@ -184,14 +243,39 @@ pub struct Layout {
 
 impl Layout {
     /// Create a new [Layout] that represents a scalar.
-    pub fn scalar<C: HasDataLayout>(ctx: &C, scalar: Scalar, abi: AbiRepresentation) -> Self {
+    pub fn scalar<C: HasDataLayout>(ctx: &C, scalar: Scalar) -> Self {
         let size = scalar.size(ctx);
         let alignment = scalar.align(ctx);
 
         Self {
             shape: LayoutShape::Primitive,
             variants: Variants::Single { index: VariantIdx::new(0) },
-            abi,
+            abi: AbiRepresentation::Scalar(scalar),
+            alignment,
+            size,
+        }
+    }
+
+    /// Create a new [Layout] that represents a scalar pair.
+    pub fn scalar_pair<C: HasDataLayout>(ctx: &C, scalar_1: Scalar, scalar_2: Scalar) -> Self {
+        let dl = ctx.data_layout();
+
+        let alignment_2 = scalar_2.align(ctx);
+
+        // Take the maximum of `scalar_1`, `scalar_2` and the `aggregate` target
+        // alignment
+        let alignment = scalar_1.align(ctx).max(alignment_2).max(dl.aggregate_align);
+
+        let offset_2 = scalar_1.size(ctx).align_to(alignment.abi);
+        let size = (offset_2 + scalar_2.size(ctx)).align_to(alignment.abi);
+
+        Layout {
+            shape: LayoutShape::Aggregate {
+                offsets: vec![Size::ZERO, offset_2],
+                memory_map: vec![0, 1],
+            },
+            variants: Variants::Single { index: VariantIdx::new(0) },
+            abi: AbiRepresentation::Pair(scalar_1, scalar_2),
             alignment,
             size,
         }
@@ -234,6 +318,11 @@ pub enum LayoutShape {
     /// layout.
     Primitive,
 
+    /// A `union` like layout, all of the fields begin at the
+    /// start of the layout, and the size of the layout is the
+    /// size of the largest field.
+    Union { count: NonZeroUsize },
+
     /// Layout for array/vector like types that have a known element
     /// count at compile time.
     Array {
@@ -244,12 +333,13 @@ pub enum LayoutShape {
         elements: u64,
     },
 
-    /// Layout for struct-like types.
+    /// Layout for aggregate types. The layout contains a collection of fields
+    /// with specified offsets.
     ///
     /// Fields of the `struct`-like type are guaranteed to never overlap, and
     /// gaps between fields are either padding between a field, or space left
     /// over to denote a **discriminant** alignment (in the case of `enum`s).
-    Struct {
+    Aggregate {
         /// Offsets of the the first byte of each field in the struct. This
         /// is in the "source order" of the `struct`-like type.
         offsets: Vec<Size>,
@@ -266,8 +356,9 @@ impl LayoutShape {
     pub fn count(&self) -> usize {
         match *self {
             LayoutShape::Primitive => 1,
+            LayoutShape::Union { count } => count.get(),
             LayoutShape::Array { elements, .. } => elements.try_into().unwrap(),
-            LayoutShape::Struct { ref offsets, .. } => offsets.len(),
+            LayoutShape::Aggregate { ref offsets, .. } => offsets.len(),
         }
     }
 
@@ -277,12 +368,13 @@ impl LayoutShape {
     pub fn offset(&self, index: usize) -> Size {
         match *self {
             LayoutShape::Primitive => unreachable!("primitive layout has no defined offsets"),
+            LayoutShape::Union { .. } => Size::ZERO,
             LayoutShape::Array { stride, elements } => {
                 let index = index as u64;
                 assert!(index < elements);
                 stride * index
             }
-            LayoutShape::Struct { ref offsets, .. } => offsets[index],
+            LayoutShape::Aggregate { ref offsets, .. } => offsets[index],
         }
     }
 
@@ -292,8 +384,8 @@ impl LayoutShape {
     pub fn memory_index(&self, index: u32) -> u32 {
         match self {
             LayoutShape::Primitive => unreachable!("primitive layout has no defined offsets"),
-            LayoutShape::Array { .. } => index,
-            LayoutShape::Struct { memory_map, .. } => memory_map[index as usize],
+            LayoutShape::Union { .. } | LayoutShape::Array { .. } => index,
+            LayoutShape::Aggregate { memory_map, .. } => memory_map[index as usize],
         }
     }
 
@@ -303,15 +395,15 @@ impl LayoutShape {
 
         // iterate over the memory map and create the inverse map
         // for the fields in the layout.
-        if let LayoutShape::Struct { memory_map, .. } = self {
+        if let LayoutShape::Aggregate { memory_map, .. } = self {
             for (i, &index) in memory_map.iter().enumerate() {
                 inverse[index as usize] = i;
             }
         }
 
         (0..self.count()).map(move |i| match *self {
-            LayoutShape::Primitive | LayoutShape::Array { .. } => i,
-            LayoutShape::Struct { .. } => inverse[i],
+            LayoutShape::Primitive | LayoutShape::Union { .. } | LayoutShape::Array { .. } => i,
+            LayoutShape::Aggregate { .. } => inverse[i],
         })
     }
 }

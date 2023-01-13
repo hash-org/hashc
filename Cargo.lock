@@ -704,6 +704,9 @@ dependencies = [
 [[package]]
 name = "hash-target"
 version = "0.1.0"
+dependencies = [
+ "num-bigint",
+]
 
 [[package]]
 name = "hash-testing-internal"

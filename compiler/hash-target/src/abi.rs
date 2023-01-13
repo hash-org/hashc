@@ -4,10 +4,20 @@
 
 use std::fmt;
 
-use crate::{alignment::Alignments, layout::HasDataLayout, size::Size};
+use crate::{
+    alignment::{Alignment, Alignments},
+    layout::HasDataLayout,
+    primitives::{FloatTy, SIntTy, UIntTy},
+    size::Size,
+};
 
-/// ABI representation of an integer scalar type.
-#[derive(Clone, Copy, Debug)]
+/// ABI representation of an [`ScalarKind::Int`] type. This is
+/// agnostic from [SIntTy] and [UIntTy] because it is used to
+/// to concretely represent integers that are primitive and are
+/// not "machine" dependent in size, i.e. `usize` and `isize` types
+/// are converted into the appropriate [Integer] based on the
+/// [TargetDataLayout] of the machine.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Integer {
     I8,
     I16,
@@ -44,53 +54,107 @@ impl Integer {
             I128 => dl.i128_align,
         }
     }
-}
 
-/// ABI representation of a float scalar type.
-#[derive(Clone, Copy, Debug)]
-pub enum Float {
-    /// A 32-bit float.
-    F32,
-
-    /// A 64-bit float.
-    F64,
-}
-
-impl Float {
-    /// Compute the [Size] of the [Float].
+    /// Finds the smallest [Integer] type which can represent the unsigned
+    /// value.
     #[inline]
-    pub fn size(self) -> Size {
-        use Float::*;
-        match self {
-            F32 => Size::from_bytes(2),
-            F64 => Size::from_bytes(4),
+    #[allow(clippy::match_overlapping_arm)]
+    pub fn fit_unsigned(value: u128) -> Integer {
+        use Integer::*;
+
+        match value {
+            0..=0x0000_0000_0000_00ff => I8,
+            0..=0x0000_0000_0000_ffff => I16,
+            0..=0x0000_0000_ffff_ffff => I32,
+            0..=0xffff_ffff_ffff_ffff => I64,
+            _ => I128,
         }
     }
 
-    /// Get the [Alignments] of the [Float].
-    pub fn align<C: HasDataLayout>(self, cx: &C) -> Alignments {
-        use Float::*;
-        let dl = cx.data_layout();
+    /// Finds the smallest [Integer] with the specified alignment.
+    pub fn for_alignment<C: HasDataLayout>(ctx: &C, alignment: Alignment) -> Option<Self> {
+        use Integer::*;
 
-        match self {
-            F32 => dl.f32_align,
-            F64 => dl.f64_align,
-        }
+        [I8, I16, I32, I64, I128].into_iter().find(|&candidate| {
+            alignment == candidate.align(ctx).abi && alignment.bytes() >= candidate.size().bytes()
+        })
     }
 }
 
 /// Represents all of the primitive [AbiRepresentation::Scalar]s that are
 /// supported within the ABI.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ScalarKind {
     /// An integer scalar.
     Int { kind: Integer, signed: bool },
 
     /// A float scalar.
-    Float { kind: Float },
+    Float { kind: FloatTy },
 
     /// A pointer primitive scalar value.
     Pointer,
+}
+
+impl ScalarKind {
+    /// Compute the [Alignments] of the given [ScalarKind].
+    #[inline]
+    pub fn align<L: HasDataLayout>(&self, ctx: &L) -> Alignments {
+        let dl = ctx.data_layout();
+
+        match self {
+            ScalarKind::Int { kind, .. } => kind.align(ctx),
+            ScalarKind::Float { kind } => kind.align(ctx),
+            ScalarKind::Pointer => dl.pointer_align,
+        }
+    }
+
+    /// Compute the [Size] of the [ScalarKind].
+    #[inline]
+    pub fn size<L: HasDataLayout>(&self, ctx: &L) -> Size {
+        let dl = ctx.data_layout();
+
+        match self {
+            ScalarKind::Int { kind, .. } => kind.size(),
+            ScalarKind::Float { kind } => kind.size(),
+            ScalarKind::Pointer => dl.pointer_size,
+        }
+    }
+
+    /// Convert a [UIntTy] into a [ScalarKind].
+    pub fn from_unsigned_int_ty<C: HasDataLayout>(ty: UIntTy, ctx: &C) -> Self {
+        let kind = match ty {
+            UIntTy::U8 => Integer::I8,
+            UIntTy::U16 => Integer::I16,
+            UIntTy::U32 => Integer::I32,
+            UIntTy::U64 => Integer::I64,
+            UIntTy::U128 => Integer::I128,
+            UIntTy::USize => ctx.data_layout().ptr_sized_integer(),
+            UIntTy::UBig => unreachable!("`ubig` cannot be converted into a scalar"),
+        };
+
+        Self::Int { kind, signed: false }
+    }
+
+    /// Convert a [SIntTy] into a [ScalarKind].
+    pub fn from_signed_int_ty<C: HasDataLayout>(ty: SIntTy, ctx: &C) -> Self {
+        let kind = match ty {
+            SIntTy::I8 => Integer::I8,
+            SIntTy::I16 => Integer::I16,
+            SIntTy::I32 => Integer::I32,
+            SIntTy::I64 => Integer::I64,
+            SIntTy::I128 => Integer::I128,
+            SIntTy::ISize => ctx.data_layout().ptr_sized_integer(),
+            SIntTy::IBig => unreachable!("`ibig` cannot be converted into a scalar"),
+        };
+
+        Self::Int { kind, signed: false }
+    }
+}
+
+impl From<FloatTy> for ScalarKind {
+    fn from(kind: FloatTy) -> Self {
+        ScalarKind::Float { kind }
+    }
 }
 
 /// This range is used to represent the valid range of a scalar value.
@@ -113,7 +177,7 @@ pub enum ScalarKind {
 /// Language ref: <https://llvm.org/docs/LangRef.html#range-metadata>
 ///
 /// Source: <https://github.com/llvm/llvm-project/blob/main/llvm/lib/IR/ConstantRange.cpp>
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct ValidScalarRange {
     /// The minimum value that is valid for this scalar.
     pub start: u128,
@@ -151,42 +215,57 @@ impl fmt::Debug for ValidScalarRange {
 
 /// The representation of a scalar-like value within an
 /// ABI, what type it is, and what its valid range is.
-#[derive(Clone, Copy, Debug)]
-pub struct Scalar {
-    /// The kind of the scalar.
-    pub kind: ScalarKind,
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Scalar {
+    /// The value of the [Scalar] is initialised, and has a known
+    /// "valid" range of values.
+    Initialised {
+        /// The kind of the scalar.
+        kind: ScalarKind,
 
-    /// The valid range of the scalar, this is used
-    /// to provide aditional information about values
-    /// that might be encoded as scalars (for efficiency
-    /// purposes), but are not actually scalars, e.g. `bool`s
-    /// will be encoded as [`ScalarKind::Int`], and have
-    /// a valid range of `0..1`.
-    pub valid_range: ValidScalarRange,
+        /// The valid range of the scalar, this is used
+        /// to provide aditional information about values
+        /// that might be encoded as scalars (for efficiency
+        /// purposes), but are not actually scalars, e.g. `bool`s
+        /// will be encoded as [`ScalarKind::Int`], and have
+        /// a valid range of `0..1`.
+        valid_range: ValidScalarRange,
+    },
+
+    /// The `union` variant is used to represent a scalar within
+    /// a union context, i.e. it is not known what the valid range
+    /// of the scalar is, and thus there are some less guarantees
+    /// about the value of the scalar.
+    Union {
+        /// Th kind of the scalar
+        kind: ScalarKind,
+    },
 }
 
 impl Scalar {
+    /// Compute the [ScalarKind] of the [Scalar]. This is an infallible
+    /// operation for either scalar variant.
+    pub fn kind(&self) -> ScalarKind {
+        match *self {
+            Scalar::Initialised { kind, .. } => kind,
+            Scalar::Union { kind } => kind,
+        }
+    }
+
+    /// Convert the [Scalar] into a union-like [Scalar].
+    pub fn to_union(&self) -> Self {
+        Scalar::Union { kind: self.kind() }
+    }
+
     /// Align the [Scalar] with the current data layout
     /// specification.
     pub fn align<L: HasDataLayout>(&self, ctx: &L) -> Alignments {
-        let dl = ctx.data_layout();
-
-        match self.kind {
-            ScalarKind::Int { kind, .. } => kind.align(ctx),
-            ScalarKind::Float { kind } => kind.align(ctx),
-            ScalarKind::Pointer => dl.pointer_align,
-        }
+        self.kind().align(ctx)
     }
 
     /// Compute the size of the [Scalar].
     pub fn size<L: HasDataLayout>(&self, ctx: &L) -> Size {
-        let dl = ctx.data_layout();
-
-        match self.kind {
-            ScalarKind::Int { kind, .. } => kind.size(),
-            ScalarKind::Float { kind } => kind.size(),
-            ScalarKind::Pointer => dl.pointer_size,
-        }
+        self.kind().size(ctx)
     }
 
     /// Check if the [Scalar] represents a boolean value, i.e. a
@@ -194,7 +273,7 @@ impl Scalar {
     pub fn is_bool(&self) -> bool {
         matches!(
             self,
-            Scalar {
+            Scalar::Initialised {
                 kind: ScalarKind::Int { kind: Integer::I8, signed: false },
                 valid_range: ValidScalarRange { start: 0, end: 1 }
             }
@@ -204,7 +283,7 @@ impl Scalar {
 
 /// This defined how values are being represented and are passed by target
 /// ABIs in the terms of c-type categories.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AbiRepresentation {
     /// A value that is not represented in memory, but is instead passed
     /// by value. This is used for values that are smaller than a pointer.

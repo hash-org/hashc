@@ -152,7 +152,7 @@ impl<'b, V: CodeGenObject> PlaceRef<V> {
                 // We use `i1` for bytes that only have a valid range of
                 // `0` or `1`, but it shouldn't interpret the `i1` as signed
                 // because the `1_i1` would then actually be `-1_i8`.
-                let signed = match tag.kind {
+                let signed = match tag.kind() {
                     ScalarKind::Int { signed, .. } => !tag.is_bool() && signed,
                     _ => false,
                 };

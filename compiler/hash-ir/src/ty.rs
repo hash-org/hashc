@@ -11,7 +11,11 @@ use hash_source::{
     constant::{FloatTy, IntTy, SIntTy, UIntTy},
     identifier::Identifier,
 };
-use hash_target::size::Size;
+use hash_target::{
+    abi::{self, Integer},
+    layout::HasDataLayout,
+    size::Size,
+};
 use hash_utils::{
     new_sequence_store_key, new_store_key,
     store::{CloneStore, DefaultSequenceStore, DefaultStore, SequenceStore, Store},
@@ -101,6 +105,19 @@ impl Instance {
     }
 }
 
+/// Reference kind, e.g. `&T`, `&mut T`, `&raw T` or `Rc<T>`.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum RefKind {
+    /// Normal reference kind, e.g. `&T` or `&mut T`
+    Normal,
+
+    /// Raw reference kind e.g. `&raw T`
+    Raw,
+
+    /// Reference counted reference kind.
+    Rc,
+}
+
 /// Simplified type structure used by the IR and other stages to reason about
 /// Hash programs once types have been erased and simplified.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -126,14 +143,9 @@ pub enum IrTy {
     /// The never type
     Never,
 
-    /// A reference type, referring to a another type, e.g. `&T`
-    Ref(IrTyId, Mutability),
-
-    /// A raw reference type, referring to a another type, e.g. `&raw T`
-    RawRef(IrTyId, Mutability),
-
-    /// A reference counted pointer type, e.g. `Rc<T>`
-    Rc(IrTyId, Mutability),
+    /// A reference type, referring to a another type, e.g. `&T`, `&mut T`
+    /// or `&raw T`, or `Rc<T>`.
+    Ref(IrTyId, Mutability, RefKind),
 
     /// A slice type
     Slice(IrTyId),
@@ -210,7 +222,7 @@ impl IrTy {
                 | Self::Float(_)
                 | Self::Char
                 | Self::Bool
-                | Self::RawRef(_, _)
+                | Self::Ref(_, _, RefKind::Normal | RefKind::Raw)
         )
     }
 
@@ -231,7 +243,7 @@ impl IrTy {
     /// Get the type of this [IrTy] if a dereference is performed on it.
     pub fn on_deref(&self) -> Option<IrTyId> {
         match self {
-            Self::RawRef(ty, _) | Self::Ref(ty, _) | Self::Rc(ty, _) => Some(*ty),
+            Self::Ref(ty, _, _) => Some(*ty),
             _ => None,
         }
     }
@@ -395,6 +407,30 @@ impl AdtData {
         UIntTy::from_size(size)
     }
 
+    /// Compute the representation of the discriminant of this [AdtData]
+    /// in terms of a [abi::Integer].
+    ///
+    /// @@Future(discriminants): we would need to acount for different
+    /// representations of the discriminant, e.g. `repr(u8)`, and specified
+    /// values on the discriminant.
+    ///
+    /// For now, we always use the "unsigned" integer representation, and try
+    /// to minimuse the size of the discriminant.
+    pub fn discriminant_representation<C: HasDataLayout>(&self, ctx: &C) -> abi::Integer {
+        let max = self.variants.len() as u128;
+        let computed_fit = abi::Integer::fit_unsigned(max);
+
+        // If this is a C-like representation, then we always
+        // default to the tag enum size specified by the target.
+        let minimum = if self.representation.is_c_like() {
+            ctx.data_layout().c_style_enum_min_size
+        } else {
+            Integer::I8
+        };
+
+        cmp::max(computed_fit, minimum)
+    }
+
     /// Compute the discriminant value for a particular variant.
     pub fn discriminant_value_for(&self, variant: VariantIdx) -> u32 {
         debug_assert!(self.flags.is_enum());
@@ -466,6 +502,24 @@ impl AdtRepresentation {
     fn default() -> AdtRepresentation {
         AdtRepresentation {}
     }
+
+    /// Check if the representation of the ADT is specified to
+    /// be in C-style layout.
+    pub fn is_c_like(&self) -> bool {
+        false
+    }
+
+    /// Check whether the [AdtRepresentation] permits the re-ordering
+    /// of struct fields in order to optimise for memory layout.
+    pub fn inhibits_struct_field_reordering(&self) -> bool {
+        false
+    }
+
+    /// Check whether the [AdtRepresentation] (an underlying `union`) permits
+    /// it's ABI to be optimised into a scalar-like form.
+    pub fn inhibits_union_abi_optimisations(&self) -> bool {
+        self.is_c_like()
+    }
 }
 
 /// An [AdtVariant] is a potential variant of an ADT which contains all of the
@@ -492,6 +546,9 @@ impl AdtVariant {
         &self.fields[idx]
     }
 }
+
+/// A alias for the variants of an ADT.
+pub type AdtVariants = IndexVec<VariantIdx, AdtVariant>;
 
 /// An [AdtField] is a field that is defined for a variant of an ADT. It
 /// contains an associated name, and a type. If no user defined name was
@@ -546,7 +603,7 @@ new_store_key!(pub IrTyId);
 /// entry has an associated name, and then followed by the type
 /// expression that represents the [IrTy].
 macro_rules! create_common_ty_table {
-    ($($name:ident, $value:expr),* $(,)?) => {
+    ($($name:ident: $value:expr),* $(,)?) => {
 
         /// Defines a map of common types that might be used in the IR
         /// and general IR operations. When creating new types that refer
@@ -568,45 +625,27 @@ macro_rules! create_common_ty_table {
 
 create_common_ty_table!(
     // Primitive types
-    bool,
-    IrTy::Bool,
-    char,
-    IrTy::Char,
-    str,
-    IrTy::Str,
-    never,
-    IrTy::Never,
+    bool: IrTy::Bool,
+    char: IrTy::Char,
+    str: IrTy::Str,
+    never: IrTy::Never,
     // Floating point types
-    f32,
-    IrTy::Float(FloatTy::F32),
-    f64,
-    IrTy::Float(FloatTy::F64),
+    f32: IrTy::Float(FloatTy::F32),
+    f64: IrTy::Float(FloatTy::F64),
     // Signed integer types
-    i8,
-    IrTy::Int(SIntTy::I8),
-    i16,
-    IrTy::Int(SIntTy::I16),
-    i32,
-    IrTy::Int(SIntTy::I32),
-    i64,
-    IrTy::Int(SIntTy::I64),
-    i128,
-    IrTy::Int(SIntTy::I128),
-    isize,
-    IrTy::Int(SIntTy::ISize),
+    i8: IrTy::Int(SIntTy::I8),
+    i16: IrTy::Int(SIntTy::I16),
+    i32: IrTy::Int(SIntTy::I32),
+    i64: IrTy::Int(SIntTy::I64),
+    i128: IrTy::Int(SIntTy::I128),
+    isize: IrTy::Int(SIntTy::ISize),
     // Unsigned integer types
-    u8,
-    IrTy::UInt(UIntTy::U8),
-    u16,
-    IrTy::UInt(UIntTy::U16),
-    u32,
-    IrTy::UInt(UIntTy::U32),
-    u64,
-    IrTy::UInt(UIntTy::U64),
-    u128,
-    IrTy::UInt(UIntTy::U128),
-    usize,
-    IrTy::UInt(UIntTy::USize),
+    u8: IrTy::UInt(UIntTy::U8),
+    u16: IrTy::UInt(UIntTy::U16),
+    u32: IrTy::UInt(UIntTy::U32),
+    u64: IrTy::UInt(UIntTy::U64),
+    u128: IrTy::UInt(UIntTy::U128),
+    usize: IrTy::UInt(UIntTy::USize),
 );
 
 /// Stores all the used [IrTy]s.
@@ -656,13 +695,13 @@ impl fmt::Display for ForFormatting<'_, IrTyId> {
             IrTy::Str => write!(f, "str"),
             IrTy::Char => write!(f, "char"),
             IrTy::Never => write!(f, "!"),
-            IrTy::Ref(inner, mutability) => {
+            IrTy::Ref(inner, mutability, RefKind::Normal) => {
                 write!(f, "&{mutability}{}", inner.for_fmt(self.ctx))
             }
-            IrTy::RawRef(inner, mutability) => {
+            IrTy::Ref(inner, mutability, RefKind::Raw) => {
                 write!(f, "&raw {mutability}{}", inner.for_fmt(self.ctx))
             }
-            IrTy::Rc(inner, mutability) => {
+            IrTy::Ref(inner, mutability, RefKind::Rc) => {
                 let name = match mutability {
                     Mutability::Mutable => "Mut",
                     Mutability::Immutable => "",
