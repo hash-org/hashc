@@ -1,31 +1,35 @@
-// @@Docs
+//! Data definition-related utilities.
 use std::iter::{empty, once};
 
 use derive_more::Constructor;
-use hash_types::new::{
-    args::ArgData,
-    data::{CtorDef, CtorDefData, CtorDefsId, DataDef, DataDefCtors, DataDefId, PrimitiveCtorInfo},
-    defs::{DefArgGroupData, DefArgsId, DefParamGroupData, DefParamsId},
-    environment::env::AccessToEnv,
-    params::{ParamIndex, ParamsId},
-    symbols::Symbol,
-    terms::Term,
-};
 use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
 use itertools::Itertools;
 
-use super::{common::CommonOps, AccessToOps};
-use crate::{impl_access_to_tc_env, new::environment::tc_env::TcEnv};
+use super::{common::CommonUtils, AccessToUtils};
+use crate::{
+    impl_access_to_env,
+    new::{
+        args::ArgData,
+        data::{
+            CtorDef, CtorDefData, CtorDefsId, DataDef, DataDefCtors, DataDefId, PrimitiveCtorInfo,
+        },
+        defs::{DefArgGroupData, DefArgsId, DefParamGroupData, DefParamsId},
+        environment::env::{AccessToEnv, Env},
+        params::{ParamIndex, ParamsId},
+        symbols::Symbol,
+        terms::Term,
+    },
+};
 
 /// Data definition-related operations.
 #[derive(Constructor)]
-pub struct DataOps<'tc> {
-    tc_env: &'tc TcEnv<'tc>,
+pub struct DataUtils<'tc> {
+    env: &'tc Env<'tc>,
 }
 
-impl_access_to_tc_env!(DataOps<'tc>);
+impl_access_to_env!(DataUtils<'tc>);
 
-impl<'tc> DataOps<'tc> {
+impl<'tc> DataUtils<'tc> {
     /// Create an empty data definition.
     pub fn new_empty_data_def(&self, name: Symbol, params: DefParamsId) -> DataDefId {
         self.stores().data_def().create_with(|id| DataDef {
@@ -111,11 +115,11 @@ impl<'tc> DataOps<'tc> {
     ) -> DefArgsId {
         self.stores().def_params().map(def_params_id, |def_params| {
             // For each parameter group, create an argument group
-            self.param_ops().create_def_args(def_params.iter().enumerate().map(
+            self.param_utils().create_def_args(def_params.iter().enumerate().map(
                 |(i, def_param_group)| {
                     // For the parameter list inside the group, create an argument
                     // list
-                    let args = self.param_ops().create_args(self.stores().params().map(
+                    let args = self.param_utils().create_args(self.stores().params().map(
                         def_param_group.params,
                         |params| {
                             // For each parameter, create an argument referring to it
@@ -151,7 +155,7 @@ impl<'tc> DataOps<'tc> {
     ) -> DataDefId {
         // The field parameters correspond to a single parameter group
         let fields_def_params = self
-            .param_ops()
+            .param_utils()
             .create_def_params(once(DefParamGroupData { implicit: false, params: fields_params }));
 
         // Create the arguments for the constructor, which are the type
@@ -213,12 +217,12 @@ impl<'tc> DataOps<'tc> {
 
                     // The field parameters correspond to a single parameter group
                     let fields_def_params = if !fields_params.is_empty() {
-                        self.param_ops().create_def_params(once(DefParamGroupData {
+                        self.param_utils().create_def_params(once(DefParamGroupData {
                             implicit: false,
                             params: fields_params,
                         }))
                     } else {
-                        self.param_ops().create_def_params(empty())
+                        self.param_utils().create_def_params(empty())
                     };
 
                     // Create a constructor for each variant

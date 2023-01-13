@@ -17,8 +17,8 @@ use crate::new::{symbols::Symbol, terms::TermId, tys::TyId};
 
 /// A parameter, declaring a potentially named variable with a given type and
 /// possibly a default value.
-#[omit(ParamData, [id], [Debug, Clone, Copy])]
 #[derive(Debug, Clone, Copy)]
+#[omit(ParamData, [id], [Debug, Clone, Copy])]
 pub struct Param {
     /// The ID of the parameter in the parameter list.
     pub id: ParamId,

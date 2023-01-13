@@ -10,6 +10,7 @@ use hash_types::new::{
     scopes::{StackId, StackMemberData},
     symbols::Symbol,
     tys::TyId,
+    utils::{common::CommonUtils, AccessToUtils},
 };
 use hash_utils::{
     state::LightState,
@@ -18,10 +19,7 @@ use hash_utils::{
 use smallvec::{smallvec, SmallVec};
 
 use super::{super::ast_utils::AstUtils, DiscoveryPass};
-use crate::new::{
-    environment::tc_env::AccessToTcEnv,
-    ops::{common::CommonOps, AccessToOps},
-};
+use crate::new::environment::tc_env::AccessToTcEnv;
 
 /// An item that is discovered: either a definition or a function type.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, From)]
@@ -149,12 +147,12 @@ impl<'tc> DiscoveryPass<'tc> {
                 self.def_state().mod_members.modify_fast(mod_def_id, |members| {
                     if let Some(members) = members {
                         let members = std::mem::take(members);
-                        let mod_ops = self.mod_ops();
+                        let mod_utils = self.mod_utils();
 
                         // Set module members.
-                        let mod_members = mod_ops.set_mod_def_members(
+                        let mod_members = mod_utils.set_mod_def_members(
                             mod_def_id,
-                            mod_ops
+                            mod_utils
                                 .create_mod_members(members.iter().map(|(_, data)| data).cloned()),
                         );
 
@@ -173,12 +171,12 @@ impl<'tc> DiscoveryPass<'tc> {
                 self.def_state().data_ctors.modify_fast(data_def_id, |members| {
                     if let Some(members) = members {
                         let members = std::mem::take(members);
-                        let data_ops = self.data_ops();
+                        let data_utils = self.data_utils();
 
                         // Set data constructors.
-                        let data_members = data_ops.set_data_def_ctors(
+                        let data_members = data_utils.set_data_def_ctors(
                             data_def_id,
-                            data_ops.create_data_ctors(
+                            data_utils.create_data_ctors(
                                 data_def_id,
                                 members.iter().map(|(_, data)| data).copied(),
                             ),
@@ -201,12 +199,12 @@ impl<'tc> DiscoveryPass<'tc> {
                     if let Some(members) = members {
                         let members = std::mem::take(members);
                         let members_len = members.len();
-                        let stack_ops = self.stack_ops();
+                        let stack_utils = self.stack_utils();
 
                         // Set stack members.
-                        stack_ops.set_stack_members(
+                        stack_utils.set_stack_members(
                             stack_id,
-                            stack_ops.create_stack_members(
+                            stack_utils.create_stack_members(
                                 stack_id,
                                 members.iter().map(|(_, data)| data).copied(),
                             ),

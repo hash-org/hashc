@@ -6,7 +6,7 @@
 use std::{cell::RefCell, collections::HashMap, hash::Hash, rc::Rc};
 
 use hash_source::location::{SourceLocation, Span};
-use hash_utils::store::{DefaultPartialStore, PartialStore};
+use hash_utils::store::{DefaultPartialStore, PartialCloneStore, PartialStore};
 
 use crate::{
     args::ArgsId,

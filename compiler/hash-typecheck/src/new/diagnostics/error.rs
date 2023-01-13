@@ -7,15 +7,12 @@ use hash_reporting::{
 use hash_source::location::SourceLocation;
 use hash_types::new::{
     defs::DefParamsId, environment::env::AccessToEnv, params::ParamsId, symbols::Symbol,
-    terms::TermId,
+    terms::TermId, utils::common::CommonUtils,
 };
 use hash_utils::store::SequenceStoreKey;
 
 use super::params::{SomeArgsId, SomeDefArgsId};
-use crate::new::{
-    environment::tc_env::WithTcEnv, ops::common::CommonOps,
-    passes::resolution::scoping::ContextKind,
-};
+use crate::new::{environment::tc_env::WithTcEnv, passes::resolution::scoping::ContextKind};
 
 /// An error that occurs during typechecking.
 #[derive(Clone, Debug)]

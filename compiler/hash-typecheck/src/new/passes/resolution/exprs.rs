@@ -5,6 +5,7 @@
 //! which is handled later.
 
 use hash_ast::ast::{self, AstNode, AstNodeId, AstNodeRef};
+use hash_intrinsics::utils::PrimitiveUtils;
 use hash_reporting::macros::panic_on_span;
 use hash_source::location::Span;
 use hash_types::{
@@ -23,6 +24,7 @@ use hash_types::{
         terms::{Term, TermId, UnsafeTerm},
         tuples::TupleTerm,
         tys::Ty,
+        utils::{common::CommonUtils, AccessToUtils},
     },
     term_as_variant,
 };
@@ -41,7 +43,7 @@ use super::{
 use crate::new::{
     diagnostics::error::{TcError, TcResult},
     environment::tc_env::AccessToTcEnv,
-    ops::{common::CommonOps, AccessToOps},
+    ops::common::CommonOps,
     passes::ast_utils::AstUtils,
 };
 
@@ -70,7 +72,7 @@ impl<'tc> ResolutionPass<'tc> {
                 })
             })
             .collect::<TcResult<Vec<_>>>()?;
-        Ok(self.param_ops().create_args(args.into_iter()))
+        Ok(self.param_utils().create_args(args.into_iter()))
     }
 
     /// Make TC arguments from the given set of AST constructor call arguments
@@ -93,7 +95,7 @@ impl<'tc> ResolutionPass<'tc> {
                 })
             })
             .collect::<TcResult<Vec<_>>>()?;
-        Ok(self.param_ops().create_args(args.into_iter()))
+        Ok(self.param_utils().create_args(args.into_iter()))
     }
 
     /// Make a term from the given [`ast::Expr`] and assign it to the node in
@@ -504,7 +506,7 @@ impl<'tc> ResolutionPass<'tc> {
             ast::Lit::Char(char_lit) => Ok(lit_prim!(Char, CharLit, *char_lit)),
             ast::Lit::Int(int_lit) => Ok(lit_prim!(Int, IntLit, *int_lit)),
             ast::Lit::Float(float_lit) => Ok(lit_prim!(Float, FloatLit, *float_lit)),
-            ast::Lit::Bool(bool_lit) => Ok(self.new_bool_term(bool_lit.data)),
+            ast::Lit::Bool(bool_lit) => Ok(self.tc_env().new_bool_term(bool_lit.data)),
             ast::Lit::Tuple(tuple_lit) => {
                 let args = self.make_args_from_ast_tuple_lit_args(&tuple_lit.elements)?;
                 // @@Todo: original_ty

@@ -19,6 +19,7 @@ use hash_types::new::{
     pats::{Pat, PatId, PatListId, RangePat, Spread},
     scopes::BindingPat,
     tuples::TuplePat,
+    utils::{common::CommonUtils, AccessToUtils},
 };
 use hash_utils::store::{SequenceStore, SequenceStoreKey};
 
@@ -33,7 +34,6 @@ use super::{
 use crate::new::{
     diagnostics::error::{TcError, TcResult},
     environment::tc_env::AccessToTcEnv,
-    ops::{common::CommonOps, AccessToOps},
     passes::ast_utils::AstUtils,
 };
 
@@ -56,7 +56,7 @@ impl ResolutionPass<'_> {
                 })
             })
             .collect::<TcResult<Vec<_>>>()?;
-        Ok(self.param_ops().create_pat_args(args.into_iter()))
+        Ok(self.param_utils().create_pat_args(args.into_iter()))
     }
 
     /// Create a [`PatListId`] from the given [`ast::Pat`]s.
@@ -205,7 +205,7 @@ impl ResolutionPass<'_> {
                     // @@Hack: Constructor term without args is a valid pattern
                     Ok(self.new_pat(Pat::Ctor(CtorPat {
                         ctor: ctor_term.ctor,
-                        ctor_pat_args: self.param_ops().create_def_pat_args(empty()),
+                        ctor_pat_args: self.param_utils().create_def_pat_args(empty()),
                         data_args: ctor_term.data_args,
                     })))
                 }

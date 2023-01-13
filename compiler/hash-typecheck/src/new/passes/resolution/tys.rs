@@ -7,6 +7,7 @@
 use std::iter::once;
 
 use hash_ast::ast::{self, AstNodeRef, AstNodes};
+use hash_intrinsics::primitives::AccessToPrimitives;
 use hash_reporting::macros::panic_on_span;
 use hash_source::{identifier::IDENTS, location::Span};
 use hash_types::{
@@ -20,6 +21,7 @@ use hash_types::{
         terms::Term,
         tuples::TupleTy,
         tys::{Ty, TyId},
+        utils::{common::CommonUtils, AccessToUtils},
     },
     ty_as_variant,
 };
@@ -37,7 +39,7 @@ use super::{
 use crate::new::{
     diagnostics::error::{TcError, TcResult},
     environment::tc_env::AccessToTcEnv,
-    ops::{common::CommonOps, AccessToOps},
+    ops::common::CommonOps,
     passes::ast_utils::AstUtils,
 };
 
@@ -62,7 +64,7 @@ impl<'tc> ResolutionPass<'tc> {
                 })
             })
             .collect::<TcResult<Vec<_>>>()?;
-        Ok(self.param_ops().create_args(args.into_iter()))
+        Ok(self.param_utils().create_args(args.into_iter()))
     }
 
     /// Make TC parameters from the given [`ast::TyArg`] list.
@@ -83,7 +85,7 @@ impl<'tc> ResolutionPass<'tc> {
         if params.len() != ty_args.len() {
             Err(TcError::Signal)
         } else {
-            Ok(self.param_ops().create_params(params.into_iter()))
+            Ok(self.param_utils().create_params(params.into_iter()))
         }
     }
 
@@ -270,7 +272,7 @@ impl<'tc> ResolutionPass<'tc> {
         let list_def = self.primitives().list();
         Ok(self.new_ty(Ty::Data(DataTy {
             data_def: list_def,
-            args: self.param_ops().create_positional_args_for_data_def(
+            args: self.param_utils().create_positional_args_for_data_def(
                 list_def,
                 once(once(self.new_term(Term::Ty(inner_ty)))),
             ),

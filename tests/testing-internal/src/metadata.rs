@@ -15,20 +15,15 @@ use quote::{quote, ToTokens};
 /// Whether the test should pass or fail, and possibly
 /// in the future if `warnings` are allowed within the
 /// test result.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum TestResult {
     /// The test case should fail and output errors. If no
     /// errors are emitted by the compiler for the stage, this
     /// means that the test did not fail.
     Fail,
     /// The compiler should not emit any errors or warnings.
+    #[default]
     Pass,
-}
-
-impl Default for TestResult {
-    fn default() -> Self {
-        TestResult::Pass
-    }
 }
 
 impl ToTokens for TestResult {
@@ -41,13 +36,14 @@ impl ToTokens for TestResult {
 /// How the test should handle warnings, whether to ignore, disallow
 /// or compare the warning output with the previous output of the
 /// UI test.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum HandleWarnings {
     /// Warnings should just be ignored by the test.
     Ignore,
     /// Compare rendered warnings with the ones saved on
     /// disk. This setting is particularly relevant when
     /// the test is expected to pass.
+    #[default]
     Compare,
 
     /// Warnings should be disallowed, this test should
@@ -57,12 +53,6 @@ pub enum HandleWarnings {
     /// If the test is expected to fail compilation, this
     /// setting is essentially ignored.
     Disallow,
-}
-
-impl Default for HandleWarnings {
-    fn default() -> Self {
-        HandleWarnings::Compare
-    }
 }
 
 impl ToTokens for HandleWarnings {

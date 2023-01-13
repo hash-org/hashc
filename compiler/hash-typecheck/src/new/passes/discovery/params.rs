@@ -4,13 +4,12 @@ use hash_types::new::{
     defs::{DefParamGroupData, DefParamsId},
     environment::env::AccessToEnv,
     params::ParamsId,
+    utils::AccessToUtils,
 };
 use itertools::Itertools;
 
 use super::DiscoveryPass;
-use crate::new::{
-    environment::tc_env::AccessToTcEnv, ops::AccessToOps, passes::ast_utils::AstUtils,
-};
+use crate::new::{environment::tc_env::AccessToTcEnv, passes::ast_utils::AstUtils};
 
 impl<'tc> DiscoveryPass<'tc> {
     /// Create definition params from the iterator of parameter groups.
@@ -30,7 +29,7 @@ impl<'tc> DiscoveryPass<'tc> {
             })
             .collect_vec();
 
-        let def_params = self.param_ops().create_def_params(params.into_iter());
+        let def_params = self.param_utils().create_def_params(params.into_iter());
         self.stores().location().add_locations_to_targets(def_params, |i| {
             Some(self.source_location(groups[i].1.span()?))
         });
@@ -44,7 +43,7 @@ impl<'tc> DiscoveryPass<'tc> {
         params: &ast::AstNodes<T>,
         name: impl Fn(&T) -> &Option<ast::AstNode<ast::Name>>,
     ) -> ParamsId {
-        let params_id = self.param_ops().create_hole_params(
+        let params_id = self.param_utils().create_hole_params(
             params.iter().map(|param| self.create_symbol_from_ast_name(name(param))),
         );
         self.stores()

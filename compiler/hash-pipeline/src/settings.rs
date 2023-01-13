@@ -223,7 +223,7 @@ impl Default for CodeGenBackend {
 /// compiler should only run up to a particular stage within the pipeline.
 ///
 /// @@Todo: consider removing "full" since it is implied by `codegen`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
 pub enum CompilerStageKind {
     Parse,
     DeSugar,
@@ -232,13 +232,8 @@ pub enum CompilerStageKind {
     Lower,
     IrGen,
     CodeGen,
+    #[default]
     Full,
-}
-
-impl Default for CompilerStageKind {
-    fn default() -> Self {
-        CompilerStageKind::Full
-    }
 }
 
 impl Display for CompilerStageKind {

@@ -1,21 +1,23 @@
-// @@Docs
+//! Function-related utilities.
 use derive_more::Constructor;
-use hash_types::new::{
-    environment::env::AccessToEnv,
-    fns::{FnDef, FnDefData, FnDefId},
-};
 use hash_utils::store::Store;
 
-use crate::{impl_access_to_tc_env, new::environment::tc_env::TcEnv};
+use crate::{
+    impl_access_to_env,
+    new::{
+        environment::env::{AccessToEnv, Env},
+        fns::{FnDef, FnDefData, FnDefId},
+    },
+};
 
 #[derive(Constructor)]
-pub struct FnOps<'tc> {
-    tc_env: &'tc TcEnv<'tc>,
+pub struct FnUtils<'tc> {
+    env: &'tc Env<'tc>,
 }
 
-impl_access_to_tc_env!(FnOps<'tc>);
+impl_access_to_env!(FnUtils<'tc>);
 
-impl<'tc> FnOps<'tc> {
+impl<'tc> FnUtils<'tc> {
     /// Create a function definition.
     pub fn create_fn_def(&self, data: FnDefData) -> FnDefId {
         self.stores().fn_def().create_with(|id| FnDef {

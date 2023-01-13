@@ -4,15 +4,12 @@ use hash_ast::{
     ast::{self},
     visitor::AstVisitor,
 };
-use hash_types::new::symbols::Symbol;
+use hash_types::new::{symbols::Symbol, utils::common::CommonUtils};
 use hash_utils::state::LightState;
 
 use self::defs::DefDiscoveryState;
 use super::ast_utils::{AstPass, AstUtils};
-use crate::{
-    impl_access_to_tc_env,
-    new::{environment::tc_env::TcEnv, ops::common::CommonOps},
-};
+use crate::{impl_access_to_tc_env, new::environment::tc_env::TcEnv};
 
 pub mod defs;
 pub mod params;

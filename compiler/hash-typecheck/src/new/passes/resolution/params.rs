@@ -12,6 +12,7 @@ use hash_types::new::{
     params::{ParamId, ParamsId},
     pats::Spread,
     terms::{Term, TermId},
+    utils::{common::CommonUtils, AccessToUtils},
 };
 use hash_utils::store::{SequenceStore, SequenceStoreKey};
 
@@ -22,7 +23,7 @@ use crate::new::{
         params::{SomeArgsId, SomeDefArgsId},
     },
     environment::tc_env::AccessToTcEnv,
-    ops::{common::CommonOps, AccessToOps},
+    ops::common::CommonOps,
     passes::ast_utils::AstUtils,
 };
 
@@ -342,7 +343,8 @@ impl<'tc> ResolutionPass<'tc> {
                             })
                         })
                         .collect::<TcResult<Vec<_>>>()?;
-                    let def_pat_args = self.param_ops().create_def_pat_args(arg_groups.into_iter());
+                    let def_pat_args =
+                        self.param_utils().create_def_pat_args(arg_groups.into_iter());
                     self.stores().location().add_locations_to_targets(def_pat_args, |i| {
                         Some(self.source_location(groups[i].span()?))
                     });
@@ -360,7 +362,7 @@ impl<'tc> ResolutionPass<'tc> {
                             Ok(DefArgGroupData { args, param_group: (originating_params, index) })
                         })
                         .collect::<TcResult<Vec<_>>>()?;
-                    let def_args = self.param_ops().create_def_args(arg_groups.into_iter());
+                    let def_args = self.param_utils().create_def_args(arg_groups.into_iter());
                     self.stores().location().add_locations_to_targets(def_args, |i| {
                         Some(self.source_location(groups[i].span()?))
                     });
@@ -369,7 +371,7 @@ impl<'tc> ResolutionPass<'tc> {
             }
             // @@Hack: here we assume the args are term args; if they are meant to be pattern args
             // it will be handled in [`super::pats`].
-            None => Ok(ResolvedDefArgs::Term(self.param_ops().create_def_args(empty()))),
+            None => Ok(ResolvedDefArgs::Term(self.param_utils().create_def_args(empty()))),
         }
     }
 

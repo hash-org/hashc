@@ -9,7 +9,7 @@ use std::{
 };
 
 use hash_types::terms::TermId;
-use hash_utils::store::{DefaultPartialStore, PartialStore};
+use hash_utils::store::{DefaultPartialStore, PartialCloneStore, PartialStore};
 use log::log_enabled;
 
 use crate::ops::validate::TermValidation;
@@ -62,21 +62,6 @@ impl<K: Copy + Hash + Eq, V: Clone> PartialStore<K, V> for CacheStore<K, V> {
         self.store.internal_data()
     }
 
-    /// Get a value by its key, if it exists.
-    fn get(&self, key: K) -> Option<V> {
-        let value = self.store.get(key);
-        // Override for metrics:
-        // We don't want to record cache metrics if we're not in debug
-        if log_enabled!(log::Level::Debug) {
-            if value.is_some() {
-                self.hits.set(self.hits.get() + 1);
-            } else {
-                self.misses.set(self.misses.get() + 1);
-            }
-        }
-        value
-    }
-
     /// Clear the [CacheStore] and metrics.
     fn clear(&self) {
         self.store.clear();
@@ -89,6 +74,21 @@ impl<K: Copy + Hash + Eq, V: Clone> CacheStore<K, V> {
     pub fn reset_metrics(&self) {
         self.misses.set(0);
         self.hits.set(0);
+    }
+
+    /// Get a value by its key, if it exists.
+    pub fn get(&self, key: K) -> Option<V> {
+        let value = self.store.get(key);
+        // Override for metrics:
+        // We don't want to record cache metrics if we're not in debug
+        if log_enabled!(log::Level::Debug) {
+            if value.is_some() {
+                self.hits.set(self.hits.get() + 1);
+            } else {
+                self.misses.set(self.misses.get() + 1);
+            }
+        }
+        value
     }
 
     /// Create [CacheMetrics] from the [CacheStore]

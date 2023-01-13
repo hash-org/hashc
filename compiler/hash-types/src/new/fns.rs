@@ -6,6 +6,7 @@ use hash_utils::{
     new_store_key,
     store::{DefaultStore, Store},
 };
+use typed_builder::TypedBuilder;
 use utility_types::omit;
 
 use super::{
@@ -20,13 +21,14 @@ use crate::new::{args::ArgsId, params::ParamsId, symbols::Symbol, terms::TermId,
 /// `pure? unsafe? (a_1:A_1,...,a_n:B_n) -> R(a_1,...,a_n,p_1,...,p_n)`, or
 /// `impure? unsafe? <a_1:A_1,...,a_n:B_n> -> R(a_1,...,a_n,p_1,...,p_n)` for
 /// implicit function types.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, TypedBuilder)]
 pub struct FnTy {
     // @@MemoryUsage: use bitflags here?
     /// Whether the function is implicit.
     ///
     /// Implicit functions look like `<A> -> B`, where as explicit
     /// functions look like `(A) -> B`.
+    #[builder(default = false)]
     pub implicit: bool,
     /// Whether the function is pure.
     ///
@@ -35,12 +37,14 @@ pub struct FnTy {
     /// - it does not take any mutable references as parameters or captured
     ///   variables.
     // - @@Future: It is guaranteed to terminate
+    #[builder(default = false)]
     pub pure: bool,
     /// Whether the function is unsafe.
     ///
     /// Unsafe functions can only be called from within unsafe blocks. Certain
     /// functions that violate Hash's type system and/or memory rules should be
     /// marked as unsafe.
+    #[builder(default = false)]
     pub is_unsafe: bool,
     /// The parameters of the function.
     pub params: ParamsId,
@@ -74,7 +78,7 @@ pub enum FnBody {
 /// Every function literal `(x) => y` is a function definition. Function
 /// definitions follow the syntax of function types, but followed by `=>
 /// r(a_1,...,a_n,p_1,...,p_n)`.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, TypedBuilder)]
 #[omit(FnDefData, [id], [Debug, Clone, Copy])]
 pub struct FnDef {
     /// The ID of the function definition.
@@ -151,7 +155,9 @@ impl Display for WithEnv<'_, &FnDef> {
         write!(f, "{}", self.env().with(&self.value.ty))?;
         match self.value.body {
             FnBody::Defined(term) => write!(f, " => {}", self.env().with(term)),
-            FnBody::Intrinsic(intrinsic) => write!(f, " => {}", self.env().with(intrinsic)),
+            FnBody::Intrinsic(intrinsic) => {
+                write!(f, " => intrinsic('{}')", self.env().with(intrinsic.0))
+            }
             FnBody::Axiom => write!(f, " => axiom"),
         }
     }

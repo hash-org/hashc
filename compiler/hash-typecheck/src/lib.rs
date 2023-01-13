@@ -7,8 +7,6 @@
 
 #![feature(decl_macro, slice_pattern, option_result_contains, let_chains, if_let_guard)]
 
-use std::cell::Cell;
-
 use diagnostics::DiagnosticsStore;
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerStage},
@@ -29,6 +27,7 @@ use new::environment::{
     ast_info::AstInfo,
     tc_env::{AccessToTcEnv, TcEnv},
 };
+use once_cell::unsync::OnceCell;
 use ops::AccessToOps;
 use storage::{
     cache::Cache, exhaustiveness::ExhaustivenessStorage, sources::CheckedSources, AccessToStorage,
@@ -134,7 +133,8 @@ impl<Ctx: TypecheckingCtxQuery> CompilerStage<Ctx> for Typechecker {
             &current_source_info,
         );
 
-        let primitives = Cell::new(None);
+        let primitives = OnceCell::new();
+        let intrinsics = OnceCell::new();
 
         // Instantiate a visitor with the source and visit the source, using the
         // previous local storage.
@@ -146,7 +146,13 @@ impl<Ctx: TypecheckingCtxQuery> CompilerStage<Ctx> for Typechecker {
             source_map: &workspace.source_map,
             diagnostics_store: &self.diagnostics_store,
             cache: &self.cache,
-            _new: TcEnv::new(&env, &self._new_diagnostic, &self._new_ast_info, &primitives),
+            _new: TcEnv::new(
+                &env,
+                &self._new_diagnostic,
+                &self._new_ast_info,
+                &primitives,
+                &intrinsics,
+            ),
         };
 
         // @@Hack: for now we use the `USE_NEW_TC` env variable to switch between the

@@ -1,22 +1,27 @@
-// @@DOcs
+//! General definition-related utilities.
 use derive_more::Constructor;
-use hash_types::new::{
-    data::DataDefId, defs::DefParamsId, environment::env::AccessToEnv, tys::TyId,
-};
 use hash_utils::store::{CloneStore, SequenceStore};
 
-use super::common::CommonOps;
-use crate::{impl_access_to_tc_env, new::environment::tc_env::TcEnv};
+use super::common::CommonUtils;
+use crate::{
+    impl_access_to_env,
+    new::{
+        data::DataDefId,
+        defs::DefParamsId,
+        environment::env::{AccessToEnv, Env},
+        tys::TyId,
+    },
+};
 
 /// Common definition-related operations.
 #[derive(Constructor)]
-pub struct CommonDefOps<'env> {
-    tc_env: &'env TcEnv<'env>,
+pub struct DefUtils<'env> {
+    env: &'env Env<'env>,
 }
 
-impl_access_to_tc_env!(CommonDefOps<'tc>);
+impl_access_to_env!(DefUtils<'tc>);
 
-impl<'env> CommonDefOps<'env> {
+impl<'env> DefUtils<'env> {
     /// Compute the function type of some definition with final type `T`.
     ///
     /// If the definition has parameters `(A1: B1) ... (AN: BN)`, then the

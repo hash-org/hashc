@@ -1,22 +1,24 @@
-// @@Docs
+//! Utilities for managing stacks and their members.
 use derive_more::Constructor;
-use hash_types::new::{
-    environment::env::AccessToEnv,
-    scopes::{Stack, StackId, StackMember, StackMemberData},
-};
 use hash_utils::store::Store;
 
-use crate::{impl_access_to_tc_env, new::environment::tc_env::TcEnv};
+use crate::{
+    impl_access_to_env,
+    new::{
+        environment::env::{AccessToEnv, Env},
+        scopes::{Stack, StackId, StackMember, StackMemberData},
+    },
+};
 
 /// Operations related to the stack.
 #[derive(Constructor)]
-pub struct StackOps<'tc> {
-    tc_env: &'tc TcEnv<'tc>,
+pub struct StackUtils<'tc> {
+    env: &'tc Env<'tc>,
 }
 
-impl_access_to_tc_env!(StackOps<'tc>);
+impl_access_to_env!(StackUtils<'tc>);
 
-impl<'tc> StackOps<'tc> {
+impl<'tc> StackUtils<'tc> {
     /// Create a new empty stack.
     pub fn create_stack(&self) -> StackId {
         self.stores().stack().create_with(|id| Stack { id, members: vec![] })

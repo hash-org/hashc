@@ -1,30 +1,33 @@
+//! Utilities for parameters and arguments.
 use derive_more::Constructor;
-use hash_types::new::{
-    args::{Arg, ArgData, ArgsId, PatArg, PatArgData, PatArgsId},
-    data::DataDefId,
-    defs::{
-        DefArgGroup, DefArgGroupData, DefArgsId, DefParamGroup, DefParamGroupData, DefParamsId,
-        DefPatArgGroup, DefPatArgGroupData, DefPatArgsId,
-    },
-    environment::env::AccessToEnv,
-    params::{Param, ParamData, ParamIndex, ParamsId},
-    symbols::Symbol,
-    terms::TermId,
-};
 use hash_utils::store::{SequenceStore, Store};
 use itertools::Itertools;
 
-use super::common::CommonOps;
-use crate::{impl_access_to_tc_env, new::environment::tc_env::TcEnv};
+use super::common::CommonUtils;
+use crate::{
+    impl_access_to_env,
+    new::{
+        args::{Arg, ArgData, ArgsId, PatArg, PatArgData, PatArgsId},
+        data::DataDefId,
+        defs::{
+            DefArgGroup, DefArgGroupData, DefArgsId, DefParamGroup, DefParamGroupData, DefParamsId,
+            DefPatArgGroup, DefPatArgGroupData, DefPatArgsId,
+        },
+        environment::env::{AccessToEnv, Env},
+        params::{Param, ParamData, ParamIndex, ParamsId},
+        symbols::Symbol,
+        terms::TermId,
+    },
+};
 
 #[derive(Constructor)]
-pub struct ParamOps<'tc> {
-    tc_env: &'tc TcEnv<'tc>,
+pub struct ParamUtils<'env> {
+    env: &'env Env<'env>,
 }
 
-impl_access_to_tc_env!(ParamOps<'tc>);
+impl_access_to_env!(ParamUtils<'env>);
 
-impl<'tc> ParamOps<'tc> {
+impl<'env> ParamUtils<'env> {
     /// Create a new parameter list with the given names, and holes for all
     /// types.
     pub fn create_hole_params(
