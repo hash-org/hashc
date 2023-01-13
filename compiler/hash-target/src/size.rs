@@ -77,12 +77,31 @@ impl Size {
     }
 
     /// Compute a checked multiplication operation with a provided
-    /// [TargetDataLayout] context;
+    /// [HasDataLayout] context. If the total size exceeds the
+    /// maximum size of the largest target object size, then
+    /// this value cannot be represented for the current target
+    /// and thus the function will return [`None`].
     pub fn checked_mul<C: HasDataLayout>(self, count: u64, ctx: &C) -> Option<Size> {
-        let layout = ctx.data_layout();
+        let dl = ctx.data_layout();
         let bytes = self.bytes().checked_mul(count)?;
 
-        if bytes < layout.obj_size_bound() {
+        if bytes < dl.obj_size_bound() {
+            Some(Size::from_bytes(bytes))
+        } else {
+            None
+        }
+    }
+
+    /// Compute a checked addition operation with a provided
+    /// [HasDataLayout] context. If the total size exceeds the
+    /// maximum size of the largest target object size, then
+    /// this value cannot be represented for the current target
+    /// and thus the function will return [`None`].
+    pub fn checked_add<C: HasDataLayout>(self, value: Size, ctx: &C) -> Option<Size> {
+        let dl = ctx.data_layout();
+        let bytes = self.bytes().checked_add(value.bytes())?;
+
+        if bytes < dl.obj_size_bound() {
             Some(Size::from_bytes(bytes))
         } else {
             None

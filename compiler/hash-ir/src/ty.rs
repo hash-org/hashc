@@ -474,6 +474,12 @@ impl AdtRepresentation {
     fn default() -> AdtRepresentation {
         AdtRepresentation {}
     }
+
+    /// Check whether the [AdtRepresentation] permits the re-ordering
+    /// of struct fields in order to optimise for memory layout.
+    pub fn inhibits_struct_field_reordering(&self) -> bool {
+        false
+    }
 }
 
 /// An [AdtVariant] is a potential variant of an ADT which contains all of the
