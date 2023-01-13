@@ -3,7 +3,7 @@
 //! as possible, thus using a [LayoutCache] in order to cache all the
 //! previously computed layouts, and re-use them as much as possible
 
-use std::{cmp, iter};
+use std::{cmp, iter, num::NonZeroUsize};
 
 use hash_ir::ty::{AdtData, AdtRepresentation, IrTy, IrTyId, RefKind, VariantIdx};
 use hash_target::{
@@ -42,7 +42,7 @@ pub enum LayoutError {
 pub(crate) fn compute_primitive_ty_layout(ty: IrTy, dl: &TargetDataLayout) -> Layout {
     let scalar_unit = |value: ScalarKind| {
         let size = value.size(dl);
-        Scalar { kind: value, valid_range: ValidScalarRange::full(size) }
+        Scalar::Initialised { kind: value, valid_range: ValidScalarRange::full(size) }
     };
 
     let scalar = |value: ScalarKind| Layout::scalar(dl, scalar_unit(value));
@@ -62,14 +62,14 @@ pub(crate) fn compute_primitive_ty_layout(ty: IrTy, dl: &TargetDataLayout) -> La
         }
         IrTy::Bool => Layout::scalar(
             dl,
-            Scalar {
+            Scalar::Initialised {
                 kind: ScalarKind::Int { kind: Integer::I8, signed: false },
                 valid_range: ValidScalarRange { start: 0, end: 1 },
             },
         ),
         IrTy::Char => Layout::scalar(
             dl,
-            Scalar {
+            Scalar::Initialised {
                 kind: ScalarKind::Int { kind: Integer::I32, signed: false },
                 valid_range: ValidScalarRange { start: 0, end: 0x10FFFF },
             },
@@ -109,7 +109,7 @@ impl<'l> LayoutCtx<'l> {
 
         let scalar_unit = |value: ScalarKind| {
             let size = value.size(dl);
-            Scalar { kind: value, valid_range: ValidScalarRange::full(size) }
+            Scalar::Initialised { kind: value, valid_range: ValidScalarRange::full(size) }
         };
 
         self.ir_ctx.tys().map_fast(ty_id, |ty| match ty {
@@ -229,8 +229,10 @@ impl<'l> LayoutCtx<'l> {
                         &adt.representation,
                     )))
                 } else if adt.flags.is_union() {
-                    self.compute_layout_of_union(field_layout_table, adt)
-                        .ok_or(LayoutError::Unknown(ty_id))
+                    Ok(self.layouts().create(
+                        self.compute_layout_of_union(field_layout_table, adt)
+                            .ok_or(LayoutError::Unknown(ty_id))?,
+                    ))
                 } else {
                     // This must be an enum...
                     Ok(self.layouts().create(self.compute_layout_of_enum(field_layout_table, adt)))
@@ -355,12 +357,65 @@ impl<'l> LayoutCtx<'l> {
     /// Compute the layout of a `union` type.
     fn compute_layout_of_union(
         &self,
-        _field_layout_table: IndexVec<VariantIdx, Vec<LayoutId>>,
+        field_layout_table: IndexVec<VariantIdx, Vec<LayoutId>>,
         data: &AdtData,
-    ) -> Option<LayoutId> {
+    ) -> Option<Layout> {
         debug_assert!(data.flags.is_union());
 
-        None
+        let mut alignment = self.data_layout.aggregate_align;
+        let optimize_union_abi = !data.representation.inhibits_union_abi_optimisations();
+
+        let mut size = Size::ZERO;
+        let mut abi = AbiRepresentation::Aggregate;
+
+        let index = VariantIdx::new(0);
+
+        self.layouts().map_many_fast(field_layout_table[index].iter().copied(), |field_layouts| {
+            for field in field_layouts {
+                alignment = alignment.max(field.alignment);
+
+                // If all non-ZST fields have the same ABI, we can then
+                // re-use the ABI for this particular layout.
+                if optimize_union_abi && !field.is_zst() {
+                    // This discards all of the valid range information and
+                    // converts the scalars and allows undefined values.
+                    let field_abi = match field.abi {
+                        AbiRepresentation::Scalar(scalar) => {
+                            AbiRepresentation::Scalar(scalar.to_union())
+                        }
+                        AbiRepresentation::Pair(first, second) => {
+                            AbiRepresentation::Pair(first.to_union(), second.to_union())
+                        }
+                        AbiRepresentation::Vector { elements, kind } => {
+                            AbiRepresentation::Vector { elements, kind: kind.to_union() }
+                        }
+                        AbiRepresentation::Uninhabited | AbiRepresentation::Aggregate => {
+                            AbiRepresentation::Aggregate
+                        }
+                    };
+
+                    if size == Size::ZERO {
+                        abi = field_abi;
+                    } else if abi != field_abi {
+                        abi = AbiRepresentation::Aggregate;
+                    }
+                }
+
+                // Take the `max(size, field.size)` since we're looking for the
+                // largest field of the union.
+                size = size.max(field.size);
+            }
+        });
+
+        Some(Layout {
+            shape: LayoutShape::Union {
+                count: NonZeroUsize::new(field_layout_table[index].len())?,
+            },
+            variants: Variants::Single { index },
+            abi,
+            alignment,
+            size,
+        })
     }
 
     /// Compute the layout of a `enum` type.
@@ -490,7 +545,7 @@ impl<'l> LayoutCtx<'l> {
         }
 
         // Create the tag value for the enum discriminant
-        let tag = Scalar {
+        let tag = Scalar::Initialised {
             kind: ScalarKind::Int { kind: new_prefix_ty, signed: false },
 
             // @@Discriminants: since we don't yet have a way to assign
@@ -550,6 +605,7 @@ impl<'l> LayoutCtx<'l> {
             // we can then use a scalar-pair representation
 
             let mut common_prim = None;
+            let mut common_prim_initialised_in_all_variants = true;
 
             for (field_layouts, variant_layout) in field_layouts.iter().zip(variant_layouts) {
                 // All variant layouts must be a struct
@@ -576,6 +632,9 @@ impl<'l> LayoutCtx<'l> {
 
                 let (field, offset) = match (first, second) {
                     (None, None) => {
+                        // If there are no fields, then we can assume that this is
+                        // un-initialised.
+                        common_prim_initialised_in_all_variants = false;
                         continue;
                     }
                     (Some(field), None) => field,
@@ -587,8 +646,9 @@ impl<'l> LayoutCtx<'l> {
 
                 let prim = match field.abi {
                     AbiRepresentation::Scalar(scalar) => {
-                        // common_prim_initialised_in_all &=
-                        scalar.kind
+                        common_prim_initialised_in_all_variants &=
+                            matches!(scalar, Scalar::Initialised { .. });
+                        scalar.kind()
                     }
                     _ => {
                         common_prim = None;
@@ -613,8 +673,14 @@ impl<'l> LayoutCtx<'l> {
             // scalar-pair representation in form of `(tag, prim_scalar)`
             if let Some((prim, offset)) = common_prim {
                 let primitive_size = prim.size(self.data_layout);
-                let primitive_scalar =
-                    Scalar { kind: prim, valid_range: ValidScalarRange::full(primitive_size) };
+                let primitive_scalar = if common_prim_initialised_in_all_variants {
+                    Scalar::Initialised {
+                        kind: prim,
+                        valid_range: ValidScalarRange::full(primitive_size),
+                    }
+                } else {
+                    Scalar::Union { kind: prim }
+                };
 
                 let pair = Layout::scalar_pair(self.data_layout, *tag, primitive_scalar);
                 let pair_offsets = match pair.shape {

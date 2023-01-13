@@ -514,6 +514,12 @@ impl AdtRepresentation {
     pub fn inhibits_struct_field_reordering(&self) -> bool {
         false
     }
+
+    /// Check whether the [AdtRepresentation] (an underlying `union`) permits
+    /// it's ABI to be optimised into a scalar-like form.
+    pub fn inhibits_union_abi_optimisations(&self) -> bool {
+        self.is_c_like()
+    }
 }
 
 /// An [AdtVariant] is a potential variant of an ADT which contains all of the

@@ -4,6 +4,8 @@
 
 pub mod compute;
 
+use std::num::NonZeroUsize;
+
 use hash_ir::{
     ty::{IrTy, IrTyId, VariantIdx},
     IrCtx,
@@ -316,6 +318,11 @@ pub enum LayoutShape {
     /// layout.
     Primitive,
 
+    /// A `union` like layout, all of the fields begin at the
+    /// start of the layout, and the size of the layout is the
+    /// size of the largest field.
+    Union { count: NonZeroUsize },
+
     /// Layout for array/vector like types that have a known element
     /// count at compile time.
     Array {
@@ -348,6 +355,7 @@ impl LayoutShape {
     pub fn count(&self) -> usize {
         match *self {
             LayoutShape::Primitive => 1,
+            LayoutShape::Union { count } => count.get(),
             LayoutShape::Array { elements, .. } => elements.try_into().unwrap(),
             LayoutShape::Struct { ref offsets, .. } => offsets.len(),
         }
@@ -359,6 +367,7 @@ impl LayoutShape {
     pub fn offset(&self, index: usize) -> Size {
         match *self {
             LayoutShape::Primitive => unreachable!("primitive layout has no defined offsets"),
+            LayoutShape::Union { .. } => Size::ZERO,
             LayoutShape::Array { stride, elements } => {
                 let index = index as u64;
                 assert!(index < elements);
@@ -374,7 +383,7 @@ impl LayoutShape {
     pub fn memory_index(&self, index: u32) -> u32 {
         match self {
             LayoutShape::Primitive => unreachable!("primitive layout has no defined offsets"),
-            LayoutShape::Array { .. } => index,
+            LayoutShape::Union { .. } | LayoutShape::Array { .. } => index,
             LayoutShape::Struct { memory_map, .. } => memory_map[index as usize],
         }
     }
@@ -392,7 +401,7 @@ impl LayoutShape {
         }
 
         (0..self.count()).map(move |i| match *self {
-            LayoutShape::Primitive | LayoutShape::Array { .. } => i,
+            LayoutShape::Primitive | LayoutShape::Union { .. } | LayoutShape::Array { .. } => i,
             LayoutShape::Struct { .. } => inverse[i],
         })
     }

@@ -177,7 +177,7 @@ impl From<FloatTy> for ScalarKind {
 /// Language ref: <https://llvm.org/docs/LangRef.html#range-metadata>
 ///
 /// Source: <https://github.com/llvm/llvm-project/blob/main/llvm/lib/IR/ConstantRange.cpp>
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct ValidScalarRange {
     /// The minimum value that is valid for this scalar.
     pub start: u128,
@@ -215,30 +215,57 @@ impl fmt::Debug for ValidScalarRange {
 
 /// The representation of a scalar-like value within an
 /// ABI, what type it is, and what its valid range is.
-#[derive(Clone, Copy, Debug)]
-pub struct Scalar {
-    /// The kind of the scalar.
-    pub kind: ScalarKind,
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Scalar {
+    /// The value of the [Scalar] is initialised, and has a known
+    /// "valid" range of values.
+    Initialised {
+        /// The kind of the scalar.
+        kind: ScalarKind,
 
-    /// The valid range of the scalar, this is used
-    /// to provide aditional information about values
-    /// that might be encoded as scalars (for efficiency
-    /// purposes), but are not actually scalars, e.g. `bool`s
-    /// will be encoded as [`ScalarKind::Int`], and have
-    /// a valid range of `0..1`.
-    pub valid_range: ValidScalarRange,
+        /// The valid range of the scalar, this is used
+        /// to provide aditional information about values
+        /// that might be encoded as scalars (for efficiency
+        /// purposes), but are not actually scalars, e.g. `bool`s
+        /// will be encoded as [`ScalarKind::Int`], and have
+        /// a valid range of `0..1`.
+        valid_range: ValidScalarRange,
+    },
+
+    /// The `union` variant is used to represent a scalar within
+    /// a union context, i.e. it is not known what the valid range
+    /// of the scalar is, and thus there are some less guarantees
+    /// about the value of the scalar.
+    Union {
+        /// Th kind of the scalar
+        kind: ScalarKind,
+    },
 }
 
 impl Scalar {
+    /// Compute the [ScalarKind] of the [Scalar]. This is an infallible
+    /// operation for either scalar variant.
+    pub fn kind(&self) -> ScalarKind {
+        match *self {
+            Scalar::Initialised { kind, .. } => kind,
+            Scalar::Union { kind } => kind,
+        }
+    }
+
+    /// Convert the [Scalar] into a union-like [Scalar].
+    pub fn to_union(&self) -> Self {
+        Scalar::Union { kind: self.kind() }
+    }
+
     /// Align the [Scalar] with the current data layout
     /// specification.
     pub fn align<L: HasDataLayout>(&self, ctx: &L) -> Alignments {
-        self.kind.align(ctx)
+        self.kind().align(ctx)
     }
 
     /// Compute the size of the [Scalar].
     pub fn size<L: HasDataLayout>(&self, ctx: &L) -> Size {
-        self.kind.size(ctx)
+        self.kind().size(ctx)
     }
 
     /// Check if the [Scalar] represents a boolean value, i.e. a
@@ -246,7 +273,7 @@ impl Scalar {
     pub fn is_bool(&self) -> bool {
         matches!(
             self,
-            Scalar {
+            Scalar::Initialised {
                 kind: ScalarKind::Int { kind: Integer::I8, signed: false },
                 valid_range: ValidScalarRange { start: 0, end: 1 }
             }
@@ -256,7 +283,7 @@ impl Scalar {
 
 /// This defined how values are being represented and are passed by target
 /// ABIs in the terms of c-type categories.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AbiRepresentation {
     /// A value that is not represented in memory, but is instead passed
     /// by value. This is used for values that are smaller than a pointer.
