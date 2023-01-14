@@ -11,10 +11,8 @@ use std::{
     num::NonZeroUsize,
 };
 
-use hash_ir::{
-    ty::{IrTy, IrTyId, VariantIdx},
-    IrCtx,
-};
+use compute::LayoutComputer;
+use hash_ir::ty::{IrTy, IrTyId, VariantIdx};
 use hash_target::{
     abi::{AbiRepresentation, Scalar},
     alignment::Alignments,
@@ -33,7 +31,7 @@ new_store_key!(pub LayoutId);
 
 /// A store for all of the interned [Layout]s, and a cache for
 /// the [Layout]s that are created from [IrTyId]s.
-pub struct LayoutStorage {
+pub struct LayoutCtx {
     /// The storage for all of the interned layouts
     data: DefaultStore<LayoutId, Layout>,
 
@@ -50,8 +48,8 @@ pub struct LayoutStorage {
     pub(crate) common_layouts: CommonLayouts,
 }
 
-impl LayoutStorage {
-    /// Create a new [LayoutStore].
+impl LayoutCtx {
+    /// Create a new [LayoutStorage].
     pub fn new(data_layout: TargetDataLayout) -> Self {
         let data = DefaultStore::new();
         let common_layouts = CommonLayouts::new(&data_layout, &data);
@@ -70,7 +68,7 @@ impl LayoutStorage {
     }
 }
 
-impl Store<LayoutId, Layout> for LayoutStorage {
+impl Store<LayoutId, Layout> for LayoutCtx {
     fn internal_data(&self) -> &RefCell<Vec<Layout>> {
         self.data.internal_data()
     }
@@ -124,52 +122,6 @@ create_common_layout_table!(
     usize: IrTy::UInt(UIntTy::USize),
 );
 
-/// A auxiliary context for methods defined on [Layout]
-/// which require access to other [Layout]s and information
-/// generated in the [IrCtx].
-pub struct LayoutCtx<'l> {
-    /// A reference tot the [LayoutStore].
-    layout_store: &'l LayoutStorage,
-
-    /// A reference to the [IrCtx].
-    ir_ctx: &'l IrCtx,
-}
-
-impl<'l> LayoutCtx<'l> {
-    /// Create a new [LayoutCtx].
-    pub fn new(layout_store: &'l LayoutStorage, ir_ctx: &'l IrCtx) -> Self {
-        Self { layout_store, ir_ctx }
-    }
-
-    /// Returns a reference to the [LayoutStore].
-    pub fn layouts(&self) -> &LayoutStorage {
-        self.layout_store
-    }
-
-    /// Get a reference to the data layout of the current
-    /// session.
-    pub fn data_layout(&self) -> &TargetDataLayout {
-        &self.layout_store.data_layout
-    }
-
-    /// Get a reference to the [CommonLayout]s that are available
-    /// in the current session.
-    pub(crate) fn common_layouts(&self) -> &CommonLayouts {
-        &self.layout_store.common_layouts
-    }
-
-    /// Returns a reference to the [IrCtx].
-    pub fn ir_ctx(&self) -> &IrCtx {
-        self.ir_ctx
-    }
-}
-
-impl Store<LayoutId, Layout> for LayoutCtx<'_> {
-    fn internal_data(&self) -> &RefCell<Vec<Layout>> {
-        self.layout_store.internal_data()
-    }
-}
-
 /// [TyInfo] stores a reference to the type, and a reference to the
 /// layout information about the type.
 #[derive(Debug, Clone, Copy)]
@@ -188,7 +140,7 @@ impl TyInfo {
     }
 
     /// Check if the type is a zero-sized type.
-    pub fn is_zst(&self, ctx: LayoutCtx) -> bool {
+    pub fn is_zst(&self, ctx: LayoutComputer) -> bool {
         ctx.layouts().map_fast(self.layout, |layout| match layout.abi {
             AbiRepresentation::Scalar { .. }
             | AbiRepresentation::Pair(..)
@@ -201,13 +153,13 @@ impl TyInfo {
 
     /// Compute the type of a "field with in a layout" and return the
     /// [LayoutId] associated with the field.
-    pub fn field(&self, _ctx: LayoutCtx, _index: usize) -> Self {
+    pub fn field(&self, _ctx: LayoutComputer, _index: usize) -> Self {
         todo!()
     }
 
     /// Fetch the [Layout] for a variant of the currently
     /// given [Layout].
-    pub fn for_variant(&self, ctx: LayoutCtx, variant: VariantIdx) -> Self {
+    pub fn for_variant(&self, ctx: LayoutComputer, variant: VariantIdx) -> Self {
         let layout = ctx.layouts().get(self.layout);
 
         let variant = match layout.variants {

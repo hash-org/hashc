@@ -180,7 +180,7 @@ impl<'b, V: CodeGenObject> OperandRef<V> {
     ) -> Self {
         let layout_info = builder.layout_info(self.info.layout);
 
-        let field_info = self.info.field(builder.layout_ctx(), index);
+        let field_info = self.info.field(builder.layout_computer(), index);
         let field_layout = builder.layout_info(field_info.layout);
 
         // If the field is a ZST, we return early
@@ -339,7 +339,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
                             }
                             ir::PlaceProjection::Index(_)
                             | ir::PlaceProjection::ConstantIndex { .. } => {
-                                let element_info = operand.info.field(builder.layout_ctx(), 0);
+                                let element_info = operand.info.field(builder.layout_computer(), 0);
                                 let element_layout = builder.layout_info(element_info.layout);
 
                                 if element_layout.is_zst() {

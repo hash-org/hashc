@@ -3,9 +3,12 @@
 //! as possible, thus using a [LayoutCache] in order to cache all the
 //! previously computed layouts, and re-use them as much as possible
 
-use std::{cmp, iter, num::NonZeroUsize};
+use std::{cell::RefCell, cmp, iter, num::NonZeroUsize};
 
-use hash_ir::ty::{AdtData, AdtRepresentation, IrTy, IrTyId, RefKind, VariantIdx};
+use hash_ir::{
+    ty::{AdtData, AdtRepresentation, IrTy, IrTyId, RefKind, VariantIdx},
+    IrCtx,
+};
 use hash_target::{
     abi::{AbiRepresentation, Integer, Scalar, ScalarKind, ValidScalarRange},
     alignment::{Alignment, Alignments},
@@ -16,13 +19,14 @@ use hash_target::{
 use hash_utils::store::Store;
 use index_vec::IndexVec;
 
-use crate::{Layout, LayoutCtx, LayoutId, LayoutShape, Variants};
+use crate::{CommonLayouts, Layout, LayoutCtx, LayoutId, LayoutShape, Variants};
 
 /// This describes the collection of errors that can occur
 /// when computing the layout of a type. This is used to
 /// report that either a type within a layout cannot be
 /// computed because the size is unknown, it is too large, or
 /// it is an invalid type.
+#[derive(Debug)]
 pub enum LayoutError {
     /// Overflow. The computed layout exceeds the maximum object size
     /// specified on the target platform. For more information, see
@@ -100,7 +104,51 @@ fn invert_memory_mapping(mapping: &[u32]) -> Vec<u32> {
     result
 }
 
-impl<'l> LayoutCtx<'l> {
+/// A auxiliary context for methods defined on [Layout]
+/// which require access to other [Layout]s and information
+/// generated in the [IrCtx].
+pub struct LayoutComputer<'l> {
+    /// A reference tot the [LayoutCtx].
+    layout_ctx: &'l LayoutCtx,
+
+    /// A reference to the [IrCtx].
+    ir_ctx: &'l IrCtx,
+}
+
+impl Store<LayoutId, Layout> for LayoutComputer<'_> {
+    fn internal_data(&self) -> &RefCell<Vec<Layout>> {
+        self.layout_ctx.internal_data()
+    }
+}
+
+impl<'l> LayoutComputer<'l> {
+    /// Create a new [LayoutCtx].
+    pub fn new(layout_store: &'l LayoutCtx, ir_ctx: &'l IrCtx) -> Self {
+        Self { layout_ctx: layout_store, ir_ctx }
+    }
+
+    /// Returns a reference to the [LayoutStore].
+    pub fn layouts(&self) -> &LayoutCtx {
+        self.layout_ctx
+    }
+
+    /// Get a reference to the data layout of the current
+    /// session.
+    pub fn data_layout(&self) -> &TargetDataLayout {
+        &self.layout_ctx.data_layout
+    }
+
+    /// Get a reference to the [CommonLayout]s that are available
+    /// in the current session.
+    pub(crate) fn common_layouts(&self) -> &CommonLayouts {
+        &self.layout_ctx.common_layouts
+    }
+
+    /// Returns a reference to the [IrCtx].
+    pub fn ir_ctx(&self) -> &IrCtx {
+        self.ir_ctx
+    }
+
     /// This is the entry point of the layout computation engine. From
     /// here, the [Layout] of a type will be computed all the way recursively
     /// until all of the leaves of the type are also turned into [Layout]s.
@@ -113,7 +161,7 @@ impl<'l> LayoutCtx<'l> {
         };
 
         // Check if we have already computed the layout of this type.
-        if let Some(layout) = self.layout_store.cache().get(&ty_id) {
+        if let Some(layout) = self.layout_ctx.cache().get(&ty_id) {
             return Ok(*layout);
         }
 

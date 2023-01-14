@@ -14,11 +14,11 @@ pub struct LayoutWriter<'l> {
     pub layout: LayoutId,
 
     /// The current context for printing the layout.
-    pub ctx: LayoutCtx<'l>,
+    pub ctx: &'l LayoutCtx,
 }
 
 impl<'l> LayoutWriter<'l> {
-    pub fn new(layout: LayoutId, ctx: LayoutCtx<'l>) -> Self {
+    pub fn new(layout: LayoutId, ctx: &'l LayoutCtx) -> Self {
         Self { layout, ctx }
     }
 }
@@ -36,7 +36,7 @@ impl fmt::Display for LayoutWriter<'_> {
                     write!(f, "shape")
                 }
                 Variants::Multiple { tag: _, field: _, variants: _ } => {
-                    write!(f, "tag then shape")
+                    write!(f, "tag | shape")
                 }
             }
         })
