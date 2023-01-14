@@ -28,7 +28,7 @@ use hash_types::{
     },
     ty_as_variant,
 };
-use hash_utils::store::{CloneStore, SequenceStore, Store};
+use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
 
 use super::{common::CommonOps, AccessToOps};
 use crate::{
@@ -536,7 +536,14 @@ impl<'tc> CheckOps<'tc> {
         }))
     }
 
-    pub fn check_block_term(&self, _block_term: &BlockTerm) -> TcResult<Option<TyId>> {
+    /// Check the type of a block term, and return it.
+    pub fn check_block_term(&self, block_term: &BlockTerm) -> TcResult<Option<TyId>> {
+        self.stores().term_list().map_fast(block_term.statements, |statements| {
+            let mut _final_ty = Ty::Tuple(TupleTy { data: ParamsId::empty() });
+            for _statement in statements {
+                todo!()
+            }
+        });
         todo!()
     }
 
@@ -575,6 +582,7 @@ impl<'tc> CheckOps<'tc> {
                 Term::Access(_) => todo!(),
                 Term::Cast(_) => todo!(),
                 Term::TypeOf(_) => todo!(),
+                Term::HoleBinder(_) => todo!(),
                 Term::Ref(_ref_term) => {
                     todo!()
                     // let inner_ty =

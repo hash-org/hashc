@@ -1,6 +1,6 @@
 //! Definitions related to substitutions.
 use derive_more::From;
-use hash_types::new::{holes::HoleId, symbols::Symbol, terms::TermId};
+use hash_types::new::{holes::Hole, symbols::Symbol, terms::TermId};
 use smallvec::SmallVec;
 
 /// The subject of a substitution
@@ -15,7 +15,7 @@ pub enum SubSubject {
     /// A hole subject.
     ///
     /// For example, x := 3, where x: U1, will form the substitution U1 ~> i32
-    Hole(HoleId),
+    Hole(Hole),
 }
 
 impl PartialEq<Symbol> for SubSubject {
@@ -27,8 +27,8 @@ impl PartialEq<Symbol> for SubSubject {
     }
 }
 
-impl PartialEq<HoleId> for SubSubject {
-    fn eq(&self, other: &HoleId) -> bool {
+impl PartialEq<Hole> for SubSubject {
+    fn eq(&self, other: &Hole) -> bool {
         match self {
             SubSubject::Var(_) => false,
             SubSubject::Hole(h) => h == other,

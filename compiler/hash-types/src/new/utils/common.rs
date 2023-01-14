@@ -9,7 +9,7 @@ use crate::new::{
     defs::{DefArgsId, DefParamGroup, DefParamsId, DefPatArgsId},
     environment::env::AccessToEnv,
     fns::{FnDef, FnDefId},
-    holes::{Hole, HoleKind},
+    holes::{Hole, HoleBinder, HoleBinderKind},
     locations::LocationTarget,
     params::{DefParamIndex, Param, ParamIndex, ParamsId},
     pats::{Pat, PatId, PatListId},
@@ -204,16 +204,28 @@ pub trait CommonUtils: AccessToEnv {
         self.stores().symbol().create_with(|symbol| SymbolData { name: None, symbol })
     }
 
+    fn new_hole(&self) -> Hole {
+        Hole(self.new_fresh_symbol())
+    }
+
     /// Create a new term hole.
     fn new_term_hole(&self) -> TermId {
-        let hole_id = self.stores().hole().create_with(|id| Hole { id, kind: HoleKind::Term });
-        self.stores().term().create_with(|_| Term::Hole(hole_id))
+        self.stores().term().create_with(|_| Term::Hole(self.new_hole()))
     }
 
     /// Create a new type hole.
     fn new_ty_hole(&self) -> TyId {
-        let hole_id = self.stores().hole().create_with(|id| Hole { id, kind: HoleKind::Ty });
-        self.stores().ty().create_with(|_| Ty::Hole(hole_id))
+        self.stores().ty().create_with(|_| Ty::Hole(self.new_hole()))
+    }
+
+    /// Create a new hole binder.
+    fn new_hole_binder(&self, hole: Hole, ty: TyId, inner: TermId) -> TermId {
+        self.new_term(HoleBinder { hole, kind: HoleBinderKind::Hole(ty), inner })
+    }
+
+    /// Create a new guess binder.
+    fn new_guess_binder(&self, hole: Hole, guess: TermId, inner: TermId) -> TermId {
+        self.new_term(HoleBinder { hole, kind: HoleBinderKind::Guess(guess), inner })
     }
 
     /// Create a new empty definition parameter list.

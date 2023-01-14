@@ -12,7 +12,7 @@ use hash_utils::{
 use super::{
     casting::CastTerm,
     environment::env::{AccessToEnv, WithEnv},
-    holes::HoleId,
+    holes::{Hole, HoleBinder},
     lits::PrimTerm,
     symbols::Symbol,
     tys::TypeOfTerm,
@@ -100,12 +100,9 @@ pub enum Term {
     Ref(RefTerm),
     Deref(DerefTerm),
 
-    /// Term hole
-    ///
-    /// Invariant: `hole.kind == HoleKind::Term`
-    // @@Reconsider: this invariant might need to be broken sometimes if types are used in expr
-    // context.
-    Hole(HoleId),
+    /// Holes
+    Hole(Hole),
+    HoleBinder(HoleBinder),
 }
 
 new_store_key!(pub TermId);
@@ -165,6 +162,7 @@ impl fmt::Display for WithEnv<'_, &Term> {
             Term::Ref(ref_term) => write!(f, "{}", self.env().with(ref_term)),
             Term::Deref(deref_term) => write!(f, "{}", self.env().with(deref_term)),
             Term::Hole(hole) => write!(f, "{}", self.env().with(*hole)),
+            Term::HoleBinder(hole_binder) => write!(f, "{}", self.env().with(*hole_binder)),
         }
     }
 }

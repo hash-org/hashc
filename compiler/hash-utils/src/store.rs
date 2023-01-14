@@ -314,6 +314,11 @@ pub trait SequenceStoreKey: Copy + Eq + Hash {
         let (index, _) = self.to_index_and_len();
         index
     }
+
+    /// Get an empty key.
+    fn empty() -> Self {
+        Self::from_index_and_len_unchecked(0, 0)
+    }
 }
 
 /// Create a new [`SequenceStoreKey`] with the given name.

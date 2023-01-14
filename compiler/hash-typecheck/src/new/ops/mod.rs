@@ -9,6 +9,7 @@ pub mod bootstrap;
 pub mod check;
 pub mod common;
 pub mod context;
+pub mod elaboration;
 pub mod normalise;
 pub mod substitutions;
 pub mod unify;
