@@ -57,6 +57,8 @@ pub enum TcError {
     WrongDefArgLength { def_params_id: DefParamsId, def_args_id: SomeDefArgsId },
     /// Not a function.
     NotAFunction { fn_call: TermId, actual_subject_ty: TyId },
+    /// Cannot deref the subject.
+    CannotDeref { subject: TermId, actual_subject_ty: TyId },
 }
 
 pub type TcResult<T> = Result<T, TcError>;
@@ -265,7 +267,7 @@ impl<'tc> WithTcEnv<'tc, &TcError> {
                         .add_info(format!("got {arg_length} {} groups here", args_id.as_str()));
                 }
             }
-            TcError::NotAFunction { fn_call, actual_subject_ty: _ } => {
+            TcError::NotAFunction { fn_call, actual_subject_ty } => {
                 let error = reporter
                     .error()
                     .code(HashErrorCode::InvalidCallSubject)
@@ -275,7 +277,22 @@ impl<'tc> WithTcEnv<'tc, &TcError> {
                         location,
                         format!(
                             "cannot use this as a subject of a function call. It is of type `{}` which is not a function type.",
-                            self.env().with(*fn_call)
+                            self.env().with(*actual_subject_ty)
+                        )
+                    );
+                }
+            }
+            TcError::CannotDeref { subject, actual_subject_ty } => {
+                let error = reporter
+                    .error()
+                    .code(HashErrorCode::InvalidCallSubject)
+                    .title("the subject of this dereference is not a reference");
+                if let Some(location) = locations.get_location(subject) {
+                    error.add_labelled_span(
+                        location,
+                        format!(
+                            "cannot use this as a subject of a dereference operation. It is of type `{}` which is not a reference type.",
+                            self.env().with(*actual_subject_ty)
                         )
                     );
                 }

@@ -7,10 +7,11 @@ use hash_source::constant::{FloatTy, IntTy, SIntTy, UIntTy};
 use hash_types::{
     new::{
         args::{ArgsId, PatArgsId},
+        control::ReturnTerm,
         data::{CtorTerm, DataTy},
         defs::{DefArgsId, DefParamGroupData, DefParamsId, DefPatArgsId},
         environment::{
-            context::{BindingKind, BoundVarOrigin},
+            context::{BindingKind, BoundVarOrigin, ScopeKind},
             env::AccessToEnv,
         },
         fns::{FnBody, FnCallTerm, FnDefId, FnTy},
@@ -404,7 +405,7 @@ impl<'tc> CheckOps<'tc> {
     }
 
     /// Check the type of a variable, and return it.
-    pub fn check_var_term(&self, term: Symbol) -> TyId {
+    pub fn check_var(&self, term: Symbol) -> TyId {
         match self.context().get_binding(term).unwrap().kind {
             BindingKind::ModMember(_, _) | BindingKind::Ctor(_, _) => {
                 unreachable!("mod members and ctors should have all been resolved by now")
@@ -443,6 +444,75 @@ impl<'tc> CheckOps<'tc> {
         }
     }
 
+    /// Check the type of a `return` term, and return it.
+    pub fn check_return_term(&self, return_term: &ReturnTerm) -> TcResult<TyId> {
+        let _ = self.check_term(return_term.expression)?;
+        Ok(self.new_never_ty())
+    }
+
+    /// Check the type of a deref term, and return it.
+    pub fn check_deref_term(&self, deref_term: &DerefTerm) -> TcResult<Option<TyId>> {
+        match self.check_term(deref_term.subject) {
+            Ok(Some(subject_ty_id)) => {
+                self.stores().ty().map_fast(subject_ty_id, |subject_ty| match subject_ty {
+                    Ty::Ref(ref_ty) => Ok(Some(ref_ty.ty)),
+                    Ty::Hole(_) => Ok(Some(self.new_ty_hole())),
+                    _ => Err(TcError::CannotDeref {
+                        subject: deref_term.subject,
+                        actual_subject_ty: subject_ty_id,
+                    }),
+                })
+            }
+            s => s,
+        }
+    }
+
+    /// Check the type of a type, and return it.
+    pub fn check_ty(&self, ty_id: TyId) -> TcResult<Option<TyId>> {
+        // @@Todo: cumulative type universe checks
+        self.stores().ty().map(ty_id, |ty| match ty {
+            Ty::Eval(eval) => self.check_term(*eval),
+            Ty::Var(var) => Ok(Some(self.check_var(*var))),
+            Ty::Tuple(tuple_ty) => {
+                // Check the parameters
+                self.check_params(tuple_ty.data)?;
+
+                Ok(Some(self.new_small_universe_ty()))
+            }
+            Ty::Fn(fn_ty) => {
+                // @@Todo: purity/unsafe checks
+
+                // Check the parameters
+                self.check_params(fn_ty.params)?;
+                self.context_ops().enter_scope(ScopeKind::FnTy(ty_id), || {
+                    // Given the parameters, check the return type
+                    Ok(self.check_ty(fn_ty.return_ty)?.map(|_| self.new_small_universe_ty()))
+                })
+            }
+            Ty::Ref(ref_ty) => {
+                // Check the inner type
+                self.check_ty(ref_ty.ty)?;
+                Ok(Some(self.new_small_universe_ty()))
+            }
+            Ty::Data(data_ty) => {
+                // Check the arguments.
+                let inferred_def_params = self.check_def_args(data_ty.args)?;
+
+                // Unified the inferred parameters with the declared parameters.
+                let data_ty_params =
+                    self.stores().data_def().map_fast(data_ty.data_def, |data_def| data_def.params);
+                let sub = self.unify_ops().unify_def_params(inferred_def_params, data_ty_params)?;
+
+                // Apply the substitution to the arguments.
+                self.substitute_ops().apply_sub_to_def_args_in_place(data_ty.args, &sub);
+
+                Ok(Some(self.new_small_universe_ty()))
+            }
+            Ty::Universe(universe_ty) => Ok(Some(self.new_universe_ty(universe_ty.size + 1))),
+            Ty::Hole(_) => Ok(None),
+        })
+    }
+
     // @@Todo: checking for other definitions.
 
     /// Check a concrete type for a given term.
@@ -461,7 +531,11 @@ impl<'tc> CheckOps<'tc> {
                 Term::Ctor(ctor_term) => Ok(Some(self.new_ty(self.check_ctor_term(ctor_term)))),
                 Term::FnCall(fn_call_term) => self.check_fn_call_term(fn_call_term, term_id),
                 Term::FnRef(fn_def_id) => Ok(Some(self.new_ty(self.check_fn_def(*fn_def_id)?))),
-                Term::Var(var_term) => Ok(Some(self.check_var_term(*var_term))),
+                Term::Var(var_term) => Ok(Some(self.check_var(*var_term))),
+                Term::Return(return_term) => Ok(Some(self.check_return_term(return_term)?)),
+                Term::Ty(ty_id) => self.check_ty(*ty_id),
+                Term::Deref(deref_term) => self.check_deref_term(deref_term),
+
                 Term::Block(_) => todo!(),
                 Term::Loop(_) => {
                     // @@Future: if loop is proven to not break, return never
@@ -469,31 +543,12 @@ impl<'tc> CheckOps<'tc> {
                 }
                 Term::LoopControl(_) => todo!(),
                 Term::Match(_) => todo!(),
-                Term::Return(_) => {
-                    // Always never because it returns
-                    Ok(Some(self.new_never_ty()))
-                }
                 Term::DeclStackMember(_) => todo!(),
                 Term::Assign(_) => todo!(),
                 Term::Unsafe(_) => todo!(),
                 Term::Access(_) => todo!(),
                 Term::Cast(_) => todo!(),
                 Term::TypeOf(_) => todo!(),
-                Term::Ty(_ty_id) => {
-                    todo!()
-                    // match self.get_ty(ty_id) {
-                    //     Ty::Hole(_) =>
-                    // Err(TcError::NeedMoreTypeAnnotationsToCheck { term }),
-                    //     Ty::Tuple(_) | Ty::Fn(_) | Ty::Ref(_) | Ty::Data(_)
-                    // => {         // @@Todo: bounds
-                    //         Ok(self.new_small_universe_ty())
-                    //     }
-                    //     Ty::Universe(universe_ty) =>
-                    // Ok(self.new_universe_ty(universe_ty.size + 1)),
-                    //     Ty::Var(_) => todo!(),
-                    //     Ty::Eval(_) => todo!(),
-                    // }
-                }
                 Term::Ref(_ref_term) => {
                     todo!()
                     // let inner_ty =
@@ -504,7 +559,6 @@ impl<'tc> CheckOps<'tc> {
                     //     kind: ref_term.kind,
                     // }))))
                 }
-                Term::Deref(_) => todo!(),
                 Term::Hole(_) => Ok(None),
             }
         })

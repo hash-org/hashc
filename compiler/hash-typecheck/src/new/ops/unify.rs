@@ -1,6 +1,6 @@
 //! Operations for unifying types.
 use derive_more::Constructor;
-use hash_types::new::{params::ParamsId, tys::TyId};
+use hash_types::new::{defs::DefParamsId, params::ParamsId, tys::TyId};
 
 use crate::{
     impl_access_to_tc_env,
@@ -22,6 +22,11 @@ impl<'tc> UnifyOps<'tc> {
 
     /// Unify two parameter lists, creating a substitution of holes.
     pub fn unify_params(&self, _src: ParamsId, _target: ParamsId) -> TcResult<Sub> {
+        todo!()
+    }
+
+    /// Unify two definition parameter lists, creating a substitution of holes.
+    pub fn unify_def_params(&self, _src: DefParamsId, _target: DefParamsId) -> TcResult<Sub> {
         todo!()
     }
 

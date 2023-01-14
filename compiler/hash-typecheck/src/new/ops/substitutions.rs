@@ -1,6 +1,6 @@
 //! Operations to substitute variables in types and terms.
 use derive_more::Constructor;
-use hash_types::new::{args::ArgsId, params::ParamsId, terms::TermId, tys::TyId};
+use hash_types::new::{args::ArgsId, defs::DefArgsId, params::ParamsId, terms::TermId, tys::TyId};
 
 use crate::{
     impl_access_to_tc_env,
@@ -36,6 +36,10 @@ impl<'tc> SubstituteOps<'tc> {
     }
 
     pub fn apply_sub_to_params_in_place(&self, _params_id: ParamsId, _sub: &Sub) -> TermId {
+        todo!()
+    }
+
+    pub fn apply_sub_to_def_args_in_place(&self, _def_args_id: DefArgsId, _sub: &Sub) -> TermId {
         todo!()
     }
 
