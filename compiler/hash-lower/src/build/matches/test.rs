@@ -269,7 +269,7 @@ impl<'tcx> Builder<'tcx> {
             (TestKind::Switch { adt, .. }, Pat::Constructor(ConstructorPat { subject, args })) => {
                 // If we are performing a variant switch, then this informs
                 // variant patterns, bu nothing else.
-                let test_adt = self.convert_term_into_ir_ty(*subject);
+                let test_adt = self.lower_term_as_id(*subject);
 
                 let variant_index = self.ctx.map_on_adt(test_adt, |adt, _| {
                     // If this is a struct, then we don't do anything

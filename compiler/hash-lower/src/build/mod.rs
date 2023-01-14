@@ -306,7 +306,7 @@ impl<'ctx> Builder<'ctx> {
         let term = self.tcx.node_info_store.node_info(item_id).map(|f| f.term_id()).unwrap();
 
         // lower the initial type and the create a
-        let ty = self.convert_term_into_ir_ty(term);
+        let ty = self.lower_term_as_id(term);
         self.info.set_ty(ty);
 
         // If it is a function type, then we use the return type of the
@@ -370,7 +370,7 @@ impl<'ctx> Builder<'ctx> {
         let term = self.tcx.node_info_store.node_info(node.id()).map(|f| f.term_id()).unwrap();
 
         // update the type in the body info with this value
-        self.info.set_ty(self.convert_term_into_ir_ty(term));
+        self.info.set_ty(self.lower_term_as_id(term));
         self.build_body(node);
     }
 

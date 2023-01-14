@@ -339,7 +339,7 @@ impl<'tcx> Builder<'tcx> {
                     Ok(())
                 }
                 Pat::Constructor(ConstructorPat { subject, args }) => {
-                    let ty = self.convert_term_into_ir_ty(*subject);
+                    let ty = self.lower_term_as_id(*subject);
                     let adt =
                         self.ctx.map_on_adt(ty, |adt, id| adt.flags.is_struct().then_some(id));
 

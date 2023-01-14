@@ -9,6 +9,7 @@ mod build;
 mod cfg;
 mod discover;
 mod optimise;
+mod ty;
 
 use discover::LoweringVisitor;
 use hash_ast::ast::{AstVisitorMutSelf, OwnsAstNode};
