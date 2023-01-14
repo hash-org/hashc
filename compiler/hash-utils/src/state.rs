@@ -1,11 +1,15 @@
-//! Helper structs for keeping track of state during AST traversal.
+//! Helper structs for keeping track of state. The [LightState] provides
+//! a mechanism for keeping track of state which is small in size and can be
+//! copied cheaply, and provides utilities for conveniently swapping state
+//! whilst in a context.
+
 use core::fmt;
 use std::{
     cell::{Cell, RefCell},
     ops::{Deref, DerefMut},
 };
 
-/// Helper struct for keeping track of light state during AST traversal.
+/// Helper struct for keeping track of light state.
 ///
 /// Light state is state which is small in size and can be copied cheaply.
 /// Internally uses a [`Cell`] to store the state.
