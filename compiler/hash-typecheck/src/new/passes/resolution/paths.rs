@@ -106,7 +106,7 @@ impl From<NonTerminalResolvedPathComponent> for ModMemberValue {
 
 impl fmt::Display for WithTcEnv<'_, &NonTerminalResolvedPathComponent> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let env = self.tc_env().env();
+        let env = self.env();
         write!(f, "{}", env.with(env.with(ModMemberValue::from(*self.value)).name()))
     }
 }

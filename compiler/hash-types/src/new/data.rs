@@ -86,13 +86,22 @@ pub struct CtorPat {
     pub data_args: DefArgsId,
 }
 
+/// The number of bits in a numeric constructor.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum NumericCtorBits {
+    /// The number of bits is bounded to the given value.
+    Bounded(u8),
+    /// The number of bits is unbounded (i.e. bigint).
+    Unbounded,
+}
+
 /// A numeric constructor definition.
 ///
 /// This is a constructor which accepts numeric literals
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NumericCtorInfo {
     /// The number of bits in the number.
-    pub bits: u8,
+    pub bits: NumericCtorBits,
     /// Whether the number is signed or not.
     pub is_signed: bool,
     /// Whether the number is floating-point or not.
@@ -245,6 +254,15 @@ impl Display for WithEnv<'_, &CtorPat> {
         write!(f, "{}", self.env().with(self.value.ctor_pat_args))?;
 
         Ok(())
+    }
+}
+
+impl Display for NumericCtorBits {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            NumericCtorBits::Bounded(bits) => write!(f, "{bits}"),
+            NumericCtorBits::Unbounded => write!(f, "unbounded"),
+        }
     }
 }
 

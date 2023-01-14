@@ -2,7 +2,7 @@
 //! typechecker.
 use self::{
     bootstrap::BootstrapOps, check::CheckOps, context::ContextOps, infer::InferOps,
-    normalise::NormalisationOps, unify::UnifyOps,
+    normalise::NormalisationOps, substitutions::SubstituteOps, unify::UnifyOps,
 };
 
 pub mod bootstrap;
@@ -11,6 +11,7 @@ pub mod common;
 pub mod context;
 pub mod infer;
 pub mod normalise;
+pub mod substitutions;
 pub mod unify;
 
 macro_rules! ops {
@@ -34,4 +35,5 @@ ops! {
   context_ops: ContextOps,
   bootstrap_ops: BootstrapOps,
   normalisation_ops: NormalisationOps,
+  substitute_ops: SubstituteOps,
 }

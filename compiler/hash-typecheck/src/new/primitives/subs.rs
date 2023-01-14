@@ -1,11 +1,12 @@
 //! Definitions related to substitutions.
+use derive_more::From;
 use hash_types::new::{holes::HoleId, symbols::Symbol, terms::TermId};
 use smallvec::SmallVec;
 
 /// The subject of a substitution
 ///
 /// This is either a symbolic variable, or hole.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, From)]
 pub enum SubSubject {
     /// A variable subject.
     ///
@@ -62,7 +63,8 @@ impl Sub {
     }
 
     /// Get the substitution for the given [`SubSubject`], if any.
-    pub fn get_sub_for(&self, subject: SubSubject) -> Option<TermId> {
+    pub fn get_sub_for(&self, subject: impl Into<SubSubject>) -> Option<TermId> {
+        let subject = subject.into();
         self.data.iter().find(|entry| entry.from == subject).map(|entry| entry.to)
     }
 
@@ -93,7 +95,8 @@ impl Sub {
     }
 
     /// Add a variable substitution.
-    pub fn insert(&mut self, from: SubSubject, to: TermId) {
+    pub fn insert(&mut self, from: impl Into<SubSubject>, to: TermId) {
+        let from = from.into();
         self.data.push(SubEntry { from, to })
     }
 
@@ -108,7 +111,8 @@ impl Sub {
     }
 
     /// Remove the substitution for the given variable.
-    pub fn remove(&mut self, from: SubSubject) -> Option<TermId> {
+    pub fn remove(&mut self, from: impl Into<SubSubject>) -> Option<TermId> {
+        let from = from.into();
         self.data.iter().position(|entry| entry.from == from).map(|i| self.data.swap_remove(i).to)
     }
 

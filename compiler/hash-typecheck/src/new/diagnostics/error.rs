@@ -7,12 +7,15 @@ use hash_reporting::{
 use hash_source::location::SourceLocation;
 use hash_types::new::{
     defs::DefParamsId, environment::env::AccessToEnv, params::ParamsId, symbols::Symbol,
-    terms::TermId, utils::common::CommonUtils,
+    terms::TermId, tys::TyId, utils::common::CommonUtils,
 };
 use hash_utils::store::SequenceStoreKey;
 
 use super::params::{SomeArgsId, SomeDefArgsId};
-use crate::new::{environment::tc_env::WithTcEnv, passes::resolution::scoping::ContextKind};
+use crate::new::{
+    environment::tc_env::{AccessToTcEnv, WithTcEnv},
+    passes::resolution::scoping::ContextKind,
+};
 
 /// An error that occurs during typechecking.
 #[derive(Clone, Debug)]
@@ -52,6 +55,8 @@ pub enum TcError {
     /// The given definition arguments do not match the length of the target
     /// definition parameters.
     WrongDefArgLength { def_params_id: DefParamsId, def_args_id: SomeDefArgsId },
+    /// Not a function.
+    NotAFunction { fn_call: TermId, actual_subject_ty: TyId },
 }
 
 pub type TcResult<T> = Result<T, TcError>;
@@ -258,6 +263,21 @@ impl<'tc> WithTcEnv<'tc, &TcError> {
                     error
                         .add_span(location)
                         .add_info(format!("got {arg_length} {} groups here", args_id.as_str()));
+                }
+            }
+            TcError::NotAFunction { fn_call, actual_subject_ty: _ } => {
+                let error = reporter
+                    .error()
+                    .code(HashErrorCode::InvalidCallSubject)
+                    .title("the subject of this function call is not a function");
+                if let Some(location) = locations.get_location(fn_call) {
+                    error.add_labelled_span(
+                        location,
+                        format!(
+                            "cannot use this as a subject of a function call. It is of type `{}` which is not a function type.",
+                            self.env().with(*fn_call)
+                        )
+                    );
                 }
             }
         }

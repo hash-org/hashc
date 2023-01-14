@@ -2,7 +2,7 @@
 use std::iter::once;
 
 use hash_types::new::{
-    data::{DataDefId, ListCtorInfo, NumericCtorInfo, PrimitiveCtorInfo},
+    data::{DataDefId, ListCtorInfo, NumericCtorBits, NumericCtorInfo, PrimitiveCtorInfo},
     defs::DefParamGroupData,
     environment::env::{AccessToEnv, Env},
     mods::{ModMemberData, ModMemberValue},
@@ -53,11 +53,15 @@ defined_primitives! {
     u16,
     u32,
     u64,
+    u128,
+    ubig,
+    usize,
     i8,
     i16,
     i32,
     i64,
-    usize,
+    i128,
+    ibig,
     isize,
     f32,
     f64,
@@ -76,7 +80,11 @@ impl DefinedPrimitives {
             env.data_utils().create_primitive_data_def(
                 env.new_symbol(name),
                 PrimitiveCtorInfo::Numeric(NumericCtorInfo {
-                    bits,
+                    bits: if bits == 0 {
+                        NumericCtorBits::Unbounded
+                    } else {
+                        NumericCtorBits::Bounded(bits)
+                    },
                     is_signed: signed,
                     is_float: float,
                 }),
@@ -107,12 +115,18 @@ impl DefinedPrimitives {
             i16: numeric("i16", 16, true, false),
             i32: numeric("i32", 32, true, false),
             i64: numeric("i64", 64, true, false),
+            i128: numeric("i128", 128, true, false),
             isize: numeric("isize", 64, true, false),
+            ibig: numeric("ibig", 0, true, false),
+
             u8: numeric("u8", 8, false, false),
             u16: numeric("u16", 16, false, false),
             u32: numeric("u32", 32, false, false),
             u64: numeric("u64", 64, false, false),
+            u128: numeric("u128", 128, false, false),
+            ubig: numeric("ubig", 0, false, false),
             usize: numeric("usize", 64, false, false),
+
             f32: numeric("f32", 32, false, true),
             f64: numeric("f64", 64, false, true),
 

@@ -4,7 +4,7 @@ use hash_source::{identifier::Identifier, location::SourceLocation};
 use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
 
 use crate::new::{
-    args::{ArgsId, PatArgsId},
+    args::{Arg, ArgsId, PatArgsId},
     data::{DataDef, DataDefId, DataTy},
     defs::{DefArgsId, DefParamGroup, DefParamsId, DefPatArgsId},
     environment::env::AccessToEnv,
@@ -116,9 +116,19 @@ pub trait CommonUtils: AccessToEnv {
         self.stores().term().get(term_id)
     }
 
+    /// Map a term by its ID.
+    fn map_term<T>(&self, term_id: TermId, f: impl FnOnce(&Term) -> T) -> T {
+        self.stores().term().map(term_id, f)
+    }
+
     /// Get a type by its ID.
     fn get_ty(&self, ty_id: TyId) -> Ty {
         self.stores().ty().get(ty_id)
+    }
+
+    /// Map a type by its ID.
+    fn map_ty<T>(&self, ty_id: TyId, f: impl FnOnce(&Ty) -> T) -> T {
+        self.stores().ty().map(ty_id, f)
     }
 
     /// Get a pattern by its ID.
@@ -218,6 +228,17 @@ pub trait CommonUtils: AccessToEnv {
         self.stores().params().create_from_iter_with(types.iter().copied().map(|ty| {
             move |id| Param { id, name: self.new_fresh_symbol(), ty, default_value: None }
         }))
+    }
+
+    /// Create a new positional argument list with the given types.
+    fn new_args(&self, values: &[TermId]) -> ArgsId {
+        self.stores().args().create_from_iter_with(
+            values
+                .iter()
+                .copied()
+                .enumerate()
+                .map(|(i, value)| move |id| Arg { id, target: ParamIndex::Position(i), value }),
+        )
     }
 
     /// Create a new data type with no arguments.
