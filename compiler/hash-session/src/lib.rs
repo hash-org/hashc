@@ -13,7 +13,7 @@ use hash_ast_desugaring::{AstDesugaringCtx, AstDesugaringCtxQuery, AstDesugaring
 use hash_ast_expand::{AstExpansionCtx, AstExpansionCtxQuery, AstExpansionPass};
 use hash_backend::{BackendCtx, BackendCtxQuery, HashBackend};
 use hash_ir::IrStorage;
-use hash_layout::LayoutStorage;
+use hash_layout::LayoutCtx;
 use hash_lower::{IrGen, IrOptimiser, LoweringCtx, LoweringCtxQuery};
 use hash_parser::{Parser, ParserCtx, ParserCtxQuery};
 use hash_pipeline::{
@@ -35,7 +35,7 @@ pub fn make_stages() -> Vec<Box<dyn CompilerStage<CompilerSession>>> {
         Box::new(AstDesugaringPass),
         Box::new(SemanticAnalysis),
         Box::new(Typechecker::new()),
-        Box::new(IrGen),
+        Box::<IrGen>::default(),
         Box::new(IrOptimiser),
         Box::new(HashBackend::new()),
     ]
@@ -71,7 +71,7 @@ pub struct CompilerSession {
     /// for the IR. Additionally, this also stores a cache for
     /// the looking up resultant [Layout]s by the specific IR type
     /// ID.
-    pub layout_storage: LayoutStorage,
+    pub layout_storage: LayoutCtx,
 }
 
 impl CompilerSession {
@@ -90,7 +90,7 @@ impl CompilerSession {
             settings,
             ty_storage: TyStorage { global, local },
             ir_storage: IrStorage::new(),
-            layout_storage: LayoutStorage::new(layout_info),
+            layout_storage: LayoutCtx::new(layout_info),
         }
     }
 }
@@ -165,6 +165,7 @@ impl LoweringCtxQuery for CompilerSession {
             workspace: &mut self.workspace,
             ty_storage: &self.ty_storage,
             settings: &self.settings,
+            layout_storage: &self.layout_storage,
             ir_storage: &mut self.ir_storage,
             _pool: &self.pool,
         }

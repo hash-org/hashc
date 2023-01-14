@@ -12,24 +12,32 @@ mod optimise;
 mod ty;
 
 use discover::LoweringVisitor;
-use hash_ast::ast::{AstVisitorMutSelf, OwnsAstNode};
+use hash_ast::ast::{AstNodeId, AstVisitorMutSelf, OwnsAstNode};
 use hash_ir::{
     write::{graphviz, pretty},
     IrStorage,
 };
+use hash_layout::{compute::LayoutComputer, write::LayoutWriter, LayoutCtx};
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerResult, CompilerStage},
     settings::{CompilerSettings, CompilerStageKind, IrDumpMode},
     workspace::{SourceStageInfo, Workspace},
 };
 use hash_source::SourceId;
-use hash_types::storage::TyStorage;
+use hash_types::{nodes::NodeInfoTarget, storage::TyStorage};
 use optimise::Optimiser;
+use ty::TyLoweringCtx;
 
 /// The Hash IR builder compiler stage. This will walk the AST, and
 /// lower all items within a particular module.
 #[derive(Default)]
-pub struct IrGen;
+pub struct IrGen {
+    /// When the visitor is walking modules, it looks for `#layout_of`
+    /// directives on type declarations. This is a collection of all of the
+    /// type definitions that were found and require a layout to be
+    /// generated.
+    layouts_to_generate: Vec<AstNodeId>,
+}
 
 /// The [LoweringCtx] represents all of the required information
 /// that the [AstLowerer] stage needs to query from the pipeline
@@ -48,6 +56,10 @@ pub struct LoweringCtx<'ir> {
     /// Reference to the IR storage that is used to store
     /// the lowered IR, and all metadata about the IR.
     pub ir_storage: &'ir mut IrStorage,
+
+    /// Reference to the [LayoutCtx] that is used to store
+    /// the layouts of types.
+    pub layout_storage: &'ir LayoutCtx,
 
     /// Reference to the rayon thread pool.
     pub _pool: &'ir rayon::ThreadPool,
@@ -98,7 +110,10 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
 
             // We need to add all of the bodies to the global bodies
             // store.
-            lowered_bodies.extend(discoverer.into_bodies());
+            let (bodies, layouts) = discoverer.into_components();
+
+            lowered_bodies.extend(bodies);
+            self.layouts_to_generate.extend(layouts);
         }
 
         // Mark all modules now as lowered, and all generated
@@ -107,6 +122,39 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
         ir_storage.add_bodies(lowered_bodies);
 
         Ok(())
+    }
+
+    fn cleanup(&mut self, _entry_point: SourceId, stage_data: &mut Ctx) {
+        let LoweringCtx { ty_storage, ir_storage, layout_storage, .. } = stage_data.data();
+
+        let node_info_store = &ty_storage.global.node_info_store;
+        let ty_lowerer = TyLoweringCtx::new(&ir_storage.ctx, &ty_storage.global);
+
+        for (index, type_def) in self.layouts_to_generate.iter().enumerate() {
+            let Some(NodeInfoTarget { term: Some(term), .. }) = node_info_store.node_info(*type_def) else {
+                continue;
+            };
+
+            // fetch or compute the type of the type definition.
+            let ty = ty_lowerer.ty_id_from_term(term);
+            let layout_computer = LayoutComputer::new(layout_storage, &ir_storage.ctx);
+
+            // @@ErrorHandling: propagate this error if it occurs.
+            let layout = layout_computer.compute_layout_of_ty(ty).unwrap();
+
+            // Print the layout and add spacing between all of the specified layouts
+            // that were requested.
+            println!("{}", LayoutWriter::new(layout, layout_storage));
+
+            if index < self.layouts_to_generate.len() - 1 {
+                println!();
+            }
+        }
+
+        // Now that we have generated and printed all of the requested
+        // layouts for the current session, we can clear the list of
+        // layouts to generate.
+        self.layouts_to_generate.clear();
     }
 }
 

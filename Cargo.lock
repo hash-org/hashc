@@ -600,9 +600,11 @@ dependencies = [
 name = "hash-lower"
 version = "0.1.0"
 dependencies = [
+ "bitflags 2.0.0-rc.1",
  "fixedbitset",
  "hash-ast",
  "hash-ir",
+ "hash-layout",
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
