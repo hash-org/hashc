@@ -17,7 +17,7 @@ use hash_ir::{
     write::{graphviz, pretty},
     IrStorage,
 };
-use hash_layout::{compute::LayoutComputer, write::LayoutWriter, LayoutCtx};
+use hash_layout::{compute::LayoutComputer, write::LayoutWriter, LayoutCtx, TyInfo};
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerResult, CompilerStage},
     settings::{CompilerSettings, CompilerStageKind, IrDumpMode},
@@ -144,7 +144,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
 
             // Print the layout and add spacing between all of the specified layouts
             // that were requested.
-            println!("{}", LayoutWriter::new(layout, layout_storage));
+            println!("{}", LayoutWriter::new(TyInfo { ty, layout }, layout_computer));
 
             if index < self.layouts_to_generate.len() - 1 {
                 println!();

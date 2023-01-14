@@ -1,7 +1,10 @@
 //! Represents all of the logic related to type sizes, and various
 //! utilities surrounding type sizes.
 
-use std::ops::{Add, Mul};
+use std::{
+    fmt,
+    ops::{Add, Mul, Sub},
+};
 
 use crate::{alignment::Alignment, layout::HasDataLayout};
 
@@ -11,6 +14,13 @@ use crate::{alignment::Alignment, layout::HasDataLayout};
 #[derive(Copy, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Size {
     value: u64,
+}
+
+impl fmt::Display for Size {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let (value, unit) = self.into_units();
+        write!(f, "{value}{unit}")
+    }
 }
 
 impl Size {
@@ -30,6 +40,21 @@ impl Size {
 
         // Avoid potential overflow from `bits + 7`.
         Size { value: bits / 8 + ((bits % 8) + 7) / 8 }
+    }
+
+    /// Compute a human readable unit for the [Size].
+    pub fn into_units(self) -> (usize, &'static str) {
+        let bytes = self.bytes();
+
+        if bytes >= 1 << 30 {
+            (bytes as usize / (1 << 30), "Gb")
+        } else if bytes >= 1 << 20 {
+            (bytes as usize / (1 << 20), "Mb")
+        } else if bytes >= 1 << 10 {
+            (bytes as usize / (1 << 10), "Kb")
+        } else {
+            (bytes as usize, "b")
+        }
     }
 
     /// Return the [Size] in bytes.
@@ -66,8 +91,9 @@ impl Size {
         u128::MAX >> (128 - self.bits())
     }
 
-    /// Take the current [Size] and align it to a
-    /// specified [Alignment].
+    /// Take the current [Size] and align it to a specified [Alignment].
+    ///
+    /// N.B. Passing [`Size::ZERO`] will result in no change.
     pub fn align_to(&self, alignment: Alignment) -> Size {
         // Create a mask for the alignment, add it to the
         // current size to account for the alignment, and then
@@ -115,6 +141,16 @@ impl Add for Size {
     fn add(self, other: Size) -> Size {
         Size::from_bytes(self.bytes().checked_add(other.bytes()).unwrap_or_else(|| {
             panic!("Size::add: {} + {} doesn't fit in u64", self.bytes(), other.bytes())
+        }))
+    }
+}
+
+impl Sub for Size {
+    type Output = Size;
+    #[inline]
+    fn sub(self, other: Size) -> Size {
+        Size::from_bytes(self.bytes().checked_sub(other.bytes()).unwrap_or_else(|| {
+            panic!("Size::sub: {} - {} would result in negative size", self.bytes(), other.bytes())
         }))
     }
 }

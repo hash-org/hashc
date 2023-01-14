@@ -19,7 +19,7 @@ use hash_target::{
 use hash_utils::store::Store;
 use index_vec::IndexVec;
 
-use crate::{CommonLayouts, Layout, LayoutCtx, LayoutId, LayoutShape, Variants};
+use crate::{CommonLayouts, FieldLayout, Layout, LayoutCtx, LayoutId, LayoutShape, Variants};
 
 /// This describes the collection of errors that can occur
 /// when computing the layout of a type. This is used to
@@ -368,7 +368,7 @@ impl<'l> LayoutComputer<'l> {
             })
         }
 
-        let mut offsets = vec![Size::ZERO; field_layouts.len()];
+        let mut offsets = vec![FieldLayout::zst(); field_layouts.len()];
         let mut offset = Size::ZERO;
 
         // If the `tag` is present, we need to add the size and align it
@@ -380,8 +380,6 @@ impl<'l> LayoutComputer<'l> {
 
         for &i in &inverse_memory_map {
             self.layouts().map_fast(field_layouts[i as usize], |layout| {
-                let field_alignment = layout.alignment;
-
                 // We can mark the overall structure as un-inhabited if
                 // we've found a field which is un-inhabited.
                 if layout.abi.is_uninhabited() {
@@ -391,10 +389,10 @@ impl<'l> LayoutComputer<'l> {
                 // Update the offset and alignment of the whole layout based
                 // on if the alignment of the field is larger than the current
                 // alignment of the layout.
-                offset = offset.align_to(field_alignment.abi);
-                offsets[i as usize] = offset;
+                offset = offset.align_to(layout.alignment.abi);
+                offsets[i as usize] = FieldLayout { offset, size: layout.size };
 
-                alignment = alignment.max(field_alignment);
+                alignment = alignment.max(layout.alignment);
 
                 // Now increase the offset by the size of the field.
                 offset = offset.checked_add(layout.size, dl).unwrap();
@@ -413,7 +411,7 @@ impl<'l> LayoutComputer<'l> {
 
         Layout {
             variants: Variants::Single { index },
-            shape: LayoutShape::Aggregate { offsets, memory_map },
+            shape: LayoutShape::Aggregate { fields: offsets, memory_map },
             abi,
             alignment,
             size,
@@ -611,10 +609,10 @@ impl<'l> LayoutComputer<'l> {
 
             for variant in &mut variant_layouts {
                 match variant.shape {
-                    LayoutShape::Aggregate { ref mut offsets, .. } => {
-                        for i in offsets {
-                            if *i <= old_prefix_ty_size {
-                                *i = new_prefix_ty_size;
+                    LayoutShape::Aggregate { fields: ref mut offsets, .. } => {
+                        for FieldLayout { offset, .. } in offsets {
+                            if *offset <= old_prefix_ty_size {
+                                *offset = new_prefix_ty_size;
                             }
                         }
                     }
@@ -658,7 +656,10 @@ impl<'l> LayoutComputer<'l> {
             .collect::<IndexVec<VariantIdx, _>>();
 
         Layout {
-            shape: LayoutShape::Aggregate { offsets: vec![Size::ZERO], memory_map: vec![0] },
+            shape: LayoutShape::Aggregate {
+                fields: vec![FieldLayout { offset: Size::ZERO, size }],
+                memory_map: vec![0],
+            },
             variants: Variants::Multiple { tag, field: 0, variants },
             abi,
             alignment,
@@ -698,7 +699,7 @@ impl<'l> LayoutComputer<'l> {
 
             for (field_layouts, variant_layout) in field_layouts.iter().zip(variant_layouts) {
                 // All variant layouts must be a struct
-                let LayoutShape::Aggregate { ref offsets, .. } = variant_layout.shape else {
+                let LayoutShape::Aggregate { fields: ref offsets, .. } = variant_layout.shape else {
                     panic!("layout of enum variant is non-aggregate");
                 };
 
@@ -773,13 +774,13 @@ impl<'l> LayoutComputer<'l> {
 
                 let pair = Layout::scalar_pair(dl, *tag, primitive_scalar);
                 let pair_offsets = match pair.shape {
-                    LayoutShape::Aggregate { ref offsets, .. } => offsets,
+                    LayoutShape::Aggregate { fields: ref offsets, .. } => offsets,
                     _ => panic!("layout of scalar pair is non-aggregate"),
                 };
 
                 // If the offsets are equal to the common offset, then we can
                 // use this as the ABI representation of the enum.
-                if pair_offsets[0] == Size::ZERO
+                if pair_offsets[0].offset == Size::ZERO
                     && pair_offsets[1] == offset
                     && enum_alignment == pair.alignment
                     && enum_size == pair.size

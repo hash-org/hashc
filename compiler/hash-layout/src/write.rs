@@ -1,31 +1,453 @@
 //! Contains logic for displaying a computed [Layout] in a pretty format
 //! that can be queried by users.
 
-use std::fmt;
+use std::{fmt, iter};
 
+use hash_ir::{
+    ty::{IrTy, VariantIdx},
+    write::WriteIr,
+};
+use hash_target::{abi::AbiRepresentation, size::Size};
 use hash_utils::store::Store;
 
-use crate::{LayoutCtx, LayoutId, Variants};
+use crate::{compute::LayoutComputer, FieldLayout, Layout, LayoutShape, TyInfo, Variants};
+
+/// [LayoutWriterConfig] stores all of the configuration for the [LayoutWriter]
+/// uses, it includes the character set that it should use for the layout.
+pub struct LayoutWritingConfig {
+    /// The character to use for the top left corner of a box, e.g. `┌` or `+`.
+    pub top_left: char,
+
+    /// The character to use for the top right corner of a box, e.g. `┐` or `+`.
+    pub top_right: char,
+
+    /// The character to use for the bottom left corner of a box, e.g. `└` or
+    /// `+`.
+    pub bottom_left: char,
+
+    /// The character to use for the bottom right corner of a box, e.g. `┘` or
+    /// `+`.
+    pub bottom_right: char,
+
+    /// The character to use for the top center of a box, e.g. `┬` or `+`.
+    pub center_top: char,
+
+    /// The character to use for the bottom center of a box, e.g. `┴` or `+`.
+    pub center_bottom: char,
+
+    /// The character to use for the left center of a box, e.g. `├` or `+`.
+    pub center_left: char,
+
+    /// The character to use for the right center of a box, e.g. `┤` or `+`.
+    pub center_right: char,
+
+    /// The character to use for the center of a box, e.g. `┼` or `+`.
+    pub center: char,
+
+    /// The vertical bar connecting character to use, e.g. `│` or `|`.
+    pub vertical: char,
+
+    /// The horizontal bar connecting character to use, e.g. `─` or `-`.
+    pub horizontal: char,
+}
+
+impl LayoutWritingConfig {
+    /// Returns a [LayoutWritingConfig] that uses unicode box drawing
+    /// characters.
+    pub fn unicode() -> Self {
+        Self {
+            top_left: '┌',
+            top_right: '┐',
+            bottom_left: '└',
+            bottom_right: '┘',
+            center_top: '┬',
+            center_bottom: '┴',
+            center_left: '├',
+            center_right: '┤',
+            center: '┼',
+            vertical: '│',
+            horizontal: '─',
+        }
+    }
+
+    /// Create a new [LayoutWritingConfig] that uses ASCII characters.
+    pub fn ascii() -> Self {
+        Self {
+            top_left: '+',
+            top_right: '+',
+            bottom_left: '+',
+            bottom_right: '+',
+            center_top: '+',
+            center_bottom: '+',
+            center_left: '+',
+            center_right: '+',
+            center: '+',
+            vertical: '|',
+            horizontal: '-',
+        }
+    }
+
+    /// Get the relevant character for the given position in the box,
+    /// and the given maximum position. The coordinate system assumes that
+    /// the top left corner is `(0, 0)`, and the bottom right corner is `(max.0,
+    /// max.1)`.
+    fn connector(&self, pos: (usize, usize), max: (usize, usize)) -> char {
+        match pos {
+            (0, 0) => self.top_left,
+            (0, x) if x == max.1 => self.top_right,
+            (x, 0) if x == max.0 => self.bottom_left,
+            (x, y) if x == max.0 && y == max.1 => self.bottom_right,
+            (0, _) => self.center_top,
+            (x, _) if x == max.0 => self.center_bottom,
+            (_, 0) => self.center_left,
+            (_, y) if y == max.1 => self.center_right,
+            _ => self.center,
+        }
+    }
+}
 
 /// The [LayoutWriter] is a wrapper around [LayoutCtx] that allows
 /// for the pretty printing of a [Layout] in a human readable format.
 pub struct LayoutWriter<'l> {
-    /// The layout to be written.
-    pub layout: LayoutId,
+    /// The layout and associated [IrTy] to be written.
+    pub ty_info: TyInfo,
 
-    /// The current context for printing the layout.
-    pub ctx: &'l LayoutCtx,
+    /// The current context for printing the layout. The [LayoutComputer]
+    /// is needed since we want access to the interned types and layouts.
+    pub ctx: LayoutComputer<'l>,
+
+    /// A config that stores all of the characters that are used to
+    /// draw the layout.
+    pub config: LayoutWritingConfig,
+}
+
+/// The content of the [Layout] drawing box produced by the
+/// [LayoutWriter].
+#[derive(Debug)]
+pub enum BoxContent {
+    Content {
+        /// The title of the box.
+        title: Option<String>,
+
+        /// The content of the box. Every newline in the box will create
+        /// a hard break in the content box which would mean that the lines
+        /// are all aligned on the left.
+        content: String,
+    },
+
+    /// A box that represents a padding between two fields.
+    Pad { size: Size },
+}
+
+impl BoxContent {
+    /// Create a new [BoxContent] with the given title and content.
+    pub fn new(title: String, content: String) -> Self {
+        Self::Content { title: Some(title), content }
+    }
+
+    /// Create a new [BoxContent] with the given content and without
+    /// a title.
+    pub fn new_content(content: String) -> Self {
+        Self::Content { title: None, content }
+    }
+
+    /// Create a new [BoxContent] that represents a padding between two
+    /// fields.
+    pub fn new_pad(size: Size) -> Self {
+        Self::Pad { size }
+    }
+
+    /// Compute the number of lines that this [BoxContent] will take up.
+    ///
+    /// N.B. One line takes up for the title, spacing between title and
+    /// content, and then the number of lines in the content.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// +-----------------+
+    /// | foo: u32        |
+    /// |                 |
+    /// | size = 2        |
+    /// | offset = 0      |
+    /// +-----------------+
+    /// ```
+    ///
+    /// Calling [`BoxContent::num_lines()`] on the above box will return
+    /// `4`.
+    ///
+    /// N.B. Additionally, calling [`BoxContent::num_lines`] on a box
+    /// that is [`BoxContent::Pad`] is not valid since the box is not
+    /// sized, as it's size is dependant on all other box sizes. The
+    /// minimum size of a [`BoxContent::Pad`] is `1`. For example:
+    /// ```ignore
+    /// +-------------+
+    /// | 1byte (pad) |
+    /// +-------------+
+    /// ```
+    pub fn height(&self) -> usize {
+        if let Self::Content { title, content } = self {
+            title.is_some() as usize + 1 + content.lines().count()
+        } else {
+            // one for the title
+            1
+        }
+    }
+
+    /// Compute the width of the box based on the length of the
+    /// [BoxContent].
+    ///
+    /// N.B. this does not count the surrounding single character
+    /// padding.
+    pub fn width(&self) -> usize {
+        match self {
+            BoxContent::Content { title, content } => {
+                let title_len = title.as_ref().map(|t| t.len()).unwrap_or(0);
+                let content_len = content.lines().map(|l| l.len()).max().unwrap_or(0);
+                title_len.max(content_len)
+            }
+            BoxContent::Pad { size } => format!("{size} pad").len(),
+        }
+    }
+
+    /// Get the line at the given position in the box. If the function
+    /// returns [`None`], then the line is empty, and the default padding
+    /// should be used instead.
+    pub fn line_at(&self, pos: usize) -> Option<String> {
+        match self {
+            BoxContent::Content { title, content } => {
+                let title = title.as_ref().map(|t| t.as_str());
+
+                if let Some(title) = title {
+                    if pos == 0 {
+                        return Some(title.to_string());
+                    } else if pos == 1 {
+                        return None;
+                    }
+
+                    // We have to account for the title, and the spacing between the title.
+                    content.lines().nth(pos - 2).map(|line| line.to_string())
+                } else {
+                    content.lines().nth(pos).map(|line| line.to_string())
+                }
+            }
+            BoxContent::Pad { size } => {
+                if pos == 0 {
+                    Some(format!("{} pad", size))
+                } else if pos == 1 {
+                    None
+                } else {
+                    Some("##".to_string())
+                }
+            }
+        }
+    }
 }
 
 impl<'l> LayoutWriter<'l> {
-    pub fn new(layout: LayoutId, ctx: &'l LayoutCtx) -> Self {
-        Self { layout, ctx }
+    /// Create a new [LayoutWriter] that will write the given [Layout] to the
+    /// given [fmt::Formatter] using "unicode" characters.
+    pub fn new(ty_info: TyInfo, ctx: LayoutComputer<'l>) -> Self {
+        Self { ty_info, ctx, config: LayoutWritingConfig::unicode() }
+    }
+
+    /// Create a new [LayoutWriter] that will write the given [Layout] to the
+    /// given [fmt::Formatter] using "ascii" characters.
+    pub fn new_ascii(ty_info: TyInfo, ctx: LayoutComputer<'l>) -> Self {
+        Self { ty_info, ctx, config: LayoutWritingConfig::ascii() }
+    }
+
+    /// Perform a mapping over the [IrTy] and [Layout] associated with
+    /// this [LayoutWriter].
+    fn with_info<F, T>(&self, f: F) -> T
+    where
+        F: FnOnce(&Self, &IrTy, &Layout) -> T,
+    {
+        self.ctx.ir_ctx().tys().map_fast(self.ty_info.ty, |ty| {
+            self.ctx.map_fast(self.ty_info.layout, |layout| f(self, ty, layout))
+        })
+    }
+
+    /// Create labels for the layout shape, including size and
+    /// offset labels.
+    ///
+    /// N.B. When creating content for [`Variants::Multiple`], the "variant"
+    /// value must be provided in order to access the correct variant when
+    /// computing box content.
+    pub fn create_box_contents(&self, variant: Option<VariantIdx>) -> Vec<BoxContent> {
+        let mut content = Vec::new();
+
+        self.with_info(|this, ty, layout| {
+            let singular_box_content = || {
+                format!(
+                    "  size: {}\noffset: {}\n align: {}",
+                    layout.size,
+                    Size::ZERO,
+                    layout.alignment.abi
+                )
+            };
+
+            // If the layout is a `ZST`, then we just return a single box
+            // with the layout, and a `<ZST>` label
+            if layout.is_zst() {
+                content.push(BoxContent::new("<ZST>".to_string(), singular_box_content()));
+                return;
+            }
+
+            match &layout.shape {
+                // Reasonably trivial case where we just have a primitive,
+                // here we just put the `size` and `offset` as the label.
+                LayoutShape::Primitive => {
+                    content.push(BoxContent::new("primitive".to_string(), singular_box_content()));
+                }
+                LayoutShape::Union { .. } => {
+                    // @@Todo: could there be a better title string for a
+                    // union primitive?
+                    content
+                        .push(BoxContent::new(format!("union{{count}}"), singular_box_content()));
+                }
+                LayoutShape::Array { stride, elements } => {
+                    content.push(BoxContent::new(
+                        format!("[{stride}; {elements}]"),
+                        singular_box_content(),
+                    ));
+                }
+                // Loop over all of the offsets, and then add content
+                // boxes for each field, with the title being the name
+                // of the field, and the type of the field in the form
+                // of `<field: ty>`. The type of the field is printed
+                // in minimal form.
+                LayoutShape::Aggregate { fields: offsets, memory_map } => {
+                    // Load in the fields of the aggregate, however, this depends
+                    // on the type that is being stored.
+                    let fields = match (layout.abi, ty) {
+                        (_, IrTy::Adt(adt)) => {
+                            this.ctx.ir_ctx().map_adt(*adt, |_, adt| {
+                                // we load in the variant that is specified in the
+                                // "layouts" of the type.
+                                let variant = match layout.variants {
+                                    Variants::Single { index } => index,
+                                    Variants::Multiple { .. } => variant.unwrap(),
+                                };
+
+                                adt.variant(variant)
+                                    .fields
+                                    .clone()
+                                    .into_iter()
+                                    .map(|field| {
+                                        (
+                                            field.name,
+                                            format!("{}", field.ty.for_fmt(this.ctx.ir_ctx())),
+                                        )
+                                    })
+                                    .collect::<Vec<_>>()
+                            })
+                        }
+                        (AbiRepresentation::Scalar(scalar), _) => {
+                            vec![(0usize.into(), format!("{}", scalar))]
+                        }
+                        (AbiRepresentation::Pair(scalar_1, scalar_2), _) => {
+                            vec![
+                                (0usize.into(), format!("{scalar_1}")),
+                                (1usize.into(), format!("{scalar_2}")),
+                            ]
+                        }
+                        _ => unreachable!(),
+                    };
+
+                    // The current computed size of the aggregate disregarding the last padding
+                    // on the field (if any).
+                    let mut current_size = Size::ZERO;
+
+                    for (&FieldLayout { size, offset }, index) in
+                        offsets.iter().zip(memory_map.iter())
+                    {
+                        // we skip the first field, as the padding before this field
+                        // maybe as the result of being within a variant, and therefore
+                        // the padding will be handled by the variant printing.
+                        if current_size < offset && *index != 0 {
+                            let pad_size = offset - current_size;
+
+                            // we need to add this as padding to the content
+                            content.push(BoxContent::new_pad(pad_size));
+                        }
+
+                        let index = *index as usize;
+
+                        content.push(BoxContent::new(
+                            format!("{}: {}", fields[index].0, fields[index].1),
+                            format!(
+                                "  size: {}\noffset: {}\n align: {}",
+                                size, offset, layout.alignment.abi
+                            ),
+                        ));
+
+                        current_size = offset + size;
+                    }
+
+                    // If the `current_size` isn't equal to the size of the layout, then
+                    // we need to add padding box to the content.
+                    if current_size < layout.size {
+                        let pad_size = layout.size - current_size;
+
+                        // we need to add this as padding to the content
+                        content.push(BoxContent::new_pad(pad_size));
+                    }
+                }
+            }
+        });
+
+        content
+    }
+}
+
+struct LayoutWriterHelper<'l> {
+    config: &'l LayoutWritingConfig,
+}
+
+impl LayoutWriterHelper<'_> {
+    /// Write a "top" or "bottom" edge of the provided box collections. This
+    /// function takes a collection of widths which represent the internal
+    /// widths of the boxes that are being printed.
+    pub fn write_box_horizontal_edge(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+        top: bool,
+        widths: &[usize],
+    ) -> fmt::Result {
+        let max = (1, widths.len());
+        let row_pos = if top { 0 } else { 1 };
+
+        // we need to print the top edge of the box, which is just a line
+        // of `+` characters, with the width of the box being the width
+        // of the box, plus 2 for the padding.
+        for (index, width) in widths.iter().enumerate() {
+            let pos = (row_pos, index);
+            write!(
+                f,
+                "{}{}",
+                self.config.connector(pos, max),
+                iter::repeat(self.config.horizontal).take(width + 2).collect::<String>()
+            )?;
+        }
+
+        // we have to write the end of the box...
+        writeln!(f, "{}", self.config.connector((row_pos, widths.len()), max))
     }
 }
 
 impl fmt::Display for LayoutWriter<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.ctx.map_fast(self.layout, |layout| {
+        self.ctx.map_fast(self.ty_info.layout, |layout| {
+            // print the starting line of the layout.
+            writeln!(
+                f,
+                "Layout of `{}` (size={} align={}):",
+                self.ty_info.ty.for_fmt(self.ctx.ir_ctx()),
+                layout.size,
+                layout.alignment.abi
+            )?;
+
             // Firstly, we print the initial "shape" of the
             // layout in order to account for the fact that
             // the layout may contain "multiple" variants that
@@ -33,7 +455,45 @@ impl fmt::Display for LayoutWriter<'_> {
             match layout.variants {
                 Variants::Single { index: _ } => {
                     // this is the simple case, we merely need to print the
-                    write!(f, "shape")
+                    // boxes in a single row.
+                    let content_boxes = self.create_box_contents(None);
+                    let max_height = content_boxes
+                        .iter()
+                        .map(|box_content| box_content.height())
+                        .max()
+                        .unwrap_or(1);
+                    let box_widths: Vec<_> =
+                        content_boxes.iter().map(|box_content| box_content.width()).collect();
+
+                    let helper = LayoutWriterHelper { config: &self.config };
+
+                    helper.write_box_horizontal_edge(f, true, &box_widths)?;
+
+                    for line in 0..max_height {
+                        // write the vertical connector
+                        write!(f, "{}", self.config.vertical)?;
+
+                        for (content_box, width) in content_boxes.iter().zip(box_widths.iter()) {
+                            // write the line at the box, and align it to the maximum width of
+                            // the box.
+                            if let Some(line_contents) = content_box.line_at(line) {
+                                write!(
+                                    f,
+                                    "{:^width$}{}",
+                                    line_contents,
+                                    self.config.vertical,
+                                    width = width + 2
+                                )?;
+                            } else {
+                                write!(f, "{}{}", " ".repeat(width + 2), self.config.vertical)?;
+                            }
+                        }
+                        writeln!(f)?;
+                    }
+
+                    helper.write_box_horizontal_edge(f, false, &box_widths)?;
+
+                    Ok(())
                 }
                 Variants::Multiple { tag: _, field: _, variants: _ } => {
                     write!(f, "tag | shape")

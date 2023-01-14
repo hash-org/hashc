@@ -183,7 +183,7 @@ impl TyInfo {
                 // Create a new layout with basically a ZST that is
                 // un-inhabited... i.e. `never`
                 let shape = if fields == 0 {
-                    LayoutShape::Aggregate { offsets: vec![], memory_map: vec![] }
+                    LayoutShape::Aggregate { fields: vec![], memory_map: vec![] }
                 } else {
                     // @@Todo: this should become a union?
                     todo!()
@@ -250,18 +250,24 @@ impl Layout {
     pub fn scalar_pair<C: HasDataLayout>(ctx: &C, scalar_1: Scalar, scalar_2: Scalar) -> Self {
         let dl = ctx.data_layout();
 
+        let scalar_1_size = scalar_1.size(ctx);
+        let scalar_2_size = scalar_2.size(ctx);
+
         let alignment_2 = scalar_2.align(ctx);
 
         // Take the maximum of `scalar_1`, `scalar_2` and the `aggregate` target
         // alignment
         let alignment = scalar_1.align(ctx).max(alignment_2).max(dl.aggregate_align);
 
-        let offset_2 = scalar_1.size(ctx).align_to(alignment.abi);
-        let size = (offset_2 + scalar_2.size(ctx)).align_to(alignment.abi);
+        let offset_2 = scalar_1_size.align_to(alignment.abi);
+        let size = (offset_2 + scalar_2_size).align_to(alignment.abi);
 
         Layout {
             shape: LayoutShape::Aggregate {
-                offsets: vec![Size::ZERO, offset_2],
+                fields: vec![
+                    FieldLayout { size: scalar_1_size, offset: Size::ZERO },
+                    FieldLayout { size: scalar_2_size, offset: offset_2 },
+                ],
                 memory_map: vec![0, 1],
             },
             variants: Variants::Single { index: VariantIdx::new(0) },
@@ -332,12 +338,33 @@ pub enum LayoutShape {
     Aggregate {
         /// Offsets of the the first byte of each field in the struct. This
         /// is in the "source order" of the `struct`-like type.
-        offsets: Vec<Size>,
+        fields: Vec<FieldLayout>,
 
         /// A map between the specified "source order" of the fields, and
         /// the actual order in memory.
         memory_map: Vec<u32>,
     },
+}
+
+/// [FieldLayout] represents the details of a "field" within an
+/// aggregate data layout. This is used to store the offset of the
+/// field within the layout, and the "true" [Size] of the field. The
+/// term "true" is used to denote that the size of the field may be
+/// smaller due to introduced padding.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FieldLayout {
+    /// The offset of the field within the layout.
+    pub offset: Size,
+
+    /// The size of the field itself.
+    pub size: Size,
+}
+
+impl FieldLayout {
+    /// Create a [FieldLayout] that represents a ZST.
+    pub fn zst() -> Self {
+        Self { offset: Size::ZERO, size: Size::ZERO }
+    }
 }
 
 impl LayoutShape {
@@ -348,7 +375,7 @@ impl LayoutShape {
             LayoutShape::Primitive => 1,
             LayoutShape::Union { count } => count.get(),
             LayoutShape::Array { elements, .. } => elements.try_into().unwrap(),
-            LayoutShape::Aggregate { ref offsets, .. } => offsets.len(),
+            LayoutShape::Aggregate { fields: ref offsets, .. } => offsets.len(),
         }
     }
 
@@ -364,7 +391,7 @@ impl LayoutShape {
                 assert!(index < elements);
                 stride * index
             }
-            LayoutShape::Aggregate { ref offsets, .. } => offsets[index],
+            LayoutShape::Aggregate { ref fields, .. } => fields[index].offset,
         }
     }
 
