@@ -1,19 +1,29 @@
 error: the `layout_of` directive expects either `struct definition`, or `enum definition` as an argument
-  --> $DIR/layout_of.hash:28:34
-27 |    
-28 |    ParameterisedValue := #layout_of <T> => struct (
-   |  ___________________________________-
-29 | |      x: T,
-30 | |      y: T,
-31 | |      z: T,
-32 | |  );
-   | |__- a `type function definition` cannot be given to the `layout_of` directive
-33 |    
+  --> $DIR/layout_of.hash:28:12
+27 |   
+28 |   #layout_of ParameterisedValue := <T> => struct (
+   |              ^^^^^^^^^^^^^^^^^^ a `type function definition` cannot be given to the `layout_of` directive
+29 |       x: T,
    = note: currently, the `#layout_of` directive does not handle function definitions. This is subject to change in the future.
 
 error: the `layout_of` directive expects either `struct definition`, or `enum definition` as an argument
-  --> $DIR/layout_of.hash:34:21
+  --> $DIR/layout_of.hash:34:12
 33 |   
-34 |   other := #layout_of 5;
+34 |   #layout_of ParameterisedValueWith := struct<T> (
+   |              ^^^^^^^^^^^^^^^^^^^^^^ a `struct definition` cannot be given to the `layout_of` directive
+35 |       x: T,
+   = note: currently, the `#layout_of` directive does not handle function definitions. This is subject to change in the future.
+
+error: the `layout_of` directive expects either `struct definition`, or `enum definition` as an argument
+  --> $DIR/layout_of.hash:39:12
+38 |   
+39 |   #layout_of other := 5;
+   |              ^^^^^ a `literal` cannot be given to the `layout_of` directive
+40 |   other := #layout_of 5;
+
+error: the `layout_of` directive expects a `declaration` as an argument
+  --> $DIR/layout_of.hash:40:21
+39 |   #layout_of other := 5;
+40 |   other := #layout_of 5;
    |                       ^ a `literal` cannot be given to the `layout_of` directive
-35 |   
+41 |   

@@ -1,12 +1,12 @@
 // run=fail, stage=semantic
 
-Value := #layout_of struct (
+#layout_of Value := struct (
     x: i32,
     y: i32,
     z: i16,
 );
 
-ValueKind := #layout_of enum (
+#layout_of ValueKind := enum (
     Int,
     Float,
     String,
@@ -25,12 +25,18 @@ ValueKind := #layout_of enum (
     Unknown,
 );
 
-ParameterisedValue := #layout_of <T> => struct (
+#layout_of ParameterisedValue := <T> => struct (
     x: T,
     y: T,
     z: T,
 );
 
+#layout_of ParameterisedValueWith := struct<T> (
+    x: T,
+    z: T,
+);
+
+#layout_of other := 5;
 other := #layout_of 5;
 
 main := () => {
