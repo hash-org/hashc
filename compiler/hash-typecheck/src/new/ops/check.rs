@@ -7,7 +7,7 @@ use hash_source::constant::{FloatTy, IntTy, SIntTy, UIntTy};
 use hash_types::{
     new::{
         args::{ArgsId, PatArgsId},
-        control::ReturnTerm,
+        control::{LoopControlTerm, LoopTerm, ReturnTerm},
         data::{CtorTerm, DataTy},
         defs::{DefArgsId, DefParamGroupData, DefParamsId, DefPatArgsId},
         environment::{
@@ -19,8 +19,9 @@ use hash_types::{
         params::{ParamData, ParamsId},
         pats::PatId,
         refs::DerefTerm,
+        scopes::BlockTerm,
         symbols::Symbol,
-        terms::{RuntimeTerm, Term, TermId},
+        terms::{RuntimeTerm, Term, TermId, UnsafeTerm},
         tuples::{TupleTerm, TupleTy},
         tys::{Ty, TyId},
         utils::{common::CommonUtils, AccessToUtils},
@@ -513,6 +514,32 @@ impl<'tc> CheckOps<'tc> {
         })
     }
 
+    /// Check the type of a loop control term, and return it.
+    fn check_loop_control_term(&self, _: &LoopControlTerm) -> TyId {
+        // Always `never`.
+        self.new_never_ty()
+    }
+
+    /// Check the type of an unsafe term, and return it.
+    fn check_unsafe_term(&self, unsafe_term: &UnsafeTerm) -> TcResult<Option<TyId>> {
+        // @@Todo: unsafe context
+        // For now just forward to the inner term.
+        self.check_term(unsafe_term.inner)
+    }
+
+    /// Check the type of a loop term, and return it.
+    pub fn check_loop_term(&self, loop_term: &LoopTerm) -> TcResult<Option<TyId>> {
+        // Forward to the inner term.
+        Ok(self.check_block_term(&loop_term.block)?.map(|_| {
+            // Always `void` until we can have expressions on breaks.
+            self.new_void_ty()
+        }))
+    }
+
+    pub fn check_block_term(&self, _block_term: &BlockTerm) -> TcResult<Option<TyId>> {
+        todo!()
+    }
+
     // @@Todo: checking for other definitions.
 
     /// Check a concrete type for a given term.
@@ -535,17 +562,16 @@ impl<'tc> CheckOps<'tc> {
                 Term::Return(return_term) => Ok(Some(self.check_return_term(return_term)?)),
                 Term::Ty(ty_id) => self.check_ty(*ty_id),
                 Term::Deref(deref_term) => self.check_deref_term(deref_term),
+                Term::LoopControl(loop_control_term) => {
+                    Ok(Some(self.check_loop_control_term(loop_control_term)))
+                }
+                Term::Unsafe(unsafe_term) => self.check_unsafe_term(unsafe_term),
+                Term::Loop(loop_term) => self.check_loop_term(loop_term),
 
                 Term::Block(_) => todo!(),
-                Term::Loop(_) => {
-                    // @@Future: if loop is proven to not break, return never
-                    todo!()
-                }
-                Term::LoopControl(_) => todo!(),
                 Term::Match(_) => todo!(),
                 Term::DeclStackMember(_) => todo!(),
                 Term::Assign(_) => todo!(),
-                Term::Unsafe(_) => todo!(),
                 Term::Access(_) => todo!(),
                 Term::Cast(_) => todo!(),
                 Term::TypeOf(_) => todo!(),
