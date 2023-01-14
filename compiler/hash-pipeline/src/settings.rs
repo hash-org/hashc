@@ -4,11 +4,11 @@
 use std::fmt::Display;
 
 use clap_derive::ValueEnum;
-use hash_target::TargetInfo;
+use hash_target::{layout::TargetDataLayout, TargetInfo};
 
 /// Various settings that are present on the compiler pipeline when initially
 /// launching.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct CompilerSettings {
     /// Print metrics about each stage when the entire pipeline has completed.
     ///
@@ -185,13 +185,18 @@ pub enum IrDumpMode {
 ///
 /// N.B. some information that is stored here may be used by previous stages
 /// e.g. target information.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct CodeGenSettings {
     /// Information about the current "session" that the compiler is running
     /// in. This contains information about which target the compiler is
     /// compiling for, and other information that is used by the compiler
     /// to determine how to compile the source code.
     pub target_info: TargetInfo,
+
+    /// The specified target layout information for types. This defines
+    /// the sizes of target-dependant types, and default alignments for
+    /// primitive types.
+    pub layout: TargetDataLayout,
 
     /// This is only the "backend" for the global instance of code generation.
     ///

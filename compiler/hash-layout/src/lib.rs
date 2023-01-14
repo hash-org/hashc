@@ -3,8 +3,13 @@
 //! code generation backends.
 
 pub mod compute;
+pub mod write;
 
-use std::num::NonZeroUsize;
+use std::{
+    cell::{Ref, RefCell},
+    collections::HashMap,
+    num::NonZeroUsize,
+};
 
 use hash_ir::{
     ty::{IrTy, IrTyId, VariantIdx},
@@ -18,37 +23,57 @@ use hash_target::{
     size::Size,
 };
 use hash_utils::{
-    new_store, new_store_key,
-    store::{CloneStore, Store},
+    new_store_key,
+    store::{CloneStore, DefaultStore, Store},
 };
 use index_vec::IndexVec;
 
 // Define a new key to represent a particular layout.
 new_store_key!(pub LayoutId);
 
-// Storage for all of the generated layouts.
-new_store!(
-    pub LayoutStore<LayoutId, Layout>
-);
+/// A store for all of the interned [Layout]s, and a cache for
+/// the [Layout]s that are created from [IrTyId]s.
+pub struct LayoutStorage {
+    /// The storage for all of the interned layouts
+    data: DefaultStore<LayoutId, Layout>,
 
-/// A auxialliary context for methods defined on [Layout]
-/// which require access to other [Layout]s and information
-/// generated in the [IrCtx].
-pub struct LayoutCtx<'abi> {
-    /// A reference tot the [LayoutStore].
-    layouts: &'abi LayoutStore,
-
-    /// A reference to the [IrCtx].
-    ir_ctx: &'abi IrCtx,
+    /// Cache for the [Layout]s that are created from [IrTyId]s.
+    cache: RefCell<HashMap<IrTyId, LayoutId>>,
 
     /// A reference to the [TargetDataLayout] of the current
     /// session.
-    data_layout: &'abi TargetDataLayout,
+    data_layout: TargetDataLayout,
 
     /// A table of common layouts that are used by the compiler often
-    /// enough to keep in a "common" place, this also avoids re-making
-    /// alot of layouts for the same frequent typs.
+    /// enough to keep in a "common" place, this avoids re-computing
+    /// [Layout]s for often used types.
     pub(crate) common_layouts: CommonLayouts,
+}
+
+impl LayoutStorage {
+    /// Create a new [LayoutStore].
+    pub fn new(data_layout: TargetDataLayout) -> Self {
+        let data = DefaultStore::new();
+        let common_layouts = CommonLayouts::new(&data_layout, &data);
+
+        Self { data, common_layouts, cache: RefCell::new(HashMap::new()), data_layout }
+    }
+
+    /// Get a reference to the layout cache.
+    pub(crate) fn cache(&self) -> Ref<HashMap<IrTyId, LayoutId>> {
+        self.cache.borrow()
+    }
+
+    /// Insert a new [LayoutId] entry into the cache.
+    pub(crate) fn add_cache_entry(&self, ty: IrTyId, layout: LayoutId) {
+        self.cache.borrow_mut().insert(ty, layout);
+    }
+}
+
+impl Store<LayoutId, Layout> for LayoutStorage {
+    fn internal_data(&self) -> &RefCell<Vec<Layout>> {
+        self.data.internal_data()
+    }
 }
 
 macro_rules! create_common_layout_table {
@@ -62,7 +87,7 @@ macro_rules! create_common_layout_table {
 
         impl CommonLayouts {
             /// Create a new [CommonLayouts] table.
-            pub fn new(data_layout: &TargetDataLayout, layouts: &LayoutStore) -> Self {
+            pub fn new<S: Store<LayoutId, Layout>>(data_layout: &TargetDataLayout, layouts: &S) -> Self {
                 use crate::compute::compute_primitive_ty_layout;
 
                 Self {
@@ -99,36 +124,49 @@ create_common_layout_table!(
     usize: IrTy::UInt(UIntTy::USize),
 );
 
-impl<'abi> LayoutCtx<'abi> {
+/// A auxiliary context for methods defined on [Layout]
+/// which require access to other [Layout]s and information
+/// generated in the [IrCtx].
+pub struct LayoutCtx<'l> {
+    /// A reference tot the [LayoutStore].
+    layout_store: &'l LayoutStorage,
+
+    /// A reference to the [IrCtx].
+    ir_ctx: &'l IrCtx,
+}
+
+impl<'l> LayoutCtx<'l> {
     /// Create a new [LayoutCtx].
-    pub fn new(
-        layouts: &'abi LayoutStore,
-        data_layout: &'abi TargetDataLayout,
-        ir_ctx: &'abi IrCtx,
-    ) -> Self {
-        let common_layouts = CommonLayouts::new(data_layout, layouts);
-        Self { layouts, data_layout, common_layouts, ir_ctx }
+    pub fn new(layout_store: &'l LayoutStorage, ir_ctx: &'l IrCtx) -> Self {
+        Self { layout_store, ir_ctx }
     }
 
     /// Returns a reference to the [LayoutStore].
-    pub fn layouts(&self) -> &LayoutStore {
-        self.layouts
-    }
-
-    /// Map a function on a particular layout.
-    pub fn map_layout<T>(&self, id: LayoutId, func: impl FnOnce(&Layout) -> T) -> T {
-        self.layouts.map_fast(id, func)
+    pub fn layouts(&self) -> &LayoutStorage {
+        self.layout_store
     }
 
     /// Get a reference to the data layout of the current
     /// session.
     pub fn data_layout(&self) -> &TargetDataLayout {
-        self.data_layout
+        &self.layout_store.data_layout
+    }
+
+    /// Get a reference to the [CommonLayout]s that are available
+    /// in the current session.
+    pub(crate) fn common_layouts(&self) -> &CommonLayouts {
+        &self.layout_store.common_layouts
     }
 
     /// Returns a reference to the [IrCtx].
     pub fn ir_ctx(&self) -> &IrCtx {
         self.ir_ctx
+    }
+}
+
+impl Store<LayoutId, Layout> for LayoutCtx<'_> {
+    fn internal_data(&self) -> &RefCell<Vec<Layout>> {
+        self.layout_store.internal_data()
     }
 }
 

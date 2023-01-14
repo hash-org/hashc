@@ -146,9 +146,11 @@ impl Default for StageInfo {
 pub struct Workspace {
     /// Dependency map between sources and modules.
     dependencies: HashMap<SourceId, HashSet<ModuleId>>,
+
     /// Stores all of the raw file contents of the interactive blocks and
     /// modules.
     pub source_map: SourceMap,
+
     /// Stores all of the generated AST for modules and nodes
     pub node_map: NodeMap,
 

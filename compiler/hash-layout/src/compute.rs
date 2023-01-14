@@ -105,21 +105,26 @@ impl<'l> LayoutCtx<'l> {
     /// here, the [Layout] of a type will be computed all the way recursively
     /// until all of the leaves of the type are also turned into [Layout]s.
     pub fn compute_layout_of_ty(&self, ty_id: IrTyId) -> Result<LayoutId, LayoutError> {
-        let dl = self.data_layout;
+        let dl = self.data_layout();
 
         let scalar_unit = |value: ScalarKind| {
             let size = value.size(dl);
             Scalar::Initialised { kind: value, valid_range: ValidScalarRange::full(size) }
         };
 
-        self.ir_ctx.tys().map_fast(ty_id, |ty| match ty {
+        // Check if we have already computed the layout of this type.
+        if let Some(layout) = self.layout_store.cache().get(&ty_id) {
+            return Ok(*layout);
+        }
+
+        let layout = self.ir_ctx.tys().map_fast(ty_id, |ty| match ty {
             IrTy::Int(ty) => match ty {
-                SIntTy::I8 => Ok(self.common_layouts.i8),
-                SIntTy::I16 => Ok(self.common_layouts.i16),
-                SIntTy::I32 => Ok(self.common_layouts.i32),
-                SIntTy::I64 => Ok(self.common_layouts.i64),
-                SIntTy::I128 => Ok(self.common_layouts.i128),
-                SIntTy::ISize => Ok(self.common_layouts.isize),
+                SIntTy::I8 => Ok(self.common_layouts().i8),
+                SIntTy::I16 => Ok(self.common_layouts().i16),
+                SIntTy::I32 => Ok(self.common_layouts().i32),
+                SIntTy::I64 => Ok(self.common_layouts().i64),
+                SIntTy::I128 => Ok(self.common_layouts().i128),
+                SIntTy::ISize => Ok(self.common_layouts().isize),
 
                 // @@Layout: for bigints, we will probably use a ScalarPair
                 // to represent a pointer to the digit array, and then a
@@ -127,22 +132,22 @@ impl<'l> LayoutCtx<'l> {
                 SIntTy::IBig => Err(LayoutError::Unknown(ty_id)),
             },
             IrTy::UInt(ty) => match ty {
-                UIntTy::U8 => Ok(self.common_layouts.u8),
-                UIntTy::U16 => Ok(self.common_layouts.u16),
-                UIntTy::U32 => Ok(self.common_layouts.u32),
-                UIntTy::U64 => Ok(self.common_layouts.u64),
-                UIntTy::U128 => Ok(self.common_layouts.u128),
-                UIntTy::USize => Ok(self.common_layouts.usize),
+                UIntTy::U8 => Ok(self.common_layouts().u8),
+                UIntTy::U16 => Ok(self.common_layouts().u16),
+                UIntTy::U32 => Ok(self.common_layouts().u32),
+                UIntTy::U64 => Ok(self.common_layouts().u64),
+                UIntTy::U128 => Ok(self.common_layouts().u128),
+                UIntTy::USize => Ok(self.common_layouts().usize),
                 UIntTy::UBig => Err(LayoutError::Unknown(ty_id)),
             },
             IrTy::Float(ty) => Ok(match ty {
-                FloatTy::F32 => self.common_layouts.f32,
-                FloatTy::F64 => self.common_layouts.f64,
+                FloatTy::F32 => self.common_layouts().f32,
+                FloatTy::F64 => self.common_layouts().f64,
             }),
-            IrTy::Str => Ok(self.common_layouts.str),
-            IrTy::Bool => Ok(self.common_layouts.bool),
-            IrTy::Char => Ok(self.common_layouts.char),
-            IrTy::Never => Ok(self.common_layouts.never),
+            IrTy::Str => Ok(self.common_layouts().str),
+            IrTy::Bool => Ok(self.common_layouts().bool),
+            IrTy::Char => Ok(self.common_layouts().char),
+            IrTy::Never => Ok(self.common_layouts().never),
             IrTy::Ref(_, _, RefKind::Raw | RefKind::Normal) => {
                 let data_ptr = scalar_unit(ScalarKind::Pointer);
                 Ok(self.layouts().create(Layout::scalar(dl, data_ptr)))
@@ -173,7 +178,7 @@ impl<'l> LayoutCtx<'l> {
                 // ADT is uninhabited or all of the fields are zero-sized-types.
                 let absent = |layouts: &[LayoutId]| {
                     let (uninhabited, zst) =
-                        self.layouts.map_many_fast(layouts.iter().copied(), |layouts| {
+                        self.map_many_fast(layouts.iter().copied(), |layouts| {
                             (
                                 layouts.iter().any(|layout| layout.abi.is_uninhabited()),
                                 layouts.iter().all(|layout| layout.is_zst()),
@@ -208,7 +213,7 @@ impl<'l> LayoutCtx<'l> {
                     Some(variant) => variant,
                     // In the case of where an enum has no inhabited variants,
                     // we return early and return the "never" layout.
-                    None if adt.flags.is_enum() => return Ok(self.common_layouts.never),
+                    None if adt.flags.is_enum() => return Ok(self.common_layouts().never),
                     None => VariantIdx::new(0),
                 };
 
@@ -239,7 +244,11 @@ impl<'l> LayoutCtx<'l> {
                 }
             }),
             IrTy::Fn { .. } => Err(LayoutError::Unknown(ty_id)),
-        })
+        })?;
+
+        // We cache the layout of the type that was just created
+        self.layouts().add_cache_entry(ty_id, layout);
+        Ok(layout)
     }
 
     /// Compute the layout of a "univariant" type. This is a type which only
@@ -274,7 +283,7 @@ impl<'l> LayoutCtx<'l> {
         field_layouts: &[LayoutId],
         representation: &AdtRepresentation,
     ) -> Layout {
-        let dl = self.data_layout;
+        let dl = self.data_layout();
         let mut abi = AbiRepresentation::Aggregate;
 
         let mut alignment = dl.aggregate_align;
@@ -376,7 +385,7 @@ impl<'l> LayoutCtx<'l> {
     ) -> Option<Layout> {
         debug_assert!(data.flags.is_union());
 
-        let mut alignment = self.data_layout.aggregate_align;
+        let mut alignment = self.data_layout().aggregate_align;
         let optimize_union_abi = !data.representation.inhibits_union_abi_optimisations();
 
         let mut size = Size::ZERO;
@@ -455,12 +464,13 @@ impl<'l> LayoutCtx<'l> {
         adt: &AdtData,
     ) -> Layout {
         debug_assert!(adt.flags.is_enum());
-        let mut alignment = self.data_layout.aggregate_align;
+        let dl = self.data_layout();
+        let mut alignment = dl.aggregate_align;
         let mut size = Size::ZERO;
 
         // Deal with the alignment of the prefix value
-        let prefix_ty = adt.discriminant_representation(self.data_layout);
-        let mut prefix_alignment = prefix_ty.align(self.data_layout).abi;
+        let prefix_ty = adt.discriminant_representation(dl);
+        let mut prefix_alignment = prefix_ty.align(dl).abi;
 
         if adt.representation.is_c_like() {
             // We need to set the alignment of the prefix to the largest
@@ -541,7 +551,7 @@ impl<'l> LayoutCtx<'l> {
         } else {
             // If the alignment is still greater than the maximum integer
             // size, then we will avoid computing thi
-            Integer::for_alignment(self.data_layout, starting_alignment).unwrap_or(prefix_ty)
+            Integer::for_alignment(dl, starting_alignment).unwrap_or(prefix_ty)
         };
 
         // If the `new_prefix_ty` is larger than the size of the `prefix_ty`,
@@ -596,7 +606,7 @@ impl<'l> LayoutCtx<'l> {
         // variants.
         let variants = variant_layouts
             .into_iter()
-            .map(|variant| self.layouts.create(variant))
+            .map(|variant| self.create(variant))
             .collect::<IndexVec<VariantIdx, _>>();
 
         Layout {
@@ -620,13 +630,14 @@ impl<'l> LayoutCtx<'l> {
         field_layouts: &IndexVec<VariantIdx, Vec<LayoutId>>,
         variant_layouts: &IndexVec<VariantIdx, Layout>,
     ) -> AbiRepresentation {
+        let dl = self.data_layout();
         let mut abi = AbiRepresentation::Aggregate;
 
         // If all of the variants are un-inhabited, then this layout
         // is also considered to be un-habited
         if variant_layouts.iter().all(|variant| variant.abi.is_uninhabited()) {
             abi = AbiRepresentation::Uninhabited;
-        } else if tag.size(self.data_layout) == enum_size {
+        } else if tag.size(dl) == enum_size {
             // if this enum only contains tags, we represent this enum
             // as a scalar.
             abi = AbiRepresentation::Scalar(*tag);
@@ -702,7 +713,7 @@ impl<'l> LayoutCtx<'l> {
             // If we found a common primitive type, then we can use a
             // scalar-pair representation in form of `(tag, prim_scalar)`
             if let Some((prim, offset)) = common_prim {
-                let primitive_size = prim.size(self.data_layout);
+                let primitive_size = prim.size(dl);
                 let primitive_scalar = if common_prim_initialised_in_all_variants {
                     Scalar::Initialised {
                         kind: prim,
@@ -712,7 +723,7 @@ impl<'l> LayoutCtx<'l> {
                     Scalar::Union { kind: prim }
                 };
 
-                let pair = Layout::scalar_pair(self.data_layout, *tag, primitive_scalar);
+                let pair = Layout::scalar_pair(dl, *tag, primitive_scalar);
                 let pair_offsets = match pair.shape {
                     LayoutShape::Aggregate { ref offsets, .. } => offsets,
                     _ => panic!("layout of scalar pair is non-aggregate"),

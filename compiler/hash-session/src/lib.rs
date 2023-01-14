@@ -13,6 +13,7 @@ use hash_ast_desugaring::{AstDesugaringCtx, AstDesugaringCtxQuery, AstDesugaring
 use hash_ast_expand::{AstExpansionCtx, AstExpansionCtxQuery, AstExpansionPass};
 use hash_backend::{BackendCtx, BackendCtxQuery, HashBackend};
 use hash_ir::IrStorage;
+use hash_layout::LayoutStorage;
 use hash_lower::{IrGen, IrOptimiser, LoweringCtx, LoweringCtxQuery};
 use hash_parser::{Parser, ParserCtx, ParserCtxQuery};
 use hash_pipeline::{
@@ -47,6 +48,7 @@ pub fn make_stages() -> Vec<Box<dyn CompilerStage<CompilerSession>>> {
 pub struct CompilerSession {
     /// The collected workspace sources for the current job.
     pub workspace: Workspace,
+
     /// Any diagnostics that were collected from any stage
     pub diagnostics: Vec<Report>,
 
@@ -64,12 +66,20 @@ pub struct CompilerSession {
     /// Compiler IR storage. Stores all the IR that is created during the
     /// lowering stage, which is used for later stages during code generation.
     pub ir_storage: IrStorage,
+
+    /// Storage for all of the [Layout]s that have been created
+    /// for the IR. Additionally, this also stores a cache for
+    /// the looking up resultant [Layout]s by the specific IR type
+    /// ID.
+    pub layout_storage: LayoutStorage,
 }
 
 impl CompilerSession {
     /// Create a new [CompilerSession].
     pub fn new(workspace: Workspace, pool: rayon::ThreadPool, settings: CompilerSettings) -> Self {
         let target = settings.codegen_settings().target_info.target();
+        let layout_info = settings.codegen_settings().layout.clone();
+
         let global = GlobalStorage::new(target);
         let local = LocalStorage::new(&global, SourceId::default());
 
@@ -80,6 +90,7 @@ impl CompilerSession {
             settings,
             ty_storage: TyStorage { global, local },
             ir_storage: IrStorage::new(),
+            layout_storage: LayoutStorage::new(layout_info),
         }
     }
 }
@@ -165,6 +176,7 @@ impl BackendCtxQuery for CompilerSession {
         BackendCtx {
             workspace: &mut self.workspace,
             ir_storage: &self.ir_storage,
+            settings: self.settings.codegen_settings(),
             _pool: &self.pool,
         }
     }

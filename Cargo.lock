@@ -671,6 +671,7 @@ dependencies = [
  "hash-backend",
  "hash-interactive",
  "hash-ir",
+ "hash-layout",
  "hash-lower",
  "hash-parser",
  "hash-pipeline",
