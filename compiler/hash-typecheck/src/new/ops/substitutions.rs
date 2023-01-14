@@ -19,6 +19,10 @@ impl<'tc> SubstituteOps<'tc> {
         todo!()
     }
 
+    pub fn apply_sub_to_term_in_place(&self, _term_id: TermId, _sub: &Sub) {
+        todo!()
+    }
+
     pub fn apply_sub_to_ty(&self, _ty_id: TyId, _sub: &Sub) -> TyId {
         todo!()
     }
@@ -28,6 +32,10 @@ impl<'tc> SubstituteOps<'tc> {
     }
 
     pub fn apply_sub_to_args(&self, _args_id: ArgsId, _sub: &Sub) -> TermId {
+        todo!()
+    }
+
+    pub fn apply_sub_to_params_in_place(&self, _params_id: ParamsId, _sub: &Sub) -> TermId {
         todo!()
     }
 

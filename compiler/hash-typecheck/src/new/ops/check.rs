@@ -1,25 +1,32 @@
 //! Operations to check types of terms and patterns.
+
 use derive_more::Constructor;
 use hash_ast::ast::{FloatLitKind, IntLitKind};
-use hash_intrinsics::primitives::AccessToPrimitives;
+use hash_intrinsics::{primitives::AccessToPrimitives, utils::PrimitiveUtils};
 use hash_source::constant::{FloatTy, IntTy, SIntTy, UIntTy};
-use hash_types::new::{
-    args::{ArgsId, PatArgsId},
-    data::{CtorTerm, DataTy},
-    defs::{DefArgsId, DefParamGroupData, DefParamsId, DefPatArgsId},
-    environment::env::AccessToEnv,
-    fns::FnCallTerm,
-    lits::{Lit, PrimTerm},
-    params::{ParamData, ParamsId},
-    pats::PatId,
-    refs::DerefTerm,
-    symbols::Symbol,
-    terms::{RuntimeTerm, Term, TermId},
-    tuples::{TupleTerm, TupleTy},
-    tys::{Ty, TyId},
-    utils::{common::CommonUtils, AccessToUtils},
+use hash_types::{
+    new::{
+        args::{ArgsId, PatArgsId},
+        data::{CtorTerm, DataTy},
+        defs::{DefArgsId, DefParamGroupData, DefParamsId, DefPatArgsId},
+        environment::{
+            context::{BindingKind, BoundVarOrigin},
+            env::AccessToEnv,
+        },
+        fns::{FnBody, FnCallTerm, FnDefId, FnTy},
+        lits::{Lit, PrimTerm},
+        params::{ParamData, ParamsId},
+        pats::PatId,
+        refs::DerefTerm,
+        symbols::Symbol,
+        terms::{RuntimeTerm, Term, TermId},
+        tuples::{TupleTerm, TupleTy},
+        tys::{Ty, TyId},
+        utils::{common::CommonUtils, AccessToUtils},
+    },
+    ty_as_variant,
 };
-use hash_utils::store::{CloneStore, SequenceStore};
+use hash_utils::store::{CloneStore, SequenceStore, Store};
 
 use super::{common::CommonOps, AccessToOps};
 use crate::{
@@ -38,9 +45,9 @@ pub struct CheckOps<'tc> {
 impl_access_to_tc_env!(CheckOps<'tc>);
 
 impl<'tc> CheckOps<'tc> {
-    /// Check the parameters of the given generic definition arguments (
-    /// specialised for args and pat args below)
-    fn check_def_params_of_some_def_args<DefArgGroup>(
+    /// Check the given generic definition arguments (specialised for args and
+    /// pat args below)
+    fn check_some_def_args<DefArgGroup>(
         &self,
         def_args: &[DefArgGroup],
         check_def_arg_group: impl Fn(&DefArgGroup) -> TcResult<DefParamGroupData>,
@@ -65,41 +72,38 @@ impl<'tc> CheckOps<'tc> {
         }
     }
 
-    /// Check the parameter types of the given definition arguments.
-    pub fn check_def_params_of_def_args(&self, def_args: DefArgsId) -> TcResult<DefParamsId> {
+    /// Check the given definition arguments.
+    pub fn check_def_args(&self, def_args: DefArgsId) -> TcResult<DefParamsId> {
         self.stores().def_args().map(def_args, |def_args| {
-            self.check_def_params_of_some_def_args(def_args, |def_arg| {
+            self.check_some_def_args(def_args, |def_arg| {
                 let implicit =
                     self.stores().def_params().map_fast(def_arg.param_group.0, |params| {
                         params[def_arg.param_group.1].implicit
                     });
-                Ok(DefParamGroupData { implicit, params: self.check_params_of_args(def_arg.args)? })
+                Ok(DefParamGroupData { implicit, params: self.check_args(def_arg.args)? })
             })
         })
     }
 
-    /// Check the parameter types of the given definition pattern arguments.
-    pub fn check_def_params_of_def_pat_args(
-        &self,
-        def_pat_args: DefPatArgsId,
-    ) -> TcResult<DefParamsId> {
+    /// Check the given definition pattern arguments.
+    pub fn check_def_pat_args(&self, def_pat_args: DefPatArgsId) -> TcResult<DefParamsId> {
         self.stores().def_pat_args().map(def_pat_args, |def_pat_args| {
-            self.check_def_params_of_some_def_args(def_pat_args, |def_pat_arg| {
+            self.check_some_def_args(def_pat_args, |def_pat_arg| {
                 let implicit =
                     self.stores().def_params().map_fast(def_pat_arg.param_group.0, |params| {
                         params[def_pat_arg.param_group.1].implicit
                     });
                 Ok(DefParamGroupData {
                     implicit,
-                    params: self.check_params_of_pat_args(def_pat_arg.pat_args)?,
+                    params: self.check_pat_args(def_pat_arg.pat_args)?,
                 })
             })
         })
     }
 
-    /// Check the parameter types of the given generic arguments (specialised
+    /// Check the given generic arguments (specialised
     /// for args and pat args below).
-    fn check_params_of_some_args<Arg>(
+    fn check_some_args<Arg>(
         &self,
         args: &[Arg],
         check_arg_ty: impl Fn(&Arg) -> TcResult<Option<TyId>>,
@@ -133,35 +137,35 @@ impl<'tc> CheckOps<'tc> {
         }
     }
 
-    /// Check the parameters of the given arguments.
-    pub fn check_params_of_args(&self, args: ArgsId) -> TcResult<ParamsId> {
+    /// Check the given arguments, producing inferred parameters.
+    pub fn check_args(&self, args: ArgsId) -> TcResult<ParamsId> {
         self.stores().args().map(args, |args| {
-            self.check_params_of_some_args(
+            self.check_some_args(
                 args,
-                |arg| self.check_ty_of_term(arg.value),
+                |arg| self.check_term(arg.value),
                 |arg| self.new_symbol_from_param_index(arg.target),
             )
         })
     }
 
-    /// Check the parameters of the given pattern arguments.
-    pub fn check_params_of_pat_args(&self, pat_args: PatArgsId) -> TcResult<ParamsId> {
+    /// Check the given pattern arguments, producing inferred parameters.
+    pub fn check_pat_args(&self, pat_args: PatArgsId) -> TcResult<ParamsId> {
         self.stores().pat_args().map(pat_args, |pat_args| {
-            self.check_params_of_some_args(
+            self.check_some_args(
                 pat_args,
-                |pat_arg| self.check_ty_of_pat(pat_arg.pat),
+                |pat_arg| self.check_pat(pat_arg.pat),
                 |pat_arg| self.new_symbol_from_param_index(pat_arg.target),
             )
         })
     }
 
     /// Check the type of a sequence of terms which should all match.
-    pub fn check_unified_ty_of_terms(&self, terms: &[TermId]) -> TcResult<TyId> {
+    pub fn check_unified_term_list(&self, terms: &[TermId]) -> TcResult<TyId> {
         let mut current_ty = self.new_ty_hole();
         let mut found_error = false;
 
         for term in terms {
-            match self.try_or_add_error(self.check_ty_of_term(*term)) {
+            match self.try_or_add_error(self.check_term(*term)) {
                 Some(Some(ty)) => {
                     match self.unify_ops().unify_tys(ty, current_ty) {
                         Ok(sub) => {
@@ -204,27 +208,32 @@ impl<'tc> CheckOps<'tc> {
         }
     }
 
+    /// Check the given parameters.
+    pub fn check_params(&self, _params: ParamsId) -> TcResult<()> {
+        todo!()
+    }
+
     /// Check the type of a term, or create a new a type hole if the type is
     /// unknown.
-    pub fn check_ty_of_term_or_hole(&self, term: TermId) -> TcResult<TyId> {
-        Ok(self.check_ty_of_term(term)?.unwrap_or_else(|| self.new_ty_hole()))
+    pub fn check_term_or_hole(&self, term: TermId) -> TcResult<TyId> {
+        Ok(self.check_term(term)?.unwrap_or_else(|| self.new_ty_hole()))
     }
 
     /// Check the type of a runtime term.
-    pub fn check_ty_of_runtime_term(&self, term: &RuntimeTerm) -> TyId {
+    pub fn check_runtime_term(&self, term: &RuntimeTerm) -> TyId {
         term.term_ty
     }
 
     /// Check the type of a tuple term.
-    pub fn check_ty_of_tuple_term(&self, term: &TupleTerm) -> TcResult<TupleTy> {
+    pub fn check_tuple_term(&self, term: &TupleTerm) -> TcResult<TupleTy> {
         match term.original_ty {
             Some(ty) => Ok(ty),
-            None => Ok(TupleTy { data: self.check_params_of_args(term.data)? }),
+            None => Ok(TupleTy { data: self.check_args(term.data)? }),
         }
     }
 
     /// Check the type of a primitive term.
-    pub fn check_ty_of_prim_term(&self, term: &PrimTerm) -> TcResult<TyId> {
+    pub fn check_prim_term(&self, term: &PrimTerm) -> TcResult<TyId> {
         match term {
             PrimTerm::Lit(lit_term) => Ok(self.new_data_ty(match lit_term {
                 Lit::Int(int_lit) => match int_lit.underlying.kind {
@@ -265,7 +274,7 @@ impl<'tc> CheckOps<'tc> {
             PrimTerm::List(list_term) => {
                 let list_inner_type =
                     self.stores().term_list().map_fast(list_term.elements, |elements| {
-                        self.try_or_add_error(self.check_unified_ty_of_terms(elements))
+                        self.try_or_add_error(self.check_unified_term_list(elements))
                             .unwrap_or_else(|| self.new_ty_hole())
                     });
                 let list_ty = self.new_ty(DataTy {
@@ -281,19 +290,19 @@ impl<'tc> CheckOps<'tc> {
     }
 
     /// Check the type of a constructor term.
-    pub fn check_ty_of_ctor_term(&self, term: &CtorTerm) -> DataTy {
+    pub fn check_ctor_term(&self, term: &CtorTerm) -> DataTy {
         let data_def =
             self.stores().ctor_defs().map_fast(term.ctor.0, |terms| terms[term.ctor.1].data_def_id);
         DataTy { data_def, args: term.data_args }
     }
 
     /// Check the type of a function call.
-    pub fn check_ty_of_fn_call_term(
+    pub fn check_fn_call_term(
         &self,
         term: &FnCallTerm,
         original_term_id: TermId,
     ) -> TcResult<Option<TyId>> {
-        match self.check_ty_of_term(term.subject)? {
+        match self.check_term(term.subject)? {
             Some(subject_ty) => self.map_ty(subject_ty, |subject| match subject {
                 Ty::Eval(_) => {
                     // @@Todo: Normalise
@@ -303,7 +312,7 @@ impl<'tc> CheckOps<'tc> {
                     // Try the same thing, but with the dereferenced type.
                     let new_subject =
                         self.new_term(Term::Deref(DerefTerm { subject: term.subject }));
-                    self.check_ty_of_fn_call_term(
+                    self.check_fn_call_term(
                         &FnCallTerm { subject: new_subject, ..*term },
                         original_term_id,
                     )
@@ -321,7 +330,7 @@ impl<'tc> CheckOps<'tc> {
                 }
                 Ty::Fn(fn_ty) => {
                     // First infer the parameters of the function call.
-                    let inferred_fn_call_params = self.check_params_of_args(term.args)?;
+                    let inferred_fn_call_params = self.check_args(term.args)?;
 
                     // Unify the parameters of the function call with the parameters of the
                     // function type.
@@ -360,35 +369,110 @@ impl<'tc> CheckOps<'tc> {
         }
     }
 
+    /// Check the type of a function definition.
+    ///
+    /// This will check and modify the type of the function definition, and then
+    /// return it.
+    pub fn check_fn_def(&self, fn_def_id: FnDefId) -> TcResult<FnTy> {
+        let fn_def = self.stores().fn_def().get(fn_def_id);
+        self.check_params(fn_def.ty.params)?;
+
+        match fn_def.body {
+            FnBody::Defined(fn_body) => self.context_ops().enter_scope(fn_def_id.into(), || {
+                // @@Todo: `return` statement type inference
+                let inferred_return_ty = self.check_term(fn_body)?;
+
+                // Unify the inferred return type with the declared return type.
+                let return_sub = self.unify_ops().unify_tys(
+                    inferred_return_ty.unwrap_or_else(|| self.new_ty_hole()),
+                    fn_def.ty.return_ty,
+                )?;
+
+                // Apply the substitution to the parameters.
+                self.substitute_ops().apply_sub_to_params_in_place(fn_def.ty.params, &return_sub);
+                self.substitute_ops().apply_sub_to_term_in_place(fn_body, &return_sub);
+                self.substitute_ops().apply_sub_to_ty_in_place(fn_def.ty.return_ty, &return_sub);
+
+                Ok(())
+            })?,
+            FnBody::Intrinsic(_) | FnBody::Axiom => {
+                // Do nothing.
+            }
+        }
+
+        Ok(fn_def.ty)
+    }
+
+    /// Check the type of a variable, and return it.
+    pub fn check_var_term(&self, term: Symbol) -> TyId {
+        match self.context().get_binding(term).unwrap().kind {
+            BindingKind::ModMember(_, _) | BindingKind::Ctor(_, _) => {
+                unreachable!("mod members and ctors should have all been resolved by now")
+            }
+            BindingKind::BoundVar(bound_var) => match bound_var {
+                BoundVarOrigin::Fn(fn_def_id, param_index) => {
+                    self.stores()
+                        .fn_def()
+                        .map_fast(fn_def_id, |fn_def| {
+                            self.get_param_by_index(fn_def.ty.params, param_index)
+                        })
+                        .ty
+                }
+                BoundVarOrigin::FnTy(fn_ty, param_index) => {
+                    self.stores()
+                        .ty()
+                        .map_fast(fn_ty, |ty| {
+                            let fn_ty = ty_as_variant!(self, value ty, Fn);
+                            self.get_param_by_index(fn_ty.params, param_index)
+                        })
+                        .ty
+                }
+                BoundVarOrigin::Data(data_def_id, def_param_index) => {
+                    self.stores()
+                        .data_def()
+                        .map_fast(data_def_id, |data_def| {
+                            self.get_def_param_by_index(data_def.params, def_param_index)
+                        })
+                        .ty
+                }
+                BoundVarOrigin::StackMember(stack_member_id) => self
+                    .stores()
+                    .stack()
+                    .map_fast(stack_member_id.0, |stack| stack.members[stack_member_id.1].ty),
+            },
+        }
+    }
+
+    // @@Todo: checking for other definitions.
+
     /// Check a concrete type for a given term.
     ///
     /// If this is not possible, return `None`.
     /// To create a hole when this is not possible, use
     /// [`CheckOps::check_ty_of_term_or_hole`].
-    pub fn check_ty_of_term(&self, term_id: TermId) -> TcResult<Option<TyId>> {
+    pub fn check_term(&self, term_id: TermId) -> TcResult<Option<TyId>> {
         self.stores().term().map(term_id, |term| {
             match term {
-                Term::Runtime(rt_term) => Ok(Some(self.check_ty_of_runtime_term(rt_term))),
+                Term::Runtime(rt_term) => Ok(Some(self.check_runtime_term(rt_term))),
                 Term::Tuple(tuple_term) => {
-                    Ok(Some(self.new_ty(self.check_ty_of_tuple_term(tuple_term)?)))
+                    Ok(Some(self.new_ty(self.check_tuple_term(tuple_term)?)))
                 }
-                Term::Prim(prim_term) => Ok(Some(self.check_ty_of_prim_term(prim_term)?)),
-                Term::Ctor(ctor_term) => {
-                    Ok(Some(self.new_ty(self.check_ty_of_ctor_term(ctor_term))))
-                }
-                Term::FnCall(fn_call_term) => self.check_ty_of_fn_call_term(fn_call_term, term_id),
-                Term::FnRef(_) => {
-                    todo!()
-                }
+                Term::Prim(prim_term) => Ok(Some(self.check_prim_term(prim_term)?)),
+                Term::Ctor(ctor_term) => Ok(Some(self.new_ty(self.check_ctor_term(ctor_term)))),
+                Term::FnCall(fn_call_term) => self.check_fn_call_term(fn_call_term, term_id),
+                Term::FnRef(fn_def_id) => Ok(Some(self.new_ty(self.check_fn_def(*fn_def_id)?))),
+                Term::Var(var_term) => Ok(Some(self.check_var_term(*var_term))),
                 Term::Block(_) => todo!(),
-                Term::Var(_) => todo!(),
                 Term::Loop(_) => {
                     // @@Future: if loop is proven to not break, return never
                     todo!()
                 }
                 Term::LoopControl(_) => todo!(),
                 Term::Match(_) => todo!(),
-                Term::Return(_) => todo!(),
+                Term::Return(_) => {
+                    // Always never because it returns
+                    Ok(Some(self.new_never_ty()))
+                }
                 Term::DeclStackMember(_) => todo!(),
                 Term::Assign(_) => todo!(),
                 Term::Unsafe(_) => todo!(),
@@ -426,7 +510,7 @@ impl<'tc> CheckOps<'tc> {
         })
     }
 
-    pub fn check_ty_of_pat(&self, _value: PatId) -> TcResult<Option<TyId>> {
+    pub fn check_pat(&self, _value: PatId) -> TcResult<Option<TyId>> {
         todo!()
     }
 }
