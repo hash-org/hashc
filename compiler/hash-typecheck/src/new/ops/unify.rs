@@ -16,7 +16,7 @@ impl_access_to_tc_env!(UnifyOps<'tc>);
 
 impl<'tc> UnifyOps<'tc> {
     /// Unify two types, creating a substitution of holes.
-    pub fn unify_tys(&self, _src: TyId, _target: TyId) -> TcResult<TyId> {
+    pub fn unify_tys(&self, _src: TyId, _target: TyId) -> TcResult<Sub> {
         todo!()
     }
 

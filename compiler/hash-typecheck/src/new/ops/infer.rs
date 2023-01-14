@@ -10,8 +10,10 @@ use hash_types::new::{
     environment::env::AccessToEnv,
     fns::FnCallTerm,
     lits::{Lit, PrimTerm},
-    params::ParamsId,
+    params::{ParamData, ParamsId},
+    pats::PatId,
     refs::DerefTerm,
+    symbols::Symbol,
     terms::{RuntimeTerm, Term, TermId},
     tuples::{TupleTerm, TupleTy},
     tys::{Ty, TyId},
@@ -24,7 +26,7 @@ use crate::{
     impl_access_to_tc_env,
     new::{
         diagnostics::error::{TcError, TcResult},
-        environment::tc_env::TcEnv,
+        environment::tc_env::{AccessToTcEnv, TcEnv},
     },
 };
 
@@ -47,17 +49,111 @@ impl<'tc> InferOps<'tc> {
         todo!()
     }
 
-    pub fn infer_params_of_pat_args(&self, _pat_args: PatArgsId) -> TcResult<ParamsId> {
-        todo!()
+    /// Infer the parameter types of the given generic arguments (specialised
+    /// for args and pat args below).
+    fn infer_params_of_some_args<Arg>(
+        &self,
+        args: &[Arg],
+        infer_arg_ty: impl Fn(&Arg) -> TcResult<Option<TyId>>,
+        get_arg_name: impl Fn(&Arg) -> Symbol,
+    ) -> TcResult<ParamsId> {
+        let mut params = vec![];
+        let mut has_error = false;
+
+        for arg in args {
+            // Infer the type of the argument
+            let ty = match self.try_or_add_error(infer_arg_ty(arg)) {
+                // Type was inferred
+                Some(Some(ty)) => ty,
+                // Type could not be inferred
+                Some(None) => self.new_ty_hole(),
+                // Error occurred
+                None => {
+                    has_error = true;
+                    self.new_ty_hole()
+                }
+            };
+
+            // Add the parameter
+            params.push(ParamData { name: get_arg_name(arg), ty, default_value: None })
+        }
+
+        if has_error {
+            Err(TcError::Signal)
+        } else {
+            Ok(self.param_utils().create_params(params.into_iter()))
+        }
     }
 
-    pub fn infer_params_of_args(&self, _args: ArgsId) -> TcResult<ParamsId> {
-        todo!()
+    /// Infer the parameters of the given arguments.
+    pub fn infer_params_of_args(&self, args: ArgsId) -> TcResult<ParamsId> {
+        self.stores().args().map(args, |args| {
+            self.infer_params_of_some_args(
+                args,
+                |arg| self.infer_ty_of_term(arg.value),
+                |arg| self.new_symbol_from_param_index(arg.target),
+            )
+        })
+    }
+
+    /// Infer the parameters of the given pattern arguments.
+    pub fn infer_params_of_pat_args(&self, pat_args: PatArgsId) -> TcResult<ParamsId> {
+        self.stores().pat_args().map(pat_args, |pat_args| {
+            self.infer_params_of_some_args(
+                pat_args,
+                |pat_arg| self.infer_ty_of_pat(pat_arg.pat),
+                |pat_arg| self.new_symbol_from_param_index(pat_arg.target),
+            )
+        })
     }
 
     /// Infer the type of a sequence of terms which should all match.
-    pub fn infer_unified_ty_of_terms(&self, _terms: &[TermId]) -> TcResult<TyId> {
-        todo!()
+    pub fn infer_unified_ty_of_terms(&self, terms: &[TermId]) -> TcResult<TyId> {
+        let mut current_ty = self.new_ty_hole();
+        let mut found_error = false;
+
+        for term in terms {
+            match self.try_or_add_error(self.infer_ty_of_term(*term)) {
+                Some(Some(ty)) => {
+                    match self.unify_ops().unify_tys(ty, current_ty) {
+                        Ok(sub) => {
+                            // Unification succeeded
+                            self.substitute_ops().apply_sub_to_ty_in_place(current_ty, &sub);
+                        }
+                        Err(err) => {
+                            // Error in unification, try to unify the other way
+                            match self.unify_ops().unify_tys(current_ty, ty) {
+                                Ok(sub) => {
+                                    // Unification succeeded the other way, so use this
+                                    // type as a target
+                                    current_ty = ty;
+                                    self.substitute_ops()
+                                        .apply_sub_to_ty_in_place(current_ty, &sub);
+                                }
+                                Err(_) => {
+                                    // Error in unification, we only consider the first error
+                                    self.diagnostics().add_error(err);
+                                    found_error = true;
+                                }
+                            }
+                        }
+                    }
+                }
+                Some(None) => {
+                    // Hole
+                }
+                None => {
+                    // Error in inference
+                    found_error = true;
+                }
+            }
+        }
+
+        if found_error {
+            Err(TcError::Signal)
+        } else {
+            Ok(current_ty)
+        }
     }
 
     /// Infer the type of a term, or create a new a type hole.
@@ -279,5 +375,9 @@ impl<'tc> InferOps<'tc> {
                 }
             }
         })
+    }
+
+    pub fn infer_ty_of_pat(&self, _value: PatId) -> TcResult<Option<TyId>> {
+        todo!()
     }
 }

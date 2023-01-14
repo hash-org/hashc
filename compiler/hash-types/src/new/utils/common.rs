@@ -106,6 +106,14 @@ pub trait CommonUtils: AccessToEnv {
         self.stores().symbol().create_with(|symbol| SymbolData { name: Some(name.into()), symbol })
     }
 
+    /// Create a new symbol from the given parameter index.
+    fn new_symbol_from_param_index(&self, index: ParamIndex) -> Symbol {
+        match index {
+            ParamIndex::Name(name) => self.new_symbol(name),
+            ParamIndex::Position(i) => self.new_symbol(i),
+        }
+    }
+
     /// Create a new empty parameter list.
     fn new_empty_params(&self) -> ParamsId {
         self.stores().params().create_from_slice(&[])

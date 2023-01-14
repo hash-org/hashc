@@ -23,6 +23,10 @@ impl<'tc> SubstituteOps<'tc> {
         todo!()
     }
 
+    pub fn apply_sub_to_ty_in_place(&self, _ty_id: TyId, _sub: &Sub) {
+        todo!()
+    }
+
     pub fn apply_sub_to_args(&self, _args_id: ArgsId, _sub: &Sub) -> TermId {
         todo!()
     }
@@ -41,6 +45,26 @@ impl<'tc> SubstituteOps<'tc> {
         _args_id: ArgsId,
         _params_id: ParamsId,
     ) -> TcResult<Sub> {
+        todo!()
+    }
+
+    /// Whether the given term has holes.
+    pub fn term_has_holes(&self, _term_id: TermId) -> bool {
+        todo!()
+    }
+
+    /// Whether the given type has holes.
+    pub fn ty_has_holes(&self, _ty_id: TyId) -> bool {
+        todo!()
+    }
+
+    /// Whether the given parameters have holes.
+    pub fn params_have_holes(&self, _params_id: ParamsId) -> bool {
+        todo!()
+    }
+
+    /// Whether the given arguments have holes.
+    pub fn args_have_holes(&self, _args_id: ArgsId) -> bool {
         todo!()
     }
 }
