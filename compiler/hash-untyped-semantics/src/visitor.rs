@@ -134,13 +134,16 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
                 _ => self.append_error(
                     AnalysisErrorKind::InvalidDirectiveArgument {
                         name: name.ident,
-                        // @@Improvement, specify multiple allowed argument kinds
-                        expected: DirectiveArgument::Declaration,
+                        expected: DirectiveArgument::Declaration | DirectiveArgument::Block,
                         received: node.subject.body().into(),
                     },
                     node.subject.ast_ref(),
                 ),
             }
+        } else if name.is(IDENTS.layout_of) {
+            // The `#layout_of` directive accepts only type-like expressions
+            // since everything else is not a type, and layouts are
+            // relevant to types.
         } else if !name.is(IDENTS.dump_ast) {
             // @@Future: use some kind of scope validation in order to verify that
             // the used directives are valid

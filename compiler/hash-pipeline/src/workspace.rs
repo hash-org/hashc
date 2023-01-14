@@ -24,6 +24,7 @@ bitflags! {
     ///
     /// If no flags are defined on [SourceStageInfo], this means that the particular
     /// source has been parsed and has been added to the workspace.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct SourceStageInfo: u32 {
         /// If set, the compiler will no perform desugaring on the module.
         const DESUGARED = 0b00000001;

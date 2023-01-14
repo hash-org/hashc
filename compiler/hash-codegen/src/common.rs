@@ -247,6 +247,7 @@ impl TryFrom<ir::BinOp> for RealComparisonKind {
 bitflags! {
     /// Defines a collection of memory flags that can specify a cell of
     /// memory that LLVM and other backends that may support it.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct MemFlags: u8 {
         /// The memory slot is marked as a volatile region.
         const VOLATILE = 1 << 0;

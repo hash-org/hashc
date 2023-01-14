@@ -1,8 +1,8 @@
-error: the `dump_ir` directive expects a declaration as an argument
+error: the `dump_ir` directive expects a either `declaration`, or `body block` as an argument
  --> $DIR/dump_ir.hash:6:17
 5 |   // FAIL: `#dump_ir` only accepts declarations as an argument.
 6 |   mux := #dump_ir 2
-  |                   ^ a literal cannot be given to the `dump_ir` directive
+  |                   ^ a a `literal` cannot be given to the `dump_ir` directive
 7 |   
 
 error: the `dump_ir` directive is must be within a constant block
