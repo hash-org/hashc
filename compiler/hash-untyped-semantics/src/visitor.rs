@@ -100,6 +100,7 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
                         name: name.ident,
                         expected: DirectiveArgument::ModDef,
                         received: node.subject.body().into(),
+                        notes: vec![],
                     },
                     node.subject.ast_ref(),
                 );
@@ -136,14 +137,41 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
                         name: name.ident,
                         expected: DirectiveArgument::Declaration | DirectiveArgument::Block,
                         received: node.subject.body().into(),
+                        notes: vec![],
                     },
                     node.subject.ast_ref(),
                 ),
             }
         } else if name.is(IDENTS.layout_of) {
-            // The `#layout_of` directive accepts only type-like expressions
-            // since everything else is not a type, and layouts are
-            // relevant to types.
+            // The `#layout_of` directive accepts only type definitions.
+            //
+            // @@Future: it would be nice for this directive to accept any type-like
+            // expression and then later print the layout of the underlying type, and
+            // deal with generic parameters being passed to the type, etc.
+            match node.subject.body() {
+                Expr::StructDef(_) | Expr::EnumDef(_) => {}
+                expr => {
+                    let mut notes = vec![];
+
+                    // Add an additional note if the type is a function definition
+                    // and that the directive does not current handle this
+                    if matches!(expr, Expr::TyFnDef(_)) {
+                        notes.push(
+                            "currently, the `#layout_of` directive does not handle function definitions. This is subject to change in the future.".to_string(),
+                        );
+                    }
+
+                    self.append_error(
+                        AnalysisErrorKind::InvalidDirectiveArgument {
+                            name: name.ident,
+                            expected: DirectiveArgument::StructDef | DirectiveArgument::EnumDef,
+                            received: node.subject.body().into(),
+                            notes,
+                        },
+                        node.subject.ast_ref(),
+                    )
+                }
+            }
         } else if !name.is(IDENTS.dump_ast) {
             // @@Future: use some kind of scope validation in order to verify that
             // the used directives are valid

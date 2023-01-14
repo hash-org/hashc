@@ -1,0 +1,38 @@
+// run=fail, stage=semantic
+
+Value := #layout_of struct (
+    x: i32,
+    y: i32,
+    z: i16,
+);
+
+ValueKind := #layout_of enum (
+    Int,
+    Float,
+    String,
+    Struct,
+    Array,
+    Tuple,
+    Function,
+    Pointer,
+    Reference,
+    Slice,
+    Union,
+    Enum,
+    Trait,
+    Type,
+    Module,
+    Unknown,
+);
+
+ParameterisedValue := #layout_of <T> => struct (
+    x: T,
+    y: T,
+    z: T,
+);
+
+other := #layout_of 5;
+
+main := () => {
+    
+}

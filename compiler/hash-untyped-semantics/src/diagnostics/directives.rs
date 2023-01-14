@@ -146,16 +146,16 @@ impl fmt::Display for DirectiveArgument {
                 DirectiveArgument::Unsafe => allowed_argument_kinds.push("unsafe expression"),
                 DirectiveArgument::Lit => allowed_argument_kinds.push("literal"),
                 DirectiveArgument::Cast => allowed_argument_kinds.push("type cast"),
-                DirectiveArgument::Loop => allowed_argument_kinds.push("`loop` block"),
-                DirectiveArgument::Match => allowed_argument_kinds.push("`match` block"),
-                DirectiveArgument::ImplDef => allowed_argument_kinds.push("`impl` block"),
-                DirectiveArgument::ModDef => allowed_argument_kinds.push("`mod` block"),
+                DirectiveArgument::Loop => allowed_argument_kinds.push("loop block"),
+                DirectiveArgument::Match => allowed_argument_kinds.push("match block"),
+                DirectiveArgument::ImplDef => allowed_argument_kinds.push("impl block"),
+                DirectiveArgument::ModDef => allowed_argument_kinds.push("mod block"),
                 DirectiveArgument::Block => allowed_argument_kinds.push("body block"),
                 DirectiveArgument::Import => allowed_argument_kinds.push("import"),
                 DirectiveArgument::StructDef => allowed_argument_kinds.push("struct definition"),
-                DirectiveArgument::EnumDef => allowed_argument_kinds.push("`enum` definition"),
+                DirectiveArgument::EnumDef => allowed_argument_kinds.push("enum definition"),
                 DirectiveArgument::TyFnDef => {
-                    allowed_argument_kinds.push("`type` function definition")
+                    allowed_argument_kinds.push("type function definition")
                 }
                 DirectiveArgument::TraitDef => allowed_argument_kinds.push("`trait` definition"),
                 DirectiveArgument::FnDef => allowed_argument_kinds.push("`function` definition"),
@@ -163,9 +163,7 @@ impl fmt::Display for DirectiveArgument {
                 DirectiveArgument::Return => allowed_argument_kinds.push("return statement"),
                 DirectiveArgument::Break => allowed_argument_kinds.push("break statement"),
                 DirectiveArgument::Continue => allowed_argument_kinds.push("continue statement"),
-                DirectiveArgument::TraitImpl => {
-                    allowed_argument_kinds.push("`trait` implementation")
-                }
+                DirectiveArgument::TraitImpl => allowed_argument_kinds.push("trait implementation"),
                 DirectiveArgument::Expr => allowed_argument_kinds.push("expression"),
                 _ => unreachable!(),
             }
