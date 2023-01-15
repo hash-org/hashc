@@ -77,6 +77,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
 
 [[package]]
+name = "bitflags"
+version = "2.0.0-rc.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e196f430604fcd7503056c5aaa7dfc5bc570582b928240622b075b5cad3b90dd"
+
+[[package]]
 name = "bumpalo"
 version = "3.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -115,7 +121,7 @@ version = "4.0.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4d63b9e9c07271b9957ad22c173bae2a4d9a81127680962039296abcd2f8251d"
 dependencies = [
- "bitflags",
+ "bitflags 1.3.2",
  "clap_derive",
  "clap_lex",
  "is-terminal",
@@ -411,7 +417,7 @@ dependencies = [
 name = "hash-abi"
 version = "0.1.0"
 dependencies = [
- "bitflags",
+ "bitflags 2.0.0-rc.1",
  "hash-ir",
  "hash-layout",
  "hash-source",
@@ -486,7 +492,7 @@ dependencies = [
 name = "hash-codegen"
 version = "0.1.0"
 dependencies = [
- "bitflags",
+ "bitflags 2.0.0-rc.1",
  "fixedbitset",
  "hash-abi",
  "hash-ir",
@@ -556,7 +562,7 @@ dependencies = [
 name = "hash-ir"
 version = "0.1.0"
 dependencies = [
- "bitflags",
+ "bitflags 2.0.0-rc.1",
  "fixedbitset",
  "hash-alloc",
  "hash-ast",
@@ -573,6 +579,7 @@ dependencies = [
 name = "hash-layout"
 version = "0.1.0"
 dependencies = [
+ "fixedbitset",
  "hash-ir",
  "hash-target",
  "hash-utils",
@@ -594,9 +601,11 @@ dependencies = [
 name = "hash-lower"
 version = "0.1.0"
 dependencies = [
+ "bitflags 2.0.0-rc.1",
  "fixedbitset",
  "hash-ast",
  "hash-ir",
+ "hash-layout",
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
@@ -634,7 +643,7 @@ dependencies = [
 name = "hash-pipeline"
 version = "0.1.0"
 dependencies = [
- "bitflags",
+ "bitflags 2.0.0-rc.1",
  "clap",
  "clap_derive",
  "const_format",
@@ -671,6 +680,7 @@ dependencies = [
  "hash-backend",
  "hash-interactive",
  "hash-ir",
+ "hash-layout",
  "hash-lower",
  "hash-parser",
  "hash-pipeline",
@@ -829,6 +839,7 @@ dependencies = [
 name = "hash-untyped-semantics"
 version = "0.1.0"
 dependencies = [
+ "bitflags 2.0.0-rc.1",
  "crossbeam-channel",
  "hash-ast",
  "hash-error-codes",
@@ -836,6 +847,7 @@ dependencies = [
  "hash-reporting",
  "hash-source",
  "hash-tree-def",
+ "hash-utils",
  "if_chain",
  "rayon",
 ]
@@ -1066,7 +1078,7 @@ version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fa9b4819da1bc61c0ea48b63b7bc8604064dd43013e7cc325df098d49cd7c18a"
 dependencies = [
- "bitflags",
+ "bitflags 1.3.2",
  "cc",
  "cfg-if",
  "libc",
@@ -1299,7 +1311,7 @@ version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fb5a58c1855b4b6819d59012155603f0b22ad30cad752600aadfcb695265519a"
 dependencies = [
- "bitflags",
+ "bitflags 1.3.2",
 ]
 
 [[package]]
@@ -1366,7 +1378,7 @@ version = "0.36.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cb93e85278e08bb5788653183213d3a60fc242b10cb9be96586f5a73dcb67c23"
 dependencies = [
- "bitflags",
+ "bitflags 1.3.2",
  "errno",
  "io-lifetimes",
  "libc",
@@ -1386,7 +1398,7 @@ version = "8.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fbd4eaf7a7738f76c98e4f0395253ae853be3eb018f7b0bb57fe1b6c17e31874"
 dependencies = [
- "bitflags",
+ "bitflags 1.3.2",
  "cfg-if",
  "clipboard-win",
  "dirs-next",

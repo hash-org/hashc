@@ -27,6 +27,7 @@ impl HasDataLayout for TargetDataLayout {
 /// This enum defines the Endianness of a target, which is used
 /// when reading/writing scalar values to memory. More information
 /// about Endianness can be found (https://en.wikipedia.org/wiki/Endianness)[here].
+#[derive(Debug, Clone, Copy)]
 pub enum Endian {
     /// Values use the little endian format.
     Little,
@@ -39,6 +40,7 @@ pub enum Endian {
 /// lay'd out for a specific target. The layout of a target
 /// is specified as a "layout specification" string, more information
 /// about this can be found (https://llvm.org/docs/LangRef.html#data-layout)[here].
+#[derive(Debug, Clone)]
 pub struct TargetDataLayout {
     /// The kind of Endianness that the target uses.
     pub endian: Endian,

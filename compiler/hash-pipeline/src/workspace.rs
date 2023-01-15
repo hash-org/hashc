@@ -24,6 +24,7 @@ bitflags! {
     ///
     /// If no flags are defined on [SourceStageInfo], this means that the particular
     /// source has been parsed and has been added to the workspace.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct SourceStageInfo: u32 {
         /// If set, the compiler will no perform desugaring on the module.
         const DESUGARED = 0b00000001;
@@ -146,9 +147,11 @@ impl Default for StageInfo {
 pub struct Workspace {
     /// Dependency map between sources and modules.
     dependencies: HashMap<SourceId, HashSet<ModuleId>>,
+
     /// Stores all of the raw file contents of the interactive blocks and
     /// modules.
     pub source_map: SourceMap,
+
     /// Stores all of the generated AST for modules and nodes
     pub node_map: NodeMap,
 

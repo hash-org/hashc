@@ -497,7 +497,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
 
                 // check if the type is a ZST, and if so this satisfies the
                 // case that the rvalue creates an operand...
-                self.ctx.layout_of(ty).is_zst(self.ctx.layout_ctx())
+                self.ctx.layout_of(ty).is_zst(self.ctx.layout_computer())
             }
         }
     }

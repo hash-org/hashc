@@ -7,7 +7,7 @@
 use hash_ir::IrStorage;
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerStage},
-    settings::CompilerStageKind,
+    settings::{CodeGenSettings, CompilerStageKind},
     workspace::Workspace,
     CompilerResult,
 };
@@ -35,6 +35,9 @@ pub struct BackendCtx<'b> {
     /// Reference to the IR storage that is used to store
     /// the lowered IR, and all metadata about the IR.
     pub ir_storage: &'b IrStorage,
+
+    /// A reference to the backend settings in the current session.
+    pub settings: &'b CodeGenSettings,
 
     /// Reference to the rayon thread pool.
     pub _pool: &'b rayon::ThreadPool,

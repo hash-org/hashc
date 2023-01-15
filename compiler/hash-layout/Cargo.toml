@@ -10,3 +10,4 @@ index_vec = "0.1.3"
 hash-utils = { path = "../hash-utils" }
 hash-ir = { path = "../hash-ir" }
 hash-target = { path = "../hash-target" }
+fixedbitset = "0.4.2"

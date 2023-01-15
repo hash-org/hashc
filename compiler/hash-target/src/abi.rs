@@ -95,6 +95,19 @@ pub enum ScalarKind {
     Pointer,
 }
 
+impl fmt::Display for ScalarKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ScalarKind::Int { kind, signed } => {
+                let prefix = if *signed { "i" } else { "u" };
+                write!(f, "{}{}", prefix, kind.size().bits())
+            }
+            ScalarKind::Float { kind } => write!(f, "{kind}"),
+            ScalarKind::Pointer => write!(f, "<ptr>"),
+        }
+    }
+}
+
 impl ScalarKind {
     /// Compute the [Alignments] of the given [ScalarKind].
     #[inline]
@@ -240,6 +253,16 @@ pub enum Scalar {
         /// Th kind of the scalar
         kind: ScalarKind,
     },
+}
+
+impl fmt::Display for Scalar {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.is_bool() {
+            write!(f, "bool")
+        } else {
+            write!(f, "{}", self.kind())
+        }
+    }
 }
 
 impl Scalar {

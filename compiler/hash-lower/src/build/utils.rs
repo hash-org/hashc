@@ -22,7 +22,7 @@ impl<'tcx> Builder<'tcx> {
         // We need to try and look up the type within the cache, if not
         // present then we create the type by converting the term into
         // the type.
-        self.convert_term_into_ir_ty(self.term_of_node(id))
+        self.lower_term_as_id(self.term_of_node(id))
     }
 
     /// Function to get the associated [IrTy] with the

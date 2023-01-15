@@ -3,13 +3,16 @@
 //! code generation backends.
 
 pub mod compute;
+pub mod write;
 
-use std::num::NonZeroUsize;
-
-use hash_ir::{
-    ty::{IrTy, IrTyId, VariantIdx},
-    IrCtx,
+use std::{
+    cell::{Ref, RefCell},
+    collections::HashMap,
+    num::NonZeroUsize,
 };
+
+use compute::LayoutComputer;
+use hash_ir::ty::{IrTy, IrTyId, VariantIdx};
 use hash_target::{
     abi::{AbiRepresentation, Scalar},
     alignment::Alignments,
@@ -18,37 +21,57 @@ use hash_target::{
     size::Size,
 };
 use hash_utils::{
-    new_store, new_store_key,
-    store::{CloneStore, Store},
+    new_store_key,
+    store::{CloneStore, DefaultStore, Store},
 };
 use index_vec::IndexVec;
 
 // Define a new key to represent a particular layout.
 new_store_key!(pub LayoutId);
 
-// Storage for all of the generated layouts.
-new_store!(
-    pub LayoutStore<LayoutId, Layout>
-);
+/// A store for all of the interned [Layout]s, and a cache for
+/// the [Layout]s that are created from [IrTyId]s.
+pub struct LayoutCtx {
+    /// The storage for all of the interned layouts
+    data: DefaultStore<LayoutId, Layout>,
 
-/// A auxialliary context for methods defined on [Layout]
-/// which require access to other [Layout]s and information
-/// generated in the [IrCtx].
-pub struct LayoutCtx<'abi> {
-    /// A reference tot the [LayoutStore].
-    layouts: &'abi LayoutStore,
-
-    /// A reference to the [IrCtx].
-    ir_ctx: &'abi IrCtx,
+    /// Cache for the [Layout]s that are created from [IrTyId]s.
+    cache: RefCell<HashMap<IrTyId, LayoutId>>,
 
     /// A reference to the [TargetDataLayout] of the current
     /// session.
-    data_layout: &'abi TargetDataLayout,
+    data_layout: TargetDataLayout,
 
     /// A table of common layouts that are used by the compiler often
-    /// enough to keep in a "common" place, this also avoids re-making
-    /// alot of layouts for the same frequent typs.
+    /// enough to keep in a "common" place, this avoids re-computing
+    /// [Layout]s for often used types.
     pub(crate) common_layouts: CommonLayouts,
+}
+
+impl LayoutCtx {
+    /// Create a new [LayoutStorage].
+    pub fn new(data_layout: TargetDataLayout) -> Self {
+        let data = DefaultStore::new();
+        let common_layouts = CommonLayouts::new(&data_layout, &data);
+
+        Self { data, common_layouts, cache: RefCell::new(HashMap::new()), data_layout }
+    }
+
+    /// Get a reference to the layout cache.
+    pub(crate) fn cache(&self) -> Ref<HashMap<IrTyId, LayoutId>> {
+        self.cache.borrow()
+    }
+
+    /// Insert a new [LayoutId] entry into the cache.
+    pub(crate) fn add_cache_entry(&self, ty: IrTyId, layout: LayoutId) {
+        self.cache.borrow_mut().insert(ty, layout);
+    }
+}
+
+impl Store<LayoutId, Layout> for LayoutCtx {
+    fn internal_data(&self) -> &RefCell<Vec<Layout>> {
+        self.data.internal_data()
+    }
 }
 
 macro_rules! create_common_layout_table {
@@ -62,7 +85,7 @@ macro_rules! create_common_layout_table {
 
         impl CommonLayouts {
             /// Create a new [CommonLayouts] table.
-            pub fn new(data_layout: &TargetDataLayout, layouts: &LayoutStore) -> Self {
+            pub fn new<S: Store<LayoutId, Layout>>(data_layout: &TargetDataLayout, layouts: &S) -> Self {
                 use crate::compute::compute_primitive_ty_layout;
 
                 Self {
@@ -99,39 +122,6 @@ create_common_layout_table!(
     usize: IrTy::UInt(UIntTy::USize),
 );
 
-impl<'abi> LayoutCtx<'abi> {
-    /// Create a new [LayoutCtx].
-    pub fn new(
-        layouts: &'abi LayoutStore,
-        data_layout: &'abi TargetDataLayout,
-        ir_ctx: &'abi IrCtx,
-    ) -> Self {
-        let common_layouts = CommonLayouts::new(data_layout, layouts);
-        Self { layouts, data_layout, common_layouts, ir_ctx }
-    }
-
-    /// Returns a reference to the [LayoutStore].
-    pub fn layouts(&self) -> &LayoutStore {
-        self.layouts
-    }
-
-    /// Map a function on a particular layout.
-    pub fn map_layout<T>(&self, id: LayoutId, func: impl FnOnce(&Layout) -> T) -> T {
-        self.layouts.map_fast(id, func)
-    }
-
-    /// Get a reference to the data layout of the current
-    /// session.
-    pub fn data_layout(&self) -> &TargetDataLayout {
-        self.data_layout
-    }
-
-    /// Returns a reference to the [IrCtx].
-    pub fn ir_ctx(&self) -> &IrCtx {
-        self.ir_ctx
-    }
-}
-
 /// [TyInfo] stores a reference to the type, and a reference to the
 /// layout information about the type.
 #[derive(Debug, Clone, Copy)]
@@ -150,7 +140,7 @@ impl TyInfo {
     }
 
     /// Check if the type is a zero-sized type.
-    pub fn is_zst(&self, ctx: LayoutCtx) -> bool {
+    pub fn is_zst(&self, ctx: LayoutComputer) -> bool {
         ctx.layouts().map_fast(self.layout, |layout| match layout.abi {
             AbiRepresentation::Scalar { .. }
             | AbiRepresentation::Pair(..)
@@ -163,13 +153,13 @@ impl TyInfo {
 
     /// Compute the type of a "field with in a layout" and return the
     /// [LayoutId] associated with the field.
-    pub fn field(&self, _ctx: LayoutCtx, _index: usize) -> Self {
+    pub fn field(&self, _ctx: LayoutComputer, _index: usize) -> Self {
         todo!()
     }
 
     /// Fetch the [Layout] for a variant of the currently
     /// given [Layout].
-    pub fn for_variant(&self, ctx: LayoutCtx, variant: VariantIdx) -> Self {
+    pub fn for_variant(&self, ctx: LayoutComputer, variant: VariantIdx) -> Self {
         let layout = ctx.layouts().get(self.layout);
 
         let variant = match layout.variants {
@@ -193,7 +183,7 @@ impl TyInfo {
                 // Create a new layout with basically a ZST that is
                 // un-inhabited... i.e. `never`
                 let shape = if fields == 0 {
-                    LayoutShape::Aggregate { offsets: vec![], memory_map: vec![] }
+                    LayoutShape::Aggregate { fields: vec![], memory_map: vec![] }
                 } else {
                     // @@Todo: this should become a union?
                     todo!()
@@ -260,18 +250,24 @@ impl Layout {
     pub fn scalar_pair<C: HasDataLayout>(ctx: &C, scalar_1: Scalar, scalar_2: Scalar) -> Self {
         let dl = ctx.data_layout();
 
+        let scalar_1_size = scalar_1.size(ctx);
+        let scalar_2_size = scalar_2.size(ctx);
+
         let alignment_2 = scalar_2.align(ctx);
 
         // Take the maximum of `scalar_1`, `scalar_2` and the `aggregate` target
         // alignment
         let alignment = scalar_1.align(ctx).max(alignment_2).max(dl.aggregate_align);
 
-        let offset_2 = scalar_1.size(ctx).align_to(alignment.abi);
-        let size = (offset_2 + scalar_2.size(ctx)).align_to(alignment.abi);
+        let offset_2 = scalar_1_size.align_to(alignment.abi);
+        let size = (offset_2 + scalar_2_size).align_to(alignment.abi);
 
         Layout {
             shape: LayoutShape::Aggregate {
-                offsets: vec![Size::ZERO, offset_2],
+                fields: vec![
+                    FieldLayout { size: scalar_1_size, offset: Size::ZERO },
+                    FieldLayout { size: scalar_2_size, offset: offset_2 },
+                ],
                 memory_map: vec![0, 1],
             },
             variants: Variants::Single { index: VariantIdx::new(0) },
@@ -342,12 +338,33 @@ pub enum LayoutShape {
     Aggregate {
         /// Offsets of the the first byte of each field in the struct. This
         /// is in the "source order" of the `struct`-like type.
-        offsets: Vec<Size>,
+        fields: Vec<FieldLayout>,
 
         /// A map between the specified "source order" of the fields, and
         /// the actual order in memory.
         memory_map: Vec<u32>,
     },
+}
+
+/// [FieldLayout] represents the details of a "field" within an
+/// aggregate data layout. This is used to store the offset of the
+/// field within the layout, and the "true" [Size] of the field. The
+/// term "true" is used to denote that the size of the field may be
+/// smaller due to introduced padding.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FieldLayout {
+    /// The offset of the field within the layout.
+    pub offset: Size,
+
+    /// The size of the field itself.
+    pub size: Size,
+}
+
+impl FieldLayout {
+    /// Create a [FieldLayout] that represents a ZST.
+    pub fn zst() -> Self {
+        Self { offset: Size::ZERO, size: Size::ZERO }
+    }
 }
 
 impl LayoutShape {
@@ -358,7 +375,7 @@ impl LayoutShape {
             LayoutShape::Primitive => 1,
             LayoutShape::Union { count } => count.get(),
             LayoutShape::Array { elements, .. } => elements.try_into().unwrap(),
-            LayoutShape::Aggregate { ref offsets, .. } => offsets.len(),
+            LayoutShape::Aggregate { fields: ref offsets, .. } => offsets.len(),
         }
     }
 
@@ -374,7 +391,7 @@ impl LayoutShape {
                 assert!(index < elements);
                 stride * index
             }
-            LayoutShape::Aggregate { ref offsets, .. } => offsets[index],
+            LayoutShape::Aggregate { ref fields, .. } => fields[index].offset,
         }
     }
 

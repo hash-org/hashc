@@ -28,6 +28,14 @@ pub struct Alignment {
     value: u8,
 }
 
+impl fmt::Display for Alignment {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // get the nice bytes unit for the alignment
+        let size = Size::from_bytes(self.bytes());
+        write!(f, "{size}")
+    }
+}
+
 impl fmt::Debug for Alignment {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "align[value={}]", self.bytes())
@@ -35,7 +43,7 @@ impl fmt::Debug for Alignment {
 }
 
 impl Alignment {
-    pub const ONE: Alignment = Alignment { value: 1 };
+    pub const ONE: Alignment = Alignment { value: 0 };
     pub const MAX: Alignment = Alignment { value: 32 };
 
     /// Create a new alignment from the given alignment in bits. If

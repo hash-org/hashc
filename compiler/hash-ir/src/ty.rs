@@ -450,6 +450,7 @@ impl AdtData {
 bitflags! {
     /// Flags that occur on a [AdtData] which are used for conveniently checking
     /// the properties of the underlying ADT.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct AdtFlags: u32 {
         /// The underlying ADT is a union.
         const UNION = 0b00000001;

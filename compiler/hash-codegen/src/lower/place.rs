@@ -85,7 +85,7 @@ impl<'b, V: CodeGenObject> PlaceRef<V> {
         builder: &mut Builder,
         discriminant: VariantIdx,
     ) {
-        let variant_info = self.info.for_variant(builder.layout_ctx(), discriminant);
+        let variant_info = self.info.for_variant(builder.layout_computer(), discriminant);
         let variant_layout = builder.layout_info(variant_info.layout);
 
         // If an attempt is made to set the discriminant for a variant type
@@ -170,7 +170,7 @@ impl<'b, V: CodeGenObject> PlaceRef<V> {
         variant: VariantIdx,
     ) -> Self {
         let mut downcast = *self;
-        downcast.info = self.info.for_variant(builder.layout_ctx(), variant);
+        downcast.info = self.info.for_variant(builder.layout_computer(), variant);
 
         // Cast the downcast value to the appropriate type
         let variant_ty = builder.backend_type(downcast.info);
@@ -186,7 +186,7 @@ impl<'b, V: CodeGenObject> PlaceRef<V> {
     ) -> Self {
         // compute the offset if possible, or just use the element
         // size as it will yield the lowest alignment.
-        let field_info = self.info.field(builder.layout_ctx(), 0);
+        let field_info = self.info.field(builder.layout_computer(), 0);
         let field_size = builder.map_layout(field_info.layout, |layout| layout.size);
 
         let offset = if let Some(index) = builder.const_to_optional_uint(index) {
@@ -214,7 +214,7 @@ impl<'b, V: CodeGenObject> PlaceRef<V> {
     ) -> Self {
         let abi = builder.map_layout(self.info.layout, |layout| layout.abi);
 
-        let field_info = self.info.field(builder.layout_ctx(), field);
+        let field_info = self.info.field(builder.layout_computer(), field);
         let (field_offset, is_zst) = builder
             .map_layout(field_info.layout, |layout| (layout.shape.offset(field), layout.is_zst()));
 

@@ -7,8 +7,8 @@ use std::{collections::HashSet, convert::Infallible, mem};
 
 use hash_ast::{
     ast::{
-        walk_mut_self, AstVisitorMutSelf, BindingPat, Block, BlockExpr, DirectiveExpr, Expr,
-        LitExpr, Mutability, ParamOrigin,
+        walk_mut_self, AstVisitorMutSelf, BindingPat, Block, BlockExpr, Declaration, DirectiveExpr,
+        EnumDef, Expr, LitExpr, Mutability, ParamOrigin, StructDef,
     },
     ast_visitor_mut_self_default_impl,
     origin::BlockOrigin,
@@ -100,6 +100,7 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
                         name: name.ident,
                         expected: DirectiveArgument::ModDef,
                         received: node.subject.body().into(),
+                        notes: vec![],
                     },
                     node.subject.ast_ref(),
                 );
@@ -134,12 +135,74 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
                 _ => self.append_error(
                     AnalysisErrorKind::InvalidDirectiveArgument {
                         name: name.ident,
-                        // @@Improvement, specify multiple allowed argument kinds
-                        expected: DirectiveArgument::Declaration,
+                        expected: DirectiveArgument::Declaration | DirectiveArgument::Block,
                         received: node.subject.body().into(),
+                        notes: vec![],
                     },
                     node.subject.ast_ref(),
                 ),
+            }
+        } else if name.is(IDENTS.layout_of) {
+            // The `#layout_of` directive accepts only type definitions.
+            //
+            // @@Future: it would be nice for this directive to accept any type-like
+            // expression and then later print the layout of the underlying type, and
+            // deal with generic parameters being passed to the type, etc.
+
+            match &node.subject.body() {
+                Expr::Declaration(Declaration { value: Some(value), .. }) => {
+                    match value.body() {
+                        Expr::StructDef(StructDef { ty_params, .. })
+                        | Expr::EnumDef(EnumDef { ty_params, .. })
+                            if ty_params.is_empty() => {}
+                        expr => {
+                            let mut notes = vec![];
+
+                            // Add an additional note if the type is a function definition
+                            // and that the directive does not current handle this
+                            if matches!(
+                                expr,
+                                Expr::TyFnDef(_) | Expr::StructDef(_) | Expr::EnumDef(_)
+                            ) {
+                                notes.push(
+                                    "currently, the `#layout_of` directive does not handle function definitions. This is subject to change in the future.".to_string(),
+                                );
+                            }
+
+                            self.append_error(
+                                AnalysisErrorKind::InvalidDirectiveArgument {
+                                    name: name.ident,
+                                    expected: DirectiveArgument::StructDef
+                                        | DirectiveArgument::EnumDef,
+                                    received: value.body().into(),
+                                    notes,
+                                },
+                                node.subject.ast_ref(),
+                            )
+                        }
+                    }
+                }
+                expr => {
+                    let mut notes = vec![];
+
+                    if matches!(expr, Expr::Declaration(Declaration { value: None, .. })) {
+                        notes.push(
+                            "`#layout_of` requires that the provided declaration must have a value"
+                                .to_string(),
+                        )
+                    };
+
+                    self.append_error(
+                        AnalysisErrorKind::InvalidDirectiveArgument {
+                            name: name.ident,
+                            // @@Hack: we should be a bit more specific here.
+                            expected: DirectiveArgument::Declaration,
+                            received: node.subject.body().into(),
+                            notes,
+                        },
+                        node.subject.ast_ref(),
+                    )
+                }
             }
         } else if !name.is(IDENTS.dump_ast) {
             // @@Future: use some kind of scope validation in order to verify that

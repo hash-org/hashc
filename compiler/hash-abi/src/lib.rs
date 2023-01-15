@@ -68,6 +68,7 @@ impl ArgAbi {
 
 bitflags::bitflags! {
     /// Defines the relevant attributes to ABI arguments.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct ArgAttributeFlags: u16 {
         /// This specifies that this pointer argument does not alias
         /// any other arguments or the return value.

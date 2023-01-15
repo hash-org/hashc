@@ -18,7 +18,7 @@ use crate::{
     IrCtx,
 };
 
-/// Struct that is used to write [IrTy]s.
+/// Struct that is used to write interned IR components.
 pub struct ForFormatting<'ir, T> {
     /// The item that is being printed.
     pub item: T,
