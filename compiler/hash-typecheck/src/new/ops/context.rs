@@ -60,7 +60,7 @@ impl<'env> ContextOps<'env> {
     /// *Invariant*: It must be that the member's scope is the current stack
     /// scope.
     pub fn add_stack_binding(&self, member_id: StackMemberId) {
-        match self.context().get_current_scope_kind() {
+        match self.context().get_current_scope().kind {
             ScopeKind::Stack(stack_id) => {
                 if stack_id != member_id.0 {
                     panic!("add_stack_binding called with member from different stack");

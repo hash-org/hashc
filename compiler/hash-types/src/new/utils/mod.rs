@@ -11,6 +11,7 @@ pub mod fns;
 pub mod mods;
 pub mod params;
 pub mod stack;
+pub mod traversing;
 pub mod tuples;
 
 macro_rules! utils {

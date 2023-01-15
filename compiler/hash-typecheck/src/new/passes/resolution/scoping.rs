@@ -141,17 +141,18 @@ impl<'tc> Scoping<'tc> {
         self.context_ops().enter_scope(kind, || {
             self.bindings_by_name.enter(
                 |b| {
-                    let current_level = self.context().get_current_scope_level_index();
-
                     // Populate the map with all the bindings in the current
                     // scope. Any duplicate names will be shadowed by the last entry.
                     let mut map = HashMap::new();
-                    self.context().for_bindings_of_level_index(current_level, |binding| {
-                        let symbol_data = self.stores().symbol().get(binding.name);
-                        if let Some(name) = symbol_data.name {
-                            map.insert(name, binding.name);
-                        }
-                    });
+                    self.context().for_bindings_of_scope(
+                        self.context().get_current_scope_index(),
+                        |binding| {
+                            let symbol_data = self.stores().symbol().get(binding.name);
+                            if let Some(name) = symbol_data.name {
+                                map.insert(name, binding.name);
+                            }
+                        },
+                    );
 
                     b.push((context_kind, map));
                 },
@@ -350,7 +351,7 @@ impl<'tc> Scoping<'tc> {
     ///
     /// If the declaration is not in a stack scope, this is a no-op.
     pub(super) fn register_declaration(&self, node: ast::AstNodeRef<ast::Declaration>) {
-        if let ScopeKind::Stack(_) = self.context().get_current_scope_kind() {
+        if let ScopeKind::Stack(_) = self.context().get_current_scope().kind {
             self.for_each_stack_member_of_pat(node.pat.ast_ref(), |member| {
                 self.add_stack_binding(member);
             });

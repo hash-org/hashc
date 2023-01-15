@@ -45,6 +45,9 @@ macro_rules! stores {
   }
 }
 
+// @@Performance: Most stores store copy types, why do we use ref-cells when we
+// can use cells?
+
 // All the stores that contain definitions for the typechecker.
 stores! {
     args: ArgsStore,
