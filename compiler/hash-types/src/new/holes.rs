@@ -13,10 +13,17 @@ use super::{
 pub struct Hole(pub Symbol);
 
 /// The kind of a hole binder.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HoleBinderKind {
     Hole(TyId),
     Guess(TermId),
+}
+
+/// A hole binding. This is the first part of a hole binder.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HoleBinding {
+    pub hole: Hole,
+    pub kind: HoleBinderKind,
 }
 
 /// A hole binder.
@@ -24,7 +31,7 @@ pub enum HoleBinderKind {
 /// A hole binder binds a hole to a type or a guess to a term. It is a term of
 /// the form `?x: A. b` or `?x=y. b`. The former is a hole binding and the
 /// latter is a guess binding.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct HoleBinder {
     pub hole: Hole,
     pub kind: HoleBinderKind,

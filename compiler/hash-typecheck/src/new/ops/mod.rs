@@ -1,8 +1,8 @@
 //! Contains various TC-related operations, which form the core of the
 //! typechecker.
 use self::{
-    bootstrap::BootstrapOps, check::CheckOps, context::ContextOps, normalise::NormalisationOps,
-    substitutions::SubstituteOps, unify::UnifyOps,
+    bootstrap::BootstrapOps, check::CheckOps, context::ContextOps, elaboration::ElabOps,
+    normalise::NormalisationOps, substitutions::SubstituteOps, unify::UnifyOps,
 };
 
 pub mod bootstrap;
@@ -15,7 +15,7 @@ pub mod substitutions;
 pub mod unify;
 
 macro_rules! ops {
-    ($($name:ident: $ty:ty),* $(,)?) => {
+    ($($name:ident: $ty:ty),* $(,)? $(; $($extra:item)*)?) => {
         /// A trait that defines typechecking operations, which operate on [`TcEnv`].
         pub trait AccessToOps: $crate::new::environment::tc_env::AccessToTcEnv {
             $(
@@ -23,6 +23,11 @@ macro_rules! ops {
                     <$ty>::new(self.tc_env())
                 }
             )*
+            $(
+                $(
+                    $extra
+                )*
+            )?
         }
         impl<T: $crate::new::environment::tc_env::AccessToTcEnv> AccessToOps for T { }
     };
@@ -35,4 +40,5 @@ ops! {
   bootstrap_ops: BootstrapOps,
   normalisation_ops: NormalisationOps,
   substitute_ops: SubstituteOps,
+  elab_ops: ElabOps;
 }

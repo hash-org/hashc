@@ -48,7 +48,7 @@ pub struct SubEntry {
 /// A substitution, which replaces variables in terms, by other terms.
 #[derive(Debug, Clone)]
 pub struct Sub {
-    data: SmallVec<[SubEntry; 4]>,
+    data: SmallVec<[SubEntry; 3]>,
 }
 
 impl Sub {

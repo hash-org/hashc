@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+
 use hash_intrinsics::{
     intrinsics::{AccessToIntrinsics, DefinedIntrinsics},
     primitives::{AccessToPrimitives, DefinedPrimitives},
@@ -8,7 +10,10 @@ use hash_types::new::environment::env::{AccessToEnv, Env};
 use super::ast_info::AstInfo;
 use crate::new::{
     diagnostics::store::DiagnosticsStore,
-    ops::bootstrap::{DefinedIntrinsicsOrUnset, DefinedPrimitivesOrUnset},
+    ops::{
+        bootstrap::{DefinedIntrinsicsOrUnset, DefinedPrimitivesOrUnset},
+        elaboration::ProofState,
+    },
 };
 
 macro_rules! tc_env {
@@ -58,10 +63,13 @@ macro_rules! tc_env {
     }
 }
 
+type ProofStateRefCell = RefCell<ProofState>;
+
 tc_env! {
     #hide env: Env<'tc>,
     diagnostics: DiagnosticsStore,
     ast_info: AstInfo,
+    proof_state: ProofStateRefCell,
     primitives_or_unset: DefinedPrimitivesOrUnset,
     intrinsics_or_unset: DefinedIntrinsicsOrUnset,
 }

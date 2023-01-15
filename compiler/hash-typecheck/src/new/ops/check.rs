@@ -15,6 +15,7 @@ use hash_types::{
             env::AccessToEnv,
         },
         fns::{FnBody, FnCallTerm, FnDefId, FnTy},
+        holes::HoleBinderKind,
         lits::{Lit, PrimTerm},
         params::{ParamData, ParamsId},
         pats::PatId,
@@ -406,41 +407,46 @@ impl<'tc> CheckOps<'tc> {
     }
 
     /// Check the type of a variable, and return it.
-    pub fn check_var(&self, term: Symbol) -> TyId {
+    pub fn check_var(&self, term: Symbol) -> TcResult<Option<TyId>> {
         match self.context().get_binding(term).unwrap().kind {
             BindingKind::ModMember(_, _) | BindingKind::Ctor(_, _) => {
                 unreachable!("mod members and ctors should have all been resolved by now")
             }
             BindingKind::BoundVar(bound_var) => match bound_var {
-                BoundVarOrigin::Fn(fn_def_id, param_index) => {
+                BoundVarOrigin::Fn(fn_def_id, param_index) => Ok(Some(
                     self.stores()
                         .fn_def()
                         .map_fast(fn_def_id, |fn_def| {
                             self.get_param_by_index(fn_def.ty.params, param_index)
                         })
-                        .ty
-                }
-                BoundVarOrigin::FnTy(fn_ty, param_index) => {
+                        .ty,
+                )),
+                BoundVarOrigin::FnTy(fn_ty, param_index) => Ok(Some(
                     self.stores()
                         .ty()
                         .map_fast(fn_ty, |ty| {
                             let fn_ty = ty_as_variant!(self, value ty, Fn);
                             self.get_param_by_index(fn_ty.params, param_index)
                         })
-                        .ty
-                }
-                BoundVarOrigin::Data(data_def_id, def_param_index) => {
+                        .ty,
+                )),
+                BoundVarOrigin::Data(data_def_id, def_param_index) => Ok(Some(
                     self.stores()
                         .data_def()
                         .map_fast(data_def_id, |data_def| {
                             self.get_def_param_by_index(data_def.params, def_param_index)
                         })
-                        .ty
-                }
-                BoundVarOrigin::StackMember(stack_member_id) => self
-                    .stores()
-                    .stack()
-                    .map_fast(stack_member_id.0, |stack| stack.members[stack_member_id.1].ty),
+                        .ty,
+                )),
+                BoundVarOrigin::StackMember(stack_member_id) => Ok(Some(
+                    self.stores()
+                        .stack()
+                        .map_fast(stack_member_id.0, |stack| stack.members[stack_member_id.1].ty),
+                )),
+                BoundVarOrigin::HoleBinder(hole_binder) => match hole_binder.kind {
+                    HoleBinderKind::Hole(ty_id) => Ok(Some(ty_id)),
+                    HoleBinderKind::Guess(term_id) => self.check_term(term_id),
+                },
             },
         }
     }
@@ -473,7 +479,7 @@ impl<'tc> CheckOps<'tc> {
         // @@Todo: cumulative type universe checks
         self.stores().ty().map(ty_id, |ty| match ty {
             Ty::Eval(eval) => self.check_term(*eval),
-            Ty::Var(var) => Ok(Some(self.check_var(*var))),
+            Ty::Var(var) => self.check_var(*var),
             Ty::Tuple(tuple_ty) => {
                 // Check the parameters
                 self.check_params(tuple_ty.data)?;
@@ -565,7 +571,7 @@ impl<'tc> CheckOps<'tc> {
                 Term::Ctor(ctor_term) => Ok(Some(self.new_ty(self.check_ctor_term(ctor_term)))),
                 Term::FnCall(fn_call_term) => self.check_fn_call_term(fn_call_term, term_id),
                 Term::FnRef(fn_def_id) => Ok(Some(self.new_ty(self.check_fn_def(*fn_def_id)?))),
-                Term::Var(var_term) => Ok(Some(self.check_var(*var_term))),
+                Term::Var(var_term) => self.check_var(*var_term),
                 Term::Return(return_term) => Ok(Some(self.check_return_term(return_term)?)),
                 Term::Ty(ty_id) => self.check_ty(*ty_id),
                 Term::Deref(deref_term) => self.check_deref_term(deref_term),

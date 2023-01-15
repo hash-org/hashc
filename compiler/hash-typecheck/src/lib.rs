@@ -7,6 +7,8 @@
 
 #![feature(decl_macro, slice_pattern, option_result_contains, let_chains, if_let_guard)]
 
+use std::cell::RefCell;
+
 use diagnostics::DiagnosticsStore;
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerStage},
@@ -18,14 +20,18 @@ use hash_reporting::diagnostic::Diagnostics;
 use hash_source::SourceId;
 use hash_types::{
     fmt::PrepareForFormatting,
-    new::environment::{
-        context::Context, env::Env, source_info::CurrentSourceInfo, stores::Stores,
+    new::{
+        environment::{context::Context, env::Env, source_info::CurrentSourceInfo, stores::Stores},
+        utils::common::CommonUtils,
     },
     storage::{LocalStorage, TyStorage},
 };
-use new::environment::{
-    ast_info::AstInfo,
-    tc_env::{AccessToTcEnv, TcEnv},
+use new::{
+    environment::{
+        ast_info::AstInfo,
+        tc_env::{AccessToTcEnv, TcEnv},
+    },
+    ops::elaboration::ProofState,
 };
 use once_cell::unsync::OnceCell;
 use ops::AccessToOps;
@@ -135,6 +141,7 @@ impl<Ctx: TypecheckingCtxQuery> CompilerStage<Ctx> for Typechecker {
 
         let primitives = OnceCell::new();
         let intrinsics = OnceCell::new();
+        let proof_state = RefCell::new(ProofState::new(env.new_void_term()));
 
         // Instantiate a visitor with the source and visit the source, using the
         // previous local storage.
@@ -150,6 +157,7 @@ impl<Ctx: TypecheckingCtxQuery> CompilerStage<Ctx> for Typechecker {
                 &env,
                 &self._new_diagnostic,
                 &self._new_ast_info,
+                &proof_state,
                 &primitives,
                 &intrinsics,
             ),

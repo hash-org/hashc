@@ -1,5 +1,6 @@
 //! Contains operations that are common during typechecking and don't fit
 //! anywhere else.
+
 use crate::new::{diagnostics::error::TcResult, environment::tc_env::AccessToTcEnv};
 
 pub trait CommonOps: AccessToTcEnv {

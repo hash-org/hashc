@@ -141,12 +141,12 @@ impl<'tc> Scoping<'tc> {
         self.context_ops().enter_scope(kind, || {
             self.bindings_by_name.enter(
                 |b| {
-                    let current_level = self.context().get_current_scope_level();
+                    let current_level = self.context().get_current_scope_level_index();
 
                     // Populate the map with all the bindings in the current
                     // scope. Any duplicate names will be shadowed by the last entry.
                     let mut map = HashMap::new();
-                    self.context().for_bindings_of_level(current_level, |binding| {
+                    self.context().for_bindings_of_level_index(current_level, |binding| {
                         let symbol_data = self.stores().symbol().get(binding.name);
                         if let Some(name) = symbol_data.name {
                             map.insert(name, binding.name);
