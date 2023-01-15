@@ -43,7 +43,7 @@ impl fmt::Debug for Alignment {
 }
 
 impl Alignment {
-    pub const ONE: Alignment = Alignment { value: 1 };
+    pub const ONE: Alignment = Alignment { value: 0 };
     pub const MAX: Alignment = Alignment { value: 32 };
 
     /// Create a new alignment from the given alignment in bits. If

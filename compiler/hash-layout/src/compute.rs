@@ -275,12 +275,16 @@ impl<'l> LayoutComputer<'l> {
                     // then we can't perform this optimisation.
                     || (adt.flags.is_enum() && second_present.is_none())
                 {
-                    Ok(self.layouts().create(self.compute_layout_of_univariant(
-                        first_present,
-                        None,
-                        &field_layout_table[first_present],
-                        &adt.representation,
-                    )))
+                    let layout = self
+                        .compute_layout_of_univariant(
+                            first_present,
+                            None,
+                            &field_layout_table[first_present],
+                            &adt.representation,
+                        )
+                        .ok_or(LayoutError::Overflow)?;
+
+                    Ok(self.layouts().create(layout))
                 } else if adt.flags.is_union() {
                     Ok(self.layouts().create(
                         self.compute_layout_of_union(field_layout_table, adt)
@@ -288,7 +292,10 @@ impl<'l> LayoutComputer<'l> {
                     ))
                 } else {
                     // This must be an enum...
-                    Ok(self.layouts().create(self.compute_layout_of_enum(field_layout_table, adt)))
+                    let layout = self
+                        .compute_layout_of_enum(field_layout_table, adt)
+                        .ok_or(LayoutError::Overflow)?;
+                    Ok(self.layouts().create(layout))
                 }
             }),
             IrTy::Fn { .. } => Err(LayoutError::Unknown(ty_id)),
@@ -330,7 +337,7 @@ impl<'l> LayoutComputer<'l> {
         tag: Option<(Size, Alignment)>,
         field_layouts: &[LayoutId],
         representation: &AdtRepresentation,
-    ) -> Layout {
+    ) -> Option<Layout> {
         let dl = self.data_layout();
         let mut abi = AbiRepresentation::Aggregate;
 
@@ -379,7 +386,7 @@ impl<'l> LayoutComputer<'l> {
         }
 
         for &i in &inverse_memory_map {
-            self.layouts().map_fast(field_layouts[i as usize], |layout| {
+            self.layouts().map_fast(field_layouts[i as usize], |layout| -> Option<()> {
                 // We can mark the overall structure as un-inhabited if
                 // we've found a field which is un-inhabited.
                 if layout.abi.is_uninhabited() {
@@ -395,8 +402,9 @@ impl<'l> LayoutComputer<'l> {
                 alignment = alignment.max(layout.alignment);
 
                 // Now increase the offset by the size of the field.
-                offset = offset.checked_add(layout.size, dl).unwrap();
-            })
+                offset = offset.checked_add(layout.size, dl)?;
+                Some(())
+            })?;
         }
 
         // Now we can compute the size of the layout, we take the last
@@ -409,13 +417,13 @@ impl<'l> LayoutComputer<'l> {
             inverse_memory_map
         };
 
-        Layout {
+        Some(Layout {
             variants: Variants::Single { index },
             shape: LayoutShape::Aggregate { fields: offsets, memory_map },
             abi,
             alignment,
             size,
-        }
+        })
     }
 
     /// Compute the layout of a `union` type. Take the layouts of all of the
@@ -508,7 +516,7 @@ impl<'l> LayoutComputer<'l> {
         &self,
         field_layout_table: IndexVec<VariantIdx, Vec<LayoutId>>,
         adt: &AdtData,
-    ) -> Layout {
+    ) -> Option<Layout> {
         debug_assert!(adt.flags.is_enum());
         let dl = self.data_layout();
         let mut alignment = dl.aggregate_align;
@@ -561,7 +569,7 @@ impl<'l> LayoutComputer<'l> {
                     Some((prefix_ty.size(), prefix_alignment)),
                     field_layouts,
                     &adt.representation,
-                );
+                )?;
 
                 // Compute the layout of the starting field, and take the
                 // minimum between the existing value, and the variant
@@ -580,12 +588,18 @@ impl<'l> LayoutComputer<'l> {
 
                 // update the size and alignment of this value based on the
                 // layout and size of the variant.
-                size = size.max(variant.size);
+                size = cmp::max(size, variant.size);
                 alignment = alignment.max(variant.alignment);
 
-                variant
+                Some(variant)
             })
-            .collect::<IndexVec<VariantIdx, _>>();
+            .collect::<Option<IndexVec<VariantIdx, _>>>()?;
+
+        size = size.align_to(alignment.abi);
+
+        if size.bytes() >= self.data_layout().obj_size_bound() {
+            return None;
+        }
 
         // Now that we have computed all of the variants, and figured out the
         // smallest alignment amongst all of the variants, we can now see if
@@ -655,7 +669,7 @@ impl<'l> LayoutComputer<'l> {
             .map(|variant| self.create(variant))
             .collect::<IndexVec<VariantIdx, _>>();
 
-        Layout {
+        Some(Layout {
             shape: LayoutShape::Aggregate {
                 fields: vec![FieldLayout { offset: Size::ZERO, size }],
                 memory_map: vec![0],
@@ -664,7 +678,7 @@ impl<'l> LayoutComputer<'l> {
             abi,
             alignment,
             size,
-        }
+        })
     }
 
     /// Function that computes the ABI of an `enum` like type. This tries
