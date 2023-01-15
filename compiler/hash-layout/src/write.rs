@@ -1,5 +1,7 @@
 //! Contains logic for displaying a computed [Layout] in a pretty format
 //! that can be queried by users.
+//!
+//! @@Todo(feds01): add unit tests for these layouts.
 
 use std::{fmt, iter};
 
@@ -10,11 +12,13 @@ use hash_ir::{
 use hash_target::{abi::AbiRepresentation, size::Size};
 use hash_utils::store::Store;
 
-use crate::{compute::LayoutComputer, FieldLayout, Layout, LayoutShape, TyInfo, Variants};
+use crate::{
+    compute::LayoutComputer, FieldLayout, Layout, LayoutId, LayoutShape, TyInfo, Variants,
+};
 
 /// [LayoutWriterConfig] stores all of the configuration for the [LayoutWriter]
 /// uses, it includes the character set that it should use for the layout.
-pub struct LayoutWritingConfig {
+pub struct LayoutWriterConfig {
     /// The character to use for the top left corner of a box, e.g. `┌` or `+`.
     pub top_left: char,
 
@@ -51,7 +55,7 @@ pub struct LayoutWritingConfig {
     pub horizontal: char,
 }
 
-impl LayoutWritingConfig {
+impl LayoutWriterConfig {
     /// Returns a [LayoutWritingConfig] that uses unicode box drawing
     /// characters.
     pub fn unicode() -> Self {
@@ -118,7 +122,7 @@ pub struct LayoutWriter<'l> {
 
     /// A config that stores all of the characters that are used to
     /// draw the layout.
-    pub config: LayoutWritingConfig,
+    pub config: LayoutWriterConfig,
 }
 
 /// The content of the [Layout] drawing box produced by the
@@ -137,6 +141,9 @@ pub enum BoxContent {
 
     /// A box that represents a padding between two fields.
     Pad { size: Size },
+
+    /// A box that represents an empty space.
+    Empty { width: usize },
 }
 
 impl BoxContent {
@@ -155,6 +162,11 @@ impl BoxContent {
     /// fields.
     pub fn new_pad(size: Size) -> Self {
         Self::Pad { size }
+    }
+
+    /// Create a new [BoxContent] that represents an empty space.
+    pub fn new_empty(width: usize) -> Self {
+        Self::Empty { width }
     }
 
     /// Compute the number of lines that this [BoxContent] will take up.
@@ -187,26 +199,29 @@ impl BoxContent {
     /// ```
     pub fn height(&self) -> usize {
         if let Self::Content { title, content } = self {
-            title.is_some() as usize + 1 + content.lines().count()
+            // If there are no lines, then don't use any space, otherwise
+            // add one line of padding and the rest as the number of lines
+            let lines = if content.is_empty() { 0 } else { content.lines().count() + 1 };
+
+            title.is_some() as usize + lines
         } else {
-            // one for the title
-            1
+            1 // one for the title
         }
     }
 
     /// Compute the width of the box based on the length of the
     /// [BoxContent].
     ///
-    /// N.B. this does not count the surrounding single character
-    /// padding.
+    /// N.B. this counts the surrounding single character padding.
     pub fn width(&self) -> usize {
         match self {
             BoxContent::Content { title, content } => {
                 let title_len = title.as_ref().map(|t| t.len()).unwrap_or(0);
                 let content_len = content.lines().map(|l| l.len()).max().unwrap_or(0);
-                title_len.max(content_len)
+                title_len.max(content_len) + 2
             }
-            BoxContent::Pad { size } => format!("{size} pad").len(),
+            BoxContent::Pad { size } => format!("{size} pad").len() + 2,
+            BoxContent::Empty { width } => *width,
         }
     }
 
@@ -233,176 +248,137 @@ impl BoxContent {
             }
             BoxContent::Pad { size } => {
                 if pos == 0 {
-                    Some(format!("{} pad", size))
+                    Some(format!("{size} pad"))
                 } else if pos == 1 {
                     None
                 } else {
                     Some("##".to_string())
                 }
             }
+            BoxContent::Empty { .. } => None,
+        }
+    }
+
+    /// Compute the line contents at the given position. If the line is
+    /// "empty", the function will return a string of spaces of the given
+    /// width or use the box width.
+    pub fn line_contents(&self, pos: usize, width: Option<usize>) -> String {
+        let contents_or_empty = self.line_at(pos);
+        let width = width.unwrap_or(self.width());
+
+        if let Some(contents) = contents_or_empty {
+            format!("{contents:^width$}")
+        } else {
+            " ".repeat(width)
         }
     }
 }
 
-impl<'l> LayoutWriter<'l> {
-    /// Create a new [LayoutWriter] that will write the given [Layout] to the
-    /// given [fmt::Formatter] using "unicode" characters.
-    pub fn new(ty_info: TyInfo, ctx: LayoutComputer<'l>) -> Self {
-        Self { ty_info, ctx, config: LayoutWritingConfig::unicode() }
+/// A row of boxes that are printed in a single line.
+#[derive(Debug)]
+pub struct BoxRow {
+    /// The contents of each box in the row.
+    pub contents: Vec<BoxContent>,
+
+    /// The computed widths of each box in the row. These are stored
+    /// separately since they may be adjusted by the printer in order
+    /// to align the boxes.
+    pub widths: Vec<usize>,
+
+    /// The max height of the row. This is used to determine the height
+    /// of the row.
+    pub max_height: usize,
+}
+
+impl BoxRow {
+    /// Create a new [BoxRow] with the given contents.
+    pub fn new(contents: Vec<BoxContent>) -> Self {
+        let widths = contents.iter().map(|c| c.width()).collect();
+        let max_height = contents.iter().map(|c| c.height()).max().unwrap_or(0);
+
+        Self { contents, widths, max_height }
     }
 
-    /// Create a new [LayoutWriter] that will write the given [Layout] to the
-    /// given [fmt::Formatter] using "ascii" characters.
-    pub fn new_ascii(ty_info: TyInfo, ctx: LayoutComputer<'l>) -> Self {
-        Self { ty_info, ctx, config: LayoutWritingConfig::ascii() }
+    /// Get the "actual" width of the whole row. This will
+    /// sum all of the widths and add the padding for each
+    /// box in the row.
+    pub fn width(&self) -> usize {
+        self.widths.iter().sum::<usize>() + self.widths.len() + 1
     }
 
-    /// Perform a mapping over the [IrTy] and [Layout] associated with
-    /// this [LayoutWriter].
-    fn with_info<F, T>(&self, f: F) -> T
-    where
-        F: FnOnce(&Self, &IrTy, &Layout) -> T,
-    {
-        self.ctx.ir_ctx().tys().map_fast(self.ty_info.ty, |ty| {
-            self.ctx.map_fast(self.ty_info.layout, |layout| f(self, ty, layout))
-        })
-    }
-
-    /// Create labels for the layout shape, including size and
-    /// offset labels.
+    /// Potentially adjust the width of the [BoxRow] to fit the given
+    /// width.
     ///
-    /// N.B. When creating content for [`Variants::Multiple`], the "variant"
-    /// value must be provided in order to access the correct variant when
-    /// computing box content.
-    pub fn create_box_contents(&self, variant: Option<VariantIdx>) -> Vec<BoxContent> {
-        let mut content = Vec::new();
+    /// N.B. If the width of this [BoxRow] is greater than the desired
+    /// width, this function will not do anything.
+    fn adjust_to_width(&mut self, width: usize) {
+        let current_width = self.width();
 
-        self.with_info(|this, ty, layout| {
-            let singular_box_content = || {
-                format!(
-                    "  size: {}\noffset: {}\n align: {}",
-                    layout.size,
-                    Size::ZERO,
-                    layout.alignment.abi
-                )
-            };
+        if current_width == width {
+            return;
+        }
 
-            // If the layout is a `ZST`, then we just return a single box
-            // with the layout, and a `<ZST>` label
-            if layout.is_zst() {
-                content.push(BoxContent::new("<ZST>".to_string(), singular_box_content()));
-                return;
-            }
+        // Insert an empty box to fill in the missing gap.
+        if width - current_width > 2 {
+            let empty_width = width - current_width - 1;
+            self.widths.push(empty_width);
+            self.contents.push(BoxContent::new_empty(empty_width));
+        } else {
+            // The row box doesn't need padding, but the
+            // last box in the row will need it's width to be adjusted.
+            let last_width = self.widths.len() - 1;
+            self.widths[last_width] += 1;
+        }
+    }
+}
 
-            match &layout.shape {
-                // Reasonably trivial case where we just have a primitive,
-                // here we just put the `size` and `offset` as the label.
-                LayoutShape::Primitive => {
-                    content.push(BoxContent::new("primitive".to_string(), singular_box_content()));
-                }
-                LayoutShape::Union { .. } => {
-                    // @@Todo: could there be a better title string for a
-                    // union primitive?
-                    content
-                        .push(BoxContent::new(format!("union{{count}}"), singular_box_content()));
-                }
-                LayoutShape::Array { stride, elements } => {
-                    content.push(BoxContent::new(
-                        format!("[{stride}; {elements}]"),
-                        singular_box_content(),
-                    ));
-                }
-                // Loop over all of the offsets, and then add content
-                // boxes for each field, with the title being the name
-                // of the field, and the type of the field in the form
-                // of `<field: ty>`. The type of the field is printed
-                // in minimal form.
-                LayoutShape::Aggregate { fields: offsets, memory_map } => {
-                    // Load in the fields of the aggregate, however, this depends
-                    // on the type that is being stored.
-                    let fields = match (layout.abi, ty) {
-                        (_, IrTy::Adt(adt)) => {
-                            this.ctx.ir_ctx().map_adt(*adt, |_, adt| {
-                                // we load in the variant that is specified in the
-                                // "layouts" of the type.
-                                let variant = match layout.variants {
-                                    Variants::Single { index } => index,
-                                    Variants::Multiple { .. } => variant.unwrap(),
-                                };
+/// Represents the kind of connector that is being used to
+/// join up two rows.
+#[derive(Debug, Clone, Copy)]
+pub enum ConnectorKind {
+    /// Connector that is shared between two rows, i.e. `┼`
+    Shared,
 
-                                adt.variant(variant)
-                                    .fields
-                                    .clone()
-                                    .into_iter()
-                                    .map(|field| {
-                                        (
-                                            field.name,
-                                            format!("{}", field.ty.for_fmt(this.ctx.ir_ctx())),
-                                        )
-                                    })
-                                    .collect::<Vec<_>>()
-                            })
-                        }
-                        (AbiRepresentation::Scalar(scalar), _) => {
-                            vec![(0usize.into(), format!("{}", scalar))]
-                        }
-                        (AbiRepresentation::Pair(scalar_1, scalar_2), _) => {
-                            vec![
-                                (0usize.into(), format!("{scalar_1}")),
-                                (1usize.into(), format!("{scalar_2}")),
-                            ]
-                        }
-                        _ => unreachable!(),
-                    };
+    /// Connector that faces up, i.e. `┴`
+    Up,
 
-                    // The current computed size of the aggregate disregarding the last padding
-                    // on the field (if any).
-                    let mut current_size = Size::ZERO;
+    /// Connector that faces down, i.e. `┬`
+    Down,
+}
 
-                    for (&FieldLayout { size, offset }, index) in
-                        offsets.iter().zip(memory_map.iter())
-                    {
-                        // we skip the first field, as the padding before this field
-                        // maybe as the result of being within a variant, and therefore
-                        // the padding will be handled by the variant printing.
-                        if current_size < offset && *index != 0 {
-                            let pad_size = offset - current_size;
+impl ConnectorKind {
+    /// Check whether another [ConnectorKind] is on the same
+    /// "level" as this one.
+    pub fn is_same_level(&self, other: &Self) -> bool {
+        matches!(
+            (self, other),
+            (_, Self::Shared) | (Self::Shared, _) | (Self::Down, Self::Down) | (Self::Up, Self::Up)
+        )
+    }
+}
 
-                            // we need to add this as padding to the content
-                            content.push(BoxContent::new_pad(pad_size));
-                        }
+/// Represents a connector that is used to join up two rows.
+#[derive(Debug, Clone, Copy)]
+pub struct Connector {
+    /// The kind of connector that is being used.
+    pub kind: ConnectorKind,
 
-                        let index = *index as usize;
+    /// The symbol that should be used to print this
+    /// particular connector.
+    symbol: char,
 
-                        content.push(BoxContent::new(
-                            format!("{}: {}", fields[index].0, fields[index].1),
-                            format!(
-                                "  size: {}\noffset: {}\n align: {}",
-                                size, offset, layout.alignment.abi
-                            ),
-                        ));
+    /// The width of the connector up to the next connector.
+    offset: usize,
+}
 
-                        current_size = offset + size;
-                    }
-
-                    // If the `current_size` isn't equal to the size of the layout, then
-                    // we need to add padding box to the content.
-                    if current_size < layout.size {
-                        let pad_size = layout.size - current_size;
-
-                        // we need to add this as padding to the content
-                        content.push(BoxContent::new_pad(pad_size));
-                    }
-                }
-            }
-        });
-
-        content
+impl fmt::Display for Connector {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.symbol)
     }
 }
 
 struct LayoutWriterHelper<'l> {
-    config: &'l LayoutWritingConfig,
+    config: &'l LayoutWriterConfig,
 }
 
 impl LayoutWriterHelper<'_> {
@@ -421,18 +397,304 @@ impl LayoutWriterHelper<'_> {
         // we need to print the top edge of the box, which is just a line
         // of `+` characters, with the width of the box being the width
         // of the box, plus 2 for the padding.
-        for (index, width) in widths.iter().enumerate() {
+        for (index, width) in widths.iter().copied().enumerate() {
             let pos = (row_pos, index);
             write!(
                 f,
                 "{}{}",
                 self.config.connector(pos, max),
-                iter::repeat(self.config.horizontal).take(width + 2).collect::<String>()
+                iter::repeat(self.config.horizontal).take(width).collect::<String>()
             )?;
         }
 
         // we have to write the end of the box...
         writeln!(f, "{}", self.config.connector((row_pos, widths.len()), max))
+    }
+
+    fn compute_connectors(&self, widths: &[usize], from_top: bool) -> Vec<Connector> {
+        let row = if from_top { 0 } else { 1 };
+        let kind = if from_top { ConnectorKind::Down } else { ConnectorKind::Up };
+
+        let max = (1, widths.len());
+        let mut current_offset = 1;
+
+        let mut connectors = vec![];
+
+        for (index, width) in widths.iter().enumerate() {
+            let pos = (row, index); // we assume that we are the top row...
+
+            connectors.push(Connector {
+                kind,
+                symbol: self.config.connector(pos, max),
+                offset: current_offset,
+            });
+
+            // One character for the connector, and the rest of the width
+            current_offset += width + 1;
+
+            // If we are not the last connector, we need to add a connector
+            // to the collection.
+            if index == widths.len() - 1 {
+                let pos = (row, index + 1);
+
+                connectors.push(Connector {
+                    kind,
+                    symbol: self.config.connector(pos, max),
+                    offset: current_offset,
+                });
+            }
+        }
+
+        connectors
+    }
+
+    /// Draw a connecting horizontal edge between two box rows. This means that
+    /// we have to handle connectors that are in the middle of the box, which
+    /// might be connected in different points to the other boxes.
+    pub fn write_central_horizontal_edge(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+        first_widths: &[usize],
+        next_widths: &[usize],
+    ) -> fmt::Result {
+        // We store a collection of connectors, with the "connector" kind, and then the
+        // offset that it exists at. Firstly, we populate the collection with the
+        // connectors from the top width, and then we perform another pass to
+        // "adjust" the existing connectors, and to insert the connectors from
+        // the bottom widths.
+
+        // Top ideas only...
+        let top = self.compute_connectors(first_widths, false);
+        let bottom = self.compute_connectors(next_widths, true);
+
+        let max_offset = top.last().unwrap().offset;
+        let mut merged_connectors = top;
+
+        // Now we merge the bottom connectors...
+        for bottom_connector in bottom.iter() {
+            let current_offset = bottom_connector.offset;
+            let index =
+                merged_connectors.iter().position(|connector| connector.offset >= current_offset);
+
+            if let Some(offset_index) = index {
+                // If we have hit an intersection with another connector,
+                // we need to replace the connector with a cross connector.
+                if merged_connectors[offset_index].offset == current_offset {
+                    merged_connectors[offset_index] = Connector {
+                        kind: ConnectorKind::Shared,
+                        // the offsets always start at 1
+                        symbol: match current_offset {
+                            1 => self.config.center_left,
+                            _ if current_offset == max_offset => self.config.center_right,
+                            _ => self.config.center,
+                        },
+                        offset: current_offset,
+                    };
+                } else {
+                    // Otherwise, we need to insert the connector into the collection.
+                    merged_connectors.insert(offset_index, *bottom_connector);
+                }
+            } else {
+                // Otherwise, we need to insert the connector into the collection.
+                merged_connectors.push(*bottom_connector);
+            }
+        }
+
+        // Now we write the connectors to the formatter.
+        for connector_pair in merged_connectors.windows(2) {
+            let [first, second] = connector_pair else {
+                unreachable!()
+            };
+
+            // Subtract one since we don't actually care about the "connector"
+            // symbol.
+            let spaces = (second.offset - first.offset) - 1;
+
+            write!(
+                f,
+                "{}{}",
+                first.symbol,
+                iter::repeat(self.config.horizontal).take(spaces).collect::<String>()
+            )?;
+        }
+
+        // Write the last connector
+        writeln!(f, "{}", merged_connectors.last().unwrap().symbol)
+    }
+}
+
+impl<'l> LayoutWriter<'l> {
+    /// Create a new [LayoutWriter] that will write the given [Layout] to the
+    /// given [fmt::Formatter] using "unicode" characters.
+    pub fn new(ty_info: TyInfo, ctx: LayoutComputer<'l>) -> Self {
+        Self { ty_info, ctx, config: LayoutWriterConfig::unicode() }
+    }
+
+    /// Create a new [LayoutWriter] that will write the given [Layout] to the
+    /// given [fmt::Formatter] using "ascii" characters.
+    pub fn new_ascii(ty_info: TyInfo, ctx: LayoutComputer<'l>) -> Self {
+        Self { ty_info, ctx, config: LayoutWriterConfig::ascii() }
+    }
+
+    /// Perform a mapping over the [IrTy] and [Layout] associated with
+    /// this [LayoutWriter].
+    fn with_info<F, T>(&self, f: F) -> T
+    where
+        F: FnOnce(&Self, &IrTy, &Layout) -> T,
+    {
+        self.ctx.ir_ctx().tys().map_fast(self.ty_info.ty, |ty| {
+            self.ctx.map_fast(self.ty_info.layout, |layout| f(self, ty, layout))
+        })
+    }
+
+    ///
+    pub fn create_box_contents_for_shape(&self) -> Vec<BoxContent> {
+        self.with_info(|this, ty, layout| this.create_box_contents(ty, layout, None))
+    }
+
+    pub fn create_box_contents_for_variant(
+        &self,
+        variant: VariantIdx,
+        layout: LayoutId,
+    ) -> Vec<BoxContent> {
+        self.ctx.ir_ctx().tys().map_fast(self.ty_info.ty, |ty| {
+            let mut contents = self
+                .ctx
+                .map_fast(layout, |layout| self.create_box_contents(ty, layout, Some(variant)));
+
+            // we also insert an initial box with the variant name
+            contents.insert(0, BoxContent::new(variant.to_string(), "".to_string()));
+            contents
+        })
+    }
+
+    /// Create labels for the [LayoutShape], including size and
+    /// offset labels.
+    ///
+    /// N.B. When creating content for [`Variants::Multiple`], the "variant"
+    /// value must be provided in order to access the correct variant when
+    /// computing box content.
+    fn create_box_contents(
+        &self,
+        ty: &IrTy,
+        layout: &Layout,
+        variant: Option<VariantIdx>,
+    ) -> Vec<BoxContent> {
+        let mut boxes = Vec::new();
+
+        let singular_box_content = || {
+            format!(
+                "  size: {}\noffset: {}\n align: {}",
+                layout.size,
+                Size::ZERO,
+                layout.alignment.abi
+            )
+        };
+
+        // If the layout is a `ZST`, then we just return a single box
+        // with the layout, and a `<ZST>` label
+        if layout.is_zst() {
+            boxes.push(BoxContent::new("<ZST>".to_string(), singular_box_content()));
+            return boxes;
+        }
+
+        match &layout.shape {
+            // Reasonably trivial case where we just have a primitive,
+            // here we just put the `size` and `offset` as the label.
+            LayoutShape::Primitive => {
+                boxes.push(BoxContent::new("primitive".to_string(), singular_box_content()));
+            }
+            LayoutShape::Union { count } => {
+                // @@Todo: could there be a better title string for a
+                // union primitive?
+                boxes.push(BoxContent::new(format!("union{count}"), singular_box_content()));
+            }
+            LayoutShape::Array { stride, elements } => {
+                boxes.push(BoxContent::new(
+                    format!("[{stride}; {elements}]"),
+                    singular_box_content(),
+                ));
+            }
+            // Loop over all of the offsets, and then add content
+            // boxes for each field, with the title being the name
+            // of the field, and the type of the field in the form
+            // of `<field: ty>`. The type of the field is printed
+            // in minimal form.
+            LayoutShape::Aggregate { fields, .. } => {
+                // Load in the fields of the aggregate, however, this depends
+                // on the type that is being stored.
+                let field_titles = match (layout.abi, ty) {
+                    (_, IrTy::Adt(adt)) => {
+                        self.ctx.ir_ctx().map_adt(*adt, |_, adt| {
+                            // we load in the variant that is specified in the
+                            // "layouts" of the type.
+                            let variant = match layout.variants {
+                                Variants::Single { index } => index,
+                                Variants::Multiple { .. } => variant.unwrap(),
+                            };
+
+                            adt.variant(variant)
+                                .fields
+                                .clone()
+                                .into_iter()
+                                .map(|field| {
+                                    (field.name, format!("{}", field.ty.for_fmt(self.ctx.ir_ctx())))
+                                })
+                                .collect::<Vec<_>>()
+                        })
+                    }
+                    (AbiRepresentation::Scalar(scalar), _) => {
+                        vec![(0usize.into(), format!("{scalar}"))]
+                    }
+                    (AbiRepresentation::Pair(scalar_1, scalar_2), _) => {
+                        vec![
+                            (0usize.into(), format!("{scalar_1}")),
+                            (1usize.into(), format!("{scalar_2}")),
+                        ]
+                    }
+                    _ => unreachable!(),
+                };
+
+                // The current computed size of the aggregate disregarding the last padding
+                // on the field (if any).
+                let mut current_size = Size::ZERO;
+
+                for index in layout.shape.iter_increasing_offsets() {
+                    let FieldLayout { offset, size } = fields[index];
+
+                    // we skip the first field, as the padding before this field
+                    // maybe as the result of being within a variant, and therefore
+                    // the padding will be handled by the variant printing.
+                    if current_size < offset && index != 0 {
+                        let pad_size = offset - current_size;
+
+                        // we need to add this as padding to the content
+                        boxes.push(BoxContent::new_pad(pad_size));
+                    }
+
+                    boxes.push(BoxContent::new(
+                        format!("{}: {}", field_titles[index].0, field_titles[index].1),
+                        format!(
+                            "  size: {}\noffset: {}\n align: {}",
+                            size, offset, layout.alignment.abi
+                        ),
+                    ));
+
+                    current_size = offset + size;
+                }
+
+                // If the `current_size` isn't equal to the size of the layout, then
+                // we need to add padding box to the content.
+                if current_size < layout.size {
+                    let pad_size = layout.size - current_size;
+
+                    // we need to add this as padding to the content
+                    boxes.push(BoxContent::new_pad(pad_size));
+                }
+            }
+        }
+
+        boxes
     }
 }
 
@@ -456,7 +718,7 @@ impl fmt::Display for LayoutWriter<'_> {
                 Variants::Single { index: _ } => {
                     // this is the simple case, we merely need to print the
                     // boxes in a single row.
-                    let content_boxes = self.create_box_contents(None);
+                    let content_boxes = self.create_box_contents_for_shape();
                     let max_height = content_boxes
                         .iter()
                         .map(|box_content| box_content.height())
@@ -477,26 +739,124 @@ impl fmt::Display for LayoutWriter<'_> {
                             // write the line at the box, and align it to the maximum width of
                             // the box.
                             if let Some(line_contents) = content_box.line_at(line) {
-                                write!(
-                                    f,
-                                    "{:^width$}{}",
-                                    line_contents,
-                                    self.config.vertical,
-                                    width = width + 2
-                                )?;
+                                write!(f, "{:^width$}{}", line_contents, self.config.vertical,)?;
                             } else {
-                                write!(f, "{}{}", " ".repeat(width + 2), self.config.vertical)?;
+                                write!(f, "{}{}", " ".repeat(*width), self.config.vertical)?;
                             }
                         }
                         writeln!(f)?;
                     }
 
                     helper.write_box_horizontal_edge(f, false, &box_widths)?;
-
                     Ok(())
                 }
-                Variants::Multiple { tag: _, field: _, variants: _ } => {
-                    write!(f, "tag | shape")
+                Variants::Multiple { tag, field: _, ref variants } => {
+                    // firstly, deal with the tag box which is just essentially,
+                    // a title with the size of the tag, possible padding and then
+                    // the variants proceed after it.
+                    let mut content_table = variants
+                        .iter_enumerated()
+                        .map(|(index, layout)| {
+                            let contents = self.create_box_contents_for_variant(index, *layout);
+                            let max_height = contents
+                                .iter()
+                                .map(|box_content| box_content.height())
+                                .max()
+                                .unwrap_or(1);
+                            let widths: Vec<_> =
+                                contents.iter().map(|box_content| box_content.width()).collect();
+
+                            BoxRow { contents, widths, max_height }
+                        })
+                        .collect::<Vec<_>>();
+
+                    // Now, we might need to adjust the last content boxes in order to
+                    // account for the fact that these boxes might be smaller than the
+                    // largest row length, and thus have to ve grown or table padding
+                    // is needed. So, for every row, we compute the "action" that is
+                    // needed when printing the row.
+                    //
+                    // If the different between this row and the largest is <= 1, then
+                    // we will adjust the width of the last box to account for the missing
+                    // gap.
+                    let row_widths: Vec<_> = content_table.iter().map(|row| row.width()).collect();
+                    let max_row_width = *row_widths.iter().max().unwrap_or(&0);
+
+                    for row in &mut content_table {
+                        row.adjust_to_width(max_row_width)
+                    }
+
+                    debug_assert!(content_table.iter().all(|row| { row.width() == max_row_width }));
+
+                    // Now we will insert the "tag" row above all of the other rows.
+                    // Deal with the tag box or boxes first...
+                    let tag_size = tag.size(self.ctx.data_layout());
+
+                    let offset = layout.shape.offset(0);
+                    let mut tag_row = if tag_size < offset {
+                        // we need to print the tag box first, and then the
+                        // variants.
+                        BoxRow::new(vec![
+                            BoxContent::new(format!("{tag_size} tag"), "".to_string()),
+                            BoxContent::new_pad(offset - tag_size),
+                        ])
+                    } else {
+                        BoxRow::new(vec![BoxContent::new(
+                            format!("{tag_size} tag"),
+                            "".to_string(),
+                        )])
+                    };
+
+                    // adjust the row to the maximum row size and insert it into the table contents
+                    tag_row.adjust_to_width(max_row_width);
+                    content_table.insert(0, tag_row);
+
+                    let helper = LayoutWriterHelper { config: &self.config };
+
+                    // First draw the horizontal edge of the start
+                    helper.write_box_horizontal_edge(f, true, &content_table[0].widths)?;
+
+                    let write_row = |f: &mut fmt::Formatter<'_>, row: &BoxRow| -> fmt::Result {
+                        for line in 0..row.max_height {
+                            for content_box in row.contents.iter() {
+                                write!(
+                                    f,
+                                    "{}{}",
+                                    self.config.vertical,
+                                    content_box.line_contents(line, None)
+                                )?;
+                            }
+
+                            writeln!(f, "{}", self.config.vertical)?;
+                        }
+
+                        Ok(())
+                    };
+
+                    for content_rows in content_table.windows(2) {
+                        let (current_row, next_row) = (&content_rows[0], &content_rows[1]);
+
+                        write_row(f, current_row)?;
+
+                        // Write the connecting edge between the two rows, accounting for
+                        // connectors intersecting with the central edge.
+                        helper.write_central_horizontal_edge(
+                            f,
+                            &current_row.widths,
+                            &next_row.widths,
+                        )?;
+                    }
+
+                    // we need to write the final row of the table
+                    write_row(f, content_table.last().unwrap())?;
+
+                    helper.write_box_horizontal_edge(
+                        f,
+                        false,
+                        &content_table.last().unwrap().widths,
+                    )?;
+
+                    Ok(())
                 }
             }
         })
