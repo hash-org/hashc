@@ -32,7 +32,7 @@ use hash_types::pats::{
 use hash_utils::store::Store;
 use smallvec::{smallvec, SmallVec};
 
-use crate::build::{place::PlaceBuilder, ty::evaluate_int_lit_term, Builder};
+use crate::build::{place::PlaceBuilder, Builder};
 
 /// A [Candidate] is a representation of a single `match` arm that
 /// is used to generate code for a `match` block. [Candidate]s store
@@ -188,7 +188,7 @@ impl<'tcx> Builder<'tcx> {
             // Check if the bindings has a single or-pattern
             if let [pair] = &*match_pairs {
                 if self.tcx.pat_store.map_fast(pair.pat, Pat::is_or) {
-                    // append all the new bindings, and then swap the two vecs around
+                    // append all the new bindings, and then swap the two vectors around
                     existing_bindings.extend_from_slice(&new_bindings);
                     mem::swap(&mut candidate.bindings, &mut existing_bindings);
 
@@ -227,7 +227,7 @@ impl<'tcx> Builder<'tcx> {
             candidate.bindings.clear();
 
             if !changed {
-                // append all the new bindings, and then swap the two vecs around
+                // append all the new bindings, and then swap the two vectors around
                 existing_bindings.extend_from_slice(&new_bindings);
                 mem::swap(&mut candidate.bindings, &mut existing_bindings);
 
@@ -314,10 +314,10 @@ impl<'tcx> Builder<'tcx> {
                         // we have to convert the `lo` term into the actual value, by getting
                         // the literal term from this term, and then converting the stored value
                         // into a u128...
-                        let lo_val = evaluate_int_lit_term(*lo, self.tcx).1 ^ bias;
+                        let lo_val = self.evaluate_const_pat_term(*lo).1 ^ bias;
 
                         if lo_val <= min {
-                            let hi_val = evaluate_int_lit_term(*hi, self.tcx).1 ^ bias;
+                            let hi_val = self.evaluate_const_pat_term(*hi).1 ^ bias;
 
                             // In this situation, we have an irrefutable pattern, so we can
                             // always go down this path
@@ -396,7 +396,7 @@ impl<'tcx> Builder<'tcx> {
                         // @@FixMe: this is not the correct place to use, since we might encounter
                         //           a spread pattern in various locations which means we might
                         //           affect the actual place that is being referenced. This process
-                        //           should be alot simpler to do we switch to the new pattern
+                        //           should be a lot simpler to do we switch to the new pattern
                         //           representation. This is because, the spreads are now on each
                         //           specific pattern, which means that we can more precisely
                         // determine           the place that we are

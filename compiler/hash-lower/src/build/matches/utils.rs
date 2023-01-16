@@ -4,9 +4,9 @@ use std::cmp::Ordering;
 
 use hash_ast::ast::RangeEnd;
 use hash_ir::ir::{compare_constant_values, Const};
-use hash_types::{pats::RangePat, storage::GlobalStorage};
+use hash_types::pats::RangePat;
 
-use crate::build::ty::evaluate_int_lit_term;
+use crate::build::Builder;
 
 /// A constant range which is a representation of a range pattern, but
 /// instead of using [TermId]s, we directly store these with [Const]s.
@@ -24,10 +24,10 @@ pub(super) struct ConstRange {
 }
 
 impl ConstRange {
-    /// Create a [ConstRange] from [PatRange].
-    pub fn from_range(range: &RangePat, tcx: &GlobalStorage) -> Self {
-        let (lo, _) = evaluate_int_lit_term(range.lo, tcx);
-        let (hi, _) = evaluate_int_lit_term(range.hi, tcx);
+    /// Create a [ConstRange] from [RangePat].
+    pub fn from_range(range: &RangePat, builder: &Builder) -> Self {
+        let (lo, _) = builder.evaluate_const_pat_term(range.lo);
+        let (hi, _) = builder.evaluate_const_pat_term(range.hi);
 
         Self { lo, hi, end: range.end }
     }
