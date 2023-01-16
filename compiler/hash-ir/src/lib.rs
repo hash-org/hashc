@@ -75,7 +75,7 @@ impl IrCtx {
             projection_store: ProjectionStore::default(),
             ty_store: TyStore::new(),
             ty_list_store: TyListStore::default(),
-            adt_store: AdtStore::default(),
+            adt_store: AdtStore::new(),
             ty_cache: RefCell::new(HashMap::new()),
         }
     }

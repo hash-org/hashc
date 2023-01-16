@@ -12,7 +12,7 @@ use hash_source::{
     identifier::Identifier,
 };
 use hash_target::{
-    abi::{self, Integer},
+    abi::{self, Integer, ScalarKind},
     layout::HasDataLayout,
     size::Size,
 };
@@ -169,13 +169,15 @@ impl IrTy {
         Self::UInt(UIntTy::USize)
     }
 
-    /// Make a unit type, i.e. `()`
-    pub fn unit(ctx: &IrCtx) -> Self {
-        let variants = index_vec![AdtVariant { name: 0usize.into(), fields: vec![] }];
-        let adt = AdtData::new_with_flags("unit".into(), variants, AdtFlags::TUPLE);
-        let adt_id = ctx.adts().create(adt);
-
-        Self::Adt(adt_id)
+    /// Create a pointer to a unit item. This is used as the
+    /// "opaque" pointer type in order to just represent a
+    /// pointer type.
+    pub fn unit_ptr(ctx: &IrCtx) -> IrTyId {
+        ctx.tys().create(IrTy::Ref(
+            ctx.tys().common_tys.unit,
+            Mutability::Immutable,
+            RefKind::Normal,
+        ))
     }
 
     /// Make a tuple type, i.e. `(T1, T2, T3, ...)`
@@ -565,10 +567,46 @@ pub struct AdtField {
 
 new_store_key!(pub AdtId);
 
+impl AdtId {
+    /// The unit type always uses the first ID in the store.
+    pub const UNIT: AdtId = AdtId { index: 0 };
+}
+
 /// Stores all the used [IrTy]s.
 ///
 /// [IrTy]s are accessed by an ID, of type [IrTyId].
-pub type AdtStore = DefaultStore<AdtId, AdtData>;
+pub struct AdtStore {
+    /// The underlying store.
+    store: DefaultStore<AdtId, AdtData>,
+}
+
+impl AdtStore {
+    /// Create a new [AdtStore], and initialise the store
+    /// with the unit type.
+    pub fn new() -> AdtStore {
+        let store = DefaultStore::new();
+
+        let variants = index_vec![AdtVariant { name: 0usize.into(), fields: vec![] }];
+        let adt = AdtData::new_with_flags("unit".into(), variants, AdtFlags::TUPLE);
+
+        let id = store.create(adt);
+        assert!(AdtId::UNIT == id);
+
+        Self { store }
+    }
+}
+
+impl Default for AdtStore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Store<AdtId, AdtData> for AdtStore {
+    fn internal_data(&self) -> &std::cell::RefCell<Vec<AdtData>> {
+        self.store.internal_data()
+    }
+}
 
 impl fmt::Display for ForFormatting<'_, AdtId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -646,7 +684,8 @@ create_common_ty_table!(
     u32: IrTy::UInt(UIntTy::U32),
     u64: IrTy::UInt(UIntTy::U64),
     u128: IrTy::UInt(UIntTy::U128),
-    usize: IrTy::UInt(UIntTy::USize),
+    usize: IrTy::UInt(UIntTy::USize), // Unit types, and unit ptr types
+    unit: IrTy::Adt(AdtId::UNIT),
 );
 
 /// Stores all the used [IrTy]s.
@@ -668,6 +707,7 @@ impl Default for TyStore {
 }
 
 impl TyStore {
+    /// Create a new [TyStore].
     pub(crate) fn new() -> Self {
         let data = DefaultStore::new();
 
@@ -747,15 +787,15 @@ impl fmt::Display for ForFormatting<'_, IrTyListId> {
     }
 }
 
-/// An auxilliary data structure that is used to compute the
+/// An auxiliary data structure that is used to compute the
 /// [IrTy] of a [Place].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PlaceTy {
     /// The [IrTy] of the place.
     pub ty: IrTyId,
 
-    /// If the place has been downcasted, then this records
-    /// the index of the variant that it has been downcasted to.
+    /// If the place has been downcast, then this records
+    /// the index of the variant that it has been downcast to.
     pub index: Option<VariantIdx>,
 }
 
@@ -832,5 +872,55 @@ impl PlaceTy {
         });
 
         base
+    }
+}
+
+/// This defines a trait that it used to create [IrTy]s from
+/// data types that aren't defined within the IR crate, but from
+/// places like the ABI where it is still useful to convert a  
+/// value into a [IrTy].
+pub trait ToIrTy {
+    /// Convert the current type into an [IrTy].
+    fn to_ir_ty(&self, ctx: &IrCtx) -> IrTyId;
+}
+
+// Convert from `IntTy` into an `IrTy`.
+impl ToIrTy for IntTy {
+    fn to_ir_ty(&self, ctx: &IrCtx) -> IrTyId {
+        match self {
+            IntTy::Int(ty) => match ty {
+                SIntTy::I8 => ctx.tys().common_tys.i8,
+                SIntTy::I16 => ctx.tys().common_tys.i16,
+                SIntTy::I32 => ctx.tys().common_tys.i32,
+                SIntTy::I64 => ctx.tys().common_tys.i64,
+                SIntTy::I128 => ctx.tys().common_tys.i128,
+                SIntTy::ISize => ctx.tys().common_tys.isize,
+                _ => unimplemented!(),
+            },
+            IntTy::UInt(ty) => match ty {
+                UIntTy::U8 => ctx.tys().common_tys.u8,
+                UIntTy::U16 => ctx.tys().common_tys.u16,
+                UIntTy::U32 => ctx.tys().common_tys.u32,
+                UIntTy::U64 => ctx.tys().common_tys.u64,
+                UIntTy::U128 => ctx.tys().common_tys.u128,
+                UIntTy::USize => ctx.tys().common_tys.usize,
+                _ => unimplemented!(),
+            },
+        }
+    }
+}
+
+// Convert from an ABI scalar kind into an `IrTy`.
+impl ToIrTy for ScalarKind {
+    fn to_ir_ty(&self, ctx: &IrCtx) -> IrTyId {
+        match *self {
+            ScalarKind::Int { kind, signed } => {
+                let int_ty = IntTy::from_integer(kind, signed);
+                int_ty.to_ir_ty(ctx)
+            }
+            ScalarKind::Float { kind: FloatTy::F32 } => ctx.tys().common_tys.f32,
+            ScalarKind::Float { kind: FloatTy::F64 } => ctx.tys().common_tys.f64,
+            ScalarKind::Pointer => IrTy::unit_ptr(ctx),
+        }
     }
 }

@@ -357,7 +357,7 @@ impl PartialOrd for IntConstant {
                     Some(left_val.cmp(&right_val))
                 } else {
                     // Deal with bigints...
-                    todo!()
+                    unimplemented!()
                 }
             }
             (IntTy::UInt(left), IntTy::UInt(right)) if left == right => {
@@ -368,7 +368,7 @@ impl PartialOrd for IntConstant {
                     Some(left_val.cmp(&right_val))
                 } else {
                     // Deal with bigints...
-                    todo!()
+                    unimplemented!()
                 }
             }
             _ => None,

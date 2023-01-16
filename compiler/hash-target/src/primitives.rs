@@ -8,7 +8,7 @@ use std::fmt;
 
 use num_bigint::BigInt;
 
-use crate::{alignment::Alignments, layout::HasDataLayout, size::Size};
+use crate::{abi::Integer, alignment::Alignments, layout::HasDataLayout, size::Size};
 
 /// A primitive floating-point type, either a `f32` or an `f64`.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -130,6 +130,18 @@ impl UIntTy {
     }
 }
 
+impl From<Integer> for UIntTy {
+    fn from(value: Integer) -> Self {
+        match value {
+            Integer::I8 => UIntTy::U8,
+            Integer::I16 => UIntTy::U16,
+            Integer::I32 => UIntTy::U32,
+            Integer::I64 => UIntTy::U64,
+            Integer::I128 => UIntTy::U128,
+        }
+    }
+}
+
 impl From<UIntTy> for IntTy {
     fn from(value: UIntTy) -> Self {
         IntTy::UInt(value)
@@ -220,6 +232,18 @@ impl SIntTy {
     }
 }
 
+impl From<Integer> for SIntTy {
+    fn from(value: Integer) -> Self {
+        match value {
+            Integer::I8 => SIntTy::I8,
+            Integer::I16 => SIntTy::I16,
+            Integer::I32 => SIntTy::I32,
+            Integer::I64 => SIntTy::I64,
+            Integer::I128 => SIntTy::I128,
+        }
+    }
+}
+
 impl From<SIntTy> for IntTy {
     fn from(value: SIntTy) -> Self {
         IntTy::Int(value)
@@ -242,6 +266,15 @@ pub enum IntTy {
 }
 
 impl IntTy {
+    /// Convert a [Integer] with signed-ness into a [IntTy]
+    pub fn from_integer(integer: Integer, signed: bool) -> Self {
+        if signed {
+            IntTy::Int(SIntTy::from(integer))
+        } else {
+            IntTy::UInt(UIntTy::from(integer))
+        }
+    }
+
     /// Convert the type into a name.
     pub fn to_name(&self) -> &'static str {
         match self {

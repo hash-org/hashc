@@ -70,10 +70,8 @@ impl<'tcx> Builder<'tcx> {
         match &self.tmp_place {
             Some(tmp) => *tmp,
             None => {
-                let ty = IrTy::unit(self.ctx);
-                let ty_id = self.ctx.tys().create(ty);
-
-                let local = LocalDecl::new_auxiliary(ty_id, Mutability::Immutable);
+                let local =
+                    LocalDecl::new_auxiliary(self.ctx.tys().common_tys.unit, Mutability::Immutable);
                 let local_id = self.declarations.push(local);
 
                 let place = Place::from_local(local_id, self.ctx);

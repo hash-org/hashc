@@ -65,8 +65,7 @@ impl From<Const> for ConstKind {
 impl Const {
     /// Create a [Const::Zero] with a unit type, the total zero.
     pub fn zero(ctx: &IrCtx) -> Self {
-        let unit = ctx.tys().create(IrTy::unit(ctx));
-        Self::Zero(unit)
+        Self::Zero(ctx.tys().common_tys.unit)
     }
 
     /// Check if a [Const] is of integral kind.
@@ -159,10 +158,10 @@ pub enum ConstKind {
 impl ConstKind {
     /// Compute the type of the [ConstKind] provided
     /// with an IR context.
-    pub fn ty(&self, ctx: &IrCtx) -> IrTy {
+    pub fn ty(&self, _ctx: &IrCtx) -> IrTy {
         match self {
             Self::Value(value) => match value {
-                Const::Zero(_) => IrTy::unit(ctx),
+                Const::Zero(_) => IrTy::Adt(AdtId::UNIT),
                 Const::Bool(_) => IrTy::Bool,
                 Const::Char(_) => IrTy::Char,
                 Const::Int(interned_int) => {
