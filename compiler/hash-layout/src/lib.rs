@@ -12,7 +12,7 @@ use std::{
 };
 
 use compute::LayoutComputer;
-use hash_ir::ty::{IrTy, IrTyId, VariantIdx};
+use hash_ir::ty::{IrTy, IrTyId, ToIrTy, VariantIdx};
 use hash_target::{
     abi::{AbiRepresentation, Scalar},
     alignment::Alignments,
@@ -151,10 +151,63 @@ impl TyInfo {
         })
     }
 
+    /// Perform a mapping over the [IrTy] and [Layout] associated with
+    /// this [LayoutWriter].
+    fn with_info<F, T>(&self, ctx: &LayoutComputer, f: F) -> T
+    where
+        F: FnOnce(&Self, &IrTy, &Layout) -> T,
+    {
+        ctx.ir_ctx()
+            .tys()
+            .map_fast(self.ty, |ty| ctx.map_fast(self.layout, |layout| f(self, ty, layout)))
+    }
+
     /// Compute the type of a "field with in a layout" and return the
     /// [LayoutId] associated with the field.
-    pub fn field(&self, _ctx: LayoutComputer, _index: usize) -> Self {
-        todo!()
+    pub fn field(&self, ctx: LayoutComputer, field_index: usize) -> Self {
+        let (layout, ty) = self.with_info(&ctx, |_, ty, layout| match ty {
+            IrTy::Int(_)
+            | IrTy::UInt(_)
+            | IrTy::Float(_)
+            | IrTy::Bool
+            | IrTy::Char
+            | IrTy::Never
+            | IrTy::Ref(_, _, _)
+            | IrTy::Fn { .. } => panic!("TyInfo::field on a type that does not contain fields"),
+
+            IrTy::Str if field_index == 0 => (None, IrTy::unit_ptr(ctx.ir_ctx())),
+            IrTy::Str => (None, ctx.ir_ctx().tys().common_tys.usize),
+            IrTy::Slice(element) | IrTy::Array { ty: element, .. } => (None, *element),
+            IrTy::Adt(id) => match layout.variants {
+                Variants::Single { index } => {
+                    let field_ty = ctx
+                        .ir_ctx()
+                        .map_adt(*id, |_, adt| adt.variants[index].fields[field_index].ty);
+
+                    (None, field_ty)
+                }
+                Variants::Multiple { tag, .. } => {
+                    let tag_ty = tag.kind().to_ir_ty(ctx.ir_ctx());
+                    let layout = Layout::scalar(ctx.data_layout(), tag);
+
+                    (Some(layout), tag_ty)
+                }
+            },
+        });
+
+        // If the field layout lookup created a new layout in place,
+        // then we need to intern that layout here, add a cache entry
+        // for it and return it, otherwise we will lookup the layout
+        // buy just using the type id.
+        match layout {
+            Some(layout) => {
+                let layout = ctx.layouts().create(layout);
+                ctx.layouts().add_cache_entry(ty, layout);
+
+                TyInfo { ty, layout }
+            }
+            None => TyInfo { ty, layout: ctx.compute_layout_of_ty(ty).unwrap() },
+        }
     }
 
     /// Fetch the [Layout] for a variant of the currently
@@ -181,12 +234,11 @@ impl TyInfo {
                 });
 
                 // Create a new layout with basically a ZST that is
-                // un-inhabited... i.e. `never`
-                let shape = if fields == 0 {
-                    LayoutShape::Aggregate { fields: vec![], memory_map: vec![] }
-                } else {
-                    // @@Todo: this should become a union?
-                    todo!()
+                // un-inhabited... i.e. `never` or create a union across
+                // all of the variant fields.
+                let shape = match NonZeroUsize::new(fields) {
+                    Some(fields) => LayoutShape::Union { count: fields },
+                    None => LayoutShape::Aggregate { fields: vec![], memory_map: vec![] },
                 };
 
                 ctx.layouts().create(Layout::new(
@@ -197,6 +249,8 @@ impl TyInfo {
                     Size::ZERO,
                 ))
             }
+
+            // @@Verify: should we copy the layout of the variant here?
             Variants::Multiple { ref variants, .. } => variants[variant],
         };
 

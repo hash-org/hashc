@@ -9,7 +9,7 @@ use std::{
 
 use hash_ast::ast;
 use hash_source::{
-    constant::{IntConstant, IntTy, InternedFloat, InternedInt, InternedStr, CONSTANT_MAP},
+    constant::{IntConstant, InternedFloat, InternedInt, InternedStr, CONSTANT_MAP},
     identifier::Identifier,
     location::{SourceLocation, Span},
     SourceId,
@@ -25,7 +25,7 @@ use smallvec::{smallvec, SmallVec};
 
 use crate::{
     basic_blocks::BasicBlocks,
-    ty::{AdtId, IrTy, IrTyId, Mutability, VariantIdx},
+    ty::{AdtId, IrTy, IrTyId, Mutability, PlaceTy, ToIrTy, VariantIdx},
     IrCtx,
 };
 
@@ -65,8 +65,7 @@ impl From<Const> for ConstKind {
 impl Const {
     /// Create a [Const::Zero] with a unit type, the total zero.
     pub fn zero(ctx: &IrCtx) -> Self {
-        let unit = ctx.tys().create(IrTy::unit(ctx));
-        Self::Zero(unit)
+        Self::Zero(ctx.tys().common_tys.unit)
     }
 
     /// Check if a [Const] is of integral kind.
@@ -159,22 +158,19 @@ pub enum ConstKind {
 impl ConstKind {
     /// Compute the type of the [ConstKind] provided
     /// with an IR context.
-    pub fn ty(&self, ctx: &IrCtx) -> IrTy {
+    pub fn ty(&self, ctx: &IrCtx) -> IrTyId {
         match self {
             Self::Value(value) => match value {
-                Const::Zero(_) => IrTy::unit(ctx),
-                Const::Bool(_) => IrTy::Bool,
-                Const::Char(_) => IrTy::Char,
+                Const::Zero(ty) => *ty,
+                Const::Bool(_) => ctx.tys().common_tys.bool,
+                Const::Char(_) => ctx.tys().common_tys.char,
                 Const::Int(interned_int) => {
-                    CONSTANT_MAP.map_int_constant(*interned_int, |int| match int.ty {
-                        IntTy::Int(int_ty) => IrTy::Int(int_ty),
-                        IntTy::UInt(uint_ty) => IrTy::UInt(uint_ty),
-                    })
+                    CONSTANT_MAP.map_int_constant(*interned_int, |int| int.ty.to_ir_ty(ctx))
                 }
                 Const::Float(interned_float) => {
-                    CONSTANT_MAP.map_float_constant(*interned_float, |float| IrTy::Float(float.ty))
+                    CONSTANT_MAP.map_float_constant(*interned_float, |float| float.ty.to_ir_ty(ctx))
                 }
-                Const::Str(_) => IrTy::Str,
+                Const::Str(_) => ctx.tys().common_tys.str,
             },
             Self::Unevaluated(UnevaluatedConst { .. }) => {
                 // @@Todo: This will be implemented when constants are clearly
@@ -541,6 +537,12 @@ impl Place {
         Self { local: RETURN_PLACE, projections: ctx.projections().create_empty() }
     }
 
+    /// Deduce the type of the [Place] from the [IrCtx] and the local
+    /// declarations.
+    pub fn ty(&self, locals: &LocalDecls, ctx: &IrCtx) -> IrTyId {
+        PlaceTy::from_place(*self, locals, ctx).ty
+    }
+
     /// Create a new [Place] from a [Local] with no projections.
     pub fn from_local(local: Local, ctx: &IrCtx) -> Self {
         Self { local, projections: ctx.projections().create_empty() }
@@ -635,6 +637,17 @@ pub enum Operand {
     Place(Place),
 }
 
+impl Operand {
+    /// Compute the type of the [Operand] based on
+    /// the IrCtx.
+    pub fn ty(&self, locals: &LocalDecls, ctx: &IrCtx) -> IrTyId {
+        match self {
+            Operand::Const(kind) => kind.ty(ctx),
+            Operand::Place(place) => place.ty(locals, ctx),
+        }
+    }
+}
+
 impl From<Operand> for RValue {
     fn from(value: Operand) -> Self {
         Self::Use(value)
@@ -712,21 +725,25 @@ impl RValue {
     }
 
     /// Get the [IrTy] of the [RValue].
-    pub fn ty(&self, store: &IrCtx) -> IrTy {
+    pub fn ty(&self, locals: &LocalDecls, ctx: &IrCtx) -> IrTyId {
         match self {
-            RValue::Use(Operand::Const(const_kind)) => const_kind.ty(store),
-            RValue::Use(Operand::Place(_)) => todo!(),
-            RValue::ConstOp(ConstOp::AlignOf | ConstOp::SizeOf, _) => IrTy::usize(),
+            RValue::Use(operand) => operand.ty(locals, ctx),
+            RValue::ConstOp(ConstOp::AlignOf | ConstOp::SizeOf, _) => ctx.tys().common_tys.usize,
             RValue::UnaryOp(_, _) => todo!(),
-            RValue::BinaryOp(_, _) => todo!(),
-            RValue::CheckedBinaryOp(_, _) => todo!(),
-            RValue::Len(_) => IrTy::usize(),
+            RValue::BinaryOp(op, box (lhs, rhs)) => {
+                op.ty(ctx, lhs.ty(locals, ctx), rhs.ty(locals, ctx))
+            }
+            RValue::CheckedBinaryOp(op, box (lhs, rhs)) => {
+                let ty = op.ty(ctx, lhs.ty(locals, ctx), rhs.ty(locals, ctx));
+                ctx.tys().create(IrTy::tuple(ctx, &[ty, ctx.tys().common_tys.bool]))
+            }
+            RValue::Len(_) => ctx.tys().common_tys.usize,
             RValue::Ref(_, _, _) => todo!(),
             RValue::Aggregate(kind, _) => match kind {
                 AggregateKind::Enum(id, _)
                 | AggregateKind::Struct(id)
-                | AggregateKind::Tuple(id) => IrTy::Adt(*id),
-                AggregateKind::Array(ty) => IrTy::Slice(*ty),
+                | AggregateKind::Tuple(id) => ctx.tys().create(IrTy::Adt(*id)),
+                AggregateKind::Array(ty) => ctx.tys().create(IrTy::Slice(*ty)),
             },
             RValue::Discriminant(_) => todo!(),
         }
@@ -1197,6 +1214,8 @@ impl fmt::Display for BodySource {
     }
 }
 
+pub type LocalDecls = IndexVec<Local, LocalDecl>;
+
 /// Represents a lowered IR body, which stores the created declarations,
 /// blocks and various other metadata about the lowered body.
 pub struct Body {
@@ -1205,8 +1224,6 @@ pub struct Body {
 
     /// Declarations of local variables:
     ///
-    /// Not final:
-    ///
     /// - The first local is used a representation of the function return value
     ///   if any.
     ///
@@ -1214,7 +1231,7 @@ pub struct Body {
     ///   function arguments.
     ///
     /// - the remaining are temporaries that are used within the function.
-    pub declarations: IndexVec<Local, LocalDecl>,
+    pub declarations: LocalDecls,
 
     /// Constants that need to be resolved after IR building and pre-codegen.
     pub needed_constants: Vec<UnevaluatedConst>,

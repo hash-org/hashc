@@ -1,5 +1,12 @@
 //! Hash Compiler Intermediate Representation (IR) crate.
-#![feature(let_chains, once_cell, associated_type_defaults, type_alias_impl_trait, decl_macro)]
+#![feature(
+    let_chains,
+    once_cell,
+    associated_type_defaults,
+    type_alias_impl_trait,
+    decl_macro,
+    box_patterns
+)]
 
 pub mod basic_blocks;
 pub mod ir;
@@ -75,7 +82,7 @@ impl IrCtx {
             projection_store: ProjectionStore::default(),
             ty_store: TyStore::new(),
             ty_list_store: TyListStore::default(),
-            adt_store: AdtStore::default(),
+            adt_store: AdtStore::new(),
             ty_cache: RefCell::new(HashMap::new()),
         }
     }

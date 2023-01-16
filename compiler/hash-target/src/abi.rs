@@ -237,7 +237,7 @@ pub enum Scalar {
         kind: ScalarKind,
 
         /// The valid range of the scalar, this is used
-        /// to provide aditional information about values
+        /// to provide additional information about values
         /// that might be encoded as scalars (for efficiency
         /// purposes), but are not actually scalars, e.g. `bool`s
         /// will be encoded as [`ScalarKind::Int`], and have
