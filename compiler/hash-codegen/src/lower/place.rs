@@ -3,7 +3,7 @@
 
 use hash_ir::{
     ir,
-    ty::{IrTy, PlaceTy, VariantIdx},
+    ty::{IrTyId, PlaceTy, VariantIdx},
 };
 use hash_layout::{LayoutShape, Variants};
 use hash_target::{
@@ -119,9 +119,9 @@ impl<'b, V: CodeGenObject> PlaceRef<V> {
     pub fn codegen_get_discriminant<Builder: BlockBuilderMethods<'b, Value = V>>(
         self,
         builder: &mut Builder,
-        cast_to: IrTy,
+        cast_to: IrTyId,
     ) -> V {
-        let cast_info = builder.layout_of(cast_to);
+        let cast_info = builder.layout_of_id(cast_to);
         let cast_to_ty = builder.immediate_backend_type(cast_info);
 
         let (variants, is_uninhabited) = builder.map_layout(self.info.layout, |layout| {
@@ -289,7 +289,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
     /// Compute the type and layout of a [Place]. This deals with
     /// all projections that occur on the [Place].
     pub fn compute_place_ty_info(&self, builder: &mut Builder, place: ir::Place) -> TyInfo {
-        let place_ty = PlaceTy::from_place(place, self.body, self.ctx.ir_ctx());
+        let place_ty = PlaceTy::from_place(place, &self.body.declarations, self.ctx.ir_ctx());
         builder.layout_of_id(place_ty.ty)
     }
 

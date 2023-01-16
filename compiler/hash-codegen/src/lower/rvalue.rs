@@ -222,9 +222,9 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
                     ir::UnaryOp::BitNot | ir::UnaryOp::Not => builder.not(value),
                     ir::UnaryOp::Neg => {
                         // check if the underlying value is a floating point...
-                        let ty = rvalue.ty(self.ctx.ir_ctx());
+                        let ty = rvalue.ty(&self.body.declarations, self.ctx.ir_ctx());
 
-                        if ty.is_float() {
+                        if self.ctx.ir_ctx().tys().map_fast(ty, |ty| ty.is_float()) {
                             builder.fneg(value)
                         } else {
                             builder.neg(value)
@@ -280,14 +280,15 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
                 );
 
                 // This yields the operand ty as `(<lhs_ty>, bool)`.
-                let operand_ty = self.ctx.ir_ctx().tys().create(rvalue.ty(self.ctx.ir_ctx()));
+                let operand_ty = rvalue.ty(&self.body.declarations, self.ctx.ir_ctx());
 
                 OperandRef { value: result, info: builder.layout_of_id(operand_ty) }
             }
             ir::RValue::Aggregate(_, _) => {
                 // This is only called if the aggregate value is a ZST, so we just
                 // create a new ZST operand...
-                let info = builder.layout_of(rvalue.ty(self.ctx.ir_ctx()));
+                let info =
+                    builder.layout_of_id(rvalue.ty(&self.body.declarations, self.ctx.ir_ctx()));
                 OperandRef::new_zst(builder, info)
             }
             ir::RValue::Len(place) => {
@@ -301,7 +302,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
             ir::RValue::Ref(_, place, kind) => {
                 match kind {
                     ir::AddressMode::Raw => {
-                        let ty = rvalue.ty(self.ctx.ir_ctx());
+                        let ty = rvalue.ty(&self.body.declarations, self.ctx.ir_ctx());
                         let place = self.codegen_place(builder, place);
 
                         // @@Todo: when slices are passed, we might need to use
@@ -309,7 +310,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
                         // the length of the slice as an implicit value using `extra`)
                         OperandRef {
                             value: OperandValue::Immediate(place.value),
-                            info: builder.layout_of(ty),
+                            info: builder.layout_of_id(ty),
                         }
                     }
 
@@ -319,14 +320,14 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
                 }
             }
             ir::RValue::Discriminant(place) => {
-                let discriminant_ty = rvalue.ty(self.ctx.ir_ctx());
+                let discriminant_ty = rvalue.ty(&self.body.declarations, self.ctx.ir_ctx());
                 let discriminant = self
                     .codegen_place(builder, place)
                     .codegen_get_discriminant(builder, discriminant_ty);
 
                 OperandRef {
                     value: OperandValue::Immediate(discriminant),
-                    info: builder.layout_of(discriminant_ty),
+                    info: builder.layout_of_id(discriminant_ty),
                 }
             }
         }
@@ -493,11 +494,11 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
             | ir::RValue::Ref(_, _, _)
             | ir::RValue::Discriminant(_) => true,
             ir::RValue::Aggregate(_, _) => {
-                let ty = rvalue.ty(self.ctx.ir_ctx());
+                let ty = rvalue.ty(&self.body.declarations, self.ctx.ir_ctx());
 
                 // check if the type is a ZST, and if so this satisfies the
                 // case that the rvalue creates an operand...
-                self.ctx.layout_of(ty).is_zst(self.ctx.layout_computer())
+                self.ctx.layout_of_id(ty).is_zst(self.ctx.layout_computer())
             }
         }
     }

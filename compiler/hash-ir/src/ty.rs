@@ -23,7 +23,7 @@ use hash_utils::{
 use index_vec::{index_vec, IndexVec};
 
 use crate::{
-    ir::{Body, Place, PlaceProjection},
+    ir::{LocalDecls, Place, PlaceProjection},
     write::{ForFormatting, WriteIr},
     IrCtx,
 };
@@ -861,9 +861,9 @@ impl PlaceTy {
     }
 
     /// Create a [PlaceTy] from a [Place].
-    pub fn from_place(place: Place, body: &Body, ctx: &IrCtx) -> Self {
+    pub fn from_place(place: Place, locals: &LocalDecls, ctx: &IrCtx) -> Self {
         // get the type of the local from the body.
-        let mut base = PlaceTy { ty: body.declarations[place.local].ty, index: None };
+        let mut base = PlaceTy { ty: locals[place.local].ty, index: None };
 
         ctx.projections().map_fast(place.projections, |projections| {
             for projection in projections {
@@ -906,6 +906,15 @@ impl ToIrTy for IntTy {
                 UIntTy::USize => ctx.tys().common_tys.usize,
                 _ => unimplemented!(),
             },
+        }
+    }
+}
+
+impl ToIrTy for FloatTy {
+    fn to_ir_ty(&self, ctx: &IrCtx) -> IrTyId {
+        match self {
+            FloatTy::F32 => ctx.tys().common_tys.f32,
+            FloatTy::F64 => ctx.tys().common_tys.f64,
         }
     }
 }
