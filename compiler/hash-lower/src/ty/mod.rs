@@ -42,7 +42,7 @@ impl<'ir> TyLoweringCtx<'ir> {
     pub(crate) fn ty_id_from_term(&self, term: TermId) -> IrTyId {
         // Check if the term is present within the cache, and if so, return the
         // cached value.
-        if let Some(ty) = self.lcx.ty_cache().get(&term) {
+        if let Some(ty) = self.lcx.ty_cache().get(&term.into()) {
             return *ty;
         }
 
@@ -58,6 +58,21 @@ impl<'ir> TyLoweringCtx<'ir> {
 
         // Add an entry into the cache for this term
         self.lcx.add_ty_cache_entry(term, id);
+        id
+    }
+
+    /// Get the [IrTyId] from a given [NominalDefId].
+    pub(crate) fn ty_id_from_nominal(&self, nominal: NominalDefId) -> IrTyId {
+        // Attempt to get the type from the cache
+        if let Some(ty) = self.lcx.ty_cache().get(&nominal.into()) {
+            return *ty;
+        }
+
+        // Create the type, intern it, and a cache entry for it
+        let ty = self.ty_from_nominal(nominal);
+        let id = self.lcx.tys().create(ty);
+        self.lcx.add_nominal_ty_cache_entry(nominal, id);
+
         id
     }
 
@@ -97,7 +112,7 @@ impl<'ir> TyLoweringCtx<'ir> {
                     LitTerm::Char(_) => IrTy::Char,
                 },
                 Level0Term::EnumVariant(EnumVariantValue { def_id, .. }) => {
-                    self.lower_nominal_def(def_id)
+                    self.ty_from_nominal(def_id)
                 }
                 Level0Term::Constructed(ConstructedTerm { subject, .. }) => {
                     self.ty_from_term(subject)
@@ -108,7 +123,7 @@ impl<'ir> TyLoweringCtx<'ir> {
             },
 
             Term::Level1(lvl_1_term) => match lvl_1_term {
-                Level1Term::NominalDef(def_id) => self.lower_nominal_def(def_id),
+                Level1Term::NominalDef(def_id) => self.ty_from_nominal(def_id),
                 Level1Term::Tuple(TupleTy { members }) => {
                     let fields = self
                         .tcx
@@ -215,7 +230,8 @@ impl<'ir> TyLoweringCtx<'ir> {
         }
     }
 
-    fn lower_nominal_def(&self, def_id: NominalDefId) -> IrTy {
+    /// Convert a [NominalDef] into the equivalent [IrTy].
+    pub(super) fn ty_from_nominal(&self, def_id: NominalDefId) -> IrTy {
         self.tcx.nominal_def_store.map_fast(def_id, |def| {
             match def {
                 NominalDef::Struct(struct_def) => {
