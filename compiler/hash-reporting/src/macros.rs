@@ -21,3 +21,23 @@ pub macro panic_on_span {
         panic_on_span!($location, $sources, format!($fmt, $($arg)*))
     }
 }
+
+/// This macro will produce a [crate::report::Report] and then print it to the
+/// standard output, this does not panic, it is intended as a debugging utility
+/// to quickly print the `span` of something and the `message` associated with
+/// it.
+pub macro compiler_note {
+    ($location:expr, $sources:expr, $fmt: expr) => {
+        {
+            let mut reporter = $crate::reporter::Reporter::new();
+            reporter.info()
+                .title($fmt)
+                .add_labelled_span($location, "here");
+
+            eprintln!("{}", $crate::writer::ReportWriter::new(reporter.into_reports(), $sources));
+        }
+    },
+    ($location:expr, $sources:expr, $fmt: expr, $($arg:tt)*) => {
+        compiler_note!($location, $sources, format!($fmt, $($arg)*))
+    }
+}

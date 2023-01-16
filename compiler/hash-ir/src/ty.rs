@@ -199,7 +199,7 @@ impl IrTy {
 
     /// Check if the [IrTy] is an integral type.
     pub fn is_integral(&self) -> bool {
-        matches!(self, Self::Int(_) | Self::UInt(_) | Self::Float(_) | Self::Char)
+        matches!(self, Self::Int(_) | Self::UInt(_) | Self::Float(_) | Self::Char | Self::Bool)
     }
 
     /// Check if the [IrTy] is a floating point type.
@@ -238,7 +238,7 @@ impl IrTy {
     pub fn as_adt(&self) -> AdtId {
         match self {
             Self::Adt(adt_id) => *adt_id,
-            _ => panic!("expected ADT"),
+            ty => panic!("expected ADT, but got {ty:?}"),
         }
     }
 
@@ -412,12 +412,12 @@ impl AdtData {
     /// Compute the representation of the discriminant of this [AdtData]
     /// in terms of a [abi::Integer].
     ///
-    /// @@Future(discriminants): we would need to acount for different
+    /// @@Future(discriminants): we would need to account for different
     /// representations of the discriminant, e.g. `repr(u8)`, and specified
     /// values on the discriminant.
     ///
     /// For now, we always use the "unsigned" integer representation, and try
-    /// to minimuse the size of the discriminant.
+    /// to minimise the size of the discriminant.
     pub fn discriminant_representation<C: HasDataLayout>(&self, ctx: &C) -> abi::Integer {
         let max = self.variants.len() as u128;
         let computed_fit = abi::Integer::fit_unsigned(max);

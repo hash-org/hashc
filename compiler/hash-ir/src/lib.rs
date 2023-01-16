@@ -20,7 +20,7 @@ use std::{
     collections::HashMap,
 };
 
-use hash_types::terms::TermId;
+use hash_types::{nominals::NominalDefId, terms::TermId};
 use hash_utils::store::{SequenceStore, Store};
 use ir::{Body, Local, Place, PlaceProjection, ProjectionStore};
 use ty::{AdtData, AdtId, AdtStore, IrTyId, TyListStore, TyStore};
@@ -51,6 +51,31 @@ impl IrStorage {
     }
 }
 
+/// A [TyCacheEntry] is used to store the [IrTyId] that is created from
+/// a [TermId] or a [NominalDefId]. It is then used by program logic
+/// to avoid re-computing the same type again by using this key to lookup
+/// the [IrTyId] in the [IrCtx].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TyCacheEntry {
+    /// The key is a term ID.
+    Term(TermId),
+
+    /// The key is a nominal definition ID.
+    Nominal(NominalDefId),
+}
+
+impl From<TermId> for TyCacheEntry {
+    fn from(term: TermId) -> Self {
+        Self::Term(term)
+    }
+}
+
+impl From<NominalDefId> for TyCacheEntry {
+    fn from(nominal: NominalDefId) -> Self {
+        Self::Nominal(nominal)
+    }
+}
+
 /// The [IrCtx] is used to store all interned information that
 /// IR [Body]s might use or reference. This includes IR types, place
 /// projections, etc.
@@ -72,7 +97,7 @@ pub struct IrCtx {
     adt_store: ty::AdtStore,
 
     /// Cache for the [IrTyId]s that are created from [TermId]s.
-    ty_cache: RefCell<HashMap<TermId, IrTyId>>,
+    ty_cache: RefCell<HashMap<TyCacheEntry, IrTyId>>,
 }
 
 impl IrCtx {
@@ -93,13 +118,18 @@ impl IrCtx {
     }
 
     /// Get a reference to the [IrTyId] cache.
-    pub fn ty_cache(&self) -> Ref<HashMap<TermId, IrTyId>> {
+    pub fn ty_cache(&self) -> Ref<HashMap<TyCacheEntry, IrTyId>> {
         self.ty_cache.borrow()
     }
 
     /// Add an entry to the type cache.
-    pub fn add_ty_cache_entry(&self, term_id: TermId, ty_id: IrTyId) {
-        self.ty_cache.borrow_mut().insert(term_id, ty_id);
+    pub fn add_ty_cache_entry(&self, term: TermId, ty: IrTyId) {
+        self.ty_cache.borrow_mut().insert(term.into(), ty);
+    }
+
+    /// Add an "nominal" definition entry into the type cache.
+    pub fn add_nominal_ty_cache_entry(&self, nominal: NominalDefId, ty: IrTyId) {
+        self.ty_cache.borrow_mut().insert(nominal.into(), ty);
     }
 
     /// Get a reference to the [TyListStore]

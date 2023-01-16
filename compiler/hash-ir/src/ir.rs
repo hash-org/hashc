@@ -1154,7 +1154,7 @@ impl BasicBlockData {
 
     /// Check if the [BasicBlockData] is empty, i.e. has no statements and
     /// the terminator is of kind [TerminatorKind::Unreachable].
-    pub fn is_empty_and_unreacheable(&self) -> bool {
+    pub fn is_empty_and_unreachable(&self) -> bool {
         self.statements.is_empty()
             && self.terminator.as_ref().map_or(false, |t| t.kind == TerminatorKind::Unreachable)
     }

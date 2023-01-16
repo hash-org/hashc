@@ -15,9 +15,9 @@ use hash_source::SourceId;
 
 /// The Hash compiler code generator.
 #[derive(Default)]
-pub struct HashBackend;
+pub struct Backend;
 
-impl HashBackend {
+impl Backend {
     /// Creates a new instance of the Hash backend.
     pub fn new() -> Self {
         Self
@@ -47,7 +47,7 @@ pub trait BackendCtxQuery: CompilerInterface {
     fn data(&mut self) -> BackendCtx<'_>;
 }
 
-impl<Ctx: BackendCtxQuery> CompilerStage<Ctx> for HashBackend {
+impl<Ctx: BackendCtxQuery> CompilerStage<Ctx> for Backend {
     fn kind(&self) -> CompilerStageKind {
         CompilerStageKind::CodeGen
     }

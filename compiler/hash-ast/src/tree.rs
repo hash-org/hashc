@@ -119,8 +119,8 @@ impl AstVisitor for AstTreeGenerator {
         &self,
         node: ast::AstNodeRef<ast::FloatLit>,
     ) -> Result<Self::FloatLitRet, Self::Error> {
-        let FloatLit { value, kind } = node.body();
-        Ok(TreeNode::leaf(labelled("float", format!("{value}{kind}"), "")))
+        let FloatLit { value, .. } = node.body();
+        Ok(TreeNode::leaf(labelled("float", format!("{value}"), "")))
     }
 
     type BoolLitRet = TreeNode;
@@ -136,9 +136,9 @@ impl AstVisitor for AstTreeGenerator {
         &self,
         node: ast::AstNodeRef<ast::IntLit>,
     ) -> Result<Self::IntLitRet, Self::Error> {
-        let IntLit { value, kind } = node.body();
+        let IntLit { value, .. } = node.body();
 
-        Ok(TreeNode::leaf(labelled("int", format!("{value}{kind}"), "")))
+        Ok(TreeNode::leaf(labelled("int", format!("{value}"), "")))
     }
 
     type BinOpRet = TreeNode;
