@@ -1,15 +1,15 @@
 //! Contains various TC-related operations, which form the core of the
 //! typechecker.
 use self::{
-    bootstrap::BootstrapOps, check::CheckOps, context::ContextOps, elaboration::ElabOps,
+    bootstrap::BootstrapOps, context::ContextOps, elaboration::ElabOps, infer::InferOps,
     normalise::NormalisationOps, substitutions::SubstituteOps, unify::UnifyOps,
 };
 
 pub mod bootstrap;
-pub mod check;
 pub mod common;
 pub mod context;
 pub mod elaboration;
+pub mod infer;
 pub mod normalise;
 pub mod substitutions;
 pub mod unify;
@@ -34,7 +34,7 @@ macro_rules! ops {
 }
 
 ops! {
-  check_ops: CheckOps,
+  infer_ops: InferOps,
   unify_ops: UnifyOps,
   context_ops: ContextOps,
   bootstrap_ops: BootstrapOps,

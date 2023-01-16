@@ -15,6 +15,8 @@ use crate::{
     },
 };
 
+// @@Temp
+#[allow(unused)]
 #[derive(Constructor)]
 pub struct TraversingUtils<'env> {
     env: &'env Env<'env>,
@@ -31,7 +33,7 @@ pub enum TermOrPatOrTy {
 
 struct TraverseImplState<F> {
     depth: usize,
-    f: F,
+    _f: F,
 }
 
 impl<'env> TraversingUtils<'env> {
@@ -40,7 +42,7 @@ impl<'env> TraversingUtils<'env> {
         term_id: TermId,
         f: F,
     ) -> Result<(), E> {
-        self.traverse_term_impl(term_id, &mut TraverseImplState { depth: 0, f })
+        self.traverse_term_impl(term_id, &mut TraverseImplState { depth: 0, _f: f })
     }
 
     pub fn traverse_ty<F: FnMut(TermOrPatOrTy) -> Result<(), E>, E>(
@@ -48,7 +50,7 @@ impl<'env> TraversingUtils<'env> {
         ty_id: TyId,
         f: F,
     ) -> Result<(), E> {
-        self.traverse_ty_impl(ty_id, &mut TraverseImplState { depth: 0, f })
+        self.traverse_ty_impl(ty_id, &mut TraverseImplState { depth: 0, _f: f })
     }
 
     pub fn traverse_pat<F: FnMut(TermOrPatOrTy) -> Result<(), E>, E>(
@@ -56,7 +58,7 @@ impl<'env> TraversingUtils<'env> {
         pat_id: PatId,
         f: F,
     ) -> Result<(), E> {
-        self.traverse_pat_impl(pat_id, &mut TraverseImplState { depth: 0, f })
+        self.traverse_pat_impl(pat_id, &mut TraverseImplState { depth: 0, _f: f })
     }
 
     pub fn traverse_term_or_pat_or_ty<F: FnMut(TermOrPatOrTy) -> Result<(), E>, E>(
@@ -108,7 +110,7 @@ impl<'env> TraversingUtils<'env> {
         })
     }
 
-    fn traverse_pat_args_impl<F: FnMut(TermOrPatOrTy) -> Result<(), E>, E>(
+    fn _traverse_pat_args_impl<F: FnMut(TermOrPatOrTy) -> Result<(), E>, E>(
         &self,
         pat_args: PatArgsId,
         state: &mut TraverseImplState<F>,
@@ -121,7 +123,7 @@ impl<'env> TraversingUtils<'env> {
         })
     }
 
-    fn traverse_def_params_impl<F: FnMut(TermOrPatOrTy) -> Result<(), E>, E>(
+    fn _traverse_def_params_impl<F: FnMut(TermOrPatOrTy) -> Result<(), E>, E>(
         &self,
         def_params: DefParamsId,
         state: &mut TraverseImplState<F>,
@@ -147,14 +149,14 @@ impl<'env> TraversingUtils<'env> {
         })
     }
 
-    fn traverse_def_pat_args_impl<F: FnMut(TermOrPatOrTy) -> Result<(), E>, E>(
+    fn _traverse_def_pat_args_impl<F: FnMut(TermOrPatOrTy) -> Result<(), E>, E>(
         &self,
         def_pat_args: DefPatArgsId,
         state: &mut TraverseImplState<F>,
     ) -> Result<(), E> {
         self.map_def_pat_args(def_pat_args, |def_pat_args| {
             for def_arg in def_pat_args.iter() {
-                self.traverse_pat_args_impl(def_arg.pat_args, state)?;
+                self._traverse_pat_args_impl(def_arg.pat_args, state)?;
             }
             Ok(())
         })
@@ -194,6 +196,12 @@ impl<'env> TraversingUtils<'env> {
         })
     }
 
+    // @@Todo:
+    // should return Result Option, where None means that the term
+    // should be normally traversed, and Some means that the term was
+    // traversed and should not be traversed.
+    //
+    // Make a data structure from this
     fn traverse_term_impl<F: FnMut(TermOrPatOrTy) -> Result<(), E>, E>(
         &self,
         term_id: TermId,

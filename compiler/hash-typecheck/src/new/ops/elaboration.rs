@@ -21,9 +21,9 @@ use crate::{
 
 #[derive(Clone, Debug)]
 pub struct UnificationProblem {
-    src: TermId,
-    target: TermId,
-    context: Sub,
+    pub src: TermId,
+    pub target: TermId,
+    pub context: Sub,
 }
 
 #[derive(Clone, Debug)]
@@ -147,7 +147,7 @@ impl<'tc> ElabOps<'tc> {
         Ok(())
     }
 
-    fn apply_tactic_on_type(
+    fn _apply_tactic_on_type(
         &self,
         _tac: impl Fn(HoleBinder) -> TcResult<TermId>,
         _hole: Hole,

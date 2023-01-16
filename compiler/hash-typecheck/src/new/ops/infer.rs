@@ -1,4 +1,4 @@
-//! Operations to check types of terms and patterns.
+//! Operations to infer types of terms and patterns.
 
 use derive_more::Constructor;
 use hash_ast::ast::{FloatLitKind, IntLitKind};
@@ -29,9 +29,9 @@ use hash_types::{
     },
     ty_as_variant,
 };
-use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
+use hash_utils::store::{CloneStore, SequenceStore, Store};
 
-use super::{common::CommonOps, AccessToOps};
+use super::{common::CommonOps, unify::Unification, AccessToOps};
 use crate::{
     impl_access_to_tc_env,
     new::{
@@ -41,26 +41,26 @@ use crate::{
 };
 
 #[derive(Constructor)]
-pub struct CheckOps<'tc> {
+pub struct InferOps<'tc> {
     tc_env: &'tc TcEnv<'tc>,
 }
 
-impl_access_to_tc_env!(CheckOps<'tc>);
+impl_access_to_tc_env!(InferOps<'tc>);
 
-impl<'tc> CheckOps<'tc> {
-    /// Check the given generic definition arguments (specialised for args and
+impl<'tc> InferOps<'tc> {
+    /// Infer the given generic definition arguments (specialised for args and
     /// pat args below)
-    fn check_some_def_args<DefArgGroup>(
+    fn infer_some_def_args<DefArgGroup>(
         &self,
         def_args: &[DefArgGroup],
-        check_def_arg_group: impl Fn(&DefArgGroup) -> TcResult<DefParamGroupData>,
+        infer_def_arg_group: impl Fn(&DefArgGroup) -> TcResult<DefParamGroupData>,
     ) -> TcResult<DefParamsId> {
         // @@Todo: dependent definition parameters
         let mut def_params = vec![];
         let mut has_error = false;
 
         for group in def_args {
-            match self.try_or_add_error(check_def_arg_group(group)) {
+            match self.try_or_add_error(infer_def_arg_group(group)) {
                 // Type was inferred
                 Some(group) => def_params.push(group),
                 // Error occurred
@@ -75,49 +75,49 @@ impl<'tc> CheckOps<'tc> {
         }
     }
 
-    /// Check the given definition arguments.
-    pub fn check_def_args(&self, def_args: DefArgsId) -> TcResult<DefParamsId> {
+    /// Infer the given definition arguments.
+    pub fn infer_def_args(&self, def_args: DefArgsId) -> TcResult<DefParamsId> {
         self.stores().def_args().map(def_args, |def_args| {
-            self.check_some_def_args(def_args, |def_arg| {
+            self.infer_some_def_args(def_args, |def_arg| {
                 let implicit =
                     self.stores().def_params().map_fast(def_arg.param_group.0, |params| {
                         params[def_arg.param_group.1].implicit
                     });
-                Ok(DefParamGroupData { implicit, params: self.check_args(def_arg.args)? })
+                Ok(DefParamGroupData { implicit, params: self.infer_args(def_arg.args)? })
             })
         })
     }
 
-    /// Check the given definition pattern arguments.
-    pub fn check_def_pat_args(&self, def_pat_args: DefPatArgsId) -> TcResult<DefParamsId> {
+    /// Infer the given definition pattern arguments.
+    pub fn infer_def_pat_args(&self, def_pat_args: DefPatArgsId) -> TcResult<DefParamsId> {
         self.stores().def_pat_args().map(def_pat_args, |def_pat_args| {
-            self.check_some_def_args(def_pat_args, |def_pat_arg| {
+            self.infer_some_def_args(def_pat_args, |def_pat_arg| {
                 let implicit =
                     self.stores().def_params().map_fast(def_pat_arg.param_group.0, |params| {
                         params[def_pat_arg.param_group.1].implicit
                     });
                 Ok(DefParamGroupData {
                     implicit,
-                    params: self.check_pat_args(def_pat_arg.pat_args)?,
+                    params: self.infer_pat_args(def_pat_arg.pat_args)?,
                 })
             })
         })
     }
 
-    /// Check the given generic arguments (specialised
+    /// Infer the given generic arguments (specialised
     /// for args and pat args below).
-    fn check_some_args<Arg>(
+    fn infer_some_args<Arg>(
         &self,
         args: &[Arg],
-        check_arg_ty: impl Fn(&Arg) -> TcResult<Option<TyId>>,
+        infer_arg_ty: impl Fn(&Arg) -> TcResult<Option<TyId>>,
         get_arg_name: impl Fn(&Arg) -> Symbol,
     ) -> TcResult<ParamsId> {
         let mut params = vec![];
         let mut has_error = false;
 
         for arg in args {
-            // Check the type of the argument
-            let ty = match self.try_or_add_error(check_arg_ty(arg)) {
+            // Infer the type of the argument
+            let ty = match self.try_or_add_error(infer_arg_ty(arg)) {
                 // Type was inferred
                 Some(Some(ty)) => ty,
                 // Type could not be inferred
@@ -140,45 +140,45 @@ impl<'tc> CheckOps<'tc> {
         }
     }
 
-    /// Check the given arguments, producing inferred parameters.
-    pub fn check_args(&self, args: ArgsId) -> TcResult<ParamsId> {
+    /// Infer the given arguments, producing inferred parameters.
+    pub fn infer_args(&self, args: ArgsId) -> TcResult<ParamsId> {
         self.stores().args().map(args, |args| {
-            self.check_some_args(
+            self.infer_some_args(
                 args,
-                |arg| self.check_term(arg.value),
+                |arg| self.infer_term(arg.value),
                 |arg| self.new_symbol_from_param_index(arg.target),
             )
         })
     }
 
-    /// Check the given pattern arguments, producing inferred parameters.
-    pub fn check_pat_args(&self, pat_args: PatArgsId) -> TcResult<ParamsId> {
+    /// Infer the given pattern arguments, producing inferred parameters.
+    pub fn infer_pat_args(&self, pat_args: PatArgsId) -> TcResult<ParamsId> {
         self.stores().pat_args().map(pat_args, |pat_args| {
-            self.check_some_args(
+            self.infer_some_args(
                 pat_args,
-                |pat_arg| self.check_pat(pat_arg.pat),
+                |pat_arg| self.infer_pat(pat_arg.pat),
                 |pat_arg| self.new_symbol_from_param_index(pat_arg.target),
             )
         })
     }
 
-    /// Check the type of a sequence of terms which should all match.
-    pub fn check_unified_term_list(&self, terms: &[TermId]) -> TcResult<TyId> {
+    /// Infer the type of a sequence of terms which should all match.
+    pub fn infer_unified_term_list(&self, terms: &[TermId]) -> TcResult<TyId> {
         let mut current_ty = self.new_ty_hole();
         let mut found_error = false;
 
         for term in terms {
-            match self.try_or_add_error(self.check_term(*term)) {
+            match self.try_or_add_error(self.infer_term(*term)) {
                 Some(Some(ty)) => {
                     match self.unify_ops().unify_tys(ty, current_ty) {
-                        Ok(sub) => {
+                        Ok(Unification { sub }) => {
                             // Unification succeeded
                             self.substitute_ops().apply_sub_to_ty_in_place(current_ty, &sub);
                         }
                         Err(err) => {
                             // Error in unification, try to unify the other way
                             match self.unify_ops().unify_tys(current_ty, ty) {
-                                Ok(sub) => {
+                                Ok(Unification { sub }) => {
                                     // Unification succeeded the other way, so use this
                                     // type as a target
                                     current_ty = ty;
@@ -211,32 +211,32 @@ impl<'tc> CheckOps<'tc> {
         }
     }
 
-    /// Check the given parameters.
-    pub fn check_params(&self, _params: ParamsId) -> TcResult<()> {
+    /// Infer the given parameters.
+    pub fn infer_params(&self, _params: ParamsId) -> TcResult<()> {
         todo!()
     }
 
-    /// Check the type of a term, or create a new a type hole if the type is
+    /// Infer the type of a term, or create a new a type hole if the type is
     /// unknown.
-    pub fn check_term_or_hole(&self, term: TermId) -> TcResult<TyId> {
-        Ok(self.check_term(term)?.unwrap_or_else(|| self.new_ty_hole()))
+    pub fn infer_term_or_hole(&self, term: TermId) -> TcResult<TyId> {
+        Ok(self.infer_term(term)?.unwrap_or_else(|| self.new_ty_hole()))
     }
 
-    /// Check the type of a runtime term.
-    pub fn check_runtime_term(&self, term: &RuntimeTerm) -> TyId {
+    /// Infer the type of a runtime term.
+    pub fn infer_runtime_term(&self, term: &RuntimeTerm) -> TyId {
         term.term_ty
     }
 
-    /// Check the type of a tuple term.
-    pub fn check_tuple_term(&self, term: &TupleTerm) -> TcResult<TupleTy> {
+    /// Infer the type of a tuple term.
+    pub fn infer_tuple_term(&self, term: &TupleTerm) -> TcResult<TupleTy> {
         match term.original_ty {
             Some(ty) => Ok(ty),
-            None => Ok(TupleTy { data: self.check_args(term.data)? }),
+            None => Ok(TupleTy { data: self.infer_args(term.data)? }),
         }
     }
 
-    /// Check the type of a primitive term.
-    pub fn check_prim_term(&self, term: &PrimTerm) -> TcResult<TyId> {
+    /// Infer the type of a primitive term.
+    pub fn infer_prim_term(&self, term: &PrimTerm) -> TcResult<TyId> {
         match term {
             PrimTerm::Lit(lit_term) => Ok(self.new_data_ty(match lit_term {
                 Lit::Int(int_lit) => match int_lit.underlying.kind {
@@ -277,7 +277,7 @@ impl<'tc> CheckOps<'tc> {
             PrimTerm::List(list_term) => {
                 let list_inner_type =
                     self.stores().term_list().map_fast(list_term.elements, |elements| {
-                        self.try_or_add_error(self.check_unified_term_list(elements))
+                        self.try_or_add_error(self.infer_unified_term_list(elements))
                             .unwrap_or_else(|| self.new_ty_hole())
                     });
                 let list_ty = self.new_ty(DataTy {
@@ -292,20 +292,20 @@ impl<'tc> CheckOps<'tc> {
         }
     }
 
-    /// Check the type of a constructor term.
-    pub fn check_ctor_term(&self, term: &CtorTerm) -> DataTy {
+    /// Infer the type of a constructor term.
+    pub fn infer_ctor_term(&self, term: &CtorTerm) -> DataTy {
         let data_def =
             self.stores().ctor_defs().map_fast(term.ctor.0, |terms| terms[term.ctor.1].data_def_id);
         DataTy { data_def, args: term.data_args }
     }
 
-    /// Check the type of a function call.
-    pub fn check_fn_call_term(
+    /// Infer the type of a function call.
+    pub fn infer_fn_call_term(
         &self,
         term: &FnCallTerm,
         original_term_id: TermId,
     ) -> TcResult<Option<TyId>> {
-        match self.check_term(term.subject)? {
+        match self.infer_term(term.subject)? {
             Some(subject_ty) => self.map_ty(subject_ty, |subject| match subject {
                 Ty::Eval(_) => {
                     // @@Todo: Normalise
@@ -315,7 +315,7 @@ impl<'tc> CheckOps<'tc> {
                     // Try the same thing, but with the dereferenced type.
                     let new_subject =
                         self.new_term(Term::Deref(DerefTerm { subject: term.subject }));
-                    self.check_fn_call_term(
+                    self.infer_fn_call_term(
                         &FnCallTerm { subject: new_subject, ..*term },
                         original_term_id,
                     )
@@ -333,15 +333,15 @@ impl<'tc> CheckOps<'tc> {
                 }
                 Ty::Fn(fn_ty) => {
                     // First infer the parameters of the function call.
-                    let inferred_fn_call_params = self.check_args(term.args)?;
+                    let inferred_fn_call_params = self.infer_args(term.args)?;
 
                     // Unify the parameters of the function call with the parameters of the
                     // function type.
-                    let sub =
+                    let unification =
                         self.unify_ops().unify_params(inferred_fn_call_params, fn_ty.params)?;
 
                     // Apply the substitution to the arguments.
-                    self.substitute_ops().apply_sub_to_args_in_place(term.args, &sub);
+                    self.substitute_ops().apply_sub_to_args_in_place(term.args, &unification.sub);
 
                     // Create a substitution from the parameters of the function type to the
                     // parameters of the function call.
@@ -365,28 +365,28 @@ impl<'tc> CheckOps<'tc> {
                 Ty::Hole(_) => Ok(None),
             }),
             None => {
-                // We don't know the type of the subject, so we can't check the type of the
+                // We don't know the type of the subject, so we can't infer the type of the
                 // call.
                 Ok(None)
             }
         }
     }
 
-    /// Check the type of a function definition.
+    /// Infer the type of a function definition.
     ///
-    /// This will check and modify the type of the function definition, and then
+    /// This will infer and modify the type of the function definition, and then
     /// return it.
-    pub fn check_fn_def(&self, fn_def_id: FnDefId) -> TcResult<FnTy> {
+    pub fn infer_fn_def(&self, fn_def_id: FnDefId) -> TcResult<FnTy> {
         let fn_def = self.stores().fn_def().get(fn_def_id);
-        self.check_params(fn_def.ty.params)?;
+        self.infer_params(fn_def.ty.params)?;
 
         match fn_def.body {
             FnBody::Defined(fn_body) => self.context_ops().enter_scope(fn_def_id.into(), || {
                 // @@Todo: `return` statement type inference
-                let inferred_return_ty = self.check_term(fn_body)?;
+                let inferred_return_ty = self.infer_term(fn_body)?;
 
                 // Unify the inferred return type with the declared return type.
-                let return_sub = self.unify_ops().unify_tys(
+                let Unification { sub: return_sub } = self.unify_ops().unify_tys(
                     inferred_return_ty.unwrap_or_else(|| self.new_ty_hole()),
                     fn_def.ty.return_ty,
                 )?;
@@ -406,8 +406,8 @@ impl<'tc> CheckOps<'tc> {
         Ok(fn_def.ty)
     }
 
-    /// Check the type of a variable, and return it.
-    pub fn check_var(&self, term: Symbol) -> TcResult<Option<TyId>> {
+    /// Infer the type of a variable, and return it.
+    pub fn infer_var(&self, term: Symbol) -> TcResult<Option<TyId>> {
         match self.context().get_binding(term).unwrap().kind {
             BindingKind::ModMember(_, _) | BindingKind::Ctor(_, _) => {
                 unreachable!("mod members and ctors should have all been resolved by now")
@@ -445,21 +445,21 @@ impl<'tc> CheckOps<'tc> {
                 )),
                 BoundVarOrigin::HoleBinder(hole_binder) => match hole_binder.kind {
                     HoleBinderKind::Hole(ty_id) => Ok(Some(ty_id)),
-                    HoleBinderKind::Guess(term_id) => self.check_term(term_id),
+                    HoleBinderKind::Guess(term_id) => self.infer_term(term_id),
                 },
             },
         }
     }
 
-    /// Check the type of a `return` term, and return it.
-    pub fn check_return_term(&self, return_term: &ReturnTerm) -> TcResult<TyId> {
-        let _ = self.check_term(return_term.expression)?;
+    /// Infer the type of a `return` term, and return it.
+    pub fn infer_return_term(&self, return_term: &ReturnTerm) -> TcResult<TyId> {
+        let _ = self.infer_term(return_term.expression)?;
         Ok(self.new_never_ty())
     }
 
-    /// Check the type of a deref term, and return it.
-    pub fn check_deref_term(&self, deref_term: &DerefTerm) -> TcResult<Option<TyId>> {
-        match self.check_term(deref_term.subject) {
+    /// Infer the type of a deref term, and return it.
+    pub fn infer_deref_term(&self, deref_term: &DerefTerm) -> TcResult<Option<TyId>> {
+        match self.infer_term(deref_term.subject) {
             Ok(Some(subject_ty_id)) => {
                 self.stores().ty().map_fast(subject_ty_id, |subject_ty| match subject_ty {
                     Ty::Ref(ref_ty) => Ok(Some(ref_ty.ty)),
@@ -474,41 +474,42 @@ impl<'tc> CheckOps<'tc> {
         }
     }
 
-    /// Check the type of a type, and return it.
-    pub fn check_ty(&self, ty_id: TyId) -> TcResult<Option<TyId>> {
-        // @@Todo: cumulative type universe checks
+    /// Infer the type of a type, and return it.
+    pub fn infer_ty(&self, ty_id: TyId) -> TcResult<Option<TyId>> {
+        // @@Todo: cumulative type universe infers
         self.stores().ty().map(ty_id, |ty| match ty {
-            Ty::Eval(eval) => self.check_term(*eval),
-            Ty::Var(var) => self.check_var(*var),
+            Ty::Eval(eval) => self.infer_term(*eval),
+            Ty::Var(var) => self.infer_var(*var),
             Ty::Tuple(tuple_ty) => {
-                // Check the parameters
-                self.check_params(tuple_ty.data)?;
+                // Infer the parameters
+                self.infer_params(tuple_ty.data)?;
 
                 Ok(Some(self.new_small_universe_ty()))
             }
             Ty::Fn(fn_ty) => {
-                // @@Todo: purity/unsafe checks
+                // @@Todo: purity/unsafe infers
 
-                // Check the parameters
-                self.check_params(fn_ty.params)?;
+                // Infer the parameters
+                self.infer_params(fn_ty.params)?;
                 self.context_ops().enter_scope(ScopeKind::FnTy(ty_id), || {
-                    // Given the parameters, check the return type
-                    Ok(self.check_ty(fn_ty.return_ty)?.map(|_| self.new_small_universe_ty()))
+                    // Given the parameters, infer the return type
+                    Ok(self.infer_ty(fn_ty.return_ty)?.map(|_| self.new_small_universe_ty()))
                 })
             }
             Ty::Ref(ref_ty) => {
-                // Check the inner type
-                self.check_ty(ref_ty.ty)?;
+                // Infer the inner type
+                self.infer_ty(ref_ty.ty)?;
                 Ok(Some(self.new_small_universe_ty()))
             }
             Ty::Data(data_ty) => {
-                // Check the arguments.
-                let inferred_def_params = self.check_def_args(data_ty.args)?;
+                // Infer the arguments.
+                let inferred_def_params = self.infer_def_args(data_ty.args)?;
 
                 // Unified the inferred parameters with the declared parameters.
                 let data_ty_params =
                     self.stores().data_def().map_fast(data_ty.data_def, |data_def| data_def.params);
-                let sub = self.unify_ops().unify_def_params(inferred_def_params, data_ty_params)?;
+                let Unification { sub } =
+                    self.unify_ops().unify_def_params(inferred_def_params, data_ty_params)?;
 
                 // Apply the substitution to the arguments.
                 self.substitute_ops().apply_sub_to_def_args_in_place(data_ty.args, &sub);
@@ -520,68 +521,83 @@ impl<'tc> CheckOps<'tc> {
         })
     }
 
-    /// Check the type of a loop control term, and return it.
-    fn check_loop_control_term(&self, _: &LoopControlTerm) -> TyId {
+    /// Infer the type of a loop control term, and return it.
+    fn infer_loop_control_term(&self, _: &LoopControlTerm) -> TyId {
         // Always `never`.
         self.new_never_ty()
     }
 
-    /// Check the type of an unsafe term, and return it.
-    fn check_unsafe_term(&self, unsafe_term: &UnsafeTerm) -> TcResult<Option<TyId>> {
+    /// Infer the type of an unsafe term, and return it.
+    fn infer_unsafe_term(&self, unsafe_term: &UnsafeTerm) -> TcResult<Option<TyId>> {
         // @@Todo: unsafe context
         // For now just forward to the inner term.
-        self.check_term(unsafe_term.inner)
+        self.infer_term(unsafe_term.inner)
     }
 
-    /// Check the type of a loop term, and return it.
-    pub fn check_loop_term(&self, loop_term: &LoopTerm) -> TcResult<Option<TyId>> {
+    /// Infer the type of a loop term, and return it.
+    pub fn infer_loop_term(&self, loop_term: &LoopTerm) -> TcResult<Option<TyId>> {
         // Forward to the inner term.
-        Ok(self.check_block_term(&loop_term.block)?.map(|_| {
+        Ok(self.infer_block_term(&loop_term.block)?.map(|_| {
             // Always `void` until we can have expressions on breaks.
             self.new_void_ty()
         }))
     }
 
-    /// Check the type of a block term, and return it.
-    pub fn check_block_term(&self, block_term: &BlockTerm) -> TcResult<Option<TyId>> {
+    /// Infer the type of a block term, and return it.
+    pub fn infer_block_term(&self, block_term: &BlockTerm) -> TcResult<Option<TyId>> {
         self.stores().term_list().map_fast(block_term.statements, |statements| {
-            let mut _final_ty = Ty::Tuple(TupleTy { data: ParamsId::empty() });
-            for _statement in statements {
-                todo!()
+            let mut has_error = false;
+            let mut final_ty = self.new_void_ty();
+            for &statement in statements {
+                match self.try_or_add_error(self.infer_term(statement)) {
+                    Some(Some(ty)) => {
+                        final_ty = ty;
+                    }
+                    None => {
+                        has_error = true;
+                    }
+                    Some(None) => {
+                        // don't consider the statement
+                    }
+                }
             }
-        });
-        todo!()
+            if has_error {
+                Err(TcError::Signal)
+            } else {
+                Ok(Some(final_ty))
+            }
+        })
     }
 
-    // @@Todo: checking for other definitions.
+    // @@Todo: infering for other definitions.
 
-    /// Check a concrete type for a given term.
+    /// Infer a concrete type for a given term.
     ///
     /// If this is not possible, return `None`.
     /// To create a hole when this is not possible, use
-    /// [`CheckOps::check_ty_of_term_or_hole`].
-    pub fn check_term(&self, term_id: TermId) -> TcResult<Option<TyId>> {
+    /// [`InferOps::infer_ty_of_term_or_hole`].
+    pub fn infer_term(&self, term_id: TermId) -> TcResult<Option<TyId>> {
         self.stores().term().map(term_id, |term| {
             match term {
-                Term::Runtime(rt_term) => Ok(Some(self.check_runtime_term(rt_term))),
+                Term::Runtime(rt_term) => Ok(Some(self.infer_runtime_term(rt_term))),
                 Term::Tuple(tuple_term) => {
-                    Ok(Some(self.new_ty(self.check_tuple_term(tuple_term)?)))
+                    Ok(Some(self.new_ty(self.infer_tuple_term(tuple_term)?)))
                 }
-                Term::Prim(prim_term) => Ok(Some(self.check_prim_term(prim_term)?)),
-                Term::Ctor(ctor_term) => Ok(Some(self.new_ty(self.check_ctor_term(ctor_term)))),
-                Term::FnCall(fn_call_term) => self.check_fn_call_term(fn_call_term, term_id),
-                Term::FnRef(fn_def_id) => Ok(Some(self.new_ty(self.check_fn_def(*fn_def_id)?))),
-                Term::Var(var_term) => self.check_var(*var_term),
-                Term::Return(return_term) => Ok(Some(self.check_return_term(return_term)?)),
-                Term::Ty(ty_id) => self.check_ty(*ty_id),
-                Term::Deref(deref_term) => self.check_deref_term(deref_term),
+                Term::Prim(prim_term) => Ok(Some(self.infer_prim_term(prim_term)?)),
+                Term::Ctor(ctor_term) => Ok(Some(self.new_ty(self.infer_ctor_term(ctor_term)))),
+                Term::FnCall(fn_call_term) => self.infer_fn_call_term(fn_call_term, term_id),
+                Term::FnRef(fn_def_id) => Ok(Some(self.new_ty(self.infer_fn_def(*fn_def_id)?))),
+                Term::Var(var_term) => self.infer_var(*var_term),
+                Term::Return(return_term) => Ok(Some(self.infer_return_term(return_term)?)),
+                Term::Ty(ty_id) => self.infer_ty(*ty_id),
+                Term::Deref(deref_term) => self.infer_deref_term(deref_term),
                 Term::LoopControl(loop_control_term) => {
-                    Ok(Some(self.check_loop_control_term(loop_control_term)))
+                    Ok(Some(self.infer_loop_control_term(loop_control_term)))
                 }
-                Term::Unsafe(unsafe_term) => self.check_unsafe_term(unsafe_term),
-                Term::Loop(loop_term) => self.check_loop_term(loop_term),
+                Term::Unsafe(unsafe_term) => self.infer_unsafe_term(unsafe_term),
+                Term::Loop(loop_term) => self.infer_loop_term(loop_term),
+                Term::Block(block_term) => self.infer_block_term(block_term),
 
-                Term::Block(_) => todo!(),
                 Term::Match(_) => todo!(),
                 Term::DeclStackMember(_) => todo!(),
                 Term::Assign(_) => todo!(),
@@ -592,7 +608,7 @@ impl<'tc> CheckOps<'tc> {
                 Term::Ref(_ref_term) => {
                     todo!()
                     // let inner_ty =
-                    // self.check_ty_of_term_or_hole(ref_term.subject);
+                    // self.infer_ty_of_term_or_hole(ref_term.subject);
                     // Ok(Some(self.new_ty(Ty::Ref(RefTy {
                     //     ty: inner_ty,
                     //     mutable: ref_term.mutable,
@@ -604,7 +620,7 @@ impl<'tc> CheckOps<'tc> {
         })
     }
 
-    pub fn check_pat(&self, _value: PatId) -> TcResult<Option<TyId>> {
+    pub fn infer_pat(&self, _value: PatId) -> TcResult<Option<TyId>> {
         todo!()
     }
 }

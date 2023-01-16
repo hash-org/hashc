@@ -59,6 +59,10 @@ pub enum TcError {
     NotAFunction { fn_call: TermId, actual_subject_ty: TyId },
     /// Cannot deref the subject.
     CannotDeref { subject: TermId, actual_subject_ty: TyId },
+    /// Types don't match
+    MismatchingTypes { expected: TyId, actual: TyId },
+    /// Undecidable equality between terms
+    UndecidableEquality { a: TermId, b: TermId },
 }
 
 pub type TcResult<T> = Result<T, TcError>;
@@ -294,6 +298,50 @@ impl<'tc> WithTcEnv<'tc, &TcError> {
                             "cannot use this as a subject of a dereference operation. It is of type `{}` which is not a reference type.",
                             self.env().with(*actual_subject_ty)
                         )
+                    );
+                }
+            }
+            TcError::MismatchingTypes { expected, actual } => {
+                let error = reporter.error().code(HashErrorCode::TypeMismatch).title(format!(
+                    "expected type `{}` but got `{}`",
+                    self.env().with(*expected),
+                    self.env().with(*actual),
+                ));
+                if let Some(location) = locations.get_location(expected) {
+                    error.add_labelled_span(
+                        location,
+                        format!(
+                            "this expects type `{}`", //@@Todo: flag for if inferred or declared
+                            self.env().with(*expected)
+                        ),
+                    );
+                }
+                if let Some(location) = locations.get_location(actual) {
+                    error.add_labelled_span(
+                        location,
+                        format!("this is of type `{}`", self.env().with(*actual)),
+                    );
+                }
+            }
+            TcError::UndecidableEquality { a, b } => {
+                let error = reporter.error().code(HashErrorCode::TypeMismatch).title(format!(
+                    "cannot determine if expressions `{}` and `{}` are equal",
+                    self.env().with(*a),
+                    self.env().with(*b),
+                ));
+                if let Some(location) = locations.get_location(a) {
+                    error.add_labelled_span(
+                        location,
+                        format!(
+                            "`{}` from here", //@@Todo: flag for if inferred or declared
+                            self.env().with(*a)
+                        ),
+                    );
+                }
+                if let Some(location) = locations.get_location(b) {
+                    error.add_labelled_span(
+                        location,
+                        format!("`{}` from here", self.env().with(*b)),
                     );
                 }
             }

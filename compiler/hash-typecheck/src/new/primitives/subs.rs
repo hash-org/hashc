@@ -58,8 +58,10 @@ impl Sub {
     }
 
     /// Create a substitution from pairs of ([`SubSubject`], [`TermId`]).
-    pub fn from_pairs(pairs: impl IntoIterator<Item = (SubSubject, TermId)>) -> Self {
-        Self { data: pairs.into_iter().map(|(from, to)| SubEntry { from, to }).collect() }
+    pub fn from_pairs(pairs: impl IntoIterator<Item = (impl Into<SubSubject>, TermId)>) -> Self {
+        Self {
+            data: pairs.into_iter().map(|(from, to)| SubEntry { from: from.into(), to }).collect(),
+        }
     }
 
     /// Get the substitution for the given [`SubSubject`], if any.
@@ -103,6 +105,12 @@ impl Sub {
     /// Add variable substitutions from the given [`Sub`].
     pub fn extend(&mut self, other: &Sub) {
         self.data.extend(other.data.iter().copied())
+    }
+
+    /// Join two substitutions.
+    pub fn join(mut self, other: &Sub) -> Sub {
+        self.extend(other);
+        self
     }
 
     /// Add variable substitutions from the iterator of pairs.
