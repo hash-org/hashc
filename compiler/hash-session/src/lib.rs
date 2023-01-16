@@ -11,7 +11,7 @@
 use hash_ast::node_map::NodeMap;
 use hash_ast_desugaring::{AstDesugaringCtx, AstDesugaringCtxQuery, AstDesugaringPass};
 use hash_ast_expand::{AstExpansionCtx, AstExpansionCtxQuery, AstExpansionPass};
-use hash_backend::{BackendCtx, BackendCtxQuery, HashBackend};
+use hash_backend::{Backend, BackendCtx, BackendCtxQuery};
 use hash_ir::IrStorage;
 use hash_layout::LayoutCtx;
 use hash_lower::{IrGen, IrOptimiser, LoweringCtx, LoweringCtxQuery};
@@ -31,13 +31,13 @@ use hash_untyped_semantics::{SemanticAnalysis, SemanticAnalysisCtx, SemanticAnal
 pub fn make_stages() -> Vec<Box<dyn CompilerStage<CompilerSession>>> {
     vec![
         Box::new(Parser),
-        Box::new(AstExpansionPass),
         Box::new(AstDesugaringPass),
+        Box::new(AstExpansionPass),
         Box::new(SemanticAnalysis),
         Box::new(Typechecker::new()),
         Box::<IrGen>::default(),
         Box::new(IrOptimiser),
-        Box::new(HashBackend::new()),
+        Box::new(Backend::new()),
     ]
 }
 

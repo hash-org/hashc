@@ -111,7 +111,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
     /// Emit code for a [`TerminatorKind::Goto`]. This function will
     /// attempt to avoid emitting a `branch` if the blocks can be merged.
     ///
-    /// Furthermore, this funciton can be used a general purpose method
+    /// Furthermore, this function can be used a general purpose method
     /// to emit code for unconditionally jumping from a block to another.
     fn codegen_goto_terminator(
         &mut self,
@@ -160,13 +160,13 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
         let fn_ptr = builder.get_fn_ptr(instance);
 
         // If the return ABI pass mode is "indirect", then this means that
-        // we have to create a temporary in order to represent the "outptr"
+        // we have to create a temporary in order to represent the "out_ptr"
         // of the function.
         let mut args = Vec::with_capacity(fn_args.len() + (fn_abi.ret_abi.is_indirect() as usize));
 
         // compute the return destination of the function. If the function
         // return is indirect, `compute_fn_return_destination` will push
-        // an operand which represents the "outptr" as the first argument.
+        // an operand which represents the "out_ptr" as the first argument.
         let return_destination = if target.is_some() {
             self.compute_fn_return_destination(
                 builder,
@@ -311,7 +311,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
         destination: ir::Place,
         return_abi: &ArgAbi,
         fn_args: &mut Vec<Builder::Value>,
-        is_instrinsic: bool,
+        is_intrinsic: bool,
     ) -> ReturnDestinationKind<Builder::Value> {
         // We don't need to do anything if the return value is ignored.
         if return_abi.is_ignored() {
@@ -328,7 +328,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
                     // Or, intrinsics need a place to store their result due to it being
                     // unclear on how to transfer the result directly...
                     //
-                    return if return_abi.is_indirect() || is_instrinsic {
+                    return if return_abi.is_indirect() || is_intrinsic {
                         let temp = PlaceRef::new_stack(builder, return_abi.info);
                         temp.storage_live(builder);
                         ReturnDestinationKind::IndirectOperand(temp, local)
@@ -458,7 +458,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
             //
             // Ref: https://cs.github.com/rust-lang/rust/blob/3020239de947ec52677e9b4e853a6a9fc073d1f9/compiler/rustc_codegen_ssa/src/mir/block.rs#L335
         } else if targets_iter.len() == 2
-            && self.body.blocks()[targets.otherwise()].is_empty_and_unreacheable()
+            && self.body.blocks()[targets.otherwise()].is_empty_and_unreachable()
             && self.ctx.settings().optimisation_level == OptimisationLevel::Debug
             && self.ctx.settings().codegen_settings().backend == CodeGenBackend::LLVM
         {
@@ -513,7 +513,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
         // Add a hint for the condition as "expecting" the provided value
         let condition = builder.codegen_expect_intrinsic(condition, expected);
 
-        // Create a failure blockm and a conditional branch to it.
+        // Create a failure block and a conditional branch to it.
         let failure_block = builder.append_sibling_block("assert_failure");
         let target = self.get_codegen_block_id(target);
 
@@ -530,7 +530,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
         let message = builder.const_str(assert_kind.message());
         let args = &[message.0, message.1];
 
-        // @@Todo: we need to create a call to `panic`, as in resolve the funciton
+        // @@Todo: we need to create a call to `panic`, as in resolve the function
         // abi to `panic` and the relative function pointer.
         let (fn_abi, fn_ptr) = self.resolve_intrinsic(builder, Intrinsic::Panic);
 
