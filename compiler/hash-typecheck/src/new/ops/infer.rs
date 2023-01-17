@@ -7,6 +7,7 @@ use hash_source::constant::{FloatTy, IntTy, SIntTy, UIntTy};
 use hash_types::{
     new::{
         args::{ArgsId, PatArgsId},
+        casting::CastTerm,
         control::{LoopControlTerm, LoopTerm, ReturnTerm},
         data::{CtorTerm, DataTy},
         defs::{DefArgsId, DefParamGroupData, DefParamsId, DefPatArgsId},
@@ -18,13 +19,13 @@ use hash_types::{
         holes::HoleBinderKind,
         lits::{Lit, PrimTerm},
         params::{ParamData, ParamsId},
-        pats::PatId,
-        refs::DerefTerm,
+        pats::{Pat, PatId},
+        refs::{DerefTerm, RefTerm, RefTy},
         scopes::BlockTerm,
         symbols::Symbol,
         terms::{RuntimeTerm, Term, TermId, UnsafeTerm},
         tuples::{TupleTerm, TupleTy},
-        tys::{Ty, TyId},
+        tys::{Ty, TyId, TypeOfTerm},
         utils::{common::CommonUtils, AccessToUtils},
     },
     ty_as_variant,
@@ -163,12 +164,16 @@ impl<'tc> InferOps<'tc> {
     }
 
     /// Infer the type of a sequence of terms which should all match.
-    pub fn infer_unified_term_list(&self, terms: &[TermId]) -> TcResult<TyId> {
+    pub fn infer_unified_list<T: Copy>(
+        &self,
+        items: &[T],
+        infer_item: impl Fn(T) -> TcResult<Option<TyId>>,
+    ) -> TcResult<TyId> {
         let mut current_ty = self.new_ty_hole();
         let mut found_error = false;
 
-        for term in terms {
-            match self.try_or_add_error(self.infer_term(*term)) {
+        for term in items {
+            match self.try_or_add_error(infer_item(*term)) {
                 Some(Some(ty)) => {
                     match self.unify_ops().unify_tys(ty, current_ty) {
                         Ok(Unification { sub }) => {
@@ -235,50 +240,57 @@ impl<'tc> InferOps<'tc> {
         }
     }
 
+    /// Infer the type of a literal.
+    pub fn infer_lit(&self, lit: &Lit) -> TyId {
+        self.new_data_ty(match lit {
+            Lit::Int(int_lit) => match int_lit.underlying.kind {
+                IntLitKind::Suffixed(suffix) => match suffix {
+                    IntTy::Int(s_int_ty) => match s_int_ty {
+                        SIntTy::I8 => self.primitives().i8(),
+                        SIntTy::I16 => self.primitives().i16(),
+                        SIntTy::I32 => self.primitives().i32(),
+                        SIntTy::I64 => self.primitives().i64(),
+                        SIntTy::I128 => self.primitives().i128(),
+                        SIntTy::ISize => self.primitives().isize(),
+                        SIntTy::IBig => self.primitives().ibig(),
+                    },
+                    IntTy::UInt(u_int_ty) => match u_int_ty {
+                        UIntTy::U8 => self.primitives().u8(),
+                        UIntTy::U16 => self.primitives().u16(),
+                        UIntTy::U32 => self.primitives().u32(),
+                        UIntTy::U64 => self.primitives().u64(),
+                        UIntTy::U128 => self.primitives().u128(),
+                        UIntTy::USize => self.primitives().usize(),
+                        UIntTy::UBig => self.primitives().ubig(),
+                    },
+                },
+                // By default, we assume that all integers are i32 unless annotated otherwise.
+                IntLitKind::Unsuffixed => self.primitives().i32(),
+            },
+            Lit::Str(_) => self.primitives().str(),
+            Lit::Char(_) => self.primitives().char(),
+            Lit::Float(float) => match float.underlying.kind {
+                FloatLitKind::Suffixed(float_suffix) => match float_suffix {
+                    FloatTy::F32 => self.primitives().f32(),
+                    FloatTy::F64 => self.primitives().f64(),
+                },
+                // By default, we assume that all floats are f32 unless annotated otherwise.
+                FloatLitKind::Unsuffixed => self.primitives().f32(),
+            },
+        })
+    }
+
     /// Infer the type of a primitive term.
     pub fn infer_prim_term(&self, term: &PrimTerm) -> TcResult<TyId> {
         match term {
-            PrimTerm::Lit(lit_term) => Ok(self.new_data_ty(match lit_term {
-                Lit::Int(int_lit) => match int_lit.underlying.kind {
-                    IntLitKind::Suffixed(suffix) => match suffix {
-                        IntTy::Int(s_int_ty) => match s_int_ty {
-                            SIntTy::I8 => self.primitives().i8(),
-                            SIntTy::I16 => self.primitives().i16(),
-                            SIntTy::I32 => self.primitives().i32(),
-                            SIntTy::I64 => self.primitives().i64(),
-                            SIntTy::I128 => self.primitives().i128(),
-                            SIntTy::ISize => self.primitives().isize(),
-                            SIntTy::IBig => self.primitives().ibig(),
-                        },
-                        IntTy::UInt(u_int_ty) => match u_int_ty {
-                            UIntTy::U8 => self.primitives().u8(),
-                            UIntTy::U16 => self.primitives().u16(),
-                            UIntTy::U32 => self.primitives().u32(),
-                            UIntTy::U64 => self.primitives().u64(),
-                            UIntTy::U128 => self.primitives().u128(),
-                            UIntTy::USize => self.primitives().usize(),
-                            UIntTy::UBig => self.primitives().ubig(),
-                        },
-                    },
-                    // By default, we assume that all integers are i32 unless annotated otherwise.
-                    IntLitKind::Unsuffixed => self.primitives().i32(),
-                },
-                Lit::Str(_) => self.primitives().str(),
-                Lit::Char(_) => self.primitives().char(),
-                Lit::Float(float) => match float.underlying.kind {
-                    FloatLitKind::Suffixed(float_suffix) => match float_suffix {
-                        FloatTy::F32 => self.primitives().f32(),
-                        FloatTy::F64 => self.primitives().f64(),
-                    },
-                    // By default, we assume that all floats are f32 unless annotated otherwise.
-                    FloatLitKind::Unsuffixed => self.primitives().f32(),
-                },
-            })),
+            PrimTerm::Lit(lit_term) => Ok(self.infer_lit(lit_term)),
             PrimTerm::List(list_term) => {
                 let list_inner_type =
                     self.stores().term_list().map_fast(list_term.elements, |elements| {
-                        self.try_or_add_error(self.infer_unified_term_list(elements))
-                            .unwrap_or_else(|| self.new_ty_hole())
+                        self.try_or_add_error(
+                            self.infer_unified_list(elements, |term| self.infer_term(term)),
+                        )
+                        .unwrap_or_else(|| self.new_ty_hole())
                     });
                 let list_ty = self.new_ty(DataTy {
                     data_def: self.primitives().list(),
@@ -569,7 +581,45 @@ impl<'tc> InferOps<'tc> {
         })
     }
 
-    // @@Todo: infering for other definitions.
+    /// Infer a `typeof` term, and return it.
+    pub fn infer_type_of_term(&self, type_of_term: TypeOfTerm) -> TcResult<Option<TyId>> {
+        let ty_of_term = self.infer_term(type_of_term.term)?;
+        match ty_of_term {
+            Some(ty_of_term) => {
+                let ty_of_ty = self.infer_ty(ty_of_term)?;
+                Ok(ty_of_ty)
+            }
+            None => Ok(None),
+        }
+    }
+
+    /// Infer a reference term, and return its type.
+    pub fn infer_ref_term(&self, ref_term: &RefTerm) -> TcResult<Option<TyId>> {
+        let inner_ty = self.infer_term(ref_term.subject)?;
+        match inner_ty {
+            Some(inner_ty) => Ok(Some(self.new_ty(Ty::Ref(RefTy {
+                ty: inner_ty,
+                mutable: ref_term.mutable,
+                kind: ref_term.kind,
+            })))),
+            None => Ok(None),
+        }
+    }
+
+    /// Infer a cast term, and return its type.
+    pub fn infer_cast_term(&self, cast_term: CastTerm) -> TcResult<Option<TyId>> {
+        let inferred_term_ty = self.infer_term(cast_term.subject_term)?;
+        match inferred_term_ty {
+            Some(inferred_term_ty) => {
+                let Unification { sub } =
+                    self.unify_ops().unify_tys(inferred_term_ty, cast_term.target_ty)?;
+                let subbed_target =
+                    self.substitute_ops().apply_sub_to_ty(cast_term.target_ty, &sub);
+                Ok(Some(subbed_target))
+            }
+            None => Ok(None),
+        }
+    }
 
     /// Infer a concrete type for a given term.
     ///
@@ -577,50 +627,102 @@ impl<'tc> InferOps<'tc> {
     /// To create a hole when this is not possible, use
     /// [`InferOps::infer_ty_of_term_or_hole`].
     pub fn infer_term(&self, term_id: TermId) -> TcResult<Option<TyId>> {
-        self.stores().term().map(term_id, |term| {
-            match term {
-                Term::Runtime(rt_term) => Ok(Some(self.infer_runtime_term(rt_term))),
-                Term::Tuple(tuple_term) => {
-                    Ok(Some(self.new_ty(self.infer_tuple_term(tuple_term)?)))
-                }
-                Term::Prim(prim_term) => Ok(Some(self.infer_prim_term(prim_term)?)),
-                Term::Ctor(ctor_term) => Ok(Some(self.new_ty(self.infer_ctor_term(ctor_term)))),
-                Term::FnCall(fn_call_term) => self.infer_fn_call_term(fn_call_term, term_id),
-                Term::FnRef(fn_def_id) => Ok(Some(self.new_ty(self.infer_fn_def(*fn_def_id)?))),
-                Term::Var(var_term) => self.infer_var(*var_term),
-                Term::Return(return_term) => Ok(Some(self.infer_return_term(return_term)?)),
-                Term::Ty(ty_id) => self.infer_ty(*ty_id),
-                Term::Deref(deref_term) => self.infer_deref_term(deref_term),
-                Term::LoopControl(loop_control_term) => {
-                    Ok(Some(self.infer_loop_control_term(loop_control_term)))
-                }
-                Term::Unsafe(unsafe_term) => self.infer_unsafe_term(unsafe_term),
-                Term::Loop(loop_term) => self.infer_loop_term(loop_term),
-                Term::Block(block_term) => self.infer_block_term(block_term),
-
-                Term::Match(_) => todo!(),
-                Term::DeclStackMember(_) => todo!(),
-                Term::Assign(_) => todo!(),
-                Term::Access(_) => todo!(),
-                Term::Cast(_) => todo!(),
-                Term::TypeOf(_) => todo!(),
-                Term::HoleBinder(_) => todo!(),
-                Term::Ref(_ref_term) => {
-                    todo!()
-                    // let inner_ty =
-                    // self.infer_ty_of_term_or_hole(ref_term.subject);
-                    // Ok(Some(self.new_ty(Ty::Ref(RefTy {
-                    //     ty: inner_ty,
-                    //     mutable: ref_term.mutable,
-                    //     kind: ref_term.kind,
-                    // }))))
-                }
-                Term::Hole(_) => Ok(None),
+        self.stores().term().map(term_id, |term| match term {
+            Term::Runtime(rt_term) => Ok(Some(self.infer_runtime_term(rt_term))),
+            Term::Tuple(tuple_term) => Ok(Some(self.new_ty(self.infer_tuple_term(tuple_term)?))),
+            Term::Prim(prim_term) => Ok(Some(self.infer_prim_term(prim_term)?)),
+            Term::Ctor(ctor_term) => Ok(Some(self.new_ty(self.infer_ctor_term(ctor_term)))),
+            Term::FnCall(fn_call_term) => self.infer_fn_call_term(fn_call_term, term_id),
+            Term::FnRef(fn_def_id) => Ok(Some(self.new_ty(self.infer_fn_def(*fn_def_id)?))),
+            Term::Var(var_term) => self.infer_var(*var_term),
+            Term::Return(return_term) => Ok(Some(self.infer_return_term(return_term)?)),
+            Term::Ty(ty_id) => self.infer_ty(*ty_id),
+            Term::Deref(deref_term) => self.infer_deref_term(deref_term),
+            Term::LoopControl(loop_control_term) => {
+                Ok(Some(self.infer_loop_control_term(loop_control_term)))
             }
+            Term::Unsafe(unsafe_term) => self.infer_unsafe_term(unsafe_term),
+            Term::Loop(loop_term) => self.infer_loop_term(loop_term),
+            Term::Block(block_term) => self.infer_block_term(block_term),
+            Term::TypeOf(ty_of_term) => self.infer_type_of_term(*ty_of_term),
+            Term::Ref(ref_term) => self.infer_ref_term(ref_term),
+            Term::Cast(cast_term) => self.infer_cast_term(*cast_term),
+
+            Term::Match(_) => todo!(),
+            Term::DeclStackMember(_) => todo!(),
+            Term::Assign(_) => todo!(),
+            Term::Access(_) => todo!(),
+            Term::HoleBinder(_) => todo!(),
+            Term::Hole(_) => Ok(None),
         })
     }
 
-    pub fn infer_pat(&self, _value: PatId) -> TcResult<Option<TyId>> {
-        todo!()
+    /// Infer the type of a pattern, and return it.
+    pub fn infer_pat(&self, pat_id: PatId) -> TcResult<Option<TyId>> {
+        let pat = self.get_pat(pat_id);
+        match pat {
+            Pat::Binding(binding) => self.infer_var(binding.name),
+            Pat::Range(range_pat) => {
+                let start = self.infer_lit(&range_pat.start.into());
+                let end = self.infer_lit(&range_pat.end.into());
+                let Unification { sub } = self.unify_ops().unify_tys(start, end)?;
+                assert!(sub.is_empty());
+                Ok(Some(start))
+            }
+            Pat::Lit(lit) => Ok(Some(self.infer_lit(&lit.into()))),
+            Pat::Tuple(tuple_pat) => {
+                let args = self.infer_pat_args(tuple_pat.data)?;
+                Ok(Some(self.new_ty(TupleTy { data: args })))
+            }
+            Pat::List(list_term) => {
+                let list_inner_type =
+                    self.stores().pat_list().map_fast(list_term.pats, |elements| {
+                        self.try_or_add_error(
+                            self.infer_unified_list(elements, |pat| self.infer_pat(pat)),
+                        )
+                        .unwrap_or_else(|| self.new_ty_hole())
+                    });
+                let list_ty = self.new_ty(DataTy {
+                    data_def: self.primitives().list(),
+                    args: self.param_utils().create_positional_args_for_data_def(
+                        self.primitives().list(),
+                        [[self.new_term(Term::Ty(list_inner_type))]],
+                    ),
+                });
+                Ok(Some(list_ty))
+            }
+            Pat::Ctor(ctor_pat) => {
+                // @@Todo: dependent
+                let _ = self.infer_def_args(ctor_pat.data_args)?;
+                let _ = self.infer_def_pat_args(ctor_pat.ctor_pat_args)?;
+                let data_def = self
+                    .stores()
+                    .ctor_defs()
+                    .map_fast(ctor_pat.ctor.0, |defs| defs[ctor_pat.ctor.1].data_def_id);
+
+                // @@todo: sub args
+                Ok(Some(self.new_ty(DataTy { data_def, args: ctor_pat.data_args })))
+            }
+            Pat::Or(or_pat) => {
+                self.stores().pat_list().map_fast(or_pat.alternatives, |alternatives| {
+                    Ok(Some(self.infer_unified_list(alternatives, |pat| self.infer_pat(pat))?))
+                })
+            }
+            Pat::If(if_pat) => {
+                let cond_ty = self.infer_term(if_pat.condition)?;
+                let pat_ty = self.infer_pat(if_pat.pat)?;
+
+                match (cond_ty, pat_ty) {
+                    (Some(cond_ty), Some(pat_ty)) => {
+                        let Unification { sub } = self
+                            .unify_ops()
+                            .unify_tys(cond_ty, self.new_data_ty(self.primitives().bool()))?;
+                        assert!(sub.is_empty());
+                        Ok(Some(pat_ty))
+                    }
+                    _ => Ok(None),
+                }
+            }
+        }
     }
 }

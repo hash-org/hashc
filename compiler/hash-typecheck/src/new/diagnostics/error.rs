@@ -63,6 +63,8 @@ pub enum TcError {
     MismatchingTypes { expected: TyId, actual: TyId },
     /// Undecidable equality between terms
     UndecidableEquality { a: TermId, b: TermId },
+    /// Invalid range pattern literal
+    InvalidRangePatternLiteral { location: SourceLocation },
 }
 
 pub type TcResult<T> = Result<T, TcError>;
@@ -343,6 +345,15 @@ impl<'tc> WithTcEnv<'tc, &TcError> {
                         location,
                         format!("`{}` from here", self.env().with(*b)),
                     );
+                }
+            }
+            TcError::InvalidRangePatternLiteral { location } => {
+                let error = reporter
+                    .error()
+                    .code(HashErrorCode::TypeMismatch)
+                    .title("range patterns should contain valid literals");
+                if let Some(location) = locations.get_location(location) {
+                    error.add_labelled_span(location, "not a valid range literal");
                 }
             }
         }

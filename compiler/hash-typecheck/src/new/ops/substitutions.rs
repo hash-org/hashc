@@ -1,6 +1,7 @@
 //! Operations to substitute variables in types and terms.
 use derive_more::Constructor;
 use hash_types::new::{args::ArgsId, defs::DefArgsId, params::ParamsId, terms::TermId, tys::TyId};
+use hash_utils::store::SequenceStoreKey;
 
 use crate::{
     impl_access_to_tc_env,
@@ -15,36 +16,39 @@ pub struct SubstituteOps<'tc> {
 impl_access_to_tc_env!(SubstituteOps<'tc>);
 
 impl<'tc> SubstituteOps<'tc> {
-    pub fn apply_sub_to_term(&self, _term_id: TermId, _sub: &Sub) -> TermId {
-        todo!()
+    pub fn apply_sub_to_term(&self, term_id: TermId, _sub: &Sub) -> TermId {
+        // @@Todo
+        term_id
     }
 
     pub fn apply_sub_to_term_in_place(&self, _term_id: TermId, _sub: &Sub) {
-        todo!()
+        // @@Todo
     }
 
-    pub fn apply_sub_to_ty(&self, _ty_id: TyId, _sub: &Sub) -> TyId {
-        todo!()
+    pub fn apply_sub_to_ty(&self, ty_id: TyId, _sub: &Sub) -> TyId {
+        // @@Todo
+        ty_id
     }
 
     pub fn apply_sub_to_ty_in_place(&self, _ty_id: TyId, _sub: &Sub) {
-        todo!()
+        // @@Todo
     }
 
-    pub fn apply_sub_to_args(&self, _args_id: ArgsId, _sub: &Sub) -> TermId {
-        todo!()
+    pub fn apply_sub_to_args(&self, args_id: ArgsId, _sub: &Sub) -> ArgsId {
+        // @@Todo
+        args_id
     }
 
-    pub fn apply_sub_to_params_in_place(&self, _params_id: ParamsId, _sub: &Sub) -> TermId {
-        todo!()
+    pub fn apply_sub_to_params_in_place(&self, _params_id: ParamsId, _sub: &Sub) {
+        // @@Todo
     }
 
-    pub fn apply_sub_to_def_args_in_place(&self, _def_args_id: DefArgsId, _sub: &Sub) -> TermId {
-        todo!()
+    pub fn apply_sub_to_def_args_in_place(&self, _def_args_id: DefArgsId, _sub: &Sub) {
+        // @@Todo
     }
 
     pub fn apply_sub_to_args_in_place(&self, _args_id: ArgsId, _sub: &Sub) {
-        todo!()
+        // @@Todo
     }
 
     /// Create a substitution from applying the arguments to the parameters.
@@ -54,29 +58,10 @@ impl<'tc> SubstituteOps<'tc> {
     /// a2, ..., s(pn) = an`.
     pub fn create_sub_from_applying_args_to_params(
         &self,
-        _args_id: ArgsId,
-        _params_id: ParamsId,
+        args_id: ArgsId,
+        params_id: ParamsId,
     ) -> TcResult<Sub> {
-        todo!()
-    }
-
-    /// Whether the given term has holes.
-    pub fn term_has_holes(&self, _term_id: TermId) -> bool {
-        todo!()
-    }
-
-    /// Whether the given type has holes.
-    pub fn ty_has_holes(&self, _ty_id: TyId) -> bool {
-        todo!()
-    }
-
-    /// Whether the given parameters have holes.
-    pub fn params_have_holes(&self, _params_id: ParamsId) -> bool {
-        todo!()
-    }
-
-    /// Whether the given arguments have holes.
-    pub fn args_have_holes(&self, _args_id: ArgsId) -> bool {
+        assert!(args_id.len() == params_id.len());
         todo!()
     }
 }

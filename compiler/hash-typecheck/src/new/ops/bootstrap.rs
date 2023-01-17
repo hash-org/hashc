@@ -31,8 +31,8 @@ impl<'tc> BootstrapOps<'tc> {
     /// the provided closure.
     pub fn bootstrap<T>(&self, f: impl FnOnce(ModDefId) -> T) -> T {
         let primitives = DefinedPrimitives::create(self.env());
-        let intrinsics = DefinedIntrinsics::create(*self.tc_env());
         self.primitives_or_unset().set(primitives).unwrap();
+        let intrinsics = DefinedIntrinsics::create(*self.tc_env());
         self.intrinsics_or_unset().set(intrinsics).unwrap();
 
         let primitive_mod = self.make_primitive_mod(&primitives);

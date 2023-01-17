@@ -165,6 +165,25 @@ impl<'tc> Scoping<'tc> {
         })
     }
 
+    /// Add a new scope
+    pub(super) fn add_scope(&self, kind: ScopeKind, context_kind: ContextKind) {
+        self.context_ops().add_scope(kind);
+
+        let mut b = self.bindings_by_name.get_mut();
+
+        // Populate the map with all the bindings in the current
+        // scope. Any duplicate names will be shadowed by the last entry.
+        let mut map = HashMap::new();
+        self.context().for_bindings_of_scope(self.context().get_current_scope_index(), |binding| {
+            let symbol_data = self.stores().symbol().get(binding.name);
+            if let Some(name) = symbol_data.name {
+                map.insert(name, binding.name);
+            }
+        });
+
+        b.push((context_kind, map));
+    }
+
     /// Add a stack member to the current scope, also adding it to the
     /// `bindings_by_name` map.
     pub(super) fn add_stack_binding(&self, member_id: StackMemberId) {

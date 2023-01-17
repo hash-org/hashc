@@ -26,8 +26,8 @@ impl fmt::Display for WithEnv<'_, &CastTerm> {
         write!(
             f,
             "({} as {})",
-            self.env().with(self.value.target_ty),
-            self.env().with(self.value.subject_term)
+            self.env().with(self.value.subject_term),
+            self.env().with(self.value.target_ty)
         )
     }
 }

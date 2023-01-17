@@ -38,10 +38,15 @@ impl<'tc> AstPass for ResolutionPass<'tc> {
         node: ast::AstNodeRef<ast::BodyBlock>,
     ) -> crate::new::diagnostics::error::TcResult<()> {
         self.bootstrap_ops().bootstrap(|prim_mod| {
-            self.scoping().enter_scope(prim_mod.into(), ContextKind::Environment, || {
-                self.make_term_from_ast_body_block(node)?;
-                Ok(())
-            })
+            self.scoping().add_scope(prim_mod.into(), ContextKind::Environment);
+            let term = self.make_term_from_ast_body_block(node)?;
+            let term_ty = self.infer_ops().infer_term(term)?;
+            if let Some(term_ty) = term_ty {
+                println!("Inferred type: {}", self.env().with(term_ty));
+            } else {
+                println!("Inferred type: <unknown>");
+            }
+            Ok(())
         })
     }
 
@@ -50,11 +55,10 @@ impl<'tc> AstPass for ResolutionPass<'tc> {
         node: ast::AstNodeRef<ast::Module>,
     ) -> crate::new::diagnostics::error::TcResult<()> {
         self.bootstrap_ops().bootstrap(|prim_mod| {
-            self.scoping().enter_scope(prim_mod.into(), ContextKind::Environment, || {
-                let mod_def_id = self.resolve_ast_module_inner_terms(node)?;
-                println!("Resolved module: {}", self.env().with(mod_def_id));
-                Ok(())
-            })
+            self.scoping().add_scope(prim_mod.into(), ContextKind::Environment);
+            let mod_def_id = self.resolve_ast_module_inner_terms(node)?;
+            println!("Resolved module: {}", self.env().with(mod_def_id));
+            Ok(())
         })
     }
 }
