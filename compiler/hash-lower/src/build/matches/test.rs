@@ -10,7 +10,7 @@ use hash_ir::{
     ir::{
         BasicBlock, BinOp, Const, Operand, PlaceProjection, RValue, SwitchTargets, TerminatorKind,
     },
-    ty::{AdtId, IrTy, IrTyId, VariantIdx},
+    ty::{AdtId, IrTy, IrTyId, ToIrTy, VariantIdx},
     IrCtx,
 };
 use hash_reporting::macros::panic_on_span;
@@ -582,7 +582,7 @@ impl<'tcx> Builder<'tcx> {
 
                 // Here we want to create a switch statement that will match on all of the
                 // specified discriminants of the ADT.
-                let discriminant_ty = self.ctx.tys().create(IrTy::UInt(discriminant_ty));
+                let discriminant_ty = discriminant_ty.to_ir_ty(self.ctx);
                 let targets = SwitchTargets::new(
                     self.ctx.adts().map_fast(adt, |adt| {
                         // Map over all of the discriminants of the ADT, and filter out those that

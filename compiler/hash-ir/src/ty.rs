@@ -219,9 +219,9 @@ impl IrTy {
     }
 
     /// Check if a type is a scalar, i.e. it cannot be divided into
-    /// further components. [IrTy::RawRef] is also considered as a scalar since
-    /// the components of the reference are *opaque* to the compiler because it
-    /// isn't managed.
+    /// further components. [`IrTy::Ref(..)`] with non-[`RefKind::Rc`] is also
+    /// considered as a scalar since the components of the reference are
+    /// *opaque* to the compiler because it isn't managed.
     pub fn is_scalar(&self) -> bool {
         matches!(
             self,
@@ -293,7 +293,7 @@ impl IrTy {
         &self,
         ctx: &IrCtx,
         variant: VariantIdx,
-    ) -> Option<(UIntTy, u128)> {
+    ) -> Option<(IntTy, u128)> {
         match self {
             IrTy::Adt(id) => {
                 ctx.adts().map_fast(*id, |data| {
@@ -314,6 +314,33 @@ impl IrTy {
                 })
             }
             _ => None,
+        }
+    }
+
+    /// Compute the discriminant type for the given type. This computes
+    /// the specific "discriminant" for `enum` ADTs, and simply returns a
+    /// `u8` for all other types. This is because the discriminant type of
+    /// all other types is considered to be `0`, and thus a `u8` is sufficient.
+    pub fn discriminant_ty(&self, ctx: &IrCtx) -> IrTyId {
+        match self {
+            IrTy::Adt(id) => ctx.map_adt(*id, |_, data| {
+                if data.flags.is_enum() {
+                    data.discriminant_ty().to_ir_ty(ctx)
+                } else {
+                    ctx.tys().common_tys.u8
+                }
+            }),
+            IrTy::Int(_)
+            | IrTy::UInt(_)
+            | IrTy::Float(_)
+            | IrTy::Str
+            | IrTy::Bool
+            | IrTy::Char
+            | IrTy::Never
+            | IrTy::Ref(_, _, _)
+            | IrTy::Slice(_)
+            | IrTy::Array { .. }
+            | IrTy::Fn { .. } => ctx.tys().common_tys.u8,
         }
     }
 }
@@ -414,7 +441,7 @@ impl AdtData {
     /// @@Future(discriminants): This is incomplete because it does not account
     /// for the `repr` attribute, and the fact that enums might have
     /// explicit discriminants specified on them.
-    pub fn discriminant_ty(&self) -> UIntTy {
+    pub fn discriminant_ty(&self) -> IntTy {
         debug_assert!(self.flags.is_enum() || self.flags.is_union());
 
         // Compute the maximum number of bits needed for the discriminant.
@@ -422,7 +449,7 @@ impl AdtData {
         let bits = max.leading_zeros();
         let size = Size::from_bits(cmp::max(1, 64 - bits));
 
-        UIntTy::from_size(size)
+        IntTy::UInt(UIntTy::from_size(size))
     }
 
     /// Compute the representation of the discriminant of this [AdtData]

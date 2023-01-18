@@ -710,7 +710,7 @@ impl RValue {
         match self {
             RValue::Use(operand) => operand.ty(locals, ctx),
             RValue::ConstOp(ConstOp::AlignOf | ConstOp::SizeOf, _) => ctx.tys().common_tys.usize,
-            RValue::UnaryOp(_, _) => todo!(),
+            RValue::UnaryOp(_, operand) => operand.ty(locals, ctx),
             RValue::BinaryOp(op, box (lhs, rhs)) => {
                 op.ty(ctx, lhs.ty(locals, ctx), rhs.ty(locals, ctx))
             }
@@ -719,14 +719,23 @@ impl RValue {
                 ctx.tys().create(IrTy::tuple(ctx, &[ty, ctx.tys().common_tys.bool]))
             }
             RValue::Len(_) => ctx.tys().common_tys.usize,
-            RValue::Ref(_, _, _) => todo!(),
+            RValue::Ref(mutability, place, kind) => {
+                let ty = place.ty(locals, ctx);
+                ctx.tys().create(IrTy::Ref(ty, *mutability, *kind))
+            }
             RValue::Aggregate(kind, _) => match kind {
                 AggregateKind::Enum(id, _)
                 | AggregateKind::Struct(id)
                 | AggregateKind::Tuple(id) => ctx.tys().create(IrTy::Adt(*id)),
                 AggregateKind::Array(ty) => ctx.tys().create(IrTy::Slice(*ty)),
             },
-            RValue::Discriminant(_) => todo!(),
+            RValue::Discriminant(place) => {
+                let ty = place.ty(locals, ctx);
+
+                // @@Safety: this does not create any new types, and thus
+                // we can map_fast over the types.
+                ctx.tys().map_fast(ty, |ty| ty.discriminant_ty(ctx))
+            }
         }
     }
 }
