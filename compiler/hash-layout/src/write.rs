@@ -1,7 +1,26 @@
 //! Contains logic for displaying a computed [Layout] in a pretty format
 //! that can be queried by users.
 //!
-//! @@Todo(feds01): add unit tests for these layouts.
+//! @@Improvements:
+//!
+//! 1. Since the layout printer is only a shallow printer, an improvement could
+//! be made to print the layout of the types that are nested within the type,
+//! and possibly exploring the nested structure:
+//! ```ignore
+//! struct Item (
+//!    item: ( #layout_of (y: i32, x: i32), z: [i32; 3]
+//!     ...
+//! )
+//! ```
+//!
+//! And it will print the layout of the inner type, but this requires to support
+//! @@UniversalParserDirectives.
+//!
+//!
+//! 2. Add unit tests for some layout printing
+//!
+//! 3. Scale each field in the layout print to the size of the largest field, to
+//! more accurately represent the layout of the type.
 
 use std::{fmt, iter};
 

@@ -3,7 +3,7 @@
 
 use hash_ir::{
     ir::{self, BinOp},
-    ty::{self, IrTyId, VariantIdx},
+    ty::{self, IrTyId, RefKind, VariantIdx},
 };
 use hash_utils::store::Store;
 
@@ -301,7 +301,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
             }
             ir::RValue::Ref(_, place, kind) => {
                 match kind {
-                    ir::AddressMode::Raw => {
+                    RefKind::Normal | RefKind::Raw => {
                         let ty = rvalue.ty(&self.body.declarations, self.ctx.ir_ctx());
                         let place = self.codegen_place(builder, place);
 
@@ -316,7 +316,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
 
                     // @@Pointers: decide more clearly on what this means, and
                     // when they are used/rules, etc.
-                    ir::AddressMode::Smart => unimplemented!(),
+                    RefKind::Rc => unimplemented!(),
                 }
             }
             ir::RValue::Discriminant(place) => {

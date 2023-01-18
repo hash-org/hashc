@@ -19,7 +19,7 @@ use hash_pipeline::settings::{CompilerSettings, OptimisationLevel};
 use index_vec::{index_vec, Idx, IndexVec};
 use smallvec::{smallvec, SmallVec};
 
-use super::IrOptimisation;
+use super::IrOptimisationPass;
 
 /// Function that will iterate over all of the blocks and remove them
 /// from the body source.
@@ -90,7 +90,7 @@ fn compute_predecessor_counts(body: &Body) -> IndexVec<BasicBlock, u32> {
 
 pub struct SimplifyGraph;
 
-impl IrOptimisation for SimplifyGraph {
+impl IrOptimisationPass for SimplifyGraph {
     fn name(&self) -> &'static str {
         "simplify-graph"
     }

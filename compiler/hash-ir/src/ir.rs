@@ -25,7 +25,7 @@ use smallvec::{smallvec, SmallVec};
 
 use crate::{
     basic_blocks::BasicBlocks,
-    ty::{AdtId, IrTy, IrTyId, Mutability, PlaceTy, ToIrTy, VariantIdx},
+    ty::{AdtId, IrTy, IrTyId, Mutability, PlaceTy, RefKind, ToIrTy, VariantIdx},
     IrCtx,
 };
 
@@ -454,16 +454,6 @@ impl LocalDecl {
     }
 }
 
-/// The addressing mode of the [RValue::Ref].
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum AddressMode {
-    /// Take the `&raw` reference of something.
-    Raw,
-    /// Take the `&` reference of something, meaning that it is reference
-    /// counted.
-    Smart,
-}
-
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum PlaceProjection {
     /// When we want to narrow down the union type to some specific
@@ -688,7 +678,7 @@ pub enum RValue {
 
     /// An expression which is taking the address of another expression with an
     /// mutability modifier e.g. `&mut x`.
-    Ref(Mutability, Place, AddressMode),
+    Ref(Mutability, Place, RefKind),
     /// Used for initialising structs, tuples and other aggregate
     /// data structures
     Aggregate(AggregateKind, Vec<Operand>),

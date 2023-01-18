@@ -15,11 +15,11 @@
 //!    code for nodes that don't need to be dealt with.
 use crate::{
     ir::{
-        AddressMode, AggregateKind, AssertKind, BasicBlock, BasicBlockData, BinOp, Body, ConstKind,
-        ConstOp, IrRef, Local, Operand, Place, PlaceProjection, RValue, Statement, SwitchTargets,
+        AggregateKind, AssertKind, BasicBlock, BasicBlockData, BinOp, Body, ConstKind, ConstOp,
+        IrRef, Local, Operand, Place, PlaceProjection, RValue, Statement, SwitchTargets,
         Terminator, UnaryOp,
     },
-    ty::{IrTyId, Mutability, VariantIdx},
+    ty::{IrTyId, Mutability, RefKind, VariantIdx},
     IrCtx,
 };
 
@@ -163,7 +163,7 @@ pub trait IrVisitorMut<'ir>: Sized {
         &mut self,
         mutability: Mutability,
         value: &Place,
-        mode: AddressMode,
+        mode: RefKind,
         reference: IrRef,
     ) {
         walk_mut::walk_ref_rvalue(self, mutability, value, mode, reference);
@@ -459,7 +459,7 @@ pub mod walk_mut {
         visitor: &mut V,
         mutability: Mutability,
         place: &Place,
-        _: AddressMode,
+        _: RefKind,
         reference: IrRef,
     ) {
         // @@Todo: do we need to have different contexts for different
@@ -608,7 +608,7 @@ pub trait ModifyingIrVisitor<'ir>: Sized {
         &self,
         mutability: &mut Mutability,
         value: &mut Place,
-        mode: &mut AddressMode,
+        mode: &mut RefKind,
         reference: IrRef,
     ) {
         walk_modifying::walk_ref_rvalue(self, mutability, value, mode, reference);
@@ -915,7 +915,7 @@ pub mod walk_modifying {
         visitor: &V,
         mutability: &mut Mutability,
         place: &mut Place,
-        _: &mut AddressMode,
+        _: &mut RefKind,
         reference: IrRef,
     ) {
         // @@Todo: do we need to have different contexts for different

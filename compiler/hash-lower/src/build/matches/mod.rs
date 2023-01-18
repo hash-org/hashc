@@ -12,8 +12,8 @@ use std::mem;
 
 use hash_ast::ast::{self, AstNodeRef, AstNodes, BinOp, BinaryExpr, Expr, MatchCase, MatchOrigin};
 use hash_ir::{
-    ir::{self, AddressMode, BasicBlock, Place, RValue, TerminatorKind},
-    ty::Mutability,
+    ir::{self, BasicBlock, Place, RValue, TerminatorKind},
+    ty::{Mutability, RefKind},
 };
 use hash_source::location::Span;
 use hash_types::pats::Pat;
@@ -681,7 +681,7 @@ impl<'tcx> Builder<'tcx> {
 
             // @@Todo: we might have to do some special rules for the `by-ref` case
             //         when we start to think about reference rules more concretely.
-            let rvalue = RValue::Ref(binding.mutability, binding.source, AddressMode::Raw);
+            let rvalue = RValue::Ref(binding.mutability, binding.source, RefKind::Raw);
             self.control_flow_graph.push_assign(block, value_place, rvalue, binding.span);
         }
     }
@@ -697,7 +697,7 @@ impl<'tcx> Builder<'tcx> {
             let rvalue = match binding.mode {
                 candidate::BindingMode::ByValue => binding.source.into(),
                 candidate::BindingMode::ByRef => {
-                    RValue::Ref(binding.mutability, binding.source, AddressMode::Raw)
+                    RValue::Ref(binding.mutability, binding.source, RefKind::Raw)
                 }
             };
 
