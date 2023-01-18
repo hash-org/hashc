@@ -4,7 +4,7 @@
 use std::fmt::Display;
 
 use clap_derive::ValueEnum;
-use hash_target::{layout::TargetDataLayout, TargetInfo};
+use hash_target::{data_layout::TargetDataLayout, TargetInfo};
 
 /// Various settings that are present on the compiler pipeline when initially
 /// launching.

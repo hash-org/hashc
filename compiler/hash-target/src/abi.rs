@@ -6,7 +6,7 @@ use std::fmt;
 
 use crate::{
     alignment::{Alignment, Alignments},
-    layout::HasDataLayout,
+    data_layout::HasDataLayout,
     primitives::{FloatTy, SIntTy, UIntTy},
     size::Size,
 };

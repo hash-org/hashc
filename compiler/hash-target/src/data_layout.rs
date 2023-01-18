@@ -7,7 +7,7 @@
 use std::num::ParseIntError;
 
 use crate::{
-    abi::Integer,
+    abi::{AddressSpace, Integer},
     alignment::{Alignment, Alignments},
     size::Size,
 };
@@ -82,6 +82,9 @@ pub struct TargetDataLayout {
     /// corresponds a pair of the "vector" size, and its alignment.
     pub vector_align: Vec<(Size, Alignments)>,
 
+    /// The address space of the program counter register.
+    pub instruction_address_space: AddressSpace,
+
     /// Minimum size of C-Style enums on the target.
     ///
     /// N.B. This is not specified by the LLVM specification, but
@@ -144,6 +147,7 @@ impl Default for TargetDataLayout {
             f32_align: Alignments::new(make_align(32)),
             f64_align: Alignments::new(make_align(64)),
             aggregate_align: Alignments { abi: make_align(0), preferred: make_align(64) },
+            instruction_address_space: AddressSpace::DATA,
             vector_align: vec![
                 (Size::from_bits(64), Alignments::new(make_align(64))),
                 (Size::from_bits(128), Alignments::new(make_align(128))),
@@ -184,9 +188,137 @@ pub enum TargetDataLayoutParseError<'a> {
 
 impl TargetDataLayout {
     /// Parse a [`TargetDataLayout`] from a "layout specification" string.
+    ///
+    /// The data layout string is specified in the LLVM documentation
+    /// [here](https://llvm.org/docs/LangRef.html#data-layout).
     pub fn parse_from_llvm_data_layout_string(
-        _input: &str,
+        input: &str,
     ) -> Result<Self, TargetDataLayoutParseError<'_>> {
-        todo!()
+        let mut data_layout = Self::default();
+
+        let mut i128_align_src = 64;
+
+        // Each item is separated by a dash
+        for component in input.split('-') {
+            let parts = component.split(':').collect::<Vec<_>>();
+
+            match &*parts {
+                ["e"] => data_layout.endian = Endian::Little,
+                ["E"] => data_layout.endian = Endian::Big,
+
+                // Specifies the address space that corresponds to program memory
+                [p] if p.starts_with('P') => {
+                    let addr_space = p[1..].parse::<u32>().map(AddressSpace).map_err(|err| {
+                        TargetDataLayoutParseError::InvalidAddressSpace { addr_space: p, err }
+                    })?;
+
+                    data_layout.instruction_address_space = addr_space;
+                }
+                // this specifies the aggregate alignment
+                ["a", ref values @ ..] => {
+                    data_layout.aggregate_align = Self::parse_alignment_specification(values, "a")?;
+                }
+                ["f32", ref values @ ..] => {
+                    data_layout.f32_align = Self::parse_alignment_specification(values, "f32")?;
+                }
+                ["f64", ref values @ ..] => {
+                    data_layout.f64_align = Self::parse_alignment_specification(values, "f64")?;
+                }
+                [p @ ("p" | "p0"), s, ref values @ ..] => {
+                    data_layout.pointer_align = Self::parse_alignment_specification(values, p)?;
+                    data_layout.pointer_size =
+                        Size::from_bits(s.parse::<u64>().map_err(|err| {
+                            TargetDataLayoutParseError::InvalidBits {
+                                kind: "size",
+                                bit: s,
+                                cause: p,
+                                err,
+                            }
+                        })?);
+                }
+
+                // Integer alignments
+                [s, ref values @ ..] if s.starts_with('i') => {
+                    let bits = s[1..].parse::<u64>().map_err(|err| {
+                        TargetDataLayoutParseError::InvalidBits {
+                            kind: "size",
+                            bit: s,
+                            cause: s,
+                            err,
+                        }
+                    })?;
+
+                    // Parse the alignment and assign it to the correct integer
+                    // type.
+                    let alignments = Self::parse_alignment_specification(values, s)?;
+
+                    match bits {
+                        1 => data_layout.i1_align = alignments,
+                        8 => data_layout.i8_align = alignments,
+                        16 => data_layout.i16_align = alignments,
+                        32 => data_layout.i32_align = alignments,
+                        64 => data_layout.i64_align = alignments,
+                        _ => {}
+                    }
+
+                    // From LLVM spec:
+                    //
+                    // 2. If no match is found, and the type sought is an
+                    // integer type, then the smallest integer type that is
+                    // larger than the bitwidth of the sought type is used. If
+                    // none of the specifications are larger than the bitwidth
+                    // then the largest integer type is used. For example, given
+                    // the default specifications above, the i7 type will use
+                    // the alignment of i8 (next largest) while both i65 and
+                    // i256 will use the alignment of i64 (largest specified).
+
+                    if bits >= i128_align_src && bits <= 128 {
+                        data_layout.i128_align = alignments;
+                        i128_align_src = bits;
+                    }
+                }
+
+                // Everything else is ignored since it is not relevant to
+                // the layout of data.
+                _ => {}
+            }
+        }
+
+        Ok(data_layout)
+    }
+
+    /// Parse a specified [Alignments] from the target data layout string. This
+    /// will parse the expected "abi" alignment, and an optional "preferred"
+    /// alignment value if it is specified.
+    fn parse_alignment_specification<'a>(
+        items: &[&'a str],
+        cause: &'a str,
+    ) -> Result<Alignments, TargetDataLayoutParseError<'a>> {
+        if items.is_empty() {
+            return Err(TargetDataLayoutParseError::MissingAlignment { cause });
+        }
+
+        let alignment_from_bits = |bits| {
+            Alignment::from_bits(bits)
+                .map_err(|_| TargetDataLayoutParseError::InvalidAlignment { cause })
+        };
+
+        // Read a `u64` from the component, or otherwise create an error with
+        // additional metadata about why parsing failed.
+        let parse_bits = |bits: &'a str, kind: &'a str, cause: &'a str| {
+            bits.parse::<u64>().map_err(|err| TargetDataLayoutParseError::InvalidBits {
+                kind,
+                bit: bits,
+                cause,
+                err,
+            })
+        };
+
+        let abi = alignment_from_bits(parse_bits(items[0], "alignment", cause)?)?;
+        let preferred = items
+            .get(1)
+            .map_or(Ok(abi), |item| alignment_from_bits(parse_bits(item, "alignment", cause)?))?;
+
+        Ok(Alignments { abi, preferred })
     }
 }

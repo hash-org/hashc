@@ -16,7 +16,7 @@ use hash_ir::ty::{IrTy, IrTyId, ToIrTy, VariantIdx};
 use hash_target::{
     abi::{AbiRepresentation, Scalar},
     alignment::Alignments,
-    layout::{HasDataLayout, TargetDataLayout},
+    data_layout::{HasDataLayout, TargetDataLayout},
     primitives::{FloatTy, SIntTy, UIntTy},
     size::Size,
 };

@@ -6,7 +6,7 @@ use std::{
     ops::{Add, Mul, Sub},
 };
 
-use crate::{alignment::Alignment, layout::HasDataLayout};
+use crate::{alignment::Alignment, data_layout::HasDataLayout};
 
 /// Represents the size of some constant in bytes. [Size] is a
 /// utility type that allows one to perform various conversions
