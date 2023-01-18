@@ -6,7 +6,10 @@ use hash_ir::{
     ir::{AssertKind, BasicBlock, BinOp, Const, ConstKind, Operand, RValue, UnevaluatedConst},
     ty::{IrTy, Mutability},
 };
-use hash_source::location::Span;
+use hash_source::{
+    constant::{IntConstant, IntTy, CONSTANT_MAP},
+    location::Span,
+};
 use hash_types::scope::ScopeKind;
 use hash_utils::store::Store;
 
@@ -44,11 +47,37 @@ impl<'tcx> Builder<'tcx> {
                 let arg =
                     unpack!(block = self.as_operand(block, expr.ast_ref(), Mutability::Mutable));
 
-                // @@Todo: depending on what mode we're running in (which should be derived from
-                // the compiler session, we should emit a check here
-                // determining if the operation might cause an overflow, or an underflow).
-                let value = RValue::UnaryOp((*operator.body()).into(), arg);
-                block.and(value)
+                // If the operator is a negation, and the operand is signed, we can have a
+                // case of overflow. This occurs when the operand is the minimum value for
+                // the type, and a negation occurs. This causes the value to overflow. We
+                // check for this case here, and emit an assertion check for this (assuming
+                // checked operations are enabled).
+                let ty = self.ty_of_node(expr.id());
+
+                if self.settings.lowering_settings().checked_operations
+                    && matches!(operator.body(), ast::UnOp::Neg)
+                    && ty.is_signed()
+                {
+                    let min_value = self.min_value_of_ty(ty);
+                    let is_min = self.temp_place(self.ctx.tys().common_tys.bool);
+
+                    self.control_flow_graph.push_assign(
+                        block,
+                        is_min,
+                        RValue::BinaryOp(BinOp::Eq, Box::new((arg, min_value))),
+                        expr.span(),
+                    );
+
+                    block = self.assert(
+                        block,
+                        is_min.into(),
+                        false,
+                        AssertKind::NegativeOverflow { operand: arg },
+                        expr.span(),
+                    );
+                }
+
+                block.and(RValue::UnaryOp((*operator.body()).into(), arg))
             }
             ast::Expr::BinaryExpr(ast::BinaryExpr { lhs, rhs, operator }) => {
                 let lhs =
@@ -99,6 +128,24 @@ impl<'tcx> Builder<'tcx> {
                 block.and(RValue::Use(operand))
             }
         }
+    }
+
+    /// Compute the minimum value of an [IrTy] assuming that it is a
+    /// signed integer type.
+    fn min_value_of_ty(&self, ty: IrTy) -> Operand {
+        let value = if let IrTy::Int(signed_ty) = ty {
+            let size = signed_ty.size(self.tcx.target_pointer_width).unwrap().bits();
+            let n = 1 << (size - 1);
+
+            // Create and intern the constant
+            let const_int =
+                CONSTANT_MAP.create_int_constant(IntConstant::from_uint(n, IntTy::Int(signed_ty)));
+            Const::Int(const_int).into()
+        } else {
+            unreachable!()
+        };
+
+        Operand::Const(value)
     }
 
     /// Convert the given expression into an [RValue] operand which means that
