@@ -274,6 +274,11 @@ impl IntConstant {
         Self { value: IntConstantValue::from_be_bytes(&value.to_be_bytes()), ty, suffix: None }
     }
 
+    /// Create a [IntConstant] from a given value and specified type.
+    pub fn from_int(value: i128, ty: IntTy) -> Self {
+        Self { value: IntConstantValue::from_be_bytes(&value.to_be_bytes()), ty, suffix: None }
+    }
+
     /// Create a [IntConstant] from Little endian bytes and an [IntTy]. It is
     /// assumed that the correct amount of bytes are provided to this
     /// function.

@@ -198,7 +198,7 @@ impl IrTy {
 
     /// Check if the [IrTy] is an integral type.
     pub fn is_integral(&self) -> bool {
-        matches!(self, Self::Int(_) | Self::UInt(_) | Self::Float(_) | Self::Char | Self::Bool)
+        matches!(self, Self::Int(_) | Self::UInt(_))
     }
 
     /// Check if the [IrTy] is a floating point type.
@@ -316,6 +316,16 @@ impl From<IntTy> for IrTy {
         match value {
             IntTy::Int(ty) => Self::Int(ty),
             IntTy::UInt(ty) => Self::UInt(ty),
+        }
+    }
+}
+
+impl From<IrTy> for IntTy {
+    fn from(ty: IrTy) -> Self {
+        match ty {
+            IrTy::Int(ty) => Self::Int(ty),
+            IrTy::UInt(ty) => Self::UInt(ty),
+            _ => panic!("expected integral type, but got {ty:?}"),
         }
     }
 }
