@@ -193,7 +193,7 @@ impl<'tcx> Builder<'tcx> {
     /// a [ast::PropertyKind]. This function assumes that the underlying type is
     /// a [IrTy::Adt].
     fn lookup_field_index(&mut self, ty: IrTyId, field: ast::PropertyKind) -> usize {
-        self.ctx.map_on_adt(ty, |adt, _| {
+        self.ctx.map_ty_as_adt(ty, |adt, _| {
             // @@Todo: deal with unions here.
             if adt.flags.is_struct() || adt.flags.is_tuple() {
                 // So we get the first variant of the ADT since structs, tuples always

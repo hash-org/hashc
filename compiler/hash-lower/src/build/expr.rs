@@ -107,7 +107,7 @@ impl<'tcx> Builder<'tcx> {
                 // This is a special case, since we are creating an enum variant here with
                 // no arguments.
                 let subject_ty = self.ty_id_of_node(subject.id());
-                let index = self.ctx.map_on_adt(subject_ty, |adt, _| match property.body() {
+                let index = self.ctx.map_ty_as_adt(subject_ty, |adt, _| match property.body() {
                     ast::PropertyKind::NamedField(name) => adt.variant_idx(name).unwrap(),
                     ast::PropertyKind::NumericField(index) => VariantIdx::from_usize(*index),
                 });
@@ -264,7 +264,7 @@ impl<'tcx> Builder<'tcx> {
                     ast::Lit::Map(_) | ast::Lit::Set(_) => unimplemented!(),
                     ast::Lit::List(ast::ListLit { elements }) => {
                         let ty = self.ty_id_of_node(expr.id());
-                        let el_ty = self.map_ty(ty, |ty| match ty {
+                        let el_ty = self.ctx.map_ty(ty, |ty| match ty {
                             IrTy::Slice(ty) | IrTy::Array { ty, .. } => *ty,
                             _ => unreachable!(),
                         });
@@ -280,7 +280,7 @@ impl<'tcx> Builder<'tcx> {
                     }
                     ast::Lit::Tuple(ast::TupleLit { elements }) => {
                         let ty = self.ty_id_of_node(expr.id());
-                        let adt = self.ctx.map_on_adt(ty, |_, id| id);
+                        let adt = self.ctx.map_ty_as_adt(ty, |_, id| id);
                         let aggregate_kind = AggregateKind::Tuple(adt);
 
                         let args = elements

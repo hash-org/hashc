@@ -78,7 +78,7 @@ impl Const {
     /// Create a new [Const] from a scalar value, with the appropriate
     /// type.
     pub fn from_scalar(value: u128, ty: IrTyId, ctx: &IrCtx) -> Self {
-        ctx.tys().map_fast(ty, |ty| match ty {
+        ctx.map_ty(ty, |ty| match ty {
             IrTy::Int(int_ty) => {
                 let interned_value = IntConstant::from_uint(value, (*int_ty).into());
                 Self::Int(CONSTANT_MAP.create_int_constant(interned_value))
@@ -734,7 +734,7 @@ impl RValue {
 
                 // @@Safety: this does not create any new types, and thus
                 // we can map_fast over the types.
-                ctx.tys().map_fast(ty, |ty| ty.discriminant_ty(ctx))
+                ctx.map_ty(ty, |ty| ty.discriminant_ty(ctx))
             }
         }
     }

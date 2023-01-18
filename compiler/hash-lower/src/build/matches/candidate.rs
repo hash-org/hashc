@@ -333,7 +333,7 @@ impl<'tcx> Builder<'tcx> {
                     // get the type of the tuple so that we can read all of the
                     // fields
                     let ty = self.ty_of_pat(pair.pat);
-                    let adt = self.ctx.tys().map_fast(ty, IrTy::as_adt);
+                    let adt = self.ctx.map_ty(ty, IrTy::as_adt);
 
                     candidate.pairs.extend(self.match_pat_fields(*pat_args, adt, pair.place));
                     Ok(())
@@ -341,7 +341,7 @@ impl<'tcx> Builder<'tcx> {
                 Pat::Constructor(ConstructorPat { subject, args }) => {
                     let ty = self.lower_term_as_id(*subject);
                     let adt =
-                        self.ctx.map_on_adt(ty, |adt, id| adt.flags.is_struct().then_some(id));
+                        self.ctx.map_ty_as_adt(ty, |adt, id| adt.flags.is_struct().then_some(id));
 
                     // If this is a struct then we need to match on the fields of
                     // the struct since it is an *irrefutable* pattern.

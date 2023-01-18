@@ -27,7 +27,7 @@ use hash_ir::{
 use hash_pipeline::settings::CompilerSettings;
 use hash_source::{identifier::Identifier, location::Span, SourceId, SourceMap};
 use hash_types::{scope::ScopeId, storage::GlobalStorage, terms::TermId};
-use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
+use hash_utils::store::{SequenceStore, SequenceStoreKey};
 use index_vec::IndexVec;
 
 use self::ty::get_fn_ty_from_term;
@@ -312,7 +312,7 @@ impl<'ctx> Builder<'ctx> {
         // If it is a function type, then we use the return type of the
         // function as the `return_ty`, otherwise we assume the type provided
         // is the `return_ty`
-        let (return_ty, params) = self.ctx.tys().map_fast(ty, |item_ty| match item_ty {
+        let (return_ty, params) = self.ctx.map_ty(ty, |item_ty| match item_ty {
             IrTy::Fn { return_ty, params, .. } => (*return_ty, Some(*params)),
             _ => (ty, None),
         });

@@ -10,7 +10,6 @@ use hash_ir::{
 };
 use hash_source::location::Span;
 use hash_types::{pats::PatId, terms::TermId};
-use hash_utils::store::Store;
 
 use super::Builder;
 
@@ -119,14 +118,5 @@ impl<'tcx> Builder<'tcx> {
         debug_assert!(popped.is_some() && matches!(popped, Some(id) if id == scope_id));
 
         result
-    }
-
-    /// Run some function whilst reading a [IrTy] from a provided [IrTyId].
-    ///
-    /// N.B. The closure that is passed into this should not attempt to create
-    ///      new [IrTy]s, whilst this is checking, this is only meant as a
-    /// read-only      context over the whole type storage.
-    pub(crate) fn map_ty<T>(&mut self, ty: IrTyId, f: impl FnOnce(&IrTy) -> T) -> T {
-        self.ctx.tys().map_fast(ty, f)
     }
 }

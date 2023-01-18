@@ -23,7 +23,7 @@ use std::{
 use hash_types::{nominals::NominalDefId, terms::TermId};
 use hash_utils::store::{SequenceStore, Store};
 use ir::{Body, Local, Place, PlaceProjection, ProjectionStore};
-use ty::{AdtData, AdtId, AdtStore, IrTyId, TyListStore, TyStore};
+use ty::{AdtData, AdtId, AdtStore, IrTy, IrTyId, TyListStore, TyStore};
 
 /// Storage that is used by the lowering stage. This stores all of the
 /// generated [Body]s and all of the accompanying data for the bodies.
@@ -160,8 +160,14 @@ impl IrCtx {
         self.projections().map_fast(projections, |projections| map(local, projections))
     }
 
-    /// Apply a function on a [IrTy::Adt].
-    pub fn map_on_adt<T>(&self, ty: IrTyId, f: impl FnOnce(&AdtData, AdtId) -> T) -> T {
+    /// Map an [IrTyId] by reading the [IrTy] that is associated with the
+    /// [IrTyId] and then applying the provided function.
+    pub fn map_ty<T>(&self, ty: IrTyId, f: impl FnOnce(&IrTy) -> T) -> T {
+        self.ty_store.map_fast(ty, f)
+    }
+
+    /// Apply a function on an type assuming that it is a [`IrTy::Adt`].
+    pub fn map_ty_as_adt<T>(&self, ty: IrTyId, f: impl FnOnce(&AdtData, AdtId) -> T) -> T {
         self.ty_store
             .map_fast(ty, |ty| self.adt_store.map_fast(ty.as_adt(), |adt| f(adt, ty.as_adt())))
     }
