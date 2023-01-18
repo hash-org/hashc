@@ -15,7 +15,7 @@ mod utils;
 
 use std::collections::{HashMap, HashSet};
 
-use hash_ast::ast::{AstNodeId, AstNodeRef, Expr, FnDef};
+use hash_ast::ast;
 use hash_ir::{
     ir::{
         BasicBlock, Body, BodyInfo, BodySource, Local, LocalDecl, Place, TerminatorKind,
@@ -34,14 +34,14 @@ use self::ty::get_fn_ty_from_term;
 use crate::cfg::ControlFlowGraph;
 
 /// A wrapper type for the kind of AST node that is being lowered, the [Builder]
-/// accepts either a [FnDef] or an [Expr] node. The [Expr] node case is used
-/// when a constant block is being lowered.
+/// accepts either a [ast::FnDef] or an [ast::Expr] node. The [ast::Expr] node
+/// case is used when a constant block is being lowered.
 pub(crate) enum BuildItem<'a> {
     /// A function body is being lowered.
-    FnDef(AstNodeRef<'a, FnDef>),
+    FnDef(ast::AstNodeRef<'a, ast::FnDef>),
     /// An arbitrary expression is being lowered, this is done
     /// for constant expressions.
-    Expr(AstNodeRef<'a, Expr>),
+    Expr(ast::AstNodeRef<'a, ast::Expr>),
 }
 
 impl<'a> BuildItem<'a> {
@@ -53,8 +53,8 @@ impl<'a> BuildItem<'a> {
         }
     }
 
-    /// Get the associated [AstNodeId] with the [BuildItem].
-    pub fn id(&self) -> AstNodeId {
+    /// Get the associated [ast::AstNodeId] with the [BuildItem].
+    pub fn id(&self) -> ast::AstNodeId {
         match self {
             BuildItem::FnDef(fn_def) => fn_def.id(),
             BuildItem::Expr(expr) => expr.id(),
@@ -63,7 +63,7 @@ impl<'a> BuildItem<'a> {
 
     /// Convert the build item into the expression variant, if this is not
     /// an expression variant, then this will panic.
-    pub fn as_expr(&self) -> AstNodeRef<'a, Expr> {
+    pub fn as_expr(&self) -> ast::AstNodeRef<'a, ast::Expr> {
         match self {
             BuildItem::FnDef(_) => unreachable!(),
             BuildItem::Expr(expr) => *expr,
@@ -72,7 +72,7 @@ impl<'a> BuildItem<'a> {
 
     /// Convert the build item into the function definition variant, if this is
     /// not a function definition variant, then this will panic.
-    pub fn as_fn_def(&self) -> AstNodeRef<'a, FnDef> {
+    pub fn as_fn_def(&self) -> ast::AstNodeRef<'a, ast::FnDef> {
         match self {
             BuildItem::FnDef(fn_def) => *fn_def,
             BuildItem::Expr(_) => unreachable!(),
@@ -80,14 +80,14 @@ impl<'a> BuildItem<'a> {
     }
 }
 
-impl<'a> From<AstNodeRef<'a, FnDef>> for BuildItem<'a> {
-    fn from(fn_def: AstNodeRef<'a, FnDef>) -> Self {
+impl<'a> From<ast::AstNodeRef<'a, ast::FnDef>> for BuildItem<'a> {
+    fn from(fn_def: ast::AstNodeRef<'a, ast::FnDef>) -> Self {
         BuildItem::FnDef(fn_def)
     }
 }
 
-impl<'a> From<AstNodeRef<'a, Expr>> for BuildItem<'a> {
-    fn from(expr: AstNodeRef<'a, Expr>) -> Self {
+impl<'a> From<ast::AstNodeRef<'a, ast::Expr>> for BuildItem<'a> {
+    fn from(expr: ast::AstNodeRef<'a, ast::Expr>) -> Self {
         BuildItem::Expr(expr)
     }
 }
@@ -195,13 +195,13 @@ pub(crate) struct Builder<'tcx> {
     /// The current scope stack that builder is in.
     scope_stack: Vec<ScopeId>,
 
-    /// Information about the currently traversed [Block] in the AST. This
+    /// Information about the currently traversed [ast::Block] in the AST. This
     /// value is used to determine when the block should be terminated by
     /// the builder. This is used to avoid lowering statements that occur
     /// after a block terminator.
     loop_block_info: Option<LoopBlockInfo>,
 
-    /// If the current [Block] has reached a terminating statement, i.e. a
+    /// If the current [ast::Block] has reached a terminating statement, i.e. a
     /// statement that is typed as `!`. Examples of such statements are
     /// `return`, `break`, `continue`, etc.
     reached_terminator: bool,
@@ -232,7 +232,7 @@ pub(crate) struct Builder<'tcx> {
     /// ```
     /// The function `foo` is no longer free in `bar` because it captures `x`,
     /// therefore making it a closure of `foo`.
-    dead_ends: &'tcx HashSet<AstNodeId>,
+    dead_ends: &'tcx HashSet<ast::AstNodeId>,
 }
 
 impl<'ctx> Builder<'ctx> {
@@ -244,7 +244,7 @@ impl<'ctx> Builder<'ctx> {
         tcx: &'ctx GlobalStorage,
         ctx: &'ctx mut IrCtx,
         source_map: &'ctx SourceMap,
-        dead_ends: &'ctx HashSet<AstNodeId>,
+        dead_ends: &'ctx HashSet<ast::AstNodeId>,
         settings: &'ctx CompilerSettings,
     ) -> Self {
         let (arg_count, source) = match item {
@@ -377,7 +377,7 @@ impl<'ctx> Builder<'ctx> {
     /// Function that builds the main body of a [BuildItem]. This will lower the
     /// expression that is provided, and store the result into the
     /// `RETURN_PLACE`.
-    fn build_body(&mut self, body: AstNodeRef<'ctx, Expr>) {
+    fn build_body(&mut self, body: ast::AstNodeRef<'ctx, ast::Expr>) {
         // Now we begin by lowering the body of the function.
         let start = self.control_flow_graph.start_new_block();
         debug_assert!(start == START_BLOCK);

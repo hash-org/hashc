@@ -1,5 +1,5 @@
-//! Implementation for lowering [Expr]s into Hash IR. This module contains the
-//! core logic of converting expressions into IR, other auxiliary conversion
+//! Implementation for lowering [ast::Expr]s into Hash IR. This module contains
+//! the core logic of converting expressions into IR, other auxiliary conversion
 //! `strategies` can be found in [crate::build::rvalue] and
 //! [crate::build::temp].
 
@@ -21,8 +21,8 @@ use hash_utils::store::{SequenceStoreKey, Store};
 use super::{unpack, BlockAnd, BlockAndExtend, Builder, LoopBlockInfo};
 
 impl<'tcx> Builder<'tcx> {
-    /// Compile the given [Expr] and place the value of the [Expr] into
-    /// the specified destination [Place].
+    /// Compile the given [ast::Expr] and place the value of the [ast::Expr]
+    /// into the specified destination [Place].
     pub(crate) fn expr_into_dest(
         &mut self,
         destination: Place,

@@ -12,7 +12,10 @@ mod optimise;
 mod ty;
 
 use discover::LoweringVisitor;
-use hash_ast::ast::{AstNodeId, AstVisitorMutSelf, OwnsAstNode};
+use hash_ast::{
+    ast::{self, OwnsAstNode},
+    visitor::AstVisitorMutSelf,
+};
 use hash_ir::{
     write::{graphviz, pretty},
     IrStorage,
@@ -36,11 +39,11 @@ pub struct IrGen {
     /// directives on type declarations. This is a collection of all of the
     /// type definitions that were found and require a layout to be
     /// generated.
-    layouts_to_generate: Vec<AstNodeId>,
+    layouts_to_generate: Vec<ast::AstNodeId>,
 }
 
 /// The [LoweringCtx] represents all of the required information
-/// that the [AstLowerer] stage needs to query from the pipeline
+/// that the [IrGen] stage needs to query from the pipeline
 /// in order to perform its lowering operations.
 pub struct LoweringCtx<'ir> {
     /// Reference to the current compiler workspace.

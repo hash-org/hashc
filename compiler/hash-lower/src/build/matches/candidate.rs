@@ -19,7 +19,7 @@
 
 use std::{borrow::Borrow, mem};
 
-use hash_ast::ast::{AstNodeRef, MatchCase, RangeEnd};
+use hash_ast::ast;
 use hash_ir::{
     ir::{BasicBlock, Place, PlaceProjection},
     ty::{AdtId, IrTy, Mutability},
@@ -84,7 +84,7 @@ pub(super) struct MatchPair {
     pub place: PlaceBuilder,
 }
 
-pub(super) type Candidates<'tcx> = (AstNodeRef<'tcx, MatchCase>, Candidate);
+pub(super) type Candidates<'tcx> = (ast::AstNodeRef<'tcx, ast::MatchCase>, Candidate);
 
 impl Candidate {
     /// Create a new [Candidate].
@@ -321,7 +321,7 @@ impl<'tcx> Builder<'tcx> {
 
                             // In this situation, we have an irrefutable pattern, so we can
                             // always go down this path
-                            if hi_val > max || hi_val == max && *end == RangeEnd::Excluded {
+                            if hi_val > max || hi_val == max && *end == ast::RangeEnd::Excluded {
                                 return Ok(());
                             }
                         }

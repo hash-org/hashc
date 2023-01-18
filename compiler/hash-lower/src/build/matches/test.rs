@@ -5,7 +5,7 @@
 use std::cmp::Ordering;
 
 use fixedbitset::FixedBitSet;
-use hash_ast::ast::RangeEnd;
+use hash_ast::ast;
 use hash_ir::{
     ir::{
         BasicBlock, BinOp, Const, Operand, PlaceProjection, RValue, SwitchTargets, TerminatorKind,
@@ -27,7 +27,7 @@ use indexmap::IndexMap;
 
 use super::{
     candidate::{Candidate, MatchPair},
-    utils::ConstRange,
+    const_range::ConstRange,
 };
 use crate::build::{place::PlaceBuilder, ty::constify_lit_term, Builder};
 
@@ -722,8 +722,8 @@ impl<'tcx> Builder<'tcx> {
                 self.compare(block, lb_success, fail, BinOp::LtEq, lo, val, span);
 
                 let op = match end {
-                    RangeEnd::Included => BinOp::LtEq,
-                    RangeEnd::Excluded => BinOp::Lt,
+                    ast::RangeEnd::Included => BinOp::LtEq,
+                    ast::RangeEnd::Excluded => BinOp::Lt,
                 };
 
                 self.compare(lb_success, success, fail, op, val, hi, span);

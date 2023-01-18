@@ -1,7 +1,7 @@
 //! Module that contains logic for handling and creating [RValue]s from
-//! [Expr]s.
+//! [ast::Expr]s.
 
-use hash_ast::ast::{self, AstNodeRef, BinaryExpr, Expr, UnaryExpr};
+use hash_ast::ast;
 use hash_ir::{
     ir::{AssertKind, BasicBlock, BinOp, Const, ConstKind, Operand, RValue, UnevaluatedConst},
     ty::{IrTy, Mutability},
@@ -13,28 +13,28 @@ use hash_utils::store::Store;
 use super::{category::Category, unpack, BlockAnd, BlockAndExtend, Builder};
 
 impl<'tcx> Builder<'tcx> {
-    /// Construct an [RValue] from the given [Expr].
+    /// Construct an [RValue] from the given [ast::Expr].
     pub(crate) fn as_rvalue(
         &mut self,
         mut block: BasicBlock,
-        expr: AstNodeRef<'tcx, Expr>,
+        expr: ast::AstNodeRef<'tcx, ast::Expr>,
     ) -> BlockAnd<RValue> {
         match expr.body {
-            Expr::Lit(lit) => {
+            ast::Expr::Lit(lit) => {
                 let value = self.as_constant(lit.data.ast_ref()).into();
                 block.and(value)
             }
 
             // @@SpecialCase: if this is a variable, and it is not in scope,
             // then we essentially assume that it is a zero-sized constant type.
-            Expr::Variable(variable) if self.lookup_local(variable.name.ident).is_none() => {
+            ast::Expr::Variable(variable) if self.lookup_local(variable.name.ident).is_none() => {
                 let ty = self.ty_id_of_node(expr.id());
                 let value = Const::Zero(ty).into();
 
                 block.and(value)
             }
 
-            Expr::UnaryExpr(UnaryExpr { operator, expr }) => {
+            ast::Expr::UnaryExpr(ast::UnaryExpr { operator, expr }) => {
                 // If the unary operator is a typeof, we should have already dealt with
                 // this...
                 if matches!(operator.body(), ast::UnOp::TypeOf) {
@@ -50,7 +50,7 @@ impl<'tcx> Builder<'tcx> {
                 let value = RValue::UnaryOp((*operator.body()).into(), arg);
                 block.and(value)
             }
-            Expr::BinaryExpr(BinaryExpr { lhs, rhs, operator }) => {
+            ast::Expr::BinaryExpr(ast::BinaryExpr { lhs, rhs, operator }) => {
                 let lhs =
                     unpack!(block = self.as_operand(block, lhs.ast_ref(), Mutability::Mutable));
                 let rhs =
@@ -65,33 +65,33 @@ impl<'tcx> Builder<'tcx> {
                     rhs,
                 );
             }
-            Expr::Variable(_)
-            | Expr::ConstructorCall(_)
-            | Expr::Directive(_)
-            | Expr::Declaration(_)
-            | Expr::Access(_)
-            | Expr::Ref(_)
-            | Expr::Deref(_)
-            | Expr::Unsafe(_)
-            | Expr::Cast(_)
-            | Expr::Block(_)
-            | Expr::Import(_)
-            | Expr::StructDef(_)
-            | Expr::EnumDef(_)
-            | Expr::TyFnDef(_)
-            | Expr::TraitDef(_)
-            | Expr::ImplDef(_)
-            | Expr::ModDef(_)
-            | Expr::FnDef(_)
-            | Expr::Ty(_)
-            | Expr::Return(_)
-            | Expr::Break(_)
-            | Expr::Continue(_)
-            | Expr::Index(_)
-            | Expr::Assign(_)
-            | Expr::AssignOp(_)
-            | Expr::MergeDeclaration(_)
-            | Expr::TraitImpl(_) => {
+            ast::Expr::Variable(_)
+            | ast::Expr::ConstructorCall(_)
+            | ast::Expr::Directive(_)
+            | ast::Expr::Declaration(_)
+            | ast::Expr::Access(_)
+            | ast::Expr::Ref(_)
+            | ast::Expr::Deref(_)
+            | ast::Expr::Unsafe(_)
+            | ast::Expr::Cast(_)
+            | ast::Expr::Block(_)
+            | ast::Expr::Import(_)
+            | ast::Expr::StructDef(_)
+            | ast::Expr::EnumDef(_)
+            | ast::Expr::TyFnDef(_)
+            | ast::Expr::TraitDef(_)
+            | ast::Expr::ImplDef(_)
+            | ast::Expr::ModDef(_)
+            | ast::Expr::FnDef(_)
+            | ast::Expr::Ty(_)
+            | ast::Expr::Return(_)
+            | ast::Expr::Break(_)
+            | ast::Expr::Continue(_)
+            | ast::Expr::Index(_)
+            | ast::Expr::Assign(_)
+            | ast::Expr::AssignOp(_)
+            | ast::Expr::MergeDeclaration(_)
+            | ast::Expr::TraitImpl(_) => {
                 // Verify that this is an actual RValue...
                 debug_assert!(!matches!(Category::of(expr), Category::RValue | Category::Constant));
 
@@ -103,13 +103,13 @@ impl<'tcx> Builder<'tcx> {
 
     /// Convert the given expression into an [RValue] operand which means that
     /// this is either a constant or a local variable. In the case of a
-    /// constant, this means that the value is [RValue::Const], and in the
+    /// constant, this means that the value is [`RValue::Use(..)`], and in the
     /// case of a local variable, this means that the value is
     /// [RValue::Use].
     pub(crate) fn as_operand(
         &mut self,
         mut block: BasicBlock,
-        expr: AstNodeRef<'tcx, Expr>,
+        expr: ast::AstNodeRef<'tcx, ast::Expr>,
         mutability: Mutability,
     ) -> BlockAnd<Operand> {
         // We want to deal with variables in a special way since they might
@@ -120,7 +120,7 @@ impl<'tcx> Builder<'tcx> {
         // @@Future: would be nice to remove this particular check and somehow deal with
         // these differently, possibly some kind of additional syntax or a flag to
         // denote when some variable refers to a constant value.
-        if let Expr::Variable(variable) = expr.body {
+        if let ast::Expr::Variable(variable) = expr.body {
             let name = variable.name.ident;
 
             if let Some((scope, _, kind)) = self.lookup_item_scope(name) && kind != ScopeKind::Variable {

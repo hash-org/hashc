@@ -1,7 +1,7 @@
-use hash_ast::ast::{
-    self, AstNodeRef, BindingPat, ConstructorPat, Declaration, Expr, IfPat, ListPat, OrPat, Pat,
-    TuplePat,
-};
+//! This deals with lowering declarations,assigning them to a [Local],
+//! and later resolving references to the locals with the current [Builder].
+
+use hash_ast::ast;
 use hash_ir::{
     ir::{BasicBlock, Local, LocalDecl, Place},
     ty::{IrTyId, Mutability},
@@ -82,7 +82,7 @@ impl<'tcx> Builder<'tcx> {
     pub(crate) fn lower_declaration(
         &mut self,
         mut block: BasicBlock,
-        decl: &'tcx Declaration,
+        decl: &'tcx ast::Declaration,
         decl_span: Span,
     ) -> BlockAnd<()> {
         // The dead-ends are provided by discovery and indicate items
@@ -121,7 +121,7 @@ impl<'tcx> Builder<'tcx> {
     /// bound within the pattern since we have already checked that all pattern
     /// variants declare the same binds of the same type, on the same
     /// pattern level.
-    fn declare_bindings(&mut self, pat: AstNodeRef<'tcx, Pat>) {
+    fn declare_bindings(&mut self, pat: ast::AstNodeRef<'tcx, ast::Pat>) {
         self.visit_primary_pattern_bindings(pat, &mut |this, mutability, name, _span, ty| {
             let local = LocalDecl::new(name, mutability, ty);
             let scope = this.current_scope();
@@ -132,11 +132,11 @@ impl<'tcx> Builder<'tcx> {
 
     fn visit_primary_pattern_bindings(
         &mut self,
-        pat: AstNodeRef<'tcx, ast::Pat>,
+        pat: ast::AstNodeRef<'tcx, ast::Pat>,
         f: &mut impl FnMut(&mut Self, Mutability, Identifier, Span, IrTyId),
     ) {
         match &pat.body {
-            Pat::Binding(BindingPat { name, mutability, .. }) => {
+            ast::Pat::Binding(ast::BindingPat { name, mutability, .. }) => {
                 // @@Todo: when we support `k @ ...` patterns, we need to know
                 // when this is a primary pattern or not.
                 let ty = self.ty_of_pat(self.pat_id_of_node(pat.id()));
@@ -152,8 +152,8 @@ impl<'tcx> Builder<'tcx> {
                     ty,
                 );
             }
-            Pat::Constructor(ConstructorPat { fields, spread, .. })
-            | Pat::Tuple(TuplePat { fields, spread }) => {
+            ast::Pat::Constructor(ast::ConstructorPat { fields, spread, .. })
+            | ast::Pat::Tuple(ast::TuplePat { fields, spread }) => {
                 for field in fields.iter() {
                     self.visit_primary_pattern_bindings(field.pat.ast_ref(), f);
                 }
@@ -170,7 +170,7 @@ impl<'tcx> Builder<'tcx> {
                     )
                 }
             }
-            Pat::List(ListPat { fields, spread }) => {
+            ast::Pat::List(ast::ListPat { fields, spread }) => {
                 if let Some(spread_pat) = spread && let Some(name) = &spread_pat.name {
                     let index = spread_pat.position;
 
@@ -204,32 +204,36 @@ impl<'tcx> Builder<'tcx> {
                     }
                 }
             }
-            Pat::Or(OrPat { ref variants }) => {
+            ast::Pat::Or(ast::OrPat { ref variants }) => {
                 // We only need to visit the first variant since we already
                 // check that the variant bindings are all the same.
                 if let Some(pat) = variants.get(0) {
                     self.visit_primary_pattern_bindings(pat.ast_ref(), f);
                 }
             }
-            Pat::If(IfPat { pat, .. }) => {
+            ast::Pat::If(ast::IfPat { pat, .. }) => {
                 self.visit_primary_pattern_bindings(pat.ast_ref(), f);
             }
             // These patterns never have any bindings.
-            Pat::Module(_) | Pat::Range(_) | Pat::Access(_) | Pat::Lit(_) | Pat::Wild(_) => {}
+            ast::Pat::Module(_)
+            | ast::Pat::Range(_)
+            | ast::Pat::Access(_)
+            | ast::Pat::Lit(_)
+            | ast::Pat::Wild(_) => {}
         }
     }
 
-    /// Lower a given [Expr] into the provided [Pat]. It is expected that the
-    /// pattern is irrefutable, since this is verified during typechecking
-    /// via exhaustiveness.
+    /// Lower a given [ast::Expr] into the provided [ast::Pat]. It is expected
+    /// that the pattern is irrefutable, since this is verified during
+    /// typechecking via exhaustiveness.
     fn expr_into_pat(
         &mut self,
         mut block: BasicBlock,
-        pat: AstNodeRef<'tcx, Pat>,
-        expr: AstNodeRef<'tcx, Expr>,
+        pat: ast::AstNodeRef<'tcx, ast::Pat>,
+        expr: ast::AstNodeRef<'tcx, ast::Expr>,
     ) -> BlockAnd<()> {
         match &pat.body {
-            Pat::Binding(BindingPat { name, .. }) => {
+            ast::Pat::Binding(ast::BindingPat { name, .. }) => {
                 // we lookup the local from the current scope, and get the place of where
                 // to place this value.
                 let local = self.lookup_local(name.ident).unwrap();
@@ -248,13 +252,13 @@ impl<'tcx> Builder<'tcx> {
         }
     }
 
-    /// Construct a [Candidate] for a given [Pat], and then lower
+    /// Construct a [Candidate] for a given [ast::Pat], and then lower
     /// the pattern with a single candidate, and the expression that
     /// is the initialising value of the patterns.
     fn place_into_pat(
         &mut self,
         block: BasicBlock,
-        pat: AstNodeRef<'tcx, Pat>,
+        pat: ast::AstNodeRef<'tcx, ast::Pat>,
         place: PlaceBuilder,
     ) -> BlockAnd<()> {
         let pat_id = self.pat_id_of_node(pat.id());

@@ -6,8 +6,7 @@
 use std::{collections::HashSet, convert::Infallible, mem};
 
 use hash_ast::{
-    ast::{self, AstNodeId},
-    ast_visitor_mut_self_default_impl,
+    ast, ast_visitor_mut_self_default_impl,
     origin::BlockOrigin,
     visitor::{walk_mut_self, AstVisitorMutSelf},
 };
@@ -25,16 +24,16 @@ use crate::build::{BuildItem, Builder};
 /// binds. This is needed because declarations can bind multiple variables in
 /// a single expression. For example, `let (a, b) = (1, 2);` binds both `a` and
 /// `b` to the values `1` and `2` respectively. The [Binding] stores the name
-/// that it binds, and an [AstNodeId] which points to which [AstNode] it binds
-/// to. The `id` of node is stored so that the [Builder] can later use it to
-/// look up which declarations it should and shouldn't attempt to lower.
+/// that it binds, and an [ast::AstNodeId] which points to which [ast::AstNode]
+/// it binds to. The `id` of node is stored so that the [Builder] can later use
+/// it to look up which declarations it should and shouldn't attempt to lower.
 #[derive(Clone, Copy)]
 pub struct Binding {
     /// The name that the binding is specifying
     name: Identifier,
 
-    /// The relevant [AstNodeId] that this binding points too.
-    node: AstNodeId,
+    /// The relevant [ast::AstNodeId] that this binding points too.
+    node: ast::AstNodeId,
 }
 
 fn extract_binds_from_bind(pat: ast::AstNodeRef<ast::Pat>, binds: &mut Vec<Binding>) {
@@ -161,12 +160,12 @@ pub(crate) struct LoweringVisitor<'ir> {
     /// the `#layout_of` directive. This means that once the
     /// lowering process has finished, these ids will be used
     /// to query the type layouts.
-    pub(crate) layout_to_generate: Vec<AstNodeId>,
+    pub(crate) layout_to_generate: Vec<ast::AstNodeId>,
 
     /// Dead ends that a particular [Builder] should not attempt to traverse
     /// and build IR from. This is needed to avoid trying to lower declarations
     /// that have function declarations in them.
-    dead_ends: HashSet<AstNodeId>,
+    dead_ends: HashSet<ast::AstNodeId>,
 }
 
 impl<'ir> LoweringVisitor<'ir> {
@@ -202,7 +201,7 @@ impl<'ir> LoweringVisitor<'ir> {
     /// is set every time a new scope is entered. This is used to determine
     /// whether a particular node is a constant or a function, and whether
     /// it should be lowered.
-    fn with_scope<F, T>(&mut self, node: AstNodeId, origin: BlockOrigin, f: F) -> T
+    fn with_scope<F, T>(&mut self, node: ast::AstNodeId, origin: BlockOrigin, f: F) -> T
     where
         F: FnOnce(&mut Self) -> T,
     {
@@ -274,7 +273,7 @@ impl<'ir> LoweringVisitor<'ir> {
     }
 
     /// Convert the [LoweringVisitor] into the bodies that have been generated.
-    pub(crate) fn into_components(self) -> (Vec<Body>, Vec<AstNodeId>) {
+    pub(crate) fn into_components(self) -> (Vec<Body>, Vec<ast::AstNodeId>) {
         (self.bodies, self.layout_to_generate)
     }
 }
