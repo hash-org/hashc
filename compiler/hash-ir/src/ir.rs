@@ -68,8 +68,10 @@ impl Const {
         Self::Zero(ctx.tys().common_tys.unit)
     }
 
-    /// Check if a [Const] is of integral kind.
-    pub fn is_integral(&self) -> bool {
+    /// Check if a [Const] is "switchable", meaning that it can be used
+    /// in a `match` expression and a jump table can be generated rather
+    /// than emitting a equality check for each case.
+    pub fn is_switchable(&self) -> bool {
         matches!(self, Self::Char(_) | Self::Int(_) | Self::Bool(_))
     }
 
@@ -692,17 +694,6 @@ impl RValue {
     /// Check if an [RValue] is a constant.
     pub fn is_const(&self) -> bool {
         matches!(self, RValue::Use(Operand::Const(_)))
-    }
-
-    /// Check if an [RValue] is a constant operation and involves a constant
-    /// that is of an integral kind...
-    pub fn is_integral_const(&self) -> bool {
-        matches!(
-            self,
-            RValue::Use(Operand::Const(ConstKind::Value(
-                Const::Int(_) | Const::Float(_) | Const::Char(_)
-            )))
-        )
     }
 
     /// Convert the RValue into a constant, having previously

@@ -201,6 +201,13 @@ impl IrTy {
         matches!(self, Self::Int(_) | Self::UInt(_))
     }
 
+    /// Check whether the [IrTy] is "switchable", as in if
+    /// it can be compared without any additional work. This
+    /// is primarily used for generating code for `match` statements.
+    pub fn is_switchable(&self) -> bool {
+        matches!(self, Self::Int(_) | Self::UInt(_) | Self::Char | Self::Bool)
+    }
+
     /// Check if the [IrTy] is a floating point type.
     pub fn is_float(&self) -> bool {
         matches!(self, Self::Float(_))

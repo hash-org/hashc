@@ -193,8 +193,7 @@ impl<'tcx> Builder<'tcx> {
                     let ty_id = self.lower_term_as_id(*term);
 
                     self.ctx.tys().map_fast(ty_id, |ty| match ty {
-                        // @@CowBunga
-                        ty if ty.is_integral() => Test {
+                        ty if ty.is_switchable() => Test {
                             kind: TestKind::SwitchInt { ty: ty_id, options: Default::default() },
                             span,
                         },
@@ -219,9 +218,7 @@ impl<'tcx> Builder<'tcx> {
 
                     // If it is not an integral constant, we use an `Eq` test. This will
                     // happen when the constant is either a float or a string.
-
-                    // @@CowBunga
-                    if value.is_integral() {
+                    if value.is_switchable() {
                         Test { kind: TestKind::SwitchInt { ty, options: Default::default() }, span }
                     } else {
                         Test { kind: TestKind::Eq { ty, value }, span }
@@ -350,11 +347,9 @@ impl<'tcx> Builder<'tcx> {
                 TestKind::SwitchInt { ty, ref options },
                 Pat::Lit(term) | Pat::Const(ConstPat { term }),
             ) => {
-                // @@CowBunga
-
                 // We can't really do anything here since we can't compare them with
                 // the switch.
-                if !self.ctx.tys().map_fast(*ty, |ty| ty.is_integral()) {
+                if !self.ctx.tys().map_fast(*ty, |ty| ty.is_switchable()) {
                     return None;
                 }
 
