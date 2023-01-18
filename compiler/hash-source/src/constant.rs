@@ -269,7 +269,13 @@ impl IntConstant {
         Self { value: IntConstantValue::from(value), ty, suffix }
     }
 
+    /// Create a [IntConstant] from a given value and specified type.
     pub fn from_uint(value: u128, ty: IntTy) -> Self {
+        Self { value: IntConstantValue::from_be_bytes(&value.to_be_bytes()), ty, suffix: None }
+    }
+
+    /// Create a [IntConstant] from a given value and specified type.
+    pub fn from_int(value: i128, ty: IntTy) -> Self {
         Self { value: IntConstantValue::from_be_bytes(&value.to_be_bytes()), ty, suffix: None }
     }
 

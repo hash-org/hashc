@@ -225,7 +225,7 @@ impl TyInfo {
                 self.layout
             }
             Variants::Single { .. } => {
-                let fields = ctx.ir_ctx().map_on_adt(self.ty, |adt, _| {
+                let fields = ctx.ir_ctx().map_ty_as_adt(self.ty, |adt, _| {
                     if adt.variants.is_empty() {
                         panic!("layout::for_variant called on a zero-variant enum")
                     }

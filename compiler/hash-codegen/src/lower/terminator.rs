@@ -16,7 +16,6 @@ use hash_ir::{
 };
 use hash_pipeline::settings::{CodeGenBackend, OptimisationLevel};
 use hash_target::abi::{AbiRepresentation, ValidScalarRange};
-use hash_utils::store::Store;
 
 use super::{
     intrinsics::Intrinsic,
@@ -150,7 +149,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
         // generate the operand as the function call...
         let callee = self.codegen_operand(builder, op);
 
-        let instance = self.ctx.ir_ctx().tys().map_fast(callee.info.ty, |ty| match ty {
+        let instance = self.ctx.ir_ctx().map_ty(callee.info.ty, |ty| match ty {
             IrTy::Fn { instance, .. } => *instance,
             _ => panic!("item is not callable"),
         });

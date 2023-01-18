@@ -10,7 +10,7 @@ use hash_ir::{
     ir::{
         BasicBlock, BinOp, Const, Operand, PlaceProjection, RValue, SwitchTargets, TerminatorKind,
     },
-    ty::{AdtId, IrTy, IrTyId, VariantIdx},
+    ty::{AdtId, IrTy, IrTyId, ToIrTy, VariantIdx},
     IrCtx,
 };
 use hash_reporting::macros::panic_on_span;
@@ -101,7 +101,7 @@ impl Test {
                 ctx.adts().map_fast(adt, |adt| adt.variants.len() + 1)
             }
             TestKind::SwitchInt { ty, ref options } => {
-                ctx.tys().map_fast(ty, |ty| {
+                ctx.map_ty(ty, |ty| {
                     // The boolean branch is always 2...
                     if let IrTy::Bool = ty {
                         2
@@ -178,7 +178,7 @@ impl<'tcx> Builder<'tcx> {
                 Pat::Access(AccessPat { .. }) => {
                     let ty = self.ty_of_pat(pair.pat);
                     let (variant_count, adt) =
-                        self.ctx.map_on_adt(ty, |adt, id| (adt.variants.len(), id));
+                        self.ctx.map_ty_as_adt(ty, |adt, id| (adt.variants.len(), id));
 
                     Test {
                         kind: TestKind::Switch {
@@ -192,8 +192,8 @@ impl<'tcx> Builder<'tcx> {
                 Pat::Const(ConstPat { term }) => {
                     let ty_id = self.lower_term_as_id(*term);
 
-                    self.ctx.tys().map_fast(ty_id, |ty| match ty {
-                        ty if ty.is_integral() => Test {
+                    self.ctx.map_ty(ty_id, |ty| match ty {
+                        ty if ty.is_switchable() => Test {
                             kind: TestKind::SwitchInt { ty: ty_id, options: Default::default() },
                             span,
                         },
@@ -218,7 +218,7 @@ impl<'tcx> Builder<'tcx> {
 
                     // If it is not an integral constant, we use an `Eq` test. This will
                     // happen when the constant is either a float or a string.
-                    if value.is_integral() {
+                    if value.is_switchable() {
                         Test { kind: TestKind::SwitchInt { ty, options: Default::default() }, span }
                     } else {
                         Test { kind: TestKind::Eq { ty, value }, span }
@@ -290,7 +290,7 @@ impl<'tcx> Builder<'tcx> {
                 // variant patterns, bu nothing else.
                 let test_adt = self.lower_term_as_id(*subject);
 
-                let variant_index = self.ctx.map_on_adt(test_adt, |adt, _| {
+                let variant_index = self.ctx.map_ty_as_adt(test_adt, |adt, _| {
                     // If this is a struct, then we don't do anything
                     // since we're expecting an enum. Although, this case shouldn't happen?
                     if adt.flags.is_struct() {
@@ -316,7 +316,7 @@ impl<'tcx> Builder<'tcx> {
                 // variant patterns, bu nothing else.
                 let test_adt = self.ty_of_pat(pair.pat);
 
-                let variant_index = self.ctx.map_on_adt(test_adt, |adt, _| {
+                let variant_index = self.ctx.map_ty_as_adt(test_adt, |adt, _| {
                     // If this is a struct, then we don't do anything
                     // since we're expecting an enum. Although, this case shouldn't happen?
                     if adt.flags.is_struct() {
@@ -349,7 +349,7 @@ impl<'tcx> Builder<'tcx> {
             ) => {
                 // We can't really do anything here since we can't compare them with
                 // the switch.
-                if !self.ctx.tys().map_fast(*ty, |ty| ty.is_integral()) {
+                if !self.ctx.map_ty(*ty, |ty| ty.is_switchable()) {
                     return None;
                 }
 
@@ -582,7 +582,7 @@ impl<'tcx> Builder<'tcx> {
 
                 // Here we want to create a switch statement that will match on all of the
                 // specified discriminants of the ADT.
-                let discriminant_ty = self.ctx.tys().create(IrTy::UInt(discriminant_ty));
+                let discriminant_ty = discriminant_ty.to_ir_ty(self.ctx);
                 let targets = SwitchTargets::new(
                     self.ctx.adts().map_fast(adt, |adt| {
                         // Map over all of the discriminants of the ADT, and filter out those that
@@ -617,7 +617,7 @@ impl<'tcx> Builder<'tcx> {
             TestKind::SwitchInt { ty, ref options } => {
                 let target_blocks = make_target_blocks(self);
 
-                let terminator_kind = if self.map_ty(ty, |ty| *ty == IrTy::Bool) {
+                let terminator_kind = if self.ctx.map_ty(ty, |ty| *ty == IrTy::Bool) {
                     debug_assert!(options.len() == 2);
 
                     let [first_block, second_block]= *target_blocks else {
@@ -648,7 +648,7 @@ impl<'tcx> Builder<'tcx> {
             }
             TestKind::Eq { ty, value } => {
                 let (is_str, is_scalar) =
-                    self.map_ty(ty, |ty| (matches!(ty, IrTy::Str), ty.is_scalar()));
+                    self.ctx.map_ty(ty, |ty| (matches!(ty, IrTy::Str), ty.is_scalar()));
 
                 // If this type is a string, we essentially have to make a call to
                 // a string comparator function (which will be filled in later on
@@ -819,7 +819,7 @@ impl<'tcx> Builder<'tcx> {
                     // variant index of the property.
                     let ty = self.ty_of_pat(match_pair.pat);
 
-                    self.ctx.map_on_adt(ty, |adt, _| {
+                    self.ctx.map_ty_as_adt(ty, |adt, _| {
                         let variant_index = adt.variant_idx(property).unwrap();
                         variants.insert(variant_index.index());
                         true

@@ -6,7 +6,10 @@ use hash_ir::{
     ir::{AssertKind, BasicBlock, BinOp, Const, ConstKind, Operand, RValue, UnevaluatedConst},
     ty::{IrTy, Mutability},
 };
-use hash_source::location::Span;
+use hash_source::{
+    constant::{IntConstant, IntTy, CONSTANT_MAP},
+    location::Span,
+};
 use hash_types::scope::ScopeKind;
 use hash_utils::store::Store;
 
@@ -44,11 +47,37 @@ impl<'tcx> Builder<'tcx> {
                 let arg =
                     unpack!(block = self.as_operand(block, expr.ast_ref(), Mutability::Mutable));
 
-                // @@Todo: depending on what mode we're running in (which should be derived from
-                // the compiler session, we should emit a check here
-                // determining if the operation might cause an overflow, or an underflow).
-                let value = RValue::UnaryOp((*operator.body()).into(), arg);
-                block.and(value)
+                // If the operator is a negation, and the operand is signed, we can have a
+                // case of overflow. This occurs when the operand is the minimum value for
+                // the type, and a negation occurs. This causes the value to overflow. We
+                // check for this case here, and emit an assertion check for this (assuming
+                // checked operations are enabled).
+                let ty = self.ty_of_node(expr.id());
+
+                if self.settings.lowering_settings().checked_operations
+                    && matches!(operator.body(), ast::UnOp::Neg)
+                    && ty.is_signed()
+                {
+                    let min_value = self.min_value_of_ty(ty);
+                    let is_min = self.temp_place(self.ctx.tys().common_tys.bool);
+
+                    self.control_flow_graph.push_assign(
+                        block,
+                        is_min,
+                        RValue::BinaryOp(BinOp::Eq, Box::new((arg, min_value))),
+                        expr.span(),
+                    );
+
+                    block = self.assert(
+                        block,
+                        is_min.into(),
+                        false,
+                        AssertKind::NegativeOverflow { operand: arg },
+                        expr.span(),
+                    );
+                }
+
+                block.and(RValue::UnaryOp((*operator.body()).into(), arg))
             }
             ast::Expr::BinaryExpr(ast::BinaryExpr { lhs, rhs, operator }) => {
                 let lhs =
@@ -99,6 +128,24 @@ impl<'tcx> Builder<'tcx> {
                 block.and(RValue::Use(operand))
             }
         }
+    }
+
+    /// Compute the minimum value of an [IrTy] assuming that it is a
+    /// signed integer type.
+    fn min_value_of_ty(&self, ty: IrTy) -> Operand {
+        let value = if let IrTy::Int(signed_ty) = ty {
+            let size = signed_ty.size(self.tcx.target_pointer_width).unwrap().bits();
+            let n = 1 << (size - 1);
+
+            // Create and intern the constant
+            let const_int =
+                CONSTANT_MAP.create_int_constant(IntConstant::from_uint(n, IntTy::Int(signed_ty)));
+            Const::Int(const_int).into()
+        } else {
+            unreachable!()
+        };
+
+        Operand::Const(value)
     }
 
     /// Convert the given expression into an [RValue] operand which means that
@@ -172,36 +219,113 @@ impl<'tcx> Builder<'tcx> {
 
         // If we need have been instructed to insert overflow checks, and the
         // operator is checkable, then use `CheckedBinaryOp` instead of `BinaryOp`.
-        if self.settings.lowering_settings().checked_operations
-            && op.is_checkable()
-            && ty.is_integral()
-        {
-            // Create a new tuple that contains the result of the operation
-            let expr_ty = self.ctx.tys().create(ty);
-            let ty = IrTy::tuple(self.ctx, &[expr_ty, self.ctx.tys().common_tys.bool]);
-            let ty_id = self.ctx.tys().create(ty);
+        if self.settings.lowering_settings().checked_operations {
+            if op.is_checkable() && ty.is_integral() {
+                // Create a new tuple that contains the result of the operation
+                let expr_ty = self.ctx.tys().create(ty);
+                let ty = IrTy::tuple(self.ctx, &[expr_ty, self.ctx.tys().common_tys.bool]);
+                let ty_id = self.ctx.tys().create(ty);
 
-            let temp = self.temp_place(ty_id);
-            let rvalue = RValue::CheckedBinaryOp(op, operands);
+                let temp = self.temp_place(ty_id);
+                let rvalue = RValue::CheckedBinaryOp(op, operands);
 
-            let result = temp.field(0, self.ctx);
-            let overflow = temp.field(1, self.ctx);
+                let result = temp.field(0, self.ctx);
+                let overflow = temp.field(1, self.ctx);
 
-            // Push an assignment to the tuple on the operation
-            self.control_flow_graph.push_assign(block, temp, rvalue, span);
+                // Push an assignment to the tuple on the operation
+                self.control_flow_graph.push_assign(block, temp, rvalue, span);
 
-            block = self.assert(
-                block,
-                Operand::Place(overflow),
-                false,
-                AssertKind::Overflow { op, lhs, rhs },
-                span,
-            );
+                block = self.assert(
+                    block,
+                    Operand::Place(overflow),
+                    false,
+                    AssertKind::Overflow { op, lhs, rhs },
+                    span,
+                );
 
-            block.and(result.into())
-        } else {
-            let binary_op = RValue::BinaryOp(op, operands);
-            block.and(binary_op)
+                return block.and(result.into());
+            } else if ty.is_integral() && (op == BinOp::Div || op == BinOp::Mod) {
+                // Check for division or a remainder by zero, and if so emit
+                // an assertion to verify this condition.
+                let int_ty = ty.into();
+
+                let assert_kind = if op == BinOp::Div {
+                    AssertKind::DivisionByZero { operand: lhs }
+                } else {
+                    AssertKind::RemainderByZero { operand: lhs }
+                };
+
+                // Check for division/modulo of zero...
+                let is_zero = self.temp_place(self.ctx.tys().common_tys.bool);
+
+                let const_val =
+                    Const::Int(CONSTANT_MAP.create_int_constant(IntConstant::from_uint(0, int_ty)));
+                let zero_val = Operand::Const(const_val.into());
+
+                self.control_flow_graph.push_assign(
+                    block,
+                    is_zero,
+                    RValue::BinaryOp(BinOp::Eq, Box::new((rhs, zero_val))),
+                    span,
+                );
+
+                block = self.assert(block, Operand::Place(is_zero), false, assert_kind, span);
+
+                // In the case of signed integers, if the RHS value is `-1`, and the LHS
+                // is the MIN value, this will result in a division overflow, we need to
+                // check for this and emit code.
+                if ty.is_signed() {
+                    let const_val = Const::Int(
+                        CONSTANT_MAP.create_int_constant(IntConstant::from_int(-1, int_ty)),
+                    );
+                    let negative_one_val = Operand::Const(const_val.into());
+                    let minimum_value = self.min_value_of_ty(ty);
+
+                    let is_negative_one = self.temp_place(self.ctx.tys().common_tys.bool);
+                    let is_minimum_value = self.temp_place(self.ctx.tys().common_tys.bool);
+
+                    // Push the values that have been created into the temporaries
+                    self.control_flow_graph.push_assign(
+                        block,
+                        is_negative_one,
+                        RValue::BinaryOp(BinOp::Eq, Box::new((rhs, negative_one_val))),
+                        span,
+                    );
+
+                    self.control_flow_graph.push_assign(
+                        block,
+                        is_minimum_value,
+                        RValue::BinaryOp(BinOp::Eq, Box::new((lhs, minimum_value))),
+                        span,
+                    );
+
+                    // To simplify the generated control flow, we perform a bit_and operation
+                    // which checks the condition `(rhs == -1) & (lhs == MIN)`, and then we
+                    // emit an assert. Alternatively, this could short_circuit on the first
+                    // check, but it would make control flow more complex.
+                    let is_overflow = self.temp_place(self.ctx.tys().common_tys.bool);
+                    self.control_flow_graph.push_assign(
+                        block,
+                        is_overflow,
+                        RValue::BinaryOp(
+                            BinOp::BitAnd,
+                            Box::new((is_negative_one.into(), is_minimum_value.into())),
+                        ),
+                        span,
+                    );
+
+                    // Now finally, emit the assert
+                    block = self.assert(
+                        block,
+                        Operand::Place(is_overflow),
+                        false,
+                        AssertKind::Overflow { op, lhs, rhs },
+                        span,
+                    );
+                }
+            }
         }
+
+        block.and(RValue::BinaryOp(op, operands))
     }
 }

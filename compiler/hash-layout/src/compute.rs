@@ -165,7 +165,7 @@ impl<'l> LayoutComputer<'l> {
             return Ok(*layout);
         }
 
-        let layout = self.ir_ctx.tys().map_fast(ty_id, |ty| match ty {
+        let layout = self.ir_ctx.map_ty(ty_id, |ty| match ty {
             IrTy::Int(ty) => match ty {
                 SIntTy::I8 => Ok(self.common_layouts().i8),
                 SIntTy::I16 => Ok(self.common_layouts().i16),

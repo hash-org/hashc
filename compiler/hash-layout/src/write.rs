@@ -573,7 +573,7 @@ impl<'l> LayoutWriter<'l> {
     where
         F: FnOnce(&Self, &IrTy, &Layout) -> T,
     {
-        self.ctx.ir_ctx().tys().map_fast(self.ty_info.ty, |ty| {
+        self.ctx.ir_ctx().map_ty(self.ty_info.ty, |ty| {
             self.ctx.map_fast(self.ty_info.layout, |layout| f(self, ty, layout))
         })
     }
@@ -595,7 +595,7 @@ impl<'l> LayoutWriter<'l> {
         tag_box_width: usize,
         layout: LayoutId,
     ) -> BoxRow {
-        self.ctx.ir_ctx().tys().map_fast(self.ty_info.ty, |ty| {
+        self.ctx.ir_ctx().map_ty(self.ty_info.ty, |ty| {
             let mut contents = self.ctx.map_fast(layout, |layout| {
                 self.create_box_contents(ty, layout, Some((tag_size, variant)))
             });

@@ -96,7 +96,7 @@ impl<'tcx> Builder<'tcx> {
                     // looking up the cached type.
                     let ty = self.lower_nominal_as_id(*def_id);
 
-                    self.ctx.tys().map_fast(ty, |ty| {
+                    self.ctx.map_ty(ty, |ty| {
                         match ty {
                             IrTy::Adt(adt) => {
                                 self.ctx.map_adt(*adt, |_, adt| adt.variant_idx(name).unwrap())

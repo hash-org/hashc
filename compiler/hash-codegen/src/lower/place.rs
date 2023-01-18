@@ -10,7 +10,7 @@ use hash_target::{
     abi::{AbiRepresentation, ScalarKind},
     alignment::Alignment,
 };
-use hash_utils::store::{SequenceStore, Store};
+use hash_utils::store::SequenceStore;
 
 use super::{locals::LocalRef, FnBuilder};
 use crate::{
@@ -101,7 +101,7 @@ impl<'b, V: CodeGenObject> PlaceRef<V> {
             }
             Variants::Multiple { field, .. } => {
                 let ptr = self.project_field(builder, field);
-                let (_, value) = builder.ir_ctx().tys().map_fast(self.info.ty, |ty| {
+                let (_, value) = builder.ir_ctx().map_ty(self.info.ty, |ty| {
                     ty.discriminant_for_variant(builder.ir_ctx(), discriminant).unwrap()
                 });
 
@@ -137,7 +137,7 @@ impl<'b, V: CodeGenObject> PlaceRef<V> {
 
         match variants {
             Variants::Single { index } => {
-                let value = builder.ir_ctx().tys().map_fast(self.info.ty, |ty| {
+                let value = builder.ir_ctx().map_ty(self.info.ty, |ty| {
                     ty.discriminant_for_variant(builder.ir_ctx(), index)
                         .map_or(index.raw() as u128, |(_, value)| value)
                 });

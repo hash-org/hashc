@@ -68,15 +68,17 @@ impl Const {
         Self::Zero(ctx.tys().common_tys.unit)
     }
 
-    /// Check if a [Const] is of integral kind.
-    pub fn is_integral(&self) -> bool {
+    /// Check if a [Const] is "switchable", meaning that it can be used
+    /// in a `match` expression and a jump table can be generated rather
+    /// than emitting a equality check for each case.
+    pub fn is_switchable(&self) -> bool {
         matches!(self, Self::Char(_) | Self::Int(_) | Self::Bool(_))
     }
 
     /// Create a new [Const] from a scalar value, with the appropriate
     /// type.
     pub fn from_scalar(value: u128, ty: IrTyId, ctx: &IrCtx) -> Self {
-        ctx.tys().map_fast(ty, |ty| match ty {
+        ctx.map_ty(ty, |ty| match ty {
             IrTy::Int(int_ty) => {
                 let interned_value = IntConstant::from_uint(value, (*int_ty).into());
                 Self::Int(CONSTANT_MAP.create_int_constant(interned_value))
@@ -694,17 +696,6 @@ impl RValue {
         matches!(self, RValue::Use(Operand::Const(_)))
     }
 
-    /// Check if an [RValue] is a constant operation and involves a constant
-    /// that is of an integral kind...
-    pub fn is_integral_const(&self) -> bool {
-        matches!(
-            self,
-            RValue::Use(Operand::Const(ConstKind::Value(
-                Const::Int(_) | Const::Float(_) | Const::Char(_)
-            )))
-        )
-    }
-
     /// Convert the RValue into a constant, having previously
     /// checked that it is a constant.
     pub fn as_const(&self) -> ConstKind {
@@ -719,7 +710,7 @@ impl RValue {
         match self {
             RValue::Use(operand) => operand.ty(locals, ctx),
             RValue::ConstOp(ConstOp::AlignOf | ConstOp::SizeOf, _) => ctx.tys().common_tys.usize,
-            RValue::UnaryOp(_, _) => todo!(),
+            RValue::UnaryOp(_, operand) => operand.ty(locals, ctx),
             RValue::BinaryOp(op, box (lhs, rhs)) => {
                 op.ty(ctx, lhs.ty(locals, ctx), rhs.ty(locals, ctx))
             }
@@ -728,14 +719,23 @@ impl RValue {
                 ctx.tys().create(IrTy::tuple(ctx, &[ty, ctx.tys().common_tys.bool]))
             }
             RValue::Len(_) => ctx.tys().common_tys.usize,
-            RValue::Ref(_, _, _) => todo!(),
+            RValue::Ref(mutability, place, kind) => {
+                let ty = place.ty(locals, ctx);
+                ctx.tys().create(IrTy::Ref(ty, *mutability, *kind))
+            }
             RValue::Aggregate(kind, _) => match kind {
                 AggregateKind::Enum(id, _)
                 | AggregateKind::Struct(id)
                 | AggregateKind::Tuple(id) => ctx.tys().create(IrTy::Adt(*id)),
                 AggregateKind::Array(ty) => ctx.tys().create(IrTy::Slice(*ty)),
             },
-            RValue::Discriminant(_) => todo!(),
+            RValue::Discriminant(place) => {
+                let ty = place.ty(locals, ctx);
+
+                // @@Safety: this does not create any new types, and thus
+                // we can map_fast over the types.
+                ctx.map_ty(ty, |ty| ty.discriminant_ty(ctx))
+            }
         }
     }
 }

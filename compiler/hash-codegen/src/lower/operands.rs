@@ -4,7 +4,7 @@
 use hash_ir::ir;
 use hash_layout::TyInfo;
 use hash_target::{abi::AbiRepresentation, alignment::Alignment};
-use hash_utils::store::{SequenceStore, Store};
+use hash_utils::store::SequenceStore;
 
 use super::{locals::LocalRef, place::PlaceRef, utils, FnBuilder};
 use crate::{
@@ -152,8 +152,7 @@ impl<'b, V: CodeGenObject> OperandRef<V> {
     /// Apply a dereference operation on a [OperandRef], effectively
     /// producing a [PlaceRef].
     pub fn deref<Builder: LayoutMethods<'b>>(self, builder: &Builder) -> PlaceRef<V> {
-        let projected_ty =
-            builder.ir_ctx().tys().map_fast(self.info.ty, |ty| ty.on_deref()).unwrap();
+        let projected_ty = builder.ir_ctx().map_ty(self.info.ty, |ty| ty.on_deref()).unwrap();
 
         // If we have a pair, then we move the extra data into the place ref.
         let ptr_value = match self.value {

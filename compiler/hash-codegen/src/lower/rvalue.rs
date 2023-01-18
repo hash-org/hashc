@@ -5,7 +5,6 @@ use hash_ir::{
     ir::{self, BinOp},
     ty::{self, IrTyId, RefKind, VariantIdx},
 };
-use hash_utils::store::Store;
 
 use super::{
     locals::LocalRef,
@@ -110,7 +109,7 @@ fn build_unchecked_rshift<'b, Builder: BlockBuilderMethods<'b>>(
 ) -> Builder::Value {
     let rhs = cast_shift_value(builder, lhs, rhs);
     let rhs = apply_shift_mask(builder, rhs);
-    let is_signed = builder.ctx().ir_ctx().tys().map_fast(ty, |ty| ty.is_signed());
+    let is_signed = builder.ctx().ir_ctx().map_ty(ty, |ty| ty.is_signed());
 
     if is_signed {
         // Arithmetic right shift
@@ -224,7 +223,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
                         // check if the underlying value is a floating point...
                         let ty = rvalue.ty(&self.body.declarations, self.ctx.ir_ctx());
 
-                        if self.ctx.ir_ctx().tys().map_fast(ty, |ty| ty.is_float()) {
+                        if self.ctx.ir_ctx().map_ty(ty, |ty| ty.is_float()) {
                             builder.fneg(value)
                         } else {
                             builder.neg(value)
@@ -344,7 +343,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
         ty: IrTyId,
     ) -> Builder::Value {
         let (is_float, is_signed) =
-            self.ctx.ir_ctx().tys().map_fast(ty, |ty| (ty.is_float(), ty.is_signed()));
+            self.ctx.ir_ctx().map_ty(ty, |ty| (ty.is_float(), ty.is_signed()));
 
         match operator {
             ir::BinOp::Add => {
@@ -432,7 +431,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
     /// Code generate a check binary operation on scalar-like
     /// operands. For the most part, this will emit the intrinsics
     /// that are used for "checked" operations, but in some other
-    /// cases additional code is generated to deal with unforseen
+    /// cases additional code is generated to deal with unforeseen
     /// U.B. when it comes to some operators (specifically bit shifts).
     ///
     /// N.B. it is an invariant to pass a [ir::BinOp] that is not
@@ -509,7 +508,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
     fn evaluate_array_len(&mut self, builder: &mut Builder, place: ir::Place) -> Builder::Value {
         if let Some(local) = place.as_local() {
             if let LocalRef::Operand(Some(op)) = self.locals[local] {
-                let size = self.ctx.ir_ctx().tys().map_fast(op.info.ty, |ty| {
+                let size = self.ctx.ir_ctx().map_ty(op.info.ty, |ty| {
                     if let ty::IrTy::Array { size, .. } = ty {
                         Some(*size)
                     } else {
