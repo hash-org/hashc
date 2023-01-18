@@ -23,8 +23,8 @@ impl FloatTy {
     pub fn size(self) -> Size {
         use FloatTy::*;
         match self {
-            F32 => Size::from_bytes(2),
-            F64 => Size::from_bytes(4),
+            F32 => Size::from_bytes(4),
+            F64 => Size::from_bytes(8),
         }
     }
 

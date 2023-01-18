@@ -4,7 +4,7 @@
 //! is located in `matches.rs`.
 use std::mem;
 
-use hash_ast::ast::{AstNodeRef, Block, BodyBlock, Expr, LoopBlock, MatchBlock};
+use hash_ast::ast;
 use hash_ir::{
     ir::{BasicBlock, Place},
     ty::Mutability,
@@ -18,21 +18,21 @@ impl<'tcx> Builder<'tcx> {
         &mut self,
         place: Place,
         block: BasicBlock,
-        ast_block: AstNodeRef<'tcx, Block>,
+        ast_block: ast::AstNodeRef<'tcx, ast::Block>,
     ) -> BlockAnd<()> {
         let span = ast_block.span();
 
         match ast_block.body {
-            Block::Body(body) => {
+            ast::Block::Body(body) => {
                 self.with_scope(ast_block, |this| this.body_block_into_dest(place, block, body))
             }
 
             // Send this off into the `match` lowering logic
-            Block::Match(MatchBlock { subject, cases, origin }) => {
+            ast::Block::Match(ast::MatchBlock { subject, cases, origin }) => {
                 self.match_expr(place, block, span, subject.ast_ref(), cases, *origin)
             }
 
-            Block::Loop(LoopBlock { contents }) => {
+            ast::Block::Loop(ast::LoopBlock { contents }) => {
                 // Begin the loop block by connecting the previous block
                 // and terminating it with a `goto` instruction to this block
                 let loop_body = self.control_flow_graph.start_new_block();
@@ -59,7 +59,7 @@ impl<'tcx> Builder<'tcx> {
             }
 
             // These variants are removed during the de-sugaring stage
-            Block::For(..) | Block::While(..) | Block::If(..) => unreachable!(),
+            ast::Block::For(..) | ast::Block::While(..) | ast::Block::If(..) => unreachable!(),
         }
     }
 
@@ -67,7 +67,7 @@ impl<'tcx> Builder<'tcx> {
         &mut self,
         place: Place,
         mut block: BasicBlock,
-        body: &'tcx BodyBlock,
+        body: &'tcx ast::BodyBlock,
     ) -> BlockAnd<()> {
         // Essentially walk all of the statement in the block, and then set
         // the return type of this block as the last expression, or an empty
@@ -80,7 +80,7 @@ impl<'tcx> Builder<'tcx> {
             // We need to handle declarations here specifically, otherwise
             // in order to not have to create a temporary for the declaration
             // which doesn't make sense because we are just declaring a local(s)
-            if let Expr::Declaration(decl) = statement.body() {
+            if let ast::Expr::Declaration(decl) = statement.body() {
                 unpack!(block = self.lower_declaration(block, decl, statement.span()));
             } else {
                 // @@Investigate: do we need to deal with the temporary here?

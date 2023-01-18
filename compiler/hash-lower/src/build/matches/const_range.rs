@@ -1,15 +1,16 @@
-//! Various utilities used for lowering `match` blocks.
+//! Defines the [ConstRange] type which is used for constructing comparison
+//! ranges and jump tables when lowering `match` blocks.
 
 use std::cmp::Ordering;
 
-use hash_ast::ast::RangeEnd;
+use hash_ast::ast;
 use hash_ir::ir::{compare_constant_values, Const};
 use hash_types::pats::RangePat;
 
 use crate::build::Builder;
 
 /// A constant range which is a representation of a range pattern, but
-/// instead of using [TermId]s, we directly store these with [Const]s.
+/// instead of using literals, we directly store these with [Const]s.
 ///
 /// N.B. These [Const]s must be of the same type, and must be integral
 ///      types.
@@ -20,7 +21,7 @@ pub(super) struct ConstRange {
     /// The upper value of the range.
     pub hi: Const,
     /// If the range includes the `hi` or not.
-    pub end: RangeEnd,
+    pub end: ast::RangeEnd,
 }
 
 impl ConstRange {
@@ -42,7 +43,7 @@ impl ConstRange {
             matches!(compare_constant_values(self.lo, value)?, Less | Equal)
                 && matches!(
                     (compare_constant_values(self.hi, value)?, self.end),
-                    (Less, _) | (Equal, RangeEnd::Included)
+                    (Less, _) | (Equal, ast::RangeEnd::Included)
                 ),
         )
     }
@@ -56,7 +57,7 @@ impl ConstRange {
             matches!(compare_constant_values(self.lo, other.hi)?, Less | Equal)
                 && matches!(
                     (compare_constant_values(self.hi, other.lo)?, self.end),
-                    (Less, _) | (Equal, RangeEnd::Included)
+                    (Less, _) | (Equal, ast::RangeEnd::Included)
                 ),
         )
     }

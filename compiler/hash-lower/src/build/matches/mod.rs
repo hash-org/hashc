@@ -3,17 +3,17 @@
 //! we have to create essentially a *jump* table each case that is specified in
 //! the `match` arms, which might also have `if` guards, `or` patterns, etc.
 mod candidate;
+mod const_range;
 mod declarations;
 mod optimise;
 mod test;
-mod utils;
 
 use std::mem;
 
-use hash_ast::ast::{self, AstNodeRef, AstNodes, BinOp, BinaryExpr, Expr, MatchCase, MatchOrigin};
+use hash_ast::ast;
 use hash_ir::{
-    ir::{self, AddressMode, BasicBlock, Place, RValue, TerminatorKind},
-    ty::Mutability,
+    ir::{self, BasicBlock, Place, RValue, TerminatorKind},
+    ty::{Mutability, RefKind},
 };
 use hash_source::location::Span;
 use hash_types::pats::Pat;
@@ -37,15 +37,15 @@ impl<'tcx> Builder<'tcx> {
         destination: Place,
         mut block: BasicBlock,
         span: Span,
-        subject: AstNodeRef<'tcx, Expr>,
-        arms: &'tcx AstNodes<MatchCase>,
-        origin: MatchOrigin,
+        subject: ast::AstNodeRef<'tcx, ast::Expr>,
+        arms: &'tcx ast::AstNodes<ast::MatchCase>,
+        origin: ast::MatchOrigin,
     ) -> BlockAnd<()> {
         // @@Hack: if the match-origin is an `if`-chain, then we don't bother
         // lowering the place since we always know that the branches are
         // always matching, and it's only guards that are being tested. Therefore,
         // we use the `subject_place` as the `return_place` in this instance.
-        let subject_place = if matches!(origin, MatchOrigin::If) {
+        let subject_place = if matches!(origin, ast::MatchOrigin::If) {
             PlaceBuilder::from(ir::RETURN_PLACE)
         } else {
             unpack!(block = self.as_place_builder(block, subject, Mutability::Mutable))
@@ -68,7 +68,7 @@ impl<'tcx> Builder<'tcx> {
     fn create_match_candidates(
         &mut self,
         subject_place: &PlaceBuilder,
-        arms: &'tcx AstNodes<MatchCase>,
+        arms: &'tcx ast::AstNodes<ast::MatchCase>,
     ) -> Vec<Candidates<'tcx>> {
         arms.iter()
             .map(|arm| {
@@ -88,13 +88,13 @@ impl<'tcx> Builder<'tcx> {
         &mut self,
         mut block: BasicBlock,
         else_block: BasicBlock,
-        expr: AstNodeRef<'tcx, Expr>,
+        expr: ast::AstNodeRef<'tcx, ast::Expr>,
     ) -> BlockAnd<()> {
         let span = expr.span();
 
         match expr.body {
-            Expr::BinaryExpr(BinaryExpr { lhs, rhs, operator })
-                if *operator.body() == BinOp::And =>
+            ast::Expr::BinaryExpr(ast::BinaryExpr { lhs, rhs, operator })
+                if *operator.body() == ast::BinOp::And =>
             {
                 let lhs_then_block =
                     unpack!(self.then_else_break(block, else_block, lhs.ast_ref()));
@@ -578,7 +578,7 @@ impl<'tcx> Builder<'tcx> {
     fn bind_pat(
         &mut self,
         span: Span,
-        pat: AstNodeRef<'tcx, ast::Pat>,
+        pat: ast::AstNodeRef<'tcx, ast::Pat>,
         candidate: Candidate,
     ) -> BasicBlock {
         let guard = match &pat.body {
@@ -626,7 +626,7 @@ impl<'tcx> Builder<'tcx> {
     fn bind_and_guard_matched_candidate(
         &mut self,
         candidate: Candidate,
-        guard: Option<AstNodeRef<'tcx, Expr>>,
+        guard: Option<ast::AstNodeRef<'tcx, ast::Expr>>,
         parent_bindings: &[Vec<Binding>],
         span: Span,
     ) -> BasicBlock {
@@ -681,7 +681,7 @@ impl<'tcx> Builder<'tcx> {
 
             // @@Todo: we might have to do some special rules for the `by-ref` case
             //         when we start to think about reference rules more concretely.
-            let rvalue = RValue::Ref(binding.mutability, binding.source, AddressMode::Raw);
+            let rvalue = RValue::Ref(binding.mutability, binding.source, RefKind::Raw);
             self.control_flow_graph.push_assign(block, value_place, rvalue, binding.span);
         }
     }
@@ -697,7 +697,7 @@ impl<'tcx> Builder<'tcx> {
             let rvalue = match binding.mode {
                 candidate::BindingMode::ByValue => binding.source.into(),
                 candidate::BindingMode::ByRef => {
-                    RValue::Ref(binding.mutability, binding.source, AddressMode::Raw)
+                    RValue::Ref(binding.mutability, binding.source, RefKind::Raw)
                 }
             };
 

@@ -3,7 +3,7 @@
 
 use hash_ir::{
     ir::{self, BinOp},
-    ty::{self, IrTyId, VariantIdx},
+    ty::{self, IrTyId, RefKind, VariantIdx},
 };
 use hash_utils::store::Store;
 
@@ -68,7 +68,7 @@ fn cast_shift_value<'b, Builder: BlockBuilderMethods<'b>>(
     let lhs_size = builder.int_width(lhs_ty);
     let rhs_size = builder.int_width(rhs_ty);
 
-    // If the size of `lhs` is smallar than `rhs`, we need
+    // If the size of `lhs` is smaller than `rhs`, we need
     // to truncate `rhs` to the size of `lhs`.
     match lhs_size.cmp(&rhs_size) {
         std::cmp::Ordering::Less => builder.truncate(rhs, lhs_ty),
@@ -113,7 +113,7 @@ fn build_unchecked_rshift<'b, Builder: BlockBuilderMethods<'b>>(
     let is_signed = builder.ctx().ir_ctx().tys().map_fast(ty, |ty| ty.is_signed());
 
     if is_signed {
-        // Arithemetic right shift
+        // Arithmetic right shift
         builder.ashr(lhs, rhs)
     } else {
         // Logical right shift
@@ -301,7 +301,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
             }
             ir::RValue::Ref(_, place, kind) => {
                 match kind {
-                    ir::AddressMode::Raw => {
+                    RefKind::Normal | RefKind::Raw => {
                         let ty = rvalue.ty(&self.body.declarations, self.ctx.ir_ctx());
                         let place = self.codegen_place(builder, place);
 
@@ -316,7 +316,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
 
                     // @@Pointers: decide more clearly on what this means, and
                     // when they are used/rules, etc.
-                    ir::AddressMode::Smart => unimplemented!(),
+                    RefKind::Rc => unimplemented!(),
                 }
             }
             ir::RValue::Discriminant(place) => {

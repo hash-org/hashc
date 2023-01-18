@@ -1,9 +1,9 @@
 //! Contains utility functions that perform resolutions on
-//! [PatId]s, [TermId]s, [AstNodeId]s. This will read the
+//! [PatId]s, [TermId]s, [ast::AstNodeId]s. This will read the
 //! provided mappings between nodes to locations, patterns, and
 //! types.
 
-use hash_ast::ast::{AstNodeId, AstNodeRef};
+use hash_ast::ast;
 use hash_ir::{
     ir::{AssertKind, BasicBlock, LocalDecl, Operand, Place, TerminatorKind},
     ty::{IrTy, IrTyId, Mutability},
@@ -16,9 +16,9 @@ use super::Builder;
 
 impl<'tcx> Builder<'tcx> {
     /// Function to get the associated [TermId] with the
-    /// provided [AstNodeId].
+    /// provided [ast::AstNodeId].
     #[inline]
-    pub(crate) fn ty_id_of_node(&self, id: AstNodeId) -> IrTyId {
+    pub(crate) fn ty_id_of_node(&self, id: ast::AstNodeId) -> IrTyId {
         // We need to try and look up the type within the cache, if not
         // present then we create the type by converting the term into
         // the type.
@@ -26,22 +26,22 @@ impl<'tcx> Builder<'tcx> {
     }
 
     /// Function to get the associated [IrTy] with the
-    /// provided [AstNodeId]. This does not attempt to cache the
+    /// provided [ast::AstNodeId]. This does not attempt to cache the
     /// type.
     #[inline]
-    pub(crate) fn ty_of_node(&self, id: AstNodeId) -> IrTy {
+    pub(crate) fn ty_of_node(&self, id: ast::AstNodeId) -> IrTy {
         self.lower_term(self.term_of_node(id))
     }
 
     /// Function to get the associated [PatId] with the
-    /// provided [AstNodeId].
+    /// provided [ast::AstNodeId].
     #[inline]
-    pub(crate) fn pat_id_of_node(&self, id: AstNodeId) -> PatId {
+    pub(crate) fn pat_id_of_node(&self, id: ast::AstNodeId) -> PatId {
         self.tcx.node_info_store.node_info(id).map(|f| f.pat_id()).unwrap()
     }
 
-    /// Lookup the corresponding [AstNodeId] of [PatId], and then compute
-    /// the type associated with this [AstNodeId].
+    /// Lookup the corresponding [ast::AstNodeId] of [PatId], and then compute
+    /// the type associated with this [ast::AstNodeId].
     pub(crate) fn ty_of_pat(&self, id: PatId) -> IrTyId {
         self.tcx.node_info_store.pat_to_node_id(id).map(|id| self.ty_id_of_node(id)).unwrap()
     }
@@ -55,8 +55,8 @@ impl<'tcx> Builder<'tcx> {
             .unwrap()
     }
 
-    /// Lookup the corresponding [TermId] of a [AstNodeId] and return it.
-    pub(crate) fn term_of_node(&self, id: AstNodeId) -> TermId {
+    /// Lookup the corresponding [TermId] of a [ast::AstNodeId] and return it.
+    pub(crate) fn term_of_node(&self, id: ast::AstNodeId) -> TermId {
         self.tcx.node_info_store.node_info(id).unwrap().term_id()
     }
 
@@ -102,12 +102,12 @@ impl<'tcx> Builder<'tcx> {
     }
 
     /// Run a lowering operation whilst entering a new scope which is derived
-    /// from the provided [AstNodeRef<Expr>].
+    /// from the provided [ast::AstNodeRef<ast::Expr>].
     ///
     /// N.B. It is assumed that the related expression has an associated scope.
     pub(crate) fn with_scope<T, U>(
         &mut self,
-        expr: AstNodeRef<U>,
+        expr: ast::AstNodeRef<U>,
         f: impl FnOnce(&mut Self) -> T,
     ) -> T {
         let scope_id = self.tcx.node_info_store.node_info(expr.id()).map(|f| f.scope_id()).unwrap();
@@ -124,7 +124,7 @@ impl<'tcx> Builder<'tcx> {
     /// Run some function whilst reading a [IrTy] from a provided [IrTyId].
     ///
     /// N.B. The closure that is passed into this should not attempt to create
-    ///      new [IrTy]s, whislt this is checking, this is only meant as a
+    ///      new [IrTy]s, whilst this is checking, this is only meant as a
     /// read-only      context over the whole type storage.
     pub(crate) fn map_ty<T>(&mut self, ty: IrTyId, f: impl FnOnce(&IrTy) -> T) -> T {
         self.ctx.tys().map_fast(ty, f)

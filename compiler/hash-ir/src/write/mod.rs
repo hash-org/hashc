@@ -251,7 +251,12 @@ impl fmt::Display for ForFormatting<'_, &Terminator> {
                 Ok(())
             }
             TerminatorKind::Assert { condition, expected, kind, target } => {
-                write!(f, "assert({}, {expected:?}, {kind:?})", condition.for_fmt(self.ctx))?;
+                write!(
+                    f,
+                    "assert({}, {expected:?}, \"{}\")",
+                    condition.for_fmt(self.ctx),
+                    kind.for_fmt(self.ctx)
+                )?;
 
                 if self.with_edges {
                     write!(f, " -> {target:?}")?;

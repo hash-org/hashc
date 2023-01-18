@@ -1,7 +1,26 @@
 //! Contains logic for displaying a computed [Layout] in a pretty format
 //! that can be queried by users.
 //!
-//! @@Todo(feds01): add unit tests for these layouts.
+//! @@Improvements:
+//!
+//! 1. Since the layout printer is only a shallow printer, an improvement could
+//! be made to print the layout of the types that are nested within the type,
+//! and possibly exploring the nested structure:
+//! ```ignore
+//! struct Item (
+//!    item: ( #layout_of (y: i32, x: i32), z: [i32; 3]
+//!     ...
+//! )
+//! ```
+//!
+//! And it will print the layout of the inner type, but this requires to support
+//! @@UniversalParserDirectives.
+//!
+//!
+//! 2. Add unit tests for some layout printing
+//!
+//! 3. Scale each field in the layout print to the size of the largest field, to
+//! more accurately represent the layout of the type.
 
 use std::{fmt, iter};
 
@@ -294,7 +313,7 @@ impl BoxRow {
     /// Create a new [BoxRow] with the given contents.
     pub fn new(contents: Vec<BoxContent>) -> Self {
         let widths = contents.iter().map(|c| c.width()).collect();
-        let max_height = contents.iter().map(|c| c.height()).max().unwrap_or(0);
+        let max_height = contents.iter().map(|c| c.height()).max().unwrap_or(1);
 
         Self { contents, widths, max_height }
     }
@@ -304,6 +323,18 @@ impl BoxRow {
     /// box in the row.
     pub fn width(&self) -> usize {
         self.widths.iter().sum::<usize>() + self.widths.len() + 1
+    }
+
+    /// Get the width of a[BoxContent] at the given index.
+    pub fn width_at(&self, index: usize) -> Option<usize> {
+        self.widths.get(index).copied()
+    }
+
+    /// Set the width of a [BoxContent] at the given index.
+    pub fn set_width_at(&mut self, index: usize, width: usize) {
+        if let Some(w) = self.widths.get_mut(index) {
+            *w = width;
+        }
     }
 
     /// Potentially adjust the width of the [BoxRow] to fit the given
@@ -552,19 +583,29 @@ impl<'l> LayoutWriter<'l> {
         self.with_info(|this, ty, layout| this.create_box_contents(ty, layout, None))
     }
 
+    /// Create all of the [BoxContent]s that represent the inner layout of a
+    /// variant within the [LayoutShape].
+    ///
+    /// N.B. This inserts an initial box at the start of each row to identify
+    /// the variant of the enum.
     pub fn create_box_contents_for_variant(
         &self,
         variant: VariantIdx,
+        tag_size: Size,
+        tag_box_width: usize,
         layout: LayoutId,
-    ) -> Vec<BoxContent> {
+    ) -> BoxRow {
         self.ctx.ir_ctx().tys().map_fast(self.ty_info.ty, |ty| {
-            let mut contents = self
-                .ctx
-                .map_fast(layout, |layout| self.create_box_contents(ty, layout, Some(variant)));
+            let mut contents = self.ctx.map_fast(layout, |layout| {
+                self.create_box_contents(ty, layout, Some((tag_size, variant)))
+            });
 
             // we also insert an initial box with the variant name
             contents.insert(0, BoxContent::new(variant.to_string(), "".to_string()));
-            contents
+
+            let mut row = BoxRow::new(contents);
+            row.set_width_at(0, tag_box_width);
+            row
         })
     }
 
@@ -578,7 +619,7 @@ impl<'l> LayoutWriter<'l> {
         &self,
         ty: &IrTy,
         layout: &Layout,
-        variant: Option<VariantIdx>,
+        variant: Option<(Size, VariantIdx)>,
     ) -> Vec<BoxContent> {
         let mut boxes = Vec::new();
 
@@ -630,7 +671,9 @@ impl<'l> LayoutWriter<'l> {
                             // "layouts" of the type.
                             let variant = match layout.variants {
                                 Variants::Single { index } => index,
-                                Variants::Multiple { .. } => variant.unwrap(),
+                                Variants::Multiple { .. } => {
+                                    variant.map(|(_, variant)| variant).unwrap()
+                                }
                             };
 
                             adt.variant(variant)
@@ -658,22 +701,30 @@ impl<'l> LayoutWriter<'l> {
                 // The current computed size of the aggregate disregarding the last padding
                 // on the field (if any).
                 let mut current_size = Size::ZERO;
+                let tag_size = variant.map(|(tag_size, _)| tag_size).unwrap_or(Size::ZERO);
 
-                for index in layout.shape.iter_increasing_offsets() {
-                    let FieldLayout { offset, size } = fields[index];
+                for (order_index, offset_index) in
+                    layout.shape.iter_increasing_offsets().enumerate()
+                {
+                    let FieldLayout { offset, size } = fields[offset_index];
 
                     // we skip the first field, as the padding before this field
                     // maybe as the result of being within a variant, and therefore
                     // the padding will be handled by the variant printing.
-                    if current_size < offset && index != 0 {
-                        let pad_size = offset - current_size;
+                    let true_offset = if order_index == 0 { offset - tag_size } else { offset };
+
+                    if current_size < true_offset {
+                        let pad_size = true_offset - current_size;
 
                         // we need to add this as padding to the content
                         boxes.push(BoxContent::new_pad(pad_size));
                     }
 
                     boxes.push(BoxContent::new(
-                        format!("{}: {}", field_titles[index].0, field_titles[index].1),
+                        format!(
+                            "{}: {}",
+                            field_titles[offset_index].0, field_titles[offset_index].1
+                        ),
                         format!(
                             "  size: {}\noffset: {}\n align: {}",
                             size, offset, layout.alignment.abi
@@ -685,7 +736,7 @@ impl<'l> LayoutWriter<'l> {
 
                 // If the `current_size` isn't equal to the size of the layout, then
                 // we need to add padding box to the content.
-                if current_size < layout.size {
+                if current_size != Size::ZERO && current_size < layout.size {
                     let pad_size = layout.size - current_size;
 
                     // we need to add this as padding to the content
@@ -695,6 +746,24 @@ impl<'l> LayoutWriter<'l> {
         }
 
         boxes
+    }
+
+    /// For multi-variant layouts, we want to create a row that represents
+    /// the tag of the variant. This function will construct the tag variant
+    /// and return the [BoxRow] for this.
+    fn compute_tag_box_row(&self, tag_size: Size, layout: &Layout) -> BoxRow {
+        let offset = layout.shape.offset(0);
+
+        if tag_size < offset {
+            // we need to print the tag box first, and then the
+            // variants.
+            BoxRow::new(vec![
+                BoxContent::new(format!("{tag_size} tag"), "".to_string()),
+                BoxContent::new_pad(offset - tag_size),
+            ])
+        } else {
+            BoxRow::new(vec![BoxContent::new(format!("{tag_size} tag"), "".to_string())])
+        }
     }
 }
 
@@ -751,23 +820,22 @@ impl fmt::Display for LayoutWriter<'_> {
                     Ok(())
                 }
                 Variants::Multiple { tag, field: _, ref variants } => {
+                    let tag_size = tag.size(self.ctx.data_layout());
+                    let tag_row = self.compute_tag_box_row(tag_size, layout);
+                    let tag_box_width = tag_row.width_at(0).unwrap();
+
                     // firstly, deal with the tag box which is just essentially,
                     // a title with the size of the tag, possible padding and then
                     // the variants proceed after it.
-                    let mut content_table = variants
-                        .iter_enumerated()
-                        .map(|(index, layout)| {
-                            let contents = self.create_box_contents_for_variant(index, *layout);
-                            let max_height = contents
-                                .iter()
-                                .map(|box_content| box_content.height())
-                                .max()
-                                .unwrap_or(1);
-                            let widths: Vec<_> =
-                                contents.iter().map(|box_content| box_content.width()).collect();
-
-                            BoxRow { contents, widths, max_height }
-                        })
+                    let mut content_table = iter::once(tag_row)
+                        .chain(variants.iter_enumerated().map(|(index, layout)| {
+                            self.create_box_contents_for_variant(
+                                index,
+                                tag_size,
+                                tag_box_width,
+                                *layout,
+                            )
+                        }))
                         .collect::<Vec<_>>();
 
                     // Now, we might need to adjust the last content boxes in order to
@@ -788,29 +856,6 @@ impl fmt::Display for LayoutWriter<'_> {
 
                     debug_assert!(content_table.iter().all(|row| { row.width() == max_row_width }));
 
-                    // Now we will insert the "tag" row above all of the other rows.
-                    // Deal with the tag box or boxes first...
-                    let tag_size = tag.size(self.ctx.data_layout());
-
-                    let offset = layout.shape.offset(0);
-                    let mut tag_row = if tag_size < offset {
-                        // we need to print the tag box first, and then the
-                        // variants.
-                        BoxRow::new(vec![
-                            BoxContent::new(format!("{tag_size} tag"), "".to_string()),
-                            BoxContent::new_pad(offset - tag_size),
-                        ])
-                    } else {
-                        BoxRow::new(vec![BoxContent::new(
-                            format!("{tag_size} tag"),
-                            "".to_string(),
-                        )])
-                    };
-
-                    // adjust the row to the maximum row size and insert it into the table contents
-                    tag_row.adjust_to_width(max_row_width);
-                    content_table.insert(0, tag_row);
-
                     let helper = LayoutWriterHelper { config: &self.config };
 
                     // First draw the horizontal edge of the start
@@ -818,12 +863,12 @@ impl fmt::Display for LayoutWriter<'_> {
 
                     let write_row = |f: &mut fmt::Formatter<'_>, row: &BoxRow| -> fmt::Result {
                         for line in 0..row.max_height {
-                            for content_box in row.contents.iter() {
+                            for (index, content_box) in row.contents.iter().enumerate() {
                                 write!(
                                     f,
                                     "{}{}",
                                     self.config.vertical,
-                                    content_box.line_contents(line, None)
+                                    content_box.line_contents(line, row.width_at(index))
                                 )?;
                             }
 

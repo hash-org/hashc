@@ -19,7 +19,7 @@ use hash_ir::{
 use hash_pipeline::settings::{CompilerSettings, OptimisationLevel};
 use index_vec::{index_vec, IndexVec};
 
-use super::IrOptimisation;
+use super::IrOptimisationPass;
 
 /// The [CleanupLocalPass] is responsible for removing un-used [Local]s
 /// from a given [Body]. This removes any assignments to dead locals, and
@@ -27,7 +27,7 @@ use super::IrOptimisation;
 /// pass is completed.
 pub struct CleanupLocalPass;
 
-impl IrOptimisation for CleanupLocalPass {
+impl IrOptimisationPass for CleanupLocalPass {
     fn name(&self) -> &'static str {
         "cleanup_locals"
     }

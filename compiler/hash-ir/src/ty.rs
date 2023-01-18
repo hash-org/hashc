@@ -7,6 +7,7 @@
 use std::{cmp, fmt};
 
 use bitflags::bitflags;
+use hash_ast::ast;
 use hash_source::{
     constant::{FloatTy, IntTy, SIntTy, UIntTy},
     identifier::Identifier,
@@ -57,13 +58,11 @@ impl Mutability {
     }
 }
 
-impl From<hash_ast::ast::Mutability> for Mutability {
-    fn from(value: hash_ast::ast::Mutability) -> Self {
-        use hash_ast::ast::Mutability::*;
-
+impl From<ast::Mutability> for Mutability {
+    fn from(value: ast::Mutability) -> Self {
         match value {
-            Mutable => Mutability::Mutable,
-            Immutable => Mutability::Immutable,
+            ast::Mutability::Mutable => Mutability::Mutable,
+            ast::Mutability::Immutable => Mutability::Immutable,
         }
     }
 }

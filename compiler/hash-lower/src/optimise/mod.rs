@@ -14,7 +14,7 @@ use hash_source::SourceMap;
 mod cleanup_locals;
 mod simplify;
 
-pub trait IrOptimisation {
+pub trait IrOptimisationPass {
     /// Get the name of the particular optimisation pass.
     fn name(&self) -> &'static str;
 
@@ -43,7 +43,7 @@ pub struct Optimiser<'ir> {
 
     /// The various passes that have been added to the optimisation
     /// pipeline.
-    passes: Vec<Box<dyn IrOptimisation + Send>>,
+    passes: Vec<Box<dyn IrOptimisationPass + Send>>,
 }
 
 impl<'ir> Optimiser<'ir> {

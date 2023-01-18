@@ -1,6 +1,6 @@
 //! Utilities for dealing with [Place]s when building up Hash IR.
 
-use hash_ast::ast::{AccessExpr, AccessKind, AstNodeRef, DerefExpr, Expr, IndexExpr, PropertyKind};
+use hash_ast::ast;
 use hash_ir::{
     ir::{BasicBlock, Local, Place, PlaceProjection},
     ty::{IrTyId, Mutability, VariantIdx},
@@ -83,7 +83,7 @@ impl<'tcx> Builder<'tcx> {
     pub(crate) fn as_place(
         &mut self,
         mut block: BasicBlock,
-        expr: AstNodeRef<'tcx, Expr>,
+        expr: ast::AstNodeRef<'tcx, ast::Expr>,
         mutability: Mutability,
     ) -> BlockAnd<Place> {
         let place_builder = unpack!(block = self.as_place_builder(block, expr, mutability));
@@ -93,11 +93,11 @@ impl<'tcx> Builder<'tcx> {
     pub(crate) fn as_place_builder(
         &mut self,
         mut block: BasicBlock,
-        expr: AstNodeRef<'tcx, Expr>,
+        expr: ast::AstNodeRef<'tcx, ast::Expr>,
         mutability: Mutability,
     ) -> BlockAnd<PlaceBuilder> {
         match expr.body {
-            Expr::Variable(variable) => {
+            ast::Expr::Variable(variable) => {
                 // Get the current scope, and resolve the variable within the scope. This will
                 // get us the scope that this variable comes from. Using the id and the name, we
                 // can then lookup the local that this variable is bound to.
@@ -108,7 +108,11 @@ impl<'tcx> Builder<'tcx> {
                     .unwrap_or_else(|| panic!("failed to lookup local `{name}`"));
                 block.and(PlaceBuilder::from(local))
             }
-            Expr::Access(AccessExpr { subject, property, kind: AccessKind::Property }) => {
+            ast::Expr::Access(ast::AccessExpr {
+                subject,
+                property,
+                kind: ast::AccessKind::Property,
+            }) => {
                 let place_builder =
                     unpack!(block = self.as_place_builder(block, subject.ast_ref(), mutability));
 
@@ -117,7 +121,7 @@ impl<'tcx> Builder<'tcx> {
                 let index = self.lookup_field_index(subject_ty, *property.body());
                 block.and(place_builder.field(index))
             }
-            Expr::Access(AccessExpr { subject, .. }) => {
+            ast::Expr::Access(ast::AccessExpr { subject, .. }) => {
                 // @@Todo: we need to check here if the type of the subject is
                 // an enum, and if so then we perform a *downcast* to the correct
                 // variant of the enum.
@@ -126,12 +130,12 @@ impl<'tcx> Builder<'tcx> {
                 // of the access
                 self.as_place_builder(block, subject.ast_ref(), mutability)
             }
-            Expr::Deref(DerefExpr { data }) => {
+            ast::Expr::Deref(ast::DerefExpr { data }) => {
                 let place_builder =
                     unpack!(block = self.as_place_builder(block, data.ast_ref(), mutability));
                 block.and(place_builder.deref())
             }
-            Expr::Index(IndexExpr { subject, index_expr }) => {
+            ast::Expr::Index(ast::IndexExpr { subject, index_expr }) => {
                 let base_place =
                     unpack!(block = self.as_place_builder(block, subject.ast_ref(), mutability));
 
@@ -145,38 +149,38 @@ impl<'tcx> Builder<'tcx> {
                 block.and(base_place.index(index))
             }
 
-            Expr::Import(_)
-            | Expr::StructDef(_)
-            | Expr::EnumDef(_)
-            | Expr::TyFnDef(_)
-            | Expr::TraitDef(_)
-            | Expr::ImplDef(_)
-            | Expr::ModDef(_)
-            | Expr::FnDef(_)
-            | Expr::MergeDeclaration(_)
-            | Expr::TraitImpl(_)
-            | Expr::Directive(_) => {
+            ast::Expr::Import(_)
+            | ast::Expr::StructDef(_)
+            | ast::Expr::EnumDef(_)
+            | ast::Expr::TyFnDef(_)
+            | ast::Expr::TraitDef(_)
+            | ast::Expr::ImplDef(_)
+            | ast::Expr::ModDef(_)
+            | ast::Expr::FnDef(_)
+            | ast::Expr::MergeDeclaration(_)
+            | ast::Expr::TraitImpl(_)
+            | ast::Expr::Directive(_) => {
                 // We should never encounter these expressions when we are building
                 // a place, this means that someone passed an expression that shouldn't
                 // be put into a place.
                 unreachable!()
             }
 
-            Expr::Ref(_)
-            | Expr::ConstructorCall(_)
-            | Expr::Declaration(_)
-            | Expr::Unsafe(_)
-            | Expr::Lit(_)
-            | Expr::Cast(_)
-            | Expr::Block(_)
-            | Expr::Ty(_)
-            | Expr::Return(_)
-            | Expr::Break(_)
-            | Expr::Continue(_)
-            | Expr::Assign(_)
-            | Expr::AssignOp(_)
-            | Expr::BinaryExpr(_)
-            | Expr::UnaryExpr(_) => {
+            ast::Expr::Ref(_)
+            | ast::Expr::ConstructorCall(_)
+            | ast::Expr::Declaration(_)
+            | ast::Expr::Unsafe(_)
+            | ast::Expr::Lit(_)
+            | ast::Expr::Cast(_)
+            | ast::Expr::Block(_)
+            | ast::Expr::Ty(_)
+            | ast::Expr::Return(_)
+            | ast::Expr::Break(_)
+            | ast::Expr::Continue(_)
+            | ast::Expr::Assign(_)
+            | ast::Expr::AssignOp(_)
+            | ast::Expr::BinaryExpr(_)
+            | ast::Expr::UnaryExpr(_) => {
                 // These expressions are not places, so we need to create a temporary
                 // and then deal with it.
                 let temp = unpack!(block = self.expr_into_temp(block, expr, mutability));
@@ -186,9 +190,9 @@ impl<'tcx> Builder<'tcx> {
     }
 
     /// Function to lookup the index of a particular field within a [IrTy] using
-    /// a [PropertyKind]. This function assumes that the underlying type is
+    /// a [ast::PropertyKind]. This function assumes that the underlying type is
     /// a [IrTy::Adt].
-    fn lookup_field_index(&mut self, ty: IrTyId, field: PropertyKind) -> usize {
+    fn lookup_field_index(&mut self, ty: IrTyId, field: ast::PropertyKind) -> usize {
         self.ctx.map_on_adt(ty, |adt, _| {
             // @@Todo: deal with unions here.
             if adt.flags.is_struct() || adt.flags.is_tuple() {
@@ -197,13 +201,13 @@ impl<'tcx> Builder<'tcx> {
                 let variant = adt.variants.first().unwrap();
 
                 match field {
-                    PropertyKind::NamedField(name) => {
+                    ast::PropertyKind::NamedField(name) => {
                         // @@Optimisation: we could use a lookup table for `AdtField` to
                         // immediately lookup the field rather than looping through the
                         // whole vector trying to find the field with the same name.
                         variant.fields.iter().position(|field| field.name == name).unwrap()
                     }
-                    PropertyKind::NumericField(index) => index,
+                    ast::PropertyKind::NumericField(index) => index,
                 }
             } else {
                 unreachable!("attempt to access a field of a non-struct or tuple type")

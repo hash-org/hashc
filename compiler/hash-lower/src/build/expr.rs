@@ -1,21 +1,17 @@
-//! Implementation for lowering [Expr]s into Hash IR. This module contains the
-//! core logic of converting expressions into IR, other auxiliary conversion
+//! Implementation for lowering [ast::Expr]s into Hash IR. This module contains
+//! the core logic of converting expressions into IR, other auxiliary conversion
 //! `strategies` can be found in [crate::build::rvalue] and
 //! [crate::build::temp].
 
 use std::collections::HashMap;
 
-use hash_ast::ast::{
-    AccessExpr, AccessKind, AssignExpr, AssignOpExpr, AstNodeRef, AstNodes, BinOp, BinaryExpr,
-    BlockExpr, ConstructorCallArg, ConstructorCallExpr, Expr, ListLit, Lit, PropertyKind, RefExpr,
-    RefKind, ReturnStatement, TupleLit, UnsafeExpr, VariableExpr,
-};
+use hash_ast::ast;
 use hash_ir::{
     ir::{
-        self, AddressMode, AggregateKind, BasicBlock, Const, ConstKind, Place, RValue, Statement,
-        StatementKind, TerminatorKind, UnevaluatedConst,
+        self, AggregateKind, BasicBlock, Const, ConstKind, Place, RValue, Statement, StatementKind,
+        TerminatorKind, UnevaluatedConst,
     },
-    ty::{AdtId, IrTy, Mutability, VariantIdx},
+    ty::{AdtId, IrTy, Mutability, RefKind, VariantIdx},
 };
 use hash_reporting::macros::panic_on_span;
 use hash_source::{identifier::Identifier, location::Span};
@@ -25,18 +21,18 @@ use hash_utils::store::{SequenceStoreKey, Store};
 use super::{unpack, BlockAnd, BlockAndExtend, Builder, LoopBlockInfo};
 
 impl<'tcx> Builder<'tcx> {
-    /// Compile the given [Expr] and place the value of the [Expr] into
-    /// the specified destination [Place].
+    /// Compile the given [ast::Expr] and place the value of the [ast::Expr]
+    /// into the specified destination [Place].
     pub(crate) fn expr_into_dest(
         &mut self,
         destination: Place,
         mut block: BasicBlock,
-        expr: AstNodeRef<'tcx, Expr>,
+        expr: ast::AstNodeRef<'tcx, ast::Expr>,
     ) -> BlockAnd<()> {
         let span = expr.span();
 
         let block_and = match expr.body {
-            Expr::ConstructorCall(ConstructorCallExpr { subject, args }) => {
+            ast::Expr::ConstructorCall(ast::ConstructorCallExpr { subject, args }) => {
                 // Check the type of the subject, and if we need to
                 // handle it as a constructor initialisation, or if it is a
                 // function call.
@@ -67,18 +63,18 @@ impl<'tcx> Builder<'tcx> {
                     unreachable!()
                 }
             }
-            Expr::Directive(expr) => {
+            ast::Expr::Directive(expr) => {
                 self.expr_into_dest(destination, block, expr.subject.ast_ref())
             }
-            Expr::Index(..)
-            | Expr::Deref(..)
-            | Expr::Access(AccessExpr { kind: AccessKind::Property, .. }) => {
+            ast::Expr::Index(..)
+            | ast::Expr::Deref(..)
+            | ast::Expr::Access(ast::AccessExpr { kind: ast::AccessKind::Property, .. }) => {
                 let place = unpack!(block = self.as_place(block, expr, Mutability::Immutable));
                 self.control_flow_graph.push_assign(block, destination, place.into(), span);
 
                 block.unit()
             }
-            Expr::Variable(VariableExpr { name }) => {
+            ast::Expr::Variable(ast::VariableExpr { name }) => {
                 let name = name.ident;
                 let (scope, _, scope_kind) = self.lookup_item_scope(name).unwrap();
 
@@ -103,13 +99,17 @@ impl<'tcx> Builder<'tcx> {
 
                 block.unit()
             }
-            Expr::Access(AccessExpr { subject, kind: AccessKind::Namespace, property }) => {
+            ast::Expr::Access(ast::AccessExpr {
+                subject,
+                kind: ast::AccessKind::Namespace,
+                property,
+            }) => {
                 // This is a special case, since we are creating an enum variant here with
                 // no arguments.
                 let subject_ty = self.ty_id_of_node(subject.id());
                 let index = self.ctx.map_on_adt(subject_ty, |adt, _| match property.body() {
-                    PropertyKind::NamedField(name) => adt.variant_idx(name).unwrap(),
-                    PropertyKind::NumericField(index) => VariantIdx::from_usize(*index),
+                    ast::PropertyKind::NamedField(name) => adt.variant_idx(name).unwrap(),
+                    ast::PropertyKind::NumericField(index) => VariantIdx::from_usize(*index),
                 });
 
                 self.control_flow_graph.push(
@@ -119,7 +119,7 @@ impl<'tcx> Builder<'tcx> {
 
                 block.unit()
             }
-            Expr::Ref(RefExpr { inner_expr, kind, mutability }) => {
+            ast::Expr::Ref(ast::RefExpr { inner_expr, kind, mutability }) => {
                 let mutability = if let Some(specified_mut) = mutability {
                     (*specified_mut.body()).into()
                 } else {
@@ -131,8 +131,8 @@ impl<'tcx> Builder<'tcx> {
                 // the type of the expression, and where the expression comes
                 // from.
                 let kind = match kind {
-                    RefKind::Normal => AddressMode::Smart,
-                    RefKind::Raw => AddressMode::Raw,
+                    ast::RefKind::Normal => RefKind::Normal,
+                    ast::RefKind::Raw => RefKind::Raw,
                 };
 
                 let place = unpack!(block = self.as_place(block, inner_expr.ast_ref(), mutability));
@@ -142,43 +142,43 @@ impl<'tcx> Builder<'tcx> {
                 self.control_flow_graph.push_assign(block, destination, addr_of, span);
                 block.unit()
             }
-            Expr::Unsafe(UnsafeExpr { data }) => {
+            ast::Expr::Unsafe(ast::UnsafeExpr { data }) => {
                 self.expr_into_dest(destination, block, data.ast_ref())
             }
 
             // For declarations, we have to perform some bookkeeping in regards
             // to locals..., but this expression should never return any value
             // so we should just return a unit block here
-            Expr::Declaration(decl) => self.lower_declaration(block, decl, span),
+            ast::Expr::Declaration(decl) => self.lower_declaration(block, decl, span),
 
             // Traverse the lhs of the cast, and then apply the cast
             // to the result... although this should be a no-op?
-            Expr::Cast(..) => unimplemented!(),
+            ast::Expr::Cast(..) => unimplemented!(),
 
             // This includes `loop { ... } `, `{ ... }`, `match { ... }`
-            Expr::Block(BlockExpr { data }) => {
+            ast::Expr::Block(ast::BlockExpr { data }) => {
                 self.block_into_dest(destination, block, data.ast_ref())
             }
 
             // We never do anything for these anyway...
-            Expr::Import { .. }
-            | Expr::StructDef { .. }
-            | Expr::EnumDef { .. }
-            | Expr::TyFnDef { .. }
-            | Expr::TraitDef { .. }
-            | Expr::ImplDef { .. }
-            | Expr::ModDef { .. }
-            | Expr::TraitImpl { .. }
-            | Expr::MergeDeclaration { .. }
-            | Expr::Ty { .. } => block.unit(),
+            ast::Expr::Import { .. }
+            | ast::Expr::StructDef { .. }
+            | ast::Expr::EnumDef { .. }
+            | ast::Expr::TyFnDef { .. }
+            | ast::Expr::TraitDef { .. }
+            | ast::Expr::ImplDef { .. }
+            | ast::Expr::ModDef { .. }
+            | ast::Expr::TraitImpl { .. }
+            | ast::Expr::MergeDeclaration { .. }
+            | ast::Expr::Ty { .. } => block.unit(),
 
             // @@Todo: we need be able to check here if this function is a closure,
             // and if so lower it as a closure. Similarly, any variables that are being
             // referenced from the environment above need special treatment when it comes
             // to a closure.
-            Expr::FnDef(..) => block.unit(),
+            ast::Expr::FnDef(..) => block.unit(),
 
-            Expr::Assign { .. } | Expr::AssignOp { .. } => {
+            ast::Expr::Assign { .. } | ast::Expr::AssignOp { .. } => {
                 // Deal with the actual assignment
                 block = unpack!(self.handle_statement_expr(block, expr));
 
@@ -189,7 +189,7 @@ impl<'tcx> Builder<'tcx> {
                 block.unit()
             }
 
-            Expr::Return(ReturnStatement { expr }) => {
+            ast::Expr::Return(ast::ReturnStatement { expr }) => {
                 // In either case, we want to mark that the function has reached the
                 // **terminating** statement of this block and we needn't continue looking
                 // for more statements beyond this point.
@@ -228,7 +228,7 @@ impl<'tcx> Builder<'tcx> {
                 self.control_flow_graph.start_new_block().unit()
             }
 
-            Expr::Continue { .. } | Expr::Break { .. } => {
+            ast::Expr::Continue { .. } | ast::Expr::Break { .. } => {
                 // Specify that we have reached the terminator of this block...
                 self.reached_terminator = true;
 
@@ -245,10 +245,10 @@ impl<'tcx> Builder<'tcx> {
 
                 // Add terminators to this block to specify where this block will jump...
                 match expr.body {
-                    Expr::Continue { .. } => {
+                    ast::Expr::Continue { .. } => {
                         self.control_flow_graph.goto(block, loop_body, span);
                     }
-                    Expr::Break { .. } => {
+                    ast::Expr::Break { .. } => {
                         self.control_flow_graph.goto(block, next_block, span);
                     }
                     _ => unreachable!(),
@@ -257,12 +257,12 @@ impl<'tcx> Builder<'tcx> {
                 block.unit()
             }
 
-            Expr::Lit(literal) => {
+            ast::Expr::Lit(literal) => {
                 // We lower primitive (integrals, strings, etc) literals as constants, and
                 // other literals like `sets`, `maps`, `lists`, and `tuples` as aggregates.
                 match literal.data.body() {
-                    Lit::Map(_) | Lit::Set(_) => unimplemented!(),
-                    Lit::List(ListLit { elements }) => {
+                    ast::Lit::Map(_) | ast::Lit::Set(_) => unimplemented!(),
+                    ast::Lit::List(ast::ListLit { elements }) => {
                         let ty = self.ty_id_of_node(expr.id());
                         let el_ty = self.map_ty(ty, |ty| match ty {
                             IrTy::Slice(ty) | IrTy::Array { ty, .. } => *ty,
@@ -278,7 +278,7 @@ impl<'tcx> Builder<'tcx> {
 
                         self.aggregate_into_dest(destination, block, aggregate_kind, &args, span)
                     }
-                    Lit::Tuple(TupleLit { elements }) => {
+                    ast::Lit::Tuple(ast::TupleLit { elements }) => {
                         let ty = self.ty_id_of_node(expr.id());
                         let adt = self.ctx.map_on_adt(ty, |_, id| id);
                         let aggregate_kind = AggregateKind::Tuple(adt);
@@ -298,7 +298,11 @@ impl<'tcx> Builder<'tcx> {
 
                         self.aggregate_into_dest(destination, block, aggregate_kind, &args, span)
                     }
-                    Lit::Str(_) | Lit::Char(_) | Lit::Int(_) | Lit::Float(_) | Lit::Bool(_) => {
+                    ast::Lit::Str(_)
+                    | ast::Lit::Char(_)
+                    | ast::Lit::Int(_)
+                    | ast::Lit::Float(_)
+                    | ast::Lit::Bool(_) => {
                         let constant = self.as_constant(literal.data.ast_ref());
                         self.control_flow_graph.push_assign(
                             block,
@@ -342,7 +346,7 @@ impl<'tcx> Builder<'tcx> {
             //  | dest = true  |----------------+-->| join |
             //  +--------------+                    +------+
             // ```
-            Expr::BinaryExpr(BinaryExpr { lhs, rhs, operator }) if operator.is_lazy() => {
+            ast::Expr::BinaryExpr(ast::BinaryExpr { lhs, rhs, operator }) if operator.is_lazy() => {
                 let (short_circuiting_block, mut else_block, join_block) = (
                     self.control_flow_graph.start_new_block(),
                     self.control_flow_graph.start_new_block(),
@@ -353,8 +357,8 @@ impl<'tcx> Builder<'tcx> {
                     unpack!(block = self.as_operand(block, lhs.ast_ref(), Mutability::Mutable));
 
                 let blocks = match *operator.body() {
-                    BinOp::And => (else_block, short_circuiting_block),
-                    BinOp::Or => (short_circuiting_block, else_block),
+                    ast::BinOp::And => (else_block, short_circuiting_block),
+                    ast::BinOp::Or => (short_circuiting_block, else_block),
                     _ => unreachable!(),
                 };
 
@@ -363,8 +367,8 @@ impl<'tcx> Builder<'tcx> {
 
                 // Create the constant that we will assign in the `short_circuiting` block.
                 let constant = match *operator.body() {
-                    BinOp::And => Const::Bool(false),
-                    BinOp::Or => Const::Bool(true),
+                    ast::BinOp::And => Const::Bool(false),
+                    ast::BinOp::Or => Const::Bool(true),
                     _ => unreachable!(),
                 };
 
@@ -389,7 +393,7 @@ impl<'tcx> Builder<'tcx> {
                 join_block.unit()
             }
 
-            Expr::BinaryExpr(..) | Expr::UnaryExpr(..) => {
+            ast::Expr::BinaryExpr(..) | ast::Expr::UnaryExpr(..) => {
                 let rvalue = unpack!(block = self.as_rvalue(block, expr));
                 self.control_flow_graph.push_assign(block, destination, rvalue, span);
 
@@ -403,10 +407,10 @@ impl<'tcx> Builder<'tcx> {
     pub(crate) fn handle_statement_expr(
         &mut self,
         mut block: BasicBlock,
-        statement: AstNodeRef<'tcx, Expr>,
+        statement: ast::AstNodeRef<'tcx, ast::Expr>,
     ) -> BlockAnd<()> {
         match statement.body {
-            Expr::Assign(AssignExpr { lhs, rhs }) => {
+            ast::Expr::Assign(ast::AssignExpr { lhs, rhs }) => {
                 let place =
                     unpack!(block = self.as_place(block, lhs.ast_ref(), Mutability::Mutable));
                 let value = unpack!(block = self.as_rvalue(block, rhs.ast_ref()));
@@ -414,7 +418,7 @@ impl<'tcx> Builder<'tcx> {
 
                 block.unit()
             }
-            Expr::AssignOp(AssignOpExpr { lhs: _, rhs: _, operator: _ }) => {
+            ast::Expr::AssignOp(ast::AssignOpExpr { lhs: _, rhs: _, operator: _ }) => {
                 // @@Todo: implement this when operators work properly
                 block.unit()
             }
@@ -429,9 +433,9 @@ impl<'tcx> Builder<'tcx> {
         &mut self,
         destination: Place,
         mut block: BasicBlock,
-        subject: AstNodeRef<'tcx, Expr>,
+        subject: ast::AstNodeRef<'tcx, ast::Expr>,
         fn_ty: IrTy,
-        args: &'tcx AstNodes<ConstructorCallArg>,
+        args: &'tcx ast::AstNodes<ast::ConstructorCallArg>,
         span: Span,
     ) -> BlockAnd<()> {
         // First we want to lower the subject of the function call
@@ -491,27 +495,28 @@ impl<'tcx> Builder<'tcx> {
         &mut self,
         destination: Place,
         mut block: BasicBlock,
-        subject: AstNodeRef<'tcx, Expr>,
+        subject: ast::AstNodeRef<'tcx, ast::Expr>,
         adt_id: AdtId,
-        args: &'tcx AstNodes<ConstructorCallArg>,
+        args: &'tcx ast::AstNodes<ast::ConstructorCallArg>,
         span: Span,
     ) -> BlockAnd<()> {
         let aggregate_kind = self.ctx.adts().map_fast(adt_id, |adt| {
             if adt.flags.is_enum() || adt.flags.is_union() {
                 // here, we have to work out which variant is being used, so we look at the
                 // subject type as an `enum variant` value, and extract the index
-                let index =
-                    if let Expr::Access(AccessExpr {
-                        property, kind: AccessKind::Namespace, ..
-                    }) = &subject.body
-                    {
-                        match property.body() {
-                            PropertyKind::NamedField(name) => adt.variant_idx(name).unwrap(),
-                            PropertyKind::NumericField(index) => VariantIdx::from_usize(*index),
-                        }
-                    } else {
-                        panic!("expected an enum variant")
-                    };
+                let index = if let ast::Expr::Access(ast::AccessExpr {
+                    property,
+                    kind: ast::AccessKind::Namespace,
+                    ..
+                }) = &subject.body
+                {
+                    match property.body() {
+                        ast::PropertyKind::NamedField(name) => adt.variant_idx(name).unwrap(),
+                        ast::PropertyKind::NumericField(index) => VariantIdx::from_usize(*index),
+                    }
+                } else {
+                    panic!("expected an enum variant")
+                };
 
                 AggregateKind::Enum(adt_id, index)
             } else {
@@ -551,7 +556,7 @@ impl<'tcx> Builder<'tcx> {
         destination: Place,
         mut block: BasicBlock,
         aggregate_kind: AggregateKind,
-        args: &[(Identifier, AstNodeRef<'tcx, Expr>)],
+        args: &[(Identifier, ast::AstNodeRef<'tcx, ast::Expr>)],
         span: Span,
     ) -> BlockAnd<()> {
         // @@Todo: deal with the situation where we need to fill in default
