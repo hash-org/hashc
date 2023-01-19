@@ -280,6 +280,11 @@ impl Scalar {
         Scalar::Union { kind: self.kind() }
     }
 
+    /// Check if the [Scalar] is a [`Scalar::Union`].
+    pub fn is_union(&self) -> bool {
+        matches!(self, Scalar::Union { .. })
+    }
+
     /// Align the [Scalar] with the current data layout
     /// specification.
     pub fn align<L: HasDataLayout>(&self, ctx: &L) -> Alignments {
