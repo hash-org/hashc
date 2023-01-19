@@ -1,7 +1,9 @@
 //! Contains logic for computing ABIs of function types and their
 //! arguments.
 
-use hash_abi::{ArgAbi, ArgAttributeFlag, ArgAttributes, ArgExtension, CallingConvention, FnAbi};
+use hash_abi::{
+    Abi, ArgAbi, ArgAttributeFlag, ArgAttributes, ArgExtension, CallingConvention, FnAbi,
+};
 use hash_ir::ty::{IrTy, IrTyId, Mutability, RefKind};
 use hash_layout::compute::LayoutComputer;
 use hash_target::abi::{Scalar, ScalarKind};
@@ -74,6 +76,14 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
         // we only support the C calling convention.
         let calling_convention = CallingConvention::C;
 
+        // @@Todo: we should be able to deduce the ABI from the "Instance"
+        // of the type since this stores attributes which specify which
+        // ABI to use.
+        //
+        // This probably involves introducing `extern` keyword to allow
+        // overriding the default ABI.
+        let abi = Abi::Hash;
+
         self.ctx.ir_ctx().map_ty(ty, |ty| {
             let IrTy::Fn { params, return_ty, .. } = ty else {
                 unreachable!("expected a function type")
@@ -95,7 +105,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
                 Ok(arg)
             };
 
-            let fn_abi = FnAbi {
+            let mut fn_abi = FnAbi {
                 args: self.ctx.ir_ctx().tls().map_fast(*params, |tys| {
                     tys.iter()
                         .enumerate()
@@ -106,7 +116,22 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
                 calling_convention,
             };
 
+            self.adjust_fn_abi_for_specified_abi(&mut fn_abi, abi);
             Ok(fn_abi)
         })
+    }
+
+    /// This function adjusts the ABI of a function based on the specified
+    /// ABI. This is required since the ABI of a function is not always
+    /// the same as the ABI of the arguments.
+    fn adjust_fn_abi_for_specified_abi(&self, _fn_abi: &mut FnAbi, abi: Abi) {
+        if abi == Abi::Hash {
+            // @@Todo: currently unclear what optimisations we can perform
+            // here...
+        } else {
+            // Here we adjust to a platform specific ABI, based on the
+            // platform.
+            unimplemented!()
+        }
     }
 }

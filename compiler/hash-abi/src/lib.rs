@@ -26,6 +26,17 @@ pub enum CallingConvention {
     Cold,
 }
 
+/// Defines what ABI to use when calling a function.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Abi {
+    /// The C ABI.
+    C,
+
+    /// The default ABI, which attempts to perform optimisations
+    /// that are not possible with the C ABI.
+    Hash,
+}
+
 /// Defines ABI specific information about a function.
 ///
 /// @@TODO: Do we need to record information about variadics here (when we add
