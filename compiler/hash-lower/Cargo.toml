@@ -21,5 +21,5 @@ hash-source = { path = "../hash-source" }
 hash-layout = { path = "../hash-layout" }
 hash-target = { path = "../hash-target" }
 hash-tree-def = { path = "../hash-tree-def" }
-hash-types = { path = "../hash-types" }
+hash-tir = { path = "../hash-tir" }
 hash-utils = { path = "../hash-utils" }

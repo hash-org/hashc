@@ -2,7 +2,7 @@
 use std::{fmt::Debug, process};
 
 use hash_source::identifier::Identifier;
-use hash_types::new::{
+use hash_tir::new::{
     environment::env::AccessToEnv,
     fns::{FnBody, FnDef, FnDefId, FnTy},
     intrinsics::IntrinsicId,

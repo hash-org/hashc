@@ -27,7 +27,7 @@ use hash_pipeline::{
     workspace::{SourceStageInfo, Workspace},
 };
 use hash_source::SourceId;
-use hash_types::{nodes::NodeInfoTarget, storage::TyStorage};
+use hash_tir::{nodes::NodeInfoTarget, storage::TyStorage};
 use optimise::Optimiser;
 use ty::TyLoweringCtx;
 

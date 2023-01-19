@@ -1,7 +1,7 @@
 //! Definition and lookup of primitive types.
 use std::iter::once;
 
-use hash_types::new::{
+use hash_tir::new::{
     data::{DataDefId, ListCtorInfo, NumericCtorBits, NumericCtorInfo, PrimitiveCtorInfo},
     defs::DefParamGroupData,
     environment::env::{AccessToEnv, Env},

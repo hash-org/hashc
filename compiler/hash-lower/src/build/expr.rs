@@ -15,7 +15,7 @@ use hash_ir::{
 };
 use hash_reporting::macros::panic_on_span;
 use hash_source::{identifier::Identifier, location::Span};
-use hash_types::scope::ScopeKind;
+use hash_tir::scope::ScopeKind;
 use hash_utils::store::{SequenceStoreKey, Store};
 
 use super::{unpack, BlockAnd, BlockAndExtend, Builder, LoopBlockInfo};

@@ -10,4 +10,4 @@ hash-ast = { path = "../hash-ast" }
 hash-source = { path = "../hash-source" }
 hash-target = { path = "../hash-target" }
 hash-utils = { path = "../hash-utils" }
-hash-types = { path = "../hash-types" }
+hash-tir = { path = "../hash-tir" }
