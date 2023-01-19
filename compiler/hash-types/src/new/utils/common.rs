@@ -4,12 +4,12 @@ use hash_source::{identifier::Identifier, location::SourceLocation};
 use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
 
 use crate::new::{
-    args::{ArgsId, PatArgsId},
+    args::{Arg, ArgsId, PatArg, PatArgsId},
     data::{DataDef, DataDefId, DataTy},
-    defs::{DefArgsId, DefParamGroup, DefParamsId, DefPatArgsId},
+    defs::{DefArgGroup, DefArgsId, DefParamGroup, DefParamsId, DefPatArgGroup, DefPatArgsId},
     environment::env::AccessToEnv,
     fns::{FnDef, FnDefId},
-    holes::{Hole, HoleKind},
+    holes::{Hole, HoleBinder, HoleBinderKind},
     locations::LocationTarget,
     params::{DefParamIndex, Param, ParamIndex, ParamsId},
     pats::{Pat, PatId, PatListId},
@@ -106,6 +106,14 @@ pub trait CommonUtils: AccessToEnv {
         self.stores().symbol().create_with(|symbol| SymbolData { name: Some(name.into()), symbol })
     }
 
+    /// Create a new symbol from the given parameter index.
+    fn new_symbol_from_param_index(&self, index: ParamIndex) -> Symbol {
+        match index {
+            ParamIndex::Name(name) => self.new_symbol(name),
+            ParamIndex::Position(i) => self.new_symbol(i),
+        }
+    }
+
     /// Create a new empty parameter list.
     fn new_empty_params(&self) -> ParamsId {
         self.stores().params().create_from_slice(&[])
@@ -116,10 +124,64 @@ pub trait CommonUtils: AccessToEnv {
         self.stores().term().get(term_id)
     }
 
+    /// Map a term by its ID.
+    fn map_term<T>(&self, term_id: TermId, f: impl FnOnce(&Term) -> T) -> T {
+        self.stores().term().map(term_id, f)
+    }
+
+    fn map_term_list<T>(&self, term_list_id: TermListId, f: impl FnOnce(&[TermId]) -> T) -> T {
+        self.stores().term_list().map(term_list_id, f)
+    }
+
     /// Get a type by its ID.
     fn get_ty(&self, ty_id: TyId) -> Ty {
         self.stores().ty().get(ty_id)
     }
+
+    /// Map a type by its ID.
+    fn map_ty<T>(&self, ty_id: TyId, f: impl FnOnce(&Ty) -> T) -> T {
+        self.stores().ty().map(ty_id, f)
+    }
+
+    /// Map args by their IDs.
+    fn map_args<T>(&self, args_id: ArgsId, f: impl FnOnce(&[Arg]) -> T) -> T {
+        self.stores().args().map(args_id, f)
+    }
+
+    /// Map params by their IDs.
+    fn map_params<T>(&self, params_id: ParamsId, f: impl FnOnce(&[Param]) -> T) -> T {
+        self.stores().params().map(params_id, f)
+    }
+
+    fn map_def_params<T>(
+        &self,
+        def_params_id: DefParamsId,
+        f: impl FnOnce(&[DefParamGroup]) -> T,
+    ) -> T {
+        self.stores().def_params().map(def_params_id, f)
+    }
+
+    fn map_def_args<T>(&self, def_args_id: DefArgsId, f: impl FnOnce(&[DefArgGroup]) -> T) -> T {
+        self.stores().def_args().map(def_args_id, f)
+    }
+
+    fn map_pat_args<T>(&self, pat_args_id: PatArgsId, f: impl FnOnce(&[PatArg]) -> T) -> T {
+        self.stores().pat_args().map(pat_args_id, f)
+    }
+
+    fn map_def_pat_args<T>(
+        &self,
+        def_pat_args_id: DefPatArgsId,
+        f: impl FnOnce(&[DefPatArgGroup]) -> T,
+    ) -> T {
+        self.stores().def_pat_args().map(def_pat_args_id, f)
+    }
+
+    fn map_pat<T>(&self, pat_id: PatId, f: impl FnOnce(&Pat) -> T) -> T {
+        self.stores().pat().map(pat_id, f)
+    }
+
+    /// Get a type by its ID.
 
     /// Get a pattern by its ID.
     fn get_pat(&self, pat_id: PatId) -> Pat {
@@ -186,16 +248,28 @@ pub trait CommonUtils: AccessToEnv {
         self.stores().symbol().create_with(|symbol| SymbolData { name: None, symbol })
     }
 
+    fn new_hole(&self) -> Hole {
+        Hole(self.new_fresh_symbol())
+    }
+
     /// Create a new term hole.
     fn new_term_hole(&self) -> TermId {
-        let hole_id = self.stores().hole().create_with(|id| Hole { id, kind: HoleKind::Term });
-        self.stores().term().create_with(|_| Term::Hole(hole_id))
+        self.stores().term().create_with(|_| Term::Hole(self.new_hole()))
     }
 
     /// Create a new type hole.
     fn new_ty_hole(&self) -> TyId {
-        let hole_id = self.stores().hole().create_with(|id| Hole { id, kind: HoleKind::Ty });
-        self.stores().ty().create_with(|_| Ty::Hole(hole_id))
+        self.stores().ty().create_with(|_| Ty::Hole(self.new_hole()))
+    }
+
+    /// Create a new hole binder.
+    fn new_hole_binder(&self, hole: Hole, ty: TyId, inner: TermId) -> TermId {
+        self.new_term(HoleBinder { hole, kind: HoleBinderKind::Hole(ty), inner })
+    }
+
+    /// Create a new guess binder.
+    fn new_guess_binder(&self, hole: Hole, guess: TermId, inner: TermId) -> TermId {
+        self.new_term(HoleBinder { hole, kind: HoleBinderKind::Guess(guess), inner })
     }
 
     /// Create a new empty definition parameter list.
@@ -218,6 +292,17 @@ pub trait CommonUtils: AccessToEnv {
         self.stores().params().create_from_iter_with(types.iter().copied().map(|ty| {
             move |id| Param { id, name: self.new_fresh_symbol(), ty, default_value: None }
         }))
+    }
+
+    /// Create a new positional argument list with the given types.
+    fn new_args(&self, values: &[TermId]) -> ArgsId {
+        self.stores().args().create_from_iter_with(
+            values
+                .iter()
+                .copied()
+                .enumerate()
+                .map(|(i, value)| move |id| Arg { id, target: ParamIndex::Position(i), value }),
+        )
     }
 
     /// Create a new data type with no arguments.

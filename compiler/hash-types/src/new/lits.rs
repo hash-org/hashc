@@ -71,6 +71,16 @@ pub enum LitPat {
     Char(CharLit),
 }
 
+impl From<LitPat> for Lit {
+    fn from(val: LitPat) -> Self {
+        match val {
+            LitPat::Int(l) => Lit::Int(l),
+            LitPat::Str(l) => Lit::Str(l),
+            LitPat::Char(l) => Lit::Char(l),
+        }
+    }
+}
+
 /// A primitive term
 #[derive(Copy, Clone, Debug)]
 pub enum PrimTerm {

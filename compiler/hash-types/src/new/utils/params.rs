@@ -114,14 +114,16 @@ impl<'env> ParamUtils<'env> {
     pub fn create_positional_args_for_data_def(
         &self,
         def: DataDefId,
-        args: impl Iterator<Item = impl Iterator<Item = TermId>>,
+        args: impl IntoIterator<Item = impl IntoIterator<Item = TermId>>,
     ) -> DefArgsId {
         let data_def_params = self.stores().data_def().map_fast(def, |def| def.params);
         self.create_def_args(
-            args.enumerate()
+            args.into_iter()
+                .enumerate()
                 .map(|(i, arg_group)| DefArgGroupData {
                     args: self.create_args(
                         arg_group
+                            .into_iter()
                             .enumerate()
                             .map(|(j, value)| ArgData { target: ParamIndex::Position(j), value })
                             .collect_vec()

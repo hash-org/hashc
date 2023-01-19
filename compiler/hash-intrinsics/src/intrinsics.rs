@@ -67,6 +67,12 @@ impl DefinedIntrinsics {
             |_, _| process::exit(1),
         );
 
+        add(
+            "checked_add_i32",
+            FnTy::builder().params(env.new_empty_params()).return_ty(env.new_never_ty()).build(),
+            |_, _| process::exit(1),
+        );
+
         intrinsics
     }
 

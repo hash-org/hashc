@@ -633,9 +633,13 @@ impl<'tc> ResolutionPass<'tc> {
 
                 // If all ok, create a block term
                 match (expr, statements.len() == node.statements.len()) {
-                    (Some(expr), true) => {
+                    (Some(Some(expr)), true) => {
                         let statements = self.new_term_list(statements);
-                        let return_value = expr.unwrap_or_else(|| self.new_void_term());
+                        Ok(self.new_term(Term::Block(BlockTerm { statements, return_value: expr })))
+                    }
+                    (None, true) => {
+                        let statements = self.new_term_list(statements);
+                        let return_value = self.new_void_term();
                         Ok(self.new_term(Term::Block(BlockTerm { statements, return_value })))
                     }
                     _ => Err(TcError::Signal),

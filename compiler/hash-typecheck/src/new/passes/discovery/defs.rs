@@ -110,7 +110,7 @@ impl<'tc> DiscoveryPass<'tc> {
         result
     }
 
-    /// Get the "current" definition, or panic if there is none.
+    /// Get the "current" definition, or `None` if there is none.
     pub(super) fn get_current_item(&self) -> ItemId {
         self.def_state()
             .currently_in

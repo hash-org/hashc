@@ -1,6 +1,10 @@
 //! Representing and modifying the typechecking context.
 use core::fmt;
-use std::{cell::RefCell, convert::Infallible};
+use std::{
+    cell::{Cell, RefCell},
+    convert::Infallible,
+    ops::Range,
+};
 
 use derive_more::From;
 use hash_utils::store::{Store, StoreKey};
@@ -10,6 +14,7 @@ use super::env::{AccessToEnv, WithEnv};
 use crate::new::{
     data::{CtorDefId, DataDefId},
     fns::FnDefId,
+    holes::HoleBinder,
     mods::{ModDefId, ModMemberId},
     params::{DefParamIndex, ParamIndex},
     scopes::{StackId, StackMemberId},
@@ -60,6 +65,10 @@ pub enum BoundVarOrigin {
     ///
     /// For example, `a` in `{ a := 3; a }`
     StackMember(StackMemberId),
+    /// Hole binder
+    ///
+    /// For example `?a:B.a`
+    HoleBinder(HoleBinder),
 }
 
 /// A binding.
@@ -91,6 +100,18 @@ pub enum ScopeKind {
     FnTy(TyId),
 }
 
+/// Information about a scope in the context.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ScopeInfo {
+    /// The kind of the scope.
+    pub kind: ScopeKind,
+    /// The level of the scope.
+    ///
+    /// This is an index into the `members` IndexMap in the context, which is
+    /// the index of the first member of this scope, if any.
+    pub member_level: usize,
+}
+
 /// Data structure managing the typechecking context.
 ///
 /// The context is a stack of scopes, each scope being a stack in itself.
@@ -100,9 +121,9 @@ pub enum ScopeKind {
 /// enter and exit scopes.
 #[derive(Debug, Clone, Default)]
 pub struct Context {
-    scope_levels: RefCell<Vec<usize>>,
     members: RefCell<IndexMap<Symbol, BindingKind>>,
-    scope_kinds: RefCell<Vec<ScopeKind>>,
+    scopes: RefCell<Vec<ScopeInfo>>,
+    constant_member_level: Cell<usize>,
 }
 
 impl Context {
@@ -110,25 +131,34 @@ impl Context {
         Self::default()
     }
 
+    /// Set the current scope level as the "constant" level. Trying to pop this
+    /// or above scopes will result in a panic.
+    pub fn mark_constant_scope_index(&self) {
+        self.constant_member_level.set(self.scopes.borrow().len().saturating_sub(1));
+    }
+
+    /// Get the constant scope level.
+    pub fn get_constant_scope_index(&self) -> usize {
+        self.constant_member_level.get()
+    }
+
     /// Enter a new scope in the context.
     pub fn add_scope(&self, kind: ScopeKind) {
-        self.scope_kinds.borrow_mut().push(kind);
-        self.scope_levels.borrow_mut().push(self.members.borrow().len());
+        let member_level = self.members.borrow().len();
+        self.scopes.borrow_mut().push(ScopeInfo { kind, member_level });
     }
 
     /// Exit the last entered scope in the context
     ///
     /// Returns the scope kind that was removed, or `None` if there are no
     /// scopes to remove.
-    pub fn remove_scope(&self) -> Option<ScopeKind> {
-        match (self.scope_levels.borrow_mut().pop(), self.scope_kinds.borrow_mut().pop()) {
-            (Some(last_level), Some(last_kind)) => {
-                self.members.borrow_mut().truncate(last_level);
-                Some(last_kind)
-            }
-            (None, None) => None,
-            _ => panic!("mismatch in lengths of `scope_levels` and `kinds`"),
+    pub fn remove_scope(&self) -> Option<ScopeInfo> {
+        if self.get_current_scope().member_level == self.get_constant_scope_index() {
+            panic!("tried to remove a constant scope");
         }
+        let removed_scope = self.scopes.borrow_mut().pop()?;
+        self.members.borrow_mut().truncate(removed_scope.member_level);
+        Some(removed_scope)
     }
 
     /// Enter a new scope in the context, and run the given function in that
@@ -171,68 +201,81 @@ impl Context {
         Some(Binding { name, kind: self.members.borrow().get(&name).copied()? })
     }
 
-    /// Get the kind of the current scope.
-    pub fn get_current_scope_kind(&self) -> ScopeKind {
-        self.scope_kinds.borrow().last().copied().unwrap_or_else(|| {
+    /// Get information about the current scope.
+    pub fn get_current_scope(&self) -> ScopeInfo {
+        self.scopes.borrow().last().copied().unwrap_or_else(|| {
             panic!("tried to get the scope kind of a context with no scopes");
         })
     }
 
-    /// Get the current scope level.
-    pub fn get_current_scope_level(&self) -> usize {
-        let scope_levels = self.scope_levels.borrow();
-        if scope_levels.is_empty() {
-            panic!("tried to get the scope level of a context with no scopes");
-        }
-        scope_levels.len() - 1
+    /// Get the index of the current scope.
+    pub fn get_current_scope_index(&self) -> usize {
+        self.scopes.borrow().len().checked_sub(1).unwrap_or_else(|| {
+            panic!("tried to get the scope kind of a context with no scopes");
+        })
     }
 
-    /// Get all the scope levels in the context.
-    pub fn get_scope_levels(&self) -> impl Iterator<Item = usize> {
-        0..self.scope_levels.borrow().len()
+    /// Get information about the scope with the given index.
+    pub fn get_scope(&self, index: usize) -> ScopeInfo {
+        self.scopes.borrow()[index]
     }
 
-    /// Get the scope kind of the given scope level.
-    pub fn get_scope_kind_of_level(&self, level: usize) -> ScopeKind {
-        self.scope_kinds.borrow()[level]
+    /// Get all the scope indices in the context.
+    pub fn get_scope_indices(&self) -> Range<usize> {
+        0..self.scopes.borrow().len()
     }
 
-    /// Iterate over all the bindings in the context for the given scope level
-    /// (fallible).
-    pub fn try_for_bindings_of_level<E>(
+    /// Iterate over all the bindings in the context for the scope with the
+    /// given index (fallible).
+    pub fn try_for_bindings_of_scope<E>(
         &self,
-        level: usize,
+        scope_index: usize,
         mut f: impl FnMut(&Binding) -> Result<(), E>,
     ) -> Result<(), E> {
-        let scope_levels = self.scope_levels.borrow();
-        let current_level_member_index = scope_levels[level];
-        let next_level_member_index =
-            scope_levels.get(level + 1).copied().unwrap_or(self.members.borrow().len());
+        let scopes = self.scopes.borrow();
+        let current_scope_member_level = scopes[scope_index].member_level;
+        let next_scope_member_level = scopes
+            .get(scope_index + 1)
+            .copied()
+            .map(|scope| scope.member_level)
+            .unwrap_or(self.members.borrow().len());
+
         for (&name, &kind) in self
             .members
             .borrow()
             .iter()
-            .skip(current_level_member_index)
-            .take(next_level_member_index - current_level_member_index)
+            .skip(current_scope_member_level)
+            .take(next_scope_member_level - current_scope_member_level)
         {
             f(&Binding { name, kind })?
         }
+
         Ok(())
     }
 
-    /// Iterate all the bindings in the context for the given scope level.
-    pub fn for_bindings_of_level(&self, level: usize, mut f: impl FnMut(&Binding)) {
-        let _ = self.try_for_bindings_of_level(level, |binding| -> Result<(), Infallible> {
+    /// Iterate over all the bindings in the context for the scope with the
+    /// given index.
+    pub fn for_bindings_of_scope(&self, scope_index: usize, mut f: impl FnMut(&Binding)) {
+        let _ = self.try_for_bindings_of_scope(scope_index, |binding| -> Result<(), Infallible> {
             f(binding);
             Ok(())
         });
     }
 
-    /// Get all the bindings in the context for the given scope level.
-    pub fn get_bindings_of_level(&self, level: usize) -> Vec<Symbol> {
+    /// Get all the bindings in the context for the given scope.
+    pub fn get_owned_bindings_of_scope(&self, level: usize) -> Vec<Symbol> {
         let mut symbols = vec![];
-        self.for_bindings_of_level(level, |binding| symbols.push(binding.name));
+        self.for_bindings_of_scope(level, |binding| symbols.push(binding.name));
         symbols
+    }
+
+    /// Clear the scope up to the declared constant scope level.
+    pub fn clear_to_constant(&self) {
+        let constant_scope_level_index = self.get_constant_scope_index();
+        let constant_scope_level = self.get_scope(constant_scope_level_index).member_level;
+
+        self.scopes.borrow_mut().truncate(constant_scope_level_index);
+        self.members.borrow_mut().truncate(constant_scope_level);
     }
 }
 
@@ -251,6 +294,9 @@ impl fmt::Display for WithEnv<'_, &BoundVarOrigin> {
             BoundVarOrigin::Fn(_, _param_id) => todo!(),
             BoundVarOrigin::StackMember(stack_member) => {
                 write!(f, "{}", self.env().with(*stack_member))
+            }
+            BoundVarOrigin::HoleBinder(hole_binder) => {
+                write!(f, "{}", self.env().with(*hole_binder))
             }
         }
     }
@@ -309,10 +355,10 @@ impl fmt::Display for WithEnv<'_, ScopeKind> {
 
 impl fmt::Display for WithEnv<'_, &Context> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for scope_level in self.value.get_scope_levels() {
-            let kind = self.value.get_scope_kind_of_level(scope_level);
-            writeln!(f, "({}) {}:", scope_level, self.env().with(kind))?;
-            self.value.try_for_bindings_of_level(scope_level, |binding| {
+        for scope_index in self.value.get_scope_indices() {
+            let kind = self.value.get_scope(scope_index).kind;
+            writeln!(f, "({}) {}:", scope_index, self.env().with(kind))?;
+            self.value.try_for_bindings_of_scope(scope_index, |binding| {
                 let result = self.env().with(*binding).to_string();
                 for line in result.lines() {
                     writeln!(f, "  {line}")?;

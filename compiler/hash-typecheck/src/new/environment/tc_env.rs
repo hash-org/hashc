@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+
 use hash_intrinsics::{
     intrinsics::{AccessToIntrinsics, DefinedIntrinsics},
     primitives::{AccessToPrimitives, DefinedPrimitives},
@@ -8,7 +10,10 @@ use hash_types::new::environment::env::{AccessToEnv, Env};
 use super::ast_info::AstInfo;
 use crate::new::{
     diagnostics::store::DiagnosticsStore,
-    ops::bootstrap::{DefinedIntrinsicsOrUnset, DefinedPrimitivesOrUnset},
+    ops::{
+        bootstrap::{DefinedIntrinsicsOrUnset, DefinedPrimitivesOrUnset},
+        elaboration::ProofState,
+    },
 };
 
 macro_rules! tc_env {
@@ -58,10 +63,13 @@ macro_rules! tc_env {
     }
 }
 
+type ProofStateRefCell = RefCell<ProofState>;
+
 tc_env! {
     #hide env: Env<'tc>,
     diagnostics: DiagnosticsStore,
     ast_info: AstInfo,
+    proof_state: ProofStateRefCell,
     primitives_or_unset: DefinedPrimitivesOrUnset,
     intrinsics_or_unset: DefinedIntrinsicsOrUnset,
 }
@@ -135,28 +143,48 @@ impl<'tc> AccessToIntrinsics for TcEnv<'tc> {
 /// This is useful for passing around a reference to the tcenv alongside
 /// some value.
 pub struct WithTcEnv<'tc, T> {
-    env: &'tc TcEnv<'tc>,
+    tc_env: &'tc TcEnv<'tc>,
     pub value: T,
+}
+
+impl<'tc, T> AccessToTcEnv for WithTcEnv<'tc, T> {
+    fn tc_env(&self) -> &TcEnv {
+        self.tc_env
+    }
+}
+
+impl<'tc, T> AccessToEnv for WithTcEnv<'tc, T> {
+    fn env(&self) -> &Env {
+        self.tc_env.env()
+    }
+}
+
+impl<'tc, T> AccessToPrimitives for WithTcEnv<'tc, T> {
+    fn primitives(&self) -> &DefinedPrimitives {
+        self.tc_env.primitives()
+    }
+}
+
+impl<'tc, T> AccessToIntrinsics for WithTcEnv<'tc, T> {
+    fn intrinsics(&self) -> &DefinedIntrinsics {
+        self.tc_env.intrinsics()
+    }
 }
 
 impl<'tc, T: Clone> Clone for WithTcEnv<'tc, T> {
     fn clone(&self) -> Self {
-        Self { env: self.env, value: self.value.clone() }
+        Self { tc_env: self.tc_env, value: self.value.clone() }
     }
 }
 impl<'tc, T: Copy> Copy for WithTcEnv<'tc, T> {}
 
 impl<'tc, T> WithTcEnv<'tc, T> {
     pub fn new(env: &'tc TcEnv, value: T) -> Self {
-        Self { env, value }
-    }
-
-    pub fn tc_env(&self) -> &TcEnv {
-        self.env
+        Self { tc_env: env, value }
     }
 
     pub fn map<U>(self, f: impl FnOnce(T) -> U) -> WithTcEnv<'tc, U> {
-        WithTcEnv { env: self.env, value: f(self.value) }
+        WithTcEnv { tc_env: self.tc_env, value: f(self.value) }
     }
 }
 

@@ -4,7 +4,6 @@ use super::super::{
     data::{CtorDefsStore, DataDefStore},
     defs::{DefArgsStore, DefParamsStore, DefPatArgsStore},
     fns::FnDefStore,
-    holes::HoleStore,
     locations::LocationStore,
     mods::{ModDefStore, ModMembersStore},
     params::ParamsStore,
@@ -46,6 +45,9 @@ macro_rules! stores {
   }
 }
 
+// @@Performance: Most stores store copy types, why do we use ref-cells when we
+// can use cells?
+
 // All the stores that contain definitions for the typechecker.
 stores! {
     args: ArgsStore,
@@ -55,7 +57,6 @@ stores! {
     def_params: DefParamsStore,
     def_pat_args: DefPatArgsStore,
     fn_def: FnDefStore,
-    hole: HoleStore,
     location: LocationStore,
     mod_def: ModDefStore,
     mod_members: ModMembersStore,

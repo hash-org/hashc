@@ -1,7 +1,8 @@
-// @@Docs
+//! Contains operations that are common during typechecking and don't fit
+//! anywhere else.
+
 use crate::new::{diagnostics::error::TcResult, environment::tc_env::AccessToTcEnv};
 
-/// Common operations during typechecking.
 pub trait CommonOps: AccessToTcEnv {
     /// If the result is an error, add it to the diagnostics and return `None`.
     fn try_or_add_error<T>(&self, result: TcResult<T>) -> Option<T> {

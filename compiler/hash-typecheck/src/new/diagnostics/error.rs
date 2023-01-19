@@ -7,12 +7,15 @@ use hash_reporting::{
 use hash_source::location::SourceLocation;
 use hash_types::new::{
     defs::DefParamsId, environment::env::AccessToEnv, params::ParamsId, symbols::Symbol,
-    terms::TermId, utils::common::CommonUtils,
+    terms::TermId, tys::TyId, utils::common::CommonUtils,
 };
 use hash_utils::store::SequenceStoreKey;
 
 use super::params::{SomeArgsId, SomeDefArgsId};
-use crate::new::{environment::tc_env::WithTcEnv, passes::resolution::scoping::ContextKind};
+use crate::new::{
+    environment::tc_env::{AccessToTcEnv, WithTcEnv},
+    passes::resolution::scoping::ContextKind,
+};
 
 /// An error that occurs during typechecking.
 #[derive(Clone, Debug)]
@@ -52,6 +55,16 @@ pub enum TcError {
     /// The given definition arguments do not match the length of the target
     /// definition parameters.
     WrongDefArgLength { def_params_id: DefParamsId, def_args_id: SomeDefArgsId },
+    /// Not a function.
+    NotAFunction { fn_call: TermId, actual_subject_ty: TyId },
+    /// Cannot deref the subject.
+    CannotDeref { subject: TermId, actual_subject_ty: TyId },
+    /// Types don't match
+    MismatchingTypes { expected: TyId, actual: TyId },
+    /// Undecidable equality between terms
+    UndecidableEquality { a: TermId, b: TermId },
+    /// Invalid range pattern literal
+    InvalidRangePatternLiteral { location: SourceLocation },
 }
 
 pub type TcResult<T> = Result<T, TcError>;
@@ -258,6 +271,89 @@ impl<'tc> WithTcEnv<'tc, &TcError> {
                     error
                         .add_span(location)
                         .add_info(format!("got {arg_length} {} groups here", args_id.as_str()));
+                }
+            }
+            TcError::NotAFunction { fn_call, actual_subject_ty } => {
+                let error = reporter
+                    .error()
+                    .code(HashErrorCode::InvalidCallSubject)
+                    .title("the subject of this function call is not a function");
+                if let Some(location) = locations.get_location(fn_call) {
+                    error.add_labelled_span(
+                        location,
+                        format!(
+                            "cannot use this as a subject of a function call. It is of type `{}` which is not a function type.",
+                            self.env().with(*actual_subject_ty)
+                        )
+                    );
+                }
+            }
+            TcError::CannotDeref { subject, actual_subject_ty } => {
+                let error = reporter
+                    .error()
+                    .code(HashErrorCode::InvalidCallSubject)
+                    .title("the subject of this dereference is not a reference");
+                if let Some(location) = locations.get_location(subject) {
+                    error.add_labelled_span(
+                        location,
+                        format!(
+                            "cannot use this as a subject of a dereference operation. It is of type `{}` which is not a reference type.",
+                            self.env().with(*actual_subject_ty)
+                        )
+                    );
+                }
+            }
+            TcError::MismatchingTypes { expected, actual } => {
+                let error = reporter.error().code(HashErrorCode::TypeMismatch).title(format!(
+                    "expected type `{}` but got `{}`",
+                    self.env().with(*expected),
+                    self.env().with(*actual),
+                ));
+                if let Some(location) = locations.get_location(expected) {
+                    error.add_labelled_span(
+                        location,
+                        format!(
+                            "this expects type `{}`", //@@Todo: flag for if inferred or declared
+                            self.env().with(*expected)
+                        ),
+                    );
+                }
+                if let Some(location) = locations.get_location(actual) {
+                    error.add_labelled_span(
+                        location,
+                        format!("this is of type `{}`", self.env().with(*actual)),
+                    );
+                }
+            }
+            TcError::UndecidableEquality { a, b } => {
+                let error = reporter.error().code(HashErrorCode::TypeMismatch).title(format!(
+                    "cannot determine if expressions `{}` and `{}` are equal",
+                    self.env().with(*a),
+                    self.env().with(*b),
+                ));
+                if let Some(location) = locations.get_location(a) {
+                    error.add_labelled_span(
+                        location,
+                        format!(
+                            "`{}` from here", //@@Todo: flag for if inferred or declared
+                            self.env().with(*a)
+                        ),
+                    );
+                }
+                if let Some(location) = locations.get_location(b) {
+                    error.add_labelled_span(
+                        location,
+                        format!("`{}` from here", self.env().with(*b)),
+                    );
+                }
+            }
+            TcError::InvalidRangePatternLiteral { location } => {
+                let error = reporter
+                    .error()
+                    .code(HashErrorCode::TypeMismatch)
+                    .title("range patterns should contain valid literals");
+                if let Some(location) = locations.get_location(location) {
+                    error.add_labelled_span(location, "not a valid range literal");
                 }
             }
         }

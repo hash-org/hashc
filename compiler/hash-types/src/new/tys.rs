@@ -11,7 +11,7 @@ use hash_utils::{
 
 use super::{
     environment::env::{AccessToEnv, WithEnv},
-    holes::HoleId,
+    holes::Hole,
     symbols::Symbol,
 };
 use crate::new::{data::DataTy, fns::FnTy, refs::RefTy, terms::TermId, tuples::TupleTy};
@@ -34,10 +34,8 @@ pub enum Ty {
     /// A term which evaluates to a type.
     Eval(TermId),
 
-    /// Type hole.
-    ///
-    /// Invariant: `hole.kind == HoleKind::Ty`
-    Hole(HoleId),
+    /// Hole
+    Hole(Hole),
 
     /// Type variable
     Var(Symbol),
