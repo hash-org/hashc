@@ -1,15 +1,16 @@
 //! The first pass of the typechecker, which discovers all definitions in
 //! the AST and adds them to the stores.
+
 use hash_ast::{
     ast::{self},
     visitor::AstVisitor,
 };
-use hash_tir::new::{symbols::Symbol, utils::common::CommonUtils};
+use hash_tir::new::{environment::env::AccessToEnv, symbols::Symbol, utils::common::CommonUtils};
 use hash_utils::state::LightState;
 
 use self::defs::DefDiscoveryState;
-use super::ast_utils::{AstPass, AstUtils};
-use crate::{impl_access_to_tc_env, new::environment::tc_env::TcEnv};
+use super::ast_utils::AstPass;
+use crate::new::environment::tc_env::{AccessToTcEnv, TcEnv};
 
 pub mod defs;
 pub mod params;
@@ -24,22 +25,30 @@ pub struct DiscoveryPass<'tc> {
     def_state: DefDiscoveryState,
 }
 
-impl AstUtils for DiscoveryPass<'_> {}
+impl AccessToEnv for DiscoveryPass<'_> {
+    fn env(&self) -> &hash_tir::new::environment::env::Env {
+        self.tc_env.env()
+    }
+}
 
-impl_access_to_tc_env!(DiscoveryPass<'tc>);
+impl<'tc> AccessToTcEnv for DiscoveryPass<'tc> {
+    fn tc_env(&self) -> &'tc TcEnv<'tc> {
+        self.tc_env
+    }
+}
 
 impl<'tc> AstPass for DiscoveryPass<'tc> {
     fn pass_interactive(
         &self,
         node: ast::AstNodeRef<ast::BodyBlock>,
-    ) -> crate::new::diagnostics::error::TcResult<()> {
+    ) -> crate::new::diagnostics::error::SemanticResult<()> {
         self.visit_body_block(node)
     }
 
     fn pass_module(
         &self,
         node: ast::AstNodeRef<ast::Module>,
-    ) -> crate::new::diagnostics::error::TcResult<()> {
+    ) -> crate::new::diagnostics::error::SemanticResult<()> {
         self.visit_module(node)
     }
 }

@@ -1,7 +1,10 @@
 //! Hash AST semantic passes diagnostic definitions and logic.
 
 use hash_ast::ast::AstNodeId;
-use hash_reporting::{diagnostic::Diagnostics, report::Report, reporter::Reports};
+use hash_reporting::{
+    diagnostic::{AccessToDiagnosticsMut, DiagnosticsMut},
+    reporter::Reports,
+};
 
 use self::{error::AnalysisError, warning::AnalysisWarning};
 use crate::analysis::SemanticAnalyser;
@@ -45,38 +48,28 @@ pub struct AnalyserDiagnostics {
     pub(crate) items: Vec<AnalysisDiagnostic>,
 }
 
-impl Diagnostics<AnalysisError, AnalysisWarning> for SemanticAnalyser<'_> {
-    type DiagnosticsStore = AnalyserDiagnostics;
-
-    fn diagnostic_store(&self) -> &Self::DiagnosticsStore {
-        &self.diagnostics
-    }
-
+impl DiagnosticsMut<AnalysisError, AnalysisWarning> for AnalyserDiagnostics {
     fn add_error(&mut self, error: AnalysisError) {
-        self.diagnostics.items.push(AnalysisDiagnostic::Error(error));
+        self.items.push(AnalysisDiagnostic::Error(error));
     }
 
     fn add_warning(&mut self, warning: AnalysisWarning) {
-        self.diagnostics.items.push(AnalysisDiagnostic::Warning(warning));
+        self.items.push(AnalysisDiagnostic::Warning(warning));
     }
 
     fn has_errors(&self) -> bool {
-        !self.diagnostics.items.iter().any(|d| matches!(d, AnalysisDiagnostic::Error(_)))
+        !self.items.iter().any(|d| matches!(d, AnalysisDiagnostic::Error(_)))
     }
 
     fn has_warnings(&self) -> bool {
-        !self.diagnostics.items.iter().any(|d| matches!(d, AnalysisDiagnostic::Warning(_)))
+        !self.items.iter().any(|d| matches!(d, AnalysisDiagnostic::Warning(_)))
     }
 
-    fn into_reports(self) -> Vec<Report> {
-        self.diagnostics.items.into_iter().flat_map(Reports::from).collect()
-    }
-
-    fn into_diagnostics(self) -> (Vec<AnalysisError>, Vec<AnalysisWarning>) {
+    fn into_diagnostics(&mut self) -> (Vec<AnalysisError>, Vec<AnalysisWarning>) {
         let mut errors = vec![];
         let mut warnings = vec![];
 
-        for item in self.diagnostics.items.into_iter() {
+        for item in self.items.drain(..) {
             match item {
                 AnalysisDiagnostic::Warning(w) => warnings.push(w),
                 AnalysisDiagnostic::Error(e) => errors.push(e),
@@ -86,10 +79,27 @@ impl Diagnostics<AnalysisError, AnalysisWarning> for SemanticAnalyser<'_> {
         (errors, warnings)
     }
 
-    fn merge_diagnostics(&mut self, other: impl Diagnostics<AnalysisError, AnalysisWarning>) {
+    fn merge_diagnostics(
+        &mut self,
+        mut other: impl DiagnosticsMut<AnalysisError, AnalysisWarning>,
+    ) {
         let (errors, warnings) = other.into_diagnostics();
 
-        self.diagnostics.items.extend(errors.into_iter().map(AnalysisDiagnostic::Error));
-        self.diagnostics.items.extend(warnings.into_iter().map(AnalysisDiagnostic::Warning));
+        self.items.extend(errors.into_iter().map(AnalysisDiagnostic::Error));
+        self.items.extend(warnings.into_iter().map(AnalysisDiagnostic::Warning));
+    }
+
+    fn clear_diagnostics(&mut self) {
+        self.items.clear();
+    }
+}
+
+impl AccessToDiagnosticsMut for SemanticAnalyser<'_> {
+    type Error = AnalysisError;
+    type Warning = AnalysisWarning;
+    type Diagnostics = AnalyserDiagnostics;
+
+    fn diagnostics(&mut self) -> &mut Self::Diagnostics {
+        &mut self.diagnostics
     }
 }

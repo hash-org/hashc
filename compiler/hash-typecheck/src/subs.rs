@@ -125,7 +125,7 @@ impl Sub {
     }
 
     /// Clear the substitution. (i.e. make it identity)
-    pub fn clear(&mut self) {
+    pub fn clear_diagnostics(&mut self) {
         self.data.clear()
     }
 }

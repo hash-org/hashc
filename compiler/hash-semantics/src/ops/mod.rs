@@ -27,7 +27,7 @@ use self::{
     reader::PrimitiveReader, scope::ScopeManager, simplify::Simplifier, substitute::Substituter,
     typing::Typer, unify::Unifier, validate::Validator,
 };
-use crate::{diagnostics::TcDiagnostics, storage::AccessToStorage};
+use crate::storage::{AccessToStorage, DiagnosticsStore};
 
 /// Trait to access various structures that can perform typechecking queries,
 /// by a reference to a [StorageRef](crate::storage::StorageRef).
@@ -60,9 +60,9 @@ pub trait AccessToOps: AccessToStorage {
         CacheManager::new(self.storages())
     }
 
-    /// Create a [TcDiagnostics]
-    fn diagnostics(&self) -> TcDiagnostics<Self> {
-        TcDiagnostics(self)
+    /// Create a [DiagnosticsStore]
+    fn diagnostics_store(&self) -> &DiagnosticsStore {
+        self.diagnostics()
     }
 
     /// Create an instance of [Unifier].

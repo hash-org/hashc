@@ -18,7 +18,7 @@ use hash_utils::pluralise;
 use crate::parser::DefinitionKind;
 
 /// Represents a generated warning from within [AstGen][crate::parser::AstGen]
-#[derive(Constructor, Debug)]
+#[derive(Constructor, Debug, Clone)]
 pub struct ParseWarning {
     /// The kind of warning that is generated, stores relevant information
     /// about the warning.
@@ -29,7 +29,7 @@ pub struct ParseWarning {
 
 /// When warnings describe that a subject could be being applied
 /// on a particular kind like `literal` or `block`... etc.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum SubjectKind {
     /// When the subject is a literal
     Lit,
@@ -60,7 +60,7 @@ impl Display for SubjectKind {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum WarningKind {
     /// When an expression is wrapped within redundant parentheses.
     RedundantParenthesis(SubjectKind),

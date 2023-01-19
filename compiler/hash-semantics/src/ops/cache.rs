@@ -12,7 +12,6 @@ use crate::storage::{AccessToStorage, StorageRef};
 /// Whilst the [CacheManager] manages the internal
 /// [Cache](crate::storage::cache::Cache), the manager itself does not contain
 /// any logic that governs how the cache evicts its entries.
-#[derive(Debug)]
 pub struct CacheManager<'tc> {
     storage: StorageRef<'tc>,
 }

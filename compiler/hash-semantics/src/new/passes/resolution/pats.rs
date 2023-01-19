@@ -32,7 +32,7 @@ use super::{
     ResolutionPass,
 };
 use crate::new::{
-    diagnostics::error::{TcError, TcResult},
+    diagnostics::error::{SemanticError, SemanticResult},
     environment::tc_env::AccessToTcEnv,
     passes::ast_utils::AstUtils,
 };
@@ -42,7 +42,7 @@ impl ResolutionPass<'_> {
     pub(super) fn make_pat_args_from_ast_pat_args(
         &self,
         entries: &ast::AstNodes<ast::TuplePatEntry>,
-    ) -> TcResult<PatArgsId> {
+    ) -> SemanticResult<PatArgsId> {
         let args = entries
             .iter()
             .enumerate()
@@ -55,16 +55,19 @@ impl ResolutionPass<'_> {
                     pat: self.make_pat_from_ast_pat(arg.pat.ast_ref())?,
                 })
             })
-            .collect::<TcResult<Vec<_>>>()?;
+            .collect::<SemanticResult<Vec<_>>>()?;
         Ok(self.param_utils().create_pat_args(args.into_iter()))
     }
 
     /// Create a [`PatListId`] from the given [`ast::Pat`]s.
-    fn make_pat_list_from_ast_pats(&self, pats: &ast::AstNodes<ast::Pat>) -> TcResult<PatListId> {
+    fn make_pat_list_from_ast_pats(
+        &self,
+        pats: &ast::AstNodes<ast::Pat>,
+    ) -> SemanticResult<PatListId> {
         let pats = pats
             .iter()
             .map(|pat| self.make_pat_from_ast_pat(pat.ast_ref()))
-            .collect::<TcResult<Vec<_>>>()?;
+            .collect::<SemanticResult<Vec<_>>>()?;
         Ok(self.stores().pat_list().create_from_iter_fast(pats.into_iter()))
     }
 
@@ -75,7 +78,7 @@ impl ResolutionPass<'_> {
     pub(super) fn make_spread_from_ast_spread(
         &self,
         node: &Option<ast::AstNode<ast::SpreadPat>>,
-    ) -> TcResult<Option<Spread>> {
+    ) -> SemanticResult<Option<Spread>> {
         Ok(node.as_ref().map(|node| Spread {
             name: node
                 .name
@@ -90,7 +93,7 @@ impl ResolutionPass<'_> {
     fn access_pat_as_ast_path<'a>(
         &self,
         node: AstNodeRef<'a, ast::AccessPat>,
-    ) -> TcResult<AstPath<'a>> {
+    ) -> SemanticResult<AstPath<'a>> {
         match self.pat_as_ast_path(node.body.subject.ast_ref())? {
             Some(mut subject_path) => {
                 subject_path.push(AstPathComponent {
@@ -101,7 +104,7 @@ impl ResolutionPass<'_> {
                 });
                 Ok(subject_path)
             }
-            None => Err(TcError::InvalidNamespaceSubject {
+            None => Err(SemanticError::InvalidNamespaceSubject {
                 location: self.node_location(node.subject.ast_ref()),
             }),
         }
@@ -111,7 +114,7 @@ impl ResolutionPass<'_> {
     fn constructor_pat_as_ast_path<'a>(
         &self,
         node: AstNodeRef<'a, ast::ConstructorPat>,
-    ) -> TcResult<AstPath<'a>> {
+    ) -> SemanticResult<AstPath<'a>> {
         match self.pat_as_ast_path(node.body.subject.ast_ref())? {
             Some(mut path) => match path.last_mut() {
                 Some(component) => {
@@ -122,7 +125,7 @@ impl ResolutionPass<'_> {
                 }
                 None => panic!("Expected at least one path component"),
             },
-            None => Err(TcError::InvalidNamespaceSubject {
+            None => Err(SemanticError::InvalidNamespaceSubject {
                 location: self.node_location(node.subject.ast_ref()),
             }),
         }
@@ -132,7 +135,7 @@ impl ResolutionPass<'_> {
     fn binding_pat_as_ast_path<'a>(
         &self,
         node: AstNodeRef<'a, ast::BindingPat>,
-    ) -> TcResult<AstPath<'a>> {
+    ) -> SemanticResult<AstPath<'a>> {
         Ok(vec![AstPathComponent {
             name: node.name.ident,
             name_span: node.name.span(),
@@ -142,7 +145,10 @@ impl ResolutionPass<'_> {
     }
 
     /// Create an [`AstPath`] from the given [`ast::Pat`].
-    fn pat_as_ast_path<'a>(&self, node: AstNodeRef<'a, ast::Pat>) -> TcResult<Option<AstPath<'a>>> {
+    fn pat_as_ast_path<'a>(
+        &self,
+        node: AstNodeRef<'a, ast::Pat>,
+    ) -> SemanticResult<Option<AstPath<'a>>> {
         match node.body {
             ast::Pat::Access(access_pat) => {
                 Ok(Some(self.access_pat_as_ast_path(node.with_body(access_pat))?))
@@ -170,18 +176,18 @@ impl ResolutionPass<'_> {
         &self,
         path: &ResolvedAstPathComponent,
         original_node_span: Span,
-    ) -> TcResult<PatId> {
+    ) -> SemanticResult<PatId> {
         match path {
             ResolvedAstPathComponent::NonTerminal(non_terminal) => match non_terminal {
                 NonTerminalResolvedPathComponent::Data(_, _) => {
                     // Cannot use a data type in a pattern position
-                    Err(TcError::CannotUseDataTypeInPatternPosition {
+                    Err(SemanticError::CannotUseDataTypeInPatternPosition {
                         location: self.source_location(original_node_span),
                     })
                 }
                 NonTerminalResolvedPathComponent::Mod(_) => {
                     // Cannot use a module in a pattern position
-                    Err(TcError::CannotUseModuleInPatternPosition {
+                    Err(SemanticError::CannotUseModuleInPatternPosition {
                         location: self.source_location(original_node_span),
                     })
                 }
@@ -219,7 +225,7 @@ impl ResolutionPass<'_> {
                 TerminalResolvedPathComponent::FnDef(_)
                 | TerminalResolvedPathComponent::FnCall(_) => {
                     // Cannot use a function or function call in a pattern position
-                    Err(TcError::CannotUseFunctionInPatternPosition {
+                    Err(SemanticError::CannotUseFunctionInPatternPosition {
                         location: self.source_location(original_node_span),
                     })
                 }
@@ -251,7 +257,10 @@ impl ResolutionPass<'_> {
     /// node in the AST info store.
     ///
     /// This handles all patterns.
-    pub(super) fn make_pat_from_ast_pat(&self, node: AstNodeRef<ast::Pat>) -> TcResult<PatId> {
+    pub(super) fn make_pat_from_ast_pat(
+        &self,
+        node: AstNodeRef<ast::Pat>,
+    ) -> SemanticResult<PatId> {
         // Maybe it has already been made:
         if let Some(pat_id) = self.ast_info().pats().get_data_by_node(node.id()) {
             return Ok(pat_id);

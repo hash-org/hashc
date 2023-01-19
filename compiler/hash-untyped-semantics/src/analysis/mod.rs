@@ -6,7 +6,7 @@ pub(crate) mod params;
 
 use crossbeam_channel::Sender;
 use hash_ast::{ast::AstNodeRef, origin::BlockOrigin};
-use hash_reporting::diagnostic::Diagnostics;
+use hash_reporting::diagnostic::AccessToDiagnosticsMut;
 use hash_source::{
     location::{SourceLocation, Span},
     SourceId, SourceMap,

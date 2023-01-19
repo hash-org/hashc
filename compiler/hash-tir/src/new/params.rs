@@ -6,11 +6,16 @@ use derive_more::From;
 use hash_source::identifier::Identifier;
 use hash_utils::{
     new_sequence_store_key,
-    store::{DefaultSequenceStore, SequenceStore, Store},
+    store::{DefaultSequenceStore, SequenceStore, SequenceStoreKey, Store},
 };
 use utility_types::omit;
 
-use super::environment::env::{AccessToEnv, WithEnv};
+use super::{
+    args::{ArgsId, PatArgsId},
+    defs::{DefArgsId, DefParamsId, DefPatArgsId},
+    environment::env::{AccessToEnv, WithEnv},
+    locations::IndexedLocationTarget,
+};
 use crate::new::{symbols::Symbol, terms::TermId, tys::TyId};
 
 // @@Todo: examples
@@ -88,6 +93,93 @@ impl fmt::Display for WithEnv<'_, &Param> {
     }
 }
 
+/// Some kind of arguments, either [`ParamsId`], [`PatArgsId`] or [`ArgsId`].
+#[derive(Debug, Clone, Copy)]
+pub enum SomeArgsId {
+    Params(ParamsId),
+    PatArgs(PatArgsId),
+    Args(ArgsId),
+}
+
+impl SomeArgsId {
+    /// Get the length of the inner stored parameters.
+    pub fn len(&self) -> usize {
+        match self {
+            SomeArgsId::Params(id) => id.len(),
+            SomeArgsId::PatArgs(id) => id.len(),
+            SomeArgsId::Args(id) => id.len(),
+        }
+    }
+
+    /// Whether the inner stored parameters list is empty.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Get the English subject noun of the [SomeArgsId]
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            SomeArgsId::Params(_) => "parameters",
+            SomeArgsId::PatArgs(_) => "pattern arguments",
+            SomeArgsId::Args(_) => "arguments",
+        }
+    }
+}
+
+impl From<SomeArgsId> for IndexedLocationTarget {
+    fn from(target: SomeArgsId) -> Self {
+        match target {
+            SomeArgsId::Params(id) => IndexedLocationTarget::Params(id),
+            SomeArgsId::PatArgs(id) => IndexedLocationTarget::PatArgs(id),
+            SomeArgsId::Args(id) => IndexedLocationTarget::Args(id),
+        }
+    }
+}
+
+/// Some kind of definition arguments, either [`DefParamsId`], [`DefPatArgsId`]
+/// or [`DefArgsId`].
+#[derive(Debug, Clone, Copy)]
+pub enum SomeDefArgsId {
+    Params(DefParamsId),
+    PatArgs(DefPatArgsId),
+    Args(DefArgsId),
+}
+
+impl SomeDefArgsId {
+    /// Get the length of the inner stored parameter group list.
+    pub fn len(&self) -> usize {
+        match self {
+            SomeDefArgsId::Params(id) => id.len(),
+            SomeDefArgsId::PatArgs(id) => id.len(),
+            SomeDefArgsId::Args(id) => id.len(),
+        }
+    }
+
+    /// Whether the inner stored parameter group list is empty.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Get the English subject noun of the [SomeDefArgsId]
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            SomeDefArgsId::Params(_) => "parameter groups",
+            SomeDefArgsId::PatArgs(_) => "pattern argument groups",
+            SomeDefArgsId::Args(_) => "argument groups",
+        }
+    }
+}
+
+impl From<SomeDefArgsId> for IndexedLocationTarget {
+    fn from(target: SomeDefArgsId) -> Self {
+        match target {
+            SomeDefArgsId::Params(id) => IndexedLocationTarget::DefParams(id),
+            SomeDefArgsId::PatArgs(id) => IndexedLocationTarget::DefPatArgs(id),
+            SomeDefArgsId::Args(id) => IndexedLocationTarget::DefArgs(id),
+        }
+    }
+}
+
 impl fmt::Display for WithEnv<'_, ParamId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.env().with(&self.stores().params().get_element(self.value)))
@@ -113,6 +205,16 @@ impl fmt::Display for WithEnv<'_, ParamIndex> {
         match self.value {
             ParamIndex::Name(name) => write!(f, "{name}"),
             ParamIndex::Position(pos) => write!(f, "{pos}"),
+        }
+    }
+}
+
+impl fmt::Display for WithEnv<'_, SomeArgsId> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.value {
+            SomeArgsId::Params(id) => write!(f, "{}", self.env().with(id)),
+            SomeArgsId::PatArgs(id) => write!(f, "{}", self.env().with(id)),
+            SomeArgsId::Args(id) => write!(f, "{}", self.env().with(id)),
         }
     }
 }

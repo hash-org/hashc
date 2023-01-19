@@ -12,7 +12,6 @@
 //! 552–593.
 use std::{cell::Cell, collections::VecDeque};
 
-use derive_more::Constructor;
 use hash_tir::new::{
     environment::{context::Context, env::AccessToEnv},
     holes::{Hole, HoleBinder},
@@ -21,11 +20,7 @@ use hash_tir::new::{
     utils::common::CommonUtils,
 };
 
-use crate::{
-    diagnostics::error::TcResult,
-    impl_access_to_tc_env,
-    new::environment::tc_env::{AccessToTcEnv, TcEnv},
-};
+use crate::{errors::TcResult, AccessToTypechecking};
 
 /// Represents a task of unifying a source term with a target term.
 ///
@@ -128,26 +123,18 @@ impl ProofState {
     }
 }
 
-/// Elaboration operations with TC storage.
-#[derive(Constructor)]
-pub struct ElabOps<'tc> {
-    tc_env: &'tc TcEnv<'tc>,
-}
-
-impl_access_to_tc_env!(ElabOps<'tc>);
-
-impl<'tc> ElabOps<'tc> {
+pub trait ElabOps: AccessToTypechecking + AccessToEnv + Sized {
     /// Set up a new proof state for a term of the given type.
     ///
     /// This is the same as `new_term_state`, but also clears the context to
     /// only contain global constants.
-    pub fn new_proof_state(&self, ty: TyId) {
+    fn new_proof_state(&self, ty: TyId) {
         self.new_term_state(ty);
         self.context().clear_to_constant();
     }
 
     /// Set up a new term state for a term of the given type.
-    pub fn new_term_state(&self, ty: TyId) {
+    fn new_term_state(&self, ty: TyId) {
         let mut proof_state = self.proof_state().borrow_mut();
 
         let x = self.new_hole();
@@ -161,7 +148,7 @@ impl<'tc> ElabOps<'tc> {
     }
 
     /// Create and add a new hole to the hole queue.
-    pub fn add_new_hole_to_queue(&self) {
+    fn add_new_hole_to_queue(&self) {
         let hole = self.new_hole();
         self.proof_state().borrow_mut().add_hole(hole);
     }
@@ -174,7 +161,7 @@ impl<'tc> ElabOps<'tc> {
     /// terms.
     ///
     /// Most typechecking inference operations are be implemented as tactics.
-    pub fn tactic(&self, tac: impl Fn(HoleBinder) -> TcResult<TermId>) -> TcResult<()> {
+    fn tactic(&self, tac: impl Fn(HoleBinder) -> TcResult<TermId>) -> TcResult<()> {
         let proof_state = self.proof_state().borrow_mut();
         let current_term = proof_state.get_proof_term();
         let focused_hole = proof_state.get_focused_hole();

@@ -1,7 +1,7 @@
 //! Hash Compiler AST generation sources. This file contains the sources to the
 //! logic that transforms tokens into an AST.
 use hash_ast::{ast::*, ast_nodes, origin::PatOrigin};
-use hash_reporting::diagnostic::Diagnostics;
+use hash_reporting::diagnostic::AccessToDiagnosticsMut;
 use hash_source::{identifier::IDENTS, location::Span};
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind};
 
@@ -81,7 +81,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     let mut gen = self.from_stream(tree, token.span);
 
                     // If we encounter a spread pattern, we keep it separate
-                    // to all of the other fields that are specified for the 
+                    // to all of the other fields that are specified for the
                     // constructor pattern.
                     let mut spread = None;
 

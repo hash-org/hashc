@@ -23,6 +23,7 @@ members = [
   "compiler/hash-session",
   "compiler/hash-source",
   "compiler/hash-target",
+  "compiler/hash-typecheck",
   "compiler/hash-token",
   "compiler/hash-semantics",
   "compiler/hash-tir",

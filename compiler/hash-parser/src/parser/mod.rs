@@ -15,7 +15,7 @@ mod ty;
 use std::{cell::Cell, fmt::Display};
 
 use hash_ast::ast::*;
-use hash_reporting::diagnostic::Diagnostics;
+use hash_reporting::diagnostic::{AccessToDiagnosticsMut, MutableDiagnostics};
 use hash_source::location::{SourceLocation, Span};
 use hash_token::{
     delimiter::{Delimiter, DelimiterVariant},
@@ -25,7 +25,7 @@ use hash_token::{
 use crate::{
     diagnostics::{
         error::{ParseError, ParseErrorKind, ParseResult},
-        ParserDiagnostics,
+        warning::ParseWarning,
     },
     import_resolver::ImportResolver,
 };
@@ -134,7 +134,7 @@ pub struct AstGen<'stream, 'resolver> {
     pub(crate) resolver: &'resolver ImportResolver<'resolver>,
 
     /// Collected diagnostics for the current [AstGen]
-    pub(crate) diagnostics: ParserDiagnostics,
+    pub(crate) diagnostics: MutableDiagnostics<ParseError, ParseWarning>,
 }
 
 /// Implementation of the [AstGen] with accompanying functions to parse specific
@@ -153,7 +153,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             is_compound_expr: Cell::new(false),
             offset: Cell::new(0),
             resolver,
-            diagnostics: ParserDiagnostics::default(),
+            diagnostics: MutableDiagnostics::default(),
         }
     }
 
@@ -168,7 +168,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             is_compound_expr: self.is_compound_expr.clone(),
             parent_span: Some(parent_span),
             resolver: self.resolver,
-            diagnostics: ParserDiagnostics::default(),
+            diagnostics: MutableDiagnostics::default(),
         }
     }
 
@@ -353,7 +353,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
 
         // Now we will merge this `other` generator with ours...
-        self.merge_diagnostics(other);
+        self.merge_diagnostics(other.diagnostics);
     }
 
     /// Generate an error representing that the current generator unexpectedly

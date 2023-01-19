@@ -9,14 +9,17 @@
 
 use std::cell::RefCell;
 
-use diagnostics::DiagnosticsStore;
+use diagnostics::{
+    error::{TcError, TcErrorWithStorage},
+    warning::{TcWarning, TcWarningWithStorage},
+};
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerStage},
     settings::CompilerStageKind,
     workspace::Workspace,
     CompilerResult,
 };
-use hash_reporting::diagnostic::Diagnostics;
+use hash_reporting::diagnostic::{Diagnostics, ImmutableDiagnostics};
 use hash_source::SourceId;
 use hash_tir::{
     fmt::PrepareForFormatting,
@@ -26,20 +29,22 @@ use hash_tir::{
     },
     storage::{LocalStorage, TyStorage},
 };
+use hash_typecheck::elaboration::ProofState;
 use new::{
+    diagnostics::warning::SemanticWarning,
     environment::{
         ast_info::AstInfo,
         tc_env::{AccessToTcEnv, TcEnv},
     },
-    ops::elaboration::ProofState,
 };
 use once_cell::unsync::OnceCell;
-use ops::AccessToOps;
 use storage::{
     cache::Cache, exhaustiveness::ExhaustivenessStorage, sources::CheckedSources, AccessToStorage,
     StorageRef,
 };
 use traverse::visitor::TcVisitor;
+
+use crate::new::diagnostics::error::SemanticError;
 
 pub mod diagnostics;
 pub mod exhaustiveness;
@@ -60,7 +65,7 @@ pub struct Typechecker {
     pub exhaustiveness_storage: ExhaustivenessStorage,
 
     /// Share typechecking diagnostics
-    pub diagnostics_store: DiagnosticsStore,
+    pub diagnostics_store: ImmutableDiagnostics<TcError, TcWarning>,
 
     /// Typechecking cache, contains useful mappings for a variety of
     /// operations.
@@ -69,7 +74,7 @@ pub struct Typechecker {
     /// The new typechecking environment
     pub _new_stores: Stores,
     pub _new_ast_info: AstInfo,
-    pub _new_diagnostic: new::diagnostics::store::DiagnosticsStore,
+    pub _new_diagnostic: ImmutableDiagnostics<SemanticError, SemanticWarning>,
     pub _new_ctx: Context,
 }
 
@@ -78,11 +83,11 @@ impl Typechecker {
         Self {
             checked_sources: CheckedSources::new(),
             exhaustiveness_storage: ExhaustivenessStorage::default(),
-            diagnostics_store: DiagnosticsStore::default(),
+            diagnostics_store: ImmutableDiagnostics::default(),
             cache: Cache::new(),
             _new_stores: Stores::new(),
             _new_ctx: Context::new(),
-            _new_diagnostic: new::diagnostics::store::DiagnosticsStore::new(),
+            _new_diagnostic: ImmutableDiagnostics::default(),
             _new_ast_info: AstInfo::new(),
         }
     }
@@ -117,7 +122,7 @@ impl<Ctx: TypecheckingCtxQuery> CompilerStage<Ctx> for Typechecker {
         // Clear the diagnostics store of any previous errors and warnings. This needs
         // to be done for both the `interactive` pipeline and the `module`
         // pipeline.
-        self.diagnostics_store.clear();
+        self.diagnostics_store.clear_diagnostics();
 
         // We need to set the interactive-id to update the current local-storage `id`
         // value, but for modules, we create a new local storage.
@@ -171,12 +176,8 @@ impl<Ctx: TypecheckingCtxQuery> CompilerStage<Ctx> for Typechecker {
             let tc_visitor = new::passes::TcVisitor::new(&storage._new);
             tc_visitor.visit_source();
             if tc_visitor.tc_env().diagnostics().has_errors() {
-                return Err(tc_visitor
-                    .tc_env()
-                    .with(&crate::new::diagnostics::error::TcError::Compound {
-                        errors: tc_visitor.diagnostics().errors_owned(),
-                    })
-                    .into());
+                let (errors, _warnings) = tc_visitor.tc_env().diagnostics().into_diagnostics();
+                return Err(tc_visitor.tc_env().with(&SemanticError::Compound { errors }).into());
             }
         } else {
             let tc_visitor = TcVisitor::new_in_source(storage.storages(), &workspace.node_map);
@@ -197,7 +198,10 @@ impl<Ctx: TypecheckingCtxQuery> CompilerStage<Ctx> for Typechecker {
             // an error, then we should return those errors, otherwise print the inferred
             // term.
             if tc_visitor.diagnostics().has_diagnostics() {
-                return Err(tc_visitor.diagnostics().into_reports());
+                return Err(tc_visitor.diagnostics().into_reports(
+                    |err| TcErrorWithStorage::new(err, storage).into(),
+                    |warning| TcWarningWithStorage::new(warning, storage).into(),
+                ));
             }
         }
 

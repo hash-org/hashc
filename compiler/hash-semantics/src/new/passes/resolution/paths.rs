@@ -43,7 +43,7 @@ use super::{
     ResolutionPass,
 };
 use crate::new::{
-    diagnostics::error::{TcError, TcResult},
+    diagnostics::error::{SemanticError, SemanticResult},
     environment::tc_env::WithTcEnv,
     passes::ast_utils::AstUtils,
 };
@@ -150,7 +150,7 @@ impl<'tc> ResolutionPass<'tc> {
         name: Identifier,
         name_span: Span,
         starting_from: Option<(NonTerminalResolvedPathComponent, Span)>,
-    ) -> TcResult<Binding> {
+    ) -> SemanticResult<Binding> {
         match starting_from {
             Some((member_value, _span)) => match member_value {
                 // If we are starting from a module or data type, we need to enter their scopes.
@@ -189,7 +189,7 @@ impl<'tc> ResolutionPass<'tc> {
         &self,
         component: &AstPathComponent<'_>,
         starting_from: Option<(NonTerminalResolvedPathComponent, Span)>,
-    ) -> TcResult<ResolvedAstPathComponent> {
+    ) -> SemanticResult<ResolvedAstPathComponent> {
         let binding = self.resolve_ast_name(component.name, component.name_span, starting_from)?;
 
         match binding.kind {
@@ -209,7 +209,7 @@ impl<'tc> ResolutionPass<'tc> {
                                 ))
                             }
                             ResolvedDefArgs::Pat(_) => {
-                                Err(TcError::CannotUseDataTypeInPatternPosition {
+                                Err(SemanticError::CannotUseDataTypeInPatternPosition {
                                     location: self.source_location(component.name_span),
                                 })
                             }
@@ -299,7 +299,7 @@ impl<'tc> ResolutionPass<'tc> {
 
     /// Resolve a path in the current context, returning a
     /// [`ResolvedAstPathComponent`] if successful.
-    pub fn resolve_ast_path(&self, path: &AstPath) -> TcResult<ResolvedAstPathComponent> {
+    pub fn resolve_ast_path(&self, path: &AstPath) -> SemanticResult<ResolvedAstPathComponent> {
         debug_assert!(!path.is_empty());
 
         let mut resolved_path = self.resolve_ast_path_component(&path[0], None)?;
@@ -332,7 +332,7 @@ impl<'tc> ResolutionPass<'tc> {
                 },
                 ResolvedAstPathComponent::Terminal(_) => {
                     // Cannot namespace further
-                    return Err(TcError::InvalidNamespaceSubject {
+                    return Err(SemanticError::InvalidNamespaceSubject {
                         location: self.source_location(
                             path[..index]
                                 .iter()

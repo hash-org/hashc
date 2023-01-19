@@ -685,6 +685,7 @@ dependencies = [
  "hash-source",
  "hash-tir",
  "hash-tree-def",
+ "hash-typecheck",
  "hash-utils",
  "if_chain",
  "itertools",
@@ -833,6 +834,33 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "hash-typecheck"
+version = "0.1.0"
+dependencies = [
+ "bimap",
+ "dashmap",
+ "derive_more",
+ "hash-alloc",
+ "hash-ast",
+ "hash-error-codes",
+ "hash-intrinsics",
+ "hash-pipeline",
+ "hash-reporting",
+ "hash-source",
+ "hash-tir",
+ "hash-tree-def",
+ "hash-utils",
+ "if_chain",
+ "itertools",
+ "log",
+ "num-bigint",
+ "once_cell",
+ "rayon",
+ "slotmap",
+ "smallvec",
 ]
 
 [[package]]
