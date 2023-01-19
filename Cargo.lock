@@ -670,6 +670,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "hash-semantics"
+version = "0.1.0"
+dependencies = [
+ "bimap",
+ "dashmap",
+ "derive_more",
+ "hash-alloc",
+ "hash-ast",
+ "hash-error-codes",
+ "hash-intrinsics",
+ "hash-pipeline",
+ "hash-reporting",
+ "hash-source",
+ "hash-tree-def",
+ "hash-types",
+ "hash-utils",
+ "if_chain",
+ "itertools",
+ "log",
+ "num-bigint",
+ "once_cell",
+ "rayon",
+ "slotmap",
+ "smallvec",
+]
+
+[[package]]
 name = "hash-session"
 version = "0.1.0"
 dependencies = [
@@ -685,9 +712,9 @@ dependencies = [
  "hash-parser",
  "hash-pipeline",
  "hash-reporting",
+ "hash-semantics",
  "hash-source",
  "hash-tree-def",
- "hash-typecheck",
  "hash-types",
  "hash-untyped-semantics",
  "log",
@@ -754,11 +781,11 @@ dependencies = [
  "hash-parser",
  "hash-pipeline",
  "hash-reporting",
+ "hash-semantics",
  "hash-session",
  "hash-source",
  "hash-testing-internal",
  "hash-testing-macros",
- "hash-typecheck",
  "hash-untyped-semantics",
  "hash-utils",
  "hash-vm",
@@ -787,33 +814,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
-]
-
-[[package]]
-name = "hash-typecheck"
-version = "0.1.0"
-dependencies = [
- "bimap",
- "dashmap",
- "derive_more",
- "hash-alloc",
- "hash-ast",
- "hash-error-codes",
- "hash-intrinsics",
- "hash-pipeline",
- "hash-reporting",
- "hash-source",
- "hash-tree-def",
- "hash-types",
- "hash-utils",
- "if_chain",
- "itertools",
- "log",
- "num-bigint",
- "once_cell",
- "rayon",
- "slotmap",
- "smallvec",
 ]
 
 [[package]]

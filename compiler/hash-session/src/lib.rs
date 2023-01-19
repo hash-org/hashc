@@ -22,8 +22,8 @@ use hash_pipeline::{
     workspace::Workspace,
 };
 use hash_reporting::report::Report;
+use hash_semantics::{Typechecker, TypecheckingCtx, TypecheckingCtxQuery};
 use hash_source::{SourceId, SourceMap};
-use hash_typecheck::{Typechecker, TypecheckingCtx, TypecheckingCtxQuery};
 use hash_types::storage::{GlobalStorage, LocalStorage, TyStorage};
 use hash_untyped_semantics::{SemanticAnalysis, SemanticAnalysisCtx, SemanticAnalysisCtxQuery};
 
