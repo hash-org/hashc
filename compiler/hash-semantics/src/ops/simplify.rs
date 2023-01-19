@@ -3,7 +3,7 @@ use std::iter;
 
 use hash_ast::ast::ParamOrigin;
 use hash_source::identifier::Identifier;
-use hash_types::{
+use hash_tir::{
     args::{Arg, ArgsId},
     nominals::{NominalDef, StructFields},
     params::{AccessOp, Field, Param, ParamsId},

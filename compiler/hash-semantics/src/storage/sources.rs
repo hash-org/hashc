@@ -1,10 +1,10 @@
 //! Contains structures to keep track of which sources have been typechecked.
 use hash_source::SourceId;
-use hash_types::terms::TermId;
+use hash_tir::terms::TermId;
 use hash_utils::store::{DefaultPartialStore, PartialCloneStore, PartialStore};
 
 /// Contains a record of all the sources which have been typechecked, and maps
-/// them to (ModDefId)[hash_types::mods::ModDefId]s.
+/// them to (ModDefId)[hash_tir::mods::ModDefId]s.
 #[derive(Debug, Default)]
 pub struct CheckedSources {
     /// A map between [SourceId] and the module definition.

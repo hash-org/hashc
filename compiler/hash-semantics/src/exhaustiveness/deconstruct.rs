@@ -1,12 +1,12 @@
 //! This file contains logic surrounding [DeconstructedPat] which is a
-//! representation of a [hash_types::Pat]  that is deconstructed and simplified
+//! representation of a [hash_tir::Pat]  that is deconstructed and simplified
 //! to the point of being processable by the  usefulness algorithm. A
 //! [DeconstructedPat] is essentially a tree representation of a `pat` with any
 //! of the inner fields of the pat being represented as child
 //! [DeconstructedPat]s stored within the  `fields` parameter of the structure.
 use std::{cell::Cell, fmt::Debug};
 
-use hash_types::{
+use hash_tir::{
     fmt::PrepareForFormatting,
     nominals::NominalDef,
     pats::PatId,
@@ -41,7 +41,7 @@ pub struct DeconstructedPat {
     pub fields: Fields,
     /// The type of the current deconstructed pattern
     pub ty: TermId,
-    /// An associated [hash_types::Pat] that can be used
+    /// An associated [hash_tir::Pat] that can be used
     /// for reporting reachability and printing of patterns.
     pub id: Option<PatId>,
     /// Whether the current pattern is reachable.

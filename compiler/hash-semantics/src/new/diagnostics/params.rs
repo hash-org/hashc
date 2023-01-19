@@ -1,7 +1,7 @@
 //! Error-related data structures for errors that in regards to parameters and
 //! arguments within any type that uses parameters.
 
-use hash_types::new::{
+use hash_tir::new::{
     args::{ArgsId, PatArgsId},
     defs::{DefArgsId, DefParamsId, DefPatArgsId},
     locations::IndexedLocationTarget,

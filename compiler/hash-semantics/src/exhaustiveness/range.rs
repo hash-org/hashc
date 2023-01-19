@@ -38,7 +38,7 @@ use std::{
 use hash_ast::ast::RangeEnd;
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::constant::CONSTANT_MAP;
-use hash_types::{
+use hash_tir::{
     pats::{PatId, RangePat},
     terms::{Level0Term, LitTerm, Term, TermId},
 };

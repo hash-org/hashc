@@ -13,7 +13,7 @@ use hash_reporting::{
     report::{ReportCodeBlock, ReportElement, ReportNote, ReportNoteKind},
     reporter::{Reporter, Reports},
 };
-use hash_types::{fmt::PrepareForFormatting, location::LocationTarget, pats::PatId, terms::TermId};
+use hash_tir::{fmt::PrepareForFormatting, location::LocationTarget, pats::PatId, terms::TermId};
 
 use crate::storage::{AccessToStorage, StorageRef};
 

@@ -2,7 +2,7 @@ use std::{cell::RefCell, hash::Hash};
 
 use bimap::BiMap;
 use hash_ast::ast::AstNodeId;
-use hash_types::new::{
+use hash_tir::new::{
     args::ArgId,
     data::{CtorDefId, DataDefId},
     fns::FnDefId,

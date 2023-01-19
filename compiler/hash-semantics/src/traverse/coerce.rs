@@ -1,7 +1,7 @@
 //! Utilities related to value/type coercion in the language.
 
 use hash_ast::ast::{self, AstNodeRef};
-use hash_types::terms::TermId;
+use hash_tir::terms::TermId;
 
 use crate::{
     ops::AccessToOps,

@@ -2,7 +2,7 @@
 use derive_more::From;
 use hash_ast::ast::{self, AstNode, AstNodeId, AstNodeRef};
 use hash_reporting::macros::panic_on_span;
-use hash_types::new::{
+use hash_tir::new::{
     data::{CtorDefData, DataDefId},
     defs::DefId,
     environment::env::AccessToEnv,

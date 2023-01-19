@@ -1,5 +1,5 @@
 //! Functionality related to variable substitution inside terms/types.
-use hash_types::{
+use hash_tir::{
     args::{Arg, ArgsId},
     params::{Param, ParamsId},
     scope::ScopeId,
@@ -174,7 +174,7 @@ impl<'tc> Substituter<'tc> {
     /// with the applied substitution.
     ///
     /// This is only ever applied for
-    /// [ScopeKind::SetBound](hash_types::ScopeKind::SetBound).
+    /// [ScopeKind::SetBound](hash_tir::ScopeKind::SetBound).
     pub fn apply_sub_to_scope(&self, sub: &Sub, scope_id: ScopeId) -> ScopeId {
         let mut new_members = vec![];
         let old_scope_kind = self.scope_store().map_fast(scope_id, |scope| {

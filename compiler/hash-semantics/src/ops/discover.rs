@@ -1,7 +1,7 @@
 //! Functionality related to discovering variables in terms.
 use std::collections::HashSet;
 
-use hash_types::{
+use hash_tir::{
     args::{Arg, ArgsId},
     nominals::{NominalDef, StructDef, StructFields},
     params::{Param, ParamsId},
@@ -570,7 +570,7 @@ impl<'tc> Discoverer<'tc> {
         Ok(new_params)
     }
 
-    /// Apply the given [hash_types::Scope] of kind [hash_types::Term::SetBound]
+    /// Apply the given [hash_tir::Scope] of kind [hash_tir::Term::SetBound]
     /// to the given params, at the lowest level possible.
     pub(crate) fn apply_set_bound_to_params(
         &self,
@@ -615,7 +615,7 @@ impl<'tc> Discoverer<'tc> {
         Ok(new_args)
     }
 
-    /// Apply the given [hash_types::Scope] of kind [hash_types::Term::SetBound]
+    /// Apply the given [hash_tir::Scope] of kind [hash_tir::Term::SetBound]
     /// to the given args, at the lowest level possible.
     pub(crate) fn apply_set_bound_to_args(
         &self,
@@ -630,7 +630,7 @@ impl<'tc> Discoverer<'tc> {
         )
     }
 
-    /// Apply the given [hash_types::Scope] of kind [hash_types::Term::SetBound]
+    /// Apply the given [hash_tir::Scope] of kind [hash_tir::Term::SetBound]
     /// to the given term, at the lowest level possible.
     pub(crate) fn potentially_apply_set_bound_to_term(
         &self,
@@ -642,7 +642,7 @@ impl<'tc> Discoverer<'tc> {
             .unwrap_or(term_id))
     }
 
-    /// Apply the given [hash_types::Scope] of kind [hash_types::Term::SetBound]
+    /// Apply the given [hash_tir::Scope] of kind [hash_tir::Term::SetBound]
     /// to the given term, at the lowest level possible. Returns None if no
     /// application occurred.
     pub(crate) fn apply_set_bound_to_term(
@@ -672,7 +672,7 @@ impl<'tc> Discoverer<'tc> {
             .unwrap_or(term_id))
     }
 
-    /// Apply the given [hash_types::Scope] of kind [hash_types::Term::SetBound]
+    /// Apply the given [hash_tir::Scope] of kind [hash_tir::Term::SetBound]
     /// to the given term, at the lowest level possible. Returns None if no
     /// application occurred.
     ///

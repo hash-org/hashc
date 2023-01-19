@@ -5,7 +5,7 @@ use hash_reporting::{
     reporter::{Reporter, Reports},
 };
 use hash_source::location::SourceLocation;
-use hash_types::new::{
+use hash_tir::new::{
     defs::DefParamsId, environment::env::AccessToEnv, params::ParamsId, symbols::Symbol,
     terms::TermId, tys::TyId, utils::common::CommonUtils,
 };

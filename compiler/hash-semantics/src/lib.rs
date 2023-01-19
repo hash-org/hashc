@@ -18,7 +18,7 @@ use hash_pipeline::{
 };
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::SourceId;
-use hash_types::{
+use hash_tir::{
     fmt::PrepareForFormatting,
     new::{
         environment::{context::Context, env::Env, source_info::CurrentSourceInfo, stores::Stores},

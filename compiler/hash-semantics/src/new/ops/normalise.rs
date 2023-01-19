@@ -1,6 +1,6 @@
 //! Operations for normalising terms and types.
 use derive_more::Constructor;
-use hash_types::new::terms::TermId;
+use hash_tir::new::terms::TermId;
 
 use crate::{
     impl_access_to_tc_env,

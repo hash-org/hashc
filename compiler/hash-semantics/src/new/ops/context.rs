@@ -1,8 +1,8 @@
 //! Contains context-related operations, building on top of `Context` defined in
-//! hash-types.
-// @@Todo: move this to hash-types?
+//! `hash-tir`.
+// @@Todo: move this to hash-tir?
 use derive_more::Constructor;
-use hash_types::{
+use hash_tir::{
     new::{
         data::DataDefCtors,
         defs::DefParamsId,

@@ -16,7 +16,7 @@ use hash_source::{
     identifier::{Identifier, IDENTS},
     SourceId, SourceMap,
 };
-use hash_types::{scope::ScopeId, storage::GlobalStorage};
+use hash_tir::{scope::ScopeId, storage::GlobalStorage};
 
 use crate::build::{BuildItem, Builder};
 

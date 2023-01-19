@@ -4,7 +4,7 @@ use derive_more::Constructor;
 use hash_ast::ast::{FloatLitKind, IntLitKind};
 use hash_intrinsics::{primitives::AccessToPrimitives, utils::PrimitiveUtils};
 use hash_source::constant::{FloatTy, IntTy, SIntTy, UIntTy};
-use hash_types::{
+use hash_tir::{
     new::{
         args::{ArgsId, PatArgsId},
         casting::CastTerm,

@@ -4,7 +4,7 @@
 //! the whole range of all possible values by the associated type
 //! to the constructor.
 use hash_ast::ast::RangeEnd;
-use hash_types::{
+use hash_tir::{
     nominals::NominalDef,
     terms::{Level1Term, Term},
 };

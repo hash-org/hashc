@@ -8,7 +8,7 @@ use hash_ast::ast::{self, AstNode, AstNodeId, AstNodeRef};
 use hash_intrinsics::utils::PrimitiveUtils;
 use hash_reporting::macros::panic_on_span;
 use hash_source::location::Span;
-use hash_types::{
+use hash_tir::{
     new::{
         access::AccessTerm,
         args::{ArgData, ArgsId},

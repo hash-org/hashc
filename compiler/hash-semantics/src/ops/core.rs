@@ -1,7 +1,7 @@
 //! Functionality related to determining properties about terms and other
 //! constructs.
 use hash_source::identifier::{Identifier, IDENTS};
-use hash_types::{scope::Member, terms::TermId};
+use hash_tir::{scope::Member, terms::TermId};
 use hash_utils::store::Store;
 
 use super::AccessToOps;

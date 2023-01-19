@@ -20,7 +20,7 @@ use std::{
     collections::HashMap,
 };
 
-use hash_types::{nominals::NominalDefId, terms::TermId};
+use hash_tir::{nominals::NominalDefId, terms::TermId};
 use hash_utils::store::{SequenceStore, Store};
 use ir::{Body, Local, Place, PlaceProjection, ProjectionStore};
 use ty::{AdtData, AdtId, AdtStore, IrTy, IrTyId, TyListStore, TyStore};

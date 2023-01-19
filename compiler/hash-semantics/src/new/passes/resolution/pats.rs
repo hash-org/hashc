@@ -9,7 +9,7 @@ use std::iter::empty;
 use hash_ast::ast::{self, AstNodeRef};
 use hash_reporting::macros::panic_on_span;
 use hash_source::location::Span;
-use hash_types::new::{
+use hash_tir::new::{
     args::{PatArgData, PatArgsId},
     control::{IfPat, OrPat},
     data::CtorPat,

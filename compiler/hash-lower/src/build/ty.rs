@@ -1,6 +1,6 @@
-//! Logic for converting `hash-types` types into `hash-ir` types. This is done
+//! Logic for converting `hash-tir` types into `hash-ir` types. This is done
 //! in order to simplify the lowering process when it needs to deal with types
-//! of items. The full [Term] structure which is defined in the `hash-types` is
+//! of items. The full [Term] structure which is defined in the `hash-tir` is
 //! not required for the IR generation stage, and often has un-needed terms for
 //! the lowering process. This is why this builder is used to `lower` the [Term]
 //! types into the [IrTy] which is then used for the lowering process.
@@ -10,7 +10,7 @@ use hash_ir::{
     ty::{IrTy, IrTyId, VariantIdx},
 };
 use hash_source::{constant::CONSTANT_MAP, identifier::IDENTS};
-use hash_types::{
+use hash_tir::{
     nominals::{EnumVariantValue, NominalDefId},
     storage::GlobalStorage,
     terms::{FnLit, FnTy, Level0Term, Level1Term, LitTerm, Term, TermId},

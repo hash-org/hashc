@@ -5,7 +5,7 @@
 //! Any scoping errors are reported here.
 
 use hash_ast::ast::{self};
-use hash_types::new::environment::env::AccessToEnv;
+use hash_tir::new::environment::env::AccessToEnv;
 
 use self::scoping::{ContextKind, Scoping};
 use super::ast_utils::{AstPass, AstUtils};

@@ -37,7 +37,7 @@
 //! [exhaustiveness](crate::exhaustiveness) module.
 use hash_ast::ast::MatchOrigin;
 use hash_reporting::diagnostic::Diagnostics;
-use hash_types::{
+use hash_tir::{
     pats::{Pat, PatId},
     terms::TermId,
 };

@@ -10,7 +10,7 @@ use hash_ast::ast::{self, AstNodeRef, AstNodes};
 use hash_intrinsics::primitives::AccessToPrimitives;
 use hash_reporting::macros::panic_on_span;
 use hash_source::{identifier::IDENTS, location::Span};
-use hash_types::{
+use hash_tir::{
     new::{
         args::{ArgData, ArgsId},
         data::DataTy,

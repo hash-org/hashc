@@ -1,6 +1,6 @@
 //! Simplified Hash type hierarchy. The [IrTy] is used a simplified
 //! variant of the available Hash [Term]s that are defined in the
-//! `hash-types` crate. This data structure is used to remove unnecessary
+//! `hash-tir` crate. This data structure is used to remove unnecessary
 //! complexity from types that are required for IR generation and
 //! analysis.
 
@@ -67,9 +67,9 @@ impl From<ast::Mutability> for Mutability {
     }
 }
 
-impl From<hash_types::scope::Mutability> for Mutability {
-    fn from(value: hash_types::scope::Mutability) -> Self {
-        use hash_types::scope::Mutability::*;
+impl From<hash_tir::scope::Mutability> for Mutability {
+    fn from(value: hash_tir::scope::Mutability) -> Self {
+        use hash_tir::scope::Mutability::*;
 
         match value {
             Mutable => Mutability::Mutable,
@@ -920,7 +920,7 @@ impl PlaceTy {
 
 /// This defines a trait that it used to create [IrTy]s from
 /// data types that aren't defined within the IR crate, but from
-/// places like the ABI where it is still useful to convert a  
+/// places like the ABI where it is still useful to convert a
 /// value into a [IrTy].
 pub trait ToIrTy {
     /// Convert the current type into an [IrTy].

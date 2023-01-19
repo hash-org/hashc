@@ -9,7 +9,7 @@ use hash_source::{
     constant::{FloatTy, SIntTy, UIntTy, CONSTANT_MAP},
     identifier::IDENTS,
 };
-use hash_types::{
+use hash_tir::{
     fmt::{PrepareForFormatting, TcFormatOpts},
     nominals::{EnumDef, EnumVariantValue, NominalDef, NominalDefId, StructFields},
     storage::GlobalStorage,

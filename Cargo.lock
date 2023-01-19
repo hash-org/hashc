@@ -554,7 +554,7 @@ dependencies = [
  "hash-ast",
  "hash-source",
  "hash-target",
- "hash-types",
+ "hash-tir",
  "hash-utils",
 ]
 
@@ -568,7 +568,7 @@ dependencies = [
  "hash-ast",
  "hash-source",
  "hash-target",
- "hash-types",
+ "hash-tir",
  "hash-utils",
  "html-escape",
  "index_vec",
@@ -610,8 +610,8 @@ dependencies = [
  "hash-reporting",
  "hash-source",
  "hash-target",
+ "hash-tir",
  "hash-tree-def",
- "hash-types",
  "hash-utils",
  "index_vec",
  "indexmap",
@@ -651,7 +651,7 @@ dependencies = [
  "hash-reporting",
  "hash-source",
  "hash-target",
- "hash-types",
+ "hash-tir",
  "hash-utils",
  "log",
  "num_cpus",
@@ -683,8 +683,8 @@ dependencies = [
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
+ "hash-tir",
  "hash-tree-def",
- "hash-types",
  "hash-utils",
  "if_chain",
  "itertools",
@@ -714,8 +714,8 @@ dependencies = [
  "hash-reporting",
  "hash-semantics",
  "hash-source",
+ "hash-tir",
  "hash-tree-def",
- "hash-types",
  "hash-untyped-semantics",
  "log",
  "num_cpus",
@@ -796,6 +796,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "hash-tir"
+version = "0.1.0"
+dependencies = [
+ "bimap",
+ "derive_more",
+ "hash-ast",
+ "hash-source",
+ "hash-target",
+ "hash-utils",
+ "indexmap",
+ "itertools",
+ "log",
+ "num-bigint",
+ "textwrap",
+ "typed-builder",
+ "utility-types",
+]
+
+[[package]]
 name = "hash-token"
 version = "0.1.0"
 dependencies = [
@@ -814,25 +833,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
-]
-
-[[package]]
-name = "hash-types"
-version = "0.1.0"
-dependencies = [
- "bimap",
- "derive_more",
- "hash-ast",
- "hash-source",
- "hash-target",
- "hash-utils",
- "indexmap",
- "itertools",
- "log",
- "num-bigint",
- "textwrap",
- "typed-builder",
- "utility-types",
 ]
 
 [[package]]

@@ -3,7 +3,7 @@ use std::{collections::HashMap, fmt};
 
 use hash_ast::ast;
 use hash_source::{identifier::Identifier, location::Span};
-use hash_types::new::{
+use hash_tir::new::{
     data::DataDefId,
     environment::{context::ScopeKind, env::AccessToEnv},
     fns::FnDefId,
@@ -59,7 +59,7 @@ impl fmt::Display for WithTcEnv<'_, &ContextKind> {
 
 /// Contains helper functions for traversing scopes and adding bindings.
 ///
-/// It uses [`hash_types::new::environment::context::Context`] and
+/// It uses [`hash_tir::new::environment::context::Context`] and
 /// [`crate::new::ops::context::ContextOps`] to enter scopes, but also
 /// keeps track of identifier names so that names can be matched to the correct
 /// symbols when creating `Var` terms.

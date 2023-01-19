@@ -30,7 +30,7 @@ use hash_source::{
     constant::InternedStr,
     location::{SourceLocation, Span},
 };
-use hash_types::{
+use hash_tir::{
     nominals::{NominalDef, StructFields},
     terms::{Level1Term, Term, TupleTy},
 };

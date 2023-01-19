@@ -4,7 +4,7 @@
 //! inner terms, which were left as holes after the discovery pass.
 
 use hash_ast::ast::{self, AstNodeRef};
-use hash_types::new::{
+use hash_tir::new::{
     environment::env::AccessToEnv,
     mods::{ModDefId, ModMemberValue},
 };

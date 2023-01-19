@@ -1,7 +1,7 @@
 //! Operations for unifying types and terms.
 
 use derive_more::Constructor;
-use hash_types::new::{
+use hash_tir::new::{
     args::ArgsId,
     defs::{DefArgsId, DefParamsId},
     params::ParamsId,

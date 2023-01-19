@@ -1,6 +1,6 @@
 //! Utilities for creating parameters and arguments during discovery.
 use hash_ast::ast::{self};
-use hash_types::new::{
+use hash_tir::new::{
     defs::{DefParamGroupData, DefParamsId},
     environment::env::AccessToEnv,
     params::ParamsId,

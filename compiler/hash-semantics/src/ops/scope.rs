@@ -2,7 +2,7 @@
 
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::identifier::Identifier;
-use hash_types::{
+use hash_tir::{
     args::ArgsId,
     location::LocationTarget,
     params::ParamsId,

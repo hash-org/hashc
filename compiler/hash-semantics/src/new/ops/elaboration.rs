@@ -13,7 +13,7 @@
 use std::{cell::Cell, collections::VecDeque};
 
 use derive_more::Constructor;
-use hash_types::new::{
+use hash_tir::new::{
     environment::{context::Context, env::AccessToEnv},
     holes::{Hole, HoleBinder},
     terms::{Term, TermId},

@@ -12,13 +12,13 @@ const TC_FATAL_ERROR_MESSAGE: &str =
 ///
 /// The `storage` argument to the macro is used to access the storage in order
 /// to resolve the [hash_source::SourceMap] and
-/// [hash_types::storage::GlobalStorage] so that the term location can be
+/// [hash_tir::storage::GlobalStorage] so that the term location can be
 /// fetched.
 pub macro tc_panic {
     ($term: expr, $storage:expr, $fmt: expr) => {
         {
             use crate::storage::AccessToStorage;
-            use hash_types::fmt::PrepareForFormatting;
+            use hash_tir::fmt::PrepareForFormatting;
             use hash_reporting::{reporter, writer};
 
             let storages = $storage.storages();
@@ -59,7 +59,7 @@ pub macro tc_panic_on_many {
     ([$($terms:expr),*  $(,)?], $storage:expr, $fmt: expr) => {
         {
             use crate::storage::AccessToStorage;
-            use hash_types::fmt::PrepareForFormatting;
+            use hash_tir::fmt::PrepareForFormatting;
             use hash_reporting::{reporter, writer};
 
             let storages = $storage.storages();
@@ -106,7 +106,7 @@ pub macro tc_panic_on_many {
     ($terms:expr, $storage:expr, $fmt: expr) => {
         {
             use crate::storage::AccessToStorage;
-            use hash_types::fmt::PrepareForFormatting;
+            use hash_tir::fmt::PrepareForFormatting;
             use hash_reporting::{reporter, writer};
 
             let storages = $storage.storages();

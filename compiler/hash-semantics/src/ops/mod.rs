@@ -19,7 +19,7 @@ pub mod typing;
 pub mod unify;
 pub mod validate;
 
-use hash_types::{builder::PrimitiveBuilder, scope::ScopeId};
+use hash_tir::{builder::PrimitiveBuilder, scope::ScopeId};
 
 use self::{
     cache::CacheManager, core::CoreDefReader, discover::Discoverer,

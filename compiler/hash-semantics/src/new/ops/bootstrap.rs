@@ -3,7 +3,7 @@
 
 use derive_more::Constructor;
 use hash_intrinsics::{intrinsics::DefinedIntrinsics, primitives::DefinedPrimitives};
-use hash_types::new::{
+use hash_tir::new::{
     environment::env::AccessToEnv,
     mods::{ModDefData, ModDefId, ModKind},
     utils::{common::CommonUtils, AccessToUtils},

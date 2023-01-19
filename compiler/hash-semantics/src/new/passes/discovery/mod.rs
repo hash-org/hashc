@@ -4,7 +4,7 @@ use hash_ast::{
     ast::{self},
     visitor::AstVisitor,
 };
-use hash_types::new::{symbols::Symbol, utils::common::CommonUtils};
+use hash_tir::new::{symbols::Symbol, utils::common::CommonUtils};
 use hash_utils::state::LightState;
 
 use self::defs::DefDiscoveryState;

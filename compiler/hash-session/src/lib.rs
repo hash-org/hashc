@@ -24,7 +24,7 @@ use hash_pipeline::{
 use hash_reporting::report::Report;
 use hash_semantics::{Typechecker, TypecheckingCtx, TypecheckingCtxQuery};
 use hash_source::{SourceId, SourceMap};
-use hash_types::storage::{GlobalStorage, LocalStorage, TyStorage};
+use hash_tir::storage::{GlobalStorage, LocalStorage, TyStorage};
 use hash_untyped_semantics::{SemanticAnalysis, SemanticAnalysisCtx, SemanticAnalysisCtxQuery};
 
 /// Function to make all of the stages a nominal compiler pipeline accepts.

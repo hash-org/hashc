@@ -4,7 +4,7 @@ use std::{iter::empty, ops::Range};
 
 use hash_ast::ast::{self, AstNodeRef};
 use hash_source::location::Span;
-use hash_types::new::{
+use hash_tir::new::{
     args::{ArgsId, PatArgsId},
     defs::{DefArgGroupData, DefArgsId, DefParamsId, DefPatArgGroupData, DefPatArgsId},
     environment::env::AccessToEnv,

@@ -1,7 +1,7 @@
 //! Contains helpers to read various things stored in [crate::storage] with
 //! ease.
 
-use hash_types::{
+use hash_tir::{
     args::{Args, ArgsId},
     mods::{ModDef, ModDefId},
     nominals::{NominalDef, NominalDefId},

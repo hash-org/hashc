@@ -58,7 +58,7 @@ pub mod stack;
 pub mod usefulness;
 pub mod wildcard;
 
-use hash_types::{fmt::TcFormatOpts, terms::TermId};
+use hash_tir::{fmt::TcFormatOpts, terms::TermId};
 
 use self::{
     construct::ConstructorOps, deconstruct::DeconstructPatOps, fields::FieldOps,
@@ -137,10 +137,10 @@ pub(crate) trait AccessToUsefulnessOps: AccessToStorage {
 impl<T: AccessToStorage> AccessToUsefulnessOps for T {}
 
 /// Wraps a type `T` in a structure that contains information to be able to
-/// format `T` using [TcFormatter][hash_types::fmt::TcFormatter].
+/// format `T` using [TcFormatter][hash_tir::fmt::TcFormatter].
 ///
 /// This can wrap any type, but only types that have corresponding `fmt_*`
-/// methods in [TcFormatter][hash_types::fmt::TcFormatter] are useful with it.
+/// methods in [TcFormatter][hash_tir::fmt::TcFormatter] are useful with it.
 pub struct PatForFormatting<'tc, T> {
     pub item: T,
     pub storage: StorageRef<'tc>,

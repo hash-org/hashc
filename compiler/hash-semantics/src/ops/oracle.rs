@@ -5,7 +5,7 @@ use hash_source::{
     constant::{FloatTy, IntTy, SIntTy, UIntTy},
     identifier::Identifier,
 };
-use hash_types::{
+use hash_tir::{
     nominals::{
         EnumDef, EnumVariant, EnumVariantValue, NominalDef, NominalDefId, StructDef, UnitDef,
     },

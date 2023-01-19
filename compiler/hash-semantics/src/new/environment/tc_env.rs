@@ -5,7 +5,7 @@ use hash_intrinsics::{
     primitives::{AccessToPrimitives, DefinedPrimitives},
 };
 // @@Docs
-use hash_types::new::environment::env::{AccessToEnv, Env};
+use hash_tir::new::environment::env::{AccessToEnv, Env};
 
 use super::ast_info::AstInfo;
 use crate::new::{
@@ -84,9 +84,9 @@ macro_rules! impl_access_to_tc_env {
             }
         }
 
-        impl<$lt> hash_types::new::environment::env::AccessToEnv for $x<$lt> {
-            fn env(&self) -> &hash_types::new::environment::env::Env {
-                <TcEnv<'_> as hash_types::new::environment::env::AccessToEnv>::env(self.tc_env)
+        impl<$lt> hash_tir::new::environment::env::AccessToEnv for $x<$lt> {
+            fn env(&self) -> &hash_tir::new::environment::env::Env {
+                <TcEnv<'_> as hash_tir::new::environment::env::AccessToEnv>::env(self.tc_env)
             }
         }
 

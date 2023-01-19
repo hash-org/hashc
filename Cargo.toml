@@ -25,7 +25,7 @@ members = [
   "compiler/hash-target",
   "compiler/hash-token",
   "compiler/hash-semantics",
-  "compiler/hash-types",
+  "compiler/hash-tir",
   "compiler/hash-untyped-semantics",
   "compiler/hash-utils",
   "compiler/hash-vm",

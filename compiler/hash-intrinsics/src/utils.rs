@@ -1,4 +1,4 @@
-use hash_types::new::{
+use hash_tir::new::{
     data::{CtorDefId, CtorPat, CtorTerm, DataTy},
     environment::env::AccessToEnv,
     pats::{Pat, PatId},
@@ -19,12 +19,12 @@ pub trait PrimitiveUtils: AccessToPrimitives + Sized {
         let ctor_defs =
             self.stores().data_def().map_fast(self.primitives().bool(), |bool_def| bool_def.ctors);
         match ctor_defs {
-            hash_types::new::data::DataDefCtors::Defined(ctors) => {
+            hash_tir::new::data::DataDefCtors::Defined(ctors) => {
                 // Index 0 is true, 1 is false, see BootstrapOps
                 let idx = if value { 0 } else { 1 };
                 (ctors, idx)
             }
-            hash_types::new::data::DataDefCtors::Primitive(_) => {
+            hash_tir::new::data::DataDefCtors::Primitive(_) => {
                 panic!("Found primitive data definition for bool")
             }
         }

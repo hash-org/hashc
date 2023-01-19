@@ -8,7 +8,7 @@ use std::{
     hash::Hash,
 };
 
-use hash_types::terms::TermId;
+use hash_tir::terms::TermId;
 use hash_utils::store::{DefaultPartialStore, PartialCloneStore, PartialStore};
 use log::log_enabled;
 

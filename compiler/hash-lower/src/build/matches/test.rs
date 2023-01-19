@@ -18,7 +18,7 @@ use hash_source::{
     constant::{IntConstant, CONSTANT_MAP},
     location::Span,
 };
-use hash_types::{
+use hash_tir::{
     fmt::PrepareForFormatting,
     pats::{AccessPat, ConstPat, ConstructorPat, IfPat, Pat, PatArgsId, PatId, RangePat},
 };

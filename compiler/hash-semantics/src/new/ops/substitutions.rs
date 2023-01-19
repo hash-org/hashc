@@ -1,6 +1,6 @@
 //! Operations to substitute variables in types and terms.
 use derive_more::Constructor;
-use hash_types::new::{args::ArgsId, defs::DefArgsId, params::ParamsId, terms::TermId, tys::TyId};
+use hash_tir::new::{args::ArgsId, defs::DefArgsId, params::ParamsId, terms::TermId, tys::TyId};
 use hash_utils::store::SequenceStoreKey;
 
 use crate::{

@@ -1,6 +1,6 @@
 //! Definitions related to substitutions.
 use derive_more::From;
-use hash_types::new::{holes::Hole, symbols::Symbol, terms::TermId};
+use hash_tir::new::{holes::Hole, symbols::Symbol, terms::TermId};
 use smallvec::SmallVec;
 
 /// The subject of a substitution

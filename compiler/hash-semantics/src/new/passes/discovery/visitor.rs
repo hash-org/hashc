@@ -8,7 +8,7 @@ use hash_ast::{
 };
 use hash_reporting::macros::panic_on_span;
 use hash_source::identifier::Identifier;
-use hash_types::new::{
+use hash_tir::new::{
     defs::DefId,
     environment::env::AccessToEnv,
     fns::{FnBody, FnDefData, FnTy},
