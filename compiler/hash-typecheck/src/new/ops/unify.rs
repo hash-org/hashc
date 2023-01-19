@@ -1,4 +1,4 @@
-//! Operations for unifying types.
+//! Operations for unifying types and terms.
 
 use derive_more::Constructor;
 use hash_types::new::{
@@ -122,6 +122,10 @@ impl<'tc> UnifyOps<'tc> {
         }
     }
 
+    /// Unify two terms.
+    ///
+    /// Unless these are types, they must be definitionally (up to beta
+    /// reduction) equal.
     pub fn unify_terms(&self, src_id: TermId, target_id: TermId) -> TcResult<Unification> {
         let src = self.get_term(src_id);
         let target = self.get_term(target_id);

@@ -1,3 +1,4 @@
+///! Utilities to traverse the term structure.
 use derive_more::{Constructor, From};
 
 use super::common::CommonUtils;
@@ -24,6 +25,7 @@ pub struct TraversingUtils<'env> {
 
 impl_access_to_env!(TraversingUtils<'env>);
 
+/// A term, type or pattern.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, From)]
 pub enum TermOrPatOrTy {
     Term(TermId),
@@ -35,6 +37,8 @@ struct TraverseImplState<F> {
     depth: usize,
     _f: F,
 }
+
+// @@Todo: docs and implementation
 
 impl<'env> TraversingUtils<'env> {
     pub fn traverse_term<F: FnMut(TermOrPatOrTy) -> Result<(), E>, E>(
