@@ -6,7 +6,7 @@ use std::fmt;
 
 use crate::{
     alignment::{Alignment, Alignments},
-    layout::HasDataLayout,
+    data_layout::HasDataLayout,
     primitives::{FloatTy, SIntTy, UIntTy},
     size::Size,
 };
@@ -278,6 +278,11 @@ impl Scalar {
     /// Convert the [Scalar] into a union-like [Scalar].
     pub fn to_union(&self) -> Self {
         Scalar::Union { kind: self.kind() }
+    }
+
+    /// Check if the [Scalar] is a [`Scalar::Union`].
+    pub fn is_union(&self) -> bool {
+        matches!(self, Scalar::Union { .. })
     }
 
     /// Align the [Scalar] with the current data layout

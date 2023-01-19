@@ -12,7 +12,7 @@ use hash_ir::{
 use hash_target::{
     abi::{AbiRepresentation, Integer, Scalar, ScalarKind, ValidScalarRange},
     alignment::{Alignment, Alignments},
-    layout::TargetDataLayout,
+    data_layout::TargetDataLayout,
     primitives::{FloatTy, SIntTy, UIntTy},
     size::Size,
 };

@@ -14,7 +14,7 @@ use hash_source::{
 };
 use hash_target::{
     abi::{self, Integer, ScalarKind},
-    layout::HasDataLayout,
+    data_layout::HasDataLayout,
     size::Size,
 };
 use hash_utils::{

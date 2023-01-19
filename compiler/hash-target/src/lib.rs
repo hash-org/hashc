@@ -2,7 +2,7 @@
 
 pub mod abi;
 pub mod alignment;
-pub mod layout;
+pub mod data_layout;
 pub mod primitives;
 pub mod size;
 

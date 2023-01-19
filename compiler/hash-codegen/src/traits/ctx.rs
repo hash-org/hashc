@@ -9,7 +9,7 @@ use hash_ir::{
 };
 use hash_layout::{compute::LayoutComputer, LayoutCtx};
 use hash_pipeline::settings::CompilerSettings;
-use hash_target::layout::HasDataLayout;
+use hash_target::data_layout::HasDataLayout;
 
 use crate::layout::{Layout, LayoutId};
 

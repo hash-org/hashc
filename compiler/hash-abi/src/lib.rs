@@ -3,7 +3,9 @@
 //! and to be able to call functions from other languages, but to also provide
 //! information to code generation backends about how values are represented.
 
-use hash_layout::TyInfo;
+use hash_layout::{compute::LayoutComputer, TyInfo};
+use hash_target::abi::{AbiRepresentation, Scalar};
+use hash_utils::store::Store;
 
 /// Defines the available calling conventions that can be
 /// used when invoking functions with the ABI.
@@ -22,6 +24,17 @@ pub enum CallingConvention {
     ///
     /// Ref: <https://llvm.org/docs/LangRef.html#calling-conventions> (coldcc)
     Cold,
+}
+
+/// Defines what ABI to use when calling a function.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Abi {
+    /// The C ABI.
+    C,
+
+    /// The default ABI, which attempts to perform optimisations
+    /// that are not possible with the C ABI.
+    Hash,
 }
 
 /// Defines ABI specific information about a function.
@@ -55,6 +68,25 @@ pub struct ArgAbi {
 }
 
 impl ArgAbi {
+    /// Create a new [ArgAbi] with the provided [TyInfo].
+    pub fn new(
+        ctx: &LayoutComputer,
+        info: TyInfo,
+        attributes_from_scalar: impl Fn(Scalar) -> ArgAttributes,
+    ) -> Self {
+        let mode = ctx.map_fast(info.layout, |layout| match layout.abi {
+            AbiRepresentation::Uninhabited => PassMode::Ignore,
+            AbiRepresentation::Scalar(scalar) => PassMode::Direct(attributes_from_scalar(scalar)),
+            AbiRepresentation::Pair(scalar_a, scalar_b) => {
+                PassMode::Pair(attributes_from_scalar(scalar_a), attributes_from_scalar(scalar_b))
+            }
+            AbiRepresentation::Vector { .. } => PassMode::Direct(ArgAttributes::new()),
+            AbiRepresentation::Aggregate => PassMode::Direct(ArgAttributes::new()),
+        });
+
+        Self { info, mode }
+    }
+
     /// Check if the [PassMode] of the [ArgAbi] is "indirect".
     pub fn is_indirect(&self) -> bool {
         matches!(self.mode, PassMode::Indirect { .. })
@@ -68,8 +100,8 @@ impl ArgAbi {
 
 bitflags::bitflags! {
     /// Defines the relevant attributes to ABI arguments.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub struct ArgAttributeFlags: u16 {
+    #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct ArgAttributeFlag: u16 {
         /// This specifies that this pointer argument does not alias
         /// any other arguments or the return value.
         const NO_ALIAS = 1 << 1;
@@ -109,7 +141,7 @@ bitflags::bitflags! {
 /// ABI defines whether the value should be sign-extended or zero-extended.
 ///
 /// If this is not required, this should be set to [`ArgExtension::NoExtend`].
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ArgExtension {
     /// The argument should be zero-extended.
     ZeroExtend,
@@ -121,24 +153,57 @@ pub enum ArgExtension {
     NoExtend,
 }
 
+impl Default for ArgExtension {
+    fn default() -> Self {
+        Self::NoExtend
+    }
+}
+
 /// [ArgAttributes] provides all of the attributes that a
 /// particular argument has, as in additional information that
 /// can be used by the compiler to generate better code, or
 /// if it is targetting a specific ABI which requires certain
 /// operations to be performed on the argument in order to
 /// properly pass it to the function.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct ArgAttributes {
     /// Additional information about the argument in the form
-    /// of bit flags. The [ArgAttributeFlags] resemble a similar
+    /// of bit flags. The [ArgAttributeFlag] resemble a similar
     /// naming convention to LLVM's function parameter attributes
     /// but they are intended to be used regardless of which
     /// backend is being targeted.
-    pub flags: ArgAttributeFlags,
+    pub flags: ArgAttributeFlag,
 
     /// Depending on the ABI, the argument may need to be zero/sign-extended
     /// to a certain size.
     pub extension: ArgExtension,
+}
+
+impl ArgAttributes {
+    /// Create a new [ArgAttributes].
+    pub fn new() -> Self {
+        Self { flags: ArgAttributeFlag::default(), extension: ArgExtension::NoExtend }
+    }
+
+    /// Apply a [ArgAttributeFlag] to the [ArgAttributes].
+    pub fn set(&mut self, attribute: ArgAttributeFlag) {
+        self.flags |= attribute;
+    }
+
+    /// Check if a particular [ArgAttributeFlag] exists on a
+    /// [ArgAttributes].
+    pub fn contains(&self, attribute: ArgAttributeFlag) -> bool {
+        self.flags.contains(attribute)
+    }
+
+    /// Apply an argument extension to the [ArgAttributes].
+    pub fn extend_with(&mut self, extension: ArgExtension) {
+        debug_assert!(
+            self.extension == ArgExtension::NoExtend || self.extension == extension,
+            "extension already set"
+        );
+        self.extension = extension;
+    }
 }
 
 /// Defines how an argument should be passed to a function.
@@ -155,6 +220,11 @@ pub enum PassMode {
     /// [`AbiRepresentation::Aggregate`] if the ABI allows for "small"
     /// structures to be passed as just integers.
     Direct(ArgAttributes),
+
+    /// Pass a pair's elements directly in two arguments.
+    ///
+    /// The argument has a layout abi of `ScalarPair`.
+    Pair(ArgAttributes, ArgAttributes),
 
     /// Pass the argument indirectly via a pointer. This corresponds to
     /// passing arguments "by value". The "by value" semantics implies that

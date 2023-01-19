@@ -375,7 +375,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
                 builder.return_void();
                 return;
             }
-            PassMode::Direct(_) => {
+            PassMode::Direct(_) | PassMode::Pair(..) => {
                 let op = self
                     .codegen_consume_operand(builder, ir::Place::return_place(self.ctx.ir_ctx()));
 

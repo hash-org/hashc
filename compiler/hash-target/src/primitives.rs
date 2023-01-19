@@ -8,7 +8,7 @@ use std::fmt;
 
 use num_bigint::BigInt;
 
-use crate::{abi::Integer, alignment::Alignments, layout::HasDataLayout, size::Size};
+use crate::{abi::Integer, alignment::Alignments, data_layout::HasDataLayout, size::Size};
 
 /// A primitive floating-point type, either a `f32` or an `f64`.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
