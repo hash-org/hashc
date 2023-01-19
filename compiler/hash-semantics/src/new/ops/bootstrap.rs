@@ -29,18 +29,30 @@ impl<'tc> BootstrapOps<'tc> {
     /// Bootstrap the typechecker, by constructing primitives and intrinsics,
     /// then creating modules of the two and giving them to
     /// the provided closure.
-    pub fn bootstrap<T>(&self, f: impl FnOnce(ModDefId) -> T) -> T {
+    ///
+    /// Returns `(primitives_mod, intrinsics_mod)`.
+    pub fn bootstrap(&self) -> (ModDefId, ModDefId) {
         let primitives = DefinedPrimitives::create(self.env());
+        let primitive_mod = self.make_primitive_mod(&primitives);
         self.primitives_or_unset().set(primitives).unwrap();
+
         let intrinsics = DefinedIntrinsics::create(*self.tc_env());
+        let intrinsic_mod = self.make_intrinsic_mod(&intrinsics);
         self.intrinsics_or_unset().set(intrinsics).unwrap();
 
-        let primitive_mod = self.make_primitive_mod(&primitives);
-        f(primitive_mod)
+        (primitive_mod, intrinsic_mod)
     }
 
-    /// From the given [`DefinedPrimitives`], create a module that contains
-    /// them as members.
+    /// Make a module containing all the intrinsics.
+    pub fn make_intrinsic_mod(&self, intrinsics: &DefinedIntrinsics) -> ModDefId {
+        self.mod_utils().create_mod_def(ModDefData {
+            name: self.new_symbol("Intrinsics"),
+            kind: ModKind::Transparent,
+            members: self.mod_utils().create_mod_members(intrinsics.as_mod_members()),
+        })
+    }
+
+    /// Make a module containing all the primitives.
     pub fn make_primitive_mod(&self, primitives: &DefinedPrimitives) -> ModDefId {
         self.mod_utils().create_mod_def(ModDefData {
             name: self.new_symbol("Primitives"),

@@ -277,6 +277,12 @@ impl Context {
         self.scopes.borrow_mut().truncate(constant_scope_level_index);
         self.members.borrow_mut().truncate(constant_scope_level);
     }
+
+    /// Clear all the scopes and bindings in the context.
+    pub fn clear_all(&self) {
+        self.scopes.borrow_mut().clear();
+        self.members.borrow_mut().clear();
+    }
 }
 
 impl fmt::Display for WithEnv<'_, &BoundVarOrigin> {

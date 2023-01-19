@@ -9,7 +9,7 @@ use hash_tir::{
         args::{ArgsId, PatArgsId},
         casting::CastTerm,
         control::{LoopControlTerm, LoopTerm, ReturnTerm},
-        data::{CtorTerm, DataTy},
+        data::{CtorTerm, DataDefId, DataTy},
         defs::{DefArgsId, DefParamGroupData, DefParamsId, DefPatArgsId},
         environment::{
             context::{BindingKind, BoundVarOrigin, ScopeKind},
@@ -18,6 +18,7 @@ use hash_tir::{
         fns::{FnBody, FnCallTerm, FnDefId, FnTy},
         holes::HoleBinderKind,
         lits::{Lit, PrimTerm},
+        mods::{ModDefId, ModMember, ModMemberValue},
         params::{ParamData, ParamsId},
         pats::{Pat, PatId},
         refs::{DerefTerm, RefTerm, RefTy},
@@ -217,8 +218,23 @@ impl<'tc> InferOps<'tc> {
     }
 
     /// Infer the given parameters.
-    pub fn infer_params(&self, _params: ParamsId) -> TcResult<()> {
-        todo!()
+    pub fn infer_params(&self, params: ParamsId) -> TcResult<()> {
+        let mut has_error = false;
+        self.stores().params().map_fast(params, |params| {
+            for param in params {
+                match self.try_or_add_error(self.infer_ty(param.ty)) {
+                    Some(_) => {}
+                    None => {
+                        has_error = true;
+                    }
+                }
+            }
+        });
+        if has_error {
+            Err(TcError::Signal)
+        } else {
+            Ok(())
+        }
     }
 
     /// Infer the type of a term, or create a new a type hole if the type is
@@ -724,5 +740,51 @@ impl<'tc> InferOps<'tc> {
                 }
             }
         }
+    }
+
+    /// Infer the given data definition.
+    pub fn infer_data_def(&self, _data_def_id: DataDefId) -> TcResult<()> {
+        // @@Todo
+        Ok(())
+    }
+
+    /// Infer the given module member.
+    pub fn infer_mod_member(&self, mod_member: &ModMember) -> TcResult<()> {
+        match mod_member.value {
+            ModMemberValue::Data(data_def_id) => {
+                self.infer_data_def(data_def_id)?;
+                Ok(())
+            }
+            ModMemberValue::Mod(mod_def_id) => {
+                self.infer_mod_def(mod_def_id)?;
+                Ok(())
+            }
+            ModMemberValue::Fn(fn_def_id) => {
+                self.infer_fn_def(fn_def_id)?;
+                Ok(())
+            }
+        }
+    }
+
+    /// Infer the given module definition.
+    pub fn infer_mod_def(&self, mod_def_id: ModDefId) -> TcResult<()> {
+        let members = self.stores().mod_def().map_fast(mod_def_id, |def| def.members);
+        self.stores().mod_members().map_fast(members, |members| {
+            let mut has_error = false;
+
+            // Infer each member
+            for member in members {
+                match self.try_or_add_error(self.infer_mod_member(member)) {
+                    Some(()) => {}
+                    None => has_error = true,
+                }
+            }
+
+            if has_error {
+                Err(TcError::Signal)
+            } else {
+                Ok(())
+            }
+        })
     }
 }
