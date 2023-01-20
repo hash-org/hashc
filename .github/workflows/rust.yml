@@ -16,6 +16,19 @@ jobs:
     steps:
       - name: Checkout source code
         uses: actions/checkout@v2
+
+      - name: Cache LLVM
+        id: cache-llvm
+        uses: actions/cache@v2
+        with: 
+          path: ./llvm
+          key: llvm-15
+
+      - name: Install LLVM
+        uses: KyleMayes/install-llvm-action@v1
+        with:
+          version: "15.0"
+          cached: ${{ steps.cache-llvm.outputs.cache-hit }}
       - name: Install Rust nightly
         uses: actions-rs/toolchain@v1
         with:
@@ -26,17 +39,14 @@ jobs:
       - name: "Dependency caching"
         uses: Swatinem/rust-cache@v1
 
+      - uses: actions-rs/cargo@v1
+      
       - name: Run tests
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --all --verbose
-   
+        run: "LLVM_SYS_150_PREFIX=$LLVM_PATH cargo test --all --verbose"
+
       - name: Run clippy
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --all -- -D warnings
+        run: "LLVM_SYS_150_PREFIX=$LLVM_PATH cargo clippy --all -- -D warnings"
+
       - name: Check formatting
         uses: actions-rs/cargo@v1
         with:

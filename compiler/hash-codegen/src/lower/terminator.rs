@@ -155,7 +155,9 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
         });
 
         // compute the function pointer value and the ABI
-        let fn_abi = builder.fn_abi_of_instance(callee.info.ty);
+        //
+        // @@Todo: deal with FN ABI error here
+        let fn_abi = self.compute_fn_abi_from_ty(callee.info.ty).unwrap();
         let fn_ptr = builder.get_fn_ptr(instance);
 
         // If the return ABI pass mode is "indirect", then this means that
@@ -188,9 +190,9 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
 
             if let (ir::Operand::Const(_), OperandValue::Ref(_, _)) = (arg, arg_operand.value) {
                 let temp = PlaceRef::new_stack(builder, arg_operand.info);
-                let arg_layout = builder.layout_info(arg_operand.info.layout);
+                let size = builder.map_layout(arg_operand.info.layout, |layout| layout.size);
 
-                builder.lifetime_start(temp.value, arg_layout.size);
+                builder.lifetime_start(temp.value, size);
                 arg_operand.value.store(builder, temp);
                 arg_operand.value = OperandValue::Ref(temp.value, temp.alignment);
 
@@ -204,7 +206,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
         // cleanup
         self.codegen_fn_call(
             builder,
-            fn_abi,
+            &fn_abi,
             fn_ptr,
             &args,
             &copied_const_args,
@@ -239,18 +241,20 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
                     (temp.value, temp.alignment, true)
                 }
                 _ => {
-                    let abi_layout = builder.layout_info(arg_abi.info.layout);
+                    let abi_alignment =
+                        builder.map_layout(arg_abi.info.layout, |layout| layout.alignment.abi);
 
-                    (arg.immediate_value(), abi_layout.alignment.abi, false)
+                    (arg.immediate_value(), abi_alignment, false)
                 }
             },
             OperandValue::Ref(value, alignment) => {
-                let abi_layout = builder.layout_info(arg_abi.info.layout);
+                let abi_alignment =
+                    builder.map_layout(arg_abi.info.layout, |layout| layout.alignment.abi);
 
                 // If the argument is indirect, and the alignment of the operand is
                 // smaller than the ABI alignment, then we need to put this value in a
                 // temporary with the ABI argument layout.
-                if arg_abi.is_indirect() && alignment < abi_layout.alignment.abi {
+                if arg_abi.is_indirect() && alignment < abi_alignment {
                     let temp = PlaceRef::new_stack(builder, arg_abi.info);
 
                     mem_copy_ty(
@@ -279,10 +283,9 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
             if matches!(arg_abi.mode, PassMode::Direct(..)) {
                 value = builder.load(builder.backend_type(arg_abi.info), value, alignment);
 
-                // @@Future: we will probably introduce as `with_layout`
-                let abi_layout = builder.layout_info(arg_abi.info.layout);
+                let layout_abi = builder.map_layout(arg_abi.info.layout, |layout| layout.abi);
 
-                if let AbiRepresentation::Scalar(scalar_kind) = abi_layout.abi {
+                if let AbiRepresentation::Scalar(scalar_kind) = layout_abi {
                     if scalar_kind.is_bool() {
                         builder.add_range_metadata_to(value, ValidScalarRange { start: 0, end: 1 });
                     }
@@ -358,12 +361,13 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
     /// `unreachable` instruction.
     // Additionally, unit types `()` are considered as a `void` return type.
     fn codegen_return_terminator(&mut self, builder: &mut Builder) {
-        let layout = builder.layout_info(self.fn_abi.ret_abi.info.layout);
+        let is_uninhabited = builder
+            .map_layout(self.fn_abi.ret_abi.info.layout, |layout| layout.abi.is_uninhabited());
 
         // if the return type is uninhabited, then we can emit an
         // `abort` call to exit the program, and then close the
         // block with a `unreachable` instruction.
-        if layout.abi.is_uninhabited() {
+        if is_uninhabited {
             builder.codegen_abort_intrinsic();
             builder.unreachable();
 
@@ -564,8 +568,8 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
             // now that the function has finished, we essentially mark all of the
             // copied constants as being "dead"...
             for temporary in copied_const_args {
-                let layout = builder.layout_info(temporary.info.layout);
-                builder.lifetime_end(temporary.value, layout.size)
+                let size = builder.map_layout(temporary.info.layout, |layout| layout.size);
+                builder.lifetime_end(temporary.value, size)
             }
 
             // we need to store the return value in the appropriate place.

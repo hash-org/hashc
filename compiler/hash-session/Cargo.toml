@@ -19,6 +19,7 @@ hash-source = { path = "../hash-source" }
 hash-tree-def = { path = "../hash-tree-def" }
 hash-tir = { path = "../hash-tir" }
 hash-layout = { path = "../hash-layout" }
+hash-codegen = { path = "../hash-codegen" }
 
 # Various stages that the pipeline interfaces with...
 hash-ast-desugaring = { path = "../hash-ast-desugaring" }

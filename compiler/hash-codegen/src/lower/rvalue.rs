@@ -161,10 +161,10 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
 
                 for (i, operand) in operands.iter().enumerate() {
                     let operand = self.codegen_operand(builder, operand);
-                    let layout = builder.layout_info(operand.info.layout);
+                    let is_zst = builder.map_layout(operand.info.layout, |layout| layout.is_zst());
 
                     // We don't need to do anything for ZSTs...
-                    if !layout.is_zst() {
+                    if !is_zst {
                         // Create the field place reference, and then store the
                         // value in the operand.
                         let field = if let ir::AggregateKind::Array(_) = *kind {
@@ -200,11 +200,13 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
                 // on the operation it then emits the size or the
                 // alignment.
                 let info = builder.layout_of_id(ty);
-                let layout = builder.layout_info(info.layout);
+                let (size, alignment) = builder.map_layout(info.layout, |layout| {
+                    (layout.size.bytes(), layout.alignment.abi.bytes())
+                });
 
                 let value_bytes = match op {
-                    ir::ConstOp::SizeOf => layout.size.bytes(),
-                    ir::ConstOp::AlignOf => layout.alignment.abi.bytes(),
+                    ir::ConstOp::SizeOf => size,
+                    ir::ConstOp::AlignOf => alignment,
                 };
                 let value = builder.ctx().const_usize(value_bytes);
 

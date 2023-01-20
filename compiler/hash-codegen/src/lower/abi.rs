@@ -5,7 +5,7 @@ use hash_abi::{
     Abi, ArgAbi, ArgAttributeFlag, ArgAttributes, ArgExtension, CallingConvention, FnAbi,
 };
 use hash_ir::ty::{IrTy, IrTyId, Mutability, RefKind};
-use hash_layout::compute::LayoutComputer;
+use hash_layout::compute::{LayoutComputer, LayoutError};
 use hash_target::abi::{Scalar, ScalarKind};
 use hash_utils::store::SequenceStore;
 
@@ -64,13 +64,21 @@ fn adjust_arg_attributes(
     // useful information here.
 }
 
+/// Errors that may occur when computing the ABI of a function.
+#[derive(Debug)]
+pub enum FnAbiError {
+    /// A layout error occurred when computing the layout of a type
+    /// for the ABI.
+    Layout(LayoutError),
+}
+
 impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
     /// Compute an [FnAbi] from a provided [IrTyId]. If the ABI
     /// has already been computed for the particular instance, then
     /// the cached version of the ABI is returned.
     ///
     /// N.B. the passed "ty" must be a function type.
-    pub fn compute_fn_abi_from_ty(&mut self, ty: IrTyId) -> Result<FnAbi, ()> {
+    pub fn compute_fn_abi_from_ty(&mut self, ty: IrTyId) -> Result<FnAbi, FnAbiError> {
         // @@Todo: add caching for the ABI computation...
         // @@Todo: add support for specifying more calling conventions, but for now
         // we only support the C calling convention.

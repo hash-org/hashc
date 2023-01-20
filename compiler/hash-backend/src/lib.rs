@@ -4,11 +4,10 @@
 //! code generation process.
 #![allow(dead_code)] // @@Temporary: until the codegen general purpose logic is completed.
 
-use hash_ir::IrStorage;
+use hash_codegen::BackendCtx;
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerStage},
-    settings::{CodeGenSettings, CompilerStageKind},
-    workspace::Workspace,
+    settings::CompilerStageKind,
     CompilerResult,
 };
 use hash_source::SourceId;
@@ -22,25 +21,6 @@ impl Backend {
     pub fn new() -> Self {
         Self
     }
-}
-
-/// The [BackendCtx] is the context that is needed for any [CodeGen]
-/// backend to generate code for the target backend.
-///
-/// @@Todo: determine how we deal with "code store".
-pub struct BackendCtx<'b> {
-    /// Reference to the current compiler workspace.
-    pub workspace: &'b mut Workspace,
-
-    /// Reference to the IR storage that is used to store
-    /// the lowered IR, and all metadata about the IR.
-    pub ir_storage: &'b IrStorage,
-
-    /// A reference to the backend settings in the current session.
-    pub settings: &'b CodeGenSettings,
-
-    /// Reference to the rayon thread pool.
-    pub _pool: &'b rayon::ThreadPool,
 }
 
 pub trait BackendCtxQuery: CompilerInterface {

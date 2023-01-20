@@ -14,7 +14,7 @@ use hash_target::{
 
 use super::{
     abi::AbiBuilderMethods, debug::BuildDebugInfoMethods, intrinsics::BuildIntrinsicCallMethods,
-    target::HasTargetSpec, CodeGen,
+    target::HasTargetSpec, Codegen,
 };
 use crate::{
     common::{CheckedOp, IntComparisonKind, MemFlags, RealComparisonKind},
@@ -25,7 +25,7 @@ use crate::{
 /// This trait defines all methods required to convert a Hash IR `BasicBlock`
 /// into the backend equivalent.
 pub trait BlockBuilderMethods<'b>:
-    CodeGen<'b>
+    Codegen<'b>
     + AbiBuilderMethods<'b>
     + BuildIntrinsicCallMethods<'b>
     + BuildDebugInfoMethods
@@ -357,11 +357,14 @@ pub trait BlockBuilderMethods<'b>:
 
     /// Convert a value to an immediate value of the given layout.
     fn to_immediate(&mut self, v: Self::Value, layout: LayoutId) -> Self::Value {
-        if let AbiRepresentation::Scalar(scalar) = self.layout_info(layout).abi {
-            self.to_immediate_scalar(v, scalar)
-        } else {
-            v
-        }
+        self.map_layout(layout, |layout| {
+            if let AbiRepresentation::Scalar(scalar) = layout.abi {
+                Some(scalar)
+            } else {
+                None
+            }
+        })
+        .map_or(v, |scalar| self.to_immediate_scalar(v, scalar))
     }
 
     /// Convert the given value to a [Scalar] value.

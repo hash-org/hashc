@@ -11,10 +11,14 @@ use crate::layout::TyInfo;
 /// Methods for calculating and querying the layout of types within a backend.
 pub trait LayoutMethods<'b>: BackendTypes + HasCtxMethods<'b> {
     /// Compute the layout of a interned type via [IrTyId].
-    fn layout_of_id(&self, ty: IrTyId) -> TyInfo;
+    fn layout_of_id(&self, _ty: IrTyId) -> TyInfo {
+        todo!()
+    }
 
     /// Compute the layout of a [IrTy].
-    fn layout_of(&self, ty: IrTy) -> TyInfo;
+    fn layout_of(&self, _ty: IrTy) -> TyInfo {
+        todo!()
+    }
 
     /// Perform a mapping on a [Layout]
     fn map_layout<T>(&self, id: LayoutId, func: impl FnOnce(&Layout) -> T) -> T {
