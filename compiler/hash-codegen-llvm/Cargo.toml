@@ -6,9 +6,11 @@ edition = "2021"
 
 [dependencies]
 rayon = "1.5.0"
+inkwell = { git = "https://github.com/TheDan64/inkwell", branch = "master", features = ["llvm15-0"] }
 
 hash-codegen = {path = "../hash-codegen" }
 hash-ir = {path = "../hash-ir" }
 hash-source = {path = "../hash-source" }
 hash-target = { path = "../hash-target" }
 hash-utils = {path = "../hash-utils" }
+hash-pipeline = { path = "../hash-pipeline" }

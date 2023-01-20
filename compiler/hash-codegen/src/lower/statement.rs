@@ -25,11 +25,13 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
                             // @@DebugInfo: we introduced the local here...
                         }
                         LocalRef::Operand(Some(operand)) => {
+                            let is_zst =
+                                builder.map_layout(operand.info.layout, |layout| layout.is_zst());
                             // We can't have another assignment for a local ref since
                             // this implies that it is not in SSA form (unless it is a
                             // ZST for which the rules are slightly bent). However, we
                             // must still codegen the rvalue.
-                            if !builder.layout_info(operand.info.layout).is_zst() {
+                            if !is_zst {
                                 // @@PanicOnSpan: we should be able to provide a panic_on_span
                                 // by allowing the code generation to have access to the source
                                 // map.

@@ -11,7 +11,8 @@
 use hash_ast::node_map::NodeMap;
 use hash_ast_desugaring::{AstDesugaringCtx, AstDesugaringCtxQuery, AstDesugaringPass};
 use hash_ast_expand::{AstExpansionCtx, AstExpansionCtxQuery, AstExpansionPass};
-use hash_backend::{Backend, BackendCtx, BackendCtxQuery};
+use hash_backend::{Backend, BackendCtxQuery};
+use hash_codegen::BackendCtx;
 use hash_ir::IrStorage;
 use hash_layout::LayoutCtx;
 use hash_lower::{IrGen, IrOptimiser, LoweringCtx, LoweringCtxQuery};
@@ -177,7 +178,7 @@ impl BackendCtxQuery for CompilerSession {
         BackendCtx {
             workspace: &mut self.workspace,
             ir_storage: &self.ir_storage,
-            settings: self.settings.codegen_settings(),
+            settings: &self.settings,
             _pool: &self.pool,
         }
     }

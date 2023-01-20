@@ -21,7 +21,7 @@ pub fn mem_copy_ty<'b, Builder: BlockBuilderMethods<'b>>(
     ty: TyInfo,
     flags: MemFlags,
 ) {
-    let size = builder.layout_info(ty.layout).size.bytes();
+    let size = builder.map_layout(ty.layout, |layout| layout.size.bytes());
 
     // we don't copy zsts.
     if size == 0 {

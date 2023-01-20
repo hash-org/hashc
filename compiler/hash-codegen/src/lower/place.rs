@@ -43,8 +43,7 @@ impl<'b, V: CodeGenObject> PlaceRef<V> {
         value: V,
         info: TyInfo,
     ) -> Self {
-        let layout = builder.ctx().layout_info(info.layout);
-        let alignment = layout.alignment.abi;
+        let alignment = builder.map_layout(info.layout, |layout| layout.alignment.abi);
 
         Self { value, info, alignment }
     }
@@ -55,8 +54,7 @@ impl<'b, V: CodeGenObject> PlaceRef<V> {
         builder: &mut Builder,
         info: TyInfo,
     ) -> Self {
-        let layout = builder.ctx().layout_info(info.layout);
-        let alignment = layout.alignment.abi;
+        let alignment = builder.map_layout(info.layout, |layout| layout.alignment.abi);
 
         let temp = builder.alloca(builder.ctx().backend_type(info), alignment);
 
@@ -68,13 +66,13 @@ impl<'b, V: CodeGenObject> PlaceRef<V> {
     /// array and access the `size` stored on it to get the
     /// `len` of the place.
     pub fn len<Builder: BlockBuilderMethods<'b, Value = V>>(&self, builder: &Builder) -> V {
-        let layout = builder.ctx().layout_info(self.info.layout);
-
-        if let LayoutShape::Array { elements, .. } = layout.shape {
-            builder.const_usize(elements)
-        } else {
-            panic!("PlaceRef::len called on non-array type");
-        }
+        builder.map_layout(self.info.layout, |layout| {
+            if let LayoutShape::Array { elements, .. } = layout.shape {
+                builder.const_usize(elements)
+            } else {
+                panic!("PlaceRef::len called on non-array type");
+            }
+        })
     }
 }
 
@@ -86,31 +84,42 @@ impl<'b, V: CodeGenObject> PlaceRef<V> {
         discriminant: VariantIdx,
     ) {
         let variant_info = self.info.for_variant(builder.layout_computer(), discriminant);
-        let variant_layout = builder.layout_info(variant_info.layout);
+        let (uninhabited, maybe_field) =
+            builder.map_layout(variant_info.layout, |variant_layout| {
+                if variant_layout.abi.is_uninhabited() {
+                    return (true, None);
+                }
+
+                match variant_layout.variants {
+                    Variants::Single { index } => {
+                        debug_assert_eq!(index, discriminant);
+                        (false, None)
+                    }
+                    Variants::Multiple { field, .. } => (false, Some(field)),
+                }
+            });
 
         // If an attempt is made to set the discriminant for a variant type
         // that is un-inhabited, this is a panic.
-        if variant_layout.abi.is_uninhabited() {
+        if uninhabited {
             builder.codegen_abort_intrinsic();
             return;
         }
 
-        match variant_layout.variants {
-            Variants::Single { index } => {
-                debug_assert_eq!(index, discriminant);
-            }
-            Variants::Multiple { field, .. } => {
-                let ptr = self.project_field(builder, field);
-                let (_, value) = builder.ir_ctx().map_ty(self.info.ty, |ty| {
-                    ty.discriminant_for_variant(builder.ir_ctx(), discriminant).unwrap()
-                });
+        // If we have a field index, then perform a field projection on
+        // the specified field, and compute the discriminant value for
+        // the variant, and then store it within the specified field.
+        if let Some(field) = maybe_field {
+            let ptr = self.project_field(builder, field);
+            let (_, value) = builder.ir_ctx().map_ty(self.info.ty, |ty| {
+                ty.discriminant_for_variant(builder.ir_ctx(), discriminant).unwrap()
+            });
 
-                builder.store(
-                    builder.const_uint_big(builder.backend_type(ptr.info), value),
-                    ptr.value,
-                    ptr.alignment,
-                );
-            }
+            builder.store(
+                builder.const_uint_big(builder.backend_type(ptr.info), value),
+                ptr.value,
+                ptr.alignment,
+            );
         }
     }
 
@@ -273,15 +282,15 @@ impl<'b, V: CodeGenObject> PlaceRef<V> {
     /// Emit a hint to the code generation backend that this [PlaceRef] is
     /// alive after this point.
     pub fn storage_live<Builder: BlockBuilderMethods<'b, Value = V>>(&self, builder: &mut Builder) {
-        let layout = builder.ctx().layout_info(self.info.layout);
-        builder.lifetime_start(self.value, layout.size);
+        let size = builder.map_layout(self.info.layout, |layout| layout.size);
+        builder.lifetime_start(self.value, size);
     }
 
     /// Emit a hint to the code generation backend that this [PlaceRef] is
     /// now dead after this point and can be discarded.
     pub fn storage_dead<Builder: BlockBuilderMethods<'b, Value = V>>(&self, builder: &mut Builder) {
-        let layout = builder.ctx().layout_info(self.info.layout);
-        builder.lifetime_end(self.value, layout.size);
+        let size = builder.map_layout(self.info.layout, |layout| layout.size);
+        builder.lifetime_end(self.value, size);
     }
 }
 

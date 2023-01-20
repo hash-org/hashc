@@ -286,6 +286,17 @@ pub struct Layout {
 }
 
 impl Layout {
+    /// Create a new layout with the given information.
+    pub fn new(
+        shape: LayoutShape,
+        variants: Variants,
+        abi: AbiRepresentation,
+        alignment: Alignments,
+        size: Size,
+    ) -> Self {
+        Self { shape, variants, abi, alignment, size }
+    }
+
     /// Create a new [Layout] that represents a scalar.
     pub fn scalar<C: HasDataLayout>(ctx: &C, scalar: Scalar) -> Self {
         let size = scalar.size(ctx);
@@ -329,17 +340,6 @@ impl Layout {
             alignment,
             size,
         }
-    }
-
-    /// Create a new layout with the given information.
-    pub fn new(
-        shape: LayoutShape,
-        variants: Variants,
-        abi: AbiRepresentation,
-        alignment: Alignments,
-        size: Size,
-    ) -> Self {
-        Self { shape, variants, abi, alignment, size }
     }
 
     /// Check whether this particular [Layout] represents a zero-sized type.
