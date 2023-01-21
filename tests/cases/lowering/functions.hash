@@ -1,0 +1,9 @@
+// stage=ir, args=--dump-ir --dump-mode=pretty
+
+print := (message: str) => {
+}
+
+main := () => {
+    print("Hello, world!");
+};
+
