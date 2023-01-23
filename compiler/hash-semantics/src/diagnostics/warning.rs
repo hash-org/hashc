@@ -9,6 +9,7 @@
 //! for configuring if those warnings should be emitted for a given
 //! job.
 
+use derive_more::Constructor;
 use hash_reporting::{
     report::{ReportCodeBlock, ReportElement, ReportNote, ReportNoteKind},
     reporter::{Reporter, Reports},
@@ -67,6 +68,7 @@ pub enum TcWarning {
 }
 
 /// A [TcWarning] with attached typechecker storage.
+#[derive(Constructor)]
 pub(crate) struct TcWarningWithStorage<'tc> {
     pub warning: TcWarning,
     pub storage: StorageRef<'tc>,

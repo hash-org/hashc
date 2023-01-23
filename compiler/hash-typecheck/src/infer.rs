@@ -1,8 +1,9 @@
 //! Operations to infer types of terms and patterns.
 
-use derive_more::Constructor;
+use derive_more::{Constructor, Deref};
 use hash_ast::ast::{FloatLitKind, IntLitKind};
-use hash_intrinsics::{primitives::AccessToPrimitives, utils::PrimitiveUtils};
+use hash_intrinsics::utils::PrimitiveUtils;
+use hash_reporting::diagnostic::Diagnostics;
 use hash_source::constant::{FloatTy, IntTy, SIntTy, UIntTy};
 use hash_tir::{
     new::{
@@ -11,10 +12,7 @@ use hash_tir::{
         control::{LoopControlTerm, LoopTerm, ReturnTerm},
         data::{CtorTerm, DataDefId, DataTy},
         defs::{DefArgsId, DefParamGroupData, DefParamsId, DefPatArgsId},
-        environment::{
-            context::{BindingKind, BoundVarOrigin, ScopeKind},
-            env::AccessToEnv,
-        },
+        environment::context::{BindingKind, BoundVarOrigin, ScopeKind},
         fns::{FnBody, FnCallTerm, FnDefId, FnTy},
         holes::HoleBinderKind,
         lits::{Lit, PrimTerm},
@@ -33,26 +31,21 @@ use hash_tir::{
 };
 use hash_utils::store::{CloneStore, SequenceStore, Store};
 
-use super::{common::CommonOps, unify::Unification, AccessToOps};
+use super::unify::Unification;
 use crate::{
-    impl_access_to_tc_env,
-    new::{
-        diagnostics::error::{TcError, TcResult},
-        environment::tc_env::{AccessToTcEnv, TcEnv},
-    },
+    errors::{TcError, TcResult},
+    substitutions::SubstituteOps,
+    unify::UnifyOps,
+    AccessToTypechecking,
 };
 
-#[derive(Constructor)]
-pub struct InferOps<'tc> {
-    tc_env: &'tc TcEnv<'tc>,
-}
+#[derive(Constructor, Deref)]
+pub struct InferOps<'a, T: AccessToTypechecking>(&'a T);
 
-impl_access_to_tc_env!(InferOps<'tc>);
-
-impl<'tc> InferOps<'tc> {
+impl<U: AccessToTypechecking> InferOps<'_, U> {
     /// Infer the given generic definition arguments (specialised for args and
     /// pat args below)
-    fn infer_some_def_args<DefArgGroup>(
+    pub fn infer_some_def_args<DefArgGroup>(
         &self,
         def_args: &[DefArgGroup],
         infer_def_arg_group: impl Fn(&DefArgGroup) -> TcResult<DefParamGroupData>,
@@ -108,7 +101,7 @@ impl<'tc> InferOps<'tc> {
 
     /// Infer the given generic arguments (specialised
     /// for args and pat args below).
-    fn infer_some_args<Arg>(
+    pub fn infer_some_args<Arg>(
         &self,
         args: &[Arg],
         infer_arg_ty: impl Fn(&Arg) -> TcResult<Option<TyId>>,
@@ -176,24 +169,23 @@ impl<'tc> InferOps<'tc> {
         for term in items {
             match self.try_or_add_error(infer_item(*term)) {
                 Some(Some(ty)) => {
-                    match self.unify_ops().unify_tys(ty, current_ty) {
+                    match self.unify_tys(ty, current_ty) {
                         Ok(Unification { sub }) => {
                             // Unification succeeded
-                            self.substitute_ops().apply_sub_to_ty_in_place(current_ty, &sub);
+                            self.apply_sub_to_ty_in_place(current_ty, &sub);
                         }
                         Err(err) => {
                             // Error in unification, try to unify the other way
-                            match self.unify_ops().unify_tys(current_ty, ty) {
+                            match self.unify_tys(current_ty, ty) {
                                 Ok(Unification { sub }) => {
                                     // Unification succeeded the other way, so use this
                                     // type as a target
                                     current_ty = ty;
-                                    self.substitute_ops()
-                                        .apply_sub_to_ty_in_place(current_ty, &sub);
+                                    self.apply_sub_to_ty_in_place(current_ty, &sub);
                                 }
                                 Err(_) => {
                                     // Error in unification, we only consider the first error
-                                    self.diagnostics().add_error(err);
+                                    self.diagnostics().add_error(self.convert_tc_error(err));
                                     found_error = true;
                                 }
                             }
@@ -365,21 +357,18 @@ impl<'tc> InferOps<'tc> {
 
                     // Unify the parameters of the function call with the parameters of the
                     // function type.
-                    let unification =
-                        self.unify_ops().unify_params(inferred_fn_call_params, fn_ty.params)?;
+                    let unification = self.unify_params(inferred_fn_call_params, fn_ty.params)?;
 
                     // Apply the substitution to the arguments.
-                    self.substitute_ops().apply_sub_to_args_in_place(term.args, &unification.sub);
+                    self.apply_sub_to_args_in_place(term.args, &unification.sub);
 
                     // Create a substitution from the parameters of the function type to the
                     // parameters of the function call.
-                    let arg_sub = self
-                        .substitute_ops()
-                        .create_sub_from_applying_args_to_params(term.args, fn_ty.params)?;
+                    let arg_sub =
+                        self.create_sub_from_applying_args_to_params(term.args, fn_ty.params)?;
 
                     // Apply the substitution to the return type of the function type.
-                    let subbed_return_ty =
-                        self.substitute_ops().apply_sub_to_ty(fn_ty.return_ty, &arg_sub);
+                    let subbed_return_ty = self.apply_sub_to_ty(fn_ty.return_ty, &arg_sub);
 
                     Ok(Some(subbed_return_ty))
                 }
@@ -409,23 +398,25 @@ impl<'tc> InferOps<'tc> {
         self.infer_params(fn_def.ty.params)?;
 
         match fn_def.body {
-            FnBody::Defined(fn_body) => self.context_ops().enter_scope(fn_def_id.into(), || {
-                // @@Todo: `return` statement type inference
-                let inferred_return_ty = self.infer_term(fn_body)?;
+            FnBody::Defined(fn_body) => {
+                self.context_utils().enter_scope(fn_def_id.into(), || {
+                    // @@Todo: `return` statement type inference
+                    let inferred_return_ty = self.infer_term(fn_body)?;
 
-                // Unify the inferred return type with the declared return type.
-                let Unification { sub: return_sub } = self.unify_ops().unify_tys(
-                    inferred_return_ty.unwrap_or_else(|| self.new_ty_hole()),
-                    fn_def.ty.return_ty,
-                )?;
+                    // Unify the inferred return type with the declared return type.
+                    let Unification { sub: return_sub } = self.unify_tys(
+                        inferred_return_ty.unwrap_or_else(|| self.new_ty_hole()),
+                        fn_def.ty.return_ty,
+                    )?;
 
-                // Apply the substitution to the parameters.
-                self.substitute_ops().apply_sub_to_params_in_place(fn_def.ty.params, &return_sub);
-                self.substitute_ops().apply_sub_to_term_in_place(fn_body, &return_sub);
-                self.substitute_ops().apply_sub_to_ty_in_place(fn_def.ty.return_ty, &return_sub);
+                    // Apply the substitution to the parameters.
+                    self.apply_sub_to_params_in_place(fn_def.ty.params, &return_sub);
+                    self.apply_sub_to_term_in_place(fn_body, &return_sub);
+                    self.apply_sub_to_ty_in_place(fn_def.ty.return_ty, &return_sub);
 
-                Ok(())
-            })?,
+                    Ok(())
+                })?
+            }
             FnBody::Intrinsic(_) | FnBody::Axiom => {
                 // Do nothing.
             }
@@ -519,7 +510,7 @@ impl<'tc> InferOps<'tc> {
 
                 // Infer the parameters
                 self.infer_params(fn_ty.params)?;
-                self.context_ops().enter_scope(ScopeKind::FnTy(ty_id), || {
+                self.context_utils().enter_scope(ScopeKind::FnTy(ty_id), || {
                     // Given the parameters, infer the return type
                     Ok(self.infer_ty(fn_ty.return_ty)?.map(|_| self.new_small_universe_ty()))
                 })
@@ -537,10 +528,10 @@ impl<'tc> InferOps<'tc> {
                 let data_ty_params =
                     self.stores().data_def().map_fast(data_ty.data_def, |data_def| data_def.params);
                 let Unification { sub } =
-                    self.unify_ops().unify_def_params(inferred_def_params, data_ty_params)?;
+                    self.unify_def_params(inferred_def_params, data_ty_params)?;
 
                 // Apply the substitution to the arguments.
-                self.substitute_ops().apply_sub_to_def_args_in_place(data_ty.args, &sub);
+                self.apply_sub_to_def_args_in_place(data_ty.args, &sub);
 
                 Ok(Some(self.new_small_universe_ty()))
             }
@@ -550,13 +541,13 @@ impl<'tc> InferOps<'tc> {
     }
 
     /// Infer the type of a loop control term, and return it.
-    fn infer_loop_control_term(&self, _: &LoopControlTerm) -> TyId {
+    pub fn infer_loop_control_term(&self, _: &LoopControlTerm) -> TyId {
         // Always `never`.
         self.new_never_ty()
     }
 
     /// Infer the type of an unsafe term, and return it.
-    fn infer_unsafe_term(&self, unsafe_term: &UnsafeTerm) -> TcResult<Option<TyId>> {
+    pub fn infer_unsafe_term(&self, unsafe_term: &UnsafeTerm) -> TcResult<Option<TyId>> {
         // @@Todo: unsafe context
         // For now just forward to the inner term.
         self.infer_term(unsafe_term.inner)
@@ -627,10 +618,8 @@ impl<'tc> InferOps<'tc> {
         let inferred_term_ty = self.infer_term(cast_term.subject_term)?;
         match inferred_term_ty {
             Some(inferred_term_ty) => {
-                let Unification { sub } =
-                    self.unify_ops().unify_tys(inferred_term_ty, cast_term.target_ty)?;
-                let subbed_target =
-                    self.substitute_ops().apply_sub_to_ty(cast_term.target_ty, &sub);
+                let Unification { sub } = self.unify_tys(inferred_term_ty, cast_term.target_ty)?;
+                let subbed_target = self.apply_sub_to_ty(cast_term.target_ty, &sub);
                 Ok(Some(subbed_target))
             }
             None => Ok(None),
@@ -681,7 +670,7 @@ impl<'tc> InferOps<'tc> {
             Pat::Range(range_pat) => {
                 let start = self.infer_lit(&range_pat.start.into());
                 let end = self.infer_lit(&range_pat.end.into());
-                let Unification { sub } = self.unify_ops().unify_tys(start, end)?;
+                let Unification { sub } = self.unify_tys(start, end)?;
                 assert!(sub.is_empty());
                 Ok(Some(start))
             }
@@ -730,9 +719,8 @@ impl<'tc> InferOps<'tc> {
 
                 match (cond_ty, pat_ty) {
                     (Some(cond_ty), Some(pat_ty)) => {
-                        let Unification { sub } = self
-                            .unify_ops()
-                            .unify_tys(cond_ty, self.new_data_ty(self.primitives().bool()))?;
+                        let Unification { sub } =
+                            self.unify_tys(cond_ty, self.new_data_ty(self.primitives().bool()))?;
                         assert!(sub.is_empty());
                         Ok(Some(pat_ty))
                     }

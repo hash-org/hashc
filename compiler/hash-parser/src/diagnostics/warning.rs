@@ -29,7 +29,7 @@ pub struct ParseWarning {
 
 /// When warnings describe that a subject could be being applied
 /// on a particular kind like `literal` or `block`... etc.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum SubjectKind {
     /// When the subject is a literal
     Lit,

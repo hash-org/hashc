@@ -5,14 +5,17 @@ use hash_ast::ast;
 use hash_source::{identifier::Identifier, location::Span};
 use hash_tir::new::{
     data::DataDefId,
-    environment::{context::ScopeKind, env::AccessToEnv},
+    environment::{
+        context::ScopeKind,
+        env::{AccessToEnv, Env},
+    },
     fns::FnDefId,
     locations::LocationTarget,
     mods::ModDefId,
     scopes::{StackId, StackMemberId},
     symbols::Symbol,
     tys::TyId,
-    utils::common::CommonUtils,
+    utils::{common::CommonUtils, AccessToUtils},
 };
 use hash_utils::{
     state::HeavyState,
@@ -20,14 +23,10 @@ use hash_utils::{
 };
 
 use super::paths::NonTerminalResolvedPathComponent;
-use crate::{
-    impl_access_to_tc_env,
-    new::{
-        diagnostics::error::{TcError, TcResult},
-        environment::tc_env::{AccessToTcEnv, TcEnv, WithTcEnv},
-        ops::AccessToOps,
-        passes::ast_utils::AstUtils,
-    },
+use crate::new::{
+    diagnostics::error::{SemanticError, SemanticResult},
+    environment::tc_env::{AccessToTcEnv, TcEnv, WithTcEnv},
+    passes::ast_utils::AstUtils,
 };
 
 /// The kind of context we are in.
@@ -72,9 +71,17 @@ pub(super) struct Scoping<'tc> {
     bindings_by_name: HeavyState<Vec<(ContextKind, HashMap<Identifier, Symbol>)>>,
 }
 
-impl_access_to_tc_env!(Scoping<'tc>);
+impl AccessToEnv for Scoping<'_> {
+    fn env(&self) -> &Env {
+        self.tc_env.env()
+    }
+}
 
-impl AstUtils for Scoping<'_> {}
+impl AccessToTcEnv for Scoping<'_> {
+    fn tc_env(&self) -> &TcEnv<'_> {
+        self.tc_env
+    }
+}
 
 impl<'tc> Scoping<'tc> {
     pub(super) fn new(tc_env: &'tc TcEnv<'tc>) -> Self {
@@ -119,9 +126,9 @@ impl<'tc> Scoping<'tc> {
         name: impl Into<Identifier>,
         span: Span,
         looking_in: ContextKind,
-    ) -> TcResult<Symbol> {
+    ) -> SemanticResult<Symbol> {
         let name = name.into();
-        self.lookup_symbol_by_name(name).ok_or_else(|| TcError::SymbolNotFound {
+        self.lookup_symbol_by_name(name).ok_or_else(|| SemanticError::SymbolNotFound {
             symbol: self.new_symbol(name),
             location: self.source_location(span),
             looking_in,
@@ -138,7 +145,7 @@ impl<'tc> Scoping<'tc> {
         context_kind: ContextKind,
         f: impl FnOnce() -> T,
     ) -> T {
-        self.context_ops().enter_scope(kind, || {
+        self.context_utils().enter_scope(kind, || {
             self.bindings_by_name.enter(
                 |b| {
                     // Populate the map with all the bindings in the current
@@ -167,7 +174,7 @@ impl<'tc> Scoping<'tc> {
 
     /// Add a new scope
     pub(super) fn add_scope(&self, kind: ScopeKind, context_kind: ContextKind) {
-        self.context_ops().add_scope(kind);
+        self.context_utils().add_scope(kind);
 
         let mut b = self.bindings_by_name.get_mut();
 
@@ -193,7 +200,7 @@ impl<'tc> Scoping<'tc> {
         let member_name_data = self.stores().symbol().get(member_name);
 
         // Add the binding to the current scope.
-        self.context_ops().add_stack_binding(member_id);
+        self.context_utils().add_stack_binding(member_id);
 
         // Add the binding to the `bindings_by_name` map.
         if let Some(name) = member_name_data.name {

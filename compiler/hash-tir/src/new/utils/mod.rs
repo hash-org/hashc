@@ -1,10 +1,11 @@
 //! Utility functions for working with TC primitives.
 use self::{
-    data::DataUtils, defs::DefUtils, fns::FnUtils, mods::ModUtils, params::ParamUtils,
-    stack::StackUtils, traversing::TraversingUtils, tuples::TupleUtils,
+    context::ContextUtils, data::DataUtils, defs::DefUtils, fns::FnUtils, mods::ModUtils,
+    params::ParamUtils, stack::StackUtils, traversing::TraversingUtils, tuples::TupleUtils,
 };
 
 pub mod common;
+pub mod context;
 pub mod data;
 pub mod defs;
 pub mod fns;
@@ -36,4 +37,5 @@ utils! {
   stack_utils: StackUtils,
   tuple_utils: TupleUtils,
   traversing_utils: TraversingUtils,
+  context_utils: ContextUtils,
 }

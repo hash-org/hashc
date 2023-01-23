@@ -6,14 +6,12 @@
 use derive_more::Constructor;
 use hash_ast::ast::{self};
 use hash_tir::new::environment::env::AccessToEnv;
+use hash_typecheck::AccessToTypechecking;
 
-use super::ast_utils::{AstPass, AstUtils};
+use super::ast_utils::AstPass;
 use crate::{
     impl_access_to_tc_env,
-    new::{
-        environment::tc_env::{AccessToTcEnv, TcEnv},
-        ops::AccessToOps,
-    },
+    new::environment::tc_env::{AccessToTcEnv, TcEnv},
 };
 
 /// The third pass of the typechecker, which infers all remaining terms and
@@ -23,13 +21,13 @@ pub struct InferencePass<'tc> {
     tc_env: &'tc TcEnv<'tc>,
 }
 
-impl_access_to_tc_env!(InferencePass<'tc>);
+impl_access_to_tc_env!(InferencePass<'_>);
 
 impl<'tc> AstPass for InferencePass<'tc> {
     fn pass_interactive(
         &self,
         node: ast::AstNodeRef<ast::BodyBlock>,
-    ) -> crate::new::diagnostics::error::TcResult<()> {
+    ) -> crate::new::diagnostics::error::SemanticResult<()> {
         // Just infer the term corresponding to the body block, and then print it
         // (@@Temp)
         let term = self.ast_info().terms().get_data_by_node(node.id()).unwrap();
@@ -45,7 +43,7 @@ impl<'tc> AstPass for InferencePass<'tc> {
     fn pass_module(
         &self,
         node: ast::AstNodeRef<ast::Module>,
-    ) -> crate::new::diagnostics::error::TcResult<()> {
+    ) -> crate::new::diagnostics::error::SemanticResult<()> {
         // Infer the whole module, which includes each member, and then print it
         // (@@Temp)
         let mod_def_id = self.ast_info().mod_defs().get_data_by_node(node.id()).unwrap();
@@ -54,5 +52,3 @@ impl<'tc> AstPass for InferencePass<'tc> {
         Ok(())
     }
 }
-
-impl AstUtils for InferencePass<'_> {}

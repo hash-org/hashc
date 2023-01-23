@@ -1,3 +1,4 @@
+use hash_reporting::diagnostic::Diagnostics;
 use hash_tir::new::environment::env::AccessToEnv;
 
 use self::{
@@ -5,7 +6,6 @@ use self::{
     resolution::ResolutionPass,
 };
 use super::environment::tc_env::{AccessToTcEnv, TcEnv};
-use crate::impl_access_to_tc_env;
 
 pub mod ast_utils;
 pub mod discovery;
@@ -17,7 +17,17 @@ pub struct TcVisitor<'tc> {
     tc_env: &'tc TcEnv<'tc>,
 }
 
-impl_access_to_tc_env!(TcVisitor<'tc>);
+impl AccessToEnv for TcVisitor<'_> {
+    fn env(&self) -> &hash_tir::new::environment::env::Env {
+        self.tc_env.env()
+    }
+}
+
+impl AccessToTcEnv for TcVisitor<'_> {
+    fn tc_env(&self) -> &TcEnv<'_> {
+        self.tc_env
+    }
+}
 
 impl<'tc> TcVisitor<'tc> {
     pub fn new(tc_env: &'tc TcEnv<'tc>) -> Self {

@@ -20,7 +20,7 @@ use hash_pipeline::{
     settings::CompilerStageKind,
     workspace::Workspace,
 };
-use hash_reporting::{diagnostic::Diagnostics, report::Report};
+use hash_reporting::{diagnostic::AccessToDiagnosticsMut, report::Report};
 use hash_source::{InteractiveId, ModuleId, ModuleKind, SourceId};
 use import_resolver::ImportResolver;
 use parser::AstGen;
@@ -175,7 +175,8 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
 
     // Check if the lexer has errors...
     if lexer.has_errors() {
-        sender.send(ParserAction::Error(lexer.into_reports())).unwrap();
+        let diagnostics = lexer.diagnostics();
+        sender.send(ParserAction::Error(diagnostics.into_reports())).unwrap();
         return;
     }
 

@@ -41,7 +41,7 @@ use super::{
     ResolutionPass,
 };
 use crate::new::{
-    diagnostics::error::{TcError, TcResult},
+    diagnostics::error::{SemanticError, SemanticResult},
     environment::tc_env::AccessToTcEnv,
     ops::common::CommonOps,
     passes::ast_utils::AstUtils,
@@ -54,7 +54,7 @@ impl<'tc> ResolutionPass<'tc> {
     pub(super) fn make_args_from_ast_tuple_lit_args(
         &self,
         args: &ast::AstNodes<ast::TupleLitEntry>,
-    ) -> TcResult<ArgsId> {
+    ) -> SemanticResult<ArgsId> {
         // @@Todo: create type for the tuple as some annotations
         // might be given.
         // @@Todo: error recovery
@@ -71,7 +71,7 @@ impl<'tc> ResolutionPass<'tc> {
                     value: self.make_term_from_ast_expr(arg.value.ast_ref())?,
                 })
             })
-            .collect::<TcResult<Vec<_>>>()?;
+            .collect::<SemanticResult<Vec<_>>>()?;
         Ok(self.param_utils().create_args(args.into_iter()))
     }
 
@@ -79,7 +79,7 @@ impl<'tc> ResolutionPass<'tc> {
     pub(super) fn make_args_from_constructor_call_args(
         &self,
         args: &ast::AstNodes<ast::ConstructorCallArg>,
-    ) -> TcResult<ArgsId> {
+    ) -> SemanticResult<ArgsId> {
         // @@Todo: error recovery
         let args = args
             .iter()
@@ -94,7 +94,7 @@ impl<'tc> ResolutionPass<'tc> {
                     value: self.make_term_from_ast_expr(arg.value.ast_ref())?,
                 })
             })
-            .collect::<TcResult<Vec<_>>>()?;
+            .collect::<SemanticResult<Vec<_>>>()?;
         Ok(self.param_utils().create_args(args.into_iter()))
     }
 
@@ -103,7 +103,10 @@ impl<'tc> ResolutionPass<'tc> {
     ///
     /// This handles all expressions, some of which might be holes to be
     /// resolved later.
-    pub(super) fn make_term_from_ast_expr(&self, node: AstNodeRef<ast::Expr>) -> TcResult<TermId> {
+    pub(super) fn make_term_from_ast_expr(
+        &self,
+        node: AstNodeRef<ast::Expr>,
+    ) -> SemanticResult<TermId> {
         // Maybe it has already been made:
         if let Some(term_id) = self.ast_info().terms().get_data_by_node(node.id()) {
             return Ok(term_id);
@@ -202,7 +205,7 @@ impl<'tc> ResolutionPass<'tc> {
     fn variable_expr_as_ast_path<'a>(
         &self,
         node: AstNodeRef<'a, ast::VariableExpr>,
-    ) -> TcResult<AstPath<'a>> {
+    ) -> SemanticResult<AstPath<'a>> {
         Ok(vec![AstPathComponent {
             name: node.body.name.ident,
             name_span: node.span(),
@@ -218,13 +221,15 @@ impl<'tc> ResolutionPass<'tc> {
     pub(super) fn access_expr_as_ast_path<'a>(
         &self,
         node: AstNodeRef<'a, ast::AccessExpr>,
-    ) -> TcResult<Option<AstPath<'a>>> {
+    ) -> SemanticResult<Option<AstPath<'a>>> {
         match node.kind {
             ast::AccessKind::Namespace => match node.property.body() {
                 ast::PropertyKind::NamedField(name) => {
                     let mut root =
                         self.expr_as_ast_path(node.body.subject.ast_ref())?.ok_or_else(|| {
-                            TcError::InvalidNamespaceSubject { location: self.node_location(node) }
+                            SemanticError::InvalidNamespaceSubject {
+                                location: self.node_location(node),
+                            }
                         })?;
                     root.push(AstPathComponent {
                         name: *name,
@@ -251,7 +256,7 @@ impl<'tc> ResolutionPass<'tc> {
     fn constructor_call_as_ast_path<'a>(
         &self,
         node: AstNodeRef<'a, ast::ConstructorCallExpr>,
-    ) -> TcResult<Option<AstPath<'a>>> {
+    ) -> SemanticResult<Option<AstPath<'a>>> {
         match self.expr_as_ast_path(node.body.subject.ast_ref())? {
             Some(mut path) => match path.last_mut() {
                 Some(component) => {
@@ -271,7 +276,7 @@ impl<'tc> ResolutionPass<'tc> {
     pub(super) fn expr_as_ast_path<'a>(
         &self,
         node: AstNodeRef<'a, ast::Expr>,
-    ) -> TcResult<Option<AstPath<'a>>> {
+    ) -> SemanticResult<Option<AstPath<'a>>> {
         match node.body {
             ast::Expr::Variable(variable_expr) => {
                 let variable_ref = node.with_body(variable_expr);
@@ -298,7 +303,7 @@ impl<'tc> ResolutionPass<'tc> {
         &self,
         path: &ResolvedAstPathComponent,
         original_node_span: Span,
-    ) -> TcResult<TermId> {
+    ) -> SemanticResult<TermId> {
         match path {
             ResolvedAstPathComponent::NonTerminal(non_terminal) => {
                 match non_terminal {
@@ -311,7 +316,7 @@ impl<'tc> ResolutionPass<'tc> {
                     }
                     NonTerminalResolvedPathComponent::Mod(_) => {
                         // Modules are not allowed in value positions
-                        Err(TcError::CannotUseModuleInValuePosition {
+                        Err(SemanticError::CannotUseModuleInValuePosition {
                             location: self.source_location(original_node_span),
                         })
                     }
@@ -349,7 +354,7 @@ impl<'tc> ResolutionPass<'tc> {
     fn make_term_from_ast_variable_expr(
         &self,
         node: AstNodeRef<ast::VariableExpr>,
-    ) -> TcResult<TermId> {
+    ) -> SemanticResult<TermId> {
         let path = self.variable_expr_as_ast_path(node)?;
         let resolved_path = self.resolve_ast_path(&path)?;
         self.make_term_from_resolved_ast_path(&resolved_path, node.span())
@@ -359,7 +364,7 @@ impl<'tc> ResolutionPass<'tc> {
     fn make_term_from_ast_constructor_call_expr(
         &self,
         node: AstNodeRef<ast::ConstructorCallExpr>,
-    ) -> TcResult<TermId> {
+    ) -> SemanticResult<TermId> {
         // This is either a path or a computed function call
         match self.constructor_call_as_ast_path(node)? {
             Some(path) => {
@@ -378,7 +383,7 @@ impl<'tc> ResolutionPass<'tc> {
                         args,
                         implicit: false,
                     }))),
-                    _ => Err(TcError::Signal),
+                    _ => Err(SemanticError::Signal),
                 }
             }
         }
@@ -388,7 +393,7 @@ impl<'tc> ResolutionPass<'tc> {
     fn make_term_from_ast_access_expr(
         &self,
         node: AstNodeRef<ast::AccessExpr>,
-    ) -> TcResult<TermId> {
+    ) -> SemanticResult<TermId> {
         match self.access_expr_as_ast_path(node)? {
             Some(path) => {
                 let resolved_path = self.resolve_ast_path(&path)?;
@@ -410,7 +415,7 @@ impl<'tc> ResolutionPass<'tc> {
     }
 
     /// Make a term from an [`ast::TyExpr`].
-    fn make_term_from_ast_ty_expr(&self, node: AstNodeRef<ast::TyExpr>) -> TcResult<TermId> {
+    fn make_term_from_ast_ty_expr(&self, node: AstNodeRef<ast::TyExpr>) -> SemanticResult<TermId> {
         Ok(self.new_term(Term::Ty(self.make_ty_from_ast_ty(node.ty.ast_ref())?)))
     }
 
@@ -418,7 +423,7 @@ impl<'tc> ResolutionPass<'tc> {
     fn make_term_from_ast_directive_expr(
         &self,
         node: AstNodeRef<ast::DirectiveExpr>,
-    ) -> TcResult<TermId> {
+    ) -> SemanticResult<TermId> {
         // Pass to the inner expression
         // @@Future: keep directive in term structure
         self.make_term_from_ast_expr(node.subject.ast_ref())
@@ -428,7 +433,7 @@ impl<'tc> ResolutionPass<'tc> {
     fn make_term_from_ast_stack_declaration(
         &self,
         node: AstNodeRef<ast::Declaration>,
-    ) -> TcResult<TermId> {
+    ) -> SemanticResult<TermId> {
         self.scoping().register_declaration(node);
 
         // Pattern
@@ -453,13 +458,16 @@ impl<'tc> ResolutionPass<'tc> {
             _ => {
                 // If pat had an error, then we can't make a term, and the
                 // error will have been added already.
-                Err(TcError::Signal)
+                Err(SemanticError::Signal)
             }
         }
     }
 
     /// Make a term from an [`ast::RefExpr`].
-    fn make_term_from_ast_ref_expr(&self, node: AstNodeRef<ast::RefExpr>) -> TcResult<TermId> {
+    fn make_term_from_ast_ref_expr(
+        &self,
+        node: AstNodeRef<ast::RefExpr>,
+    ) -> SemanticResult<TermId> {
         let subject = self.make_term_from_ast_expr(node.inner_expr.ast_ref())?;
         Ok(self.new_term(Term::Ref(RefTerm {
             kind: match node.kind {
@@ -476,7 +484,10 @@ impl<'tc> ResolutionPass<'tc> {
     }
 
     /// Make a term from an [`ast::DerefExpr`].
-    fn make_term_from_ast_deref_expr(&self, node: AstNodeRef<ast::DerefExpr>) -> TcResult<TermId> {
+    fn make_term_from_ast_deref_expr(
+        &self,
+        node: AstNodeRef<ast::DerefExpr>,
+    ) -> SemanticResult<TermId> {
         let subject = self.make_term_from_ast_expr(node.data.ast_ref())?;
         Ok(self.new_term(Term::Deref(DerefTerm { subject })))
     }
@@ -485,13 +496,16 @@ impl<'tc> ResolutionPass<'tc> {
     fn make_term_from_ast_unsafe_expr(
         &self,
         node: AstNodeRef<ast::UnsafeExpr>,
-    ) -> TcResult<TermId> {
+    ) -> SemanticResult<TermId> {
         let inner = self.make_term_from_ast_expr(node.data.ast_ref())?;
         Ok(self.new_term(Term::Unsafe(UnsafeTerm { inner })))
     }
 
     /// Make a term from an [`ast::LitExpr`].
-    fn make_term_from_ast_lit_expr(&self, node: AstNodeRef<ast::LitExpr>) -> TcResult<TermId> {
+    fn make_term_from_ast_lit_expr(
+        &self,
+        node: AstNodeRef<ast::LitExpr>,
+    ) -> SemanticResult<TermId> {
         // Macro to make a literal primitive term
         macro_rules! lit_prim {
             ($name:ident,$lit_name:ident, $contents:expr) => {
@@ -519,14 +533,17 @@ impl<'tc> ResolutionPass<'tc> {
     }
 
     /// Make a term from an [`ast::CastExpr`].
-    fn make_term_from_ast_cast_expr(&self, node: AstNodeRef<ast::CastExpr>) -> TcResult<TermId> {
+    fn make_term_from_ast_cast_expr(
+        &self,
+        node: AstNodeRef<ast::CastExpr>,
+    ) -> SemanticResult<TermId> {
         let subject = self.try_or_add_error(self.make_term_from_ast_expr(node.expr.ast_ref()));
         let ty = self.try_or_add_error(self.make_ty_from_ast_ty(node.ty.ast_ref()));
         match (subject, ty) {
             (Some(subject), Some(ty)) => {
                 Ok(self.new_term(Term::Cast(CastTerm { subject_term: subject, target_ty: ty })))
             }
-            _ => Err(TcError::Signal),
+            _ => Err(SemanticError::Signal),
         }
     }
 
@@ -534,7 +551,7 @@ impl<'tc> ResolutionPass<'tc> {
     fn make_term_from_ast_return_statement(
         &self,
         node: AstNodeRef<ast::ReturnStatement>,
-    ) -> TcResult<TermId> {
+    ) -> SemanticResult<TermId> {
         let expression = match node.expr.as_ref() {
             Some(expr) => self.make_term_from_ast_expr(expr.ast_ref())?,
             None => self.new_void_term(),
@@ -546,7 +563,7 @@ impl<'tc> ResolutionPass<'tc> {
     fn make_term_from_ast_break_statement(
         &self,
         _: AstNodeRef<ast::BreakStatement>,
-    ) -> TcResult<TermId> {
+    ) -> SemanticResult<TermId> {
         Ok(self.new_term(Term::LoopControl(LoopControlTerm::Break)))
     }
 
@@ -554,7 +571,7 @@ impl<'tc> ResolutionPass<'tc> {
     fn make_term_from_ast_continue_statement(
         &self,
         _: AstNodeRef<ast::ContinueStatement>,
-    ) -> TcResult<TermId> {
+    ) -> SemanticResult<TermId> {
         Ok(self.new_term(Term::LoopControl(LoopControlTerm::Continue)))
     }
 
@@ -562,14 +579,14 @@ impl<'tc> ResolutionPass<'tc> {
     fn make_term_from_ast_assign_expr(
         &self,
         node: AstNodeRef<ast::AssignExpr>,
-    ) -> TcResult<TermId> {
+    ) -> SemanticResult<TermId> {
         let lhs = self.try_or_add_error(self.make_term_from_ast_expr(node.lhs.ast_ref()));
         let rhs = self.try_or_add_error(self.make_term_from_ast_expr(node.rhs.ast_ref()));
         match (lhs, rhs) {
             (Some(lhs), Some(rhs)) => {
                 Ok(self.new_term(Term::Assign(AssignTerm { subject: lhs, value: rhs })))
             }
-            _ => Err(TcError::Signal),
+            _ => Err(SemanticError::Signal),
         }
     }
 
@@ -577,7 +594,7 @@ impl<'tc> ResolutionPass<'tc> {
     fn make_term_from_ast_match_block(
         &self,
         node: AstNodeRef<ast::MatchBlock>,
-    ) -> TcResult<TermId> {
+    ) -> SemanticResult<TermId> {
         // First convert the subject
         let subject = self.try_or_add_error(self.make_term_from_ast_expr(node.subject.ast_ref()));
 
@@ -603,7 +620,7 @@ impl<'tc> ResolutionPass<'tc> {
                 let decisions = self.new_term_list(cases_and_decisions.1);
                 Ok(self.new_term(Term::Match(MatchTerm { subject, cases, decisions })))
             }
-            _ => Err(TcError::Signal),
+            _ => Err(SemanticError::Signal),
         }
     }
 
@@ -613,7 +630,7 @@ impl<'tc> ResolutionPass<'tc> {
     pub(super) fn make_term_from_ast_body_block(
         &self,
         node: AstNodeRef<ast::BodyBlock>,
-    ) -> TcResult<TermId> {
+    ) -> SemanticResult<TermId> {
         self.scoping()
             .enter_body_block(node, |_| {
                 // Traverse the statements and the end expression
@@ -642,7 +659,7 @@ impl<'tc> ResolutionPass<'tc> {
                         let return_value = self.new_void_term();
                         Ok(self.new_term(Term::Block(BlockTerm { statements, return_value })))
                     }
-                    _ => Err(TcError::Signal),
+                    _ => Err(SemanticError::Signal),
                 }
             })
             .unwrap_or_else(|| {
@@ -655,7 +672,10 @@ impl<'tc> ResolutionPass<'tc> {
     }
 
     /// Make a term from an [`ast::LoopBlock`].
-    fn make_term_from_ast_loop_block(&self, node: AstNodeRef<ast::LoopBlock>) -> TcResult<TermId> {
+    fn make_term_from_ast_loop_block(
+        &self,
+        node: AstNodeRef<ast::LoopBlock>,
+    ) -> SemanticResult<TermId> {
         let inner = self.make_term_from_ast_body_block(match node.contents.body() {
             ast::Block::Body(body_block) => node.contents.with_body(body_block),
             _ => panic_on_span!(
@@ -670,7 +690,10 @@ impl<'tc> ResolutionPass<'tc> {
     }
 
     /// Make a term from an [`ast::BlockExpr`].
-    fn make_term_from_ast_block_expr(&self, node: AstNodeRef<ast::BlockExpr>) -> TcResult<TermId> {
+    fn make_term_from_ast_block_expr(
+        &self,
+        node: AstNodeRef<ast::BlockExpr>,
+    ) -> SemanticResult<TermId> {
         match node.data.body() {
             ast::Block::Match(match_block) => {
                 self.make_term_from_ast_match_block(node.data.with_body(match_block))
@@ -701,7 +724,7 @@ impl<'tc> ResolutionPass<'tc> {
         body: &AstNode<ast::Expr>,
         return_ty: &Option<AstNode<ast::Ty>>,
         node_id: AstNodeId,
-    ) -> TcResult<TermId> {
+    ) -> SemanticResult<TermId> {
         // Function should already be discovered
         let fn_def_id = self.ast_info().fn_defs().get_data_by_node(node_id).unwrap();
 
@@ -750,7 +773,7 @@ impl<'tc> ResolutionPass<'tc> {
         // If all ok, create a fn ref term
         match (params, return_ty, return_value) {
             (Some(_), None | Some(Some(_)), Some(_)) => Ok(self.new_term(Term::FnRef(fn_def_id))),
-            _ => Err(TcError::Signal),
+            _ => Err(SemanticError::Signal),
         }
     }
 
@@ -758,7 +781,7 @@ impl<'tc> ResolutionPass<'tc> {
     pub(super) fn make_term_from_ast_ty_fn_def(
         &self,
         node: AstNodeRef<ast::TyFnDef>,
-    ) -> TcResult<TermId> {
+    ) -> SemanticResult<TermId> {
         self.make_term_from_some_ast_fn_def(
             &node.params,
             &node.ty_fn_body,
@@ -771,7 +794,7 @@ impl<'tc> ResolutionPass<'tc> {
     pub(super) fn make_term_from_ast_fn_def(
         &self,
         node: AstNodeRef<ast::FnDef>,
-    ) -> TcResult<TermId> {
+    ) -> SemanticResult<TermId> {
         self.make_term_from_some_ast_fn_def(&node.params, &node.fn_body, &node.return_ty, node.id())
     }
 
@@ -779,13 +802,16 @@ impl<'tc> ResolutionPass<'tc> {
     fn make_term_from_ast_assign_op_expr(
         &self,
         _node: AstNodeRef<ast::AssignOpExpr>,
-    ) -> TcResult<TermId> {
+    ) -> SemanticResult<TermId> {
         // @@Todo: deal with operators
         todo!()
     }
 
     /// Make a term from an [`ast::IndexExpr`].
-    fn make_term_from_ast_index_expr(&self, _node: AstNodeRef<ast::IndexExpr>) -> TcResult<TermId> {
+    fn make_term_from_ast_index_expr(
+        &self,
+        _node: AstNodeRef<ast::IndexExpr>,
+    ) -> SemanticResult<TermId> {
         // @@Todo: deal with indexing
         todo!()
     }
@@ -794,13 +820,16 @@ impl<'tc> ResolutionPass<'tc> {
     fn make_term_from_ast_binary_expr(
         &self,
         _node: AstNodeRef<ast::BinaryExpr>,
-    ) -> TcResult<TermId> {
+    ) -> SemanticResult<TermId> {
         // @@Todo: deal with operators
         todo!()
     }
 
     /// Make a term from an [`ast::UnaryExpr`].
-    fn make_term_from_ast_unary_expr(&self, _node: AstNodeRef<ast::UnaryExpr>) -> TcResult<TermId> {
+    fn make_term_from_ast_unary_expr(
+        &self,
+        _node: AstNodeRef<ast::UnaryExpr>,
+    ) -> SemanticResult<TermId> {
         // @@Todo: deal with operators
         todo!()
     }

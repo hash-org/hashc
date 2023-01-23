@@ -37,7 +37,7 @@ use super::{
     ResolutionPass,
 };
 use crate::new::{
-    diagnostics::error::{TcError, TcResult},
+    diagnostics::error::{SemanticError, SemanticResult},
     environment::tc_env::AccessToTcEnv,
     ops::common::CommonOps,
     passes::ast_utils::AstUtils,
@@ -48,7 +48,7 @@ impl<'tc> ResolutionPass<'tc> {
     pub(super) fn make_args_from_ast_ty_args(
         &self,
         args: &ast::AstNodes<ast::TyArg>,
-    ) -> TcResult<ArgsId> {
+    ) -> SemanticResult<ArgsId> {
         // @@Todo: error recovery
         let args = args
             .iter()
@@ -63,12 +63,15 @@ impl<'tc> ResolutionPass<'tc> {
                     value: self.new_term(Term::Ty(self.make_ty_from_ast_ty(arg.ty.ast_ref())?)),
                 })
             })
-            .collect::<TcResult<Vec<_>>>()?;
+            .collect::<SemanticResult<Vec<_>>>()?;
         Ok(self.param_utils().create_args(args.into_iter()))
     }
 
     /// Make TC parameters from the given [`ast::TyArg`] list.
-    fn make_params_from_ast_ty_args(&self, ty_args: &AstNodes<ast::TyArg>) -> TcResult<ParamsId> {
+    fn make_params_from_ast_ty_args(
+        &self,
+        ty_args: &AstNodes<ast::TyArg>,
+    ) -> SemanticResult<ParamsId> {
         let params = ty_args
             .ast_ref_iter()
             .filter_map(|ty_arg| {
@@ -83,7 +86,7 @@ impl<'tc> ResolutionPass<'tc> {
             .collect_vec();
 
         if params.len() != ty_args.len() {
-            Err(TcError::Signal)
+            Err(SemanticError::Signal)
         } else {
             Ok(self.param_utils().create_params(params.into_iter()))
         }
@@ -93,7 +96,7 @@ impl<'tc> ResolutionPass<'tc> {
     fn named_ty_as_ast_path<'a>(
         &self,
         node: AstNodeRef<'a, ast::NamedTy>,
-    ) -> TcResult<AstPath<'a>> {
+    ) -> SemanticResult<AstPath<'a>> {
         Ok(vec![AstPathComponent {
             name: node.body.name.ident,
             name_span: node.span(),
@@ -106,9 +109,9 @@ impl<'tc> ResolutionPass<'tc> {
     fn access_ty_as_ast_path<'a>(
         &self,
         node: AstNodeRef<'a, ast::AccessTy>,
-    ) -> TcResult<AstPath<'a>> {
+    ) -> SemanticResult<AstPath<'a>> {
         let mut root = self.ty_as_ast_path(node.body.subject.ast_ref())?.ok_or_else(|| {
-            TcError::InvalidNamespaceSubject { location: self.node_location(node) }
+            SemanticError::InvalidNamespaceSubject { location: self.node_location(node) }
         })?;
 
         root.push(AstPathComponent {
@@ -124,7 +127,7 @@ impl<'tc> ResolutionPass<'tc> {
     fn ty_fn_call_as_ast_path<'a>(
         &self,
         node: AstNodeRef<'a, ast::TyFnCall>,
-    ) -> TcResult<Option<AstPath<'a>>> {
+    ) -> SemanticResult<Option<AstPath<'a>>> {
         match self.expr_as_ast_path(node.body.subject.ast_ref())? {
             Some(mut path) => match path.last_mut() {
                 Some(component) => {
@@ -142,7 +145,7 @@ impl<'tc> ResolutionPass<'tc> {
         &self,
         path: &ResolvedAstPathComponent,
         original_node_span: Span,
-    ) -> TcResult<TyId> {
+    ) -> SemanticResult<TyId> {
         match path {
             ResolvedAstPathComponent::NonTerminal(non_terminal) => match non_terminal {
                 NonTerminalResolvedPathComponent::Data(data_def_id, data_def_args) => {
@@ -152,7 +155,7 @@ impl<'tc> ResolutionPass<'tc> {
                 }
                 NonTerminalResolvedPathComponent::Mod(_) => {
                     // Modules are not allowed in type positions
-                    Err(TcError::CannotUseModuleInTypePosition {
+                    Err(SemanticError::CannotUseModuleInTypePosition {
                         location: self.source_location(original_node_span),
                     })
                 }
@@ -160,7 +163,7 @@ impl<'tc> ResolutionPass<'tc> {
             ResolvedAstPathComponent::Terminal(terminal) => match terminal {
                 TerminalResolvedPathComponent::FnDef(_) => {
                     // Functions are not allowed in type positions
-                    Err(TcError::CannotUseFunctionInTypePosition {
+                    Err(SemanticError::CannotUseFunctionInTypePosition {
                         location: self.source_location(original_node_span),
                     })
                 }
@@ -173,7 +176,7 @@ impl<'tc> ResolutionPass<'tc> {
                 }
                 TerminalResolvedPathComponent::CtorTerm(_) => {
                     // Constructors are not allowed in type positions
-                    Err(TcError::CannotUseConstructorInTypePosition {
+                    Err(SemanticError::CannotUseConstructorInTypePosition {
                         location: self.source_location(original_node_span),
                     })
                 }
@@ -196,7 +199,7 @@ impl<'tc> ResolutionPass<'tc> {
     pub(super) fn ty_as_ast_path<'a>(
         &self,
         node: AstNodeRef<'a, ast::Ty>,
-    ) -> TcResult<Option<AstPath<'a>>> {
+    ) -> SemanticResult<Option<AstPath<'a>>> {
         match node.body {
             ast::Ty::Access(access_ty) => {
                 let access_ty_ref = node.with_body(access_ty);
@@ -215,14 +218,14 @@ impl<'tc> ResolutionPass<'tc> {
     }
 
     /// Make a type from the given [`ast::AccessTy`].
-    fn make_ty_from_ast_access_ty(&self, node: AstNodeRef<ast::AccessTy>) -> TcResult<TyId> {
+    fn make_ty_from_ast_access_ty(&self, node: AstNodeRef<ast::AccessTy>) -> SemanticResult<TyId> {
         let path = self.access_ty_as_ast_path(node)?;
         let resolved_path = self.resolve_ast_path(&path)?;
         self.make_ty_from_resolved_ast_path(&resolved_path, node.span())
     }
 
     /// Make a type from the given [`ast::NamedTy`].
-    fn make_ty_from_ast_named_ty(&self, node: AstNodeRef<ast::NamedTy>) -> TcResult<TyId> {
+    fn make_ty_from_ast_named_ty(&self, node: AstNodeRef<ast::NamedTy>) -> SemanticResult<TyId> {
         if node.name.is(IDENTS.Type) {
             Ok(self.new_small_universe_ty())
         } else {
@@ -233,7 +236,7 @@ impl<'tc> ResolutionPass<'tc> {
     }
 
     /// Make a type from the given [`ast::TyFnCall`].
-    fn make_ty_from_ast_ty_fn_call(&self, node: AstNodeRef<ast::TyFnCall>) -> TcResult<TyId> {
+    fn make_ty_from_ast_ty_fn_call(&self, node: AstNodeRef<ast::TyFnCall>) -> SemanticResult<TyId> {
         // This is either a path or a computed function call
         match self.ty_fn_call_as_ast_path(node)? {
             Some(path) => {
@@ -253,21 +256,21 @@ impl<'tc> ResolutionPass<'tc> {
                             implicit: true,
                         })))))
                     }
-                    _ => Err(TcError::Signal),
+                    _ => Err(SemanticError::Signal),
                 }
             }
         }
     }
 
     /// Make a type from the given [`ast::TupleTy`].
-    fn make_ty_from_ast_tuple_ty(&self, node: AstNodeRef<ast::TupleTy>) -> TcResult<TyId> {
+    fn make_ty_from_ast_tuple_ty(&self, node: AstNodeRef<ast::TupleTy>) -> SemanticResult<TyId> {
         // @@Todo: traverse parameters of tuple types in discovery
         let data = self.make_params_from_ast_ty_args(&node.entries)?;
         Ok(self.new_ty(Ty::Tuple(TupleTy { data })))
     }
 
     /// Make a type from the given [`ast::ListTy`].
-    fn make_ty_from_ast_list_ty(&self, node: AstNodeRef<ast::ListTy>) -> TcResult<TyId> {
+    fn make_ty_from_ast_list_ty(&self, node: AstNodeRef<ast::ListTy>) -> SemanticResult<TyId> {
         let inner_ty = self.make_ty_from_ast_ty(node.inner.ast_ref())?;
         let list_def = self.primitives().list();
         Ok(self.new_ty(Ty::Data(DataTy {
@@ -280,7 +283,7 @@ impl<'tc> ResolutionPass<'tc> {
     }
 
     /// Make a type from the given [`ast::RefTy`].
-    fn make_ty_from_ref_ty(&self, node: AstNodeRef<ast::RefTy>) -> TcResult<TyId> {
+    fn make_ty_from_ref_ty(&self, node: AstNodeRef<ast::RefTy>) -> SemanticResult<TyId> {
         let inner_ty = self.make_ty_from_ast_ty(node.inner.ast_ref())?;
         Ok(self.new_ty(Ty::Ref(RefTy {
             ty: inner_ty,
@@ -302,7 +305,10 @@ impl<'tc> ResolutionPass<'tc> {
     }
 
     /// Make a type from the given [`ast::Ty`].
-    pub(super) fn make_ty_from_ast_ty_fn_ty(&self, node: AstNodeRef<ast::TyFn>) -> TcResult<TyId> {
+    pub(super) fn make_ty_from_ast_ty_fn_ty(
+        &self,
+        node: AstNodeRef<ast::TyFn>,
+    ) -> SemanticResult<TyId> {
         // First, make the params
         let params = self.try_or_add_error(self.resolve_params_from_ast_params(&node.params, true));
         self.scoping().enter_ty_fn_ty(node, |ty_fn_id| {
@@ -322,14 +328,17 @@ impl<'tc> ResolutionPass<'tc> {
 
                 match (params, return_ty) {
                     (Some(_params), Some(_return_ty)) => Ok(ty_fn_id),
-                    _ => Err(TcError::Signal),
+                    _ => Err(SemanticError::Signal),
                 }
             })
         })
     }
 
     /// Make a type from the given [`ast::FnTy`].
-    pub(super) fn make_ty_from_ast_fn_ty(&self, node: AstNodeRef<ast::FnTy>) -> TcResult<TyId> {
+    pub(super) fn make_ty_from_ast_fn_ty(
+        &self,
+        node: AstNodeRef<ast::FnTy>,
+    ) -> SemanticResult<TyId> {
         // First, make the params
         let params = self.try_or_add_error(self.make_params_from_ast_ty_args(&node.params));
         self.scoping().enter_fn_ty(node, |fn_ty_id| {
@@ -349,7 +358,7 @@ impl<'tc> ResolutionPass<'tc> {
 
                 match (params, return_ty) {
                     (Some(_params), Some(_return_ty)) => Ok(fn_ty_id),
-                    _ => Err(TcError::Signal),
+                    _ => Err(SemanticError::Signal),
                 }
             })
         })
@@ -360,7 +369,7 @@ impl<'tc> ResolutionPass<'tc> {
     ///
     /// This only handles types which are paths, and otherwise creates a
     /// hole to be resolved later.
-    pub(super) fn make_ty_from_ast_ty(&self, node: AstNodeRef<ast::Ty>) -> TcResult<TyId> {
+    pub(super) fn make_ty_from_ast_ty(&self, node: AstNodeRef<ast::Ty>) -> SemanticResult<TyId> {
         let ty_id = match node.body {
             ast::Ty::Access(access_ty) => {
                 self.make_ty_from_ast_access_ty(node.with_body(access_ty))?

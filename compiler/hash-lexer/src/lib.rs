@@ -4,7 +4,7 @@
 use std::{cell::Cell, iter};
 
 use error::{LexerDiagnostics, LexerError, LexerErrorKind, LexerResult, NumericLitKind};
-use hash_reporting::diagnostic::Diagnostics;
+use hash_reporting::diagnostic::AccessToDiagnosticsMut;
 use hash_source::{
     constant::{IntConstant, IntTy, SIntTy, CONSTANT_MAP},
     identifier::{Identifier, IDENTS},

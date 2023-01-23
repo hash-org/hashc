@@ -37,7 +37,7 @@ macro_rules! term_as_variant {
 macro_rules! ty_as_variant {
     ($self:expr, value $ty:expr, $variant:ident) => {{
         let ty = $ty;
-        if let hash_tir::new::tys::Ty::$variant(ty) = ty {
+        if let $crate::new::tys::Ty::$variant(ty) = ty {
             ty
         } else {
             panic!("Expected type to be a {}", stringify!($variant))
@@ -350,4 +350,4 @@ pub trait CommonUtils: AccessToEnv {
     }
 }
 
-impl<T: AccessToEnv> CommonUtils for T {}
+impl<T: AccessToEnv + ?Sized> CommonUtils for T {}

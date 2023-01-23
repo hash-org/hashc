@@ -1,9 +1,9 @@
 //! Hash Compiler lexer error data types.
 
-use std::{cell::Cell, convert::Infallible, fmt::Display};
+use std::{cell::Cell, convert::Infallible, fmt::Display, mem::take};
 
 use hash_reporting::{
-    diagnostic::Diagnostics,
+    diagnostic::{AccessToDiagnosticsMut, DiagnosticsMut},
     report::{Report, ReportElement, ReportNote, ReportNoteKind},
     reporter::{Reporter, Reports},
 };
@@ -191,16 +191,19 @@ pub struct LexerDiagnostics {
     pub(crate) has_fatal_error: Cell<bool>,
 }
 
-impl Diagnostics<LexerError, Infallible> for Lexer<'_> {
-    type DiagnosticsStore = LexerDiagnostics;
-
-    fn diagnostic_store(&self) -> &Self::DiagnosticsStore {
-        &self.diagnostics
+impl LexerDiagnostics {
+    pub fn into_reports(&mut self) -> Vec<Report> {
+        self.errors.drain(..).flat_map(Reports::from).collect()
     }
+}
+
+impl DiagnosticsMut for LexerDiagnostics {
+    type Error = LexerError;
+    type Warning = Infallible;
 
     /// Add an error into the store
     fn add_error(&mut self, error: LexerError) {
-        self.diagnostics.errors.push(error);
+        self.errors.push(error);
     }
 
     /// The lexer does not currently emit any warnings and so if this
@@ -210,7 +213,7 @@ impl Diagnostics<LexerError, Infallible> for Lexer<'_> {
     }
 
     fn has_errors(&self) -> bool {
-        !self.diagnostic_store().errors.is_empty()
+        !self.errors.is_empty()
     }
 
     /// Lexer never emits any warnings so this always false
@@ -218,16 +221,28 @@ impl Diagnostics<LexerError, Infallible> for Lexer<'_> {
         false
     }
 
-    fn into_reports(self) -> Vec<Report> {
-        self.diagnostics.errors.into_iter().flat_map(Reports::from).collect()
+    fn into_diagnostics(&mut self) -> (Vec<LexerError>, Vec<Infallible>) {
+        (take(&mut self.errors), vec![])
     }
 
-    fn into_diagnostics(self) -> (Vec<LexerError>, Vec<Infallible>) {
-        (self.diagnostics.errors, vec![])
-    }
-
-    fn merge_diagnostics(&mut self, other: impl Diagnostics<LexerError, Infallible>) {
+    fn merge_diagnostics(
+        &mut self,
+        mut other: impl DiagnosticsMut<Error = LexerError, Warning = Infallible>,
+    ) {
         let (errors, _) = other.into_diagnostics();
-        self.diagnostics.errors.extend(errors)
+        self.errors.extend(errors)
+    }
+
+    fn clear_diagnostics(&mut self) {
+        self.errors.clear();
+        self.has_fatal_error.set(false);
+    }
+}
+
+impl AccessToDiagnosticsMut for Lexer<'_> {
+    type Diagnostics = LexerDiagnostics;
+
+    fn diagnostics(&mut self) -> &mut Self::Diagnostics {
+        &mut self.diagnostics
     }
 }

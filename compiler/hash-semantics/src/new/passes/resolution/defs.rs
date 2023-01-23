@@ -12,7 +12,7 @@ use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
 
 use super::{scoping::ContextKind, ResolutionPass};
 use crate::new::{
-    diagnostics::error::{TcError, TcResult},
+    diagnostics::error::{SemanticError, SemanticResult},
     environment::tc_env::AccessToTcEnv,
     ops::common::CommonOps,
 };
@@ -24,7 +24,7 @@ impl<'tc> ResolutionPass<'tc> {
     pub(super) fn resolve_ast_mod_def_inner_terms(
         &self,
         node: AstNodeRef<ast::ModDef>,
-    ) -> TcResult<ModDefId> {
+    ) -> SemanticResult<ModDefId> {
         let mod_def_id = self.ast_info().mod_defs().get_data_by_node(node.id()).unwrap();
         self.resolve_mod_def_inner_terms(mod_def_id, node.block.members())?;
         Ok(mod_def_id)
@@ -34,7 +34,7 @@ impl<'tc> ResolutionPass<'tc> {
     pub(super) fn resolve_ast_module_inner_terms(
         &self,
         node: AstNodeRef<ast::Module>,
-    ) -> TcResult<ModDefId> {
+    ) -> SemanticResult<ModDefId> {
         let mod_def_id = self.ast_info().mod_defs().get_data_by_node(node.id()).unwrap();
         self.resolve_mod_def_inner_terms(mod_def_id, node.contents.ast_ref_iter())?;
         Ok(mod_def_id)
@@ -47,7 +47,7 @@ impl<'tc> ResolutionPass<'tc> {
     pub(super) fn resolve_data_def_inner_terms(
         &self,
         originating_node: ast::AstNodeRef<ast::Expr>,
-    ) -> TcResult<()> {
+    ) -> SemanticResult<()> {
         let data_def_id =
             self.ast_info().data_defs().get_data_by_node(originating_node.id()).unwrap();
         self.scoping().enter_scope(data_def_id.into(), ContextKind::Environment, || {
@@ -102,7 +102,7 @@ impl<'tc> ResolutionPass<'tc> {
             }
 
             if found_error {
-                Err(TcError::Signal)
+                Err(SemanticError::Signal)
             } else {
                 Ok(())
             }
@@ -117,7 +117,7 @@ impl<'tc> ResolutionPass<'tc> {
         &self,
         mod_def_id: ModDefId,
         member_exprs: impl Iterator<Item = ast::AstNodeRef<'a, ast::Expr>>,
-    ) -> TcResult<()> {
+    ) -> SemanticResult<()> {
         self.scoping().enter_scope(mod_def_id.into(), ContextKind::Environment, || {
             let mut found_error = false;
             let members = self.stores().mod_def().map_fast(mod_def_id, |def| def.members);
@@ -189,7 +189,7 @@ impl<'tc> ResolutionPass<'tc> {
             }
 
             if found_error {
-                Err(TcError::Signal)
+                Err(SemanticError::Signal)
             } else {
                 Ok(())
             }

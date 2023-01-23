@@ -9,7 +9,7 @@ use hash_tir::new::{
     defs::{DefArgGroupData, DefArgsId, DefParamsId, DefPatArgGroupData, DefPatArgsId},
     environment::env::AccessToEnv,
     fns::FnCallTerm,
-    params::{ParamId, ParamsId},
+    params::{ParamId, ParamsId, SomeArgsId, SomeDefArgsId},
     pats::Spread,
     terms::{Term, TermId},
     utils::{common::CommonUtils, AccessToUtils},
@@ -18,10 +18,7 @@ use hash_utils::store::{SequenceStore, SequenceStoreKey};
 
 use super::ResolutionPass;
 use crate::new::{
-    diagnostics::{
-        error::{TcError, TcResult},
-        params::{SomeArgsId, SomeDefArgsId},
-    },
+    diagnostics::error::{SemanticError, SemanticResult},
     environment::tc_env::AccessToTcEnv,
     ops::common::CommonOps,
     passes::ast_utils::AstUtils,
@@ -146,7 +143,7 @@ impl<'tc> ResolutionPass<'tc> {
         &self,
         ast_def_params: impl Iterator<Item = &'a ast::AstNodes<ast::Param>>,
         implicit: bool,
-    ) -> TcResult<()> {
+    ) -> SemanticResult<()> {
         let mut found_error = false;
         for ast_def_param_group in ast_def_params {
             if self
@@ -159,7 +156,7 @@ impl<'tc> ResolutionPass<'tc> {
             }
         }
         if found_error {
-            Err(TcError::Signal)
+            Err(SemanticError::Signal)
         } else {
             Ok(())
         }
@@ -175,7 +172,7 @@ impl<'tc> ResolutionPass<'tc> {
         &self,
         ast_param: AstNodeRef<ast::Param>,
         implicit: bool,
-    ) -> TcResult<ParamId> {
+    ) -> SemanticResult<ParamId> {
         // Resolve the default value and type annotation:
         let default_value = self.try_or_add_error(
             ast_param
@@ -215,7 +212,7 @@ impl<'tc> ResolutionPass<'tc> {
 
                 Ok(param_id)
             }
-            _ => Err(TcError::Signal),
+            _ => Err(SemanticError::Signal),
         }
     }
 
@@ -227,7 +224,7 @@ impl<'tc> ResolutionPass<'tc> {
         &self,
         params: &ast::AstNodes<ast::Param>,
         implicit: bool,
-    ) -> TcResult<ParamsId> {
+    ) -> SemanticResult<ParamsId> {
         let mut found_error = false;
         let mut params_id: Option<ParamsId> = None;
 
@@ -248,7 +245,7 @@ impl<'tc> ResolutionPass<'tc> {
         }
 
         if found_error {
-            Err(TcError::Signal)
+            Err(SemanticError::Signal)
         } else {
             Ok(params_id.unwrap_or_else(|| self.new_empty_params()))
         }
@@ -261,7 +258,7 @@ impl<'tc> ResolutionPass<'tc> {
     pub(super) fn make_args_from_ast_arg_group(
         &self,
         group: &AstArgGroup,
-    ) -> TcResult<ResolvedArgs> {
+    ) -> SemanticResult<ResolvedArgs> {
         match group {
             AstArgGroup::ExplicitArgs(args) => {
                 Ok(ResolvedArgs::Term(self.make_args_from_constructor_call_args(args)?))
@@ -278,7 +275,7 @@ impl<'tc> ResolutionPass<'tc> {
                 let spread = self.try_or_add_error(self.make_spread_from_ast_spread(spread));
                 match (pat_args, spread) {
                     (Some(pat_args), Some(spread)) => Ok(ResolvedArgs::Pat(pat_args, spread)),
-                    _ => Err(TcError::Signal),
+                    _ => Err(SemanticError::Signal),
                 }
             }
         }
@@ -296,7 +293,7 @@ impl<'tc> ResolutionPass<'tc> {
         &self,
         groups: &[AstArgGroup],
         originating_params: DefParamsId,
-    ) -> TcResult<ResolvedDefArgs> {
+    ) -> SemanticResult<ResolvedDefArgs> {
         let mut is_pat_args: Option<bool> = None;
 
         // Ensure that each argument group is of the same kind.
@@ -342,7 +339,7 @@ impl<'tc> ResolutionPass<'tc> {
                                 param_group: (originating_params, index),
                             })
                         })
-                        .collect::<TcResult<Vec<_>>>()?;
+                        .collect::<SemanticResult<Vec<_>>>()?;
                     let def_pat_args =
                         self.param_utils().create_def_pat_args(arg_groups.into_iter());
                     self.stores().location().add_locations_to_targets(def_pat_args, |i| {
@@ -361,7 +358,7 @@ impl<'tc> ResolutionPass<'tc> {
                             };
                             Ok(DefArgGroupData { args, param_group: (originating_params, index) })
                         })
-                        .collect::<TcResult<Vec<_>>>()?;
+                        .collect::<SemanticResult<Vec<_>>>()?;
                     let def_args = self.param_utils().create_def_args(arg_groups.into_iter());
                     self.stores().location().add_locations_to_targets(def_args, |i| {
                         Some(self.source_location(groups[i].span()?))
@@ -390,7 +387,7 @@ impl<'tc> ResolutionPass<'tc> {
         subject: TermId,
         args: &[AstArgGroup],
         original_span: Span,
-    ) -> TcResult<FnCallTerm> {
+    ) -> SemanticResult<FnCallTerm> {
         debug_assert!(!args.is_empty());
         let mut current_subject = subject;
         for arg_group in args {
@@ -409,7 +406,7 @@ impl<'tc> ResolutionPass<'tc> {
                 ResolvedArgs::Pat(_, _) => {
                     // Here we are trying to call a function with pattern arguments.
                     // This is not allowed.
-                    return Err(TcError::CannotUseFunctionInPatternPosition {
+                    return Err(SemanticError::CannotUseFunctionInPatternPosition {
                         location: self.source_location(original_span),
                     });
                 }

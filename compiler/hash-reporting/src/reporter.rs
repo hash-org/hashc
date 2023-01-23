@@ -23,6 +23,11 @@ impl Reporter {
         self.reports.last_mut().unwrap()
     }
 
+    /// Create a new reporter from a list of reports.
+    pub fn from_reports(reports: Vec<Report>) -> Self {
+        Self { reports }
+    }
+
     /// Add an error report to the builder.
     pub fn error(&mut self) -> &mut Report {
         self.report(ReportKind::Error)

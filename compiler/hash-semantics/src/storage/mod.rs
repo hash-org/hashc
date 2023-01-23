@@ -12,6 +12,7 @@ pub mod cache;
 pub mod exhaustiveness;
 pub mod sources;
 
+use hash_reporting::diagnostic::DiagnosticCellStore;
 use hash_source::SourceMap;
 use hash_tir::{
     args::ArgsStore,
@@ -33,11 +34,16 @@ use self::{
     exhaustiveness::{DeconstructedCtorStore, DeconstructedPatStore, ExhaustivenessStorage},
     sources::CheckedSources,
 };
-use crate::{diagnostics::DiagnosticsStore, new::environment::tc_env::TcEnv};
+use crate::{
+    diagnostics::{error::TcError, warning::TcWarning},
+    new::environment::tc_env::TcEnv,
+};
+
+pub type DiagnosticsStore = DiagnosticCellStore<TcError, TcWarning>;
 
 /// A reference to the storage, which includes both local and global storage, as
 /// well as core definitions.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct StorageRef<'tc> {
     /// Map containing about which source have been typechecked.
     pub checked_sources: &'tc CheckedSources,
@@ -78,7 +84,7 @@ pub trait AccessToStorage {
         self.storages().local_storage
     }
 
-    fn diagnostic_store(&self) -> &DiagnosticsStore {
+    fn diagnostics(&self) -> &DiagnosticsStore {
         self.storages().diagnostics_store
     }
 

@@ -4,4 +4,3 @@ pub mod diagnostics;
 pub mod environment;
 pub mod ops;
 pub mod passes;
-pub mod primitives;

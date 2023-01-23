@@ -6,7 +6,7 @@ use hash_ast::{
     ast_visitor_default_impl,
     visitor::walk,
 };
-use hash_reporting::macros::panic_on_span;
+use hash_reporting::{diagnostic::Diagnostics, macros::panic_on_span};
 use hash_source::identifier::Identifier;
 use hash_tir::new::{
     defs::DefId,
@@ -18,10 +18,10 @@ use hash_tir::new::{
 use itertools::Itertools;
 
 use super::{super::ast_utils::AstUtils, defs::ItemId, DiscoveryPass};
-use crate::new::{diagnostics::error::TcError, environment::tc_env::AccessToTcEnv};
+use crate::new::{diagnostics::error::SemanticError, environment::tc_env::AccessToTcEnv};
 
 impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
-    type Error = TcError;
+    type Error = SemanticError;
     ast_visitor_default_impl!(
         hiding: Declaration,
         Module,
@@ -44,7 +44,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         &self,
         node: ast::AstNodeRef<ast::Declaration>,
     ) -> Result<Self::DeclarationRet, Self::Error> {
-        let walk_with_name_hint = || {
+        let walk_with_name_hint = || -> Result<_, Self::Error> {
             let name = match node.pat.body() {
                 ast::Pat::Binding(binding) => Some(self.new_symbol(binding.name.ident)),
                 // If the pattern is not a binding, we don't know the name of the declaration
@@ -334,8 +334,9 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         node: ast::AstNodeRef<ast::TraitDef>,
     ) -> Result<Self::TraitDefRet, Self::Error> {
         // Traits are not yet supported
-        self.diagnostics()
-            .add_error(TcError::TraitsNotSupported { trait_location: self.node_location(node) });
+        self.diagnostics().add_error(SemanticError::TraitsNotSupported {
+            trait_location: self.node_location(node),
+        });
         Ok(())
     }
 
@@ -345,8 +346,9 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         node: AstNodeRef<ast::MergeDeclaration>,
     ) -> Result<Self::MergeDeclarationRet, Self::Error> {
         // Merge declarations are not yet supported
-        self.diagnostics()
-            .add_error(TcError::TraitsNotSupported { trait_location: self.node_location(node) });
+        self.diagnostics().add_error(SemanticError::TraitsNotSupported {
+            trait_location: self.node_location(node),
+        });
         Ok(())
     }
 

@@ -1,33 +1,31 @@
-//! Contains context-related operations, building on top of `Context` defined in
-//! `hash-tir`.
-// @@Todo: move this to hash-tir?
+//! Contains context-related utilities.
 use derive_more::Constructor;
-use hash_tir::{
+use hash_utils::store::{SequenceStore, Store};
+
+use crate::{
+    impl_access_to_env,
     new::{
         data::DataDefCtors,
         defs::DefParamsId,
         environment::{
             context::{Binding, BindingKind, BoundVarOrigin, ScopeKind},
-            env::AccessToEnv,
+            env::{AccessToEnv, Env},
         },
         params::{DefParamIndex, ParamId, ParamsId},
         scopes::StackMemberId,
     },
     ty_as_variant,
 };
-use hash_utils::store::{SequenceStore, Store};
 
-use crate::{impl_access_to_tc_env, new::environment::tc_env::TcEnv};
-
-/// Context-related operations.
+/// Context-related utilities.
 #[derive(Constructor)]
-pub struct ContextOps<'env> {
-    tc_env: &'env TcEnv<'env>,
+pub struct ContextUtils<'env> {
+    env: &'env Env<'env>,
 }
 
-impl_access_to_tc_env!(ContextOps<'tc>);
+impl_access_to_env!(ContextUtils<'tc>);
 
-impl<'env> ContextOps<'env> {
+impl<'env> ContextUtils<'env> {
     /// Enter a new scope, and add all the appropriate bindings to it depending
     /// on the scope kind.
     ///

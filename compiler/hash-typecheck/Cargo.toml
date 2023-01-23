@@ -1,5 +1,5 @@
 [package]
-name = "hash-semantics"
+name = "hash-typecheck"
 version = "0.1.0"
 authors = ["The Hash Language authors"]
 edition = "2021"
@@ -27,4 +27,3 @@ hash-tree-def = { path = "../hash-tree-def" }
 hash-tir = { path = "../hash-tir" }
 hash-utils = { path = "../hash-utils" }
 hash-intrinsics = { path = "../hash-intrinsics" }
-hash-typecheck = { path = "../hash-typecheck" }

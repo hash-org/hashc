@@ -4,16 +4,15 @@ use hash_intrinsics::{
     intrinsics::{AccessToIntrinsics, DefinedIntrinsics},
     primitives::{AccessToPrimitives, DefinedPrimitives},
 };
+use hash_reporting::diagnostic::{AccessToDiagnostics, DiagnosticCellStore, Diagnostics};
 // @@Docs
 use hash_tir::new::environment::env::{AccessToEnv, Env};
+use hash_typecheck::{elaboration::ProofState, errors::TcError, AccessToTypechecking};
 
 use super::ast_info::AstInfo;
 use crate::new::{
-    diagnostics::store::DiagnosticsStore,
-    ops::{
-        bootstrap::{DefinedIntrinsicsOrUnset, DefinedPrimitivesOrUnset},
-        elaboration::ProofState,
-    },
+    diagnostics::{error::SemanticError, warning::SemanticWarning},
+    ops::bootstrap::{DefinedIntrinsicsOrUnset, DefinedPrimitivesOrUnset},
 };
 
 macro_rules! tc_env {
@@ -26,7 +25,7 @@ macro_rules! tc_env {
         #[derive(Debug, Copy, Clone)]
         pub struct TcEnv<'tc> {
             $(
-                $name: &'tc $ty $(<$lt>)?,
+                pub $name: &'tc $ty $(<$lt>)?,
             )*
         }
 
@@ -64,6 +63,7 @@ macro_rules! tc_env {
 }
 
 type ProofStateRefCell = RefCell<ProofState>;
+pub type DiagnosticsStore = DiagnosticCellStore<SemanticError, SemanticWarning>;
 
 tc_env! {
     #hide env: Env<'tc>,
@@ -72,40 +72,6 @@ tc_env! {
     proof_state: ProofStateRefCell,
     primitives_or_unset: DefinedPrimitivesOrUnset,
     intrinsics_or_unset: DefinedIntrinsicsOrUnset,
-}
-
-/// Implement [`AccessToEnv`] for some type that has a field `env: Env`.
-#[macro_export]
-macro_rules! impl_access_to_tc_env {
-    ($x:ident<$lt:lifetime>) => {
-        impl<$lt> $crate::new::environment::tc_env::AccessToTcEnv for $x<$lt> {
-            fn tc_env(&self) -> &TcEnv {
-                &self.tc_env
-            }
-        }
-
-        impl<$lt> hash_tir::new::environment::env::AccessToEnv for $x<$lt> {
-            fn env(&self) -> &hash_tir::new::environment::env::Env {
-                <TcEnv<'_> as hash_tir::new::environment::env::AccessToEnv>::env(self.tc_env)
-            }
-        }
-
-        impl<$lt> hash_intrinsics::primitives::AccessToPrimitives for $x<$lt> {
-            fn primitives(&self) -> &hash_intrinsics::primitives::DefinedPrimitives {
-                <TcEnv<'_> as hash_intrinsics::primitives::AccessToPrimitives>::primitives(
-                    self.tc_env,
-                )
-            }
-        }
-
-        impl<$lt> hash_intrinsics::intrinsics::AccessToIntrinsics for $x<$lt> {
-            fn intrinsics(&self) -> &hash_intrinsics::intrinsics::DefinedIntrinsics {
-                <TcEnv<'_> as hash_intrinsics::intrinsics::AccessToIntrinsics>::intrinsics(
-                    self.tc_env,
-                )
-            }
-        }
-    };
 }
 
 impl<'tc> AccessToTcEnv for TcEnv<'tc> {
@@ -135,6 +101,23 @@ impl<'tc> AccessToIntrinsics for TcEnv<'tc> {
             Some(intrinsics) => intrinsics,
             None => panic!("Tried to get intrinsics but they are not set yet"),
         }
+    }
+}
+
+impl<'tc> AccessToDiagnostics for TcEnv<'tc> {
+    type Diagnostics = DiagnosticCellStore<SemanticError, SemanticWarning>;
+    fn diagnostics(&self) -> &Self::Diagnostics {
+        self.diagnostics
+    }
+}
+
+impl<'tc> AccessToTypechecking for TcEnv<'tc> {
+    fn proof_state(&self) -> &RefCell<ProofState> {
+        self.proof_state
+    }
+
+    fn convert_tc_error(&self, error: TcError) -> <Self::Diagnostics as Diagnostics>::Error {
+        error.into()
     }
 }
 
@@ -171,6 +154,23 @@ impl<'tc, T> AccessToIntrinsics for WithTcEnv<'tc, T> {
     }
 }
 
+impl<'tc, T> AccessToDiagnostics for WithTcEnv<'tc, T> {
+    type Diagnostics = DiagnosticsStore;
+    fn diagnostics(&self) -> &Self::Diagnostics {
+        AccessToTcEnv::diagnostics(self)
+    }
+}
+
+impl<'tc, T> AccessToTypechecking for WithTcEnv<'tc, T> {
+    fn proof_state(&self) -> &RefCell<ProofState> {
+        self.tc_env.proof_state
+    }
+
+    fn convert_tc_error(&self, error: TcError) -> <Self::Diagnostics as Diagnostics>::Error {
+        error.into()
+    }
+}
+
 impl<'tc, T: Clone> Clone for WithTcEnv<'tc, T> {
     fn clone(&self) -> Self {
         Self { tc_env: self.tc_env, value: self.value.clone() }
@@ -194,4 +194,59 @@ impl<'tc> TcEnv<'tc> {
     pub fn with<T>(&self, value: T) -> WithTcEnv<T> {
         WithTcEnv::new(self, value)
     }
+}
+
+/// Convenience macro for implementing [`AccessToTcEnv`] and friends
+/// for a type.
+#[macro_export]
+macro_rules! impl_access_to_tc_env {
+    ($ty:ty) => {
+        impl $crate::new::environment::tc_env::AccessToTcEnv for $ty {
+            fn tc_env(&self) -> &$crate::new::environment::tc_env::TcEnv {
+                self.tc_env
+            }
+        }
+
+        impl hash_tir::new::environment::env::AccessToEnv for $ty {
+            fn env(&self) -> &hash_tir::new::environment::env::Env {
+                self.tc_env().env()
+            }
+        }
+
+        impl hash_intrinsics::primitives::AccessToPrimitives for $ty {
+            fn primitives(&self) -> &hash_intrinsics::primitives::DefinedPrimitives {
+                self.tc_env().primitives()
+            }
+        }
+
+        impl hash_intrinsics::intrinsics::AccessToIntrinsics for $ty {
+            fn intrinsics(&self) -> &hash_intrinsics::intrinsics::DefinedIntrinsics {
+                self.tc_env().intrinsics()
+            }
+        }
+
+        impl hash_reporting::diagnostic::AccessToDiagnostics for $ty {
+            type Diagnostics = hash_reporting::diagnostic::DiagnosticCellStore<
+                $crate::new::diagnostics::error::SemanticError,
+                $crate::new::diagnostics::warning::SemanticWarning,
+            >;
+
+            fn diagnostics(&self) -> &Self::Diagnostics {
+                $crate::new::environment::tc_env::AccessToTcEnv::diagnostics(self.tc_env())
+            }
+        }
+
+        impl hash_typecheck::AccessToTypechecking for $ty {
+            fn proof_state(&self) -> &std::cell::RefCell<hash_typecheck::elaboration::ProofState> {
+                self.tc_env().proof_state
+            }
+
+            fn convert_tc_error(
+                &self,
+                error: hash_typecheck::errors::TcError,
+            ) -> <Self::Diagnostics as hash_reporting::diagnostic::Diagnostics>::Error {
+                error.into()
+            }
+        }
+    };
 }
