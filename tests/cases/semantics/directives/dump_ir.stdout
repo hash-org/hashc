@@ -1,0 +1,9 @@
+AST dump for $DIR/dump_ir.hash:19:11-19:29
+directive "dump_ir"
+└─declaration
+  ├─pattern
+  │ └─binding
+  │   └─name "brux"
+  └─value
+    └─int 2_i32
+

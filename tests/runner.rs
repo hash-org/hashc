@@ -330,13 +330,13 @@ fn handle_test(test: TestingInput) {
         workspace,
         pool,
         settings,
+        // @@Future: we might want to directly compare `stderr` rather than
+        // rendering diagnostics and then comparing them.
+        || CompilerOutputStream::Stderr(io::stderr()),
         {
             let output_stream = output_stream.clone();
             move || CompilerOutputStream::Owned(output_stream.clone())
         },
-        // @@Future: we might want to directly compare `stderr` rather than
-        // rendering diagnostics and then comparing them.
-        || CompilerOutputStream::Stderr(io::stderr()),
     );
 
     let mut compiler = Compiler::new(make_stages());

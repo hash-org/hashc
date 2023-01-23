@@ -1,0 +1,23 @@
+IR dump for function `print` defined at $DIR/functions.hash:3:10-4:2
+print(_1: str) -> () {
+    mut _0: ();
+
+    bb0 {
+        return;
+    }
+}
+
+
+IR dump for function `main` defined at $DIR/functions.hash:6:9-8:2
+main() -> () {
+    mut _0: ();
+
+    bb0 {
+        _0 = const <unevaluated> print(const "Hello, world!") -> bb1;
+    }
+
+    bb1 {
+        return;
+    }
+}
+
