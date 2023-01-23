@@ -18,7 +18,7 @@ use index_vec::IndexVec;
 
 use super::{operands::OperandRef, place::PlaceRef, FnBuilder};
 use crate::traits::{
-    builder::BlockBuilderMethods, ctx::HasCtxMethods, layout::LayoutMethods, CodeGen, CodeGenObject,
+    builder::BlockBuilderMethods, ctx::HasCtxMethods, layout::LayoutMethods, CodeGenObject, Codegen,
 };
 
 /// Defines what kind of reference a local has. A [LocalRef::Place]
@@ -35,7 +35,7 @@ pub enum LocalRef<V> {
 
 impl<'b, V: CodeGenObject> LocalRef<V> {
     /// Create a new [LocalRef::Operand] instance.
-    pub fn new_operand<Builder: CodeGen<'b, Value = V>>(
+    pub fn new_operand<Builder: Codegen<'b, Value = V>>(
         builder: &mut Builder,
         layout: TyInfo,
     ) -> Self {

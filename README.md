@@ -3,9 +3,13 @@
 The Hash Programming Language compiler and standard library sources.
 Get started by reading [the Hash book](https://hash-org.github.io/lang).
 
+## Installation
+
+Instructions are available in the [INSTALL.md](./INSTALL.md) file.
+
 ## Build and Run
 
-Building and running the project is fairly simple as the project is built on top of cargo.
+Before building the compiler, make sure you have installed the required dependencies.
 
 - To build the project, run `cargo build`
 - To run the interactive mode, run `cargo run`

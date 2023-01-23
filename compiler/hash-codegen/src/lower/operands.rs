@@ -11,7 +11,7 @@ use crate::{
     common::MemFlags,
     traits::{
         builder::BlockBuilderMethods, constants::BuildConstValueMethods, ctx::HasCtxMethods,
-        layout::LayoutMethods, ty::BuildTypeMethods, CodeGen, CodeGenObject,
+        layout::LayoutMethods, ty::BuildTypeMethods, CodeGenObject, Codegen,
     },
 };
 
@@ -46,13 +46,14 @@ impl<'b, V: CodeGenObject> OperandValue<V> {
         destination: PlaceRef<V>,
         flags: MemFlags,
     ) {
-        let layout_info = builder.layout_info(destination.info.layout);
+        let (is_zst, abi) =
+            builder.map_layout(destination.info.layout, |layout| (layout.is_zst(), layout.abi));
 
         // We don't emit storing of zero-sized types, because they don't
         // actually take up any space and the only way to mimic this would
         // be to emit a `undef` value for the store, which would then
         // be eliminated by the backend (which would be useless).
-        if layout_info.is_zst() {
+        if is_zst {
             return;
         }
 
@@ -88,7 +89,7 @@ impl<'b, V: CodeGenObject> OperandValue<V> {
                 builder.store_with_flags(value, destination.value, destination.alignment, flags);
             }
             OperandValue::Pair(value_a, value_b) => {
-                let AbiRepresentation::Pair(scalar_a, scalar_b) = layout_info.abi else {
+                let AbiRepresentation::Pair(scalar_a, scalar_b) = abi else {
                     panic!("invalid ABI representation for a pair operand value");
                 };
 
@@ -126,7 +127,7 @@ pub struct OperandRef<V> {
 
 impl<'b, V: CodeGenObject> OperandRef<V> {
     /// Create a new zero-sized type [OperandRef].
-    pub fn new_zst<Builder: CodeGen<'b, Value = V>>(builder: &Builder, info: TyInfo) -> Self {
+    pub fn new_zst<Builder: Codegen<'b, Value = V>>(builder: &Builder, info: TyInfo) -> Self {
         Self {
             value: OperandValue::Immediate(
                 builder.const_undef(builder.immediate_backend_type(info)),
@@ -165,9 +166,9 @@ impl<'b, V: CodeGenObject> OperandRef<V> {
         };
 
         let info = builder.layout_of_id(projected_ty);
-        let layout = builder.layout_info(info.layout);
+        let alignment = builder.map_layout(info.layout, |layout| layout.alignment.abi);
 
-        PlaceRef { value: ptr_value, info, alignment: layout.alignment.abi }
+        PlaceRef { value: ptr_value, info, alignment }
     }
 
     /// Compute a new [OperandRef] from the current operand and a field
@@ -177,36 +178,40 @@ impl<'b, V: CodeGenObject> OperandRef<V> {
         builder: &mut Builder,
         index: usize,
     ) -> Self {
-        let layout_info = builder.layout_info(self.info.layout);
+        let size = builder.map_layout(self.info.layout, |layout| layout.size);
 
         let field_info = self.info.field(builder.layout_computer(), index);
-        let field_layout = builder.layout_info(field_info.layout);
+        let (is_zst, field_abi, field_size, offset) =
+            builder.map_layout(field_info.layout, |field_layout| {
+                (
+                    field_layout.is_zst(),
+                    field_layout.abi,
+                    field_layout.size,
+                    field_layout.shape.offset(index),
+                )
+            });
 
         // If the field is a ZST, we return early
-        if field_layout.is_zst() {
+        if is_zst {
             return Self::new_zst(builder, field_info);
         }
 
-        let field_offset = field_layout.shape.offset(index);
-
-        let mut value = match (self.value, field_layout.abi) {
+        let mut value = match (self.value, field_abi) {
             // The new type is a scalar, pair, or vector.
-            (OperandValue::Pair(..) | OperandValue::Immediate(_), _)
-                if field_layout.size == layout_info.size =>
-            {
-                assert_eq!(field_offset.bytes(), 0);
+            (OperandValue::Pair(..) | OperandValue::Immediate(_), _) if field_size == size => {
+                assert_eq!(offset.bytes(), 0);
                 self.value
             }
             (OperandValue::Pair(value_a, value_b), AbiRepresentation::Pair(scalar_a, scalar_b)) => {
-                if field_offset.bytes() == 0 {
-                    debug_assert_eq!(field_layout.size, scalar_a.size(builder.ctx()));
+                if offset.bytes() == 0 {
+                    debug_assert_eq!(field_size, scalar_a.size(builder.ctx()));
                     OperandValue::Immediate(value_a)
                 } else {
                     debug_assert_eq!(
-                        field_offset,
+                        offset,
                         scalar_a.size(builder.ctx()).align_to(scalar_b.align(builder.ctx()).abi)
                     );
-                    debug_assert_eq!(field_layout.size, scalar_b.size(builder.ctx()));
+                    debug_assert_eq!(field_size, scalar_b.size(builder.ctx()));
                     OperandValue::Immediate(value_b)
                 }
             }
@@ -218,7 +223,7 @@ impl<'b, V: CodeGenObject> OperandRef<V> {
         //
         // @@BitCasts: since LLVM requires pointer types (we apply a bitcast here),
         // The bitcasts can be removed, unless we don't use LLVM 15.
-        match (&mut value, field_layout.abi) {
+        match (&mut value, field_abi) {
             (OperandValue::Immediate(value), _) => {
                 *value = builder.to_immediate(*value, field_info.layout);
 
@@ -268,7 +273,9 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
                         | ir::Const::Int(_)
                         | ir::Const::Float(_)) => {
                             let ty = builder.immediate_backend_type(info);
-                            let AbiRepresentation::Scalar(scalar) = builder.layout_info(info.layout).abi else {
+                            let abi = builder.map_layout(info.layout, |layout| layout.abi);
+
+                            let AbiRepresentation::Scalar(scalar) = abi else {
                                 panic!("scalar constant doesn't have a scalar ABI rerpresentation")
                             };
 
@@ -302,9 +309,9 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
     ) -> OperandRef<Builder::Value> {
         // compute the type of the place and the corresponding layout...
         let info = self.compute_place_ty_info(builder, place);
-        let layout = builder.layout_info(info.layout);
+        let is_zst = builder.map_layout(info.layout, |layout| layout.is_zst());
 
-        if layout.is_zst() {
+        if is_zst {
             return OperandRef::new_zst(builder, info);
         }
 
@@ -339,9 +346,10 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
                             ir::PlaceProjection::Index(_)
                             | ir::PlaceProjection::ConstantIndex { .. } => {
                                 let element_info = operand.info.field(builder.layout_computer(), 0);
-                                let element_layout = builder.layout_info(element_info.layout);
+                                let is_zst = builder
+                                    .map_layout(element_info.layout, |layout| layout.is_zst());
 
-                                if element_layout.is_zst() {
+                                if is_zst {
                                     operand = OperandRef::new_zst(builder, element_info)
                                 } else {
                                     return None;

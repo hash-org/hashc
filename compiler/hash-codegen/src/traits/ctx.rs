@@ -3,15 +3,10 @@
 //! context is used to access information about types, layouts, and
 //! other information that is required for code generation.
 
-use hash_ir::{
-    ty::{IrTy, IrTyId},
-    IrCtx,
-};
+use hash_ir::IrCtx;
 use hash_layout::{compute::LayoutComputer, LayoutCtx};
 use hash_pipeline::settings::CompilerSettings;
 use hash_target::data_layout::HasDataLayout;
-
-use crate::layout::{Layout, LayoutId};
 
 pub trait HasCtxMethods<'b>: HasDataLayout {
     /// Return a reference to the current [CompilerSettings] for the
@@ -25,13 +20,6 @@ pub trait HasCtxMethods<'b>: HasDataLayout {
     fn layout_computer(&self) -> LayoutComputer<'_> {
         LayoutComputer::new(self.layouts(), self.ir_ctx())
     }
-
-    /// Returns a reference to an IR type from the context.
-    fn ty_info(&self, ty: IrTyId) -> &IrTy;
-
-    /// Returns a reference to the underling [Layout] information for a
-    /// particular [LayoutId].
-    fn layout_info(&self, layout: LayoutId) -> &Layout;
 
     /// Returns a reference to the [LayoutStore].
     fn layouts(&self) -> &LayoutCtx;

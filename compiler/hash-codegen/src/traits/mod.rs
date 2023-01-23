@@ -3,9 +3,8 @@
 use std::fmt;
 
 use self::{
-    abi::FnAbiOf, constants::BuildConstValueMethods, ctx::HasCtxMethods,
-    debug::BuildDebugInfoMethods, layout::LayoutMethods, misc::MiscBuilderMethods,
-    target::HasTargetSpec, ty::BuildTypeMethods,
+    constants::BuildConstValueMethods, ctx::HasCtxMethods, layout::LayoutMethods,
+    misc::MiscBuilderMethods, target::HasTargetSpec, ty::BuildTypeMethods,
 };
 
 pub mod abi;
@@ -54,7 +53,7 @@ impl<T: Copy + PartialEq + fmt::Debug> CodeGenObject for T {}
 
 /// The core trait of the code generation backend which is used to
 /// generate code for a particular backend. This trait provides IR
-pub trait Backend<'b>: Sized + BackendTypes + LayoutMethods<'b> + FnAbiOf<'b> {}
+pub trait Backend<'b>: Sized + BackendTypes + LayoutMethods<'b> {}
 
 pub trait CodeGenMethods<'b>:
     Backend<'b>
@@ -62,7 +61,6 @@ pub trait CodeGenMethods<'b>:
     + HasCtxMethods<'b>
     + BuildTypeMethods<'b>
     + BuildConstValueMethods<'b>
-    + BuildDebugInfoMethods
     + HasTargetSpec
 {
 }
@@ -75,13 +73,12 @@ impl<'b, T> CodeGenMethods<'b> for T where
         + HasCtxMethods<'b>
         + BuildTypeMethods<'b>
         + BuildConstValueMethods<'b>
-        + BuildDebugInfoMethods
         + HasTargetSpec
 {
 }
 
-pub trait CodeGen<'b>:
-    Backend<'b> + std::ops::Deref<Target = <Self as CodeGen<'b>>::CodegenCtx>
+pub trait Codegen<'b>:
+    Backend<'b> + std::ops::Deref<Target = <Self as Codegen<'b>>::CodegenCtx>
 {
     /// The type of the codegen context, all items within the context can access
     /// all of the methods that are provided via [CodeGenMethods]
