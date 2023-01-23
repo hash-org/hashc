@@ -1,7 +1,7 @@
 //! Utility functions for working with TC primitives.
 use self::{
     context::ContextUtils, data::DataUtils, defs::DefUtils, fns::FnUtils, mods::ModUtils,
-    params::ParamUtils, stack::StackUtils, traversing::TraversingUtils, tuples::TupleUtils,
+    params::ParamUtils, stack::StackUtils, traversing::TraversingUtils,
 };
 
 pub mod common;
@@ -13,7 +13,6 @@ pub mod mods;
 pub mod params;
 pub mod stack;
 pub mod traversing;
-pub mod tuples;
 
 macro_rules! utils {
     ($($name:ident: $ty:ty),* $(,)?) => {
@@ -35,7 +34,6 @@ utils! {
   fn_utils: FnUtils,
   mod_utils: ModUtils,
   stack_utils: StackUtils,
-  tuple_utils: TupleUtils,
   traversing_utils: TraversingUtils,
   context_utils: ContextUtils,
 }

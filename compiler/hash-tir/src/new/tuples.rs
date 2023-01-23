@@ -25,7 +25,7 @@ pub struct TupleTy {
 pub struct TupleTerm {
     /// The original tuple type, if known or given as part of the literal (might
     /// contain holes).
-    pub original_ty: Option<TupleTy>,
+    // pub original_ty: Option<TupleTy>,
 
     /// The arguments given for the tuple, `(s_1,...,s_n)`
     ///
@@ -41,7 +41,7 @@ pub struct TupleTerm {
 pub struct TuplePat {
     /// The original tuple type, if known or given as part of the literal (might
     /// contain holes).
-    pub original_ty: Option<TupleTy>,
+    // pub original_ty: Option<TupleTy>,
 
     /// The pattern arguments given for the tuple, `(s_1,...,s_n)`
     ///

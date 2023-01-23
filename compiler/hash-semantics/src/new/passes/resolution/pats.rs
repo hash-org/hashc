@@ -292,7 +292,6 @@ impl ResolutionPass<'_> {
             }
             ast::Pat::Tuple(tuple_pat) => self.new_pat(Pat::Tuple(TuplePat {
                 data: self.make_pat_args_from_ast_pat_args(&tuple_pat.fields)?,
-                original_ty: None,
                 data_spread: self.make_spread_from_ast_spread(&tuple_pat.spread)?,
             })),
             ast::Pat::List(list_pat) => self.new_pat(Pat::List(ListPat {

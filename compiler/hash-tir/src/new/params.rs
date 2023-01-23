@@ -6,7 +6,7 @@ use derive_more::From;
 use hash_source::identifier::Identifier;
 use hash_utils::{
     new_sequence_store_key,
-    store::{DefaultSequenceStore, SequenceStore, SequenceStoreKey, Store},
+    store::{DefaultSequenceStore, SequenceStore, SequenceStoreKey},
 };
 use utility_types::omit;
 
@@ -16,7 +16,7 @@ use super::{
     environment::env::{AccessToEnv, WithEnv},
     locations::IndexedLocationTarget,
 };
-use crate::new::{symbols::Symbol, terms::TermId, tys::TyId};
+use crate::new::{symbols::Symbol, tys::TyId};
 
 // @@Todo: examples
 
@@ -31,8 +31,6 @@ pub struct Param {
     pub name: Symbol,
     /// The type of the parameter.
     pub ty: TyId,
-    /// The default value of the parameter, if given.
-    pub default_value: Option<TermId>,
 }
 
 new_sequence_store_key!(pub ParamsId);
@@ -73,23 +71,7 @@ pub struct DefParamIndex {
 
 impl fmt::Display for WithEnv<'_, &Param> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}{}{}",
-            self.stores().symbol().map_fast(self.value.name, |sym| {
-                match (sym.name, self.value.default_value) {
-                    (None, None) => "".to_string(),
-                    (Some(name), _) => format!("{name}: "),
-                    (_, _) => "_: ".to_string(),
-                }
-            }),
-            self.env().with(self.value.ty),
-            if let Some(default_value) = self.value.default_value {
-                format!(" = {}", self.env().with(default_value))
-            } else {
-                "".to_string()
-            }
-        )
+        write!(f, "{}: {}", self.env().with(self.value.name), self.env().with(self.value.ty),)
     }
 }
 

@@ -74,11 +74,10 @@ impl<U: AccessToTypechecking> InferOps<'_, U> {
     pub fn infer_def_args(&self, def_args: DefArgsId) -> TcResult<DefParamsId> {
         self.stores().def_args().map(def_args, |def_args| {
             self.infer_some_def_args(def_args, |def_arg| {
-                let implicit =
-                    self.stores().def_params().map_fast(def_arg.param_group.0, |params| {
-                        params[def_arg.param_group.1].implicit
-                    });
-                Ok(DefParamGroupData { implicit, params: self.infer_args(def_arg.args)? })
+                Ok(DefParamGroupData {
+                    implicit: def_arg.implicit,
+                    params: self.infer_args(def_arg.args)?,
+                })
             })
         })
     }
@@ -87,12 +86,8 @@ impl<U: AccessToTypechecking> InferOps<'_, U> {
     pub fn infer_def_pat_args(&self, def_pat_args: DefPatArgsId) -> TcResult<DefParamsId> {
         self.stores().def_pat_args().map(def_pat_args, |def_pat_args| {
             self.infer_some_def_args(def_pat_args, |def_pat_arg| {
-                let implicit =
-                    self.stores().def_params().map_fast(def_pat_arg.param_group.0, |params| {
-                        params[def_pat_arg.param_group.1].implicit
-                    });
                 Ok(DefParamGroupData {
-                    implicit,
+                    implicit: def_pat_arg.implicit,
                     params: self.infer_pat_args(def_pat_arg.pat_args)?,
                 })
             })
@@ -125,7 +120,7 @@ impl<U: AccessToTypechecking> InferOps<'_, U> {
             };
 
             // Add the parameter
-            params.push(ParamData { name: get_arg_name(arg), ty, default_value: None })
+            params.push(ParamData { name: get_arg_name(arg), ty })
         }
 
         if has_error {
@@ -242,10 +237,7 @@ impl<U: AccessToTypechecking> InferOps<'_, U> {
 
     /// Infer the type of a tuple term.
     pub fn infer_tuple_term(&self, term: &TupleTerm) -> TcResult<TupleTy> {
-        match term.original_ty {
-            Some(ty) => Ok(ty),
-            None => Ok(TupleTy { data: self.infer_args(term.data)? }),
-        }
+        Ok(TupleTy { data: self.infer_args(term.data)? })
     }
 
     /// Infer the type of a literal.

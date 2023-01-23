@@ -35,9 +35,7 @@ impl<'env> ParamUtils<'env> {
         param_names: impl Iterator<Item = Symbol> + ExactSizeIterator,
     ) -> ParamsId {
         self.stores().params().create_from_iter_with(
-            param_names.map(|name| {
-                move |id| Param { id, name, ty: self.new_ty_hole(), default_value: None }
-            }),
+            param_names.map(|name| move |id| Param { id, name, ty: self.new_ty_hole() }),
         )
     }
 
@@ -63,7 +61,7 @@ impl<'env> ParamUtils<'env> {
                 id,
                 pat_args: data.pat_args,
                 spread: data.spread,
-                param_group: data.param_group,
+                implicit: data.implicit,
             }
         }))
     }
@@ -74,9 +72,10 @@ impl<'env> ParamUtils<'env> {
         &self,
         arg_groups: impl Iterator<Item = DefArgGroupData> + ExactSizeIterator,
     ) -> DefArgsId {
-        self.stores().def_args().create_from_iter_with(arg_groups.map(|data| {
-            move |id| DefArgGroup { id, args: data.args, param_group: data.param_group }
-        }))
+        self.stores().def_args().create_from_iter_with(
+            arg_groups
+                .map(|data| move |id| DefArgGroup { id, args: data.args, implicit: data.implicit }),
+        )
     }
 
     /// Create parameters from the given iterator of parameter data.
@@ -84,9 +83,9 @@ impl<'env> ParamUtils<'env> {
         &self,
         params: impl Iterator<Item = ParamData> + ExactSizeIterator,
     ) -> ParamsId {
-        self.stores().params().create_from_iter_with(params.map(|data| {
-            move |id| Param { id, name: data.name, ty: data.ty, default_value: data.default_value }
-        }))
+        self.stores().params().create_from_iter_with(
+            params.map(|data| move |id| Param { id, name: data.name, ty: data.ty }),
+        )
     }
 
     /// Create arguments from the given iterator of argument data.
@@ -129,7 +128,10 @@ impl<'env> ParamUtils<'env> {
                             .collect_vec()
                             .into_iter(),
                     ),
-                    param_group: (data_def_params, i),
+                    implicit: self
+                        .stores()
+                        .def_params()
+                        .map_fast(data_def_params, |params| params[i].implicit),
                 })
                 .collect_vec()
                 .into_iter(),

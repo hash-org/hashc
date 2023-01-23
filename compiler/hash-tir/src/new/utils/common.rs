@@ -133,6 +133,10 @@ pub trait CommonUtils: AccessToEnv {
         self.stores().term_list().map(term_list_id, f)
     }
 
+    fn map_pat_list<T>(&self, pat_list_id: PatListId, f: impl FnOnce(&[PatId]) -> T) -> T {
+        self.stores().pat_list().map(pat_list_id, f)
+    }
+
     /// Get a type by its ID.
     fn get_ty(&self, ty_id: TyId) -> Ty {
         self.stores().ty().get(ty_id)
@@ -233,8 +237,8 @@ pub trait CommonUtils: AccessToEnv {
     }
 
     /// Create a new pattern.
-    fn new_pat(&self, pat: Pat) -> PatId {
-        self.stores().pat().create(pat)
+    fn new_pat(&self, pat: impl Into<Pat>) -> PatId {
+        self.stores().pat().create(pat.into())
     }
 
     /// Create a new pattern list.
@@ -289,9 +293,12 @@ pub trait CommonUtils: AccessToEnv {
 
     /// Create a new positional parameter list with the given types.
     fn new_params(&self, types: &[TyId]) -> ParamsId {
-        self.stores().params().create_from_iter_with(types.iter().copied().map(|ty| {
-            move |id| Param { id, name: self.new_fresh_symbol(), ty, default_value: None }
-        }))
+        self.stores().params().create_from_iter_with(
+            types
+                .iter()
+                .copied()
+                .map(|ty| move |id| Param { id, name: self.new_fresh_symbol(), ty }),
+        )
     }
 
     /// Create a new positional argument list with the given types.
@@ -338,10 +345,7 @@ pub trait CommonUtils: AccessToEnv {
 
     /// Create a new empty tuple term.
     fn new_void_term(&self) -> TermId {
-        self.stores().term().create(Term::Tuple(TupleTerm {
-            data: self.new_empty_args(),
-            original_ty: Some(TupleTy { data: self.new_empty_params() }),
-        }))
+        self.stores().term().create(Term::Tuple(TupleTerm { data: self.new_empty_args() }))
     }
 
     /// Create a new variable type.

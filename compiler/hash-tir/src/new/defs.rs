@@ -44,7 +44,7 @@ pub type DefParamGroupId = (DefParamsId, usize);
 #[derive(Debug, Clone, Copy)]
 pub struct DefArgGroup {
     pub id: DefArgGroupId,
-    pub param_group: DefParamGroupId,
+    pub implicit: bool,
     pub args: ArgsId,
 }
 new_sequence_store_key!(pub DefArgsId);
@@ -59,7 +59,7 @@ pub type DefArgGroupId = (DefArgsId, usize);
 #[derive(Debug, Clone, Copy)]
 pub struct DefPatArgGroup {
     pub id: DefPatArgGroupId,
-    pub param_group: DefParamGroupId,
+    pub implicit: bool,
     pub pat_args: PatArgsId,
     /// The spread in this group of patterns, if any.
     pub spread: Option<Spread>,
@@ -162,14 +162,13 @@ impl Display for WithEnv<'_, DefParamsId> {
 
 impl Display for WithEnv<'_, &DefArgGroup> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let param_group = self.stores().def_params().get_element(self.value.param_group);
-        if param_group.implicit {
+        if self.value.implicit {
             write!(f, "<")?;
         } else {
             write!(f, "(")?;
         }
         write!(f, "{}", self.env().with(self.value.args))?;
-        if param_group.implicit {
+        if self.value.implicit {
             write!(f, ">")?;
         } else {
             write!(f, ")")?;
@@ -198,8 +197,7 @@ impl Display for WithEnv<'_, DefArgsId> {
 
 impl Display for WithEnv<'_, &DefPatArgGroup> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let param_group = self.stores().def_params().get_element(self.value.param_group);
-        if param_group.implicit {
+        if self.value.implicit {
             write!(f, "<")?;
         } else {
             write!(f, "(")?;
@@ -222,7 +220,7 @@ impl Display for WithEnv<'_, &DefPatArgGroup> {
             Ok(())
         })?;
 
-        if param_group.implicit {
+        if self.value.implicit {
             write!(f, ">")?;
         } else {
             write!(f, ")")?;

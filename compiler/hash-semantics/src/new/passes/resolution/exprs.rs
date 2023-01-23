@@ -523,8 +523,7 @@ impl<'tc> ResolutionPass<'tc> {
             ast::Lit::Bool(bool_lit) => Ok(self.tc_env().new_bool_term(bool_lit.data)),
             ast::Lit::Tuple(tuple_lit) => {
                 let args = self.make_args_from_ast_tuple_lit_args(&tuple_lit.elements)?;
-                // @@Todo: original_ty
-                Ok(self.new_term(Term::Tuple(TupleTerm { data: args, original_ty: None })))
+                Ok(self.new_term(Term::Tuple(TupleTerm { data: args })))
             }
             ast::Lit::Set(_) | ast::Lit::Map(_) | ast::Lit::List(_) => {
                 unimplemented!("List, set, and map literals are not yet implemented")
