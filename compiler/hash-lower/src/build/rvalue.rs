@@ -170,7 +170,16 @@ impl<'tcx> Builder<'tcx> {
         if let ast::Expr::Variable(variable) = expr.body {
             let name = variable.name.ident;
 
-            if let Some((scope, _, kind)) = self.lookup_item_scope(name) && kind != ScopeKind::Variable {
+            let ty_id = self.ty_id_of_node(expr.id());
+
+            // If this is a function type, we emit a ZST to represent the operand
+            // of the function.
+            if self.ctx.map_ty(ty_id, |ty| matches!(ty, IrTy::Fn { .. })) {
+                return block.and(Operand::Const(Const::Zero(ty_id).into()));
+            }
+
+            if let Some((scope, member, kind)) = self.lookup_item_scope(name) && kind != ScopeKind::Variable {
+                println!("{member:?}");
                 let unevaluated_const = UnevaluatedConst { scope, name };
 
                 // record that this constant is used in this function

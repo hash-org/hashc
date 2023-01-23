@@ -184,7 +184,7 @@ fn parse_arg_configuration(
     // closure will be used to return an error.
     let expected_value = || ArgumentError::MissingValue(key.clone());
 
-    // @@Todo: it would be nice to have macro that can generate these 
+    // @@Todo: it would be nice to have macro that can generate these
     // match statements, and perform the correct validation, and generate
     // nice error messages for these.
     match key.as_str() {

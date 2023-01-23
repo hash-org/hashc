@@ -13,7 +13,7 @@ main() -> () {
     mut _0: ();
 
     bb0 {
-        _0 = const <unevaluated> print(const "Hello, world!") -> bb1;
+        _0 = print(const "Hello, world!") -> bb1;
     }
 
     bb1 {
