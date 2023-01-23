@@ -12,7 +12,7 @@ pub mod cache;
 pub mod exhaustiveness;
 pub mod sources;
 
-use hash_reporting::diagnostic::ImmutableDiagnostics;
+use hash_reporting::diagnostic::DiagnosticCellStore;
 use hash_source::SourceMap;
 use hash_tir::{
     args::ArgsStore,
@@ -39,7 +39,7 @@ use crate::{
     new::environment::tc_env::TcEnv,
 };
 
-pub type DiagnosticsStore = ImmutableDiagnostics<TcError, TcWarning>;
+pub type DiagnosticsStore = DiagnosticCellStore<TcError, TcWarning>;
 
 /// A reference to the storage, which includes both local and global storage, as
 /// well as core definitions.

@@ -5,7 +5,7 @@ pub(crate) mod error;
 pub(crate) mod warning;
 
 use hash_reporting::{
-    diagnostic::{AccessToDiagnosticsMut, DiagnosticsMut, MutableDiagnostics},
+    diagnostic::{AccessToDiagnosticsMut, DiagnosticStore, DiagnosticsMut},
     reporter::Reports,
 };
 
@@ -25,7 +25,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 }
 
 impl<'stream, 'resolver> AccessToDiagnosticsMut for AstGen<'stream, 'resolver> {
-    type Diagnostics = MutableDiagnostics<ParseError, ParseWarning>;
+    type Diagnostics = DiagnosticStore<ParseError, ParseWarning>;
 
     fn diagnostics(&mut self) -> &mut Self::Diagnostics {
         &mut self.diagnostics

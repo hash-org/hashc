@@ -19,7 +19,7 @@ use hash_pipeline::{
     workspace::Workspace,
     CompilerResult,
 };
-use hash_reporting::diagnostic::{Diagnostics, ImmutableDiagnostics};
+use hash_reporting::diagnostic::{DiagnosticCellStore, Diagnostics};
 use hash_source::SourceId;
 use hash_tir::{
     fmt::PrepareForFormatting,
@@ -65,7 +65,7 @@ pub struct Typechecker {
     pub exhaustiveness_storage: ExhaustivenessStorage,
 
     /// Share typechecking diagnostics
-    pub diagnostics_store: ImmutableDiagnostics<TcError, TcWarning>,
+    pub diagnostics_store: DiagnosticCellStore<TcError, TcWarning>,
 
     /// Typechecking cache, contains useful mappings for a variety of
     /// operations.
@@ -74,7 +74,7 @@ pub struct Typechecker {
     /// The new typechecking environment
     pub _new_stores: Stores,
     pub _new_ast_info: AstInfo,
-    pub _new_diagnostic: ImmutableDiagnostics<SemanticError, SemanticWarning>,
+    pub _new_diagnostic: DiagnosticCellStore<SemanticError, SemanticWarning>,
     pub _new_ctx: Context,
 }
 
@@ -83,11 +83,11 @@ impl Typechecker {
         Self {
             checked_sources: CheckedSources::new(),
             exhaustiveness_storage: ExhaustivenessStorage::default(),
-            diagnostics_store: ImmutableDiagnostics::default(),
+            diagnostics_store: DiagnosticCellStore::default(),
             cache: Cache::new(),
             _new_stores: Stores::new(),
             _new_ctx: Context::new(),
-            _new_diagnostic: ImmutableDiagnostics::default(),
+            _new_diagnostic: DiagnosticCellStore::default(),
             _new_ast_info: AstInfo::new(),
         }
     }

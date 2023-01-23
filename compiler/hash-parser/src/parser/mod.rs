@@ -15,7 +15,7 @@ mod ty;
 use std::{cell::Cell, fmt::Display};
 
 use hash_ast::ast::*;
-use hash_reporting::diagnostic::{AccessToDiagnosticsMut, MutableDiagnostics};
+use hash_reporting::diagnostic::{AccessToDiagnosticsMut, DiagnosticStore};
 use hash_source::location::{SourceLocation, Span};
 use hash_token::{
     delimiter::{Delimiter, DelimiterVariant},
@@ -134,7 +134,7 @@ pub struct AstGen<'stream, 'resolver> {
     pub(crate) resolver: &'resolver ImportResolver<'resolver>,
 
     /// Collected diagnostics for the current [AstGen]
-    pub(crate) diagnostics: MutableDiagnostics<ParseError, ParseWarning>,
+    pub(crate) diagnostics: DiagnosticStore<ParseError, ParseWarning>,
 }
 
 /// Implementation of the [AstGen] with accompanying functions to parse specific
@@ -153,7 +153,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             is_compound_expr: Cell::new(false),
             offset: Cell::new(0),
             resolver,
-            diagnostics: MutableDiagnostics::default(),
+            diagnostics: DiagnosticStore::default(),
         }
     }
 
@@ -168,7 +168,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             is_compound_expr: self.is_compound_expr.clone(),
             parent_span: Some(parent_span),
             resolver: self.resolver,
-            diagnostics: MutableDiagnostics::default(),
+            diagnostics: DiagnosticStore::default(),
         }
     }
 

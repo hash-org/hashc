@@ -4,7 +4,7 @@ use hash_intrinsics::{
     intrinsics::{AccessToIntrinsics, DefinedIntrinsics},
     primitives::{AccessToPrimitives, DefinedPrimitives},
 };
-use hash_reporting::diagnostic::{AccessToDiagnostics, Diagnostics, ImmutableDiagnostics};
+use hash_reporting::diagnostic::{AccessToDiagnostics, DiagnosticCellStore, Diagnostics};
 // @@Docs
 use hash_tir::new::environment::env::{AccessToEnv, Env};
 use hash_typecheck::{elaboration::ProofState, errors::TcError, AccessToTypechecking};
@@ -63,7 +63,7 @@ macro_rules! tc_env {
 }
 
 type ProofStateRefCell = RefCell<ProofState>;
-pub type DiagnosticsStore = ImmutableDiagnostics<SemanticError, SemanticWarning>;
+pub type DiagnosticsStore = DiagnosticCellStore<SemanticError, SemanticWarning>;
 
 tc_env! {
     #hide env: Env<'tc>,
@@ -105,7 +105,7 @@ impl<'tc> AccessToIntrinsics for TcEnv<'tc> {
 }
 
 impl<'tc> AccessToDiagnostics for TcEnv<'tc> {
-    type Diagnostics = ImmutableDiagnostics<SemanticError, SemanticWarning>;
+    type Diagnostics = DiagnosticCellStore<SemanticError, SemanticWarning>;
     fn diagnostics(&self) -> &Self::Diagnostics {
         self.diagnostics
     }
@@ -226,7 +226,7 @@ macro_rules! impl_access_to_tc_env {
         }
 
         impl hash_reporting::diagnostic::AccessToDiagnostics for $ty {
-            type Diagnostics = hash_reporting::diagnostic::ImmutableDiagnostics<
+            type Diagnostics = hash_reporting::diagnostic::DiagnosticCellStore<
                 $crate::new::diagnostics::error::SemanticError,
                 $crate::new::diagnostics::warning::SemanticWarning,
             >;

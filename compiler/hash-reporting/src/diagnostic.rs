@@ -83,24 +83,24 @@ make_diagnostic_traits!(Diagnostics with &Self, DiagnosticsMut with &mut Self);
 
 /// A standard implementation of [Diagnostics] that uses a [RefCell] to store
 /// errors and warnings immutably.
-pub struct ImmutableDiagnostics<E, W> {
+pub struct DiagnosticCellStore<E, W> {
     pub errors: RefCell<Vec<E>>,
     pub warnings: RefCell<Vec<W>>,
 }
 
-impl<E, W> ImmutableDiagnostics<E, W> {
+impl<E, W> DiagnosticCellStore<E, W> {
     pub fn new() -> Self {
         Self { errors: RefCell::new(Vec::new()), warnings: RefCell::new(Vec::new()) }
     }
 }
 
-impl<E, W> Default for ImmutableDiagnostics<E, W> {
+impl<E, W> Default for DiagnosticCellStore<E, W> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<E: Clone, W: Clone> Clone for ImmutableDiagnostics<E, W> {
+impl<E: Clone, W: Clone> Clone for DiagnosticCellStore<E, W> {
     fn clone(&self) -> Self {
         Self {
             errors: RefCell::new(self.errors.borrow().clone()),
@@ -109,7 +109,7 @@ impl<E: Clone, W: Clone> Clone for ImmutableDiagnostics<E, W> {
     }
 }
 
-impl<E: fmt::Debug, W: fmt::Debug> fmt::Debug for ImmutableDiagnostics<E, W> {
+impl<E: fmt::Debug, W: fmt::Debug> fmt::Debug for DiagnosticCellStore<E, W> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ImmutableDiagnostics")
             .field("errors", &self.errors.borrow())
@@ -119,7 +119,7 @@ impl<E: fmt::Debug, W: fmt::Debug> fmt::Debug for ImmutableDiagnostics<E, W> {
 }
 
 /// Standard implementation of [Diagnostics] for [ImmutableDiagnostics].
-impl<E, W> Diagnostics for ImmutableDiagnostics<E, W> {
+impl<E, W> Diagnostics for DiagnosticCellStore<E, W> {
     type Error = E;
     type Warning = W;
 
@@ -160,25 +160,25 @@ impl<E, W> Diagnostics for ImmutableDiagnostics<E, W> {
 
 /// A standard implementation of [DiagnosticsMut] that stores errors and
 /// warnings directly, and thus is mutable.
-pub struct MutableDiagnostics<E, W> {
+pub struct DiagnosticStore<E, W> {
     pub errors: Vec<E>,
     pub warnings: Vec<W>,
 }
 
-impl<E, W> MutableDiagnostics<E, W> {
+impl<E, W> DiagnosticStore<E, W> {
     pub fn new() -> Self {
         Self { errors: Vec::new(), warnings: Vec::new() }
     }
 }
 
-impl<E, W> Default for MutableDiagnostics<E, W> {
+impl<E, W> Default for DiagnosticStore<E, W> {
     fn default() -> Self {
         Self::new()
     }
 }
 
 /// Standard implementation of [DiagnosticsMut] for [MutableDiagnostics].
-impl<E, W> DiagnosticsMut for MutableDiagnostics<E, W> {
+impl<E, W> DiagnosticsMut for DiagnosticStore<E, W> {
     type Error = E;
     type Warning = W;
 
