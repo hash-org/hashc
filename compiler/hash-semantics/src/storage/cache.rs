@@ -61,6 +61,12 @@ impl<K: Copy + Hash + Eq, V: Clone> PartialStore<K, V> for CacheStore<K, V> {
     fn internal_data(&self) -> &RefCell<HashMap<K, V>> {
         self.store.internal_data()
     }
+
+    /// Clear the [CacheStore] and metrics.
+    fn clear(&self) {
+        self.store.clear();
+        self.reset_metrics();
+    }
 }
 
 impl<K: Copy + Hash + Eq, V: Clone> CacheStore<K, V> {
