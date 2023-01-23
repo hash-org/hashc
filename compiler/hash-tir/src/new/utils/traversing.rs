@@ -1,3 +1,5 @@
+use std::ops::ControlFlow;
+
 ///! Utilities to traverse the term structure.
 use derive_more::{Constructor, From};
 
@@ -38,10 +40,12 @@ struct TraverseImplState<F> {
     _f: F,
 }
 
+pub trait TraversalFn<B, E> = FnMut(TermOrPatOrTy) -> Result<ControlFlow<B>, E>;
+
 // @@Todo: docs and implementation
 
 impl<'env> TraversingUtils<'env> {
-    pub fn traverse_term<F: FnMut(TermOrPatOrTy) -> Result<(), E>, E>(
+    pub fn traverse_term<B, E, F: TraversalFn<B, E>>(
         &self,
         term_id: TermId,
         f: F,
@@ -49,23 +53,15 @@ impl<'env> TraversingUtils<'env> {
         self.traverse_term_impl(term_id, &mut TraverseImplState { depth: 0, _f: f })
     }
 
-    pub fn traverse_ty<F: FnMut(TermOrPatOrTy) -> Result<(), E>, E>(
-        &self,
-        ty_id: TyId,
-        f: F,
-    ) -> Result<(), E> {
+    pub fn traverse_ty<B, E, F: TraversalFn<B, E>>(&self, ty_id: TyId, f: F) -> Result<(), E> {
         self.traverse_ty_impl(ty_id, &mut TraverseImplState { depth: 0, _f: f })
     }
 
-    pub fn traverse_pat<F: FnMut(TermOrPatOrTy) -> Result<(), E>, E>(
-        &self,
-        pat_id: PatId,
-        f: F,
-    ) -> Result<(), E> {
+    pub fn traverse_pat<B, E, F: TraversalFn<B, E>>(&self, pat_id: PatId, f: F) -> Result<(), E> {
         self.traverse_pat_impl(pat_id, &mut TraverseImplState { depth: 0, _f: f })
     }
 
-    pub fn traverse_term_or_pat_or_ty<F: FnMut(TermOrPatOrTy) -> Result<(), E>, E>(
+    pub fn traverse_term_or_pat_or_ty<B, E, F: TraversalFn<B, E>>(
         &self,
         term_or_ty: TermOrPatOrTy,
         f: F,
@@ -77,7 +73,7 @@ impl<'env> TraversingUtils<'env> {
         }
     }
 
-    fn traverse_params_impl<F: FnMut(TermOrPatOrTy) -> Result<(), E>, E>(
+    fn traverse_params_impl<B, E, F: TraversalFn<B, E>>(
         &self,
         params: ParamsId,
         state: &mut TraverseImplState<F>,
@@ -101,7 +97,7 @@ impl<'env> TraversingUtils<'env> {
         result
     }
 
-    fn traverse_args_impl<F: FnMut(TermOrPatOrTy) -> Result<(), E>, E>(
+    fn traverse_args_impl<B, E, F: TraversalFn<B, E>>(
         &self,
         args: ArgsId,
         state: &mut TraverseImplState<F>,
@@ -114,7 +110,7 @@ impl<'env> TraversingUtils<'env> {
         })
     }
 
-    fn _traverse_pat_args_impl<F: FnMut(TermOrPatOrTy) -> Result<(), E>, E>(
+    fn _traverse_pat_args_impl<B, E, F: TraversalFn<B, E>>(
         &self,
         pat_args: PatArgsId,
         state: &mut TraverseImplState<F>,
@@ -127,7 +123,7 @@ impl<'env> TraversingUtils<'env> {
         })
     }
 
-    fn _traverse_def_params_impl<F: FnMut(TermOrPatOrTy) -> Result<(), E>, E>(
+    fn _traverse_def_params_impl<B, E, F: TraversalFn<B, E>>(
         &self,
         def_params: DefParamsId,
         state: &mut TraverseImplState<F>,
@@ -140,7 +136,7 @@ impl<'env> TraversingUtils<'env> {
         })
     }
 
-    fn traverse_def_args_impl<F: FnMut(TermOrPatOrTy) -> Result<(), E>, E>(
+    fn traverse_def_args_impl<B, E, F: TraversalFn<B, E>>(
         &self,
         def_args: DefArgsId,
         state: &mut TraverseImplState<F>,
@@ -153,7 +149,7 @@ impl<'env> TraversingUtils<'env> {
         })
     }
 
-    fn _traverse_def_pat_args_impl<F: FnMut(TermOrPatOrTy) -> Result<(), E>, E>(
+    fn _traverse_def_pat_args_impl<B, E, F: TraversalFn<B, E>>(
         &self,
         def_pat_args: DefPatArgsId,
         state: &mut TraverseImplState<F>,
@@ -166,7 +162,7 @@ impl<'env> TraversingUtils<'env> {
         })
     }
 
-    fn traverse_ty_impl<F: FnMut(TermOrPatOrTy) -> Result<(), E>, E>(
+    fn traverse_ty_impl<B, E, F: TraversalFn<B, E>>(
         &self,
         ty_id: TyId,
         state: &mut TraverseImplState<F>,
@@ -183,7 +179,7 @@ impl<'env> TraversingUtils<'env> {
         })
     }
 
-    fn traverse_pat_impl<F: FnMut(TermOrPatOrTy) -> Result<(), E>, E>(
+    fn traverse_pat_impl<B, E, F: TraversalFn<B, E>>(
         &self,
         pat_id: PatId,
         _state: &mut TraverseImplState<F>,
@@ -206,7 +202,7 @@ impl<'env> TraversingUtils<'env> {
     // traversed and should not be traversed.
     //
     // Make a data structure from this
-    fn traverse_term_impl<F: FnMut(TermOrPatOrTy) -> Result<(), E>, E>(
+    fn traverse_term_impl<B, E, F: TraversalFn<B, E>>(
         &self,
         term_id: TermId,
         state: &mut TraverseImplState<F>,
