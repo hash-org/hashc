@@ -1,16 +1,16 @@
 //! Main module for Hash interactive mode.
 
 mod command;
+mod error;
 
 use std::{env, process::exit};
 
 use command::InteractiveCommand;
+use error::InteractiveError;
 use hash_ast::node_map::InteractiveBlock;
 use hash_pipeline::{interface::CompilerInterface, settings::CompilerStageKind, Compiler};
-use hash_reporting::errors::{CompilerError, InteractiveCommandError};
+use hash_reporting::writer::ReportWriter;
 use rustyline::{error::ReadlineError, Editor};
-
-type CompilerResult<T> = Result<T, CompilerError>;
 
 /// Interactive backend version
 pub const VERSION: &str = env!("EXECUTABLE_VERSION");
@@ -30,13 +30,8 @@ pub fn goodbye() {
 /// Function that initialises the interactive mode. Setup all the resources
 /// required to perform execution of provided statements and then initiate the
 /// REPL.
-pub fn init<W: CompilerInterface>(
-    mut compiler: Compiler<W>,
-    mut compiler_state: W,
-) -> CompilerResult<()> {
-    // Display the version on start-up
-    print_version();
-
+pub fn init<I: CompilerInterface>(mut compiler: Compiler<I>, mut ctx: I) {
+    print_version(); // Display the version on start-up
     let mut rl = Editor::<()>::new();
 
     loop {
@@ -45,22 +40,23 @@ pub fn init<W: CompilerInterface>(
         match line {
             Ok(line) => {
                 rl.add_history_entry(line.as_str());
-                compiler_state = execute(line.as_str(), &mut compiler, compiler_state);
+                ctx = execute(line.as_str(), &mut compiler, ctx);
             }
             Err(ReadlineError::Interrupted) | Err(ReadlineError::Eof) => {
                 println!("Exiting!");
                 break;
             }
             Err(err) => {
-                return Err(InteractiveCommandError::InternalError(format!(
-                    "Unexpected error: {err}"
-                ))
-                .into());
+                eprintln!(
+                    "{}",
+                    ReportWriter::new(
+                        vec![InteractiveError::Internal(format!("{err}")).into()],
+                        ctx.source_map()
+                    )
+                );
             }
         }
     }
-
-    Ok(())
 }
 
 /// Function to process a single line of input from the REPL instance.
@@ -70,7 +66,7 @@ fn execute<I: CompilerInterface>(input: &str, compiler: &mut Compiler<I>, mut ct
         return ctx;
     }
 
-    let command = InteractiveCommand::from(input);
+    let command = InteractiveCommand::try_from(input);
 
     match command {
         Ok(InteractiveCommand::Quit) => goodbye(),
@@ -100,15 +96,15 @@ fn execute<I: CompilerInterface>(input: &str, compiler: &mut Compiler<I>, mut ct
                 InteractiveCommand::Type(_) => {
                     // @@Hack: if display is previously set `:d`, then this interferes with this
                     // mode.
-                    settings.ast_settings_mut().dump_tree = false;
+                    settings.ast_settings_mut().dump = false;
                     settings.set_stage(CompilerStageKind::Typecheck)
                 }
                 InteractiveCommand::Display(_) => {
-                    settings.ast_settings_mut().dump_tree = true;
+                    settings.ast_settings_mut().dump = true;
                     settings.set_stage(CompilerStageKind::Parse)
                 }
                 _ => {
-                    settings.ast_settings_mut().dump_tree = false;
+                    settings.ast_settings_mut().dump = false;
                     settings.set_stage(CompilerStageKind::Full)
                 }
             }
@@ -119,7 +115,9 @@ fn execute<I: CompilerInterface>(input: &str, compiler: &mut Compiler<I>, mut ct
             let new_state = compiler.run(interactive_id, ctx);
             return new_state;
         }
-        Err(e) => CompilerError::from(e).report(),
+        Err(err) => {
+            eprintln!("{}", ReportWriter::new(vec![err.into()], ctx.source_map()))
+        }
     }
 
     ctx

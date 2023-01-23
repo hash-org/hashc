@@ -125,7 +125,7 @@ impl<Ctx: ParserCtxQuery> CompilerStage<Ctx> for Parser {
     fn cleanup(&mut self, entry_point: SourceId, ctx: &mut Ctx) {
         let settings = ctx.settings();
 
-        if settings.stage < CompilerStageKind::SemanticPass && settings.ast_settings().dump_tree {
+        if settings.stage < CompilerStageKind::SemanticPass && settings.ast_settings().dump {
             ctx.workspace().print_sources(entry_point);
         }
     }

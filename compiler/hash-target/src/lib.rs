@@ -124,4 +124,9 @@ impl TargetInfo {
     pub fn host(&self) -> &Target {
         &self.host
     }
+
+    /// Update the target that the compiler is compiling for.
+    pub fn set_target(&mut self, target: Target) {
+        self.target = target;
+    }
 }

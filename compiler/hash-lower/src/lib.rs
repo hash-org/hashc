@@ -208,9 +208,9 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrOptimiser {
         // we need to check if any of the bodies have been marked for `dumping`
         // and emit the IR that they have generated.
         if settings.dump_mode == IrDumpMode::Graph {
-            graphviz::dump_ir_bodies(bcx, &ir_storage.bodies, settings.dump_all);
+            graphviz::dump_ir_bodies(bcx, &ir_storage.bodies, settings.dump);
         } else {
-            pretty::dump_ir_bodies(bcx, source_map, &ir_storage.bodies, settings.dump_all);
+            pretty::dump_ir_bodies(bcx, source_map, &ir_storage.bodies, settings.dump);
         }
     }
 }

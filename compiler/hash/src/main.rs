@@ -1,53 +1,56 @@
 //! Hash Compiler entry point.
 #![feature(panic_info_message)]
 
-mod args;
 mod crash_handler;
 mod logger;
 
-use std::{num::NonZeroUsize, panic};
+use std::{panic, process::exit};
 
-use clap::Parser;
-use hash_pipeline::{settings::CompilerSettings, workspace::Workspace, Compiler};
-use hash_reporting::errors::CompilerError;
+use hash_pipeline::{
+    settings::{parse_settings_from_args, CompilerSettings},
+    workspace::Workspace,
+    Compiler,
+};
+use hash_reporting::{report::Report, writer::ReportWriter};
 use hash_session::{make_stages, CompilerSession};
-use hash_source::ModuleKind;
+use hash_source::{ModuleKind, SourceMap};
 use log::LevelFilter;
 use logger::CompilerLogger;
 
-use crate::{
-    args::{AstGenMode, CheckMode, CompilerOptions, DeSugarMode, IrGenMode, SubCmd},
-    crash_handler::panic_handler,
-};
+use crate::crash_handler::panic_handler;
 
 /// THe logger that is used by the compiler for `log!` statements.
 pub static COMPILER_LOGGER: CompilerLogger = CompilerLogger;
 
 /// Perform some task that might fail and if it does, report the error and exit,
 /// otherwise return the result of the task.
-fn execute<T>(f: impl FnOnce() -> Result<T, CompilerError>) -> T {
+fn execute<T, E: Into<Report>>(sources: &SourceMap, f: impl FnOnce() -> Result<T, E>) -> T {
     match f() {
         Ok(value) => value,
-        Err(e) => e.report_and_exit(),
+        Err(err) => {
+            eprintln!("{}", ReportWriter::single(err.into(), sources));
+            exit(-1)
+        }
     }
 }
 
 fn main() {
     // Initial grunt work, panic handler and logger setup...
     panic::set_hook(Box::new(panic_handler));
-    log::set_logger(&COMPILER_LOGGER).unwrap_or_else(|_| panic!("Couldn't initiate logger"));
+    log::set_logger(&COMPILER_LOGGER).unwrap_or_else(|_| panic!("couldn't initiate logger"));
 
     // Starting the Tracy client is necessary before any invoking any of its APIs
     #[cfg(feature = "profile-with-tracy")]
     tracy_client::Client::start();
 
     // Register main thread with the profiler
-    profiling::register_thread!("Main Thread");
+    profiling::register_thread!("compiler-main");
 
-    let opts: CompilerOptions = CompilerOptions::parse();
+    let workspace = Workspace::new();
+    let settings: CompilerSettings = execute(&workspace.source_map, parse_settings_from_args);
 
     // if debug is specified, we want to log everything that is debug level...
-    if opts.debug {
+    if settings.debug {
         log::set_max_level(LevelFilter::Debug);
     } else {
         log::set_max_level(LevelFilter::Info);
@@ -55,52 +58,27 @@ fn main() {
 
     // We want to figure out the entry point of the compiler by checking if the
     // compiler has been specified to run in a specific mode.
-    let entry_point = match &opts.mode {
-        Some(SubCmd::AstGen(AstGenMode { filename })) => Some(filename.clone()),
-        Some(SubCmd::DeSugar(DeSugarMode { filename })) => Some(filename.clone()),
-        Some(SubCmd::IrGen(IrGenMode { filename, .. })) => Some(filename.clone()),
-        Some(SubCmd::Check(CheckMode { filename })) => Some(filename.clone()),
-        None => opts.filename.clone(),
-    };
-
-    // check that the job count is valid...
-    let worker_count: usize = NonZeroUsize::new(opts.worker_count)
-        .unwrap_or_else(|| {
-            (CompilerError::ArgumentError {
-                message: "Invalid number of worker threads".to_owned(),
-            })
-            .report_and_exit()
-        })
-        .into();
+    let entry_point = settings.entry_point();
 
     // We need at least 2 workers for the parsing loop in order so that the job
     // queue can run within a worker and any other jobs can run inside another
     // worker or workers.
     let pool = rayon::ThreadPoolBuilder::new()
-        .num_threads(worker_count + 1)
+        .num_threads(settings.worker_count + 1)
         .thread_name(|id| format!("compiler-worker-{id}"))
         .build()
         .unwrap();
 
-    let workspace = Workspace::new();
-    let compiler_settings: CompilerSettings = execute(|| opts.try_into());
-
-    let session = CompilerSession::new(workspace, pool, compiler_settings);
+    let session = CompilerSession::new(workspace, pool, settings);
     let mut compiler = Compiler::new(make_stages());
     let compiler_state = compiler.bootstrap(session);
 
     match entry_point {
         Some(path) => {
-            execute(|| {
-                compiler.run_on_filename(path, ModuleKind::Normal, compiler_state);
-                Ok(())
-            });
+            compiler.run_on_filename(path, ModuleKind::Normal, compiler_state);
         }
         None => {
-            execute(|| {
-                hash_interactive::init(compiler, compiler_state)?;
-                Ok(())
-            });
+            hash_interactive::init(compiler, compiler_state);
         }
     };
 }
