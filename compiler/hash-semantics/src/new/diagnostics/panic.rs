@@ -16,6 +16,8 @@ pub macro tc_panic {
     ($term: expr, $storage:expr, $fmt: expr) => {
         {
             use hash_reporting::{report, builder, writer};
+            use hash_utils::stream_less_ewriteln;
+
             let env = $storage.env();
 
             // get the sources and and the location from the term
@@ -36,7 +38,7 @@ pub macro tc_panic {
             // Add the `info` note about why the internal panic occurred
             report.add_info($fmt);
 
-            eprintln!("{}", writer::ReportWriter::new(reporter.into_reports(), sources));
+            stream_less_ewriteln!("{}", writer::ReportWriter::new(reporter.into_reports(), sources));
             std::panic::panic_any(TC_FATAL_ERROR_MESSAGE);
         }
     },
@@ -54,6 +56,8 @@ pub macro tc_panic_on_many {
     ($terms:expr, $storage:expr, $fmt: expr) => {
         {
             use hash_reporting::{reporter, writer};
+            use hash_utils::stream_less_ewriteln;
+
             let env = $storage.env();
 
             // get the sources and and the location from the term
@@ -84,7 +88,8 @@ pub macro tc_panic_on_many {
             // Add the `info` note about why the internal panic occurred
             report.add_info($fmt);
 
-            eprintln!("{}", writer::ReportWriter::new(reporter.into_reports(), sources));
+
+            stream_less_ewriteln!("{}", writer::ReportWriter::new(reporter.into_reports(), sources));
             std::panic::panic_any(TC_FATAL_ERROR_MESSAGE);
         }
     },

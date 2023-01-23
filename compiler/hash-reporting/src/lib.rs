@@ -2,7 +2,6 @@
 #![feature(decl_macro)]
 
 pub mod diagnostic;
-pub mod errors;
 pub mod highlight;
 pub mod macros;
 mod render;

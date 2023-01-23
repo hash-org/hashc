@@ -30,6 +30,7 @@ use hash_tir::{
     storage::{LocalStorage, TyStorage},
 };
 use hash_typecheck::elaboration::ProofState;
+use hash_utils::stream_less_writeln;
 use new::{
     diagnostics::warning::SemanticWarning,
     environment::{
@@ -190,7 +191,10 @@ impl<Ctx: TypecheckingCtxQuery> CompilerStage<Ctx> for Typechecker {
                 {
                     // @@Cmdline: make this a configurable behaviour through a cmd-arg.
                     // Print the result if no errors
-                    println!("{}", source_term.for_formatting(storage.global_storage()));
+                    stream_less_writeln!(
+                        "{}",
+                        source_term.for_formatting(storage.global_storage())
+                    );
                 }
                 Ok(_) => {}
             }

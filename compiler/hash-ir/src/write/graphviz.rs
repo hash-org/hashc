@@ -247,10 +247,13 @@ impl<'ir> IrGraphWriter<'ir> {
 }
 
 /// Dump all of the provided [Body]s to standard output using the `dot` format.
-pub fn dump_ir_bodies(ctx: &IrCtx, bodies: &[Body], dump_all: bool) {
-    let mut w = io::stdout();
-
-    println!("digraph program {{");
+pub fn dump_ir_bodies(
+    ctx: &IrCtx,
+    bodies: &[Body],
+    dump_all: bool,
+    writer: &mut impl io::Write,
+) -> io::Result<()> {
+    writeln!(writer, "digraph program {{")?;
 
     for (id, body) in bodies.iter().enumerate() {
         // Check if we need to print this body (or if we're printing all of them)
@@ -261,8 +264,8 @@ pub fn dump_ir_bodies(ctx: &IrCtx, bodies: &[Body], dump_all: bool) {
 
         let opts = IrGraphOptions { use_subgraph: Some(id), ..IrGraphOptions::default() };
         let dumper = IrGraphWriter::new(ctx, body, opts);
-        dumper.write_body(&mut w).unwrap();
+        dumper.write_body(writer)?;
     }
 
-    println!("}}");
+    writeln!(writer, "}}")
 }

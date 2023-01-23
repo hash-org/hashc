@@ -221,19 +221,21 @@ pub fn generate_tests(input: TokenStream) -> TokenStream {
     // Compute the test parameters from each entry
     let paths = entries.iter().map(|entry| entry.path.to_str().unwrap());
     let filenames = entries.iter().map(|entry| entry.path.file_prefix().unwrap().to_str().unwrap());
-    let case_metadata = entries.iter().map(|entry| entry.metadata);
 
     // Create the test names from the provided prefix and the computed `snake_name`
     let test_names = entries
         .iter()
         .map(|entry| format_ident!("{}_test_{}", input.test_prefix, entry.snake_name));
 
+    // @@Copying: we're cloning the metadata here...
+    let case_metadata = entries.iter().map(|entry| entry.metadata.clone());
+
     // Create the tests
     let output = quote! {
         #(
             #[test]
             fn #test_names() {
-                use hash_testing_internal::metadata::TestMetadata;
+                use hash_testing_internal::metadata::{TestMetadata, TestArgs};
                 use hash_pipeline::settings::CompilerStageKind;
 
                 #test_func(TestingInput {

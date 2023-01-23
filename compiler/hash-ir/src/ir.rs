@@ -99,10 +99,10 @@ impl fmt::Display for Const {
         match self {
             Self::Zero(_) => write!(f, "()"),
             Self::Bool(b) => write!(f, "{b}"),
-            Self::Char(c) => write!(f, "{c}"),
+            Self::Char(c) => write!(f, "'{c}'"),
             Self::Int(i) => write!(f, "{i}"),
             Self::Float(flt) => write!(f, "{flt}"),
-            Self::Str(s) => write!(f, "{s}"),
+            Self::Str(s) => write!(f, "\"{s}\""),
         }
     }
 }

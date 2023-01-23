@@ -7,7 +7,6 @@ default-run = "hash"
 
 [dependencies]
 backtrace = "0.3"
-clap = { version = "4.0.29", features=["derive"] }
 log = "0.4"
 num_cpus = "1.13.0"
 profiling = "1.0.6"
@@ -23,6 +22,7 @@ hash-session = { path = "../hash-session" }
 hash-source = { path = "../hash-source" }
 hash-target = { path = "../hash-target" }
 hash-tree-def = { path = "../hash-tree-def" }
+hash-utils = { path = "../hash-utils" }
 
 [features]
 profile-with-tracy = ["profiling/profile-with-tracy"]

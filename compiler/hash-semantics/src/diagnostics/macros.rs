@@ -20,6 +20,7 @@ pub macro tc_panic {
             use crate::storage::AccessToStorage;
             use hash_tir::fmt::PrepareForFormatting;
             use hash_reporting::{reporter, writer};
+            use hash_utils::stream_less_ewriteln;
 
             let storages = $storage.storages();
 
@@ -41,7 +42,7 @@ pub macro tc_panic {
             // Add the `info` note about why the internal panic occurred
             report.add_info($fmt);
 
-            eprintln!("{}", writer::ReportWriter::new(reporter.into_reports(), sources));
+            stream_less_ewriteln!("{}", writer::ReportWriter::new(reporter.into_reports(), sources));
             std::panic::panic_any(TC_FATAL_ERROR_MESSAGE);
         }
     },
@@ -61,6 +62,7 @@ pub macro tc_panic_on_many {
             use crate::storage::AccessToStorage;
             use hash_tir::fmt::PrepareForFormatting;
             use hash_reporting::{reporter, writer};
+            use hash_utils::stream_less_ewriteln;
 
             let storages = $storage.storages();
             let sources = storages.source_map();
@@ -96,7 +98,7 @@ pub macro tc_panic_on_many {
             // Add the `info` note about why the internal panic occurred
             report.add_info($fmt);
 
-            eprintln!("{}", writer::ReportWriter::new(reporter.into_reports(), sources));
+            stream_less_ewriteln!("{}", writer::ReportWriter::new(reporter.into_reports(), sources));
             std::panic::panic_any(TC_FATAL_ERROR_MESSAGE);
         }
     },
@@ -107,6 +109,7 @@ pub macro tc_panic_on_many {
         {
             use crate::storage::AccessToStorage;
             use hash_tir::fmt::PrepareForFormatting;
+            use hash_utils::stream_less_ewriteln;
             use hash_reporting::{reporter, writer};
 
             let storages = $storage.storages();
@@ -137,7 +140,7 @@ pub macro tc_panic_on_many {
             // Add the `info` note about why the internal panic occurred
             report.add_info($fmt);
 
-            eprintln!("{}", writer::ReportWriter::new(reporter.into_reports(), sources));
+            stream_less_ewriteln!("{}", writer::ReportWriter::new(reporter.into_reports(), sources));
             std::panic::panic_any(TC_FATAL_ERROR_MESSAGE);
         }
     },

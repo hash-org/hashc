@@ -1,0 +1,21 @@
+AST dump for $DIR/unknown_directive.hash:13:20-16:6
+body
+├─statements
+│ └─declaration
+│   ├─pattern
+│   │ └─binding
+│   │   └─name "k"
+│   └─value
+│     └─constructor
+│       └─subject
+│         └─variable
+│           └─named "perform_operation"
+└─expr
+  └─constructor
+    ├─subject
+    │ └─variable
+    │   └─named "unmerge"
+    └─args
+      └─variable
+        └─named "k"
+

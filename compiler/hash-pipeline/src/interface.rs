@@ -2,6 +2,8 @@
 //! that are used by the pipeline to run various stages that transform the
 //! provided sources into runnable/executable code.
 
+use std::sync::{Arc, Mutex};
+
 use hash_ast::node_map::{InteractiveBlock, ModuleEntry, NodeMap};
 use hash_reporting::report::Report;
 use hash_source::{ModuleKind, SourceId, SourceMap};
@@ -39,6 +41,53 @@ pub trait CompilerStage<StageCtx> {
     fn kind(&self) -> CompilerStageKind;
 }
 
+/// A [CompilerOutputStream] is used to specify where the output of the compiler
+/// should be written to. This is used by the [CompilerInterface] to provide
+/// the pipeline with the necessary information to write to the correct stream.
+#[derive(Debug)]
+pub enum CompilerOutputStream {
+    /// A [CompilerOutputStream] that points to the `stdout` stream.
+    Stdout(std::io::Stdout),
+
+    /// A [CompilerOutputStream] that points to the `stderr` stream.
+    Stderr(std::io::Stderr),
+
+    /// A [CompilerOutputStream] that is backed by a [Mutex] and a [Vec].
+    Owned(Arc<Mutex<Vec<u8>>>),
+}
+
+impl Clone for CompilerOutputStream {
+    fn clone(&self) -> Self {
+        match self {
+            CompilerOutputStream::Stdout(_) => CompilerOutputStream::Stdout(std::io::stdout()),
+            CompilerOutputStream::Stderr(_) => CompilerOutputStream::Stderr(std::io::stderr()),
+            CompilerOutputStream::Owned(stream) => CompilerOutputStream::Owned(stream.clone()),
+        }
+    }
+}
+
+impl std::io::Write for CompilerOutputStream {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        match self {
+            CompilerOutputStream::Stdout(stream) => stream.write(buf),
+            CompilerOutputStream::Stderr(stream) => stream.write(buf),
+            CompilerOutputStream::Owned(stream) => {
+                let mut stream = stream.lock().unwrap();
+                stream.extend_from_slice(buf);
+                Ok(buf.len())
+            }
+        }
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        match self {
+            CompilerOutputStream::Stdout(stream) => stream.flush(),
+            CompilerOutputStream::Stderr(stream) => stream.flush(),
+            CompilerOutputStream::Owned(_) => Ok(()),
+        }
+    }
+}
+
 /// The [CompilerInterface] serves as an interface between the created compiler
 /// session which is used by the pipeline itself and any specified
 /// [CompilerStage]s which are currently present within the pipeline.
@@ -48,8 +97,13 @@ pub trait CompilerStage<StageCtx> {
 /// [CompilerInterface] is just a wrapper around the `CompilerSession` struct
 /// which is defined in `hash-session`.
 pub trait CompilerInterface {
-    /// Get the [CompilerSettings]. The settings represent any commandline
-    /// arguments that were passed into the [CompilerSession].
+    /// Get a reference to the error [CompilerOutputStream].
+    fn error_stream(&self) -> CompilerOutputStream;
+
+    /// Get a reference to the output [CompilerOutputStream].
+    fn output_stream(&self) -> CompilerOutputStream;
+
+    /// Get the [CompilerSettings].
     fn settings(&self) -> &CompilerSettings;
 
     /// Get a mutable reference to the current [CompilerSettings].

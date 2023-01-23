@@ -1,15 +1,22 @@
 //! Hash Compiler pipeline implementation. This file contains various structures
 //! and utilities representing settings and configurations that can be applied
 //! to the Compiler pipeline.
-use std::fmt::Display;
+use std::{fmt::Display, str::FromStr};
 
-use clap_derive::ValueEnum;
 use hash_target::{data_layout::TargetDataLayout, TargetInfo};
+
+use crate::args::ArgumentError;
 
 /// Various settings that are present on the compiler pipeline when initially
 /// launching.
 #[derive(Debug, Clone)]
 pub struct CompilerSettings {
+    /// An optionally specified entry point for the compiler.
+    pub entry_point: Option<String>,
+
+    /// Whether debugging log statements are enabled.
+    pub debug: bool,
+
     /// Print metrics about each stage when the entire pipeline has completed.
     ///
     /// N.B: This flag has no effect if the compiler is not specified to run in
@@ -51,8 +58,16 @@ pub struct CompilerSettings {
 }
 
 impl CompilerSettings {
+    /// Create a new [CompilerSettings].
     pub fn new(worker_count: usize) -> Self {
         Self { worker_count, ..Default::default() }
+    }
+
+    /// Get the entry point filename from the [CompilerSettings]. If
+    /// none was provided, it is assumed that this is then an interactive
+    /// session.
+    pub fn entry_point(&self) -> Option<String> {
+        self.entry_point.clone()
     }
 
     /// Specify whether the compiler pipeline should skip running
@@ -71,11 +86,6 @@ impl CompilerSettings {
     /// Specify the [CompilerStageKind] the compiler should run to.
     pub fn set_stage(&mut self, stage: CompilerStageKind) {
         self.stage = stage;
-    }
-
-    /// Get the optimisation level for the current settings.
-    pub fn optimisation(&self) -> OptimisationLevel {
-        self.optimisation_level
     }
 
     /// Get a reference to the [AstSettings].
@@ -102,6 +112,8 @@ impl CompilerSettings {
 impl Default for CompilerSettings {
     fn default() -> Self {
         Self {
+            debug: false,
+            entry_point: None,
             output_stage_results: false,
             output_metrics: false,
             skip_prelude: false,
@@ -117,7 +129,7 @@ impl Default for CompilerSettings {
 }
 
 /// What optimisation level the compiler should run at.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum OptimisationLevel {
     /// Run the compiler using the debug optimisation level. This will
     /// disable most optimisations that the compiler would otherwise do.
@@ -127,6 +139,18 @@ pub enum OptimisationLevel {
     /// Optimise the given program as much as possible, essentially
     /// applying all optimisation.
     Release,
+}
+
+impl FromStr for OptimisationLevel {
+    type Err = ArgumentError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "debug" => Ok(Self::Debug),
+            "release" => Ok(Self::Release),
+            _ => Err(ArgumentError::InvalidValue("optimisation-level".to_string(), s.to_string())),
+        }
+    }
 }
 
 impl Default for OptimisationLevel {
@@ -144,7 +168,7 @@ impl Default for OptimisationLevel {
 pub struct AstSettings {
     /// Whether to pretty-print all of the generated AST after the whole
     /// [Workspace] has been parsed.
-    pub dump_tree: bool,
+    pub dump: bool,
 }
 
 /// Settings that relate to the IR stage of the compiler, these include if the
@@ -154,7 +178,7 @@ pub struct AstSettings {
 pub struct LoweringSettings {
     /// Whether the IR should dump all lowered bodies, rather than
     /// relying on user directives to select specific bodies.
-    pub dump_all: bool,
+    pub dump: bool,
 
     /// Whether the IR that is generated at the time should be dumped.
     pub dump_mode: IrDumpMode,
@@ -166,13 +190,13 @@ pub struct LoweringSettings {
 
 impl Default for LoweringSettings {
     fn default() -> Self {
-        Self { dump_mode: IrDumpMode::Pretty, checked_operations: true, dump_all: false }
+        Self { dump_mode: IrDumpMode::Pretty, checked_operations: true, dump: false }
     }
 }
 
 /// Enum representing the different options for dumping the IR. It can either
 /// be emitted in the pretty-printing format, or in the `graphviz` format.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IrDumpMode {
     /// Dump the generated IR using a pretty-printed format
     Pretty,
@@ -209,7 +233,7 @@ pub struct CodeGenSettings {
 
 /// All of the current possible code generation backends that
 /// are available.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CodeGenBackend {
     /// The LLVM backend is target for code generation.
     LLVM,

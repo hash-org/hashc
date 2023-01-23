@@ -24,9 +24,16 @@
 //! "parsing" stage and then stop compiling, and that the test case should fail.
 #![cfg(test)]
 
-use std::{fs, io, path::Path};
+use std::{
+    fs, io,
+    path::Path,
+    sync::{Arc, Mutex},
+};
 
-use hash_pipeline::{settings::CompilerSettings, workspace::Workspace, Compiler};
+use hash_pipeline::{
+    args::parse_option, interface::CompilerOutputStream, settings::CompilerSettings,
+    workspace::Workspace, Compiler,
+};
 use hash_reporting::{report::Report, writer::ReportWriter};
 use hash_session::{make_stages, CompilerSession};
 use hash_source::ModuleKind;
@@ -72,54 +79,96 @@ fn stringify_test_dir_path(path: &Path) -> String {
     test_dir
 }
 
+/// This function will strip the provided content string of all ANSI escape
+/// codes, and replace all references to the test directory with `$DIR`.
+fn strip_contents(contents: &str, test: &TestingInput) -> String {
+    // Remove any ANSI escape codes generated from the reporting...
+    let stripped = ANSI_REGEX.replace_all(contents, "");
+
+    // Replace the directory by `$DIR`
+    let test_dir = test.path.parent().unwrap();
+    let stringified_test_dir = stringify_test_dir_path(test_dir);
+    let dir_regex = Regex::new(stringified_test_dir.as_str()).unwrap();
+
+    // @@Hack: the forward slash at the end is unconditional, since we
+    // need to re-add it because we removed it in the `stringify_test_dir_path`
+    // function.
+    let stripped = dir_regex.replace_all(stripped.as_ref(), r"$$DIR/").replace("\r\n", "\n");
+
+    stripped
+}
+
 /// Given the testing input, and a pre-filtered [Vec<Report>] based on
 /// the testing input parameters, render the reports and compare them
 /// to the saved corresponding `.stderr` file.
-///
-/// The report comparison removes all ANSI escape codes, and directory paths.
 fn compare_emitted_diagnostics(
-    input: TestingInput,
+    input: &TestingInput,
     diagnostics: Vec<Report>,
     sources: Workspace,
 ) -> std::io::Result<()> {
+    // First, convert the diagnostics into a string.
     let contents = diagnostics
         .into_iter()
         .map(|report| format!("{}", ReportWriter::single(report, &sources.source_map)))
         .collect::<Vec<_>>()
         .join("\n");
 
-    // Remove any ANSI escape codes generated from the reporting...
-    let report_contents = ANSI_REGEX.replace_all(contents.as_str(), "");
+    compare_output(input, OutputKind::Stderr, contents.as_str())
+}
 
-    // Replace the directory by `$DIR`
-    let test_dir = input.path.parent().unwrap();
-    let stringified_test_dir = stringify_test_dir_path(test_dir);
-    let dir_regex = Regex::new(stringified_test_dir.as_str()).unwrap();
+/// This enum is used to specify the kind of output that we are comparing
+/// against. This is used to determine which file we are comparing against
+/// and also to determine which file we are writing to.
+enum OutputKind {
+    /// We're comparing the output of the parser to the `.stderr` file
+    Stderr,
 
-    // @@Hack: the forward slash at the end is unconditional, since we
-    //         need to re-add it because we removed it in the
-    // `stringify_test_dir_path` function.
-    let report_contents =
-        dir_regex.replace_all(report_contents.as_ref(), r"$$DIR/").replace("\r\n", "\n");
+    /// We're comparing the output of the parser to the `.stdout` file
+    Stdout,
+}
 
-    // We want to load the `.stderr` file and verify that the contents of the
-    // file match to the created report. If the `.stderr` file does not exist
-    // then we create it and write the generated report to that file
-    let stderr_path = test_dir.join(format!("{}.stderr", input.filename));
+impl OutputKind {
+    /// Get the appropriate extension for the [OutputKind].
+    pub fn extension(&self) -> &'static str {
+        match self {
+            OutputKind::Stderr => "stderr",
+            OutputKind::Stdout => "stdout",
+        }
+    }
+}
+
+/// This function will compare the provided contents to the corresponding saved
+/// output file, which is either a `.stderr` or `.stdout` file (which is
+/// specified by the [OutputKind]). The provided contents are stripped of ANSI
+/// escape codes and all directory paths are replaced with `$DIR`.
+///
+/// If the file does not exist, then it will be created and the contents will be
+/// written to it.
+///
+/// If [`REGENERATE_OUTPUT`] is set to `true`, then the file will be overwritten
+/// with the new stripped contents.
+fn compare_output(test: &TestingInput, kind: OutputKind, contents: &str) -> std::io::Result<()> {
+    let actual_contents = strip_contents(contents, test);
+
+    // We want to load the `.{stderr|stdout}` file and verify that the contents of
+    // the file match to the created report. If the `.stderr` file does not
+    // exist then we create it and write the generated report to that file
+    let test_dir = test.path.parent().unwrap();
+    let content_path = test_dir.join(format!("{}.{}", test.filename, kind.extension()));
 
     // If we specify to re-generate the output, then we will always write the
     // content of the report into the specified file
-    if *REGENERATE_OUTPUT || !stderr_path.exists() {
+    if *REGENERATE_OUTPUT || !content_path.exists() {
         // Avoid writing nothing to the `.stderr` case file
-        if !report_contents.is_empty() {
-            fs::write(&stderr_path, &report_contents)?;
+        if !actual_contents.is_empty() {
+            fs::write(&content_path, &actual_contents)?;
         }
     }
 
     // We want to delete the file if the contents are empty, and we are
     // re-generating
-    if *REGENERATE_OUTPUT && stderr_path.exists() && report_contents.is_empty() {
-        fs::remove_file(&stderr_path)?;
+    if *REGENERATE_OUTPUT && content_path.exists() && actual_contents.is_empty() {
+        fs::remove_file(&content_path)?;
     }
 
     // Read the contents of the file, if we couldn't find the file then we assume
@@ -127,21 +176,33 @@ fn compare_emitted_diagnostics(
     // only reason why the file wouldn't be written to is if it didn't exist
     // prior to this and that the contents of the diagnostics are empty, so
     // returning an empty string makes sense here.
-    let err_contents = fs::read_to_string(stderr_path.clone())
+    let expected_contents = fs::read_to_string(content_path.clone())
         .unwrap_or_else(|err| match err.kind() {
             io::ErrorKind::NotFound => "".to_string(),
-            err => panic!("couldn't open file `{stderr_path:?}`: {:?}", err),
+            err => panic!("couldn't open file `{content_path:?}`: {:?}", err),
         })
         .replace("\r\n", "\n");
 
     pretty_assertions::assert_str_eq!(
-        err_contents,
-        report_contents,
-        "\ncase `.stderr` does not match for: {:#?}\n",
-        input
+        expected_contents,
+        actual_contents,
+        "\ncase `.{}` does not match for: {:#?}\n",
+        kind.extension(),
+        test
     );
 
     Ok(())
+}
+
+fn compare_stream(
+    test: &TestingInput,
+    kind: OutputKind,
+    output_stream: &Arc<Mutex<Vec<u8>>>,
+) -> io::Result<()> {
+    let stream = output_stream.lock().unwrap();
+    let contents = std::str::from_utf8(&stream).unwrap();
+
+    compare_output(test, kind, contents)
 }
 
 /// This function is used to handle the case of verifying that a parser test was
@@ -152,23 +213,24 @@ fn compare_emitted_diagnostics(
 /// If the case specifies that `warnings=ignore`, then warnings will not be
 /// considered within the resultant `.stderr` file.
 fn handle_failure_case(
-    input: TestingInput,
+    test: TestingInput,
     diagnostics: Vec<Report>,
     sources: Workspace,
+    output_stream: &Arc<Mutex<Vec<u8>>>,
 ) -> std::io::Result<()> {
     // verify that the case failed, as in reports where generated
     assert!(
         diagnostics.iter().any(|report| report.is_error()),
-        "\ntest case did not fail: {input:#?}{}",
+        "\ntest case did not fail: {test:#?}{}",
         ""
     );
 
     // If the test specifies that no warnings should be generated, then check
     // that this is the case
-    if input.metadata.warnings == HandleWarnings::Disallow {
+    if test.metadata.warnings == HandleWarnings::Disallow {
         assert!(
             diagnostics.iter().all(|report| report.is_error()),
-            "\ntest case generated warnings where they were disallowed: {input:#?}{}",
+            "\ntest case generated warnings where they were disallowed: {test:#?}{}",
             ""
         );
     }
@@ -178,7 +240,7 @@ fn handle_failure_case(
     let diagnostics = diagnostics
         .into_iter()
         .filter(|report| {
-            if input.metadata.warnings == HandleWarnings::Ignore {
+            if test.metadata.warnings == HandleWarnings::Ignore {
                 report.is_error()
             } else {
                 true
@@ -186,7 +248,8 @@ fn handle_failure_case(
         })
         .collect();
 
-    compare_emitted_diagnostics(input, diagnostics, sources)
+    compare_emitted_diagnostics(&test, diagnostics, sources)?;
+    compare_stream(&test, OutputKind::Stdout, output_stream)
 }
 
 /// Function that handles a test case which is expected to be successful, in
@@ -194,11 +257,12 @@ fn handle_failure_case(
 /// errors or warnings (although setting `warnings=ignore` will ignore
 /// warnings).
 fn handle_pass_case(
-    input: TestingInput,
+    test: TestingInput,
     diagnostics: Vec<Report>,
     sources: Workspace,
+    output_stream: &Arc<Mutex<Vec<u8>>>,
 ) -> std::io::Result<()> {
-    let did_pass = match input.metadata.warnings {
+    let did_pass = match test.metadata.warnings {
         HandleWarnings::Ignore | HandleWarnings::Compare => {
             diagnostics.iter().all(|report| report.is_warning())
         }
@@ -218,19 +282,36 @@ fn handle_pass_case(
     }
 
     // If we need to compare the output of the warnings, to the previous result...
-    if input.metadata.warnings == HandleWarnings::Compare {
-        compare_emitted_diagnostics(input, diagnostics, sources)?;
+    if test.metadata.warnings == HandleWarnings::Compare {
+        compare_emitted_diagnostics(&test, diagnostics, sources)?;
     }
 
-    Ok(())
+    compare_stream(&test, OutputKind::Stdout, output_stream)
 }
 
 /// Generic test handler in the event whether a case should pass or fail.
-fn handle_test(input: TestingInput) {
-    let mut compiler_settings = CompilerSettings::new(WORKER_COUNT);
-    compiler_settings.set_skip_prelude(true);
-    compiler_settings.set_emit_errors(false);
-    compiler_settings.set_stage(input.metadata.stage);
+fn handle_test(test: TestingInput) {
+    let workspace = Workspace::new();
+    let mut settings = CompilerSettings::new(WORKER_COUNT);
+    settings.set_skip_prelude(true);
+    settings.set_emit_errors(false);
+    settings.set_stage(test.metadata.stage);
+
+    // We also need to potentially apply any additional configuration options
+    // that are specified by the test onto the compiler settings
+    if !test.metadata.args.items.is_empty() {
+        let mut args = test.metadata.args.items.clone().into_iter();
+
+        while let Some(arg) = args.next() {
+            if let Err(err) = parse_option(&mut settings, &mut args, arg.as_str()) {
+                panic!(
+                    "failed to parse compiler option `{}`:\n{}",
+                    arg,
+                    ReportWriter::new(vec![err.into()], &workspace.source_map)
+                )
+            }
+        }
+    }
 
     // We need at least 2 workers for the parsing loop in order so that the job
     // queue can run within a worker and any other jobs can run inside another
@@ -241,24 +322,38 @@ fn handle_test(input: TestingInput) {
         .build()
         .unwrap();
 
-    let workspace = Workspace::new();
-    let session = CompilerSession::new(workspace, pool, compiler_settings);
+    // we create an error and output stream so that we can later
+    // compare the output of the compiler to the expected output
+    let output_stream = Arc::new(Mutex::new(Vec::new()));
+
+    let session = CompilerSession::new(
+        workspace,
+        pool,
+        settings,
+        // @@Future: we might want to directly compare `stderr` rather than
+        // rendering diagnostics and then comparing them.
+        || CompilerOutputStream::Stderr(io::stderr()),
+        {
+            let output_stream = output_stream.clone();
+            move || CompilerOutputStream::Owned(output_stream.clone())
+        },
+    );
 
     let mut compiler = Compiler::new(make_stages());
     let mut compiler_state = compiler.bootstrap(session);
 
     // // Now parse the module and store the result
     compiler_state =
-        compiler.run_on_filename(input.path.to_str().unwrap(), ModuleKind::Normal, compiler_state);
+        compiler.run_on_filename(test.path.to_str().unwrap(), ModuleKind::Normal, compiler_state);
 
     let diagnostics = compiler_state.diagnostics;
 
     // Based on the specified metadata within the test case itself, we know
     // whether the test should fail or not
-    if input.metadata.completion == TestResult::Fail {
-        handle_failure_case(input, diagnostics, compiler_state.workspace).unwrap();
+    if test.metadata.completion == TestResult::Fail {
+        handle_failure_case(test, diagnostics, compiler_state.workspace, &output_stream).unwrap();
     } else {
-        handle_pass_case(input, diagnostics, compiler_state.workspace).unwrap();
+        handle_pass_case(test, diagnostics, compiler_state.workspace, &output_stream).unwrap();
     }
 }
 

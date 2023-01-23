@@ -89,7 +89,6 @@ impl<'tcx> Builder<'tcx> {
                     // we also need to save this un-evaluated const in the builder
                     // so we can easily know what should and shouldn't be resolved.
                     self.needed_constants.push(unevaluated_const);
-
                     self.control_flow_graph.push_assign(block, destination, rvalue, span);
                 } else {
                     let local = self.lookup_local_from_scope(scope, name).unwrap();

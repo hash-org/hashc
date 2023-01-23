@@ -1,5 +1,6 @@
 //! Hash main crate logging utilities
 use hash_reporting::highlight::{highlight, Colour, Modifier};
+use hash_utils::stream_less_writeln;
 use log::{Level, Metadata, Record};
 
 pub struct CompilerLogger;
@@ -20,7 +21,9 @@ impl log::Log for CompilerLogger {
                 Level::Trace => highlight(Colour::Magenta | Modifier::Bold, "trace"),
             };
 
-            println!("{level_prefix}: {}", record.args());
+            // @@Streams: we don't stream this since this is always meant to be a debugging
+            // message, thus it is never tested for anyway.
+            stream_less_writeln!("{level_prefix}: {}", record.args());
         }
     }
 

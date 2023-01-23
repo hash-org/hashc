@@ -2,9 +2,9 @@
 //! visitor pattern on the AST in order to expand any directives or macros that
 //! need to run after the parsing stage. Currently this function does not have
 
-use hash_ast::ast::{AstVisitor, OwnsAstNode};
+use hash_ast::ast::{AstVisitorMutSelf, OwnsAstNode};
 use hash_pipeline::{
-    interface::{CompilerInterface, CompilerStage},
+    interface::{CompilerInterface, CompilerOutputStream, CompilerStage},
     settings::CompilerStageKind,
     workspace::{SourceStageInfo, Workspace},
 };
@@ -26,6 +26,9 @@ pub struct AstExpansionPass;
 pub struct AstExpansionCtx<'ast> {
     /// Reference to the current compiler workspace.
     pub workspace: &'ast mut Workspace,
+
+    /// Reference to the output stream
+    pub stdout: CompilerOutputStream,
 }
 
 /// A trait that allows the [AstExpansionPass] stage to query the
@@ -48,7 +51,7 @@ impl<Ctx: AstExpansionCtxQuery> CompilerStage<Ctx> for AstExpansionPass {
         entry_point: SourceId,
         ctx: &mut Ctx,
     ) -> hash_pipeline::interface::CompilerResult<()> {
-        let AstExpansionCtx { workspace } = ctx.data();
+        let AstExpansionCtx { workspace, stdout } = ctx.data();
 
         let node_map = &mut workspace.node_map;
         let source_map = &workspace.source_map;
@@ -58,7 +61,7 @@ impl<Ctx: AstExpansionCtxQuery> CompilerStage<Ctx> for AstExpansionPass {
 
         // De-sugar the target if it isn't already de-sugared
         if source_info.is_expanded() && entry_point.is_interactive() {
-            let expander = AstExpander::new(source_map, entry_point);
+            let mut expander = AstExpander::new(source_map, entry_point, stdout.clone());
             let source = node_map.get_interactive_block(entry_point.into());
 
             expander.visit_body_block(source.node_ref()).unwrap();
@@ -73,7 +76,7 @@ impl<Ctx: AstExpansionCtxQuery> CompilerStage<Ctx> for AstExpansionPass {
                 continue;
             }
 
-            let expander = AstExpander::new(source_map, source_id);
+            let mut expander = AstExpander::new(source_map, source_id, stdout.clone());
             expander.visit_module(module.node_ref()).unwrap();
         }
 

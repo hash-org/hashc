@@ -33,6 +33,42 @@ impl ToTokens for TestResult {
     }
 }
 
+/// This is a wrapper around a [`Vec<String>`] in order to implement the
+/// [`ToTokens`] trait, for use with the [`quote!`] macro.
+#[derive(Debug, Clone, Default)]
+pub struct TestArgs {
+    /// The inner vector of items.
+    pub items: Vec<String>,
+}
+
+impl TestArgs {
+    pub fn new() -> Self {
+        Self { items: Vec::new() }
+    }
+
+    pub fn push(&mut self, item: impl Into<String>) {
+        self.items.push(item.into())
+    }
+}
+
+impl FromIterator<String> for TestArgs {
+    fn from_iter<I: IntoIterator<Item = String>>(iter: I) -> Self {
+        let mut items = Self::new();
+        items.items.extend(iter);
+        items
+    }
+}
+
+impl ToTokens for TestArgs {
+    fn to_tokens(&self, tokens: &mut quote::__private::TokenStream) {
+        let items = self.items.iter().map(|item| {
+            format!("String::from({item:?})").parse::<quote::__private::TokenStream>().unwrap()
+        });
+
+        tokens.extend(quote! { TestArgs { items: vec![#(#items),*] } });
+    }
+}
+
 /// How the test should handle warnings, whether to ignore, disallow
 /// or compare the warning output with the previous output of the
 /// UI test.
@@ -71,12 +107,18 @@ impl ToTokens for HandleWarnings {
 /// - The test should succeed
 ///
 /// - The test runs the entire pipeline
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct TestMetadata {
     /// The compiler stage should the test reach before stopping.
     pub stage: CompilerStageKind,
+
     /// How should the test complete, pass or fail.
     pub completion: TestResult,
+
+    /// Arguments that have been supplied to the test case. This is used
+    /// to pass specific compiler configuration per test case.
+    pub args: TestArgs,
+
     /// If the test should ignore any emitted warnings.
     ///
     /// - If this setting is specified, and when the `completion` is set to
@@ -93,14 +135,15 @@ pub struct TestMetadata {
 
 impl ToTokens for TestMetadata {
     fn to_tokens(&self, tokens: &mut quote::__private::TokenStream) {
-        let TestMetadata { stage, completion, warnings } = *self;
+        let TestMetadata { stage, completion, warnings, args } = &self;
+        let args = args.clone();
 
         // Convert the stage into the `tokenised` stage...
         let stage: quote::__private::TokenStream =
             format!("CompilerStageKind::{stage:?}").parse().unwrap();
 
         tokens.extend(
-            quote! ( TestMetadata { completion: #completion, stage: #stage, warnings: #warnings  }),
+            quote! ( TestMetadata { completion: #completion, stage: #stage, warnings: #warnings, args: #args  }),
         )
     }
 }
@@ -113,6 +156,10 @@ pub struct TestMetadataBuilder {
     /// Whether the test is expected to pass or fail.
     completion: Option<TestResult>,
 
+    /// Arguments that have been supplied to the test case. This is used
+    /// to pass specific compiler configuration per test case.
+    args: TestArgs,
+
     /// Whether the test can ignore warnings.
     warnings: Option<HandleWarnings>,
 }
@@ -120,12 +167,18 @@ pub struct TestMetadataBuilder {
 impl TestMetadataBuilder {
     /// Create a new [TestMetadataBuilder]
     pub fn new() -> Self {
-        Self { stage: None, completion: None, warnings: None }
+        Self { stage: None, completion: None, warnings: None, args: TestArgs::new() }
     }
 
     /// Add a stage value to the test.
     pub fn with_stage(&mut self, stage: CompilerStageKind) -> &mut Self {
         self.stage = Some(stage);
+        self
+    }
+
+    /// Add test case arguments to the test.
+    pub fn with_args(&mut self, args: TestArgs) -> &mut Self {
+        self.args = args;
         self
     }
 
@@ -143,13 +196,14 @@ impl TestMetadataBuilder {
 
     /// Build the [TestMetadata], defaulting to the specified defaults
     /// for any missing property.
-    pub fn build(&mut self) -> TestMetadata {
-        let TestMetadata { stage, completion, warnings } = TestMetadata::default();
+    pub fn build(self) -> TestMetadata {
+        let TestMetadata { stage, completion, warnings, .. } = TestMetadata::default();
 
         TestMetadata {
             completion: self.completion.unwrap_or(completion),
             stage: self.stage.unwrap_or(stage),
             warnings: self.warnings.unwrap_or(warnings),
+            args: self.args,
         }
     }
 }
@@ -218,11 +272,17 @@ pub fn parse_test_case_metadata(path: &PathBuf) -> Result<ParsedMetadata, io::Er
     if source.starts_with("//") {
         let mut builder = TestMetadataBuilder::new();
 
-        // Turn the line into chars, strip all white-spaces and start after `//`
-        let mut config = peek_nth(source.chars().filter(|c| !c.is_whitespace()).skip(2));
+        // Turn the line into chars, start after `//`
+        let mut config = peek_nth(source.chars().skip(2));
 
         // Continue eating `key=value` pairs until we reach the end of the input
         while config.peek().is_some() {
+            // if this is a whitespace character, then we skip it
+            if matches!(config.peek(), Some(' ')) {
+                config.advance_by(1).unwrap();
+                continue;
+            }
+
             // Try and parse a key...
             let key = config.take_while_ref(|c| *c != '=').collect::<String>();
 
@@ -232,7 +292,8 @@ pub fn parse_test_case_metadata(path: &PathBuf) -> Result<ParsedMetadata, io::Er
             }
 
             // Parse the `value` of the key
-            let value = config.take_while_ref(|c| *c != ',').collect::<String>();
+            let value =
+                config.take_while_ref(|c| *c != ',').collect::<String>().trim_end().to_string();
 
             match key.as_str() {
                 "run" => {
@@ -263,6 +324,13 @@ pub fn parse_test_case_metadata(path: &PathBuf) -> Result<ParsedMetadata, io::Er
                     };
 
                     builder.with_stage(stage);
+                }
+                "args" => {
+                    // @@Todo: we should support a simple string syntax here in order
+                    // to allow for the user to provide the arguments as a string, since
+                    // currently the special character like `,` will break the parsing.
+                    let args = value.split(' ').map(|s| s.to_string()).collect();
+                    builder.with_args(args);
                 }
                 "warnings" => {
                     let action = match value.as_str() {
