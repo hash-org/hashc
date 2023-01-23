@@ -2,7 +2,10 @@
 //! that are used by the pipeline to run various stages that transform the
 //! provided sources into runnable/executable code.
 
-use std::sync::{Arc, Mutex};
+use std::{
+    io::Write,
+    sync::{Arc, Mutex},
+};
 
 use hash_ast::node_map::{InteractiveBlock, ModuleEntry, NodeMap};
 use hash_reporting::report::Report;
@@ -44,6 +47,7 @@ pub trait CompilerStage<StageCtx> {
 /// A [CompilerOutputStream] is used to specify where the output of the compiler
 /// should be written to. This is used by the [CompilerInterface] to provide
 /// the pipeline with the necessary information to write to the correct stream.
+#[derive(Debug)]
 pub enum CompilerOutputStream {
     /// A [CompilerOutputStream] that points to the `stdout` stream.
     Stdout(std::io::Stdout),
@@ -53,6 +57,33 @@ pub enum CompilerOutputStream {
 
     /// A [CompilerOutputStream] that is backed by a [Mutex] and a [Vec].
     Owned(Arc<Mutex<Vec<u8>>>),
+}
+
+impl Clone for CompilerOutputStream {
+    fn clone(&self) -> Self {
+        match self {
+            CompilerOutputStream::Stdout(_) => CompilerOutputStream::Stdout(std::io::stdout()),
+            CompilerOutputStream::Stderr(_) => CompilerOutputStream::Stderr(std::io::stderr()),
+            CompilerOutputStream::Owned(stream) => CompilerOutputStream::Owned(stream.clone()),
+        }
+    }
+}
+
+impl CompilerOutputStream {
+    /// Write the provided `bytes` to the [CompilerOutputStream].
+    pub fn write(&mut self, value: &str) {
+        match self {
+            CompilerOutputStream::Stdout(stream) => {
+                stream.write_all(value.as_bytes()).unwrap();
+            }
+            CompilerOutputStream::Stderr(stream) => {
+                stream.write_all(value.as_bytes()).unwrap();
+            }
+            CompilerOutputStream::Owned(stream) => {
+                stream.lock().unwrap().extend_from_slice(value.as_bytes())
+            }
+        }
+    }
 }
 
 /// The [CompilerInterface] serves as an interface between the created compiler

@@ -182,7 +182,8 @@ impl SemanticAnalysisCtxQuery for CompilerSession {
 
 impl AstExpansionCtxQuery for CompilerSession {
     fn data(&mut self) -> AstExpansionCtx {
-        AstExpansionCtx { workspace: &mut self.workspace }
+        let output_stream = self.output_stream();
+        AstExpansionCtx { workspace: &mut self.workspace, output_stream }
     }
 }
 
