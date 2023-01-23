@@ -7,9 +7,7 @@ mod logger;
 use std::{panic, process::exit};
 
 use hash_pipeline::{
-    settings::{parse_settings_from_args, CompilerSettings},
-    workspace::Workspace,
-    Compiler,
+    args::parse_settings_from_args, settings::CompilerSettings, workspace::Workspace, Compiler,
 };
 use hash_reporting::{report::Report, writer::ReportWriter};
 use hash_session::{make_stages, CompilerSession};
