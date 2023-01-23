@@ -24,10 +24,15 @@
 //! "parsing" stage and then stop compiling, and that the test case should fail.
 #![cfg(test)]
 
-use std::{fs, io, path::Path};
+use std::{
+    fs, io,
+    path::Path,
+    sync::{Arc, Mutex},
+};
 
 use hash_pipeline::{
-    args::parse_option, settings::CompilerSettings, workspace::Workspace, Compiler,
+    args::parse_option, interface::CompilerOutputStream, settings::CompilerSettings,
+    workspace::Workspace, Compiler,
 };
 use hash_reporting::{report::Report, writer::ReportWriter};
 use hash_session::{make_stages, CompilerSession};
@@ -76,9 +81,9 @@ fn stringify_test_dir_path(path: &Path) -> String {
 
 /// This function will strip the provided content string of all ANSI escape
 /// codes, and replace all references to the test directory with `$DIR`.
-fn strip_contents(contents: String, test: &TestingInput) -> String {
+fn strip_contents(contents: &str, test: &TestingInput) -> String {
     // Remove any ANSI escape codes generated from the reporting...
-    let stripped = ANSI_REGEX.replace_all(contents.as_str(), "");
+    let stripped = ANSI_REGEX.replace_all(contents, "");
 
     // Replace the directory by `$DIR`
     let test_dir = test.path.parent().unwrap();
@@ -108,7 +113,7 @@ fn compare_emitted_diagnostics(
         .collect::<Vec<_>>()
         .join("\n");
 
-    compare_output(input, OutputKind::Stderr, contents)
+    compare_output(input, OutputKind::Stderr, contents.as_str())
 }
 
 /// This enum is used to specify the kind of output that we are comparing
@@ -142,7 +147,7 @@ impl OutputKind {
 ///
 /// If [`REGENERATE_OUTPUT`] is set to `true`, then the file will be overwritten
 /// with the new stripped contents.
-fn compare_output(test: &TestingInput, kind: OutputKind, contents: String) -> std::io::Result<()> {
+fn compare_output(test: &TestingInput, kind: OutputKind, contents: &str) -> std::io::Result<()> {
     let actual_contents = strip_contents(contents, test);
 
     // We want to load the `.{stderr|stdout}` file and verify that the contents of
@@ -189,6 +194,17 @@ fn compare_output(test: &TestingInput, kind: OutputKind, contents: String) -> st
     Ok(())
 }
 
+fn compare_stream(
+    test: &TestingInput,
+    kind: OutputKind,
+    output_stream: &Arc<Mutex<Vec<u8>>>,
+) -> io::Result<()> {
+    let stream = output_stream.lock().unwrap();
+    let contents = std::str::from_utf8(&stream).unwrap();
+
+    compare_output(test, kind, contents)
+}
+
 /// This function is used to handle the case of verifying that a parser test was
 /// expected to fail. This function verifies that it does fail and that the
 /// generated [Report] (which is rendered) matches the recorded `case.stderr`
@@ -200,6 +216,7 @@ fn handle_failure_case(
     test: TestingInput,
     diagnostics: Vec<Report>,
     sources: Workspace,
+    output_stream: &Arc<Mutex<Vec<u8>>>,
 ) -> std::io::Result<()> {
     // verify that the case failed, as in reports where generated
     assert!(
@@ -231,7 +248,8 @@ fn handle_failure_case(
         })
         .collect();
 
-    compare_emitted_diagnostics(&test, diagnostics, sources)
+    compare_emitted_diagnostics(&test, diagnostics, sources)?;
+    compare_stream(&test, OutputKind::Stdout, output_stream)
 }
 
 /// Function that handles a test case which is expected to be successful, in
@@ -242,6 +260,7 @@ fn handle_pass_case(
     test: TestingInput,
     diagnostics: Vec<Report>,
     sources: Workspace,
+    output_stream: &Arc<Mutex<Vec<u8>>>,
 ) -> std::io::Result<()> {
     let did_pass = match test.metadata.warnings {
         HandleWarnings::Ignore | HandleWarnings::Compare => {
@@ -267,8 +286,7 @@ fn handle_pass_case(
         compare_emitted_diagnostics(&test, diagnostics, sources)?;
     }
 
-    let contents = String::from(""); // @@Todo: capture stdout here...
-    compare_output(&test, OutputKind::Stdout, contents)
+    compare_stream(&test, OutputKind::Stdout, output_stream)
 }
 
 /// Generic test handler in the event whether a case should pass or fail.
@@ -304,7 +322,22 @@ fn handle_test(test: TestingInput) {
         .build()
         .unwrap();
 
-    let session = CompilerSession::new(workspace, pool, settings);
+    // we create an error and output stream so that we can later
+    // compare the output of the compiler to the expected output
+    let output_stream = Arc::new(Mutex::new(Vec::new()));
+
+    let session = CompilerSession::new(
+        workspace,
+        pool,
+        settings,
+        {
+            let output_stream = output_stream.clone();
+            move || CompilerOutputStream::Owned(output_stream.clone())
+        },
+        // @@Future: we might want to directly compare `stderr` rather than
+        // rendering diagnostics and then comparing them.
+        || CompilerOutputStream::Stderr(io::stderr()),
+    );
 
     let mut compiler = Compiler::new(make_stages());
     let mut compiler_state = compiler.bootstrap(session);
@@ -318,9 +351,9 @@ fn handle_test(test: TestingInput) {
     // Based on the specified metadata within the test case itself, we know
     // whether the test should fail or not
     if test.metadata.completion == TestResult::Fail {
-        handle_failure_case(test, diagnostics, compiler_state.workspace).unwrap();
+        handle_failure_case(test, diagnostics, compiler_state.workspace, &output_stream).unwrap();
     } else {
-        handle_pass_case(test, diagnostics, compiler_state.workspace).unwrap();
+        handle_pass_case(test, diagnostics, compiler_state.workspace, &output_stream).unwrap();
     }
 }
 

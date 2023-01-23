@@ -18,7 +18,7 @@ use hash_layout::LayoutCtx;
 use hash_lower::{IrGen, IrOptimiser, LoweringCtx, LoweringCtxQuery};
 use hash_parser::{Parser, ParserCtx, ParserCtxQuery};
 use hash_pipeline::{
-    interface::{CompilerInterface, CompilerStage},
+    interface::{CompilerInterface, CompilerOutputStream, CompilerStage},
     settings::CompilerSettings,
     workspace::Workspace,
 };
@@ -50,6 +50,12 @@ pub struct CompilerSession {
     /// The collected workspace sources for the current job.
     pub workspace: Workspace,
 
+    /// The stream to use for writing diagnostics to.
+    pub error_stream: Box<dyn Fn() -> CompilerOutputStream>,
+
+    /// The stream to use for writing output to.
+    pub output_stream: Box<dyn Fn() -> CompilerOutputStream>,
+
     /// Any diagnostics that were collected from any stage
     pub diagnostics: Vec<Report>,
 
@@ -77,7 +83,13 @@ pub struct CompilerSession {
 
 impl CompilerSession {
     /// Create a new [CompilerSession].
-    pub fn new(workspace: Workspace, pool: rayon::ThreadPool, settings: CompilerSettings) -> Self {
+    pub fn new(
+        workspace: Workspace,
+        pool: rayon::ThreadPool,
+        settings: CompilerSettings,
+        error_stream: impl Fn() -> CompilerOutputStream + 'static,
+        output_stream: impl Fn() -> CompilerOutputStream + 'static,
+    ) -> Self {
         let target = settings.codegen_settings().target_info.target();
         let layout_info = settings.codegen_settings().layout.clone();
 
@@ -85,6 +97,8 @@ impl CompilerSession {
         let local = LocalStorage::new(&global, SourceId::default());
 
         Self {
+            error_stream: Box::new(error_stream),
+            output_stream: Box::new(output_stream),
             workspace,
             diagnostics: Vec::new(),
             pool,
@@ -97,34 +111,52 @@ impl CompilerSession {
 }
 
 impl CompilerInterface for CompilerSession {
+    /// Get a reference to the error [CompilerOutputStream].
+    fn error_stream(&self) -> CompilerOutputStream {
+        (self.error_stream)()
+    }
+
+    /// Get a reference to the output [CompilerOutputStream].
+    fn output_stream(&self) -> CompilerOutputStream {
+        (self.output_stream)()
+    }
+
+    /// Get a reference to the [CompilerSettings].
     fn settings(&self) -> &CompilerSettings {
         &self.settings
     }
 
+    /// Get a mutable reference to the [CompilerSettings].
     fn settings_mut(&mut self) -> &mut CompilerSettings {
         &mut self.settings
     }
 
+    /// Get a reference to the current diagnostic collection.
     fn diagnostics(&self) -> &[Report] {
         &self.diagnostics
     }
 
+    /// Get a mutable reference to the current diagnostic collection.
     fn diagnostics_mut(&mut self) -> &mut Vec<Report> {
         &mut self.diagnostics
     }
 
+    /// Get a reference to the current [Workspace].
     fn workspace(&self) -> &Workspace {
         &self.workspace
     }
 
+    /// Get a mutable reference to the current [Workspace].
     fn workspace_mut(&mut self) -> &mut Workspace {
         &mut self.workspace
     }
 
+    /// Get a reference to [NodeMap] for the current [Workspace].
     fn node_map(&self) -> &NodeMap {
         &self.workspace.node_map
     }
 
+    /// Get a reference to [SourceMap] for the current [Workspace].
     fn source_map(&self) -> &SourceMap {
         &self.workspace.source_map
     }

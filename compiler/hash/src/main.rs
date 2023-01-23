@@ -7,7 +7,8 @@ mod logger;
 use std::{panic, process::exit};
 
 use hash_pipeline::{
-    args::parse_settings_from_args, settings::CompilerSettings, workspace::Workspace, Compiler,
+    args::parse_settings_from_args, interface::CompilerOutputStream, settings::CompilerSettings,
+    workspace::Workspace, Compiler,
 };
 use hash_reporting::{report::Report, writer::ReportWriter};
 use hash_session::{make_stages, CompilerSession};
@@ -67,7 +68,13 @@ fn main() {
         .build()
         .unwrap();
 
-    let session = CompilerSession::new(workspace, pool, settings);
+    let session = CompilerSession::new(
+        workspace,
+        pool,
+        settings,
+        || CompilerOutputStream::Stderr(std::io::stderr()),
+        || CompilerOutputStream::Stdout(std::io::stdout()),
+    );
     let mut compiler = Compiler::new(make_stages());
     let compiler_state = compiler.bootstrap(session);
 
