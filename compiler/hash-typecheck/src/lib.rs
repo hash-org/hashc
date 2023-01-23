@@ -19,7 +19,10 @@ pub trait AccessToTypechecking:
 {
     fn proof_state(&self) -> &RefCell<ProofState>;
 
-    fn convert_tc_error(&self, error: TcError) -> Self::Error;
+    fn convert_tc_error(
+        &self,
+        error: TcError,
+    ) -> <<Self as AccessToDiagnostics>::Diagnostics as Diagnostics>::Error;
 
     /// If the result is an error, add it to the diagnostics and return `None`.
     fn try_or_add_error<T>(&self, result: TcResult<T>) -> Option<T> {

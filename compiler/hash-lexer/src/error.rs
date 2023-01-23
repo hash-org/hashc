@@ -197,7 +197,10 @@ impl LexerDiagnostics {
     }
 }
 
-impl DiagnosticsMut<LexerError, Infallible> for LexerDiagnostics {
+impl DiagnosticsMut for LexerDiagnostics {
+    type Error = LexerError;
+    type Warning = Infallible;
+
     /// Add an error into the store
     fn add_error(&mut self, error: LexerError) {
         self.errors.push(error);
@@ -222,7 +225,10 @@ impl DiagnosticsMut<LexerError, Infallible> for LexerDiagnostics {
         (take(&mut self.errors), vec![])
     }
 
-    fn merge_diagnostics(&mut self, mut other: impl DiagnosticsMut<LexerError, Infallible>) {
+    fn merge_diagnostics(
+        &mut self,
+        mut other: impl DiagnosticsMut<Error = LexerError, Warning = Infallible>,
+    ) {
         let (errors, _) = other.into_diagnostics();
         self.errors.extend(errors)
     }
@@ -234,8 +240,6 @@ impl DiagnosticsMut<LexerError, Infallible> for LexerDiagnostics {
 }
 
 impl AccessToDiagnosticsMut for Lexer<'_> {
-    type Error = LexerError;
-    type Warning = Infallible;
     type Diagnostics = LexerDiagnostics;
 
     fn diagnostics(&mut self) -> &mut Self::Diagnostics {

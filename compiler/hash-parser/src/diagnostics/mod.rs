@@ -25,8 +25,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 }
 
 impl<'stream, 'resolver> AccessToDiagnosticsMut for AstGen<'stream, 'resolver> {
-    type Error = ParseError;
-    type Warning = ParseWarning;
     type Diagnostics = MutableDiagnostics<ParseError, ParseWarning>;
 
     fn diagnostics(&mut self) -> &mut Self::Diagnostics {

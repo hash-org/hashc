@@ -4,7 +4,7 @@ use hash_intrinsics::{
     intrinsics::{AccessToIntrinsics, DefinedIntrinsics},
     primitives::{AccessToPrimitives, DefinedPrimitives},
 };
-use hash_reporting::diagnostic::{AccessToDiagnostics, ImmutableDiagnostics};
+use hash_reporting::diagnostic::{AccessToDiagnostics, Diagnostics, ImmutableDiagnostics};
 // @@Docs
 use hash_tir::new::environment::env::{AccessToEnv, Env};
 use hash_typecheck::{elaboration::ProofState, errors::TcError, AccessToTypechecking};
@@ -105,11 +105,8 @@ impl<'tc> AccessToIntrinsics for TcEnv<'tc> {
 }
 
 impl<'tc> AccessToDiagnostics for TcEnv<'tc> {
-    type Error = SemanticError;
-    type Warning = SemanticWarning;
-    type Diagnostics = ImmutableDiagnostics<Self::Error, Self::Warning>;
-
-    fn diagnostics(&self) -> &ImmutableDiagnostics<Self::Error, Self::Warning> {
+    type Diagnostics = ImmutableDiagnostics<SemanticError, SemanticWarning>;
+    fn diagnostics(&self) -> &Self::Diagnostics {
         self.diagnostics
     }
 }
@@ -119,7 +116,7 @@ impl<'tc> AccessToTypechecking for TcEnv<'tc> {
         self.proof_state
     }
 
-    fn convert_tc_error(&self, error: TcError) -> Self::Error {
+    fn convert_tc_error(&self, error: TcError) -> <Self::Diagnostics as Diagnostics>::Error {
         error.into()
     }
 }
@@ -158,9 +155,6 @@ impl<'tc, T> AccessToIntrinsics for WithTcEnv<'tc, T> {
 }
 
 impl<'tc, T> AccessToDiagnostics for WithTcEnv<'tc, T> {
-    type Error = SemanticError;
-    type Warning = SemanticWarning;
-
     type Diagnostics = DiagnosticsStore;
     fn diagnostics(&self) -> &Self::Diagnostics {
         AccessToTcEnv::diagnostics(self)
@@ -172,7 +166,7 @@ impl<'tc, T> AccessToTypechecking for WithTcEnv<'tc, T> {
         self.tc_env.proof_state
     }
 
-    fn convert_tc_error(&self, error: TcError) -> Self::Error {
+    fn convert_tc_error(&self, error: TcError) -> <Self::Diagnostics as Diagnostics>::Error {
         error.into()
     }
 }
@@ -202,6 +196,8 @@ impl<'tc> TcEnv<'tc> {
     }
 }
 
+/// Convenience macro for implementing [`AccessToTcEnv`] and friends
+/// for a type.
 #[macro_export]
 macro_rules! impl_access_to_tc_env {
     ($ty:ty) => {
@@ -230,14 +226,12 @@ macro_rules! impl_access_to_tc_env {
         }
 
         impl hash_reporting::diagnostic::AccessToDiagnostics for $ty {
-            type Error = $crate::new::diagnostics::error::SemanticError;
-            type Warning = $crate::new::diagnostics::warning::SemanticWarning;
-            type Diagnostics =
-                hash_reporting::diagnostic::ImmutableDiagnostics<Self::Error, Self::Warning>;
+            type Diagnostics = hash_reporting::diagnostic::ImmutableDiagnostics<
+                $crate::new::diagnostics::error::SemanticError,
+                $crate::new::diagnostics::warning::SemanticWarning,
+            >;
 
-            fn diagnostics(
-                &self,
-            ) -> &hash_reporting::diagnostic::ImmutableDiagnostics<Self::Error, Self::Warning> {
+            fn diagnostics(&self) -> &Self::Diagnostics {
                 $crate::new::environment::tc_env::AccessToTcEnv::diagnostics(self.tc_env())
             }
         }
@@ -247,7 +241,10 @@ macro_rules! impl_access_to_tc_env {
                 self.tc_env().proof_state
             }
 
-            fn convert_tc_error(&self, error: hash_typecheck::errors::TcError) -> Self::Error {
+            fn convert_tc_error(
+                &self,
+                error: hash_typecheck::errors::TcError,
+            ) -> <Self::Diagnostics as hash_reporting::diagnostic::Diagnostics>::Error {
                 error.into()
             }
         }

@@ -48,7 +48,10 @@ pub struct AnalyserDiagnostics {
     pub(crate) items: Vec<AnalysisDiagnostic>,
 }
 
-impl DiagnosticsMut<AnalysisError, AnalysisWarning> for AnalyserDiagnostics {
+impl DiagnosticsMut for AnalyserDiagnostics {
+    type Error = AnalysisError;
+    type Warning = AnalysisWarning;
+
     fn add_error(&mut self, error: AnalysisError) {
         self.items.push(AnalysisDiagnostic::Error(error));
     }
@@ -81,7 +84,7 @@ impl DiagnosticsMut<AnalysisError, AnalysisWarning> for AnalyserDiagnostics {
 
     fn merge_diagnostics(
         &mut self,
-        mut other: impl DiagnosticsMut<AnalysisError, AnalysisWarning>,
+        mut other: impl DiagnosticsMut<Error = AnalysisError, Warning = AnalysisWarning>,
     ) {
         let (errors, warnings) = other.into_diagnostics();
 
@@ -95,8 +98,6 @@ impl DiagnosticsMut<AnalysisError, AnalysisWarning> for AnalyserDiagnostics {
 }
 
 impl AccessToDiagnosticsMut for SemanticAnalyser<'_> {
-    type Error = AnalysisError;
-    type Warning = AnalysisWarning;
     type Diagnostics = AnalyserDiagnostics;
 
     fn diagnostics(&mut self) -> &mut Self::Diagnostics {

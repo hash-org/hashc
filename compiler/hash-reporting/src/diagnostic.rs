@@ -10,22 +10,31 @@ use std::{
 
 use crate::reporter::Reports;
 
+/// This macro creates `Diagnostics{,Mut}` trait definitions, which provide
+/// access to an abstract store containing errors and warnings of some generic
+/// type.
 macro_rules! make_diagnostic_traits {
     ($($name:ident with $self_ref:ty),* $(,)?) => {
         $(
-        pub trait $name<E, W>: Sized {
+        pub trait $name: Sized {
+            /// The type of error that is stored in the diagnostics.
+            type Error;
+
+            /// The type of warning that is stored in the diagnostics.
+            type Warning;
+
             /// Add an error into the [Self]
-            fn add_error(self: $self_ref, error: E);
+            fn add_error(self: $self_ref, error: Self::Error);
 
             /// Add an error from a [Result<T, E>] if the result is erroneous.
-            fn maybe_add_error<T>(self: $self_ref, value: Result<T, E>) {
+            fn maybe_add_error<T>(self: $self_ref, value: Result<T, Self::Error>) {
                 if let Err(e) = value {
                     self.add_error(e);
                 }
             }
 
             /// Add a warning into the diagnostics store.
-            fn add_warning(self: $self_ref, warning: W);
+            fn add_warning(self: $self_ref, warning: Self::Warning);
 
             /// Check if the diagnostics has an error.
             fn has_errors(&self) -> bool;
@@ -33,6 +42,7 @@ macro_rules! make_diagnostic_traits {
             /// Check if the diagnostics has a warning
             fn has_warnings(&self) -> bool;
 
+            /// Check if the diagnostics has any errors or warnings.
             fn has_diagnostics(&self) -> bool {
                 self.has_errors() || self.has_warnings()
             }
@@ -40,8 +50,8 @@ macro_rules! make_diagnostic_traits {
             /// Convert the [Diagnostics] into a [`Vec<Report>`].
             fn into_reports(
                 self: $self_ref,
-                make_reports_from_error: impl Fn(E) -> Reports,
-                make_reports_from_warning: impl Fn(W) -> Reports,
+                make_reports_from_error: impl Fn(Self::Error) -> Reports,
+                make_reports_from_warning: impl Fn(Self::Warning) -> Reports,
             ) -> Reports {
                 let (errors, warnings) = self.into_diagnostics();
                 errors
@@ -57,10 +67,10 @@ macro_rules! make_diagnostic_traits {
             /// immediately converting the diagnostics into [Report]s.
             ///
             /// This will modify self.
-            fn into_diagnostics(self: $self_ref) -> (Vec<E>, Vec<W>);
+            fn into_diagnostics(self: $self_ref) -> (Vec<Self::Error>, Vec<Self::Warning>);
 
             /// Merge another diagnostic store with this one.
-            fn merge_diagnostics(self: $self_ref, other: impl $name<E, W>);
+            fn merge_diagnostics(self: $self_ref, other: impl $name<Error=Self::Error, Warning=Self::Warning>);
 
             /// Clear the diagnostics of all errors and warnings.
             fn clear_diagnostics(self: $self_ref);
@@ -71,6 +81,8 @@ macro_rules! make_diagnostic_traits {
 
 make_diagnostic_traits!(Diagnostics with &Self, DiagnosticsMut with &mut Self);
 
+/// A standard implementation of [Diagnostics] that uses a [RefCell] to store
+/// errors and warnings immutably.
 pub struct ImmutableDiagnostics<E, W> {
     pub errors: RefCell<Vec<E>>,
     pub warnings: RefCell<Vec<W>>,
@@ -106,8 +118,11 @@ impl<E: fmt::Debug, W: fmt::Debug> fmt::Debug for ImmutableDiagnostics<E, W> {
     }
 }
 
-impl<E, W> Diagnostics<E, W> for ImmutableDiagnostics<E, W> {
-    /// Clear the [DiagnosticStore] of all errors and warnings.
+/// Standard implementation of [Diagnostics] for [ImmutableDiagnostics].
+impl<E, W> Diagnostics for ImmutableDiagnostics<E, W> {
+    type Error = E;
+    type Warning = W;
+
     fn clear_diagnostics(&self) {
         self.errors.borrow_mut().clear();
         self.warnings.borrow_mut().clear();
@@ -130,18 +145,21 @@ impl<E, W> Diagnostics<E, W> for ImmutableDiagnostics<E, W> {
     }
 
     fn into_diagnostics(&self) -> (Vec<E>, Vec<W>) {
+        // This drains all the errors and warnings from the diagnostics store.
         let mut errors = self.errors.borrow_mut();
         let mut warnings = self.warnings.borrow_mut();
         (take(&mut errors), take(&mut warnings))
     }
 
-    fn merge_diagnostics(&self, other: impl Diagnostics<E, W>) {
+    fn merge_diagnostics(&self, other: impl Diagnostics<Error = E, Warning = W>) {
         let (errors, warnings) = other.into_diagnostics();
         self.errors.borrow_mut().extend(errors);
         self.warnings.borrow_mut().extend(warnings);
     }
 }
 
+/// A standard implementation of [DiagnosticsMut] that stores errors and
+/// warnings directly, and thus is mutable.
 pub struct MutableDiagnostics<E, W> {
     pub errors: Vec<E>,
     pub warnings: Vec<W>,
@@ -159,8 +177,11 @@ impl<E, W> Default for MutableDiagnostics<E, W> {
     }
 }
 
-impl<E, W> DiagnosticsMut<E, W> for MutableDiagnostics<E, W> {
-    /// Clear the [DiagnosticStore] of all errors and warnings.
+/// Standard implementation of [DiagnosticsMut] for [MutableDiagnostics].
+impl<E, W> DiagnosticsMut for MutableDiagnostics<E, W> {
+    type Error = E;
+    type Warning = W;
+
     fn clear_diagnostics(&mut self) {
         self.errors.clear();
         self.warnings.clear();
@@ -186,7 +207,7 @@ impl<E, W> DiagnosticsMut<E, W> for MutableDiagnostics<E, W> {
         (take(&mut self.errors), take(&mut self.warnings))
     }
 
-    fn merge_diagnostics(&mut self, mut other: impl DiagnosticsMut<E, W>) {
+    fn merge_diagnostics(&mut self, mut other: impl DiagnosticsMut<Error = E, Warning = W>) {
         let (errors, warnings) = other.into_diagnostics();
         self.errors.extend(errors);
         self.warnings.extend(warnings);
@@ -194,10 +215,10 @@ impl<E, W> DiagnosticsMut<E, W> for MutableDiagnostics<E, W> {
 }
 
 /// Convenience trait to allow access to the diagnostics
+///
+/// API follows the [Diagnostics] trait.
 pub trait AccessToDiagnostics {
-    type Error;
-    type Warning;
-    type Diagnostics: Diagnostics<Self::Error, Self::Warning>;
+    type Diagnostics: Diagnostics;
 
     fn diagnostics(&self) -> &Self::Diagnostics;
 
@@ -205,11 +226,11 @@ pub trait AccessToDiagnostics {
         self.diagnostics().clear_diagnostics()
     }
 
-    fn add_error(&self, error: Self::Error) {
+    fn add_error(&self, error: <Self::Diagnostics as Diagnostics>::Error) {
         self.diagnostics().add_error(error)
     }
 
-    fn add_warning(&self, warning: Self::Warning) {
+    fn add_warning(&self, warning: <Self::Diagnostics as Diagnostics>::Warning) {
         self.diagnostics().add_warning(warning)
     }
 
@@ -221,16 +242,22 @@ pub trait AccessToDiagnostics {
         self.diagnostics().has_warnings()
     }
 
-    fn merge_diagnostics(&self, other: impl Diagnostics<Self::Error, Self::Warning>) {
+    fn merge_diagnostics(
+        &self,
+        other: impl Diagnostics<
+            Error = <Self::Diagnostics as Diagnostics>::Error,
+            Warning = <Self::Diagnostics as Diagnostics>::Warning,
+        >,
+    ) {
         self.diagnostics().merge_diagnostics(other)
     }
 }
 
 /// Convenience trait to allow access to the diagnostics
+///
+/// API follows the [DiagnosticsMut] trait.
 pub trait AccessToDiagnosticsMut {
-    type Error;
-    type Warning;
-    type Diagnostics: DiagnosticsMut<Self::Error, Self::Warning>;
+    type Diagnostics: DiagnosticsMut;
 
     fn diagnostics(&mut self) -> &mut Self::Diagnostics;
 
@@ -238,15 +265,18 @@ pub trait AccessToDiagnosticsMut {
         self.diagnostics().clear_diagnostics()
     }
 
-    fn add_error(&mut self, error: Self::Error) {
+    fn add_error(&mut self, error: <Self::Diagnostics as DiagnosticsMut>::Error) {
         self.diagnostics().add_error(error)
     }
 
-    fn maybe_add_error<T>(&mut self, value: Result<T, Self::Error>) {
+    fn maybe_add_error<T>(
+        &mut self,
+        value: Result<T, <Self::Diagnostics as DiagnosticsMut>::Error>,
+    ) {
         self.diagnostics().maybe_add_error(value)
     }
 
-    fn add_warning(&mut self, warning: Self::Warning) {
+    fn add_warning(&mut self, warning: <Self::Diagnostics as DiagnosticsMut>::Warning) {
         self.diagnostics().add_warning(warning)
     }
 
@@ -258,7 +288,13 @@ pub trait AccessToDiagnosticsMut {
         self.diagnostics().has_warnings()
     }
 
-    fn merge_diagnostics(&mut self, other: impl DiagnosticsMut<Self::Error, Self::Warning>) {
+    fn merge_diagnostics(
+        &mut self,
+        other: impl DiagnosticsMut<
+            Error = <Self::Diagnostics as DiagnosticsMut>::Error,
+            Warning = <Self::Diagnostics as DiagnosticsMut>::Warning,
+        >,
+    ) {
         self.diagnostics().merge_diagnostics(other)
     }
 }
