@@ -106,7 +106,7 @@ impl<E: fmt::Debug, W: fmt::Debug> fmt::Debug for ImmutableDiagnostics<E, W> {
     }
 }
 
-impl<E: Clone, W: Clone> Diagnostics<E, W> for ImmutableDiagnostics<E, W> {
+impl<E, W> Diagnostics<E, W> for ImmutableDiagnostics<E, W> {
     /// Clear the [DiagnosticStore] of all errors and warnings.
     fn clear_diagnostics(&self) {
         self.errors.borrow_mut().clear();
@@ -130,7 +130,9 @@ impl<E: Clone, W: Clone> Diagnostics<E, W> for ImmutableDiagnostics<E, W> {
     }
 
     fn into_diagnostics(&self) -> (Vec<E>, Vec<W>) {
-        (self.errors.borrow().clone(), self.warnings.borrow().clone())
+        let mut errors = self.errors.borrow_mut();
+        let mut warnings = self.warnings.borrow_mut();
+        (take(&mut errors), take(&mut warnings))
     }
 
     fn merge_diagnostics(&self, other: impl Diagnostics<E, W>) {
@@ -157,7 +159,7 @@ impl<E, W> Default for MutableDiagnostics<E, W> {
     }
 }
 
-impl<E: Clone, W: Clone> DiagnosticsMut<E, W> for MutableDiagnostics<E, W> {
+impl<E, W> DiagnosticsMut<E, W> for MutableDiagnostics<E, W> {
     /// Clear the [DiagnosticStore] of all errors and warnings.
     fn clear_diagnostics(&mut self) {
         self.errors.clear();
