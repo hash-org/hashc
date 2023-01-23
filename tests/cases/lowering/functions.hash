@@ -1,4 +1,4 @@
-// stage=ir, args=--dump-ir --dump-mode=pretty
+// stage=ir, args=-C dump=ir -C ir-dump-mode=pretty
 
 print := (message: str) => {
 }

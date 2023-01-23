@@ -83,7 +83,7 @@ pub fn parse_settings_from_args() -> Result<CompilerSettings, ArgumentError> {
         // This is a configuration key that specifies the "key" and then
         // the value in the form of `-C<key>=<value>`
         if arg.starts_with("-C") || arg.starts_with("--") {
-            parse_option(&mut settings, &mut args, arg)?;
+            parse_option(&mut settings, &mut args, arg.as_str())?;
         } else {
             // This is specifying what kind of a stage the compiler should run
             // the job on whether it is `build`, `check`,
@@ -123,10 +123,10 @@ pub fn parse_settings_from_args() -> Result<CompilerSettings, ArgumentError> {
 /// `-C<key>=<value>` or a flag `--flag`.
 ///
 /// N.B. This function does not deal with the entry point of the compiler.
-fn parse_option(
+pub fn parse_option(
     settings: &mut CompilerSettings,
     args: &mut impl Iterator<Item = String>,
-    arg: String,
+    arg: &str,
 ) -> Result<(), ArgumentError> {
     // This is a configuration key that specifies the "key" and then
     // the value in the form of `-C<key>=<value>`
@@ -138,7 +138,7 @@ fn parse_option(
             if let Some(arg) = args.next() {
                 parse_arg_configuration(settings, arg)?;
             } else {
-                return Err(ArgumentError::UnknownKey(arg));
+                return Err(ArgumentError::UnknownKey(arg.to_string()));
             }
         } else {
             parse_arg_configuration(settings, arg.trim_start_matches("-C").to_string())?;
@@ -154,7 +154,7 @@ fn parse_option(
                 settings.output_metrics = true;
             }
             _ => {
-                return Err(ArgumentError::UnknownKey(arg));
+                return Err(ArgumentError::UnknownKey(arg.to_string()));
             }
         }
     }

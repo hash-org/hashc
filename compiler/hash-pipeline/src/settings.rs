@@ -148,10 +148,7 @@ impl FromStr for OptimisationLevel {
         match s {
             "debug" => Ok(Self::Debug),
             "release" => Ok(Self::Release),
-            _ => {
-                Err(ArgumentError::InvalidValue("optimisation-level".to_string(), s.to_string())
-                    .into())
-            }
+            _ => Err(ArgumentError::InvalidValue("optimisation-level".to_string(), s.to_string())),
         }
     }
 }
