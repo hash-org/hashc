@@ -22,6 +22,7 @@ hash-session = { path = "../hash-session" }
 hash-source = { path = "../hash-source" }
 hash-target = { path = "../hash-target" }
 hash-tree-def = { path = "../hash-tree-def" }
+hash-utils = { path = "../hash-utils" }
 
 [features]
 profile-with-tracy = ["profiling/profile-with-tracy"]

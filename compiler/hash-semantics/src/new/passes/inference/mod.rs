@@ -7,6 +7,7 @@ use derive_more::Constructor;
 use hash_ast::ast::{self};
 use hash_tir::new::environment::env::AccessToEnv;
 use hash_typecheck::AccessToTypechecking;
+use hash_utils::stream_less_writeln;
 
 use super::ast_utils::AstPass;
 use crate::{
@@ -36,7 +37,8 @@ impl<'tc> AstPass for InferencePass<'tc> {
             Some(ty) => self.env().with(ty).to_string(),
             None => "<unknown>".to_string(),
         };
-        println!("{}: {}", self.env().with(term), ty_str);
+
+        stream_less_writeln!("{}: {}", self.env().with(term), ty_str);
         Ok(())
     }
 
@@ -48,7 +50,8 @@ impl<'tc> AstPass for InferencePass<'tc> {
         // (@@Temp)
         let mod_def_id = self.ast_info().mod_defs().get_data_by_node(node.id()).unwrap();
         self.infer_ops().infer_mod_def(mod_def_id)?;
-        println!("{}", self.env().with(mod_def_id));
+
+        stream_less_writeln!("{}", self.env().with(mod_def_id));
         Ok(())
     }
 }

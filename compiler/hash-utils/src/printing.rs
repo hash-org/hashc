@@ -3,6 +3,24 @@
 //! reporting errors.
 use std::fmt;
 
+/// This is used a wrapper around [`println!`] in order to denote that
+/// we don't care about the capturing of the output for testing purposes.
+#[macro_export]
+macro_rules! stream_less_writeln {
+    ($($arg:tt)*) => {
+        println!($($arg)*);
+    };
+}
+
+/// This is used a wrapper around [`eprintln!`] in order to denote that
+/// we don't care about the capturing of the output for testing purposes.
+#[macro_export]
+macro_rules! stream_less_ewriteln {
+    ($($arg:tt)*) => {
+        eprintln!($($arg)*);
+    };
+}
+
 #[macro_export]
 macro_rules! pluralise {
     ($x:expr) => {

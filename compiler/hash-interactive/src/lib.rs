@@ -10,6 +10,7 @@ use error::InteractiveError;
 use hash_ast::node_map::InteractiveBlock;
 use hash_pipeline::{interface::CompilerInterface, settings::CompilerStageKind, Compiler};
 use hash_reporting::writer::ReportWriter;
+use hash_utils::{stream_less_ewriteln, stream_less_writeln};
 use rustyline::{error::ReadlineError, Editor};
 
 /// Interactive backend version
@@ -18,12 +19,12 @@ pub const VERSION: &str = env!("EXECUTABLE_VERSION");
 /// Utility to print the version of the current interactive backend
 #[inline(always)]
 pub fn print_version() {
-    println!("Version {VERSION}");
+    stream_less_writeln!("Version {VERSION}");
 }
 
 /// Function that is called on a graceful interpreter exit
 pub fn goodbye() {
-    println!("Goodbye!");
+    stream_less_writeln!("Goodbye!");
     exit(0)
 }
 
@@ -43,11 +44,11 @@ pub fn init<I: CompilerInterface>(mut compiler: Compiler<I>, mut ctx: I) {
                 ctx = execute(line.as_str(), &mut compiler, ctx);
             }
             Err(ReadlineError::Interrupted) | Err(ReadlineError::Eof) => {
-                println!("Exiting!");
+                stream_less_writeln!("Exiting!");
                 break;
             }
             Err(err) => {
-                eprintln!(
+                stream_less_ewriteln!(
                     "{}",
                     ReportWriter::new(
                         vec![InteractiveError::Internal(format!("{err}")).into()],
@@ -116,7 +117,7 @@ fn execute<I: CompilerInterface>(input: &str, compiler: &mut Compiler<I>, mut ct
             return new_state;
         }
         Err(err) => {
-            eprintln!("{}", ReportWriter::new(vec![err.into()], ctx.source_map()))
+            stream_less_ewriteln!("{}", ReportWriter::new(vec![err.into()], ctx.source_map()))
         }
     }
 

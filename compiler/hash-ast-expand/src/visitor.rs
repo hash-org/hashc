@@ -60,7 +60,7 @@ impl<'s> AstVisitorMutSelf for AstExpander<'s> {
             let tree = AstTreeGenerator.visit_expr(node.subject.ast_ref()).unwrap();
             let location = self.source_location(node.subject.span());
 
-            self.stdout.write(&format!(
+            self.stdout.writeln(&format!(
                 "AST dump for {}\n{}",
                 self.source_map.fmt_location(location),
                 TreeWriter::new(&tree)

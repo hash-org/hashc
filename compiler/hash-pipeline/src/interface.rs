@@ -71,16 +71,20 @@ impl Clone for CompilerOutputStream {
 
 impl CompilerOutputStream {
     /// Write the provided `bytes` to the [CompilerOutputStream].
-    pub fn write(&mut self, value: &str) {
+    pub fn writeln(&mut self, value: &str) {
         match self {
             CompilerOutputStream::Stdout(stream) => {
                 stream.write_all(value.as_bytes()).unwrap();
+                stream.write_all("\n".as_bytes()).unwrap();
             }
             CompilerOutputStream::Stderr(stream) => {
                 stream.write_all(value.as_bytes()).unwrap();
+                stream.write_all("\n".as_bytes()).unwrap();
             }
             CompilerOutputStream::Owned(stream) => {
-                stream.lock().unwrap().extend_from_slice(value.as_bytes())
+                let mut stream = stream.lock().unwrap();
+                stream.extend_from_slice(value.as_bytes());
+                stream.extend_from_slice("\n".as_bytes())
             }
         }
     }

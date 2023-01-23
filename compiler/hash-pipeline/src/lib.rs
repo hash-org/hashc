@@ -241,7 +241,10 @@ impl<I: CompilerInterface> Compiler<I> {
 
             // Only print the error if specified within the settings
             if ctx.settings().emit_errors {
-                eprintln!("{}", ReportWriter::single(err.create_report(), ctx.source_map()));
+                ctx.error_stream().writeln(&format!(
+                    "{}",
+                    ReportWriter::single(err.create_report(), ctx.source_map())
+                ));
             }
 
             return ctx;

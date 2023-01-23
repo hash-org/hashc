@@ -1,5 +1,7 @@
 //! Utility macros for performing various operations when it comes to
 //! working with reports
+#[allow(unused_imports)]
+use hash_utils::stream_less_ewriteln;
 
 /// The macro `panic_on_span` is essentially used to create a
 /// [crate::report::Report], build it and then print it whilst panicking. This
@@ -8,12 +10,13 @@
 pub macro panic_on_span {
     ($location:expr, $sources:expr, $fmt: expr) => {
         {
+
             let mut reporter = $crate::reporter::Reporter::new();
             reporter.internal()
                 .title($fmt)
                 .add_labelled_span($location, "here");
 
-            eprintln!("{}", $crate::writer::ReportWriter::new(reporter.into_reports(), $sources));
+            stream_less_ewriteln!("{}", $crate::writer::ReportWriter::new(reporter.into_reports(), $sources));
             std::panic::panic_any("A fatal error occurred during compilation on the reported node");
         }
     },
@@ -29,12 +32,14 @@ pub macro panic_on_span {
 pub macro compiler_note {
     ($location:expr, $sources:expr, $fmt: expr) => {
         {
+            use hash_utils::stream_less_ewriteln;
+
             let mut reporter = $crate::reporter::Reporter::new();
             reporter.info()
                 .title($fmt)
                 .add_labelled_span($location, "here");
 
-            eprintln!("{}", $crate::writer::ReportWriter::new(reporter.into_reports(), $sources));
+            stream_less_ewriteln!("{}", $crate::writer::ReportWriter::new(reporter.into_reports(), $sources));
         }
     },
     ($location:expr, $sources:expr, $fmt: expr, $($arg:tt)*) => {

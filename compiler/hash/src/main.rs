@@ -13,6 +13,7 @@ use hash_pipeline::{
 use hash_reporting::{report::Report, writer::ReportWriter};
 use hash_session::{make_stages, CompilerSession};
 use hash_source::{ModuleKind, SourceMap};
+use hash_utils::stream_less_ewriteln;
 use log::LevelFilter;
 use logger::CompilerLogger;
 
@@ -27,7 +28,7 @@ fn execute<T, E: Into<Report>>(sources: &SourceMap, f: impl FnOnce() -> Result<T
     match f() {
         Ok(value) => value,
         Err(err) => {
-            eprintln!("{}", ReportWriter::single(err.into(), sources));
+            stream_less_ewriteln!("{}", ReportWriter::single(err.into(), sources));
             exit(-1)
         }
     }

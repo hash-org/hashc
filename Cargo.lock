@@ -347,6 +347,7 @@ dependencies = [
  "hash-source",
  "hash-target",
  "hash-tree-def",
+ "hash-utils",
  "log",
  "num_cpus",
  "profiling",
@@ -485,6 +486,7 @@ dependencies = [
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
+ "hash-utils",
  "rayon",
  "rustyline",
 ]
