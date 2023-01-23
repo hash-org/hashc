@@ -2,10 +2,7 @@
 //! that are used by the pipeline to run various stages that transform the
 //! provided sources into runnable/executable code.
 
-use std::{
-    io::Write,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 
 use hash_ast::node_map::{InteractiveBlock, ModuleEntry, NodeMap};
 use hash_reporting::report::Report;
@@ -69,23 +66,24 @@ impl Clone for CompilerOutputStream {
     }
 }
 
-impl CompilerOutputStream {
-    /// Write the provided `bytes` to the [CompilerOutputStream].
-    pub fn writeln(&mut self, value: &str) {
+impl std::io::Write for CompilerOutputStream {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         match self {
-            CompilerOutputStream::Stdout(stream) => {
-                stream.write_all(value.as_bytes()).unwrap();
-                stream.write_all("\n".as_bytes()).unwrap();
-            }
-            CompilerOutputStream::Stderr(stream) => {
-                stream.write_all(value.as_bytes()).unwrap();
-                stream.write_all("\n".as_bytes()).unwrap();
-            }
+            CompilerOutputStream::Stdout(stream) => stream.write(buf),
+            CompilerOutputStream::Stderr(stream) => stream.write(buf),
             CompilerOutputStream::Owned(stream) => {
                 let mut stream = stream.lock().unwrap();
-                stream.extend_from_slice(value.as_bytes());
-                stream.extend_from_slice("\n".as_bytes())
+                stream.extend_from_slice(buf);
+                Ok(buf.len())
             }
+        }
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        match self {
+            CompilerOutputStream::Stdout(stream) => stream.flush(),
+            CompilerOutputStream::Stderr(stream) => stream.flush(),
+            CompilerOutputStream::Owned(_) => Ok(()),
         }
     }
 }

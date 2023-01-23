@@ -224,26 +224,33 @@ impl Workspace {
 
     /// Utility function used by AST-like stages in order to print the
     /// current [NodeMap].
-    pub fn print_sources(&self, entry_point: SourceId) {
+    pub fn print_sources(
+        &self,
+        entry_point: SourceId,
+        writer: &mut impl std::io::Write,
+    ) -> std::io::Result<()> {
         if entry_point.is_interactive() {
             // If this is an interactive statement, we want to print the statement that was
             // just parsed.
             let source = self.node_map.get_interactive_block(entry_point.into());
             let tree = AstTreeGenerator.visit_body_block(source.node_ref()).unwrap();
 
-            println!("{}", TreeWriter::new(&tree));
+            writeln!(writer, "{}", TreeWriter::new(&tree))
         } else {
             // If this is a module, we want to print all of the generated modules from the
             // parsing stage
             for generated_module in self.node_map.iter_modules() {
                 let tree = AstTreeGenerator.visit_module(generated_module.node_ref()).unwrap();
 
-                println!(
+                writeln!(
+                    writer,
                     "AST for `{}`:\n{}",
                     generated_module.canonicalised_path(),
                     TreeWriter::new(&tree)
-                );
+                )?;
             }
+
+            Ok(())
         }
     }
 }

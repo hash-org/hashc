@@ -17,7 +17,7 @@ use fs::{read_in_path, resolve_path, PRELUDE};
 use hash_ast::node_map::ModuleEntry;
 use hash_reporting::{reporter::Reports, writer::ReportWriter};
 use hash_source::{constant::CONSTANT_MAP, ModuleKind, SourceId};
-use hash_utils::timing::timed;
+use hash_utils::{stream_writeln, timing::timed};
 use interface::{CompilerInterface, CompilerStage};
 use settings::CompilerStageKind;
 
@@ -59,7 +59,7 @@ impl<I: CompilerInterface> Compiler<I> {
 
     /// Function to report the collected metrics on the stages within the
     /// compiler.
-    fn report_metrics(&self) {
+    fn report_metrics(&self, ctx: &I) {
         let mut total = Duration::new(0, 0);
 
         // Sort metrics by the declared order
@@ -68,6 +68,8 @@ impl<I: CompilerInterface> Compiler<I> {
 
         log::debug!("compiler pipeline timings:");
 
+        let mut stderr = ctx.error_stream();
+
         for (stage, duration) in timings {
             // This shouldn't occur as we don't record this metric in this way
             if *stage == CompilerStageKind::Full {
@@ -75,11 +77,11 @@ impl<I: CompilerInterface> Compiler<I> {
             }
             total += *duration;
 
-            eprintln!("{: <12}: {duration:?}", format!("{stage}"));
+            stream_writeln!(stderr, "{: <12}: {duration:?}", format!("{stage}"));
         }
 
         // Now print the total
-        eprintln!("{: <12}: {total:?}\n", format!("{}", CompilerStageKind::Full));
+        stream_writeln!(stderr, "{: <12}: {total:?}\n", format!("{}", CompilerStageKind::Full));
     }
 
     fn run_stage(
@@ -188,6 +190,7 @@ impl<I: CompilerInterface> Compiler<I> {
         if ctx.settings().emit_errors && (!ctx.diagnostics().is_empty() || result.is_err()) {
             let mut err_count = 0;
             let mut warn_count = 0;
+            let mut stderr = ctx.error_stream();
 
             // @@Copying: Ideally, we would not want to copy here!
             for diagnostic in ctx.diagnostics().iter().cloned() {
@@ -199,7 +202,7 @@ impl<I: CompilerInterface> Compiler<I> {
                     warn_count += 1;
                 }
 
-                eprintln!("{}", ReportWriter::single(diagnostic, ctx.source_map()));
+                stream_writeln!(stderr, "{}", ReportWriter::single(diagnostic, ctx.source_map()));
             }
 
             // @@Hack: to prevent the compiler from printing this message when the pipeline
@@ -214,7 +217,7 @@ impl<I: CompilerInterface> Compiler<I> {
 
         // Print compiler stage metrics if specified in the settings.
         if ctx.settings().output_metrics {
-            self.report_metrics();
+            self.report_metrics(&ctx);
         }
 
         ctx
@@ -241,10 +244,12 @@ impl<I: CompilerInterface> Compiler<I> {
 
             // Only print the error if specified within the settings
             if ctx.settings().emit_errors {
-                ctx.error_stream().writeln(&format!(
+                let mut stderr = ctx.error_stream();
+                stream_writeln!(
+                    stderr,
                     "{}",
                     ReportWriter::single(err.create_report(), ctx.source_map())
-                ));
+                );
             }
 
             return ctx;
@@ -252,13 +257,19 @@ impl<I: CompilerInterface> Compiler<I> {
 
         let filename = filename.unwrap();
         let contents = read_in_path(&filename);
+        let mut stderr = ctx.error_stream();
 
         if let Err(err) = contents {
             ctx.diagnostics_mut().push(err.create_report());
 
             // Only print the error if specified within the settings
+
             if ctx.settings().emit_errors {
-                eprintln!("{}", ReportWriter::single(err.create_report(), ctx.source_map()));
+                stream_writeln!(
+                    stderr,
+                    "{}",
+                    ReportWriter::single(err.create_report(), ctx.source_map())
+                );
             }
 
             return ctx;

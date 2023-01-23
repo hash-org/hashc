@@ -183,7 +183,7 @@ impl SemanticAnalysisCtxQuery for CompilerSession {
 impl AstExpansionCtxQuery for CompilerSession {
     fn data(&mut self) -> AstExpansionCtx {
         let output_stream = self.output_stream();
-        AstExpansionCtx { workspace: &mut self.workspace, output_stream }
+        AstExpansionCtx { workspace: &mut self.workspace, stdout: output_stream }
     }
 }
 
@@ -195,12 +195,14 @@ impl TypecheckingCtxQuery for CompilerSession {
 
 impl LoweringCtxQuery for CompilerSession {
     fn data(&mut self) -> LoweringCtx {
+        let output_stream = self.output_stream();
         LoweringCtx {
             workspace: &mut self.workspace,
             ty_storage: &self.ty_storage,
             settings: &self.settings,
             layout_storage: &self.layout_storage,
             ir_storage: &mut self.ir_storage,
+            stdout: output_stream,
             _pool: &self.pool,
         }
     }

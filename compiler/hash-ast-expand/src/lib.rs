@@ -28,7 +28,7 @@ pub struct AstExpansionCtx<'ast> {
     pub workspace: &'ast mut Workspace,
 
     /// Reference to the output stream
-    pub output_stream: CompilerOutputStream,
+    pub stdout: CompilerOutputStream,
 }
 
 /// A trait that allows the [AstExpansionPass] stage to query the
@@ -51,7 +51,7 @@ impl<Ctx: AstExpansionCtxQuery> CompilerStage<Ctx> for AstExpansionPass {
         entry_point: SourceId,
         ctx: &mut Ctx,
     ) -> hash_pipeline::interface::CompilerResult<()> {
-        let AstExpansionCtx { workspace, output_stream: stdout } = ctx.data();
+        let AstExpansionCtx { workspace, stdout } = ctx.data();
 
         let node_map = &mut workspace.node_map;
         let source_map = &workspace.source_map;

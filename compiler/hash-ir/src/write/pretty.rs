@@ -131,7 +131,13 @@ impl fmt::Display for IrBodyWriter<'_> {
 }
 
 /// Dump all of the provided [Body]s to standard output using the `dot` format.
-pub fn dump_ir_bodies(ctx: &IrCtx, source_map: &SourceMap, bodies: &[Body], dump_all: bool) {
+pub fn dump_ir_bodies(
+    ctx: &IrCtx,
+    source_map: &SourceMap,
+    bodies: &[Body],
+    dump_all: bool,
+    writer: &mut impl std::io::Write,
+) -> std::io::Result<()> {
     for (index, body) in bodies.iter().enumerate() {
         // Check if we need to print this body (or if we're printing all of them)
         // and then skip bodies that we didn't request to print.
@@ -141,15 +147,18 @@ pub fn dump_ir_bodies(ctx: &IrCtx, source_map: &SourceMap, bodies: &[Body], dump
 
         // Padding between each body
         if index > 0 {
-            println!();
+            writeln!(writer)?;
         }
 
-        println!(
+        writeln!(
+            writer,
             "IR dump for {} `{}` defined at {}\n{}",
             body.info().source(),
             body.info().name(),
             source_map.fmt_location(body.location()),
             IrBodyWriter::new(ctx, body)
-        );
+        )?;
     }
+
+    Ok(())
 }

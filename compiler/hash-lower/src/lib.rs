@@ -22,12 +22,13 @@ use hash_ir::{
 };
 use hash_layout::{compute::LayoutComputer, write::LayoutWriter, LayoutCtx, TyInfo};
 use hash_pipeline::{
-    interface::{CompilerInterface, CompilerResult, CompilerStage},
+    interface::{CompilerInterface, CompilerOutputStream, CompilerResult, CompilerStage},
     settings::{CompilerSettings, CompilerStageKind, IrDumpMode},
     workspace::{SourceStageInfo, Workspace},
 };
 use hash_source::SourceId;
 use hash_tir::{nodes::NodeInfoTarget, storage::TyStorage};
+use hash_utils::stream_writeln;
 use optimise::Optimiser;
 use ty::TyLoweringCtx;
 
@@ -63,6 +64,9 @@ pub struct LoweringCtx<'ir> {
     /// Reference to the [LayoutCtx] that is used to store
     /// the layouts of types.
     pub layout_storage: &'ir LayoutCtx,
+
+    /// Reference to the output stream
+    pub stdout: CompilerOutputStream,
 
     /// Reference to the rayon thread pool.
     pub _pool: &'ir rayon::ThreadPool,
@@ -128,7 +132,8 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
     }
 
     fn cleanup(&mut self, _entry_point: SourceId, stage_data: &mut Ctx) {
-        let LoweringCtx { ty_storage, ir_storage, layout_storage, .. } = stage_data.data();
+        let LoweringCtx { ty_storage, ir_storage, layout_storage, mut stdout, .. } =
+            stage_data.data();
 
         let node_info_store = &ty_storage.global.node_info_store;
         let ty_lowerer = TyLoweringCtx::new(&ir_storage.ctx, &ty_storage.global);
@@ -147,10 +152,14 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
 
             // Print the layout and add spacing between all of the specified layouts
             // that were requested.
-            println!("{}", LayoutWriter::new(TyInfo { ty, layout }, layout_computer));
+            stream_writeln!(
+                stdout,
+                "{}",
+                LayoutWriter::new(TyInfo { ty, layout }, layout_computer)
+            );
 
             if index < self.layouts_to_generate.len() - 1 {
-                println!();
+                stream_writeln!(stdout);
             }
         }
 
@@ -201,16 +210,17 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrOptimiser {
 
     fn cleanup(&mut self, _entry_point: SourceId, ctx: &mut Ctx) {
         let settings = ctx.settings().lowering_settings;
-        let LoweringCtx { workspace, ir_storage, .. } = ctx.data();
+        let LoweringCtx { workspace, ir_storage, mut stdout, .. } = ctx.data();
         let source_map = &mut workspace.source_map;
         let bcx = &ir_storage.ctx;
 
         // we need to check if any of the bodies have been marked for `dumping`
         // and emit the IR that they have generated.
         if settings.dump_mode == IrDumpMode::Graph {
-            graphviz::dump_ir_bodies(bcx, &ir_storage.bodies, settings.dump);
+            graphviz::dump_ir_bodies(bcx, &ir_storage.bodies, settings.dump, &mut stdout).unwrap();
         } else {
-            pretty::dump_ir_bodies(bcx, source_map, &ir_storage.bodies, settings.dump);
+            pretty::dump_ir_bodies(bcx, source_map, &ir_storage.bodies, settings.dump, &mut stdout)
+                .unwrap();
         }
     }
 }

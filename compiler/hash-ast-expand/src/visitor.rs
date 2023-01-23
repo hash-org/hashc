@@ -11,7 +11,7 @@ use hash_source::{
     location::{SourceLocation, Span},
     SourceId, SourceMap,
 };
-use hash_utils::tree_writing::TreeWriter;
+use hash_utils::{stream_writeln, tree_writing::TreeWriter};
 
 #[derive(Debug)]
 pub struct AstExpander<'s> {
@@ -60,11 +60,12 @@ impl<'s> AstVisitorMutSelf for AstExpander<'s> {
             let tree = AstTreeGenerator.visit_expr(node.subject.ast_ref()).unwrap();
             let location = self.source_location(node.subject.span());
 
-            self.stdout.writeln(&format!(
+            stream_writeln!(
+                self.stdout,
                 "AST dump for {}\n{}",
                 self.source_map.fmt_location(location),
                 TreeWriter::new(&tree)
-            ));
+            );
         }
 
         Ok(())
