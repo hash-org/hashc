@@ -352,6 +352,23 @@ pub trait CommonUtils: AccessToEnv {
     fn new_var_ty(&self, symbol: Symbol) -> TyId {
         self.stores().ty().create(Ty::Var(symbol))
     }
+
+    /// Try to use the given term as a type.
+    fn use_term_as_ty(&self, term: TermId) -> Option<TyId> {
+        match self.get_term(term) {
+            Term::Var(var) => Some(self.new_ty(var)),
+            Term::Ty(ty) => Some(ty),
+            _ => None,
+        }
+    }
+
+    /// Try to use the given term as a type, or defer to a `Ty::Eval`.
+    fn use_term_as_ty_or_eval(&self, term: TermId) -> TyId {
+        match self.use_term_as_ty(term) {
+            Some(ty) => ty,
+            None => self.new_ty(Ty::Eval(term)),
+        }
+    }
 }
 
 impl<T: AccessToEnv + ?Sized> CommonUtils for T {}

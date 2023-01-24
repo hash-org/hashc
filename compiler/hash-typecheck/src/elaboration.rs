@@ -12,8 +12,9 @@
 //! 552–593.
 use std::{cell::Cell, collections::VecDeque};
 
+use derive_more::{Constructor, Deref};
 use hash_tir::new::{
-    environment::{context::Context, env::AccessToEnv},
+    environment::context::Context,
     holes::{Hole, HoleBinder},
     terms::{Term, TermId},
     tys::TyId,
@@ -123,18 +124,21 @@ impl ProofState {
     }
 }
 
-pub trait ElabOps: AccessToTypechecking + AccessToEnv + Sized {
+#[derive(Constructor, Deref)]
+pub struct ElabOps<'a, T: AccessToTypechecking>(&'a T);
+
+impl<T: AccessToTypechecking> ElabOps<'_, T> {
     /// Set up a new proof state for a term of the given type.
     ///
     /// This is the same as `new_term_state`, but also clears the context to
     /// only contain global constants.
-    fn new_proof_state(&self, ty: TyId) {
+    pub fn new_proof_state(&self, ty: TyId) {
         self.new_term_state(ty);
         self.context().clear_to_constant();
     }
 
     /// Set up a new term state for a term of the given type.
-    fn new_term_state(&self, ty: TyId) {
+    pub fn new_term_state(&self, ty: TyId) {
         let mut proof_state = self.proof_state().borrow_mut();
 
         let x = self.new_hole();
@@ -148,7 +152,7 @@ pub trait ElabOps: AccessToTypechecking + AccessToEnv + Sized {
     }
 
     /// Create and add a new hole to the hole queue.
-    fn add_new_hole_to_queue(&self) {
+    pub fn add_new_hole_to_queue(&self) {
         let hole = self.new_hole();
         self.proof_state().borrow_mut().add_hole(hole);
     }
@@ -161,7 +165,7 @@ pub trait ElabOps: AccessToTypechecking + AccessToEnv + Sized {
     /// terms.
     ///
     /// Most typechecking inference operations are be implemented as tactics.
-    fn tactic(&self, tac: impl Fn(HoleBinder) -> TcResult<TermId>) -> TcResult<()> {
+    pub fn tactic(&self, tac: impl Fn(HoleBinder) -> TcResult<TermId>) -> TcResult<()> {
         let proof_state = self.proof_state().borrow_mut();
         let current_term = proof_state.get_proof_term();
         let focused_hole = proof_state.get_focused_hole();
@@ -176,7 +180,7 @@ pub trait ElabOps: AccessToTypechecking + AccessToEnv + Sized {
 
     // @@Todo:
 
-    fn _apply_tactic_on_type(
+    pub fn _apply_tactic_on_type(
         &self,
         _tac: impl Fn(HoleBinder) -> TcResult<TermId>,
         _hole: Hole,
@@ -185,7 +189,7 @@ pub trait ElabOps: AccessToTypechecking + AccessToEnv + Sized {
         todo!()
     }
 
-    fn apply_tactic_on_term(
+    pub fn apply_tactic_on_term(
         &self,
         _tac: impl Fn(HoleBinder) -> TcResult<TermId>,
         _hole: Hole,

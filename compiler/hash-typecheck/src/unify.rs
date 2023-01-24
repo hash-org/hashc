@@ -1,5 +1,6 @@
 //! Operations for unifying types and terms.
 
+use derive_more::{Constructor, Deref};
 use hash_tir::new::{
     args::ArgsId,
     defs::{DefArgsId, DefParamsId},
@@ -12,8 +13,7 @@ use hash_utils::store::SequenceStoreKey;
 
 use crate::{
     errors::{TcError, TcResult},
-    subs::Sub,
-    substitutions::SubstituteOps,
+    substitution::sub::Sub,
     AccessToTypechecking,
 };
 
@@ -21,9 +21,12 @@ pub struct Unification {
     pub sub: Sub,
 }
 
-pub(super) trait UnifyOps: AccessToTypechecking {
+#[derive(Constructor, Deref)]
+pub struct UnificationOps<'a, T: AccessToTypechecking>(&'a T);
+
+impl<T: AccessToTypechecking> UnificationOps<'_, T> {
     /// Unify two types.
-    fn unify_tys(&self, src_id: TyId, target_id: TyId) -> TcResult<Unification> {
+    pub fn unify_tys(&self, src_id: TyId, target_id: TyId) -> TcResult<Unification> {
         let src = self.get_ty(src_id);
         let target = self.get_ty(target_id);
 
@@ -76,8 +79,10 @@ pub(super) trait UnifyOps: AccessToTypechecking {
                 } else {
                     // @@Todo: dependent
                     let unify_params = self.unify_params(f1.params, f2.params)?;
-                    let return_ty_1_subbed = self.apply_sub_to_ty(f1.return_ty, &unify_params.sub);
-                    let return_ty_2_subbed = self.apply_sub_to_ty(f2.return_ty, &unify_params.sub);
+                    let return_ty_1_subbed =
+                        self.substitution_ops().apply_sub_to_ty(f1.return_ty, &unify_params.sub);
+                    let return_ty_2_subbed =
+                        self.substitution_ops().apply_sub_to_ty(f2.return_ty, &unify_params.sub);
                     let unify_return = self.unify_tys(return_ty_1_subbed, return_ty_2_subbed)?;
 
                     ok_with(unify_params.sub.join(&unify_return.sub))
@@ -113,7 +118,7 @@ pub(super) trait UnifyOps: AccessToTypechecking {
     ///
     /// Unless these are types, they must be definitionally (up to beta
     /// reduction) equal.
-    fn unify_terms(&self, src_id: TermId, target_id: TermId) -> TcResult<Unification> {
+    pub fn unify_terms(&self, src_id: TermId, target_id: TermId) -> TcResult<Unification> {
         let src = self.get_term(src_id);
         let target = self.get_term(target_id);
 
@@ -129,17 +134,8 @@ pub(super) trait UnifyOps: AccessToTypechecking {
         }
     }
 
-    /// Try to use the given term as a type.
-    fn use_term_as_ty(&self, term: TermId) -> Option<TyId> {
-        match self.get_term(term) {
-            Term::Var(var) => Some(self.new_ty(var)),
-            Term::Ty(ty) => Some(ty),
-            _ => None,
-        }
-    }
-
     /// Unify two parameter lists, creating a substitution of holes.
-    fn unify_params(&self, src_id: ParamsId, target_id: ParamsId) -> TcResult<Unification> {
+    pub fn unify_params(&self, src_id: ParamsId, target_id: ParamsId) -> TcResult<Unification> {
         self.map_params(src_id, |src| {
             self.map_params(target_id, |target| {
                 let mut sub = Sub::identity();
@@ -153,7 +149,7 @@ pub(super) trait UnifyOps: AccessToTypechecking {
     }
 
     /// Unify two definition parameter lists, creating a substitution of holes.
-    fn unify_def_params(&self, src: DefParamsId, target: DefParamsId) -> TcResult<Unification> {
+    pub fn unify_def_params(&self, src: DefParamsId, target: DefParamsId) -> TcResult<Unification> {
         // @@Todo: dependent
         self.map_def_params(src, |src| {
             self.map_def_params(target, |target| {
@@ -168,7 +164,7 @@ pub(super) trait UnifyOps: AccessToTypechecking {
     }
 
     /// Unify two definition argument lists, creating a substitution of holes.
-    fn unify_def_args(&self, src: DefArgsId, target: DefArgsId) -> TcResult<Unification> {
+    pub fn unify_def_args(&self, src: DefArgsId, target: DefArgsId) -> TcResult<Unification> {
         // @@Todo: dependent
         self.map_def_args(src, |src| {
             self.map_def_args(target, |target| {
@@ -183,7 +179,7 @@ pub(super) trait UnifyOps: AccessToTypechecking {
     }
 
     /// Unify two argument lists, creating a substitution of holes.
-    fn unify_args(&self, src_id: ArgsId, target_id: ArgsId) -> TcResult<Unification> {
+    pub fn unify_args(&self, src_id: ArgsId, target_id: ArgsId) -> TcResult<Unification> {
         self.map_args(src_id, |src| {
             self.map_args(target_id, |target| {
                 let mut sub = Sub::identity();
@@ -196,5 +192,3 @@ pub(super) trait UnifyOps: AccessToTypechecking {
         })
     }
 }
-
-impl<T: AccessToTypechecking> UnifyOps for T {}
