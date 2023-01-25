@@ -25,19 +25,19 @@ impl HasTargetSpec for CodeGenCtx<'_> {
 
 /// Implement the types for the [CodeGenCtx].
 impl<'ll> BackendTypes for CodeGenCtx<'ll> {
-    type Value = &'ll llvm::values::AnyValueEnum<'ll>;
+    type Value = llvm::values::AnyValueEnum<'ll>;
 
-    type Function = &'ll llvm::values::FunctionValue<'ll>;
+    type Function = llvm::values::FunctionValue<'ll>;
 
-    type Type = &'ll llvm::types::BasicTypeEnum<'ll>;
+    type Type = llvm::types::AnyTypeEnum<'ll>;
 
-    type BasicBlock = &'ll llvm::basic_block::BasicBlock<'ll>;
+    type BasicBlock = llvm::basic_block::BasicBlock<'ll>;
 
-    type DebugInfoScope = &'ll llvm::debug_info::DIScope<'ll>;
+    type DebugInfoScope = llvm::debug_info::DIScope<'ll>;
 
-    type DebugInfoLocation = &'ll llvm::debug_info::DILocation<'ll>;
+    type DebugInfoLocation = llvm::debug_info::DILocation<'ll>;
 
-    type DebugInfoVariable = &'ll llvm::debug_info::DILocalVariable<'ll>;
+    type DebugInfoVariable = llvm::debug_info::DILocalVariable<'ll>;
 }
 
 impl<'b> Backend<'b> for CodeGenCtx<'b> {}

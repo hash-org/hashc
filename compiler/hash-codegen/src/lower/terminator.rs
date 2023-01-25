@@ -281,7 +281,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
             // don't do anything and it's just a NOP).
             //
             if matches!(arg_abi.mode, PassMode::Direct(..)) {
-                value = builder.load(builder.backend_type(arg_abi.info), value, alignment);
+                value = builder.load(builder.backend_ty_from_info(arg_abi.info), value, alignment);
 
                 let layout_abi = builder.map_layout(arg_abi.info.layout, |layout| layout.abi);
 
@@ -384,7 +384,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
                     .codegen_consume_operand(builder, ir::Place::return_place(self.ctx.ir_ctx()));
 
                 if let OperandValue::Ref(value, alignment) = op.value {
-                    let ty = builder.backend_type(op.info);
+                    let ty = builder.backend_ty_from_info(op.info);
                     builder.load(ty, value, alignment)
                 } else {
                     // @@Todo: deal with `Pair` operand refs
@@ -440,7 +440,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
                 // If this isn't a boolean type, then we have to emit an
                 // `icmp` instruction to compare the subject value with
                 // the target value.
-                let subject_ty = builder.backend_type(subject.info);
+                let subject_ty = builder.backend_ty_from_info(subject.info);
                 let target_value = builder.const_uint_big(subject_ty, value);
                 let comparison =
                     builder.icmp(IntComparisonKind::Eq, subject.immediate_value(), target_value);
@@ -471,7 +471,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
             let target_block_1 = self.get_codegen_block_id(target_1);
             let target_block_2 = self.get_codegen_block_id(target_2);
 
-            let subject_ty = builder.immediate_backend_type(builder.layout_of_id(ty));
+            let subject_ty = builder.immediate_backend_ty(builder.layout_of_id(ty));
             let target_value = builder.const_uint_big(subject_ty, value);
             let comparison =
                 builder.icmp(IntComparisonKind::Eq, subject.immediate_value(), target_value);
@@ -556,7 +556,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
         destination: Option<(ir::BasicBlock, ReturnDestinationKind<Builder::Value>)>,
         can_merge: bool,
     ) -> bool {
-        let fn_ty = builder.backend_type_from_abi(fn_abi);
+        let fn_ty = builder.backend_ty_from_abi(fn_abi);
 
         //@@Future: when we deal with unwinding functions, we will have to use the
         // `builder::invoke()` API in order to instruct the backends to emit relevant

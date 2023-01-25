@@ -56,7 +56,7 @@ impl<'b, V: CodeGenObject> PlaceRef<V> {
     ) -> Self {
         let alignment = builder.map_layout(info.layout, |layout| layout.alignment.abi);
 
-        let temp = builder.alloca(builder.ctx().backend_type(info), alignment);
+        let temp = builder.alloca(builder.ctx().backend_ty_from_info(info), alignment);
 
         Self::new(builder, temp, info)
     }
@@ -116,7 +116,7 @@ impl<'b, V: CodeGenObject> PlaceRef<V> {
             });
 
             builder.store(
-                builder.const_uint_big(builder.backend_type(ptr.info), value),
+                builder.const_uint_big(builder.backend_ty_from_info(ptr.info), value),
                 ptr.value,
                 ptr.alignment,
             );
@@ -131,7 +131,7 @@ impl<'b, V: CodeGenObject> PlaceRef<V> {
         cast_to: IrTyId,
     ) -> V {
         let cast_info = builder.layout_of_id(cast_to);
-        let cast_to_ty = builder.immediate_backend_type(cast_info);
+        let cast_to_ty = builder.immediate_backend_ty(cast_info);
 
         let (variants, is_uninhabited) = builder.map_layout(self.info.layout, |layout| {
             (layout.variants.clone(), layout.abi.is_uninhabited())
@@ -182,7 +182,7 @@ impl<'b, V: CodeGenObject> PlaceRef<V> {
         downcast.info = self.info.for_variant(builder.layout_computer(), variant);
 
         // Cast the downcast value to the appropriate type
-        let variant_ty = builder.backend_type(downcast.info);
+        let variant_ty = builder.backend_ty_from_info(downcast.info);
         downcast.value = builder.pointer_cast(downcast.value, builder.type_ptr_to(variant_ty));
         downcast
     }
@@ -206,7 +206,7 @@ impl<'b, V: CodeGenObject> PlaceRef<V> {
 
         Self {
             value: builder.bounded_get_element_pointer(
-                builder.backend_type(self.info),
+                builder.backend_ty_from_info(self.info),
                 self.value,
                 &[builder.const_usize(0), index],
             ),
@@ -237,7 +237,7 @@ impl<'b, V: CodeGenObject> PlaceRef<V> {
             AbiRepresentation::Pair(scalar_a, scalar_b)
                 if field_offset == scalar_a.size(builder).align_to(scalar_b.align(builder).abi) =>
             {
-                let ty = builder.backend_type(self.info);
+                let ty = builder.backend_ty_from_info(self.info);
                 builder.structural_get_element_pointer(ty, self.value, 1)
             }
             AbiRepresentation::Scalar(_)
@@ -262,7 +262,7 @@ impl<'b, V: CodeGenObject> PlaceRef<V> {
             }
             // This must be a struct..
             _ => {
-                let ty = builder.backend_type(self.info);
+                let ty = builder.backend_ty_from_info(self.info);
                 builder.structural_get_element_pointer(
                     ty,
                     self.value,
@@ -273,8 +273,8 @@ impl<'b, V: CodeGenObject> PlaceRef<V> {
 
         // @@PointerCasts: this can be removed if we use LLVM 15 where it is
         // not needed to pointer cast.
-        let value =
-            builder.pointer_cast(value, builder.type_ptr_to(builder.backend_type(field_info)));
+        let value = builder
+            .pointer_cast(value, builder.type_ptr_to(builder.backend_ty_from_info(field_info)));
 
         PlaceRef { value, info: field_info, alignment: field_alignment }
     }
@@ -378,7 +378,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
                     sub_slice.info = builder.layout_of_id(projected_ty);
                     sub_slice.value = builder.pointer_cast(
                         sub_slice.value,
-                        builder.type_ptr_to(builder.backend_type(sub_slice.info)),
+                        builder.type_ptr_to(builder.backend_ty_from_info(sub_slice.info)),
                     );
 
                     sub_slice

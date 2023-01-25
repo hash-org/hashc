@@ -1,7 +1,10 @@
 //! Implements all of the type building methods for the LLVM
 //! backend.
 
-use hash_codegen::traits::ty::BuildTypeMethods;
+use hash_codegen::{abi::FnAbi, common::TypeKind, layout::TyInfo, traits::ty::BuildTypeMethods};
+use hash_ir::ty::IrTyId;
+use hash_target::{abi::Scalar, size::Size};
+use inkwell as llvm;
 
 use super::context::CodeGenCtx;
 
@@ -82,23 +85,82 @@ impl<'b> BuildTypeMethods<'b> for CodeGenCtx<'b> {
         todo!()
     }
 
-    fn type_of_value(&self, value: Self::Value) -> Self::Type {
+    fn ty_of_value(&self, value: Self::Value) -> Self::Type {
         todo!()
     }
 
-    fn kind_of_type(&self, ty: Self::Type) -> hash_codegen::common::TypeKind {
+    fn kind_of_ty(&self, ty: Self::Type) -> TypeKind {
         todo!()
     }
 
-    fn immediate_backend_type(&self, info: hash_codegen::layout::TyInfo) -> Self::Type {
+    fn immediate_backend_ty(&self, info: TyInfo) -> Self::Type {
         todo!()
     }
 
-    fn backend_type(&self, info: hash_codegen::layout::TyInfo) -> Self::Type {
+    fn backend_ty_from_ir_ty(&self, ty: IrTyId) -> Self::Type {
         todo!()
     }
 
-    fn backend_type_from_abi(&self, abi: &hash_codegen::abi::FnAbi) -> Self::Type {
+    fn backend_ty_from_info(&self, info: TyInfo) -> Self::Type {
+        todo!()
+    }
+
+    fn backend_ty_from_abi(&self, abi: &FnAbi) -> Self::Type {
+        todo!()
+    }
+}
+
+/// Define a trait that provides additional methods on the [CodeGenCtx]
+/// for computing types as LLVM types, and various other related LLVM
+/// specific type utilities.
+pub trait ExtendedTyBuilderMethods<'ll> {
+    /// Convert the [IrTyId] into the equivalent [llvm::types::AnyTypeEnum].
+    fn llvm_ty(&self, ctx: &CodeGenCtx<'ll>) -> llvm::types::AnyTypeEnum<'ll>;
+
+    /// Create an immediate type.
+    fn immediate_llvm_ty(&self, ctx: &CodeGenCtx<'ll>) -> llvm::types::AnyTypeEnum<'ll>;
+
+    /// Load the type of a [Scalar] with a specific offset.
+    fn scalar_llvm_type_at(
+        &self,
+        ctx: &CodeGenCtx<'ll>,
+        scalar: Scalar,
+        offset: Size,
+    ) -> llvm::types::AnyTypeEnum<'ll>;
+
+    /// Create a type for a [`ScalarKind::Pair`].
+    fn scalar_pair_element_llvm_ty(
+        &self,
+        ctx: &CodeGenCtx<'ll>,
+        index: usize,
+        immediate: bool,
+    ) -> llvm::types::AnyTypeEnum<'ll>;
+}
+
+impl<'ll> ExtendedTyBuilderMethods<'ll> for TyInfo {
+    fn llvm_ty(&self, ctx: &CodeGenCtx<'ll>) -> llvm::types::AnyTypeEnum<'ll> {
+        todo!()
+    }
+
+    fn immediate_llvm_ty(&self, ctx: &CodeGenCtx<'ll>) -> llvm::types::AnyTypeEnum<'ll> {
+        todo!()
+    }
+
+    fn scalar_llvm_type_at(
+        &self,
+        ctx: &CodeGenCtx<'ll>,
+        scalar: Scalar,
+        offset: Size,
+    ) -> llvm::types::AnyTypeEnum<'ll> {
+        todo!()
+    }
+
+    fn scalar_pair_element_llvm_ty(
+        &self,
+        ctx: &CodeGenCtx<'ll>,
+        index: usize,
+        immediate: bool,
+    ) -> llvm::types::AnyTypeEnum<'ll> {
         todo!()
     }
 }

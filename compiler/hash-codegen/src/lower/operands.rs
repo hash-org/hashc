@@ -63,7 +63,7 @@ impl<'b, V: CodeGenObject> OperandValue<V> {
                 // need to load the value from the source, and then store
                 // it into the destination.
                 if flags.contains(MemFlags::NON_TEMPORAL) {
-                    let ty = builder.backend_type(destination.info);
+                    let ty = builder.backend_ty_from_info(destination.info);
                     let ptr = builder.pointer_cast(value, builder.type_ptr_to(ty));
                     let value = builder.load(ty, ptr, source_alignment);
 
@@ -93,7 +93,7 @@ impl<'b, V: CodeGenObject> OperandValue<V> {
                     panic!("invalid ABI representation for a pair operand value");
                 };
 
-                let ty = builder.backend_type(destination.info);
+                let ty = builder.backend_ty_from_info(destination.info);
 
                 // Emit the code to place the value into the first slot...
                 let ptr = builder.structural_get_element_pointer(ty, destination.value, 0);
@@ -129,9 +129,7 @@ impl<'b, V: CodeGenObject> OperandRef<V> {
     /// Create a new zero-sized type [OperandRef].
     pub fn new_zst<Builder: Codegen<'b, Value = V>>(builder: &Builder, info: TyInfo) -> Self {
         Self {
-            value: OperandValue::Immediate(
-                builder.const_undef(builder.immediate_backend_type(info)),
-            ),
+            value: OperandValue::Immediate(builder.const_undef(builder.immediate_backend_ty(info))),
             info,
         }
     }
@@ -228,7 +226,7 @@ impl<'b, V: CodeGenObject> OperandRef<V> {
                 *value = builder.to_immediate(*value, field_info.layout);
 
                 // @@BitCasts
-                *value = builder.bit_cast(*value, builder.immediate_backend_type(field_info));
+                *value = builder.bit_cast(*value, builder.immediate_backend_ty(field_info));
             }
             (OperandValue::Pair(value_a, value_b), AbiRepresentation::Pair(scalar_a, scalar_b)) => {
                 *value_a = builder.to_immediate_scalar(*value_a, scalar_a);
@@ -272,7 +270,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
                         | ir::Const::Char(_)
                         | ir::Const::Int(_)
                         | ir::Const::Float(_)) => {
-                            let ty = builder.immediate_backend_type(info);
+                            let ty = builder.immediate_backend_ty(info);
                             let abi = builder.map_layout(info.layout, |layout| layout.abi);
 
                             let AbiRepresentation::Scalar(scalar) = abi else {

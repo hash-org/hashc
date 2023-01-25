@@ -205,6 +205,14 @@ impl ValidScalarRange {
         Self { start: 0, end: size.unsigned_int_max() }
     }
 
+    /// Check if the [ValidScalarRange] is full for the given
+    /// [Size] value.
+    pub fn is_full_for(&self, size: Size) -> bool {
+        let max_value = size.unsigned_int_max();
+        debug_assert!(self.start <= max_value && self.end <= max_value);
+        self.start == (self.end.wrapping_add(1) & max_value)
+    }
+
     /// Check if a certain value is contained within the
     /// [ValidScalarRange].
     pub fn contains(&self, value: u128) -> bool {
@@ -283,6 +291,23 @@ impl Scalar {
     /// Check if the [Scalar] is a [`Scalar::Union`].
     pub fn is_union(&self) -> bool {
         matches!(self, Scalar::Union { .. })
+    }
+
+    /// Get the [ValidScalarRange] for this [Scalar].
+    pub fn valid_range<L: HasDataLayout>(&self, ctx: &L) -> ValidScalarRange {
+        match *self {
+            Scalar::Initialised { valid_range, .. } => valid_range,
+            Scalar::Union { .. } => ValidScalarRange::full(self.size(ctx)),
+        }
+    }
+
+    /// Check if this [Scalar] is always valid, i.e. it's [ValidScalarRange]
+    /// is total.
+    pub fn is_always_valid<L: HasDataLayout>(&self, ctx: &L) -> bool {
+        match self {
+            Scalar::Initialised { valid_range, .. } => valid_range.is_full_for(self.size(ctx)),
+            Scalar::Union { .. } => true,
+        }
     }
 
     /// Align the [Scalar] with the current data layout
