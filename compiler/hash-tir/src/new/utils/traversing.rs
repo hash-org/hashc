@@ -1,3 +1,4 @@
+use core::fmt;
 ///! Utilities to traverse the TIR.
 use std::ops::ControlFlow;
 
@@ -16,7 +17,7 @@ use crate::{
             DefArgGroupData, DefArgsId, DefParamGroupData, DefParamsId, DefPatArgGroupData,
             DefPatArgsId,
         },
-        environment::env::Env,
+        environment::env::{AccessToEnv, Env, WithEnv},
         fns::{FnBody, FnCallTerm, FnDefData, FnDefId, FnTy},
         holes::{HoleBinder, HoleBinderKind},
         lits::{ListCtor, ListPat, PrimTerm},
@@ -45,6 +46,17 @@ pub enum Atom {
     Ty(TyId),
     FnDef(FnDefId),
     Pat(PatId),
+}
+
+impl fmt::Display for WithEnv<'_, Atom> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.value {
+            Atom::Term(term_id) => write!(f, "{}", self.env().with(term_id)),
+            Atom::Ty(ty_id) => write!(f, "{}", self.env().with(ty_id)),
+            Atom::FnDef(fn_def_id) => write!(f, "{}", self.env().with(fn_def_id)),
+            Atom::Pat(pat_id) => write!(f, "{}", self.env().with(pat_id)),
+        }
+    }
 }
 
 /// Function to visit an atom.

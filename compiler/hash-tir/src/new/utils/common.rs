@@ -358,6 +358,7 @@ pub trait CommonUtils: AccessToEnv {
         match self.get_term(term) {
             Term::Var(var) => Some(self.new_ty(var)),
             Term::Ty(ty) => Some(ty),
+            Term::Hole(hole) => Some(self.new_ty(hole)),
             _ => None,
         }
     }

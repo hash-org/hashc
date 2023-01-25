@@ -5,6 +5,7 @@ use hash_tir::new::{
     args::ArgsId,
     defs::{DefArgsId, DefParamsId},
     params::ParamsId,
+    sub::Sub,
     terms::{Term, TermId},
     tys::{Ty, TyId},
     utils::common::CommonUtils,
@@ -13,7 +14,6 @@ use hash_utils::store::SequenceStoreKey;
 
 use crate::{
     errors::{TcError, TcResult},
-    substitution::sub::Sub,
     AccessToTypechecking,
 };
 
@@ -55,8 +55,12 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
                     ok_with(sub)
                 }
             }
-            (Ty::Hole(a), _) | (_, Ty::Hole(a)) => {
+            (Ty::Hole(a), _) => {
                 let sub = Sub::from_pairs([(a, self.new_term(target_id))]);
+                ok_with(sub)
+            }
+            (_, Ty::Hole(b)) => {
+                let sub = Sub::from_pairs([(b, self.new_term(src_id))]);
                 ok_with(sub)
             }
 

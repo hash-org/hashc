@@ -31,7 +31,7 @@ use hash_tir::{
 };
 use hash_utils::store::{CloneStore, SequenceStore, Store};
 
-use super::unify::Unification;
+use super::unification::Unification;
 use crate::{
     errors::{TcError, TcResult},
     AccessToTypechecking,
@@ -313,21 +313,28 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     /// Infer the type of a function call.
     pub fn infer_fn_call_term(
         &self,
-        term: &FnCallTerm,
+        fn_call_term: &FnCallTerm,
         original_term_id: TermId,
     ) -> TcResult<Option<TyId>> {
-        match self.infer_term(term.subject)? {
+        match self.infer_term(fn_call_term.subject)? {
             Some(subject_ty) => self.map_ty(subject_ty, |subject| match subject {
-                Ty::Eval(_) => {
-                    // @@Todo: Normalise
-                    Ok(None)
-                }
+                Ty::Eval(term) => match self.use_term_as_ty(*term) {
+                    Some(ty) => {
+                        // Try the same thing, but with the evaluated type.
+                        let new_subject = self.new_term(Term::Ty(ty));
+                        self.infer_fn_call_term(
+                            &FnCallTerm { subject: new_subject, ..*fn_call_term },
+                            original_term_id,
+                        )
+                    }
+                    None => Ok(None),
+                },
                 Ty::Ref(_) => {
                     // Try the same thing, but with the dereferenced type.
                     let new_subject =
-                        self.new_term(Term::Deref(DerefTerm { subject: term.subject }));
+                        self.new_term(Term::Deref(DerefTerm { subject: fn_call_term.subject }));
                     self.infer_fn_call_term(
-                        &FnCallTerm { subject: new_subject, ..*term },
+                        &FnCallTerm { subject: new_subject, ..*fn_call_term },
                         original_term_id,
                     )
                     .map_err(|err| {
@@ -344,7 +351,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 }
                 Ty::Fn(fn_ty) => {
                     // First infer the parameters of the function call.
-                    let inferred_fn_call_params = self.infer_args(term.args)?;
+                    let inferred_fn_call_params = self.infer_args(fn_call_term.args)?;
 
                     // Unify the parameters of the function call with the parameters of the
                     // function type.
@@ -353,13 +360,14 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                         .unify_params(inferred_fn_call_params, fn_ty.params)?;
 
                     // Apply the substitution to the arguments.
-                    self.substitution_ops().apply_sub_to_args_in_place(term.args, &unification.sub);
+                    self.substitution_ops()
+                        .apply_sub_to_args_in_place(fn_call_term.args, &unification.sub);
 
                     // Create a substitution from the parameters of the function type to the
                     // parameters of the function call.
                     let arg_sub = self
                         .substitution_ops()
-                        .create_sub_from_applying_args_to_params(term.args, fn_ty.params)?;
+                        .create_sub_from_applying_args_to_params(fn_call_term.args, fn_ty.params)?;
 
                     // Apply the substitution to the return type of the function type.
                     let subbed_return_ty =
@@ -404,11 +412,14 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                         fn_def.ty.return_ty,
                     )?;
 
-                    // Apply the substitution to the parameters.
-                    let s = self.substitution_ops();
-                    s.apply_sub_to_params_in_place(fn_def.ty.params, &return_sub);
-                    s.apply_sub_to_term_in_place(fn_body, &return_sub);
-                    s.apply_sub_to_ty_in_place(fn_def.ty.return_ty, &return_sub);
+                    // Apply the substitution to the function.
+                    self.traversing_utils()
+                        .visit_fn_def::<!, _>(fn_def_id, &mut |atom| {
+                            Ok(self
+                                .substitution_ops()
+                                .apply_sub_to_atom_in_place_once(atom, &return_sub))
+                        })
+                        .into_ok();
 
                     Ok(())
                 })?
@@ -562,12 +573,9 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     pub fn infer_block_term(&self, block_term: &BlockTerm) -> TcResult<Option<TyId>> {
         self.stores().term_list().map_fast(block_term.statements, |statements| {
             let mut has_error = false;
-            let mut final_ty = self.new_void_ty();
             for &statement in statements {
                 match self.try_or_add_error(self.infer_term(statement)) {
-                    Some(Some(ty)) => {
-                        final_ty = ty;
-                    }
+                    Some(Some(_)) => {}
                     None => {
                         has_error = true;
                     }
@@ -576,10 +584,14 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     }
                 }
             }
+
+            // Infer the return value
+            let final_ty = self.infer_term(block_term.return_value)?;
+
             if has_error {
                 Err(TcError::Signal)
             } else {
-                Ok(Some(final_ty))
+                Ok(final_ty)
             }
         })
     }
@@ -651,8 +663,8 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             Term::Ref(ref_term) => self.infer_ref_term(ref_term),
             Term::Cast(cast_term) => self.infer_cast_term(*cast_term),
 
-            Term::Match(_) => todo!(),
             Term::DeclStackMember(_) => todo!(),
+            Term::Match(_) => todo!(),
             Term::Assign(_) => todo!(),
             Term::Access(_) => todo!(),
             Term::HoleBinder(_) => todo!(),

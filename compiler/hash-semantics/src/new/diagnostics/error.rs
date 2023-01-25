@@ -73,8 +73,36 @@ pub enum SemanticError {
 }
 
 impl From<TcError> for SemanticError {
-    fn from(_value: TcError) -> Self {
-        todo!()
+    fn from(value: TcError) -> Self {
+        match value {
+            TcError::Compound { errors } => {
+                let errors = errors.into_iter().map(SemanticError::from).collect();
+                SemanticError::Compound { errors }
+            }
+            TcError::NeedMoreTypeAnnotationsToInfer { term } => {
+                SemanticError::NeedMoreTypeAnnotationsToInfer { term }
+            }
+            TcError::WrongArgLength { params_id, args_id } => {
+                SemanticError::WrongArgLength { params_id, args_id }
+            }
+            TcError::WrongDefArgLength { def_params_id, def_args_id } => {
+                SemanticError::WrongDefArgLength { def_params_id, def_args_id }
+            }
+            TcError::NotAFunction { fn_call, actual_subject_ty } => {
+                SemanticError::NotAFunction { fn_call, actual_subject_ty }
+            }
+            TcError::CannotDeref { subject, actual_subject_ty } => {
+                SemanticError::CannotDeref { subject, actual_subject_ty }
+            }
+            TcError::MismatchingTypes { expected, actual } => {
+                SemanticError::MismatchingTypes { expected, actual }
+            }
+            TcError::UndecidableEquality { a, b } => SemanticError::UndecidableEquality { a, b },
+            TcError::InvalidRangePatternLiteral { location } => {
+                SemanticError::InvalidRangePatternLiteral { location }
+            }
+            TcError::Signal => SemanticError::Signal,
+        }
     }
 }
 

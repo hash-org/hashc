@@ -6,14 +6,15 @@ use derive_more::{Constructor, Deref};
 use hash_tir::new::{
     args::ArgsId,
     defs::DefArgsId,
+    holes::Hole,
     params::ParamsId,
+    sub::Sub,
     terms::{Term, TermId},
     tys::{Ty, TyId},
     utils::{common::CommonUtils, traversing::Atom, AccessToUtils},
 };
-use hash_utils::store::{SequenceStoreKey, Store};
+use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
 
-use super::sub::Sub;
 use crate::{errors::TcResult, AccessToTypechecking};
 
 #[derive(Constructor, Deref)]
@@ -27,18 +28,20 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
     pub fn apply_sub_to_atom_in_place_once(&self, atom: Atom, sub: &Sub) -> ControlFlow<()> {
         match atom {
             Atom::Ty(ty) => match self.get_ty(ty) {
-                Ty::Var(var_ty) => match sub.get_sub_for(var_ty) {
-                    Some(term) => {
-                        let subbed_ty = self.get_ty(self.use_term_as_ty_or_eval(term));
-                        self.stores().ty().modify_fast(ty, |ty| *ty = subbed_ty);
-                        ControlFlow::Break(())
+                Ty::Hole(Hole(symbol)) | Ty::Var(symbol) => {
+                    match sub.get_sub_for_var_or_hole(symbol) {
+                        Some(term) => {
+                            let subbed_ty = self.get_ty(self.use_term_as_ty_or_eval(term));
+                            self.stores().ty().modify_fast(ty, |ty| *ty = subbed_ty);
+                            ControlFlow::Break(())
+                        }
+                        None => ControlFlow::Continue(()),
                     }
-                    None => ControlFlow::Continue(()),
-                },
+                }
                 _ => ControlFlow::Continue(()),
             },
             Atom::Term(term) => match self.get_term(term) {
-                Term::Var(var_term) => match sub.get_sub_for(var_term) {
+                Term::Hole(Hole(symbol)) | Term::Var(symbol) => match sub.get_sub_for(symbol) {
                     Some(term) => {
                         let subbed_term = self.get_term(term);
                         self.stores().term().modify_fast(term, |term| *term = subbed_term);
@@ -59,14 +62,14 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
     pub fn apply_sub_to_atom_once(&self, atom: Atom, sub: &Sub) -> ControlFlow<Atom> {
         match atom {
             Atom::Ty(ty) => match self.get_ty(ty) {
-                Ty::Var(var_ty) => match sub.get_sub_for(var_ty) {
+                Ty::Hole(Hole(symbol)) | Ty::Var(symbol) => match sub.get_sub_for(symbol) {
                     Some(term) => ControlFlow::Break(Atom::Ty(self.use_term_as_ty_or_eval(term))),
                     None => ControlFlow::Continue(()),
                 },
                 _ => ControlFlow::Continue(()),
             },
             Atom::Term(term) => match self.get_term(term) {
-                Term::Var(var_term) => match sub.get_sub_for(var_term) {
+                Term::Hole(Hole(symbol)) | Term::Var(symbol) => match sub.get_sub_for(symbol) {
                     Some(term) => ControlFlow::Break(Atom::Term(term)),
                     None => ControlFlow::Continue(()),
                 },
@@ -153,7 +156,15 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
         args_id: ArgsId,
         params_id: ParamsId,
     ) -> TcResult<Sub> {
-        assert!(args_id.len() == params_id.len());
-        todo!()
+        self.stores().args().map_fast(args_id, |args| {
+            self.stores().params().map_fast(params_id, |params| {
+                assert!(args_id.len() == params_id.len(), "TODO: user error");
+
+                // @@Todo: ensure arg indices match?
+                Ok(Sub::from_pairs(
+                    params.iter().zip(args.iter()).map(|(param, arg)| (param.name, arg.value)),
+                ))
+            })
+        })
     }
 }

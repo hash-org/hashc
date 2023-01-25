@@ -125,9 +125,9 @@ impl ProofState {
 }
 
 #[derive(Constructor, Deref)]
-pub struct ElabOps<'a, T: AccessToTypechecking>(&'a T);
+pub struct ElaborationOps<'a, T: AccessToTypechecking>(&'a T);
 
-impl<T: AccessToTypechecking> ElabOps<'_, T> {
+impl<T: AccessToTypechecking> ElaborationOps<'_, T> {
     /// Set up a new proof state for a term of the given type.
     ///
     /// This is the same as `new_term_state`, but also clears the context to
