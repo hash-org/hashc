@@ -20,33 +20,19 @@ pub struct TupleTy {
 
 /// A tuple term.
 ///
-/// This is, in its most general form, `(a_1:A_1 = s_1,...,a_n:A_n = s_n)`.
+/// This is, in its most general form, `(a_1 = s_1,...,a_n = s_n)`.
 #[derive(Debug, Clone, Copy)]
 pub struct TupleTerm {
-    /// The original tuple type, if known or given as part of the literal (might
-    /// contain holes).
-    // pub original_ty: Option<TupleTy>,
-
     /// The arguments given for the tuple, `(s_1,...,s_n)`
-    ///
-    /// If the original type is present, then this is sorted in the order of the
-    /// parameters.
     pub data: ArgsId,
 }
 
 /// A tuple pattern
 ///
-/// This is, in its most general form, `(a_1:A_1 = s_1,...,a_n:A_n = s_n)`.
+/// This is, in its most general form, `(a_1 = s_1,...,a_n = s_n)`.
 #[derive(Debug, Clone, Copy)]
 pub struct TuplePat {
-    /// The original tuple type, if known or given as part of the literal (might
-    /// contain holes).
-    // pub original_ty: Option<TupleTy>,
-
     /// The pattern arguments given for the tuple, `(s_1,...,s_n)`
-    ///
-    /// If the original type is present, then this is sorted in the order of the
-    /// parameters.
     pub data: PatArgsId,
 
     /// The spread in the data patterns, if any.
