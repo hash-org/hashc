@@ -1,7 +1,13 @@
 //! Implements all of the required methods for computing the layouts of types.
 
-use hash_codegen::{layout::TyInfo, traits::layout::LayoutMethods};
-use hash_target::data_layout::{HasDataLayout, TargetDataLayout};
+use hash_codegen::{
+    layout::{Layout, TyInfo},
+    traits::layout::LayoutMethods,
+};
+use hash_target::{
+    abi::AbiRepresentation,
+    data_layout::{HasDataLayout, TargetDataLayout},
+};
 
 use super::{context::CodeGenCtx, Builder};
 
@@ -60,5 +66,27 @@ impl<'b> LayoutMethods<'b> for Builder<'b> {
 impl HasDataLayout for Builder<'_> {
     fn data_layout(&self) -> &TargetDataLayout {
         self.ctx.data_layout()
+    }
+}
+
+pub trait ExtendedLayoutMethods {
+    /// Check if this is type is represented as an immediate value.
+    fn is_llvm_immediate(&self) -> bool;
+
+    /// Returns true if this type is a [`Scalar::Pair`]
+    fn is_llvm_scalar_pair(&self) -> bool;
+}
+
+impl ExtendedLayoutMethods for &Layout {
+    fn is_llvm_immediate(&self) -> bool {
+        match self.abi {
+            AbiRepresentation::Scalar(_) | AbiRepresentation::Vector { .. } => true,
+            AbiRepresentation::Pair(..) => false,
+            AbiRepresentation::Aggregate { .. } | AbiRepresentation::Uninhabited => self.is_zst(),
+        }
+    }
+
+    fn is_llvm_scalar_pair(&self) -> bool {
+        matches!(self.abi, AbiRepresentation::Pair(..))
     }
 }

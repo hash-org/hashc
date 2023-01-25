@@ -76,8 +76,8 @@ impl UIntTy {
         }
     }
 
-    /// Create a new [UnitTy] from a given [Size]. This assumes that
-    /// the maximum passed [Size] can be represented as a [UIntTy::U128].
+    /// Create a new [UIntTy] from a given [Size]. This assumes that
+    /// the maximum passed [Size] can be represented as a [`UIntTy::U128`].
     ///
     /// Additionally, this will never use the `usize` type to avoid confusion
     /// between different platforms/targets.
@@ -126,6 +126,15 @@ impl UIntTy {
             UIntTy::U128 => "u128",
             UIntTy::USize => "usize",
             UIntTy::UBig => "ubig",
+        }
+    }
+
+    /// Normalise the [UIntTy], i.e. convert the [`UIntTy::USize`] variant
+    /// into the normalised type equivalent.
+    pub fn normalise(&self, ptr_width: usize) -> Self {
+        match self {
+            UIntTy::USize => UIntTy::from_size(Size::from_bytes(ptr_width)),
+            _ => *self,
         }
     }
 }
@@ -181,6 +190,22 @@ impl SIntTy {
         }
     }
 
+    /// Create a new [SIntTy] from a given [Size]. This assumes that
+    /// the maximum passed [Size] can be represented as a [`SIntTy::I128`].
+    ///
+    /// Additionally, this will never use the `usize` type to avoid confusion
+    /// between different platforms/targets.
+    pub fn from_size(size: Size) -> Self {
+        match size.bytes() {
+            0..=1 => SIntTy::I8,
+            2 => SIntTy::I16,
+            3..=4 => SIntTy::I32,
+            5..=8 => SIntTy::I64,
+            9..=16 => SIntTy::I128,
+            _ => unreachable!(),
+        }
+    }
+
     /// Function to get the largest possible integer represented within this
     /// type. For sizes `ibig` and `ubig` there is no defined max and so the
     /// function returns [None].
@@ -228,6 +253,15 @@ impl SIntTy {
             SIntTy::I128 => "i128",
             SIntTy::ISize => "isize",
             SIntTy::IBig => "ibig",
+        }
+    }
+
+    /// Normalise the [UIntTy], i.e. convert the [`UIntTy::USize`] variant
+    /// into the normalised type equivalent.
+    pub fn normalise(&self, ptr_width: usize) -> Self {
+        match self {
+            SIntTy::ISize => SIntTy::from_size(Size::from_bytes(ptr_width)),
+            _ => *self,
         }
     }
 }

@@ -3,9 +3,8 @@
 //! provides IR builder methods that the compiler uses to generate code
 //! from Hash IR.
 
-use std::sync::atomic::Ordering;
-
 use hash_abi::FnAbi;
+use hash_ir::ty::IrTyId;
 use hash_target::{
     abi::{AbiRepresentation, Scalar, ValidScalarRange},
     alignment::Alignment,
@@ -17,7 +16,7 @@ use super::{
     target::HasTargetSpec, Codegen,
 };
 use crate::{
-    common::{CheckedOp, IntComparisonKind, MemFlags, RealComparisonKind},
+    common::{AtomicOrdering, CheckedOp, IntComparisonKind, MemFlags, RealComparisonKind},
     layout::LayoutId,
     lower::{operands::OperandRef, place::PlaceRef},
 };
@@ -31,6 +30,9 @@ pub trait BlockBuilderMethods<'b>:
     + BuildDebugInfoMethods
     + HasTargetSpec
 {
+    /// Get the current context
+    fn ctx(&self) -> &Self::CodegenCtx;
+
     /// Function to build the given `BasicBlock` into the backend equivalent.
     fn build(ctx: &'b Self::CodegenCtx, block: Self::BasicBlock) -> Self;
 
@@ -42,9 +44,6 @@ pub trait BlockBuilderMethods<'b>:
     ) -> Self::BasicBlock;
 
     fn append_sibling_block(&mut self, name: &str) -> Self::BasicBlock;
-
-    /// Get the current context
-    fn ctx(&self) -> &Self::CodegenCtx;
 
     /// Create a new basic block within the current function.
     fn basic_block(&self) -> Self::BasicBlock;
@@ -84,23 +83,6 @@ pub trait BlockBuilderMethods<'b>:
 
     /// Generate an unreachable terminator for the current block.
     fn unreachable(&mut self);
-
-    /// Generate a function call as a terminator of the current block. A
-    /// `checked_call` is a call that can throw an exception, and thus
-    /// requires a `then_block` and `catch_block` to be specified. If a
-    /// function call is not expected to throe an exception, then the
-    /// `call` method should be used instead.
-    ///
-    /// @@Todo: deal with `fn_abi` parameters
-    ///
-    /// @@Todo: do we need to deal with funclets
-    fn checked_call(
-        &mut self,
-        ty: Self::Type,
-        args: &[Self::Value],
-        then_block: Self::BasicBlock,
-        catch_block: Self::BasicBlock,
-    ) -> Self::Value;
 
     /// Emit code for performing a function call with the provided
     /// function ABI, pointer and arguments.
@@ -237,6 +219,7 @@ pub trait BlockBuilderMethods<'b>:
     fn checked_bin_op(
         &mut self,
         op: CheckedOp,
+        ty: IrTyId,
         lhs: Self::Value,
         rhs: Self::Value,
     ) -> (Self::Value, Self::Value);
@@ -268,21 +251,20 @@ pub trait BlockBuilderMethods<'b>:
     /// Ref: <https://llvm.org/docs/LangRef.html#zext-to-instruction>
     fn zero_extend(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value;
 
+    /// Performs a saturating conversion between floating point to an integer.
+    ///
+    /// The `fptosi` converts a floating-point value to its signed integer
+    /// equivalent of type `dest_ty`.
+    ///
     /// The `fptoui` converts a floating-point value to its unsigned integer
     /// equivalent of type `dest_ty`.
     ///
     /// N.B. This performs a saturating conversion.
     ///
     /// Ref: <https://llvm.org/docs/LangRef.html#fptoui-to-instruction>
-    fn fp_to_ui_sat(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value;
-
-    /// The `fptosi` converts a floating-point value to its signed integer
-    /// equivalent of type `dest_ty`.
-    ///
-    /// N.B. This performs a saturating conversion.
-    ///
     /// Ref: <https://llvm.org/docs/LangRef.html#fptosi-to-instruction>
-    fn fp_to_si_sat(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value;
+    fn fp_to_int_sat(&mut self, val: Self::Value, dest_ty: Self::Type, signed: bool)
+        -> Self::Value;
 
     /// The `fptoui` converts a floating-point value to its unsigned integer
     /// equivalent of type `dest_ty`.
@@ -395,16 +377,10 @@ pub trait BlockBuilderMethods<'b>:
     /// Ref: <https://llvm.org/docs/LangRef.html#load-instruction>
     fn load(&mut self, ty: Self::Type, ptr: Self::Value, alignment: Alignment) -> Self::Value;
 
-    /// Emit an instruction for a volatile load from a given pointer of a type
-    /// and a specified [Alignment].
+    /// Emit an instruction for a volatile load from a given pointer.
     ///
     /// Ref: <https://llvm.org/docs/LangRef.html#load-instruction>
-    fn volatile_load(
-        &mut self,
-        ty: Self::Type,
-        ptr: Self::Value,
-        alignment: Alignment,
-    ) -> Self::Value;
+    fn volatile_load(&mut self, ty: Self::Type, ptr: Self::Value) -> Self::Value;
 
     /// Emit an instruction for an atomic load from a given pointer of a type
     /// and a specified [Alignment].
@@ -415,6 +391,7 @@ pub trait BlockBuilderMethods<'b>:
         ty: Self::Type,
         ptr: Self::Value,
         alignment: Alignment,
+        ordering: AtomicOrdering,
     ) -> Self::Value;
 
     /// Emit an instruction to load an operand into a particular `place`.
@@ -445,7 +422,7 @@ pub trait BlockBuilderMethods<'b>:
         value: Self::Value,
         ptr: Self::Value,
         alignment: Alignment,
-        ordering: Ordering,
+        ordering: AtomicOrdering,
     ) -> Self::Value;
 
     /// Emit an instruction for a `gep` or `getelementptr` operation.
@@ -528,13 +505,16 @@ pub trait BlockBuilderMethods<'b>:
         otherwise: Self::Value,
     ) -> Self::Value;
 
+    ///  Emit an instruction to extract a value from a aggregate value.
+    fn extract_field(&mut self, value: Self::Value, field_index: usize) -> Self::Value;
+
+    // --- Metadata ---
+
     /// Emit a hint to denote that a particular value is now "live".
     fn lifetime_start(&mut self, ptr: Self::Value, size: Size);
 
     /// Emit a hint to denote that a particular value is now "dead".
     fn lifetime_end(&mut self, ptr: Self::Value, size: Size);
-
-    // --- Metadata ---
 
     /// Emit `range!` metadata for a particular value. Range metadata
     /// specifies the valid range of a scalar-like value, i.e. for boolean

@@ -16,14 +16,14 @@ pub enum CallingConvention {
     /// Equivalent to the `ccc` calling convention in LLVM.
     ///
     /// Ref: <https://llvm.org/docs/LangRef.html#calling-conventions> (ccc)
-    C,
+    C = 0,
 
     /// Cold calling convention for functions that are unlikely to be called.
     ///
     /// Equivalent to the `coldcc` calling convention in LLVM.
     ///
     /// Ref: <https://llvm.org/docs/LangRef.html#calling-conventions> (coldcc)
-    Cold,
+    Cold = 9,
 }
 
 /// Defines what ABI to use when calling a function.

@@ -35,7 +35,7 @@ fn shift_mask_value<'b, Builder: BlockBuilderMethods<'b>>(
     mask_ty: Builder::Type,
     invert: bool,
 ) -> Builder::Value {
-    match builder.kind_of_type(ty) {
+    match builder.kind_of_ty(ty) {
         TypeKind::IntegerTy => {
             let bits = builder.int_width(ty) - 1;
 
@@ -61,8 +61,8 @@ fn cast_shift_value<'b, Builder: BlockBuilderMethods<'b>>(
     lhs: Builder::Value,
     rhs: Builder::Value,
 ) -> Builder::Value {
-    let lhs_ty = builder.type_of_value(lhs);
-    let rhs_ty = builder.type_of_value(rhs);
+    let lhs_ty = builder.ty_of_value(lhs);
+    let rhs_ty = builder.ty_of_value(rhs);
 
     let lhs_size = builder.int_width(lhs_ty);
     let rhs_size = builder.int_width(rhs_ty);
@@ -90,7 +90,7 @@ fn apply_shift_mask<'b, Builder: BlockBuilderMethods<'b>>(
     builder: &mut Builder,
     shift_value: Builder::Value,
 ) -> Builder::Value {
-    let value_ty = builder.type_of_value(shift_value);
+    let value_ty = builder.ty_of_value(shift_value);
     let mask = shift_mask_value(builder, value_ty, value_ty, false);
     builder.and(shift_value, mask)
 }
@@ -456,13 +456,13 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
                 };
 
                 let (value, overflow) =
-                    builder.checked_bin_op(checked_operator, lhs_value, rhs_value);
+                    builder.checked_bin_op(checked_operator, ty, lhs_value, rhs_value);
 
                 (value, overflow)
             }
             BinOp::Shl | BinOp::Shr => {
-                let lhs_ty = builder.type_of_value(lhs_value);
-                let rhs_ty = builder.type_of_value(rhs_value);
+                let lhs_ty = builder.ty_of_value(lhs_value);
+                let rhs_ty = builder.ty_of_value(rhs_value);
 
                 let invert_mask = shift_mask_value(builder, lhs_ty, rhs_ty, true);
                 let outer_bits = builder.and(rhs_value, invert_mask);

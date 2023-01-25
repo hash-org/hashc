@@ -266,5 +266,33 @@ bitflags! {
         ///
         /// Ref: https://llvm.org/docs/LangRef.html#store-instruction
         const NON_TEMPORAL = 1 << 1;
+
+        /// When the referred place is considered to be unaligned.
+        const UN_ALIGNED = 1 << 2;
     }
+}
+
+/// Represents the atomic ordering of an atomic operation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AtomicOrdering {
+    /// No ordering constraints.
+    NotAtomic,
+
+    /// No ordering constraints.
+    Unordered,
+
+    /// Monotonic ordering.
+    Monotonic,
+
+    /// Acquire ordering.
+    Acquire,
+
+    /// Release ordering.
+    Release,
+
+    /// Acquire and release ordering.
+    AcquireRelease,
+
+    /// Sequentially consistent ordering.
+    SequentiallyConsistent,
 }

@@ -1,6 +1,7 @@
 //! Trait methods to do with emitting types for the backend.
 
 use hash_abi::FnAbi;
+use hash_ir::ty::IrTyId;
 use hash_layout::TyInfo;
 use hash_target::abi::AddressSpace;
 
@@ -67,19 +68,22 @@ pub trait BuildTypeMethods<'b>: Backend<'b> {
     fn int_width(&self, ty: Self::Type) -> u64;
 
     /// Compute the type of a particular backend value.
-    fn type_of_value(&self, value: Self::Value) -> Self::Type;
+    fn ty_of_value(&self, value: Self::Value) -> Self::Type;
 
     /// Get the [TypeKind] of a particular type.
-    fn kind_of_type(&self, ty: Self::Type) -> TypeKind;
+    fn kind_of_ty(&self, ty: Self::Type) -> TypeKind;
 
     /// Create a new "immediate" backend type. This is mainly
     /// used for constants and ZSTs.
-    fn immediate_backend_type(&self, info: TyInfo) -> Self::Type;
+    fn immediate_backend_ty(&self, info: TyInfo) -> Self::Type;
+
+    /// Create a backend specific type from an [IrTyId].
+    fn backend_ty_from_ir_ty(&self, ty: IrTyId) -> Self::Type;
 
     /// Create a backend specific type from a [TyInfo].
-    fn backend_type(&self, info: TyInfo) -> Self::Type;
+    fn backend_ty_from_info(&self, info: TyInfo) -> Self::Type;
 
     /// Create a backend type that represents the provided [FnAbi]. This
     /// is used to compute a function type from a [FnAbi].
-    fn backend_type_from_abi(&self, abi: &FnAbi) -> Self::Type;
+    fn backend_ty_from_abi(&self, abi: &FnAbi) -> Self::Type;
 }
