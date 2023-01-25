@@ -2,6 +2,7 @@
 
 use core::fmt;
 
+use derive_more::From;
 use hash_ast::ast::RangeEnd;
 use hash_utils::{
     new_sequence_store_key, new_store, new_store_key,
@@ -47,7 +48,7 @@ pub struct RangePat {
 /// Represents a pattern.
 ///
 /// Check the documentation of each member for more information.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, From)]
 pub enum Pat {
     Binding(BindingPat),
     Range(RangePat),

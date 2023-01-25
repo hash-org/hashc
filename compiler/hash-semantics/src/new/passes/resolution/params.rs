@@ -54,6 +54,11 @@ impl AstArgGroup<'_> {
             AstArgGroup::TupleArgs(args) => args.span(),
         }
     }
+
+    /// Whether the group is implicit (angle brackets).
+    pub fn is_implicit(&self) -> bool {
+        matches!(self, AstArgGroup::ImplicitArgs(_))
+    }
 }
 
 /// Resolved arguments.
@@ -200,14 +205,17 @@ impl<'tc> ResolutionPass<'tc> {
         // Get the existing param id from the AST info store:
         let param_id = self.ast_info().params().get_data_by_node(ast_param.id()).unwrap();
         match (resolved_ty, default_value) {
-            (Some(resolved_ty), Some(resolved_default_value)) => {
+            (Some(resolved_ty), Some(_resolved_default_value)) => {
                 self.stores().params().modify_fast(param_id.0, |params| {
                     // If this is None, it wasn't given as an annotation, so we just leave it as
                     // a hole
                     if let Some(resolved_ty) = resolved_ty {
                         params[param_id.1].ty = resolved_ty;
                     }
-                    params[param_id.1].default_value = resolved_default_value;
+
+                    // @@Todo: default values
+                    // params[param_id.1].default_value =
+                    // resolved_default_value;
                 });
 
                 Ok(param_id)
@@ -292,7 +300,7 @@ impl<'tc> ResolutionPass<'tc> {
     pub(super) fn make_def_args_from_ast_arg_groups(
         &self,
         groups: &[AstArgGroup],
-        originating_params: DefParamsId,
+        _originating_params: DefParamsId,
     ) -> SemanticResult<ResolvedDefArgs> {
         let mut is_pat_args: Option<bool> = None;
 
@@ -327,7 +335,7 @@ impl<'tc> ResolutionPass<'tc> {
                     let arg_groups = groups
                         .iter()
                         .enumerate()
-                        .map(|(index, group)| {
+                        .map(|(_index, group)| {
                             let (pat_args, spread) =
                                 match self.make_args_from_ast_arg_group(group)? {
                                     ResolvedArgs::Term(_) => unreachable!(),
@@ -336,7 +344,7 @@ impl<'tc> ResolutionPass<'tc> {
                             Ok(DefPatArgGroupData {
                                 pat_args,
                                 spread,
-                                param_group: (originating_params, index),
+                                implicit: group.is_implicit(),
                             })
                         })
                         .collect::<SemanticResult<Vec<_>>>()?;
@@ -351,12 +359,12 @@ impl<'tc> ResolutionPass<'tc> {
                     let arg_groups = groups
                         .iter()
                         .enumerate()
-                        .map(|(index, group)| {
+                        .map(|(_index, group)| {
                             let args = match self.make_args_from_ast_arg_group(group)? {
                                 ResolvedArgs::Term(term_args) => term_args,
                                 ResolvedArgs::Pat(_, _) => unreachable!(),
                             };
-                            Ok(DefArgGroupData { args, param_group: (originating_params, index) })
+                            Ok(DefArgGroupData { args, implicit: group.is_implicit() })
                         })
                         .collect::<SemanticResult<Vec<_>>>()?;
                     let def_args = self.param_utils().create_def_args(arg_groups.into_iter());

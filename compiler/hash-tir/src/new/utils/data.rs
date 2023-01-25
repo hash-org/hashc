@@ -134,7 +134,7 @@ impl<'tc> DataUtils<'tc> {
                                 .into_iter()
                         },
                     ));
-                    DefArgGroupData { param_group: (def_params_id, i), args }
+                    DefArgGroupData { args, implicit: def_param_group.implicit }
                 },
             ))
         })
