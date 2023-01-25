@@ -102,7 +102,7 @@ pub struct ListPat {
 
 impl Display for IntLit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}{}", self.underlying.value, self.underlying.kind)
+        write!(f, "{}", self.underlying.value)
     }
 }
 
@@ -120,7 +120,7 @@ impl Display for CharLit {
 
 impl Display for FloatLit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}{}", self.underlying.value, self.underlying.kind)
+        write!(f, "{}", self.underlying.value)
     }
 }
 

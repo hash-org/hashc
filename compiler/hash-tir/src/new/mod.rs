@@ -18,6 +18,7 @@ pub mod params;
 pub mod pats;
 pub mod refs;
 pub mod scopes;
+pub mod sub;
 pub mod symbols;
 pub mod terms;
 pub mod tuples;

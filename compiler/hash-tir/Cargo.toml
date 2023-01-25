@@ -14,6 +14,7 @@ textwrap = "0.16"
 utility-types = "0.0.2"
 itertools = "0.10"
 typed-builder = "0.11"
+smallvec = "1.9"
 
 hash-ast = { path = "../hash-ast" }
 hash-source = { path = "../hash-source" }

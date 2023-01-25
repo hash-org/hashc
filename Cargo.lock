@@ -754,6 +754,7 @@ dependencies = [
  "itertools",
  "log",
  "num-bigint",
+ "smallvec",
  "textwrap",
  "typed-builder",
  "utility-types",

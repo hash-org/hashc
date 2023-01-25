@@ -23,33 +23,13 @@ use hash_utils::store::SequenceStoreKey;
 /// An error that occurs during typechecking.
 #[derive(Clone, Debug)]
 pub enum TcError {
+    /// Signal
+    Signal,
     /// A series of errors.
     Compound { errors: Vec<TcError> },
     /// An error exists, this is just a signal to stop typechecking. Signal,
     /// More type annotations are needed to infer the type of the given term.
     NeedMoreTypeAnnotationsToInfer { term: TermId },
-    /// Traits are not yet supported.
-    TraitsNotSupported { trait_location: SourceLocation },
-    /// Merge declarations are not yet supported.
-    MergeDeclarationsNotSupported { merge_location: SourceLocation },
-    /// Cannot use a module in a value position.
-    CannotUseModuleInValuePosition { location: SourceLocation },
-    /// Cannot use a module in a type position.
-    CannotUseModuleInTypePosition { location: SourceLocation },
-    /// Cannot use a module in a pattern position.
-    CannotUseModuleInPatternPosition { location: SourceLocation },
-    /// Cannot use a data type in a value position.
-    CannotUseDataTypeInValuePosition { location: SourceLocation },
-    /// Cannot use a data type in a pattern position.
-    CannotUseDataTypeInPatternPosition { location: SourceLocation },
-    /// Cannot use a constructor in a type position.
-    CannotUseConstructorInTypePosition { location: SourceLocation },
-    /// Cannot use a function in type position.
-    CannotUseFunctionInTypePosition { location: SourceLocation },
-    /// Cannot use a function in a pattern position.
-    CannotUseFunctionInPatternPosition { location: SourceLocation },
-    /// Cannot use the subject as a namespace.
-    InvalidNamespaceSubject { location: SourceLocation },
     /// The given arguments do not match the length of the target parameters.
     WrongArgLength { params_id: ParamsId, args_id: SomeArgsId },
     /// The given definition arguments do not match the length of the target
@@ -65,8 +45,6 @@ pub enum TcError {
     UndecidableEquality { a: TermId, b: TermId },
     /// Invalid range pattern literal
     InvalidRangePatternLiteral { location: SourceLocation },
-    /// Signal
-    Signal,
 }
 
 pub type TcResult<T> = Result<T, TcError>;
@@ -87,14 +65,14 @@ impl fmt::Display for TcErrorReporter<'_> {
 
 impl<'tc> TcErrorReporter<'tc> {
     /// Format the error nicely and return it as a set of reports.
-    fn format_error(&self, error: &TcError) -> Reports {
+    pub fn format_error(&self, error: &TcError) -> Reports {
         let mut builder = Reporter::new();
         self.add_to_reporter(error, &mut builder);
         builder.into_reports()
     }
 
     /// Format the error nicely and add it to the given reporter.
-    fn add_to_reporter(&self, error: &TcError, reporter: &mut Reporter) {
+    pub fn add_to_reporter(&self, error: &TcError, reporter: &mut Reporter) {
         let locations = self.stores().location();
         match error {
             TcError::Signal => {}
@@ -114,114 +92,6 @@ impl<'tc> TcErrorReporter<'tc> {
                 for error in errors {
                     self.add_to_reporter(error, reporter);
                 }
-            }
-            TcError::TraitsNotSupported { trait_location } => {
-                let error = reporter
-                    .error()
-                    .code(HashErrorCode::UnsupportedTraits)
-                    .title("traits are work-in-progress and currently not supported".to_string());
-
-                error.add_span(*trait_location).add_help("cannot use traits yet");
-            }
-            TcError::MergeDeclarationsNotSupported { merge_location } => {
-                let error = reporter
-                    .error()
-                    .code(HashErrorCode::UnsupportedTraits)
-                    .title("merge declarations are currently not supported".to_string());
-
-                error.add_span(*merge_location).add_help("cannot use merge declarations yet");
-            }
-            TcError::CannotUseModuleInValuePosition { location } => {
-                let error = reporter
-                    .error()
-                    .code(HashErrorCode::NonRuntimeInstantiable)
-                    .title("cannot use a module in expression position");
-
-                error
-                    .add_span(*location)
-                    .add_info("cannot use this in expression position as it is a module");
-            }
-            TcError::CannotUseModuleInTypePosition { location } => {
-                let error = reporter
-                    .error()
-                    .code(HashErrorCode::ValueCannotBeUsedAsType)
-                    .title("cannot use a module in type position");
-
-                error
-                    .add_span(*location)
-                    .add_info("cannot use this in type position as it is a module");
-            }
-            TcError::CannotUseModuleInPatternPosition { location } => {
-                let error = reporter
-                    .error()
-                    .code(HashErrorCode::ValueCannotBeUsedAsType)
-                    .title("cannot use a module in pattern position");
-
-                error
-                    .add_span(*location)
-                    .add_info("cannot use this in pattern position as it is a module");
-            }
-            TcError::CannotUseDataTypeInValuePosition { location } => {
-                let error = reporter
-                    .error()
-                    .code(HashErrorCode::NonRuntimeInstantiable)
-                    .title("cannot use a data type in expression position")
-                    .add_help("consider using a constructor call instead");
-
-                error
-                    .add_span(*location)
-                    .add_info("cannot use this in expression position as it is a data type");
-            }
-            TcError::CannotUseDataTypeInPatternPosition { location } => {
-                let error = reporter
-                    .error()
-                    .code(HashErrorCode::NonRuntimeInstantiable)
-                    .title("cannot use a data type in pattern position")
-                    .add_help("consider using a constructor pattern instead");
-
-                error
-                    .add_span(*location)
-                    .add_info("cannot use this in pattern position as it is a data type");
-            }
-            TcError::CannotUseConstructorInTypePosition { location } => {
-                let error = reporter
-                    .error()
-                    .code(HashErrorCode::ValueCannotBeUsedAsType)
-                    .title("cannot use a constructor in type position");
-
-                error
-                    .add_span(*location)
-                    .add_info("cannot use this in type position as it is a constructor");
-            }
-            TcError::CannotUseFunctionInTypePosition { location } => {
-                let error = reporter
-                    .error()
-                    .code(HashErrorCode::ValueCannotBeUsedAsType)
-                    .title("cannot use a function in type position");
-
-                error.add_span(*location).add_info(
-                    "cannot use this in type position as it refers to a function definition",
-                );
-            }
-            TcError::CannotUseFunctionInPatternPosition { location } => {
-                let error = reporter
-                    .error()
-                    .code(HashErrorCode::ValueCannotBeUsedAsType)
-                    .title("cannot use a function in pattern position");
-
-                error.add_span(*location).add_info(
-                    "cannot use this in pattern position as it refers to a function definition",
-                );
-            }
-            TcError::InvalidNamespaceSubject { location } => {
-                let error = reporter
-                    .error()
-                    .code(HashErrorCode::UnsupportedAccess)
-                    .title("only data types and modules can be used as namespacing subjects");
-
-                error
-                    .add_span(*location)
-                    .add_info("cannot use this as a subject of a namespace access");
             }
             TcError::WrongArgLength { params_id, args_id } => {
                 let param_length = params_id.len();

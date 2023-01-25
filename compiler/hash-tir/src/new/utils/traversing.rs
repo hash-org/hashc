@@ -1,3 +1,4 @@
+use core::fmt;
 ///! Utilities to traverse the TIR.
 use std::ops::ControlFlow;
 
@@ -16,7 +17,7 @@ use crate::{
             DefArgGroupData, DefArgsId, DefParamGroupData, DefParamsId, DefPatArgGroupData,
             DefPatArgsId,
         },
-        environment::env::Env,
+        environment::env::{AccessToEnv, Env, WithEnv},
         fns::{FnBody, FnCallTerm, FnDefData, FnDefId, FnTy},
         holes::{HoleBinder, HoleBinderKind},
         lits::{ListCtor, ListPat, PrimTerm},
@@ -45,6 +46,17 @@ pub enum Atom {
     Ty(TyId),
     FnDef(FnDefId),
     Pat(PatId),
+}
+
+impl fmt::Display for WithEnv<'_, Atom> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.value {
+            Atom::Term(term_id) => write!(f, "{}", self.env().with(term_id)),
+            Atom::Ty(ty_id) => write!(f, "{}", self.env().with(ty_id)),
+            Atom::FnDef(fn_def_id) => write!(f, "{}", self.env().with(fn_def_id)),
+            Atom::Pat(pat_id) => write!(f, "{}", self.env().with(pat_id)),
+        }
+    }
 }
 
 /// Function to visit an atom.
@@ -486,9 +498,9 @@ impl<'env> TraversingUtils<'env> {
             ControlFlow::Break(_) => Ok(()),
             ControlFlow::Continue(()) => match self.get_ty(ty_id) {
                 Ty::Eval(eval_term) => self.visit_term(eval_term, f),
-                Ty::Tuple(tuple_ty) => self.traverse_modify_params(tuple_ty.data, f),
+                Ty::Tuple(tuple_ty) => self.visit_params(tuple_ty.data, f),
                 Ty::Fn(fn_ty) => {
-                    self.traverse_modify_params(fn_ty.params, f)?;
+                    self.visit_params(fn_ty.params, f)?;
                     self.visit_ty(fn_ty.return_ty, f)
                 }
                 Ty::Ref(ref_ty) => self.visit_ty(ref_ty.ty, f),
@@ -503,12 +515,12 @@ impl<'env> TraversingUtils<'env> {
             ControlFlow::Break(()) => Ok(()),
             ControlFlow::Continue(()) => match self.get_pat(pat_id) {
                 Pat::Binding(_) | Pat::Range(_) | Pat::Lit(_) => Ok(()),
-                Pat::Tuple(tuple_pat) => self.traverse_modify_pat_args(tuple_pat.data, f),
+                Pat::Tuple(tuple_pat) => self.visit_pat_args(tuple_pat.data, f),
                 Pat::List(list_pat) => self.visit_pat_list(list_pat.pats, f),
                 Pat::Ctor(ctor_pat) => {
                     self.visit_def_args(ctor_pat.data_args, f)?;
 
-                    self.traverse_modify_def_pat_args(ctor_pat.ctor_pat_args, f)
+                    self.visit_def_pat_args(ctor_pat.ctor_pat_args, f)
                 }
                 Pat::Or(or_pat) => self.visit_pat_list(or_pat.alternatives, f),
                 Pat::If(if_pat) => self.visit_pat(if_pat.pat, f),
@@ -522,7 +534,7 @@ impl<'env> TraversingUtils<'env> {
             ControlFlow::Continue(()) => {
                 let fn_def = self.get_fn_def(fn_def_id);
                 let fn_ty = fn_def.ty;
-                self.traverse_modify_params(fn_ty.params, f)?;
+                self.visit_params(fn_ty.params, f)?;
                 self.visit_ty(fn_ty.return_ty, f)?;
 
                 match fn_def.body {
@@ -568,11 +580,7 @@ impl<'env> TraversingUtils<'env> {
         })
     }
 
-    pub fn traverse_modify_params<E, F: Visitor<E>>(
-        &self,
-        params_id: ParamsId,
-        f: &mut F,
-    ) -> Result<(), E> {
+    pub fn visit_params<E, F: Visitor<E>>(&self, params_id: ParamsId, f: &mut F) -> Result<(), E> {
         self.map_params(params_id, |params| {
             for &param in params {
                 self.visit_ty(param.ty, f)?;
@@ -581,20 +589,20 @@ impl<'env> TraversingUtils<'env> {
         })
     }
 
-    pub fn traverse_modify_def_pat_args<E, F: Visitor<E>>(
+    pub fn visit_def_pat_args<E, F: Visitor<E>>(
         &self,
         def_pat_args_id: DefPatArgsId,
         f: &mut F,
     ) -> Result<(), E> {
         self.map_def_pat_args(def_pat_args_id, |def_pat_args| {
             for &pat_arg_group in def_pat_args {
-                self.traverse_modify_pat_args(pat_arg_group.pat_args, f)?;
+                self.visit_pat_args(pat_arg_group.pat_args, f)?;
             }
             Ok(())
         })
     }
 
-    pub fn traverse_modify_pat_args<E, F: Visitor<E>>(
+    pub fn visit_pat_args<E, F: Visitor<E>>(
         &self,
         pat_args_id: PatArgsId,
         f: &mut F,
@@ -629,14 +637,14 @@ impl<'env> TraversingUtils<'env> {
         })
     }
 
-    pub fn traverse_modify_def_params<E, F: Visitor<E>>(
+    pub fn visit_def_params<E, F: Visitor<E>>(
         &self,
         def_params_id: DefParamsId,
         f: &mut F,
     ) -> Result<(), E> {
         self.map_def_params(def_params_id, |def_params| {
             for &param_group in def_params {
-                self.traverse_modify_params(param_group.params, f)?;
+                self.visit_params(param_group.params, f)?;
             }
             Ok(())
         })

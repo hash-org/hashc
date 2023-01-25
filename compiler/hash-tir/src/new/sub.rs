@@ -1,7 +1,11 @@
 //! Definitions related to substitutions.
+use std::fmt::{self, Display, Formatter};
+
 use derive_more::From;
-use hash_tir::new::{holes::Hole, symbols::Symbol, terms::TermId};
 use smallvec::SmallVec;
+
+use super::environment::env::AccessToEnv;
+use crate::new::{environment::env::WithEnv, holes::Hole, symbols::Symbol, terms::TermId};
 
 /// The subject of a substitution
 ///
@@ -16,6 +20,18 @@ pub enum SubSubject {
     ///
     /// For example, x := 3, where x: U1, will form the substitution U1 ~> i32
     Hole(Hole),
+}
+
+impl SubSubject {
+    /// Get the [`Symbol`] corresponding to this subject.
+    ///
+    /// This is either the variable or the hole symbol.
+    pub fn symbol(&self) -> Symbol {
+        match self {
+            SubSubject::Var(s) => *s,
+            SubSubject::Hole(h) => h.0,
+        }
+    }
 }
 
 impl PartialEq<Symbol> for SubSubject {
@@ -68,6 +84,12 @@ impl Sub {
     pub fn get_sub_for(&self, subject: impl Into<SubSubject>) -> Option<TermId> {
         let subject = subject.into();
         self.data.iter().find(|entry| entry.from == subject).map(|entry| entry.to)
+    }
+
+    /// Get the substitution for the given [`Symbol`] corresponding to a
+    /// variable or a hole, if any.
+    pub fn get_sub_for_var_or_hole(&self, subject: Symbol) -> Option<TermId> {
+        self.data.iter().find(|entry| entry.from.symbol() == subject).map(|entry| entry.to)
     }
 
     /// Get all the subjects (i.e. the domain) of the substitution as an
@@ -133,5 +155,27 @@ impl Sub {
 impl Default for Sub {
     fn default() -> Self {
         Self::identity()
+    }
+}
+
+impl Display for WithEnv<'_, SubSubject> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self.value {
+            SubSubject::Var(s) => write!(f, "{}", self.env().with(s)),
+            SubSubject::Hole(h) => write!(f, "{}", self.env().with(h)),
+        }
+    }
+}
+
+impl Display for WithEnv<'_, &Sub> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{{")?;
+        for (i, (from, to)) in self.value.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "{} ~> {}", self.env().with(from), self.env().with(to))?;
+        }
+        write!(f, "}}")
     }
 }
