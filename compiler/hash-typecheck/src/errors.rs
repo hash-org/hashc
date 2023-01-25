@@ -23,6 +23,8 @@ use hash_utils::store::SequenceStoreKey;
 /// An error that occurs during typechecking.
 #[derive(Clone, Debug)]
 pub enum TcError {
+    /// Signal
+    Signal,
     /// A series of errors.
     Compound { errors: Vec<TcError> },
     /// An error exists, this is just a signal to stop typechecking. Signal,
@@ -43,8 +45,6 @@ pub enum TcError {
     UndecidableEquality { a: TermId, b: TermId },
     /// Invalid range pattern literal
     InvalidRangePatternLiteral { location: SourceLocation },
-    /// Signal
-    Signal,
 }
 
 pub type TcResult<T> = Result<T, TcError>;
@@ -65,14 +65,14 @@ impl fmt::Display for TcErrorReporter<'_> {
 
 impl<'tc> TcErrorReporter<'tc> {
     /// Format the error nicely and return it as a set of reports.
-    fn format_error(&self, error: &TcError) -> Reports {
+    pub fn format_error(&self, error: &TcError) -> Reports {
         let mut builder = Reporter::new();
         self.add_to_reporter(error, &mut builder);
         builder.into_reports()
     }
 
     /// Format the error nicely and add it to the given reporter.
-    fn add_to_reporter(&self, error: &TcError, reporter: &mut Reporter) {
+    pub fn add_to_reporter(&self, error: &TcError, reporter: &mut Reporter) {
         let locations = self.stores().location();
         match error {
             TcError::Signal => {}

@@ -6,16 +6,9 @@ use hash_reporting::{
 };
 use hash_source::location::SourceLocation;
 use hash_tir::new::{
-    defs::DefParamsId,
-    environment::env::AccessToEnv,
-    params::{ParamsId, SomeArgsId, SomeDefArgsId},
-    symbols::Symbol,
-    terms::TermId,
-    tys::TyId,
-    utils::common::CommonUtils,
+    environment::env::AccessToEnv, symbols::Symbol, terms::TermId, utils::common::CommonUtils,
 };
-use hash_typecheck::errors::TcError;
-use hash_utils::store::SequenceStoreKey;
+use hash_typecheck::errors::{TcError, TcErrorReporter};
 
 use crate::new::{
     environment::tc_env::{AccessToTcEnv, WithTcEnv},
@@ -55,54 +48,13 @@ pub enum SemanticError {
     CannotUseFunctionInPatternPosition { location: SourceLocation },
     /// Cannot use the subject as a namespace.
     InvalidNamespaceSubject { location: SourceLocation },
-    /// The given arguments do not match the length of the target parameters.
-    WrongArgLength { params_id: ParamsId, args_id: SomeArgsId },
-    /// The given definition arguments do not match the length of the target
-    /// definition parameters.
-    WrongDefArgLength { def_params_id: DefParamsId, def_args_id: SomeDefArgsId },
-    /// Not a function.
-    NotAFunction { fn_call: TermId, actual_subject_ty: TyId },
-    /// Cannot deref the subject.
-    CannotDeref { subject: TermId, actual_subject_ty: TyId },
-    /// Types don't match
-    MismatchingTypes { expected: TyId, actual: TyId },
-    /// Undecidable equality between terms
-    UndecidableEquality { a: TermId, b: TermId },
-    /// Invalid range pattern literal
-    InvalidRangePatternLiteral { location: SourceLocation },
+    /// Type error, forwarded from the typechecker.
+    TypeError { error: TcError },
 }
 
 impl From<TcError> for SemanticError {
     fn from(value: TcError) -> Self {
-        match value {
-            TcError::Compound { errors } => {
-                let errors = errors.into_iter().map(SemanticError::from).collect();
-                SemanticError::Compound { errors }
-            }
-            TcError::NeedMoreTypeAnnotationsToInfer { term } => {
-                SemanticError::NeedMoreTypeAnnotationsToInfer { term }
-            }
-            TcError::WrongArgLength { params_id, args_id } => {
-                SemanticError::WrongArgLength { params_id, args_id }
-            }
-            TcError::WrongDefArgLength { def_params_id, def_args_id } => {
-                SemanticError::WrongDefArgLength { def_params_id, def_args_id }
-            }
-            TcError::NotAFunction { fn_call, actual_subject_ty } => {
-                SemanticError::NotAFunction { fn_call, actual_subject_ty }
-            }
-            TcError::CannotDeref { subject, actual_subject_ty } => {
-                SemanticError::CannotDeref { subject, actual_subject_ty }
-            }
-            TcError::MismatchingTypes { expected, actual } => {
-                SemanticError::MismatchingTypes { expected, actual }
-            }
-            TcError::UndecidableEquality { a, b } => SemanticError::UndecidableEquality { a, b },
-            TcError::InvalidRangePatternLiteral { location } => {
-                SemanticError::InvalidRangePatternLiteral { location }
-            }
-            TcError::Signal => SemanticError::Signal,
-        }
+        Self::TypeError { error: value }
     }
 }
 
@@ -271,129 +223,8 @@ impl<'tc> WithTcEnv<'tc, &SemanticError> {
                     .add_span(*location)
                     .add_info("cannot use this as a subject of a namespace access");
             }
-            SemanticError::WrongArgLength { params_id, args_id } => {
-                let param_length = params_id.len();
-                let arg_length = args_id.len();
-
-                let error =
-                    reporter.error().code(HashErrorCode::ParameterLengthMismatch).title(format!(
-                    "mismatch in parameter length: expected {param_length} but got {arg_length}"
-                ));
-
-                if let Some(location) = locations.get_overall_location(*params_id) {
-                    error
-                        .add_span(location)
-                        .add_info(format!("expected {param_length} parameters here"));
-                }
-
-                if let Some(location) = locations.get_overall_location(*args_id) {
-                    error
-                        .add_span(location)
-                        .add_info(format!("got {arg_length} {} here", args_id.as_str()));
-                }
-            }
-            SemanticError::WrongDefArgLength { def_params_id: params_id, def_args_id: args_id } => {
-                let param_length = params_id.len();
-                let arg_length = args_id.len();
-
-                let error = reporter.error().code(HashErrorCode::ParameterLengthMismatch).title(format!(
-                    "mismatch in parameter groups: expected {param_length} groups but got {arg_length}"
-                ));
-
-                if let Some(location) = locations.get_overall_location(*params_id) {
-                    error
-                        .add_span(location)
-                        .add_info(format!("expected {param_length} parameter groups here"));
-                }
-
-                if let Some(location) = locations.get_overall_location(*args_id) {
-                    error
-                        .add_span(location)
-                        .add_info(format!("got {arg_length} {} groups here", args_id.as_str()));
-                }
-            }
-            SemanticError::NotAFunction { fn_call, actual_subject_ty } => {
-                let error = reporter
-                    .error()
-                    .code(HashErrorCode::InvalidCallSubject)
-                    .title("the subject of this function call is not a function");
-                if let Some(location) = locations.get_location(fn_call) {
-                    error.add_labelled_span(
-                        location,
-                        format!(
-                            "cannot use this as a subject of a function call. It is of type `{}` which is not a function type.",
-                            self.env().with(*actual_subject_ty)
-                        )
-                    );
-                }
-            }
-            SemanticError::CannotDeref { subject, actual_subject_ty } => {
-                let error = reporter
-                    .error()
-                    .code(HashErrorCode::InvalidCallSubject)
-                    .title("the subject of this dereference is not a reference");
-                if let Some(location) = locations.get_location(subject) {
-                    error.add_labelled_span(
-                        location,
-                        format!(
-                            "cannot use this as a subject of a dereference operation. It is of type `{}` which is not a reference type.",
-                            self.env().with(*actual_subject_ty)
-                        )
-                    );
-                }
-            }
-            SemanticError::MismatchingTypes { expected, actual } => {
-                let error = reporter.error().code(HashErrorCode::TypeMismatch).title(format!(
-                    "expected type `{}` but got `{}`",
-                    self.env().with(*expected),
-                    self.env().with(*actual),
-                ));
-                if let Some(location) = locations.get_location(expected) {
-                    error.add_labelled_span(
-                        location,
-                        format!(
-                            "this expects type `{}`", //@@Todo: flag for if inferred or declared
-                            self.env().with(*expected)
-                        ),
-                    );
-                }
-                if let Some(location) = locations.get_location(actual) {
-                    error.add_labelled_span(
-                        location,
-                        format!("this is of type `{}`", self.env().with(*actual)),
-                    );
-                }
-            }
-            SemanticError::UndecidableEquality { a, b } => {
-                let error = reporter.error().code(HashErrorCode::TypeMismatch).title(format!(
-                    "cannot determine if expressions `{}` and `{}` are equal",
-                    self.env().with(*a),
-                    self.env().with(*b),
-                ));
-                if let Some(location) = locations.get_location(a) {
-                    error.add_labelled_span(
-                        location,
-                        format!(
-                            "`{}` from here", //@@Todo: flag for if inferred or declared
-                            self.env().with(*a)
-                        ),
-                    );
-                }
-                if let Some(location) = locations.get_location(b) {
-                    error.add_labelled_span(
-                        location,
-                        format!("`{}` from here", self.env().with(*b)),
-                    );
-                }
-            }
-            SemanticError::InvalidRangePatternLiteral { location } => {
-                let error = reporter
-                    .error()
-                    .code(HashErrorCode::TypeMismatch)
-                    .title("range patterns should contain valid literals");
-                if let Some(location) = locations.get_location(location) {
-                    error.add_labelled_span(location, "not a valid range literal");
-                }
+            SemanticError::TypeError { error } => {
+                TcErrorReporter::new(self.env()).add_to_reporter(error, reporter)
             }
         }
     }
