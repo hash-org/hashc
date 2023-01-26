@@ -73,7 +73,8 @@ pub trait ExtendedLayoutMethods {
     /// Check if this is type is represented as an immediate value.
     fn is_llvm_immediate(&self) -> bool;
 
-    /// Returns true if this type is a [`Scalar::Pair`]
+    /// Returns true if this [Layout] ABI is represented as is a
+    /// [`AbiRepresentation::Pair(..)`]
     fn is_llvm_scalar_pair(&self) -> bool;
 }
 

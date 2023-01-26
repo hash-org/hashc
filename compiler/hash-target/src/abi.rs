@@ -79,6 +79,22 @@ impl Integer {
             alignment == candidate.align(ctx).abi && alignment.bytes() >= candidate.size().bytes()
         })
     }
+
+    /// Create the largest [Integer] type with the given alignment or
+    /// less.
+    pub fn approximate_alignment<C: HasDataLayout>(ctx: &C, alignment: Alignment) -> Self {
+        use Integer::*;
+
+        for candidate in [I128, I64, I32, I16] {
+            if alignment >= candidate.align(ctx).abi
+                && alignment.bytes() >= candidate.size().bytes()
+            {
+                return candidate;
+            }
+        }
+
+        I8
+    }
 }
 
 /// Represents all of the primitive [AbiRepresentation::Scalar]s that are

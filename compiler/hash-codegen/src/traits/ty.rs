@@ -1,9 +1,9 @@
 //! Trait methods to do with emitting types for the backend.
 
 use hash_abi::FnAbi;
-use hash_ir::ty::IrTyId;
 use hash_layout::TyInfo;
-use hash_target::abi::AddressSpace;
+use hash_source::constant::FloatTy;
+use hash_target::abi::{AddressSpace, Integer};
 
 use super::Backend;
 use crate::common::TypeKind;
@@ -30,11 +30,30 @@ pub trait BuildTypeMethods<'b>: Backend<'b> {
     /// Create a `isize` type.
     fn type_isize(&self) -> Self::Type;
 
+    /// Create a integer type from the specified [abi::Integer].
+    fn type_from_integer(&self, int: Integer) -> Self::Type {
+        match int {
+            Integer::I8 => self.type_i8(),
+            Integer::I16 => self.type_i16(),
+            Integer::I32 => self.type_i32(),
+            Integer::I64 => self.type_i64(),
+            Integer::I128 => self.type_i128(),
+        }
+    }
+
     /// Create a float type.
     fn type_f32(&self) -> Self::Type;
 
     /// Create a double type.
     fn type_f64(&self) -> Self::Type;
+
+    /// Create a float type from the specified [FloatTy].
+    fn type_from_float(&self, ty: FloatTy) -> Self::Type {
+        match ty {
+            FloatTy::F32 => self.type_f32(),
+            FloatTy::F64 => self.type_f64(),
+        }
+    }
 
     /// Create an array type.
     fn type_array(&self, ty: Self::Type, len: u64) -> Self::Type;

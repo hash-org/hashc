@@ -473,6 +473,7 @@ dependencies = [
  "inkwell",
  "llvm-sys",
  "rayon",
+ "smallvec",
 ]
 
 [[package]]

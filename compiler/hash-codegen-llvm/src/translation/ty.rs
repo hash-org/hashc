@@ -3,15 +3,26 @@
 
 use core::panic;
 
-use hash_codegen::{abi::FnAbi, common::TypeKind, layout::TyInfo, traits::ty::BuildTypeMethods};
-use hash_ir::ty::IrTyId;
+use hash_codegen::{
+    abi::FnAbi,
+    common::TypeKind,
+    layout::{Layout, LayoutShape, TyInfo, Variants},
+    traits::{ctx::HasCtxMethods, layout::LayoutMethods, ty::BuildTypeMethods},
+};
+use hash_ir::ty::{IrTy, IrTyId, RefKind};
 use hash_target::{
-    abi::{AddressSpace, Scalar},
+    abi::{AbiRepresentation, AddressSpace, Integer, Scalar, ScalarKind},
+    alignment::Alignment,
     size::Size,
 };
+use hash_utils::store::Store;
 use inkwell as llvm;
-use llvm::types::{AnyTypeEnum, AsTypeRef, BasicType, BasicTypeEnum};
-use llvm_sys::{core::LLVMGetTypeKind, LLVMTypeKind};
+use llvm::types::{AnyType, AnyTypeEnum, AsTypeRef, BasicType, BasicTypeEnum, VectorType};
+use llvm_sys::{
+    core::{LLVMGetTypeKind, LLVMVectorType},
+    LLVMTypeKind,
+};
+use smallvec::SmallVec;
 
 use super::{abi::ExtendedFnAbiMethods, context::CodeGenCtx, AddressSpaceWrapper};
 
@@ -19,7 +30,7 @@ use super::{abi::ExtendedFnAbiMethods, context::CodeGenCtx, AddressSpaceWrapper}
 ///
 /// @@PatchInkwell: maybe patch inkwell in order to support this conversion just
 /// using a `From` trait.
-pub fn convert_basic_ty_to_any<'b>(ty: BasicTypeEnum<'b>) -> AnyTypeEnum<'b> {
+pub fn convert_basic_ty_to_any(ty: BasicTypeEnum) -> AnyTypeEnum {
     match ty {
         BasicTypeEnum::ArrayType(ty) => AnyTypeEnum::ArrayType(ty),
         BasicTypeEnum::FloatType(ty) => AnyTypeEnum::FloatType(ty),
@@ -27,6 +38,40 @@ pub fn convert_basic_ty_to_any<'b>(ty: BasicTypeEnum<'b>) -> AnyTypeEnum<'b> {
         BasicTypeEnum::PointerType(ty) => AnyTypeEnum::PointerType(ty),
         BasicTypeEnum::StructType(ty) => AnyTypeEnum::StructType(ty),
         BasicTypeEnum::VectorType(ty) => AnyTypeEnum::VectorType(ty),
+    }
+}
+
+impl<'b> CodeGenCtx<'b> {
+    /// Create a type that represents the alignment of a particular pointee
+    /// type.
+    pub(crate) fn type_pointee_for_alignment(&self, align: Alignment) -> AnyTypeEnum<'b> {
+        let ity = Integer::approximate_alignment(self, align);
+        self.type_from_integer(ity)
+    }
+
+    /// Create a [VectorType] from a [`AbiRepresentation::Vector`].
+    pub(crate) fn type_vector(&self, element_ty: AnyTypeEnum<'b>, len: u64) -> AnyTypeEnum<'b> {
+        let ty: BasicTypeEnum = element_ty.try_into().unwrap();
+
+        // @@PatchInkwell: we should allow creating a vector type from a
+        // BasicTypeEnum and a length.
+        let vec_ty = unsafe {
+            let ty = LLVMVectorType(element_ty.as_type_ref(), len as u32);
+            VectorType::new(ty)
+        };
+
+        AnyTypeEnum::VectorType(vec_ty)
+    }
+
+    /// Create a type that represents the padding that is needed for a
+    /// particular [Size] and [Alignment].
+    pub(crate) fn type_padding(&self, size: Size, alignment: Alignment) -> AnyTypeEnum<'b> {
+        let unit = Integer::approximate_alignment(self, alignment);
+
+        let size = size.bytes();
+        let unit_size = unit.size().bytes();
+        debug_assert_eq!(size % unit_size, 0);
+        self.type_array(self.type_from_integer(unit), size / unit_size)
     }
 }
 
@@ -209,11 +254,149 @@ pub trait ExtendedTyBuilderMethods<'ll> {
 
 impl<'ll> ExtendedTyBuilderMethods<'ll> for TyInfo {
     fn llvm_ty(&self, ctx: &CodeGenCtx<'ll>) -> llvm::types::AnyTypeEnum<'ll> {
-        todo!()
+        let abi = ctx.map_layout(self.layout, |layout| layout.abi);
+
+        // @@Todo: Check the cache if we have already computed the lowered type
+        // for this ir-type.
+
+        match abi {
+            AbiRepresentation::Scalar(scalar) => {
+                let ty = ctx.ir_ctx().map_ty(self.ty, |ty| match ty {
+                    IrTy::Ref(ty, _, _) => ctx.type_ptr_to(ctx.layout_of_id(*ty).llvm_ty(ctx)),
+                    _ => self.scalar_llvm_type_at(ctx, scalar, Size::ZERO),
+                });
+
+                ty
+            }
+            AbiRepresentation::Vector { elements, kind } => {
+                ctx.type_vector(self.scalar_llvm_type_at(ctx, kind, Size::ZERO), elements)
+            }
+            AbiRepresentation::Pair(scalar_1, scalar_2) => ctx.type_struct(
+                &[
+                    self.scalar_pair_element_llvm_ty(ctx, 0, false),
+                    self.scalar_pair_element_llvm_ty(ctx, 1, false),
+                ],
+                false,
+            ),
+
+            _ => {
+                ctx.map_layout(self.layout, |layout| {
+                    ctx.ir_ctx().map_ty(self.ty, |ty| {
+                        // Firstly, we want to compute the name of the type that we are going
+                        // to create.
+                        //
+                        // @@Todo: make emitting names optional in order to improve speed
+                        // of LLVM builds.
+                        let name: Option<String> = match ty {
+                            IrTy::Str => Some("str".to_string()),
+                            IrTy::Adt(adt) => {
+                                ctx.ir_ctx().map_adt(*adt, |id, adt| {
+                                    // We don't create a name for tuple types, they are just
+                                    // regarded
+                                    // as opaque structs
+                                    if adt.flags.is_tuple() {
+                                        return None;
+                                    }
+                                    let name = adt.name;
+
+                                    // If we have a specific variant for this layout, then we
+                                    // can be more precise about the type name..
+                                    if let Variants::Single { index } = &layout.variants {
+                                        if adt.flags.is_enum() {
+                                            return Some(format!(
+                                                "{}::{}",
+                                                name, adt.variants[*index].name
+                                            ));
+                                        }
+                                    }
+
+                                    Some(format!("{name}"))
+                                })
+                            }
+
+                            // Everything else is either not a struct or considered to be
+                            // opaque.
+                            _ => None,
+                        };
+
+                        match layout.shape {
+                            LayoutShape::Primitive | LayoutShape::Union { .. } => {
+                                let fill = ctx.type_padding(layout.size, layout.alignment.abi);
+                                let packed = false;
+
+                                match name {
+                                    Some(ref name) => {
+                                        let ty = ctx.ll_ctx.opaque_struct_type(name);
+                                        ty.set_body(&[fill.try_into().unwrap()], packed);
+
+                                        ty.into()
+                                    }
+                                    None => ctx.type_struct(&[fill], packed),
+                                }
+                            }
+                            LayoutShape::Array { elements, .. } => {
+                                // ##Safety: we should be able to assume that `field()` won't create
+                                // any new layouts since the layout of the element field should
+                                // already be known.
+                                let field_ty = self.field(ctx.layout_computer(), 0).llvm_ty(ctx);
+                                ctx.type_array(field_ty, elements)
+                            }
+                            LayoutShape::Aggregate { .. } => {
+                                let mut new_remapping = None;
+
+                                match name {
+                                    Some(ref name) => {
+                                        let (fields, packed, new_field_remapping) =
+                                            create_and_pad_struct_fields_from_layout(
+                                                ctx, *self, layout,
+                                            );
+                                        new_remapping = Some(new_field_remapping);
+
+                                        let ty = ctx.ll_ctx.opaque_struct_type(name);
+
+                                        // @@Cleanup: we're always fucking converting between
+                                        // AnyEnumType and
+                                        // BasicEnumType, there must be a better way to do this.
+                                        let fields = fields
+                                            .into_iter()
+                                            .map(|ty| ty.try_into().unwrap())
+                                            .collect::<Vec<_>>();
+
+                                        ty.set_body(&fields, packed);
+                                        ty.into()
+                                    }
+                                    None => {
+                                        let (fields, packed, new_field_remapping) =
+                                            create_and_pad_struct_fields_from_layout(
+                                                ctx, *self, layout,
+                                            );
+                                        new_remapping = Some(new_field_remapping);
+
+                                        ctx.type_struct(&fields, packed)
+                                    }
+                                }
+                            }
+                        }
+                    })
+                })
+            }
+        }
     }
 
     fn immediate_llvm_ty(&self, ctx: &CodeGenCtx<'ll>) -> llvm::types::AnyTypeEnum<'ll> {
-        todo!()
+        let is_bool = ctx.map_layout(self.layout, |layout| {
+            if let AbiRepresentation::Scalar(scalar) = layout.abi && scalar.is_bool() {
+                true
+            } else {
+                false
+            }
+        });
+
+        if is_bool {
+            ctx.type_i1()
+        } else {
+            self.llvm_ty(ctx)
+        }
     }
 
     fn scalar_llvm_type_at(
@@ -222,7 +405,24 @@ impl<'ll> ExtendedTyBuilderMethods<'ll> for TyInfo {
         scalar: Scalar,
         offset: Size,
     ) -> llvm::types::AnyTypeEnum<'ll> {
-        todo!()
+        match scalar.kind() {
+            ScalarKind::Int { kind, .. } => ctx.type_from_integer(kind),
+            ScalarKind::Float { kind } => ctx.type_from_float(kind),
+            ScalarKind::Pointer => {
+                //@@Todo: account for address space of function pointee type being dependant on the target 
+                // data layout
+                let alignment = ctx.layouts().map_fast(self.layout, |layout| layout.alignment.abi);
+
+                let (ty, addr) = ctx.ir_ctx().map_ty(self.ty, |ty| {
+                    match ty {
+                        IrTy::Ref(ty, _, _) => (ctx.type_pointee_for_alignment(alignment), AddressSpace::DATA),
+                        _ => (ctx.type_i8p(), AddressSpace::DATA)
+                    }
+                });
+
+                ctx.type_ptr_to_ext(ty, addr)
+            }
+        }
     }
 
     fn scalar_pair_element_llvm_ty(
@@ -231,6 +431,103 @@ impl<'ll> ExtendedTyBuilderMethods<'ll> for TyInfo {
         index: usize,
         immediate: bool,
     ) -> llvm::types::AnyTypeEnum<'ll> {
-        todo!()
+        let (scalar_a, scalar_b) = ctx.map_layout(self.layout, |layout| {
+            let AbiRepresentation::Pair(scalar_a, scalar_b) = layout.abi else {
+                panic!("`scalar_pair_element_llvm_ty` called on non-pair type");
+            };
+
+            (scalar_a, scalar_b)
+        });
+
+        let scalar = if index == 0 { scalar_a } else { scalar_b };
+
+        if immediate && scalar.is_bool() {
+            ctx.type_i1()
+        } else {
+            let offset = if index == 0 {
+                Size::ZERO
+            } else {
+                scalar_a.size(ctx).align_to(scalar_b.align(ctx).abi)
+            };
+            self.scalar_llvm_type_at(ctx, scalar, offset)
+        }
     }
+}
+
+/// This function will convert a given [Layout] with the shape of an
+/// [`LayoutShape::Aggregate`] into a collection of fields that have
+/// been padded to the correct alignment and size. In the event that
+/// that fields are padded, the `field_map` will be updated to reflect
+/// the new field index of the original field.
+fn create_and_pad_struct_fields_from_layout<'b>(
+    ctx: &CodeGenCtx<'b>,
+    info: TyInfo,
+    layout: &Layout,
+) -> (Vec<AnyTypeEnum<'b>>, bool, Option<SmallVec<[u32; 4]>>) {
+    let field_count = layout.shape.count();
+
+    let mut packed = false;
+    let mut offset = Size::ZERO;
+    let mut previous_effective_alignment = layout.alignment.abi;
+
+    // Assume that all fields and the last field will need to all be
+    // padded.
+    let mut fields = Vec::with_capacity(1 + field_count * 2);
+    let mut field_map = SmallVec::with_capacity(field_count);
+
+    for i in layout.shape.iter_increasing_offsets() {
+        let target_offset = layout.shape.offset(i);
+        let field = info.field(ctx.layout_computer(), i);
+
+        // @@Todo: maybe re-use the pre-computed padding size here that is available on
+        // the layout?
+        ctx.map_layout(field.layout, |field_layout| {
+            let effective_field_align =
+                layout.alignment.abi.min(field_layout.alignment.abi).restrict_to(target_offset);
+            packed |= effective_field_align < field_layout.alignment.abi;
+
+            let padding = target_offset - offset;
+            if padding != Size::ZERO {
+                let padding_alignment = previous_effective_alignment.min(effective_field_align);
+
+                // Verify that the padding will make the field aligned.
+                debug_assert_eq!(offset.align_to(padding_alignment) + padding, target_offset);
+
+                // Now push the padding into the computed fields
+                let fill = ctx.type_padding(padding, padding_alignment);
+                fields.push(fill);
+            }
+
+            // In the event that we just pushed a pad, we need to update
+            // the offset to reflect the new padding.
+            field_map[i] = fields.len() as u32;
+
+            fields.push(field.llvm_ty(ctx));
+            offset = target_offset + field_layout.size;
+            previous_effective_alignment = effective_field_align;
+        });
+    }
+
+    let fields_padded = fields.len() > field_count;
+
+    if field_count > 0 {
+        if offset > layout.size {
+            panic!("computed struct fields for LLVM type are larger than the struct itself");
+        }
+
+        let padding = layout.size - offset;
+        if padding != Size::ZERO {
+            let padding_alignment = previous_effective_alignment;
+
+            // Verify that the padding will make the offset equivalent to
+            // the layout size.
+            debug_assert_eq!(offset.align_to(padding_alignment) + padding, layout.size);
+
+            fields.push(ctx.type_padding(padding, padding_alignment));
+        }
+    }
+
+    let field_remapping = if fields_padded { Some(field_map) } else { None };
+
+    (fields, packed, field_remapping)
 }

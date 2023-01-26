@@ -15,6 +15,7 @@ pub struct CodeGenCtx<'ll> {
 
     /// The InkWell context that we are generating code with.
     pub ll_ctx: llvm::context::ContextRef<'ll>,
+    // //// A cache for the conversion between [IrTyId]s and [llvm::types::AnyTypeEnum].
 }
 
 impl HasTargetSpec for CodeGenCtx<'_> {

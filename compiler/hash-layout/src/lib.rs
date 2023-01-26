@@ -165,7 +165,7 @@ impl TyInfo {
     /// Compute the type of a "field with in a layout" and return the
     /// [LayoutId] associated with the field.
     pub fn field(&self, ctx: LayoutComputer, field_index: usize) -> Self {
-        let (layout, ty) = self.with_info(&ctx, |_, ty, layout| match ty {
+        let ty = self.with_info(&ctx, |_, ty, layout| match ty {
             IrTy::Int(_)
             | IrTy::UInt(_)
             | IrTy::Float(_)
@@ -175,23 +175,18 @@ impl TyInfo {
             | IrTy::Ref(_, _, _)
             | IrTy::Fn { .. } => panic!("TyInfo::field on a type that does not contain fields"),
 
-            IrTy::Str if field_index == 0 => (None, IrTy::unit_ptr(ctx.ir_ctx())),
-            IrTy::Str => (None, ctx.ir_ctx().tys().common_tys.usize),
-            IrTy::Slice(element) | IrTy::Array { ty: element, .. } => (None, *element),
+            IrTy::Str if field_index == 0 => ctx.ir_ctx().tys().common_tys.unit,
+            IrTy::Str => ctx.ir_ctx().tys().common_tys.usize,
+            IrTy::Slice(element) | IrTy::Array { ty: element, .. } => *element,
             IrTy::Adt(id) => match layout.variants {
                 Variants::Single { index } => {
                     let field_ty = ctx
                         .ir_ctx()
                         .map_adt(*id, |_, adt| adt.variants[index].fields[field_index].ty);
 
-                    (None, field_ty)
+                    field_ty
                 }
-                Variants::Multiple { tag, .. } => {
-                    let tag_ty = tag.kind().to_ir_ty(ctx.ir_ctx());
-                    let layout = Layout::scalar(ctx.data_layout(), tag);
-
-                    (Some(layout), tag_ty)
-                }
+                Variants::Multiple { tag, .. } => tag.kind().to_ir_ty(ctx.ir_ctx()),
             },
         });
 
@@ -199,14 +194,10 @@ impl TyInfo {
         // then we need to intern that layout here, add a cache entry
         // for it and return it, otherwise we will lookup the layout
         // buy just using the type id.
-        match layout {
-            Some(layout) => {
-                let layout = ctx.layouts().create(layout);
-                ctx.layouts().add_cache_entry(ty, layout);
-
-                TyInfo { ty, layout }
-            }
-            None => TyInfo { ty, layout: ctx.compute_layout_of_ty(ty).unwrap() },
+        if let Some(layout) = ctx.layouts().cache.borrow().get(&ty) {
+            TyInfo { ty, layout: *layout }
+        } else {
+            TyInfo { ty, layout: ctx.compute_layout_of_ty(ty).unwrap() }
         }
     }
 
