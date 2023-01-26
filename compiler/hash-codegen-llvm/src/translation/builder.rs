@@ -14,7 +14,7 @@ use hash_codegen::{
     },
     traits::{
         builder::{self, BlockBuilderMethods},
-        constants::BuildConstValueMethods,
+        constants::ConstValueBuilderMethods,
         ctx::HasCtxMethods,
         layout::LayoutMethods,
         ty::BuildTypeMethods,

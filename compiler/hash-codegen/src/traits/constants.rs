@@ -10,7 +10,7 @@ use super::BackendTypes;
 
 /// Trait that represents methods for emitting constants
 /// when building the IR.
-pub trait BuildConstValueMethods<'b>: BackendTypes {
+pub trait ConstValueBuilderMethods<'b>: BackendTypes {
     /// Emit a constant undefined value, this is use for generating
     /// zero-sized types.
     fn const_undef(&self, ty: Self::Type) -> Self::Value;
@@ -48,9 +48,6 @@ pub trait BuildConstValueMethods<'b>: BackendTypes {
 
     /// Emit a constant `u128` value.
     fn const_u128(&self, i: u128) -> Self::Value;
-
-    /// Emit a constant `i128` value.
-    fn const_i128(&self, i: i128) -> Self::Value;
 
     /// Emit a constant unsigned integer with a specified size.
     fn const_uint(&self, ty: Self::Type, value: u64) -> Self::Value;

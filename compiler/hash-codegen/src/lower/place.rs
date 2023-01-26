@@ -16,7 +16,7 @@ use super::{locals::LocalRef, FnBuilder};
 use crate::{
     layout::TyInfo,
     traits::{
-        builder::BlockBuilderMethods, constants::BuildConstValueMethods, ctx::HasCtxMethods,
+        builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, ctx::HasCtxMethods,
         ty::BuildTypeMethods, CodeGenObject,
     },
 };

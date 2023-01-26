@@ -15,6 +15,7 @@ use hash_ir::{
 use hash_pipeline::settings::CompilerSettings;
 use hash_target::{data_layout::TargetDataLayout, Target};
 use inkwell as llvm;
+use llvm::types::AnyTypeEnum;
 
 use super::ty::TyMemoryRemap;
 
@@ -35,6 +36,10 @@ pub struct CodeGenCtx<'b> {
     /// The LLVM "context" that is used for building and
     /// translating into LLVM IR.
     pub ll_ctx: llvm::context::ContextRef<'b>,
+
+    /// A reference to a platform-specific type that represents the width
+    /// of pointers and pointer offsets.
+    pub size_ty: AnyTypeEnum<'b>,
 
     /// A collection of [TyMemoryRemap]s that have occurred for
     /// all of the types that have been translated. Additionally, this is used

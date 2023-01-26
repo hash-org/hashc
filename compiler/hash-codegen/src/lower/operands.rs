@@ -10,7 +10,7 @@ use super::{locals::LocalRef, place::PlaceRef, utils, FnBuilder};
 use crate::{
     common::MemFlags,
     traits::{
-        builder::BlockBuilderMethods, constants::BuildConstValueMethods, ctx::HasCtxMethods,
+        builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, ctx::HasCtxMethods,
         layout::LayoutMethods, ty::BuildTypeMethods, CodeGenObject, Codegen,
     },
 };
