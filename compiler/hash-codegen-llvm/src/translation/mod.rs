@@ -11,7 +11,7 @@ use hash_codegen::{
 };
 use hash_ir::IrCtx;
 use hash_pipeline::settings::CompilerSettings;
-use hash_target::Target;
+use hash_target::{abi::AddressSpace, Target};
 
 use self::context::CodeGenCtx;
 
@@ -153,6 +153,14 @@ impl From<AtomicOrdering> for AtomicOrderingWrapper {
                 Self(inkwell::AtomicOrdering::SequentiallyConsistent)
             }
         }
+    }
+}
+
+pub struct AddressSpaceWrapper(pub inkwell::AddressSpace);
+
+impl From<AddressSpace> for AddressSpaceWrapper {
+    fn from(value: AddressSpace) -> Self {
+        AddressSpaceWrapper(inkwell::AddressSpace::try_from(value.0).unwrap())
     }
 }
 

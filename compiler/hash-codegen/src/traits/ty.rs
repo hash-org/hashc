@@ -71,14 +71,11 @@ pub trait BuildTypeMethods<'b>: Backend<'b> {
     fn ty_of_value(&self, value: Self::Value) -> Self::Type;
 
     /// Get the [TypeKind] of a particular type.
-    fn kind_of_ty(&self, ty: Self::Type) -> TypeKind;
+    fn ty_kind(&self, ty: Self::Type) -> TypeKind;
 
     /// Create a new "immediate" backend type. This is mainly
     /// used for constants and ZSTs.
     fn immediate_backend_ty(&self, info: TyInfo) -> Self::Type;
-
-    /// Create a backend specific type from an [IrTyId].
-    fn backend_ty_from_ir_ty(&self, ty: IrTyId) -> Self::Type;
 
     /// Create a backend specific type from a [TyInfo].
     fn backend_ty_from_info(&self, info: TyInfo) -> Self::Type;

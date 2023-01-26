@@ -6,6 +6,7 @@ edition = "2021"
 
 [dependencies]
 rayon = "1.5.0"
+llvm-sys = "150.0.3"
 inkwell = { git = "https://github.com/TheDan64/inkwell", branch = "master", features = ["llvm15-0"] }
 
 hash-codegen = {path = "../hash-codegen" }

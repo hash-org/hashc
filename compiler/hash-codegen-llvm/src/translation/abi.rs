@@ -6,7 +6,7 @@ use hash_codegen::{
     traits::abi::AbiBuilderMethods,
 };
 use inkwell::{
-    types::BasicTypeEnum,
+    types::{AnyTypeEnum, BasicTypeEnum},
     values::{CallSiteValue, FunctionValue},
 };
 
@@ -38,21 +38,21 @@ impl<'b> AbiBuilderMethods<'b> for Builder<'b> {
 
 pub trait ExtendedFnAbiMethods<'b> {
     /// Produce an LLVM type for the given [FnAbi].
-    fn llvm_ty(&self) -> BasicTypeEnum<'b>;
+    fn llvm_ty(&self, ctx: &CodeGenCtx<'b>) -> AnyTypeEnum<'b>;
 
     /// Apply the derived ABI attributes to the given [FunctionValue].
-    fn apply_attributes_to_fn(&self, ctx: CodeGenCtx<'b>, func: FunctionValue<'b>);
+    fn apply_attributes_to_fn(&self, ctx: &CodeGenCtx<'b>, func: FunctionValue<'b>);
 
     /// Apply the derived ABI attributes to the given [CallSiteValue].
     fn apply_attributes_call_site(&self, builder: &mut Builder<'b>, call_site: CallSiteValue<'b>);
 }
 
 impl<'b> ExtendedFnAbiMethods<'b> for FnAbi {
-    fn llvm_ty(&self) -> BasicTypeEnum<'b> {
+    fn llvm_ty(&self, ctx: &CodeGenCtx<'b>) -> AnyTypeEnum<'b> {
         todo!()
     }
 
-    fn apply_attributes_to_fn(&self, ctx: CodeGenCtx<'b>, func: FunctionValue<'b>) {
+    fn apply_attributes_to_fn(&self, ctx: &CodeGenCtx<'b>, func: FunctionValue<'b>) {
         todo!()
     }
 

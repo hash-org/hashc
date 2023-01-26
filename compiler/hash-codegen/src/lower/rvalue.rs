@@ -35,8 +35,8 @@ fn shift_mask_value<'b, Builder: BlockBuilderMethods<'b>>(
     mask_ty: Builder::Type,
     invert: bool,
 ) -> Builder::Value {
-    match builder.kind_of_ty(ty) {
-        TypeKind::IntegerTy => {
+    match builder.ty_kind(ty) {
+        TypeKind::Integer => {
             let bits = builder.int_width(ty) - 1;
 
             if invert {
