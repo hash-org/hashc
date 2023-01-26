@@ -166,7 +166,7 @@ pub fn codegen_ir_body<'b, Builder: BlockBuilderMethods<'b>>(
         for local in fn_builder.body.vars_iter() {
             // we need to get the type and layout from the local
             let decl = &fn_builder.body.declarations[local];
-            let info = fn_builder.ctx.layout_of_id(decl.ty);
+            let info = fn_builder.ctx.layout_of(decl.ty);
 
             fn_builder.locals[local] = allocate(local, info);
         }

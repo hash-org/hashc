@@ -471,7 +471,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
             let target_block_1 = self.get_codegen_block_id(target_1);
             let target_block_2 = self.get_codegen_block_id(target_2);
 
-            let subject_ty = builder.immediate_backend_ty(builder.layout_of_id(ty));
+            let subject_ty = builder.immediate_backend_ty(builder.layout_of(ty));
             let target_value = builder.const_uint_big(subject_ty, value);
             let comparison =
                 builder.icmp(IntComparisonKind::Eq, subject.immediate_value(), target_value);

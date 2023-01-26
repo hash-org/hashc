@@ -199,7 +199,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
                 // compute the layout of the type, and then depending
                 // on the operation it then emits the size or the
                 // alignment.
-                let info = builder.layout_of_id(ty);
+                let info = builder.layout_of(ty);
                 let (size, alignment) = builder.map_layout(info.layout, |layout| {
                     (layout.size.bytes(), layout.alignment.abi.bytes())
                 });
@@ -212,7 +212,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
 
                 OperandRef {
                     value: OperandValue::Immediate(value),
-                    info: builder.layout_of_id(self.ctx.ir_ctx().tys().common_tys.usize),
+                    info: builder.layout_of(self.ctx.ir_ctx().tys().common_tys.usize),
                 }
             }
             ir::RValue::UnaryOp(operator, ref operand) => {
@@ -261,7 +261,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
 
                 OperandRef {
                     value: OperandValue::Immediate(result),
-                    info: builder.layout_of_id(operator.ty(
+                    info: builder.layout_of(operator.ty(
                         self.ctx.ir_ctx(),
                         lhs.info.ty,
                         rhs.info.ty,
@@ -283,13 +283,12 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
                 // This yields the operand ty as `(<lhs_ty>, bool)`.
                 let operand_ty = rvalue.ty(&self.body.declarations, self.ctx.ir_ctx());
 
-                OperandRef { value: result, info: builder.layout_of_id(operand_ty) }
+                OperandRef { value: result, info: builder.layout_of(operand_ty) }
             }
             ir::RValue::Aggregate(_, _) => {
                 // This is only called if the aggregate value is a ZST, so we just
                 // create a new ZST operand...
-                let info =
-                    builder.layout_of_id(rvalue.ty(&self.body.declarations, self.ctx.ir_ctx()));
+                let info = builder.layout_of(rvalue.ty(&self.body.declarations, self.ctx.ir_ctx()));
                 OperandRef::new_zst(builder, info)
             }
             ir::RValue::Len(place) => {
@@ -297,7 +296,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
 
                 OperandRef {
                     value: OperandValue::Immediate(size),
-                    info: builder.layout_of_id(self.ctx.ir_ctx().tys().common_tys.usize),
+                    info: builder.layout_of(self.ctx.ir_ctx().tys().common_tys.usize),
                 }
             }
             ir::RValue::Ref(_, place, kind) => {
@@ -311,7 +310,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
                         // the length of the slice as an implicit value using `extra`)
                         OperandRef {
                             value: OperandValue::Immediate(place.value),
-                            info: builder.layout_of_id(ty),
+                            info: builder.layout_of(ty),
                         }
                     }
 
@@ -328,7 +327,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
 
                 OperandRef {
                     value: OperandValue::Immediate(discriminant),
-                    info: builder.layout_of_id(discriminant_ty),
+                    info: builder.layout_of(discriminant_ty),
                 }
             }
         }
@@ -499,7 +498,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
 
                 // check if the type is a ZST, and if so this satisfies the
                 // case that the rvalue creates an operand...
-                self.ctx.layout_of_id(ty).is_zst(self.ctx.layout_computer())
+                self.ctx.layout_of(ty).is_zst(self.ctx.layout_computer())
             }
         }
     }

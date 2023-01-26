@@ -99,7 +99,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
 
             let make_arg_abi = |ty: IrTyId, _index: Option<usize>| {
                 let lc = self.ctx.layout_computer();
-                let info = self.ctx.layout_of_id(ty);
+                let info = self.ctx.layout_of(ty);
                 let arg = ArgAbi::new(&lc, info, |scalar| {
                     let mut attributes = ArgAttributes::new();
                     adjust_arg_attributes(&lc, &mut attributes, ty, scalar);

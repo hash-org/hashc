@@ -1107,7 +1107,7 @@ fn load_scalar_value_metadata<'ll>(
             });
 
             if safe {
-                let pointee_info = builder.layout_of_id(pointee_ty);
+                let pointee_info = builder.layout_of(pointee_ty);
                 let alignment =
                     builder.map_layout(pointee_info.layout, |layout| layout.alignment.abi);
                 builder.set_alignment(load, alignment);

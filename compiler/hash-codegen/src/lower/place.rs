@@ -130,7 +130,7 @@ impl<'b, V: CodeGenObject> PlaceRef<V> {
         builder: &mut Builder,
         cast_to: IrTyId,
     ) -> V {
-        let cast_info = builder.layout_of_id(cast_to);
+        let cast_info = builder.layout_of(cast_to);
         let cast_to_ty = builder.immediate_backend_ty(cast_info);
 
         let (variants, is_uninhabited) = builder.map_layout(self.info.layout, |layout| {
@@ -299,7 +299,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
     /// all projections that occur on the [Place].
     pub fn compute_place_ty_info(&self, builder: &mut Builder, place: ir::Place) -> TyInfo {
         let place_ty = PlaceTy::from_place(place, &self.body.declarations, self.ctx.ir_ctx());
-        builder.layout_of_id(place_ty.ty)
+        builder.layout_of(place_ty.ty)
     }
 
     /// Emit backend specific code for handling a [Place].
@@ -375,7 +375,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
                     // @@Verify: if the size of the array is not known, do we
                     // have to do record the size of this slice using `extra_value`?
 
-                    sub_slice.info = builder.layout_of_id(projected_ty);
+                    sub_slice.info = builder.layout_of(projected_ty);
                     sub_slice.value = builder.pointer_cast(
                         sub_slice.value,
                         builder.type_ptr_to(builder.backend_ty_from_info(sub_slice.info)),

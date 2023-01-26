@@ -78,13 +78,13 @@ impl<'b> HasCtxMethods<'b> for Builder<'b> {
     }
 
     fn layout_computer(&self) -> LayoutComputer<'_> {
-        LayoutComputer::new(self.layouts(), self.ir_ctx())
+        self.ctx.layout_computer()
     }
 }
 
 impl HasTargetSpec for Builder<'_> {
     fn target_spec(&self) -> &Target {
-        todo!()
+        self.ctx.target_spec()
     }
 }
 

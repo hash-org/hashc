@@ -152,7 +152,7 @@ impl<'l> LayoutComputer<'l> {
     /// This is the entry point of the layout computation engine. From
     /// here, the [Layout] of a type will be computed all the way recursively
     /// until all of the leaves of the type are also turned into [Layout]s.
-    pub fn compute_layout_of_ty(&self, ty_id: IrTyId) -> Result<LayoutId, LayoutError> {
+    pub fn layout_of_ty(&self, ty_id: IrTyId) -> Result<LayoutId, LayoutError> {
         let dl = self.data_layout();
 
         let scalar_unit = |value: ScalarKind| {
@@ -217,7 +217,7 @@ impl<'l> LayoutComputer<'l> {
                         variant
                             .fields
                             .iter()
-                            .map(|field| self.compute_layout_of_ty(field.ty))
+                            .map(|field| self.layout_of_ty(field.ty))
                             .collect::<Result<Vec<_>, _>>()
                     })
                     .collect::<Result<IndexVec<VariantIdx, _>, _>>()?;
@@ -816,7 +816,7 @@ impl<'l> LayoutComputer<'l> {
     ) -> Result<LayoutId, LayoutError> {
         // first, we compute the layout of the element type
 
-        let element = self.compute_layout_of_ty(element_ty)?;
+        let element = self.layout_of_ty(element_ty)?;
         let (element_size, element_alignment) =
             self.layouts().map_fast(element, |element| (element.size, element.alignment));
 

@@ -197,7 +197,7 @@ impl TyInfo {
         if let Some(layout) = ctx.layouts().cache.borrow().get(&ty) {
             TyInfo { ty, layout: *layout }
         } else {
-            TyInfo { ty, layout: ctx.compute_layout_of_ty(ty).unwrap() }
+            TyInfo { ty, layout: ctx.layout_of_ty(ty).unwrap() }
         }
     }
 
@@ -349,10 +349,10 @@ impl Layout {
 /// etc), an array with a known size (which isn't supported in the language
 /// yet), or a `struct`-like type.
 ///
-/// For [`LayoutShape::Struct`], there are two maps stored, the first being all
-/// of the field **offset**s in "source" definition order, and a `memory_map`
-/// which specifies the actual order of fields in memory in relation to their
-/// offsets.
+/// For [`LayoutShape::Aggregate`], there are two maps stored, the first being
+/// all of the field **offset**s in "source" definition order, and a
+/// `memory_map` which specifies the actual order of fields in memory in
+/// relation to their offsets.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LayoutShape {
     /// Primitives, `!` and other scalar-like types have only one specific
@@ -413,7 +413,7 @@ impl FieldLayout {
 }
 
 impl LayoutShape {
-    /// Count the number of fields in the layout shape.
+    /// Count the number of fields in the [LayoutShape].
     #[inline]
     pub fn count(&self) -> usize {
         match *self {
@@ -424,7 +424,7 @@ impl LayoutShape {
         }
     }
 
-    /// Get a specific `offset` from the layout shape, and given an
+    /// Get a specific `offset` from the [LayoutShape], and given an
     /// index into the layout.
     #[inline]
     pub fn offset(&self, index: usize) -> Size {
@@ -443,11 +443,11 @@ impl LayoutShape {
     /// Get the memory index of a specific field in the layout shape, and given
     /// an a "source order" index into the layout. This is used to get the
     /// actual memory order of a field in the layout.
-    pub fn memory_index(&self, index: u32) -> u32 {
+    pub fn memory_index(&self, index: usize) -> usize {
         match self {
             LayoutShape::Primitive => unreachable!("primitive layout has no defined offsets"),
             LayoutShape::Union { .. } | LayoutShape::Array { .. } => index,
-            LayoutShape::Aggregate { memory_map, .. } => memory_map[index as usize],
+            LayoutShape::Aggregate { memory_map, .. } => memory_map[index] as usize,
         }
     }
 

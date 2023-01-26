@@ -225,10 +225,27 @@ impl<'b> BuildTypeMethods<'b> for CodeGenCtx<'b> {
     }
 }
 
+/// A [TyMemoryRemap] is a type that is used to represent the occurred
+/// memory field re-mapping that occurs when lowering a type to LLVM.
+/// This re-mapping originates from the fact that "padding" within types
+/// now becomes a concrete type, and thus the memory layout of the type
+/// changes if padding slots are inserted. If the type had any re-maps,
+/// then the [TyMemoryRemap] will contain a `remap` field with the
+/// new memory to source field mapping.
+pub(crate) struct TyMemoryRemap<'b> {
+    /// The lowered type.
+    pub ty: AnyTypeEnum<'b>,
+
+    /// If the type was re-mapped, this is a reference
+    /// to the new memory map which should be used over the
+    /// one that is stored in the [LayoutShape] of a [Layout].
+    pub remap: Option<SmallVec<[u32; 4]>>,
+}
+
 /// Define a trait that provides additional methods on the [CodeGenCtx]
 /// for computing types as LLVM types, and various other related LLVM
 /// specific type utilities.
-pub trait ExtendedTyBuilderMethods<'ll> {
+pub(crate) trait ExtendedTyBuilderMethods<'ll> {
     /// Convert the [IrTyId] into the equivalent [llvm::types::AnyTypeEnum].
     fn llvm_ty(&self, ctx: &CodeGenCtx<'ll>) -> llvm::types::AnyTypeEnum<'ll>;
 
@@ -262,7 +279,7 @@ impl<'ll> ExtendedTyBuilderMethods<'ll> for TyInfo {
         match abi {
             AbiRepresentation::Scalar(scalar) => {
                 let ty = ctx.ir_ctx().map_ty(self.ty, |ty| match ty {
-                    IrTy::Ref(ty, _, _) => ctx.type_ptr_to(ctx.layout_of_id(*ty).llvm_ty(ctx)),
+                    IrTy::Ref(ty, _, _) => ctx.type_ptr_to(ctx.layout_of(*ty).llvm_ty(ctx)),
                     _ => self.scalar_llvm_type_at(ctx, scalar, Size::ZERO),
                 });
 

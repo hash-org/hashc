@@ -148,7 +148,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
             let layout_computer = LayoutComputer::new(layout_storage, &ir_storage.ctx);
 
             // @@ErrorHandling: propagate this error if it occurs.
-            let layout = layout_computer.compute_layout_of_ty(ty).unwrap();
+            let layout = layout_computer.layout_of_ty(ty).unwrap();
 
             // Print the layout and add spacing between all of the specified layouts
             // that were requested.
