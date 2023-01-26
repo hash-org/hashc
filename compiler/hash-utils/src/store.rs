@@ -3,9 +3,10 @@
 
 // @@Organisation: Move this module to the `hash_alloc` crate and split it into
 // smaller modules.
-use std::{cell::RefCell, collections::HashMap, hash::Hash, marker::PhantomData, ops::Range};
+use std::{cell::RefCell, hash::Hash, marker::PhantomData, ops::Range};
 
 use append_only_vec::AppendOnlyVec;
+pub use fxhash::FxHashMap;
 
 /// Represents a key that can be used to index a [`Store`].
 pub trait StoreKey: Copy + Eq + Hash {
@@ -69,19 +70,19 @@ macro_rules! new_partial_store {
     ($visibility:vis $name:ident<$Key:ty, $Value:ty>) => {
         #[derive(Default, Debug)]
         $visibility struct $name {
-            data: std::cell::RefCell<std::collections::HashMap<$Key, $Value>>,
+            data: std::cell::RefCell<FxHashMap<$Key, $Value>>,
         }
 
         #[allow(dead_code)]
         impl $name {
             /// Create a new empty store.
             $visibility fn new() -> Self {
-                Self { data: std::cell::RefCell::new(std::collections::HashMap::new()) }
+                Self { data: std::cell::RefCell::new(FxHashMap::default()) }
             }
         }
 
         impl $crate::store::PartialStore<$Key, $Value> for $name {
-            fn internal_data(&self) -> &std::cell::RefCell<std::collections::HashMap<$Key, $Value>> {
+            fn internal_data(&self) -> &std::cell::RefCell<FxHashMap<$Key, $Value>> {
                 &self.data
             }
         }
@@ -665,7 +666,7 @@ impl<K: SequenceStoreKey, V: Clone> SequenceStore<K, V> for DefaultSequenceStore
 /// *Warning*: The `Value`'s `Clone` implementation must not interact with the
 /// store, otherwise it might lead to a panic.
 pub trait PartialStore<Key: Copy + Eq + Hash, Value> {
-    fn internal_data(&self) -> &RefCell<HashMap<Key, Value>>;
+    fn internal_data(&self) -> &RefCell<FxHashMap<Key, Value>>;
 
     /// Insert a key-value pair inside the store, returning the old value if it
     /// exists.
@@ -758,12 +759,12 @@ impl<Key: Copy + Eq + Hash, Value: Clone, T: PartialStore<Key, Value>> PartialCl
 /// A default implementation of [`PartialStore`].
 #[derive(Debug)]
 pub struct DefaultPartialStore<K, V> {
-    data: RefCell<HashMap<K, V>>,
+    data: RefCell<FxHashMap<K, V>>,
 }
 
 impl<K, V> Default for DefaultPartialStore<K, V> {
     fn default() -> Self {
-        Self { data: RefCell::new(HashMap::new()) }
+        Self { data: RefCell::new(FxHashMap::default()) }
     }
 }
 
@@ -774,7 +775,7 @@ impl<K, V> DefaultPartialStore<K, V> {
 }
 
 impl<K: Copy + Eq + Hash, V> PartialStore<K, V> for DefaultPartialStore<K, V> {
-    fn internal_data(&self) -> &RefCell<HashMap<K, V>> {
+    fn internal_data(&self) -> &RefCell<FxHashMap<K, V>> {
         &self.data
     }
 }

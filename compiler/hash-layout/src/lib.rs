@@ -7,7 +7,6 @@ pub mod write;
 
 use std::{
     cell::{Ref, RefCell},
-    collections::HashMap,
     num::NonZeroUsize,
 };
 
@@ -22,12 +21,15 @@ use hash_target::{
 };
 use hash_utils::{
     new_store_key,
-    store::{CloneStore, DefaultStore, Store},
+    store::{CloneStore, DefaultStore, FxHashMap, Store},
 };
 use index_vec::IndexVec;
 
 // Define a new key to represent a particular layout.
 new_store_key!(pub LayoutId);
+
+/// Used to cache the [Layout]s that are created from [IrTyId]s.
+type LayoutCache<'c> = Ref<'c, FxHashMap<IrTyId, LayoutId>>;
 
 /// A store for all of the interned [Layout]s, and a cache for
 /// the [Layout]s that are created from [IrTyId]s.
@@ -36,7 +38,7 @@ pub struct LayoutCtx {
     data: DefaultStore<LayoutId, Layout>,
 
     /// Cache for the [Layout]s that are created from [IrTyId]s.
-    cache: RefCell<HashMap<IrTyId, LayoutId>>,
+    cache: RefCell<FxHashMap<IrTyId, LayoutId>>,
 
     /// A reference to the [TargetDataLayout] of the current
     /// session.
@@ -54,11 +56,11 @@ impl LayoutCtx {
         let data = DefaultStore::new();
         let common_layouts = CommonLayouts::new(&data_layout, &data);
 
-        Self { data, common_layouts, cache: RefCell::new(HashMap::new()), data_layout }
+        Self { data, common_layouts, cache: RefCell::new(FxHashMap::default()), data_layout }
     }
 
-    /// Get a reference to the layout cache.
-    pub(crate) fn cache(&self) -> Ref<HashMap<IrTyId, LayoutId>> {
+    /// Get a reference to the [LayoutCache].
+    pub(crate) fn cache(&self) -> LayoutCache<'_> {
         self.cache.borrow()
     }
 

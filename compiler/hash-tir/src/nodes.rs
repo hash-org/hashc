@@ -3,7 +3,7 @@
 use hash_ast::ast::AstNodeId;
 use hash_utils::{
     new_partial_store,
-    store::{PartialCloneStore, PartialStore},
+    store::{FxHashMap, PartialCloneStore, PartialStore},
 };
 
 use super::{pats::PatId, terms::TermId};

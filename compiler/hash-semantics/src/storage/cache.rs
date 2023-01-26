@@ -3,13 +3,12 @@
 
 use std::{
     cell::{Cell, RefCell},
-    collections::HashMap,
     fmt::Display,
     hash::Hash,
 };
 
 use hash_tir::terms::TermId;
-use hash_utils::store::{DefaultPartialStore, PartialCloneStore, PartialStore};
+use hash_utils::store::{DefaultPartialStore, FxHashMap, PartialCloneStore, PartialStore};
 use log::log_enabled;
 
 use crate::ops::validate::TermValidation;
@@ -58,7 +57,7 @@ impl<K, V> Default for CacheStore<K, V> {
 }
 
 impl<K: Copy + Hash + Eq, V: Clone> PartialStore<K, V> for CacheStore<K, V> {
-    fn internal_data(&self) -> &RefCell<HashMap<K, V>> {
+    fn internal_data(&self) -> &RefCell<FxHashMap<K, V>> {
         self.store.internal_data()
     }
 

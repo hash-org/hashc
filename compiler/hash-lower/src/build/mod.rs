@@ -13,7 +13,7 @@ mod temp;
 mod ty;
 mod utils;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use hash_ast::ast;
 use hash_ir::{
@@ -27,7 +27,7 @@ use hash_ir::{
 use hash_pipeline::settings::CompilerSettings;
 use hash_source::{identifier::Identifier, location::Span, SourceId, SourceMap};
 use hash_tir::{scope::ScopeId, storage::GlobalStorage, terms::TermId};
-use hash_utils::store::{SequenceStore, SequenceStoreKey};
+use hash_utils::store::{FxHashMap, SequenceStore, SequenceStoreKey};
 use index_vec::IndexVec;
 
 use self::ty::get_fn_ty_from_term;
@@ -190,7 +190,7 @@ pub(crate) struct Builder<'tcx> {
 
     /// A map that is used by the [Builder] to lookup which variables correspond
     /// to which locals.
-    declaration_map: HashMap<(ScopeId, Identifier), Local>,
+    declaration_map: FxHashMap<(ScopeId, Identifier), Local>,
 
     /// The current scope stack that builder is in.
     scope_stack: Vec<ScopeId>,
@@ -273,7 +273,7 @@ impl<'ctx> Builder<'ctx> {
             control_flow_graph: ControlFlowGraph::new(),
             declarations: IndexVec::new(),
             needed_constants: Vec::new(),
-            declaration_map: HashMap::new(),
+            declaration_map: FxHashMap::default(),
             reached_terminator: false,
             loop_block_info: None,
             scope_stack,
