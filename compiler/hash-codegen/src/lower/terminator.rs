@@ -605,7 +605,11 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
                 // as an alloca, then stored by `store_arg`m and then loaded, i.e. reloaded
                 // of the stack.
 
-                let op = OperandRef::from_immediate_value(value, return_abi.info);
+                let op = OperandRef::from_immediate_value_or_scalar_pair(
+                    builder,
+                    value,
+                    return_abi.info,
+                );
                 self.locals[local] = LocalRef::Operand(Some(op));
             }
             ReturnDestinationKind::IndirectOperand(temp, local) => {

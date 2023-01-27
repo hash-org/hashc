@@ -17,7 +17,7 @@ use hash_pipeline::settings::CompilerSettings;
 use hash_source::constant::InternedStr;
 use hash_target::Target;
 use inkwell as llvm;
-use llvm::types::AnyTypeEnum;
+use llvm::{types::AnyTypeEnum, values::AnyValueEnum};
 
 use crate::translation::ty::TyMemoryRemap;
 
@@ -56,6 +56,15 @@ pub struct CodeGenCtx<'b> {
     /// A map which stores the created [AnyValueEnum]s for the constant
     /// strings [InternedStr] that have been created.
     pub(crate) str_consts: RefCell<FxHashMap<InternedStr, llvm::values::GlobalValue<'b>>>,
+
+    /// A map that stores all of the used intrinsics within the current module
+    /// context. These intrinsics are computed as they are required (when
+    /// referenced within the source).
+    ///
+    /// This maps the name of the intrinsic which is known at compile-time to
+    /// the corresponding function pointer value, and the type of the
+    /// intrinsic.
+    pub(crate) intrinsics: RefCell<FxHashMap<&'static str, (AnyValueEnum<'b>, AnyTypeEnum<'b>)>>,
 }
 
 impl<'b> CodeGenCtx<'b> {

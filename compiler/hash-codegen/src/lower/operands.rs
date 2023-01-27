@@ -134,9 +134,28 @@ impl<'b, V: CodeGenObject> OperandRef<V> {
         }
     }
 
-    /// Create a new [OperandRef] from an immediate value.
-    pub fn from_immediate_value(value: V, info: TyInfo) -> Self {
-        Self { value: OperandValue::Immediate(value), info }
+    /// Create a new [OperandRef] from an immediate value or a packed
+    /// scalar pair value.
+    pub fn from_immediate_value_or_scalar_pair<Builder: BlockBuilderMethods<'b, Value = V>>(
+        builder: &mut Builder,
+        value: V,
+        info: TyInfo,
+    ) -> Self {
+        let abi = builder.map_layout(info.layout, |layout| layout.abi);
+
+        let value = if let AbiRepresentation::Pair(scalar_a, scalar_b) = abi {
+            // Construct the aggregate value...
+            let value_a = builder.extract_field(value, 0);
+            let value_a = builder.to_immediate_scalar(value_a, scalar_a);
+
+            let value_b = builder.extract_field(value, 1);
+            let value_b = builder.to_immediate_scalar(value_b, scalar_b);
+
+            OperandValue::Pair(value_a, value_b)
+        } else {
+            OperandValue::Immediate(value)
+        };
+        Self { value, info }
     }
 
     /// Assume that the [OperandRef] is an immediate value, and

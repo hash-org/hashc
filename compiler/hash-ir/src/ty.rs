@@ -159,7 +159,26 @@ pub enum IrTy {
     /// The first item is the interned parameter types to the function, and the
     /// second item is the return type of the function. If the function has no
     /// explicit return type, this will always be inferred at this stage.
-    Fn { name: Option<Identifier>, instance: Instance, params: IrTyListId, return_ty: IrTyId },
+    Fn {
+        /// The name of the function.
+        ///
+        /// @@Todo: this value should be stored on the instance since the name
+        /// of the function may be non-trivial (in the case of generic
+        /// parameters).
+        name: Option<Identifier>,
+
+        /// An [Instance] refers to the function that this type refers to. The
+        /// instance records information about the function instance,
+        /// like the name, the specified function attributes (i.e.
+        /// linkage), etc.
+        instance: Instance,
+
+        /// The parameter types of the function.
+        params: IrTyListId,
+
+        /// The return type of the function.
+        return_ty: IrTyId,
+    },
 }
 
 impl IrTy {

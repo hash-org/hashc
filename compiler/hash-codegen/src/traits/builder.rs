@@ -12,7 +12,7 @@ use hash_target::{
 };
 
 use super::{
-    abi::AbiBuilderMethods, debug::BuildDebugInfoMethods, intrinsics::BuildIntrinsicCallMethods,
+    abi::AbiBuilderMethods, debug::BuildDebugInfoMethods, intrinsics::IntrinsicBuilderMethods,
     target::HasTargetSpec, Codegen,
 };
 use crate::{
@@ -26,7 +26,7 @@ use crate::{
 pub trait BlockBuilderMethods<'b>:
     Codegen<'b>
     + AbiBuilderMethods<'b>
-    + BuildIntrinsicCallMethods<'b>
+    + IntrinsicBuilderMethods<'b>
     + BuildDebugInfoMethods
     + HasTargetSpec
 {

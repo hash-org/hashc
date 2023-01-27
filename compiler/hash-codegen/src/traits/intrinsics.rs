@@ -4,6 +4,7 @@
 //! provide a common interface for the standard library to interact with
 //! compiler.
 
+use hash_abi::FnAbi;
 use hash_ir::ty::IrTyId;
 
 use super::BackendTypes;
@@ -12,20 +13,21 @@ use super::BackendTypes;
 ///
 /// @@Todo: this is probably where `va_*` intrinsic functions would be
 /// defined.
-pub trait BuildIntrinsicCallMethods<'b>: BackendTypes {
+pub trait IntrinsicBuilderMethods<'b>: BackendTypes {
     /// Generate a call to an intrinsic function.
     fn codegen_intrinsic_call(
-        &self,
+        &mut self,
         ty: IrTyId,
+        fn_abi: &FnAbi,
         args: &[Self::Value],
         result: Self::Value,
-    ) -> Self::Value;
+    );
 
     /// Generate a call to the `abort` intrinsic function. This
     /// will terminate the program unconditionally.
     fn codegen_abort_intrinsic(&mut self);
 
-    /// Generare a call to the `expect` intrinsic function. This
+    /// Generate a call to the `expect` intrinsic function. This
     /// will generate a panic if the `expected` value is `false`.
     ///
     /// Ref: <https://llvm.org/docs/LangRef.html#llvm-expect-intrinsic>
