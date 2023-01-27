@@ -205,7 +205,19 @@ impl<'l> LayoutComputer<'l> {
             // as normal ones, but the underlying type of the pointer may be
             // wrapped in some kind of `Rc` struct?
             IrTy::Ref(_, _, RefKind::Rc) => Err(LayoutError::Unknown(ty_id)),
-            IrTy::Slice(_) => Err(LayoutError::Unknown(ty_id)),
+            IrTy::Slice(ty) => {
+                let element = self.layout_of_ty(*ty)?;
+                let (size, alignment) =
+                    self.map_fast(element, |element| (element.size, element.alignment));
+
+                Ok(self.layouts().create(Layout {
+                    shape: LayoutShape::Array { stride: size, elements: 0 },
+                    variants: Variants::Single { index: VariantIdx::new(0) },
+                    abi: AbiRepresentation::Aggregate,
+                    alignment,
+                    size: Size::ZERO,
+                }))
+            }
             IrTy::Array { ty, size } => self.compute_layout_of_array(*ty, *size as u64),
             IrTy::Adt(adt) => self.ir_ctx.map_adt(*adt, |_id, adt| -> Result<_, LayoutError> {
                 // We have to compute the layouts of all of the variants

@@ -24,7 +24,8 @@ use llvm_sys::{
 };
 use smallvec::SmallVec;
 
-use super::{abi::ExtendedFnAbiMethods, context::CodeGenCtx, AddressSpaceWrapper};
+use super::abi::ExtendedFnAbiMethods;
+use crate::{context::CodeGenCtx, misc::AddressSpaceWrapper};
 
 /// Convert a [BasicTypeEnum] into a [AnyTypeEnum].
 ///

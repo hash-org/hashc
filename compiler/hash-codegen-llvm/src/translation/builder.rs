@@ -39,7 +39,10 @@ use rayon::iter::Either;
 
 use super::{
     abi::ExtendedFnAbiMethods, layouts::ExtendedLayoutMethods, ty::ExtendedTyBuilderMethods,
-    AtomicOrderingWrapper, Builder, FloatPredicateWrapper, IntPredicateWrapper, MetadataType,
+    Builder,
+};
+use crate::misc::{
+    AtomicOrderingWrapper, FloatPredicateWrapper, IntPredicateWrapper, MetadataType,
 };
 
 impl<'b> Builder<'b> {

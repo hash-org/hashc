@@ -75,12 +75,7 @@ pub trait ConstValueBuilderMethods<'b>: BackendTypes {
     ///     len: usize, // <--- second value
     /// }
     /// ```
-    fn const_str(&self, s: &str) -> (Self::Value, Self::Value);
-
-    /// Emit a constant string value from an interned string. This returns
-    /// a value representing the pointer to the string characters, and a
-    /// second value representing the length of the string.
-    fn const_interned_str(&self, s: InternedStr) -> (Self::Value, Self::Value);
+    fn const_str(&self, s: InternedStr) -> (Self::Value, Self::Value);
 
     /// Emit a constant value from a `Const` value. This only deals with
     /// constant "scalar" values, for string values, there is specific code

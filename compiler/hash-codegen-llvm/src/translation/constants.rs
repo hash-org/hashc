@@ -1,14 +1,20 @@
 //! Implements all of the constant building methods.
-use hash_codegen::traits::{constants::ConstValueBuilderMethods, ty::BuildTypeMethods};
+use hash_codegen::traits::{
+    constants::ConstValueBuilderMethods, ctx::HasCtxMethods, layout::LayoutMethods,
+    ty::BuildTypeMethods,
+};
 use hash_ir::ir::Const;
 use hash_source::constant::InternedStr;
 use hash_target::{abi::Scalar, data_layout::HasDataLayout};
+use hash_utils::store::StoreKey;
 use inkwell::{
+    module::Linkage,
     types::BasicTypeEnum,
     values::{AnyValueEnum, AsValueRef},
 };
 
-use super::context::CodeGenCtx;
+use super::ty::ExtendedTyBuilderMethods;
+use crate::context::CodeGenCtx;
 
 impl<'b> ConstValueBuilderMethods<'b> for CodeGenCtx<'b> {
     fn const_undef(&self, ty: Self::Type) -> Self::Value {
@@ -100,12 +106,39 @@ impl<'b> ConstValueBuilderMethods<'b> for CodeGenCtx<'b> {
         ty.into_float_type().const_float(val).into()
     }
 
-    fn const_str(&self, s: &str) -> (Self::Value, Self::Value) {
-        todo!()
-    }
+    /// Create a global constant value for the [InternedStr].
+    fn const_str(&self, s: InternedStr) -> (Self::Value, Self::Value) {
+        let mut str_len = 0;
 
-    fn const_interned_str(&self, s: InternedStr) -> (Self::Value, Self::Value) {
-        todo!()
+        let mut str_consts = self.str_consts.borrow_mut();
+        let (_, global_str) = str_consts.raw_entry_mut().from_key(&s).or_insert_with(|| {
+            let value: &str = s.into();
+            str_len = value.len();
+
+            let str = self.ll_ctx.const_string(value.as_bytes(), false);
+
+            // Here we essentially create a global with a new name...
+            let const_name = self.generate_local_symbol_name("str");
+            let global = self
+                .declare_global(&const_name, str.get_type().into())
+                .unwrap_or_else(|| panic!("constant string global symbol already defined"));
+
+            global.set_initializer(&str);
+            global.set_constant(true);
+
+            // Internal specifies that the value is a "local" symbol in the
+            // object file, i.e. a `static`.
+            //
+            // Ref: <https://llvm.org/docs/LangRef.html#linkage-types>
+            global.set_linkage(Linkage::Internal);
+            (s, global)
+        });
+
+        let byte_slice_ty = self.ir_ctx().tys().common_tys.byte_slice;
+        let ptr = global_str.as_pointer_value().const_cast(
+            self.type_ptr_to(self.layout_of(byte_slice_ty).llvm_ty(self)).into_pointer_type(),
+        );
+        (ptr.into(), self.const_usize(str_len as u64))
     }
 
     fn const_scalar_value(&self, const_value: Const, abi: Scalar, ty: Self::Type) -> Self::Value {

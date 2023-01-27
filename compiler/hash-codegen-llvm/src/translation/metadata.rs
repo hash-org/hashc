@@ -12,7 +12,8 @@ use llvm::{
     values::{AnyValueEnum, BasicMetadataValueEnum, BasicValueEnum},
 };
 
-use super::{Builder, MetadataType};
+use super::Builder;
+use crate::misc::MetadataType;
 
 impl<'b> Builder<'b> {
     /// Emit a `no-undef` metadata attribute on a specific value.

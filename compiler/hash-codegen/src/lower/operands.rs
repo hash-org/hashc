@@ -283,7 +283,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
                             OperandValue::Immediate(value)
                         }
                         ir::Const::Str(interned_str) => {
-                            let (ptr, size) = builder.const_interned_str(*interned_str);
+                            let (ptr, size) = builder.const_str(*interned_str);
                             OperandValue::Pair(ptr, size)
                         }
                     },

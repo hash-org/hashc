@@ -28,6 +28,7 @@ macro_rules! new_store_key {
         }
 
         impl $crate::store::StoreKey for $name {
+
             fn to_index(self) -> usize {
                 self.index.try_into().unwrap()
             }

@@ -22,6 +22,7 @@
 
 pub mod common;
 pub mod lower;
+pub mod symbols;
 pub mod traits;
 
 // re-export `abi` and `layout` crates to make them available to the backend

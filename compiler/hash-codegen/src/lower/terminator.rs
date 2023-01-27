@@ -15,6 +15,7 @@ use hash_ir::{
     ty::IrTy,
 };
 use hash_pipeline::settings::{CodeGenBackend, OptimisationLevel};
+use hash_source::constant::CONSTANT_MAP;
 use hash_target::abi::{AbiRepresentation, ValidScalarRange};
 
 use super::{
@@ -530,7 +531,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
         builder.switch_to_block(failure_block);
 
         // we need to convert the assert into a message.
-        let message = builder.const_str(assert_kind.message());
+        let message = builder.const_str(CONSTANT_MAP.create_string(assert_kind.message()));
         let args = &[message.0, message.1];
 
         // @@Todo: we need to create a call to `panic`, as in resolve the function

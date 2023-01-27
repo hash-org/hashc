@@ -10,7 +10,8 @@ use inkwell::{
     values::{CallSiteValue, FunctionValue},
 };
 
-use super::{context::CodeGenCtx, Builder};
+use super::Builder;
+use crate::context::CodeGenCtx;
 
 impl<'b> AbiBuilderMethods<'b> for Builder<'b> {
     fn get_param(&mut self, index: usize) -> Self::Value {
