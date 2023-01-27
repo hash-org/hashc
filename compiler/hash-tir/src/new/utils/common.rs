@@ -272,8 +272,8 @@ pub trait CommonUtils: AccessToEnv {
     }
 
     /// Create a new guess binder.
-    fn new_guess_binder(&self, hole: Hole, guess: TermId, inner: TermId) -> TermId {
-        self.new_term(HoleBinder { hole, kind: HoleBinderKind::Guess(guess), inner })
+    fn new_guess_binder(&self, hole: Hole, guess: TermId, ty: TyId, inner: TermId) -> TermId {
+        self.new_term(HoleBinder { hole, kind: HoleBinderKind::Guess(guess, ty), inner })
     }
 
     /// Create a new empty definition parameter list.

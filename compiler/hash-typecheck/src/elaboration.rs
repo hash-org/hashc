@@ -10,15 +10,15 @@
 //! Brady, E. C. (2013). Idris, a general-purpose dependently typed programming
 //! language: Design and implementation. Journal of Functional Programming, 23,
 //! 552–593.
-use std::{cell::Cell, collections::VecDeque};
+use std::{cell::Cell, collections::VecDeque, ops::ControlFlow};
 
 use derive_more::{Constructor, Deref};
 use hash_tir::new::{
-    environment::context::Context,
-    holes::{Hole, HoleBinder},
+    environment::context::{Context, ScopeKind},
+    holes::{Hole, HoleBinder, HoleBinderKind},
     terms::{Term, TermId},
     tys::TyId,
-    utils::common::CommonUtils,
+    utils::{common::CommonUtils, traversing::Atom, AccessToUtils},
 };
 
 use crate::{errors::TcResult, AccessToTypechecking};
@@ -165,7 +165,7 @@ impl<T: AccessToTypechecking> ElaborationOps<'_, T> {
     /// terms.
     ///
     /// Most typechecking inference operations are be implemented as tactics.
-    pub fn tactic(&self, tac: impl Fn(HoleBinder) -> TcResult<TermId>) -> TcResult<()> {
+    pub fn tactic(&self, tac: impl Fn(HoleBinder) -> TcResult<TermId> + Copy) -> TcResult<()> {
         let proof_state = self.proof_state().borrow_mut();
         let current_term = proof_state.get_proof_term();
         let focused_hole = proof_state.get_focused_hole();
@@ -180,21 +180,99 @@ impl<T: AccessToTypechecking> ElaborationOps<'_, T> {
 
     // @@Todo:
 
-    pub fn _apply_tactic_on_type(
+    pub fn apply_tactic_on_type(
         &self,
-        _tac: impl Fn(HoleBinder) -> TcResult<TermId>,
+        _tac: impl Fn(HoleBinder) -> TcResult<TermId> + Copy,
         _hole: Hole,
-        _current: TyId,
+        current: TyId,
     ) -> TcResult<TyId> {
-        todo!()
+        self.traversing_utils().fmap_ty(current, |_term| todo!())
     }
 
     pub fn apply_tactic_on_term(
         &self,
-        _tac: impl Fn(HoleBinder) -> TcResult<TermId>,
-        _hole: Hole,
-        _current: TermId,
+        tac: impl Fn(HoleBinder) -> TcResult<TermId> + Copy,
+        hole: Hole,
+        current: TermId,
     ) -> TcResult<TermId> {
-        todo!()
+        self.traversing_utils().fmap_term(current, |term| match term {
+            Atom::Term(term_id) => match self.get_term(term_id) {
+                Term::HoleBinder(hole_binder) => match hole_binder.kind {
+                    HoleBinderKind::Hole(hole_ty) => {
+                        if hole_binder.hole == hole {
+                            let term = tac(hole_binder)?;
+                            Ok(ControlFlow::Break(term.into()))
+                        } else {
+                            let applied_ty = self.apply_tactic_on_type(tac, hole, hole_ty)?;
+                            let applied_inner = self.context_utils().enter_scope(
+                                ScopeKind::Hole(hole_binder.hole, HoleBinderKind::Hole(applied_ty)),
+                                || self.apply_tactic_on_term(tac, hole, hole_binder.inner),
+                            )?;
+                            Ok(ControlFlow::Break(
+                                self.new_term(HoleBinder {
+                                    hole: hole_binder.hole,
+                                    kind: HoleBinderKind::Hole(applied_ty),
+                                    inner: applied_inner,
+                                })
+                                .into(),
+                            ))
+                        }
+                    }
+                    HoleBinderKind::Guess(guess_term, hole_ty) => {
+                        if hole_binder.hole == hole {
+                            let term = tac(hole_binder)?;
+                            Ok(ControlFlow::Break(term.into()))
+                        } else {
+                            let applied_guess = self.apply_tactic_on_term(tac, hole, guess_term)?;
+                            let applied_ty = self.apply_tactic_on_type(tac, hole, hole_ty)?;
+
+                            let applied_inner = self.context_utils().enter_scope(
+                                ScopeKind::Hole(
+                                    hole_binder.hole,
+                                    HoleBinderKind::Guess(applied_guess, applied_ty),
+                                ),
+                                || self.apply_tactic_on_term(tac, hole, hole_binder.inner),
+                            )?;
+                            Ok(ControlFlow::Break(
+                                self.new_term(HoleBinder {
+                                    hole: hole_binder.hole,
+                                    kind: HoleBinderKind::Guess(applied_guess, applied_ty),
+                                    inner: applied_inner,
+                                })
+                                .into(),
+                            ))
+                        }
+                    }
+                },
+
+                // Recurse into inner
+                Term::Hole(_)
+                | Term::FnRef(_)
+                | Term::Ctor(_)
+                | Term::Prim(_)
+                | Term::Tuple(_)
+                | Term::FnCall(_)
+                | Term::Var(_)
+                | Term::Loop(_)
+                | Term::Runtime(_) => Ok(ControlFlow::Continue(())),
+
+                Term::Block(_) => todo!(),
+                Term::LoopControl(_) => todo!(),
+                Term::Match(_) => todo!(),
+                Term::Return(_) => todo!(),
+                Term::DeclStackMember(_) => todo!(),
+                Term::Assign(_) => todo!(),
+                Term::Unsafe(_) => todo!(),
+                Term::Access(_) => todo!(),
+                Term::Cast(_) => todo!(),
+                Term::TypeOf(_) => todo!(),
+                Term::Ty(_) => todo!(),
+                Term::Ref(_) => todo!(),
+                Term::Deref(_) => todo!(),
+            },
+            Atom::Ty(_) => todo!(),
+            Atom::FnDef(_) => todo!(),
+            Atom::Pat(_) => todo!(),
+        })
     }
 }

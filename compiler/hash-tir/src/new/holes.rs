@@ -29,7 +29,7 @@ pub struct Hole(pub Symbol);
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HoleBinderKind {
     Hole(TyId),
-    Guess(TermId),
+    Guess(TermId, TyId),
 }
 
 /// A hole binding. This is the first part of a hole binder.
@@ -59,21 +59,30 @@ impl fmt::Display for WithEnv<'_, Hole> {
 
 impl fmt::Display for WithEnv<'_, HoleBinder> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.value.kind {
-            HoleBinderKind::Hole(ty) => write!(
-                f,
-                "?{}:{}.({})",
-                self.env().with(self.value.hole),
-                self.env().with(ty),
-                self.env().with(self.value.inner)
-            ),
-            HoleBinderKind::Guess(guess) => write!(
-                f,
-                "?{}={}.({})",
-                self.env().with(self.value.hole),
-                self.env().with(guess),
-                self.env().with(self.value.inner)
-            ),
+        write!(
+            f,
+            "{}.({})",
+            self.env().with((self.value.hole, self.value.kind)),
+            self.env().with(self.value.inner)
+        )
+    }
+}
+
+impl fmt::Display for WithEnv<'_, (Hole, HoleBinderKind)> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.value.1 {
+            HoleBinderKind::Hole(ty) => {
+                write!(f, "?{}:{}", self.env().with(self.value.0), self.env().with(ty))
+            }
+            HoleBinderKind::Guess(guess, ty) => {
+                write!(
+                    f,
+                    "?{}={}:{}",
+                    self.env().with(self.value.0),
+                    self.env().with(guess),
+                    self.env().with(ty)
+                )
+            }
         }
     }
 }

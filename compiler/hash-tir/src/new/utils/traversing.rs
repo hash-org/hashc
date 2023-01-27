@@ -194,13 +194,14 @@ impl<'env> TraversingUtils<'env> {
                             kind: HoleBinderKind::Hole(ty),
                         }))
                     }
-                    HoleBinderKind::Guess(guess) => {
+                    HoleBinderKind::Guess(guess, ty) => {
                         let guess = self.fmap_term(guess, f)?;
+                        let ty = self.fmap_ty(ty, f)?;
                         let inner = self.fmap_term(hole_binder.inner, f)?;
                         Ok(self.new_term(HoleBinder {
                             hole: hole_binder.hole,
                             inner,
-                            kind: HoleBinderKind::Guess(guess),
+                            kind: HoleBinderKind::Guess(guess, ty),
                         }))
                     }
                 },
@@ -484,8 +485,9 @@ impl<'env> TraversingUtils<'env> {
                         self.visit_ty(ty, f)?;
                         self.visit_term(hole_binder.inner, f)
                     }
-                    HoleBinderKind::Guess(guess) => {
+                    HoleBinderKind::Guess(guess, ty) => {
                         self.visit_term(guess, f)?;
+                        self.visit_ty(ty, f)?;
                         self.visit_term(hole_binder.inner, f)
                     }
                 },

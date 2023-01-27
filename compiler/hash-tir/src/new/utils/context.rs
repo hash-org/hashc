@@ -126,6 +126,13 @@ impl<'env> ContextUtils<'env> {
                 // Here we don't add anything because the stack bindings are
                 // added manually.
             }
+            ScopeKind::Hole(hole, hole_kind) => {
+                // Add the hole
+                self.context().add_binding(Binding {
+                    name: hole.0,
+                    kind: BindingKind::BoundVar(BoundVarOrigin::Hole(hole, hole_kind)),
+                })
+            }
             ScopeKind::Mod(mod_def_id) => {
                 self.stores().mod_def().map_fast(mod_def_id, |mod_def| {
                     // Add all the module bindings
