@@ -15,13 +15,10 @@ pub mod ty;
 pub mod visitor;
 pub mod write;
 
-use std::{
-    cell::{Ref, RefCell},
-    collections::HashMap,
-};
+use std::cell::{Ref, RefCell};
 
 use hash_tir::{nominals::NominalDefId, terms::TermId};
-use hash_utils::store::{SequenceStore, Store};
+use hash_utils::store::{FxHashMap, SequenceStore, Store};
 use ir::{Body, Local, Place, PlaceProjection, ProjectionStore};
 use ty::{AdtData, AdtId, AdtStore, IrTy, IrTyId, TyListStore, TyStore};
 
@@ -88,7 +85,7 @@ pub struct IrCtx {
     ty_store: ty::TyStore,
 
     /// Storage for grouped types, ones that appear in a parent type, i.e. a
-    /// [`IrTy::Fn(...)`] type will use the `TyListStore` to store that
+    /// [`IrTy::Fn(...)`] type will use the [`TyListStore`] to store that
     /// parameter types.
     ty_list_store: ty::TyListStore,
 
@@ -97,28 +94,28 @@ pub struct IrCtx {
     adt_store: ty::AdtStore,
 
     /// Cache for the [IrTyId]s that are created from [TermId]s.
-    ty_cache: RefCell<HashMap<TyCacheEntry, IrTyId>>,
+    ty_cache: RefCell<FxHashMap<TyCacheEntry, IrTyId>>,
 }
 
 impl IrCtx {
-    /// Create a new [BodyDataStore].
+    /// Create a new [IrCtx].
     pub fn new() -> Self {
         Self {
             projection_store: ProjectionStore::default(),
             ty_store: TyStore::new(),
             ty_list_store: TyListStore::default(),
             adt_store: AdtStore::new(),
-            ty_cache: RefCell::new(HashMap::new()),
+            ty_cache: RefCell::new(FxHashMap::default()),
         }
     }
 
-    /// Get a reference to the [TyStore]
+    /// Get a reference to the [TyStore].
     pub fn tys(&self) -> &TyStore {
         &self.ty_store
     }
 
     /// Get a reference to the [IrTyId] cache.
-    pub fn ty_cache(&self) -> Ref<HashMap<TyCacheEntry, IrTyId>> {
+    pub fn ty_cache(&self) -> Ref<FxHashMap<TyCacheEntry, IrTyId>> {
         self.ty_cache.borrow()
     }
 

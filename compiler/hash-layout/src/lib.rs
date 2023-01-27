@@ -7,7 +7,6 @@ pub mod write;
 
 use std::{
     cell::{Ref, RefCell},
-    collections::HashMap,
     num::NonZeroUsize,
 };
 
@@ -22,12 +21,15 @@ use hash_target::{
 };
 use hash_utils::{
     new_store_key,
-    store::{CloneStore, DefaultStore, Store},
+    store::{CloneStore, DefaultStore, FxHashMap, Store},
 };
 use index_vec::IndexVec;
 
 // Define a new key to represent a particular layout.
 new_store_key!(pub LayoutId);
+
+/// Used to cache the [Layout]s that are created from [IrTyId]s.
+type LayoutCache<'c> = Ref<'c, FxHashMap<IrTyId, LayoutId>>;
 
 /// A store for all of the interned [Layout]s, and a cache for
 /// the [Layout]s that are created from [IrTyId]s.
@@ -36,7 +38,7 @@ pub struct LayoutCtx {
     data: DefaultStore<LayoutId, Layout>,
 
     /// Cache for the [Layout]s that are created from [IrTyId]s.
-    cache: RefCell<HashMap<IrTyId, LayoutId>>,
+    cache: RefCell<FxHashMap<IrTyId, LayoutId>>,
 
     /// A reference to the [TargetDataLayout] of the current
     /// session.
@@ -54,11 +56,11 @@ impl LayoutCtx {
         let data = DefaultStore::new();
         let common_layouts = CommonLayouts::new(&data_layout, &data);
 
-        Self { data, common_layouts, cache: RefCell::new(HashMap::new()), data_layout }
+        Self { data, common_layouts, cache: RefCell::new(FxHashMap::default()), data_layout }
     }
 
-    /// Get a reference to the layout cache.
-    pub(crate) fn cache(&self) -> Ref<HashMap<IrTyId, LayoutId>> {
+    /// Get a reference to the [LayoutCache].
+    pub(crate) fn cache(&self) -> LayoutCache<'_> {
         self.cache.borrow()
     }
 
@@ -165,7 +167,7 @@ impl TyInfo {
     /// Compute the type of a "field with in a layout" and return the
     /// [LayoutId] associated with the field.
     pub fn field(&self, ctx: LayoutComputer, field_index: usize) -> Self {
-        let (layout, ty) = self.with_info(&ctx, |_, ty, layout| match ty {
+        let ty = self.with_info(&ctx, |_, ty, layout| match ty {
             IrTy::Int(_)
             | IrTy::UInt(_)
             | IrTy::Float(_)
@@ -175,23 +177,18 @@ impl TyInfo {
             | IrTy::Ref(_, _, _)
             | IrTy::Fn { .. } => panic!("TyInfo::field on a type that does not contain fields"),
 
-            IrTy::Str if field_index == 0 => (None, IrTy::unit_ptr(ctx.ir_ctx())),
-            IrTy::Str => (None, ctx.ir_ctx().tys().common_tys.usize),
-            IrTy::Slice(element) | IrTy::Array { ty: element, .. } => (None, *element),
+            IrTy::Str if field_index == 0 => ctx.ir_ctx().tys().common_tys.unit,
+            IrTy::Str => ctx.ir_ctx().tys().common_tys.usize,
+            IrTy::Slice(element) | IrTy::Array { ty: element, .. } => *element,
             IrTy::Adt(id) => match layout.variants {
                 Variants::Single { index } => {
                     let field_ty = ctx
                         .ir_ctx()
                         .map_adt(*id, |_, adt| adt.variants[index].fields[field_index].ty);
 
-                    (None, field_ty)
+                    field_ty
                 }
-                Variants::Multiple { tag, .. } => {
-                    let tag_ty = tag.kind().to_ir_ty(ctx.ir_ctx());
-                    let layout = Layout::scalar(ctx.data_layout(), tag);
-
-                    (Some(layout), tag_ty)
-                }
+                Variants::Multiple { tag, .. } => tag.kind().to_ir_ty(ctx.ir_ctx()),
             },
         });
 
@@ -199,14 +196,10 @@ impl TyInfo {
         // then we need to intern that layout here, add a cache entry
         // for it and return it, otherwise we will lookup the layout
         // buy just using the type id.
-        match layout {
-            Some(layout) => {
-                let layout = ctx.layouts().create(layout);
-                ctx.layouts().add_cache_entry(ty, layout);
-
-                TyInfo { ty, layout }
-            }
-            None => TyInfo { ty, layout: ctx.compute_layout_of_ty(ty).unwrap() },
+        if let Some(layout) = ctx.layouts().cache.borrow().get(&ty) {
+            TyInfo { ty, layout: *layout }
+        } else {
+            TyInfo { ty, layout: ctx.layout_of_ty(ty).unwrap() }
         }
     }
 
@@ -358,10 +351,10 @@ impl Layout {
 /// etc), an array with a known size (which isn't supported in the language
 /// yet), or a `struct`-like type.
 ///
-/// For [`LayoutShape::Struct`], there are two maps stored, the first being all
-/// of the field **offset**s in "source" definition order, and a `memory_map`
-/// which specifies the actual order of fields in memory in relation to their
-/// offsets.
+/// For [`LayoutShape::Aggregate`], there are two maps stored, the first being
+/// all of the field **offset**s in "source" definition order, and a
+/// `memory_map` which specifies the actual order of fields in memory in
+/// relation to their offsets.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LayoutShape {
     /// Primitives, `!` and other scalar-like types have only one specific
@@ -422,7 +415,7 @@ impl FieldLayout {
 }
 
 impl LayoutShape {
-    /// Count the number of fields in the layout shape.
+    /// Count the number of fields in the [LayoutShape].
     #[inline]
     pub fn count(&self) -> usize {
         match *self {
@@ -433,7 +426,7 @@ impl LayoutShape {
         }
     }
 
-    /// Get a specific `offset` from the layout shape, and given an
+    /// Get a specific `offset` from the [LayoutShape], and given an
     /// index into the layout.
     #[inline]
     pub fn offset(&self, index: usize) -> Size {
@@ -452,11 +445,11 @@ impl LayoutShape {
     /// Get the memory index of a specific field in the layout shape, and given
     /// an a "source order" index into the layout. This is used to get the
     /// actual memory order of a field in the layout.
-    pub fn memory_index(&self, index: u32) -> u32 {
+    pub fn memory_index(&self, index: usize) -> usize {
         match self {
             LayoutShape::Primitive => unreachable!("primitive layout has no defined offsets"),
             LayoutShape::Union { .. } | LayoutShape::Array { .. } => index,
-            LayoutShape::Aggregate { memory_map, .. } => memory_map[index as usize],
+            LayoutShape::Aggregate { memory_map, .. } => memory_map[index] as usize,
         }
     }
 

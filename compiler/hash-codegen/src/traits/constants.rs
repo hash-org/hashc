@@ -10,7 +10,7 @@ use super::BackendTypes;
 
 /// Trait that represents methods for emitting constants
 /// when building the IR.
-pub trait BuildConstValueMethods<'b>: BackendTypes {
+pub trait ConstValueBuilderMethods<'b>: BackendTypes {
     /// Emit a constant undefined value, this is use for generating
     /// zero-sized types.
     fn const_undef(&self, ty: Self::Type) -> Self::Value;
@@ -49,9 +49,6 @@ pub trait BuildConstValueMethods<'b>: BackendTypes {
     /// Emit a constant `u128` value.
     fn const_u128(&self, i: u128) -> Self::Value;
 
-    /// Emit a constant `i128` value.
-    fn const_i128(&self, i: i128) -> Self::Value;
-
     /// Emit a constant unsigned integer with a specified size.
     fn const_uint(&self, ty: Self::Type, value: u64) -> Self::Value;
 
@@ -78,12 +75,7 @@ pub trait BuildConstValueMethods<'b>: BackendTypes {
     ///     len: usize, // <--- second value
     /// }
     /// ```
-    fn const_str(&self, s: &str) -> (Self::Value, Self::Value);
-
-    /// Emit a constant string value from an interned string. This returns
-    /// a value representing the pointer to the string characters, and a
-    /// second value representing the length of the string.
-    fn const_interned_str(&self, s: InternedStr) -> (Self::Value, Self::Value);
+    fn const_str(&self, s: InternedStr) -> (Self::Value, Self::Value);
 
     /// Emit a constant value from a `Const` value. This only deals with
     /// constant "scalar" values, for string values, there is specific code

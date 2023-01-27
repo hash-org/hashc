@@ -6,7 +6,7 @@ use hash_target::alignment::Alignment;
 
 use crate::{
     common::MemFlags,
-    traits::{builder::BlockBuilderMethods, constants::BuildConstValueMethods},
+    traits::{builder::BlockBuilderMethods, constants::ConstValueBuilderMethods},
 };
 
 /// Emit a `memcpy` instruction for a particular value with the provided

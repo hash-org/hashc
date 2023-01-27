@@ -59,6 +59,14 @@ impl FloatConstant {
 
         Self { value, ty: self.ty, suffix: self.suffix }
     }
+
+    /// Get the value of the float constant as a [f64].
+    pub fn as_f64(self) -> f64 {
+        match self.value {
+            FloatConstantValue::F64(inner) => inner,
+            FloatConstantValue::F32(inner) => inner as f64,
+        }
+    }
 }
 
 /// Provide implementations for converting primitive floating point types into
@@ -294,8 +302,16 @@ impl IntConstant {
         }
     }
 
+    /// Convert the constant into the "small" variant.
+    pub fn as_small(self) -> Option<u128> {
+        match self.value {
+            IntConstantValue::Small(inner) => Some(u128::from_be_bytes(inner)),
+            IntConstantValue::Big(_) => None,
+        }
+    }
+
     /// Convert the constant into a [BigInt].
-    pub fn to_big_int(self) -> BigInt {
+    pub fn as_big(self) -> BigInt {
         match self.value {
             IntConstantValue::Small(inner) => BigInt::from_signed_bytes_be(&inner),
             IntConstantValue::Big(inner) => *inner,

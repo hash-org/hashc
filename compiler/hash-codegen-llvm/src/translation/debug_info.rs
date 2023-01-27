@@ -1,7 +1,10 @@
 //! Implements all of the required functionality for generating debug
 //! information for the LLVM backend.
 
-use hash_codegen::traits::debug::{BuildDebugInfoMethods, VariableKind};
+use hash_codegen::{
+    abi::FnAbi,
+    traits::debug::{BuildDebugInfoMethods, VariableKind},
+};
 use hash_source::{identifier::Identifier, location::SourceLocation};
 
 use super::Builder;
@@ -9,7 +12,7 @@ use super::Builder;
 impl<'b> BuildDebugInfoMethods for Builder<'b> {
     fn create_debug_info_scope_for_fn(
         &self,
-        fn_abi: (),
+        fn_abi: &FnAbi,
         value: Option<Self::Function>,
     ) -> Self::DebugInfoScope {
         todo!()

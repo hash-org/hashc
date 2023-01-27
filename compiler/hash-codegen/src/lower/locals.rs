@@ -60,7 +60,7 @@ pub fn compute_non_ssa_locals<'b, Builder: BlockBuilderMethods<'b>>(
         .iter()
         .map(|local| {
             let ty = local.ty();
-            let layout = fn_builder.ctx.layout_of_id(ty);
+            let layout = fn_builder.ctx.layout_of(ty);
 
             if layout.is_zst(fn_builder.ctx.layout_computer()) {
                 LocalMemoryKind::Zst
@@ -201,7 +201,7 @@ impl<'ir, 'b, Builder: BlockBuilderMethods<'b>> IrVisitorMut<'b>
         // If the place base type is a ZST then we can short-circuit
         // since they don't require any memory accesses.
         let base_ty = self.fn_builder.body.declarations[place.local].ty;
-        let base_layout = self.fn_builder.ctx.layout_of_id(base_ty);
+        let base_layout = self.fn_builder.ctx.layout_of(base_ty);
 
         if base_layout.is_zst(self.fn_builder.ctx.layout_computer()) {
             return;

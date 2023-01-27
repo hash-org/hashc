@@ -1,14 +1,14 @@
 //! Trait methods to do with emitting types for the backend.
 
 use hash_abi::FnAbi;
-use hash_ir::ty::IrTyId;
 use hash_layout::TyInfo;
-use hash_target::abi::AddressSpace;
+use hash_source::constant::FloatTy;
+use hash_target::abi::{AddressSpace, Integer};
 
 use super::Backend;
 use crate::common::TypeKind;
 
-pub trait BuildTypeMethods<'b>: Backend<'b> {
+pub trait TypeBuilderMethods<'b>: Backend<'b> {
     /// Create a bit type.
     fn type_i1(&self) -> Self::Type;
 
@@ -30,11 +30,30 @@ pub trait BuildTypeMethods<'b>: Backend<'b> {
     /// Create a `isize` type.
     fn type_isize(&self) -> Self::Type;
 
+    /// Create a integer type from the specified [abi::Integer].
+    fn type_from_integer(&self, int: Integer) -> Self::Type {
+        match int {
+            Integer::I8 => self.type_i8(),
+            Integer::I16 => self.type_i16(),
+            Integer::I32 => self.type_i32(),
+            Integer::I64 => self.type_i64(),
+            Integer::I128 => self.type_i128(),
+        }
+    }
+
     /// Create a float type.
     fn type_f32(&self) -> Self::Type;
 
     /// Create a double type.
     fn type_f64(&self) -> Self::Type;
+
+    /// Create a float type from the specified [FloatTy].
+    fn type_from_float(&self, ty: FloatTy) -> Self::Type {
+        match ty {
+            FloatTy::F32 => self.type_f32(),
+            FloatTy::F64 => self.type_f64(),
+        }
+    }
 
     /// Create an array type.
     fn type_array(&self, ty: Self::Type, len: u64) -> Self::Type;
@@ -71,14 +90,11 @@ pub trait BuildTypeMethods<'b>: Backend<'b> {
     fn ty_of_value(&self, value: Self::Value) -> Self::Type;
 
     /// Get the [TypeKind] of a particular type.
-    fn kind_of_ty(&self, ty: Self::Type) -> TypeKind;
+    fn ty_kind(&self, ty: Self::Type) -> TypeKind;
 
     /// Create a new "immediate" backend type. This is mainly
     /// used for constants and ZSTs.
     fn immediate_backend_ty(&self, info: TyInfo) -> Self::Type;
-
-    /// Create a backend specific type from an [IrTyId].
-    fn backend_ty_from_ir_ty(&self, ty: IrTyId) -> Self::Type;
 
     /// Create a backend specific type from a [TyInfo].
     fn backend_ty_from_info(&self, info: TyInfo) -> Self::Type;

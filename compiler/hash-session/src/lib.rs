@@ -91,7 +91,7 @@ impl CompilerSession {
         output_stream: impl Fn() -> CompilerOutputStream + 'static,
     ) -> Self {
         let target = settings.codegen_settings().target_info.target();
-        let layout_info = settings.codegen_settings().layout.clone();
+        let layout_info = settings.codegen_settings().data_layout.clone();
 
         let global = GlobalStorage::new(target);
         let local = LocalStorage::new(&global, SourceId::default());

@@ -220,7 +220,7 @@ pub struct CodeGenSettings {
     /// The specified target layout information for types. This defines
     /// the sizes of target-dependant types, and default alignments for
     /// primitive types.
-    pub layout: TargetDataLayout,
+    pub data_layout: TargetDataLayout,
 
     /// This is only the "backend" for the global instance of code generation.
     ///

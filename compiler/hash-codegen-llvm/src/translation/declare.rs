@@ -2,14 +2,15 @@
 
 use hash_codegen::abi::CallingConvention;
 use inkwell::{
-    types::AnyTypeEnum,
-    values::{AnyValueEnum, UnnamedAddress},
+    types::{AnyTypeEnum, BasicTypeEnum},
+    values::{AnyValue, AnyValueEnum, GlobalValue, UnnamedAddress},
     GlobalVisibility,
 };
 
 use super::Builder;
+use crate::context::CodeGenCtx;
 
-impl<'b> Builder<'b> {
+impl<'b> CodeGenCtx<'b> {
     /// Standard function to declare a C-like function. This should only be used
     /// for declaring FFI functions or various LLVM intrinsics.
     ///
@@ -66,5 +67,22 @@ impl<'b> Builder<'b> {
         func.as_global_value().set_visibility(visibility);
 
         func.into()
+    }
+
+    /// Declare a global variable within the current [inkwell::module::Module]
+    /// with the intent to define it.
+    ///
+    /// If the global variable name already exists, the function will return
+    /// [`None`].
+    pub(crate) fn declare_global(
+        &self,
+        name: &str,
+        ty: BasicTypeEnum<'b>,
+    ) -> Option<GlobalValue<'b>> {
+        if self.module.get_global(name).is_some() {
+            None
+        } else {
+            Some(self.module.add_global(ty, None, name))
+        }
     }
 }

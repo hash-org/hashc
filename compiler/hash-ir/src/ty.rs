@@ -19,7 +19,7 @@ use hash_target::{
 };
 use hash_utils::{
     new_sequence_store_key, new_store_key,
-    store::{CloneStore, DefaultSequenceStore, DefaultStore, SequenceStore, Store},
+    store::{CloneStore, DefaultSequenceStore, DefaultStore, SequenceStore, Store, StoreKey},
 };
 use index_vec::{index_vec, IndexVec};
 
@@ -693,13 +693,23 @@ macro_rules! create_common_ty_table {
         /// using the associated [IrTyId]s of this map.
         pub struct CommonIrTys {
             $(pub $name: IrTyId, )*
+            pub byte_slice: IrTyId,
         }
 
         impl CommonIrTys {
             pub fn new(data: &DefaultStore<IrTyId, IrTy>) -> CommonIrTys {
-                CommonIrTys {
+                let mut table = CommonIrTys {
                     $($name: data.create($value), )*
-                }
+                    byte_slice: IrTyId::from_index_unchecked(0),
+                };
+
+                // @@Hack: find a way to nicely create this within the `create_common_ty_table!`,
+                // however this would require somehow referencing entries within the table before
+                // they are defined...
+                let byte_slice = data.create(IrTy::Slice(table.u8));
+
+                table.byte_slice = byte_slice;
+                table
             }
         }
     };

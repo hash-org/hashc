@@ -2,7 +2,7 @@
 //! values, functions, and types.
 
 use hash_codegen::traits::{
-    builder::BlockBuilderMethods, constants::BuildConstValueMethods, ty::BuildTypeMethods,
+    builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, ty::TypeBuilderMethods,
     BackendTypes,
 };
 use hash_target::{alignment::Alignment, size::Size};
@@ -12,7 +12,8 @@ use llvm::{
     values::{AnyValueEnum, BasicMetadataValueEnum, BasicValueEnum},
 };
 
-use super::{Builder, MetadataType};
+use super::Builder;
+use crate::misc::MetadataType;
 
 impl<'b> Builder<'b> {
     /// Emit a `no-undef` metadata attribute on a specific value.

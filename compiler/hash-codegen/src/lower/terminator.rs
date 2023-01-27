@@ -15,6 +15,7 @@ use hash_ir::{
     ty::IrTy,
 };
 use hash_pipeline::settings::{CodeGenBackend, OptimisationLevel};
+use hash_source::constant::CONSTANT_MAP;
 use hash_target::abi::{AbiRepresentation, ValidScalarRange};
 
 use super::{
@@ -28,8 +29,8 @@ use super::{
 use crate::{
     common::{IntComparisonKind, MemFlags},
     traits::{
-        builder::BlockBuilderMethods, constants::BuildConstValueMethods, ctx::HasCtxMethods,
-        misc::MiscBuilderMethods, ty::BuildTypeMethods,
+        builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, ctx::HasCtxMethods,
+        misc::MiscBuilderMethods, ty::TypeBuilderMethods,
     },
 };
 
@@ -471,7 +472,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
             let target_block_1 = self.get_codegen_block_id(target_1);
             let target_block_2 = self.get_codegen_block_id(target_2);
 
-            let subject_ty = builder.immediate_backend_ty(builder.layout_of_id(ty));
+            let subject_ty = builder.immediate_backend_ty(builder.layout_of(ty));
             let target_value = builder.const_uint_big(subject_ty, value);
             let comparison =
                 builder.icmp(IntComparisonKind::Eq, subject.immediate_value(), target_value);
@@ -530,7 +531,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
         builder.switch_to_block(failure_block);
 
         // we need to convert the assert into a message.
-        let message = builder.const_str(assert_kind.message());
+        let message = builder.const_str(CONSTANT_MAP.create_string(assert_kind.message()));
         let args = &[message.0, message.1];
 
         // @@Todo: we need to create a call to `panic`, as in resolve the function

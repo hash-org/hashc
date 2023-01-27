@@ -2,7 +2,7 @@
 
 use hash_codegen::traits::misc::MiscBuilderMethods;
 
-use super::context::CodeGenCtx;
+use crate::context::CodeGenCtx;
 
 impl<'b> MiscBuilderMethods<'b> for CodeGenCtx<'b> {
     fn get_fn(&self, instance: hash_ir::ty::Instance) -> Self::Function {

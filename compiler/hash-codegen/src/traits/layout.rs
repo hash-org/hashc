@@ -1,7 +1,7 @@
 //! Trait methods to do with calculating and accessing the layout of types
 //! within a backend.
 
-use hash_ir::ty::{IrTy, IrTyId};
+use hash_ir::ty::IrTyId;
 use hash_layout::{Layout, LayoutId};
 use hash_utils::store::Store;
 
@@ -11,13 +11,11 @@ use crate::layout::TyInfo;
 /// Methods for calculating and querying the layout of types within a backend.
 pub trait LayoutMethods<'b>: BackendTypes + HasCtxMethods<'b> {
     /// Compute the layout of a interned type via [IrTyId].
-    fn layout_of_id(&self, _ty: IrTyId) -> TyInfo {
-        todo!()
-    }
-
-    /// Compute the layout of a [IrTy].
-    fn layout_of(&self, _ty: IrTy) -> TyInfo {
-        todo!()
+    fn layout_of(&self, ty: IrTyId) -> TyInfo {
+        // @@Todo: provide a mechanism for gracefully reporting the error rather
+        // than unwrapping
+        let layout = self.layout_computer().layout_of_ty(ty).unwrap();
+        TyInfo { ty, layout }
     }
 
     /// Perform a mapping on a [Layout]
@@ -32,7 +30,7 @@ pub trait LayoutMethods<'b>: BackendTypes + HasCtxMethods<'b> {
     /// immediate value.
     fn is_backend_immediate(&self, ty: TyInfo) -> bool;
 
-    /// Get the type of an element from a sclar pair, and assume
+    /// Get the type of an element from a scalar pair, and assume
     /// if it "immediate".
     fn scalar_pair_element_backend_type(
         &self,

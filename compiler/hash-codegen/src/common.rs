@@ -24,67 +24,67 @@ pub enum CheckedOp {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TypeKind {
     /// 16-bit floating point type.
-    HalfTy,
+    Half,
 
     /// 16-bit floating point type (7-bit mantissa).
     BFloatTy,
 
     /// 32-bit floating point type.
-    FloatTy,
+    Float,
 
     /// 64-bit floating point type.
-    DoubleTy,
+    Double,
 
     /// 80-bit floating point type (X87).
-    X86FP80Ty,
+    X86FP80,
 
     /// 128-bit floating point type (112-bit mantissa).
-    FP128Ty,
+    FP128,
 
     /// 128-bit floating point type (two 64-bits, PowerPC).
-    PPCFP128Ty,
+    PPCFP128,
 
     /// Void type, no size.
-    VoidTy,
+    Void,
 
     /// Label type, only used as function return type.
-    LabelTy,
+    Label,
 
     /// Metadata type, only used in LLVM metadata.
     ///
     /// More information can be found here:
     /// <https://llvm.org/doxygen/classllvm_1_1Metadata.html>
-    MetadataTy,
+    Metadata,
 
     /// X86 MMX vector type (64 bits, X86 specific).
-    X86MMXTy,
+    X86MMX,
 
     /// X86 AMX vector type (8192 bits, X86 specific).
-    X86AMXTy,
+    X86AMX,
 
     /// Token type, only used in LLVM metadata.
-    TokenTy,
+    Token,
 
     /// Integer types
-    IntegerTy,
+    Integer,
 
     /// Function types
-    FunctionTy,
+    Function,
 
     /// Pointer types
-    PointerTy,
+    Pointer,
 
     /// Structure types
-    StructTy,
+    Struct,
 
     /// Array types
-    ArrayTy,
+    Array,
 
     /// Fixed vector types
-    FixedVectorTy,
+    FixedVector,
 
     /// Scalable vector types
-    ScalableVectorTy,
+    ScalableVector,
 
     /// Typed pointer types
     TypedPointerTy,

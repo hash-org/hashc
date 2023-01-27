@@ -4,6 +4,7 @@
 //! backend via the [crate::traits::CodeGen] interface, and when it adds
 //! debug information to all of the generated IR.
 
+use hash_abi::FnAbi;
 use hash_ir::ty::IrTyId;
 use hash_source::{identifier::Identifier, location::SourceLocation};
 
@@ -27,7 +28,7 @@ pub trait BuildDebugInfoMethods: BackendTypes {
     /// particular scope in the source code. This is attached to a function.
     fn create_debug_info_scope_for_fn(
         &self,
-        fn_abi: (),
+        fn_abi: &FnAbi,
         value: Option<Self::Function>,
     ) -> Self::DebugInfoScope;
 

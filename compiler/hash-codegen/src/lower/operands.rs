@@ -10,8 +10,8 @@ use super::{locals::LocalRef, place::PlaceRef, utils, FnBuilder};
 use crate::{
     common::MemFlags,
     traits::{
-        builder::BlockBuilderMethods, constants::BuildConstValueMethods, ctx::HasCtxMethods,
-        layout::LayoutMethods, ty::BuildTypeMethods, CodeGenObject, Codegen,
+        builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, ctx::HasCtxMethods,
+        layout::LayoutMethods, ty::TypeBuilderMethods, CodeGenObject, Codegen,
     },
 };
 
@@ -163,7 +163,7 @@ impl<'b, V: CodeGenObject> OperandRef<V> {
             OperandValue::Ref(..) => panic!("deref on a by-ref operand"),
         };
 
-        let info = builder.layout_of_id(projected_ty);
+        let info = builder.layout_of(projected_ty);
         let alignment = builder.map_layout(info.layout, |layout| layout.alignment.abi);
 
         PlaceRef { value: ptr_value, info, alignment }
@@ -261,7 +261,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
             ir::Operand::Place(place) => self.codegen_consume_operand(builder, *place),
             ir::Operand::Const(ref constant) => {
                 let ty = constant.ty(builder.ir_ctx());
-                let info = builder.layout_of_id(ty);
+                let info = builder.layout_of(ty);
 
                 let value = match constant {
                     ir::ConstKind::Value(const_value) => match const_value {
@@ -283,7 +283,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
                             OperandValue::Immediate(value)
                         }
                         ir::Const::Str(interned_str) => {
-                            let (ptr, size) = builder.const_interned_str(*interned_str);
+                            let (ptr, size) = builder.const_str(*interned_str);
                             OperandValue::Pair(ptr, size)
                         }
                     },

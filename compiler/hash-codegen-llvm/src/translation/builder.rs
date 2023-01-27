@@ -14,10 +14,10 @@ use hash_codegen::{
     },
     traits::{
         builder::{self, BlockBuilderMethods},
-        constants::BuildConstValueMethods,
+        constants::ConstValueBuilderMethods,
         ctx::HasCtxMethods,
         layout::LayoutMethods,
-        ty::BuildTypeMethods,
+        ty::TypeBuilderMethods,
     },
 };
 use hash_ir::ty::{IrTy, IrTyId, RefKind};
@@ -39,7 +39,10 @@ use rayon::iter::Either;
 
 use super::{
     abi::ExtendedFnAbiMethods, layouts::ExtendedLayoutMethods, ty::ExtendedTyBuilderMethods,
-    AtomicOrderingWrapper, Builder, FloatPredicateWrapper, IntPredicateWrapper, MetadataType,
+    Builder,
+};
+use crate::misc::{
+    AtomicOrderingWrapper, FloatPredicateWrapper, IntPredicateWrapper, MetadataType,
 };
 
 impl<'b> Builder<'b> {
@@ -1107,7 +1110,7 @@ fn load_scalar_value_metadata<'ll>(
             });
 
             if safe {
-                let pointee_info = builder.layout_of_id(pointee_ty);
+                let pointee_info = builder.layout_of(pointee_ty);
                 let alignment =
                     builder.map_layout(pointee_info.layout, |layout| layout.alignment.abi);
                 builder.set_alignment(load, alignment);
