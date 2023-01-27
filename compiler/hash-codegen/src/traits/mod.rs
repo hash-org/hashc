@@ -4,7 +4,7 @@ use std::fmt;
 
 use self::{
     constants::ConstValueBuilderMethods, ctx::HasCtxMethods, layout::LayoutMethods,
-    misc::MiscBuilderMethods, target::HasTargetSpec, ty::BuildTypeMethods,
+    misc::MiscBuilderMethods, target::HasTargetSpec, ty::TypeBuilderMethods,
 };
 
 pub mod abi;
@@ -59,7 +59,7 @@ pub trait CodeGenMethods<'b>:
     Backend<'b>
     + MiscBuilderMethods<'b>
     + HasCtxMethods<'b>
-    + BuildTypeMethods<'b>
+    + TypeBuilderMethods<'b>
     + ConstValueBuilderMethods<'b>
     + HasTargetSpec
 {
@@ -71,7 +71,7 @@ impl<'b, T> CodeGenMethods<'b> for T where
     Self: Backend<'b>
         + MiscBuilderMethods<'b>
         + HasCtxMethods<'b>
-        + BuildTypeMethods<'b>
+        + TypeBuilderMethods<'b>
         + ConstValueBuilderMethods<'b>
         + HasTargetSpec
 {

@@ -17,7 +17,7 @@ use crate::{
     layout::TyInfo,
     traits::{
         builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, ctx::HasCtxMethods,
-        ty::BuildTypeMethods, CodeGenObject,
+        ty::TypeBuilderMethods, CodeGenObject,
     },
 };
 

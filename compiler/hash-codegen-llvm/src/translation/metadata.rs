@@ -2,7 +2,7 @@
 //! values, functions, and types.
 
 use hash_codegen::traits::{
-    builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, ty::BuildTypeMethods,
+    builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, ty::TypeBuilderMethods,
     BackendTypes,
 };
 use hash_target::{alignment::Alignment, size::Size};

@@ -30,7 +30,7 @@ use crate::{
     common::{IntComparisonKind, MemFlags},
     traits::{
         builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, ctx::HasCtxMethods,
-        misc::MiscBuilderMethods, ty::BuildTypeMethods,
+        misc::MiscBuilderMethods, ty::TypeBuilderMethods,
     },
 };
 

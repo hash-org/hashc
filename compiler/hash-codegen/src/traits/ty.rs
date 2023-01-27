@@ -8,7 +8,7 @@ use hash_target::abi::{AddressSpace, Integer};
 use super::Backend;
 use crate::common::TypeKind;
 
-pub trait BuildTypeMethods<'b>: Backend<'b> {
+pub trait TypeBuilderMethods<'b>: Backend<'b> {
     /// Create a bit type.
     fn type_i1(&self) -> Self::Type;
 

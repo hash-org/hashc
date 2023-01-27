@@ -7,7 +7,7 @@ use hash_codegen::{
     abi::FnAbi,
     common::TypeKind,
     layout::{Layout, LayoutShape, TyInfo, Variants},
-    traits::{ctx::HasCtxMethods, layout::LayoutMethods, ty::BuildTypeMethods},
+    traits::{ctx::HasCtxMethods, layout::LayoutMethods, ty::TypeBuilderMethods},
 };
 use hash_ir::ty::{IrTy, IrTyId, RefKind};
 use hash_target::{
@@ -76,7 +76,7 @@ impl<'b> CodeGenCtx<'b> {
     }
 }
 
-impl<'b> BuildTypeMethods<'b> for CodeGenCtx<'b> {
+impl<'b> TypeBuilderMethods<'b> for CodeGenCtx<'b> {
     fn type_i1(&self) -> Self::Type {
         self.ll_ctx.bool_type().into()
     }

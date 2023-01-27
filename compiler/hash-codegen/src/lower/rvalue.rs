@@ -16,7 +16,7 @@ use crate::{
     common::{CheckedOp, IntComparisonKind, TypeKind},
     traits::{
         builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, ctx::HasCtxMethods,
-        layout::LayoutMethods, ty::BuildTypeMethods,
+        layout::LayoutMethods, ty::TypeBuilderMethods,
     },
 };
 

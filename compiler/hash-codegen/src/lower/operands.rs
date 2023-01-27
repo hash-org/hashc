@@ -11,7 +11,7 @@ use crate::{
     common::MemFlags,
     traits::{
         builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, ctx::HasCtxMethods,
-        layout::LayoutMethods, ty::BuildTypeMethods, CodeGenObject, Codegen,
+        layout::LayoutMethods, ty::TypeBuilderMethods, CodeGenObject, Codegen,
     },
 };
 

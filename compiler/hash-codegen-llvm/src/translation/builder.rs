@@ -17,7 +17,7 @@ use hash_codegen::{
         constants::ConstValueBuilderMethods,
         ctx::HasCtxMethods,
         layout::LayoutMethods,
-        ty::BuildTypeMethods,
+        ty::TypeBuilderMethods,
     },
 };
 use hash_ir::ty::{IrTy, IrTyId, RefKind};

@@ -74,8 +74,7 @@ impl<'b> CodeGenCtx<'b> {
         name.push_str(prefix);
         name.push('.');
         push_string_encoded_count(symbol_counter as u128, ALPHANUMERIC_BASE, &mut name);
-
-        format!("{prefix}{symbol_counter}")
+        name
     }
 }
 
