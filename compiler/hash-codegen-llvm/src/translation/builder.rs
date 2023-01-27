@@ -42,7 +42,7 @@ use super::{
     Builder,
 };
 use crate::misc::{
-    AtomicOrderingWrapper, FloatPredicateWrapper, IntPredicateWrapper, MetadataType,
+    AtomicOrderingWrapper, FloatPredicateWrapper, IntPredicateWrapper, MetadataTypeKind,
 };
 
 impl<'b> Builder<'b> {
@@ -1052,7 +1052,7 @@ impl<'b> BlockBuilderMethods<'b> for Builder<'b> {
         let metadata = self.ctx.ll_ctx.metadata_node(&[start, end]);
 
         let value = load_value.into_instruction_value();
-        value.set_metadata(metadata, MetadataType::Range as u32);
+        value.set_metadata(metadata, MetadataTypeKind::Range as u32);
     }
 
     fn extract_field(&mut self, value: Self::Value, field_index: usize) -> Self::Value {

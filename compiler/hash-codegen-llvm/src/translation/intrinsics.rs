@@ -5,12 +5,13 @@ use hash_codegen::{
     lower::{operands::OperandRef, place::PlaceRef},
     traits::{
         builder::BlockBuilderMethods, constants::ConstValueBuilderMethods,
-        intrinsics::IntrinsicBuilderMethods, BackendTypes,
+        intrinsics::IntrinsicBuilderMethods, ty::TypeBuilderMethods, BackendTypes,
     },
 };
 use hash_ir::ty::{IrTy, IrTyId};
+use hash_source::identifier::Identifier;
 use hash_utils::store::CloneStore;
-use inkwell::values::AnyValueEnum;
+use inkwell::values::{AnyValueEnum, UnnamedAddress};
 
 use super::Builder;
 
@@ -21,10 +22,7 @@ impl<'b> Builder<'b> {
         name: &str,
         args: &[AnyValueEnum<'b>],
     ) -> <Self as BackendTypes>::Value {
-        let Some((ty, func)) = self.get_intrinsic_function(name) else {
-            panic!("unable to resolve intrinsic `{name}`");
-        };
-
+        let (ty, func) = self.get_intrinsic_function(name);
         self.call(ty, None, func, args)
     }
 
@@ -33,17 +31,254 @@ impl<'b> Builder<'b> {
     pub(crate) fn get_intrinsic_function(
         &self,
         name: &str,
-    ) -> Option<(<Self as BackendTypes>::Type, <Self as BackendTypes>::Value)> {
-        todo!()
+    ) -> (<Self as BackendTypes>::Type, <Self as BackendTypes>::Value) {
+        if let Some(intrinsic) = self.intrinsics.borrow().get(name).cloned() {
+            return intrinsic;
+        }
+
+        self.declare_intrinsic(name).unwrap_or_else(|| {
+            panic!("unable to resolve intrinsic `{name}`");
+        })
     }
 
-    fn insert_intrinsic(
+    pub(crate) fn declare_intrinsic(
         &self,
         name: &str,
+    ) -> Option<(<Self as BackendTypes>::Type, <Self as BackendTypes>::Value)> {
+        // This macro is used to define the intrinsic based on the function name.
+        // If the name of the intrinsic is equal to the specified value, then this
+        // type and function pointer value will be returned.
+        macro_rules! intrinsic_on {
+            ($name:literal, fn() -> $ret:expr) => (
+                if name == $name {
+                    return Some(self.insert_intrinsic($name, &[], $ret));
+                }
+            );
+            ($name:expr, fn($($arg:expr),*) -> $ret:expr) => (
+                if name == $name {
+                    return Some(self.insert_intrinsic($name, &[$($arg),*], $ret));
+                }
+            );
+        }
+
+        // Create a struct type which is used as the return type for some
+        // intrinsics
+        macro_rules! struct_ty {
+            ($($field_ty:expr),*) => (self.type_struct( &[$($field_ty),*], false))
+        }
+
+        // Declare all of the types that might occur within the intrinsic.
+        let ptr = self.type_i8p();
+        let void = self.type_void();
+        let bool = self.type_i1();
+        let i8 = self.type_i8();
+        let i16 = self.type_i16();
+        let i32 = self.type_i32();
+        let i64 = self.type_i64();
+        let i128 = self.type_i128();
+        let isize = self.type_isize();
+        let f32 = self.type_f32();
+        let f64 = self.type_f64();
+        let metadata = self.type_metadata();
+
+        // Declare all of the intrinsics that we support.
+
+        // Floating point to integer intrinsics
+        intrinsic_on!("llvm.fptosi.sat.i8.f32", fn(f32) -> i8);
+        intrinsic_on!("llvm.fptosi.sat.i16.f32", fn(f32) -> i16);
+        intrinsic_on!("llvm.fptosi.sat.i32.f32", fn(f32) -> i32);
+        intrinsic_on!("llvm.fptosi.sat.i64.f32", fn(f32) -> i64);
+        intrinsic_on!("llvm.fptosi.sat.i128.f32", fn(f32) -> i128);
+        intrinsic_on!("llvm.fptosi.sat.i8.f64", fn(f64) -> i8);
+        intrinsic_on!("llvm.fptosi.sat.i16.f64", fn(f64) -> i16);
+        intrinsic_on!("llvm.fptosi.sat.i32.f64", fn(f64) -> i32);
+        intrinsic_on!("llvm.fptosi.sat.i64.f64", fn(f64) -> i64);
+        intrinsic_on!("llvm.fptosi.sat.i128.f64", fn(f64) -> i128);
+        intrinsic_on!("llvm.fptoui.sat.i8.f32", fn(f32) -> i8);
+        intrinsic_on!("llvm.fptoui.sat.i16.f32", fn(f32) -> i16);
+        intrinsic_on!("llvm.fptoui.sat.i32.f32", fn(f32) -> i32);
+        intrinsic_on!("llvm.fptoui.sat.i64.f32", fn(f32) -> i64);
+        intrinsic_on!("llvm.fptoui.sat.i128.f32", fn(f32) -> i128);
+        intrinsic_on!("llvm.fptoui.sat.i8.f64", fn(f64) -> i8);
+        intrinsic_on!("llvm.fptoui.sat.i16.f64", fn(f64) -> i16);
+        intrinsic_on!("llvm.fptoui.sat.i32.f64", fn(f64) -> i32);
+        intrinsic_on!("llvm.fptoui.sat.i64.f64", fn(f64) -> i64);
+        intrinsic_on!("llvm.fptoui.sat.i128.f64", fn(f64) -> i128);
+
+        // Abort intrinsic
+        intrinsic_on!("llvm.trap", fn() -> void);
+
+        intrinsic_on!("llvm.powi.f32", fn(f32, i32) -> f32);
+        intrinsic_on!("llvm.powi.f64", fn(f64, i32) -> f64);
+
+        intrinsic_on!("llvm.pow.f32", fn(f32, f32) -> f32);
+        intrinsic_on!("llvm.pow.f64", fn(f64, f64) -> f64);
+
+        intrinsic_on!("llvm.sqrt.f32", fn(f32) -> f32);
+        intrinsic_on!("llvm.sqrt.f64", fn(f64) -> f64);
+
+        intrinsic_on!("llvm.sin.f32", fn(f32) -> f32);
+        intrinsic_on!("llvm.sin.f64", fn(f64) -> f64);
+
+        intrinsic_on!("llvm.cos.f32", fn(f32) -> f32);
+        intrinsic_on!("llvm.cos.f64", fn(f64) -> f64);
+
+        intrinsic_on!("llvm.exp.f32", fn(f32) -> f32);
+        intrinsic_on!("llvm.exp.f64", fn(f64) -> f64);
+
+        intrinsic_on!("llvm.exp2.f32", fn(f32) -> f32);
+        intrinsic_on!("llvm.exp2.f64", fn(f64) -> f64);
+
+        intrinsic_on!("llvm.log.f32", fn(f32) -> f32);
+        intrinsic_on!("llvm.log.f64", fn(f64) -> f64);
+
+        intrinsic_on!("llvm.log10.f32", fn(f32) -> f32);
+        intrinsic_on!("llvm.log10.f64", fn(f64) -> f64);
+
+        intrinsic_on!("llvm.log2.f32", fn(f32) -> f32);
+        intrinsic_on!("llvm.log2.f64", fn(f64) -> f64);
+
+        intrinsic_on!("llvm.fma.f32", fn(f32, f32, f32) -> f32);
+        intrinsic_on!("llvm.fma.f64", fn(f64, f64, f64) -> f64);
+
+        intrinsic_on!("llvm.fabs.f32", fn(f32) -> f32);
+        intrinsic_on!("llvm.fabs.f64", fn(f64) -> f64);
+
+        intrinsic_on!("llvm.minnum.f32", fn(f32, f32) -> f32);
+        intrinsic_on!("llvm.minnum.f64", fn(f64, f64) -> f64);
+        intrinsic_on!("llvm.maxnum.f32", fn(f32, f32) -> f32);
+        intrinsic_on!("llvm.maxnum.f64", fn(f64, f64) -> f64);
+
+        intrinsic_on!("llvm.floor.f32", fn(f32) -> f32);
+        intrinsic_on!("llvm.floor.f64", fn(f64) -> f64);
+
+        intrinsic_on!("llvm.ceil.f32", fn(f32) -> f32);
+        intrinsic_on!("llvm.ceil.f64", fn(f64) -> f64);
+
+        intrinsic_on!("llvm.trunc.f32", fn(f32) -> f32);
+        intrinsic_on!("llvm.trunc.f64", fn(f64) -> f64);
+
+        intrinsic_on!("llvm.copysign.f32", fn(f32, f32) -> f32);
+        intrinsic_on!("llvm.copysign.f64", fn(f64, f64) -> f64);
+        intrinsic_on!("llvm.round.f32", fn(f32) -> f32);
+        intrinsic_on!("llvm.round.f64", fn(f64) -> f64);
+
+        intrinsic_on!("llvm.rint.f32", fn(f32) -> f32);
+        intrinsic_on!("llvm.rint.f64", fn(f64) -> f64);
+        intrinsic_on!("llvm.nearbyint.f32", fn(f32) -> f32);
+        intrinsic_on!("llvm.nearbyint.f64", fn(f64) -> f64);
+
+        intrinsic_on!("llvm.ctpop.i8", fn(i8) -> i8);
+        intrinsic_on!("llvm.ctpop.i16", fn(i16) -> i16);
+        intrinsic_on!("llvm.ctpop.i32", fn(i32) -> i32);
+        intrinsic_on!("llvm.ctpop.i64", fn(i64) -> i64);
+        intrinsic_on!("llvm.ctpop.i128", fn(i128) -> i128);
+
+        intrinsic_on!("llvm.ctlz.i8", fn(i8, bool) -> i8);
+        intrinsic_on!("llvm.ctlz.i16", fn(i16, bool) -> i16);
+        intrinsic_on!("llvm.ctlz.i32", fn(i32, bool) -> i32);
+        intrinsic_on!("llvm.ctlz.i64", fn(i64, bool) -> i64);
+        intrinsic_on!("llvm.ctlz.i128", fn(i128, bool) -> i128);
+
+        intrinsic_on!("llvm.cttz.i8", fn(i8, bool) -> i8);
+        intrinsic_on!("llvm.cttz.i16", fn(i16, bool) -> i16);
+        intrinsic_on!("llvm.cttz.i32", fn(i32, bool) -> i32);
+        intrinsic_on!("llvm.cttz.i64", fn(i64, bool) -> i64);
+        intrinsic_on!("llvm.cttz.i128", fn(i128, bool) -> i128);
+
+        intrinsic_on!("llvm.bswap.i16", fn(i16) -> i16);
+        intrinsic_on!("llvm.bswap.i32", fn(i32) -> i32);
+        intrinsic_on!("llvm.bswap.i64", fn(i64) -> i64);
+        intrinsic_on!("llvm.bswap.i128", fn(i128) -> i128);
+
+        intrinsic_on!("llvm.bitreverse.i8", fn(i8) -> i8);
+        intrinsic_on!("llvm.bitreverse.i16", fn(i16) -> i16);
+        intrinsic_on!("llvm.bitreverse.i32", fn(i32) -> i32);
+        intrinsic_on!("llvm.bitreverse.i64", fn(i64) -> i64);
+        intrinsic_on!("llvm.bitreverse.i128", fn(i128) -> i128);
+
+        intrinsic_on!("llvm.fshl.i8", fn(i8, i8, i8) -> i8);
+        intrinsic_on!("llvm.fshl.i16", fn(i16, i16, i16) -> i16);
+        intrinsic_on!("llvm.fshl.i32", fn(i32, i32, i32) -> i32);
+        intrinsic_on!("llvm.fshl.i64", fn(i64, i64, i64) -> i64);
+        intrinsic_on!("llvm.fshl.i128", fn(i128, i128, i128) -> i128);
+
+        intrinsic_on!("llvm.fshr.i8", fn(i8, i8, i8) -> i8);
+        intrinsic_on!("llvm.fshr.i16", fn(i16, i16, i16) -> i16);
+        intrinsic_on!("llvm.fshr.i32", fn(i32, i32, i32) -> i32);
+        intrinsic_on!("llvm.fshr.i64", fn(i64, i64, i64) -> i64);
+        intrinsic_on!("llvm.fshr.i128", fn(i128, i128, i128) -> i128);
+
+        // Overflow intrinsics
+
+        intrinsic_on!("llvm.sadd.with.overflow.i8", fn(i8, i8) -> struct_ty! {i8, bool});
+        intrinsic_on!("llvm.sadd.with.overflow.i16", fn(i16, i16) -> struct_ty! {i16, bool});
+        intrinsic_on!("llvm.sadd.with.overflow.i32", fn(i32, i32) -> struct_ty! {i32, bool});
+        intrinsic_on!("llvm.sadd.with.overflow.i64", fn(i64, i64) -> struct_ty! {i64, bool});
+        intrinsic_on!("llvm.sadd.with.overflow.i128", fn(i128, i128) -> struct_ty! {i128, bool});
+
+        intrinsic_on!("llvm.uadd.with.overflow.i8", fn(i8, i8) -> struct_ty! {i8, bool});
+        intrinsic_on!("llvm.uadd.with.overflow.i16", fn(i16, i16) -> struct_ty! {i16, bool});
+        intrinsic_on!("llvm.uadd.with.overflow.i32", fn(i32, i32) -> struct_ty! {i32, bool});
+        intrinsic_on!("llvm.uadd.with.overflow.i64", fn(i64, i64) -> struct_ty! {i64, bool});
+        intrinsic_on!("llvm.uadd.with.overflow.i128", fn(i128, i128) -> struct_ty! {i128, bool});
+
+        intrinsic_on!("llvm.ssub.with.overflow.i8", fn(i8, i8) -> struct_ty! {i8, bool});
+        intrinsic_on!("llvm.ssub.with.overflow.i16", fn(i16, i16) -> struct_ty! {i16, bool});
+        intrinsic_on!("llvm.ssub.with.overflow.i32", fn(i32, i32) -> struct_ty! {i32, bool});
+        intrinsic_on!("llvm.ssub.with.overflow.i64", fn(i64, i64) -> struct_ty! {i64, bool});
+        intrinsic_on!("llvm.ssub.with.overflow.i128", fn(i128, i128) -> struct_ty! {i128, bool});
+
+        intrinsic_on!("llvm.usub.with.overflow.i8", fn(i8, i8) -> struct_ty! {i8, bool});
+        intrinsic_on!("llvm.usub.with.overflow.i16", fn(i16, i16) -> struct_ty! {i16, bool});
+        intrinsic_on!("llvm.usub.with.overflow.i32", fn(i32, i32) -> struct_ty! {i32, bool});
+        intrinsic_on!("llvm.usub.with.overflow.i64", fn(i64, i64) -> struct_ty! {i64, bool});
+        intrinsic_on!("llvm.usub.with.overflow.i128", fn(i128, i128) -> struct_ty! {i128, bool});
+
+        intrinsic_on!("llvm.smul.with.overflow.i8", fn(i8, i8) -> struct_ty! {i8, bool});
+        intrinsic_on!("llvm.smul.with.overflow.i16", fn(i16, i16) -> struct_ty! {i16, bool});
+        intrinsic_on!("llvm.smul.with.overflow.i32", fn(i32, i32) -> struct_ty! {i32, bool});
+        intrinsic_on!("llvm.smul.with.overflow.i64", fn(i64, i64) -> struct_ty! {i64, bool});
+        intrinsic_on!("llvm.smul.with.overflow.i128", fn(i128, i128) -> struct_ty! {i128, bool});
+
+        intrinsic_on!("llvm.umul.with.overflow.i8", fn(i8, i8) -> struct_ty! {i8, bool});
+        intrinsic_on!("llvm.umul.with.overflow.i16", fn(i16, i16) -> struct_ty! {i16, bool});
+        intrinsic_on!("llvm.umul.with.overflow.i32", fn(i32, i32) -> struct_ty! {i32, bool});
+        intrinsic_on!("llvm.umul.with.overflow.i64", fn(i64, i64) -> struct_ty! {i64, bool});
+        intrinsic_on!("llvm.umul.with.overflow.i128", fn(i128, i128) -> struct_ty! {i128, bool});
+
+        None
+    }
+
+    /// Function that is used to insert an intrinsic into the current module,
+    /// essentially declaring it for use.
+    fn insert_intrinsic(
+        &self,
+        name: &'static str,
         args: &[<Self as BackendTypes>::Type],
         return_ty: <Self as BackendTypes>::Type,
     ) -> (<Self as BackendTypes>::Type, <Self as BackendTypes>::Value) {
-        todo!()
+        let func_ty = self.type_function(args, return_ty);
+        let func = self.declare_c_fn(name, UnnamedAddress::None, func_ty);
+
+        // Now we add the function into the "intrinsics" map in order to
+        // avoid re-declaring the function or re-resolving the function.
+        self.intrinsics.borrow_mut().insert(name, (func_ty, func));
+        (func_ty, func)
+    }
+
+    /// Attempt to resolve an intrinsic function that is "simple" in
+    /// nature. The notion of "simple" implies that only a call needs
+    /// to be generated for this intrinsic function, all others are
+    /// considered "special" and require additional steps to generate
+    /// code for.
+    fn get_simple_intrinsic(
+        &self,
+        name: Identifier,
+    ) -> Option<(<Self as BackendTypes>::Type, <Self as BackendTypes>::Value)> {
+        let name = None;
+
+        name.map(|name| self.get_intrinsic_function(name))
     }
 }
 
@@ -69,11 +304,11 @@ impl<'b> IntrinsicBuilderMethods<'b> for Builder<'b> {
         let result_ref = PlaceRef::new(self, result, fn_abi.ret_abi.info);
 
         // if we can simply resolve the intrinsic then we can just call it directly...
-        let value = if let Some((ty, value)) = self.get_intrinsic_function(name.into()) {
+        let value = if let Some((ty, value)) = self.get_simple_intrinsic(name) {
             self.call(ty, None, value, args)
         } else {
             // @@Todo: deal with more "non-trivial" intrinsics
-            panic!("unable to resolve intrinsic function: {name}")
+            unimplemented!("intrinsic function `{name}` is not trivial")
         };
 
         // If the result isn't ignored, then we write the result into the provided
