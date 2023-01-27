@@ -4,7 +4,7 @@ use hash_codegen::traits::{
     ty::BuildTypeMethods,
 };
 use hash_ir::ir::Const;
-use hash_source::constant::InternedStr;
+use hash_source::constant::{InternedStr, CONSTANT_MAP};
 use hash_target::{abi::Scalar, data_layout::HasDataLayout};
 use hash_utils::store::StoreKey;
 use inkwell::{
@@ -142,7 +142,27 @@ impl<'b> ConstValueBuilderMethods<'b> for CodeGenCtx<'b> {
     }
 
     fn const_scalar_value(&self, const_value: Const, abi: Scalar, ty: Self::Type) -> Self::Value {
-        todo!()
+        match const_value {
+            // This is handled at the translation layer, `const_scalar_value` should not be called
+            // on a ZST.
+            Const::Zero(_) => unreachable!("`const_scalar_value` should not be called on a ZST"),
+            Const::Bool(val) => self.const_bool(val),
+            Const::Char(ch) => self.const_u32(ch as u32),
+            Const::Int(interned_int) => {
+                let const_int = CONSTANT_MAP.lookup_int_constant(interned_int);
+
+                const_int.as_small().map(|value| self.const_uint_big(ty, value)).unwrap_or_else(
+                    || {
+                        // @@Todo: deal with bigints...
+                        unimplemented!()
+                    },
+                )
+            }
+            Const::Float(interned_float) => {
+                self.const_float(ty, CONSTANT_MAP.lookup_float_constant(interned_float).as_f64())
+            }
+            Const::Str(str) => self.const_str(str).0,
+        }
     }
 
     fn const_to_optional_u128(&self, value: Self::Value, sign_extend: bool) -> Option<u128> {
