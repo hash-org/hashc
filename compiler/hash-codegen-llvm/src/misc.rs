@@ -3,6 +3,9 @@
 
 use hash_codegen::common::{AtomicOrdering, IntComparisonKind, RealComparisonKind};
 use hash_target::abi::AddressSpace;
+use inkwell::attributes::Attribute;
+
+use crate::context::CodeGenCtx;
 
 /// Wrapper type around [inkwell::IntPredicate] to allow for conversion from
 /// [IntComparisonKind].
@@ -97,4 +100,65 @@ pub enum MetadataTypeKind {
     Align = 17,
     Type = 19,
     NoUndef = 29,
+}
+
+/// Represents a **subset** the attribute kinds that can be applied to a
+/// function or a call site of a function. This mimics the LLVM `AttributeKind`
+/// enum defined in `llvm/IR/Attributes.h`, more specifically at
+/// <https://github.com/llvm/llvm-project/blob/bf47ffaa76fbda1ba96d41ee2681e45d2445be1e/llvm/include/llvm/IR/Attributes.td#L63>
+#[derive(Copy, Clone, Debug)]
+pub enum AttributeKind {
+    AlwaysInline = 0,
+    ByVal = 1,
+    Cold = 2,
+    InlineHint = 3,
+    MinSize = 4,
+    Naked = 5,
+    NoAlias = 6,
+    NoCapture = 7,
+    NoInline = 8,
+    NonNull = 9,
+    NoRedZone = 10,
+    NoReturn = 11,
+    NoUnwind = 12,
+    OptimizeForSize = 13,
+    ReadOnly = 14,
+    SExt = 15,
+    StructRet = 16,
+    UWTable = 17,
+    ZExt = 18,
+    InReg = 19,
+    SanitizeThread = 20,
+    SanitizeAddress = 21,
+    SanitizeMemory = 22,
+    NonLazyBind = 23,
+    OptimizeNone = 24,
+    ReturnsTwice = 25,
+    ReadNone = 26,
+    SanitizeHWAddress = 28,
+    WillReturn = 29,
+    StackProtectReq = 30,
+    StackProtectStrong = 31,
+    StackProtect = 32,
+    NoUndef = 33,
+    SanitizeMemTag = 34,
+    NoCfCheck = 35,
+    ShadowCallStack = 36,
+    AllocSize = 37,
+    AllocatedPointer = 38,
+    AllocAlign = 39,
+}
+
+impl AttributeKind {
+    /// Create an [Attribute] from an [AttributeKind].
+    pub fn create_attribute(&self, ctx: &CodeGenCtx<'_>) -> Attribute {
+        // @@Naming: the `create_enum_attribute` will create an attribute
+        // with just an integer value, furthermore the value "0" denotes that
+        // the attribute is just a flag. This is a really bad design
+        // decision on the wrapper, but we can't do much here beyond complaining...
+        // or patching an existing wrapper.
+        //
+        // This comes from having a look at https://docs.hdoc.io/hdoc/llvm-project/rA9A65D21E1B5E7CF.html#DEBC8EEACD63FC31
+        ctx.ll_ctx.create_enum_attribute(*self as u32, 0)
+    }
 }
