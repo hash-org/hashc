@@ -11,6 +11,7 @@
 
 use hash_abi::{ArgAbi, FnAbi, PassMode};
 use hash_ir::{
+    intrinsics::Intrinsic,
     ir::{self},
     ty::IrTy,
 };
@@ -19,7 +20,6 @@ use hash_source::constant::CONSTANT_MAP;
 use hash_target::abi::{AbiRepresentation, ValidScalarRange};
 
 use super::{
-    intrinsics::Intrinsic,
     locals::LocalRef,
     operands::{OperandRef, OperandValue},
     place::PlaceRef,
@@ -539,7 +539,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
         let (fn_abi, fn_ptr) = self.resolve_intrinsic(builder, Intrinsic::Panic);
 
         // Finally we emit this as a call to panic...
-        self.codegen_fn_call(builder, fn_abi, fn_ptr, args, &[], None, false)
+        self.codegen_fn_call(builder, &fn_abi, fn_ptr, args, &[], None, false)
     }
 
     /// Function that prepares a function call to be generated, and the emits

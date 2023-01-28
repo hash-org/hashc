@@ -18,7 +18,7 @@
 //! artifacts since it will run the bytecode directly using the VM. On the other
 //! hand, LLVM backend will emit a runnable executable after the code is
 //! generated.
-#![feature(let_chains, box_patterns)]
+#![feature(let_chains, box_patterns, variant_count)]
 
 pub mod common;
 pub mod lower;
