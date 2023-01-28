@@ -2,26 +2,29 @@
 //! code and resolving references to intrinsic function calls.
 
 use hash_abi::FnAbi;
+use hash_ir::{intrinsics::Intrinsic, ty::IrTy};
 
 use super::FnBuilder;
-use crate::traits::builder::BlockBuilderMethods;
-
-/// Defines all of the intrinsics that are present within the
-/// language runtime, and can be accessed by the language.
-///
-/// @@Todo: this needs to record the number of arguments the intrinsic
-/// takes, and possibly other information.
-pub enum Intrinsic {
-    Panic,
-}
+use crate::traits::{builder::BlockBuilderMethods, ctx::HasCtxMethods, misc::MiscBuilderMethods};
 
 impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
     /// Resolve a reference to an [Intrinsic].
-    pub(super) fn resolve_intrinsic<'a>(
-        &self,
-        _builder: &mut Builder,
-        _intrinsic: Intrinsic,
-    ) -> (&'a FnAbi, Builder::Value) {
-        todo!()
+    pub(super) fn resolve_intrinsic(
+        &mut self,
+        builder: &mut Builder,
+        intrinsic: Intrinsic,
+    ) -> (FnAbi, Builder::Value) {
+        // @@ErrorHandling: propagate the error into the compiler pipeline, thus
+        // terminating the workflow if this error occurs which it shouldn't
+        let ty = self.ctx.ir_ctx().intrinsics().get(intrinsic).unwrap();
+        let abi = self.compute_fn_abi_from_ty(ty).unwrap();
+
+        // Get function pointer from the specified instance
+        let instance = self.ctx.ir_ctx().map_ty(ty, |ty| match ty {
+            IrTy::Fn { instance, .. } => *instance,
+            _ => panic!("expected function type when resolving intrinsic item"),
+        });
+
+        (abi, builder.get_fn_ptr(instance))
     }
 }

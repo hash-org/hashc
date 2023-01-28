@@ -17,7 +17,10 @@ use hash_target::{
 };
 use hash_utils::store::Store;
 use inkwell as llvm;
-use llvm::types::{AnyType, AnyTypeEnum, AsTypeRef, BasicType, BasicTypeEnum, VectorType};
+use llvm::types::{
+    AnyType, AnyTypeEnum, AsTypeRef, BasicMetadataTypeEnum, BasicType, BasicTypeEnum, MetadataType,
+    VectorType,
+};
 use llvm_sys::{
     core::{LLVMGetTypeKind, LLVMVectorType},
     LLVMTypeKind,
@@ -25,7 +28,10 @@ use llvm_sys::{
 use smallvec::SmallVec;
 
 use super::abi::ExtendedFnAbiMethods;
-use crate::{context::CodeGenCtx, misc::AddressSpaceWrapper};
+use crate::{
+    context::CodeGenCtx,
+    misc::{AddressSpaceWrapper, MetadataTypeKind},
+};
 
 /// Convert a [BasicTypeEnum] into a [AnyTypeEnum].
 ///
@@ -62,6 +68,18 @@ impl<'b> CodeGenCtx<'b> {
         };
 
         AnyTypeEnum::VectorType(vec_ty)
+    }
+
+    /// Create a `void` type, which is used for functions that don't return
+    /// any value, equivalently a `()` type.
+    pub(crate) fn type_void(&self) -> AnyTypeEnum<'b> {
+        self.ll_ctx.void_type().into()
+    }
+
+    /// Create a metadata type tht might be used to interact with some
+    /// LLVM intrinsics and debug information.
+    pub(crate) fn type_metadata(&self) -> MetadataType<'b> {
+        self.ll_ctx.metadata_type()
     }
 
     /// Create a type that represents the padding that is needed for a

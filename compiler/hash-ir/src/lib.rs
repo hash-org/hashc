@@ -5,10 +5,12 @@
     associated_type_defaults,
     type_alias_impl_trait,
     decl_macro,
-    box_patterns
+    box_patterns,
+    variant_count
 )]
 
 pub mod basic_blocks;
+pub mod intrinsics;
 pub mod ir;
 pub mod traversal;
 pub mod ty;
@@ -19,6 +21,7 @@ use std::cell::{Ref, RefCell};
 
 use hash_tir::{nominals::NominalDefId, terms::TermId};
 use hash_utils::store::{FxHashMap, SequenceStore, Store};
+use intrinsics::Intrinsics;
 use ir::{Body, Local, Place, PlaceProjection, ProjectionStore};
 use ty::{AdtData, AdtId, AdtStore, IrTy, IrTyId, TyListStore, TyStore};
 
@@ -95,6 +98,10 @@ pub struct IrCtx {
 
     /// Cache for the [IrTyId]s that are created from [TermId]s.
     ty_cache: RefCell<FxHashMap<TyCacheEntry, IrTyId>>,
+
+    /// A map of all "language" intrinsics that might need to be
+    /// generated during the lowering process.
+    intrinsics: Intrinsics,
 }
 
 impl IrCtx {
@@ -102,11 +109,17 @@ impl IrCtx {
     pub fn new() -> Self {
         Self {
             projection_store: ProjectionStore::default(),
+            intrinsics: Intrinsics::new(),
             ty_store: TyStore::new(),
             ty_list_store: TyListStore::default(),
             adt_store: AdtStore::new(),
             ty_cache: RefCell::new(FxHashMap::default()),
         }
+    }
+
+    /// Get a reference to the [Intrinsics] map.
+    pub fn intrinsics(&self) -> &Intrinsics {
+        &self.intrinsics
     }
 
     /// Get a reference to the [TyStore].

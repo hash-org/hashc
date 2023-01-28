@@ -42,7 +42,7 @@ use super::{
     Builder,
 };
 use crate::misc::{
-    AtomicOrderingWrapper, FloatPredicateWrapper, IntPredicateWrapper, MetadataType,
+    AtomicOrderingWrapper, FloatPredicateWrapper, IntPredicateWrapper, MetadataTypeKind,
 };
 
 impl<'b> Builder<'b> {
@@ -804,7 +804,7 @@ impl<'b> BlockBuilderMethods<'b> for Builder<'b> {
                     load_value
                 });
 
-                return OperandRef::from_immediate_value(value, place.info);
+                return OperandRef::from_immediate_value_or_scalar_pair(self, value, place.info);
             } else if let AbiRepresentation::Pair(scalar_a, scalar_b) = layout.abi {
                 let b_offset = scalar_a.size(self).align_to(scalar_b.align(self).abi);
                 let pair_ty = place.info.llvm_ty(self.ctx);
@@ -1052,7 +1052,7 @@ impl<'b> BlockBuilderMethods<'b> for Builder<'b> {
         let metadata = self.ctx.ll_ctx.metadata_node(&[start, end]);
 
         let value = load_value.into_instruction_value();
-        value.set_metadata(metadata, MetadataType::Range as u32);
+        value.set_metadata(metadata, MetadataTypeKind::Range as u32);
     }
 
     fn extract_field(&mut self, value: Self::Value, field_index: usize) -> Self::Value {

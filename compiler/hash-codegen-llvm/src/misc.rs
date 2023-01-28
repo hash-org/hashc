@@ -86,7 +86,7 @@ impl From<AddressSpace> for AddressSpaceWrapper {
 /// Defined in <https://github.com/llvm-mirror/llvm/blob/master/include/llvm/IR/FixedMetadataKinds.def>
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub enum MetadataType {
+pub enum MetadataTypeKind {
     FpMath = 3,
     Range = 4,
     InvariantLoad = 6,

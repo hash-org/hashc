@@ -13,7 +13,7 @@ use llvm::{
 };
 
 use super::Builder;
-use crate::misc::MetadataType;
+use crate::misc::MetadataTypeKind;
 
 impl<'b> Builder<'b> {
     /// Emit a `no-undef` metadata attribute on a specific value.
@@ -21,7 +21,7 @@ impl<'b> Builder<'b> {
         let value = value.into_instruction_value();
 
         let metadata = self.ctx.ll_ctx.metadata_node(&[]);
-        value.set_metadata(metadata, MetadataType::NoUndef as u32);
+        value.set_metadata(metadata, MetadataTypeKind::NoUndef as u32);
     }
 
     /// Emit a `nonnull` metadata attribute on a specific value.
@@ -29,7 +29,7 @@ impl<'b> Builder<'b> {
         let value = value.into_instruction_value();
 
         let metadata = self.ctx.ll_ctx.metadata_node(&[]);
-        value.set_metadata(metadata, MetadataType::NonNull as u32);
+        value.set_metadata(metadata, MetadataTypeKind::NonNull as u32);
     }
 
     /// Specify the alignment for a particular value.
@@ -41,7 +41,7 @@ impl<'b> Builder<'b> {
 
         let metadata = self.ctx.ll_ctx.metadata_node(&[alignment_metadata]);
 
-        value.set_metadata(metadata, MetadataType::Align as u32);
+        value.set_metadata(metadata, MetadataTypeKind::Align as u32);
     }
 
     /// Emit lifetime marker information to LLVM via a `llvm.lifetime.start`

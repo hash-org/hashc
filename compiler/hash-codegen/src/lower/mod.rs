@@ -78,6 +78,11 @@ pub struct FnBuilder<'b, Builder: BlockBuilderMethods<'b>> {
     /// immediate values as judged by [`Self::rvalue_creates_operand`].
     locals: IndexVec<Local, LocalRef<Builder::Value>>,
 
+    /// A map that denotes the "lowering" status of each block from an
+    /// [ir::BasicBlock] to a [`Builder::BasicBlock`]. This is used to
+    /// to not only keep track of which blocks have been lowered, but to
+    /// also facilitate the ability to merge blocks together during the
+    /// lowering process.
     block_map: IndexVec<ir::BasicBlock, BlockStatus<Builder::BasicBlock>>,
 
     /// A commonly shared "unreachable" block in order to avoid
@@ -217,7 +222,11 @@ fn allocate_argument_locals<'b, Builder: BlockBuilderMethods<'b>>(
                         let arg_value = builder.get_param(param_index);
                         param_index += 1;
 
-                        return local(OperandRef::from_immediate_value(arg_value, arg_abi.info));
+                        return local(OperandRef::from_immediate_value_or_scalar_pair(
+                            builder,
+                            arg_value,
+                            arg_abi.info,
+                        ));
                     }
 
                     // All other pass modes imply that there must be an allocation
