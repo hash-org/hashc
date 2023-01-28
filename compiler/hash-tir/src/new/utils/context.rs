@@ -12,7 +12,7 @@ use crate::{
             env::{AccessToEnv, Env},
         },
         params::{DefParamIndex, ParamId, ParamsId},
-        scopes::StackMemberId,
+        scopes::{DeclTerm, StackMemberId},
     },
     ty_as_variant,
 };
@@ -73,6 +73,20 @@ impl<'env> ContextUtils<'env> {
                 })
             }
             _ => panic!("add_stack_binding called in non-stack scope"),
+        }
+    }
+
+    /// Add the given declaration term to the context.
+    ///
+    /// This will add all the stack bindings of the declaration to the context
+    /// using `add_stack_binding`.
+    pub fn add_decl_term_to_context(&self, decl: &DeclTerm) {
+        let current_stack_id = match self.context().get_current_scope().kind {
+            ScopeKind::Stack(stack_id) => stack_id,
+            _ => unreachable!(), // decls are only allowed in stack scopes
+        };
+        for stack_index in decl.iter_stack_indices() {
+            self.add_stack_binding((current_stack_id, stack_index));
         }
     }
 

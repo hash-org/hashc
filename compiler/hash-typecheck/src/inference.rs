@@ -663,7 +663,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             Term::Ref(ref_term) => self.infer_ref_term(ref_term),
             Term::Cast(cast_term) => self.infer_cast_term(*cast_term),
 
-            Term::DeclStackMember(_) => todo!(),
+            Term::Decl(_) => todo!(),
             Term::Match(_) => todo!(),
             Term::Assign(_) => todo!(),
             Term::Access(_) => todo!(),

@@ -13,14 +13,14 @@ use hash_tir::{
         access::AccessTerm,
         args::{ArgData, ArgsId},
         casting::CastTerm,
-        control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
+        control::{LoopControlTerm, LoopTerm, MatchCase, MatchTerm, ReturnTerm},
         data::DataTy,
         environment::{context::ScopeKind, env::AccessToEnv},
         fns::{FnBody, FnCallTerm},
         lits::{CharLit, FloatLit, IntLit, Lit, PrimTerm, StrLit},
         params::ParamIndex,
         refs::{DerefTerm, RefKind, RefTerm},
-        scopes::{AssignTerm, BlockTerm, DeclStackMemberTerm},
+        scopes::{AssignTerm, BlockTerm, DeclTerm},
         terms::{Term, TermId, UnsafeTerm},
         tuples::TupleTerm,
         tys::Ty,
@@ -28,8 +28,8 @@ use hash_tir::{
     },
     term_as_variant,
 };
-use hash_utils::store::Store;
-use itertools::{multiunzip, Itertools};
+use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
+use itertools::Itertools;
 
 use super::{
     params::AstArgGroup,
@@ -434,7 +434,7 @@ impl<'tc> ResolutionPass<'tc> {
         &self,
         node: AstNodeRef<ast::Declaration>,
     ) -> SemanticResult<TermId> {
-        self.scoping().register_declaration(node);
+        let stack_indices = self.scoping().register_declaration(node);
 
         // Pattern
         let pat = self.try_or_add_error(self.make_pat_from_ast_pat(node.pat.ast_ref()));
@@ -453,8 +453,9 @@ impl<'tc> ResolutionPass<'tc> {
             .unwrap_or_else(|| Some(self.new_ty_hole()));
 
         match (pat, ty, value) {
-            (Some(pat), Some(ty), Some(value)) => Ok(self
-                .new_term(Term::DeclStackMember(DeclStackMemberTerm { bind_pat: pat, ty, value }))),
+            (Some(pat), Some(ty), Some(value)) => {
+                Ok(self.new_term(Term::Decl(DeclTerm { bind_pat: pat, ty, value, stack_indices })))
+            }
             _ => {
                 // If pat had an error, then we can't make a term, and the
                 // error will have been added already.
@@ -598,27 +599,25 @@ impl<'tc> ResolutionPass<'tc> {
         let subject = self.try_or_add_error(self.make_term_from_ast_expr(node.subject.ast_ref()));
 
         // Convert all the cases and their bodies
-        let cases_and_decisions: (Vec<_>, Vec<_>) =
-            multiunzip(node.cases.iter().filter_map(|case| {
-                self.scoping().enter_match_case(case.ast_ref(), |_| {
-                    let pattern =
+        let cases =
+            self.stores().match_cases().create_from_iter(node.cases.iter().filter_map(|case| {
+                self.scoping().enter_match_case(case.ast_ref(), |_, stack_indices| {
+                    let bind_pat =
                         self.try_or_add_error(self.make_pat_from_ast_pat(case.pat.ast_ref()));
-                    let body =
+                    let value =
                         self.try_or_add_error(self.make_term_from_ast_expr(case.expr.ast_ref()));
-                    match (pattern, body) {
-                        (Some(pattern), Some(body)) => Some((pattern, body)),
+                    match (bind_pat, value) {
+                        (Some(bind_pat), Some(value)) => {
+                            Some(MatchCase { bind_pat, value, stack_indices })
+                        }
                         _ => None,
                     }
                 })
             }));
 
         // Create a term if all ok
-        match (subject, cases_and_decisions.0.len() == node.cases.len()) {
-            (Some(subject), true) => {
-                let cases = self.new_pat_list(cases_and_decisions.0);
-                let decisions = self.new_term_list(cases_and_decisions.1);
-                Ok(self.new_term(Term::Match(MatchTerm { subject, cases, decisions })))
-            }
+        match (subject, cases.len() == node.cases.len()) {
+            (Some(subject), true) => Ok(self.new_term(Term::Match(MatchTerm { subject, cases }))),
             _ => Err(SemanticError::Signal),
         }
     }
@@ -631,7 +630,7 @@ impl<'tc> ResolutionPass<'tc> {
         node: AstNodeRef<ast::BodyBlock>,
     ) -> SemanticResult<TermId> {
         self.scoping()
-            .enter_body_block(node, |_| {
+            .enter_body_block(node, |stack_id| {
                 // Traverse the statements and the end expression
                 let statements = node
                     .statements
@@ -651,12 +650,20 @@ impl<'tc> ResolutionPass<'tc> {
                 match (expr, statements.len() == node.statements.len()) {
                     (Some(Some(expr)), true) => {
                         let statements = self.new_term_list(statements);
-                        Ok(self.new_term(Term::Block(BlockTerm { statements, return_value: expr })))
+                        Ok(self.new_term(Term::Block(BlockTerm {
+                            statements,
+                            return_value: expr,
+                            stack_id,
+                        })))
                     }
                     (None, true) => {
                         let statements = self.new_term_list(statements);
                         let return_value = self.new_void_term();
-                        Ok(self.new_term(Term::Block(BlockTerm { statements, return_value })))
+                        Ok(self.new_term(Term::Block(BlockTerm {
+                            statements,
+                            return_value,
+                            stack_id,
+                        })))
                     }
                     _ => Err(SemanticError::Signal),
                 }

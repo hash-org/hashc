@@ -3,6 +3,7 @@ use core::fmt;
 use std::ops::ControlFlow;
 
 use derive_more::{Constructor, From, TryInto};
+use hash_utils::store::SequenceStore;
 
 use super::{common::CommonUtils, AccessToUtils};
 use crate::{
@@ -11,7 +12,7 @@ use crate::{
         access::AccessTerm,
         args::{ArgData, ArgsId, PatArgData, PatArgsId},
         casting::CastTerm,
-        control::{IfPat, LoopTerm, MatchTerm, OrPat, ReturnTerm},
+        control::{IfPat, LoopTerm, MatchCase, MatchTerm, OrPat, ReturnTerm},
         data::{CtorPat, CtorTerm, DataTy},
         defs::{
             DefArgGroupData, DefArgsId, DefParamGroupData, DefParamsId, DefPatArgGroupData,
@@ -24,7 +25,7 @@ use crate::{
         params::{ParamData, ParamsId},
         pats::{Pat, PatId, PatListId},
         refs::{DerefTerm, RefTerm, RefTy},
-        scopes::{AssignTerm, BlockTerm, DeclStackMemberTerm},
+        scopes::{AssignTerm, BlockTerm, DeclTerm},
         terms::{RuntimeTerm, Term, TermId, TermListId, UnsafeTerm},
         tuples::{TuplePat, TupleTerm, TupleTy},
         tys::{Ty, TyId, TypeOfTerm},
@@ -119,31 +120,51 @@ impl<'env> TraversingUtils<'env> {
                 Term::Block(block_term) => {
                     let statements = self.fmap_term_list(block_term.statements, f)?;
                     let return_value = self.fmap_term(block_term.return_value, f)?;
-                    Ok(self.new_term(BlockTerm { statements, return_value }))
+                    Ok(self.new_term(BlockTerm {
+                        statements,
+                        return_value,
+                        stack_id: block_term.stack_id,
+                    }))
                 }
                 Term::Var(var_term) => Ok(self.new_term(var_term)),
                 Term::Loop(loop_term) => {
                     let statements = self.fmap_term_list(loop_term.block.statements, f)?;
                     let return_value = self.fmap_term(loop_term.block.return_value, f)?;
-                    Ok(self.new_term(LoopTerm { block: BlockTerm { statements, return_value } }))
+                    Ok(self.new_term(LoopTerm {
+                        block: BlockTerm {
+                            statements,
+                            return_value,
+                            stack_id: loop_term.block.stack_id,
+                        },
+                    }))
                 }
                 Term::LoopControl(loop_control_term) => Ok(self.new_term(loop_control_term)),
                 Term::Match(match_term) => {
                     let subject = self.fmap_term(match_term.subject, f)?;
-                    let cases = self.fmap_pat_list(match_term.cases, f)?;
-                    let decisions = self.fmap_term_list(match_term.decisions, f)?;
-                    Ok(self.new_term(MatchTerm { cases, decisions, subject }))
+                    let cases = self.stores().match_cases().map(match_term.cases, |cases| {
+                        self.stores().match_cases().try_create_from_iter(cases.iter().map(|case| {
+                            let bind_pat = self.fmap_pat(case.bind_pat, f)?;
+                            let value = self.fmap_term(case.value, f)?;
+                            Ok(MatchCase { bind_pat, stack_indices: case.stack_indices, value })
+                        }))
+                    })?;
+                    Ok(self.new_term(MatchTerm { cases, subject }))
                 }
                 Term::Return(return_term) => {
                     let expression = self.fmap_term(return_term.expression, f)?;
                     Ok(self.new_term(ReturnTerm { expression }))
                 }
-                Term::DeclStackMember(decl_stack_member_term) => {
+                Term::Decl(decl_stack_member_term) => {
                     let bind_pat = self.fmap_pat(decl_stack_member_term.bind_pat, f)?;
                     let ty = self.fmap_ty(decl_stack_member_term.ty, f)?;
                     let value =
                         decl_stack_member_term.value.map(|v| self.fmap_term(v, f)).transpose()?;
-                    Ok(self.new_term(DeclStackMemberTerm { ty, bind_pat, value }))
+                    Ok(self.new_term(DeclTerm {
+                        ty,
+                        bind_pat,
+                        value,
+                        stack_indices: decl_stack_member_term.stack_indices,
+                    }))
                 }
                 Term::Assign(assign_term) => {
                     let subject = self.fmap_term(assign_term.subject, f)?;
@@ -454,11 +475,17 @@ impl<'env> TraversingUtils<'env> {
                 Term::LoopControl(_) => Ok(()),
                 Term::Match(match_term) => {
                     self.visit_term(match_term.subject, f)?;
-                    self.visit_pat_list(match_term.cases, f)?;
-                    self.visit_term_list(match_term.decisions, f)
+
+                    self.stores().match_cases().map(match_term.cases, |cases| {
+                        for case in cases {
+                            self.visit_pat(case.bind_pat, f)?;
+                            self.visit_term(case.value, f)?;
+                        }
+                        Ok(())
+                    })
                 }
                 Term::Return(return_term) => self.visit_term(return_term.expression, f),
-                Term::DeclStackMember(decl_stack_member_term) => {
+                Term::Decl(decl_stack_member_term) => {
                     self.visit_pat(decl_stack_member_term.bind_pat, f)?;
                     self.visit_ty(decl_stack_member_term.ty, f)?;
                     let (Some(()) | None) =

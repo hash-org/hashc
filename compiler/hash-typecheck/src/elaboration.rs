@@ -16,10 +16,12 @@ use derive_more::{Constructor, Deref};
 use hash_tir::new::{
     environment::context::{Context, ScopeKind},
     holes::{Hole, HoleBinder, HoleBinderKind},
+    scopes::{BlockTerm, DeclTerm},
     terms::{Term, TermId},
     tys::TyId,
     utils::{common::CommonUtils, traversing::Atom, AccessToUtils},
 };
+use hash_utils::store::SequenceStore;
 
 use crate::{errors::TcResult, AccessToTypechecking};
 
@@ -178,15 +180,14 @@ impl<T: AccessToTypechecking> ElaborationOps<'_, T> {
         Ok(())
     }
 
-    // @@Todo:
-
     pub fn apply_tactic_on_type(
         &self,
-        _tac: impl Fn(HoleBinder) -> TcResult<TermId> + Copy,
-        _hole: Hole,
+        tac: impl Fn(HoleBinder) -> TcResult<TermId> + Copy,
+        hole: Hole,
         current: TyId,
     ) -> TcResult<TyId> {
-        self.traversing_utils().fmap_ty(current, |_term| todo!())
+        self.traversing_utils()
+            .fmap_ty(current, |atom| self.apply_tactic_on_atom_once(tac, hole, atom))
     }
 
     pub fn apply_tactic_on_term(
@@ -195,7 +196,17 @@ impl<T: AccessToTypechecking> ElaborationOps<'_, T> {
         hole: Hole,
         current: TermId,
     ) -> TcResult<TermId> {
-        self.traversing_utils().fmap_term(current, |term| match term {
+        self.traversing_utils()
+            .fmap_term(current, |atom| self.apply_tactic_on_atom_once(tac, hole, atom))
+    }
+
+    fn apply_tactic_on_atom_once(
+        &self,
+        tac: impl Fn(HoleBinder) -> TcResult<TermId> + Copy,
+        hole: Hole,
+        atom: Atom,
+    ) -> TcResult<ControlFlow<Atom>> {
+        match atom {
             Atom::Term(term_id) => match self.get_term(term_id) {
                 Term::HoleBinder(hole_binder) => match hole_binder.kind {
                     HoleBinderKind::Hole(hole_ty) => {
@@ -244,6 +255,44 @@ impl<T: AccessToTypechecking> ElaborationOps<'_, T> {
                         }
                     }
                 },
+                Term::Block(block_term) => {
+                    self.context_utils().enter_scope(block_term.stack_id.into(), || {
+                        self.stores().term_list().map(block_term.statements, |statements| {
+                            // @@Todo: multiple errors
+                            for statement in statements {
+                                let _ = self.apply_tactic_on_term(tac, hole, *statement)?;
+                            }
+                            let applied_return_value =
+                                self.apply_tactic_on_term(tac, hole, block_term.return_value)?;
+                            Ok(ControlFlow::Break(
+                                self.new_term(BlockTerm {
+                                    stack_id: block_term.stack_id,
+                                    statements: block_term.statements,
+                                    return_value: applied_return_value,
+                                })
+                                .into(),
+                            ))
+                        })
+                    })
+                }
+                Term::Decl(decl) => {
+                    let applied_ty = self.apply_tactic_on_type(tac, hole, decl.ty)?;
+                    let applied_value =
+                        decl.value.map(|v| self.apply_tactic_on_term(tac, hole, v)).transpose()?;
+                    self.context_utils().add_decl_term_to_context(&decl);
+
+                    Ok(ControlFlow::Break(
+                        self.new_term(DeclTerm {
+                            ty: applied_ty,
+                            value: applied_value,
+                            bind_pat: decl.bind_pat,
+                            stack_indices: decl.stack_indices,
+                        })
+                        .into(),
+                    ))
+                }
+                Term::Match(_) => todo!(),
+                Term::Assign(_) => todo!(),
 
                 // Recurse into inner
                 Term::Hole(_)
@@ -254,25 +303,20 @@ impl<T: AccessToTypechecking> ElaborationOps<'_, T> {
                 | Term::FnCall(_)
                 | Term::Var(_)
                 | Term::Loop(_)
+                | Term::Ty(_)
+                | Term::Ref(_)
+                | Term::Deref(_)
+                | Term::Cast(_)
+                | Term::Return(_)
+                | Term::LoopControl(_)
+                | Term::TypeOf(_)
+                | Term::Unsafe(_)
+                | Term::Access(_)
                 | Term::Runtime(_) => Ok(ControlFlow::Continue(())),
-
-                Term::Block(_) => todo!(),
-                Term::LoopControl(_) => todo!(),
-                Term::Match(_) => todo!(),
-                Term::Return(_) => todo!(),
-                Term::DeclStackMember(_) => todo!(),
-                Term::Assign(_) => todo!(),
-                Term::Unsafe(_) => todo!(),
-                Term::Access(_) => todo!(),
-                Term::Cast(_) => todo!(),
-                Term::TypeOf(_) => todo!(),
-                Term::Ty(_) => todo!(),
-                Term::Ref(_) => todo!(),
-                Term::Deref(_) => todo!(),
             },
             Atom::Ty(_) => todo!(),
             Atom::FnDef(_) => todo!(),
             Atom::Pat(_) => todo!(),
-        })
+        }
     }
 }
