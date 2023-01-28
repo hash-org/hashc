@@ -16,6 +16,7 @@ use derive_more::{Constructor, Deref};
 use hash_tir::new::{
     environment::context::{Context, ScopeKind},
     holes::{Hole, HoleBinder, HoleBinderKind},
+    pats::PatId,
     scopes::{BlockTerm, DeclTerm},
     terms::{Term, TermId},
     tys::TyId,
@@ -200,6 +201,16 @@ impl<T: AccessToTypechecking> ElaborationOps<'_, T> {
             .fmap_term(current, |atom| self.apply_tactic_on_atom_once(tac, hole, atom))
     }
 
+    pub fn apply_tactic_on_pat(
+        &self,
+        tac: impl Fn(HoleBinder) -> TcResult<TermId> + Copy,
+        hole: Hole,
+        current: PatId,
+    ) -> TcResult<PatId> {
+        self.traversing_utils()
+            .fmap_pat(current, |atom| self.apply_tactic_on_atom_once(tac, hole, atom))
+    }
+
     fn apply_tactic_on_atom_once(
         &self,
         tac: impl Fn(HoleBinder) -> TcResult<TermId> + Copy,
@@ -276,6 +287,7 @@ impl<T: AccessToTypechecking> ElaborationOps<'_, T> {
                     })
                 }
                 Term::Decl(decl) => {
+                    let applied_pat = self.apply_tactic_on_pat(tac, hole, decl.bind_pat)?;
                     let applied_ty = self.apply_tactic_on_type(tac, hole, decl.ty)?;
                     let applied_value =
                         decl.value.map(|v| self.apply_tactic_on_term(tac, hole, v)).transpose()?;
@@ -285,13 +297,15 @@ impl<T: AccessToTypechecking> ElaborationOps<'_, T> {
                         self.new_term(DeclTerm {
                             ty: applied_ty,
                             value: applied_value,
-                            bind_pat: decl.bind_pat,
+                            bind_pat: applied_pat,
                             stack_indices: decl.stack_indices,
                         })
                         .into(),
                     ))
                 }
-                Term::Match(_) => todo!(),
+                Term::Match(_) => {
+                    todo!()
+                }
                 Term::Assign(_) => todo!(),
 
                 // Recurse into inner

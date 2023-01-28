@@ -48,10 +48,14 @@ impl<'tc> AstPass for InferencePass<'tc> {
     ) -> crate::new::diagnostics::error::SemanticResult<()> {
         // Infer the whole module, which includes each member, and then print it
         // (@@Temp)
+
         let mod_def_id = self.ast_info().mod_defs().get_data_by_node(node.id()).unwrap();
         self.infer_ops().infer_mod_def(mod_def_id)?;
+        stream_less_writeln!("First: {}", self.env().with(mod_def_id));
 
-        stream_less_writeln!("{}", self.env().with(mod_def_id));
+        self.infer_ops().infer_mod_def(mod_def_id)?;
+        stream_less_writeln!("Second: {}", self.env().with(mod_def_id));
+
         Ok(())
     }
 }

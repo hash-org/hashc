@@ -163,19 +163,25 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             match self.try_or_add_error(infer_item(*term)) {
                 Some(Some(ty)) => {
                     match self.unification_ops().unify_tys(ty, current_ty) {
-                        Ok(Unification { sub }) => {
+                        Ok(Unification::Successful(sub)) => {
                             // Unification succeeded
                             self.substitution_ops().apply_sub_to_ty_in_place(current_ty, &sub);
+                        }
+                        Ok(Unification::Blocked) => {
+                            // Unification blocked, so we just continue
                         }
                         Err(err) => {
                             // Error in unification, try to unify the other way
                             match self.unification_ops().unify_tys(current_ty, ty) {
-                                Ok(Unification { sub }) => {
+                                Ok(Unification::Successful(sub)) => {
                                     // Unification succeeded the other way, so use this
                                     // type as a target
                                     current_ty = ty;
                                     self.substitution_ops()
                                         .apply_sub_to_ty_in_place(current_ty, &sub);
+                                }
+                                Ok(Unification::Blocked) => {
+                                    // Unification blocked, so we just continue
                                 }
                                 Err(_) => {
                                     // Error in unification, we only consider the first error
@@ -358,22 +364,28 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     let unification = self
                         .unification_ops()
                         .unify_params(inferred_fn_call_params, fn_ty.params)?;
+                    match unification {
+                        Unification::Successful(sub) => {
+                            // Apply the substitution to the arguments.
+                            self.substitution_ops()
+                                .apply_sub_to_args_in_place(fn_call_term.args, &sub);
 
-                    // Apply the substitution to the arguments.
-                    self.substitution_ops()
-                        .apply_sub_to_args_in_place(fn_call_term.args, &unification.sub);
+                            // Create a substitution from the parameters of the function type to the
+                            // parameters of the function call.
+                            let arg_sub =
+                                self.substitution_ops().create_sub_from_applying_args_to_params(
+                                    fn_call_term.args,
+                                    fn_ty.params,
+                                )?;
 
-                    // Create a substitution from the parameters of the function type to the
-                    // parameters of the function call.
-                    let arg_sub = self
-                        .substitution_ops()
-                        .create_sub_from_applying_args_to_params(fn_call_term.args, fn_ty.params)?;
+                            // Apply the substitution to the return type of the function type.
+                            let subbed_return_ty =
+                                self.substitution_ops().apply_sub_to_ty(fn_ty.return_ty, &arg_sub);
 
-                    // Apply the substitution to the return type of the function type.
-                    let subbed_return_ty =
-                        self.substitution_ops().apply_sub_to_ty(fn_ty.return_ty, &arg_sub);
-
-                    Ok(Some(subbed_return_ty))
+                            Ok(Some(subbed_return_ty))
+                        }
+                        Unification::Blocked => Ok(None),
+                    }
                 }
                 Ty::Universe(_) | Ty::Data(_) | Ty::Tuple(_) | Ty::Var(_) => {
                     // Type variable is not a function type.
@@ -407,21 +419,25 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     let inferred_return_ty = self.infer_term(fn_body)?;
 
                     // Unify the inferred return type with the declared return type.
-                    let Unification { sub: return_sub } = self.unification_ops().unify_tys(
+                    let unification = self.unification_ops().unify_tys(
                         inferred_return_ty.unwrap_or_else(|| self.new_ty_hole()),
                         fn_def.ty.return_ty,
                     )?;
 
-                    // Apply the substitution to the function.
-                    self.traversing_utils()
-                        .visit_fn_def::<!, _>(fn_def_id, &mut |atom| {
-                            Ok(self
-                                .substitution_ops()
-                                .apply_sub_to_atom_in_place_once(atom, &return_sub))
-                        })
-                        .into_ok();
-
-                    Ok(())
+                    match unification {
+                        Unification::Successful(sub) => {
+                            // Apply the substitution to the function.
+                            self.traversing_utils()
+                                .visit_fn_def::<!, _>(fn_def_id, &mut |atom| {
+                                    Ok(self
+                                        .substitution_ops()
+                                        .apply_sub_to_atom_in_place_once(atom, &sub))
+                                })
+                                .into_ok();
+                            Ok(())
+                        }
+                        Unification::Blocked => Ok(()),
+                    }
                 })?
             }
             FnBody::Intrinsic(_) | FnBody::Axiom => {
@@ -534,13 +550,18 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 // Unified the inferred parameters with the declared parameters.
                 let data_ty_params =
                     self.stores().data_def().map_fast(data_ty.data_def, |data_def| data_def.params);
-                let Unification { sub } =
+                let unification =
                     self.unification_ops().unify_def_params(inferred_def_params, data_ty_params)?;
 
-                // Apply the substitution to the arguments.
-                self.substitution_ops().apply_sub_to_def_args_in_place(data_ty.args, &sub);
+                match unification {
+                    Unification::Successful(sub) => {
+                        // Apply the substitution to the arguments.
+                        self.substitution_ops().apply_sub_to_def_args_in_place(data_ty.args, &sub);
 
-                Ok(Some(self.new_small_universe_ty()))
+                        Ok(Some(self.new_small_universe_ty()))
+                    }
+                    Unification::Blocked => Ok(None),
+                }
             }
             Ty::Universe(universe_ty) => Ok(Some(self.new_universe_ty(universe_ty.size + 1))),
             Ty::Hole(_) => Ok(None),
@@ -626,11 +647,16 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         let inferred_term_ty = self.infer_term(cast_term.subject_term)?;
         match inferred_term_ty {
             Some(inferred_term_ty) => {
-                let Unification { sub } =
+                let unification =
                     self.unification_ops().unify_tys(inferred_term_ty, cast_term.target_ty)?;
-                let subbed_target =
-                    self.substitution_ops().apply_sub_to_ty(cast_term.target_ty, &sub);
-                Ok(Some(subbed_target))
+                match unification {
+                    Unification::Successful(sub) => {
+                        let subbed_target =
+                            self.substitution_ops().apply_sub_to_ty(cast_term.target_ty, &sub);
+                        Ok(Some(subbed_target))
+                    }
+                    Unification::Blocked => Ok(None),
+                }
             }
             None => Ok(None),
         }
@@ -680,9 +706,14 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             Pat::Range(range_pat) => {
                 let start = self.infer_lit(&range_pat.start.into());
                 let end = self.infer_lit(&range_pat.end.into());
-                let Unification { sub } = self.unification_ops().unify_tys(start, end)?;
-                assert!(sub.is_empty());
-                Ok(Some(start))
+                let unification = self.unification_ops().unify_tys(start, end)?;
+                match unification {
+                    Unification::Successful(sub) => {
+                        assert!(sub.is_empty()); // @@Todo: specialised unification for no sub
+                        Ok(Some(start))
+                    }
+                    Unification::Blocked => Ok(None),
+                }
             }
             Pat::Lit(lit) => Ok(Some(self.infer_lit(&lit.into()))),
             Pat::Tuple(tuple_pat) => {
@@ -729,11 +760,17 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
                 match (cond_ty, pat_ty) {
                     (Some(cond_ty), Some(pat_ty)) => {
-                        let Unification { sub } = self
+                        let unification = self
                             .unification_ops()
                             .unify_tys(cond_ty, self.new_data_ty(self.primitives().bool()))?;
-                        assert!(sub.is_empty());
-                        Ok(Some(pat_ty))
+
+                        match unification {
+                            Unification::Successful(sub) => {
+                                assert!(sub.is_empty());
+                                Ok(Some(pat_ty))
+                            }
+                            Unification::Blocked => Ok(None),
+                        }
                     }
                     _ => Ok(None),
                 }

@@ -31,13 +31,7 @@ pub struct LoopTerm {
 ///
 /// This is the primitive of the pattern matching system.
 ///
-/// There is a subject, a set of case patterns, as well as a set of decisions.
-/// `decisions[i]` is parametrised by the binds in `cases[i]`.
-///
-/// This corresponds to `match subject { cases[1] => decisions[1],...,cases[n]
-/// => decisions[n] }`.
-///
-/// It is an invariant that `cases.len() == decisions.len()`.
+/// There is a subject, and set of cases.
 #[derive(Debug, Clone, Copy)]
 pub struct MatchTerm {
     pub subject: TermId,
