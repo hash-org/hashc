@@ -1,7 +1,6 @@
 #![feature(unwrap_infallible, never_type)]
-use std::cell::RefCell;
 
-use elaboration::{ElaborationOps, ProofState};
+use checking::CheckingOps;
 use errors::{TcError, TcResult};
 use hash_intrinsics::{intrinsics::AccessToIntrinsics, primitives::AccessToPrimitives};
 use hash_reporting::diagnostic::{AccessToDiagnostics, Diagnostics};
@@ -10,7 +9,7 @@ use inference::InferenceOps;
 use substitution::SubstitutionOps;
 use unification::UnificationOps;
 
-pub mod elaboration;
+pub mod checking;
 pub mod errors;
 pub mod inference;
 pub mod normalisation;
@@ -20,8 +19,6 @@ pub mod unification;
 pub trait AccessToTypechecking:
     AccessToEnv + AccessToPrimitives + AccessToIntrinsics + AccessToDiagnostics + Sized
 {
-    fn proof_state(&self) -> &RefCell<ProofState>;
-
     fn convert_tc_error(
         &self,
         error: TcError,
@@ -54,7 +51,11 @@ pub trait AccessToTypechecking:
         normalisation::NormalisationOps::new(self)
     }
 
-    fn elaboration_ops(&self) -> ElaborationOps<Self> {
-        ElaborationOps::new(self)
+    fn elaboration_ops(&self) -> CheckingOps<Self> {
+        CheckingOps::new(self)
+    }
+
+    fn checking_ops(&self) -> CheckingOps<Self> {
+        CheckingOps::new(self)
     }
 }
