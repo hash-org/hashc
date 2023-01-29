@@ -1,14 +1,19 @@
 //! This implements all of the ABI specified methods for the [Builder].
 
 use hash_codegen::{
-    abi::{ArgAbi, ArgAttributes, CallingConvention, FnAbi, PassMode},
+    abi::{
+        ArgAbi, ArgAttributeFlag, ArgAttributes, ArgExtension, CallingConvention, FnAbi, PassMode,
+    },
     lower::{operands::OperandValue, place::PlaceRef},
     traits::{
-        abi::AbiBuilderMethods, builder::BlockBuilderMethods, debug, layout::LayoutMethods,
-        ty::TypeBuilderMethods,
+        abi::AbiBuilderMethods, builder::BlockBuilderMethods, ctx::HasCtxMethods, debug,
+        layout::LayoutMethods, ty::TypeBuilderMethods,
     },
 };
-use hash_target::abi::{AbiRepresentation, ScalarKind};
+use hash_target::{
+    abi::{AbiRepresentation, ScalarKind},
+    size::Size,
+};
 use inkwell::{
     attributes::{Attribute, AttributeLoc},
     types::{AnyTypeEnum, BasicTypeEnum},
@@ -122,7 +127,7 @@ impl<'b> ExtendedArgAbiMethods<'b> for ArgAbi {
 pub trait ExtendedArgAttributeMethods<'b> {
     /// Get a list of attributes that are currently set on the
     /// [ArhAttributes].
-    fn get_attributes(&self) -> SmallVec<[Attribute; 4]>;
+    fn get_attributes(&self, ctx: &CodeGenCtx<'b>) -> SmallVec<[Attribute; 4]>;
 
     /// Apply the given [ArgAttributes] to the the [FunctionValue]
     /// with the specified [AttributeLoc] which indicates whether
@@ -147,29 +152,96 @@ pub trait ExtendedArgAttributeMethods<'b> {
     );
 }
 
+/// Attributes that affect the ABI of a function argument. These
+/// attributes (if present) are always applied onto the relevant
+/// argument.
+const ABI_AFFECTING_ATTRIBUTES: [(ArgAttributeFlag, AttributeKind); 1] =
+    [(ArgAttributeFlag::IN_REG, AttributeKind::InReg)];
+
+const ATTRIBUTE_MAP: [(ArgAttributeFlag, AttributeKind); 5] = [
+    (ArgAttributeFlag::NO_ALIAS, AttributeKind::NoAlias),
+    (ArgAttributeFlag::NO_CAPTURE, AttributeKind::NoCapture),
+    (ArgAttributeFlag::NO_UNDEF, AttributeKind::NoUndef),
+    (ArgAttributeFlag::NON_NULL, AttributeKind::NonNull),
+    (ArgAttributeFlag::READ_ONLY, AttributeKind::ReadOnly),
+];
+
 impl<'b> ExtendedArgAttributeMethods<'b> for ArgAttributes {
-    fn get_attributes(&self) -> SmallVec<[Attribute; 4]> {
-        // let mut attributes = SmallVec::new();
-        // attributes
-        todo!()
+    fn get_attributes(&self, ctx: &CodeGenCtx<'b>) -> SmallVec<[Attribute; 4]> {
+        let mut attributes = SmallVec::new();
+
+        // Always apply the ABI specific attributes.
+        for (flag, kind) in &ABI_AFFECTING_ATTRIBUTES {
+            if self.flags.contains(*flag) {
+                attributes.push(kind.create_attribute(ctx));
+            }
+        }
+
+        // If we need to extend the arguments, then specify this...
+        match self.extension {
+            ArgExtension::NoExtend => {}
+            ArgExtension::ZeroExtend => {
+                attributes.push(AttributeKind::ZExt.create_attribute(ctx));
+            }
+            ArgExtension::SignExtend => {
+                attributes.push(AttributeKind::SExt.create_attribute(ctx));
+            }
+        }
+
+        // If the optimisation level is set to "release" then we apply these
+        // arguments...
+        if ctx.settings().optimisation_level.is_release() {
+            let mut flags = self.flags;
+            let pointee_size = self.pointee_size.bytes();
+
+            if pointee_size != 0 {
+                let attribute = if self.flags.contains(ArgAttributeFlag::NON_NULL) {
+                    ctx.ll_ctx
+                        .create_enum_attribute(AttributeKind::Dereferenceable as u32, pointee_size)
+                } else {
+                    ctx.ll_ctx.create_enum_attribute(
+                        AttributeKind::DereferenceableOrNull as u32,
+                        pointee_size,
+                    )
+                };
+
+                attributes.push(attribute);
+
+                // Remove the nonnull attribute if it is present.
+                flags -= ArgAttributeFlag::NON_NULL;
+            }
+
+            for (flag, kind) in &ATTRIBUTE_MAP {
+                if flags.contains(*flag) {
+                    attributes.push(kind.create_attribute(ctx));
+                }
+            }
+        }
+
+        attributes
     }
 
     fn apply_attributes_to_fn(
         &self,
         ctx: &CodeGenCtx<'b>,
-        index: AttributeLoc,
-        value: FunctionValue<'b>,
+        location: AttributeLoc,
+        func: FunctionValue<'b>,
     ) {
-        todo!()
+        let attributes = self.get_attributes(ctx);
+
+        for attribute in attributes {
+            func.add_attribute(location, attribute);
+        }
     }
 
     fn apply_attributes_to_call_site(
         &self,
         ctx: &CodeGenCtx<'b>,
-        index: AttributeLoc,
-        value: CallSiteValue<'b>,
+        location: AttributeLoc,
+        call_site: CallSiteValue<'b>,
     ) {
-        todo!()
+        let attributes = self.get_attributes(ctx);
+        apply_attributes_call_site(location, &attributes, call_site)
     }
 }
 
