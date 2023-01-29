@@ -303,7 +303,7 @@ impl fmt::Display for WithEnv<'_, &BoundVarOrigin> {
                 let fn_params_id = self
                     .stores()
                     .ty()
-                    .map_fast(*fn_ty_id, |ty| ty_as_variant!(self, value ty, Fn).params);
+                    .map_fast(*fn_ty_id, |ty| ty_as_variant!(self, ty, Fn).params);
                 write!(
                     f,
                     "{}",

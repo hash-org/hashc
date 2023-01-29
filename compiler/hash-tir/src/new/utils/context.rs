@@ -198,7 +198,7 @@ impl<'env> ContextUtils<'env> {
                 let fn_ty = self
                     .stores()
                     .ty()
-                    .map_fast(fn_ty_id, |fn_ty_val| ty_as_variant!(self, value {*fn_ty_val}, Fn));
+                    .map_fast(fn_ty_id, |fn_ty_val| ty_as_variant!(self, { *fn_ty_val }, Fn));
                 self.add_params_to_context(fn_ty.params, |param_id| {
                     BoundVarOrigin::FnTy(fn_ty_id, param_id.into())
                 })

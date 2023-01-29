@@ -1,7 +1,7 @@
-#![feature(unwrap_infallible, never_type)]
+#![feature(unwrap_infallible, never_type, try_trait_v2, try_blocks)]
 
 use checking::CheckingOps;
-use errors::{TcError, TcResult};
+use errors::{TcError, TcErrorState, TcResult};
 use hash_intrinsics::{intrinsics::AccessToIntrinsics, primitives::AccessToPrimitives};
 use hash_reporting::diagnostic::{AccessToDiagnostics, Diagnostics};
 use hash_tir::new::environment::env::AccessToEnv;
@@ -32,6 +32,29 @@ pub trait AccessToTypechecking:
                 self.diagnostics().add_error(self.convert_tc_error(error));
                 None
             }
+        }
+    }
+
+    fn new_error_state(&self) -> TcErrorState {
+        TcErrorState::new()
+    }
+
+    fn return_or_register_errors<T>(
+        &self,
+        t: impl FnOnce() -> TcResult<T>,
+        mut error_state: TcErrorState,
+    ) -> TcResult<T> {
+        if error_state.has_errors() {
+            error_state.take_errors().into_iter().for_each(|error| {
+                self.diagnostics().add_error(self.convert_tc_error(error));
+            });
+            if error_state.has_blocked {
+                Err(TcError::Blocked)
+            } else {
+                Err(TcError::Signal)
+            }
+        } else {
+            t()
         }
     }
 

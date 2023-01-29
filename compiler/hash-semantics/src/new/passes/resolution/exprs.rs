@@ -691,7 +691,7 @@ impl<'tc> ResolutionPass<'tc> {
             ),
         })?;
 
-        let block = term_as_variant!(self, value self.get_term(inner), Block);
+        let block = term_as_variant!(self, self.get_term(inner), Block);
         Ok(self.new_term(Term::Loop(LoopTerm { block })))
     }
 

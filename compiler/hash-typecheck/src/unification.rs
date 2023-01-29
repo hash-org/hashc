@@ -18,23 +18,32 @@ use crate::{
 };
 
 #[derive(Debug, Clone)]
-pub enum Unification {
-    Successful(Sub),
-    Blocked,
+pub struct Uni {
+    pub sub: Sub,
 }
 
-impl Unification {
-    pub fn map(self, f: impl FnOnce(Sub) -> Sub) -> Self {
-        match self {
-            Unification::Successful(sub) => Unification::Successful(f(sub)),
-            Unification::Blocked => Unification::Blocked,
-        }
+impl Uni {
+    pub fn ok() -> TcResult<Uni> {
+        Ok(Uni { sub: Sub::identity() })
     }
 
-    pub fn and_then(self, f: impl FnOnce(Sub) -> TcResult<Unification>) -> TcResult<Unification> {
-        match self {
-            Unification::Successful(sub) => f(sub),
-            Unification::Blocked => Ok(Unification::Blocked),
+    pub fn ok_with(sub: Sub) -> TcResult<Uni> {
+        Ok(Uni { sub })
+    }
+
+    pub fn blocked() -> TcResult<Uni> {
+        Err(TcError::Blocked)
+    }
+
+    pub fn mismatch_types(src_id: TyId, target_id: TyId) -> TcResult<Uni> {
+        Err(TcError::MismatchingTypes { expected: target_id, actual: src_id })
+    }
+
+    pub fn ok_iff(cond: bool, src_id: TyId, target_id: TyId) -> TcResult<Uni> {
+        if cond {
+            Self::ok()
+        } else {
+            Self::mismatch_types(src_id, target_id)
         }
     }
 }
@@ -43,32 +52,8 @@ impl Unification {
 pub struct UnificationOps<'a, T: AccessToTypechecking>(&'a T);
 
 impl<T: AccessToTypechecking> UnificationOps<'_, T> {
-    fn ok(&self) -> TcResult<Unification> {
-        Ok(Unification::Successful(Sub::identity()))
-    }
-
-    fn ok_with(&self, sub: Sub) -> TcResult<Unification> {
-        Ok(Unification::Successful(sub))
-    }
-
-    fn blocked(&self) -> TcResult<Unification> {
-        Ok(Unification::Blocked)
-    }
-
-    fn mismatch_types(&self, src_id: TyId, target_id: TyId) -> TcResult<Unification> {
-        Err(TcError::MismatchingTypes { expected: target_id, actual: src_id })
-    }
-
-    fn ok_iff(&self, cond: bool, src_id: TyId, target_id: TyId) -> TcResult<Unification> {
-        if cond {
-            self.ok()
-        } else {
-            self.mismatch_types(src_id, target_id)
-        }
-    }
-
     /// Unify two types.
-    pub fn unify_tys(&self, src_id: TyId, target_id: TyId) -> TcResult<Unification> {
+    pub fn unify_tys(&self, src_id: TyId, target_id: TyId) -> TcResult<Uni> {
         let src = self.get_ty(src_id);
         let target = self.get_ty(target_id);
 
@@ -76,36 +61,36 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
             // @@Todo: eval fully
             (Ty::Eval(term), _) => match self.use_term_as_ty(term) {
                 Some(ty) => self.unify_tys(ty, target_id),
-                _ => self.mismatch_types(src_id, target_id),
+                _ => Uni::mismatch_types(src_id, target_id),
             },
             (_, Ty::Eval(term)) => match self.use_term_as_ty(term) {
                 Some(ty) => self.unify_tys(src_id, ty),
-                _ => self.mismatch_types(src_id, target_id),
+                _ => Uni::mismatch_types(src_id, target_id),
             },
 
             (Ty::Hole(a), Ty::Hole(b)) => {
                 if a == b {
                     // No-op
-                    self.ok()
+                    Uni::ok()
                 } else {
                     // We can't unify two holes, so we have to block
-                    self.blocked()
+                    Uni::blocked()
                 }
             }
             (Ty::Hole(a), _) => {
                 let sub = Sub::from_pairs([(a, self.new_term(target_id))]);
-                self.ok_with(sub)
+                Uni::ok_with(sub)
             }
             (_, Ty::Hole(b)) => {
                 let sub = Sub::from_pairs([(b, self.new_term(src_id))]);
-                self.ok_with(sub)
+                Uni::ok_with(sub)
             }
 
-            (Ty::Var(a), Ty::Var(b)) => self.ok_iff(a == b, src_id, target_id),
-            (Ty::Var(_), _) | (_, Ty::Var(_)) => self.mismatch_types(src_id, target_id),
+            (Ty::Var(a), Ty::Var(b)) => Uni::ok_iff(a == b, src_id, target_id),
+            (Ty::Var(_), _) | (_, Ty::Var(_)) => Uni::mismatch_types(src_id, target_id),
 
             (Ty::Tuple(t1), Ty::Tuple(t2)) => self.unify_params(t1.data, t2.data),
-            (Ty::Tuple(_), _) | (_, Ty::Tuple(_)) => self.mismatch_types(src_id, target_id),
+            (Ty::Tuple(_), _) | (_, Ty::Tuple(_)) => Uni::mismatch_types(src_id, target_id),
 
             (Ty::Fn(f1), Ty::Fn(f2)) => {
                 if f1.implicit != f2.implicit
@@ -113,43 +98,41 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
                     || f1.pure != f2.pure
                     || f1.params.len() != f2.params.len()
                 {
-                    self.mismatch_types(src_id, target_id)
+                    Uni::mismatch_types(src_id, target_id)
                 } else {
                     // @@Todo: dependent
-                    self.unify_params(f1.params, f2.params)?.and_then(|sub| {
-                        let return_ty_1_subbed =
-                            self.substitution_ops().apply_sub_to_ty(f1.return_ty, &sub);
-                        let return_ty_2_subbed =
-                            self.substitution_ops().apply_sub_to_ty(f2.return_ty, &sub);
-                        let unify_return =
-                            self.unify_tys(return_ty_1_subbed, return_ty_2_subbed)?;
-
-                        unify_return.and_then(|return_sub| self.ok_with(sub.join(&return_sub)))
-                    })
+                    let Uni { sub } = self.unify_params(f1.params, f2.params)?;
+                    let return_ty_1_subbed =
+                        self.substitution_ops().apply_sub_to_ty(f1.return_ty, &sub);
+                    let return_ty_2_subbed =
+                        self.substitution_ops().apply_sub_to_ty(f2.return_ty, &sub);
+                    let Uni { sub: return_sub } =
+                        self.unify_tys(return_ty_1_subbed, return_ty_2_subbed)?;
+                    Uni::ok_with(sub.join(&return_sub))
                 }
             }
-            (Ty::Fn(_), _) | (_, Ty::Fn(_)) => self.mismatch_types(src_id, target_id),
+            (Ty::Fn(_), _) | (_, Ty::Fn(_)) => Uni::mismatch_types(src_id, target_id),
 
             (Ty::Ref(r1), Ty::Ref(r2)) => {
                 if r1.mutable == r2.mutable && r1.kind == r2.kind {
                     self.unify_tys(r1.ty, r2.ty)
                 } else {
-                    self.mismatch_types(src_id, target_id)
+                    Uni::mismatch_types(src_id, target_id)
                 }
             }
-            (Ty::Ref(_), _) | (_, Ty::Ref(_)) => self.mismatch_types(src_id, target_id),
+            (Ty::Ref(_), _) | (_, Ty::Ref(_)) => Uni::mismatch_types(src_id, target_id),
 
             (Ty::Data(d1), Ty::Data(d2)) => {
                 if d1.data_def == d2.data_def {
                     self.unify_def_args(d1.args, d2.args)
                 } else {
-                    self.mismatch_types(src_id, target_id)
+                    Uni::mismatch_types(src_id, target_id)
                 }
             }
-            (Ty::Data(_), _) | (_, Ty::Data(_)) => self.mismatch_types(src_id, target_id),
+            (Ty::Data(_), _) | (_, Ty::Data(_)) => Uni::mismatch_types(src_id, target_id),
 
             (Ty::Universe(u1), Ty::Universe(u2)) => {
-                self.ok_iff(u1.size == u2.size, src_id, target_id)
+                Uni::ok_iff(u1.size == u2.size, src_id, target_id)
             }
         }
     }
@@ -158,12 +141,12 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
     ///
     /// Unless these are types, they must be definitionally (up to beta
     /// reduction) equal.
-    pub fn unify_terms(&self, src_id: TermId, target_id: TermId) -> TcResult<Unification> {
+    pub fn unify_terms(&self, src_id: TermId, target_id: TermId) -> TcResult<Uni> {
         let src = self.get_term(src_id);
         let target = self.get_term(target_id);
 
         let mismatch = || Err(TcError::UndecidableEquality { a: src_id, b: target_id });
-        let ok_iff = |cond| if cond { self.ok() } else { mismatch() };
+        let ok_iff = |cond| if cond { Uni::ok() } else { mismatch() };
 
         match (src, target) {
             (Term::Ty(t1), Term::Ty(t2)) => self.unify_tys(t1, t2),
@@ -179,22 +162,17 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
     /// to the result.
     pub fn reduce_unifications(
         &self,
-        unifications: impl Iterator<Item = TcResult<Unification>>,
-    ) -> TcResult<Unification> {
+        unifications: impl Iterator<Item = TcResult<Uni>>,
+    ) -> TcResult<Uni> {
         let mut sub = Sub::identity();
         for unification in unifications {
-            match unification? {
-                Unification::Successful(sub2) => {
-                    sub = sub.join(&sub2);
-                }
-                Unification::Blocked => return Ok(Unification::Blocked),
-            }
+            sub = sub.join(&unification?.sub);
         }
-        Ok(Unification::Successful(sub))
+        Uni::ok_with(sub)
     }
 
     /// Unify two parameter lists, creating a substitution of holes.
-    pub fn unify_params(&self, src_id: ParamsId, target_id: ParamsId) -> TcResult<Unification> {
+    pub fn unify_params(&self, src_id: ParamsId, target_id: ParamsId) -> TcResult<Uni> {
         self.map_params(src_id, |src| {
             self.map_params(target_id, |target| {
                 self.reduce_unifications(
@@ -207,7 +185,7 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
     }
 
     /// Unify two definition parameter lists, creating a substitution of holes.
-    pub fn unify_def_params(&self, src: DefParamsId, target: DefParamsId) -> TcResult<Unification> {
+    pub fn unify_def_params(&self, src: DefParamsId, target: DefParamsId) -> TcResult<Uni> {
         // @@Todo: dependent
         self.map_def_params(src, |src| {
             self.map_def_params(target, |target| {
@@ -221,7 +199,7 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
     }
 
     /// Unify two definition argument lists, creating a substitution of holes.
-    pub fn unify_def_args(&self, src: DefArgsId, target: DefArgsId) -> TcResult<Unification> {
+    pub fn unify_def_args(&self, src: DefArgsId, target: DefArgsId) -> TcResult<Uni> {
         // @@Todo: dependent
         self.map_def_args(src, |src| {
             self.map_def_args(target, |target| {
@@ -235,7 +213,7 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
     }
 
     /// Unify two argument lists, creating a substitution of holes.
-    pub fn unify_args(&self, src_id: ArgsId, target_id: ArgsId) -> TcResult<Unification> {
+    pub fn unify_args(&self, src_id: ArgsId, target_id: ArgsId) -> TcResult<Uni> {
         self.map_args(src_id, |src| {
             self.map_args(target_id, |target| {
                 self.reduce_unifications(

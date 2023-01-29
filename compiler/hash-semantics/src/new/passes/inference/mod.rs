@@ -6,7 +6,7 @@
 use derive_more::Constructor;
 use hash_ast::ast::{self};
 use hash_tir::new::environment::env::AccessToEnv;
-use hash_typecheck::AccessToTypechecking;
+use hash_typecheck::{errors::TcError, AccessToTypechecking};
 use hash_utils::stream_less_writeln;
 
 use super::ast_utils::AstPass;
@@ -32,10 +32,13 @@ impl<'tc> AstPass for InferencePass<'tc> {
         // Just infer the term corresponding to the body block, and then print it
         // (@@Temp)
         let term = self.ast_info().terms().get_data_by_node(node.id()).unwrap();
-        let ty = self.infer_ops().infer_term(term)?;
+        let ty = self.infer_ops().infer_term(term, None);
         let ty_str = match ty {
-            Some(ty) => self.env().with(ty).to_string(),
-            None => "<unknown>".to_string(),
+            Ok(ty) => self.env().with(ty).to_string(),
+            Err(TcError::Blocked) => "<unknown>".to_string(),
+            Err(err) => {
+                return Err(err.into());
+            }
         };
 
         stream_less_writeln!("{}: {}", self.env().with(term), ty_str);
