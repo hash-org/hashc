@@ -297,9 +297,10 @@ impl<'b> IntrinsicBuilderMethods<'b> for Builder<'b> {
         // However, since we haven't formally defined any "special" intrinsics yet, we
         // don't expect for the resolution to fail.
 
-        let IrTy::Fn { name: Some(name), instance, params, return_ty } = self.ir_ctx.tys().get(ty) else {
+        let IrTy::Fn { instance, params, return_ty } = self.ir_ctx.tys().get(ty) else {
             panic!("unable to resolve intrinsic function type");
         };
+        let name = self.ir_ctx.instances().name_of(instance);
 
         let result_ref = PlaceRef::new(self, result, fn_abi.ret_abi.info);
 

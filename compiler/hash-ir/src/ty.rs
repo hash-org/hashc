@@ -120,7 +120,7 @@ impl InstanceStore {
     pub fn new() -> Self {
         Self { store: DefaultStore::new() }
     }
-    
+
     /// Get the name of an instance from its [InstanceId].
     pub fn name_of(&self, instance: InstanceId) -> Identifier {
         self.store.map_fast(instance, |instance| instance.name)
