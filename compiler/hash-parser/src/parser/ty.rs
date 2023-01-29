@@ -242,7 +242,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     break;
                 }
                 Some(token) => self.err(
-                    ParseErrorKind::Expected,
+                    ParseErrorKind::UnExpected,
                     Some(TokenKindVector::from_vec(smallvec![TokenKind::Comma, TokenKind::Gt])),
                     Some(token.kind),
                 )?,
@@ -375,7 +375,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     break;
                 }
                 Some(token) => self.err(
-                    ParseErrorKind::Expected,
+                    ParseErrorKind::UnExpected,
                     Some(TokenKindVector::from_vec(smallvec![TokenKind::Comma, TokenKind::Gt])),
                     Some(token.kind),
                 )?,

@@ -175,7 +175,17 @@ impl AstVisitor for AstTreeGenerator {
     ) -> Result<Self::DirectiveExprRet, Self::Error> {
         let walk::DirectiveExpr { subject, .. } = walk::walk_directive_expr(self, node)?;
 
-        Ok(TreeNode::branch(labelled("directive", node.name.ident, "\""), vec![subject]))
+        let mut directives_iter = node.directives.iter().rev();
+        let mut node = TreeNode::branch(
+            labelled("directive", directives_iter.next().unwrap().0, "\""),
+            vec![subject],
+        );
+
+        for (directive, _) in directives_iter {
+            node = TreeNode::branch(labelled("directive", directive, "\""), vec![node])
+        }
+
+        Ok(node)
     }
 
     type ConstructorCallArgRet = TreeNode;

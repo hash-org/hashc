@@ -11,7 +11,10 @@ use hash_source::{
     location::{SourceLocation, Span},
     SourceId, SourceMap,
 };
-use hash_utils::{stream_writeln, tree_writing::TreeWriter};
+use hash_utils::{
+    stream_writeln,
+    tree_writing::{TreeNode, TreeWriter},
+};
 
 #[derive(Debug)]
 pub struct AstExpander<'s> {
@@ -53,12 +56,24 @@ impl<'s> AstVisitorMutSelf for AstExpander<'s> {
     ) -> Result<Self::DirectiveExprRet, Self::Error> {
         let _ = walk_mut_self::walk_directive_expr(self, node);
 
-        // for the `dump_ast` directive, we essentially "dump" the generated tree
-        // that the parser created. We emit this tree regardless of whether or not
-        // there will be errors later on in the compilation stage.
-        if node.name.is(IDENTS.dump_ast) {
-            let tree = AstTreeGenerator.visit_expr(node.subject.ast_ref()).unwrap();
-            let location = self.source_location(node.subject.span());
+        let mut write_tree = |index| {
+            let mut tree = AstTreeGenerator.visit_expr(node.subject.ast_ref()).unwrap();
+
+            // Since this might be a non-singular directive, we also might
+            // need to wrap the tree in a any of the directives that were specified
+            // after the `dump_ast` directive.
+            for (directive, _) in node.directives.iter().skip(index + 1).rev() {
+                tree = TreeNode::branch(format!("directive \"{directive}\""), vec![tree]);
+            }
+
+            // We want to get the total span of the subject, so we must
+            // include the span of the directives that come after the `dump_ast` directive.
+            let directive_span: Span = if let Some((_, span)) = node.directives.get(index + 1) {
+                Span::join(span, node.subject.span())
+            } else {
+                node.subject.span()
+            };
+            let location = self.source_location(directive_span);
 
             stream_writeln!(
                 self.stdout,
@@ -66,6 +81,15 @@ impl<'s> AstVisitorMutSelf for AstExpander<'s> {
                 self.source_map.fmt_location(location),
                 TreeWriter::new(&tree)
             );
+        };
+
+        // for the `dump_ast` directive, we essentially "dump" the generated tree
+        // that the parser created. We emit this tree regardless of whether or not
+        // there will be errors later on in the compilation stage.
+        for (index, (directive, _)) in node.directives.iter().enumerate() {
+            if directive.is(IDENTS.dump_ast) {
+                write_tree(index)
+            }
         }
 
         Ok(())

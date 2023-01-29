@@ -398,7 +398,6 @@ dependencies = [
  "hash-source",
  "hash-tree-def",
  "hash-utils",
- "index_vec",
  "num-bigint",
  "replace_with",
 ]
@@ -852,6 +851,7 @@ dependencies = [
  "fxhash",
  "index_vec",
  "log",
+ "smallvec",
  "stacker",
 ]
 

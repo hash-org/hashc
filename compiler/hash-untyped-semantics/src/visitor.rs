@@ -7,8 +7,9 @@ use std::{collections::HashSet, convert::Infallible, mem};
 
 use hash_ast::{
     ast::{
-        walk_mut_self, AstVisitorMutSelf, BindingPat, Block, BlockExpr, Declaration, DirectiveExpr,
-        EnumDef, Expr, LitExpr, Mutability, ParamOrigin, StructDef,
+        walk_mut_self, AstNode, AstNodeRef, AstVisitorMutSelf, BindingPat, Block, BlockExpr,
+        Declaration, DirectiveExpr, EnumDef, Expr, LitExpr, Mutability, Name, ParamOrigin,
+        StructDef,
     },
     ast_visitor_mut_self_default_impl,
     origin::BlockOrigin,
@@ -22,6 +23,155 @@ use crate::{
         directives::DirectiveArgument, error::AnalysisErrorKind, warning::AnalysisWarningKind,
     },
 };
+
+impl<'s> SemanticAnalyser<'s> {
+    /// Function that performs a check on a given directive
+    /// and a specified subject [AstNodeRef].
+    fn validate_directive(
+        &mut self,
+        directive: AstNodeRef<Name>,
+        subject: AstNodeRef<'_, Expr>,
+    ) -> Result<(), Infallible> {
+        // Here we should check if in the event that an `intrinsics` directive
+        // is being used only within the `prelude` module.
+        if directive.is(IDENTS.intrinsics) {
+            let module_kind = self.source_map.module_kind_by_id(self.source_id);
+
+            if !matches!(module_kind, Some(ModuleKind::Prelude)) {
+                self.append_error(
+                    AnalysisErrorKind::DisallowedDirective { name: directive.ident, module_kind },
+                    directive,
+                );
+                // exit early as we don't care about if the arguments of the directive are
+                // invalid in an invalid module context.
+                return Ok(());
+            }
+            // @@Cleanup @@Hardcoded: we check here that this particular directive
+            // expression must be a `mod` block since otherwise the directive
+            // wouldn't make sense...
+            if !matches!(subject.body(), Expr::ModDef(..)) {
+                self.append_error(
+                    AnalysisErrorKind::InvalidDirectiveArgument {
+                        name: directive.ident,
+                        expected: DirectiveArgument::ModDef,
+                        received: subject.body().into(),
+                        notes: vec![],
+                    },
+                    subject,
+                );
+            }
+        } else if directive.is(IDENTS.dump_ir) {
+            // For the `#dump_ir` directive, we are expecting that it takes either a
+            // function definition and be within a constant scope
+            match subject.body() {
+                Expr::Declaration(_) => {
+                    self.maybe_emit_invalid_scope_err(directive, subject);
+                }
+                Expr::Block(BlockExpr { data: block })
+                    if matches!(block.body(), Block::Body(..)) =>
+                {
+                    self.maybe_emit_invalid_scope_err(directive, block.ast_ref());
+                }
+                _ => self.append_error(
+                    AnalysisErrorKind::InvalidDirectiveArgument {
+                        name: directive.ident,
+                        expected: DirectiveArgument::Declaration | DirectiveArgument::Block,
+                        received: subject.body().into(),
+                        notes: vec![],
+                    },
+                    subject,
+                ),
+            }
+        } else if directive.is(IDENTS.layout_of) {
+            // The `#layout_of` directive accepts only type definitions.
+            //
+            // @@Future: it would be nice for this directive to accept any type-like
+            // expression and then later print the layout of the underlying type, and
+            // deal with generic parameters being passed to the type, etc.
+            match &subject.body() {
+                Expr::Declaration(Declaration { value: Some(value), .. }) => {
+                    match value.body() {
+                        Expr::StructDef(StructDef { ty_params, .. })
+                        | Expr::EnumDef(EnumDef { ty_params, .. })
+                            if ty_params.is_empty() => {}
+                        expr => {
+                            let mut notes = vec![];
+                            // Add an additional note if the type is a function definition
+                            // and that the directive does not current handle this
+                            if matches!(
+                                expr,
+                                Expr::TyFnDef(_) | Expr::StructDef(_) | Expr::EnumDef(_)
+                            ) {
+                                notes.push(
+                                    "currently, the `#layout_of` directive does not handle function definitions. This is subject to change in the future.".to_string(),
+                                );
+                            }
+                            self.append_error(
+                                AnalysisErrorKind::InvalidDirectiveArgument {
+                                    name: directive.ident,
+                                    expected: DirectiveArgument::StructDef
+                                        | DirectiveArgument::EnumDef,
+                                    received: value.body().into(),
+                                    notes,
+                                },
+                                value.ast_ref(),
+                            )
+                        }
+                    }
+                }
+                expr => {
+                    let mut notes = vec![];
+                    if matches!(expr, Expr::Declaration(Declaration { value: None, .. })) {
+                        notes.push(
+                            "`#layout_of` requires that the provided declaration must have a value"
+                                .to_string(),
+                        )
+                    };
+                    self.append_error(
+                        AnalysisErrorKind::InvalidDirectiveArgument {
+                            name: directive.ident,
+                            // @@Hack: we should be a bit more specific here.
+                            expected: DirectiveArgument::Declaration,
+                            received: subject.body().into(),
+                            notes,
+                        },
+                        subject,
+                    )
+                }
+            }
+        } else if !directive.is(IDENTS.dump_ast) {
+            // @@Future: use some kind of scope validation in order to verify that
+            // the used directives are valid
+            self.append_warning(
+                AnalysisWarningKind::UnknownDirective { name: directive.ident },
+                directive,
+            )
+        }
+
+        Ok(())
+    }
+
+    /// This function is used by directives that require their usage to be
+    /// within a constant block, i.e. the `dump_ir` directive must only
+    /// accept declarations that are in constant blocks. This function will
+    /// emit an error if the current block is not a constant block.
+    fn maybe_emit_invalid_scope_err<T>(
+        &mut self,
+        directive: AstNodeRef<Name>,
+        item: AstNodeRef<T>,
+    ) {
+        if !self.is_in_constant_block() {
+            self.append_error(
+                AnalysisErrorKind::InvalidDirectiveScope {
+                    name: directive.ident,
+                    expected: BlockOrigin::Const,
+                    received: self.current_block,
+                },
+                item,
+            );
+        }
+    }
+}
 
 impl AstVisitorMutSelf for SemanticAnalyser<'_> {
     type Error = Infallible;
@@ -72,147 +222,13 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
         &mut self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::DirectiveExpr>,
     ) -> Result<Self::DirectiveExprRet, Self::Error> {
-        let DirectiveExpr { name, .. } = node.body();
+        let DirectiveExpr { directives, .. } = node.body();
         let _ = walk_mut_self::walk_directive_expr(self, node);
 
-        let module_kind = self.source_map.module_kind_by_id(self.source_id);
-
-        // Here we should check if in the event that an `intrinsics` directive
-        // is being used only within the `prelude` module.
-        if name.is(IDENTS.intrinsics) {
-            if !matches!(module_kind, Some(ModuleKind::Prelude)) {
-                self.append_error(
-                    AnalysisErrorKind::DisallowedDirective { name: name.ident, module_kind },
-                    name.ast_ref(),
-                );
-
-                // exit early as we don't care about if the arguments of the directive are
-                // invalid in an invalid module context.
-                return Ok(());
-            }
-
-            // @@Cleanup @@Hardcoded: we check here that this particular directive
-            // expression must be a `mod` block since otherwise the directive
-            // wouldn't make sense...
-            if !matches!(node.subject.body(), Expr::ModDef(..)) {
-                self.append_error(
-                    AnalysisErrorKind::InvalidDirectiveArgument {
-                        name: name.ident,
-                        expected: DirectiveArgument::ModDef,
-                        received: node.subject.body().into(),
-                        notes: vec![],
-                    },
-                    node.subject.ast_ref(),
-                );
-            }
-        } else if name.is(IDENTS.dump_ir) {
-            let is_in_constant_block = self.is_in_constant_block();
-
-            let maybe_emit_invalid_scope_err = |this: &mut Self| {
-                if !is_in_constant_block {
-                    this.append_error(
-                        AnalysisErrorKind::InvalidDirectiveScope {
-                            name: name.ident,
-                            expected: BlockOrigin::Const,
-                            received: this.current_block,
-                        },
-                        node.subject.ast_ref(),
-                    );
-                }
-            };
-
-            // For the `#dump_ir` directive, we are expecting that it takes either a
-            // function definition and be within a constant scope
-            match node.subject.body() {
-                Expr::Declaration(_) => {
-                    maybe_emit_invalid_scope_err(self);
-                }
-                Expr::Block(BlockExpr { data: block })
-                    if matches!(block.body(), Block::Body(..)) =>
-                {
-                    maybe_emit_invalid_scope_err(self);
-                }
-                _ => self.append_error(
-                    AnalysisErrorKind::InvalidDirectiveArgument {
-                        name: name.ident,
-                        expected: DirectiveArgument::Declaration | DirectiveArgument::Block,
-                        received: node.subject.body().into(),
-                        notes: vec![],
-                    },
-                    node.subject.ast_ref(),
-                ),
-            }
-        } else if name.is(IDENTS.layout_of) {
-            // The `#layout_of` directive accepts only type definitions.
-            //
-            // @@Future: it would be nice for this directive to accept any type-like
-            // expression and then later print the layout of the underlying type, and
-            // deal with generic parameters being passed to the type, etc.
-
-            match &node.subject.body() {
-                Expr::Declaration(Declaration { value: Some(value), .. }) => {
-                    match value.body() {
-                        Expr::StructDef(StructDef { ty_params, .. })
-                        | Expr::EnumDef(EnumDef { ty_params, .. })
-                            if ty_params.is_empty() => {}
-                        expr => {
-                            let mut notes = vec![];
-
-                            // Add an additional note if the type is a function definition
-                            // and that the directive does not current handle this
-                            if matches!(
-                                expr,
-                                Expr::TyFnDef(_) | Expr::StructDef(_) | Expr::EnumDef(_)
-                            ) {
-                                notes.push(
-                                    "currently, the `#layout_of` directive does not handle function definitions. This is subject to change in the future.".to_string(),
-                                );
-                            }
-
-                            self.append_error(
-                                AnalysisErrorKind::InvalidDirectiveArgument {
-                                    name: name.ident,
-                                    expected: DirectiveArgument::StructDef
-                                        | DirectiveArgument::EnumDef,
-                                    received: value.body().into(),
-                                    notes,
-                                },
-                                node.subject.ast_ref(),
-                            )
-                        }
-                    }
-                }
-                expr => {
-                    let mut notes = vec![];
-
-                    if matches!(expr, Expr::Declaration(Declaration { value: None, .. })) {
-                        notes.push(
-                            "`#layout_of` requires that the provided declaration must have a value"
-                                .to_string(),
-                        )
-                    };
-
-                    self.append_error(
-                        AnalysisErrorKind::InvalidDirectiveArgument {
-                            name: name.ident,
-                            // @@Hack: we should be a bit more specific here.
-                            expected: DirectiveArgument::Declaration,
-                            received: node.subject.body().into(),
-                            notes,
-                        },
-                        node.subject.ast_ref(),
-                    )
-                }
-            }
-        } else if !name.is(IDENTS.dump_ast) {
-            // @@Future: use some kind of scope validation in order to verify that
-            // the used directives are valid
-            self.append_warning(
-                AnalysisWarningKind::UnknownDirective { name: name.ident },
-                node.name.ast_ref(),
-            )
+        for (directive, span) in directives.iter().copied() {
+            let name = AstNode::new(directive, span);
+            self.validate_directive(name.ast_ref(), node.subject.ast_ref())?;
         }
-
         Ok(())
     }
 

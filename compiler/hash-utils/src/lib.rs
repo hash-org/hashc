@@ -11,3 +11,7 @@ pub mod state;
 pub mod store;
 pub mod timing;
 pub mod tree_writing;
+
+// Re-export commonly used vector packages
+pub use index_vec;
+pub use smallvec;

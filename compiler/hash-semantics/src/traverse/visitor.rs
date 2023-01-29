@@ -2072,8 +2072,10 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
         // the flag `within_intrinsics_directive` which changes the way that `mod`
         // blocks are validated and changes the parsing of the declarations inside the
         // mod block.
-        if node.name.is(IDENTS.intrinsics) {
-            self.state.within_intrinsics_directive.set(true);
+        for (directive, _) in &node.directives {
+            if directive.is(IDENTS.intrinsics) {
+                self.state.within_intrinsics_directive.set(true);
+            }
         }
 
         // @@Directives: Decide on what to do with directives, but for now walk the

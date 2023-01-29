@@ -382,12 +382,14 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
         let mut new_applied_directives = self.applied_directives;
 
-        if node.name.is(IDENTS.dump_ir) {
-            new_applied_directives.insert(AppliedDirectives::IN_DUMP_IR);
-        }
+        for (directive, _) in &node.directives {
+            if directive.is(IDENTS.dump_ir) {
+                new_applied_directives.insert(AppliedDirectives::IN_DUMP_IR);
+            }
 
-        if node.name.is(IDENTS.layout_of) {
-            new_applied_directives.insert(AppliedDirectives::IN_LAYOUT_OF);
+            if directive.is(IDENTS.layout_of) {
+                new_applied_directives.insert(AppliedDirectives::IN_LAYOUT_OF);
+            }
         }
 
         self.with_directives(new_applied_directives, |this| {
