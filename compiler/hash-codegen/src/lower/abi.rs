@@ -1,12 +1,10 @@
 //! Contains logic for computing ABIs of function types and their
 //! arguments.
 
-use hash_abi::{
-    Abi, ArgAbi, ArgAttributeFlag, ArgAttributes, ArgExtension, CallingConvention, FnAbi,
-};
+use hash_abi::{ArgAbi, ArgAttributeFlag, ArgAttributes, ArgExtension, CallingConvention, FnAbi};
 use hash_ir::ty::{InstanceId, IrTy, IrTyId, Mutability, RefKind};
 use hash_layout::compute::{LayoutComputer, LayoutError};
-use hash_target::abi::{Scalar, ScalarKind};
+use hash_target::abi::{Abi, Scalar, ScalarKind};
 use hash_utils::store::SequenceStore;
 
 use crate::traits::{ctx::HasCtxMethods, layout::LayoutMethods};

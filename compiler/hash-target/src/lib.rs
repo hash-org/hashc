@@ -7,12 +7,15 @@ pub mod primitives;
 pub mod size;
 
 use std::{
+    borrow::Cow,
     env::consts::ARCH,
     fmt::{Display, Formatter},
 };
 
+use abi::Abi;
+
 /// The target that the compiler should compile for.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct Target {
     /// The size of the pointer for the target in bytes.
     ///
@@ -23,6 +26,19 @@ pub struct Target {
 
     /// The name of the target.
     pub name: TargetName,
+
+    /// The name of the entry point for the target.
+    ///
+    /// Default is `main`.
+    pub entry_name: Cow<'static, str>,
+
+    /// The default visibility for symbols in this target should be "hidden"
+    /// rather than "default"
+    pub default_hidden_visibility: bool,
+
+    /// The ABI of the entry function, the default is
+    /// the `C` ABI.
+    pub entry_abi: Abi,
 }
 
 /// Represents the available targets that the compiler can compiler for.
@@ -70,20 +86,17 @@ impl Display for TargetName {
 }
 
 impl Target {
-    /// Create a new target from the given name and pointer width.
-    pub fn new(name: TargetName, pointer_width: usize) -> Self {
-        Self { name, pointer_width }
-    }
-
     /// Create a new target from the given string.
     pub fn from_string(name: String) -> Option<Self> {
-        match name.as_str() {
-            "x86" => Some(Self::new(TargetName::X86, 4)),
-            "x86_64" => Some(Self::new(TargetName::X86_64, 8)),
-            "arm" => Some(Self::new(TargetName::Arm, 4)),
-            "aarch64" => Some(Self::new(TargetName::Aarch64, 8)),
-            _ => None,
-        }
+        let (name, pointer_width) = match name.as_str() {
+            "x86" => (TargetName::X86, 4),
+            "x86_64" => (TargetName::X86_64, 8),
+            "arm" => (TargetName::Arm, 4),
+            "aarch64" => (TargetName::Aarch64, 8),
+            _ => return None,
+        };
+
+        Some(Self { name, pointer_width, ..Default::default() })
     }
 }
 
@@ -93,13 +106,19 @@ impl Default for Target {
         let pointer_width = std::mem::size_of::<usize>();
         let name = TargetName::from_system();
 
-        Self { pointer_width, name }
+        Self {
+            pointer_width,
+            name,
+            entry_name: "main".into(),
+            entry_abi: Abi::C,
+            default_hidden_visibility: false,
+        }
     }
 }
 
 /// Holds information about various targets that are currently used by the
 /// compiler.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct TargetInfo {
     /// The target value of the host that the compiler is running
     /// for.

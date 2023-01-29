@@ -1,12 +1,17 @@
 //! Implements various miscellaneous methods for the LLVM backend.
 
+use std::borrow::Borrow;
+
 use hash_codegen::{
     abi::FnAbi,
     lower::abi::compute_fn_abi_from_instance,
     traits::{misc::MiscBuilderMethods, ty::TypeBuilderMethods},
 };
 use hash_ir::ty::{Instance, InstanceId};
-use inkwell::values::{AnyValue, AsValueRef, BasicValue, FunctionValue};
+use inkwell::{
+    values::{AnyValue, AsValueRef, BasicValue, FunctionValue, UnnamedAddress},
+    GlobalVisibility,
+};
 
 use super::abi::ExtendedFnAbiMethods;
 use crate::context::CodeGenCtx;
@@ -64,7 +69,22 @@ impl<'b> MiscBuilderMethods<'b> for CodeGenCtx<'b> {
         self.get_fn_or_create_ref(instance).into()
     }
 
-    fn declare_entry_point(&self, ty: Self::Type) -> Option<Self::Function> {
-        todo!()
+    fn declare_entry_point(&self, fn_ty: Self::Type) -> Option<Self::Function> {
+        let target = self.settings.codegen_settings().target_info.target();
+        let entry_name = target.entry_name.as_ref();
+
+        // If the symbol already exists, then it is an error
+        if self.module.get_function(entry_name).is_some() {
+            None
+        } else {
+            let abi = target.entry_abi;
+            let visibility = if target.default_hidden_visibility {
+                GlobalVisibility::Hidden
+            } else {
+                GlobalVisibility::Default
+            };
+
+            Some(self.declare_fn(entry_name, fn_ty, abi.into(), UnnamedAddress::Global, visibility))
+        }
     }
 }
