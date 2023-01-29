@@ -16,7 +16,7 @@ use hash_target::{
 };
 use inkwell::{
     attributes::{Attribute, AttributeLoc},
-    types::{AnyTypeEnum, BasicTypeEnum},
+    types::{AnyTypeEnum, BasicTypeEnum, PointerType},
     values::{AnyValue, AnyValueEnum, CallSiteValue, FunctionValue},
 };
 use llvm_sys::{LLVMAttributeIndex, LLVMOpaqueAttributeRef};
@@ -248,6 +248,11 @@ impl<'b> ExtendedArgAttributeMethods<'b> for ArgAttributes {
 pub trait ExtendedFnAbiMethods<'b> {
     /// Produce an LLVM type for the given [FnAbi].
     fn llvm_ty(&self, ctx: &CodeGenCtx<'b>) -> AnyTypeEnum<'b>;
+
+    /// Produce an Pointer to the type of this [FnAbi].
+    fn ptr_to_llvm_ty(&self, ctx: &CodeGenCtx<'b>) -> PointerType<'b> {
+        ctx.type_ptr_to(self.llvm_ty(ctx)).into_pointer_type()
+    }
 
     /// Apply the derived ABI attributes to the given [FunctionValue].
     fn apply_attributes_to_fn(&self, ctx: &CodeGenCtx<'b>, func: FunctionValue<'b>);

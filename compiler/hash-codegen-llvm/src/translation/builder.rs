@@ -562,7 +562,7 @@ impl<'b> BlockBuilderMethods<'b> for Builder<'b> {
         let fn_ty = self.type_function(&[src_ty], dest_ty);
         let func = self.declare_c_fn(&name, UnnamedAddress::None, fn_ty);
 
-        self.call(fn_ty, None, func, &[value])
+        self.call(fn_ty, None, func.into(), &[value])
     }
 
     fn fp_to_ui(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value {

@@ -93,12 +93,24 @@ new_store_key!(pub InstanceId);
 pub struct Instance {
     /// The fully specified name of the function instance.
     name: Identifier,
+
+    /// A reference to the parameter types of this function
+    /// instance.
+    params: IrTyListId,
+
+    /// The function return type.
+    ret_ty: IrTyId,
+
+    /// If the function instance originates from a generic function.
+    generic_origin: bool,
 }
 
 impl Instance {
     /// Create a new instance.
-    pub fn new(name: Identifier) -> Self {
-        Self { name }
+    pub fn new(name: Identifier, params: IrTyListId, ret_ty: IrTyId) -> Self {
+        // @@Todo: deal with generic functions being properly instantiated
+        // here.
+        Self { name, params, ret_ty, generic_origin: false }
     }
 
     /// Get the name from the instance.
