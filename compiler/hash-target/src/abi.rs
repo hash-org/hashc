@@ -405,3 +405,19 @@ impl AddressSpace {
     /// The default address space, corresponding to data space.
     pub const DATA: Self = AddressSpace(0);
 }
+
+/// Defines what ABI to use when calling a function.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Abi {
+    /// The C ABI.
+    C,
+
+    /// The `cold` calling convention, something that
+    /// isn't often called and thus should be optimised
+    /// for size rather than speed.
+    Cold,
+
+    /// The default ABI, which attempts to perform optimisations
+    /// that are not possible with the C ABI.
+    Hash,
+}

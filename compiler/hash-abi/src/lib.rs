@@ -5,7 +5,7 @@
 
 use hash_layout::{compute::LayoutComputer, LayoutId, TyInfo};
 use hash_target::{
-    abi::{AbiRepresentation, Scalar},
+    abi::{Abi, AbiRepresentation, Scalar},
     size::Size,
 };
 use hash_utils::store::Store;
@@ -29,15 +29,13 @@ pub enum CallingConvention {
     Cold = 9,
 }
 
-/// Defines what ABI to use when calling a function.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum Abi {
-    /// The C ABI.
-    C,
-
-    /// The default ABI, which attempts to perform optimisations
-    /// that are not possible with the C ABI.
-    Hash,
+impl From<Abi> for CallingConvention {
+    fn from(abi: Abi) -> Self {
+        match abi {
+            Abi::C | Abi::Hash => CallingConvention::C,
+            Abi::Cold => CallingConvention::Cold,
+        }
+    }
 }
 
 /// Defines ABI specific information about a function.
