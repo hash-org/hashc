@@ -2,6 +2,7 @@
 
 use hash_codegen::{
     abi::FnAbi,
+    lower::abi::compute_fn_abi_from_instance,
     traits::{misc::MiscBuilderMethods, ty::TypeBuilderMethods},
 };
 use hash_ir::ty::{Instance, InstanceId};
@@ -23,7 +24,9 @@ impl<'b> CodeGenCtx<'b> {
         }
 
         let name = self.ir_ctx.instances().name_of(instance);
-        let fn_abi: FnAbi = todo!();
+
+        // @@ErrorHandling: deal with error here...
+        let fn_abi = compute_fn_abi_from_instance(self, instance).unwrap();
 
         // See if this item has already been declared in the module
         let func = if let Some(func) = self.module.get_function(name.into()) {

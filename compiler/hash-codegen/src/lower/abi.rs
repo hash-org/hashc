@@ -4,13 +4,12 @@
 use hash_abi::{
     Abi, ArgAbi, ArgAttributeFlag, ArgAttributes, ArgExtension, CallingConvention, FnAbi,
 };
-use hash_ir::ty::{IrTy, IrTyId, Mutability, RefKind};
+use hash_ir::ty::{InstanceId, IrTy, IrTyId, Mutability, RefKind};
 use hash_layout::compute::{LayoutComputer, LayoutError};
 use hash_target::abi::{Scalar, ScalarKind};
 use hash_utils::store::SequenceStore;
 
-use super::FnBuilder;
-use crate::traits::{builder::BlockBuilderMethods, ctx::HasCtxMethods, layout::LayoutMethods};
+use crate::traits::{ctx::HasCtxMethods, layout::LayoutMethods};
 
 /// Adjust the attributes of an argument ABI based on the provided
 /// [Layout] and [Scalar] information. This is required to do since
@@ -72,74 +71,76 @@ pub enum FnAbiError {
     Layout(LayoutError),
 }
 
-impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
-    /// Compute an [FnAbi] from a provided [IrTyId]. If the ABI
-    /// has already been computed for the particular instance, then
-    /// the cached version of the ABI is returned.
-    ///
-    /// N.B. the passed "ty" must be a function type.
-    pub fn compute_fn_abi_from_ty(&mut self, ty: IrTyId) -> Result<FnAbi, FnAbiError> {
-        // @@Todo: add caching for the ABI computation...
-        // @@Todo: add support for specifying more calling conventions, but for now
-        // we only support the C calling convention.
-        let calling_convention = CallingConvention::C;
+/// Compute an [FnAbi] from a provided [IrTyId]. If the ABI
+/// has already been computed for the particular instance, then
+/// the cached version of the ABI is returned.
+///
+/// N.B. the passed "ty" must be a function type.
+pub fn compute_fn_abi_from_instance<'b, Ctx: HasCtxMethods<'b> + LayoutMethods<'b>>(
+    ctx: &Ctx,
+    instance: InstanceId,
+) -> Result<FnAbi, FnAbiError> {
+    // @@Todo: add caching for the ABI computation...
+    // @@Todo: add support for specifying more calling conventions, but for now
+    // we only support the C calling convention.
+    let calling_convention = CallingConvention::C;
 
-        // @@Todo: we should be able to deduce the ABI from the "Instance"
-        // of the type since this stores attributes which specify which
-        // ABI to use.
-        //
-        // This probably involves introducing `extern` keyword to allow
-        // overriding the default ABI.
-        let abi = Abi::Hash;
+    // @@Todo: we should be able to deduce the ABI from the "Instance"
+    // of the type since this stores attributes which specify which
+    // ABI to use.
+    //
+    // This probably involves introducing `extern` keyword to allow
+    // overriding the default ABI.
+    let abi = Abi::Hash;
 
-        self.ctx.ir_ctx().map_ty(ty, |ty| {
-            let IrTy::Fn { params, return_ty, .. } = ty else {
-                unreachable!("expected a function type")
-            };
+    let (params, return_ty) =
+        ctx.ir_ctx().map_instance(instance, |instance| (instance.params, instance.ret_ty));
 
-            let make_arg_abi = |ty: IrTyId, _index: Option<usize>| {
-                let lc = self.ctx.layout_computer();
-                let info = self.ctx.layout_of(ty);
-                let arg = ArgAbi::new(&lc, info, |scalar| {
-                    let mut attributes = ArgAttributes::new();
-                    adjust_arg_attributes(&lc, &mut attributes, ty, scalar);
-                    attributes
-                });
+    let make_arg_abi = |ty: IrTyId, _index: Option<usize>| {
+        let lc = ctx.layout_computer();
+        let info = ctx.layout_of(ty);
+        let arg = ArgAbi::new(&lc, info, |scalar| {
+            let mut attributes = ArgAttributes::new();
+            adjust_arg_attributes(&lc, &mut attributes, ty, scalar);
+            attributes
+        });
 
-                // @@Todo: we might have to adjust the attribute pass mode
-                // for ZSTs on specific platforms since they don't ignore them?
-                // if is_return && info.is_zst() {}
+        // @@Todo: we might have to adjust the attribute pass mode
+        // for ZSTs on specific platforms since they don't ignore them?
+        // if is_return && info.is_zst() {}
 
-                Ok(arg)
-            };
+        Ok(arg)
+    };
 
-            let mut fn_abi = FnAbi {
-                args: self.ctx.ir_ctx().tls().map_fast(*params, |tys| {
-                    tys.iter()
-                        .enumerate()
-                        .map(|(i, ty)| make_arg_abi(*ty, Some(i)))
-                        .collect::<Result<_, _>>()
-                })?,
-                ret_abi: make_arg_abi(*return_ty, None)?,
-                calling_convention,
-            };
+    let mut fn_abi = FnAbi {
+        args: ctx.ir_ctx().tls().map_fast(params, |tys| {
+            tys.iter()
+                .enumerate()
+                .map(|(i, ty)| make_arg_abi(*ty, Some(i)))
+                .collect::<Result<_, _>>()
+        })?,
+        ret_abi: make_arg_abi(return_ty, None)?,
+        calling_convention,
+    };
 
-            self.adjust_fn_abi_for_specified_abi(&mut fn_abi, abi);
-            Ok(fn_abi)
-        })
-    }
+    adjust_fn_abi_for_specified_abi(ctx, &mut fn_abi, abi);
+    Ok(fn_abi)
+}
 
-    /// This function adjusts the ABI of a function based on the specified
-    /// ABI. This is required since the ABI of a function is not always
-    /// the same as the ABI of the arguments.
-    fn adjust_fn_abi_for_specified_abi(&self, _fn_abi: &mut FnAbi, abi: Abi) {
-        if abi == Abi::Hash {
-            // @@Todo: currently unclear what optimisations we can perform
-            // here...
-        } else {
-            // Here we adjust to a platform specific ABI, based on the
-            // platform.
-            unimplemented!()
-        }
+/// This function adjusts the ABI of a function based on the specified
+/// ABI. This is required since the ABI of a function is not always
+/// the same as the ABI of the arguments.
+fn adjust_fn_abi_for_specified_abi<'b, Ctx: HasCtxMethods<'b>>(
+    _ctx: &Ctx,
+    _fn_abi: &mut FnAbi,
+    abi: Abi,
+) {
+    if abi == Abi::Hash {
+        // @@Todo: currently unclear what optimisations we can perform
+        // here...
+    } else {
+        // Here we adjust to a platform specific ABI, based on the
+        // platform.
+        unimplemented!()
     }
 }

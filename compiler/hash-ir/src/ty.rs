@@ -96,10 +96,10 @@ pub struct Instance {
 
     /// A reference to the parameter types of this function
     /// instance.
-    params: IrTyListId,
+    pub params: IrTyListId,
 
     /// The function return type.
-    ret_ty: IrTyId,
+    pub ret_ty: IrTyId,
 
     /// If the function instance originates from a generic function.
     generic_origin: bool,

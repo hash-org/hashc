@@ -21,6 +21,6 @@ pub trait HasCtxMethods<'b>: HasDataLayout {
         LayoutComputer::new(self.layouts(), self.ir_ctx())
     }
 
-    /// Returns a reference to the [LayoutStore].
+    /// Returns a reference to the [LayoutCtx].
     fn layouts(&self) -> &LayoutCtx;
 }

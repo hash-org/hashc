@@ -23,7 +23,10 @@ use hash_tir::{nominals::NominalDefId, terms::TermId};
 use hash_utils::store::{FxHashMap, SequenceStore, Store};
 use intrinsics::Intrinsics;
 use ir::{Body, Local, Place, PlaceProjection, ProjectionStore};
-use ty::{AdtData, AdtId, AdtStore, InstanceStore, IrTy, IrTyId, TyListStore, TyStore};
+use ty::{
+    AdtData, AdtId, AdtStore, Instance, InstanceId, InstanceStore, IrTy, IrTyId, TyListStore,
+    TyStore,
+};
 
 /// Storage that is used by the lowering stage. This stores all of the
 /// generated [Body]s and all of the accompanying data for the bodies.
@@ -182,8 +185,20 @@ impl IrCtx {
 
     /// Map an [IrTyId] by reading the [IrTy] that is associated with the
     /// [IrTyId] and then applying the provided function.
+    ///
+    /// N.B. This function should not create any new [IrTy]s during the
+    /// function operation.
     pub fn map_ty<T>(&self, ty: IrTyId, f: impl FnOnce(&IrTy) -> T) -> T {
         self.ty_store.map_fast(ty, f)
+    }
+
+    /// Map an [InstanceId] by reading the [Instance] that is associated with
+    /// the [InstanceId] and then applying the provided function.
+    ///
+    /// N.B. This function should not create any new [Instance]s during the
+    /// function operation.
+    pub fn map_instance<T>(&self, id: InstanceId, f: impl FnOnce(&Instance) -> T) -> T {
+        self.instances().map_fast(id, f)
     }
 
     /// Apply a function on an type assuming that it is a [`IrTy::Adt`].
