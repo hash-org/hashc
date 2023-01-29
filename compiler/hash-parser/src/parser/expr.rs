@@ -19,63 +19,55 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub fn parse_top_level_expr(&mut self) -> ParseResult<Option<AstNode<Expr>>> {
         let start = self.next_location();
 
+        // This is used to handle a semi-colon that occurs at the end of
+        // an expression...
+        let maybe_eat_semi = |this: &mut Self| {
+            if let Some(Token { kind: TokenKind::Semi, .. }) = this.peek() {
+                this.skip_token();
+            };
+        };
+
         // So here we want to check that the next token(s) could make up a singular
         // pattern which is then followed by a `:` to denote that this is a
         // declaration.
-        let decl = match self.begins_pat() {
-            true => {
-                let pat = self.parse_singular_pat()?;
-                self.parse_token(TokenKind::Colon)?;
-                let decl = self.parse_declaration(pat)?;
+        if self.begins_pat() {
+            let pat = self.parse_singular_pat()?;
+            self.parse_token(TokenKind::Colon)?;
+            let decl = self.parse_declaration(pat)?;
 
-                Some(self.node_with_joined_span(Expr::Declaration(decl), start))
-            }
-            false => None,
-        };
+            let expr = self.node_with_joined_span(Expr::Declaration(decl), start);
+            maybe_eat_semi(self);
+            return Ok(Some(expr));
+        }
 
-        let expr = match decl {
-            Some(statement) => Ok(statement),
-            None => {
-                // Handle trailing semi-colons...
-                if let Some(Token { kind: TokenKind::Semi, .. }) = self.peek() {
-                    self.skip_token();
-                    self.eat_trailing_semis();
-
-                    return Ok(None);
-                }
-
-                let (expr, re_assigned) = self.parse_expr_with_re_assignment()?;
-
-                if re_assigned {
-                    Ok(expr)
-                } else {
-                    match self.peek() {
-                        // We don't skip here because it is handled after the statement has been
-                        // generated.
-                        Some(token) if token.has_kind(TokenKind::Eq) => {
-                            self.skip_token();
-
-                            // Parse the right hand-side of the assignment
-                            let rhs = self.parse_expr_with_precedence(0)?;
-
-                            Ok(self.node_with_joined_span(
-                                Expr::Assign(AssignExpr { lhs: expr, rhs }),
-                                start,
-                            ))
-                        }
-                        // Special case where there is a expression at the end of the stream and
-                        // therefore it is signifying that it is returning
-                        // the expression value here
-                        _ => Ok(expr),
-                    }
-                }
-            }
-        }?;
-
+        // Handle trailing semi-colons...
         if let Some(Token { kind: TokenKind::Semi, .. }) = self.peek() {
             self.skip_token();
+            self.eat_trailing_semis();
+
+            return Ok(None);
+        }
+
+        let (expr, re_assigned) = self.parse_expr_with_re_assignment()?;
+
+        let expr = match self.peek() {
+            // We don't skip here because it is handled after the statement has been
+            // generated.
+            Some(token) if token.has_kind(TokenKind::Eq) && !re_assigned => {
+                self.skip_token();
+
+                // Parse the right hand-side of the assignment
+                let rhs = self.parse_expr_with_precedence(0)?;
+                self.node_with_joined_span(Expr::Assign(AssignExpr { lhs: expr, rhs }), start)
+            }
+
+            // Special case where there is a expression at the end of the stream and
+            // therefore it is signifying that it is returning
+            // the expression value here
+            _ => expr,
         };
 
+        maybe_eat_semi(self);
         Ok(Some(expr))
     }
 
