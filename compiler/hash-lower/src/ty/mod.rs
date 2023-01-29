@@ -157,7 +157,12 @@ impl<'ir> TyLoweringCtx<'ir> {
 
                     // @@Temporary: `Instance` is not being properly initialised. This is until the
                     // new typechecking introduces `FnDefId`s.
-                    IrTy::Fn { name, params, return_ty, instance: Instance::dummy() }
+                    let instance = self
+                        .lcx
+                        .instances()
+                        .create(Instance::new(name.unwrap_or(IDENTS.underscore)));
+
+                    IrTy::Fn { params, return_ty, instance }
                 }
                 Level1Term::ModDef(_) => unreachable!(),
             },

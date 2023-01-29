@@ -23,7 +23,7 @@ use hash_tir::{nominals::NominalDefId, terms::TermId};
 use hash_utils::store::{FxHashMap, SequenceStore, Store};
 use intrinsics::Intrinsics;
 use ir::{Body, Local, Place, PlaceProjection, ProjectionStore};
-use ty::{AdtData, AdtId, AdtStore, IrTy, IrTyId, TyListStore, TyStore};
+use ty::{AdtData, AdtId, AdtStore, InstanceStore, IrTy, IrTyId, TyListStore, TyStore};
 
 /// Storage that is used by the lowering stage. This stores all of the
 /// generated [Body]s and all of the accompanying data for the bodies.
@@ -96,6 +96,10 @@ pub struct IrCtx {
     /// are registered within the IR.
     adt_store: ty::AdtStore,
 
+    /// All of the function instances that have been created by the
+    /// lowering stage.
+    instances: ty::InstanceStore,
+
     /// Cache for the [IrTyId]s that are created from [TermId]s.
     ty_cache: RefCell<FxHashMap<TyCacheEntry, IrTyId>>,
 
@@ -111,6 +115,7 @@ impl IrCtx {
             projection_store: ProjectionStore::default(),
             intrinsics: Intrinsics::new(),
             ty_store: TyStore::new(),
+            instances: InstanceStore::new(),
             ty_list_store: TyListStore::default(),
             adt_store: AdtStore::new(),
             ty_cache: RefCell::new(FxHashMap::default()),
@@ -150,6 +155,11 @@ impl IrCtx {
     /// Get a reference to the [AdtStore]
     pub fn adts(&self) -> &AdtStore {
         &self.adt_store
+    }
+
+    /// Get a reference to the instance store.
+    pub fn instances(&self) -> &InstanceStore {
+        &self.instances
     }
 
     /// Get a reference to the [ProjectionStore]

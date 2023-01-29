@@ -84,23 +84,58 @@ impl fmt::Display for Mutability {
     }
 }
 
+new_store_key!(pub InstanceId);
+
 /// This is a temporary struct that identifies a unique instance of a
 /// function within the generated code, and is later used to resolve
 /// function references later on.
-///
-/// @@Temporary
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct Instance {
-    _id: u32,
+    /// The fully specified name of the function instance.
+    name: Identifier,
 }
 
 impl Instance {
-    pub fn dummy() -> Self {
-        Self { _id: 0 }
+    /// Create a new instance.
+    pub fn new(name: Identifier) -> Self {
+        Self { name }
     }
 
-    pub fn new(id: u32) -> Self {
-        Self { _id: id }
+    /// Get the name from the instance.
+    pub fn name(&self) -> Identifier {
+        self.name
+    }
+}
+
+/// Stores all the used [Instance]s.
+///
+/// [Instance]s are accessed by an ID, of type [InstanceId].
+pub struct InstanceStore {
+    /// The underlying store.
+    store: DefaultStore<InstanceId, Instance>,
+}
+
+impl InstanceStore {
+    /// Create a new [InstanceStore].
+    pub fn new() -> Self {
+        Self { store: DefaultStore::new() }
+    }
+    
+    /// Get the name of an instance from its [InstanceId].
+    pub fn name_of(&self, instance: InstanceId) -> Identifier {
+        self.store.map_fast(instance, |instance| instance.name)
+    }
+}
+
+impl Default for InstanceStore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Store<InstanceId, Instance> for InstanceStore {
+    fn internal_data(&self) -> &std::cell::RefCell<Vec<Instance>> {
+        self.store.internal_data()
     }
 }
 
@@ -156,22 +191,18 @@ pub enum IrTy {
     /// other kind of type.
     Adt(AdtId),
 
-    /// The first item is the interned parameter types to the function, and the
-    /// second item is the return type of the function. If the function has no
-    /// explicit return type, this will always be inferred at this stage.
+    /// A function type, with interned parameter type list and a return
+    /// type.
+    ///
+    /// The [InstanceId] is a reference to the instance of the function
+    /// which has additional information about the function type, such as the
+    /// name of the function, any function attributes, etc.
     Fn {
-        /// The name of the function.
-        ///
-        /// @@Todo: this value should be stored on the instance since the name
-        /// of the function may be non-trivial (in the case of generic
-        /// parameters).
-        name: Option<Identifier>,
-
         /// An [Instance] refers to the function that this type refers to. The
         /// instance records information about the function instance,
         /// like the name, the specified function attributes (i.e.
         /// linkage), etc.
-        instance: Instance,
+        instance: InstanceId,
 
         /// The parameter types of the function.
         params: IrTyListId,
@@ -634,9 +665,11 @@ impl AdtId {
     pub const UNIT: AdtId = AdtId { index: 0 };
 }
 
-/// Stores all the used [IrTy]s.
+/// Stores all the used [AdtData]s. An [AdtData] is all of the
+/// information about an ADT, including variants, fields, representation,
+/// and any other additional attributes.
 ///
-/// [IrTy]s are accessed by an ID, of type [IrTyId].
+/// [AdtData]s are accessed by an ID, of type [AdtId].
 pub struct AdtStore {
     /// The underlying store.
     store: DefaultStore<AdtId, AdtData>,
@@ -823,13 +856,15 @@ impl fmt::Display for ForFormatting<'_, IrTyId> {
                 write!(f, "Rc{name}<{}>", inner.for_fmt(self.ctx))
             }
             IrTy::Adt(adt) => write!(f, "{}", adt.for_fmt(self.ctx)),
-            IrTy::Fn { params, return_ty, name: None, .. } => {
-                write!(f, "({}) -> {}", params.for_fmt(self.ctx), return_ty.for_fmt(self.ctx))
+
+            IrTy::Fn { instance, params, return_ty, .. } if self.verbose => {
+                let name = self.ctx.instances.map_fast(instance, |instance| instance.name);
+                write!(f, "{name}({}) -> {}", params.for_fmt(self.ctx), return_ty.for_fmt(self.ctx))
             }
-            IrTy::Fn { params, return_ty, .. } if self.verbose => {
-                write!(f, "({}) -> {}", params.for_fmt(self.ctx), return_ty.for_fmt(self.ctx))
+            IrTy::Fn { instance, .. } => {
+                let name = self.ctx.instances.map_fast(instance, |instance| instance.name);
+                write!(f, "{name}")
             }
-            IrTy::Fn { name: Some(name), .. } => write!(f, "{name}"),
             IrTy::Slice(ty) => write!(f, "[{}]", ty.for_fmt(self.ctx)),
             IrTy::Array { ty, size } => write!(f, "[{}; {size}]", ty.for_fmt(self.ctx)),
         }
