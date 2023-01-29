@@ -20,6 +20,7 @@ use hash_source::constant::CONSTANT_MAP;
 use hash_target::abi::{AbiRepresentation, ValidScalarRange};
 
 use super::{
+    abi::compute_fn_abi_from_instance,
     locals::LocalRef,
     operands::{OperandRef, OperandValue},
     place::PlaceRef,
@@ -158,7 +159,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
         // compute the function pointer value and the ABI
         //
         // @@Todo: deal with FN ABI error here
-        let fn_abi = self.compute_fn_abi_from_ty(callee.info.ty).unwrap();
+        let fn_abi = compute_fn_abi_from_instance(builder, instance).unwrap();
         let fn_ptr = builder.get_fn_ptr(instance);
 
         // If the return ABI pass mode is "indirect", then this means that

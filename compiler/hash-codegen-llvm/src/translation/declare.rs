@@ -1,13 +1,13 @@
 //! Utilities for emitting declarations.
 
-use hash_codegen::abi::CallingConvention;
+use hash_codegen::abi::{CallingConvention, FnAbi};
 use inkwell::{
     types::{AnyTypeEnum, BasicTypeEnum},
-    values::{AnyValue, AnyValueEnum, GlobalValue, UnnamedAddress},
+    values::{AnyValue, AnyValueEnum, FunctionValue, GlobalValue, UnnamedAddress},
     GlobalVisibility,
 };
 
-use super::Builder;
+use super::{abi::ExtendedFnAbiMethods, Builder};
 use crate::context::CodeGenCtx;
 
 impl<'b> CodeGenCtx<'b> {
@@ -33,7 +33,7 @@ impl<'b> CodeGenCtx<'b> {
         name: &str,
         addr: UnnamedAddress,
         ty: AnyTypeEnum<'b>,
-    ) -> AnyValueEnum<'b> {
+    ) -> FunctionValue<'b> {
         self.declare_fn(
             name,
             ty,
@@ -54,7 +54,7 @@ impl<'b> CodeGenCtx<'b> {
         calling_convention: CallingConvention,
         addr: UnnamedAddress,
         visibility: GlobalVisibility,
-    ) -> AnyValueEnum<'b> {
+    ) -> FunctionValue<'b> {
         let func = if let Some(func) = self.module.get_function(name) {
             func
         } else {
@@ -66,7 +66,24 @@ impl<'b> CodeGenCtx<'b> {
         func.as_global_value().set_unnamed_address(addr);
         func.as_global_value().set_visibility(visibility);
 
-        func.into()
+        func
+    }
+
+    /// Declare a Hash function within the current [inkwell::module::Module].
+    ///
+    /// This will set some sane defaults when declaring the function, and apply
+    /// all of the attributes onto the created [FunctionValue].
+    pub(crate) fn declare_hash_fn(&self, name: &str, abi: &FnAbi) -> FunctionValue<'b> {
+        let func = self.declare_fn(
+            name,
+            abi.llvm_ty(self),
+            abi.calling_convention,
+            UnnamedAddress::Global,
+            GlobalVisibility::Default,
+        );
+
+        abi.apply_attributes_to_fn(self, func);
+        func
     }
 
     /// Declare a global variable within the current [inkwell::module::Module]

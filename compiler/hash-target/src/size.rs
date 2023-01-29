@@ -11,7 +11,7 @@ use crate::{alignment::Alignment, data_layout::HasDataLayout};
 /// Represents the size of some constant in bytes. [Size] is a
 /// utility type that allows one to perform various conversions
 /// on the size (bits and bytes), and to derive .
-#[derive(Copy, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Copy, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct Size {
     value: u64,
 }

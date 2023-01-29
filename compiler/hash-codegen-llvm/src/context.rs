@@ -10,14 +10,14 @@ use hash_codegen::{
     traits::{ctx::HasCtxMethods, target::HasTargetSpec, Backend, BackendTypes},
 };
 use hash_ir::{
-    ty::{IrTyId, VariantIdx},
+    ty::{InstanceId, IrTyId, VariantIdx},
     IrCtx,
 };
 use hash_pipeline::settings::CompilerSettings;
 use hash_source::constant::InternedStr;
 use hash_target::Target;
 use inkwell as llvm;
-use llvm::{types::AnyTypeEnum, values::AnyValueEnum};
+use llvm::{types::AnyTypeEnum, values::FunctionValue};
 
 use crate::translation::ty::TyMemoryRemap;
 
@@ -47,6 +47,10 @@ pub struct CodeGenCtx<'b> {
     /// of pointers and pointer offsets.
     pub size_ty: AnyTypeEnum<'b>,
 
+    /// A mapping between [InstanceId]s to [FunctionValue]s in order
+    /// to avoid re-generating declaring instance references.
+    pub(crate) instances: RefCell<FxHashMap<InstanceId, llvm::values::FunctionValue<'b>>>,
+
     /// A collection of [TyMemoryRemap]s that have occurred for
     /// all of the types that have been translated. Additionally, this is used
     /// as a cache to avoid re-lowering [IrTyId]s into the equivalent
@@ -64,7 +68,7 @@ pub struct CodeGenCtx<'b> {
     /// This maps the name of the intrinsic which is known at compile-time to
     /// the corresponding function pointer value, and the type of the
     /// intrinsic.
-    pub(crate) intrinsics: RefCell<FxHashMap<&'static str, (AnyTypeEnum<'b>, AnyValueEnum<'b>)>>,
+    pub(crate) intrinsics: RefCell<FxHashMap<&'static str, (AnyTypeEnum<'b>, FunctionValue<'b>)>>,
 }
 
 impl<'b> CodeGenCtx<'b> {

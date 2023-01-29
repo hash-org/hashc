@@ -3,8 +3,11 @@
 //! and to be able to call functions from other languages, but to also provide
 //! information to code generation backends about how values are represented.
 
-use hash_layout::{compute::LayoutComputer, TyInfo};
-use hash_target::abi::{AbiRepresentation, Scalar};
+use hash_layout::{compute::LayoutComputer, LayoutId, TyInfo};
+use hash_target::{
+    abi::{AbiRepresentation, Scalar},
+    size::Size,
+};
 use hash_utils::store::Store;
 
 /// Defines the available calling conventions that can be
@@ -85,6 +88,45 @@ impl ArgAbi {
         });
 
         Self { info, mode }
+    }
+
+    /// Create a new [`PassMode::Indirect`] based on the provided [Layout].
+    fn indirect_pass_mode(ctx: &LayoutComputer, layout: LayoutId) -> PassMode {
+        let mut attributes = ArgAttributes::new();
+
+        attributes
+            .set(ArgAttributeFlag::NON_NULL)
+            .set(ArgAttributeFlag::NO_ALIAS)
+            .set(ArgAttributeFlag::NO_CAPTURE)
+            .set(ArgAttributeFlag::NO_UNDEF);
+
+        attributes.pointee_size = ctx.map_fast(layout, |layout| layout.size);
+
+        PassMode::Indirect { attributes, on_stack: false }
+    }
+
+    /// Make the argument be passed indirectly.
+    pub fn make_indirect(&mut self, ctx: &LayoutComputer) {
+        // Firstly, verify that that we aren't making an ignored argument indirect.
+        match self.mode {
+            PassMode::Direct(_) | PassMode::Pair(_, _) => {}
+            PassMode::Indirect { on_stack: false, .. } => return,
+            kind => panic!("tried to make this argument with mode {kind:?} indirectly"),
+        }
+
+        self.mode = Self::indirect_pass_mode(ctx, self.info.layout);
+    }
+
+    /// Make the argument be passed on the stack.
+    pub fn make_indirect_by_stack(&mut self, ctx: &LayoutComputer) {
+        self.make_indirect(ctx);
+
+        match self.mode {
+            PassMode::Indirect { ref mut on_stack, .. } => {
+                *on_stack = true;
+            }
+            _ => unreachable!(),
+        }
     }
 
     /// Check if the [PassMode] of the [ArgAbi] is "indirect".
@@ -177,17 +219,27 @@ pub struct ArgAttributes {
     /// Depending on the ABI, the argument may need to be zero/sign-extended
     /// to a certain size.
     pub extension: ArgExtension,
+
+    /// Denotes the size of the pointee if this is a argument passed by
+    /// a pointer. If it is not a pointer argument, then the size is
+    /// recorded as [`Size::ZERO`].
+    pub pointee_size: Size,
 }
 
 impl ArgAttributes {
     /// Create a new [ArgAttributes].
     pub fn new() -> Self {
-        Self { flags: ArgAttributeFlag::default(), extension: ArgExtension::NoExtend }
+        Self {
+            flags: ArgAttributeFlag::default(),
+            extension: ArgExtension::NoExtend,
+            pointee_size: Size::ZERO,
+        }
     }
 
     /// Apply a [ArgAttributeFlag] to the [ArgAttributes].
-    pub fn set(&mut self, attribute: ArgAttributeFlag) {
+    pub fn set(&mut self, attribute: ArgAttributeFlag) -> &mut Self {
         self.flags |= attribute;
+        self
     }
 
     /// Check if a particular [ArgAttributeFlag] exists on a
@@ -207,7 +259,7 @@ impl ArgAttributes {
 }
 
 /// Defines how an argument should be passed to a function.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum PassMode {
     /// Ignore the argument, this is used for arguments that are not
     /// inhabited (as in cannot be constructed) or ZSTs.
@@ -240,4 +292,12 @@ pub enum PassMode {
         /// stack.
         on_stack: bool,
     },
+}
+
+impl PassMode {
+    /// Check if the [PassMode] specifies that the argument is passed
+    /// indirectly.
+    pub fn is_indirect(&self) -> bool {
+        matches!(self, Self::Indirect { .. })
+    }
 }

@@ -141,6 +141,21 @@ pub enum OptimisationLevel {
     Release,
 }
 
+impl OptimisationLevel {
+    /// Check if the optimisation level is [`OptimisationLevel::Release`].
+    pub fn is_release(&self) -> bool {
+        matches!(self, Self::Release)
+    }
+
+    /// Get the optimisation level as a string.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Debug => "debug",
+            Self::Release => "release",
+        }
+    }
+}
+
 impl FromStr for OptimisationLevel {
     type Err = ArgumentError;
 
