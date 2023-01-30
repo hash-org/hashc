@@ -1,11 +1,5 @@
-error: expected an expression
- --> $DIR/expresionless_directive.hash:4:12
-3 |   // This directive does not have an expression
-4 |   k := #dump;
-  |              ^ 
-
-warn: unnecessary trailing semicolon
+error: expected an expression, however received a `;`
  --> $DIR/expresionless_directive.hash:4:11
 3 |   // This directive does not have an expression
 4 |   k := #dump;
-  |             ^ remove this semicolon
+  |             ^ 

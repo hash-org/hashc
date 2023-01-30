@@ -34,60 +34,80 @@ pub struct ParseError {
 pub enum ParseErrorKind {
     /// Expected keyword at current location
     Keyword,
+
     /// Generic error specifying an expected token atom.
-    Expected,
+    UnExpected,
+
     /// Expected the beginning of a body block.
     Block,
+
     /// Expecting a re-assignment operator at the specified location.
     /// Re-assignment operators are like normal operators, but they expect
     /// an 'equals' sign after the specified operator.
     ReAssignmentOp,
+
     /// Error representing expected type arguments. This error has two variants,
     /// it can either be 'struct' or 'enum' type arguments. The reason why
     /// there are two variants is to add additional information in the error
     /// message.
     TypeDefinition(DefinitionKind),
+
     /// Expected a name here.
     ExpectedName,
+
     /// Expected a binary operator that ties two expressions together to create
     /// a binary expression.
     ExpectedOperator,
+
     /// Expected an expression.
     ExpectedExpr,
+
     /// Expected a '=>' at the current location. This error can occur in a
     /// number of places; including but not limited to: after type
     /// arguments, lambda definition, trait bound annotation, etc.
     ExpectedArrow,
+
     /// Specific error when expecting an arrow after the function definition
     ExpectedFnArrow,
+
     /// Expected a function body at the current location.
     ExpectedFnBody,
+
     /// Expected a type at the current location.
     ExpectedType,
+
     /// Expected an expression after a type annotation within named tuples
     ExpectedValueAfterTyAnnotation,
+
     /// After a dot operator, the parser expects either a property access or an
     /// infix-like method call which is an extended version of a property
     /// access.
     ExpectedPropertyAccess,
+
     /// Expected a pattern at this location
     ExpectedPat,
+
     /// When the `import()` directive is used, the only argument should be a
     /// string path. @@Future: @@CompTime: This could likely change in the
     /// future.
     ImportPath,
+
     /// Expected an identifier after a name qualifier '::'.
     Namespace,
+
     /// If an imported module has errors, it should be reported
     ErroneousImport(ImportError),
+
     /// Malformed spread pattern (if for any reason there is a problem with
     /// parsing the spread operator)
     MalformedSpreadPattern(u8),
+
     /// Expected a literal token, mainly originating from range pattern parsing
     ExpectedLit,
     /// When a suffix is not allowed on a numeric literal, specifically
     /// when it used as a property access field.
     DisallowedSuffix(Identifier),
+
     /// When a property access is invalid: currently emitted when:
     ///
     /// - numeric fields attempt to access a field which is larger than [usize].
@@ -119,7 +139,7 @@ impl From<ParseError> for Reports {
                     err.received.unwrap().as_error_string()
                 )
             }
-            ParseErrorKind::Expected => match &err.received {
+            ParseErrorKind::UnExpected => match &err.received {
                 Some(kind) => format!("unexpectedly encountered {}", kind.as_error_string()),
                 None => "unexpectedly reached the end of input".to_string(),
             },
@@ -173,7 +193,7 @@ impl From<ParseError> for Reports {
         // `AstGenErrorKind::Expected` format the error message in their own way,
         // whereas all the other error types follow a conformed order to
         // formatting expected tokens
-        if !matches!(&err.kind, ParseErrorKind::Expected) {
+        if !matches!(&err.kind, ParseErrorKind::UnExpected) {
             if let Some(kind) = err.received {
                 let atom_msg = format!(", however received {}", kind.as_error_string());
                 base_message.push_str(&atom_msg);

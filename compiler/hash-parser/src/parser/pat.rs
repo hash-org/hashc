@@ -134,8 +134,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// produces a [Pat::Range].
     fn parse_pat_component(&mut self) -> ParseResult<(AstNode<Pat>, bool)> {
         let start = self.next_location();
-        let token =
-            self.peek().ok_or_else(|| self.make_err(ParseErrorKind::Expected, None, None, None))?;
+        let token = self
+            .peek()
+            .ok_or_else(|| self.make_err(ParseErrorKind::UnExpected, None, None, None))?;
 
         let pat = match token {
             Token { kind: TokenKind::Ident(ident), .. } if *ident == IDENTS.underscore => {
@@ -509,7 +510,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 Ok(self.node_with_span(Visibility::Private, *span))
             }
             token => self.err_with_location(
-                ParseErrorKind::Expected,
+                ParseErrorKind::UnExpected,
                 None,
                 token.map(|t| t.kind),
                 token.map_or_else(|| self.next_location(), |t| t.span),

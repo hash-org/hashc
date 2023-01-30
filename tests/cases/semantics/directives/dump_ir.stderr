@@ -9,5 +9,5 @@ error: the `dump_ir` directive is must be within a constant block
   --> $DIR/dump_ir.hash:14:14
 13 |   
 14 |       #dump_ir m := 2
-   |                ^ `dump_ir` cannot be used within body block
+   |                ^^^^^^ `dump_ir` cannot be used within body block
 15 |   }

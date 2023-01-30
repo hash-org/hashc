@@ -7,8 +7,10 @@ use std::{
 };
 
 use hash_source::{InteractiveId, ModuleId, SourceId};
-use hash_utils::path::adjust_canonicalisation;
-use index_vec::{index_vec, IndexVec};
+use hash_utils::{
+    index_vec::{index_vec, IndexVec},
+    path::adjust_canonicalisation,
+};
 
 use crate::ast::{AstNode, BodyBlock, Module, OwnsAstNode};
 

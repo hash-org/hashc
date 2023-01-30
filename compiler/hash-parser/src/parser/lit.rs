@@ -229,7 +229,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     // if we haven't exhausted the whole token stream, then report this as a
                     // unexpected token error
                     return gen.err(
-                        ParseErrorKind::Expected,
+                        ParseErrorKind::UnExpected,
                         Some(TokenKindVector::singleton(TokenKind::Comma)),
                         Some(token.kind),
                     );

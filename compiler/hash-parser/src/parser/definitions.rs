@@ -243,7 +243,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     break;
                 }
                 token => self.err_with_location(
-                    ParseErrorKind::Expected,
+                    ParseErrorKind::UnExpected,
                     Some(TokenKindVector::from_vec(smallvec![TokenKind::Comma, TokenKind::Gt])),
                     token.map(|t| t.kind),
                     token.map_or_else(|| self.next_location(), |t| t.span),
@@ -259,7 +259,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 self.skip_token();
             } else {
                 self.err_with_location(
-                    ParseErrorKind::Expected,
+                    ParseErrorKind::UnExpected,
                     Some(TokenKindVector::singleton(TokenKind::Gt)),
                     self.peek().map(|tok| tok.kind),
                     self.next_location(),

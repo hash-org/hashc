@@ -13,7 +13,7 @@ use hash_source::{
     location::Span,
 };
 use hash_tree_def::define_tree;
-use hash_utils::counter;
+use hash_utils::{counter, smallvec::SmallVec};
 use replace_with::replace_with_or_abort;
 
 counter! {
@@ -330,6 +330,12 @@ define_tree! {
         /// it.
         pub fn is(&self, other: impl Into<Identifier>) -> bool {
             self.ident == other.into()
+        }
+    }
+
+    impl std::fmt::Display for Name {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{}", self.ident)
         }
     }
 
@@ -1694,7 +1700,7 @@ define_tree! {
     #[node]
     pub struct DirectiveExpr {
         /// The name of the directive (without the "#").
-        pub name: Child!(Name),
+        pub directives: SmallVec<[(Name, Span); 2]>,
         /// An expression which is referenced in the directive
         pub subject: Child!(Expr),
     }
