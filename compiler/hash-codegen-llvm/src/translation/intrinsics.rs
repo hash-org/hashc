@@ -9,7 +9,7 @@ use hash_codegen::{
     },
 };
 use hash_ir::ty::{IrTy, IrTyId};
-use hash_source::identifier::Identifier;
+use hash_source::identifier::{Identifier, IDENTS};
 use hash_utils::store::CloneStore;
 use inkwell::values::{AnyValueEnum, UnnamedAddress};
 
@@ -62,7 +62,7 @@ impl<'b> Builder<'b> {
         }
 
         // Declare all of the types that might occur within the intrinsic.
-        let ptr = self.type_i8p();
+        let _ptr = self.type_i8p();
         let void = self.type_void();
         let bool = self.type_i1();
         let i8 = self.type_i8();
@@ -70,10 +70,10 @@ impl<'b> Builder<'b> {
         let i32 = self.type_i32();
         let i64 = self.type_i64();
         let i128 = self.type_i128();
-        let isize = self.type_isize();
+        let _isize = self.type_isize();
         let f32 = self.type_f32();
         let f64 = self.type_f64();
-        let metadata = self.type_metadata();
+        let _metadata = self.type_metadata();
 
         // Declare all of the intrinsics that we support.
 
@@ -266,13 +266,36 @@ impl<'b> Builder<'b> {
     /// to be generated for this intrinsic function, all others are
     /// considered "special" and require additional steps to generate
     /// code for.
-    fn get_simple_intrinsic(
-        &self,
-        name: Identifier,
-    ) -> Option<(<Self as BackendTypes>::Type, <Self as BackendTypes>::Function)> {
-        let name = None;
+    fn get_simple_intrinsic(&self, name: Identifier) -> Option<<Self as BackendTypes>::Function> {
+        let name = match name {
+            i if i == IDENTS.sqrt_f32 => "llvm.sqrt.f32",
+            i if i == IDENTS.sqrt_f64 => "llvm.sqrt.f64",
+            i if i == IDENTS.powi_f32 => "llvm.powi.f32",
+            i if i == IDENTS.powi_f64 => "llvm.powi.f64",
+            i if i == IDENTS.sin_f32 => "llvm.sin.f32",
+            i if i == IDENTS.sin_f64 => "llvm.sin.f64",
+            i if i == IDENTS.cos_f32 => "llvm.cos.f32",
+            i if i == IDENTS.cos_f64 => "llvm.cos.f64",
+            i if i == IDENTS.pow_f32 => "llvm.pow.f32",
+            i if i == IDENTS.pow_f64 => "llvm.pow.f64",
+            i if i == IDENTS.exp_f32 => "llvm.exp.f32",
+            i if i == IDENTS.exp_f64 => "llvm.exp.f64",
+            i if i == IDENTS.exp2_f32 => "llvm.exp2.f32",
+            i if i == IDENTS.exp2_f64 => "llvm.exp2.f64",
+            i if i == IDENTS.log_f32 => "llvm.log.f32",
+            i if i == IDENTS.log_f64 => "llvm.log.f64",
+            i if i == IDENTS.log10_f32 => "llvm.log10.f32",
+            i if i == IDENTS.log10_f64 => "llvm.log10.f64",
+            i if i == IDENTS.log2_f32 => "llvm.log2.f32",
+            i if i == IDENTS.log2_f64 => "llvm.log2.f64",
+            i if i == IDENTS.fma_f32 => "llvm.fma.f32",
+            i if i == IDENTS.fma_f64 => "llvm.fma.f64",
+            i if i == IDENTS.fabs_f32 => "llvm.fabs.f32",
+            i if i == IDENTS.fabs_f64 => "llvm.fabs.f64",
+            _ => return None,
+        };
 
-        name.map(|name| self.get_intrinsic_function(name))
+        Some(self.get_intrinsic_function(name))
     }
 }
 
@@ -291,7 +314,7 @@ impl<'b> IntrinsicBuilderMethods<'b> for Builder<'b> {
         // However, since we haven't formally defined any "special" intrinsics yet, we
         // don't expect for the resolution to fail.
 
-        let IrTy::Fn { instance, params, return_ty } = self.ir_ctx.tys().get(ty) else {
+        let IrTy::Fn { instance, .. } = self.ir_ctx.tys().get(ty) else {
             panic!("unable to resolve intrinsic function type");
         };
         let name = self.ir_ctx.instances().name_of(instance);
