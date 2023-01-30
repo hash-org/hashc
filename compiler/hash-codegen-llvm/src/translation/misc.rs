@@ -1,15 +1,12 @@
 //! Implements various miscellaneous methods for the LLVM backend.
 
-use std::borrow::Borrow;
-
 use hash_codegen::{
-    abi::FnAbi,
     lower::abi::compute_fn_abi_from_instance,
     traits::{misc::MiscBuilderMethods, ty::TypeBuilderMethods},
 };
-use hash_ir::ty::{Instance, InstanceId};
+use hash_ir::ty::InstanceId;
 use inkwell::{
-    values::{AnyValue, AsValueRef, BasicValue, FunctionValue, UnnamedAddress},
+    values::{AnyValue, FunctionValue, UnnamedAddress},
     GlobalVisibility,
 };
 
@@ -35,7 +32,7 @@ impl<'b> CodeGenCtx<'b> {
 
         // See if this item has already been declared in the module
         let func = if let Some(func) = self.module.get_function(name.into()) {
-            /// Create a function pointer with the new signature...
+            // Create a function pointer with the new signature...
             let ptr = fn_abi.ptr_to_llvm_ty(self);
 
             // If the value type of the function does not match the
@@ -65,8 +62,8 @@ impl<'b> MiscBuilderMethods<'b> for CodeGenCtx<'b> {
         self.get_fn_or_create_ref(instance)
     }
 
-    fn get_fn_ptr(&self, instance: InstanceId) -> Self::Value {
-        self.get_fn_or_create_ref(instance).into()
+    fn get_fn_ptr(&self, instance: InstanceId) -> Self::Function {
+        self.get_fn_or_create_ref(instance)
     }
 
     fn declare_entry_point(&self, fn_ty: Self::Type) -> Option<Self::Function> {

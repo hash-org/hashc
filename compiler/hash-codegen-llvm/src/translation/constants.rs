@@ -6,12 +6,7 @@ use hash_codegen::traits::{
 use hash_ir::ir::Const;
 use hash_source::constant::{InternedStr, CONSTANT_MAP};
 use hash_target::{abi::Scalar, data_layout::HasDataLayout};
-use hash_utils::store::StoreKey;
-use inkwell::{
-    module::Linkage,
-    types::BasicTypeEnum,
-    values::{AnyValueEnum, AsValueRef},
-};
+use inkwell::{module::Linkage, types::BasicTypeEnum, values::AnyValueEnum};
 
 use super::ty::ExtendedTyBuilderMethods;
 use crate::context::CodeGenCtx;
@@ -141,7 +136,7 @@ impl<'b> ConstValueBuilderMethods<'b> for CodeGenCtx<'b> {
         (ptr.into(), self.const_usize(str_len as u64))
     }
 
-    fn const_scalar_value(&self, const_value: Const, abi: Scalar, ty: Self::Type) -> Self::Value {
+    fn const_scalar_value(&self, const_value: Const, _abi: Scalar, ty: Self::Type) -> Self::Value {
         match const_value {
             // This is handled at the translation layer, `const_scalar_value` should not be called
             // on a ZST.

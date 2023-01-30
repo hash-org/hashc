@@ -13,7 +13,7 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
         &mut self,
         builder: &mut Builder,
         intrinsic: Intrinsic,
-    ) -> (FnAbi, Builder::Value) {
+    ) -> (FnAbi, Builder::Function) {
         // @@ErrorHandling: propagate the error into the compiler pipeline, thus
         // terminating the workflow if this error occurs which it shouldn't
         let ty = self.ctx.ir_ctx().intrinsics().get(intrinsic).unwrap();

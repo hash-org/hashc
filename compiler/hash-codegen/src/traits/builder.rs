@@ -91,10 +91,9 @@ pub trait BlockBuilderMethods<'b>:
     /// function.
     fn call(
         &mut self,
-        ty: Self::Type,
-        fn_abi: Option<&FnAbi>,
-        fn_ptr: Self::Value,
+        fn_ptr: Self::Function,
         args: &[Self::Value],
+        fn_abi: Option<&FnAbi>,
     ) -> Self::Value;
 
     // --- Arithmetic ---
@@ -390,8 +389,8 @@ pub trait BlockBuilderMethods<'b>:
         &mut self,
         ty: Self::Type,
         ptr: Self::Value,
-        alignment: Alignment,
         ordering: AtomicOrdering,
+        size: Size,
     ) -> Self::Value;
 
     /// Emit an instruction to load an operand into a particular `place`.

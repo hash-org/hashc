@@ -1,14 +1,10 @@
 //! Parser warning definitions.
-#![allow(unused, dead_code)]
 
 use std::fmt::Display;
 
 use derive_more::Constructor;
 use hash_ast::ast::Expr;
-use hash_reporting::{
-    report::{Report, ReportCodeBlock, ReportElement, ReportKind},
-    reporter::{Reporter, Reports},
-};
+use hash_reporting::reporter::{Reporter, Reports};
 use hash_source::{
     location::{SourceLocation, Span},
     SourceId,
@@ -103,11 +99,8 @@ impl From<ParseWarningWrapper> for Reports {
             WarningKind::UselessTyParams { def_kind } => {
                 span_label = "remove this `<>`".to_string();
 
-                let label = if matches!(def_kind, DefinitionKind::Mod | DefinitionKind::Mod) {
-                    "block"
-                } else {
-                    "definition"
-                };
+                let label =
+                    if matches!(def_kind, DefinitionKind::Mod) { "block" } else { "definition" };
 
                 format!("useless type parameters on this `{def_kind}` {label}")
             }

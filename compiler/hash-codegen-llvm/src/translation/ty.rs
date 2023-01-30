@@ -9,7 +9,7 @@ use hash_codegen::{
     layout::{Layout, LayoutShape, TyInfo, Variants},
     traits::{ctx::HasCtxMethods, layout::LayoutMethods, ty::TypeBuilderMethods},
 };
-use hash_ir::ty::{IrTy, IrTyId, RefKind};
+use hash_ir::ty::IrTy;
 use hash_target::{
     abi::{AbiRepresentation, AddressSpace, Integer, Scalar, ScalarKind},
     alignment::Alignment,
@@ -17,10 +17,7 @@ use hash_target::{
 };
 use hash_utils::store::Store;
 use inkwell as llvm;
-use llvm::types::{
-    AnyType, AnyTypeEnum, AsTypeRef, BasicMetadataTypeEnum, BasicType, BasicTypeEnum, MetadataType,
-    VectorType,
-};
+use llvm::types::{AnyTypeEnum, AsTypeRef, BasicType, BasicTypeEnum, MetadataType, VectorType};
 use llvm_sys::{
     core::{LLVMGetTypeKind, LLVMVectorType},
     LLVMTypeKind,
@@ -28,10 +25,7 @@ use llvm_sys::{
 use smallvec::SmallVec;
 
 use super::abi::ExtendedFnAbiMethods;
-use crate::{
-    context::CodeGenCtx,
-    misc::{AddressSpaceWrapper, MetadataTypeKind},
-};
+use crate::{context::CodeGenCtx, misc::AddressSpaceWrapper};
 
 /// Convert a [BasicTypeEnum] into a [AnyTypeEnum].
 ///
@@ -58,8 +52,6 @@ impl<'b> CodeGenCtx<'b> {
 
     /// Create a [VectorType] from a [`AbiRepresentation::Vector`].
     pub(crate) fn type_vector(&self, element_ty: AnyTypeEnum<'b>, len: u64) -> AnyTypeEnum<'b> {
-        let ty: BasicTypeEnum = element_ty.try_into().unwrap();
-
         // @@PatchInkwell: we should allow creating a vector type from a
         // BasicTypeEnum and a length.
         let vec_ty = unsafe {
@@ -290,10 +282,20 @@ pub(crate) trait ExtendedTyBuilderMethods<'ll> {
 
 impl<'ll> ExtendedTyBuilderMethods<'ll> for TyInfo {
     fn llvm_ty(&self, ctx: &CodeGenCtx<'ll>) -> llvm::types::AnyTypeEnum<'ll> {
-        let abi = ctx.map_layout(self.layout, |layout| layout.abi);
+        let (abi, variant_index) = ctx.map_layout(self.layout, |layout| {
+            let variant_index = match &layout.variants {
+                Variants::Single { index } => Some(*index),
+                _ => None,
+            };
 
-        // @@Todo: Check the cache if we have already computed the lowered type
+            (layout.abi, variant_index)
+        });
+
+        // Check the cache if we have already computed the lowered type
         // for this ir-type.
+        if let Some(ty_remap) = ctx.ty_remaps.borrow().get(&(self.ty, variant_index)) {
+            return ty_remap.ty;
+        }
 
         match abi {
             AbiRepresentation::Scalar(scalar) => {
@@ -307,7 +309,7 @@ impl<'ll> ExtendedTyBuilderMethods<'ll> for TyInfo {
             AbiRepresentation::Vector { elements, kind } => {
                 ctx.type_vector(self.scalar_llvm_type_at(ctx, kind, Size::ZERO), elements)
             }
-            AbiRepresentation::Pair(scalar_1, scalar_2) => ctx.type_struct(
+            AbiRepresentation::Pair(..) => ctx.type_struct(
                 &[
                     self.scalar_pair_element_llvm_ty(ctx, 0, false),
                     self.scalar_pair_element_llvm_ty(ctx, 1, false),
@@ -326,7 +328,7 @@ impl<'ll> ExtendedTyBuilderMethods<'ll> for TyInfo {
                         let name: Option<String> = match ty {
                             IrTy::Str => Some("str".to_string()),
                             IrTy::Adt(adt) => {
-                                ctx.ir_ctx().map_adt(*adt, |id, adt| {
+                                ctx.ir_ctx().map_adt(*adt, |_, adt| {
                                     // We don't create a name for tuple types, they are just
                                     // regarded
                                     // as opaque structs
@@ -378,15 +380,12 @@ impl<'ll> ExtendedTyBuilderMethods<'ll> for TyInfo {
                                 ctx.type_array(field_ty, elements)
                             }
                             LayoutShape::Aggregate { .. } => {
-                                let mut new_remapping = None;
-
-                                match name {
+                                let (ty, field_remapping) = match name {
                                     Some(ref name) => {
                                         let (fields, packed, new_field_remapping) =
                                             create_and_pad_struct_fields_from_layout(
                                                 ctx, *self, layout,
                                             );
-                                        new_remapping = Some(new_field_remapping);
 
                                         let ty = ctx.ll_ctx.opaque_struct_type(name);
 
@@ -399,18 +398,24 @@ impl<'ll> ExtendedTyBuilderMethods<'ll> for TyInfo {
                                             .collect::<Vec<_>>();
 
                                         ty.set_body(&fields, packed);
-                                        ty.into()
+                                        (ty.into(), new_field_remapping)
                                     }
                                     None => {
                                         let (fields, packed, new_field_remapping) =
                                             create_and_pad_struct_fields_from_layout(
                                                 ctx, *self, layout,
                                             );
-                                        new_remapping = Some(new_field_remapping);
 
-                                        ctx.type_struct(&fields, packed)
+                                        (ctx.type_struct(&fields, packed), new_field_remapping)
                                     }
-                                }
+                                };
+
+                                ctx.ty_remaps.borrow_mut().insert(
+                                    (self.ty, variant_index),
+                                    TyMemoryRemap { ty, remap: field_remapping },
+                                );
+
+                                ty
                             }
                         }
                     })
@@ -439,8 +444,14 @@ impl<'ll> ExtendedTyBuilderMethods<'ll> for TyInfo {
         &self,
         ctx: &CodeGenCtx<'ll>,
         scalar: Scalar,
+
+        // @@Todo: implement pointee_info_at(offset) for this offset to
+        // work... since we're then indexing into a reference type
+        // layout
         offset: Size,
     ) -> llvm::types::AnyTypeEnum<'ll> {
+        debug_assert!(offset == Size::ZERO, "offsets not yet implemented");
+
         match scalar.kind() {
             ScalarKind::Int { kind, .. } => ctx.type_from_integer(kind),
             ScalarKind::Float { kind } => ctx.type_from_float(kind),
@@ -451,7 +462,7 @@ impl<'ll> ExtendedTyBuilderMethods<'ll> for TyInfo {
 
                 let (ty, addr) = ctx.ir_ctx().map_ty(self.ty, |ty| {
                     match ty {
-                        IrTy::Ref(ty, _, _) => (ctx.type_pointee_for_alignment(alignment), AddressSpace::DATA),
+                        IrTy::Ref(..) => (ctx.type_pointee_for_alignment(alignment), AddressSpace::DATA),
                         _ => (ctx.type_i8p(), AddressSpace::DATA)
                     }
                 });
