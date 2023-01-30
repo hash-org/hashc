@@ -22,16 +22,13 @@ impl<'b> Builder<'b> {
         name: &str,
         args: &[AnyValueEnum<'b>],
     ) -> <Self as BackendTypes>::Value {
-        let (ty, func) = self.get_intrinsic_function(name);
-        self.call(ty, None, func.into(), args)
+        let func = self.get_intrinsic_function(name);
+        self.call(func, args, None)
     }
 
     /// Get an intrinsic function type and function pointer value
     /// for the given intrinsic name.
-    pub(crate) fn get_intrinsic_function(
-        &self,
-        name: &str,
-    ) -> (<Self as BackendTypes>::Type, <Self as BackendTypes>::Function) {
+    pub(crate) fn get_intrinsic_function(&self, name: &str) -> <Self as BackendTypes>::Function {
         if let Some(intrinsic) = self.intrinsics.borrow().get(name).cloned() {
             return intrinsic;
         }
@@ -41,10 +38,7 @@ impl<'b> Builder<'b> {
         })
     }
 
-    pub(crate) fn declare_intrinsic(
-        &self,
-        name: &str,
-    ) -> Option<(<Self as BackendTypes>::Type, <Self as BackendTypes>::Function)> {
+    pub(crate) fn declare_intrinsic(&self, name: &str) -> Option<<Self as BackendTypes>::Function> {
         // This macro is used to define the intrinsic based on the function name.
         // If the name of the intrinsic is equal to the specified value, then this
         // type and function pointer value will be returned.
@@ -257,14 +251,14 @@ impl<'b> Builder<'b> {
         name: &'static str,
         args: &[<Self as BackendTypes>::Type],
         return_ty: <Self as BackendTypes>::Type,
-    ) -> (<Self as BackendTypes>::Type, <Self as BackendTypes>::Function) {
+    ) -> <Self as BackendTypes>::Function {
         let func_ty = self.type_function(args, return_ty);
         let func = self.declare_c_fn(name, UnnamedAddress::None, func_ty);
 
         // Now we add the function into the "intrinsics" map in order to
         // avoid re-declaring the function or re-resolving the function.
-        self.intrinsics.borrow_mut().insert(name, (func_ty, func));
-        (func_ty, func)
+        self.intrinsics.borrow_mut().insert(name, func);
+        func
     }
 
     /// Attempt to resolve an intrinsic function that is "simple" in
@@ -305,8 +299,8 @@ impl<'b> IntrinsicBuilderMethods<'b> for Builder<'b> {
         let result_ref = PlaceRef::new(self, result, fn_abi.ret_abi.info);
 
         // if we can simply resolve the intrinsic then we can just call it directly...
-        let value = if let Some((ty, value)) = self.get_simple_intrinsic(name) {
-            self.call(ty, None, value.into(), args)
+        let value = if let Some(intrinsic) = self.get_simple_intrinsic(name) {
+            self.call(intrinsic, args, None)
         } else {
             // @@Todo: deal with more "non-trivial" intrinsics
             unimplemented!("intrinsic function `{name}` is not trivial")

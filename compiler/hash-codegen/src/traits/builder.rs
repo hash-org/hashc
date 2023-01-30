@@ -91,10 +91,9 @@ pub trait BlockBuilderMethods<'b>:
     /// function.
     fn call(
         &mut self,
-        ty: Self::Type,
-        fn_abi: Option<&FnAbi>,
-        fn_ptr: Self::Value,
+        fn_ptr: Self::Function,
         args: &[Self::Value],
+        fn_abi: Option<&FnAbi>,
     ) -> Self::Value;
 
     // --- Arithmetic ---

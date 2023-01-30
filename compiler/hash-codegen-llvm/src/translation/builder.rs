@@ -2,8 +2,6 @@
 //! [hash_codegen::traits::builder::BlockBuilderMethods] using the Inkwell
 //! wrapper around LLVM.
 
-use std::alloc::alloc;
-
 use hash_codegen::{
     abi::FnAbi,
     common::{AtomicOrdering, CheckedOp, IntComparisonKind, MemFlags, RealComparisonKind},
@@ -13,11 +11,8 @@ use hash_codegen::{
         place::PlaceRef,
     },
     traits::{
-        builder::{self, BlockBuilderMethods},
-        constants::ConstValueBuilderMethods,
-        ctx::HasCtxMethods,
-        layout::LayoutMethods,
-        ty::TypeBuilderMethods,
+        builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, ctx::HasCtxMethods,
+        layout::LayoutMethods, ty::TypeBuilderMethods,
     },
 };
 use hash_ir::ty::{IrTy, IrTyId, RefKind};
@@ -29,10 +24,10 @@ use hash_target::{
 };
 use inkwell::{
     basic_block::BasicBlock,
-    types::{AnyTypeEnum, BasicTypeEnum},
+    types::{AnyTypeEnum, AsTypeRef, BasicTypeEnum},
     values::{
         AggregateValueEnum, AnyValueEnum, BasicMetadataValueEnum, BasicValue, BasicValueEnum,
-        IntMathValue, IntValue, PhiValue, UnnamedAddress,
+        PhiValue, UnnamedAddress,
     },
 };
 use rayon::iter::Either;
@@ -163,15 +158,14 @@ impl<'b> BlockBuilderMethods<'b> for Builder<'b> {
 
     fn call(
         &mut self,
-        ty: Self::Type,
-        fn_abi: Option<&FnAbi>,
-        fn_ptr: Self::Value,
+        fn_ptr: Self::Function,
         args: &[Self::Value],
+        fn_abi: Option<&FnAbi>,
     ) -> Self::Value {
         let args: Vec<BasicMetadataValueEnum> =
             args.iter().map(|v| (*v).try_into().unwrap()).collect();
 
-        let site = self.builder.build_call(fn_ptr.into_function_value(), &args, "");
+        let site = self.builder.build_call(fn_ptr, &args, "");
 
         if let Some(abi) = fn_abi {
             abi.apply_attributes_call_site(self, site);
@@ -357,8 +351,8 @@ impl<'b> BlockBuilderMethods<'b> for Builder<'b> {
         let ty = self.ty_of_value(lhs);
         let args = &[ty, ty];
 
-        let ty = self.type_function(args, ty);
-        self.call(ty, None, func, &[lhs, rhs])
+        let func = self.module.get_function(intrinsic).unwrap();
+        self.call(func, &[lhs, rhs], None)
     }
 
     fn shl(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
@@ -544,11 +538,11 @@ impl<'b> BlockBuilderMethods<'b> for Builder<'b> {
             // then we'll need to handle this case.
             unimplemented!()
         } else {
-            (src_ty.into_float_type(), dest_ty.into_int_type(), None)
+            (src_ty, dest_ty, None)
         };
 
-        let float_width = self.float_width(src_ty);
-        let int_width = self.int_width(dest_ty);
+        let float_width = self.float_width(float_ty);
+        let int_width = self.int_width(int_ty);
 
         let instruction = if is_signed { "s" } else { "u" };
         let name = if let Some(vec_width) = vec_width {
@@ -562,7 +556,7 @@ impl<'b> BlockBuilderMethods<'b> for Builder<'b> {
         let fn_ty = self.type_function(&[src_ty], dest_ty);
         let func = self.declare_c_fn(&name, UnnamedAddress::None, fn_ty);
 
-        self.call(fn_ty, None, func.into(), &[value])
+        self.call(func, &[value], None)
     }
 
     fn fp_to_ui(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value {

@@ -68,7 +68,7 @@ pub struct CodeGenCtx<'b> {
     /// This maps the name of the intrinsic which is known at compile-time to
     /// the corresponding function pointer value, and the type of the
     /// intrinsic.
-    pub(crate) intrinsics: RefCell<FxHashMap<&'static str, (AnyTypeEnum<'b>, FunctionValue<'b>)>>,
+    pub(crate) intrinsics: RefCell<FxHashMap<&'static str, FunctionValue<'b>>>,
 }
 
 impl<'b> CodeGenCtx<'b> {
