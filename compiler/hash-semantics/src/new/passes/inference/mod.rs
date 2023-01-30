@@ -34,7 +34,7 @@ impl<'tc> AstPass for InferencePass<'tc> {
         let term = self.ast_info().terms().get_data_by_node(node.id()).unwrap();
         let ty = self.infer_ops().infer_term(term, None);
         let ty_str = match ty {
-            Ok(ty) => self.env().with(ty).to_string(),
+            Ok((_, ty)) => self.env().with(ty).to_string(),
             Err(TcError::Blocked) => "<unknown>".to_string(),
             Err(err) => {
                 return Err(err.into());
