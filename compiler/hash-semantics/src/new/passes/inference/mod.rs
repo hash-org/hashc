@@ -32,7 +32,7 @@ impl<'tc> AstPass for InferencePass<'tc> {
         // Just infer the term corresponding to the body block, and then print it
         // (@@Temp)
         let term = self.ast_info().terms().get_data_by_node(node.id()).unwrap();
-        let ty = self.infer_ops().infer_term(term, None);
+        let ty = self.inference_ops().infer_term(term, None);
         let ty_str = match ty {
             Ok((_, ty)) => self.env().with(ty).to_string(),
             Err(TcError::Blocked) => "<unknown>".to_string(),
@@ -53,10 +53,10 @@ impl<'tc> AstPass for InferencePass<'tc> {
         // (@@Temp)
 
         let mod_def_id = self.ast_info().mod_defs().get_data_by_node(node.id()).unwrap();
-        self.infer_ops().infer_mod_def(mod_def_id)?;
+        self.inference_ops().infer_mod_def(mod_def_id)?;
         stream_less_writeln!("First: {}", self.env().with(mod_def_id));
 
-        self.infer_ops().infer_mod_def(mod_def_id)?;
+        self.inference_ops().infer_mod_def(mod_def_id)?;
         stream_less_writeln!("Second: {}", self.env().with(mod_def_id));
 
         Ok(())

@@ -53,15 +53,14 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     ) -> TcResult<DefParamsId> {
         // @@Todo: dependent definition parameters
         let mut def_params = vec![];
-        let mut has_error = false;
+        let mut error_state = self.new_error_state();
 
         let mut push_param_group =
             |arg_group: &DefArgGroup, param_group: Option<&DefParamGroup>| {
-                match self.try_or_add_error(infer_def_arg_group(arg_group, param_group)) {
-                    // Type was inferred
-                    Some(group) => def_params.push(group),
-                    // Error occurred
-                    None => has_error = true,
+                if let Some(group) =
+                    error_state.try_or_add_error(infer_def_arg_group(arg_group, param_group))
+                {
+                    def_params.push(group)
                 }
             };
 
@@ -80,11 +79,10 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             }
         }
 
-        if has_error {
-            Err(TcError::Signal)
-        } else {
-            Ok(self.param_utils().create_def_params(def_params.into_iter()))
-        }
+        self.return_or_register_errors(
+            || Ok(self.param_utils().create_def_params(def_params.into_iter())),
+            error_state,
+        )
     }
 
     /// Infer the given definition arguments.
@@ -880,68 +878,64 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     pub fn infer_pat(&self, pat_id: PatId, annotation_ty: Option<TyId>) -> TcResult<(PatId, TyId)> {
         let pat = self.get_pat(pat_id);
 
-        let inferred_ty =
-            match pat {
-                Pat::Binding(binding) => self.infer_var(binding.name)?,
-                Pat::Range(range_pat) => {
-                    let start = self.infer_lit(&range_pat.start.into(), annotation_ty)?.1;
-                    let end = self.infer_lit(&range_pat.end.into(), annotation_ty)?.1;
-                    let Uni { sub } = self.unification_ops().unify_tys(start, end)?;
-                    assert!(sub.is_empty()); // @@Todo: specialised unification for no sub
-                    self.substitution_ops().apply_sub_to_ty(start, &sub)
-                }
-                Pat::Lit(lit) => self.infer_lit(&lit.into(), annotation_ty)?.1,
-                Pat::Tuple(tuple_pat) => {
-                    // @@Todo: checking annotations
-                    let args = self.infer_pat_args(tuple_pat.data, None)?.1;
-                    self.new_ty(TupleTy { data: args })
-                }
-                Pat::List(list_term) => {
-                    // @@Todo: checking annotations
-                    let list_inner_type =
-                        self.stores().pat_list().map_fast(list_term.pats, |elements| {
-                            self.try_or_add_error(self.infer_unified_list(elements, |pat| {
-                                Ok(self.infer_pat(pat, None)?.1)
-                            }))
-                            .unwrap_or_else(|| self.new_ty_hole())
-                        });
+        let inferred_ty = match pat {
+            Pat::Binding(binding) => self.infer_var(binding.name)?,
+            Pat::Range(range_pat) => {
+                let start = self.infer_lit(&range_pat.start.into(), annotation_ty)?.1;
+                let end = self.infer_lit(&range_pat.end.into(), annotation_ty)?.1;
+                let Uni { sub } = self.unification_ops().unify_tys(start, end)?;
+                assert!(sub.is_empty()); // @@Todo: specialised unification for no sub
+                self.substitution_ops().apply_sub_to_ty(start, &sub)
+            }
+            Pat::Lit(lit) => self.infer_lit(&lit.into(), annotation_ty)?.1,
+            Pat::Tuple(tuple_pat) => {
+                // @@Todo: checking annotations
+                let args = self.infer_pat_args(tuple_pat.data, None)?.1;
+                self.new_ty(TupleTy { data: args })
+            }
+            Pat::List(list_term) => {
+                // @@Todo: checking annotations
+                let list_inner_type =
+                    self.stores().pat_list().map_fast(list_term.pats, |elements| {
+                        self.infer_unified_list(elements, |pat| Ok(self.infer_pat(pat, None)?.1))
+                    })?;
 
-                    self.new_ty(DataTy {
-                        data_def: self.primitives().list(),
-                        args: self.param_utils().create_positional_args_for_data_def(
-                            self.primitives().list(),
-                            [[self.new_term(Term::Ty(list_inner_type))]],
-                        ),
+                self.new_ty(DataTy {
+                    data_def: self.primitives().list(),
+                    args: self.param_utils().create_positional_args_for_data_def(
+                        self.primitives().list(),
+                        [[self.new_term(Term::Ty(list_inner_type))]],
+                    ),
+                })
+            }
+            Pat::Ctor(ctor_pat) => {
+                // @@Todo: dependent
+                // @@Todo: checking
+                let _ = self.infer_def_args(ctor_pat.data_args, None)?;
+                let _ = self.infer_def_pat_args(ctor_pat.ctor_pat_args, None)?;
+                let data_def = self
+                    .stores()
+                    .ctor_defs()
+                    .map_fast(ctor_pat.ctor.0, |defs| defs[ctor_pat.ctor.1].data_def_id);
+
+                // @@todo: sub args
+                self.new_ty(DataTy { data_def, args: ctor_pat.data_args })
+            }
+            Pat::Or(or_pat) => {
+                self.stores().pat_list().map_fast(or_pat.alternatives, |alternatives| {
+                    self.infer_unified_list(alternatives, |pat| {
+                        Ok(self.infer_pat(pat, annotation_ty)?.1)
                     })
-                }
-                Pat::Ctor(ctor_pat) => {
-                    // @@Todo: dependent
-                    // @@Todo: checking
-                    let _ = self.infer_def_args(ctor_pat.data_args, None)?;
-                    let _ = self.infer_def_pat_args(ctor_pat.ctor_pat_args, None)?;
-                    let data_def = self
-                        .stores()
-                        .ctor_defs()
-                        .map_fast(ctor_pat.ctor.0, |defs| defs[ctor_pat.ctor.1].data_def_id);
-
-                    // @@todo: sub args
-                    self.new_ty(DataTy { data_def, args: ctor_pat.data_args })
-                }
-                Pat::Or(or_pat) => {
-                    self.stores().pat_list().map_fast(or_pat.alternatives, |alternatives| {
-                        self.infer_unified_list(alternatives, |pat| {
-                            Ok(self.infer_pat(pat, annotation_ty)?.1)
-                        })
-                    })?
-                }
-                Pat::If(if_pat) => {
-                    let _ = self.infer_term(
-                        if_pat.condition,
-                        Some(self.new_data_ty(self.primitives().bool())),
-                    )?;
-                    self.infer_pat(if_pat.pat, annotation_ty)?.1
-                }
-            };
+                })?
+            }
+            Pat::If(if_pat) => {
+                let _ = self.infer_term(
+                    if_pat.condition,
+                    Some(self.new_data_ty(self.primitives().bool())),
+                )?;
+                self.infer_pat(if_pat.pat, annotation_ty)?.1
+            }
+        };
 
         let final_ty = self.check_by_unify(inferred_ty, annotation_ty)?;
         Ok((pat_id, final_ty))
@@ -975,21 +969,14 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     pub fn infer_mod_def(&self, mod_def_id: ModDefId) -> TcResult<()> {
         let members = self.stores().mod_def().map_fast(mod_def_id, |def| def.members);
         self.stores().mod_members().map_fast(members, |members| {
-            let mut has_error = false;
+            let mut error_state = self.new_error_state();
 
             // Infer each member
             for member in members {
-                match self.try_or_add_error(self.infer_mod_member(member)) {
-                    Some(()) => {}
-                    None => has_error = true,
-                }
+                let _ = error_state.try_or_add_error(self.infer_mod_member(member));
             }
 
-            if has_error {
-                Err(TcError::Signal)
-            } else {
-                Ok(())
-            }
+            self.return_or_register_errors(|| Ok(()), error_state)
         })
     }
 }

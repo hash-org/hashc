@@ -17,28 +17,39 @@ use crate::{
     AccessToTypechecking,
 };
 
+/// Represents a unification result.
+///
+/// For now, this is just a substitution, but kept as
+/// a separate type to allow for future extensions.
 #[derive(Debug, Clone)]
 pub struct Uni {
     pub sub: Sub,
 }
 
 impl Uni {
+    /// Create a unification result that is successful and has no substitution.
     pub fn ok() -> TcResult<Uni> {
         Ok(Uni { sub: Sub::identity() })
     }
 
+    /// Create a unification result that is successful and has the given
+    /// substitution.
     pub fn ok_with(sub: Sub) -> TcResult<Uni> {
         Ok(Uni { sub })
     }
 
+    /// Create a unification result that is blocked.
     pub fn blocked() -> TcResult<Uni> {
         Err(TcError::Blocked)
     }
 
+    /// Create a unification result that is an error of mismatching types.
     pub fn mismatch_types(src_id: TyId, target_id: TyId) -> TcResult<Uni> {
         Err(TcError::MismatchingTypes { expected: target_id, actual: src_id })
     }
 
+    /// Create a unification result that is an error of mismatching types if
+    /// `cond` is false, and successful otherwise.
     pub fn ok_iff(cond: bool, src_id: TyId, target_id: TyId) -> TcResult<Uni> {
         if cond {
             Self::ok()

@@ -20,6 +20,10 @@ use hash_tir::{
 };
 use hash_utils::store::SequenceStoreKey;
 
+/// Accumulates errors that occur during typechecking in a local scope.
+///
+/// This is used for error recovery, so that multiple errors can be reported
+/// at once.
 pub struct TcErrorState {
     pub errors: Vec<TcError>,
     pub has_blocked: bool,
@@ -30,6 +34,7 @@ impl TcErrorState {
         Self { errors: vec![], has_blocked: false }
     }
 
+    /// Add an error to the error state.
     pub fn add_error(&mut self, error: TcError) -> &TcError {
         if let TcError::Blocked = error {
             self.has_blocked = true;
@@ -38,6 +43,7 @@ impl TcErrorState {
         self.errors.last().unwrap()
     }
 
+    /// Add an error to the error state if the given result is an error.
     pub fn try_or_add_error<F>(&mut self, f: TcResult<F>) -> Option<F> {
         match f {
             Ok(v) => Some(v),
@@ -48,14 +54,17 @@ impl TcErrorState {
         }
     }
 
+    /// Add a set of errors to the error state.
     pub fn add_errors(&mut self, errors: impl IntoIterator<Item = TcError>) {
         self.errors.extend(errors);
     }
 
+    /// Whether the error state has any errors.
     pub fn has_errors(&self) -> bool {
         !self.errors.is_empty()
     }
 
+    /// Take the errors from the error state.
     pub fn take_errors(&mut self) -> Vec<TcError> {
         take(&mut self.errors)
     }
