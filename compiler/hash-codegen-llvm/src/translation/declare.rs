@@ -3,11 +3,11 @@
 use hash_codegen::abi::{CallingConvention, FnAbi};
 use inkwell::{
     types::{AnyTypeEnum, BasicTypeEnum},
-    values::{AnyValue, AnyValueEnum, FunctionValue, GlobalValue, UnnamedAddress},
+    values::{FunctionValue, GlobalValue, UnnamedAddress},
     GlobalVisibility,
 };
 
-use super::{abi::ExtendedFnAbiMethods, Builder};
+use super::abi::ExtendedFnAbiMethods;
 use crate::context::CodeGenCtx;
 
 impl<'b> CodeGenCtx<'b> {

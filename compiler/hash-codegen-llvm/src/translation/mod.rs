@@ -1,17 +1,14 @@
 //! Hash compiler LLVM code generation crate. This crate contains all of the
 //! logic of transforming generated Hash IR into LLVM IR so that it can be
 //! compiled by LLVM into a native executable with the specified target triple.
-#![allow(dead_code, unused)] // @@Temporary: remove this when all items are implemented and the
-                             // codegen is fully functional.
 
 use hash_codegen::{
-    common::{AtomicOrdering, IntComparisonKind, RealComparisonKind},
     layout::{compute::LayoutComputer, LayoutCtx},
     traits::{ctx::HasCtxMethods, target::HasTargetSpec, Backend, BackendTypes, Codegen},
 };
 use hash_ir::IrCtx;
 use hash_pipeline::settings::CompilerSettings;
-use hash_target::{abi::AddressSpace, Target};
+use hash_target::Target;
 
 use crate::context::CodeGenCtx;
 

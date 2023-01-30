@@ -2,7 +2,6 @@
 //! specifics of creating a code generation backend, interfacing
 //! with the compiler pipeline, and generally orchestrating the
 //! code generation process.
-#![allow(dead_code)] // @@Temporary: until the codegen general purpose logic is completed.
 
 use hash_codegen::BackendCtx;
 use hash_pipeline::{
@@ -36,11 +35,6 @@ impl<Ctx: BackendCtxQuery> CompilerStage<Ctx> for Backend {
     /// need to be lowered and how via the `hash-codegen` interfaces, then
     /// deal with the specifics of the backend (i.e. does it need to link
     /// the module, does it need to emit an archive, etc).
-    ///
-    /// @@Todo: introduce a `CodeStore` trait that can be used to store.
-    ///
-    /// @@Todo: deal with code generation settings in order to pick the
-    /// correct backend in order to generate code.
     ///
     /// @@Future: think about how we can deal with multiple backends at the
     /// same time for the purpose of compile-time evaluation of code. This

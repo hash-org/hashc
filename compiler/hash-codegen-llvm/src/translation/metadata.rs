@@ -3,14 +3,10 @@
 
 use hash_codegen::traits::{
     builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, ty::TypeBuilderMethods,
-    BackendTypes,
 };
 use hash_target::{alignment::Alignment, size::Size};
 use inkwell as llvm;
-use llvm::{
-    intrinsics::Intrinsic,
-    values::{AnyValueEnum, BasicMetadataValueEnum, BasicValueEnum},
-};
+use llvm::values::{AnyValueEnum, BasicMetadataValueEnum};
 
 use super::Builder;
 use crate::misc::MetadataTypeKind;
@@ -21,7 +17,7 @@ impl<'b> Builder<'b> {
         let value = value.into_instruction_value();
 
         let metadata = self.ctx.ll_ctx.metadata_node(&[]);
-        value.set_metadata(metadata, MetadataTypeKind::NoUndef as u32);
+        value.set_metadata(metadata, MetadataTypeKind::NoUndef as u32).unwrap();
     }
 
     /// Emit a `nonnull` metadata attribute on a specific value.
@@ -29,7 +25,7 @@ impl<'b> Builder<'b> {
         let value = value.into_instruction_value();
 
         let metadata = self.ctx.ll_ctx.metadata_node(&[]);
-        value.set_metadata(metadata, MetadataTypeKind::NonNull as u32);
+        value.set_metadata(metadata, MetadataTypeKind::NonNull as u32).unwrap();
     }
 
     /// Specify the alignment for a particular value.
@@ -41,7 +37,7 @@ impl<'b> Builder<'b> {
 
         let metadata = self.ctx.ll_ctx.metadata_node(&[alignment_metadata]);
 
-        value.set_metadata(metadata, MetadataTypeKind::Align as u32);
+        value.set_metadata(metadata, MetadataTypeKind::Align as u32).unwrap();
     }
 
     /// Emit lifetime marker information to LLVM via a `llvm.lifetime.start`

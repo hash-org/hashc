@@ -4,10 +4,7 @@ use hash_codegen::{
     layout::{Layout, LayoutShape, TyInfo, Variants},
     traits::layout::LayoutMethods,
 };
-use hash_ir::{
-    ty::{IrTy, IrTyId},
-    write::WriteIr,
-};
+use hash_ir::{ty::IrTyId, write::WriteIr};
 use hash_target::{
     abi::AbiRepresentation,
     data_layout::{HasDataLayout, TargetDataLayout},

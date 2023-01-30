@@ -30,6 +30,7 @@ use inkwell::{
         PhiValue, UnnamedAddress,
     },
 };
+use llvm_sys::core::LLVMGetTypeKind;
 use rayon::iter::Either;
 
 use super::{
@@ -343,13 +344,16 @@ impl<'b> BlockBuilderMethods<'b> for Builder<'b> {
     }
 
     fn fpow(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
-        // @@Todo: more concretely determine which `pow` intrinsic to
-        // call considering it can also be invoked for `f64` and other
-        // vector types.
-        let func: AnyValueEnum = self.module.get_function("llvm.pow.f64").unwrap().into();
+        let ty = lhs.get_type().into_float_type();
 
-        let ty = self.ty_of_value(lhs);
-        let args = &[ty, ty];
+        // For some reason there is no function to get the width
+        // of a float type, so we have to use raw fn call yet again...
+        let intrinsic = match { unsafe { LLVMGetTypeKind(ty.as_type_ref()) } } {
+            llvm_sys::LLVMTypeKind::LLVMHalfTypeKind
+            | llvm_sys::LLVMTypeKind::LLVMFloatTypeKind => "llvm.pow.f32",
+            llvm_sys::LLVMTypeKind::LLVMDoubleTypeKind => "llvm.pow.f64",
+            _ => unreachable!("unsupported float type for pow"),
+        };
 
         let func = self.module.get_function(intrinsic).unwrap();
         self.call(func, &[lhs, rhs], None)
@@ -607,7 +611,9 @@ impl<'b> BlockBuilderMethods<'b> for Builder<'b> {
     }
 
     fn int_cast(&mut self, val: Self::Value, dest_ty: Self::Type, is_signed: bool) -> Self::Value {
-        self.builder.build_int_cast(val.into_int_value(), dest_ty.into_int_type(), "").into()
+        self.builder
+            .build_int_cast_sign_flag(val.into_int_value(), dest_ty.into_int_type(), is_signed, "")
+            .into()
     }
 
     fn pointer_cast(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value {
@@ -745,8 +751,8 @@ impl<'b> BlockBuilderMethods<'b> for Builder<'b> {
         &mut self,
         ty: Self::Type,
         ptr: Self::Value,
-        alignment: Alignment,
         ordering: AtomicOrdering,
+        size: Size,
     ) -> Self::Value {
         let ordering = AtomicOrderingWrapper::from(ordering).0;
 
@@ -754,7 +760,10 @@ impl<'b> BlockBuilderMethods<'b> for Builder<'b> {
         let value = self.builder.build_load(ty, ptr.into_pointer_value(), "");
 
         // we need to set that this data is volatile
-        value.as_instruction_value().map(|instruction| instruction.set_atomic_ordering(ordering));
+        if let Some(instruction) = value.as_instruction_value() {
+            instruction.set_atomic_ordering(ordering).unwrap();
+            instruction.set_alignment(size.bytes() as u32).unwrap();
+        }
 
         value.into()
     }
@@ -767,7 +776,7 @@ impl<'b> BlockBuilderMethods<'b> for Builder<'b> {
             }
 
             let value = if layout.is_llvm_immediate() {
-                let mut const_value = None;
+                let const_value = None;
                 let ty = place.info.llvm_ty(self.ctx);
 
                 // Check here if the need to load it in a as global value, i.e.
@@ -842,11 +851,11 @@ impl<'b> BlockBuilderMethods<'b> for Builder<'b> {
         let store_value = self.builder.build_store(ptr.into_pointer_value(), operand);
 
         let alignment = if flags.contains(MemFlags::UN_ALIGNED) { 1 } else { alignment.bytes() };
-        store_value.set_alignment(alignment as u32);
+        store_value.set_alignment(alignment as u32).unwrap();
 
         // We need to apply the specified flags
         if flags.contains(MemFlags::VOLATILE) {
-            store_value.set_volatile(true);
+            store_value.set_volatile(true).unwrap();
         }
 
         if flags.contains(MemFlags::NON_TEMPORAL) {
@@ -856,6 +865,7 @@ impl<'b> BlockBuilderMethods<'b> for Builder<'b> {
             // [1]: https://llvm.org/docs/LangRef.html#store-instruction
             let metadata: BasicMetadataValueEnum = self.ctx.const_i32(1).try_into().unwrap();
             let node = self.ctx.ll_ctx.metadata_node(&[metadata]);
+            store_value.set_metadata(node, MetadataTypeKind::NonTemporal as u32).unwrap();
         }
 
         store_value.into()
@@ -873,10 +883,10 @@ impl<'b> BlockBuilderMethods<'b> for Builder<'b> {
 
         // we need to set the atomic ordering for the store.
         let ordering = AtomicOrderingWrapper::from(ordering).0;
-        store_value.set_atomic_ordering(ordering);
+        store_value.set_atomic_ordering(ordering).unwrap();
 
         let alignment = alignment.bytes();
-        store_value.set_alignment(alignment as u32);
+        store_value.set_alignment(alignment as u32).unwrap();
 
         store_value.into()
     }
@@ -945,7 +955,8 @@ impl<'b> BlockBuilderMethods<'b> for Builder<'b> {
         let destination = self.pointer_cast(destination, self.ctx.type_i8p()).into_pointer_value();
         let source = self.pointer_cast(source, self.ctx.type_i8p()).into_pointer_value();
 
-        self.builder
+        let value = self
+            .builder
             .build_memcpy(
                 destination,
                 destination_align.bytes() as u32,
@@ -954,6 +965,11 @@ impl<'b> BlockBuilderMethods<'b> for Builder<'b> {
                 size,
             )
             .unwrap();
+
+        // Set the volatile flag if necessary
+        if let Some(val) = value.as_instruction_value() {
+            val.set_volatile(is_volatile).unwrap()
+        }
     }
 
     fn memmove(
@@ -979,7 +995,8 @@ impl<'b> BlockBuilderMethods<'b> for Builder<'b> {
         let destination = self.pointer_cast(destination, self.ctx.type_i8p()).into_pointer_value();
         let source = self.pointer_cast(source, self.ctx.type_i8p()).into_pointer_value();
 
-        self.builder
+        let value = self
+            .builder
             .build_memmove(
                 destination,
                 destination_align.bytes() as u32,
@@ -988,6 +1005,11 @@ impl<'b> BlockBuilderMethods<'b> for Builder<'b> {
                 size,
             )
             .unwrap();
+
+        // Set the volatile flag if necessary
+        if let Some(val) = value.as_instruction_value() {
+            val.set_volatile(is_volatile).unwrap()
+        }
     }
 
     fn memset(
@@ -1001,7 +1023,8 @@ impl<'b> BlockBuilderMethods<'b> for Builder<'b> {
         let is_volatile = flags.contains(MemFlags::VOLATILE);
         let ptr = self.pointer_cast(ptr, self.ctx.type_i8p()).into_pointer_value();
 
-        self.builder
+        let value = self
+            .builder
             .build_memset(
                 ptr,
                 alignment.bytes() as u32,
@@ -1009,6 +1032,11 @@ impl<'b> BlockBuilderMethods<'b> for Builder<'b> {
                 size.into_int_value(),
             )
             .unwrap();
+
+        // Set the volatile flag if necessary
+        if let Some(val) = value.as_instruction_value() {
+            val.set_volatile(is_volatile).unwrap()
+        }
     }
 
     fn select(
@@ -1046,7 +1074,7 @@ impl<'b> BlockBuilderMethods<'b> for Builder<'b> {
         let metadata = self.ctx.ll_ctx.metadata_node(&[start, end]);
 
         let value = load_value.into_instruction_value();
-        value.set_metadata(metadata, MetadataTypeKind::Range as u32);
+        value.set_metadata(metadata, MetadataTypeKind::Range as u32).unwrap();
     }
 
     fn extract_field(&mut self, value: Self::Value, field_index: usize) -> Self::Value {
@@ -1069,8 +1097,14 @@ fn load_scalar_value_metadata<'ll>(
     load: AnyValueEnum<'ll>,
     scalar: Scalar,
     info: TyInfo,
+
+    // @@Todo: implement pointee_info_at(offset) for this offset to
+    // work... since we're then indexing into a reference type
+    // layout
     offset: Size,
 ) {
+    debug_assert!(offset == Size::ZERO, "offsets not yet implemented");
+
     // If the scalar is not a uninitialised value (`union`), then
     // we can specify that it will not be non-undef,
     if !scalar.is_union() {
@@ -1078,7 +1112,7 @@ fn load_scalar_value_metadata<'ll>(
     }
 
     match scalar.kind() {
-        ScalarKind::Int { kind, signed } => {
+        ScalarKind::Int { .. } => {
             // If the scalar has a particular value range, then we can emit
             // additional information to LLVM about this range using the `range!`
             // metadata.

@@ -6,20 +6,16 @@ use hash_codegen::{
     },
     lower::{operands::OperandValue, place::PlaceRef},
     traits::{
-        abi::AbiBuilderMethods, builder::BlockBuilderMethods, ctx::HasCtxMethods, debug,
+        abi::AbiBuilderMethods, builder::BlockBuilderMethods, ctx::HasCtxMethods,
         layout::LayoutMethods, ty::TypeBuilderMethods,
     },
 };
-use hash_target::{
-    abi::{AbiRepresentation, ScalarKind},
-    size::Size,
-};
+use hash_target::abi::{AbiRepresentation, ScalarKind};
 use inkwell::{
     attributes::{Attribute, AttributeLoc},
-    types::{AnyTypeEnum, BasicTypeEnum, PointerType},
+    types::{AnyTypeEnum, PointerType},
     values::{AnyValue, AnyValueEnum, CallSiteValue, FunctionValue},
 };
-use llvm_sys::{LLVMAttributeIndex, LLVMOpaqueAttributeRef};
 use smallvec::SmallVec;
 
 use super::{ty::ExtendedTyBuilderMethods, Builder};
@@ -269,7 +265,7 @@ impl<'b> ExtendedFnAbiMethods<'b> for FnAbi {
         let return_ty = match &self.ret_abi.mode {
             PassMode::Ignore => ctx.type_void(),
             PassMode::Direct(_) | PassMode::Pair(_, _) => self.ret_abi.info.immediate_llvm_ty(ctx),
-            PassMode::Indirect { attributes, on_stack } => {
+            PassMode::Indirect { .. } => {
                 // if the argument is being passed indirectly, then we push th e
                 // type through the argument as a pointer.
                 arg_tys.push(ctx.type_ptr_to(self.ret_abi.get_memory_ty(ctx)));
@@ -315,7 +311,7 @@ impl<'b> ExtendedFnAbiMethods<'b> for FnAbi {
             index - 1
         };
 
-        /// Apply all of the attributes onto the return value of the function.
+        // Apply all of the attributes onto the return value of the function.
         match &self.ret_abi.mode {
             PassMode::Direct(attrs) => {
                 apply_attributes_to_arg(attrs);
@@ -331,7 +327,7 @@ impl<'b> ExtendedFnAbiMethods<'b> for FnAbi {
                     self.ret_abi.info.llvm_ty(ctx),
                 );
 
-                func.add_attribute(AttributeLoc::Return, attribute)
+                func.add_attribute(AttributeLoc::Param(index), attribute)
             }
             _ => {}
         }
@@ -385,9 +381,9 @@ impl<'b> ExtendedFnAbiMethods<'b> for FnAbi {
             index - 1
         };
 
-        /// Apply all of the attributes onto the return value of the function.
-        ///
-        /// @@CopyPaste: from above function
+        // Apply all of the attributes onto the return value of the function.
+        //
+        // @@CopyPaste: from above function
         match &self.ret_abi.mode {
             PassMode::Direct(attrs) => {
                 apply_attributes_to_arg(builder.ctx, attrs);
@@ -397,13 +393,13 @@ impl<'b> ExtendedFnAbiMethods<'b> for FnAbi {
                 let index = apply_attributes_to_arg(builder.ctx, attributes);
 
                 // Now we apply the attribute that this return value is a
-                // struct return type.
+                // str]uct return type.
                 let attribute = builder.ctx.ll_ctx.create_type_attribute(
                     AttributeKind::StructRet as u32,
                     self.ret_abi.info.llvm_ty(builder.ctx),
                 );
 
-                call_site.add_attribute(AttributeLoc::Return, attribute)
+                call_site.add_attribute(AttributeLoc::Param(index), attribute)
             }
             _ => {}
         }

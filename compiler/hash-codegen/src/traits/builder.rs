@@ -389,8 +389,8 @@ pub trait BlockBuilderMethods<'b>:
         &mut self,
         ty: Self::Type,
         ptr: Self::Value,
-        alignment: Alignment,
         ordering: AtomicOrdering,
+        size: Size,
     ) -> Self::Value;
 
     /// Emit an instruction to load an operand into a particular `place`.

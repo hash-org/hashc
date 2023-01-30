@@ -12,27 +12,27 @@ use super::Builder;
 impl<'b> BuildDebugInfoMethods for Builder<'b> {
     fn create_debug_info_scope_for_fn(
         &self,
-        fn_abi: &FnAbi,
-        value: Option<Self::Function>,
+        _fn_abi: &FnAbi,
+        _value: Option<Self::Function>,
     ) -> Self::DebugInfoScope {
         todo!()
     }
 
     fn create_debug_info_for_variable(
         &self,
-        name: Identifier,
-        ty: hash_ir::ty::IrTyId,
-        scope: Self::DebugInfoScope,
-        kind: VariableKind,
-        span: SourceLocation,
+        _name: Identifier,
+        _ty: hash_ir::ty::IrTyId,
+        _scope: Self::DebugInfoScope,
+        _kind: VariableKind,
+        _span: SourceLocation,
     ) -> Self::DebugInfoVariable {
         todo!()
     }
 
     fn create_debug_info_location(
         &self,
-        scope: Self::DebugInfoScope,
-        span: SourceLocation,
+        _scope: Self::DebugInfoScope,
+        _span: SourceLocation,
     ) -> Self::DebugInfoLocation {
         todo!()
     }
