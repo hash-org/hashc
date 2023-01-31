@@ -139,6 +139,9 @@ pub enum OptimisationLevel {
     /// Optimise the given program as much as possible, essentially
     /// applying all optimisation.
     Release,
+
+    /// Optimise the given program for size rather than speed.
+    Size,
 }
 
 impl OptimisationLevel {
@@ -152,6 +155,7 @@ impl OptimisationLevel {
         match self {
             Self::Debug => "debug",
             Self::Release => "release",
+            Self::Size => "size",
         }
     }
 }

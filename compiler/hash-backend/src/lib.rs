@@ -3,19 +3,19 @@
 //! with the compiler pipeline, and generally orchestrating the
 //! code generation process.
 
-use hash_codegen::BackendCtx;
+use hash_codegen::backend::{Backend, BackendCtx};
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerStage},
-    settings::CompilerStageKind,
+    settings::{CodeGenBackend, CompilerStageKind},
     CompilerResult,
 };
 use hash_source::SourceId;
 
 /// The Hash compiler code generator.
 #[derive(Default)]
-pub struct Backend;
+pub struct CodeGenPass;
 
-impl Backend {
+impl CodeGenPass {
     /// Creates a new instance of the Hash backend.
     pub fn new() -> Self {
         Self
@@ -26,7 +26,7 @@ pub trait BackendCtxQuery: CompilerInterface {
     fn data(&mut self) -> BackendCtx<'_>;
 }
 
-impl<Ctx: BackendCtxQuery> CompilerStage<Ctx> for Backend {
+impl<Ctx: BackendCtxQuery> CompilerStage<Ctx> for CodeGenPass {
     fn kind(&self) -> CompilerStageKind {
         CompilerStageKind::CodeGen
     }
@@ -41,7 +41,18 @@ impl<Ctx: BackendCtxQuery> CompilerStage<Ctx> for Backend {
     /// evaluation should occur in a separate thread, we a separate VM for
     /// running the specified code.
     fn run(&mut self, _: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
-        let BackendCtx { .. } = ctx.data();
-        Ok(())
+        let BackendCtx { settings, .. } = ctx.data();
+
+        // Create a new instance of a backend, and then add each bo
+        let mut backend = match settings.codegen_settings.backend {
+            CodeGenBackend::LLVM => create_llvm_backend(ctx.data()),
+            CodeGenBackend::VM => unimplemented!(),
+        };
+
+        backend.run()
     }
+}
+
+pub fn create_llvm_backend<'b>(ctx: BackendCtx<'b>) -> Box<dyn Backend<'b> + 'b> {
+    Box::new(hash_codegen_llvm::LLVMBackend::new(ctx))
 }
