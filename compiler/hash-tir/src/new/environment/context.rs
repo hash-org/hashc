@@ -11,16 +11,19 @@ use hash_utils::store::{Store, StoreKey};
 use indexmap::IndexMap;
 
 use super::env::{AccessToEnv, WithEnv};
-use crate::new::{
-    data::{CtorDefId, DataDefId},
-    fns::FnDefId,
-    holes::HoleBinder,
-    mods::{ModDefId, ModMemberId},
-    params::{DefParamIndex, ParamIndex},
-    scopes::{StackId, StackMemberId},
-    symbols::Symbol,
-    tys::TyId,
-    utils::common::CommonUtils,
+use crate::{
+    new::{
+        data::{CtorDefId, DataDefId},
+        fns::FnDefId,
+        holes::{Hole, HoleBinderKind},
+        mods::{ModDefId, ModMemberId},
+        params::{DefParamIndex, ParamIndex},
+        scopes::{StackId, StackMemberId},
+        symbols::Symbol,
+        tys::TyId,
+        utils::common::CommonUtils,
+    },
+    ty_as_variant,
 };
 /// The kind of a binding.
 #[derive(Debug, Clone, Copy)]
@@ -68,7 +71,7 @@ pub enum BoundVarOrigin {
     /// Hole binder
     ///
     /// For example `?a:B.a`
-    HoleBinder(HoleBinder),
+    Hole(Hole, HoleBinderKind),
 }
 
 /// A binding.
@@ -98,6 +101,8 @@ pub enum ScopeKind {
     ///
     /// The inner type points to an `FnTy` variant.
     FnTy(TyId),
+    /// A hole scope.
+    Hole(Hole, HoleBinderKind),
 }
 
 /// Information about a scope in the context.
@@ -294,15 +299,31 @@ impl fmt::Display for WithEnv<'_, &BoundVarOrigin> {
                 let param = self.get_def_param_by_index(def_params_id, *param_index);
                 write!(f, "{}", self.env().with(&param))
             }
-            BoundVarOrigin::FnTy(_fn_ty_id, _param_index) => {
-                todo!()
+            BoundVarOrigin::FnTy(fn_ty_id, param_index) => {
+                let fn_params_id = self
+                    .stores()
+                    .ty()
+                    .map_fast(*fn_ty_id, |ty| ty_as_variant!(self, ty, Fn).params);
+                write!(
+                    f,
+                    "{}",
+                    self.env().with(&self.get_param_by_index(fn_params_id, *param_index))
+                )
             }
-            BoundVarOrigin::Fn(_, _param_id) => todo!(),
+            BoundVarOrigin::Fn(fn_def, param_index) => {
+                let fn_params_id =
+                    self.stores().fn_def().map_fast(*fn_def, |fn_def| fn_def.ty.params);
+                write!(
+                    f,
+                    "{}",
+                    self.env().with(&self.get_param_by_index(fn_params_id, *param_index))
+                )
+            }
             BoundVarOrigin::StackMember(stack_member) => {
                 write!(f, "{}", self.env().with(*stack_member))
             }
-            BoundVarOrigin::HoleBinder(hole_binder) => {
-                write!(f, "{}", self.env().with(*hole_binder))
+            BoundVarOrigin::Hole(hole, hole_kind) => {
+                write!(f, "{}", self.env().with((*hole, *hole_kind)))
             }
         }
     }
@@ -355,6 +376,9 @@ impl fmt::Display for WithEnv<'_, ScopeKind> {
                 .stores()
                 .ty()
                 .map_fast(fn_ty, |fn_ty| write!(f, "fn ty {}", self.env().with(fn_ty),)),
+            ScopeKind::Hole(hole, hole_kind) => {
+                write!(f, "hole {}", self.env().with((hole, hole_kind)))
+            }
         }
     }
 }

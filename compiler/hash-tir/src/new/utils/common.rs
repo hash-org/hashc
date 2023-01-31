@@ -22,7 +22,7 @@ use crate::new::{
 /// Assert that the given term is of the given variant, and return it.
 #[macro_export]
 macro_rules! term_as_variant {
-    ($self:expr, value $term:expr, $variant:ident) => {{
+    ($self:expr, $term:expr, $variant:ident) => {{
         let term = $term;
         if let $crate::new::terms::Term::$variant(term) = term {
             term
@@ -35,7 +35,7 @@ macro_rules! term_as_variant {
 /// Assert that the given type is of the given variant, and return it.
 #[macro_export]
 macro_rules! ty_as_variant {
-    ($self:expr, value $ty:expr, $variant:ident) => {{
+    ($self:expr, $ty:expr, $variant:ident) => {{
         let ty = $ty;
         if let $crate::new::tys::Ty::$variant(ty) = ty {
             ty
@@ -272,8 +272,8 @@ pub trait CommonUtils: AccessToEnv {
     }
 
     /// Create a new guess binder.
-    fn new_guess_binder(&self, hole: Hole, guess: TermId, inner: TermId) -> TermId {
-        self.new_term(HoleBinder { hole, kind: HoleBinderKind::Guess(guess), inner })
+    fn new_guess_binder(&self, hole: Hole, guess: TermId, ty: TyId, inner: TermId) -> TermId {
+        self.new_term(HoleBinder { hole, kind: HoleBinderKind::Guess(guess, ty), inner })
     }
 
     /// Create a new empty definition parameter list.

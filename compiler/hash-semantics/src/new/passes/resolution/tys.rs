@@ -308,7 +308,7 @@ impl<'tc> ResolutionPass<'tc> {
         let params = self.try_or_add_error(self.resolve_params_from_ast_params(&node.params, true));
         self.scoping().enter_ty_fn_ty(node, |ty_fn_id| {
             self.stores().ty().modify(ty_fn_id, |ty| {
-                let ty_fn = ty_as_variant!(self, value ty, Fn);
+                let ty_fn = ty_as_variant!(self, ty, Fn);
                 // Add the params if they exist
                 if let Some(params) = params {
                     ty_fn.params = params;
@@ -338,7 +338,7 @@ impl<'tc> ResolutionPass<'tc> {
         let params = self.try_or_add_error(self.make_params_from_ast_ty_args(&node.params));
         self.scoping().enter_fn_ty(node, |fn_ty_id| {
             self.stores().ty().modify(fn_ty_id, |ty| {
-                let fn_ty = ty_as_variant!(self, value ty, Fn);
+                let fn_ty = ty_as_variant!(self, ty, Fn);
                 // Add the params if they exist
                 if let Some(params) = params {
                     fn_ty.params = params;

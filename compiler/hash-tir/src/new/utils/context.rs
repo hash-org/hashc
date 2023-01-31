@@ -12,7 +12,7 @@ use crate::{
             env::{AccessToEnv, Env},
         },
         params::{DefParamIndex, ParamId, ParamsId},
-        scopes::StackMemberId,
+        scopes::{DeclTerm, StackMemberId},
     },
     ty_as_variant,
 };
@@ -76,6 +76,20 @@ impl<'env> ContextUtils<'env> {
         }
     }
 
+    /// Add the given declaration term to the context.
+    ///
+    /// This will add all the stack bindings of the declaration to the context
+    /// using `add_stack_binding`.
+    pub fn add_decl_term_to_context(&self, decl: &DeclTerm) {
+        let current_stack_id = match self.context().get_current_scope().kind {
+            ScopeKind::Stack(stack_id) => stack_id,
+            _ => unreachable!(), // decls are only allowed in stack scopes
+        };
+        for stack_index in decl.iter_stack_indices() {
+            self.add_stack_binding((current_stack_id, stack_index));
+        }
+    }
+
     /// Add the given set of parameters to the context as bound variables.
     ///
     /// The `bound_var_origin_from_param` function is used to determine the
@@ -125,6 +139,13 @@ impl<'env> ContextUtils<'env> {
             ScopeKind::Stack(_) => {
                 // Here we don't add anything because the stack bindings are
                 // added manually.
+            }
+            ScopeKind::Hole(hole, hole_kind) => {
+                // Add the hole
+                self.context().add_binding(Binding {
+                    name: hole.0,
+                    kind: BindingKind::BoundVar(BoundVarOrigin::Hole(hole, hole_kind)),
+                })
             }
             ScopeKind::Mod(mod_def_id) => {
                 self.stores().mod_def().map_fast(mod_def_id, |mod_def| {
@@ -177,7 +198,7 @@ impl<'env> ContextUtils<'env> {
                 let fn_ty = self
                     .stores()
                     .ty()
-                    .map_fast(fn_ty_id, |fn_ty_val| ty_as_variant!(self, value {*fn_ty_val}, Fn));
+                    .map_fast(fn_ty_id, |fn_ty_val| ty_as_variant!(self, { *fn_ty_val }, Fn));
                 self.add_params_to_context(fn_ty.params, |param_id| {
                     BoundVarOrigin::FnTy(fn_ty_id, param_id.into())
                 })

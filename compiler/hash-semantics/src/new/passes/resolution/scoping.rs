@@ -12,7 +12,7 @@ use hash_tir::new::{
     fns::FnDefId,
     locations::LocationTarget,
     mods::ModDefId,
-    scopes::{StackId, StackMemberId},
+    scopes::{StackId, StackIndices, StackMemberId},
     symbols::Symbol,
     tys::TyId,
     utils::{common::CommonUtils, AccessToUtils},
@@ -222,17 +222,20 @@ impl<'tc> Scoping<'tc> {
     pub(super) fn for_each_stack_member_of_pat(
         &self,
         node: ast::AstNodeRef<ast::Pat>,
-        f: impl Fn(StackMemberId) + Copy,
+        f: &mut impl FnMut(StackMemberId),
     ) {
-        let for_spread_pat = |spread: &ast::AstNode<ast::SpreadPat>| {
-            if let Some(name) = &spread.name {
-                if let Some(member_id) =
-                    self.ast_info().stack_members().get_data_by_node(name.ast_ref().id())
-                {
-                    f(member_id);
+        macro_rules! for_spread_pat {
+            ($spread:expr) => {
+                if let Some(name) = &$spread.name {
+                    if let Some(member_id) =
+                        self.ast_info().stack_members().get_data_by_node(name.ast_ref().id())
+                    {
+                        f(member_id);
+                    }
                 }
-            }
-        };
+            };
+        }
+
         match node.body() {
             ast::Pat::Binding(_) => {
                 if let Some(member_id) = self.ast_info().stack_members().get_data_by_node(node.id())
@@ -243,7 +246,7 @@ impl<'tc> Scoping<'tc> {
             ast::Pat::Tuple(tuple_pat) => {
                 for (index, entry) in tuple_pat.fields.ast_ref_iter().enumerate() {
                     if let Some(spread_node) = &tuple_pat.spread && spread_node.position == index {
-                        for_spread_pat(spread_node);
+                        for_spread_pat!(spread_node);
                     }
                     self.for_each_stack_member_of_pat(entry.pat.ast_ref(), f);
                 }
@@ -251,7 +254,7 @@ impl<'tc> Scoping<'tc> {
             ast::Pat::Constructor(constructor_pat) => {
                 for (index, field) in constructor_pat.fields.ast_ref_iter().enumerate() {
                     if let Some(spread_node) = &constructor_pat.spread && spread_node.position == index {
-                        for_spread_pat(spread_node);
+                        for_spread_pat!(spread_node);
                     }
                     self.for_each_stack_member_of_pat(field.pat.ast_ref(), f);
                 }
@@ -259,7 +262,7 @@ impl<'tc> Scoping<'tc> {
             ast::Pat::List(list_pat) => {
                 for (index, pat) in list_pat.fields.ast_ref_iter().enumerate() {
                     if let Some(spread_node) = &list_pat.spread && spread_node.position == index {
-                        for_spread_pat(spread_node);
+                        for_spread_pat!(spread_node);
                     }
                     self.for_each_stack_member_of_pat(pat, f);
                 }
@@ -375,12 +378,22 @@ impl<'tc> Scoping<'tc> {
 
     /// Register a declaration, which will add it to the current stack scope.
     ///
+    /// Returns the range of stack indices that were added.
+    ///
     /// If the declaration is not in a stack scope, this is a no-op.
-    pub(super) fn register_declaration(&self, node: ast::AstNodeRef<ast::Declaration>) {
+    pub(super) fn register_declaration(
+        &self,
+        node: ast::AstNodeRef<ast::Declaration>,
+    ) -> StackIndices {
         if let ScopeKind::Stack(_) = self.context().get_current_scope().kind {
-            self.for_each_stack_member_of_pat(node.pat.ast_ref(), |member| {
+            let mut start_end = StackIndices::Empty;
+            self.for_each_stack_member_of_pat(node.pat.ast_ref(), &mut |member| {
+                start_end.extend_with_index(member.1);
                 self.add_stack_binding(member);
             });
+            start_end
+        } else {
+            StackIndices::Empty
         }
     }
 
@@ -388,16 +401,20 @@ impl<'tc> Scoping<'tc> {
     pub(super) fn enter_match_case<T>(
         &self,
         node: ast::AstNodeRef<ast::MatchCase>,
-        f: impl FnOnce(StackId) -> T,
+        f: impl FnOnce(StackId, StackIndices) -> T,
     ) -> T {
         let stack_id = self.ast_info().stacks().get_data_by_node(node.id()).unwrap();
         // Each match case has its own scope, so we need to enter it, and add all the
         // pattern bindings to the context.
         self.enter_scope(ScopeKind::Stack(stack_id), ContextKind::Environment, || {
-            self.for_each_stack_member_of_pat(node.pat.ast_ref(), |member| {
+            // We also want to keep track of the start and end of the pattern
+            // binds in the stack, to pass to `f`.
+            let mut start_end = StackIndices::Empty;
+            self.for_each_stack_member_of_pat(node.pat.ast_ref(), &mut |member| {
+                start_end.extend_with_index(member.1);
                 self.add_stack_binding(member);
             });
-            f(stack_id)
+            f(stack_id, start_end)
         })
     }
 }

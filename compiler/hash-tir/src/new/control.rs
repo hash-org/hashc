@@ -2,18 +2,19 @@
 
 use core::fmt;
 
-use hash_utils::store::{SequenceStore, SequenceStoreKey};
+use hash_utils::{
+    new_sequence_store_key,
+    store::{DefaultSequenceStore, SequenceStore},
+};
 use textwrap::indent;
 
 use super::{
     environment::env::{AccessToEnv, WithEnv},
     pats::{PatId, PatListId},
+    scopes::StackIndices,
     utils::common::CommonUtils,
 };
-use crate::new::{
-    scopes::BlockTerm,
-    terms::{TermId, TermListId},
-};
+use crate::new::{scopes::BlockTerm, terms::TermId};
 
 /// A loop term.
 ///
@@ -30,19 +31,26 @@ pub struct LoopTerm {
 ///
 /// This is the primitive of the pattern matching system.
 ///
-/// There is a subject, a set of case patterns, as well as a set of decisions.
-/// `decisions[i]` is parametrised by the binds in `cases[i]`.
-///
-/// This corresponds to `match subject { cases[1] => decisions[1],...,cases[n]
-/// => decisions[n] }`.
-///
-/// It is an invariant that `cases.len() == decisions.len()`.
+/// There is a subject, and set of cases.
 #[derive(Debug, Clone, Copy)]
 pub struct MatchTerm {
     pub subject: TermId,
-    pub cases: PatListId,
-    pub decisions: TermListId,
+    pub cases: MatchCasesId,
 }
+
+/// A single case in a match term.
+///
+/// Contains a pattern, a range of stack indices for the binds of the pattern,
+/// and a value, similar to `DeclTerm`.
+#[derive(Debug, Clone, Copy)]
+pub struct MatchCase {
+    pub bind_pat: PatId,
+    pub stack_indices: StackIndices,
+    pub value: TermId,
+}
+
+new_sequence_store_key!(pub MatchCasesId);
+pub type MatchCasesStore = DefaultSequenceStore<MatchCasesId, MatchCase>;
 
 /// A return term.
 ///
@@ -99,14 +107,32 @@ impl fmt::Display for WithEnv<'_, &LoopTerm> {
 impl fmt::Display for WithEnv<'_, &MatchTerm> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "match {} {{", self.env().with(self.value.subject))?;
-        for index in self.value.cases.to_index_range() {
-            let pat = self.stores().pat_list().get_at_index(self.value.cases, index);
-            let term = self.stores().term_list().get_at_index(self.value.decisions, index);
-            let case = format!("{} => {};\n", self.env().with(pat), self.env().with(term));
-            let lines = indent(&case, "  ");
-            write!(f, "{lines}")?;
-        }
+        write!(f, "{}", self.env().with(self.value.cases))?;
         write!(f, "}}")?;
+        Ok(())
+    }
+}
+
+impl fmt::Display for WithEnv<'_, MatchCasesId> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.stores().match_cases().map_fast(self.value, |cases| {
+            for case in cases {
+                write!(f, "{}", self.env().with(case))?;
+            }
+            Ok(())
+        })
+    }
+}
+
+impl fmt::Display for WithEnv<'_, &MatchCase> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let case = format!(
+            "{} => {};\n",
+            self.env().with(self.value.bind_pat),
+            self.env().with(self.value.value)
+        );
+        let lines = indent(&case, "  ");
+        write!(f, "{lines}")?;
         Ok(())
     }
 }

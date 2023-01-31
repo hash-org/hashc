@@ -7,8 +7,6 @@
 
 #![feature(decl_macro, slice_pattern, option_result_contains, let_chains, if_let_guard)]
 
-use std::cell::RefCell;
-
 use diagnostics::{
     error::{TcError, TcErrorWithStorage},
     warning::{TcWarning, TcWarningWithStorage},
@@ -23,13 +21,11 @@ use hash_reporting::diagnostic::{DiagnosticCellStore, Diagnostics};
 use hash_source::SourceId;
 use hash_tir::{
     fmt::PrepareForFormatting,
-    new::{
-        environment::{context::Context, env::Env, source_info::CurrentSourceInfo, stores::Stores},
-        utils::common::CommonUtils,
+    new::environment::{
+        context::Context, env::Env, source_info::CurrentSourceInfo, stores::Stores,
     },
     storage::{LocalStorage, TyStorage},
 };
-use hash_typecheck::elaboration::ProofState;
 use hash_utils::stream_less_writeln;
 use new::{
     diagnostics::warning::SemanticWarning,
@@ -147,7 +143,6 @@ impl<Ctx: TypecheckingCtxQuery> CompilerStage<Ctx> for Typechecker {
 
         let primitives = OnceCell::new();
         let intrinsics = OnceCell::new();
-        let proof_state = RefCell::new(ProofState::new(env.new_void_term()));
 
         // Instantiate a visitor with the source and visit the source, using the
         // previous local storage.
@@ -163,7 +158,6 @@ impl<Ctx: TypecheckingCtxQuery> CompilerStage<Ctx> for Typechecker {
                 &env,
                 &self._new_diagnostic,
                 &self._new_ast_info,
-                &proof_state,
                 &primitives,
                 &intrinsics,
             ),

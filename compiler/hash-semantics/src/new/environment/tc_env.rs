@@ -1,5 +1,3 @@
-use std::cell::RefCell;
-
 use hash_intrinsics::{
     intrinsics::{AccessToIntrinsics, DefinedIntrinsics},
     primitives::{AccessToPrimitives, DefinedPrimitives},
@@ -7,7 +5,7 @@ use hash_intrinsics::{
 use hash_reporting::diagnostic::{AccessToDiagnostics, DiagnosticCellStore, Diagnostics};
 // @@Docs
 use hash_tir::new::environment::env::{AccessToEnv, Env};
-use hash_typecheck::{elaboration::ProofState, errors::TcError, AccessToTypechecking};
+use hash_typecheck::{errors::TcError, AccessToTypechecking};
 
 use super::ast_info::AstInfo;
 use crate::new::{
@@ -62,14 +60,12 @@ macro_rules! tc_env {
     }
 }
 
-type ProofStateRefCell = RefCell<ProofState>;
 pub type DiagnosticsStore = DiagnosticCellStore<SemanticError, SemanticWarning>;
 
 tc_env! {
     #hide env: Env<'tc>,
     diagnostics: DiagnosticsStore,
     ast_info: AstInfo,
-    proof_state: ProofStateRefCell,
     primitives_or_unset: DefinedPrimitivesOrUnset,
     intrinsics_or_unset: DefinedIntrinsicsOrUnset,
 }
@@ -112,10 +108,6 @@ impl<'tc> AccessToDiagnostics for TcEnv<'tc> {
 }
 
 impl<'tc> AccessToTypechecking for TcEnv<'tc> {
-    fn proof_state(&self) -> &RefCell<ProofState> {
-        self.proof_state
-    }
-
     fn convert_tc_error(&self, error: TcError) -> <Self::Diagnostics as Diagnostics>::Error {
         error.into()
     }
@@ -162,10 +154,6 @@ impl<'tc, T> AccessToDiagnostics for WithTcEnv<'tc, T> {
 }
 
 impl<'tc, T> AccessToTypechecking for WithTcEnv<'tc, T> {
-    fn proof_state(&self) -> &RefCell<ProofState> {
-        self.tc_env.proof_state
-    }
-
     fn convert_tc_error(&self, error: TcError) -> <Self::Diagnostics as Diagnostics>::Error {
         error.into()
     }
@@ -237,10 +225,6 @@ macro_rules! impl_access_to_tc_env {
         }
 
         impl hash_typecheck::AccessToTypechecking for $ty {
-            fn proof_state(&self) -> &std::cell::RefCell<hash_typecheck::elaboration::ProofState> {
-                self.tc_env().proof_state
-            }
-
             fn convert_tc_error(
                 &self,
                 error: hash_typecheck::errors::TcError,

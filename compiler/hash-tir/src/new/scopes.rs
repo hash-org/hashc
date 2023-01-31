@@ -35,17 +35,55 @@ pub struct BindingPat {
     pub is_mutable: bool,
 }
 
-// @@Todo: examples
+/// Indices into a stack, that represent a contiguous range of stack members.
+#[derive(Debug, Clone, Copy)]
+pub enum StackIndices {
+    Empty,
+    Range { start: usize, end: usize },
+}
+
+impl StackIndices {
+    pub fn as_option(&self) -> Option<(usize, usize)> {
+        match self {
+            StackIndices::Empty => None,
+            StackIndices::Range { start, end } => Some((*start, *end)),
+        }
+    }
+
+    /// Add a new index to the range.
+    pub fn extend_with_index(&mut self, index: usize) {
+        match self {
+            StackIndices::Empty => *self = StackIndices::Range { start: index, end: index },
+            StackIndices::Range { start, end } => {
+                if index < *start {
+                    *start = index;
+                } else if index > *end {
+                    *end = index;
+                }
+            }
+        }
+    }
+}
 
 /// Term to declare new variable(s) in the current stack scope.
+///
+/// Also contains the stack indices of the declared variables in the `bind_pat`.
 ///
 /// Depending on the `bind_pat` used, this can be used to declare a single or
 /// multiple variables.
 #[derive(Debug, Clone, Copy)]
-pub struct DeclStackMemberTerm {
+pub struct DeclTerm {
     pub bind_pat: PatId,
+    pub stack_indices: StackIndices,
     pub ty: TyId,
     pub value: Option<TermId>,
+}
+
+impl DeclTerm {
+    /// Returns the range of stack indices that this declaration covers.
+    pub fn iter_stack_indices(&self) -> impl Iterator<Item = usize> {
+        self.stack_indices.as_option().map(|s| s.0..=s.1).into_iter().flatten()
+    }
 }
 
 /// Term to assign a value to a subject.
@@ -84,6 +122,7 @@ pub type StackMemberId = (StackId, usize);
 /// Creates a new scope on the stack.
 #[derive(Debug, Clone, Copy)]
 pub struct BlockTerm {
+    pub stack_id: StackId, // The associated stack ID for this block.
     pub statements: TermListId,
     pub return_value: TermId,
 }
@@ -99,7 +138,7 @@ impl fmt::Display for WithEnv<'_, &BindingPat> {
     }
 }
 
-impl fmt::Display for WithEnv<'_, &DeclStackMemberTerm> {
+impl fmt::Display for WithEnv<'_, &DeclTerm> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let value = match self.value.value {
             Some(term_id) => self.stores().pat().map_fast(self.value.bind_pat, |pat| match pat {

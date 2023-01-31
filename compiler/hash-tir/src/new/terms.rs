@@ -23,7 +23,7 @@ use crate::new::{
     data::CtorTerm,
     fns::{FnCallTerm, FnDefId},
     refs::{DerefTerm, RefTerm},
-    scopes::{AssignTerm, BlockTerm, DeclStackMemberTerm},
+    scopes::{AssignTerm, BlockTerm, DeclTerm},
     tuples::TupleTerm,
     tys::TyId,
 };
@@ -80,7 +80,7 @@ pub enum Term {
     Return(ReturnTerm),
 
     // Declarations and assignments
-    DeclStackMember(DeclStackMemberTerm),
+    Decl(DeclTerm),
     Assign(AssignTerm),
 
     // Unsafe
@@ -150,7 +150,7 @@ impl fmt::Display for WithEnv<'_, &Term> {
             }
             Term::Match(match_term) => write!(f, "{}", self.env().with(match_term)),
             Term::Return(return_term) => write!(f, "{}", self.env().with(return_term)),
-            Term::DeclStackMember(decl_stack_member_term) => {
+            Term::Decl(decl_stack_member_term) => {
                 write!(f, "{}", self.env().with(decl_stack_member_term))
             }
             Term::Assign(assign_term) => write!(f, "{}", self.env().with(assign_term)),

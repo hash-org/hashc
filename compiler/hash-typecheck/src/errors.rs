@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, mem::take};
 
 use derive_more::Constructor;
 use hash_error_codes::error_codes::HashErrorCode;
@@ -20,10 +20,69 @@ use hash_tir::{
 };
 use hash_utils::store::SequenceStoreKey;
 
+/// Accumulates errors that occur during typechecking in a local scope.
+///
+/// This is used for error recovery, so that multiple errors can be reported
+/// at once.
+pub struct TcErrorState {
+    pub errors: Vec<TcError>,
+    pub has_blocked: bool,
+}
+
+impl TcErrorState {
+    pub fn new() -> Self {
+        Self { errors: vec![], has_blocked: false }
+    }
+
+    /// Add an error to the error state.
+    pub fn add_error(&mut self, error: TcError) -> &TcError {
+        if let TcError::Blocked = error {
+            self.has_blocked = true;
+        }
+        self.errors.push(error);
+        self.errors.last().unwrap()
+    }
+
+    /// Add an error to the error state if the given result is an error.
+    pub fn try_or_add_error<F>(&mut self, f: TcResult<F>) -> Option<F> {
+        match f {
+            Ok(v) => Some(v),
+            Err(e) => {
+                self.add_error(e);
+                None
+            }
+        }
+    }
+
+    /// Add a set of errors to the error state.
+    pub fn add_errors(&mut self, errors: impl IntoIterator<Item = TcError>) {
+        self.errors.extend(errors);
+    }
+
+    /// Whether the error state has any errors.
+    pub fn has_errors(&self) -> bool {
+        !self.errors.is_empty()
+    }
+
+    /// Take the errors from the error state.
+    pub fn take_errors(&mut self) -> Vec<TcError> {
+        take(&mut self.errors)
+    }
+}
+
+impl Default for TcErrorState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// An error that occurs during typechecking.
 #[derive(Clone, Debug)]
+
 pub enum TcError {
-    /// Signal
+    /// Blocked, cannot continue. This is used as a signal in the typechecker.
+    Blocked,
+    /// Signal to assert that there are other errors in the diagnostics store.
     Signal,
     /// A series of errors.
     Compound { errors: Vec<TcError> },
@@ -76,6 +135,12 @@ impl<'tc> TcErrorReporter<'tc> {
         let locations = self.stores().location();
         match error {
             TcError::Signal => {}
+            TcError::Blocked => {
+                let _error = reporter
+                    .error()
+                    .code(HashErrorCode::UnresolvedType)
+                    .title("blocked while typechecking".to_string());
+            }
             TcError::NeedMoreTypeAnnotationsToInfer { term } => {
                 let error = reporter
                     .error()
