@@ -3,7 +3,7 @@ use core::fmt;
 use std::ops::ControlFlow;
 
 use derive_more::{Constructor, From, TryInto};
-use hash_utils::store::SequenceStore;
+use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
 
 use super::{common::CommonUtils, AccessToUtils};
 use crate::{
@@ -13,7 +13,7 @@ use crate::{
         args::{ArgData, ArgsId, PatArgData, PatArgsId},
         casting::CastTerm,
         control::{IfPat, LoopTerm, MatchCase, MatchTerm, OrPat, ReturnTerm},
-        data::{CtorPat, CtorTerm, DataTy},
+        data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
         defs::{
             DefArgGroupData, DefArgsId, DefParamGroupData, DefParamsId, DefPatArgGroupData,
             DefPatArgsId,
@@ -22,6 +22,7 @@ use crate::{
         fns::{FnBody, FnCallTerm, FnDefData, FnDefId, FnTy},
         holes::{HoleBinder, HoleBinderKind},
         lits::{ListCtor, ListPat, PrimTerm},
+        mods::{ModDefId, ModMemberId, ModMemberValue},
         params::{ParamData, ParamsId},
         pats::{Pat, PatId, PatListId},
         refs::{DerefTerm, RefTerm, RefTy},
@@ -677,5 +678,103 @@ impl<'env> TraversingUtils<'env> {
             }
             Ok(())
         })
+    }
+
+    pub fn visit_ctor_def<E, F: Visitor<E>>(
+        &self,
+        ctor_def_id: CtorDefId,
+        f: &mut F,
+    ) -> Result<(), E> {
+        let (ctor_data_def_id, ctor_params, ctor_result_args) =
+            self.stores().ctor_defs().map_fast(ctor_def_id.0, |ctors| {
+                (
+                    ctors[ctor_def_id.1].data_def_id,
+                    ctors[ctor_def_id.1].params,
+                    ctors[ctor_def_id.1].result_args,
+                )
+            });
+
+        // Visit the parameters
+        self.visit_def_params(ctor_params, f)?;
+
+        // Create a new type for the result of the constructor, and traverse it.
+        let return_ty = self.new_ty(DataTy { data_def: ctor_data_def_id, args: ctor_result_args });
+        self.visit_ty(return_ty, f)?;
+
+        Ok(())
+    }
+
+    pub fn visit_data_def<E, F: Visitor<E>>(
+        &self,
+        data_def_id: DataDefId,
+        f: &mut F,
+    ) -> Result<(), E> {
+        let (data_def_params, data_def_ctors) = self
+            .stores()
+            .data_def()
+            .map_fast(data_def_id, |data_def| (data_def.params, data_def.ctors));
+
+        // Params
+        self.visit_def_params(data_def_params, f)?;
+
+        match data_def_ctors {
+            DataDefCtors::Defined(data_def_ctors_id) => {
+                // Traverse the constructors
+                for ctor_idx in data_def_ctors_id.to_index_range() {
+                    self.visit_ctor_def((data_def_ctors_id, ctor_idx), f)?;
+                }
+                Ok(())
+            }
+            DataDefCtors::Primitive(primitive) => match primitive {
+                PrimitiveCtorInfo::Numeric(_)
+                | PrimitiveCtorInfo::Str
+                | PrimitiveCtorInfo::Char => {
+                    // Nothing to do
+                    Ok(())
+                }
+                PrimitiveCtorInfo::List(list_ctor_info) => {
+                    // Traverse the inner type
+                    self.visit_ty(list_ctor_info.element_ty, f)?;
+                    Ok(())
+                }
+            },
+        }
+    }
+
+    pub fn visit_mod_member<E, F: Visitor<E>>(
+        &self,
+        mod_member_id: ModMemberId,
+        f: &mut F,
+    ) -> Result<(), E> {
+        let value = self
+            .stores()
+            .mod_members()
+            .map_fast(mod_member_id.0, |members| members[mod_member_id.1].value);
+        match value {
+            ModMemberValue::Data(data_def_id) => {
+                self.visit_data_def(data_def_id, f)?;
+                Ok(())
+            }
+            ModMemberValue::Mod(mod_def_id) => {
+                self.visit_mod_def(mod_def_id, f)?;
+                Ok(())
+            }
+            ModMemberValue::Fn(fn_def_id) => {
+                self.visit_fn_def(fn_def_id, f)?;
+                Ok(())
+            }
+        }
+    }
+
+    pub fn visit_mod_def<E, F: Visitor<E>>(
+        &self,
+        mod_def_id: ModDefId,
+        f: &mut F,
+    ) -> Result<(), E> {
+        let members = self.stores().mod_def().map_fast(mod_def_id, |def| def.members);
+        for member_idx in members.to_index_range() {
+            self.visit_mod_member((members, member_idx), f)?;
+        }
+        Ok(())
     }
 }

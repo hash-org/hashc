@@ -6,7 +6,10 @@
 use derive_more::Constructor;
 use hash_ast::ast::{self};
 use hash_tir::new::environment::env::AccessToEnv;
-use hash_typecheck::{errors::TcError, AccessToTypechecking};
+use hash_typecheck::{
+    errors::{TcError, TcResult},
+    AccessToTypechecking,
+};
 use hash_utils::stream_less_writeln;
 
 use super::ast_utils::AstPass;
@@ -24,24 +27,61 @@ pub struct InferencePass<'tc> {
 
 impl_access_to_tc_env!(InferencePass<'_>);
 
+/// The maximum number of hole-filling iterations to perform when inferring a
+/// term, before giving up and reporting an error.
+const MAX_INFER_ITERATIONS: usize = 20;
+
+impl InferencePass<'_> {
+    /// Infer the given subject by the provided closure, until it contains no
+    /// more holes.
+    ///
+    /// If `MAX_INFER_ITERATIONS` is reached, then an error is returned.
+    fn infer_loop<T: Copy>(
+        &self,
+        subject: T,
+        infer_subject: impl Fn(T) -> TcResult<T>,
+        subject_has_holes: impl Fn(T) -> bool,
+    ) -> TcResult<T> {
+        let mut subject = subject;
+        for i in 0..MAX_INFER_ITERATIONS {
+            match infer_subject(subject) {
+                Ok(new_subject) => {
+                    subject = new_subject;
+
+                    // If we still have holes, then we need to infer again
+                    if subject_has_holes(subject) {
+                        continue;
+                    }
+
+                    // No holes, so we're done
+                    break;
+                }
+                Err(TcError::Blocked) if i < MAX_INFER_ITERATIONS - 1 => {
+                    // We're blocked on a hole, so try infer again as long as
+                    // we haven't reached the maximum number of iterations
+                    continue;
+                }
+                Err(err) => {
+                    return Err(err);
+                }
+            }
+        }
+        Ok(subject)
+    }
+}
+
 impl<'tc> AstPass for InferencePass<'tc> {
     fn pass_interactive(
         &self,
         node: ast::AstNodeRef<ast::BodyBlock>,
     ) -> crate::new::diagnostics::error::SemanticResult<()> {
-        // Just infer the term corresponding to the body block, and then print it
-        // (@@Temp)
-        let term = self.ast_info().terms().get_data_by_node(node.id()).unwrap();
-        let ty = self.inference_ops().infer_term(term, None);
-        let ty_str = match ty {
-            Ok((_, ty)) => self.env().with(ty).to_string(),
-            Err(TcError::Blocked) => "<unknown>".to_string(),
-            Err(err) => {
-                return Err(err.into());
-            }
-        };
-
-        stream_less_writeln!("{}: {}", self.env().with(term), ty_str);
+        // Infer the expression
+        let term = self.infer_loop(
+            self.ast_info().terms().get_data_by_node(node.id()).unwrap(),
+            |term_id| Ok(self.inference_ops().infer_term(term_id, None)?.0),
+            |term_id| self.substitution_ops().atom_has_holes(term_id),
+        )?;
+        stream_less_writeln!("{}", self.env().with(term));
         Ok(())
     }
 
@@ -49,16 +89,13 @@ impl<'tc> AstPass for InferencePass<'tc> {
         &self,
         node: ast::AstNodeRef<ast::Module>,
     ) -> crate::new::diagnostics::error::SemanticResult<()> {
-        // Infer the whole module, which includes each member, and then print it
-        // (@@Temp)
-
-        let mod_def_id = self.ast_info().mod_defs().get_data_by_node(node.id()).unwrap();
-        self.inference_ops().infer_mod_def(mod_def_id)?;
-        stream_less_writeln!("First: {}", self.env().with(mod_def_id));
-
-        self.inference_ops().infer_mod_def(mod_def_id)?;
-        stream_less_writeln!("Second: {}", self.env().with(mod_def_id));
-
+        // Infer the whole module
+        let mod_def_id = self.infer_loop(
+            self.ast_info().mod_defs().get_data_by_node(node.id()).unwrap(),
+            |mod_def_id| self.inference_ops().infer_mod_def(mod_def_id).map(|()| mod_def_id),
+            |mod_def_id| self.substitution_ops().mod_def_has_holes(mod_def_id),
+        )?;
+        stream_less_writeln!("{}", self.env().with(mod_def_id));
         Ok(())
     }
 }
