@@ -11,7 +11,7 @@ use std::{
 use hash_source::constant::CONSTANT_MAP;
 use hash_target::{data_layout::TargetDataLayout, TargetInfo};
 
-use crate::{args::ArgumentError, fs::resolve_path};
+use crate::{error::PipelineError, fs::resolve_path};
 
 /// Various settings that are present on the compiler pipeline when initially
 /// launching.
@@ -84,11 +84,11 @@ impl CompilerSettings {
     /// Get the entry point filename from the [CompilerSettings]. If
     /// [`None`] was provided, it is assumed that this is then an interactive
     /// session.
-    pub fn entry_point(&self) -> Option<Result<PathBuf, ArgumentError>> {
+    pub fn entry_point(&self) -> Option<Result<PathBuf, PipelineError>> {
         self.entry_point.as_ref().map(|path| {
             let current_dir = env::current_dir().unwrap();
             let path = CONSTANT_MAP.create_string(path.to_str().unwrap());
-            resolve_path(path, current_dir).map_err(ArgumentError::ImportPath)
+            resolve_path(path, current_dir).map_err(PipelineError::ImportPath)
         })
     }
 
@@ -103,7 +103,7 @@ impl CompilerSettings {
     /// 3. If the user has not specified an entry point, use the operating
     /// system    temporary directory with an appended `hash-#session-id`
     /// directory.
-    pub fn output_directory(&self) -> Result<PathBuf, ArgumentError> {
+    pub fn output_directory(&self) -> Result<PathBuf, PipelineError> {
         // For the `temp` directory case, we want to create a folder within the
         // temporary directory that is unique to this session.
         let temp_dir = {
@@ -136,7 +136,7 @@ impl CompilerSettings {
             // later during compilation.
             if !candidate.exists() || !candidate.is_dir() {
                 std::fs::create_dir_all(&candidate).map_err(|error| {
-                    ArgumentError::ResourceCreation { path: candidate.clone(), error }
+                    PipelineError::ResourceCreation { path: candidate.clone(), error }
                 })?;
             }
 
@@ -240,13 +240,13 @@ impl OptimisationLevel {
 }
 
 impl FromStr for OptimisationLevel {
-    type Err = ArgumentError;
+    type Err = PipelineError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "debug" => Ok(Self::Debug),
             "release" => Ok(Self::Release),
-            _ => Err(ArgumentError::InvalidValue("optimisation-level".to_string(), s.to_string())),
+            _ => Err(PipelineError::InvalidValue("optimisation-level".to_string(), s.to_string())),
         }
     }
 }

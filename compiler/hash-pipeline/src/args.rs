@@ -1,104 +1,22 @@
 //! Hash Compiler pipeline errors that can occur during the
 //! the pipeline initialisation.
-use std::{io, path::PathBuf, str::FromStr};
+use std::{path::PathBuf, str::FromStr};
 
-use hash_reporting::report::{Report, ReportKind};
 use hash_target::Target;
 
 use crate::{
-    fs::ImportError,
+    error::PipelineError,
     settings::{
         CodeGenBackend, CompilerSettings, CompilerStageKind, IrDumpMode, OptimisationLevel,
     },
 };
-
-/// Errors that might occur when attempting to compile and or interpret a
-/// program.
-#[derive(Debug)]
-pub enum ArgumentError {
-    /// Invalid target was passed to the compiler.
-    InvalidTarget(String),
-
-    /// Error that can occur when the pipeline tried to
-    /// create a resource on the operating system, but the resource
-    /// couldn't be created for some reason.
-    ResourceCreation {
-        /// The item that was being created.
-        path: PathBuf,
-
-        /// The specific [io::Error] that occurred.
-        error: io::Error,
-    },
-
-    /// Errors that can occur from importing module paths
-    /// when the compiler settings are still being processed.
-    ImportPath(ImportError),
-
-    /// When a specific "stage" of the compiler is specified.
-    /// but there exists no such stage.
-    UnknownStage(String),
-
-    /// When a stage is specified but the entry point is missing.
-    MissingEntryPoint,
-
-    /// When a configuration key is not recognised.
-    UnknownKey(String),
-
-    /// When a key-value pair doesn't follow the standard
-    /// `-C<key>=<value>` format.
-    MalformedKey(String),
-
-    /// A key was provided but was missing a key.
-    MissingValue(String),
-
-    /// When a configuration key value is not a valid option
-    /// for the specified key.
-    InvalidValue(String, String),
-}
-
-impl From<ArgumentError> for Report {
-    fn from(value: ArgumentError) -> Self {
-        let mut report = Report::new();
-        let message = match value {
-            ArgumentError::InvalidTarget(target) => format!(
-                "invalid target `{target}` specified, available targets are: `x86_64` and `x64`"
-            ),
-            ArgumentError::MissingEntryPoint => "missing entry point".to_string(),
-            ArgumentError::UnknownStage(stage) => format!("unknown stage `{stage}`, available stages are: `ast-gen`, `check`, `ir-gen`, `build`"),
-            ArgumentError::ResourceCreation { path, error } => {
-                let kind = error.kind();
-
-                error.raw_os_error().map_or_else(
-                    || format!("couldn't create `{}`, {}", path.to_string_lossy(), kind),
-                    |code| format!("couldn't create `{}`, {} (code: {})", path.to_string_lossy(), kind, code),
-                )
-            },
-            ArgumentError::ImportPath(err) => err.to_string(),
-            ArgumentError::UnknownKey(key) => {
-                format!("unknown configuration key `{key}`")
-            }
-            ArgumentError::MalformedKey(key) => {
-                format!("malformed configuration key `{key}`")
-            }
-            ArgumentError::MissingValue(key) => {
-                format!("missing value for configuration key `{key}`")
-            }
-            ArgumentError::InvalidValue(key, value) => {
-                format!("invalid value `{value}` for configuration key `{key}`")
-            }
-        };
-
-        report.kind(ReportKind::Error).title(message);
-        report
-    }
-}
 
 /// This function is used to parse the command line arguments that are
 /// passed to the compiler, it will return a [CompilerSettings] struct
 /// that contains all of the settings that the compiler should use. If
 /// there is an error, this will return an error that can be
 /// dealt with by the caller.
-pub fn parse_settings_from_args() -> Result<CompilerSettings, ArgumentError> {
+pub fn parse_settings_from_args() -> Result<CompilerSettings, PipelineError> {
     let mut settings = CompilerSettings::default();
     let mut args = std::env::args().skip(1);
 
@@ -125,7 +43,7 @@ pub fn parse_settings_from_args() -> Result<CompilerSettings, ArgumentError> {
                     settings.stage = CompilerStageKind::IrGen;
                 }
                 _ => {
-                    return Err(ArgumentError::UnknownStage(arg));
+                    return Err(PipelineError::UnknownStage(arg));
                 }
             };
 
@@ -134,7 +52,7 @@ pub fn parse_settings_from_args() -> Result<CompilerSettings, ArgumentError> {
                 let path = PathBuf::from(filename);
                 settings.entry_point = Some(path);
             } else {
-                return Err(ArgumentError::MissingEntryPoint);
+                return Err(PipelineError::MissingEntryPoint);
             }
         }
     }
@@ -151,7 +69,7 @@ pub fn parse_option(
     settings: &mut CompilerSettings,
     args: &mut impl Iterator<Item = String>,
     arg: &str,
-) -> Result<(), ArgumentError> {
+) -> Result<(), PipelineError> {
     // This is a configuration key that specifies the "key" and then
     // the value in the form of `-C<key>=<value>`
     if arg.starts_with("-C") {
@@ -162,7 +80,7 @@ pub fn parse_option(
             if let Some(arg) = args.next() {
                 parse_arg_configuration(settings, arg)?;
             } else {
-                return Err(ArgumentError::UnknownKey(arg.to_string()));
+                return Err(PipelineError::UnknownKey(arg.to_string()));
             }
         } else {
             parse_arg_configuration(settings, arg.trim_start_matches("-C").to_string())?;
@@ -183,11 +101,11 @@ pub fn parse_option(
                     let path = PathBuf::from(filename);
                     settings.output_directory = Some(path);
                 } else {
-                    return Err(ArgumentError::MissingValue(key));
+                    return Err(PipelineError::MissingValue(key));
                 }
             }
             _ => {
-                return Err(ArgumentError::UnknownKey(arg.to_string()));
+                return Err(PipelineError::UnknownKey(arg.to_string()));
             }
         }
     }
@@ -202,7 +120,7 @@ pub fn parse_option(
 fn parse_arg_configuration(
     settings: &mut CompilerSettings,
     arg: String,
-) -> Result<(), ArgumentError> {
+) -> Result<(), PipelineError> {
     // First try and see if we have been provided a key-value pair, if not
     // then we will assume that the key is the argument and the value is
     // `None`.
@@ -215,7 +133,7 @@ fn parse_arg_configuration(
 
     // When a value is expected from a key, but none is provided, this
     // closure will be used to return an error.
-    let expected_value = || ArgumentError::MissingValue(key.clone());
+    let expected_value = || PipelineError::MissingValue(key.clone());
 
     // @@Todo: it would be nice to have macro that can generate these
     // match statements, and perform the correct validation, and generate
@@ -225,7 +143,7 @@ fn parse_arg_configuration(
             let value = value.ok_or_else(expected_value)?;
 
             let target = Target::from_string(value.clone())
-                .ok_or_else(|| ArgumentError::InvalidTarget(value))?;
+                .ok_or_else(|| PipelineError::InvalidTarget(value))?;
 
             settings.codegen_settings.target_info.set_target(target)
         }
@@ -245,7 +163,7 @@ fn parse_arg_configuration(
                     settings.lowering_settings.dump = true;
                 }
                 _ => {
-                    return Err(ArgumentError::InvalidValue(key, value));
+                    return Err(PipelineError::InvalidValue(key, value));
                 }
             }
         }
@@ -260,7 +178,7 @@ fn parse_arg_configuration(
                     settings.lowering_settings.dump_mode = IrDumpMode::Graph;
                 }
                 _ => {
-                    return Err(ArgumentError::InvalidValue(key, value));
+                    return Err(PipelineError::InvalidValue(key, value));
                 }
             }
         }
@@ -275,12 +193,12 @@ fn parse_arg_configuration(
                     settings.codegen_settings.backend = CodeGenBackend::VM;
                 }
                 _ => {
-                    return Err(ArgumentError::InvalidValue(key, value));
+                    return Err(PipelineError::InvalidValue(key, value));
                 }
             }
         }
         _ => {
-            return Err(ArgumentError::UnknownKey(key));
+            return Err(PipelineError::UnknownKey(key));
         }
     };
 

@@ -11,7 +11,7 @@ macro_rules! export_variable {
     };
 }
 
-/// Expore the target triple as an environment variable.
+/// Export the target triple as an environment variable.
 fn main() {
     let target = env::var("TARGET").unwrap();
     export_variable!(TARGET_TRIPLE, target);

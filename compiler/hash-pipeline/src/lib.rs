@@ -6,6 +6,7 @@
 //! used. This file also has definitions for how to access sources whether
 //! module or interactive.
 pub mod args;
+pub mod error;
 pub mod fs;
 pub mod interface;
 pub mod settings;

@@ -19,7 +19,7 @@ use hash_ast::{
 use hash_source::{ModuleId, ModuleKind, SourceId, SourceMap};
 use hash_utils::tree_writing::TreeWriter;
 
-use crate::{args::ArgumentError, settings::CompilerSettings};
+use crate::{error::PipelineError, settings::CompilerSettings};
 
 bitflags! {
     /// Defines the flags that can be used to control the compiler pipeline.
@@ -186,7 +186,7 @@ pub struct Workspace {
 
 impl Workspace {
     /// Create a new [Workspace], initialising all members to be empty.
-    pub fn new(settings: &CompilerSettings) -> Result<Self, ArgumentError> {
+    pub fn new(settings: &CompilerSettings) -> Result<Self, PipelineError> {
         let executable_path = settings.codegen_settings().output_path.clone();
         let output_directory = settings.output_directory()?;
 
