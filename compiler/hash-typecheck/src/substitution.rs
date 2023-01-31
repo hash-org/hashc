@@ -7,6 +7,7 @@ use hash_tir::new::{
     args::ArgsId,
     defs::DefArgsId,
     holes::Hole,
+    mods::ModDefId,
     params::ParamsId,
     sub::Sub,
     terms::{Term, TermId},
@@ -144,6 +145,54 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
                 Ok(self.apply_sub_to_atom_in_place_once(atom, sub))
             })
             .into_ok()
+    }
+
+    /// Determines whether the given atom contains a hole.
+    ///
+    /// If a hole is found, `ControlFlow::Break(())` is returned. Otherwise,
+    /// `ControlFlow::Continue(())` is returned. `has_holes` is updated
+    /// accordingly.
+    pub fn has_holes_once(&self, atom: Atom, has_holes: &mut bool) -> ControlFlow<()> {
+        match atom {
+            Atom::Ty(ty) => match self.get_ty(ty) {
+                Ty::Hole(_) => {
+                    *has_holes = true;
+                    ControlFlow::Break(())
+                }
+                _ => ControlFlow::Continue(()),
+            },
+            Atom::Term(term) => match self.get_term(term) {
+                Term::Hole(_) => {
+                    *has_holes = true;
+                    ControlFlow::Break(())
+                }
+                _ => ControlFlow::Continue(()),
+            },
+            Atom::FnDef(_) | Atom::Pat(_) => ControlFlow::Continue(()),
+        }
+    }
+
+    /// Determines whether the given atom contains one or more holes.
+    pub fn atom_has_holes(&self, atom: impl Into<Atom>) -> bool {
+        let mut has_holes = false;
+        self.traversing_utils()
+            .visit_atom::<!, _>(atom.into(), &mut |atom| {
+                Ok(self.has_holes_once(atom, &mut has_holes))
+            })
+            .into_ok();
+        has_holes
+    }
+
+    /// Determines whether the given module definition contains one or more
+    /// holes.
+    pub fn mod_def_has_holes(&self, mod_def_id: ModDefId) -> bool {
+        let mut has_holes = false;
+        self.traversing_utils()
+            .visit_mod_def::<!, _>(mod_def_id, &mut |atom| {
+                Ok(self.has_holes_once(atom, &mut has_holes))
+            })
+            .into_ok();
+        has_holes
     }
 
     /// Create a substitution from applying the arguments to the parameters.

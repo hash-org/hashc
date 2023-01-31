@@ -9,13 +9,15 @@ use hash_tir::{
         args::{ArgsId, PatArgsId},
         casting::CastTerm,
         control::{LoopControlTerm, LoopTerm, ReturnTerm},
-        data::{CtorTerm, DataDefId, DataTy},
+        data::{
+            CtorDefId, CtorTerm, DataDefCtors, DataDefId, DataTy, ListCtorInfo, PrimitiveCtorInfo,
+        },
         defs::{DefArgsId, DefParamGroup, DefParamGroupData, DefParamsId, DefPatArgsId},
         environment::context::{BindingKind, BoundVarOrigin, ScopeKind},
         fns::{FnBody, FnCallTerm, FnDefId},
         holes::HoleBinderKind,
         lits::{Lit, PrimTerm},
-        mods::{ModDefId, ModMember, ModMemberValue},
+        mods::{ModDefId, ModMemberId, ModMemberValue},
         params::{Param, ParamData, ParamsId},
         pats::{Pat, PatId},
         refs::{DerefTerm, RefTerm, RefTy},
@@ -28,7 +30,7 @@ use hash_tir::{
     },
     ty_as_variant,
 };
-use hash_utils::store::{CloneStore, SequenceStore, Store};
+use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
 
 use super::unification::Uni;
 use crate::{
@@ -274,14 +276,26 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     }
 
     /// Infer the given parameters.
-    pub fn infer_params(&self, params: ParamsId) -> TcResult<()> {
+    pub fn infer_params(&self, params: ParamsId) -> TcResult<ParamsId> {
         let mut error_state = self.new_error_state();
-        self.stores().params().map_fast(params, |params| {
+        self.stores().params().map(params, |params| {
             for param in params {
                 let _ = error_state.try_or_add_error(self.infer_ty(param.ty, None));
             }
         });
-        self.return_or_register_errors(|| Ok(()), error_state)
+        self.return_or_register_errors(|| Ok(params), error_state)
+    }
+
+    /// Infer the given definition parameters.
+    pub fn infer_def_params(&self, def_params_id: DefParamsId) -> TcResult<DefParamsId> {
+        self.stores().def_params().map(def_params_id, |def_params| {
+            self.infer_some_def_args(def_params, None, |def_params, _| {
+                Ok(DefParamGroupData {
+                    implicit: def_params.implicit,
+                    params: self.infer_params(def_params.params)?,
+                })
+            })
+        })
     }
 
     /// Infer the type of a runtime term.
@@ -406,6 +420,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         let _inferred_data_args = self.infer_def_args(term.data_args, None)?; // @@Todo: data def params as annotations
         let _inferred_ctor_args = self.infer_def_args(term.ctor_args, None)?; // @@Todo: data def params as annotations
         let inferred_ty = self.new_ty(DataTy { data_def, args: term.data_args });
+
         Ok((*term, self.check_by_unify(inferred_ty, annotation_ty)?))
     }
 
@@ -941,15 +956,79 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         Ok((pat_id, final_ty))
     }
 
-    /// Infer the given data definition.
-    pub fn infer_data_def(&self, _data_def_id: DataDefId) -> TcResult<()> {
-        // @@Todo
+    /// Infer the given constructor definition.
+    pub fn infer_ctor_def(&self, ctor: CtorDefId) -> TcResult<()> {
+        let (ctor_data_def_id, ctor_params, ctor_result_args) =
+            self.stores().ctor_defs().map_fast(ctor.0, |ctors| {
+                (ctors[ctor.1].data_def_id, ctors[ctor.1].params, ctors[ctor.1].result_args)
+            });
+
+        // Infer the parameters and return type of the data type
+        let params = self.infer_def_params(ctor_params)?;
+        let return_ty = self.new_ty(DataTy { data_def: ctor_data_def_id, args: ctor_result_args });
+        let (return_ty, _) = self.infer_ty(return_ty, None)?;
+        let return_ty_args = ty_as_variant!(self, self.get_ty(return_ty), Data).args;
+
+        self.stores().ctor_defs().modify_fast(ctor.0, |ctors| {
+            ctors[ctor.1].params = params;
+            ctors[ctor.1].result_args = return_ty_args;
+        });
+
         Ok(())
     }
 
+    /// Infer the given data definition.
+    pub fn infer_data_def(&self, data_def_id: DataDefId) -> TcResult<()> {
+        let (data_def_params, data_def_ctors) = self
+            .stores()
+            .data_def()
+            .map_fast(data_def_id, |data_def| (data_def.params, data_def.ctors));
+
+        let inferred_params = self.infer_def_params(data_def_params)?;
+
+        self.stores().data_def().modify_fast(data_def_id, |def| def.params = inferred_params);
+
+        match data_def_ctors {
+            DataDefCtors::Defined(data_def_ctors_id) => {
+                let mut error_state = self.new_error_state();
+
+                // Infer each member
+                for ctor_idx in data_def_ctors_id.to_index_range() {
+                    let _ = error_state
+                        .try_or_add_error(self.infer_ctor_def((data_def_ctors_id, ctor_idx)));
+                }
+
+                self.return_or_register_errors(|| Ok(()), error_state)
+            }
+            DataDefCtors::Primitive(primitive) => match primitive {
+                PrimitiveCtorInfo::Numeric(_)
+                | PrimitiveCtorInfo::Str
+                | PrimitiveCtorInfo::Char => {
+                    // Nothing to do
+                    Ok(())
+                }
+                PrimitiveCtorInfo::List(list_ctor_info) => {
+                    // Infer the inner type
+                    let element_ty = self.infer_ty(list_ctor_info.element_ty, None)?.0;
+                    self.stores().data_def().modify_fast(data_def_id, |def| {
+                        def.ctors =
+                            DataDefCtors::Primitive(PrimitiveCtorInfo::List(ListCtorInfo {
+                                element_ty,
+                            }));
+                    });
+                    Ok(())
+                }
+            },
+        }
+    }
+
     /// Infer the given module member.
-    pub fn infer_mod_member(&self, mod_member: &ModMember) -> TcResult<()> {
-        match mod_member.value {
+    pub fn infer_mod_member(&self, mod_member: ModMemberId) -> TcResult<()> {
+        let value = self
+            .stores()
+            .mod_members()
+            .map_fast(mod_member.0, |members| members[mod_member.1].value);
+        match value {
             ModMemberValue::Data(data_def_id) => {
                 self.infer_data_def(data_def_id)?;
                 Ok(())
@@ -968,15 +1047,13 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     /// Infer the given module definition.
     pub fn infer_mod_def(&self, mod_def_id: ModDefId) -> TcResult<()> {
         let members = self.stores().mod_def().map_fast(mod_def_id, |def| def.members);
-        self.stores().mod_members().map_fast(members, |members| {
-            let mut error_state = self.new_error_state();
+        let mut error_state = self.new_error_state();
 
-            // Infer each member
-            for member in members {
-                let _ = error_state.try_or_add_error(self.infer_mod_member(member));
-            }
+        // Infer each member
+        for member_idx in members.to_index_range() {
+            let _ = error_state.try_or_add_error(self.infer_mod_member((members, member_idx)));
+        }
 
-            self.return_or_register_errors(|| Ok(()), error_state)
-        })
+        self.return_or_register_errors(|| Ok(()), error_state)
     }
 }
