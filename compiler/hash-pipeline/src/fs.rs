@@ -3,7 +3,7 @@ use std::{
     env,
     fmt::Display,
     fs,
-    path::{self, Path, PathBuf},
+    path::{Path, PathBuf, MAIN_SEPARATOR},
 };
 
 use hash_reporting::report::{Report, ReportKind};
@@ -15,15 +15,19 @@ const STDLIB: &str = env!("STDLIB_PATH");
 
 /// The path to the prelude module
 pub const PRELUDE: &str =
-    const_format::formatcp!("{}{}prelude", env!("STDLIB_PATH"), path::MAIN_SEPARATOR);
+    const_format::formatcp!("{}{}prelude", env!("STDLIB_PATH"), MAIN_SEPARATOR);
 
-#[derive(Debug, Clone)]
+/// Specifies the error kinds of an [ImportError]. Each kind denotes
+/// a particular error that can occur when importing a module.
+#[derive(Debug, Clone, Copy)]
 pub enum ImportErrorKind {
     /// If the file cannot be read by the current session.
     UnreadableFile,
+
     /// If the path is referencing a directory, but the directory does not
     /// have a `index.hash`.
     MissingIndex,
+
     /// When the module file is not found in the file system.
     NotFound,
 }
@@ -45,7 +49,10 @@ impl Display for ImportErrorKind {
 /// IO operations rather than parsing operations.
 #[derive(Debug, Clone)]
 pub struct ImportError {
+    /// The path that was attempted to be imported.
     pub path: InternedStr,
+
+    /// The kind of error that occurred.
     pub kind: ImportErrorKind,
 }
 
@@ -55,11 +62,10 @@ impl Display for ImportError {
     }
 }
 
-impl ImportError {
-    /// Create a [Report] from the [ImportError].
-    pub fn create_report(&self) -> Report {
+impl From<ImportError> for Report {
+    fn from(value: ImportError) -> Self {
         let mut report = Report::new();
-        report.kind(ReportKind::Error).title(format!("{self}"));
+        report.kind(ReportKind::Error).title(format!("{value}"));
         report
     }
 }
@@ -145,8 +151,13 @@ pub fn read_in_path(import_path: impl AsRef<Path>) -> Result<String, ImportError
 /// ## Errors
 /// - If the path to the module couldn't be resolved, an [ImportError] is
 ///   raised.
-pub fn resolve_path(path: InternedStr, wd: impl AsRef<Path>) -> Result<PathBuf, ImportError> {
-    let import_path = Path::new(path.into());
+pub fn resolve_path<'p>(
+    path: impl Into<&'p str>,
+    wd: impl AsRef<Path>,
+) -> Result<PathBuf, ImportError> {
+    let path = path.into();
+    let import_path = Path::new(&path);
+    let interned_path = CONSTANT_MAP.create_string(path);
     let wd = wd.as_ref();
 
     let modules = get_stdlib_modules(STDLIB);
@@ -177,8 +188,7 @@ pub fn resolve_path(path: InternedStr, wd: impl AsRef<Path>) -> Result<PathBuf, 
             return Ok(raw_path_hash);
         }
 
-        // @@Copied
-        Err(ImportError { path, kind: ImportErrorKind::MissingIndex })
+        Err(ImportError { path: interned_path, kind: ImportErrorKind::MissingIndex })
     } else {
         // we don't need to anything if the given raw_path already has a extension
         // '.hash', since we don't disallow someone to import a module and
@@ -203,7 +213,7 @@ pub fn resolve_path(path: InternedStr, wd: impl AsRef<Path>) -> Result<PathBuf, 
                 if raw_path.extension().is_none() && raw_path_hash.exists() {
                     Ok(raw_path_hash)
                 } else {
-                    Err(ImportError { path, kind: ImportErrorKind::NotFound })
+                    Err(ImportError { path: interned_path, kind: ImportErrorKind::NotFound })
                 }
             }
         }

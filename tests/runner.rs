@@ -291,11 +291,16 @@ fn handle_pass_case(
 
 /// Generic test handler in the event whether a case should pass or fail.
 fn handle_test(test: TestingInput) {
-    let workspace = Workspace::new();
     let mut settings = CompilerSettings::new(WORKER_COUNT);
     settings.set_skip_prelude(true);
     settings.set_emit_errors(false);
     settings.set_stage(test.metadata.stage);
+
+    // We also have to specify the output directory for compiler artifacts to
+    // be `tests/target` in order to avoid producing artifacts within the test
+    // runner tree.
+
+    let workspace = Workspace::new(&settings).unwrap();
 
     // We also need to potentially apply any additional configuration options
     // that are specified by the test onto the compiler settings
@@ -343,8 +348,7 @@ fn handle_test(test: TestingInput) {
     let mut compiler_state = compiler.bootstrap(session);
 
     // // Now parse the module and store the result
-    compiler_state =
-        compiler.run_on_filename(test.path.to_str().unwrap(), ModuleKind::Normal, compiler_state);
+    compiler_state = compiler.run_on_filename(&test.path, ModuleKind::Normal, compiler_state);
 
     let diagnostics = compiler_state.diagnostics;
 

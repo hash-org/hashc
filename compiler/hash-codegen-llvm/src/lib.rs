@@ -17,6 +17,7 @@ use hash_codegen::{
 use hash_ir::IrStorage;
 use hash_pipeline::{workspace::Workspace, CompilerResult};
 use hash_source::ModuleId;
+use hash_target::TargetArch;
 use hash_utils::index_vec::IndexVec;
 use inkwell as llvm;
 use llvm::targets::TargetTriple;
@@ -67,6 +68,23 @@ impl<'b> LLVMBackend<'b> {
         // We have to create a target machine from the provided target
         // data.
         let target = settings.codegen_settings.target_info.target();
+
+        // we have to initialise the target with the default configuration based
+        // on which architecture we are compiling for.
+        let config = llvm::targets::InitializationConfig::default();
+
+        match target.arch {
+            TargetArch::X86 | TargetArch::X86_64 => {
+                llvm::targets::Target::initialize_x86(&config);
+            }
+            TargetArch::Arm => {
+                llvm::targets::Target::initialize_arm(&config);
+            }
+            TargetArch::Aarch64 => {
+                llvm::targets::Target::initialize_aarch64(&config);
+            }
+            TargetArch::Unknown => unreachable!(),
+        }
 
         let llvm_target = llvm::targets::Target::from_name(target.arch.as_str()).unwrap();
 

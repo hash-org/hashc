@@ -46,8 +46,17 @@ fn main() {
     // Register main thread with the profiler
     profiling::register_thread!("compiler-main");
 
-    let workspace = Workspace::new();
-    let settings: CompilerSettings = execute(&workspace.source_map, parse_settings_from_args);
+    // @@Hack: we have to create a dummy source map here so that we can use it
+    // to report errors in the case that the compiler fails to start up. After the
+    // workspace is initiated, it is replaced with the real source map.
+    let source_map = SourceMap::new();
+
+    let settings: CompilerSettings = execute(&source_map, parse_settings_from_args);
+
+    // We want to figure out the entry point of the compiler by checking if the
+    // compiler has been specified to run in a specific mode.
+    let entry_point = execute(&source_map, || settings.entry_point().transpose());
+    let workspace = execute(&source_map, || Workspace::new(&settings));
 
     // if debug is specified, we want to log everything that is debug level...
     if settings.debug {
@@ -55,10 +64,6 @@ fn main() {
     } else {
         log::set_max_level(LevelFilter::Info);
     }
-
-    // We want to figure out the entry point of the compiler by checking if the
-    // compiler has been specified to run in a specific mode.
-    let entry_point = settings.entry_point();
 
     // We need at least 2 workers for the parsing loop in order so that the job
     // queue can run within a worker and any other jobs can run inside another

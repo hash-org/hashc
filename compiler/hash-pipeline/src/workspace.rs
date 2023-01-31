@@ -7,7 +7,7 @@
 
 use std::{
     collections::{HashMap, HashSet},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use bitflags::bitflags;
@@ -18,6 +18,8 @@ use hash_ast::{
 };
 use hash_source::{ModuleId, ModuleKind, SourceId, SourceMap};
 use hash_utils::tree_writing::TreeWriter;
+
+use crate::{args::ArgumentError, settings::CompilerSettings};
 
 bitflags! {
     /// Defines the flags that can be used to control the compiler pipeline.
@@ -145,6 +147,28 @@ impl Default for StageInfo {
 /// access information about the current job.
 #[derive(Debug)]
 pub struct Workspace {
+    /// The name of the current workspace.
+    pub name: String,
+
+    /// Represents where the workspace compilation results should be
+    /// saved to on disk. This is equivalent to specifying the "output"
+    /// directory for the compiler.
+    ///
+    /// Defaults to the working directory of the entry point file and the
+    /// "target" directory, e.g. for the file `src/main.hash` the default
+    /// output directory would be `src/target`.
+    ///
+    /// However, this can be configured using the `--output-dir` flag.
+    pub output_directory: PathBuf,
+
+    /// A user specified location of where to write the executable to.
+    /// If the user has not specified a location, this will be [`None`], and it
+    /// will be generated from the "output" directory and other session
+    /// information.
+    ///
+    /// N.B. To compute the executable path, use [`Workspace::executable_path`].
+    pub executable_path: Option<PathBuf>,
+
     /// Dependency map between sources and modules.
     dependencies: HashMap<SourceId, HashSet<ModuleId>>,
 
@@ -160,21 +184,44 @@ pub struct Workspace {
     pub source_stage_info: StageInfo,
 }
 
-impl Default for Workspace {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl Workspace {
     /// Create a new [Workspace], initialising all members to be empty.
-    pub fn new() -> Self {
-        Self {
+    pub fn new(settings: &CompilerSettings) -> Result<Self, ArgumentError> {
+        let executable_path = settings.codegen_settings().output_path.clone();
+        let output_directory = settings.output_directory()?;
+
+        let name = settings
+            .entry_point()
+            .transpose()?
+            .map(|f| f.file_stem().unwrap().to_str().unwrap().to_string())
+            .unwrap_or_else(|| "main".to_string());
+
+        Ok(Self {
+            name,
+            output_directory,
+            executable_path,
             source_map: SourceMap::new(),
             node_map: NodeMap::new(),
             dependencies: HashMap::new(),
             source_stage_info: StageInfo::new(),
-        }
+        })
+    }
+
+    /// Get the path of the executable that the compiler should write the
+    /// final binary to. This is workspace dependant, since the executables
+    /// might not even be emitted for a workspaces that don't "require"
+    /// executables.
+    pub fn executable_path(&self) -> PathBuf {
+        self.executable_path.as_ref().map_or_else(
+            || {
+                // If no executable path was specified, we create one from the
+                // output directory and the name of the entry point file.
+                let mut path = self.output_directory.clone();
+                path.push(&self.name);
+                path
+            },
+            |path| path.clone(),
+        )
     }
 
     /// Add a interactive block to the [Workspace] by providing the contents and

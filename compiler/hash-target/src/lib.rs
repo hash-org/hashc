@@ -120,7 +120,7 @@ impl TargetArch {
     pub fn from_host() -> Self {
         match ARCH {
             "x86" => Self::X86,
-            "x86_64" => Self::X86_64,
+            "x86_64" | "x86-64" | "x64" => Self::X86_64,
             "aarch64" => Self::Aarch64,
             "arm" => Self::Arm,
             _ => Self::Unknown,
@@ -131,7 +131,7 @@ impl TargetArch {
     pub fn as_str(&self) -> &'static str {
         match self {
             TargetArch::X86 => "x86",
-            TargetArch::X86_64 => "x86_64",
+            TargetArch::X86_64 => "x86-64",
             TargetArch::Aarch64 => "aarch64",
             TargetArch::Arm => "arm",
             TargetArch::Unknown => "unknown",

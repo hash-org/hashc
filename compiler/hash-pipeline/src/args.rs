@@ -1,12 +1,15 @@
 //! Hash Compiler pipeline errors that can occur during the
 //! the pipeline initialisation.
-use std::{io, str::FromStr};
+use std::{io, path::PathBuf, str::FromStr};
 
 use hash_reporting::report::{Report, ReportKind};
 use hash_target::Target;
 
-use crate::settings::{
-    CodeGenBackend, CompilerSettings, CompilerStageKind, IrDumpMode, OptimisationLevel,
+use crate::{
+    fs::ImportError,
+    settings::{
+        CodeGenBackend, CompilerSettings, CompilerStageKind, IrDumpMode, OptimisationLevel,
+    },
 };
 
 /// Errors that might occur when attempting to compile and or interpret a
@@ -16,8 +19,20 @@ pub enum ArgumentError {
     /// Invalid target was passed to the compiler.
     InvalidTarget(String),
 
-    /// Generic IO error.
-    Io(io::Error),
+    /// Error that can occur when the pipeline tried to
+    /// create a resource on the operating system, but the resource
+    /// couldn't be created for some reason.
+    ResourceCreation {
+        /// The item that was being created.
+        path: PathBuf,
+
+        /// The specific [io::Error] that occurred.
+        error: io::Error,
+    },
+
+    /// Errors that can occur from importing module paths
+    /// when the compiler settings are still being processed.
+    ImportPath(ImportError),
 
     /// When a specific "stage" of the compiler is specified.
     /// but there exists no such stage.
@@ -50,7 +65,15 @@ impl From<ArgumentError> for Report {
             ),
             ArgumentError::MissingEntryPoint => "missing entry point".to_string(),
             ArgumentError::UnknownStage(stage) => format!("unknown stage `{stage}`, available stages are: `ast-gen`, `check`, `ir-gen`, `build`"),
-            ArgumentError::Io(err) => err.to_string(),
+            ArgumentError::ResourceCreation { path, error } => {
+                let kind = error.kind();
+
+                error.raw_os_error().map_or_else(
+                    || format!("couldn't create `{}`, {}", path.to_string_lossy(), kind),
+                    |code| format!("couldn't create `{}`, {} (code: {})", path.to_string_lossy(), kind, code),
+                )
+            },
+            ArgumentError::ImportPath(err) => err.to_string(),
             ArgumentError::UnknownKey(key) => {
                 format!("unknown configuration key `{key}`")
             }
@@ -108,7 +131,8 @@ pub fn parse_settings_from_args() -> Result<CompilerSettings, ArgumentError> {
 
             // The next argument after this is the input file.
             if let Some(filename) = args.next() {
-                settings.entry_point = Some(filename);
+                let path = PathBuf::from(filename);
+                settings.entry_point = Some(path);
             } else {
                 return Err(ArgumentError::MissingEntryPoint);
             }
@@ -152,6 +176,15 @@ pub fn parse_option(
             }
             "output-metrics" => {
                 settings.output_metrics = true;
+            }
+            "output-dir" => {
+                // The next argument after this is the input file.
+                if let Some(filename) = args.next() {
+                    let path = PathBuf::from(filename);
+                    settings.output_directory = Some(path);
+                } else {
+                    return Err(ArgumentError::MissingValue(key));
+                }
             }
             _ => {
                 return Err(ArgumentError::UnknownKey(arg.to_string()));
