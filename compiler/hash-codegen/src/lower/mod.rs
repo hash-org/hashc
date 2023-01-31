@@ -9,7 +9,7 @@ use hash_ir::{
     ir::{self, Local},
     traversal,
 };
-use index_vec::IndexVec;
+use hash_utils::index_vec::IndexVec;
 
 use self::{locals::LocalRef, operands::OperandRef, place::PlaceRef};
 use crate::traits::{builder::BlockBuilderMethods, layout::LayoutMethods};

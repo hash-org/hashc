@@ -18,10 +18,10 @@ use hash_target::{
     size::Size,
 };
 use hash_utils::{
+    index_vec::{self, index_vec, IndexVec},
     new_sequence_store_key, new_store_key,
     store::{CloneStore, DefaultSequenceStore, DefaultStore, SequenceStore, Store, StoreKey},
 };
-use index_vec::{index_vec, IndexVec};
 
 use crate::{
     ir::{LocalDecls, Place, PlaceProjection},

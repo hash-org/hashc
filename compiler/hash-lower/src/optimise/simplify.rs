@@ -16,7 +16,7 @@ use hash_ir::{
     traversal, IrCtx,
 };
 use hash_pipeline::settings::{CompilerSettings, OptimisationLevel};
-use index_vec::{index_vec, Idx, IndexVec};
+use hash_utils::index_vec::{index_vec, Idx, IndexVec};
 use smallvec::{smallvec, SmallVec};
 
 use super::IrOptimisationPass;

@@ -5,7 +5,6 @@ authors = ["The Hash Language authors"]
 edition = "2021"
 
 [dependencies]
-index_vec = "0.1.3"
 fixedbitset = "0.4.2"
 
 hash-utils = { path = "../hash-utils" }

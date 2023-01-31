@@ -16,8 +16,7 @@ use hash_target::{
     primitives::{FloatTy, SIntTy, UIntTy},
     size::Size,
 };
-use hash_utils::store::Store;
-use index_vec::IndexVec;
+use hash_utils::{index_vec::IndexVec, store::Store};
 
 use crate::{CommonLayouts, FieldLayout, Layout, LayoutCtx, LayoutId, LayoutShape, Variants};
 

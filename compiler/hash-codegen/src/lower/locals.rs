@@ -12,9 +12,9 @@ use hash_ir::{
 use hash_layout::TyInfo;
 use hash_utils::{
     graph::dominators::Dominators,
+    index_vec::IndexVec,
     store::{SequenceStore, SequenceStoreKey},
 };
-use index_vec::IndexVec;
 
 use super::{operands::OperandRef, place::PlaceRef, FnBuilder};
 use crate::traits::{

@@ -7,8 +7,7 @@ use std::{
 };
 
 use bimap::BiMap;
-use hash_utils::path::adjust_canonicalisation;
-use index_vec::define_index_type;
+use hash_utils::{index_vec::define_index_type, path::adjust_canonicalisation};
 use location::{compute_row_col_from_offset, RowColSpan, SourceLocation};
 
 pub mod constant;
