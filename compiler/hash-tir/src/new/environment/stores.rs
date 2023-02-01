@@ -2,7 +2,6 @@
 use super::super::{
     args::{ArgsStore, PatArgsStore},
     data::{CtorDefsStore, DataDefStore},
-    defs::{DefArgsStore, DefParamsStore, DefPatArgsStore},
     fns::FnDefStore,
     locations::LocationStore,
     mods::{ModDefStore, ModMembersStore},
@@ -54,9 +53,6 @@ stores! {
     args: ArgsStore,
     ctor_defs: CtorDefsStore,
     data_def: DataDefStore,
-    def_args: DefArgsStore,
-    def_params: DefParamsStore,
-    def_pat_args: DefPatArgsStore,
     fn_def: FnDefStore,
     location: LocationStore,
     mod_def: ModDefStore,

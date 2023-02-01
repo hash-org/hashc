@@ -34,8 +34,8 @@ pub trait PrimitiveUtils: AccessToPrimitives + Sized {
     fn new_bool_term(&self, value: bool) -> TermId {
         self.new_term(Term::Ctor(CtorTerm {
             ctor: self.get_bool_ctor(value),
-            ctor_args: self.new_empty_def_args(),
-            data_args: self.new_empty_def_args(),
+            ctor_args: self.new_empty_args(),
+            data_args: self.new_empty_args(),
         }))
     }
 
@@ -43,14 +43,15 @@ pub trait PrimitiveUtils: AccessToPrimitives + Sized {
     fn bool_pat(&self, value: bool) -> PatId {
         self.new_pat(Pat::Ctor(CtorPat {
             ctor: self.get_bool_ctor(value),
-            ctor_pat_args: self.new_empty_def_pat_args(),
-            data_args: self.new_empty_def_args(),
+            ctor_pat_args: self.new_empty_pat_args(),
+            data_args: self.new_empty_args(),
+            ctor_pat_args_spread: None,
         }))
     }
 
     /// Create a new `never` type.
     fn new_never_ty(&self) -> TyId {
-        self.new_ty(DataTy { args: self.new_empty_def_args(), data_def: self.primitives().never() })
+        self.new_ty(DataTy { args: self.new_empty_args(), data_def: self.primitives().never() })
     }
 }
 

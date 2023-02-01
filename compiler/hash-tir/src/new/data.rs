@@ -5,20 +5,18 @@ use std::fmt::Display;
 
 use hash_utils::{
     new_sequence_store_key, new_store_key,
-    store::{DefaultSequenceStore, DefaultStore, SequenceStore, Store},
+    store::{DefaultSequenceStore, DefaultStore, SequenceStore, SequenceStoreKey, Store},
 };
 use textwrap::indent;
 use utility_types::omit;
 
 use super::{
-    defs::DefPatArgsId,
+    args::{ArgsId, PatArgsId},
     environment::env::{AccessToEnv, WithEnv},
+    pats::Spread,
     tys::TyId,
 };
-use crate::new::{
-    defs::{DefArgsId, DefParamsId},
-    symbols::Symbol,
-};
+use crate::new::{params::ParamsId, symbols::Symbol};
 
 /// A constructor of a data-type definition.
 ///
@@ -43,7 +41,7 @@ pub struct CtorDef {
     pub data_def_ctor_index: usize,
     /// The parameters of the constructor.
     // @@Todo: formalise positivity requirements
-    pub params: DefParamsId,
+    pub params: ParamsId,
     /// The arguments given to the original data-type in the "return type" of
     /// the constructor.
     ///
@@ -53,7 +51,7 @@ pub struct CtorDef {
     ///
     /// This restricts the return value of each constructor to be the original
     /// data type, with some given arguments for its parameters.
-    pub result_args: DefArgsId,
+    pub result_args: ArgsId,
 }
 new_sequence_store_key!(pub CtorDefsId);
 pub type CtorDefsStore = DefaultSequenceStore<CtorDefsId, CtorDef>;
@@ -68,9 +66,9 @@ pub struct CtorTerm {
     /// The constructor definition that this term is an invocation of.
     pub ctor: CtorDefId,
     /// The arguments to the data definition.
-    pub data_args: DefArgsId,
+    pub data_args: ArgsId,
     /// The arguments to the constructor.
-    pub ctor_args: DefArgsId,
+    pub ctor_args: ArgsId,
 }
 
 /// A constructor pattern.
@@ -81,9 +79,11 @@ pub struct CtorPat {
     /// The constructor definition that this pattern references.
     pub ctor: CtorDefId,
     /// The pattern arguments to the constructor.
-    pub ctor_pat_args: DefPatArgsId,
+    pub ctor_pat_args: PatArgsId,
+    /// The spread in the constructor members, if any.
+    pub ctor_pat_args_spread: Option<Spread>,
     /// The data arguments to the constructor.
-    pub data_args: DefArgsId,
+    pub data_args: ArgsId,
 }
 
 /// The number of bits in a numeric constructor.
@@ -158,9 +158,9 @@ pub struct DataDef {
     pub name: Symbol,
     /// The parameters of the data-type.
     ///
-    /// For example `<A: Type>(x: i32)` in `Bingo := datatype <A: Type> (x:
+    /// For example `<A: Type>` in `Bingo := datatype <A: Type> (x:
     /// i32)`.
-    pub params: DefParamsId,
+    pub params: ParamsId,
     /// The ordered list of constructors for the data-type.
     ///
     /// This list is ordered so that a constructor can refer back to its
@@ -179,24 +179,18 @@ pub struct DataTy {
     /// The data-type definition of this type.
     pub data_def: DataDefId,
     /// The arguments to the data-type definition.
-    pub args: DefArgsId,
+    pub args: ArgsId,
 }
 
 impl fmt::Display for WithEnv<'_, &CtorDef> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}: ", self.env().with(self.value.name))?;
+        if self.value.params.len() > 0 {
+            write!(f, "({}) -> ", self.env().with(self.value.params))?;
+        }
 
-        self.stores().def_params().map_fast(self.value.params, |params| {
-            for param in params.iter() {
-                write!(f, "{} -> ", self.env().with(param))?;
-            }
-            Ok(())
-        })?;
-
-        let data_def_name =
-            self.stores().data_def().map_fast(self.value.data_def_id, |def| def.name);
-        write!(f, "{}", self.env().with(data_def_name))?;
-        write!(f, "{}", self.env().with(self.value.result_args))?;
+        let data_ty = DataTy { args: self.value.result_args, data_def: self.value.data_def_id };
+        write!(f, "{}", self.env().with(&data_ty))?;
 
         Ok(())
     }
@@ -227,13 +221,14 @@ impl Display for WithEnv<'_, &CtorTerm> {
             self.stores().ctor_defs().map_fast(self.value.ctor.0, |ctors| {
                 (ctors[self.value.ctor.1].name, ctors[self.value.ctor.1].data_def_id)
             });
-        let data_def_name = self.stores().data_def().map_fast(data_def_id, |def| def.name);
 
-        write!(f, "{}", self.env().with(data_def_name))?;
-        write!(f, "{}::", self.env().with(self.value.data_args))?;
+        let data_ty = DataTy { args: self.value.data_args, data_def: data_def_id };
+        write!(f, "{}::", self.env().with(&data_ty))?;
 
         write!(f, "{}", self.env().with(ctor_name))?;
-        write!(f, "{}", self.env().with(self.value.ctor_args))?;
+        if self.value.ctor_args.len() > 0 {
+            write!(f, "({})", self.env().with(self.value.ctor_args))?;
+        }
 
         Ok(())
     }
@@ -245,13 +240,18 @@ impl Display for WithEnv<'_, &CtorPat> {
             self.stores().ctor_defs().map_fast(self.value.ctor.0, |ctors| {
                 (ctors[self.value.ctor.1].name, ctors[self.value.ctor.1].data_def_id)
             });
-        let data_def_name = self.stores().data_def().map_fast(data_def_id, |def| def.name);
 
-        write!(f, "{}", self.env().with(data_def_name))?;
-        write!(f, "{}::", self.env().with(self.value.data_args))?;
+        let data_ty = DataTy { args: self.value.data_args, data_def: data_def_id };
+        write!(f, "{}::", self.env().with(&data_ty))?;
 
         write!(f, "{}", self.env().with(ctor_name))?;
-        write!(f, "{}", self.env().with(self.value.ctor_pat_args))?;
+        if self.value.ctor_pat_args.len() > 0 || self.value.ctor_pat_args_spread.is_some() {
+            write!(
+                f,
+                "({})",
+                self.env().with((self.value.ctor_pat_args, self.value.ctor_pat_args_spread))
+            )?;
+        }
 
         Ok(())
     }
@@ -305,7 +305,11 @@ impl Display for WithEnv<'_, &DataDef> {
             f,
             "datatype [name={}] {} {{\n{}}}",
             self.env().with(self.value.name),
-            self.env().with(self.value.params),
+            if self.value.params.len() > 0 {
+                format!("<{}>", self.env().with(self.value.params))
+            } else {
+                "".to_string()
+            },
             indent(&ctors, "  ")
         )
     }
@@ -320,6 +324,10 @@ impl Display for WithEnv<'_, DataDefId> {
 impl Display for WithEnv<'_, &DataTy> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let data_def_name = self.stores().data_def().map_fast(self.value.data_def, |def| def.name);
-        write!(f, "{}{}", self.env().with(data_def_name), self.env().with(self.value.args))
+        write!(f, "{}", self.env().with(data_def_name))?;
+        if self.value.args.len() > 0 {
+            write!(f, "<{}>", self.env().with(self.value.args))?;
+        }
+        Ok(())
     }
 }

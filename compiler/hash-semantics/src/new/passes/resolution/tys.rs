@@ -272,7 +272,7 @@ impl<'tc> ResolutionPass<'tc> {
             data_def: list_def,
             args: self.param_utils().create_positional_args_for_data_def(
                 list_def,
-                once(once(self.new_term(Term::Ty(inner_ty)))),
+                once(self.new_term(Term::Ty(inner_ty))),
             ),
         })))
     }

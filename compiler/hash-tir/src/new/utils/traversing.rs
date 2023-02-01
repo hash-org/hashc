@@ -14,10 +14,6 @@ use crate::{
         casting::CastTerm,
         control::{IfPat, LoopTerm, MatchCase, MatchTerm, OrPat, ReturnTerm},
         data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
-        defs::{
-            DefArgGroupData, DefArgsId, DefParamGroupData, DefParamsId, DefPatArgGroupData,
-            DefPatArgsId,
-        },
         environment::env::{AccessToEnv, Env, WithEnv},
         fns::{FnBody, FnCallTerm, FnDefData, FnDefId, FnTy},
         holes::{HoleBinder, HoleBinderKind},
@@ -105,8 +101,8 @@ impl<'env> TraversingUtils<'env> {
                     }
                 },
                 Term::Ctor(ctor_term) => {
-                    let data_args = self.fmap_def_args(ctor_term.data_args, f)?;
-                    let ctor_args = self.fmap_def_args(ctor_term.ctor_args, f)?;
+                    let data_args = self.fmap_args(ctor_term.data_args, f)?;
+                    let ctor_args = self.fmap_args(ctor_term.ctor_args, f)?;
                     Ok(self.new_term(CtorTerm { ctor: ctor_term.ctor, data_args, ctor_args }))
                 }
                 Term::FnCall(fn_call_term) => {
@@ -261,7 +257,7 @@ impl<'env> TraversingUtils<'env> {
                     Ok(self.new_ty(RefTy { ty, kind: ref_ty.kind, mutable: ref_ty.mutable }))
                 }
                 Ty::Data(data_ty) => {
-                    let args = self.fmap_def_args(data_ty.args, f)?;
+                    let args = self.fmap_args(data_ty.args, f)?;
                     Ok(self.new_ty(DataTy { args, data_def: data_ty.data_def }))
                 }
                 Ty::Universe(universe_ty) => Ok(self.new_ty(universe_ty)),
@@ -285,9 +281,14 @@ impl<'env> TraversingUtils<'env> {
                     Ok(self.new_pat(ListPat { spread: list_pat.spread, pats }))
                 }
                 Pat::Ctor(ctor_pat) => {
-                    let data_args = self.fmap_def_args(ctor_pat.data_args, f)?;
-                    let ctor_pat_args = self.fmap_def_pat_args(ctor_pat.ctor_pat_args, f)?;
-                    Ok(self.new_pat(CtorPat { data_args, ctor_pat_args, ctor: ctor_pat.ctor }))
+                    let data_args = self.fmap_args(ctor_pat.data_args, f)?;
+                    let ctor_pat_args = self.fmap_pat_args(ctor_pat.ctor_pat_args, f)?;
+                    Ok(self.new_pat(CtorPat {
+                        data_args,
+                        ctor_pat_args,
+                        ctor: ctor_pat.ctor,
+                        ctor_pat_args_spread: ctor_pat.ctor_pat_args_spread,
+                    }))
                 }
                 Pat::Or(or_pat) => {
                     let alternatives = self.fmap_pat_list(or_pat.alternatives, f)?;
@@ -350,46 +351,12 @@ impl<'env> TraversingUtils<'env> {
         })
     }
 
-    pub fn fmap_def_args<E, F: Mapper<E>>(
-        &self,
-        def_args_id: DefArgsId,
-        f: F,
-    ) -> Result<DefArgsId, E> {
-        self.map_def_args(def_args_id, |def_args| {
-            let mut new_args = Vec::with_capacity(def_args.len());
-            for def_arg in def_args {
-                new_args.push(DefArgGroupData {
-                    args: self.fmap_args(def_arg.args, f)?,
-                    implicit: def_arg.implicit,
-                });
-            }
-            Ok(self.param_utils().create_def_args(new_args.into_iter()))
-        })
-    }
-
-    pub fn fmap_def_params<E, F: Mapper<E>>(
-        &self,
-        def_params_id: DefParamsId,
-        f: F,
-    ) -> Result<DefParamsId, E> {
-        self.map_def_params(def_params_id, |def_params| {
-            let mut new_params = Vec::with_capacity(def_params.len());
-            for def_param in def_params {
-                new_params.push(DefParamGroupData {
-                    implicit: def_param.implicit,
-                    params: self.fmap_params(def_param.params, f)?,
-                });
-            }
-            Ok(self.param_utils().create_def_params(new_params.into_iter()))
-        })
-    }
-
     pub fn fmap_pat_args<E, F: Mapper<E>>(
         &self,
         pat_args_id: PatArgsId,
         f: F,
     ) -> Result<PatArgsId, E> {
-        self.map_pat_args(pat_args_id, |pat_args| {
+        self.stores().pat_args().map(pat_args_id, |pat_args| {
             let mut new_args = Vec::with_capacity(pat_args.len());
             for pat_arg in pat_args {
                 new_args.push(PatArgData {
@@ -398,24 +365,6 @@ impl<'env> TraversingUtils<'env> {
                 });
             }
             Ok(self.param_utils().create_pat_args(new_args.into_iter()))
-        })
-    }
-
-    pub fn fmap_def_pat_args<E, F: Mapper<E>>(
-        &self,
-        def_pat_args_id: DefPatArgsId,
-        f: F,
-    ) -> Result<DefPatArgsId, E> {
-        self.map_def_pat_args(def_pat_args_id, |def_pat_args| {
-            let mut new_args = Vec::with_capacity(def_pat_args.len());
-            for def_pat_arg in def_pat_args {
-                new_args.push(DefPatArgGroupData {
-                    pat_args: self.fmap_pat_args(def_pat_arg.pat_args, f)?,
-                    spread: def_pat_arg.spread,
-                    implicit: def_pat_arg.implicit,
-                });
-            }
-            Ok(self.param_utils().create_def_pat_args(new_args.into_iter()))
         })
     }
 
@@ -456,8 +405,8 @@ impl<'env> TraversingUtils<'env> {
                     PrimTerm::List(list_ctor) => self.visit_term_list(list_ctor.elements, f),
                 },
                 Term::Ctor(ctor_term) => {
-                    self.visit_def_args(ctor_term.data_args, f)?;
-                    self.visit_def_args(ctor_term.ctor_args, f)
+                    self.visit_args(ctor_term.data_args, f)?;
+                    self.visit_args(ctor_term.ctor_args, f)
                 }
                 Term::FnCall(fn_call_term) => {
                     self.visit_term(fn_call_term.subject, f)?;
@@ -534,7 +483,7 @@ impl<'env> TraversingUtils<'env> {
                     self.visit_ty(fn_ty.return_ty, f)
                 }
                 Ty::Ref(ref_ty) => self.visit_ty(ref_ty.ty, f),
-                Ty::Data(data_ty) => self.visit_def_args(data_ty.args, f),
+                Ty::Data(data_ty) => self.visit_args(data_ty.args, f),
                 Ty::Universe(_) | Ty::Var(_) | Ty::Hole(_) => Ok(()),
             },
         }
@@ -548,9 +497,8 @@ impl<'env> TraversingUtils<'env> {
                 Pat::Tuple(tuple_pat) => self.visit_pat_args(tuple_pat.data, f),
                 Pat::List(list_pat) => self.visit_pat_list(list_pat.pats, f),
                 Pat::Ctor(ctor_pat) => {
-                    self.visit_def_args(ctor_pat.data_args, f)?;
-
-                    self.visit_def_pat_args(ctor_pat.ctor_pat_args, f)
+                    self.visit_args(ctor_pat.data_args, f)?;
+                    self.visit_pat_args(ctor_pat.ctor_pat_args, f)
                 }
                 Pat::Or(or_pat) => self.visit_pat_list(or_pat.alternatives, f),
                 Pat::If(if_pat) => self.visit_pat(if_pat.pat, f),
@@ -619,25 +567,12 @@ impl<'env> TraversingUtils<'env> {
         })
     }
 
-    pub fn visit_def_pat_args<E, F: Visitor<E>>(
-        &self,
-        def_pat_args_id: DefPatArgsId,
-        f: &mut F,
-    ) -> Result<(), E> {
-        self.map_def_pat_args(def_pat_args_id, |def_pat_args| {
-            for &pat_arg_group in def_pat_args {
-                self.visit_pat_args(pat_arg_group.pat_args, f)?;
-            }
-            Ok(())
-        })
-    }
-
     pub fn visit_pat_args<E, F: Visitor<E>>(
         &self,
         pat_args_id: PatArgsId,
         f: &mut F,
     ) -> Result<(), E> {
-        self.map_pat_args(pat_args_id, |pat_args| {
+        self.stores().pat_args().map(pat_args_id, |pat_args| {
             for &arg in pat_args {
                 self.visit_pat(arg.pat, f)?;
             }
@@ -649,32 +584,6 @@ impl<'env> TraversingUtils<'env> {
         self.map_args(args_id, |args| {
             for &arg in args {
                 self.visit_term(arg.value, f)?;
-            }
-            Ok(())
-        })
-    }
-
-    pub fn visit_def_args<E, F: Visitor<E>>(
-        &self,
-        def_args_id: DefArgsId,
-        f: &mut F,
-    ) -> Result<(), E> {
-        self.map_def_args(def_args_id, |def_args| {
-            for &arg_group in def_args {
-                self.visit_args(arg_group.args, f)?;
-            }
-            Ok(())
-        })
-    }
-
-    pub fn visit_def_params<E, F: Visitor<E>>(
-        &self,
-        def_params_id: DefParamsId,
-        f: &mut F,
-    ) -> Result<(), E> {
-        self.map_def_params(def_params_id, |def_params| {
-            for &param_group in def_params {
-                self.visit_params(param_group.params, f)?;
             }
             Ok(())
         })
@@ -695,7 +604,7 @@ impl<'env> TraversingUtils<'env> {
             });
 
         // Visit the parameters
-        self.visit_def_params(ctor_params, f)?;
+        self.visit_params(ctor_params, f)?;
 
         // Create a new type for the result of the constructor, and traverse it.
         let return_ty = self.new_ty(DataTy { data_def: ctor_data_def_id, args: ctor_result_args });
@@ -715,7 +624,7 @@ impl<'env> TraversingUtils<'env> {
             .map_fast(data_def_id, |data_def| (data_def.params, data_def.ctors));
 
         // Params
-        self.visit_def_params(data_def_params, f)?;
+        self.visit_params(data_def_params, f)?;
 
         match data_def_ctors {
             DataDefCtors::Defined(data_def_ctors_id) => {

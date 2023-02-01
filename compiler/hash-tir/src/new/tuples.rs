@@ -58,7 +58,7 @@ impl Display for WithEnv<'_, &TupleTerm> {
 impl Display for WithEnv<'_, &TuplePat> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "(")?;
-        write!(f, "{}", self.env().with(self.value.data))?;
+        write!(f, "{}", self.env().with((self.value.data, self.value.data_spread)))?;
         write!(f, ")")
     }
 }

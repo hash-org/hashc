@@ -10,9 +10,8 @@ use hash_source::location::SourceLocation;
 use hash_tir::{
     impl_access_to_env,
     new::{
-        defs::DefParamsId,
         environment::env::{AccessToEnv, Env},
-        params::{ParamsId, SomeArgsId, SomeDefArgsId},
+        params::{ParamsId, SomeArgsId},
         terms::TermId,
         tys::TyId,
         utils::common::CommonUtils,
@@ -91,9 +90,6 @@ pub enum TcError {
     NeedMoreTypeAnnotationsToInfer { term: TermId },
     /// The given arguments do not match the length of the target parameters.
     WrongArgLength { params_id: ParamsId, args_id: SomeArgsId },
-    /// The given definition arguments do not match the length of the target
-    /// definition parameters.
-    WrongDefArgLength { def_params_id: DefParamsId, def_args_id: SomeDefArgsId },
     /// Not a function.
     NotAFunction { fn_call: TermId, actual_subject_ty: TyId },
     /// Cannot deref the subject.
@@ -177,26 +173,6 @@ impl<'tc> TcErrorReporter<'tc> {
                     error
                         .add_span(location)
                         .add_info(format!("got {arg_length} {} here", args_id.as_str()));
-                }
-            }
-            TcError::WrongDefArgLength { def_params_id: params_id, def_args_id: args_id } => {
-                let param_length = params_id.len();
-                let arg_length = args_id.len();
-
-                let error = reporter.error().code(HashErrorCode::ParameterLengthMismatch).title(format!(
-                    "mismatch in parameter groups: expected {param_length} groups but got {arg_length}"
-                ));
-
-                if let Some(location) = locations.get_overall_location(*params_id) {
-                    error
-                        .add_span(location)
-                        .add_info(format!("expected {param_length} parameter groups here"));
-                }
-
-                if let Some(location) = locations.get_overall_location(*args_id) {
-                    error
-                        .add_span(location)
-                        .add_info(format!("got {arg_length} {} groups here", args_id.as_str()));
                 }
             }
             TcError::NotAFunction { fn_call, actual_subject_ty } => {

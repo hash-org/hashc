@@ -12,7 +12,6 @@ use utility_types::omit;
 
 use super::{
     args::{ArgsId, PatArgsId},
-    defs::{DefArgsId, DefParamsId, DefPatArgsId},
     environment::env::{AccessToEnv, WithEnv},
     locations::IndexedLocationTarget,
 };
@@ -52,21 +51,6 @@ impl From<ParamId> for ParamIndex {
     fn from(value: ParamId) -> Self {
         ParamIndex::Position(value.1)
     }
-}
-
-/// An index of a parameter of a definition parameter list.
-///
-/// This is a combination of the group index and the parameter index.
-/// Group index is
-/// ```notrust
-/// (a, b)(c, d)(e, f)
-/// ^0    ^1    ^2
-/// ```
-/// and parameter index is [`ParamIndex`].
-#[derive(Debug, Clone, Hash, Copy, PartialEq, Eq)]
-pub struct DefParamIndex {
-    pub group_index: usize,
-    pub param_index: ParamIndex,
 }
 
 impl fmt::Display for WithEnv<'_, &Param> {
@@ -114,50 +98,6 @@ impl From<SomeArgsId> for IndexedLocationTarget {
             SomeArgsId::Params(id) => IndexedLocationTarget::Params(id),
             SomeArgsId::PatArgs(id) => IndexedLocationTarget::PatArgs(id),
             SomeArgsId::Args(id) => IndexedLocationTarget::Args(id),
-        }
-    }
-}
-
-/// Some kind of definition arguments, either [`DefParamsId`], [`DefPatArgsId`]
-/// or [`DefArgsId`].
-#[derive(Debug, Clone, Copy)]
-pub enum SomeDefArgsId {
-    Params(DefParamsId),
-    PatArgs(DefPatArgsId),
-    Args(DefArgsId),
-}
-
-impl SomeDefArgsId {
-    /// Get the length of the inner stored parameter group list.
-    pub fn len(&self) -> usize {
-        match self {
-            SomeDefArgsId::Params(id) => id.len(),
-            SomeDefArgsId::PatArgs(id) => id.len(),
-            SomeDefArgsId::Args(id) => id.len(),
-        }
-    }
-
-    /// Whether the inner stored parameter group list is empty.
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    /// Get the English subject noun of the [SomeDefArgsId]
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            SomeDefArgsId::Params(_) => "parameter groups",
-            SomeDefArgsId::PatArgs(_) => "pattern argument groups",
-            SomeDefArgsId::Args(_) => "argument groups",
-        }
-    }
-}
-
-impl From<SomeDefArgsId> for IndexedLocationTarget {
-    fn from(target: SomeDefArgsId) -> Self {
-        match target {
-            SomeDefArgsId::Params(id) => IndexedLocationTarget::DefParams(id),
-            SomeDefArgsId::PatArgs(id) => IndexedLocationTarget::DefPatArgs(id),
-            SomeDefArgsId::Args(id) => IndexedLocationTarget::DefArgs(id),
         }
     }
 }

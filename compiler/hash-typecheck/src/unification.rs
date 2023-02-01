@@ -3,7 +3,6 @@
 use derive_more::{Constructor, Deref};
 use hash_tir::new::{
     args::ArgsId,
-    defs::{DefArgsId, DefParamsId},
     params::ParamsId,
     sub::Sub,
     terms::{Term, TermId},
@@ -135,7 +134,7 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
 
             (Ty::Data(d1), Ty::Data(d2)) => {
                 if d1.data_def == d2.data_def {
-                    self.unify_def_args(d1.args, d2.args)
+                    self.unify_args(d1.args, d2.args)
                 } else {
                     Uni::mismatch_types(src_id, target_id)
                 }
@@ -190,34 +189,6 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
                     src.iter()
                         .zip(target.iter())
                         .map(|(src, target)| self.unify_tys(src.ty, target.ty)),
-                )
-            })
-        })
-    }
-
-    /// Unify two definition parameter lists, creating a substitution of holes.
-    pub fn unify_def_params(&self, src: DefParamsId, target: DefParamsId) -> TcResult<Uni> {
-        // @@Todo: dependent
-        self.map_def_params(src, |src| {
-            self.map_def_params(target, |target| {
-                self.reduce_unifications(
-                    src.iter()
-                        .zip(target.iter())
-                        .map(|(src, target)| self.unify_params(src.params, target.params)),
-                )
-            })
-        })
-    }
-
-    /// Unify two definition argument lists, creating a substitution of holes.
-    pub fn unify_def_args(&self, src: DefArgsId, target: DefArgsId) -> TcResult<Uni> {
-        // @@Todo: dependent
-        self.map_def_args(src, |src| {
-            self.map_def_args(target, |target| {
-                self.reduce_unifications(
-                    src.iter()
-                        .zip(target.iter())
-                        .map(|(src, target)| self.unify_args(src.args, target.args)),
                 )
             })
         })

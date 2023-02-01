@@ -7,9 +7,6 @@ use hash_utils::store::SequenceStoreKey;
 use super::{
     args::{ArgId, ArgsId, PatArgId, PatArgsId},
     data::{CtorDefId, CtorDefsId, DataDefId},
-    defs::{
-        DefArgGroupId, DefArgsId, DefParamGroupId, DefParamsId, DefPatArgGroupId, DefPatArgsId,
-    },
     fns::FnDefId,
     mods::{ModDefId, ModMemberId, ModMembersId},
     params::{ParamId, ParamsId},
@@ -122,9 +119,6 @@ location_targets! {
     Arg: ArgId = sequence Args: ArgsId,
     Param: ParamId = sequence Params: ParamsId,
     PatArg: PatArgId = sequence PatArgs: PatArgsId,
-    DefParamGroup: DefParamGroupId = sequence DefParams: DefParamsId,
-    DefArgGroup: DefArgGroupId = sequence DefArgs: DefArgsId,
-    DefPatArgGroup: DefPatArgGroupId = sequence DefPatArgs: DefPatArgsId,
 }
 
 /// Stores the source location of various targets in the term tree.

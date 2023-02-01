@@ -6,12 +6,11 @@ use crate::{
     impl_access_to_env,
     new::{
         data::DataDefCtors,
-        defs::DefParamsId,
         environment::{
             context::{Binding, BindingKind, BoundVarOrigin, ScopeKind},
             env::{AccessToEnv, Env},
         },
-        params::{DefParamIndex, ParamId, ParamsId},
+        params::{ParamId, ParamsId},
         scopes::{DeclTerm, StackMemberId},
     },
     ty_as_variant,
@@ -109,29 +108,6 @@ impl<'env> ContextUtils<'env> {
         })
     }
 
-    /// Add the given set of definition parameters to the context as bound
-    /// variables.
-    ///
-    /// The `bound_var_origin_from_param` function is used to determine the
-    /// origin of the bound variable, based on the parameter group and
-    /// parameter.
-    fn add_def_params_to_context(
-        &self,
-        def_params_id: DefParamsId,
-        bound_var_origin_from_param: impl Fn(DefParamIndex) -> BoundVarOrigin,
-    ) {
-        self.stores().def_params().map_fast(def_params_id, |def_params| {
-            for (i, def_param_group) in def_params.iter().enumerate() {
-                self.add_params_to_context(def_param_group.params, |param| {
-                    bound_var_origin_from_param(DefParamIndex {
-                        group_index: i,
-                        param_index: param.1.into(),
-                    })
-                })
-            }
-        })
-    }
-
     /// Add all the scope bindings corresponding to the given scope kind to the
     /// context, unless the scope is a stack scope.
     fn add_bindings_from_scope_kind(&self, kind: ScopeKind) {
@@ -171,8 +147,8 @@ impl<'env> ContextUtils<'env> {
             ScopeKind::Data(data_def_id) => {
                 self.stores().data_def().map_fast(data_def_id, |data_def| {
                     // Add all the parameters
-                    self.add_def_params_to_context(data_def.params, |def_param_index| {
-                        BoundVarOrigin::Data(data_def_id, def_param_index)
+                    self.add_params_to_context(data_def.params, |param_id| {
+                        BoundVarOrigin::Data(data_def_id, param_id.into())
                     });
 
                     // Add all the constructors

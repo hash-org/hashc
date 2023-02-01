@@ -1,41 +1,11 @@
 //! Utilities for creating parameters and arguments during discovery.
 use hash_ast::ast::{self};
-use hash_tir::new::{
-    defs::{DefParamGroupData, DefParamsId},
-    environment::env::AccessToEnv,
-    params::ParamsId,
-    utils::AccessToUtils,
-};
-use itertools::Itertools;
+use hash_tir::new::{environment::env::AccessToEnv, params::ParamsId, utils::AccessToUtils};
 
 use super::DiscoveryPass;
 use crate::new::{environment::tc_env::AccessToTcEnv, passes::ast_utils::AstUtils};
 
 impl<'tc> DiscoveryPass<'tc> {
-    /// Create definition params from the iterator of parameter groups.
-    ///
-    /// The iterator elements are `(is_implicit, params)`.
-    pub(super) fn create_hole_def_params<'a>(
-        &self,
-        groups: impl Iterator<Item = (bool, &'a ast::AstNodes<ast::Param>)>,
-    ) -> DefParamsId {
-        let groups = groups.collect_vec();
-        let params = groups
-            .iter()
-            .copied()
-            .map(|group| {
-                let (implicit, params) = group;
-                DefParamGroupData { params: self.create_hole_params(params), implicit }
-            })
-            .collect_vec();
-
-        let def_params = self.param_utils().create_def_params(params.into_iter());
-        self.stores().location().add_locations_to_targets(def_params, |i| {
-            Some(self.source_location(groups[i].1.span()?))
-        });
-        def_params
-    }
-
     /// Create a parameter list from the given AST generic parameter list, where
     /// the type of each parameter is a hole.
     pub(super) fn create_hole_params_from<T>(

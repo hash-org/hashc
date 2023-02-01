@@ -4,14 +4,13 @@ use hash_source::{identifier::Identifier, location::SourceLocation};
 use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
 
 use crate::new::{
-    args::{Arg, ArgsId, PatArg, PatArgsId},
+    args::{Arg, ArgsId, PatArgsId},
     data::{DataDef, DataDefId, DataTy},
-    defs::{DefArgGroup, DefArgsId, DefParamGroup, DefParamsId, DefPatArgGroup, DefPatArgsId},
     environment::env::AccessToEnv,
     fns::{FnDef, FnDefId},
     holes::{Hole, HoleBinder, HoleBinderKind},
     locations::LocationTarget,
-    params::{DefParamIndex, Param, ParamIndex, ParamsId},
+    params::{Param, ParamIndex, ParamsId},
     pats::{Pat, PatId, PatListId},
     symbols::{Symbol, SymbolData},
     terms::{Term, TermId, TermListId},
@@ -84,23 +83,6 @@ pub trait CommonUtils: AccessToEnv {
         }
     }
 
-    /// Get the parameter group of the given definition parameters ID and
-    /// positional index.
-    ///
-    /// This will panic if the index does not exist.
-    fn get_param_group_by_index(&self, def_params_id: DefParamsId, index: usize) -> DefParamGroup {
-        self.stores().def_params().map_fast(def_params_id, |def_params| def_params[index])
-    }
-
-    /// Get the parameter of the given definition parameters ID and
-    /// definition parameter index.
-    ///
-    /// This will panic if the index does not exist.
-    fn get_def_param_by_index(&self, def_params_id: DefParamsId, index: DefParamIndex) -> Param {
-        let params = self.get_param_group_by_index(def_params_id, index.group_index).params;
-        self.get_param_by_index(params, index.param_index)
-    }
-
     /// Create a new symbol with the given name.
     fn new_symbol(&self, name: impl Into<Identifier>) -> Symbol {
         self.stores().symbol().create_with(|symbol| SymbolData { name: Some(name.into()), symbol })
@@ -155,30 +137,6 @@ pub trait CommonUtils: AccessToEnv {
     /// Map params by their IDs.
     fn map_params<T>(&self, params_id: ParamsId, f: impl FnOnce(&[Param]) -> T) -> T {
         self.stores().params().map(params_id, f)
-    }
-
-    fn map_def_params<T>(
-        &self,
-        def_params_id: DefParamsId,
-        f: impl FnOnce(&[DefParamGroup]) -> T,
-    ) -> T {
-        self.stores().def_params().map(def_params_id, f)
-    }
-
-    fn map_def_args<T>(&self, def_args_id: DefArgsId, f: impl FnOnce(&[DefArgGroup]) -> T) -> T {
-        self.stores().def_args().map(def_args_id, f)
-    }
-
-    fn map_pat_args<T>(&self, pat_args_id: PatArgsId, f: impl FnOnce(&[PatArg]) -> T) -> T {
-        self.stores().pat_args().map(pat_args_id, f)
-    }
-
-    fn map_def_pat_args<T>(
-        &self,
-        def_pat_args_id: DefPatArgsId,
-        f: impl FnOnce(&[DefPatArgGroup]) -> T,
-    ) -> T {
-        self.stores().def_pat_args().map(def_pat_args_id, f)
     }
 
     fn map_pat<T>(&self, pat_id: PatId, f: impl FnOnce(&Pat) -> T) -> T {
@@ -276,16 +234,6 @@ pub trait CommonUtils: AccessToEnv {
         self.new_term(HoleBinder { hole, kind: HoleBinderKind::Guess(guess, ty), inner })
     }
 
-    /// Create a new empty definition parameter list.
-    fn new_empty_def_params(&self) -> DefParamsId {
-        self.stores().def_params().create_from_slice(&[])
-    }
-
-    /// Create a new empty definition argument list.
-    fn new_empty_def_args(&self) -> DefArgsId {
-        self.stores().def_args().create_from_slice(&[])
-    }
-
     /// Create a new empty argument list.
     fn new_empty_args(&self) -> ArgsId {
         self.stores().args().create_from_slice(&[])
@@ -314,17 +262,12 @@ pub trait CommonUtils: AccessToEnv {
 
     /// Create a new data type with no arguments.
     fn new_data_ty(&self, data_def: DataDefId) -> TyId {
-        self.stores().ty().create(Ty::Data(DataTy { data_def, args: self.new_empty_def_args() }))
+        self.stores().ty().create(Ty::Data(DataTy { data_def, args: self.new_empty_args() }))
     }
 
     /// Create a new empty pattern argument list.
     fn new_empty_pat_args(&self) -> PatArgsId {
         self.stores().pat_args().create_from_slice(&[])
-    }
-
-    /// Create a new empty pattern definition argument list.
-    fn new_empty_def_pat_args(&self) -> DefPatArgsId {
-        self.stores().def_pat_args().create_from_slice(&[])
     }
 
     /// Create a type of types, i.e. small `Type`.

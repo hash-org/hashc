@@ -17,7 +17,7 @@ use crate::{
         fns::FnDefId,
         holes::{Hole, HoleBinderKind},
         mods::{ModDefId, ModMemberId},
-        params::{DefParamIndex, ParamIndex},
+        params::ParamIndex,
         scopes::{StackId, StackMemberId},
         symbols::Symbol,
         tys::TyId,
@@ -63,7 +63,7 @@ pub enum BoundVarOrigin {
     /// Data definition parameter.
     ///
     /// For example, `T` in `Foo := struct <T> (x: T)`
-    Data(DataDefId, DefParamIndex),
+    Data(DataDefId, ParamIndex),
     /// Stack member.
     ///
     /// For example, `a` in `{ a := 3; a }`
@@ -294,9 +294,9 @@ impl fmt::Display for WithEnv<'_, &BoundVarOrigin> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.value {
             BoundVarOrigin::Data(data_def_id, param_index) => {
-                let def_params_id =
+                let params_id =
                     self.stores().data_def().map_fast(*data_def_id, |mod_def| mod_def.params);
-                let param = self.get_def_param_by_index(def_params_id, *param_index);
+                let param = self.get_param_by_index(params_id, *param_index);
                 write!(f, "{}", self.env().with(&param))
             }
             BoundVarOrigin::FnTy(fn_ty_id, param_index) => {
