@@ -687,9 +687,6 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         annotation_ty: Option<TyId>,
     ) -> TcResult<(TermId, TyId)> {
         self.stores().term().map(term_id, |term| match term {
-            Term::Runtime(rt_term) => self
-                .infer_runtime_term(rt_term, annotation_ty)
-                .map(|i| self.generalise_term_inference(i)),
             Term::Tuple(tuple_term) => self
                 .infer_tuple_term(tuple_term, annotation_ty)
                 .map(|i| self.generalise_term_and_ty_inference(i)),
@@ -747,7 +744,6 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             Term::Match(_) => todo!(),
             Term::Assign(_) => todo!(),
             Term::Access(_) => todo!(),
-            Term::HoleBinder(_) => todo!(),
             Term::Hole(_) => Err(TcError::Blocked),
         })
     }
