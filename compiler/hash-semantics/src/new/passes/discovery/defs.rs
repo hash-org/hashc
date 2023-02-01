@@ -25,7 +25,7 @@ use crate::new::environment::tc_env::AccessToTcEnv;
 #[derive(Debug, Copy, Clone, PartialEq, Eq, From)]
 pub(super) enum ItemId {
     Def(DefId),
-    FnTy(TyId),
+    Ty(TyId),
 }
 
 /// Contains information about seen definitions, members of definitions, as well
@@ -129,7 +129,7 @@ impl<'tc> DiscoveryPass<'tc> {
                 DefId::Fn(id) => ast_info.fn_defs().insert(node.id(), id),
                 DefId::Stack(id) => ast_info.stacks().insert(node.id(), id),
             },
-            ItemId::FnTy(id) => ast_info.tys().insert(node.id(), id),
+            ItemId::Ty(id) => ast_info.tys().insert(node.id(), id),
         };
     }
 

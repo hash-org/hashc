@@ -12,13 +12,13 @@ use indexmap::IndexMap;
 
 use super::env::{AccessToEnv, WithEnv};
 use crate::new::{
-    data::{CtorDefId, CtorTerm, DataDefId, DataTy},
+    data::{CtorDefId, DataDefId},
     fns::{FnDefId, FnTy},
     mods::{ModDefId, ModMemberId},
     params::ParamId,
     scopes::{StackId, StackMemberId},
     symbols::Symbol,
-    tuples::{TupleTerm, TupleTy},
+    tuples::TupleTy,
 };
 /// The kind of a binding.
 #[derive(Debug, Clone, Copy)]
@@ -66,19 +66,10 @@ pub enum ScopeKind {
     Data(DataDefId),
     /// A constructor definition.
     Ctor(CtorDefId),
-
     /// A function type scope.
-    ///
-    /// The inner type points to an `FnTy` variant.
     FnTy(FnTy),
     /// A tuple type scope.
     TupleTy(TupleTy),
-    /// A data type arguments scope.
-    DataTy(DataTy),
-    /// A constructor term scope
-    CtorTerm(CtorTerm),
-    /// A tuple term scope.
-    TupleTerm(TupleTerm),
 }
 
 /// Information about a scope in the context.
@@ -315,13 +306,6 @@ impl fmt::Display for WithEnv<'_, ScopeKind> {
             ),
             ScopeKind::FnTy(fn_ty) => write!(f, "fn ty {}", self.env().with(&fn_ty)),
             ScopeKind::TupleTy(tuple_ty) => write!(f, "tuple ty {}", self.env().with(&tuple_ty)),
-            ScopeKind::DataTy(data_ty) => write!(f, "data ty {}", self.env().with(&data_ty)),
-            ScopeKind::CtorTerm(ctor_term) => {
-                write!(f, "ctor term {}", self.env().with(&ctor_term))
-            }
-            ScopeKind::TupleTerm(tuple_term) => {
-                write!(f, "tuple term {}", self.env().with(&tuple_term))
-            }
         }
     }
 }

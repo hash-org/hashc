@@ -16,6 +16,7 @@ use hash_tir::{
         params::ParamId,
         scopes::{StackId, StackIndices, StackMemberId},
         symbols::Symbol,
+        tuples::TupleTy,
         utils::{common::CommonUtils, AccessToUtils},
     },
     ty_as_variant,
@@ -327,6 +328,17 @@ impl<'tc> Scoping<'tc> {
         let fn_ty_id = self.ast_info().tys().get_data_by_node(node.id()).unwrap();
         let fn_ty = ty_as_variant!(self, self.get_ty(fn_ty_id), Fn);
         self.enter_scope(ScopeKind::FnTy(fn_ty), ContextKind::Environment, || f(fn_ty))
+    }
+
+    /// Enter the scope of a tuple type
+    pub(super) fn enter_tuple_ty<T>(
+        &self,
+        node: ast::AstNodeRef<ast::TupleTy>,
+        f: impl FnOnce(TupleTy) -> T,
+    ) -> T {
+        let tuple_ty_id = self.ast_info().tys().get_data_by_node(node.id()).unwrap();
+        let tuple_ty = ty_as_variant!(self, self.get_ty(tuple_ty_id), Tuple);
+        self.enter_scope(ScopeKind::TupleTy(tuple_ty), ContextKind::Environment, || f(tuple_ty))
     }
 
     /// Register a declaration, which will add it to the current stack scope.

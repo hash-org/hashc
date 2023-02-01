@@ -12,6 +12,7 @@ use hash_tir::new::{
     environment::env::AccessToEnv,
     fns::{FnBody, FnDefData, FnTy},
     mods::{ModDefData, ModKind},
+    tuples::TupleTy,
     utils::{common::CommonUtils, AccessToUtils},
 };
 use itertools::Itertools;
@@ -32,6 +33,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         FnTy,
         TyFn,
         TyFnDef,
+        TupleTy,
         BodyBlock,
         MergeDeclaration,
         Expr,
@@ -85,7 +87,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
                     )
                 }
             },
-            ItemId::FnTy(_) => {
+            ItemId::Ty(_) => {
                 panic_on_span!(
                         self.node_location(node),
                         self.source_map(),
@@ -283,7 +285,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
                     Ok(())
                 }
             },
-            ItemId::FnTy(_) => {
+            ItemId::Ty(_) => {
                 // If we are in a function type, then this is the function's type return, so we
                 // add a new stack
                 let stack_id = self.stack_utils().create_stack();
@@ -323,6 +325,22 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
 
         // Traverse the function body
         self.enter_item(node, fn_ty_id, || walk::walk_fn_ty(self, node))?;
+
+        Ok(())
+    }
+
+    type TupleTyRet = ();
+    fn visit_tuple_ty(
+        &self,
+        node: AstNodeRef<ast::TupleTy>,
+    ) -> Result<Self::TupleTyRet, Self::Error> {
+        // This will be filled in during resolution
+        let tuple_ty_id = self.new_ty(TupleTy {
+            data: self.create_hole_params_from(&node.entries, |params| &params.name),
+        });
+
+        // Traverse the tuple body
+        self.enter_item(node, tuple_ty_id, || walk::walk_tuple_ty(self, node))?;
 
         Ok(())
     }

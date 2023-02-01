@@ -18,7 +18,6 @@ use hash_tir::new::{
     params::{ParamData, ParamIndex, ParamsId},
     refs::{RefKind, RefTy},
     terms::Term,
-    tuples::TupleTy,
     tys::{Ty, TyId},
     utils::{common::CommonUtils, AccessToUtils},
 };
@@ -256,9 +255,10 @@ impl<'tc> ResolutionPass<'tc> {
 
     /// Make a type from the given [`ast::TupleTy`].
     fn make_ty_from_ast_tuple_ty(&self, node: AstNodeRef<ast::TupleTy>) -> SemanticResult<TyId> {
-        // @@Todo: traverse parameters of tuple types in discovery
-        let data = self.make_params_from_ast_ty_args(&node.entries)?;
-        Ok(self.new_ty(Ty::Tuple(TupleTy { data })))
+        self.scoping().enter_tuple_ty(node, |mut tuple_ty| {
+            tuple_ty.data = self.make_params_from_ast_ty_args(&node.entries)?;
+            Ok(self.new_ty(tuple_ty))
+        })
     }
 
     /// Make a type from the given [`ast::ListTy`].
