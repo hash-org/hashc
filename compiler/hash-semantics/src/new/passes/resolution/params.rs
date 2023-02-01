@@ -198,6 +198,7 @@ impl<'tc> ResolutionPass<'tc> {
             match param_id {
                 Some(param_id) => {
                     // Remember the params ID to return at the end
+                    self.scoping().add_param_binding(param_id);
                     params_id = Some(param_id.0);
                 }
                 None => {

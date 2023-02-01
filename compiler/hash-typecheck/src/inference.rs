@@ -12,9 +12,8 @@ use hash_tir::{
         data::{
             CtorDefId, CtorTerm, DataDefCtors, DataDefId, DataTy, ListCtorInfo, PrimitiveCtorInfo,
         },
-        environment::context::{BindingKind, BoundVarOrigin, ScopeKind},
+        environment::context::{BindingKind, ScopeKind},
         fns::{FnBody, FnCallTerm, FnDefId},
-        holes::HoleBinderKind,
         lits::{Lit, PrimTerm},
         mods::{ModDefId, ModMemberId, ModMemberValue},
         params::{Param, ParamData, ParamsId},
@@ -179,6 +178,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         self.stores().params().map(params, |params| {
             for param in params {
                 let _ = error_state.try_or_add_error(self.infer_ty(param.ty, None));
+                self.context_utils().add_param_binding(param.id);
             }
         });
         self.return_or_register_errors(|| Ok(params), error_state)
@@ -400,7 +400,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
         match fn_def.body {
             FnBody::Defined(fn_body) => {
-                self.context_utils().enter_scope(fn_def_id.into(), || {
+                self.context().enter_scope(fn_def_id.into(), || {
                     // @@Todo: `return` statement type inference
                     let inferred_return_ty = self.infer_term(fn_body, None)?.1;
 
@@ -433,34 +433,11 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             BindingKind::ModMember(_, _) | BindingKind::Ctor(_, _) => {
                 unreachable!("mod members and ctors should have all been resolved by now")
             }
-            BindingKind::BoundVar(bound_var) => match bound_var {
-                BoundVarOrigin::Fn(fn_def_id, param_index) => Ok(self
-                    .stores()
-                    .fn_def()
-                    .map_fast(fn_def_id, |fn_def| {
-                        self.get_param_by_index(fn_def.ty.params, param_index)
-                    })
-                    .ty),
-                BoundVarOrigin::FnTy(fn_ty, param_index) => Ok(self
-                    .stores()
-                    .ty()
-                    .map_fast(fn_ty, |ty| {
-                        let fn_ty = ty_as_variant!(self, ty, Fn);
-                        self.get_param_by_index(fn_ty.params, param_index)
-                    })
-                    .ty),
-                BoundVarOrigin::Data(data_def_id, param_index) => Ok(self
-                    .stores()
-                    .data_def()
-                    .map_fast(data_def_id, |data_def| {
-                        self.get_param_by_index(data_def.params, param_index)
-                    })
-                    .ty),
-                BoundVarOrigin::StackMember(stack_member_id) => Ok(self
-                    .stores()
-                    .stack()
-                    .map_fast(stack_member_id.0, |stack| stack.members[stack_member_id.1].ty)),
-            },
+            BindingKind::Param(param_id) => Ok(self.stores().params().get_element(param_id).ty),
+            BindingKind::StackMember(stack_member_id) => Ok(self
+                .stores()
+                .stack()
+                .map_fast(stack_member_id.0, |stack| stack.members[stack_member_id.1].ty)),
         }
     }
 
@@ -515,8 +492,8 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 // @@Todo: purity/unsafe infers
 
                 // Infer the parameters
-                self.infer_params(fn_ty.params)?;
-                self.context_utils().enter_scope(ScopeKind::FnTy(ty_id), || {
+                self.context().enter_scope(ScopeKind::FnTy(*fn_ty), || {
+                    self.infer_params(fn_ty.params)?;
                     // Given the parameters, infer the return type
                     self.infer_ty(fn_ty.return_ty, None)
                 })
@@ -583,7 +560,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         annotation_ty: Option<TyId>,
     ) -> TcResult<(BlockTerm, TyId)> {
         self.stores().term_list().map_fast(block_term.statements, |statements| {
-            self.context_utils().enter_scope(block_term.stack_id.into(), || {
+            self.context().enter_scope(block_term.stack_id.into(), || {
                 let mut error_state = self.new_error_state();
                 for &statement in statements {
                     let _ = error_state.try_or_add_error(self.infer_term(statement, None));
@@ -841,37 +818,40 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
     /// Infer the given constructor definition.
     pub fn infer_ctor_def(&self, ctor: CtorDefId) -> TcResult<()> {
-        let (ctor_data_def_id, ctor_params, ctor_result_args) =
-            self.stores().ctor_defs().map_fast(ctor.0, |ctors| {
-                (ctors[ctor.1].data_def_id, ctors[ctor.1].params, ctors[ctor.1].result_args)
+        self.context().enter_scope(ctor.into(), || {
+            let (ctor_data_def_id, ctor_params, ctor_result_args) =
+                self.stores().ctor_defs().map_fast(ctor.0, |ctors| {
+                    (ctors[ctor.1].data_def_id, ctors[ctor.1].params, ctors[ctor.1].result_args)
+                });
+
+            // Infer the parameters and return type of the data type
+            let params = self.infer_params(ctor_params)?;
+            let return_ty =
+                self.new_ty(DataTy { data_def: ctor_data_def_id, args: ctor_result_args });
+            let (return_ty, _) = self.infer_ty(return_ty, None)?;
+            let return_ty_args = ty_as_variant!(self, self.get_ty(return_ty), Data).args;
+
+            self.stores().ctor_defs().modify_fast(ctor.0, |ctors| {
+                ctors[ctor.1].params = params;
+                ctors[ctor.1].result_args = return_ty_args;
             });
 
-        // Infer the parameters and return type of the data type
-        let params = self.infer_params(ctor_params)?;
-        let return_ty = self.new_ty(DataTy { data_def: ctor_data_def_id, args: ctor_result_args });
-        let (return_ty, _) = self.infer_ty(return_ty, None)?;
-        let return_ty_args = ty_as_variant!(self, self.get_ty(return_ty), Data).args;
-
-        self.stores().ctor_defs().modify_fast(ctor.0, |ctors| {
-            ctors[ctor.1].params = params;
-            ctors[ctor.1].result_args = return_ty_args;
-        });
-
-        Ok(())
+            Ok(())
+        })
     }
 
     /// Infer the given data definition.
     pub fn infer_data_def(&self, data_def_id: DataDefId) -> TcResult<()> {
-        let (data_def_params, data_def_ctors) = self
-            .stores()
-            .data_def()
-            .map_fast(data_def_id, |data_def| (data_def.params, data_def.ctors));
+        self.context().enter_scope(data_def_id.into(), || {
+            let (data_def_params, data_def_ctors) = self
+                .stores()
+                .data_def()
+                .map_fast(data_def_id, |data_def| (data_def.params, data_def.ctors));
 
-        let inferred_params = self.infer_params(data_def_params)?;
+            let inferred_params = self.infer_params(data_def_params)?;
 
-        self.stores().data_def().modify_fast(data_def_id, |def| def.params = inferred_params);
+            self.stores().data_def().modify_fast(data_def_id, |def| def.params = inferred_params);
 
-        self.context_utils().enter_scope(data_def_id.into(), || {
             match data_def_ctors {
                 DataDefCtors::Defined(data_def_ctors_id) => {
                     let mut error_state = self.new_error_state();
@@ -931,14 +911,18 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
     /// Infer the given module definition.
     pub fn infer_mod_def(&self, mod_def_id: ModDefId) -> TcResult<()> {
-        let members = self.stores().mod_def().map_fast(mod_def_id, |def| def.members);
-        let mut error_state = self.new_error_state();
+        self.context().enter_scope(mod_def_id.into(), || {
+            self.context_utils().add_mod_members(mod_def_id, |_| {});
 
-        // Infer each member
-        for member_idx in members.to_index_range() {
-            let _ = error_state.try_or_add_error(self.infer_mod_member((members, member_idx)));
-        }
+            let members = self.stores().mod_def().map_fast(mod_def_id, |def| def.members);
+            let mut error_state = self.new_error_state();
 
-        self.return_or_register_errors(|| Ok(()), error_state)
+            // Infer each member
+            for member_idx in members.to_index_range() {
+                let _ = error_state.try_or_add_error(self.infer_mod_member((members, member_idx)));
+            }
+
+            self.return_or_register_errors(|| Ok(()), error_state)
+        })
     }
 }

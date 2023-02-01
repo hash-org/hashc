@@ -85,6 +85,7 @@ impl<'tc> ResolutionPass<'tc> {
             .iter()
             .enumerate()
             .map(|(i, arg)| {
+                // @@Todo: add to ctx if named
                 Ok(ArgData {
                     target: arg
                         .name
@@ -734,21 +735,21 @@ impl<'tc> ResolutionPass<'tc> {
         // Function should already be discovered
         let fn_def_id = self.ast_info().fn_defs().get_data_by_node(node_id).unwrap();
 
-        // First resolve the parameters
-        let params = self.try_or_add_error(self.resolve_params_from_ast_params(
-            params,
-            self.stores().fn_def().map_fast(fn_def_id, |fn_def| fn_def.ty.implicit),
-        ));
-
-        // Modify the existing fn def for the params:
-        if let Some(params) = params {
-            self.stores().fn_def().modify_fast(fn_def_id, |fn_def| {
-                fn_def.ty.params = params;
-            });
-        }
-
-        let (return_ty, return_value, fn_def_id) =
+        let (params, return_ty, return_value, fn_def_id) =
             self.scoping().enter_scope(ScopeKind::Fn(fn_def_id), ContextKind::Environment, || {
+                // First resolve the parameters
+                let params = self.try_or_add_error(self.resolve_params_from_ast_params(
+                    params,
+                    self.stores().fn_def().map_fast(fn_def_id, |fn_def| fn_def.ty.implicit),
+                ));
+
+                // Modify the existing fn def for the params:
+                if let Some(params) = params {
+                    self.stores().fn_def().modify_fast(fn_def_id, |fn_def| {
+                        fn_def.ty.params = params;
+                    });
+                }
+
                 // In the scope of the parameters, resolve the return type and value
                 let return_ty = return_ty.as_ref().map(|return_ty| {
                     self.try_or_add_error(self.make_ty_from_ast_ty(return_ty.ast_ref()))
@@ -773,7 +774,7 @@ impl<'tc> ResolutionPass<'tc> {
                     }
                 });
 
-                (return_ty, return_value, fn_def_id)
+                (params, return_ty, return_value, fn_def_id)
             });
 
         // If all ok, create a fn ref term

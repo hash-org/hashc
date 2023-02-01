@@ -158,13 +158,19 @@ impl<'tc> ResolutionPass<'tc> {
                     self.scoping().enter_scope(
                         ScopeKind::Data(data_def_id),
                         ContextKind::Access(member_value, data_def_id.into()),
-                        || self.resolve_ast_name(name, name_span, None),
+                        || {
+                            self.scoping().add_data_params_and_ctors(data_def_id);
+                            self.resolve_ast_name(name, name_span, None)
+                        },
                     )
                 }
                 NonTerminalResolvedPathComponent::Mod(mod_def_id) => self.scoping().enter_scope(
                     ScopeKind::Mod(mod_def_id),
                     ContextKind::Access(member_value, mod_def_id.into()),
-                    || self.resolve_ast_name(name, name_span, None),
+                    || {
+                        self.scoping().add_mod_members(mod_def_id);
+                        self.resolve_ast_name(name, name_span, None)
+                    },
                 ),
             },
             None => {
@@ -286,15 +292,13 @@ impl<'tc> ResolutionPass<'tc> {
                     None => todo!(),
                 }
             }
-            BindingKind::BoundVar(bound_var) => {
-                // If the subject has no args, it is a bound variable, otherwise it is a
+            BindingKind::Param(_) | BindingKind::StackMember(_) => {
+                // If the subject has no args, it is a variable, otherwise it is a
                 // function call.
                 match &component.args[..] {
-                    [] => {
-                        Ok(ResolvedAstPathComponent::Terminal(TerminalResolvedPathComponent::Var(
-                            Binding { name: binding.name, kind: BindingKind::BoundVar(bound_var) },
-                        )))
-                    }
+                    [] => Ok(ResolvedAstPathComponent::Terminal(
+                        TerminalResolvedPathComponent::Var(binding),
+                    )),
                     args => {
                         let resultant_term = self.wrap_term_in_fn_call_from_ast_args(
                             self.new_term(Term::Var(binding.name)),

@@ -11,18 +11,14 @@ use hash_utils::store::{Store, StoreKey};
 use indexmap::IndexMap;
 
 use super::env::{AccessToEnv, WithEnv};
-use crate::{
-    new::{
-        data::{CtorDefId, DataDefId},
-        fns::FnDefId,
-        mods::{ModDefId, ModMemberId},
-        params::ParamIndex,
-        scopes::{StackId, StackMemberId},
-        symbols::Symbol,
-        tys::TyId,
-        utils::common::CommonUtils,
-    },
-    ty_as_variant,
+use crate::new::{
+    data::{CtorDefId, CtorTerm, DataDefId, DataTy},
+    fns::{FnDefId, FnTy},
+    mods::{ModDefId, ModMemberId},
+    params::ParamId,
+    scopes::{StackId, StackMemberId},
+    symbols::Symbol,
+    tuples::{TupleTerm, TupleTy},
 };
 /// The kind of a binding.
 #[derive(Debug, Clone, Copy)]
@@ -35,34 +31,10 @@ pub enum BindingKind {
     ///
     /// For example, `false`, `None`, `Some(_)`.
     Ctor(DataDefId, CtorDefId),
-    /// A binding that represents a parameter variable of a function.
+    /// A parameter variable
     ///
-    /// For example, `(x: i32) => x`
-    BoundVar(BoundVarOrigin),
-}
-
-/// All the different places a bound variable can originate from.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BoundVarOrigin {
-    // @@Future:
-    // /// Module parameter.
-    // ///
-    // /// For example, `T` in `mod <T> { x: (t: T) -> void }`
-    // Mod(ModDefId, DefParamIndex),
-    /// Function parameter.
-    ///
-    /// For example, `x` in `(x: i32) => x`
-    Fn(FnDefId, ParamIndex),
-    /// Function type.
-    ///
-    /// Invariant: the inner type is `FnTy`.
-    ///
-    /// For example, `x` in `type (x: i32) -> Foo<x>`
-    FnTy(TyId, ParamIndex),
-    /// Data definition parameter.
-    ///
-    /// For example, `T` in `Foo := struct <T> (x: T)`
-    Data(DataDefId, ParamIndex),
+    /// For example, `(x: i32) => x` or `(T: Type, t: T)`
+    Param(ParamId),
     /// Stack member.
     ///
     /// For example, `a` in `{ a := 3; a }`
@@ -82,7 +54,7 @@ pub struct Binding {
 }
 
 /// All the different kinds of scope there are, and their associated data.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, From)]
+#[derive(Debug, Clone, Copy, From)]
 pub enum ScopeKind {
     /// A module scope.
     Mod(ModDefId),
@@ -92,14 +64,25 @@ pub enum ScopeKind {
     Fn(FnDefId),
     /// A data definition.
     Data(DataDefId),
+    /// A constructor definition.
+    Ctor(CtorDefId),
+
     /// A function type scope.
     ///
     /// The inner type points to an `FnTy` variant.
-    FnTy(TyId),
+    FnTy(FnTy),
+    /// A tuple type scope.
+    TupleTy(TupleTy),
+    /// A data type arguments scope.
+    DataTy(DataTy),
+    /// A constructor term scope
+    CtorTerm(CtorTerm),
+    /// A tuple term scope.
+    TupleTerm(TupleTerm),
 }
 
 /// Information about a scope in the context.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy)]
 pub struct ScopeInfo {
     /// The kind of the scope.
     pub kind: ScopeKind,
@@ -283,42 +266,6 @@ impl Context {
     }
 }
 
-impl fmt::Display for WithEnv<'_, &BoundVarOrigin> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.value {
-            BoundVarOrigin::Data(data_def_id, param_index) => {
-                let params_id =
-                    self.stores().data_def().map_fast(*data_def_id, |mod_def| mod_def.params);
-                let param = self.get_param_by_index(params_id, *param_index);
-                write!(f, "{}", self.env().with(&param))
-            }
-            BoundVarOrigin::FnTy(fn_ty_id, param_index) => {
-                let fn_params_id = self
-                    .stores()
-                    .ty()
-                    .map_fast(*fn_ty_id, |ty| ty_as_variant!(self, ty, Fn).params);
-                write!(
-                    f,
-                    "{}",
-                    self.env().with(&self.get_param_by_index(fn_params_id, *param_index))
-                )
-            }
-            BoundVarOrigin::Fn(fn_def, param_index) => {
-                let fn_params_id =
-                    self.stores().fn_def().map_fast(*fn_def, |fn_def| fn_def.ty.params);
-                write!(
-                    f,
-                    "{}",
-                    self.env().with(&self.get_param_by_index(fn_params_id, *param_index))
-                )
-            }
-            BoundVarOrigin::StackMember(stack_member) => {
-                write!(f, "{}", self.env().with(*stack_member))
-            }
-        }
-    }
-}
-
 impl fmt::Display for WithEnv<'_, Binding> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.value.kind {
@@ -328,8 +275,11 @@ impl fmt::Display for WithEnv<'_, Binding> {
             BindingKind::Ctor(_, ctor_id) => {
                 write!(f, "{}", self.env().with(ctor_id))
             }
-            BindingKind::BoundVar(bound_var) => {
-                write!(f, "{}", self.env().with(&bound_var))
+            BindingKind::Param(param_id) => {
+                write!(f, "{}", self.env().with(param_id))
+            }
+            BindingKind::StackMember(stack_member) => {
+                write!(f, "{}", self.env().with(stack_member))
             }
         }
     }
@@ -357,15 +307,21 @@ impl fmt::Display for WithEnv<'_, ScopeKind> {
                     .data_def()
                     .map_fast(data_def_id, |data_def| self.env().with(data_def.name))
             ),
+            ScopeKind::Ctor(ctor_def) => write!(f, "ctor {}", self.env().with(ctor_def)),
             ScopeKind::Stack(stack_def_id) => write!(
                 f,
                 "stack {}",
                 self.stores().stack().map_fast(stack_def_id, |stack_def| stack_def.id.to_index())
             ),
-            ScopeKind::FnTy(fn_ty) => self
-                .stores()
-                .ty()
-                .map_fast(fn_ty, |fn_ty| write!(f, "fn ty {}", self.env().with(fn_ty),)),
+            ScopeKind::FnTy(fn_ty) => write!(f, "fn ty {}", self.env().with(&fn_ty)),
+            ScopeKind::TupleTy(tuple_ty) => write!(f, "tuple ty {}", self.env().with(&tuple_ty)),
+            ScopeKind::DataTy(data_ty) => write!(f, "data ty {}", self.env().with(&data_ty)),
+            ScopeKind::CtorTerm(ctor_term) => {
+                write!(f, "ctor term {}", self.env().with(&ctor_term))
+            }
+            ScopeKind::TupleTerm(tuple_term) => {
+                write!(f, "tuple term {}", self.env().with(&tuple_term))
+            }
         }
     }
 }
