@@ -36,13 +36,16 @@ impl<Ctx: BackendCtxQuery> CompilerStage<Ctx> for CodeGenPass {
     fn run(&mut self, _: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
         let BackendCtx { settings, .. } = ctx.data();
 
-        // Create a new instance of a backend, and then add each bo
+        // Create a new instance of a backend, and then run it...
         let mut backend = match settings.codegen_settings.backend {
             CodeGenBackend::LLVM => create_llvm_backend(ctx.data()),
             CodeGenBackend::VM => unimplemented!(),
         };
 
         backend.run()
+
+        // @@Todo: we take all of the produced object files, and then pass
+        // them on to the linking stage.
     }
 }
 
