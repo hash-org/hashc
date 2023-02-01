@@ -11,17 +11,25 @@ use hash_codegen::{
 };
 use hash_ir::{
     ty::{InstanceId, IrTyId, VariantIdx},
-    IrCtx,
+    IrCtx, IrStorage,
 };
 use hash_pipeline::settings::CompilerSettings;
 use hash_source::constant::InternedStr;
 use hash_target::Target;
 use inkwell as llvm;
-use llvm::{types::AnyTypeEnum, values::FunctionValue};
+use llvm::{
+    context::ContextRef,
+    types::{AnyTypeEnum, IntType},
+    values::FunctionValue,
+};
 
 use crate::translation::ty::TyMemoryRemap;
 
-pub struct CodeGenCtx<'b> {
+/// The [CodeGenCtx] is used a context for converting Hash IR into LLVM IR. It
+/// stores references to all of the required information about the IR, as well
+/// as several stores in order to reduce the amount of work that is required to
+/// translate the IR.
+pub struct CodeGenCtx<'b, 'm> {
     /// The Compiler settings that is being used for the current
     /// session.
     pub settings: &'b CompilerSettings,
@@ -33,11 +41,11 @@ pub struct CodeGenCtx<'b> {
     pub layouts: &'b LayoutCtx,
 
     /// The LLVM module that we are putting items into.
-    pub module: &'b llvm::module::Module<'b>,
+    pub module: llvm::module::Module<'m>,
 
     /// The LLVM "context" that is used for building and
     /// translating into LLVM IR.
-    pub ll_ctx: llvm::context::ContextRef<'b>,
+    pub ll_ctx: llvm::context::ContextRef<'m>,
 
     /// The local symbol counter that is used to generate unique
     /// symbols for the current module.
@@ -45,21 +53,21 @@ pub struct CodeGenCtx<'b> {
 
     /// A reference to a platform-specific type that represents the width
     /// of pointers and pointer offsets.
-    pub size_ty: AnyTypeEnum<'b>,
+    pub size_ty: llvm::types::IntType<'m>,
 
     /// A mapping between [InstanceId]s to [FunctionValue]s in order
     /// to avoid re-generating declaring instance references.
-    pub(crate) instances: RefCell<FxHashMap<InstanceId, llvm::values::FunctionValue<'b>>>,
+    pub(crate) instances: RefCell<FxHashMap<InstanceId, llvm::values::FunctionValue<'m>>>,
 
     /// A collection of [TyMemoryRemap]s that have occurred for
     /// all of the types that have been translated. Additionally, this is used
     /// as a cache to avoid re-lowering [IrTyId]s into the equivalent
     /// LLVM types.
-    pub(crate) ty_remaps: RefCell<FxHashMap<(IrTyId, Option<VariantIdx>), TyMemoryRemap<'b>>>,
+    pub(crate) ty_remaps: RefCell<FxHashMap<(IrTyId, Option<VariantIdx>), TyMemoryRemap<'m>>>,
 
     /// A map which stores the created [AnyValueEnum]s for the constant
     /// strings [InternedStr] that have been created.
-    pub(crate) str_consts: RefCell<FxHashMap<InternedStr, llvm::values::GlobalValue<'b>>>,
+    pub(crate) str_consts: RefCell<FxHashMap<InternedStr, llvm::values::GlobalValue<'m>>>,
 
     /// A map that stores all of the used intrinsics within the current module
     /// context. These intrinsics are computed as they are required (when
@@ -68,10 +76,36 @@ pub struct CodeGenCtx<'b> {
     /// This maps the name of the intrinsic which is known at compile-time to
     /// the corresponding function pointer value, and the type of the
     /// intrinsic.
-    pub(crate) intrinsics: RefCell<FxHashMap<&'static str, FunctionValue<'b>>>,
+    pub(crate) intrinsics: RefCell<FxHashMap<&'static str, FunctionValue<'m>>>,
 }
 
-impl<'b> CodeGenCtx<'b> {
+impl<'b, 'm> CodeGenCtx<'b, 'm> {
+    /// Create a new [CodeGenCtx].
+    pub fn new(
+        module: llvm::module::Module<'m>,
+        settings: &'b CompilerSettings,
+        ir_ctx: &'b IrCtx,
+        layouts: &'b LayoutCtx,
+    ) -> Self {
+        let ptr_size = settings.codegen_settings.target_info.target().pointer_width;
+        let ll_ctx = module.get_context();
+        let size_ty = ll_ctx.custom_width_int_type(ptr_size as u32);
+
+        Self {
+            settings,
+            ir_ctx,
+            layouts,
+            module,
+            ll_ctx,
+            symbol_counter: Cell::new(0),
+            size_ty,
+            instances: RefCell::new(FxHashMap::default()),
+            ty_remaps: RefCell::new(FxHashMap::default()),
+            str_consts: RefCell::new(FxHashMap::default()),
+            intrinsics: RefCell::new(FxHashMap::default()),
+        }
+    }
+
     /// Generate a new local symbol name for the current module.
     pub(crate) fn generate_local_symbol_name(&self, prefix: &str) -> String {
         let symbol_counter = self.symbol_counter.get();
@@ -91,32 +125,32 @@ impl<'b> CodeGenCtx<'b> {
     }
 }
 
-impl HasTargetSpec for CodeGenCtx<'_> {
+impl HasTargetSpec for CodeGenCtx<'_, '_> {
     fn target_spec(&self) -> &Target {
         self.settings.codegen_settings.target_info.target()
     }
 }
 
 /// Implement the types for the [CodeGenCtx].
-impl<'ll> BackendTypes for CodeGenCtx<'ll> {
-    type Value = llvm::values::AnyValueEnum<'ll>;
+impl<'b, 'm> BackendTypes for CodeGenCtx<'b, 'm> {
+    type Value = llvm::values::AnyValueEnum<'m>;
 
-    type Function = llvm::values::FunctionValue<'ll>;
+    type Function = llvm::values::FunctionValue<'m>;
 
-    type Type = llvm::types::AnyTypeEnum<'ll>;
+    type Type = llvm::types::AnyTypeEnum<'m>;
 
-    type BasicBlock = llvm::basic_block::BasicBlock<'ll>;
+    type BasicBlock = llvm::basic_block::BasicBlock<'m>;
 
-    type DebugInfoScope = llvm::debug_info::DIScope<'ll>;
+    type DebugInfoScope = llvm::debug_info::DIScope<'m>;
 
-    type DebugInfoLocation = llvm::debug_info::DILocation<'ll>;
+    type DebugInfoLocation = llvm::debug_info::DILocation<'m>;
 
-    type DebugInfoVariable = llvm::debug_info::DILocalVariable<'ll>;
+    type DebugInfoVariable = llvm::debug_info::DILocalVariable<'m>;
 }
 
-impl<'b> Backend<'b> for CodeGenCtx<'b> {}
+impl<'b> Backend<'b> for CodeGenCtx<'b, '_> {}
 
-impl<'b> HasCtxMethods<'b> for CodeGenCtx<'b> {
+impl<'b> HasCtxMethods<'b> for CodeGenCtx<'b, '_> {
     fn settings(&self) -> &CompilerSettings {
         self.settings
     }

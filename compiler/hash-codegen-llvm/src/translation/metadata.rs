@@ -11,9 +11,9 @@ use llvm::values::{AnyValueEnum, BasicMetadataValueEnum};
 use super::Builder;
 use crate::misc::MetadataTypeKind;
 
-impl<'b> Builder<'b> {
+impl<'m> Builder<'_, '_, 'm> {
     /// Emit a `no-undef` metadata attribute on a specific value.
-    pub fn set_no_undef(&mut self, value: AnyValueEnum<'b>) {
+    pub fn set_no_undef(&mut self, value: AnyValueEnum<'m>) {
         let value = value.into_instruction_value();
 
         let metadata = self.ctx.ll_ctx.metadata_node(&[]);
@@ -21,7 +21,7 @@ impl<'b> Builder<'b> {
     }
 
     /// Emit a `nonnull` metadata attribute on a specific value.
-    pub fn set_non_null(&mut self, value: AnyValueEnum<'b>) {
+    pub fn set_non_null(&mut self, value: AnyValueEnum<'m>) {
         let value = value.into_instruction_value();
 
         let metadata = self.ctx.ll_ctx.metadata_node(&[]);
@@ -29,7 +29,7 @@ impl<'b> Builder<'b> {
     }
 
     /// Specify the alignment for a particular value.
-    pub fn set_alignment(&mut self, value: AnyValueEnum<'b>, alignment: Alignment) {
+    pub fn set_alignment(&mut self, value: AnyValueEnum<'m>, alignment: Alignment) {
         let value = value.into_instruction_value();
 
         let alignment_metadata: BasicMetadataValueEnum =
@@ -42,7 +42,7 @@ impl<'b> Builder<'b> {
 
     /// Emit lifetime marker information to LLVM via a `llvm.lifetime.start`
     /// or `llvm.lifetime.end` intrinsic.
-    pub fn emit_lifetime_marker(&mut self, intrinsic: &str, ptr: AnyValueEnum<'b>, size: Size) {
+    pub fn emit_lifetime_marker(&mut self, intrinsic: &str, ptr: AnyValueEnum<'m>, size: Size) {
         let size = size.bytes();
 
         // We don't do anything if this is a unit.

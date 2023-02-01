@@ -9,7 +9,7 @@ use hash_source::{identifier::Identifier, location::SourceLocation};
 
 use super::Builder;
 
-impl<'b> BuildDebugInfoMethods for Builder<'b> {
+impl<'b, 'm> BuildDebugInfoMethods for Builder<'_, 'b, 'm> {
     fn create_debug_info_scope_for_fn(
         &self,
         _fn_abi: &FnAbi,

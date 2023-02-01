@@ -11,7 +11,7 @@ use inkwell::{module::Linkage, types::BasicTypeEnum, values::AnyValueEnum};
 use super::ty::ExtendedTyBuilderMethods;
 use crate::context::CodeGenCtx;
 
-impl<'b> ConstValueBuilderMethods<'b> for CodeGenCtx<'b> {
+impl<'b, 'm> ConstValueBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
     fn const_undef(&self, ty: Self::Type) -> Self::Value {
         let ty: BasicTypeEnum = ty.try_into().unwrap();
         match ty {
@@ -93,7 +93,7 @@ impl<'b> ConstValueBuilderMethods<'b> for CodeGenCtx<'b> {
             debug_assert!(value < (1 << bit_size));
         }
 
-        self.const_uint(self.size_ty, value)
+        self.const_uint(self.size_ty.into(), value)
     }
 
     fn const_float(&self, ty: Self::Type, val: f64) -> Self::Value {

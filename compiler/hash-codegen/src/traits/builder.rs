@@ -23,7 +23,7 @@ use crate::{
 
 /// This trait defines all methods required to convert a Hash IR `BasicBlock`
 /// into the backend equivalent.
-pub trait BlockBuilderMethods<'b>:
+pub trait BlockBuilderMethods<'a, 'b>:
     Codegen<'b>
     + AbiBuilderMethods<'b>
     + IntrinsicBuilderMethods<'b>
@@ -34,11 +34,11 @@ pub trait BlockBuilderMethods<'b>:
     fn ctx(&self) -> &Self::CodegenCtx;
 
     /// Function to build the given `BasicBlock` into the backend equivalent.
-    fn build(ctx: &'b Self::CodegenCtx, block: Self::BasicBlock) -> Self;
+    fn build(ctx: &'a Self::CodegenCtx, block: Self::BasicBlock) -> Self;
 
     /// Add a block to the current function.
     fn append_block(
-        ctx: &'b Self::CodegenCtx,
+        ctx: &'a Self::CodegenCtx,
         func: Self::Function,
         name: &str,
     ) -> Self::BasicBlock;

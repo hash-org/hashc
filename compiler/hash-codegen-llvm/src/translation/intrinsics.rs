@@ -15,12 +15,12 @@ use inkwell::values::{AnyValueEnum, UnnamedAddress};
 
 use super::Builder;
 
-impl<'b> Builder<'b> {
+impl<'b, 'm> Builder<'_, 'b, 'm> {
     /// Call an intrinsic function with the specified arguments.
     pub(crate) fn call_intrinsic(
         &mut self,
         name: &str,
-        args: &[AnyValueEnum<'b>],
+        args: &[AnyValueEnum<'m>],
     ) -> <Self as BackendTypes>::Value {
         let func = self.get_intrinsic_function(name);
         self.call(func, args, None)
@@ -299,7 +299,7 @@ impl<'b> Builder<'b> {
     }
 }
 
-impl<'b> IntrinsicBuilderMethods<'b> for Builder<'b> {
+impl<'b, 'm> IntrinsicBuilderMethods<'b> for Builder<'_, 'b, 'm> {
     fn codegen_intrinsic_call(
         &mut self,
         ty: IrTyId,

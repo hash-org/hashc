@@ -30,9 +30,9 @@ pub enum OperandValue<V> {
     Pair(V, V),
 }
 
-impl<'b, V: CodeGenObject> OperandValue<V> {
+impl<'a, 'b, V: CodeGenObject> OperandValue<V> {
     /// Store the [OperandValue] into the given [PlaceRef] destination.
-    pub fn store<Builder: BlockBuilderMethods<'b, Value = V>>(
+    pub fn store<Builder: BlockBuilderMethods<'a, 'b, Value = V>>(
         self,
         builder: &mut Builder,
         destination: PlaceRef<V>,
@@ -40,7 +40,7 @@ impl<'b, V: CodeGenObject> OperandValue<V> {
         self.store_with_flags(builder, destination, MemFlags::empty());
     }
 
-    fn store_with_flags<Builder: BlockBuilderMethods<'b, Value = V>>(
+    fn store_with_flags<Builder: BlockBuilderMethods<'a, 'b, Value = V>>(
         self,
         builder: &mut Builder,
         destination: PlaceRef<V>,
@@ -125,7 +125,7 @@ pub struct OperandRef<V> {
     pub info: TyInfo,
 }
 
-impl<'b, V: CodeGenObject> OperandRef<V> {
+impl<'a, 'b, V: CodeGenObject> OperandRef<V> {
     /// Create a new zero-sized type [OperandRef].
     pub fn new_zst<Builder: Codegen<'b, Value = V>>(builder: &Builder, info: TyInfo) -> Self {
         Self {
@@ -136,7 +136,7 @@ impl<'b, V: CodeGenObject> OperandRef<V> {
 
     /// Create a new [OperandRef] from an immediate value or a packed
     /// scalar pair value.
-    pub fn from_immediate_value_or_scalar_pair<Builder: BlockBuilderMethods<'b, Value = V>>(
+    pub fn from_immediate_value_or_scalar_pair<Builder: BlockBuilderMethods<'a, 'b, Value = V>>(
         builder: &mut Builder,
         value: V,
         info: TyInfo,
@@ -190,7 +190,7 @@ impl<'b, V: CodeGenObject> OperandRef<V> {
 
     /// Compute a new [OperandRef] from the current operand and a field
     /// projection.
-    pub fn extract_field<Builder: BlockBuilderMethods<'b, Value = V>>(
+    pub fn extract_field<Builder: BlockBuilderMethods<'a, 'b, Value = V>>(
         &self,
         builder: &mut Builder,
         index: usize,
@@ -269,7 +269,7 @@ impl<'b, V: CodeGenObject> OperandRef<V> {
     }
 }
 
-impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
+impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
     /// Generate code for a [Operand].
     pub(super) fn codegen_operand(
         &mut self,

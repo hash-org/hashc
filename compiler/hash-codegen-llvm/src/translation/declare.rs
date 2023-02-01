@@ -10,7 +10,7 @@ use inkwell::{
 use super::abi::ExtendedFnAbiMethods;
 use crate::context::CodeGenCtx;
 
-impl<'b> CodeGenCtx<'b> {
+impl<'b, 'm> CodeGenCtx<'b, 'm> {
     /// Standard function to declare a C-like function. This should only be used
     /// for declaring FFI functions or various LLVM intrinsics.
     ///
@@ -32,8 +32,8 @@ impl<'b> CodeGenCtx<'b> {
         &self,
         name: &str,
         addr: UnnamedAddress,
-        ty: AnyTypeEnum<'b>,
-    ) -> FunctionValue<'b> {
+        ty: AnyTypeEnum<'m>,
+    ) -> FunctionValue<'m> {
         self.declare_fn(
             name,
             ty,
@@ -50,11 +50,11 @@ impl<'b> CodeGenCtx<'b> {
     pub(crate) fn declare_fn(
         &self,
         name: &str,
-        ty: AnyTypeEnum<'b>,
+        ty: AnyTypeEnum<'m>,
         calling_convention: CallingConvention,
         addr: UnnamedAddress,
         visibility: GlobalVisibility,
-    ) -> FunctionValue<'b> {
+    ) -> FunctionValue<'m> {
         let func = if let Some(func) = self.module.get_function(name) {
             func
         } else {
@@ -73,7 +73,7 @@ impl<'b> CodeGenCtx<'b> {
     ///
     /// This will set some sane defaults when declaring the function, and apply
     /// all of the attributes onto the created [FunctionValue].
-    pub(crate) fn declare_hash_fn(&self, name: &str, abi: &FnAbi) -> FunctionValue<'b> {
+    pub(crate) fn declare_hash_fn(&self, name: &str, abi: &FnAbi) -> FunctionValue<'m> {
         let func = self.declare_fn(
             name,
             abi.llvm_ty(self),
@@ -94,8 +94,8 @@ impl<'b> CodeGenCtx<'b> {
     pub(crate) fn declare_global(
         &self,
         name: &str,
-        ty: BasicTypeEnum<'b>,
-    ) -> Option<GlobalValue<'b>> {
+        ty: BasicTypeEnum<'m>,
+    ) -> Option<GlobalValue<'m>> {
         if self.module.get_global(name).is_some() {
             None
         } else {

@@ -238,7 +238,7 @@ impl AttributeKind {
     }
 
     /// Create an [Attribute] from an [AttributeKind].
-    pub fn create_attribute(&self, ctx: &CodeGenCtx<'_>) -> Attribute {
+    pub fn create_attribute(&self, ctx: &CodeGenCtx<'_, '_>) -> Attribute {
         // @@Naming: the `create_enum_attribute` will create an attribute
         // with just an integer value, furthermore the value "0" denotes that
         // the attribute is just a flag. This is a really bad design

@@ -29,7 +29,7 @@ use crate::{
 /// `bits - 1` places, e.g. shifting an `i8` by 7 places is valid, but shifting
 /// it by 8 places is not. So, the mask is computed, and then applied onto the
 /// shifting value in order to check whether a shift overflow has occurred.
-fn shift_mask_value<'b, Builder: BlockBuilderMethods<'b>>(
+fn shift_mask_value<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
     builder: &mut Builder,
     ty: Builder::Type,
     mask_ty: Builder::Type,
@@ -56,7 +56,7 @@ fn shift_mask_value<'b, Builder: BlockBuilderMethods<'b>>(
 ///
 /// This is done by either truncating or zero extending the
 /// `shift_value` to the size of `lhs`.
-fn cast_shift_value<'b, Builder: BlockBuilderMethods<'b>>(
+fn cast_shift_value<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
     builder: &mut Builder,
     lhs: Builder::Value,
     rhs: Builder::Value,
@@ -86,7 +86,7 @@ fn cast_shift_value<'b, Builder: BlockBuilderMethods<'b>>(
 ///
 /// This is equivalent of what x86 machine instructions like `sarl`
 /// perform. More information at <https://en.wikibooks.org/wiki/X86_Assembly/Shift_and_Rotate>.
-fn apply_shift_mask<'b, Builder: BlockBuilderMethods<'b>>(
+fn apply_shift_mask<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
     builder: &mut Builder,
     shift_value: Builder::Value,
 ) -> Builder::Value {
@@ -101,7 +101,7 @@ fn apply_shift_mask<'b, Builder: BlockBuilderMethods<'b>>(
 /// to be truncated, and similarly in the case where the shifting value is
 /// smaller than the bit-width of the left-hand side operand, it needs to be
 /// zero extended.
-fn build_unchecked_rshift<'b, Builder: BlockBuilderMethods<'b>>(
+fn build_unchecked_rshift<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
     builder: &mut Builder,
     ty: IrTyId,
     lhs: Builder::Value,
@@ -120,7 +120,7 @@ fn build_unchecked_rshift<'b, Builder: BlockBuilderMethods<'b>>(
     }
 }
 
-fn build_unchecked_lshift<'b, Builder: BlockBuilderMethods<'b>>(
+fn build_unchecked_lshift<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
     builder: &mut Builder,
     lhs: Builder::Value,
     rhs: Builder::Value,
@@ -130,7 +130,7 @@ fn build_unchecked_lshift<'b, Builder: BlockBuilderMethods<'b>>(
     builder.shl(lhs, rhs)
 }
 
-impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
+impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
     /// Emit code for the given [ir::RValue] and store the result in the
     /// given [PlaceRef].
     pub fn codegen_rvalue(

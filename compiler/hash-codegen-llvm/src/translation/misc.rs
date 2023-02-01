@@ -13,13 +13,13 @@ use inkwell::{
 use super::abi::ExtendedFnAbiMethods;
 use crate::context::CodeGenCtx;
 
-impl<'b> CodeGenCtx<'b> {
+impl<'b, 'm> CodeGenCtx<'b, 'm> {
     /// Generate code for a reference to a function or method item. The
     /// [Instance] specifies the function reference to generate, and any
     /// attributes that need to be applied to the function. If the function
     /// has already been generated, a reference will be returned from the
     /// cache.
-    pub fn get_fn_or_create_ref(&self, instance: InstanceId) -> FunctionValue<'b> {
+    pub fn get_fn_or_create_ref(&self, instance: InstanceId) -> FunctionValue<'m> {
         // First check if we have already created the function reference...
         if let Some(fn_val) = self.instances.borrow().get(&instance) {
             return *fn_val;
@@ -57,7 +57,7 @@ impl<'b> CodeGenCtx<'b> {
     }
 }
 
-impl<'b> MiscBuilderMethods<'b> for CodeGenCtx<'b> {
+impl<'b, 'm> MiscBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
     fn get_fn(&self, instance: InstanceId) -> Self::Function {
         self.get_fn_or_create_ref(instance)
     }

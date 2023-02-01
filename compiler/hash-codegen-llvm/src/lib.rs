@@ -10,12 +10,13 @@
 
 use std::path::PathBuf;
 
+use context::CodeGenCtx;
 use hash_codegen::{
     backend::{Backend, BackendCtx},
     layout::LayoutCtx,
 };
 use hash_ir::IrStorage;
-use hash_pipeline::{workspace::Workspace, CompilerResult};
+use hash_pipeline::{settings::CompilerSettings, workspace::Workspace, CompilerResult};
 use hash_source::ModuleId;
 use hash_target::TargetArch;
 use hash_utils::index_vec::IndexVec;
@@ -39,6 +40,10 @@ pub struct LLVMBackend<'b> {
     /// The current compiler workspace, which is where the results of the
     /// linking and bytecode emission will be stored.
     workspace: &'b mut Workspace,
+
+    /// The compiler settings associated with the current
+    /// session.
+    settings: &'b CompilerSettings,
 
     /// A map which maps a [ModuleId] to it's corresponding [llvm::Module] and
     /// file paths.
@@ -102,7 +107,15 @@ impl<'b> LLVMBackend<'b> {
 
         let context = llvm::context::Context::create();
 
-        Self { modules: IndexVec::new(), workspace, context, target_machine, ir_storage, layouts }
+        Self {
+            modules: IndexVec::new(),
+            workspace,
+            context,
+            target_machine,
+            ir_storage,
+            layouts,
+            settings,
+        }
     }
 }
 
@@ -111,6 +124,14 @@ impl<'b> Backend<'b> for LLVMBackend<'b> {
     /// is translated into an LLVM IR module and is then emitted as a bytecode
     /// module to the disk.
     fn run(&mut self) -> CompilerResult<()> {
+        // @@Future: make it configurable whether we emit a module object per single
+        // object, or if we emit a single module object for the entire program.
+        // Currently, we are emitting a single module for the entire program
+        // that is being compiled in in the workspace.
+        let module = self.context.create_module(self.workspace.name.as_str());
+
+        let ctx = CodeGenCtx::new(module, self.settings, &self.ir_storage.ctx, self.layouts);
+
         Ok(())
     }
 }

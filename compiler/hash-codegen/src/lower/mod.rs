@@ -44,12 +44,12 @@ pub enum BlockStatus<BasicBlock> {
 
 /// This struct contains all the information required to convert Hash IR into
 /// the target code backend.
-pub struct FnBuilder<'b, Builder: BlockBuilderMethods<'b>> {
+pub struct FnBuilder<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> {
     /// The body that is being converted into the target backend.
     body: &'b ir::Body,
 
     /// The code generation context.
-    ctx: &'b Builder::CodegenCtx,
+    ctx: &'a Builder::CodegenCtx,
 
     /// The function that is being built.
     function: Builder::Function,
@@ -90,11 +90,11 @@ pub struct FnBuilder<'b, Builder: BlockBuilderMethods<'b>> {
     _unreachable_block: Option<Builder::BasicBlock>,
 }
 
-impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
+impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
     /// Create a new [FnBuilder] instance.
     pub fn new(
         body: &'b ir::Body,
-        ctx: &'b Builder::CodegenCtx,
+        ctx: &'a Builder::CodegenCtx,
         function: Builder::Function,
         fn_abi: &'b FnAbi,
     ) -> Self {
@@ -128,9 +128,9 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
 ///
 /// 3. Traverse the control flow graph in post-order and generate each
 /// block in the function.
-pub fn codegen_ir_body<'b, Builder: BlockBuilderMethods<'b>>(
+pub fn codegen_ir_body<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
     body: &'b ir::Body,
-    ctx: &'b Builder::CodegenCtx,
+    ctx: &'a Builder::CodegenCtx,
     function: Builder::Function,
     fn_abi: &'b FnAbi,
 ) {
@@ -192,8 +192,8 @@ pub fn codegen_ir_body<'b, Builder: BlockBuilderMethods<'b>>(
 /// in it's own function due to the process being more complicated
 /// when dealing with ABI specifications, and possibly (in the future)
 /// variadic arguments that are passed to the function.
-fn allocate_argument_locals<'b, Builder: BlockBuilderMethods<'b>>(
-    fn_ctx: &mut FnBuilder<'b, Builder>,
+fn allocate_argument_locals<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
+    fn_ctx: &mut FnBuilder<'a, 'b, Builder>,
     builder: &mut Builder,
     memory_locals: &FixedBitSet,
 ) -> Vec<LocalRef<Builder::Value>> {

@@ -7,7 +7,7 @@ use hash_ir::{intrinsics::Intrinsic, ty::IrTy};
 use super::{abi::compute_fn_abi_from_instance, FnBuilder};
 use crate::traits::{builder::BlockBuilderMethods, ctx::HasCtxMethods, misc::MiscBuilderMethods};
 
-impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
+impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
     /// Resolve a reference to an [Intrinsic].
     pub(super) fn resolve_intrinsic(
         &mut self,
