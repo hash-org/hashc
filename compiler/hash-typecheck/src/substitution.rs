@@ -5,7 +5,6 @@ use std::ops::ControlFlow;
 use derive_more::{Constructor, Deref};
 use hash_tir::new::{
     args::ArgsId,
-    defs::DefArgsId,
     holes::Hole,
     mods::ModDefId,
     params::ParamsId,
@@ -126,14 +125,6 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
     pub fn apply_sub_to_params_in_place(&self, params_id: ParamsId, sub: &Sub) {
         self.traversing_utils()
             .visit_params::<!, _>(params_id, &mut |atom| {
-                Ok(self.apply_sub_to_atom_in_place_once(atom, sub))
-            })
-            .into_ok()
-    }
-
-    pub fn apply_sub_to_def_args_in_place(&self, def_args_id: DefArgsId, sub: &Sub) {
-        self.traversing_utils()
-            .visit_def_args::<!, _>(def_args_id, &mut |atom| {
                 Ok(self.apply_sub_to_atom_in_place_once(atom, sub))
             })
             .into_ok()

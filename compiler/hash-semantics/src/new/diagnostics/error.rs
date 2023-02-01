@@ -48,6 +48,8 @@ pub enum SemanticError {
     CannotUseFunctionInPatternPosition { location: SourceLocation },
     /// Cannot use the subject as a namespace.
     InvalidNamespaceSubject { location: SourceLocation },
+    /// Cannot use arguments here.
+    UnexpectedArguments { location: SourceLocation },
     /// Type error, forwarded from the typechecker.
     TypeError { error: TcError },
 }
@@ -72,6 +74,7 @@ impl<'tc> WithTcEnv<'tc, &SemanticError> {
     /// Format the error nicely and add it to the given reporter.
     fn add_to_reporter(&self, reporter: &mut Reporter) {
         let locations = self.tc_env().stores().location();
+        // @@ErrorReporting: improve error messages and locations
         match &self.value {
             SemanticError::Signal => {}
             SemanticError::NeedMoreTypeAnnotationsToInfer { term } => {
@@ -225,6 +228,16 @@ impl<'tc> WithTcEnv<'tc, &SemanticError> {
             }
             SemanticError::TypeError { error } => {
                 TcErrorReporter::new(self.env()).add_to_reporter(error, reporter)
+            }
+            SemanticError::UnexpectedArguments { location } => {
+                let error = reporter
+                    .error()
+                    .code(HashErrorCode::ValueCannotBeUsedAsType)
+                    .title("unexpected arguments given to subject");
+
+                error
+                    .add_span(*location)
+                    .add_info("cannot use these arguments as the subject does not expect them");
             }
         }
     }

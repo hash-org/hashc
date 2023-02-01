@@ -24,8 +24,8 @@ use std::fmt;
 use hash_ast::ast;
 use hash_source::{identifier::Identifier, location::Span};
 use hash_tir::new::{
+    args::ArgsId,
     data::{CtorPat, CtorTerm, DataDefId},
-    defs::DefArgsId,
     environment::{
         context::{Binding, BindingKind, ScopeKind},
         env::AccessToEnv,
@@ -38,7 +38,7 @@ use hash_tir::new::{
 use hash_utils::store::{SequenceStore, Store};
 
 use super::{
-    params::{AstArgGroup, ResolvedDefArgs},
+    params::{AstArgGroup, ResolvedArgs},
     scoping::ContextKind,
     ResolutionPass,
 };
@@ -87,7 +87,7 @@ impl AstPathComponent<'_> {
 #[derive(Clone, Copy, Debug)]
 pub enum NonTerminalResolvedPathComponent {
     /// A data definition with some arguments.
-    Data(DataDefId, DefArgsId),
+    Data(DataDefId, ArgsId),
     /// A module definition.
     Mod(ModDefId),
 }
@@ -197,18 +197,23 @@ impl<'tc> ResolutionPass<'tc> {
                 let mod_member = self.stores().mod_members().get_element(mod_member_id);
                 match mod_member.value {
                     ModMemberValue::Data(data_def_id) => {
-                        let data_def_params =
+                        let _data_def_params =
                             self.stores().data_def().map_fast(data_def_id, |def| def.params);
-                        let args = self
-                            .make_def_args_from_ast_arg_groups(&component.args, data_def_params)?;
+                        let args = match &component.args[..] {
+                            [] => ResolvedArgs::Term(self.new_empty_args()),
+                            [arg_group] => self.make_args_from_ast_arg_group(arg_group)?,
+                            [_first, second, _rest @ ..] => {
+                                return Err(SemanticError::UnexpectedArguments {
+                                    location: self.source_location(second.span().unwrap()),
+                                });
+                            }
+                        };
 
                         match args {
-                            ResolvedDefArgs::Term(args) => {
-                                Ok(ResolvedAstPathComponent::NonTerminal(
-                                    NonTerminalResolvedPathComponent::Data(data_def_id, args),
-                                ))
-                            }
-                            ResolvedDefArgs::Pat(_) => {
+                            ResolvedArgs::Term(args) => Ok(ResolvedAstPathComponent::NonTerminal(
+                                NonTerminalResolvedPathComponent::Data(data_def_id, args),
+                            )),
+                            ResolvedArgs::Pat(_, _) => {
                                 Err(SemanticError::CannotUseDataTypeInPatternPosition {
                                     location: self.source_location(component.name_span),
                                 })
@@ -236,9 +241,16 @@ impl<'tc> ResolutionPass<'tc> {
                 }
             }
             BindingKind::Ctor(data_def_id, ctor_def_id) => {
-                let ctor_def = self.stores().ctor_defs().get_element(ctor_def_id);
-                let applied_args =
-                    self.make_def_args_from_ast_arg_groups(&component.args, ctor_def.params)?;
+                let _ctor_def = self.stores().ctor_defs().get_element(ctor_def_id);
+                let applied_args = match &component.args[..] {
+                    [] => ResolvedArgs::Term(self.new_empty_args()),
+                    [arg_group] => self.make_args_from_ast_arg_group(arg_group)?,
+                    [_first, second, _rest @ ..] => {
+                        return Err(SemanticError::UnexpectedArguments {
+                            location: self.source_location(second.span().unwrap()),
+                        });
+                    }
+                };
 
                 match starting_from {
                     Some((starting_from, _)) => match starting_from {
@@ -248,7 +260,7 @@ impl<'tc> ResolutionPass<'tc> {
                         ) => {
                             assert!(starting_from_data_def_id == data_def_id);
                             match applied_args {
-                                ResolvedDefArgs::Term(ctor_args) => {
+                                ResolvedArgs::Term(ctor_args) => {
                                     Ok(ResolvedAstPathComponent::Terminal(
                                         TerminalResolvedPathComponent::CtorTerm(CtorTerm {
                                             ctor: ctor_def_id,
@@ -257,12 +269,13 @@ impl<'tc> ResolutionPass<'tc> {
                                         }),
                                     ))
                                 }
-                                ResolvedDefArgs::Pat(ctor_pat_args) => {
+                                ResolvedArgs::Pat(ctor_pat_args, spread) => {
                                     Ok(ResolvedAstPathComponent::Terminal(
                                         TerminalResolvedPathComponent::CtorPat(CtorPat {
                                             ctor: ctor_def_id,
                                             ctor_pat_args,
                                             data_args,
+                                            ctor_pat_args_spread: spread,
                                         }),
                                     ))
                                 }

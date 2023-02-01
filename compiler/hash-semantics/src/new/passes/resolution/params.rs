@@ -1,18 +1,15 @@
 //! Resolution of AST parameters and arguments to terms.
 
-use std::{iter::empty, ops::Range};
-
 use hash_ast::ast::{self, AstNodeRef};
 use hash_source::location::Span;
 use hash_tir::new::{
     args::{ArgsId, PatArgsId},
-    defs::{DefArgGroupData, DefArgsId, DefParamsId, DefPatArgGroupData, DefPatArgsId},
     environment::env::AccessToEnv,
     fns::FnCallTerm,
-    params::{ParamId, ParamsId, SomeArgsId, SomeDefArgsId},
+    params::{ParamId, ParamsId, SomeArgsId},
     pats::Spread,
     terms::{Term, TermId},
-    utils::{common::CommonUtils, AccessToUtils},
+    utils::common::CommonUtils,
 };
 use hash_utils::store::{SequenceStore, SequenceStoreKey};
 
@@ -90,47 +87,6 @@ impl From<ResolvedArgs> for SomeArgsId {
         match value {
             ResolvedArgs::Term(args) => SomeArgsId::Args(args),
             ResolvedArgs::Pat(args, _) => SomeArgsId::PatArgs(args),
-        }
-    }
-}
-
-/// Resolved definition arguments.
-///
-/// These are either term arguments, or pattern arguments.
-#[derive(Copy, Clone, Debug)]
-pub enum ResolvedDefArgs {
-    Term(DefArgsId),
-    Pat(DefPatArgsId),
-}
-
-impl From<ResolvedDefArgs> for SomeDefArgsId {
-    fn from(value: ResolvedDefArgs) -> Self {
-        match value {
-            ResolvedDefArgs::Term(args) => SomeDefArgsId::Args(args),
-            ResolvedDefArgs::Pat(args) => SomeDefArgsId::PatArgs(args),
-        }
-    }
-}
-
-impl ResolvedDefArgs {
-    /// Get the number of arguments.
-    pub fn len(&self) -> usize {
-        match self {
-            ResolvedDefArgs::Term(args) => args.len(),
-            ResolvedDefArgs::Pat(args) => args.len(),
-        }
-    }
-
-    /// Check if there are no arguments.
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    /// Get the range of indices of the arguments.
-    pub fn to_index_range(&self) -> Range<usize> {
-        match self {
-            ResolvedDefArgs::Term(args) => args.to_index_range(),
-            ResolvedDefArgs::Pat(args) => args.to_index_range(),
         }
     }
 }
@@ -286,97 +242,6 @@ impl<'tc> ResolutionPass<'tc> {
                     _ => Err(SemanticError::Signal),
                 }
             }
-        }
-    }
-
-    /// Make [`ResolvedDefArgs`] from a list of AST argument groups, using
-    /// `make_args_from_ast_arg_group` to make each argument group.
-    ///
-    /// Panics if the argument group list is empty.
-    ///
-    /// This will either create term arguments or pattern arguments, depending
-    /// on the argument groups given. If they mismatch in kinds, an error is
-    /// returned.
-    pub(super) fn make_def_args_from_ast_arg_groups(
-        &self,
-        groups: &[AstArgGroup],
-        _originating_params: DefParamsId,
-    ) -> SemanticResult<ResolvedDefArgs> {
-        let mut is_pat_args: Option<bool> = None;
-
-        // Ensure that each argument group is of the same kind.
-        for group in groups {
-            match (group, is_pat_args) {
-                (AstArgGroup::ExplicitArgs(_) | AstArgGroup::ImplicitArgs(_), None) => {
-                    is_pat_args = Some(false);
-                }
-                (AstArgGroup::ExplicitPatArgs(_, _), None) => {
-                    is_pat_args = Some(true);
-                }
-                // Correct cases:
-                (AstArgGroup::ExplicitArgs(_) | AstArgGroup::ImplicitArgs(_), Some(false))
-                | (AstArgGroup::ExplicitPatArgs(_, _), Some(true)) => {}
-                // Error cases:
-                (AstArgGroup::ExplicitArgs(_) | AstArgGroup::ImplicitArgs(_), Some(true))
-                | (AstArgGroup::ExplicitPatArgs(_, _), Some(false)) => {
-                    // @@Correctness: should we make this a user error or will it never happen?
-                    panic!("Mixing pattern and non-pattern arguments is not allowed")
-                }
-                (AstArgGroup::TupleArgs(_), _) => {
-                    panic!("Found tuple arguments in def args")
-                }
-            }
-        }
-
-        match is_pat_args {
-            Some(is_pat_args) => {
-                if is_pat_args {
-                    // Pattern arguments
-                    let arg_groups = groups
-                        .iter()
-                        .enumerate()
-                        .map(|(_index, group)| {
-                            let (pat_args, spread) =
-                                match self.make_args_from_ast_arg_group(group)? {
-                                    ResolvedArgs::Term(_) => unreachable!(),
-                                    ResolvedArgs::Pat(pat_args, spread) => (pat_args, spread),
-                                };
-                            Ok(DefPatArgGroupData {
-                                pat_args,
-                                spread,
-                                implicit: group.is_implicit(),
-                            })
-                        })
-                        .collect::<SemanticResult<Vec<_>>>()?;
-                    let def_pat_args =
-                        self.param_utils().create_def_pat_args(arg_groups.into_iter());
-                    self.stores().location().add_locations_to_targets(def_pat_args, |i| {
-                        Some(self.source_location(groups[i].span()?))
-                    });
-                    Ok(ResolvedDefArgs::Pat(def_pat_args))
-                } else {
-                    // Term arguments
-                    let arg_groups = groups
-                        .iter()
-                        .enumerate()
-                        .map(|(_index, group)| {
-                            let args = match self.make_args_from_ast_arg_group(group)? {
-                                ResolvedArgs::Term(term_args) => term_args,
-                                ResolvedArgs::Pat(_, _) => unreachable!(),
-                            };
-                            Ok(DefArgGroupData { args, implicit: group.is_implicit() })
-                        })
-                        .collect::<SemanticResult<Vec<_>>>()?;
-                    let def_args = self.param_utils().create_def_args(arg_groups.into_iter());
-                    self.stores().location().add_locations_to_targets(def_args, |i| {
-                        Some(self.source_location(groups[i].span()?))
-                    });
-                    Ok(ResolvedDefArgs::Term(def_args))
-                }
-            }
-            // @@Hack: here we assume the args are term args; if they are meant to be pattern args
-            // it will be handled in [`super::pats`].
-            None => Ok(ResolvedDefArgs::Term(self.param_utils().create_def_args(empty()))),
         }
     }
 

@@ -1,5 +1,4 @@
 //! AST visitor for the discovery pass.
-use std::iter::once;
 
 use hash_ast::{
     ast::{self, AstNodeRef},
@@ -167,7 +166,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         // Create a data definition for the struct
         let struct_def_id = self.data_utils().create_struct_def(
             struct_name,
-            self.create_hole_def_params(once((true, &node.ty_params))),
+            self.create_hole_params(&node.ty_params),
             self.create_hole_params(&node.fields),
         );
 
@@ -190,7 +189,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         // Create a data definition for the enum
         let enum_def_id = self.data_utils().create_enum_def(
             enum_name,
-            self.create_hole_def_params(once((true, &node.ty_params))),
+            self.create_hole_params(&node.ty_params),
             |_| {
                 node.entries
                     .iter()

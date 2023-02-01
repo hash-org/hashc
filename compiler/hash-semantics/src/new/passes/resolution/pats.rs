@@ -211,7 +211,8 @@ impl ResolutionPass<'_> {
                     // @@Hack: Constructor term without args is a valid pattern
                     Ok(self.new_pat(Pat::Ctor(CtorPat {
                         ctor: ctor_term.ctor,
-                        ctor_pat_args: self.param_utils().create_def_pat_args(empty()),
+                        ctor_pat_args: self.param_utils().create_pat_args(empty()),
+                        ctor_pat_args_spread: None,
                         data_args: ctor_term.data_args,
                     })))
                 }

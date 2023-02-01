@@ -6,10 +6,11 @@ use derive_more::From;
 use hash_ast::ast::RangeEnd;
 use hash_utils::{
     new_sequence_store_key, new_store, new_store_key,
-    store::{CloneStore, DefaultSequenceStore, Store},
+    store::{CloneStore, DefaultSequenceStore, SequenceStore, Store},
 };
 
 use super::{
+    args::PatArgsId,
     control::{IfPat, OrPat},
     data::CtorPat,
     environment::env::{AccessToEnv, WithEnv},
@@ -106,5 +107,26 @@ impl fmt::Display for WithEnv<'_, &Pat> {
 impl fmt::Display for WithEnv<'_, PatId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.stores().pat().map_fast(self.value, |pat| write!(f, "{}", self.env().with(pat)))
+    }
+}
+
+impl fmt::Display for WithEnv<'_, (PatArgsId, Option<Spread>)> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.stores().pat_args().map_fast(self.value.0, |pat_args| {
+            let mut pat_args_formatted =
+                pat_args.iter().map(|arg| self.env().with(arg).to_string()).collect::<Vec<_>>();
+
+            if let Some(spread) = self.value.1 {
+                pat_args_formatted.insert(spread.index, self.env().with(spread).to_string());
+            }
+
+            for (i, pat_arg) in pat_args_formatted.iter().enumerate() {
+                if i > 0 {
+                    write!(f, ", ")?;
+                }
+                write!(f, "{pat_arg}")?;
+            }
+            Ok(())
+        })
     }
 }

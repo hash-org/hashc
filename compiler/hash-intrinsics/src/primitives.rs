@@ -3,7 +3,6 @@ use std::iter::once;
 
 use hash_tir::new::{
     data::{DataDefId, ListCtorInfo, NumericCtorBits, NumericCtorInfo, PrimitiveCtorInfo},
-    defs::DefParamGroupData,
     environment::env::{AccessToEnv, Env},
     mods::{ModMemberData, ModMemberValue},
     params::ParamData,
@@ -93,15 +92,14 @@ impl DefinedPrimitives {
 
         DefinedPrimitives {
             // Never
-            never: env.data_utils().new_empty_data_def(
-                env.new_symbol("never"),
-                env.param_utils().new_empty_def_params(),
-            ),
+            never: env
+                .data_utils()
+                .new_empty_data_def(env.new_symbol("never"), env.param_utils().new_empty_params()),
 
             // bool
             bool: env.data_utils().create_enum_def(
                 env.new_symbol("bool"),
-                env.new_empty_def_params(),
+                env.new_empty_params(),
                 |_| {
                     vec![
                         (env.new_symbol("true"), env.new_empty_params()),
@@ -146,10 +144,7 @@ impl DefinedPrimitives {
                     name: t_sym,
                     ty: env.new_small_universe_ty(),
                 }));
-                let def_params = env
-                    .param_utils()
-                    .create_def_params(once(DefParamGroupData { implicit: true, params }));
-                env.data_utils().create_primitive_data_def_with_params(list_sym, def_params, |_| {
+                env.data_utils().create_primitive_data_def_with_params(list_sym, params, |_| {
                     PrimitiveCtorInfo::List(ListCtorInfo { element_ty: env.new_var_ty(t_sym) })
                 })
             },
@@ -164,14 +159,11 @@ impl DefinedPrimitives {
                     name: t_sym,
                     ty: env.new_small_universe_ty(),
                 }));
-                let def_params = env
-                    .param_utils()
-                    .create_def_params(once(DefParamGroupData { implicit: true, params }));
                 let some_params = env.param_utils().create_params(once(ParamData {
                     name: env.new_symbol("value"),
                     ty: env.new_var_ty(t_sym),
                 }));
-                env.data_utils().create_enum_def(option_sym, def_params, |_| {
+                env.data_utils().create_enum_def(option_sym, params, |_| {
                     vec![(none_sym, env.new_empty_params()), (some_sym, some_params)]
                 })
             },
@@ -190,9 +182,6 @@ impl DefinedPrimitives {
                     ]
                     .into_iter(),
                 );
-                let def_params = env
-                    .param_utils()
-                    .create_def_params(once(DefParamGroupData { implicit: true, params }));
                 let ok_params = env.param_utils().create_params(once(ParamData {
                     name: env.new_symbol("value"),
                     ty: env.new_var_ty(t_sym),
@@ -201,7 +190,7 @@ impl DefinedPrimitives {
                     name: env.new_symbol("error"),
                     ty: env.new_var_ty(e_sym),
                 }));
-                env.data_utils().create_enum_def(result_sym, def_params, |_| {
+                env.data_utils().create_enum_def(result_sym, params, |_| {
                     vec![(ok_sym, ok_params), (err_sym, err_params)]
                 })
             },
