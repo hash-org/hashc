@@ -139,7 +139,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             match infer_item(*term) {
                 Ok(ty) => {
                     match self.unification_ops().unify_tys(ty, current_ty) {
-                        Ok(Uni { sub }) => {
+                        Ok(Uni { sub, .. }) => {
                             // Unification succeeded
                             self.substitution_ops().apply_sub_to_ty_in_place(current_ty, &sub);
                         }
@@ -149,7 +149,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                         Err(err) => {
                             // Error in unification, try to unify the other way
                             match self.unification_ops().unify_tys(current_ty, ty) {
-                                Ok(Uni { sub }) => {
+                                Ok(Uni { sub, .. }) => {
                                     // Unification succeeded the other way, so use this
                                     // type as a target
                                     current_ty = ty;
@@ -204,7 +204,8 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     pub fn check_by_unify(&self, inferred_ty: TyId, annotation_ty: Option<TyId>) -> TcResult<TyId> {
         match annotation_ty {
             Some(annotation_ty) => {
-                let Uni { sub } = self.unification_ops().unify_tys(inferred_ty, annotation_ty)?;
+                let Uni { sub, .. } =
+                    self.unification_ops().unify_tys(inferred_ty, annotation_ty)?;
                 self.substitution_ops().apply_sub_to_ty_in_place(annotation_ty, &sub);
                 Ok(annotation_ty)
             }
@@ -359,7 +360,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
                 // Unify the parameters of the function call with the parameters of the
                 // function type.
-                let Uni { sub } =
+                let Uni { sub, .. } =
                     self.unification_ops().unify_params(inferred_fn_call_params, fn_ty.params)?;
                 // Apply the substitution to the arguments.
                 self.substitution_ops().apply_sub_to_args_in_place(fn_call_term.args, &sub);
@@ -404,7 +405,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     let inferred_return_ty = self.infer_term(fn_body, None)?.1;
 
                     // Unify the inferred return type with the declared return type.
-                    let Uni { sub } = self
+                    let Uni { sub, .. } = self
                         .unification_ops()
                         .unify_tys(inferred_return_ty, fn_def.ty.return_ty)?;
 
@@ -536,7 +537,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 // Unified the inferred parameters with the declared parameters.
                 let data_ty_params =
                     self.stores().data_def().map_fast(data_ty.data_def, |data_def| data_def.params);
-                let Uni { sub } =
+                let Uni { sub, .. } =
                     self.unification_ops().unify_params(inferred_def_params, data_ty_params)?;
 
                 // Apply the substitution to the arguments.
@@ -646,7 +647,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         annotation_ty: Option<TyId>,
     ) -> TcResult<(CastTerm, TyId)> {
         let inferred_term_ty = self.infer_term(cast_term.subject_term, None)?.1;
-        let Uni { sub } =
+        let Uni { sub, .. } =
             self.unification_ops().unify_tys(inferred_term_ty, cast_term.target_ty)?;
         let subbed_target = self.substitution_ops().apply_sub_to_ty(cast_term.target_ty, &sub);
 
@@ -784,7 +785,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             Pat::Range(range_pat) => {
                 let start = self.infer_lit(&range_pat.start.into(), annotation_ty)?.1;
                 let end = self.infer_lit(&range_pat.end.into(), annotation_ty)?.1;
-                let Uni { sub } = self.unification_ops().unify_tys(start, end)?;
+                let Uni { sub, .. } = self.unification_ops().unify_tys(start, end)?;
                 assert!(sub.is_empty()); // @@Todo: specialised unification for no sub
                 self.substitution_ops().apply_sub_to_ty(start, &sub)
             }
