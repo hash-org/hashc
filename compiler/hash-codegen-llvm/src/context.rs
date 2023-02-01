@@ -41,7 +41,7 @@ pub struct CodeGenCtx<'b, 'm> {
     pub layouts: &'b LayoutCtx,
 
     /// The LLVM module that we are putting items into.
-    pub module: llvm::module::Module<'m>,
+    pub module: &'m llvm::module::Module<'m>,
 
     /// The LLVM "context" that is used for building and
     /// translating into LLVM IR.
@@ -82,7 +82,7 @@ pub struct CodeGenCtx<'b, 'm> {
 impl<'b, 'm> CodeGenCtx<'b, 'm> {
     /// Create a new [CodeGenCtx].
     pub fn new(
-        module: llvm::module::Module<'m>,
+        module: &'m llvm::module::Module<'m>,
         settings: &'b CompilerSettings,
         ir_ctx: &'b IrCtx,
         layouts: &'b LayoutCtx,

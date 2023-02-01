@@ -6,7 +6,7 @@
 use std::{cell::RefCell, hash::Hash, marker::PhantomData, ops::Range};
 
 use append_only_vec::AppendOnlyVec;
-pub use fxhash::FxHashMap;
+pub use fxhash::{FxHashMap, FxHashSet};
 
 /// Represents a key that can be used to index a [`Store`].
 pub trait StoreKey: Copy + Eq + Hash {

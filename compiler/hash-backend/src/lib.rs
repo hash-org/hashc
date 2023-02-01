@@ -43,9 +43,11 @@ impl<Ctx: BackendCtxQuery> CompilerStage<Ctx> for CodeGenPass {
     fn run(&mut self, _: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
         let BackendCtx { settings, .. } = ctx.data();
 
+        let llvm_ctx = llvm::context::Context::create();
+
         // Create a new instance of a backend, and then add each bo
         let mut backend = match settings.codegen_settings.backend {
-            CodeGenBackend::LLVM => create_llvm_backend(ctx.data()),
+            CodeGenBackend::LLVM => create_llvm_backend(&llvm_ctx, ctx.data()),
             CodeGenBackend::VM => unimplemented!(),
         };
 
@@ -53,6 +55,9 @@ impl<Ctx: BackendCtxQuery> CompilerStage<Ctx> for CodeGenPass {
     }
 }
 
-pub fn create_llvm_backend<'b>(ctx: BackendCtx<'b>) -> Box<dyn Backend<'b> + 'b> {
-    Box::new(hash_codegen_llvm::LLVMBackend::new(ctx))
+pub fn create_llvm_backend<'b>(
+    ll_ctx: &LLVMContext,
+    ctx: BackendCtx<'b>,
+) -> Box<dyn Backend<'b> + 'b> {
+    Box::new(hash_codegen_llvm::LLVMBackend::new(ll_ctx, ctx))
 }

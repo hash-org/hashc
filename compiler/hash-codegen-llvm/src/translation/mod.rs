@@ -27,10 +27,10 @@ pub(crate) mod ty;
 /// all of the specified builder methods.
 pub struct Builder<'a, 'b, 'm> {
     /// The actual InkWell builder
-    builder: inkwell::builder::Builder<'m>,
+    pub(crate) builder: inkwell::builder::Builder<'m>,
 
     /// The context for the builder.
-    ctx: &'a CodeGenCtx<'b, 'm>,
+    pub(crate) ctx: &'a CodeGenCtx<'b, 'm>,
 }
 
 /// This specifies that the [Builder] context is [CodeGenCtx].

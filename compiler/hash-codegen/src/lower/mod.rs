@@ -8,11 +8,19 @@ use hash_abi::FnAbi;
 use hash_ir::{
     ir::{self, Local},
     traversal,
+    ty::InstanceId,
 };
 use hash_utils::index_vec::IndexVec;
 
-use self::{locals::LocalRef, operands::OperandRef, place::PlaceRef};
-use crate::traits::{builder::BlockBuilderMethods, layout::LayoutMethods};
+use self::{
+    abi::{compute_fn_abi_from_instance, FnAbiError},
+    locals::LocalRef,
+    operands::OperandRef,
+    place::PlaceRef,
+};
+use crate::traits::{
+    builder::BlockBuilderMethods, layout::LayoutMethods, misc::MiscBuilderMethods,
+};
 
 pub mod abi;
 pub mod block;
@@ -56,7 +64,7 @@ pub struct FnBuilder<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> {
 
     /// The function ABI detailing all the information about
     /// arguments, return types, layout and calling conventions.
-    fn_abi: &'b FnAbi,
+    fn_abi: FnAbi,
 
     /// The location of where each IR argument/temporary/variable and return
     /// value is stored. Usually, this is a [PlaceRef] which represents an
@@ -96,7 +104,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         body: &'b ir::Body,
         ctx: &'a Builder::CodegenCtx,
         function: Builder::Function,
-        fn_abi: &'b FnAbi,
+        fn_abi: FnAbi,
     ) -> Self {
         // Verify that the IR body has resolved all "constant" references
         // as they should be resolved by this point.
@@ -129,17 +137,19 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 /// 3. Traverse the control flow graph in post-order and generate each
 /// block in the function.
 pub fn codegen_ir_body<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
+    instance: InstanceId,
     body: &'b ir::Body,
     ctx: &'a Builder::CodegenCtx,
-    function: Builder::Function,
-    fn_abi: &'b FnAbi,
-) {
+) -> Result<(), FnAbiError> {
     // @@Todo: compute debug info about each local
 
-    // create a new function builder
-    let mut fn_builder = FnBuilder::new(body, ctx, function, fn_abi);
+    let func = ctx.get_fn(instance);
+    let fn_abi = compute_fn_abi_from_instance(ctx, instance)?;
 
-    let starting_block = Builder::append_block(fn_builder.ctx, function, "start");
+    // create a new function builder
+    let mut fn_builder = FnBuilder::new(body, ctx, func, fn_abi);
+
+    let starting_block = Builder::append_block(fn_builder.ctx, func, "start");
     let mut builder = Builder::build(fn_builder.ctx, starting_block);
 
     // Allocate space for all the locals.
@@ -186,6 +196,8 @@ pub fn codegen_ir_body<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
     for (block, _) in traversal::ReversePostOrder::new_from_start(fn_builder.body) {
         fn_builder.codegen_block(block);
     }
+
+    Ok(())
 }
 
 /// Function that deals with allocating argument locals. This is

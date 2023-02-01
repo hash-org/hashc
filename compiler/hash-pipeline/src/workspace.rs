@@ -5,10 +5,7 @@
 //! given [ModuleEntry]. This can only be known by the [SourceMap] which stores
 //! all of the relevant [SourceId]s and their corresponding sources.
 
-use std::{
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 use bitflags::bitflags;
 use hash_ast::{
@@ -17,7 +14,10 @@ use hash_ast::{
     tree::AstTreeGenerator,
 };
 use hash_source::{ModuleId, ModuleKind, SourceId, SourceMap};
-use hash_utils::tree_writing::TreeWriter;
+use hash_utils::{
+    store::{FxHashMap, FxHashSet},
+    tree_writing::TreeWriter,
+};
 
 use crate::{error::PipelineError, settings::CompilerSettings};
 
@@ -27,7 +27,7 @@ bitflags! {
     /// If no flags are defined on [SourceStageInfo], this means that the particular
     /// source has been parsed and has been added to the workspace.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub struct SourceStageInfo: u32 {
+    pub struct SourceStageInfo: u8 {
         /// If set, the compiler will no perform desugaring on the module.
         const DESUGARED = 0b00000001;
 
@@ -100,12 +100,12 @@ impl SourceStageInfo {
 /// A map of [SourceId]s to their corresponding [SourceStageInfo]. This is used
 /// to track the current stage of the compiler pipeline for each source.
 #[derive(Debug)]
-pub struct StageInfo(HashMap<SourceId, SourceStageInfo>);
+pub struct StageInfo(FxHashMap<SourceId, SourceStageInfo>);
 
 impl StageInfo {
     /// Create a new [StageInfo] with no sources.
     pub fn new() -> Self {
-        Self(HashMap::new())
+        Self(FxHashMap::default())
     }
 
     /// Add a new source to the [SourceStageInfo] with the given [SourceId].
@@ -170,13 +170,13 @@ pub struct Workspace {
     pub executable_path: Option<PathBuf>,
 
     /// Dependency map between sources and modules.
-    dependencies: HashMap<SourceId, HashSet<ModuleId>>,
+    dependencies: FxHashMap<SourceId, FxHashSet<ModuleId>>,
 
     /// Stores all of the raw file contents of the interactive blocks and
     /// modules.
     pub source_map: SourceMap,
 
-    /// Stores all of the generated AST for modules and nodes
+    /// Stores all of the generated AST for modules and nodes.
     pub node_map: NodeMap,
 
     /// Information about which source have undergone which stages
@@ -202,7 +202,7 @@ impl Workspace {
             executable_path,
             source_map: SourceMap::new(),
             node_map: NodeMap::new(),
-            dependencies: HashMap::new(),
+            dependencies: FxHashMap::default(),
             source_stage_info: StageInfo::new(),
         })
     }
@@ -222,6 +222,23 @@ impl Workspace {
             },
             |path| path.clone(),
         )
+    }
+
+    /// Get the bitcode path for a particular [ModuleId]. This does not
+    /// imply that the function will return a path that already exists, or has
+    /// been "acquired", it is intended to be used to generate a path for a
+    /// module that is about to be emitted.
+    pub fn module_bitcode_path(&self, module: ModuleId) -> PathBuf {
+        let mut path = self.output_directory.clone();
+        let module_path = self.source_map.module_path(module);
+
+        path.push("build");
+        path.push(format!(
+            "{}-{}.bc",
+            module_path.file_stem().unwrap().to_str().unwrap(),
+            module.raw()
+        ));
+        path
     }
 
     /// Add a interactive block to the [Workspace] by providing the contents and
@@ -266,7 +283,7 @@ impl Workspace {
     /// Add a module dependency specified by a [SourceId] to a specific source
     /// specified by a [SourceId].
     pub fn add_dependency(&mut self, source_id: SourceId, dependency: ModuleId) {
-        self.dependencies.entry(source_id).or_insert_with(HashSet::new).insert(dependency);
+        self.dependencies.entry(source_id).or_insert_with(FxHashSet::default).insert(dependency);
     }
 
     /// Utility function used by AST-like stages in order to print the
