@@ -57,6 +57,7 @@ impl<'tc> AstPass for ResolutionPass<'tc> {
         // @@Todo: add intrinsics to the environment
         let (prim_mod, _) = self.bootstrap();
         self.scoping().add_scope(prim_mod.into(), ContextKind::Environment);
+        self.scoping().add_mod_members(prim_mod);
         let _ = self.make_term_from_ast_body_block(node)?;
         Ok(())
     }
@@ -67,6 +68,7 @@ impl<'tc> AstPass for ResolutionPass<'tc> {
     ) -> crate::new::diagnostics::error::SemanticResult<()> {
         let (prim_mod, _) = self.bootstrap();
         self.scoping().add_scope(prim_mod.into(), ContextKind::Environment);
+        self.scoping().add_mod_members(prim_mod);
         let _ = self.resolve_ast_module_inner_terms(node)?;
         Ok(())
     }

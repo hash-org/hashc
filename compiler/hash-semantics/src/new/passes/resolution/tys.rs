@@ -10,22 +10,17 @@ use hash_ast::ast::{self, AstNodeRef, AstNodes};
 use hash_intrinsics::primitives::AccessToPrimitives;
 use hash_reporting::macros::panic_on_span;
 use hash_source::{identifier::IDENTS, location::Span};
-use hash_tir::{
-    new::{
-        args::{ArgData, ArgsId},
-        data::DataTy,
-        environment::env::AccessToEnv,
-        fns::FnCallTerm,
-        params::{ParamData, ParamIndex, ParamsId},
-        refs::{RefKind, RefTy},
-        terms::Term,
-        tuples::TupleTy,
-        tys::{Ty, TyId},
-        utils::{common::CommonUtils, AccessToUtils},
-    },
-    ty_as_variant,
+use hash_tir::new::{
+    args::{ArgData, ArgsId},
+    data::DataTy,
+    environment::env::AccessToEnv,
+    fns::FnCallTerm,
+    params::{ParamData, ParamIndex, ParamsId},
+    refs::{RefKind, RefTy},
+    terms::Term,
+    tys::{Ty, TyId},
+    utils::{common::CommonUtils, AccessToUtils},
 };
-use hash_utils::store::CloneStore;
 use itertools::Itertools;
 
 use super::{
@@ -54,6 +49,7 @@ impl<'tc> ResolutionPass<'tc> {
             .iter()
             .enumerate()
             .map(|(i, arg)| {
+                // @@Todo: add to ctx if named
                 Ok(ArgData {
                     target: arg
                         .name
@@ -259,9 +255,10 @@ impl<'tc> ResolutionPass<'tc> {
 
     /// Make a type from the given [`ast::TupleTy`].
     fn make_ty_from_ast_tuple_ty(&self, node: AstNodeRef<ast::TupleTy>) -> SemanticResult<TyId> {
-        // @@Todo: traverse parameters of tuple types in discovery
-        let data = self.make_params_from_ast_ty_args(&node.entries)?;
-        Ok(self.new_ty(Ty::Tuple(TupleTy { data })))
+        self.scoping().enter_tuple_ty(node, |mut tuple_ty| {
+            tuple_ty.data = self.make_params_from_ast_ty_args(&node.entries)?;
+            Ok(self.new_ty(tuple_ty))
+        })
     }
 
     /// Make a type from the given [`ast::ListTy`].
@@ -306,26 +303,23 @@ impl<'tc> ResolutionPass<'tc> {
     ) -> SemanticResult<TyId> {
         // First, make the params
         let params = self.try_or_add_error(self.resolve_params_from_ast_params(&node.params, true));
-        self.scoping().enter_ty_fn_ty(node, |ty_fn_id| {
-            self.stores().ty().modify(ty_fn_id, |ty| {
-                let ty_fn = ty_as_variant!(self, ty, Fn);
-                // Add the params if they exist
-                if let Some(params) = params {
-                    ty_fn.params = params;
-                }
+        self.scoping().enter_ty_fn_ty(node, |mut ty_fn| {
+            // Add the params if they exist
+            if let Some(params) = params {
+                ty_fn.params = params;
+            }
 
-                // Make the return type if it exists
-                let return_ty =
-                    self.try_or_add_error(self.make_ty_from_ast_ty(node.return_ty.ast_ref()));
-                if let Some(return_ty) = return_ty {
-                    ty_fn.return_ty = return_ty;
-                }
+            // Make the return type if it exists
+            let return_ty =
+                self.try_or_add_error(self.make_ty_from_ast_ty(node.return_ty.ast_ref()));
+            if let Some(return_ty) = return_ty {
+                ty_fn.return_ty = return_ty;
+            }
 
-                match (params, return_ty) {
-                    (Some(_params), Some(_return_ty)) => Ok(ty_fn_id),
-                    _ => Err(SemanticError::Signal),
-                }
-            })
+            match (params, return_ty) {
+                (Some(_params), Some(_return_ty)) => Ok(self.new_ty(ty_fn)),
+                _ => Err(SemanticError::Signal),
+            }
         })
     }
 
@@ -336,26 +330,23 @@ impl<'tc> ResolutionPass<'tc> {
     ) -> SemanticResult<TyId> {
         // First, make the params
         let params = self.try_or_add_error(self.make_params_from_ast_ty_args(&node.params));
-        self.scoping().enter_fn_ty(node, |fn_ty_id| {
-            self.stores().ty().modify(fn_ty_id, |ty| {
-                let fn_ty = ty_as_variant!(self, ty, Fn);
-                // Add the params if they exist
-                if let Some(params) = params {
-                    fn_ty.params = params;
-                }
+        self.scoping().enter_fn_ty(node, |mut fn_ty| {
+            // Add the params if they exist
+            if let Some(params) = params {
+                fn_ty.params = params;
+            }
 
-                // Make the return type if it exists
-                let return_ty =
-                    self.try_or_add_error(self.make_ty_from_ast_ty(node.return_ty.ast_ref()));
-                if let Some(return_ty) = return_ty {
-                    fn_ty.return_ty = return_ty;
-                }
+            // Make the return type if it exists
+            let return_ty =
+                self.try_or_add_error(self.make_ty_from_ast_ty(node.return_ty.ast_ref()));
+            if let Some(return_ty) = return_ty {
+                fn_ty.return_ty = return_ty;
+            }
 
-                match (params, return_ty) {
-                    (Some(_params), Some(_return_ty)) => Ok(fn_ty_id),
-                    _ => Err(SemanticError::Signal),
-                }
-            })
+            match (params, return_ty) {
+                (Some(_params), Some(_return_ty)) => Ok(self.new_ty(fn_ty)),
+                _ => Err(SemanticError::Signal),
+            }
         })
     }
 

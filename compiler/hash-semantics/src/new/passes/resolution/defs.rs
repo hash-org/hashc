@@ -5,7 +5,7 @@
 
 use hash_ast::ast::{self, AstNodeRef};
 use hash_tir::new::{
-    environment::env::AccessToEnv,
+    environment::{context::ScopeKind, env::AccessToEnv},
     mods::{ModDefId, ModMemberValue},
 };
 use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
@@ -86,16 +86,31 @@ impl<'tc> ResolutionPass<'tc> {
                     {
                         found_error = true;
                     }
-                    for variant in enum_def.entries.ast_ref_iter() {
-                        // Variant fields
-                        if self
-                            .try_or_add_error(
-                                self.resolve_params_from_ast_params(&variant.fields, false),
-                            )
-                            .is_none()
-                        {
-                            found_error = true;
-                        }
+
+                    // Enum variants
+                    let data_def_ctors =
+                        self.stores().data_def().map_fast(data_def_id, |def| match def.ctors {
+                            hash_tir::new::data::DataDefCtors::Defined(id) => id,
+                            hash_tir::new::data::DataDefCtors::Primitive(_) => unreachable!() // No primitive user-defined enums
+                        });
+                    assert!(data_def_ctors.len() == enum_def.entries.len());
+
+                    for (i, variant) in enum_def.entries.ast_ref_iter().enumerate() {
+                        self.scoping().enter_scope(
+                            ScopeKind::Ctor((data_def_ctors, i)),
+                            ContextKind::Environment,
+                            || {
+                                // Variant fields
+                                if self
+                                    .try_or_add_error(
+                                        self.resolve_params_from_ast_params(&variant.fields, false),
+                                    )
+                                    .is_none()
+                                {
+                                    found_error = true;
+                                }
+                            },
+                        )
                     }
                 }
                 _ => unreachable!(),
@@ -119,6 +134,8 @@ impl<'tc> ResolutionPass<'tc> {
         member_exprs: impl Iterator<Item = ast::AstNodeRef<'a, ast::Expr>>,
     ) -> SemanticResult<()> {
         self.scoping().enter_scope(mod_def_id.into(), ContextKind::Environment, || {
+            self.scoping().add_mod_members(mod_def_id);
+
             let mut found_error = false;
             let members = self.stores().mod_def().map_fast(mod_def_id, |def| def.members);
 

@@ -3,23 +3,27 @@ use std::{collections::HashMap, fmt};
 
 use hash_ast::ast;
 use hash_source::{identifier::Identifier, location::Span};
-use hash_tir::new::{
-    data::DataDefId,
-    environment::{
-        context::ScopeKind,
-        env::{AccessToEnv, Env},
+use hash_tir::{
+    new::{
+        data::DataDefId,
+        environment::{
+            context::ScopeKind,
+            env::{AccessToEnv, Env},
+        },
+        fns::FnTy,
+        locations::LocationTarget,
+        mods::ModDefId,
+        params::ParamId,
+        scopes::{StackId, StackIndices, StackMemberId},
+        symbols::Symbol,
+        tuples::TupleTy,
+        utils::{common::CommonUtils, AccessToUtils},
     },
-    fns::FnDefId,
-    locations::LocationTarget,
-    mods::ModDefId,
-    scopes::{StackId, StackIndices, StackMemberId},
-    symbols::Symbol,
-    tys::TyId,
-    utils::{common::CommonUtils, AccessToUtils},
+    ty_as_variant,
 };
 use hash_utils::{
     state::HeavyState,
-    store::{CloneStore, Store},
+    store::{CloneStore, SequenceStore, SequenceStoreKey, Store},
 };
 
 use super::paths::NonTerminalResolvedPathComponent;
@@ -136,32 +140,16 @@ impl<'tc> Scoping<'tc> {
     }
 
     /// Run a function in a new scope, and then exit the scope.
-    ///
-    /// In addition to adding the appropriate bindings, this also adds the
-    /// appropriate names to `bindings_by_name`.
     pub(super) fn enter_scope<T>(
         &self,
         kind: ScopeKind,
         context_kind: ContextKind,
         f: impl FnOnce() -> T,
     ) -> T {
-        self.context_utils().enter_scope(kind, || {
+        self.context().enter_scope(kind, || {
             self.bindings_by_name.enter(
                 |b| {
-                    // Populate the map with all the bindings in the current
-                    // scope. Any duplicate names will be shadowed by the last entry.
-                    let mut map = HashMap::new();
-                    self.context().for_bindings_of_scope(
-                        self.context().get_current_scope_index(),
-                        |binding| {
-                            let symbol_data = self.stores().symbol().get(binding.name);
-                            if let Some(name) = symbol_data.name {
-                                map.insert(name, binding.name);
-                            }
-                        },
-                    );
-
-                    b.push((context_kind, map));
+                    b.push((context_kind, HashMap::new()));
                 },
                 |b| {
                     // Exit the scope on the context exit.
@@ -174,21 +162,22 @@ impl<'tc> Scoping<'tc> {
 
     /// Add a new scope
     pub(super) fn add_scope(&self, kind: ScopeKind, context_kind: ContextKind) {
-        self.context_utils().add_scope(kind);
-
+        self.context().add_scope(kind);
         let mut b = self.bindings_by_name.get_mut();
+        // Initialise the name map. Any duplicate names will be shadowed by the last
+        // entry.
+        b.push((context_kind, HashMap::new()));
+    }
 
-        // Populate the map with all the bindings in the current
-        // scope. Any duplicate names will be shadowed by the last entry.
-        let mut map = HashMap::new();
-        self.context().for_bindings_of_scope(self.context().get_current_scope_index(), |binding| {
-            let symbol_data = self.stores().symbol().get(binding.name);
-            if let Some(name) = symbol_data.name {
-                map.insert(name, binding.name);
-            }
-        });
+    /// Add a parameter to the current scope, also adding it to the
+    /// `bindings_by_name` map.
+    pub(super) fn add_param_binding(&self, param_id: ParamId) {
+        // Get the data of the parameter.
+        let param_name = self.stores().params().get_element(param_id).name;
 
-        b.push((context_kind, map));
+        // Add the binding to the current scope.
+        self.context_utils().add_param_binding(param_id);
+        self.add_named_binding(param_name);
     }
 
     /// Add a stack member to the current scope, also adding it to the
@@ -197,16 +186,39 @@ impl<'tc> Scoping<'tc> {
         // Get the data of the member.
         let member_name =
             self.stores().stack().map_fast(member_id.0, |stack| stack.members[member_id.1].name);
-        let member_name_data = self.stores().symbol().get(member_name);
-
         // Add the binding to the current scope.
         self.context_utils().add_stack_binding(member_id);
+        self.add_named_binding(member_name);
+    }
+
+    /// Add the data parameters constructors of the definition to the current
+    /// scope, also adding them to the `bindings_by_name` map.
+    pub(super) fn add_data_params_and_ctors(&self, data_def_id: DataDefId) {
+        let params = self.stores().data_def().map_fast(data_def_id, |def| def.params);
+        for i in params.to_index_range() {
+            self.add_param_binding((params, i));
+        }
+        self.context_utils()
+            .add_data_ctors(data_def_id, |binding| self.add_named_binding(binding.name));
+    }
+
+    /// Add the module members of the definition to the current scope,
+    /// also adding them to the `bindings_by_name` map.
+    pub(super) fn add_mod_members(&self, mod_def_id: ModDefId) {
+        self.context_utils()
+            .add_mod_members(mod_def_id, |binding| self.add_named_binding(binding.name));
+    }
+
+    /// Add a named binding to the current scope, by recording its identifier
+    /// name.
+    fn add_named_binding(&self, name: Symbol) {
+        let name_data = self.stores().symbol().get(name);
 
         // Add the binding to the `bindings_by_name` map.
-        if let Some(name) = member_name_data.name {
+        if let Some(ident_name) = name_data.name {
             match self.bindings_by_name.get_mut().last_mut() {
                 Some(bindings) => {
-                    bindings.1.insert(name, member_name);
+                    bindings.1.insert(ident_name, name);
                 }
                 None => panic!("No bindings_by_name map for current scope!"),
             }
@@ -283,66 +295,6 @@ impl<'tc> Scoping<'tc> {
         }
     }
 
-    /// Enter the scope of a module.
-    pub(super) fn _enter_module<T>(
-        &self,
-        node: ast::AstNodeRef<ast::Module>,
-        f: impl FnOnce(ModDefId) -> T,
-    ) -> T {
-        let mod_def_id = self.ast_info().mod_defs().get_data_by_node(node.id()).unwrap();
-        self.enter_scope(ScopeKind::Mod(mod_def_id), ContextKind::Environment, || f(mod_def_id))
-    }
-
-    /// Enter the scope of a module block.
-    pub(super) fn _enter_mod_def<T>(
-        &self,
-        node: ast::AstNodeRef<ast::ModDef>,
-        f: impl FnOnce(ModDefId) -> T,
-    ) -> T {
-        let mod_def_id = self.ast_info().mod_defs().get_data_by_node(node.id()).unwrap();
-        self.enter_scope(ScopeKind::Mod(mod_def_id), ContextKind::Environment, || f(mod_def_id))
-    }
-
-    /// Enter the scope of a function definition.
-    pub(super) fn _enter_struct_def<T>(
-        &self,
-        node: ast::AstNodeRef<ast::StructDef>,
-        f: impl FnOnce(DataDefId) -> T,
-    ) -> T {
-        let data_def_id = self.ast_info().data_defs().get_data_by_node(node.id()).unwrap();
-        self.enter_scope(ScopeKind::Data(data_def_id), ContextKind::Environment, || f(data_def_id))
-    }
-
-    /// Enter the scope of an enum definition.
-    pub(super) fn _enter_enum_def<T>(
-        &self,
-        node: ast::AstNodeRef<ast::EnumDef>,
-        f: impl FnOnce(DataDefId) -> T,
-    ) -> T {
-        let data_def_id = self.ast_info().data_defs().get_data_by_node(node.id()).unwrap();
-        self.enter_scope(ScopeKind::Data(data_def_id), ContextKind::Environment, || f(data_def_id))
-    }
-
-    /// Enter the scope of a function definition.
-    pub(super) fn _enter_fn_def<T>(
-        &self,
-        node: ast::AstNodeRef<ast::FnDef>,
-        f: impl FnOnce(FnDefId) -> T,
-    ) -> T {
-        let fn_def_id = self.ast_info().fn_defs().get_data_by_node(node.id()).unwrap();
-        self.enter_scope(ScopeKind::Fn(fn_def_id), ContextKind::Environment, || f(fn_def_id))
-    }
-
-    /// Enter the scope of a type function definition.
-    pub(super) fn _enter_ty_fn_def<T>(
-        &self,
-        node: ast::AstNodeRef<ast::TyFnDef>,
-        f: impl FnOnce(FnDefId) -> T,
-    ) -> T {
-        let fn_def_id = self.ast_info().fn_defs().get_data_by_node(node.id()).unwrap();
-        self.enter_scope(ScopeKind::Fn(fn_def_id), ContextKind::Environment, || f(fn_def_id))
-    }
-
     /// Enter the scope of a body block.
     ///
     /// If called on a non-stack body block, it will return none.
@@ -360,20 +312,33 @@ impl<'tc> Scoping<'tc> {
     pub(super) fn enter_ty_fn_ty<T>(
         &self,
         node: ast::AstNodeRef<ast::TyFn>,
-        f: impl FnOnce(TyId) -> T,
+        f: impl FnOnce(FnTy) -> T,
     ) -> T {
         let fn_ty_id = self.ast_info().tys().get_data_by_node(node.id()).unwrap();
-        self.enter_scope(ScopeKind::FnTy(fn_ty_id), ContextKind::Environment, || f(fn_ty_id))
+        let fn_ty = ty_as_variant!(self, self.get_ty(fn_ty_id), Fn);
+        self.enter_scope(ScopeKind::FnTy(fn_ty), ContextKind::Environment, || f(fn_ty))
     }
 
     /// Enter the scope of a function type
     pub(super) fn enter_fn_ty<T>(
         &self,
         node: ast::AstNodeRef<ast::FnTy>,
-        f: impl FnOnce(TyId) -> T,
+        f: impl FnOnce(FnTy) -> T,
     ) -> T {
         let fn_ty_id = self.ast_info().tys().get_data_by_node(node.id()).unwrap();
-        self.enter_scope(ScopeKind::FnTy(fn_ty_id), ContextKind::Environment, || f(fn_ty_id))
+        let fn_ty = ty_as_variant!(self, self.get_ty(fn_ty_id), Fn);
+        self.enter_scope(ScopeKind::FnTy(fn_ty), ContextKind::Environment, || f(fn_ty))
+    }
+
+    /// Enter the scope of a tuple type
+    pub(super) fn enter_tuple_ty<T>(
+        &self,
+        node: ast::AstNodeRef<ast::TupleTy>,
+        f: impl FnOnce(TupleTy) -> T,
+    ) -> T {
+        let tuple_ty_id = self.ast_info().tys().get_data_by_node(node.id()).unwrap();
+        let tuple_ty = ty_as_variant!(self, self.get_ty(tuple_ty_id), Tuple);
+        self.enter_scope(ScopeKind::TupleTy(tuple_ty), ContextKind::Environment, || f(tuple_ty))
     }
 
     /// Register a declaration, which will add it to the current stack scope.
