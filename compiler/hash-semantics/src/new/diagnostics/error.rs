@@ -74,6 +74,7 @@ impl<'tc> WithTcEnv<'tc, &SemanticError> {
     /// Format the error nicely and add it to the given reporter.
     fn add_to_reporter(&self, reporter: &mut Reporter) {
         let locations = self.tc_env().stores().location();
+        // @@ErrorReporting: improve error messages and locations
         match &self.value {
             SemanticError::Signal => {}
             SemanticError::NeedMoreTypeAnnotationsToInfer { term } => {
