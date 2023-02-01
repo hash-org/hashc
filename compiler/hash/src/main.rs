@@ -86,7 +86,7 @@ fn main() {
 
     match entry_point {
         Some(path) => {
-            compiler.run_on_filename(path, ModuleKind::Normal, compiler_state);
+            compiler.run_on_filename(path, ModuleKind::EntryPoint, compiler_state);
         }
         None => {
             hash_interactive::init(compiler, compiler_state);
