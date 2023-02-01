@@ -20,10 +20,10 @@ use hash_target::{
     size::Size,
 };
 use hash_utils::{
+    index_vec::IndexVec,
     new_store_key,
     store::{CloneStore, DefaultStore, FxHashMap, Store},
 };
-use index_vec::IndexVec;
 
 // Define a new key to represent a particular layout.
 new_store_key!(pub LayoutId);

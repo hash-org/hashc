@@ -16,7 +16,7 @@ use super::{
 };
 use crate::context::CodeGenCtx;
 
-impl<'b> LayoutMethods<'b> for CodeGenCtx<'b> {
+impl<'b> LayoutMethods<'b> for CodeGenCtx<'b, '_> {
     fn backend_field_index(&self, info: TyInfo, index: usize) -> u64 {
         self.map_layout(info.layout, |layout| layout.llvm_field_index(self, info.ty, index))
     }
@@ -35,13 +35,13 @@ impl<'b> LayoutMethods<'b> for CodeGenCtx<'b> {
     }
 }
 
-impl HasDataLayout for CodeGenCtx<'_> {
+impl HasDataLayout for CodeGenCtx<'_, '_> {
     fn data_layout(&self) -> &TargetDataLayout {
         &self.settings.codegen_settings.data_layout
     }
 }
 
-impl<'b> LayoutMethods<'b> for Builder<'b> {
+impl<'b, 'm> LayoutMethods<'b> for Builder<'_, 'b, 'm> {
     fn backend_field_index(&self, info: TyInfo, index: usize) -> u64 {
         self.ctx.backend_field_index(info, index)
     }
@@ -60,15 +60,15 @@ impl<'b> LayoutMethods<'b> for Builder<'b> {
     }
 }
 
-impl HasDataLayout for Builder<'_> {
+impl HasDataLayout for Builder<'_, '_, '_> {
     fn data_layout(&self) -> &TargetDataLayout {
         self.ctx.data_layout()
     }
 }
 
-pub trait ExtendedLayoutMethods<'b> {
+pub trait ExtendedLayoutMethods<'m> {
     /// Compute the field index from the backend specific type.
-    fn llvm_field_index(&self, cx: &CodeGenCtx<'b>, ty: IrTyId, index: usize) -> u64;
+    fn llvm_field_index(&self, cx: &CodeGenCtx<'_, 'm>, ty: IrTyId, index: usize) -> u64;
 
     /// Check if this is type is represented as an immediate value.
     fn is_llvm_immediate(&self) -> bool;
@@ -78,7 +78,7 @@ pub trait ExtendedLayoutMethods<'b> {
     fn is_llvm_scalar_pair(&self) -> bool;
 }
 
-impl<'b> ExtendedLayoutMethods<'b> for &Layout {
+impl<'m> ExtendedLayoutMethods<'m> for &Layout {
     fn is_llvm_immediate(&self) -> bool {
         match self.abi {
             AbiRepresentation::Scalar(_) | AbiRepresentation::Vector { .. } => true,
@@ -91,7 +91,7 @@ impl<'b> ExtendedLayoutMethods<'b> for &Layout {
         matches!(self.abi, AbiRepresentation::Pair(..))
     }
 
-    fn llvm_field_index(&self, ctx: &CodeGenCtx<'b>, ty: IrTyId, index: usize) -> u64 {
+    fn llvm_field_index(&self, ctx: &CodeGenCtx<'_, 'm>, ty: IrTyId, index: usize) -> u64 {
         // Field index of scalar and scalar pairs is not applicable since
         // it is handled else where.
         match self.abi {

@@ -7,7 +7,7 @@ use hash_ir::ir::{
     BasicBlock, BasicBlockData, Place, RValue, Statement, StatementKind, Terminator, TerminatorKind,
 };
 use hash_source::location::Span;
-use index_vec::IndexVec;
+use hash_utils::index_vec::IndexVec;
 
 pub struct ControlFlowGraph {
     /// The basic blocks that this control flow graph contains.

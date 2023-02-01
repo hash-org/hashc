@@ -21,7 +21,7 @@ use smallvec::SmallVec;
 use super::{ty::ExtendedTyBuilderMethods, Builder};
 use crate::{context::CodeGenCtx, misc::AttributeKind};
 
-impl<'b> AbiBuilderMethods<'b> for Builder<'b> {
+impl<'b, 'm> AbiBuilderMethods<'b> for Builder<'_, 'b, 'm> {
     fn get_param(&mut self, index: usize) -> Self::Value {
         let func = self.basic_block().get_parent().unwrap();
         func.get_nth_param(index as u32).unwrap().into()
@@ -46,34 +46,34 @@ impl<'b> AbiBuilderMethods<'b> for Builder<'b> {
     }
 }
 
-pub trait ExtendedArgAbiMethods<'b> {
+pub trait ExtendedArgAbiMethods<'m> {
     /// Get the type of the memory location that is backing
     /// the given [ArgAbi].
-    fn get_memory_ty(&self, ctx: &CodeGenCtx<'b>) -> AnyTypeEnum<'b>;
+    fn get_memory_ty(&self, ctx: &CodeGenCtx<'_, 'm>) -> AnyTypeEnum<'m>;
 
     /// Store the given [AnyValueEnum] into the given [PlaceRef].
     fn store(
         &self,
-        builder: &mut Builder<'b>,
-        value: AnyValueEnum<'b>,
-        destination: PlaceRef<AnyValueEnum<'b>>,
+        builder: &mut Builder<'_, '_, 'm>,
+        value: AnyValueEnum<'m>,
+        destination: PlaceRef<AnyValueEnum<'m>>,
     );
 
     /// Store the given function argument into the given [PlaceRef].
     fn store_fn_arg(
         &self,
-        builder: &mut Builder<'b>,
+        builder: &mut Builder<'_, '_, 'm>,
         index: &mut usize,
-        destination: PlaceRef<AnyValueEnum<'b>>,
+        destination: PlaceRef<AnyValueEnum<'m>>,
     );
 }
 
-impl<'b> ExtendedArgAbiMethods<'b> for ArgAbi {
+impl<'m> ExtendedArgAbiMethods<'m> for ArgAbi {
     fn store(
         &self,
-        builder: &mut Builder<'b>,
-        value: AnyValueEnum<'b>,
-        destination: PlaceRef<AnyValueEnum<'b>>,
+        builder: &mut Builder<'_, '_, 'm>,
+        value: AnyValueEnum<'m>,
+        destination: PlaceRef<AnyValueEnum<'m>>,
     ) {
         // we don't need to do anything if the value is ignored.
         if self.is_ignored() {
@@ -91,9 +91,9 @@ impl<'b> ExtendedArgAbiMethods<'b> for ArgAbi {
 
     fn store_fn_arg(
         &self,
-        builder: &mut Builder<'b>,
+        builder: &mut Builder<'_, '_, 'm>,
         index: &mut usize,
-        destination: PlaceRef<AnyValueEnum<'b>>,
+        destination: PlaceRef<AnyValueEnum<'m>>,
     ) {
         // get the next argument at the index, and increment the
         // index counter for the next argument.
@@ -115,15 +115,15 @@ impl<'b> ExtendedArgAbiMethods<'b> for ArgAbi {
         }
     }
 
-    fn get_memory_ty(&self, ctx: &CodeGenCtx<'b>) -> AnyTypeEnum<'b> {
+    fn get_memory_ty(&self, ctx: &CodeGenCtx<'_, 'm>) -> AnyTypeEnum<'m> {
         self.info.llvm_ty(ctx)
     }
 }
 
-pub trait ExtendedArgAttributeMethods<'b> {
+pub trait ExtendedArgAttributeMethods<'m> {
     /// Get a list of attributes that are currently set on the
     /// [ArhAttributes].
-    fn get_attributes(&self, ctx: &CodeGenCtx<'b>) -> SmallVec<[Attribute; 4]>;
+    fn get_attributes(&self, ctx: &CodeGenCtx<'_, 'm>) -> SmallVec<[Attribute; 4]>;
 
     /// Apply the given [ArgAttributes] to the the [FunctionValue]
     /// with the specified [AttributeLoc] which indicates whether
@@ -131,9 +131,9 @@ pub trait ExtendedArgAttributeMethods<'b> {
     /// function definition itself.
     fn apply_attributes_to_fn(
         &self,
-        ctx: &CodeGenCtx<'b>,
+        ctx: &CodeGenCtx<'_, 'm>,
         index: AttributeLoc,
-        value: FunctionValue<'b>,
+        value: FunctionValue<'m>,
     );
 
     /// Apply the given [ArgAttributes] to the the [CallSiteValue]
@@ -142,9 +142,9 @@ pub trait ExtendedArgAttributeMethods<'b> {
     /// function call itself.
     fn apply_attributes_to_call_site(
         &self,
-        ctx: &CodeGenCtx<'b>,
+        ctx: &CodeGenCtx<'_, 'm>,
         index: AttributeLoc,
-        value: CallSiteValue<'b>,
+        value: CallSiteValue<'m>,
     );
 }
 
@@ -162,8 +162,8 @@ const ATTRIBUTE_MAP: [(ArgAttributeFlag, AttributeKind); 5] = [
     (ArgAttributeFlag::READ_ONLY, AttributeKind::ReadOnly),
 ];
 
-impl<'b> ExtendedArgAttributeMethods<'b> for ArgAttributes {
-    fn get_attributes(&self, ctx: &CodeGenCtx<'b>) -> SmallVec<[Attribute; 4]> {
+impl<'m> ExtendedArgAttributeMethods<'m> for ArgAttributes {
+    fn get_attributes(&self, ctx: &CodeGenCtx<'_, 'm>) -> SmallVec<[Attribute; 4]> {
         let mut attributes = SmallVec::new();
 
         // Always apply the ABI specific attributes.
@@ -219,9 +219,9 @@ impl<'b> ExtendedArgAttributeMethods<'b> for ArgAttributes {
 
     fn apply_attributes_to_fn(
         &self,
-        ctx: &CodeGenCtx<'b>,
+        ctx: &CodeGenCtx<'_, 'm>,
         location: AttributeLoc,
-        func: FunctionValue<'b>,
+        func: FunctionValue<'m>,
     ) {
         let attributes = self.get_attributes(ctx);
 
@@ -232,33 +232,37 @@ impl<'b> ExtendedArgAttributeMethods<'b> for ArgAttributes {
 
     fn apply_attributes_to_call_site(
         &self,
-        ctx: &CodeGenCtx<'b>,
+        ctx: &CodeGenCtx<'_, 'm>,
         location: AttributeLoc,
-        call_site: CallSiteValue<'b>,
+        call_site: CallSiteValue<'m>,
     ) {
         let attributes = self.get_attributes(ctx);
         apply_attributes_call_site(location, &attributes, call_site)
     }
 }
 
-pub trait ExtendedFnAbiMethods<'b> {
+pub trait ExtendedFnAbiMethods<'b, 'm> {
     /// Produce an LLVM type for the given [FnAbi].
-    fn llvm_ty(&self, ctx: &CodeGenCtx<'b>) -> AnyTypeEnum<'b>;
+    fn llvm_ty(&self, ctx: &CodeGenCtx<'b, 'm>) -> AnyTypeEnum<'m>;
 
     /// Produce an Pointer to the type of this [FnAbi].
-    fn ptr_to_llvm_ty(&self, ctx: &CodeGenCtx<'b>) -> PointerType<'b> {
+    fn ptr_to_llvm_ty(&self, ctx: &CodeGenCtx<'b, 'm>) -> PointerType<'m> {
         ctx.type_ptr_to(self.llvm_ty(ctx)).into_pointer_type()
     }
 
     /// Apply the derived ABI attributes to the given [FunctionValue].
-    fn apply_attributes_to_fn(&self, ctx: &CodeGenCtx<'b>, func: FunctionValue<'b>);
+    fn apply_attributes_to_fn(&self, ctx: &CodeGenCtx<'b, 'm>, func: FunctionValue<'m>);
 
     /// Apply the derived ABI attributes to the given [CallSiteValue].
-    fn apply_attributes_call_site(&self, builder: &mut Builder<'b>, call_site: CallSiteValue<'b>);
+    fn apply_attributes_call_site(
+        &self,
+        builder: &mut Builder<'_, 'b, 'm>,
+        call_site: CallSiteValue<'m>,
+    );
 }
 
-impl<'b> ExtendedFnAbiMethods<'b> for FnAbi {
-    fn llvm_ty(&self, ctx: &CodeGenCtx<'b>) -> AnyTypeEnum<'b> {
+impl<'b, 'm> ExtendedFnAbiMethods<'b, 'm> for FnAbi {
+    fn llvm_ty(&self, ctx: &CodeGenCtx<'b, 'm>) -> AnyTypeEnum<'m> {
         let arg_count = self.args.len() + if self.ret_abi.mode.is_indirect() { 1 } else { 0 };
         let mut arg_tys = Vec::with_capacity(arg_count);
 
@@ -295,7 +299,7 @@ impl<'b> ExtendedFnAbiMethods<'b> for FnAbi {
         ctx.type_function(&arg_tys, return_ty)
     }
 
-    fn apply_attributes_to_fn(&self, ctx: &CodeGenCtx<'b>, func: FunctionValue<'b>) {
+    fn apply_attributes_to_fn(&self, ctx: &CodeGenCtx<'_, 'm>, func: FunctionValue<'m>) {
         let mut fn_attributes = SmallVec::<[Attribute; 1]>::new();
 
         // If the return type is un-inhabited then we can mark the
@@ -360,7 +364,11 @@ impl<'b> ExtendedFnAbiMethods<'b> for FnAbi {
         }
     }
 
-    fn apply_attributes_call_site(&self, builder: &mut Builder<'b>, call_site: CallSiteValue<'b>) {
+    fn apply_attributes_call_site(
+        &self,
+        builder: &mut Builder<'_, '_, 'm>,
+        call_site: CallSiteValue<'m>,
+    ) {
         let mut fn_attributes = SmallVec::<[Attribute; 1]>::new();
 
         // If the return type is un-inhabited then we can mark the
@@ -375,7 +383,7 @@ impl<'b> ExtendedFnAbiMethods<'b> for FnAbi {
 
         // Used to apply attributes that are stored on ArgAbi, returning the
         // current index at which the value was applied to.
-        let mut apply_attributes_to_arg = |ctx: &CodeGenCtx<'b>, attrs: &ArgAttributes| {
+        let mut apply_attributes_to_arg = |ctx: &CodeGenCtx<'_, 'm>, attrs: &ArgAttributes| {
             attrs.apply_attributes_to_call_site(ctx, AttributeLoc::Param(index), call_site);
             index += 1;
             index - 1

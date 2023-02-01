@@ -6,7 +6,7 @@ use hash_ir::ir::{Statement, StatementKind};
 use super::{locals::LocalRef, FnBuilder};
 use crate::traits::builder::BlockBuilderMethods;
 
-impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
+impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
     /// Lower a Hash IR [Statement] into a target backend code.
     pub fn codegen_statement(&mut self, builder: &mut Builder, statement: &Statement) {
         // @@DebugInfo: deal with debug information here for the location

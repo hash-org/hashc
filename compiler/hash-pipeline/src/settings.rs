@@ -1,18 +1,36 @@
 //! Hash Compiler pipeline implementation. This file contains various structures
 //! and utilities representing settings and configurations that can be applied
 //! to the Compiler pipeline.
-use std::{fmt::Display, str::FromStr};
+use std::{
+    env::{self, temp_dir},
+    fmt::Display,
+    path::PathBuf,
+    str::FromStr,
+};
 
+use hash_source::constant::CONSTANT_MAP;
 use hash_target::{data_layout::TargetDataLayout, TargetInfo};
 
-use crate::args::ArgumentError;
+use crate::{error::PipelineError, fs::resolve_path};
 
 /// Various settings that are present on the compiler pipeline when initially
 /// launching.
 #[derive(Debug, Clone)]
 pub struct CompilerSettings {
     /// An optionally specified entry point for the compiler.
-    pub entry_point: Option<String>,
+    ///
+    /// N.B. This path is the one that is specified via command-line arguments,
+    /// it is not resolved and it is not guaranteed to exist. The resolved
+    /// path can be accessed via [`CompilerSettings::entry_point`] API.
+    pub(crate) entry_point: Option<PathBuf>,
+
+    /// An optionally specified output directory for compiler generated
+    /// information and artifacts.
+    ///
+    /// N.B. This path is the one that is specified via command-line arguments,
+    /// it is not resolved and it is not guaranteed to exist. The resolved
+    /// path can be accessed via [`CompilerSettings::output_directory`] API.
+    pub(crate) output_directory: Option<PathBuf>,
 
     /// Whether debugging log statements are enabled.
     pub debug: bool,
@@ -64,10 +82,70 @@ impl CompilerSettings {
     }
 
     /// Get the entry point filename from the [CompilerSettings]. If
-    /// none was provided, it is assumed that this is then an interactive
+    /// [`None`] was provided, it is assumed that this is then an interactive
     /// session.
-    pub fn entry_point(&self) -> Option<String> {
-        self.entry_point.clone()
+    pub fn entry_point(&self) -> Option<Result<PathBuf, PipelineError>> {
+        self.entry_point.as_ref().map(|path| {
+            let current_dir = env::current_dir().unwrap();
+            let path = CONSTANT_MAP.create_string(path.to_str().unwrap());
+            resolve_path(path, current_dir).map_err(PipelineError::ImportPath)
+        })
+    }
+
+    /// Get the output directory from the [CompilerSettings]. The output path
+    /// is decided in the following way:
+    ///
+    /// 1. If the user has specified an output directory, use that.
+    ///
+    /// 2. If the user has specified an entry point, use the directory of the
+    ///    entry point with an appended `out` directory.
+    ///
+    /// 3. If the user has not specified an entry point, use the operating
+    /// system    temporary directory with an appended `hash-#session-id`
+    /// directory.
+    pub fn output_directory(&self) -> Result<PathBuf, PipelineError> {
+        // For the `temp` directory case, we want to create a folder within the
+        // temporary directory that is unique to this session.
+        let temp_dir = {
+            let mut temp_dir = temp_dir();
+            temp_dir.push(format!("hash-{}", std::process::id()));
+            temp_dir
+        };
+
+        // We want to find the first suitable candidate for a valid output folder, these
+        // items are specified in order of priority.
+        let output_candidates = [&self.output_directory, &self.entry_point, &Some(temp_dir)];
+        let mut output_directory = None;
+
+        if let Some(candidate) = output_candidates.iter().copied().flatten().next() {
+            let mut candidate = candidate.clone();
+
+            // If the candidate is a file, then we want to get the parent directory
+            // of the file.
+            if candidate.is_file() {
+                candidate.pop();
+                candidate.push("target");
+            }
+
+            // We also push the "optimisation_level" as the final directory
+            // in order to separate the output of different optimisation levels.
+            candidate.push(self.optimisation_level.as_str());
+
+            // If the candidate doesn't exist or isn't a directory, then we want to
+            // create the full directory path so that the compiler can write to it
+            // later during compilation.
+            if !candidate.exists() || !candidate.is_dir() {
+                std::fs::create_dir_all(&candidate).map_err(|error| {
+                    PipelineError::ResourceCreation { path: candidate.clone(), error }
+                })?;
+            }
+
+            output_directory = Some(candidate);
+        }
+
+        // It should not be possible to get here without at least one
+        // candidate for a valid output directory to be chosen.
+        Ok(output_directory.unwrap())
     }
 
     /// Specify whether the compiler pipeline should skip running
@@ -114,6 +192,7 @@ impl Default for CompilerSettings {
         Self {
             debug: false,
             entry_point: None,
+            output_directory: None,
             output_stage_results: false,
             output_metrics: false,
             skip_prelude: false,
@@ -139,6 +218,13 @@ pub enum OptimisationLevel {
     /// Optimise the given program as much as possible, essentially
     /// applying all optimisation.
     Release,
+
+    /// Optimise for size but not aggressively as
+    /// [`OptimisationLevel::MinSize`].
+    Size,
+
+    /// Optimise the given program for size rather than speed.
+    MinSize,
 }
 
 impl OptimisationLevel {
@@ -147,23 +233,34 @@ impl OptimisationLevel {
         matches!(self, Self::Release)
     }
 
+    /// Get the level in optimisation of size.
+    pub fn size_level(&self) -> usize {
+        match self {
+            Self::Size => 1,
+            Self::MinSize => 2,
+            _ => 0,
+        }
+    }
+
     /// Get the optimisation level as a string.
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Debug => "debug",
             Self::Release => "release",
+            Self::Size => "size",
+            Self::MinSize => "min-size",
         }
     }
 }
 
 impl FromStr for OptimisationLevel {
-    type Err = ArgumentError;
+    type Err = PipelineError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "debug" => Ok(Self::Debug),
             "release" => Ok(Self::Release),
-            _ => Err(ArgumentError::InvalidValue("optimisation-level".to_string(), s.to_string())),
+            _ => Err(PipelineError::InvalidValue("optimisation-level".to_string(), s.to_string())),
         }
     }
 }
@@ -244,6 +341,11 @@ pub struct CodeGenSettings {
     /// Hash VM which may mean that the code generation backend for that one
     /// might differ from the overall code generation backend.
     pub backend: CodeGenBackend,
+
+    /// An optionally specified path to a file that should be used to
+    /// write the executable to. If the path is [`None`], the executable
+    /// path will be derived from the workspace.
+    pub output_path: Option<PathBuf>,
 }
 
 /// All of the current possible code generation backends that

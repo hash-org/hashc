@@ -380,7 +380,6 @@ dependencies = [
  "hash-source",
  "hash-target",
  "hash-utils",
- "index_vec",
 ]
 
 [[package]]
@@ -440,7 +439,6 @@ dependencies = [
  "hash-source",
  "hash-target",
  "hash-utils",
- "index_vec",
  "rayon",
 ]
 
@@ -458,7 +456,6 @@ dependencies = [
  "hash-source",
  "hash-target",
  "hash-utils",
- "index_vec",
  "rayon",
 ]
 
@@ -533,7 +530,6 @@ dependencies = [
  "hash-tir",
  "hash-utils",
  "html-escape",
- "index_vec",
  "smallvec",
 ]
 
@@ -545,7 +541,6 @@ dependencies = [
  "hash-ir",
  "hash-target",
  "hash-utils",
- "index_vec",
 ]
 
 [[package]]
@@ -575,7 +570,6 @@ dependencies = [
  "hash-tir",
  "hash-tree-def",
  "hash-utils",
- "index_vec",
  "indexmap",
  "num-traits",
  "rayon",
@@ -695,7 +689,6 @@ dependencies = [
  "hash-alloc",
  "hash-target",
  "hash-utils",
- "index_vec",
  "lazy_static",
  "num-bigint",
 ]

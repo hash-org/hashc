@@ -53,7 +53,7 @@ pub enum ReturnDestinationKind<V> {
     DirectOperand(ir::Local),
 }
 
-impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
+impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
     /// Emit the target backend IR for a Hash IR [Terminator]. This
     /// function returns whether the block is a candidate for merging
     /// with the next block. The conditions for merging two blocks

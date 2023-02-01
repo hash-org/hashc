@@ -8,11 +8,19 @@ use hash_abi::FnAbi;
 use hash_ir::{
     ir::{self, Local},
     traversal,
+    ty::InstanceId,
 };
-use index_vec::IndexVec;
+use hash_utils::index_vec::IndexVec;
 
-use self::{locals::LocalRef, operands::OperandRef, place::PlaceRef};
-use crate::traits::{builder::BlockBuilderMethods, layout::LayoutMethods};
+use self::{
+    abi::{compute_fn_abi_from_instance, FnAbiError},
+    locals::LocalRef,
+    operands::OperandRef,
+    place::PlaceRef,
+};
+use crate::traits::{
+    builder::BlockBuilderMethods, layout::LayoutMethods, misc::MiscBuilderMethods,
+};
 
 pub mod abi;
 pub mod block;
@@ -44,19 +52,19 @@ pub enum BlockStatus<BasicBlock> {
 
 /// This struct contains all the information required to convert Hash IR into
 /// the target code backend.
-pub struct FnBuilder<'b, Builder: BlockBuilderMethods<'b>> {
+pub struct FnBuilder<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> {
     /// The body that is being converted into the target backend.
     body: &'b ir::Body,
 
     /// The code generation context.
-    ctx: &'b Builder::CodegenCtx,
+    ctx: &'a Builder::CodegenCtx,
 
     /// The function that is being built.
     function: Builder::Function,
 
     /// The function ABI detailing all the information about
     /// arguments, return types, layout and calling conventions.
-    fn_abi: &'b FnAbi,
+    fn_abi: FnAbi,
 
     /// The location of where each IR argument/temporary/variable and return
     /// value is stored. Usually, this is a [PlaceRef] which represents an
@@ -90,13 +98,13 @@ pub struct FnBuilder<'b, Builder: BlockBuilderMethods<'b>> {
     _unreachable_block: Option<Builder::BasicBlock>,
 }
 
-impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
+impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
     /// Create a new [FnBuilder] instance.
     pub fn new(
         body: &'b ir::Body,
-        ctx: &'b Builder::CodegenCtx,
+        ctx: &'a Builder::CodegenCtx,
         function: Builder::Function,
-        fn_abi: &'b FnAbi,
+        fn_abi: FnAbi,
     ) -> Self {
         // Verify that the IR body has resolved all "constant" references
         // as they should be resolved by this point.
@@ -128,18 +136,20 @@ impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
 ///
 /// 3. Traverse the control flow graph in post-order and generate each
 /// block in the function.
-pub fn codegen_ir_body<'b, Builder: BlockBuilderMethods<'b>>(
+pub fn codegen_ir_body<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
+    instance: InstanceId,
     body: &'b ir::Body,
-    ctx: &'b Builder::CodegenCtx,
-    function: Builder::Function,
-    fn_abi: &'b FnAbi,
-) {
+    ctx: &'a Builder::CodegenCtx,
+) -> Result<(), FnAbiError> {
     // @@Todo: compute debug info about each local
 
-    // create a new function builder
-    let mut fn_builder = FnBuilder::new(body, ctx, function, fn_abi);
+    let func = ctx.get_fn(instance);
+    let fn_abi = compute_fn_abi_from_instance(ctx, instance)?;
 
-    let starting_block = Builder::append_block(fn_builder.ctx, function, "start");
+    // create a new function builder
+    let mut fn_builder = FnBuilder::new(body, ctx, func, fn_abi);
+
+    let starting_block = Builder::append_block(fn_builder.ctx, func, "start");
     let mut builder = Builder::build(fn_builder.ctx, starting_block);
 
     // Allocate space for all the locals.
@@ -186,14 +196,16 @@ pub fn codegen_ir_body<'b, Builder: BlockBuilderMethods<'b>>(
     for (block, _) in traversal::ReversePostOrder::new_from_start(fn_builder.body) {
         fn_builder.codegen_block(block);
     }
+
+    Ok(())
 }
 
 /// Function that deals with allocating argument locals. This is
 /// in it's own function due to the process being more complicated
 /// when dealing with ABI specifications, and possibly (in the future)
 /// variadic arguments that are passed to the function.
-fn allocate_argument_locals<'b, Builder: BlockBuilderMethods<'b>>(
-    fn_ctx: &mut FnBuilder<'b, Builder>,
+fn allocate_argument_locals<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
+    fn_ctx: &mut FnBuilder<'a, 'b, Builder>,
     builder: &mut Builder,
     memory_locals: &FixedBitSet,
 ) -> Vec<LocalRef<Builder::Value>> {

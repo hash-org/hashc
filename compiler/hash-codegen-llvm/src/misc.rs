@@ -2,7 +2,8 @@
 //! generation types and the LLVM backend specific data types.
 
 use hash_codegen::common::{AtomicOrdering, IntComparisonKind, RealComparisonKind};
-use hash_target::abi::AddressSpace;
+use hash_pipeline::settings::OptimisationLevel;
+use hash_target::{abi::AddressSpace, CodeModel, RelocationMode};
 use inkwell::attributes::Attribute;
 
 use crate::context::CodeGenCtx;
@@ -13,17 +14,19 @@ pub struct IntPredicateWrapper(pub inkwell::IntPredicate);
 
 impl From<IntComparisonKind> for IntPredicateWrapper {
     fn from(value: IntComparisonKind) -> Self {
+        use inkwell::IntPredicate::*;
+
         match value {
-            IntComparisonKind::Eq => Self(inkwell::IntPredicate::EQ),
-            IntComparisonKind::Ne => Self(inkwell::IntPredicate::NE),
-            IntComparisonKind::Ugt => Self(inkwell::IntPredicate::UGT),
-            IntComparisonKind::Uge => Self(inkwell::IntPredicate::UGE),
-            IntComparisonKind::Ult => Self(inkwell::IntPredicate::ULT),
-            IntComparisonKind::Ule => Self(inkwell::IntPredicate::ULE),
-            IntComparisonKind::Sgt => Self(inkwell::IntPredicate::SGT),
-            IntComparisonKind::Sge => Self(inkwell::IntPredicate::SGE),
-            IntComparisonKind::Slt => Self(inkwell::IntPredicate::SLT),
-            IntComparisonKind::Sle => Self(inkwell::IntPredicate::SLE),
+            IntComparisonKind::Eq => Self(EQ),
+            IntComparisonKind::Ne => Self(NE),
+            IntComparisonKind::Ugt => Self(UGT),
+            IntComparisonKind::Uge => Self(UGE),
+            IntComparisonKind::Ult => Self(ULT),
+            IntComparisonKind::Ule => Self(ULE),
+            IntComparisonKind::Sgt => Self(SGT),
+            IntComparisonKind::Sge => Self(SGE),
+            IntComparisonKind::Slt => Self(SLT),
+            IntComparisonKind::Sle => Self(SLE),
         }
     }
 }
@@ -34,23 +37,25 @@ pub struct FloatPredicateWrapper(pub inkwell::FloatPredicate);
 
 impl From<RealComparisonKind> for FloatPredicateWrapper {
     fn from(value: RealComparisonKind) -> Self {
+        use inkwell::FloatPredicate::*;
+
         match value {
-            RealComparisonKind::False => Self(inkwell::FloatPredicate::PredicateFalse),
-            RealComparisonKind::Oeq => Self(inkwell::FloatPredicate::OEQ),
-            RealComparisonKind::Ogt => Self(inkwell::FloatPredicate::OGT),
-            RealComparisonKind::Oge => Self(inkwell::FloatPredicate::OGE),
-            RealComparisonKind::Olt => Self(inkwell::FloatPredicate::OLT),
-            RealComparisonKind::Ole => Self(inkwell::FloatPredicate::OLE),
-            RealComparisonKind::One => Self(inkwell::FloatPredicate::ONE),
-            RealComparisonKind::Ord => Self(inkwell::FloatPredicate::ORD),
-            RealComparisonKind::Uno => Self(inkwell::FloatPredicate::UNO),
-            RealComparisonKind::Ueq => Self(inkwell::FloatPredicate::UEQ),
-            RealComparisonKind::Ugt => Self(inkwell::FloatPredicate::UGT),
-            RealComparisonKind::Uge => Self(inkwell::FloatPredicate::UGE),
-            RealComparisonKind::Ult => Self(inkwell::FloatPredicate::ULT),
-            RealComparisonKind::Ule => Self(inkwell::FloatPredicate::ULE),
-            RealComparisonKind::Une => Self(inkwell::FloatPredicate::UNE),
-            RealComparisonKind::True => Self(inkwell::FloatPredicate::PredicateTrue),
+            RealComparisonKind::False => Self(PredicateFalse),
+            RealComparisonKind::Oeq => Self(OEQ),
+            RealComparisonKind::Ogt => Self(OGT),
+            RealComparisonKind::Oge => Self(OGE),
+            RealComparisonKind::Olt => Self(OLT),
+            RealComparisonKind::Ole => Self(OLE),
+            RealComparisonKind::One => Self(ONE),
+            RealComparisonKind::Ord => Self(ORD),
+            RealComparisonKind::Uno => Self(UNO),
+            RealComparisonKind::Ueq => Self(UEQ),
+            RealComparisonKind::Ugt => Self(UGT),
+            RealComparisonKind::Uge => Self(UGE),
+            RealComparisonKind::Ult => Self(ULT),
+            RealComparisonKind::Ule => Self(ULE),
+            RealComparisonKind::Une => Self(UNE),
+            RealComparisonKind::True => Self(PredicateTrue),
         }
     }
 }
@@ -61,16 +66,16 @@ pub struct AtomicOrderingWrapper(pub inkwell::AtomicOrdering);
 
 impl From<AtomicOrdering> for AtomicOrderingWrapper {
     fn from(value: AtomicOrdering) -> Self {
+        use inkwell::AtomicOrdering::*;
+
         match value {
-            AtomicOrdering::NotAtomic => Self(inkwell::AtomicOrdering::NotAtomic),
-            AtomicOrdering::Unordered => Self(inkwell::AtomicOrdering::Unordered),
-            AtomicOrdering::Monotonic => Self(inkwell::AtomicOrdering::Monotonic),
-            AtomicOrdering::Acquire => Self(inkwell::AtomicOrdering::Acquire),
-            AtomicOrdering::Release => Self(inkwell::AtomicOrdering::Release),
-            AtomicOrdering::AcquireRelease => Self(inkwell::AtomicOrdering::AcquireRelease),
-            AtomicOrdering::SequentiallyConsistent => {
-                Self(inkwell::AtomicOrdering::SequentiallyConsistent)
-            }
+            AtomicOrdering::NotAtomic => Self(NotAtomic),
+            AtomicOrdering::Unordered => Self(Unordered),
+            AtomicOrdering::Monotonic => Self(Monotonic),
+            AtomicOrdering::Acquire => Self(Acquire),
+            AtomicOrdering::Release => Self(Release),
+            AtomicOrdering::AcquireRelease => Self(AcquireRelease),
+            AtomicOrdering::SequentiallyConsistent => Self(SequentiallyConsistent),
         }
     }
 }
@@ -233,7 +238,7 @@ impl AttributeKind {
     }
 
     /// Create an [Attribute] from an [AttributeKind].
-    pub fn create_attribute(&self, ctx: &CodeGenCtx<'_>) -> Attribute {
+    pub fn create_attribute(&self, ctx: &CodeGenCtx<'_, '_>) -> Attribute {
         // @@Naming: the `create_enum_attribute` will create an attribute
         // with just an integer value, furthermore the value "0" denotes that
         // the attribute is just a flag. This is a really bad design
@@ -245,7 +250,64 @@ impl AttributeKind {
     }
 }
 
-// get_named_enum_kind_id
+/// A wrapper type to convert the generic [CodeModel] into the
+/// [inkwell::targets::CodeModel] equivalent type.
+
+pub struct CodeModelWrapper(pub inkwell::targets::CodeModel);
+
+impl From<CodeModel> for CodeModelWrapper {
+    fn from(value: CodeModel) -> Self {
+        use inkwell::targets::CodeModel::*;
+
+        match value {
+            CodeModel::Default => CodeModelWrapper(Default),
+            CodeModel::JITDefault => CodeModelWrapper(JITDefault),
+            CodeModel::Small => CodeModelWrapper(Small),
+            CodeModel::Kernel => CodeModelWrapper(Kernel),
+            CodeModel::Medium => CodeModelWrapper(Medium),
+            CodeModel::Large => CodeModelWrapper(Large),
+        }
+    }
+}
+
+/// A wrapper type to convert the generic [RelocationMode] into the
+/// [inkwell::targets::RelocMode] equivalent type.
+pub struct RelocationModeWrapper(pub inkwell::targets::RelocMode);
+
+impl From<RelocationMode> for RelocationModeWrapper {
+    fn from(value: RelocationMode) -> Self {
+        use inkwell::targets::RelocMode::*;
+
+        match value {
+            RelocationMode::Default => RelocationModeWrapper(Default),
+            RelocationMode::Static => RelocationModeWrapper(Static),
+            RelocationMode::PIC => RelocationModeWrapper(PIC),
+            RelocationMode::DynamicNoPIC => RelocationModeWrapper(DynamicNoPic),
+        }
+    }
+}
+
+/// A wrapper type to convert the generic [OptimisationLevel] into the
+/// [inkwell::OptimizationLevel] equivalent type.
+pub struct OptimisationLevelWrapper(pub inkwell::OptimizationLevel);
+
+impl From<OptimisationLevel> for OptimisationLevelWrapper {
+    fn from(value: OptimisationLevel) -> Self {
+        use inkwell::OptimizationLevel::*;
+
+        match value {
+            OptimisationLevel::Debug => OptimisationLevelWrapper(None),
+            OptimisationLevel::Release => OptimisationLevelWrapper(Aggressive),
+
+            // @@Todo: there seems to be no way to specify that we want to optimise for
+            // minimal size, i.e. `-Oz` in clang.
+            OptimisationLevel::Size | OptimisationLevel::MinSize => {
+                OptimisationLevelWrapper(Default)
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use inkwell::attributes::Attribute;

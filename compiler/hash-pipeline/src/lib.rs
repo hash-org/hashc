@@ -6,17 +6,18 @@
 //! used. This file also has definitions for how to access sources whether
 //! module or interactive.
 pub mod args;
+pub mod error;
 pub mod fs;
 pub mod interface;
 pub mod settings;
 pub mod workspace;
 
-use std::{collections::HashMap, env, time::Duration};
+use std::{collections::HashMap, env::current_dir, path::Path, time::Duration};
 
 use fs::{read_in_path, resolve_path, PRELUDE};
 use hash_ast::node_map::ModuleEntry;
 use hash_reporting::{reporter::Reports, writer::ReportWriter};
-use hash_source::{constant::CONSTANT_MAP, ModuleKind, SourceId};
+use hash_source::{ModuleKind, SourceId};
 use hash_utils::{stream_writeln, timing::timed};
 use interface::{CompilerInterface, CompilerStage};
 use settings::CompilerStageKind;
@@ -162,9 +163,25 @@ impl<I: CompilerInterface> Compiler<I> {
             // for the prelude bootstrap to run
             let mut old_settings = std::mem::take(ctx.settings_mut());
 
-            // we need to load in the `prelude` module and have it ready for any other
-            // sources
-            ctx = self.run_on_filename(PRELUDE.to_string(), ModuleKind::Prelude, ctx);
+            // Resolve the current working directory so that we can
+            // resolve the prelude path...
+            let wd = match current_dir() {
+                Ok(wd) => wd,
+                Err(err) => {
+                    ctx.diagnostics_mut().push(err.into());
+                    return ctx;
+                }
+            };
+
+            let path = match resolve_path(PRELUDE, wd) {
+                Ok(path) => path,
+                Err(err) => {
+                    ctx.diagnostics_mut().push(err.into());
+                    return ctx;
+                }
+            };
+
+            ctx = self.run_on_filename(path, ModuleKind::Prelude, ctx);
 
             // Reset the settings
             std::mem::swap(ctx.settings_mut(), &mut old_settings);
@@ -181,6 +198,35 @@ impl<I: CompilerInterface> Compiler<I> {
         ctx
     }
 
+    /// Emit diagnostics to the error stream with the applied settings.
+    pub fn emit_diagnostics(&self, ctx: &I) {
+        let mut err_count = 0;
+        let mut warn_count = 0;
+        let mut stderr = ctx.error_stream();
+
+        // @@Copying: Ideally, we would not want to copy here!
+        for diagnostic in ctx.diagnostics().iter().cloned() {
+            if diagnostic.is_error() {
+                err_count += 1;
+            }
+
+            if diagnostic.is_warning() {
+                warn_count += 1;
+            }
+
+            stream_writeln!(stderr, "{}", ReportWriter::single(diagnostic, ctx.source_map()));
+        }
+
+        // @@Hack: to prevent the compiler from printing this message when the pipeline
+        // when it was instructed to terminate before all of the stages. For example, if
+        // the compiler is just checking the source, then it will terminate early.
+        if err_count != 0 || warn_count != 0 {
+            log::info!(
+                "compiler terminated with {err_count} error(s), and {warn_count} warning(s)."
+            );
+        }
+    }
+
     /// Run a job within the compiler pipeline with the provided state, entry
     /// point and the specified job parameters.
     pub fn run(&mut self, entry_point: SourceId, mut ctx: I) -> I {
@@ -188,31 +234,7 @@ impl<I: CompilerInterface> Compiler<I> {
 
         // we can print the diagnostics here
         if ctx.settings().emit_errors && (!ctx.diagnostics().is_empty() || result.is_err()) {
-            let mut err_count = 0;
-            let mut warn_count = 0;
-            let mut stderr = ctx.error_stream();
-
-            // @@Copying: Ideally, we would not want to copy here!
-            for diagnostic in ctx.diagnostics().iter().cloned() {
-                if diagnostic.is_error() {
-                    err_count += 1;
-                }
-
-                if diagnostic.is_warning() {
-                    warn_count += 1;
-                }
-
-                stream_writeln!(stderr, "{}", ReportWriter::single(diagnostic, ctx.source_map()));
-            }
-
-            // @@Hack: to prevent the compiler from printing this message when the pipeline
-            // when it was instructed to terminate before all of the stages. For example, if
-            // the compiler is just checking the source, then it will terminate early.
-            if err_count != 0 || warn_count != 0 {
-                log::info!(
-                    "compiler terminated with {err_count} error(s), and {warn_count} warning(s)."
-                );
-            }
+            self.emit_diagnostics(&ctx);
         }
 
         // Print compiler stage metrics if specified in the settings.
@@ -229,56 +251,30 @@ impl<I: CompilerInterface> Compiler<I> {
     /// [`Self::run`]
     pub fn run_on_filename(
         &mut self,
-        filename: impl Into<String>,
+        filename: impl AsRef<Path>,
         kind: ModuleKind,
         mut ctx: I,
     ) -> I {
-        // First we have to work out if we need to transform the path
-        let current_dir = env::current_dir().unwrap();
-
-        let path = CONSTANT_MAP.create_string(filename.into().as_str());
-        let filename = resolve_path(path, current_dir);
-
-        if let Err(err) = filename {
-            ctx.diagnostics_mut().push(err.create_report());
-
-            // Only print the error if specified within the settings
-            if ctx.settings().emit_errors {
-                let mut stderr = ctx.error_stream();
-                stream_writeln!(
-                    stderr,
-                    "{}",
-                    ReportWriter::single(err.create_report(), ctx.source_map())
-                );
-            }
-
-            return ctx;
-        };
-
-        let filename = filename.unwrap();
         let contents = read_in_path(&filename);
-        let mut stderr = ctx.error_stream();
 
         if let Err(err) = contents {
-            ctx.diagnostics_mut().push(err.create_report());
+            ctx.diagnostics_mut().push(err.into());
 
-            // Only print the error if specified within the settings
-
+            // Since this a fatal error because we couldn't read the file, we
+            // emit the diagnostics (if specified to emit) and terminate.
             if ctx.settings().emit_errors {
-                stream_writeln!(
-                    stderr,
-                    "{}",
-                    ReportWriter::single(err.create_report(), ctx.source_map())
-                );
+                self.emit_diagnostics(&ctx);
             }
 
             return ctx;
         };
 
         // Create the entry point and run!
-
-        let entry_point =
-            ctx.workspace_mut().add_module(contents.unwrap(), ModuleEntry::new(filename), kind);
+        let entry_point = ctx.workspace_mut().add_module(
+            contents.unwrap(),
+            ModuleEntry::new(filename.as_ref().to_path_buf()),
+            kind,
+        );
 
         self.run(entry_point, ctx)
     }

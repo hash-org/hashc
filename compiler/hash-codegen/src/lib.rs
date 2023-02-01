@@ -20,6 +20,7 @@
 //! generated.
 #![feature(let_chains, box_patterns, variant_count)]
 
+pub mod backend;
 pub mod common;
 pub mod lower;
 pub mod symbols;
@@ -28,25 +29,4 @@ pub mod traits;
 // re-export `abi` and `layout` crates to make them available to the backend
 // implementations.
 pub use hash_abi as abi;
-use hash_ir::IrStorage;
 pub use hash_layout as layout;
-use hash_pipeline::{settings::CompilerSettings, workspace::Workspace};
-
-/// The [BackendCtx] is the context that is needed for any [CodeGen]
-/// backend to generate code for the target backend.
-///
-/// @@Todo: determine how we deal with "code store".
-pub struct BackendCtx<'b> {
-    /// Reference to the current compiler workspace.
-    pub workspace: &'b mut Workspace,
-
-    /// Reference to the IR storage that is used to store
-    /// the lowered IR, and all metadata about the IR.
-    pub ir_storage: &'b IrStorage,
-
-    /// A reference to the backend settings in the current session.
-    pub settings: &'b CompilerSettings,
-
-    /// Reference to the rayon thread pool.
-    pub _pool: &'b rayon::ThreadPool,
-}

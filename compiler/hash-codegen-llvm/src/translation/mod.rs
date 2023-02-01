@@ -25,42 +25,42 @@ pub(crate) mod ty;
 
 /// A [Builder] is defined as being a context that is used to implement
 /// all of the specified builder methods.
-pub struct Builder<'b> {
+pub struct Builder<'a, 'b, 'm> {
     /// The actual InkWell builder
-    builder: inkwell::builder::Builder<'b>,
+    pub(crate) builder: inkwell::builder::Builder<'m>,
 
     /// The context for the builder.
-    ctx: &'b CodeGenCtx<'b>,
+    pub(crate) ctx: &'a CodeGenCtx<'b, 'm>,
 }
 
 /// This specifies that the [Builder] context is [CodeGenCtx].
-impl<'b> Codegen<'b> for Builder<'b> {
-    type CodegenCtx = CodeGenCtx<'b>;
+impl<'b, 'm> Codegen<'b> for Builder<'_, 'b, 'm> {
+    type CodegenCtx = CodeGenCtx<'b, 'm>;
 }
 
 /// This specifies all of the common IR type kinds for [Builder].
-impl<'b> BackendTypes for Builder<'b> {
-    type Value = <CodeGenCtx<'b> as BackendTypes>::Value;
-    type Function = <CodeGenCtx<'b> as BackendTypes>::Function;
-    type Type = <CodeGenCtx<'b> as BackendTypes>::Type;
-    type BasicBlock = <CodeGenCtx<'b> as BackendTypes>::BasicBlock;
+impl<'b, 'm> BackendTypes for Builder<'_, 'b, 'm> {
+    type Value = <CodeGenCtx<'b, 'm> as BackendTypes>::Value;
+    type Function = <CodeGenCtx<'b, 'm> as BackendTypes>::Function;
+    type Type = <CodeGenCtx<'b, 'm> as BackendTypes>::Type;
+    type BasicBlock = <CodeGenCtx<'b, 'm> as BackendTypes>::BasicBlock;
 
-    type DebugInfoScope = <CodeGenCtx<'b> as BackendTypes>::DebugInfoScope;
-    type DebugInfoLocation = <CodeGenCtx<'b> as BackendTypes>::DebugInfoLocation;
-    type DebugInfoVariable = <CodeGenCtx<'b> as BackendTypes>::DebugInfoVariable;
+    type DebugInfoScope = <CodeGenCtx<'b, 'm> as BackendTypes>::DebugInfoScope;
+    type DebugInfoLocation = <CodeGenCtx<'b, 'm> as BackendTypes>::DebugInfoLocation;
+    type DebugInfoVariable = <CodeGenCtx<'b, 'm> as BackendTypes>::DebugInfoVariable;
 }
 
-impl<'b> Backend<'b> for Builder<'b> {}
+impl<'b, 'm> Backend<'b> for Builder<'_, 'b, 'm> {}
 
-impl<'b> std::ops::Deref for Builder<'b> {
-    type Target = CodeGenCtx<'b>;
+impl<'b, 'm> std::ops::Deref for Builder<'_, 'b, 'm> {
+    type Target = CodeGenCtx<'b, 'm>;
 
     fn deref(&self) -> &Self::Target {
         self.ctx
     }
 }
 
-impl<'b> HasCtxMethods<'b> for Builder<'b> {
+impl<'b> HasCtxMethods<'b> for Builder<'_, 'b, '_> {
     fn settings(&self) -> &CompilerSettings {
         self.ctx.settings()
     }
@@ -78,7 +78,7 @@ impl<'b> HasCtxMethods<'b> for Builder<'b> {
     }
 }
 
-impl HasTargetSpec for Builder<'_> {
+impl HasTargetSpec for Builder<'_, '_, '_> {
     fn target_spec(&self) -> &Target {
         self.ctx.target_spec()
     }

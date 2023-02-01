@@ -14,7 +14,7 @@ use crate::{
 ///
 /// N.B. If the type is a ZST, then this will not emit a `memcpy`
 /// instruction.
-pub fn mem_copy_ty<'b, Builder: BlockBuilderMethods<'b>>(
+pub fn mem_copy_ty<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
     builder: &mut Builder,
     destination: (Builder::Value, Alignment),
     source: (Builder::Value, Alignment),

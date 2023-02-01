@@ -11,8 +11,8 @@
 use hash_ast::node_map::NodeMap;
 use hash_ast_desugaring::{AstDesugaringCtx, AstDesugaringCtxQuery, AstDesugaringPass};
 use hash_ast_expand::{AstExpansionCtx, AstExpansionCtxQuery, AstExpansionPass};
-use hash_backend::{Backend, BackendCtxQuery};
-use hash_codegen::BackendCtx;
+use hash_backend::{BackendCtxQuery, CodeGenPass};
+use hash_codegen::backend::BackendCtx;
 use hash_ir::IrStorage;
 use hash_layout::LayoutCtx;
 use hash_lower::{IrGen, IrOptimiser, LoweringCtx, LoweringCtxQuery};
@@ -38,7 +38,7 @@ pub fn make_stages() -> Vec<Box<dyn CompilerStage<CompilerSession>>> {
         Box::new(Typechecker::new()),
         Box::<IrGen>::default(),
         Box::new(IrOptimiser),
-        Box::new(Backend::new()),
+        Box::new(CodeGenPass),
     ]
 }
 
@@ -210,10 +210,14 @@ impl LoweringCtxQuery for CompilerSession {
 
 impl BackendCtxQuery for CompilerSession {
     fn data(&mut self) -> BackendCtx {
+        let output_stream = self.output_stream();
+
         BackendCtx {
             workspace: &mut self.workspace,
             ir_storage: &self.ir_storage,
+            layout_storage: &self.layout_storage,
             settings: &self.settings,
+            stdout: output_stream,
             _pool: &self.pool,
         }
     }

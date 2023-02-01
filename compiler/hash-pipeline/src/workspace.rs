@@ -5,10 +5,7 @@
 //! given [ModuleEntry]. This can only be known by the [SourceMap] which stores
 //! all of the relevant [SourceId]s and their corresponding sources.
 
-use std::{
-    collections::{HashMap, HashSet},
-    path::Path,
-};
+use std::path::{Path, PathBuf};
 
 use bitflags::bitflags;
 use hash_ast::{
@@ -17,7 +14,12 @@ use hash_ast::{
     tree::AstTreeGenerator,
 };
 use hash_source::{ModuleId, ModuleKind, SourceId, SourceMap};
-use hash_utils::tree_writing::TreeWriter;
+use hash_utils::{
+    store::{FxHashMap, FxHashSet},
+    tree_writing::TreeWriter,
+};
+
+use crate::{error::PipelineError, settings::CompilerSettings};
 
 bitflags! {
     /// Defines the flags that can be used to control the compiler pipeline.
@@ -25,7 +27,7 @@ bitflags! {
     /// If no flags are defined on [SourceStageInfo], this means that the particular
     /// source has been parsed and has been added to the workspace.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub struct SourceStageInfo: u32 {
+    pub struct SourceStageInfo: u8 {
         /// If set, the compiler will no perform desugaring on the module.
         const DESUGARED = 0b00000001;
 
@@ -98,12 +100,12 @@ impl SourceStageInfo {
 /// A map of [SourceId]s to their corresponding [SourceStageInfo]. This is used
 /// to track the current stage of the compiler pipeline for each source.
 #[derive(Debug)]
-pub struct StageInfo(HashMap<SourceId, SourceStageInfo>);
+pub struct StageInfo(FxHashMap<SourceId, SourceStageInfo>);
 
 impl StageInfo {
     /// Create a new [StageInfo] with no sources.
     pub fn new() -> Self {
-        Self(HashMap::new())
+        Self(FxHashMap::default())
     }
 
     /// Add a new source to the [SourceStageInfo] with the given [SourceId].
@@ -145,14 +147,36 @@ impl Default for StageInfo {
 /// access information about the current job.
 #[derive(Debug)]
 pub struct Workspace {
+    /// The name of the current workspace.
+    pub name: String,
+
+    /// Represents where the workspace compilation results should be
+    /// saved to on disk. This is equivalent to specifying the "output"
+    /// directory for the compiler.
+    ///
+    /// Defaults to the working directory of the entry point file and the
+    /// "target" directory, e.g. for the file `src/main.hash` the default
+    /// output directory would be `src/target`.
+    ///
+    /// However, this can be configured using the `--output-dir` flag.
+    pub output_directory: PathBuf,
+
+    /// A user specified location of where to write the executable to.
+    /// If the user has not specified a location, this will be [`None`], and it
+    /// will be generated from the "output" directory and other session
+    /// information.
+    ///
+    /// N.B. To compute the executable path, use [`Workspace::executable_path`].
+    pub executable_path: Option<PathBuf>,
+
     /// Dependency map between sources and modules.
-    dependencies: HashMap<SourceId, HashSet<ModuleId>>,
+    dependencies: FxHashMap<SourceId, FxHashSet<ModuleId>>,
 
     /// Stores all of the raw file contents of the interactive blocks and
     /// modules.
     pub source_map: SourceMap,
 
-    /// Stores all of the generated AST for modules and nodes
+    /// Stores all of the generated AST for modules and nodes.
     pub node_map: NodeMap,
 
     /// Information about which source have undergone which stages
@@ -160,21 +184,61 @@ pub struct Workspace {
     pub source_stage_info: StageInfo,
 }
 
-impl Default for Workspace {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl Workspace {
     /// Create a new [Workspace], initialising all members to be empty.
-    pub fn new() -> Self {
-        Self {
+    pub fn new(settings: &CompilerSettings) -> Result<Self, PipelineError> {
+        let executable_path = settings.codegen_settings().output_path.clone();
+        let output_directory = settings.output_directory()?;
+
+        let name = settings
+            .entry_point()
+            .transpose()?
+            .map(|f| f.file_stem().unwrap().to_str().unwrap().to_string())
+            .unwrap_or_else(|| "main".to_string());
+
+        Ok(Self {
+            name,
+            output_directory,
+            executable_path,
             source_map: SourceMap::new(),
             node_map: NodeMap::new(),
-            dependencies: HashMap::new(),
+            dependencies: FxHashMap::default(),
             source_stage_info: StageInfo::new(),
-        }
+        })
+    }
+
+    /// Get the path of the executable that the compiler should write the
+    /// final binary to. This is workspace dependant, since the executables
+    /// might not even be emitted for a workspaces that don't "require"
+    /// executables.
+    pub fn executable_path(&self) -> PathBuf {
+        self.executable_path.as_ref().map_or_else(
+            || {
+                // If no executable path was specified, we create one from the
+                // output directory and the name of the entry point file.
+                let mut path = self.output_directory.clone();
+                path.push(&self.name);
+                path
+            },
+            |path| path.clone(),
+        )
+    }
+
+    /// Get the bitcode path for a particular [ModuleId]. This does not
+    /// imply that the function will return a path that already exists, or has
+    /// been "acquired", it is intended to be used to generate a path for a
+    /// module that is about to be emitted.
+    pub fn module_bitcode_path(&self, module: ModuleId, extension: &'static str) -> PathBuf {
+        let mut path = self.output_directory.clone();
+        let module_path = self.source_map.module_path(module);
+
+        path.push("build");
+        path.push(format!(
+            "{}-{}.{extension}",
+            module_path.file_stem().unwrap().to_str().unwrap(),
+            module.raw()
+        ));
+        path
     }
 
     /// Add a interactive block to the [Workspace] by providing the contents and
@@ -219,7 +283,7 @@ impl Workspace {
     /// Add a module dependency specified by a [SourceId] to a specific source
     /// specified by a [SourceId].
     pub fn add_dependency(&mut self, source_id: SourceId, dependency: ModuleId) {
-        self.dependencies.entry(source_id).or_insert_with(HashSet::new).insert(dependency);
+        self.dependencies.entry(source_id).or_insert_with(FxHashSet::default).insert(dependency);
     }
 
     /// Utility function used by AST-like stages in order to print the

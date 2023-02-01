@@ -41,14 +41,14 @@ use crate::misc::{
     AtomicOrderingWrapper, FloatPredicateWrapper, IntPredicateWrapper, MetadataTypeKind,
 };
 
-impl<'b> Builder<'b> {
+impl<'a, 'b, 'm> Builder<'a, 'b, 'm> {
     /// Create a PHI node in the current block.
     fn phi(
         &mut self,
-        ty: AnyTypeEnum<'b>,
-        values: &[&dyn BasicValue<'b>],
-        blocks: &[BasicBlock<'b>],
-    ) -> PhiValue<'b> {
+        ty: AnyTypeEnum<'m>,
+        values: &[&dyn BasicValue<'m>],
+        blocks: &[BasicBlock<'m>],
+    ) -> PhiValue<'m> {
         debug_assert_eq!(values.len(), blocks.len());
 
         // Create the PHI value, and then add all of the incoming values.
@@ -72,12 +72,12 @@ impl<'b> Builder<'b> {
     }
 }
 
-impl<'b> BlockBuilderMethods<'b> for Builder<'b> {
+impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for Builder<'a, 'b, 'm> {
     fn ctx(&self) -> &Self::CodegenCtx {
         self.ctx
     }
 
-    fn build(ctx: &'b Self::CodegenCtx, block: Self::BasicBlock) -> Self {
+    fn build(ctx: &'a Self::CodegenCtx, block: Self::BasicBlock) -> Self {
         let builder = ctx.ll_ctx.create_builder();
 
         // We need to set the insertion point to the end of the block
@@ -88,7 +88,7 @@ impl<'b> BlockBuilderMethods<'b> for Builder<'b> {
     }
 
     fn append_block(
-        ctx: &'b Self::CodegenCtx,
+        ctx: &'a Self::CodegenCtx,
         func: Self::Function,
         name: &str,
     ) -> Self::BasicBlock {
@@ -1092,9 +1092,9 @@ impl<'b> BlockBuilderMethods<'b> for Builder<'b> {
 /// This will apply all of the stored metadata on the [Scalar] to
 /// the value within the LLVM IR. Here, we emit information about the
 /// [ValidScalarRange], alignment metadata and `non-null`ness.
-fn load_scalar_value_metadata<'ll>(
-    builder: &mut Builder<'ll>,
-    load: AnyValueEnum<'ll>,
+fn load_scalar_value_metadata<'m>(
+    builder: &mut Builder<'_, '_, 'm>,
+    load: AnyValueEnum<'m>,
     scalar: Scalar,
     info: TyInfo,
 

@@ -6,8 +6,10 @@
 
 use std::{cell::OnceCell, fmt};
 
-use hash_utils::graph::{self, dominators::Dominators};
-use index_vec::IndexVec;
+use hash_utils::{
+    graph::{self, dominators::Dominators},
+    index_vec::IndexVec,
+};
 use smallvec::{smallvec, SmallVec};
 
 use crate::ir::{BasicBlock, BasicBlockData, Successors};

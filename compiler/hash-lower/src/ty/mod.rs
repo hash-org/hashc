@@ -18,8 +18,10 @@ use hash_tir::{
         TupleTy,
     },
 };
-use hash_utils::store::{CloneStore, SequenceStore, Store};
-use index_vec::index_vec;
+use hash_utils::{
+    index_vec::index_vec,
+    store::{CloneStore, SequenceStore, Store},
+};
 
 /// A context that is used to lower types and terms into [IrTy]s.
 pub(crate) struct TyLoweringCtx<'ir> {

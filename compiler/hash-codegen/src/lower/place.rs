@@ -36,9 +36,9 @@ pub struct PlaceRef<V> {
     pub alignment: Alignment,
 }
 
-impl<'b, V: CodeGenObject> PlaceRef<V> {
+impl<'a, 'b, V: CodeGenObject> PlaceRef<V> {
     /// Create a new [PlaceRef] from an existant value.
-    pub fn new<Builder: BlockBuilderMethods<'b, Value = V>>(
+    pub fn new<Builder: BlockBuilderMethods<'a, 'b, Value = V>>(
         builder: &mut Builder,
         value: V,
         info: TyInfo,
@@ -50,7 +50,7 @@ impl<'b, V: CodeGenObject> PlaceRef<V> {
 
     /// Create a new [PlaceRef] which refers to a value allocated on the
     /// function stack.
-    pub fn new_stack<Builder: BlockBuilderMethods<'b, Value = V>>(
+    pub fn new_stack<Builder: BlockBuilderMethods<'a, 'b, Value = V>>(
         builder: &mut Builder,
         info: TyInfo,
     ) -> Self {
@@ -65,7 +65,7 @@ impl<'b, V: CodeGenObject> PlaceRef<V> {
     /// being stored on the stack, we lookup the layout of the
     /// array and access the `size` stored on it to get the
     /// `len` of the place.
-    pub fn len<Builder: BlockBuilderMethods<'b, Value = V>>(&self, builder: &Builder) -> V {
+    pub fn len<Builder: BlockBuilderMethods<'a, 'b, Value = V>>(&self, builder: &Builder) -> V {
         builder.map_layout(self.info.layout, |layout| {
             if let LayoutShape::Array { elements, .. } = layout.shape {
                 builder.const_usize(elements)
@@ -76,9 +76,9 @@ impl<'b, V: CodeGenObject> PlaceRef<V> {
     }
 }
 
-impl<'b, V: CodeGenObject> PlaceRef<V> {
+impl<'a, 'b, V: CodeGenObject> PlaceRef<V> {
     /// Apply a "discriminant" onto the [PlaceRef].
-    pub fn codegen_set_discriminant<Builder: BlockBuilderMethods<'b, Value = V>>(
+    pub fn codegen_set_discriminant<Builder: BlockBuilderMethods<'a, 'b, Value = V>>(
         &self,
         builder: &mut Builder,
         discriminant: VariantIdx,
@@ -125,7 +125,7 @@ impl<'b, V: CodeGenObject> PlaceRef<V> {
 
     /// Get the "discriminant" of the [PlaceRef] and cast it
     /// to a specified type (which must be an integer type).
-    pub fn codegen_get_discriminant<Builder: BlockBuilderMethods<'b, Value = V>>(
+    pub fn codegen_get_discriminant<Builder: BlockBuilderMethods<'a, 'b, Value = V>>(
         self,
         builder: &mut Builder,
         cast_to: IrTyId,
@@ -173,7 +173,7 @@ impl<'b, V: CodeGenObject> PlaceRef<V> {
 
     /// Apply a downcasting (selecting an `enum` variant on a place) projection
     /// onto the [PlaceRef].
-    pub fn project_downcast<Builder: BlockBuilderMethods<'b, Value = V>>(
+    pub fn project_downcast<Builder: BlockBuilderMethods<'a, 'b, Value = V>>(
         &self,
         builder: &mut Builder,
         variant: VariantIdx,
@@ -188,7 +188,7 @@ impl<'b, V: CodeGenObject> PlaceRef<V> {
     }
 
     /// Apply a indexing projection onto the [PlaceRef].
-    pub fn project_index<Builder: BlockBuilderMethods<'b, Value = V>>(
+    pub fn project_index<Builder: BlockBuilderMethods<'a, 'b, Value = V>>(
         &self,
         builder: &mut Builder,
         index: V,
@@ -216,7 +216,7 @@ impl<'b, V: CodeGenObject> PlaceRef<V> {
     }
 
     /// Apply a field projection on a [PlaceRef].
-    pub fn project_field<Builder: BlockBuilderMethods<'b, Value = V>>(
+    pub fn project_field<Builder: BlockBuilderMethods<'a, 'b, Value = V>>(
         &self,
         builder: &mut Builder,
         field: usize,
@@ -281,20 +281,26 @@ impl<'b, V: CodeGenObject> PlaceRef<V> {
 
     /// Emit a hint to the code generation backend that this [PlaceRef] is
     /// alive after this point.
-    pub fn storage_live<Builder: BlockBuilderMethods<'b, Value = V>>(&self, builder: &mut Builder) {
+    pub fn storage_live<Builder: BlockBuilderMethods<'a, 'b, Value = V>>(
+        &self,
+        builder: &mut Builder,
+    ) {
         let size = builder.map_layout(self.info.layout, |layout| layout.size);
         builder.lifetime_start(self.value, size);
     }
 
     /// Emit a hint to the code generation backend that this [PlaceRef] is
     /// now dead after this point and can be discarded.
-    pub fn storage_dead<Builder: BlockBuilderMethods<'b, Value = V>>(&self, builder: &mut Builder) {
+    pub fn storage_dead<Builder: BlockBuilderMethods<'a, 'b, Value = V>>(
+        &self,
+        builder: &mut Builder,
+    ) {
         let size = builder.map_layout(self.info.layout, |layout| layout.size);
         builder.lifetime_end(self.value, size);
     }
 }
 
-impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
+impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
     /// Compute the type and layout of a [Place]. This deals with
     /// all projections that occur on the [Place].
     pub fn compute_place_ty_info(&self, builder: &mut Builder, place: ir::Place) -> TyInfo {

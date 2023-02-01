@@ -8,4 +8,4 @@
 use super::FnBuilder;
 use crate::traits::builder::BlockBuilderMethods;
 
-impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {}
+impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {}

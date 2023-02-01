@@ -6,7 +6,7 @@ use hash_ir::ir::BasicBlock;
 use super::{BlockStatus, FnBuilder};
 use crate::traits::builder::BlockBuilderMethods;
 
-impl<'b, Builder: BlockBuilderMethods<'b>> FnBuilder<'b, Builder> {
+impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
     /// Get a [Builder::BasicBlock] for a Hash IR block. This function tries
     /// to avoid creating new basic blocks via the builder if they have already
     /// been creating during the building process. The blocks are saved within

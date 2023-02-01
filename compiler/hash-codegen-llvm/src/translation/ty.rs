@@ -42,16 +42,16 @@ pub fn convert_basic_ty_to_any(ty: BasicTypeEnum) -> AnyTypeEnum {
     }
 }
 
-impl<'b> CodeGenCtx<'b> {
+impl<'b, 'm> CodeGenCtx<'b, 'm> {
     /// Create a type that represents the alignment of a particular pointee
     /// type.
-    pub(crate) fn type_pointee_for_alignment(&self, align: Alignment) -> AnyTypeEnum<'b> {
+    pub(crate) fn type_pointee_for_alignment(&self, align: Alignment) -> AnyTypeEnum<'m> {
         let ity = Integer::approximate_alignment(self, align);
         self.type_from_integer(ity)
     }
 
     /// Create a [VectorType] from a [`AbiRepresentation::Vector`].
-    pub(crate) fn type_vector(&self, element_ty: AnyTypeEnum<'b>, len: u64) -> AnyTypeEnum<'b> {
+    pub(crate) fn type_vector(&self, element_ty: AnyTypeEnum<'m>, len: u64) -> AnyTypeEnum<'m> {
         // @@PatchInkwell: we should allow creating a vector type from a
         // BasicTypeEnum and a length.
         let vec_ty = unsafe {
@@ -64,19 +64,19 @@ impl<'b> CodeGenCtx<'b> {
 
     /// Create a `void` type, which is used for functions that don't return
     /// any value, equivalently a `()` type.
-    pub(crate) fn type_void(&self) -> AnyTypeEnum<'b> {
+    pub(crate) fn type_void(&self) -> AnyTypeEnum<'m> {
         self.ll_ctx.void_type().into()
     }
 
     /// Create a metadata type tht might be used to interact with some
     /// LLVM intrinsics and debug information.
-    pub(crate) fn type_metadata(&self) -> MetadataType<'b> {
+    pub(crate) fn type_metadata(&self) -> MetadataType<'m> {
         self.ll_ctx.metadata_type()
     }
 
     /// Create a type that represents the padding that is needed for a
     /// particular [Size] and [Alignment].
-    pub(crate) fn type_padding(&self, size: Size, alignment: Alignment) -> AnyTypeEnum<'b> {
+    pub(crate) fn type_padding(&self, size: Size, alignment: Alignment) -> AnyTypeEnum<'m> {
         let unit = Integer::approximate_alignment(self, alignment);
 
         let size = size.bytes();
@@ -86,7 +86,7 @@ impl<'b> CodeGenCtx<'b> {
     }
 }
 
-impl<'b> TypeBuilderMethods<'b> for CodeGenCtx<'b> {
+impl<'b, 'm> TypeBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
     fn type_i1(&self) -> Self::Type {
         self.ll_ctx.bool_type().into()
     }
@@ -243,9 +243,9 @@ impl<'b> TypeBuilderMethods<'b> for CodeGenCtx<'b> {
 /// changes if padding slots are inserted. If the type had any re-maps,
 /// then the [TyMemoryRemap] will contain a `remap` field with the
 /// new memory to source field mapping.
-pub(crate) struct TyMemoryRemap<'b> {
+pub(crate) struct TyMemoryRemap<'m> {
     /// The lowered type.
-    pub ty: AnyTypeEnum<'b>,
+    pub ty: AnyTypeEnum<'m>,
 
     /// If the type was re-mapped, this is a reference
     /// to the new memory map which should be used over the
@@ -256,32 +256,32 @@ pub(crate) struct TyMemoryRemap<'b> {
 /// Define a trait that provides additional methods on the [CodeGenCtx]
 /// for computing types as LLVM types, and various other related LLVM
 /// specific type utilities.
-pub(crate) trait ExtendedTyBuilderMethods<'ll> {
+pub(crate) trait ExtendedTyBuilderMethods<'m> {
     /// Convert the [IrTyId] into the equivalent [llvm::types::AnyTypeEnum].
-    fn llvm_ty(&self, ctx: &CodeGenCtx<'ll>) -> llvm::types::AnyTypeEnum<'ll>;
+    fn llvm_ty(&self, ctx: &CodeGenCtx<'_, 'm>) -> llvm::types::AnyTypeEnum<'m>;
 
     /// Create an immediate type.
-    fn immediate_llvm_ty(&self, ctx: &CodeGenCtx<'ll>) -> llvm::types::AnyTypeEnum<'ll>;
+    fn immediate_llvm_ty(&self, ctx: &CodeGenCtx<'_, 'm>) -> llvm::types::AnyTypeEnum<'m>;
 
     /// Load the type of a [Scalar] with a specific offset.
     fn scalar_llvm_type_at(
         &self,
-        ctx: &CodeGenCtx<'ll>,
+        ctx: &CodeGenCtx<'_, 'm>,
         scalar: Scalar,
         offset: Size,
-    ) -> llvm::types::AnyTypeEnum<'ll>;
+    ) -> llvm::types::AnyTypeEnum<'m>;
 
     /// Create a type for a [`ScalarKind::Pair`].
     fn scalar_pair_element_llvm_ty(
         &self,
-        ctx: &CodeGenCtx<'ll>,
+        ctx: &CodeGenCtx<'_, 'm>,
         index: usize,
         immediate: bool,
-    ) -> llvm::types::AnyTypeEnum<'ll>;
+    ) -> llvm::types::AnyTypeEnum<'m>;
 }
 
-impl<'ll> ExtendedTyBuilderMethods<'ll> for TyInfo {
-    fn llvm_ty(&self, ctx: &CodeGenCtx<'ll>) -> llvm::types::AnyTypeEnum<'ll> {
+impl<'m> ExtendedTyBuilderMethods<'m> for TyInfo {
+    fn llvm_ty(&self, ctx: &CodeGenCtx<'_, 'm>) -> llvm::types::AnyTypeEnum<'m> {
         let (abi, variant_index) = ctx.map_layout(self.layout, |layout| {
             let variant_index = match &layout.variants {
                 Variants::Single { index } => Some(*index),
@@ -424,7 +424,7 @@ impl<'ll> ExtendedTyBuilderMethods<'ll> for TyInfo {
         }
     }
 
-    fn immediate_llvm_ty(&self, ctx: &CodeGenCtx<'ll>) -> llvm::types::AnyTypeEnum<'ll> {
+    fn immediate_llvm_ty(&self, ctx: &CodeGenCtx<'_, 'm>) -> llvm::types::AnyTypeEnum<'m> {
         let is_bool = ctx.map_layout(self.layout, |layout| {
             if let AbiRepresentation::Scalar(scalar) = layout.abi && scalar.is_bool() {
                 true
@@ -442,14 +442,14 @@ impl<'ll> ExtendedTyBuilderMethods<'ll> for TyInfo {
 
     fn scalar_llvm_type_at(
         &self,
-        ctx: &CodeGenCtx<'ll>,
+        ctx: &CodeGenCtx<'_, 'm>,
         scalar: Scalar,
 
         // @@Todo: implement pointee_info_at(offset) for this offset to
         // work... since we're then indexing into a reference type
         // layout
         offset: Size,
-    ) -> llvm::types::AnyTypeEnum<'ll> {
+    ) -> llvm::types::AnyTypeEnum<'m> {
         debug_assert!(offset == Size::ZERO, "offsets not yet implemented");
 
         match scalar.kind() {
@@ -474,10 +474,10 @@ impl<'ll> ExtendedTyBuilderMethods<'ll> for TyInfo {
 
     fn scalar_pair_element_llvm_ty(
         &self,
-        ctx: &CodeGenCtx<'ll>,
+        ctx: &CodeGenCtx<'_, 'm>,
         index: usize,
         immediate: bool,
-    ) -> llvm::types::AnyTypeEnum<'ll> {
+    ) -> llvm::types::AnyTypeEnum<'m> {
         let (scalar_a, scalar_b) = ctx.map_layout(self.layout, |layout| {
             let AbiRepresentation::Pair(scalar_a, scalar_b) = layout.abi else {
                 panic!("`scalar_pair_element_llvm_ty` called on non-pair type");
@@ -506,11 +506,11 @@ impl<'ll> ExtendedTyBuilderMethods<'ll> for TyInfo {
 /// been padded to the correct alignment and size. In the event that
 /// that fields are padded, the `field_map` will be updated to reflect
 /// the new field index of the original field.
-fn create_and_pad_struct_fields_from_layout<'b>(
-    ctx: &CodeGenCtx<'b>,
+fn create_and_pad_struct_fields_from_layout<'m>(
+    ctx: &CodeGenCtx<'_, 'm>,
     info: TyInfo,
     layout: &Layout,
-) -> (Vec<AnyTypeEnum<'b>>, bool, Option<SmallVec<[u32; 4]>>) {
+) -> (Vec<AnyTypeEnum<'m>>, bool, Option<SmallVec<[u32; 4]>>) {
     let field_count = layout.shape.count();
 
     let mut packed = false;

@@ -12,9 +12,9 @@ use hash_ir::{
 use hash_layout::TyInfo;
 use hash_utils::{
     graph::dominators::Dominators,
+    index_vec::IndexVec,
     store::{SequenceStore, SequenceStoreKey},
 };
-use index_vec::IndexVec;
 
 use super::{operands::OperandRef, place::PlaceRef, FnBuilder};
 use crate::traits::{
@@ -47,8 +47,8 @@ impl<'b, V: CodeGenObject> LocalRef<V> {
     }
 }
 
-pub fn compute_non_ssa_locals<'b, Builder: BlockBuilderMethods<'b>>(
-    fn_builder: &FnBuilder<'b, Builder>,
+pub fn compute_non_ssa_locals<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
+    fn_builder: &FnBuilder<'a, 'b, Builder>,
 ) -> FixedBitSet {
     let body = fn_builder.body;
     let dominators = body.basic_blocks.dominators();
@@ -123,9 +123,9 @@ enum LocalMemoryKind {
     Ssa(ir::IrRef),
 }
 
-struct LocalKindAnalyser<'ir, 'b, Builder: BlockBuilderMethods<'b>> {
+struct LocalKindAnalyser<'ir, 'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> {
     /// The function lowering context.
-    fn_builder: &'ir FnBuilder<'b, Builder>,
+    fn_builder: &'ir FnBuilder<'a, 'b, Builder>,
 
     /// The [Dominator]s of the the function body.
     dominators: Dominators<ir::BasicBlock>,
@@ -136,7 +136,7 @@ struct LocalKindAnalyser<'ir, 'b, Builder: BlockBuilderMethods<'b>> {
     locals: IndexVec<Local, LocalMemoryKind>,
 }
 
-impl<'ir, 'b, Builder: BlockBuilderMethods<'b>> LocalKindAnalyser<'ir, 'b, Builder> {
+impl<'ir, 'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> LocalKindAnalyser<'ir, 'a, 'b, Builder> {
     /// Perform an "assignment" to a particular local. This will
     /// change the previous kind of memory with the following rules:
     ///
@@ -165,10 +165,10 @@ impl<'ir, 'b, Builder: BlockBuilderMethods<'b>> LocalKindAnalyser<'ir, 'b, Build
     }
 }
 
-impl<'ir, 'b, Builder: BlockBuilderMethods<'b>> IrVisitorMut<'b>
-    for LocalKindAnalyser<'ir, 'b, Builder>
+impl<'ir, 'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> IrVisitorMut<'ir>
+    for LocalKindAnalyser<'ir, 'a, 'b, Builder>
 {
-    fn ctx(&self) -> &'b hash_ir::IrCtx {
+    fn ctx(&self) -> &'ir hash_ir::IrCtx {
         self.fn_builder.ctx.ir_ctx()
     }
 

@@ -24,13 +24,30 @@ pub struct Target {
     /// supports a pointer size larger than 8 bytes.
     pub pointer_width: usize,
 
-    /// The name of the target.
-    pub name: TargetName,
+    /// The target-triple name of the [Target].
+    pub name: Cow<'static, str>,
+
+    /// The architecture of the target.
+    pub arch: TargetArch,
 
     /// The name of the entry point for the target.
     ///
     /// Default is `main`.
     pub entry_name: Cow<'static, str>,
+
+    /// Specifies the name of the cpu that the target has.
+    pub cpu: Cow<'static, str>,
+
+    /// This specifies the CPU features that are available on the
+    /// target that is being compiled for.
+    pub cpu_features: Cow<'static, str>,
+
+    /// Represents what kind of relocation model the target is
+    /// expecting.
+    pub relocation_mode: RelocationMode,
+
+    /// Represents what kind of code model the target is expecting.
+    pub code_model: CodeModel,
 
     /// The default visibility for symbols in this target should be "hidden"
     /// rather than "default"
@@ -41,9 +58,46 @@ pub struct Target {
     pub entry_abi: Abi,
 }
 
-/// Represents the available targets that the compiler can compiler for.
 #[derive(Debug, Clone, Copy)]
-pub enum TargetName {
+pub enum CodeModel {
+    /// The default code model.
+    Default,
+
+    /// The JIT code model.
+    JITDefault,
+
+    /// The small code model.
+    Small,
+
+    /// The kernel code model.
+    Kernel,
+
+    /// The medium code model.
+    Medium,
+
+    /// The large code model.
+    Large,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum RelocationMode {
+    /// The default relocation mode.
+    Default,
+
+    /// The static relocation mode.
+    Static,
+
+    /// The PIC relocation mode.
+    PIC,
+
+    /// The dynamic no PIC relocation mode.
+    DynamicNoPIC,
+}
+
+/// Represents the available target architectures that the compiler can compiler
+/// for.
+#[derive(Debug, Clone, Copy)]
+pub enum TargetArch {
     /// x86 32-bit target architecture.
     X86,
 
@@ -61,26 +115,38 @@ pub enum TargetName {
     Unknown,
 }
 
-impl TargetName {
-    pub fn from_system() -> Self {
+impl TargetArch {
+    /// Get the [TargetArch] from the host system.
+    pub fn from_host() -> Self {
         match ARCH {
             "x86" => Self::X86,
-            "x86_64" => Self::X86_64,
+            "x86_64" | "x86-64" | "x64" => Self::X86_64,
             "aarch64" => Self::Aarch64,
             "arm" => Self::Arm,
             _ => Self::Unknown,
         }
     }
+
+    /// Convert the [TargetName] to a static string.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            TargetArch::X86 => "x86",
+            TargetArch::X86_64 => "x86-64",
+            TargetArch::Aarch64 => "aarch64",
+            TargetArch::Arm => "arm",
+            TargetArch::Unknown => "unknown",
+        }
+    }
 }
 
-impl Display for TargetName {
+impl Display for TargetArch {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            TargetName::X86 => write!(f, "x86"),
-            TargetName::X86_64 => write!(f, "x86_64"),
-            TargetName::Aarch64 => write!(f, "aarch64"),
-            TargetName::Arm => write!(f, "arm"),
-            TargetName::Unknown => write!(f, "unknown"),
+            TargetArch::X86 => write!(f, "x86"),
+            TargetArch::X86_64 => write!(f, "x86_64"),
+            TargetArch::Aarch64 => write!(f, "aarch64"),
+            TargetArch::Arm => write!(f, "arm"),
+            TargetArch::Unknown => write!(f, "unknown"),
         }
     }
 }
@@ -88,15 +154,17 @@ impl Display for TargetName {
 impl Target {
     /// Create a new target from the given string.
     pub fn from_string(name: String) -> Option<Self> {
-        let (name, pointer_width) = match name.as_str() {
-            "x86" => (TargetName::X86, 4),
-            "x86_64" => (TargetName::X86_64, 8),
-            "arm" => (TargetName::Arm, 4),
-            "aarch64" => (TargetName::Aarch64, 8),
+        // @@Todo: move each branch into separate module in order
+        // to make it easier to add new targets.
+        let (cpu, arch, pointer_width) = match name.as_str() {
+            "x86" => ("x86-64", TargetArch::X86, 4),
+            "x86_64" => ("x86-64", TargetArch::X86_64, 8),
+            "arm" => ("arm", TargetArch::Arm, 4),
+            "aarch64" => ("aarch64", TargetArch::Aarch64, 8),
             _ => return None,
         };
 
-        Some(Self { name, pointer_width, ..Default::default() })
+        Some(Self { cpu: cpu.into(), arch, pointer_width, ..Default::default() })
     }
 }
 
@@ -104,11 +172,16 @@ impl Default for Target {
     fn default() -> Self {
         // get the size of the pointer for the current system
         let pointer_width = std::mem::size_of::<usize>();
-        let name = TargetName::from_system();
+        let arch = TargetArch::from_host();
 
         Self {
+            name: env!("TARGET_TRIPLE").into(),
+            cpu: "generic".into(),
+            cpu_features: "".into(),
+            relocation_mode: RelocationMode::PIC,
+            code_model: CodeModel::Default,
             pointer_width,
-            name,
+            arch,
             entry_name: "main".into(),
             entry_abi: Abi::C,
             default_hidden_visibility: false,

@@ -7,8 +7,10 @@ use std::{
 };
 
 use bimap::BiMap;
-use hash_utils::path::adjust_canonicalisation;
-use index_vec::define_index_type;
+use hash_utils::{
+    index_vec::{define_index_type, index_vec, IndexVec},
+    path::adjust_canonicalisation,
+};
 use location::{compute_row_col_from_offset, RowColSpan, SourceLocation};
 
 pub mod constant;
@@ -135,14 +137,22 @@ impl From<SourceId> for InteractiveId {
 /// The [ModuleKind] enumeration describes what kind of module this is. If it is
 /// a [ModuleKind::Prelude], then certain things are allowed within this module
 /// in order to allow for `compiler` magic to interact with the prelude file.
+///
+/// @@TODO: maybe make this a `bitflags!`?
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum ModuleKind {
     /// Any normal module that is within a workspace, including modules within
     /// the standard library.
     Normal,
+
     /// The `prelude` module, which allows for various features that are
     /// normally disallowed.
     Prelude,
+
+    /// Entry point, this module is considered to be the entry point of the
+    /// project, it has the same characteristics as a [`ModuleKind::Normal`]
+    /// module, but it is also the entry point of the project.
+    EntryPoint,
 }
 
 /// This data structure is used to store and organise the sources of the
@@ -155,13 +165,16 @@ pub struct SourceMap {
     /// A map between [ModuleId] and [PathBuf]. This is a bi-directional map
     /// and such value and key lookups are available.
     module_paths: BiMap<ModuleId, PathBuf>,
+
     ///  A map between [ModuleId] and the actual sources of the module.
-    module_content_map: Vec<String>,
+    module_content_map: IndexVec<InteractiveId, String>,
+
     /// A map between [ModuleId] and the kind of module
-    module_kind_map: Vec<ModuleKind>,
+    module_kind_map: IndexVec<ModuleId, ModuleKind>,
+
     /// A map between [InteractiveId] and the actual sources of the interactive
     /// block.
-    interactive_content_map: Vec<String>,
+    interactive_content_map: IndexVec<InteractiveId, String>,
 }
 
 impl SourceMap {
@@ -169,21 +182,25 @@ impl SourceMap {
     pub fn new() -> Self {
         Self {
             module_paths: BiMap::new(),
-            module_kind_map: vec![],
-            module_content_map: vec![],
-            interactive_content_map: vec![],
+            module_kind_map: index_vec![],
+            module_content_map: index_vec![],
+            interactive_content_map: index_vec![],
         }
     }
 
     /// Get a [Path] by a specific [SourceId]. If it is interactive, the path
     /// is always set as `<interactive>`.
-    pub fn path_by_id(&self, id: SourceId) -> &Path {
+    pub fn source_path(&self, id: SourceId) -> &Path {
         if id.is_interactive() {
             Path::new("<interactive>")
         } else {
-            let value = id.into();
-            self.module_paths.get_by_left(&value).unwrap().as_path()
+            self.module_path(id.into())
         }
+    }
+
+    /// Get a [Path] for a specific [ModuleId].
+    pub fn module_path(&self, id: ModuleId) -> &Path {
+        self.module_paths.get_by_left(&id).unwrap().as_path()
     }
 
     /// Get a canonicalised version of a [Path] for a [SourceId]. If it is
@@ -203,7 +220,7 @@ impl SourceMap {
     /// function adheres to the rules of module naming conventions which are
     /// specified within the documentation book.
     pub fn source_name(&self, id: SourceId) -> &str {
-        let path = self.path_by_id(id);
+        let path = self.source_path(id);
 
         // for interactive, there is no file and so we just default to using the whole
         // path
@@ -246,7 +263,7 @@ impl SourceMap {
     }
 
     /// Get the [ModuleKind] by [SourceId]. If the `id` is
-    /// [SourceId::Interactive], then the resultant [ModuleKind] is [None].
+    /// [InteractiveId], then the resultant [ModuleKind] is [None].
     pub fn module_kind_by_id(&self, source_id: SourceId) -> Option<ModuleKind> {
         if source_id.is_interactive() {
             return None;
@@ -256,7 +273,19 @@ impl SourceMap {
         self.module_kind_map.get(value as usize).copied()
     }
 
-    /// Add a module to the [SourceMap]
+    /// Get the entry point that has been registered with the [SourceMap].
+    ///
+    /// If no entry point has been registered, then the function will panic.
+    pub fn entry_point(&self) -> ModuleId {
+        self.module_kind_map
+            .iter()
+            .position(|kind| matches!(kind, ModuleKind::EntryPoint))
+            .unwrap()
+            .into()
+    }
+
+    /// Add a module to the [SourceMap] with the specified resolved file path,
+    /// contents and a kind of module.
     pub fn add_module(&mut self, path: PathBuf, contents: String, kind: ModuleKind) -> SourceId {
         let id = self.module_content_map.len() as u32;
         self.module_content_map.push(contents);
