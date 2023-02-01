@@ -460,10 +460,6 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     .stores()
                     .stack()
                     .map_fast(stack_member_id.0, |stack| stack.members[stack_member_id.1].ty)),
-                BoundVarOrigin::Hole(_, hole_kind) => match hole_kind {
-                    HoleBinderKind::Hole(ty_id) => Ok(ty_id),
-                    HoleBinderKind::Guess(term_id, _) => Ok(self.infer_term(term_id, None)?.1), /* @@Todo: unify with guess type? */
-                },
             },
         }
     }

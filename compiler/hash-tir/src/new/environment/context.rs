@@ -15,7 +15,6 @@ use crate::{
     new::{
         data::{CtorDefId, DataDefId},
         fns::FnDefId,
-        holes::{Hole, HoleBinderKind},
         mods::{ModDefId, ModMemberId},
         params::ParamIndex,
         scopes::{StackId, StackMemberId},
@@ -68,10 +67,6 @@ pub enum BoundVarOrigin {
     ///
     /// For example, `a` in `{ a := 3; a }`
     StackMember(StackMemberId),
-    /// Hole binder
-    ///
-    /// For example `?a:B.a`
-    Hole(Hole, HoleBinderKind),
 }
 
 /// A binding.
@@ -101,8 +96,6 @@ pub enum ScopeKind {
     ///
     /// The inner type points to an `FnTy` variant.
     FnTy(TyId),
-    /// A hole scope.
-    Hole(Hole, HoleBinderKind),
 }
 
 /// Information about a scope in the context.
@@ -322,9 +315,6 @@ impl fmt::Display for WithEnv<'_, &BoundVarOrigin> {
             BoundVarOrigin::StackMember(stack_member) => {
                 write!(f, "{}", self.env().with(*stack_member))
             }
-            BoundVarOrigin::Hole(hole, hole_kind) => {
-                write!(f, "{}", self.env().with((*hole, *hole_kind)))
-            }
         }
     }
 }
@@ -376,9 +366,6 @@ impl fmt::Display for WithEnv<'_, ScopeKind> {
                 .stores()
                 .ty()
                 .map_fast(fn_ty, |fn_ty| write!(f, "fn ty {}", self.env().with(fn_ty),)),
-            ScopeKind::Hole(hole, hole_kind) => {
-                write!(f, "hole {}", self.env().with((hole, hole_kind)))
-            }
         }
     }
 }
