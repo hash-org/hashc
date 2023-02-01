@@ -18,8 +18,10 @@ use crate::new::{
     params::ParamId,
     scopes::{StackId, StackMemberId},
     symbols::Symbol,
+    terms::TermId,
     tuples::TupleTy,
 };
+
 /// The kind of a binding.
 #[derive(Debug, Clone, Copy)]
 pub enum BindingKind {
@@ -39,6 +41,10 @@ pub enum BindingKind {
     ///
     /// For example, `a` in `{ a := 3; a }`
     StackMember(StackMemberId),
+    /// Equality judgement
+    ///
+    /// This is a special binding because it cannot be referenced by name.
+    Equality(EqualityJudgement),
 }
 
 /// A binding.
@@ -51,6 +57,13 @@ pub struct Binding {
     pub name: Symbol,
     /// The kind of the binding.
     pub kind: BindingKind,
+}
+
+/// An established equality between terms, that is in scope.
+#[derive(Debug, Clone, Copy)]
+pub struct EqualityJudgement {
+    pub lhs: TermId,
+    pub rhs: TermId,
 }
 
 /// All the different kinds of scope there are, and their associated data.
@@ -257,6 +270,12 @@ impl Context {
     }
 }
 
+impl fmt::Display for WithEnv<'_, EqualityJudgement> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} === {}", self.env().with(self.value.lhs), self.env().with(self.value.rhs))
+    }
+}
+
 impl fmt::Display for WithEnv<'_, Binding> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.value.kind {
@@ -271,6 +290,9 @@ impl fmt::Display for WithEnv<'_, Binding> {
             }
             BindingKind::StackMember(stack_member) => {
                 write!(f, "{}", self.env().with(stack_member))
+            }
+            BindingKind::Equality(equality) => {
+                write!(f, "{}", self.env().with(equality))
             }
         }
     }
