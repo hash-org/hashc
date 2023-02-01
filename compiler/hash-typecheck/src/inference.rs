@@ -430,6 +430,9 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     /// Infer the type of a variable, and return it.
     pub fn infer_var(&self, term: Symbol) -> TcResult<TyId> {
         match self.context().get_binding(term).unwrap().kind {
+            BindingKind::Equality(_) => {
+                unreachable!("equality judgements cannot be referenced")
+            }
             BindingKind::ModMember(_, _) | BindingKind::Ctor(_, _) => {
                 unreachable!("mod members and ctors should have all been resolved by now")
             }

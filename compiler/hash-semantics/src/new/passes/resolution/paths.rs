@@ -287,7 +287,10 @@ impl<'tc> ResolutionPass<'tc> {
                                 }
                             }
                         }
-                        NonTerminalResolvedPathComponent::Mod(_) => unreachable!(), /* Can never have a constructor starting from a module */
+
+                        NonTerminalResolvedPathComponent::Mod(_) => {
+                            unreachable!("Can never have a constructor starting from a module")
+                        }
                     },
                     None => todo!(),
                 }
@@ -310,6 +313,9 @@ impl<'tc> ResolutionPass<'tc> {
                         ))
                     }
                 }
+            }
+            BindingKind::Equality(_) => {
+                unreachable!("No equality judgements should be present during resolution")
             }
         }
     }

@@ -2,17 +2,19 @@
 use derive_more::Constructor;
 use hash_utils::store::{SequenceStore, Store};
 
+use super::common::CommonUtils;
 use crate::{
     impl_access_to_env,
     new::{
         data::{DataDefCtors, DataDefId},
         environment::{
-            context::{Binding, BindingKind, ScopeKind},
+            context::{Binding, BindingKind, EqualityJudgement, ScopeKind},
             env::{AccessToEnv, Env},
         },
         mods::ModDefId,
         params::ParamId,
         scopes::{DeclTerm, StackMemberId},
+        terms::TermId,
     },
 };
 
@@ -33,6 +35,14 @@ impl<'env> ContextUtils<'env> {
         // @@Safety: Maybe we should check that the param belongs to the current scope?
         let name = self.stores().params().map_fast(param_id.0, |params| params[param_id.1].name);
         self.context().add_binding(Binding { name, kind: BindingKind::Param(param_id) });
+    }
+
+    /// Add an equality judgement to the context.
+    pub fn add_equality_judgement(&self, lhs: TermId, rhs: TermId) {
+        self.context().add_binding(Binding {
+            name: self.new_fresh_symbol(),
+            kind: BindingKind::Equality(EqualityJudgement { lhs, rhs }),
+        });
     }
 
     /// Add a new stack binding to the current scope context.
