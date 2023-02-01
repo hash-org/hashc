@@ -11,17 +11,13 @@ use hash_codegen::{
 };
 use hash_ir::{
     ty::{InstanceId, IrTyId, VariantIdx},
-    IrCtx, IrStorage,
+    IrCtx,
 };
 use hash_pipeline::settings::CompilerSettings;
 use hash_source::constant::InternedStr;
 use hash_target::Target;
 use inkwell as llvm;
-use llvm::{
-    context::ContextRef,
-    types::{AnyTypeEnum, IntType},
-    values::FunctionValue,
-};
+use llvm::values::FunctionValue;
 
 use crate::translation::ty::TyMemoryRemap;
 
@@ -41,7 +37,7 @@ pub struct CodeGenCtx<'b, 'm> {
     pub layouts: &'b LayoutCtx,
 
     /// The LLVM module that we are putting items into.
-    pub module: &'m llvm::module::Module<'m>,
+    pub module: &'b llvm::module::Module<'m>,
 
     /// The LLVM "context" that is used for building and
     /// translating into LLVM IR.
@@ -82,7 +78,7 @@ pub struct CodeGenCtx<'b, 'm> {
 impl<'b, 'm> CodeGenCtx<'b, 'm> {
     /// Create a new [CodeGenCtx].
     pub fn new(
-        module: &'m llvm::module::Module<'m>,
+        module: &'b llvm::module::Module<'m>,
         settings: &'b CompilerSettings,
         ir_ctx: &'b IrCtx,
         layouts: &'b LayoutCtx,

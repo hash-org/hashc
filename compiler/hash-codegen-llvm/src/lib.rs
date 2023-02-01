@@ -6,28 +6,22 @@
 //! the backend performs it's work in the [LLVMBackend::run] method, and saves
 //! the results of each module in the [Workspace].
 #![feature(let_chains, hash_raw_entry)]
-#![allow(unused)]
-
-use std::{cell::RefCell, path::PathBuf};
 
 use context::CodeGenCtx;
-use fxhash::FxHashMap;
 use hash_codegen::{
     backend::{Backend, BackendCtx},
     layout::LayoutCtx,
     lower::codegen_ir_body,
 };
-use hash_ir::{
-    ir::BodySource,
-    ty::{IrTy, IrTyId},
-    IrStorage,
-};
+use hash_ir::{ir::BodySource, ty::IrTy, IrStorage};
 use hash_pipeline::{settings::CompilerSettings, workspace::Workspace, CompilerResult};
 use hash_source::ModuleId;
 use hash_target::TargetArch;
-use hash_utils::index_vec::IndexVec;
 use inkwell as llvm;
-use llvm::targets::TargetTriple;
+use llvm::{
+    passes::{PassManager, PassManagerBuilder},
+    targets::{FileType, TargetTriple},
+};
 use misc::{CodeModelWrapper, OptimisationLevelWrapper, RelocationModeWrapper};
 use translation::Builder;
 
@@ -37,25 +31,9 @@ pub mod translation;
 
 // Re-export the context so that the `backend` can create it and
 // pass it in.
-pub use llvm::context::Context as LLVMContext;
+pub use llvm::{context::Context as LLVMContext, module::Module as LLVMModule};
 
-pub struct ModuleData<'m> {
-    /// The LLVM module.
-    module: llvm::module::Module<'m>,
-
-    /// The path to the file which contains the module.
-    path: PathBuf,
-}
-
-impl<'b> ModuleData<'b> {
-    /// Get a reference to the module that is associated with
-    /// this [ModuleData].
-    fn module(&self) -> &llvm::module::Module<'b> {
-        &self.module
-    }
-}
-
-pub struct LLVMBackend<'b, 'm> {
+pub struct LLVMBackend<'b> {
     /// The current compiler workspace, which is where the results of the
     /// linking and bytecode emission will be stored.
     workspace: &'b mut Workspace,
@@ -63,10 +41,6 @@ pub struct LLVMBackend<'b, 'm> {
     /// The compiler settings associated with the current
     /// session.
     settings: &'b CompilerSettings,
-
-    /// A map which maps a [ModuleId] to it's corresponding [ModuleData] and
-    /// file paths.
-    modules: FxHashMap<ModuleId, ModuleData<'m>>,
 
     /// The IR storage that is used to store the lowered IR, and all metadata
     /// about the IR.
@@ -81,9 +55,9 @@ pub struct LLVMBackend<'b, 'm> {
     target_machine: llvm::targets::TargetMachine,
 }
 
-impl<'b, 'm> LLVMBackend<'b, 'm> {
+impl<'b> LLVMBackend<'b> {
     /// Create a new LLVM Backend from the given [BackendCtx].
-    pub fn new(llvm_ctx: &'m LLVMContext, ctx: BackendCtx<'b>) -> Self {
+    pub fn new(ctx: BackendCtx<'b>) -> Self {
         let BackendCtx { workspace, ir_storage, layout_storage: layouts, settings, .. } = ctx;
 
         // We have to create a target machine from the provided target
@@ -121,43 +95,53 @@ impl<'b, 'm> LLVMBackend<'b, 'm> {
             )
             .unwrap();
 
-        let mut modules = FxHashMap::default();
-
-        let entry_point = workspace.source_map.entry_point();
-        modules.insert(
-            entry_point,
-            ModuleData {
-                module: llvm_ctx.create_module(workspace.name.as_str()),
-                path: workspace.module_bitcode_path(entry_point),
-            },
-        );
-
-        Self { modules, workspace, target_machine, ir_storage, layouts, settings }
+        Self { workspace, target_machine, ir_storage, layouts, settings }
     }
 
-    /// Verify all of the registered modules within the current
-    /// backend instance. If a problem is found it causes the function
-    /// to invoke a panic.
-    fn verify_modules(&self) {
-        for ModuleData { module, .. } in self.modules.values() {
-            module.verify().unwrap();
-        }
+    fn optimise(&self, module: &LLVMModule) -> CompilerResult<()> {
+        let pass_manager_builder = PassManagerBuilder::create();
+
+        let OptimisationLevelWrapper(opt_level) = self.settings.optimisation_level.into();
+        pass_manager_builder.set_optimization_level(opt_level);
+
+        let size_opt_level = self.settings.optimisation_level.size_level();
+        pass_manager_builder.set_size_level(size_opt_level as u32);
+
+        // Now run the optimisations on the given module.
+        let pass_manager = PassManager::create(());
+        pass_manager_builder.populate_module_pass_manager(&pass_manager);
+        pass_manager.run_on(module);
+
+        Ok(())
+    }
+
+    /// Write the given [LLVMModule] to the disk, whilst also ensuring that it
+    /// is valid before the module.
+    fn write_module(&self, module: &LLVMModule, id: ModuleId) -> CompilerResult<()> {
+        module.verify().unwrap();
+
+        // For now, we assume that the object file extension is always `.o`.
+        let path = self.workspace.module_bitcode_path(id, ".o");
+        self.target_machine.write_to_file(module, FileType::Object, &path).unwrap();
+
+        Ok(())
     }
 }
 
-impl<'b, 'm> Backend<'b> for LLVMBackend<'b, 'm> {
+impl<'b> Backend<'b> for LLVMBackend<'b> {
     /// This is the entry point for the LLVM backend, this is where each module
     /// is translated into an LLVM IR module and is then emitted as a bytecode
     /// module to the disk.
     fn run(&mut self) -> CompilerResult<()> {
-        let entry_point = self.workspace.source_map.entry_point();
-        let module = self.modules.get(&entry_point).unwrap().module();
-
         // @@Future: make it configurable whether we emit a module object per single
         // object, or if we emit a single module object for the entire program.
         // Currently, we are emitting a single module for the entire program
         // that is being compiled in in the workspace.
-        let ctx = CodeGenCtx::new(module, self.settings, &self.ir_storage.ctx, self.layouts);
+        let entry_point = self.workspace.source_map.entry_point();
+
+        let context = LLVMContext::create();
+        let module = context.create_module(self.workspace.name.as_str());
+        let ctx = CodeGenCtx::new(&module, self.settings, &self.ir_storage.ctx, self.layouts);
 
         // For each body perform a lowering procedure via the common interface...
         for body in self.ir_storage.bodies.iter() {
@@ -180,7 +164,7 @@ impl<'b, 'm> Backend<'b> for LLVMBackend<'b, 'm> {
             codegen_ir_body::<Builder>(instance, body, &ctx).unwrap();
         }
 
-        self.verify_modules();
-        Ok(())
+        self.optimise(&module)?;
+        self.write_module(&module, entry_point)
     }
 }

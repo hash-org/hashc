@@ -219,8 +219,12 @@ pub enum OptimisationLevel {
     /// applying all optimisation.
     Release,
 
-    /// Optimise the given program for size rather than speed.
+    /// Optimise for size but not aggressively as
+    /// [`OptimisationLevel::MinSize`].
     Size,
+
+    /// Optimise the given program for size rather than speed.
+    MinSize,
 }
 
 impl OptimisationLevel {
@@ -229,12 +233,22 @@ impl OptimisationLevel {
         matches!(self, Self::Release)
     }
 
+    /// Get the level in optimisation of size.
+    pub fn size_level(&self) -> usize {
+        match self {
+            Self::Size => 1,
+            Self::MinSize => 2,
+            _ => 0,
+        }
+    }
+
     /// Get the optimisation level as a string.
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Debug => "debug",
             Self::Release => "release",
             Self::Size => "size",
+            Self::MinSize => "min-size",
         }
     }
 }

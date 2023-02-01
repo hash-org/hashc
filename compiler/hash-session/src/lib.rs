@@ -38,7 +38,7 @@ pub fn make_stages() -> Vec<Box<dyn CompilerStage<CompilerSession>>> {
         Box::new(Typechecker::new()),
         Box::<IrGen>::default(),
         Box::new(IrOptimiser),
-        Box::new(CodeGenPass::new()),
+        Box::new(CodeGenPass),
     ]
 }
 

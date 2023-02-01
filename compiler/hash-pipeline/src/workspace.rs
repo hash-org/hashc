@@ -228,13 +228,13 @@ impl Workspace {
     /// imply that the function will return a path that already exists, or has
     /// been "acquired", it is intended to be used to generate a path for a
     /// module that is about to be emitted.
-    pub fn module_bitcode_path(&self, module: ModuleId) -> PathBuf {
+    pub fn module_bitcode_path(&self, module: ModuleId, extension: &'static str) -> PathBuf {
         let mut path = self.output_directory.clone();
         let module_path = self.source_map.module_path(module);
 
         path.push("build");
         path.push(format!(
-            "{}-{}.bc",
+            "{}-{}.{extension}",
             module_path.file_stem().unwrap().to_str().unwrap(),
             module.raw()
         ));

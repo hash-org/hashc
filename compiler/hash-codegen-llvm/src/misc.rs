@@ -301,7 +301,9 @@ impl From<OptimisationLevel> for OptimisationLevelWrapper {
 
             // @@Todo: there seems to be no way to specify that we want to optimise for
             // minimal size, i.e. `-Oz` in clang.
-            OptimisationLevel::Size => OptimisationLevelWrapper(Default),
+            OptimisationLevel::Size | OptimisationLevel::MinSize => {
+                OptimisationLevelWrapper(Default)
+            }
         }
     }
 }
