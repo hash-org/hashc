@@ -71,6 +71,13 @@ pub trait Mapper<E> = Fn(Atom) -> Result<ControlFlow<Atom>, E> + Copy;
 /// Contains the implementation of `fmap` and `visit` for each atom, as well as
 /// secondary components such as arguments and parameters.
 impl<'env> TraversingUtils<'env> {
+    pub fn fmap_atom_non_preserving<E, F: Mapper<E>>(&self, atom: Atom, f: F) -> Result<Atom, E> {
+        match f(atom)? {
+            ControlFlow::Continue(()) => self.fmap_atom(atom, f),
+            ControlFlow::Break(atom) => Ok(atom),
+        }
+    }
+
     pub fn fmap_atom<E, F: Mapper<E>>(&self, atom: Atom, f: F) -> Result<Atom, E> {
         match atom {
             Atom::Term(term_id) => Ok(Atom::Term(self.fmap_term(term_id, f)?)),

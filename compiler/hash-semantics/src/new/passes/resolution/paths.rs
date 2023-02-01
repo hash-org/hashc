@@ -314,8 +314,10 @@ impl<'tc> ResolutionPass<'tc> {
                     }
                 }
             }
-            BindingKind::Equality(_) => {
-                unreachable!("No equality judgements should be present during resolution")
+            BindingKind::Arg(_, _) | BindingKind::Equality(_) => {
+                unreachable!(
+                    "No equality judgements or arg bindings should be present during resolution"
+                )
             }
         }
     }

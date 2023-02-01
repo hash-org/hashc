@@ -12,6 +12,7 @@ use indexmap::IndexMap;
 
 use super::env::{AccessToEnv, WithEnv};
 use crate::new::{
+    args::ArgId,
     data::{CtorDefId, DataDefId},
     fns::{FnDefId, FnTy},
     mods::{ModDefId, ModMemberId},
@@ -41,6 +42,10 @@ pub enum BindingKind {
     ///
     /// For example, `a` in `{ a := 3; a }`
     StackMember(StackMemberId),
+    /// Parameter substitution (argument)
+    ///
+    /// For example, `a=3` in `((a: i32) => a + 3)(3)`
+    Arg(ParamId, ArgId),
     /// Equality judgement
     ///
     /// This is a special binding because it cannot be referenced by name.
@@ -293,6 +298,9 @@ impl fmt::Display for WithEnv<'_, Binding> {
             }
             BindingKind::Equality(equality) => {
                 write!(f, "{}", self.env().with(equality))
+            }
+            BindingKind::Arg(_, arg_id) => {
+                write!(f, "{}", self.env().with(arg_id))
             }
         }
     }

@@ -441,6 +441,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 .stores()
                 .stack()
                 .map_fast(stack_member_id.0, |stack| stack.members[stack_member_id.1].ty)),
+            BindingKind::Arg(param_id, _) => Ok(self.stores().params().get_element(param_id).ty),
         }
     }
 
@@ -636,28 +637,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         _decl_term: &DeclTerm,
         _annotation_ty: Option<TyId>,
     ) -> TcResult<(DeclTerm, TyId)> {
-        // let uni = self.check_pat(decl_term.bind_pat, decl_term.ty)?;
-
         todo!()
-        // match uni {
-        //     Uni::Successful(sub) => {
-        //         match decl_term.value {
-        //             Some(value) => {
-        //                 let new_ty = self.check_term(decl_term.value,
-        // ty_id)?;                 todo!()
-        //             }
-        //             None => {
-        //                 todo!()
-        //             }
-        //         }
-
-        //         self.context_utils().add_decl_term_to_context(&decl_term);
-        //     }
-        //     Uni::Blocked => {
-        //         self.context_utils().add_decl_term_to_context(&decl_term);
-        //         Ok(None)
-        //     }
-        // }
     }
 
     pub fn generalise_term_inference(&self, inference: (impl Into<Term>, TyId)) -> (TermId, TyId) {
@@ -686,7 +666,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         term_id: TermId,
         annotation_ty: Option<TyId>,
     ) -> TcResult<(TermId, TyId)> {
-        self.stores().term().map(term_id, |term| match term {
+        let result = self.stores().term().map(term_id, |term| match term {
             Term::Tuple(tuple_term) => self
                 .infer_tuple_term(tuple_term, annotation_ty)
                 .map(|i| self.generalise_term_and_ty_inference(i)),
@@ -745,7 +725,9 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             Term::Assign(_) => todo!(),
             Term::Access(_) => todo!(),
             Term::Hole(_) => Err(TcError::Blocked),
-        })
+        })?;
+
+        Ok(result)
     }
 
     /// Infer the type of a pattern, and return it.
