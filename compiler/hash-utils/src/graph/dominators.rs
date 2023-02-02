@@ -209,7 +209,7 @@ pub fn dominators<G: ControlFlowGraph>(graph: &G) -> Dominators<G::Node> {
     //
     // 3. parents for each graph vertex - `parent`
     'recurse: while let Some(frame) = stack.last_mut() {
-        while let Some(successor) = frame.iter.next() {
+        for successor in frame.iter.by_ref() {
             if real_to_pre_order[successor].is_none() {
                 let pre_order_index = pre_order_to_real.push(successor);
                 real_to_pre_order[successor] = Some(pre_order_index);

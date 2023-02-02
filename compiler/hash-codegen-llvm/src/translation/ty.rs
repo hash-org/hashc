@@ -22,7 +22,7 @@ use llvm_sys::{
     core::{LLVMGetTypeKind, LLVMVectorType},
     LLVMTypeKind,
 };
-use smallvec::SmallVec;
+use smallvec::{smallvec, SmallVec};
 
 use super::abi::ExtendedFnAbiMethods;
 use crate::{context::CodeGenCtx, misc::AddressSpaceWrapper};
@@ -520,7 +520,7 @@ fn create_and_pad_struct_fields_from_layout<'m>(
     // Assume that all fields and the last field will need to all be
     // padded.
     let mut fields = Vec::with_capacity(1 + field_count * 2);
-    let mut field_map = SmallVec::with_capacity(field_count);
+    let mut field_map = smallvec![0; field_count];
 
     for i in layout.shape.iter_increasing_offsets() {
         let target_offset = layout.shape.offset(i);
