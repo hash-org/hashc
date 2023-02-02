@@ -572,7 +572,6 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 let stack = self.stores().stack().get(block_term.stack_id);
                 if let Some(local_mod_def) = stack.local_mod_def {
                     self.infer_mod_def(local_mod_def)?;
-                    self.context_utils().add_mod_members(local_mod_def, |_| {});
                 }
 
                 let mut error_state = self.new_error_state();
@@ -922,8 +921,6 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     /// Infer the given module definition.
     pub fn infer_mod_def(&self, mod_def_id: ModDefId) -> TcResult<()> {
         self.context().enter_scope(mod_def_id.into(), || {
-            self.context_utils().add_mod_members(mod_def_id, |_| {});
-
             let members = self.stores().mod_def().map_fast(mod_def_id, |def| def.members);
             let mut error_state = self.new_error_state();
 

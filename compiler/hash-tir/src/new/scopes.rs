@@ -236,6 +236,16 @@ impl fmt::Display for WithEnv<'_, StackId> {
 impl fmt::Display for WithEnv<'_, &BlockTerm> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "{{")?;
+
+        let stack_local_mod_def =
+            self.stores().stack().map_fast(self.value.stack_id, |stack| stack.local_mod_def);
+        if let Some(mod_def_members) = stack_local_mod_def.map(|mod_def_id| {
+            self.stores().mod_def().map_fast(mod_def_id, |mod_def| mod_def.members)
+        }) {
+            let members = self.env().with(mod_def_members).to_string();
+            write!(f, "{}", indent(&members, "  "))?;
+        }
+
         self.stores().term_list().map_fast(self.value.statements, |list| {
             for term in list {
                 let term = self.env().with(*term).to_string();
@@ -244,7 +254,8 @@ impl fmt::Display for WithEnv<'_, &BlockTerm> {
             Ok(())
         })?;
         let return_value = self.env().with(self.value.return_value).to_string();
-        write!(f, "{}", indent(&return_value, "  "))?;
-        write!(f, "\n}}")
+        writeln!(f, "{}", indent(&return_value, "  "))?;
+
+        write!(f, "}}")
     }
 }
