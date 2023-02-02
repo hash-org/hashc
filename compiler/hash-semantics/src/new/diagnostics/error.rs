@@ -46,6 +46,8 @@ pub enum SemanticError {
     CannotUseFunctionInTypePosition { location: SourceLocation },
     /// Cannot use a function in a pattern position.
     CannotUseFunctionInPatternPosition { location: SourceLocation },
+    /// Cannot use a non-constant item in constant position.
+    CannotUseNonConstantItem { location: SourceLocation },
     /// Cannot use the subject as a namespace.
     InvalidNamespaceSubject { location: SourceLocation },
     /// Cannot use arguments here.
@@ -214,6 +216,16 @@ impl<'tc> WithTcEnv<'tc, &SemanticError> {
 
                 error.add_span(*location).add_info(
                     "cannot use this in pattern position as it refers to a function definition",
+                );
+            }
+            SemanticError::CannotUseNonConstantItem { location } => {
+                let error = reporter
+                    .error()
+                    .code(HashErrorCode::ValueCannotBeUsedAsType)
+                    .title("cannot use a non-constant value in constant position");
+
+                error.add_span(*location).add_info(
+                    "cannot use this in constant position as it refers to a runtime value",
                 );
             }
             SemanticError::InvalidNamespaceSubject { location } => {

@@ -8,7 +8,7 @@ use crate::new::{
     data::{DataDef, DataDefId, DataTy},
     environment::env::AccessToEnv,
     fns::{FnDef, FnDefId},
-    holes::{Hole, HoleBinder, HoleBinderKind},
+    holes::Hole,
     locations::LocationTarget,
     params::{Param, ParamIndex, ParamsId},
     pats::{Pat, PatId, PatListId},
@@ -222,16 +222,6 @@ pub trait CommonUtils: AccessToEnv {
     /// Create a new type hole.
     fn new_ty_hole(&self) -> TyId {
         self.stores().ty().create_with(|_| Ty::Hole(self.new_hole()))
-    }
-
-    /// Create a new hole binder.
-    fn new_hole_binder(&self, hole: Hole, ty: TyId, inner: TermId) -> TermId {
-        self.new_term(HoleBinder { hole, kind: HoleBinderKind::Hole(ty), inner })
-    }
-
-    /// Create a new guess binder.
-    fn new_guess_binder(&self, hole: Hole, guess: TermId, ty: TyId, inner: TermId) -> TermId {
-        self.new_term(HoleBinder { hole, kind: HoleBinderKind::Guess(guess, ty), inner })
     }
 
     /// Create a new empty argument list.

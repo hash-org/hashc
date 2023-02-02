@@ -1,18 +1,19 @@
 //! Contains context-related utilities.
 use derive_more::Constructor;
-use hash_utils::store::{SequenceStore, Store};
+use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
 
 use super::common::CommonUtils;
 use crate::{
     impl_access_to_env,
     new::{
+        args::ArgsId,
         data::{DataDefCtors, DataDefId},
         environment::{
-            context::{Binding, BindingKind, EqualityJudgement, ScopeKind},
+            context::{Binding, BindingKind, EqualityJudgement, ParamOrigin, ScopeKind},
             env::{AccessToEnv, Env},
         },
         mods::ModDefId,
-        params::ParamId,
+        params::{ParamId, ParamsId},
         scopes::{DeclTerm, StackMemberId},
         terms::TermId,
     },
@@ -31,10 +32,24 @@ impl<'env> ContextUtils<'env> {
     ///
     /// This should be used when entering a scope that has parameters. Ensure
     /// that the given parameter belongs to the current scope.
-    pub fn add_param_binding(&self, param_id: ParamId) {
+    pub fn add_param_binding(&self, param_id: ParamId, origin: ParamOrigin) {
         // @@Safety: Maybe we should check that the param belongs to the current scope?
         let name = self.stores().params().map_fast(param_id.0, |params| params[param_id.1].name);
-        self.context().add_binding(Binding { name, kind: BindingKind::Param(param_id) });
+        self.context().add_binding(Binding { name, kind: BindingKind::Param(origin, param_id) });
+    }
+
+    /// Add argument bindings from the given parameters, using the
+    /// given arguments.
+    ///
+    /// *Invariant*: the lengths of the arguments and parameters must match.
+    pub fn add_arg_bindings(&self, params_id: ParamsId, args_id: ArgsId) {
+        assert_eq!(params_id.len(), args_id.len());
+        for i in params_id.to_index_range() {
+            self.context().add_binding(Binding {
+                name: self.stores().params().map_fast(params_id, |params| params[i].name),
+                kind: BindingKind::Arg((params_id, i), (args_id, i)),
+            });
+        }
     }
 
     /// Add an equality judgement to the context.
@@ -75,6 +90,7 @@ impl<'env> ContextUtils<'env> {
             ScopeKind::Stack(stack_id) => stack_id,
             _ => unreachable!(), // decls are only allowed in stack scopes
         };
+
         for stack_index in decl.iter_stack_indices() {
             self.add_stack_binding((current_stack_id, stack_index));
         }

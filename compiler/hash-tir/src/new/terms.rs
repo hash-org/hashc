@@ -12,7 +12,7 @@ use hash_utils::{
 use super::{
     casting::CastTerm,
     environment::env::{AccessToEnv, WithEnv},
-    holes::{Hole, HoleBinder},
+    holes::Hole,
     lits::PrimTerm,
     symbols::Symbol,
     tys::TypeOfTerm,
@@ -51,9 +51,6 @@ pub struct RuntimeTerm {
 /// them through some secondary map.
 #[derive(Debug, Clone, Copy, From)]
 pub enum Term {
-    // Runtime
-    Runtime(RuntimeTerm),
-
     // Primitives
     Tuple(TupleTerm),
     Prim(PrimTerm),
@@ -102,7 +99,6 @@ pub enum Term {
 
     /// Holes
     Hole(Hole),
-    HoleBinder(HoleBinder),
 }
 
 new_store_key!(pub TermId);
@@ -126,7 +122,6 @@ impl fmt::Display for WithEnv<'_, &RuntimeTerm> {
 impl fmt::Display for WithEnv<'_, &Term> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.value {
-            Term::Runtime(runtime_term) => write!(f, "{}", self.env().with(runtime_term)),
             Term::Tuple(tuple_term) => write!(f, "{}", self.env().with(tuple_term)),
             Term::Prim(lit_term) => write!(f, "{}", self.env().with(lit_term)),
             Term::Ctor(ctor_term) => write!(f, "{}", self.env().with(ctor_term)),
@@ -162,7 +157,6 @@ impl fmt::Display for WithEnv<'_, &Term> {
             Term::Ref(ref_term) => write!(f, "{}", self.env().with(ref_term)),
             Term::Deref(deref_term) => write!(f, "{}", self.env().with(deref_term)),
             Term::Hole(hole) => write!(f, "{}", self.env().with(*hole)),
-            Term::HoleBinder(hole_binder) => write!(f, "{}", self.env().with(*hole_binder)),
         }
     }
 }

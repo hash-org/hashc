@@ -58,30 +58,53 @@ impl<'tc> ResolutionPass<'tc> {
                 ast::Expr::StructDef(struct_def) => {
                     // Type parameters
                     if self
-                        .try_or_add_error(
-                            self.resolve_params_from_ast_params(&struct_def.ty_params, true),
-                        )
+                        .try_or_add_error(self.resolve_params_from_ast_params(
+                            &struct_def.ty_params,
+                            true,
+                            data_def_id.into(),
+                        ))
                         .is_none()
                     {
                         found_error = true;
                     }
 
-                    // Struct fields
-                    if self
-                        .try_or_add_error(
-                            self.resolve_params_from_ast_params(&struct_def.fields, false),
-                        )
-                        .is_none()
-                    {
-                        found_error = true;
-                    }
+                    // Struct variant
+                    let struct_ctor =
+                        self.stores().data_def().map_fast(data_def_id, |def| match def.ctors {
+                            hash_tir::new::data::DataDefCtors::Defined(id) => {
+                                // There should only be one variant
+                                assert!(id.len() == 1);
+                                (id, 0)
+                            },
+                            hash_tir::new::data::DataDefCtors::Primitive(_) => unreachable!() // No primitive user-defined structs
+                        });
+
+                    self.scoping().enter_scope(
+                        ScopeKind::Ctor(struct_ctor),
+                        ContextKind::Environment,
+                        || {
+                            // Struct fields
+                            if self
+                                .try_or_add_error(self.resolve_params_from_ast_params(
+                                    &struct_def.fields,
+                                    false,
+                                    struct_ctor.into(),
+                                ))
+                                .is_none()
+                            {
+                                found_error = true;
+                            }
+                        },
+                    );
                 }
                 ast::Expr::EnumDef(enum_def) => {
                     // Type parameters
                     if self
-                        .try_or_add_error(
-                            self.resolve_params_from_ast_params(&enum_def.ty_params, true),
-                        )
+                        .try_or_add_error(self.resolve_params_from_ast_params(
+                            &enum_def.ty_params,
+                            true,
+                            data_def_id.into(),
+                        ))
                         .is_none()
                     {
                         found_error = true;
@@ -102,9 +125,11 @@ impl<'tc> ResolutionPass<'tc> {
                             || {
                                 // Variant fields
                                 if self
-                                    .try_or_add_error(
-                                        self.resolve_params_from_ast_params(&variant.fields, false),
-                                    )
+                                    .try_or_add_error(self.resolve_params_from_ast_params(
+                                        &variant.fields,
+                                        false,
+                                        (data_def_ctors, i).into(),
+                                    ))
                                     .is_none()
                                 {
                                     found_error = true;
@@ -128,7 +153,7 @@ impl<'tc> ResolutionPass<'tc> {
     /// `make_{term,ty,pat}_from_*` on its contents.
     ///
     /// This modifies the given module definition.
-    fn resolve_mod_def_inner_terms<'a>(
+    pub(super) fn resolve_mod_def_inner_terms<'a>(
         &self,
         mod_def_id: ModDefId,
         member_exprs: impl Iterator<Item = ast::AstNodeRef<'a, ast::Expr>>,

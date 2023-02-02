@@ -7,7 +7,7 @@ use hash_tir::{
     new::{
         data::DataDefId,
         environment::{
-            context::ScopeKind,
+            context::{ParamOrigin, ScopeKind},
             env::{AccessToEnv, Env},
         },
         fns::FnTy,
@@ -106,9 +106,9 @@ impl<'tc> Scoping<'tc> {
     ///
     /// This will search the current scope and all parent scopes.
     /// If the binding is not found, it will return `None`.
-    pub(super) fn lookup_symbol_by_name(&self, name: impl Into<Identifier>) -> Option<Symbol> {
+    fn lookup_symbol_by_name(&self, name: impl Into<Identifier>) -> Option<Symbol> {
         let name = name.into();
-        match self.get_current_context_kind() {
+        let binding = match self.get_current_context_kind() {
             ContextKind::Access(_, _) => {
                 // If we are accessing we only want to look in the current scope
                 self.bindings_by_name.get().last().and_then(|binding| binding.1.get(&name).copied())
@@ -117,12 +117,14 @@ impl<'tc> Scoping<'tc> {
                 // Look up the scopes
                 self.bindings_by_name.get().iter().rev().find_map(|b| b.1.get(&name).copied())
             }
-        }
+        }?;
+
+        Some(binding)
     }
 
     /// Find a binding by name, returning the symbol of the binding.
     ///
-    /// Errors if the binding is not found.
+    /// Errors if the binding is not found or used in the wrong context.
     ///
     /// See [`SymbolResolutionPass::lookup_binding_by_name()`].
     pub(super) fn lookup_symbol_by_name_or_error(
@@ -132,11 +134,24 @@ impl<'tc> Scoping<'tc> {
         looking_in: ContextKind,
     ) -> SemanticResult<Symbol> {
         let name = name.into();
-        self.lookup_symbol_by_name(name).ok_or_else(|| SemanticError::SymbolNotFound {
-            symbol: self.new_symbol(name),
-            location: self.source_location(span),
-            looking_in,
-        })
+        let symbol =
+            self.lookup_symbol_by_name(name).ok_or_else(|| SemanticError::SymbolNotFound {
+                symbol: self.new_symbol(name),
+                location: self.source_location(span),
+                looking_in,
+            })?;
+
+        if self.context().get_current_scope().kind.is_constant() {
+            // If we are in a constant scope, we need to check that the binding
+            // is also in a constant scope.
+            if !self.context().get_binding(symbol).unwrap().kind.is_constant() {
+                return Err(SemanticError::CannotUseNonConstantItem {
+                    location: self.source_location(span),
+                });
+            }
+        }
+
+        Ok(symbol)
     }
 
     /// Run a function in a new scope, and then exit the scope.
@@ -171,12 +186,12 @@ impl<'tc> Scoping<'tc> {
 
     /// Add a parameter to the current scope, also adding it to the
     /// `bindings_by_name` map.
-    pub(super) fn add_param_binding(&self, param_id: ParamId) {
+    pub(super) fn add_param_binding(&self, param_id: ParamId, origin: ParamOrigin) {
         // Get the data of the parameter.
         let param_name = self.stores().params().get_element(param_id).name;
 
         // Add the binding to the current scope.
-        self.context_utils().add_param_binding(param_id);
+        self.context_utils().add_param_binding(param_id, origin);
         self.add_named_binding(param_name);
     }
 
@@ -196,7 +211,7 @@ impl<'tc> Scoping<'tc> {
     pub(super) fn add_data_params_and_ctors(&self, data_def_id: DataDefId) {
         let params = self.stores().data_def().map_fast(data_def_id, |def| def.params);
         for i in params.to_index_range() {
-            self.add_param_binding((params, i));
+            self.add_param_binding((params, i), data_def_id.into());
         }
         self.context_utils()
             .add_data_ctors(data_def_id, |binding| self.add_named_binding(binding.name));

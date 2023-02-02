@@ -301,9 +301,14 @@ impl<'tc> ResolutionPass<'tc> {
         &self,
         node: AstNodeRef<ast::TyFn>,
     ) -> SemanticResult<TyId> {
-        // First, make the params
-        let params = self.try_or_add_error(self.resolve_params_from_ast_params(&node.params, true));
         self.scoping().enter_ty_fn_ty(node, |mut ty_fn| {
+            // First, make the params
+            let params = self.try_or_add_error(self.resolve_params_from_ast_params(
+                &node.params,
+                true,
+                ty_fn.into(),
+            ));
+
             // Add the params if they exist
             if let Some(params) = params {
                 ty_fn.params = params;

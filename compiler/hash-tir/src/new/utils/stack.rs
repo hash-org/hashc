@@ -6,6 +6,7 @@ use crate::{
     impl_access_to_env,
     new::{
         environment::env::{AccessToEnv, Env},
+        mods::ModDefId,
         scopes::{Stack, StackId, StackMember, StackMemberData},
     },
 };
@@ -21,7 +22,14 @@ impl_access_to_env!(StackUtils<'tc>);
 impl<'tc> StackUtils<'tc> {
     /// Create a new empty stack.
     pub fn create_stack(&self) -> StackId {
-        self.stores().stack().create_with(|id| Stack { id, members: vec![] })
+        self.stores().stack().create_with(|id| Stack { id, members: vec![], local_mod_def: None })
+    }
+
+    /// Set the local mod def of the given stack.
+    pub fn set_local_mod_def(&self, stack_id: StackId, local_mod_def_id: ModDefId) {
+        self.stores().stack().modify_fast(stack_id, |stack| {
+            stack.local_mod_def = Some(local_mod_def_id);
+        })
     }
 
     /// Set the members of the given stack.

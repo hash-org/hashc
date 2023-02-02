@@ -16,14 +16,13 @@ use crate::{
         data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
         environment::env::{AccessToEnv, Env, WithEnv},
         fns::{FnBody, FnCallTerm, FnDefData, FnDefId, FnTy},
-        holes::{HoleBinder, HoleBinderKind},
         lits::{ListCtor, ListPat, PrimTerm},
         mods::{ModDefId, ModMemberId, ModMemberValue},
         params::{ParamData, ParamsId},
         pats::{Pat, PatId, PatListId},
         refs::{DerefTerm, RefTerm, RefTy},
         scopes::{AssignTerm, BlockTerm, DeclTerm},
-        terms::{RuntimeTerm, Term, TermId, TermListId, UnsafeTerm},
+        terms::{Term, TermId, TermListId, UnsafeTerm},
         tuples::{TuplePat, TupleTerm, TupleTy},
         tys::{Ty, TyId, TypeOfTerm},
     },
@@ -72,6 +71,13 @@ pub trait Mapper<E> = Fn(Atom) -> Result<ControlFlow<Atom>, E> + Copy;
 /// Contains the implementation of `fmap` and `visit` for each atom, as well as
 /// secondary components such as arguments and parameters.
 impl<'env> TraversingUtils<'env> {
+    pub fn fmap_atom_non_preserving<E, F: Mapper<E>>(&self, atom: Atom, f: F) -> Result<Atom, E> {
+        match f(atom)? {
+            ControlFlow::Continue(()) => self.fmap_atom(atom, f),
+            ControlFlow::Break(atom) => Ok(atom),
+        }
+    }
+
     pub fn fmap_atom<E, F: Mapper<E>>(&self, atom: Atom, f: F) -> Result<Atom, E> {
         match atom {
             Atom::Term(term_id) => Ok(Atom::Term(self.fmap_term(term_id, f)?)),
@@ -85,10 +91,6 @@ impl<'env> TraversingUtils<'env> {
         match f(term_id.into())? {
             ControlFlow::Break(atom) => Ok(TermId::try_from(atom).unwrap()),
             ControlFlow::Continue(()) => match self.get_term(term_id) {
-                Term::Runtime(rt_term) => {
-                    let term_ty = self.fmap_ty(rt_term.term_ty, f)?;
-                    Ok(self.new_term(RuntimeTerm { term_ty }))
-                }
                 Term::Tuple(tuple_term) => {
                     let data = self.fmap_args(tuple_term.data, f)?;
                     Ok(self.new_term(Term::Tuple(TupleTerm { data })))
@@ -202,27 +204,6 @@ impl<'env> TraversingUtils<'env> {
                     Ok(self.new_term(DerefTerm { subject }))
                 }
                 Term::Hole(hole_term) => Ok(self.new_term(hole_term)),
-                Term::HoleBinder(hole_binder) => match hole_binder.kind {
-                    HoleBinderKind::Hole(ty) => {
-                        let ty = self.fmap_ty(ty, f)?;
-                        let inner = self.fmap_term(hole_binder.inner, f)?;
-                        Ok(self.new_term(HoleBinder {
-                            hole: hole_binder.hole,
-                            inner,
-                            kind: HoleBinderKind::Hole(ty),
-                        }))
-                    }
-                    HoleBinderKind::Guess(guess, ty) => {
-                        let guess = self.fmap_term(guess, f)?;
-                        let ty = self.fmap_ty(ty, f)?;
-                        let inner = self.fmap_term(hole_binder.inner, f)?;
-                        Ok(self.new_term(HoleBinder {
-                            hole: hole_binder.hole,
-                            inner,
-                            kind: HoleBinderKind::Guess(guess, ty),
-                        }))
-                    }
-                },
             },
         }
     }
@@ -398,7 +379,6 @@ impl<'env> TraversingUtils<'env> {
         match f(term_id.into())? {
             ControlFlow::Break(_) => Ok(()),
             ControlFlow::Continue(()) => match self.get_term(term_id) {
-                Term::Runtime(rt_term) => self.visit_ty(rt_term.term_ty, f),
                 Term::Tuple(tuple_term) => self.visit_args(tuple_term.data, f),
                 Term::Prim(prim_term) => match prim_term {
                     PrimTerm::Lit(_) => Ok(()),
@@ -457,17 +437,6 @@ impl<'env> TraversingUtils<'env> {
                 Term::Ref(ref_term) => self.visit_term(ref_term.subject, f),
                 Term::Deref(deref_term) => self.visit_term(deref_term.subject, f),
                 Term::Hole(_) => Ok(()),
-                Term::HoleBinder(hole_binder) => match hole_binder.kind {
-                    HoleBinderKind::Hole(ty) => {
-                        self.visit_ty(ty, f)?;
-                        self.visit_term(hole_binder.inner, f)
-                    }
-                    HoleBinderKind::Guess(guess, ty) => {
-                        self.visit_term(guess, f)?;
-                        self.visit_ty(ty, f)?;
-                        self.visit_term(hole_binder.inner, f)
-                    }
-                },
             },
         }
     }

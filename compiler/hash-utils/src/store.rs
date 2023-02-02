@@ -3,7 +3,13 @@
 
 // @@Organisation: Move this module to the `hash_alloc` crate and split it into
 // smaller modules.
-use std::{cell::RefCell, hash::Hash, marker::PhantomData, ops::Range};
+use std::{
+    cell::RefCell,
+    hash::Hash,
+    iter::{repeat, Repeat, Zip},
+    marker::PhantomData,
+    ops::Range,
+};
 
 use append_only_vec::AppendOnlyVec;
 pub use fxhash::{FxHashMap, FxHashSet};
@@ -298,6 +304,11 @@ pub trait SequenceStoreKey: Copy + Eq + Hash {
     /// [`SequenceStore::get_at_index()`].
     fn to_index_range(self) -> Range<usize> {
         0..self.len()
+    }
+
+    /// Turn the key into a range `(key, 0)..(key, len)`.
+    fn iter(self) -> Zip<Repeat<Self>, Range<usize>> {
+        repeat(self).zip(self.to_index_range())
     }
 
     /// Get the length of the entry corresponding to the key.

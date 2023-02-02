@@ -295,7 +295,7 @@ impl<'tc> ResolutionPass<'tc> {
                     None => todo!(),
                 }
             }
-            BindingKind::Param(_) | BindingKind::StackMember(_) => {
+            BindingKind::Param(_, _) | BindingKind::StackMember(_) => {
                 // If the subject has no args, it is a variable, otherwise it is a
                 // function call.
                 match &component.args[..] {
@@ -314,8 +314,10 @@ impl<'tc> ResolutionPass<'tc> {
                     }
                 }
             }
-            BindingKind::Equality(_) => {
-                unreachable!("No equality judgements should be present during resolution")
+            BindingKind::Arg(_, _) | BindingKind::Equality(_) => {
+                unreachable!(
+                    "No equality judgements or arg bindings should be present during resolution"
+                )
             }
         }
     }
