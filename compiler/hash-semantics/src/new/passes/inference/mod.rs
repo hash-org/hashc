@@ -81,7 +81,11 @@ impl<'tc> AstPass for InferencePass<'tc> {
             |term_id| Ok(self.inference_ops().infer_term(term_id, None)?.0),
             |term_id| self.substitution_ops().atom_has_holes(term_id),
         )?;
-        stream_less_writeln!("{}", self.env().with(term));
+
+        // @@Temp:
+        let evaluated = self.normalisation_ops().normalise(term.into())?;
+        stream_less_writeln!("{}", self.env().with(evaluated));
+
         Ok(())
     }
 
@@ -95,7 +99,10 @@ impl<'tc> AstPass for InferencePass<'tc> {
             |mod_def_id| self.inference_ops().infer_mod_def(mod_def_id).map(|()| mod_def_id),
             |mod_def_id| self.substitution_ops().mod_def_has_holes(mod_def_id),
         )?;
+
+        // @@Temp:
         stream_less_writeln!("{}", self.env().with(mod_def_id));
+
         Ok(())
     }
 }

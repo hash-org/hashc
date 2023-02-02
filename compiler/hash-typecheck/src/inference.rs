@@ -372,7 +372,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 // parameters of the function call.
                 let arg_sub = self
                     .substitution_ops()
-                    .create_sub_from_applying_args_to_params(fn_call_term.args, fn_ty.params)?;
+                    .create_sub_from_applying_args_to_params(fn_call_term.args, fn_ty.params);
 
                 // Apply the substitution to the return type of the function type.
                 Ok((
@@ -735,25 +735,6 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             Term::Access(_) => todo!(),
             Term::Hole(_) => Err(TcError::Blocked),
         })?;
-
-        stream_less_writeln!(
-            "Un-normalised: {}: {}",
-            self.env().with(result.0),
-            self.env().with(result.1)
-        );
-
-        // @@Temporary
-        let normalised_term = self.normalisation_ops().normalise(result.0.into()).unwrap();
-        let normalised_ty = self
-            .normalisation_ops()
-            .normalise_to_ty(result.1.into())
-            .unwrap()
-            .unwrap_or_else(|| self.new_ty_hole());
-        stream_less_writeln!(
-            "Normalised: {}: {}",
-            self.env().with(normalised_term),
-            self.env().with(normalised_ty)
-        );
 
         Ok(result)
     }

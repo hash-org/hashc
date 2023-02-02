@@ -15,7 +15,7 @@ use hash_tir::new::{
 };
 use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
 
-use crate::{errors::TcResult, AccessToTypechecking};
+use crate::AccessToTypechecking;
 
 #[derive(Constructor, Deref)]
 pub struct SubstitutionOps<'a, T: AccessToTypechecking>(&'a T);
@@ -195,15 +195,16 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
         &self,
         args_id: ArgsId,
         params_id: ParamsId,
-    ) -> TcResult<Sub> {
+    ) -> Sub {
+        // @@Todo: dependent?
         self.stores().args().map_fast(args_id, |args| {
             self.stores().params().map_fast(params_id, |params| {
                 assert!(args_id.len() == params_id.len(), "TODO: user error");
 
                 // @@Todo: ensure arg indices match?
-                Ok(Sub::from_pairs(
+                Sub::from_pairs(
                     params.iter().zip(args.iter()).map(|(param, arg)| (param.name, arg.value)),
-                ))
+                )
             })
         })
     }

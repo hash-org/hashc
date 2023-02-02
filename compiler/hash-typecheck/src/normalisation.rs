@@ -142,22 +142,26 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
 
                             match fn_def.body {
                                 FnBody::Defined(defined_fn_def) => {
-                                    return Ok(ControlFlow::Break(self.context().enter_scope(
-                                        fn_def_id.into(),
-                                        || {
-                                            // Add the parameter substitutions to the context:
-                                            self.context_utils()
-                                                .add_arg_bindings(fn_def.ty.params, fn_call.args);
+                                    // Make a substitution from the arguments to the parameters:
+                                    let sub = self
+                                        .substitution_ops()
+                                        .create_sub_from_applying_args_to_params(
+                                            fn_call.args,
+                                            fn_def.ty.params,
+                                        );
 
-                                            // Normalise the body of the function.
-                                            match self.eval(defined_fn_def.into()) {
-                                                Err(Signal::Return(result)) | Ok(result) => {
-                                                    Ok(result)
-                                                }
-                                                err => err,
-                                            }
-                                        },
-                                    )?));
+                                    // Apply substitution to body:
+                                    let result = self
+                                        .substitution_ops()
+                                        .apply_sub_to_term(defined_fn_def, &sub);
+
+                                    // Evaluate result:
+                                    return match self.eval(result.into()) {
+                                        Err(Signal::Return(result)) | Ok(result) => {
+                                            Ok(ControlFlow::Break(result))
+                                        }
+                                        Err(e) => Err(e),
+                                    };
                                 }
 
                                 FnBody::Intrinsic(intrinsic_id) => {
@@ -236,7 +240,10 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
                     let evaluated = self.eval(term.into())?;
                     match evaluated {
                         Atom::Ty(_) => Ok(ControlFlow::Break(evaluated)),
-                        Atom::Term(_) => Ok(ControlFlow::Continue(())),
+                        Atom::Term(term) => match self.get_term(term) {
+                            Term::Ty(ty) => Ok(ControlFlow::Break(ty.into())),
+                            _ => Ok(ControlFlow::Break(evaluated)),
+                        },
                         Atom::FnDef(_) | Atom::Pat(_) => unreachable!(),
                     }
                 }
@@ -250,7 +257,8 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
                 | Ty::Tuple(_)
                 | Ty::Fn(_) => Ok(ControlFlow::Continue(())),
             },
-            Atom::FnDef(_) | Atom::Pat(_) => Ok(ControlFlow::Continue(())),
+            Atom::FnDef(_) => Ok(ControlFlow::Break(atom)),
+            Atom::Pat(_) => Ok(ControlFlow::Continue(())),
         }
     }
 
