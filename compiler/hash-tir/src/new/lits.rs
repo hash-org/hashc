@@ -4,6 +4,7 @@ use std::fmt::{self, Display};
 use hash_ast::ast;
 use hash_source::constant::CONSTANT_MAP;
 use hash_utils::store::SequenceStore;
+use num_bigint::BigInt;
 
 use super::{
     environment::env::{AccessToEnv, WithEnv},
@@ -19,12 +20,26 @@ pub struct IntLit {
     pub underlying: ast::IntLit,
 }
 
+impl IntLit {
+    /// Return the value of the integer literal.
+    pub fn value(&self) -> BigInt {
+        CONSTANT_MAP.lookup_int_constant(self.underlying.value).as_big()
+    }
+}
+
 /// A string literal.
 ///
 /// Uses the `ast` representation.
 #[derive(Copy, Clone, Debug)]
 pub struct StrLit {
     pub underlying: ast::StrLit,
+}
+
+impl StrLit {
+    /// Return the value of the string literal.
+    pub fn value(&self) -> &'static str {
+        CONSTANT_MAP.lookup_string(self.underlying.data)
+    }
 }
 
 /// A float literal.
@@ -35,12 +50,26 @@ pub struct FloatLit {
     pub underlying: ast::FloatLit,
 }
 
+impl FloatLit {
+    /// Return the value of the float literal.
+    pub fn value(&self) -> f64 {
+        CONSTANT_MAP.lookup_float_constant(self.underlying.value).as_f64()
+    }
+}
+
 /// A character literal.
 ///
 /// Uses the `ast` representation.
 #[derive(Copy, Clone, Debug)]
 pub struct CharLit {
     pub underlying: ast::CharLit,
+}
+
+impl CharLit {
+    /// Return the value of the character literal.
+    pub fn value(&self) -> char {
+        self.underlying.data
+    }
 }
 
 /// A list constructor

@@ -2,20 +2,26 @@
 use std::ops::ControlFlow;
 
 use derive_more::{Constructor, Deref, From};
+use hash_ast::ast::RangeEnd;
 use hash_tir::new::{
     access::AccessTerm,
+    args::{ArgData, ArgsId, PatArgsId},
     casting::CastTerm,
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
     environment::context::{BindingKind, ScopeKind},
     fns::{FnBody, FnCallTerm},
+    lits::{ListCtor, Lit, LitPat, PrimTerm},
+    pats::{Pat, PatId, Spread},
     refs::{DerefTerm, RefTerm},
-    scopes::{AssignTerm, BlockTerm, DeclTerm},
+    scopes::{AssignTerm, BlockTerm, DeclTerm, StackMemberId},
     symbols::Symbol,
     terms::{Term, TermId, UnsafeTerm},
+    tuples::TupleTerm,
     tys::{Ty, TyId, TypeOfTerm},
     utils::{common::CommonUtils, traversing::Atom, AccessToUtils},
 };
 use hash_utils::store::{PartialStore, SequenceStore, SequenceStoreKey, Store};
+use itertools::Itertools;
 
 use crate::{
     errors::{TcError, TcResult},
@@ -32,6 +38,16 @@ pub enum Signal {
     Continue,
     Return(Atom),
     Err(TcError),
+}
+
+/// The result of matching a pattern against a term.
+enum MatchResult {
+    /// The pattern matched successfully.
+    Successful,
+    /// The pattern failed to match.
+    Failed,
+    /// The term could not be normalised enough to be matched.
+    Stuck,
 }
 
 impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
@@ -107,18 +123,13 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
         }
     }
 
-    /// Evaluate a match term.
-    fn eval_match(&self, match_term: MatchTerm) -> Result<Atom, Signal> {
-        todo!()
-    }
-
     /// Evaluate a cast term.
-    fn eval_cast(&self, cast_term: CastTerm) -> Result<Atom, Signal> {
+    fn eval_cast(&self, _cast_term: CastTerm) -> Result<Atom, Signal> {
         todo!()
     }
 
     /// Evaluate a reference term.
-    fn eval_ref(&self, ref_term: RefTerm) -> Result<Atom, Signal> {
+    fn eval_ref(&self, _ref_term: RefTerm) -> Result<Atom, Signal> {
         todo!()
     }
 
@@ -135,7 +146,7 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
     }
 
     /// Evaluate an access term.
-    fn eval_access(&self, access_term: AccessTerm) -> Result<ControlFlow<Atom>, Signal> {
+    fn eval_access(&self, _access_term: AccessTerm) -> Result<ControlFlow<Atom>, Signal> {
         todo!()
     }
 
@@ -161,12 +172,24 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
     }
 
     /// Evaluate an assignment term.
-    fn eval_assign(&self, assign_term: AssignTerm) -> Result<ControlFlow<Atom>, Signal> {
+    fn eval_assign(&self, _assign_term: AssignTerm) -> Result<ControlFlow<Atom>, Signal> {
+        todo!()
+    }
+
+    /// Check if the given atom is the `true` constructor.
+    ///
+    /// Assumes that the atom is normalised.
+    fn is_true(&self, _atom: Atom) -> bool {
+        todo!()
+    }
+
+    /// Evaluate a match term.
+    fn eval_match(&self, _match_term: MatchTerm) -> Result<Atom, Signal> {
         todo!()
     }
 
     /// Evaluate a declaration term.
-    fn eval_decl(&self, decl_term: DeclTerm) -> Result<ControlFlow<Atom>, Signal> {
+    fn eval_decl(&self, _decl_term: DeclTerm) -> Result<ControlFlow<Atom>, Signal> {
         todo!()
     }
 
@@ -303,6 +326,312 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
             },
             Atom::FnDef(_) => Ok(ControlFlow::Break(atom)),
             Atom::Pat(_) => Ok(ControlFlow::Continue(())),
+        }
+    }
+
+    /// Get a slice of `t` that corresponds to the given spread.
+    fn get_spread_slice<'a, M>(
+        &self,
+        term_list_len: usize,
+        pat_list_len: usize,
+        spread: Spread,
+        t: &'a [M],
+    ) -> &'a [M] {
+        let spread_end = term_list_len - pat_list_len + spread.index;
+        &t[spread.index..spread_end]
+    }
+
+    /// From the given arguments matching with the given parameters, extract the
+    /// arguments that are part of the given spread.
+    fn extract_spread_args(
+        &self,
+        term_args: ArgsId,
+        pat_args: PatArgsId,
+        spread: Spread,
+    ) -> ArgsId {
+        // Create a new tuple term with the spread elements
+        let spread_term_args = self.stores().args().map_fast(term_args, |data| {
+            self.get_spread_slice(term_args.len(), pat_args.len(), spread, data)
+                .iter()
+                .map(|data| ArgData { target: data.target, value: data.value })
+                .collect_vec()
+        });
+
+        self.param_utils().create_args(spread_term_args.into_iter())
+    }
+
+    /// Match the given arguments with the given pattern arguments.
+    ///
+    /// Also takes into account the spread.
+    ///
+    /// If the pattern arguments match, the given closure is called with the
+    /// bindings.
+    fn match_some_list_and_get_binds<TL: SequenceStoreKey, PL: SequenceStoreKey>(
+        &self,
+        term_list: TL,
+        _pat_list: PL,
+        spread: Option<Spread>,
+        extract_spread_list: impl Fn(Spread) -> (TermId, usize),
+        get_ith_pat: impl Fn(usize) -> PatId,
+        get_ith_term: impl Fn(usize) -> TermId,
+        f: &mut impl FnMut(StackMemberId, TermId),
+    ) -> Result<MatchResult, Signal> {
+        // We assume that the term list is well-typed with respect to the pattern list.
+
+        let mut element_i = 0;
+        while element_i < term_list.len() {
+            // Handle spread
+            if let Some(spread) = spread && spread.index == element_i {
+                let (spread_list, spread_list_len) = extract_spread_list(spread);
+                if let Some(member) = spread.stack_member {
+                    f(member, spread_list);
+                }
+                element_i += spread_list_len;
+            }
+
+            let arg_i = get_ith_term(element_i);
+            let pat_arg_i = get_ith_pat(element_i);
+
+            match self.match_value_and_get_binds(arg_i, pat_arg_i, f)? {
+                MatchResult::Successful => {
+                    // Continue
+                }
+                MatchResult::Failed => {
+                    // The match failed
+                    return Ok(MatchResult::Failed);
+                }
+                MatchResult::Stuck => {
+                    // The match is stuck
+                    return Ok(MatchResult::Stuck);
+                }
+            }
+
+            element_i += 1;
+        }
+
+        Ok(MatchResult::Successful)
+    }
+
+    /// Match the given arguments with the given pattern arguments.
+    ///
+    /// Also takes into account the spread.
+    ///
+    /// If the pattern arguments match, the given closure is called with the
+    /// bindings.
+    fn match_args_and_get_binds(
+        &self,
+        term_args: ArgsId,
+        pat_args: PatArgsId,
+        spread: Option<Spread>,
+        f: &mut impl FnMut(StackMemberId, TermId),
+    ) -> Result<MatchResult, Signal> {
+        self.match_some_list_and_get_binds(
+            term_args,
+            pat_args,
+            spread,
+            |spread| {
+                let spread_args = self.extract_spread_args(term_args, pat_args, spread);
+                let tuple_term = self.new_term(TupleTerm { data: spread_args });
+                (tuple_term, spread_args.len())
+            },
+            |i| self.stores().pat_args().get_at_index(pat_args, i).pat,
+            |i| self.stores().args().get_at_index(term_args, i).value,
+            f,
+        )
+    }
+
+    /// Match a literal with another.
+    fn match_literal_to_literal<U: PartialEq>(&self, value: U, pat: U) -> MatchResult {
+        if value == pat {
+            MatchResult::Successful
+        } else {
+            MatchResult::Failed
+        }
+    }
+
+    /// Match a literal between two endpoints.
+    fn match_literal_to_range<U: PartialOrd>(
+        &self,
+        value: U,
+        start: U,
+        end: U,
+        range_end: RangeEnd,
+    ) -> MatchResult {
+        if range_end == RangeEnd::Included {
+            if start <= value && value <= end {
+                MatchResult::Successful
+            } else {
+                MatchResult::Failed
+            }
+        } else if start <= value && value < end {
+            MatchResult::Successful
+        } else {
+            MatchResult::Failed
+        }
+    }
+
+    /// Match the given value with the given pattern, running `f` every time a
+    /// bind is discovered.
+    ///
+    /// The term must be normalised and well-typed with respect to the pattern.
+    fn match_value_and_get_binds(
+        &self,
+        term_id: TermId,
+        pat_id: PatId,
+        f: &mut impl FnMut(StackMemberId, TermId),
+    ) -> Result<MatchResult, Signal> {
+        match (self.get_term(term_id), self.get_pat(pat_id)) {
+            (_, Pat::Or(pats)) => {
+                // Try each alternative in turn:
+                for pat in pats.alternatives.iter() {
+                    let pat = self.stores().pat_list().get_element(pat);
+                    // First collect the bindings locally
+
+                    match self.match_value_and_get_binds(term_id, pat, f)? {
+                        MatchResult::Successful => {
+                            return Ok(MatchResult::Successful);
+                        }
+                        MatchResult::Failed => {
+                            // Try the next alternative
+                            continue;
+                        }
+                        MatchResult::Stuck => {
+                            return Ok(MatchResult::Stuck);
+                        }
+                    }
+                }
+                Ok(MatchResult::Failed)
+            }
+
+            (_, Pat::If(if_pat)) => {
+                if let MatchResult::Successful =
+                    self.match_value_and_get_binds(term_id, if_pat.pat, f)?
+                {
+                    // Check the condition:
+                    let cond = self.eval(if_pat.condition.into())?;
+                    if self.is_true(cond) {
+                        return Ok(MatchResult::Successful);
+                    }
+                }
+
+                Ok(MatchResult::Failed)
+            }
+
+            // Bindings, always successful
+            (_, Pat::Binding(binding)) => match binding.stack_member {
+                Some(member) => {
+                    f(member, term_id);
+                    Ok(MatchResult::Successful)
+                }
+                None => Ok(MatchResult::Successful),
+            },
+
+            // Tuples
+            (Term::Tuple(tuple_term), Pat::Tuple(tuple_pat)) => self.match_args_and_get_binds(
+                tuple_term.data,
+                tuple_pat.data,
+                // Tuples can have spreads, which return tuples
+                tuple_pat.data_spread,
+                f,
+            ),
+            (_, Pat::Tuple(_)) => Ok(MatchResult::Stuck),
+
+            // Constructors
+            (Term::Ctor(ctor_term), Pat::Ctor(ctor_pat)) => {
+                // We assume that the constructor is well-typed with respect to
+                // the pattern, so that data params already match.
+
+                if ctor_term.ctor != ctor_pat.ctor {
+                    Ok(MatchResult::Failed)
+                } else {
+                    self.match_args_and_get_binds(
+                        ctor_term.ctor_args,
+                        ctor_pat.ctor_pat_args,
+                        // Constructors can have spreads, which return tuples
+                        ctor_pat.ctor_pat_args_spread,
+                        f,
+                    )
+                }
+            }
+            (_, Pat::Ctor(_)) => Ok(MatchResult::Stuck),
+
+            // Ranges
+            (Term::Prim(prim_term), Pat::Range(range_pat)) => match prim_term {
+                PrimTerm::Lit(lit_term) => match (lit_term, range_pat.start, range_pat.end) {
+                    (Lit::Int(value), LitPat::Int(start), LitPat::Int(end)) => Ok(self
+                        .match_literal_to_range(
+                            value.value(),
+                            start.value(),
+                            end.value(),
+                            range_pat.range_end,
+                        )),
+                    (Lit::Str(value), LitPat::Str(start), LitPat::Str(end)) => Ok(self
+                        .match_literal_to_range(
+                            value.value(),
+                            start.value(),
+                            end.value(),
+                            range_pat.range_end,
+                        )),
+                    (Lit::Char(value), LitPat::Char(start), LitPat::Char(end)) => Ok(self
+                        .match_literal_to_range(
+                            value.value(),
+                            start.value(),
+                            end.value(),
+                            range_pat.range_end,
+                        )),
+                    _ => Ok(MatchResult::Stuck),
+                },
+                PrimTerm::List(_) => Ok(MatchResult::Stuck),
+            },
+            (_, Pat::Range(_)) => Ok(MatchResult::Stuck),
+
+            // Literals
+            (Term::Prim(prim_term), Pat::Lit(lit_pat)) => match prim_term {
+                PrimTerm::Lit(lit_term) => match (lit_term, lit_pat) {
+                    (Lit::Int(a), LitPat::Int(b)) => {
+                        Ok(self.match_literal_to_literal(a.value(), b.value()))
+                    }
+                    (Lit::Str(a), LitPat::Str(b)) => {
+                        Ok(self.match_literal_to_literal(a.value(), b.value()))
+                    }
+                    (Lit::Char(a), LitPat::Char(b)) => {
+                        Ok(self.match_literal_to_literal(a.value(), b.value()))
+                    }
+                    _ => Ok(MatchResult::Stuck),
+                },
+                PrimTerm::List(_) => Ok(MatchResult::Stuck),
+            },
+            // Lists
+            (Term::Prim(prim_term), Pat::List(list_pat)) => match prim_term {
+                PrimTerm::List(list_term) => self.match_some_list_and_get_binds(
+                    list_term.elements,
+                    list_pat.pats,
+                    list_pat.spread,
+                    |spread| {
+                        // Lists can have spreads, which return sublists
+                        let spread_list_elements = self.map_term_list(list_term.elements, |list| {
+                            self.get_spread_slice(
+                                list_term.elements.len(),
+                                list_pat.pats.len(),
+                                spread,
+                                list,
+                            )
+                            .to_vec()
+                        });
+                        let spread_list_len = spread_list_elements.len();
+                        let spread_list = self.new_term(PrimTerm::List(ListCtor {
+                            elements: self.new_term_list(spread_list_elements),
+                        }));
+                        (spread_list, spread_list_len)
+                    },
+                    |i| self.stores().pat_list().get_at_index(list_pat.pats, i),
+                    |i| self.stores().term_list().get_at_index(list_term.elements, i),
+                    f,
+                ),
+                PrimTerm::Lit(_) => Ok(MatchResult::Stuck),
+            },
+            (_, Pat::Lit(_)) => Ok(MatchResult::Stuck),
+            (_, Pat::List(_)) => Ok(MatchResult::Stuck),
         }
     }
 }

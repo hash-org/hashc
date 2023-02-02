@@ -34,6 +34,10 @@ pub struct BindingPat {
     pub name: Symbol,
     /// Whether the binding is declared as mutable.
     pub is_mutable: bool,
+    /// The stack member that this binding pattern binds to.
+    ///
+    /// If this is `None`, then the binding pattern is a wildcard `_`.
+    pub stack_member: Option<StackMemberId>,
 }
 
 /// Indices into a stack, that represent a contiguous range of stack members.

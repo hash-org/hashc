@@ -604,14 +604,14 @@ impl<'tc> ResolutionPass<'tc> {
         // Convert all the cases and their bodies
         let cases =
             self.stores().match_cases().create_from_iter(node.cases.iter().filter_map(|case| {
-                self.scoping().enter_match_case(case.ast_ref(), |_, stack_indices| {
+                self.scoping().enter_match_case(case.ast_ref(), |stack_id, stack_indices| {
                     let bind_pat =
                         self.try_or_add_error(self.make_pat_from_ast_pat(case.pat.ast_ref()));
                     let value =
                         self.try_or_add_error(self.make_term_from_ast_expr(case.expr.ast_ref()));
                     match (bind_pat, value) {
                         (Some(bind_pat), Some(value)) => {
-                            Some(MatchCase { bind_pat, value, stack_indices })
+                            Some(MatchCase { bind_pat, value, stack_indices, stack_id })
                         }
                         _ => None,
                     }

@@ -144,7 +144,12 @@ impl<'env> TraversingUtils<'env> {
                         self.stores().match_cases().try_create_from_iter(cases.iter().map(|case| {
                             let bind_pat = self.fmap_pat(case.bind_pat, f)?;
                             let value = self.fmap_term(case.value, f)?;
-                            Ok(MatchCase { bind_pat, stack_indices: case.stack_indices, value })
+                            Ok(MatchCase {
+                                bind_pat,
+                                stack_indices: case.stack_indices,
+                                value,
+                                stack_id: case.stack_id,
+                            })
                         }))
                     })?;
                     Ok(self.new_term(MatchTerm { cases, subject }))
