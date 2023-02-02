@@ -3,6 +3,7 @@ use std::ops::ControlFlow;
 
 use derive_more::{Constructor, Deref, From};
 use hash_ast::ast::RangeEnd;
+use hash_intrinsics::utils::PrimitiveUtils;
 use hash_tir::new::{
     access::AccessTerm,
     args::{ArgData, ArgsId, PatArgsId},
@@ -173,13 +174,6 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
 
     /// Evaluate an assignment term.
     fn eval_assign(&self, _assign_term: AssignTerm) -> Result<ControlFlow<Atom>, Signal> {
-        todo!()
-    }
-
-    /// Check if the given atom is the `true` constructor.
-    ///
-    /// Assumes that the atom is normalised.
-    fn is_true(&self, _atom: Atom) -> bool {
         todo!()
     }
 
@@ -446,6 +440,19 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
             MatchResult::Successful
         } else {
             MatchResult::Failed
+        }
+    }
+
+    /// Check if the given atom is the `true` constructor.
+    ///
+    /// Assumes that the atom is normalised.
+    fn is_true(&self, atom: Atom) -> bool {
+        match atom {
+            Atom::Term(term) => self.stores().term().map_fast(term, |term| match term {
+                Term::Ctor(ctor_term) => ctor_term.ctor == self.get_bool_ctor(true),
+                _ => false,
+            }),
+            Atom::Ty(_) | Atom::FnDef(_) | Atom::Pat(_) => false,
         }
     }
 
