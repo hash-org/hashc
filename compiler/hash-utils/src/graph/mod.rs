@@ -4,6 +4,7 @@
 //! Based on rustc: https://github.com/rust-lang/rust/blob/master/compiler/rustc_data_structures/src/graph/mod.rs
 
 pub mod dominators;
+pub(crate) mod tests;
 pub mod visit;
 
 use index_vec::Idx;
@@ -15,6 +16,14 @@ pub trait DirectedGraph {
 
     /// Compute the number of nodes in the whole graph.
     fn num_nodes(&self) -> usize;
+
+    /// Return the start node of the graph.
+    ///
+    /// N.B. The default implementation of this method assumes that the
+    /// start node is always `0`.
+    fn start_node(&self) -> Self::Node {
+        Self::Node::from_usize(0)
+    }
 }
 
 pub trait GraphPredecessors<'graph> {
@@ -47,23 +56,14 @@ where
 
     /// Create a [DepthFirstSearch] iterator that starts at the given
     /// node.
-    fn depth_first_search(&self, from: Self::Node) -> visit::DepthFirstSearch<'_, Self> {
-        visit::DepthFirstSearch::new(self, from)
+    fn depth_traverse(&self, from: Self::Node) -> visit::DepthFirstTraversal<'_, Self> {
+        visit::DepthFirstTraversal::new(self, from)
     }
 }
 
 /// A trait that describes all of the properties that a control flow
 /// graph should have. This is mostly a convenience trait that is used
 /// to denote that a graph has both predecessors and successors.
-pub trait ControlFlowGraph: DirectedGraph + WithPredecessors + WithSuccessors {
-    /// Return the start node of the graph which all [ControlFlowGraph]s
-    /// have.
-    ///
-    /// N.B. The default implementation of this method assumes that the
-    /// start node is always `0`.
-    fn start_node(&self) -> Self::Node {
-        Self::Node::from_usize(0)
-    }
-}
+pub trait ControlFlowGraph: DirectedGraph + WithPredecessors + WithSuccessors {}
 
 impl<T> ControlFlowGraph for T where T: DirectedGraph + WithPredecessors + WithSuccessors {}
