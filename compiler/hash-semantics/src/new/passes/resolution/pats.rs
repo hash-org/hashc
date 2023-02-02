@@ -83,7 +83,15 @@ impl ResolutionPass<'_> {
             name: node
                 .name
                 .as_ref()
-                .map(|name| self.scoping().lookup_symbol_by_name(name.ident).unwrap())
+                .map(|name| {
+                    self.scoping()
+                        .lookup_symbol_by_name_or_error(
+                            name.ident,
+                            name.span(),
+                            self.scoping().get_current_context_kind(),
+                        )
+                        .unwrap()
+                })
                 .unwrap_or_else(|| self.new_fresh_symbol()),
             index: node.position,
         }))

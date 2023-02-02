@@ -4,7 +4,7 @@ use hash_ast::ast::{self, AstNodeRef};
 use hash_source::location::Span;
 use hash_tir::new::{
     args::{ArgsId, PatArgsId},
-    environment::env::AccessToEnv,
+    environment::{context::ParamOrigin, env::AccessToEnv},
     fns::FnCallTerm,
     params::{ParamId, ParamsId, SomeArgsId},
     pats::Spread,
@@ -92,37 +92,6 @@ impl From<ResolvedArgs> for SomeArgsId {
 }
 
 impl<'tc> ResolutionPass<'tc> {
-    /// Resolve the given set of AST definition parameters into [`DefParamsId`].
-    ///
-    /// This assumes that the parameters were initially traversed during
-    /// discovery, and are set in the AST info store.
-    ///
-    /// Note that this does not return the [`DefParamsId`] as it is inaccessible
-    /// just from the node itself. @@Improvement: store this in the AST info
-    /// store which means that it should have its own Node ID.
-    pub(super) fn _resolve_def_params_from_ast_param_groups<'a>(
-        &self,
-        ast_def_params: impl Iterator<Item = &'a ast::AstNodes<ast::Param>>,
-        implicit: bool,
-    ) -> SemanticResult<()> {
-        let mut found_error = false;
-        for ast_def_param_group in ast_def_params {
-            if self
-                .try_or_add_error(
-                    self.resolve_params_from_ast_params(ast_def_param_group, implicit),
-                )
-                .is_none()
-            {
-                found_error = true;
-            }
-        }
-        if found_error {
-            Err(SemanticError::Signal)
-        } else {
-            Ok(())
-        }
-    }
-
     /// Resolve the given AST parameter into [`ParamId`].
     ///
     /// This assumes that this was initially traversed during
@@ -188,6 +157,7 @@ impl<'tc> ResolutionPass<'tc> {
         &self,
         params: &ast::AstNodes<ast::Param>,
         implicit: bool,
+        origin: ParamOrigin,
     ) -> SemanticResult<ParamsId> {
         let mut found_error = false;
         let mut params_id: Option<ParamsId> = None;
@@ -198,7 +168,7 @@ impl<'tc> ResolutionPass<'tc> {
             match param_id {
                 Some(param_id) => {
                     // Remember the params ID to return at the end
-                    self.scoping().add_param_binding(param_id);
+                    self.scoping().add_param_binding(param_id, origin);
                     params_id = Some(param_id.0);
                 }
                 None => {

@@ -6,7 +6,7 @@ use hash_tir::new::{
     data::{CtorDefData, DataDefId},
     defs::DefId,
     environment::env::AccessToEnv,
-    mods::{ModDefId, ModMemberData, ModMemberValue},
+    mods::{ModDefData, ModDefId, ModKind, ModMemberData, ModMemberValue},
     scopes::{StackId, StackMemberData},
     symbols::Symbol,
     tys::TyId,
@@ -14,7 +14,7 @@ use hash_tir::new::{
 };
 use hash_utils::{
     state::LightState,
-    store::{DefaultPartialStore, PartialStore, SequenceStoreKey, Store},
+    store::{DefaultPartialStore, PartialStore, SequenceStoreKey, Store, StoreKey},
 };
 use smallvec::{smallvec, SmallVec};
 
@@ -26,6 +26,16 @@ use crate::new::environment::tc_env::AccessToTcEnv;
 pub(super) enum ItemId {
     Def(DefId),
     Ty(TyId),
+}
+
+/// Either a stack member or a mod member.
+///
+/// This is used for traversing blocks that might also
+/// contain local definitions.
+#[derive(Debug, Copy, Clone, From)]
+enum StackMemberOrModMemberData {
+    StackMember(StackMemberData),
+    ModMember(ModMemberData),
 }
 
 /// Contains information about seen definitions, members of definitions, as well
@@ -40,7 +50,7 @@ pub(super) struct DefDiscoveryState {
     /// The data ctor we have seen, indexed by the data definition ID.
     data_ctors: DefaultPartialStore<DataDefId, Vec<(AstNodeId, CtorDefData)>>,
     /// The stack members we have seen, indexed by the stack ID.
-    stack_members: DefaultPartialStore<StackId, Vec<(AstNodeId, StackMemberData)>>,
+    stack_members: DefaultPartialStore<StackId, Vec<(AstNodeId, StackMemberOrModMemberData)>>,
 }
 
 impl DefDiscoveryState {
@@ -85,6 +95,9 @@ impl<'tc> DiscoveryPass<'tc> {
     ) -> T {
         let def_id = def_id.into();
 
+        // Add location information to the definition.
+        self.add_node_location_to_def(def_id, originating_node);
+
         // Add the definition to the member context.
         match def_id {
             DefId::Mod(id) => {
@@ -104,18 +117,12 @@ impl<'tc> DiscoveryPass<'tc> {
         // Add the found members to the definition.
         self.add_found_members_to_def(def_id);
 
-        // Add location information to the definition.
-        self.add_node_location_to_def(def_id, originating_node);
-
         result
     }
 
     /// Get the "current" definition, or `None` if there is none.
-    pub(super) fn get_current_item(&self) -> ItemId {
-        self.def_state()
-            .currently_in
-            .get()
-            .unwrap_or_else(|| panic!("Tried to get def but none was set"))
+    pub(super) fn get_current_item(&self) -> Option<ItemId> {
+        self.def_state().currently_in.get()
     }
 
     /// Add the given definition to the AST info of the given node.
@@ -201,18 +208,56 @@ impl<'tc> DiscoveryPass<'tc> {
                         let members_len = members.len();
                         let stack_utils = self.stack_utils();
 
+                        let (mut stack_members, mut mod_members) = (vec![], vec![]);
+                        for (id, data) in members {
+                            match data {
+                                StackMemberOrModMemberData::StackMember(stack_member_data) => {
+                                    stack_members.push((id, stack_member_data));
+                                }
+                                StackMemberOrModMemberData::ModMember(mod_member_data) => {
+                                    mod_members.push((id, mod_member_data));
+                                }
+                            }
+                        }
+
                         // Set stack members.
                         stack_utils.set_stack_members(
                             stack_id,
                             stack_utils.create_stack_members(
                                 stack_id,
-                                members.iter().map(|(_, data)| data).copied(),
+                                stack_members.iter().map(|(_, data)| data).copied(),
                             ),
                         );
 
                         // Set node for each stack member.
-                        for ((node_id, _), member_index) in members.iter().zip(0..members_len) {
+                        for ((node_id, _), member_index) in stack_members.iter().zip(0..members_len)
+                        {
                             ast_info.stack_members().insert(*node_id, (stack_id, member_index));
+                        }
+
+                        // If we got local mod members, create a new mod def and
+                        // add it to the stack definition.
+                        if !mod_members.is_empty() {
+                            let local_mod_def_id = self.mod_utils().create_mod_def(ModDefData {
+                                kind: ModKind::ModBlock,
+                                name: self.new_symbol(format!("stack_mod_{}", stack_id.to_index())),
+                                members: self.mod_utils().create_empty_mod_members(),
+                            });
+                            stack_utils.set_local_mod_def(stack_id, local_mod_def_id);
+                            self.def_state().mod_members.insert(local_mod_def_id, mod_members);
+
+                            // Add to AST info and locations, forwarded from the stack.
+                            ast_info.mod_defs().insert(
+                                ast_info.stacks().get_node_by_data(stack_id).unwrap(),
+                                local_mod_def_id,
+                            );
+                            self.stores().location().add_location_to_target(
+                                local_mod_def_id,
+                                self.stores().location().get_location(stack_id).unwrap(),
+                            );
+
+                            // Add the members to the local mod def.
+                            self.add_found_members_to_def(local_mod_def_id)
                         }
                     }
                 })
@@ -220,20 +265,37 @@ impl<'tc> DiscoveryPass<'tc> {
         }
     }
 
-    /// Add a declaration node `a := b` to the given `mod_def_id` (which is
-    /// "current").
-    ///
-    /// This will add the appropriate `MemberData` to the `mod_members` local
-    /// score. In other words, a tuple `(AstNodeId, ModMemberData)`. The
-    /// `ModMemberData` is found by looking at the `ast_info` of the value of
-    /// the declaration, which denotes if the value is a resolved
-    /// module/function/data definition etc. If the value is not resolved, then
-    /// it is not a valid module member.
-    pub(super) fn add_declaration_node_to_mod_def(
+    /// Whether the given stack declaration node can be turned into a member of
+    /// a module.
+    pub(super) fn stack_declaration_is_mod_member(
         &self,
         node: AstNodeRef<ast::Declaration>,
-        mod_def_id: ModDefId,
-    ) {
+    ) -> bool {
+        let def_node_id = match node.value.as_ref().map(|node| node.body()) {
+            // If the declaration is a block, we need to get the
+            // right node to look up the members
+            Some(ast::Expr::Block(block)) => block.data.id(),
+            Some(_) => node.value.as_ref().unwrap().id(),
+            _ => return false, // Mod members need values
+        };
+
+        let ast_info = self.ast_info();
+
+        // Function definitions are not considered module members in stack
+        // scope, they are considered closures instead.
+        // @@Improvement: We could consider them module members if they do not
+        // capture any variables.
+
+        // Data definition or nested module in a module
+        ast_info.data_defs().get_data_by_node(def_node_id).is_some()
+            || ast_info.mod_defs().get_data_by_node(def_node_id).is_some()
+    }
+
+    /// Create `ModMemberData` from a declaration node.
+    pub(super) fn make_mod_member_data_from_declaration_node(
+        &self,
+        node: AstNodeRef<ast::Declaration>,
+    ) -> Option<ModMemberData> {
         // The `def_node_id` is the `AstNodeId` of the actual definition value that
         // this declaration is pointing to. For example, in `Y := mod {...}`, the `mod`
         // node's ID (which is a block) would be `def_node_id`.
@@ -252,60 +314,79 @@ impl<'tc> DiscoveryPass<'tc> {
         };
 
         let ast_info = self.ast_info();
-        self.def_state().mod_members.modify_fast(mod_def_id, |members| {
+        if let Some(fn_def_id) = ast_info.fn_defs().get_data_by_node(def_node_id) {
+            // Function definition in a module
+            Some(self.stores().fn_def().map_fast(fn_def_id, |fn_def| ModMemberData {
+                name: fn_def.name,
+                value: ModMemberValue::Fn(fn_def_id),
+            }))
+        } else if let Some(data_def_id) = ast_info.data_defs().get_data_by_node(def_node_id) {
+            // Data definition in a module
+            Some(self.stores().data_def().map_fast(data_def_id, |data_def| ModMemberData {
+                name: data_def.name,
+                value: ModMemberValue::Data(data_def_id),
+            }))
+        } else if let Some(nested_mod_def_id) = ast_info.mod_defs().get_data_by_node(def_node_id) {
+            // Nested module in a module
+            Some(self.stores().mod_def().map_fast(nested_mod_def_id, |nested_mod_def| {
+                ModMemberData {
+                    name: nested_mod_def.name,
+                    value: ModMemberValue::Mod(nested_mod_def_id),
+                }
+            }))
+        } else {
+            // Unknown definition, do nothing
+            //
+            // Here we don't panic because there might have been a
+            // recoverable error in a declaration which could have led to no
+            // `AstInfo` being recorded, for example for
+            // `TraitsNotSupported` error.
+            return None;
+        }
+    }
+
+    /// Add a declaration node `a := b` to the given `mod_def_id` (which is
+    /// "current").
+    ///
+    /// This will add the appropriate `MemberData` to the `mod_members` local
+    /// score. In other words, a tuple `(AstNodeId, ModMemberData)`. The
+    /// `ModMemberData` is found by looking at the `ast_info` of the value of
+    /// the declaration, which denotes if the value is a resolved
+    /// module/function/data definition etc. If the value is not resolved, then
+    /// it is not a valid module member.
+    pub(super) fn add_declaration_node_to_mod_def(
+        &self,
+        node: AstNodeRef<ast::Declaration>,
+        mod_def_id: ModDefId,
+    ) {
+        if let Some(mod_member_data) = self.make_mod_member_data_from_declaration_node(node) {
+            self.def_state().mod_members.modify_fast(mod_def_id, |members| {
+                let members = match members {
+                    Some(members) => members,
+                    None => {
+                        panic!("Got empty members for mod def {mod_def_id:?}");
+                    }
+                };
+                members.push((node.id(), mod_member_data));
+            });
+        }
+    }
+
+    /// Add a mod member to the given `stack_id` as a local definition.
+    pub(super) fn add_mod_member_to_stack(
+        &self,
+        stack_id: StackId,
+        mod_member_node_id: AstNodeId,
+        mod_member: ModMemberData,
+    ) {
+        self.def_state().stack_members.modify_fast(stack_id, |members| {
             let members = match members {
                 Some(members) => members,
                 None => {
-                    panic!("Got empty members for mod def {mod_def_id:?}");
+                    panic!("Got empty locals for stack {stack_id:?}");
                 }
             };
-
-            if let Some(fn_def_id) = ast_info.fn_defs().get_data_by_node(def_node_id) {
-                // Function definition in a module
-                self.stores().fn_def().map_fast(fn_def_id, |fn_def| {
-                    members.push((
-                        node.id(),
-                        ModMemberData { name: fn_def.name, value: ModMemberValue::Fn(fn_def_id) },
-                    ));
-                })
-            } else if let Some(data_def_id) = ast_info.data_defs().get_data_by_node(def_node_id) {
-                // Data definition in a module
-                self.stores().data_def().map_fast(data_def_id, |data_def| {
-                    members.push((
-                        node.id(),
-                        ModMemberData {
-                            name: data_def.name,
-                            value: ModMemberValue::Data(data_def_id),
-                        },
-                    ));
-                })
-            } else if let Some(nested_mod_def_id) =
-                ast_info.mod_defs().get_data_by_node(def_node_id)
-            {
-                // Nested module in a module
-                self.stores().mod_def().map_fast(nested_mod_def_id, |nested_mod_def| {
-                    members.push((
-                        node.id(),
-                        ModMemberData {
-                            name: nested_mod_def.name,
-                            value: ModMemberValue::Mod(nested_mod_def_id),
-                        },
-                    ));
-                })
-            } else if ast_info.stacks().get_data_by_node(def_node_id).is_some() {
-                panic_on_span!(
-                    self.node_location(node),
-                    self.source_map(),
-                    "Found stack member in mod definition"
-                )
-            } else {
-                // Unknown definition, do nothing
-                //
-                // Here we don't panic because there might have been a
-                // recoverable error in a declaration which could have led to no
-                // `AstInfo` being recorded, for example for
-                // `TraitsNotSupported` error.
-            }
+            members.push((mod_member_node_id, mod_member.into()));
         });
     }
 
@@ -453,7 +534,7 @@ impl<'tc> DiscoveryPass<'tc> {
                 _ => self.add_stack_members_in_pat_to_buf(node, &mut found_members),
             }
             for (node_id, stack_member) in found_members {
-                members.push((node_id, stack_member));
+                members.push((node_id, stack_member.into()));
             }
         });
     }

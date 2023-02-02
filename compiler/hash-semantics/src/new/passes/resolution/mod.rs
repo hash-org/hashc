@@ -58,7 +58,8 @@ impl<'tc> AstPass for ResolutionPass<'tc> {
         let (prim_mod, _) = self.bootstrap();
         self.scoping().add_scope(prim_mod.into(), ContextKind::Environment);
         self.scoping().add_mod_members(prim_mod);
-        let _ = self.make_term_from_ast_body_block(node)?;
+        let term_id = self.make_term_from_ast_body_block(node)?;
+        self.ast_info().terms().insert(node.id(), term_id);
         Ok(())
     }
 

@@ -76,7 +76,7 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
 
     pub fn eval_var(&self, var: Symbol) -> Result<ControlFlow<TermId>, Signal> {
         match self.context().get_binding(var).unwrap().kind {
-            BindingKind::Param(_) => Ok(ControlFlow::Continue(())),
+            BindingKind::Param(_, _) => Ok(ControlFlow::Continue(())),
             BindingKind::Arg(_, arg_id) => Ok(ControlFlow::Break(
                 self.stores().args().map_fast(arg_id.0, |args| args[arg_id.1].value),
             )),

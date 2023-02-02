@@ -23,6 +23,31 @@ use crate::new::{
     tuples::TupleTy,
 };
 
+/// All the places a parameter can come from.
+#[derive(Debug, Clone, Copy, From)]
+pub enum ParamOrigin {
+    /// A parameter in a function definition.
+    Fn(FnDefId),
+    /// A parameter in a function type.
+    FnTy(FnTy),
+    /// A parameter in a tuple type.
+    TupleTy(TupleTy),
+    /// A parameter in a constructor.
+    Ctor(CtorDefId),
+    /// A parameter in a data definition.
+    Data(DataDefId),
+}
+
+impl ParamOrigin {
+    /// A constant parameter is one that cannot depend on non-constant bindings.
+    pub fn is_constant(&self) -> bool {
+        match self {
+            ParamOrigin::Fn(_) | ParamOrigin::FnTy(_) | ParamOrigin::TupleTy(_) => false,
+            ParamOrigin::Ctor(_) | ParamOrigin::Data(_) => true,
+        }
+    }
+}
+
 /// The kind of a binding.
 #[derive(Debug, Clone, Copy)]
 pub enum BindingKind {
@@ -37,7 +62,7 @@ pub enum BindingKind {
     /// A parameter variable
     ///
     /// For example, `(x: i32) => x` or `(T: Type, t: T)`
-    Param(ParamId),
+    Param(ParamOrigin, ParamId),
     /// Stack member.
     ///
     /// For example, `a` in `{ a := 3; a }`
@@ -50,6 +75,19 @@ pub enum BindingKind {
     ///
     /// This is a special binding because it cannot be referenced by name.
     Equality(EqualityJudgement),
+}
+
+impl BindingKind {
+    /// A constant binding is one that cannot depend on non-constant bindings.
+    pub fn is_constant(&self) -> bool {
+        match self {
+            BindingKind::ModMember(_, _) | BindingKind::Ctor(_, _) => true,
+            BindingKind::Param(origin, _) => origin.is_constant(),
+            BindingKind::StackMember(_) | BindingKind::Arg(_, _) | BindingKind::Equality(_) => {
+                false
+            }
+        }
+    }
 }
 
 /// A binding.
@@ -88,6 +126,20 @@ pub enum ScopeKind {
     FnTy(FnTy),
     /// A tuple type scope.
     TupleTy(TupleTy),
+}
+
+impl ScopeKind {
+    /// Whether this scope is constant.
+    ///
+    /// A constant scope is one that cannot depend on non-constant bindings.
+    pub fn is_constant(&self) -> bool {
+        match self {
+            ScopeKind::Mod(_) | ScopeKind::Data(_) | ScopeKind::Ctor(_) => true,
+            ScopeKind::Stack(_) | ScopeKind::Fn(_) | ScopeKind::FnTy(_) | ScopeKind::TupleTy(_) => {
+                false
+            }
+        }
+    }
 }
 
 /// Information about a scope in the context.
@@ -290,7 +342,7 @@ impl fmt::Display for WithEnv<'_, Binding> {
             BindingKind::Ctor(_, ctor_id) => {
                 write!(f, "{}", self.env().with(ctor_id))
             }
-            BindingKind::Param(param_id) => {
+            BindingKind::Param(_, param_id) => {
                 write!(f, "{}", self.env().with(param_id))
             }
             BindingKind::StackMember(stack_member) => {

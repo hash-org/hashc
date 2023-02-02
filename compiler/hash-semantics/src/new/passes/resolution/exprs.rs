@@ -4,6 +4,8 @@
 //! correspond to paths into terms. It does not handle general expressions,
 //! which is handled later.
 
+use std::collections::HashSet;
+
 use hash_ast::ast::{self, AstNode, AstNodeId, AstNodeRef};
 use hash_intrinsics::utils::PrimitiveUtils;
 use hash_reporting::macros::panic_on_span;
@@ -632,10 +634,39 @@ impl<'tc> ResolutionPass<'tc> {
     ) -> SemanticResult<TermId> {
         self.scoping()
             .enter_body_block(node, |stack_id| {
+                // Keep track of the ids of the mod members
+                let mut mod_member_ids = HashSet::new();
+
+                // First handle local mod members
+                if let Some(local_mod_def) =
+                    self.stores().stack().map_fast(stack_id, |stack| stack.local_mod_def)
+                {
+                    let local_mod_members =
+                        self.stores().mod_def().map_fast(local_mod_def, |mod_def| mod_def.members);
+
+                    // Get the ids of the local mod members
+                    mod_member_ids.extend(local_mod_members.iter().map(|member_id| {
+                        self.ast_info().mod_members().get_node_by_data(member_id).unwrap()
+                    }));
+
+                    // Resolve them
+                    self.resolve_mod_def_inner_terms(
+                        local_mod_def,
+                        node.statements
+                            .ast_ref_iter()
+                            .chain(node.expr.as_ref().map(|expr| expr.ast_ref()))
+                            .filter(|statement| mod_member_ids.contains(&statement.id())),
+                    )?;
+
+                    // Enter the scope of the module
+                    self.scoping().add_mod_members(local_mod_def);
+                }
+
                 // Traverse the statements and the end expression
                 let statements = node
                     .statements
                     .iter()
+                    .filter(|statement| !mod_member_ids.contains(&statement.id()))
                     .filter_map(|statement| {
                         if let ast::Expr::Declaration(declaration) = statement.body() {
                             self.scoping().register_declaration(node.with_body(declaration));
@@ -643,12 +674,26 @@ impl<'tc> ResolutionPass<'tc> {
                         self.try_or_add_error(self.make_term_from_ast_expr(statement.ast_ref()))
                     })
                     .collect_vec();
-                let expr = node.expr.as_ref().map(|expr| {
-                    self.try_or_add_error(self.make_term_from_ast_expr(expr.ast_ref()))
+
+                let expr = node.expr.as_ref().and_then(|expr| {
+                    if mod_member_ids.contains(&expr.id()) {
+                        None
+                    } else {
+                        Some({
+                            if let ast::Expr::Declaration(declaration) = expr.body() {
+                                self.scoping().register_declaration(node.with_body(declaration));
+                            }
+                            self.try_or_add_error(self.make_term_from_ast_expr(expr.ast_ref()))
+                        })
+                    }
                 });
 
                 // If all ok, create a block term
-                match (expr, statements.len() == node.statements.len()) {
+                match (
+                    expr,
+                    statements.len()
+                        == (node.statements.len().saturating_sub(mod_member_ids.len())),
+                ) {
                     (Some(Some(expr)), true) => {
                         let statements = self.new_term_list(statements);
                         Ok(self.new_term(Term::Block(BlockTerm {
@@ -741,6 +786,7 @@ impl<'tc> ResolutionPass<'tc> {
                 let params = self.try_or_add_error(self.resolve_params_from_ast_params(
                     params,
                     self.stores().fn_def().map_fast(fn_def_id, |fn_def| fn_def.ty.implicit),
+                    fn_def_id.into(),
                 ));
 
                 // Modify the existing fn def for the params:

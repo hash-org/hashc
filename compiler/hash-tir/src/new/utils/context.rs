@@ -9,7 +9,7 @@ use crate::{
         args::ArgsId,
         data::{DataDefCtors, DataDefId},
         environment::{
-            context::{Binding, BindingKind, EqualityJudgement, ScopeKind},
+            context::{Binding, BindingKind, EqualityJudgement, ParamOrigin, ScopeKind},
             env::{AccessToEnv, Env},
         },
         mods::ModDefId,
@@ -32,10 +32,10 @@ impl<'env> ContextUtils<'env> {
     ///
     /// This should be used when entering a scope that has parameters. Ensure
     /// that the given parameter belongs to the current scope.
-    pub fn add_param_binding(&self, param_id: ParamId) {
+    pub fn add_param_binding(&self, param_id: ParamId, origin: ParamOrigin) {
         // @@Safety: Maybe we should check that the param belongs to the current scope?
         let name = self.stores().params().map_fast(param_id.0, |params| params[param_id.1].name);
-        self.context().add_binding(Binding { name, kind: BindingKind::Param(param_id) });
+        self.context().add_binding(Binding { name, kind: BindingKind::Param(origin, param_id) });
     }
 
     /// Add argument bindings from the given parameters, using the

@@ -58,7 +58,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
 
         // Add the declaration to the current definition as appropriate
         match self.get_current_item() {
-            ItemId::Def(def_id) => match def_id {
+            Some(ItemId::Def(def_id)) => match def_id {
                 DefId::Mod(mod_def_id) => {
                     walk_with_name_hint()?;
                     self.add_declaration_node_to_mod_def(node, mod_def_id)
@@ -72,12 +72,20 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
                 }
                 DefId::Stack(stack_id) => {
                     let name = walk_with_name_hint()?;
-                    self.add_pat_node_binds_to_stack(
-                        node.pat.ast_ref(),
-                        stack_id,
-                        name,
-                        node.value.as_ref(),
-                    );
+
+                    // If we can add the declaration as a mod member, do so.
+                    if self.stack_declaration_is_mod_member(node) {
+                        let mod_member =
+                            self.make_mod_member_data_from_declaration_node(node).unwrap();
+                        self.add_mod_member_to_stack(stack_id, node.id(), mod_member)
+                    } else {
+                        self.add_pat_node_binds_to_stack(
+                            node.pat.ast_ref(),
+                            stack_id,
+                            name,
+                            node.value.as_ref(),
+                        );
+                    }
                 }
                 DefId::Fn(_) => {
                     panic_on_span!(
@@ -87,12 +95,19 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
                     )
                 }
             },
-            ItemId::Ty(_) => {
+            Some(ItemId::Ty(_)) => {
                 panic_on_span!(
                         self.node_location(node),
                         self.source_map(),
                         "found declaration in function type scope, which should instead be in a stack scope"
                     )
+            }
+            None => {
+                panic_on_span!(
+                    self.node_location(node),
+                    self.source_map(),
+                    "found declaration before any scopes"
+                )
             }
         };
 
@@ -270,7 +285,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         node: AstNodeRef<ast::BodyBlock>,
     ) -> Result<Self::BodyBlockRet, Self::Error> {
         match self.get_current_item() {
-            ItemId::Def(def_id) => match def_id {
+            Some(ItemId::Def(def_id)) => match def_id {
                 // If we are in a mod or data block, this isn't a stack scope so we don't do anything.
                 DefId::Mod(_) | DefId::Data(_) => {
                     walk::walk_body_block(self, node)?;
@@ -285,9 +300,15 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
                     Ok(())
                 }
             },
-            ItemId::Ty(_) => {
+            Some(ItemId::Ty(_)) => {
                 // If we are in a function type, then this is the function's type return, so we
                 // add a new stack
+                let stack_id = self.stack_utils().create_stack();
+                self.enter_def(node, stack_id, || walk::walk_body_block(self, node))?;
+                Ok(())
+            }
+            None => {
+                // This is a root scope for interactive, so we add a new stack
                 let stack_id = self.stack_utils().create_stack();
                 self.enter_def(node, stack_id, || walk::walk_body_block(self, node))?;
                 Ok(())

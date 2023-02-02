@@ -12,7 +12,7 @@ use hash_tir::{
         data::{
             CtorDefId, CtorTerm, DataDefCtors, DataDefId, DataTy, ListCtorInfo, PrimitiveCtorInfo,
         },
-        environment::context::{BindingKind, ScopeKind},
+        environment::context::{BindingKind, ParamOrigin, ScopeKind},
         fns::{FnBody, FnCallTerm, FnDefId},
         lits::{Lit, PrimTerm},
         mods::{ModDefId, ModMemberId, ModMemberValue},
@@ -173,12 +173,12 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     }
 
     /// Infer the given parameters.
-    pub fn infer_params(&self, params: ParamsId) -> TcResult<ParamsId> {
+    pub fn infer_params(&self, params: ParamsId, origin: ParamOrigin) -> TcResult<ParamsId> {
         let mut error_state = self.new_error_state();
         self.stores().params().map(params, |params| {
             for param in params {
                 let _ = error_state.try_or_add_error(self.infer_ty(param.ty, None));
-                self.context_utils().add_param_binding(param.id);
+                self.context_utils().add_param_binding(param.id, origin);
             }
         });
         self.return_or_register_errors(|| Ok(params), error_state)
@@ -396,7 +396,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     /// return it.
     pub fn infer_fn_def(&self, fn_def_id: FnDefId, annotation_ty: Option<TyId>) -> TcResult<TyId> {
         let fn_def = self.stores().fn_def().get(fn_def_id);
-        self.infer_params(fn_def.ty.params)?;
+        self.infer_params(fn_def.ty.params, fn_def_id.into())?;
 
         match fn_def.body {
             FnBody::Defined(fn_body) => {
@@ -436,7 +436,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             BindingKind::ModMember(_, _) | BindingKind::Ctor(_, _) => {
                 unreachable!("mod members and ctors should have all been resolved by now")
             }
-            BindingKind::Param(param_id) => Ok(self.stores().params().get_element(param_id).ty),
+            BindingKind::Param(_, param_id) => Ok(self.stores().params().get_element(param_id).ty),
             BindingKind::StackMember(stack_member_id) => Ok(self
                 .stores()
                 .stack()
@@ -488,7 +488,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             Ty::Var(var) => Ok((self.new_ty(*var), self.infer_var(*var)?)),
             Ty::Tuple(tuple_ty) => {
                 // Infer the parameters
-                self.infer_params(tuple_ty.data)?;
+                self.infer_params(tuple_ty.data, (*tuple_ty).into())?;
 
                 Ok((ty_id, self.new_small_universe_ty()))
             }
@@ -497,7 +497,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
                 // Infer the parameters
                 self.context().enter_scope(ScopeKind::FnTy(*fn_ty), || {
-                    self.infer_params(fn_ty.params)?;
+                    self.infer_params(fn_ty.params, (*fn_ty).into())?;
                     // Given the parameters, infer the return type
                     self.infer_ty(fn_ty.return_ty, None)
                 })
@@ -821,7 +821,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 });
 
             // Infer the parameters and return type of the data type
-            let params = self.infer_params(ctor_params)?;
+            let params = self.infer_params(ctor_params, ctor.into())?;
             let return_ty =
                 self.new_ty(DataTy { data_def: ctor_data_def_id, args: ctor_result_args });
             let (return_ty, _) = self.infer_ty(return_ty, None)?;
@@ -844,7 +844,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 .data_def()
                 .map_fast(data_def_id, |data_def| (data_def.params, data_def.ctors));
 
-            let inferred_params = self.infer_params(data_def_params)?;
+            let inferred_params = self.infer_params(data_def_params, data_def_id.into())?;
 
             self.stores().data_def().modify_fast(data_def_id, |def| def.params = inferred_params);
 

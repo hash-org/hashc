@@ -18,6 +18,7 @@ use super::{
     terms::Term,
 };
 use crate::new::{
+    mods::ModDefId,
     pats::PatId,
     symbols::Symbol,
     terms::{TermId, TermListId},
@@ -111,6 +112,9 @@ pub struct StackMember {
 pub struct Stack {
     pub id: StackId,
     pub members: Vec<StackMember>,
+    /// Local module definition containing members that are defined in this
+    /// stack.
+    pub local_mod_def: Option<ModDefId>,
 }
 
 new_store_key!(pub StackId);
@@ -206,10 +210,19 @@ impl fmt::Display for WithEnv<'_, StackMemberId> {
 impl fmt::Display for WithEnv<'_, &Stack> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "{{")?;
+
+        if let Some(mod_def_members) = self.value.local_mod_def.map(|mod_def_id| {
+            self.stores().mod_def().map_fast(mod_def_id, |mod_def| mod_def.members)
+        }) {
+            let members = self.env().with(mod_def_members).to_string();
+            write!(f, "{}", indent(&members, "  "))?;
+        }
+
         for member in self.value.members.iter() {
             let member = self.env().with(member).to_string();
             write!(f, "{}", indent(&member, "  "))?;
         }
+
         write!(f, "}}")
     }
 }
