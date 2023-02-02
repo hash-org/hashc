@@ -38,7 +38,10 @@ impl<Node: Idx> Dominators<Node> {
         debug_assert!(length > 0);
         debug_assert!(post_order.last() == Some(&graph.start_node()));
 
-        let empty_marker = G::Node::from_usize(usize::MAX);
+        // @@Todo: figure out how to deal with an `EMPTY` marker since the index
+        // type might now always be defined as a `u32`, sometimes smaller, sometimes
+        // larger...
+        let empty_marker = G::Node::from_usize(u32::MAX as usize);
         let mut dominators = index_vec![empty_marker; length];
 
         // set the dominator of the root node to be itself
@@ -60,7 +63,7 @@ impl<Node: Idx> Dominators<Node> {
                 let new_idom_idx = {
                     let mut predecessors = predecessor_sets[idx]
                         .iter()
-                        .filter(|&predecessor| dominators[*predecessor] != empty_marker);
+                        .filter(|&&predecessor| dominators[predecessor] != empty_marker);
 
                     // get the first index in the predecessors
                     let new_dom_idx = predecessors.next().unwrap();
