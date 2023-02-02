@@ -14,7 +14,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
     /// and another.
     pub fn maybe_get_codegen_block_id(&mut self, block: BasicBlock) -> Option<Builder::BasicBlock> {
         match self.block_map[block] {
-            BlockStatus::Unlowered => {
+            BlockStatus::UnLowered => {
                 // We add a new block to the builder, and then update the block
                 // map for the future.
                 let block_id =
@@ -76,7 +76,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
             let successor = successors.next().unwrap();
 
             // verify that we have not yet emitted the successor block
-            debug_assert!(matches!(self.block_map[successor], BlockStatus::Unlowered));
+            debug_assert!(matches!(self.block_map[successor], BlockStatus::UnLowered));
 
             // mark the successor block as skipped
             self.block_map[successor] = BlockStatus::Skip;
