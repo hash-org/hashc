@@ -568,6 +568,13 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     ) -> TcResult<(BlockTerm, TyId)> {
         self.stores().term_list().map_fast(block_term.statements, |statements| {
             self.context().enter_scope(block_term.stack_id.into(), || {
+                // Handle local mod def
+                let stack = self.stores().stack().get(block_term.stack_id);
+                if let Some(local_mod_def) = stack.local_mod_def {
+                    self.infer_mod_def(local_mod_def)?;
+                    self.context_utils().add_mod_members(local_mod_def, |_| {});
+                }
+
                 let mut error_state = self.new_error_state();
                 for &statement in statements {
                     let _ = error_state.try_or_add_error(self.infer_term(statement, None));
