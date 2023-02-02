@@ -727,6 +727,21 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             Term::Hole(_) => Err(TcError::Blocked),
         })?;
 
+        println!("Un-normalised: {}: {}", self.env().with(result.0), self.env().with(result.1));
+
+        // @@Temporary
+        let normalised_term = self.normalisation_ops().normalise(result.0.into()).unwrap();
+        let normalised_ty = self
+            .normalisation_ops()
+            .normalise_to_ty(result.1.into())
+            .unwrap()
+            .unwrap_or_else(|| self.new_ty_hole());
+        println!(
+            "Normalised: {}: {}",
+            self.env().with(normalised_term),
+            self.env().with(normalised_ty)
+        );
+
         Ok(result)
     }
 

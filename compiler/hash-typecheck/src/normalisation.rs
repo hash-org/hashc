@@ -102,6 +102,7 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
 
     /// Evaluate an atom once, for use with `fmap`.
     fn eval_once(&self, atom: Atom) -> Result<ControlFlow<Atom>, Signal> {
+        // @@Todo: enter scopes
         match atom {
             Atom::Term(term) => match self.get_term(term) {
                 // Forward to types:
