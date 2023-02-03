@@ -280,6 +280,12 @@ impl IrTy {
         matches!(self, Self::Int(_))
     }
 
+    /// Check if a [IrTy] is a function type.
+    pub fn is_fn(&self) -> bool {
+        // @@Todo: add fn-ptr here.
+        matches!(self, Self::Fn { .. })
+    }
+
     /// Check if a type is a scalar, i.e. it cannot be divided into
     /// further components. [`IrTy::Ref(..)`] with non-[`RefKind::Rc`] is also
     /// considered as a scalar since the components of the reference are
@@ -813,6 +819,11 @@ pub struct TyStore {
     /// [IrTy]s.
     data: DefaultStore<IrTyId, IrTy>,
 
+    /// Storage for grouped types, ones that appear in a parent type, i.e. a
+    /// [`IrTy::Fn(...)`] type will use the [`TyListStore`] to store that
+    /// parameter types.
+    pub tls: TyListStore,
+
     /// A map of common types that are used in the IR.
     pub common_tys: CommonIrTys,
 }
@@ -827,17 +838,24 @@ impl TyStore {
     /// Create a new [TyStore].
     pub(crate) fn new() -> Self {
         let data = DefaultStore::new();
+        let tls = TyListStore::new();
 
         // create the common types map using the created data store
         let common_tys = CommonIrTys::new(&data);
 
-        Self { common_tys, data }
+        Self { common_tys, data, tls }
     }
 }
 
 impl Store<IrTyId, IrTy> for TyStore {
     fn internal_data(&self) -> &std::cell::RefCell<Vec<IrTy>> {
         self.data.internal_data()
+    }
+}
+
+impl fmt::Debug for ForFormatting<'_, IrTyId> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.ctx.tys().map_fast(self.item, |ty| write!(f, "{ty:?}"))
     }
 }
 

@@ -53,8 +53,21 @@ impl<'ir> TyLoweringCtx<'ir> {
         // @@Hack: avoid re-creating "commonly" used types in order
         // to allow for type_id equality to work
         let id = match ir_ty {
-            IrTy::Bool => self.lcx.tys().common_tys.bool,
+            IrTy::Char => self.lcx.tys().common_tys.char,
+            IrTy::UInt(UIntTy::U8) => self.lcx.tys().common_tys.u8,
+            IrTy::UInt(UIntTy::U16) => self.lcx.tys().common_tys.u16,
+            IrTy::UInt(UIntTy::U32) => self.lcx.tys().common_tys.u32,
+            IrTy::UInt(UIntTy::U64) => self.lcx.tys().common_tys.u64,
+            IrTy::UInt(UIntTy::U128) => self.lcx.tys().common_tys.u128,
             IrTy::UInt(UIntTy::USize) => self.lcx.tys().common_tys.usize,
+            IrTy::Int(SIntTy::I8) => self.lcx.tys().common_tys.i8,
+            IrTy::Int(SIntTy::I16) => self.lcx.tys().common_tys.i16,
+            IrTy::Int(SIntTy::I32) => self.lcx.tys().common_tys.i32,
+            IrTy::Int(SIntTy::I64) => self.lcx.tys().common_tys.i64,
+            IrTy::Int(SIntTy::I128) => self.lcx.tys().common_tys.i128,
+            IrTy::Int(SIntTy::ISize) => self.lcx.tys().common_tys.isize,
+            IrTy::Float(FloatTy::F32) => self.lcx.tys().common_tys.f32,
+            IrTy::Float(FloatTy::F64) => self.lcx.tys().common_tys.f64,
             _ => self.lcx.tys().create(ir_ty),
         };
 
@@ -272,6 +285,7 @@ impl<'ir> TyLoweringCtx<'ir> {
                         id if id == IDENTS.f64 => IrTy::Float(FloatTy::F64),
                         id if id == IDENTS.char => IrTy::Char,
                         id if id == IDENTS.str => IrTy::Str,
+                        id if id == IDENTS.never => IrTy::Never,
                         name => {
                             // if the fields of the struct are not opaque, then we
                             // can create an ADT from it, otherwise this case should

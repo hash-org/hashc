@@ -47,7 +47,6 @@ pub trait WriteIr: Sized {
 impl WriteIr for IrTyId {}
 impl WriteIr for IrTyListId {}
 impl WriteIr for AdtId {}
-
 impl WriteIr for Place {}
 
 impl fmt::Display for ForFormatting<'_, Place> {

@@ -204,6 +204,7 @@ impl<'b, 'm> Builder<'_, 'b, 'm> {
         intrinsic_on!("llvm.fshr.i128", fn(i128, i128, i128) -> i128);
 
         // Overflow intrinsics
+        intrinsic_on!("llvm.expect.i1", fn(bool, bool) -> bool);
 
         intrinsic_on!("llvm.sadd.with.overflow.i8", fn(i8, i8) -> struct_ty! {i8, bool});
         intrinsic_on!("llvm.sadd.with.overflow.i16", fn(i16, i16) -> struct_ty! {i16, bool});
