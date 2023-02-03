@@ -1,0 +1,13 @@
+// stage=full, run=fail
+
+main := () => {
+
+}
+
+main := () => {
+
+}
+
+#entry_point my_main := () => {
+
+}

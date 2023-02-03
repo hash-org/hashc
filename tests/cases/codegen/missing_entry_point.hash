@@ -1,0 +1,7 @@
+// stage=full, run=fail
+
+foo := () => {
+
+}
+
+// ~ERROR: no entry point function specified.

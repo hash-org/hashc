@@ -348,7 +348,7 @@ fn handle_test(test: TestingInput) {
     let mut compiler_state = compiler.bootstrap(session);
 
     // // Now parse the module and store the result
-    compiler_state = compiler.run_on_filename(&test.path, ModuleKind::Normal, compiler_state);
+    compiler_state = compiler.run_on_filename(&test.path, ModuleKind::EntryPoint, compiler_state);
 
     let diagnostics = compiler_state.diagnostics;
 
