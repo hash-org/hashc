@@ -19,7 +19,10 @@ use hash_utils::{
     tree_writing::TreeWriter,
 };
 
-use crate::{error::PipelineError, settings::CompilerSettings};
+use crate::{
+    error::PipelineError,
+    settings::{CompilerSettings, CompilerStageKind},
+};
 
 bitflags! {
     /// Defines the flags that can be used to control the compiler pipeline.
@@ -222,6 +225,11 @@ impl Workspace {
             },
             |path| path.clone(),
         )
+    }
+
+    /// Check whether this [Workspace] will yield an executable.
+    pub fn yields_executable(&self, settings: &CompilerSettings) -> bool {
+        self.source_map.entry_point().is_some() && settings.stage == CompilerStageKind::Full
     }
 
     /// Get the bitcode path for a particular [ModuleId]. This does not

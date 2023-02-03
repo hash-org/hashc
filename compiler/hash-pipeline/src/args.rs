@@ -40,7 +40,7 @@ pub fn parse_settings_from_args() -> Result<CompilerSettings, PipelineError> {
                     settings.stage = CompilerStageKind::Parse;
                 }
                 "ir-gen" => {
-                    settings.stage = CompilerStageKind::IrGen;
+                    settings.stage = CompilerStageKind::Lower;
                 }
                 _ => {
                     return Err(PipelineError::UnknownStage(arg));

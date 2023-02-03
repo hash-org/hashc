@@ -14,6 +14,7 @@ use hash_utils::{
 use location::{compute_row_col_from_offset, RowColSpan, SourceLocation};
 
 pub mod constant;
+pub mod entry_point;
 pub mod identifier;
 pub mod location;
 
@@ -276,12 +277,11 @@ impl SourceMap {
     /// Get the entry point that has been registered with the [SourceMap].
     ///
     /// If no entry point has been registered, then the function will panic.
-    pub fn entry_point(&self) -> ModuleId {
+    pub fn entry_point(&self) -> Option<ModuleId> {
         self.module_kind_map
             .iter()
             .position(|kind| matches!(kind, ModuleKind::EntryPoint))
-            .unwrap()
-            .into()
+            .map(|index| index.into())
     }
 
     /// Add a module to the [SourceMap] with the specified resolved file path,

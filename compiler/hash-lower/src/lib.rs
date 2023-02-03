@@ -77,9 +77,9 @@ pub trait LoweringCtxQuery: CompilerInterface {
 }
 
 impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
-    /// Return that this is [CompilerStageKind::IrGen].
+    /// Return that this is [CompilerStageKind::Lower].
     fn kind(&self) -> CompilerStageKind {
-        CompilerStageKind::IrGen
+        CompilerStageKind::Lower
     }
 
     /// Lower that AST of each module that is currently in the workspace
@@ -178,9 +178,9 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
 pub struct IrOptimiser;
 
 impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrOptimiser {
-    /// Return that this is [CompilerStageKind::IrGen].
+    /// Return that this is [CompilerStageKind::Lower].
     fn kind(&self) -> CompilerStageKind {
-        CompilerStageKind::IrGen
+        CompilerStageKind::Lower
     }
 
     fn run(&mut self, _: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {

@@ -629,6 +629,7 @@ name = "hash-semantics"
 version = "0.1.0"
 dependencies = [
  "bimap",
+ "bitflags 2.0.0-rc.1",
  "dashmap",
  "derive_more",
  "hash-alloc",

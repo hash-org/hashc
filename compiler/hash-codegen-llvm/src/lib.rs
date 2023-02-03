@@ -161,7 +161,7 @@ impl<'b> Backend<'b> for LLVMBackend<'b> {
         // object, or if we emit a single module object for the entire program.
         // Currently, we are emitting a single module for the entire program
         // that is being compiled in in the workspace.
-        let entry_point = self.workspace.source_map.entry_point();
+        let entry_point = self.workspace.source_map.entry_point().unwrap();
 
         let context = LLVMContext::create();
         let module = context.create_module(self.workspace.name.as_str());

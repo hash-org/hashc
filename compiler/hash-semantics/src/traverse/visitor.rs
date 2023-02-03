@@ -13,9 +13,10 @@ use hash_ast::{
 };
 use hash_reporting::{diagnostic::Diagnostics, macros::panic_on_span};
 use hash_source::{
+    entry_point::EntryPointKind,
     identifier::{Identifier, IDENTS},
     location::{SourceLocation, Span},
-    ModuleKind,
+    ModuleKind, SourceId,
 };
 use hash_tir::{
     args::Arg,
@@ -43,16 +44,49 @@ use crate::{
     storage::{AccessToStorage, StorageRef},
 };
 
+bitflags::bitflags! {
+    /// The currently applying directives at the current location within
+    /// the AST.
+    #[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
+    pub(crate) struct AppliedDirectives: u8 {
+        /// The traversal is currently within a "intrinsics" directive, specifying
+        /// a module within the prelude which declares all of the intrinsic language
+        /// items.
+        const INTRINSICS = 1 << 1;
+
+        /// The traversal is currently with a "entry_point" directive, expecting
+        /// for their to be a function definition which is used as the entry
+        /// point of the function.
+        const ENTRY_POINT = 1 << 2;
+    }
+}
+
+impl AppliedDirectives {
+    /// Check whether `intrinsics` is set.
+    pub fn is_intrinsics(&self) -> bool {
+        self.contains(Self::INTRINSICS)
+    }
+
+    /// Check whether `entry_point` is set.
+    pub fn is_entry_point(&self) -> bool {
+        self.contains(Self::ENTRY_POINT)
+    }
+}
+
 /// Internal state that the [TcVisitor] uses when traversing the
 /// given sources.
 #[derive(Default)]
 pub struct TcVisitorState {
     /// Pattern hint from declaration
     pub declaration_name_hint: Cell<Option<Identifier>>,
+
     /// Return type for functions with return statements
     pub fn_def_return_ty: Cell<Option<TermId>>,
-    /// If the current traversal is within the intrinsic directive scope.
-    pub within_intrinsics_directive: Cell<bool>,
+
+    /// The currently applied directives on the current traversed
+    /// node.
+    pub(crate) applied_directives: Cell<AppliedDirectives>,
+
     /// If traversing a declaration, what to set for the
     /// `assignments_until_closed` field.
     pub declaration_assignments_until_closed: Cell<usize>,
@@ -63,14 +97,25 @@ impl TcVisitorState {
     pub fn new() -> Self {
         Self::default()
     }
+
+    /// Get a reference to the [AppliedDirectives] currently applied
+    /// to the current node.
+    pub(crate) fn applied_directives(&self) -> AppliedDirectives {
+        self.applied_directives.get()
+    }
 }
 
 /// Traverses the AST and adds types to it, while checking it for correctness.
 ///
 /// Contains typechecker state that is accessed while traversing.
 pub struct TcVisitor<'tc> {
+    /// A reference to the storage.
     pub storage: StorageRef<'tc>,
+
+    /// A reference to all of the sources in the current workspace.
     pub node_map: &'tc NodeMap,
+
+    /// The state of the visitor.
     pub state: TcVisitorState,
 }
 
@@ -104,6 +149,10 @@ impl<'tc> TcVisitor<'tc> {
         // @@Correctness: the visitor will loop infinitely if there are circular module
         // dependencies. Need to find a way to prevent this.
         self.checked_sources().mark_checked(source_id, result);
+
+        // If the source is the entry point of the program, and it is specified that
+        // an executable is to be produced from the sources, then we need to verify
+        // the module contains a main function
 
         Ok(result)
     }
@@ -547,7 +596,7 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
         let term = self.builder().create_mod_def_term(mod_def);
 
         // Validate the definition
-        let is_within_intrinsics = self.state.within_intrinsics_directive.get();
+        let is_within_intrinsics = self.state.applied_directives().is_intrinsics();
         self.validator().validate_mod_def(mod_def, term, is_within_intrinsics)?;
 
         self.register_node_info_and_location(node, term);
@@ -782,7 +831,7 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
         let mut value = value.map(|value| self.substituter().apply_sub_to_term(&sub, value));
         let ty = self.substituter().apply_sub_to_term(&sub, ty_or_unresolved);
 
-        if value.is_none() && self.state.within_intrinsics_directive.get() {
+        if value.is_none() && self.state.applied_directives().is_intrinsics() {
             // @@Todo: see #391
             value = Some(self.builder().create_rt_term(ty));
         }
@@ -1058,7 +1107,50 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
 
         // Clear return type
         self.state.fn_def_return_ty.set(old_return_ty);
-        self.validate_and_register_simplified_term(node, fn_ty_term)
+        let fn_ty_term = self.validate_and_register_simplified_term(node, fn_ty_term)?;
+
+        // If the module is an entry point, and if the function
+        // is either named "main", or the `#entry_point` attribute
+        // is specified, then we specify that the entry point is
+        // now this term...
+        if !self.workspace().yields_executable(self.settings()) {
+            return Ok(fn_ty_term);
+        }
+
+        let maybe_module = { self.eps().module() };
+
+        if let Some(module) = maybe_module && let Some(name) = name {
+            if self.local_storage().current_source() != SourceId::from(module) {
+                return Ok(fn_ty_term);
+            }
+
+            if name == IDENTS.main || self.state.applied_directives().is_entry_point() {
+                println!("Found entry point: {name}");
+                if self.local_storage().current_source() == SourceId::from(module) {
+                    let kind = if self.state.applied_directives().is_entry_point() {
+                        EntryPointKind::Named(name)
+                    } else {
+                        EntryPointKind::Main
+                    };
+
+                    let result = {
+                        // We specify that this function is the entry point
+                        self.eps_mut().set(fn_ty_term, kind)
+                    };
+
+                    // If the entry point was declared twice, then we 
+                    // return an error.
+                    result.ok_or_else(|| {
+                        TcError::MultipleEntryPoints {
+                            site: self.eps().def.unwrap().into(),
+                            duplicate_site: fn_ty_term.into()
+                        }
+                    })?;
+                }
+            }
+        }
+
+        Ok(fn_ty_term)
     }
 
     type BoolLitRet = TermId;
@@ -2066,7 +2158,7 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
         &self,
         node: AstNodeRef<ast::DirectiveExpr>,
     ) -> Result<Self::DirectiveExprRet, Self::Error> {
-        let old_intrinsics_state = self.state.within_intrinsics_directive.get();
+        let old_applied_directives = self.state.applied_directives.get();
 
         // If the current specified directive is `intrinsics`, then we have to enable
         // the flag `within_intrinsics_directive` which changes the way that `mod`
@@ -2074,7 +2166,11 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
         // mod block.
         for directive in &node.directives {
             if directive.is(IDENTS.intrinsics) {
-                self.state.within_intrinsics_directive.set(true);
+                self.state.applied_directives.update(|a| a | AppliedDirectives::INTRINSICS);
+            }
+
+            if directive.is(IDENTS.entry_point) {
+                self.state.applied_directives.update(|a| a | AppliedDirectives::ENTRY_POINT);
             }
         }
 
@@ -2082,7 +2178,7 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
         // inner types...
         let walk::DirectiveExpr { subject, .. } = walk::walk_directive_expr(self, node)?;
 
-        self.state.within_intrinsics_directive.set(old_intrinsics_state);
+        self.state.applied_directives.set(old_applied_directives);
 
         self.register_node_info_and_location(node, subject);
         Ok(subject)

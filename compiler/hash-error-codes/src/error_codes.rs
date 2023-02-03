@@ -8,6 +8,7 @@ error_codes! {
     UsingReturnOutsideFn = 4,
     ItemIsImmutable = 5,
     ItemMustBeImmutable = 6,
+    MultipleEntryPoints = 8,
 
     // Name spacing and symbol errors
     UnresolvedSymbol = 10,

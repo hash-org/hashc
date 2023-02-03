@@ -165,7 +165,7 @@ impl<I: CompilerInterface> Compiler<I> {
 
             // We don't need to run the prelude in the full pipeline, just until
             // IR-gen since that will be dealt by the actual pipeline.
-            ctx.settings_mut().stage = CompilerStageKind::IrGen;
+            ctx.settings_mut().stage = CompilerStageKind::Lower;
 
             // Resolve the current working directory so that we can
             // resolve the prelude path...

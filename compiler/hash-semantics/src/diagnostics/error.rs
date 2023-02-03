@@ -315,6 +315,15 @@ pub enum TcError {
         /// The location of where the modification was being made.
         site: LocationTarget,
     },
+
+    /// When multiple entry points are specified in the module.
+    MultipleEntryPoints {
+        /// The location of the current entry point.
+        site: LocationTarget,
+
+        /// The location of the duplicate entry point.
+        duplicate_site: LocationTarget,
+    },
 }
 
 /// A [TcError] with attached typechecker storage.
@@ -1553,6 +1562,24 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Reports {
                         location,
                         "cannot index into this type, type must be of shape `[T]`",
                     );
+                }
+            }
+            TcError::MultipleEntryPoints { site, duplicate_site } => {
+                builder
+                    .code(HashErrorCode::MultipleEntryPoints)
+                    .title("multiple entry points declared");
+
+                if let Some(location) = ctx.location_store().get_location(duplicate_site) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "cannot declare another entry point",
+                    )));
+                }
+
+                // @@Todo: mark this in a non-error colour since this is only additional
+                // information.
+                if let Some(location) = ctx.location_store().get_location(site) {
+                    builder.add_labelled_span(location, "the entry point is already declared here");
                 }
             }
         };

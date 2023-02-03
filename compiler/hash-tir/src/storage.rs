@@ -5,7 +5,7 @@
 
 use std::cell::Cell;
 
-use hash_source::SourceId;
+use hash_source::{entry_point::EntryPointState, SourceId};
 use hash_target::Target;
 use hash_utils::store::Store;
 
@@ -19,7 +19,7 @@ use crate::{
     params::ParamsStore,
     pats::{PatArgsStore, PatStore},
     scope::{Scope, ScopeId, ScopeKind, ScopeStack, ScopeStore},
-    terms::{TermListStore, TermStore},
+    terms::{TermId, TermListStore, TermStore},
     trts::TrtDefStore,
 };
 
@@ -149,4 +149,8 @@ pub struct TyStorage {
     /// Persistent storage of all data structures that is emitted by the
     /// typechecking stage, and possibly further stages.
     pub global: GlobalStorage,
+
+    /// The entry point state of the typechecker. This is used to keep
+    /// track of the declared entry point of the program if there is one.
+    pub entry_point_state: EntryPointState<TermId>,
 }
