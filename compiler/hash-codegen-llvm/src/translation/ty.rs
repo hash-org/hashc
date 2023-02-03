@@ -430,13 +430,10 @@ impl<'m> ExtendedTyBuilderMethods<'m> for TyInfo {
     }
 
     fn immediate_llvm_ty(&self, ctx: &CodeGenCtx<'_, 'm>) -> llvm::types::AnyTypeEnum<'m> {
-        let is_bool = ctx.map_layout(self.layout, |layout| {
-            if let AbiRepresentation::Scalar(scalar) = layout.abi && scalar.is_bool() {
-                true
-            } else {
-                false
-            }
-        });
+        let is_bool = ctx.map_layout(
+            self.layout,
+            |layout| matches!(layout.abi, AbiRepresentation::Scalar(scalar) if scalar.is_bool()),
+        );
 
         if is_bool {
             ctx.type_i1()
@@ -449,10 +446,6 @@ impl<'m> ExtendedTyBuilderMethods<'m> for TyInfo {
         &self,
         ctx: &CodeGenCtx<'_, 'm>,
         scalar: Scalar,
-
-        // @@Todo: implement pointee_info_at(offset) for this offset to
-        // work... since we're then indexing into a reference type
-        // layout
         offset: Size,
     ) -> llvm::types::AnyTypeEnum<'m> {
         match scalar.kind() {

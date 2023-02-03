@@ -38,8 +38,16 @@ impl<Ctx: BackendCtxQuery> CompilerStage<Ctx> for CodeGenPass {
 
         // Create a new instance of a backend, and then run it...
         let mut backend = match settings.codegen_settings.backend {
-            CodeGenBackend::LLVM => create_llvm_backend(ctx.data()),
+            CodeGenBackend::LLVM if settings.entry_point().is_some() => {
+                create_llvm_backend(ctx.data())
+            }
             CodeGenBackend::VM => unimplemented!(),
+
+            // If the backend is specified to be LLVM, but there is no entry
+            // then we can't do anything so we just skip this...
+            _ => {
+                return Ok(());
+            }
         };
 
         backend.run()

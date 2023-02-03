@@ -479,6 +479,7 @@ dependencies = [
  "hash-codegen",
  "hash-ir",
  "hash-pipeline",
+ "hash-reporting",
  "hash-source",
  "hash-target",
  "hash-utils",

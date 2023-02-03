@@ -503,20 +503,20 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         target: ir::BasicBlock,
         can_merge: bool,
     ) -> bool {
-        let condition = self.codegen_operand(builder, condition).immediate_value();
+        let condition_operand = self.codegen_operand(builder, condition).immediate_value();
 
         // try and evaluate the condition at compile time to determine
         // if we can avoid generating the panic block if the condition
         // is always true or false.
         let const_condition =
-            builder.const_to_optional_u128(condition, false).map(|value| value == 1);
+            builder.const_to_optional_u128(condition_operand, false).map(|value| value == 1);
 
         if const_condition == Some(expected) {
             return self.codegen_goto_terminator(builder, target, can_merge);
         }
 
         // Add a hint for the condition as "expecting" the provided value
-        let condition = builder.codegen_expect_intrinsic(condition, expected);
+        let condition = builder.codegen_expect_intrinsic(condition_operand, expected);
 
         // Create a failure block and a conditional branch to it.
         let failure_block = builder.append_sibling_block("assert_failure");
@@ -532,8 +532,8 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         builder.switch_to_block(failure_block);
 
         // we need to convert the assert into a message.
-        let message = builder.const_str(CONSTANT_MAP.create_string(assert_kind.message()));
-        let args = &[message.0, message.1];
+        let (bytes, len) = builder.const_str(CONSTANT_MAP.create_string(assert_kind.message()));
+        let args = &[bytes, len];
 
         // @@Todo: we need to create a call to `panic`, as in resolve the function
         // abi to `panic` and the relative function pointer.

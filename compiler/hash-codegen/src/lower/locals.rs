@@ -24,7 +24,8 @@ use crate::traits::{
 /// Defines what kind of reference a local has. A [LocalRef::Place]
 /// is a reference to a stack allocation, and a [LocalRef::Operand]
 /// is a reference to an immediate value.
-pub enum LocalRef<V> {
+#[derive(Debug)]
+pub enum LocalRef<V: std::fmt::Debug> {
     /// A reference to a stack allocation.
     Place(PlaceRef<V>),
 

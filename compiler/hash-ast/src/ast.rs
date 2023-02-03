@@ -1699,8 +1699,8 @@ define_tree! {
     #[derive(PartialEq, Debug, Clone)]
     #[node]
     pub struct DirectiveExpr {
-        /// The name of the directive (without the "#").
-        pub directives: SmallVec<[(Name, Span); 2]>,
+        /// The directives that apply on the subject expression.
+        pub directives: SmallVec<[AstNode<Name>; 2]>,
         /// An expression which is referenced in the directive
         pub subject: Child!(Expr),
     }
@@ -1969,4 +1969,15 @@ define_tree! {
         /// semi-colon.
         pub contents: Children!(Expr),
     }
+}
+
+#[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
+mod size_asserts {
+    use hash_utils::assert::static_assert_size;
+
+    use super::*;
+
+    static_assert_size!(Expr, 96);
+    static_assert_size!(Pat, 88);
+    static_assert_size!(Ty, 80);
 }

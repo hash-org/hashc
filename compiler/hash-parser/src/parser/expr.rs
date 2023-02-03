@@ -647,7 +647,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                             self.skip_token();
 
                             directive_span = directive_span.join(*span);
-                            directives.push((Name { ident: *ident }, directive_span));
+                            directives.push(AstNode::new(Name { ident: *ident }, directive_span));
                             prefixed = false;
                         }
                         Some(Token { kind: TokenKind::Hash, .. }) if !prefixed => {

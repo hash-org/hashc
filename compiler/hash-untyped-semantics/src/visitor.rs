@@ -7,9 +7,8 @@ use std::{collections::HashSet, convert::Infallible, mem};
 
 use hash_ast::{
     ast::{
-        walk_mut_self, AstNode, AstNodeRef, AstVisitorMutSelf, BindingPat, Block, BlockExpr,
-        Declaration, DirectiveExpr, EnumDef, Expr, LitExpr, Mutability, Name, ParamOrigin,
-        StructDef,
+        walk_mut_self, AstNodeRef, AstVisitorMutSelf, BindingPat, Block, BlockExpr, Declaration,
+        DirectiveExpr, EnumDef, Expr, LitExpr, Mutability, Name, ParamOrigin, StructDef,
     },
     ast_visitor_mut_self_default_impl,
     origin::BlockOrigin,
@@ -225,9 +224,8 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
         let DirectiveExpr { directives, .. } = node.body();
         let _ = walk_mut_self::walk_directive_expr(self, node);
 
-        for (directive, span) in directives.iter().copied() {
-            let name = AstNode::new(directive, span);
-            self.validate_directive(name.ast_ref(), node.subject.ast_ref())?;
+        for directive in directives.iter() {
+            self.validate_directive(directive.ast_ref(), node.subject.ast_ref())?;
         }
         Ok(())
     }

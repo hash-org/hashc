@@ -763,7 +763,12 @@ macro_rules! create_common_ty_table {
         /// using the associated [IrTyId]s of this map.
         pub struct CommonIrTys {
             $(pub $name: IrTyId, )*
+
+            /// A slice of bytes, i.e. `[u8]`.
             pub byte_slice: IrTyId,
+
+            /// A general pointer to bytes, i.e. `&[u8]`.
+            pub ptr: IrTyId,
         }
 
         impl CommonIrTys {
@@ -771,14 +776,17 @@ macro_rules! create_common_ty_table {
                 let mut table = CommonIrTys {
                     $($name: data.create($value), )*
                     byte_slice: IrTyId::from_index_unchecked(0),
+                    ptr: IrTyId::from_index_unchecked(0),
                 };
 
                 // @@Hack: find a way to nicely create this within the `create_common_ty_table!`,
                 // however this would require somehow referencing entries within the table before
                 // they are defined...
                 let byte_slice = data.create(IrTy::Slice(table.u8));
+                let ptr = data.create(IrTy::Ref(table.u8, Mutability::Immutable, RefKind::Normal));
 
                 table.byte_slice = byte_slice;
+                table.ptr = ptr;
                 table
             }
         }

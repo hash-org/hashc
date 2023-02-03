@@ -1,6 +1,7 @@
 use std::convert::Infallible;
 
 use hash_ast::{
+    ast::{AstNode, Name},
     ast_visitor_mut_self_default_impl,
     tree::AstTreeGenerator,
     visitor::{walk_mut_self, AstVisitor, AstVisitorMutSelf},
@@ -62,14 +63,16 @@ impl<'s> AstVisitorMutSelf for AstExpander<'s> {
             // Since this might be a non-singular directive, we also might
             // need to wrap the tree in a any of the directives that were specified
             // after the `dump_ast` directive.
-            for (directive, _) in node.directives.iter().skip(index + 1).rev() {
-                tree = TreeNode::branch(format!("directive \"{directive}\""), vec![tree]);
+            for directive in node.directives.iter().skip(index + 1).rev() {
+                tree = TreeNode::branch(format!("directive \"{}\"", directive.ident), vec![tree]);
             }
 
             // We want to get the total span of the subject, so we must
             // include the span of the directives that come after the `dump_ast` directive.
-            let directive_span: Span = if let Some((_, span)) = node.directives.get(index + 1) {
-                Span::join(span, node.subject.span())
+            let directive_span = if let Some(directive) = node.directives.get(index + 1) {
+                let directive: &AstNode<Name> = directive; // @@RustBug: for some reason it can't infer the type here, maybe `smallvec`
+                                                           // related?
+                directive.span().join(node.subject.span())
             } else {
                 node.subject.span()
             };
@@ -86,7 +89,7 @@ impl<'s> AstVisitorMutSelf for AstExpander<'s> {
         // for the `dump_ast` directive, we essentially "dump" the generated tree
         // that the parser created. We emit this tree regardless of whether or not
         // there will be errors later on in the compilation stage.
-        for (index, (directive, _)) in node.directives.iter().enumerate() {
+        for (index, directive) in node.directives.iter().enumerate() {
             if directive.is(IDENTS.dump_ast) {
                 write_tree(index)
             }
