@@ -6,19 +6,25 @@
 use std::{cell::RefCell, cmp, iter, num::NonZeroUsize};
 
 use hash_ir::{
-    ty::{AdtData, AdtRepresentation, IrTy, IrTyId, RefKind, VariantIdx},
+    ty::{AdtData, AdtRepresentation, IrTy, IrTyId, Mutability, RefKind, VariantIdx},
     IrCtx,
 };
 use hash_target::{
-    abi::{AbiRepresentation, Integer, Scalar, ScalarKind, ValidScalarRange},
+    abi::{AbiRepresentation, AddressSpace, Integer, Scalar, ScalarKind, ValidScalarRange},
     alignment::{Alignment, Alignments},
     data_layout::TargetDataLayout,
     primitives::{FloatTy, SIntTy, UIntTy},
     size::Size,
 };
-use hash_utils::{index_vec::IndexVec, store::Store};
+use hash_utils::{
+    index_vec::IndexVec,
+    store::{CloneStore, Store},
+};
 
-use crate::{CommonLayouts, FieldLayout, Layout, LayoutCtx, LayoutId, LayoutShape, Variants};
+use crate::{
+    CommonLayouts, FieldLayout, Layout, LayoutCtx, LayoutId, LayoutShape, PointeeInfo, PointerKind,
+    TyInfo, Variants,
+};
 
 /// This describes the collection of errors that can occur
 /// when computing the layout of a type. This is used to
@@ -106,6 +112,7 @@ fn invert_memory_mapping(mapping: &[u32]) -> Vec<u32> {
 /// A auxiliary context for methods defined on [Layout]
 /// which require access to other [Layout]s and information
 /// generated in the [IrCtx].
+#[derive(Clone, Copy)]
 pub struct LayoutComputer<'l> {
     /// A reference tot the [LayoutCtx].
     layout_ctx: &'l LayoutCtx,
@@ -126,7 +133,7 @@ impl<'l> LayoutComputer<'l> {
         Self { layout_ctx: layout_store, ir_ctx }
     }
 
-    /// Returns a reference to the [LayoutStore].
+    /// Returns a reference to the [LayoutCtx].
     pub fn layouts(&self) -> &LayoutCtx {
         self.layout_ctx
     }
@@ -160,8 +167,8 @@ impl<'l> LayoutComputer<'l> {
         };
 
         // Check if we have already computed the layout of this type.
-        if let Some(layout) = self.layout_ctx.cache().get(&ty_id) {
-            return Ok(*layout);
+        if let Some(layout) = self.layout_ctx.cache().get(&ty_id).copied() {
+            return Ok(layout);
         }
 
         let layout = self.ir_ctx.map_ty(ty_id, |ty| match ty {
@@ -314,6 +321,7 @@ impl<'l> LayoutComputer<'l> {
 
         // We cache the layout of the type that was just created
         self.layouts().add_cache_entry(ty_id, layout);
+
         Ok(layout)
     }
 
@@ -350,7 +358,6 @@ impl<'l> LayoutComputer<'l> {
         representation: &AdtRepresentation,
     ) -> Option<Layout> {
         let dl = self.data_layout();
-        let mut abi = AbiRepresentation::Aggregate;
 
         let mut alignment = dl.aggregate_align;
         let mut inverse_memory_map: Vec<u32> = (0..field_layouts.len() as u32).collect();
@@ -396,6 +403,8 @@ impl<'l> LayoutComputer<'l> {
             offset = tag_size.align_to(tag_alignment);
         }
 
+        let mut abi = AbiRepresentation::Aggregate;
+
         for &i in &inverse_memory_map {
             self.layouts().map_fast(field_layouts[i as usize], |layout| -> Option<()> {
                 // We can mark the overall structure as un-inhabited if
@@ -427,6 +436,79 @@ impl<'l> LayoutComputer<'l> {
         } else {
             inverse_memory_map
         };
+
+        // If we can, we try to convert the aggregate representation into
+        // a scalar representation, either being a direct "scalar" or a
+        // "scalar pair".
+        if size.bytes() > 0 && abi != AbiRepresentation::Uninhabited {
+            self.layouts().map_many_fast(field_layouts.iter().copied(), |fields| {
+                // Ignore all of the ZST fields that are present...
+                let mut non_zst_fields = fields.iter().enumerate().filter(|(_, f)| !f.is_zst());
+
+                match (non_zst_fields.next(), non_zst_fields.next(), non_zst_fields.next()) {
+                    (Some((i, field)), None, None) => {
+                        // If the field covers the whole aggregate, and has a scalar/pair ABI, then
+                        // this aggregate inherits the same ABI.
+                        if offsets[i].offset.bytes() == 0
+                            && alignment.abi == field.alignment.abi
+                            && size == field.size
+                        {
+                            match field.abi {
+                                AbiRepresentation::Scalar(_) | AbiRepresentation::Vector { .. }
+                                    if optimise_field_order =>
+                                {
+                                    abi = field.abi;
+                                }
+                                AbiRepresentation::Pair(..) => {
+                                    abi = field.abi;
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+
+                    // Two non-ZST fields, and they're both scalars. This is required to represent
+                    // items that are considered to be "scalar pair"s and thus
+                    // they should have the same ABI representation.
+                    (Some((i, a)), Some((j, b)), None) => {
+                        if let (AbiRepresentation::Scalar(a), AbiRepresentation::Scalar(b)) =
+                            (a.abi, b.abi)
+                        {
+                            // Resolve the memory order of the fields, not the source
+                            // order since they could be re-arranged.
+                            let ((i, a), (j, b)) = if offsets[i].offset < offsets[j].offset {
+                                ((i, a), (j, b))
+                            } else {
+                                ((j, b), (i, a))
+                            };
+
+                            let pair = Layout::scalar_pair(self.data_layout(), a, b);
+                            let pair_offsets = match pair.shape {
+                                LayoutShape::Aggregate { ref fields, ref memory_map } => {
+                                    debug_assert_eq!(memory_map, &[0, 1]);
+                                    fields
+                                }
+                                _ => unreachable!("scalar pair layout shape is non-aggregate"),
+                            };
+
+                            // Now verify that if the scalar pair matches in offsets and size
+                            // to the original aggregate, then we can use the scalar pair
+                            // representation for the ABI.
+                            if offsets[i].offset == pair_offsets[0].offset
+                                && offsets[j].offset == pair_offsets[1].offset
+                                && pair.size == size
+                                && pair.alignment == alignment
+                            {
+                                abi = pair.abi;
+                            }
+                        }
+                    }
+
+                    // Otherwise, we can't do anything here.
+                    _ => {}
+                }
+            })
+        }
 
         Some(Layout {
             variants: Variants::Single { index },
@@ -853,5 +935,91 @@ impl<'l> LayoutComputer<'l> {
             alignment: element_alignment,
             variants: Variants::Single { index: VariantIdx::new(0) },
         }))
+    }
+
+    /// This function computes the layout information of a pointee of a pointer
+    /// at a given offset.
+    pub fn compute_layout_info_of_pointee_at(
+        &self,
+        info: TyInfo,
+        offset: Size,
+    ) -> Option<PointeeInfo> {
+        // Check in the cache if we have already computed this information.
+        if let Some(pointee_info) =
+            self.layouts().pointee_info_cache.borrow().get(&(info.ty, offset))
+        {
+            return *pointee_info;
+        }
+
+        let address_of_ty = |ty: &IrTy| {
+            if ty.is_fn() {
+                self.data_layout().instruction_address_space
+            } else {
+                AddressSpace::DATA
+            }
+        };
+
+        // @@Todo: deal with fn-pointers...
+        let result = self.ir_ctx().map_ty(info.ty, |ty| match ty {
+            IrTy::Ref(pointee, mutability, _) if offset.bytes() == 0 => {
+                // @@Todo: be more sophisticated with different pointer kinds, and
+                // also deal with Rc specifics here..., and potentially disabling
+                // this optimisation if we are building in debug mode.
+                let kind = match mutability {
+                    Mutability::Mutable => PointerKind::Shared,
+                    Mutability::Immutable => PointerKind::Frozen,
+                };
+
+                self.layout_of_ty(*pointee).ok().map(|layout| {
+                    let (size, alignment) = self
+                        .layouts()
+                        .map_fast(layout, |layout| (layout.size, layout.alignment.abi));
+                    PointeeInfo { size, alignment, kind, address_space: address_of_ty(ty) }
+                })
+            }
+            _ => {
+                let data_variant = self.map(info.layout, |layout| {
+                    if let LayoutShape::Union { .. } = layout.shape {
+                        None
+                    } else {
+                        Some(info)
+                    }
+                });
+
+                let mut result = None;
+
+                if let Some(variant) = data_variant {
+                    let ptr_end = offset + ScalarKind::Pointer.size(self.data_layout());
+
+                    // @@Copying: we can't really do anything about this copy...
+                    let shape = self.map_fast(variant.layout, |layout| layout.shape.clone());
+
+                    for i in 0..shape.count() {
+                        let field_start = shape.offset(i);
+
+                        if field_start <= offset {
+                            let field = variant.field(*self, i);
+                            let size = self.layouts().size_of(field.layout);
+
+                            result = if ptr_end <= field_start + size {
+                                self.compute_layout_info_of_pointee_at(field, offset - field_start)
+                            } else {
+                                None
+                            };
+
+                            if result.is_some() {
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                result
+            }
+        });
+
+        // Cache the result of the computation...
+        self.layouts().pointee_info_cache.borrow_mut().insert((info.ty, offset), result);
+        result
     }
 }
