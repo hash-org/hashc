@@ -28,10 +28,7 @@ use hash_tir::{
     },
     ty_as_variant,
 };
-use hash_utils::{
-    store::{CloneStore, SequenceStore, SequenceStoreKey, Store},
-    stream_less_writeln,
-};
+use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
 
 use super::unification::Uni;
 use crate::{
