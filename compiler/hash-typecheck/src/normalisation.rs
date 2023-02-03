@@ -121,16 +121,14 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
             BindingKind::Arg(_, arg_id) => {
                 Ok(self.stores().args().map_fast(arg_id.0, |args| args[arg_id.1].value).into())
             }
-            BindingKind::StackMember(stack_member) => {
-                self.stores().stack().map_fast(stack_member.0, |stack| {
-                    match stack.members[stack_member.1].value {
-                        Some(value) => Ok(value.into()),
-                        None => {
-                            // @@Todo: make this a user error
-                            panic!("Tried to read uninitialised stack member")
-                        }
+            BindingKind::StackMember(_, value) => {
+                match value {
+                    Some(value) => Ok(value.into()),
+                    None => {
+                        // @@Todo: make this a user error
+                        panic!("Tried to read uninitialised stack member")
                     }
-                })
+                }
             }
 
             // Variables are never bound to a module member, constructor or equality.
@@ -254,29 +252,31 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
 
     /// Evaluate an assignment term.
     fn eval_assign(&self, mut assign_term: AssignTerm) -> Result<Atom, Signal> {
-        assign_term.subject = self.to_term(self.eval(assign_term.subject.into())?);
         assign_term.value = self.to_term(self.eval(assign_term.value.into())?);
 
         match assign_term.index {
-            Some(field) => match self.get_term(assign_term.subject) {
-                Term::Tuple(tuple) => {
-                    self.set_param_in_args(tuple.data, field, assign_term.value.into())
+            Some(field) => {
+                assign_term.subject = self.to_term(self.eval(assign_term.subject.into())?);
+                match self.get_term(assign_term.subject) {
+                    Term::Tuple(tuple) => {
+                        self.set_param_in_args(tuple.data, field, assign_term.value.into())
+                    }
+                    Term::Ctor(ctor) => {
+                        self.set_param_in_args(ctor.ctor_args, field, assign_term.value.into())
+                    }
+                    Term::Prim(PrimTerm::List(list)) => {
+                        self.set_index_in_list(list.elements, field, assign_term.value.into())
+                    }
+                    _ => panic!("Invalid access"),
                 }
-                Term::Ctor(ctor) => {
-                    self.set_param_in_args(ctor.ctor_args, field, assign_term.value.into())
-                }
-                Term::Prim(PrimTerm::List(list)) => {
-                    self.set_index_in_list(list.elements, field, assign_term.value.into())
-                }
-                _ => panic!("Invalid access"),
-            },
+            }
             None => match self.get_term(assign_term.subject) {
                 // @@Todo: deref
                 Term::Var(var) => {
-                    let member = self.context_utils().get_stack_binding(var);
+                    let (member, _) = self.context_utils().get_stack_binding(var);
                     self.set_stack_member(member, assign_term.value);
                 }
-                _ => panic!("Invalid assign"),
+                _ => panic!("Invalid assign {}", self.env().with(&assign_term)),
             },
         }
 
@@ -285,28 +285,29 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
 
     /// Push the given stack member to the stack with no value.
     fn push_stack_uninit(&self, stack_member_id: StackMemberId) {
-        let name = self.stores().stack().modify_fast(stack_member_id.0, |stack| {
-            stack.members[stack_member_id.1].value = None;
-            stack.members[stack_member_id.1].name
-        });
-        self.context()
-            .add_binding(Binding { name, kind: BindingKind::StackMember(stack_member_id) })
+        self.context().add_binding(Binding {
+            name: self.get_stack_member_name(stack_member_id),
+            kind: BindingKind::StackMember(stack_member_id, None),
+        })
     }
 
     /// Push the given stack member to the stack with the given value.
     fn push_stack(&self, stack_member_id: StackMemberId, value: TermId) {
-        let name = self.stores().stack().modify_fast(stack_member_id.0, |stack| {
-            stack.members[stack_member_id.1].value = Some(value);
-            stack.members[stack_member_id.1].name
-        });
-        self.context()
-            .add_binding(Binding { name, kind: BindingKind::StackMember(stack_member_id) })
+        self.context().add_binding(Binding {
+            name: self.get_stack_member_name(stack_member_id),
+            kind: BindingKind::StackMember(stack_member_id, Some(value)),
+        })
     }
 
     /// Set the given stack member to the given value.
     fn set_stack_member(&self, stack_member_id: StackMemberId, value: TermId) {
-        self.stores().stack().modify_fast(stack_member_id.0, |stack| {
-            stack.members[stack_member_id.1].value = Some(value);
+        let name = self
+            .stores()
+            .stack()
+            .modify_fast(stack_member_id.0, |stack| stack.members[stack_member_id.1].name);
+        self.context().modify_binding(Binding {
+            name,
+            kind: BindingKind::StackMember(stack_member_id, value.into()),
         })
     }
 

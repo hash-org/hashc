@@ -58,7 +58,6 @@ impl<'tc> StackUtils<'tc> {
             is_mutable: data.is_mutable,
             name: data.name,
             ty: data.ty,
-            value: data.value,
         })
     }
 }

@@ -437,7 +437,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 unreachable!("mod members and ctors should have all been resolved by now")
             }
             BindingKind::Param(_, param_id) => Ok(self.stores().params().get_element(param_id).ty),
-            BindingKind::StackMember(stack_member_id) => Ok(self
+            BindingKind::StackMember(stack_member_id, _) => Ok(self
                 .stores()
                 .stack()
                 .map_fast(stack_member_id.0, |stack| stack.members[stack_member_id.1].ty)),

@@ -65,7 +65,7 @@ impl<'env> ContextUtils<'env> {
     ///
     /// *Invariant*: It must be that the member's scope is the current stack
     /// scope.
-    pub fn add_stack_binding(&self, member_id: StackMemberId) {
+    pub fn add_stack_binding(&self, member_id: StackMemberId, value: Option<TermId>) {
         match self.context().get_current_scope().kind {
             ScopeKind::Stack(stack_id) => {
                 if stack_id != member_id.0 {
@@ -76,7 +76,7 @@ impl<'env> ContextUtils<'env> {
                     .stack()
                     .map_fast(stack_id, |stack| stack.members[member_id.1].name);
                 self.context()
-                    .add_binding(Binding { name, kind: BindingKind::StackMember(member_id) })
+                    .add_binding(Binding { name, kind: BindingKind::StackMember(member_id, value) })
             }
             _ => panic!("add_stack_binding called in non-stack scope"),
         }
@@ -93,7 +93,7 @@ impl<'env> ContextUtils<'env> {
         };
 
         for stack_index in decl.iter_stack_indices() {
-            self.add_stack_binding((current_stack_id, stack_index));
+            self.add_stack_binding((current_stack_id, stack_index), decl.value);
         }
     }
 
@@ -152,9 +152,9 @@ impl<'env> ContextUtils<'env> {
     }
 
     /// Get the given stack binding, or panic if it does not exist.
-    pub fn get_stack_binding(&self, name: Symbol) -> StackMemberId {
+    pub fn get_stack_binding(&self, name: Symbol) -> (StackMemberId, Option<TermId>) {
         match self.context().get_binding(name).unwrap().kind {
-            BindingKind::StackMember(member) => member,
+            BindingKind::StackMember(member, value) => (member, value),
             _ => panic!("get_stack_binding called on non-stack binding"),
         }
     }

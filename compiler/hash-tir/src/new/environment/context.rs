@@ -66,7 +66,9 @@ pub enum BindingKind {
     /// Stack member.
     ///
     /// For example, `a` in `{ a := 3; a }`
-    StackMember(StackMemberId),
+    ///
+    /// Contains the current value of the stack member, if any.
+    StackMember(StackMemberId, Option<TermId>),
     /// Parameter substitution (argument)
     ///
     /// For example, `a=3` in `((a: i32) => a + 3)(3)`
@@ -83,7 +85,7 @@ impl BindingKind {
         match self {
             BindingKind::ModMember(_, _) | BindingKind::Ctor(_, _) => true,
             BindingKind::Param(origin, _) => origin.is_constant(),
-            BindingKind::StackMember(_) | BindingKind::Arg(_, _) | BindingKind::Equality(_) => {
+            BindingKind::StackMember(_, _) | BindingKind::Arg(_, _) | BindingKind::Equality(_) => {
                 false
             }
         }
@@ -243,6 +245,18 @@ impl Context {
         Some(Binding { name, kind: self.members.borrow().get(&name).copied()? })
     }
 
+    /// Modify a binding in the context.
+    pub fn modify_binding(&self, binding: Binding) {
+        match self.members.borrow_mut().get_mut(&binding.name) {
+            Some(existing) => {
+                *existing = binding.kind;
+            }
+            None => {
+                panic!("tried to modify a binding that doesn't exist");
+            }
+        }
+    }
+
     /// Get information about the current scope.
     pub fn get_current_scope(&self) -> ScopeInfo {
         self.scopes.borrow().last().copied().unwrap_or_else(|| {
@@ -345,8 +359,16 @@ impl fmt::Display for WithEnv<'_, Binding> {
             BindingKind::Param(_, param_id) => {
                 write!(f, "{}", self.env().with(param_id))
             }
-            BindingKind::StackMember(stack_member) => {
-                write!(f, "{}", self.env().with(stack_member))
+            BindingKind::StackMember(stack_member, value) => {
+                write!(
+                    f,
+                    "{} = {}",
+                    self.env().with(stack_member),
+                    match value {
+                        Some(value) => self.env().with(value).to_string(),
+                        None => "{uninit}".to_string(),
+                    }
+                )
             }
             BindingKind::Equality(equality) => {
                 write!(f, "{}", self.env().with(equality))
