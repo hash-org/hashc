@@ -411,7 +411,6 @@ impl<'tc> DiscoveryPass<'tc> {
                             name: self.new_symbol(name.ident),
                             is_mutable: false,
                             ty: self.new_ty_hole(),
-                            value: None,
                         },
                     ))
                 }
@@ -426,7 +425,6 @@ impl<'tc> DiscoveryPass<'tc> {
                         is_mutable: binding.mutability.as_ref().map(|m| *m.body())
                             == Some(ast::Mutability::Mutable),
                         ty: self.new_ty_hole(),
-                        value: None,
                     },
                 ));
             }
@@ -482,7 +480,6 @@ impl<'tc> DiscoveryPass<'tc> {
                     name: self.new_fresh_symbol(),
                     is_mutable: false,
                     ty: self.new_ty_hole(),
-                    value: None,
                 },
             )),
             ast::Pat::Access(_) | ast::Pat::Lit(_) | ast::Pat::Range(_) => {}
@@ -500,7 +497,7 @@ impl<'tc> DiscoveryPass<'tc> {
         node: AstNodeRef<ast::Pat>,
         stack_id: StackId,
         declaration_name: Option<Symbol>,
-        rhs: Option<&ast::AstNode<ast::Expr>>,
+        _rhs: Option<&ast::AstNode<ast::Expr>>,
     ) {
         self.def_state().stack_members.modify_fast(stack_id, |members| {
             let members = match members {
@@ -527,7 +524,6 @@ impl<'tc> DiscoveryPass<'tc> {
                             is_mutable: binding_pat.mutability.as_ref().map(|m| *m.body())
                                 == Some(ast::Mutability::Mutable),
                             ty: self.new_ty_hole(),
-                            value: rhs.as_ref().map(|_| self.new_term_hole()),
                         },
                     ))
                 }

@@ -12,6 +12,7 @@ use crate::new::{
     locations::LocationTarget,
     params::{Param, ParamIndex, ParamsId},
     pats::{Pat, PatId, PatListId},
+    scopes::StackMemberId,
     symbols::{Symbol, SymbolData},
     terms::{Term, TermId, TermListId},
     tuples::{TupleTerm, TupleTy},
@@ -168,6 +169,13 @@ pub trait CommonUtils: AccessToEnv {
     /// Get symbol data.
     fn get_symbol(&self, symbol: Symbol) -> SymbolData {
         self.stores().symbol().get(symbol)
+    }
+
+    /// Get the name of a stack member
+    fn get_stack_member_name(&self, stack_member_id: StackMemberId) -> Symbol {
+        self.stores()
+            .stack()
+            .modify_fast(stack_member_id.0, |stack| stack.members[stack_member_id.1].name)
     }
 
     /// Duplicate a symbol by creating a new symbol with the same name.

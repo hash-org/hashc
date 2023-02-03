@@ -108,7 +108,6 @@ pub struct StackMember {
     pub name: Symbol,
     pub is_mutable: bool,
     pub ty: TyId,
-    pub value: Option<TermId>,
 }
 
 /// A stack, which is a list of stack members.
@@ -203,14 +202,10 @@ impl fmt::Display for WithEnv<'_, &StackMember> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{}{}: {} = {}",
+            "{}{}: {}",
             if self.value.is_mutable { "mut " } else { "" },
             self.env().with(self.value.name),
             self.env().with(self.value.ty),
-            self.value
-                .value
-                .map(|val| self.env().with(val).to_string())
-                .unwrap_or_else(|| "{uninitialised}".to_string()),
         )
     }
 }

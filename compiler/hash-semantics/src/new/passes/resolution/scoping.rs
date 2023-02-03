@@ -16,6 +16,7 @@ use hash_tir::{
         params::ParamId,
         scopes::{StackId, StackIndices, StackMemberId},
         symbols::Symbol,
+        terms::TermId,
         tuples::TupleTy,
         utils::{common::CommonUtils, AccessToUtils},
     },
@@ -197,12 +198,11 @@ impl<'tc> Scoping<'tc> {
 
     /// Add a stack member to the current scope, also adding it to the
     /// `bindings_by_name` map.
-    pub(super) fn add_stack_binding(&self, member_id: StackMemberId) {
+    pub(super) fn add_stack_binding(&self, member_id: StackMemberId, value: Option<TermId>) {
         // Get the data of the member.
-        let member_name =
-            self.stores().stack().map_fast(member_id.0, |stack| stack.members[member_id.1].name);
+        let member_name = self.get_stack_member_name(member_id);
         // Add the binding to the current scope.
-        self.context_utils().add_stack_binding(member_id);
+        self.context_utils().add_stack_binding(member_id, value);
         self.add_named_binding(member_name);
     }
 
@@ -369,7 +369,7 @@ impl<'tc> Scoping<'tc> {
             let mut start_end = StackIndices::Empty;
             self.for_each_stack_member_of_pat(node.pat.ast_ref(), &mut |member| {
                 start_end.extend_with_index(member.1);
-                self.add_stack_binding(member);
+                self.add_stack_binding(member, None);
             });
             start_end
         } else {
@@ -392,7 +392,7 @@ impl<'tc> Scoping<'tc> {
             let mut start_end = StackIndices::Empty;
             self.for_each_stack_member_of_pat(node.pat.ast_ref(), &mut |member| {
                 start_end.extend_with_index(member.1);
-                self.add_stack_binding(member);
+                self.add_stack_binding(member, None);
             });
             f(stack_id, start_end)
         })
