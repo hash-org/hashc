@@ -317,23 +317,29 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
 
         for case_id in match_term.cases.iter() {
             let case = self.stores().match_cases().get_element(case_id);
+            let mut outcome = None;
 
-            match self.context().enter_scope(case.stack_id.into(), || {
-                self.match_value_and_get_binds(
+            self.context().enter_scope(case.stack_id.into(), || -> Result<(), Signal> {
+                match self.match_value_and_get_binds(
                     match_term.subject,
                     case.bind_pat,
                     &mut |stack_member_id, term_id| self.push_stack(stack_member_id, term_id),
-                )
-            })? {
-                MatchResult::Successful => {
-                    return Ok(ControlFlow::Break(self.eval(case.value.into())?))
+                )? {
+                    MatchResult::Successful => {
+                        outcome = Some(Ok(ControlFlow::Break(self.eval(case.value.into())?)));
+                    }
+                    MatchResult::Failed => {}
+                    MatchResult::Stuck => {
+                        outcome = Some(Ok(ControlFlow::Break(self.new_term(match_term).into())));
+                    }
                 }
-                MatchResult::Failed => {
-                    continue;
-                }
-                MatchResult::Stuck => {
-                    return Ok(ControlFlow::Break(self.new_term(match_term).into()))
-                }
+
+                Ok(())
+            })?;
+
+            match outcome {
+                Some(outcome) => return outcome,
+                None => continue,
             }
         }
 
