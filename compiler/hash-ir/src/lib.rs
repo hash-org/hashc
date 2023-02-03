@@ -19,10 +19,14 @@ pub mod write;
 
 use std::cell::{Ref, RefCell};
 
+use hash_source::entry_point::EntryPointState;
 use hash_tir::{nominals::NominalDefId, terms::TermId};
-use hash_utils::store::{FxHashMap, SequenceStore, Store};
+use hash_utils::{
+    index_vec::IndexVec,
+    store::{FxHashMap, SequenceStore, Store},
+};
 use intrinsics::Intrinsics;
-use ir::{Body, Local, Place, PlaceProjection, ProjectionStore};
+use ir::{Body, BodyIndex, Local, Place, PlaceProjection, ProjectionStore};
 use ty::{
     AdtData, AdtId, AdtStore, Instance, InstanceId, InstanceStore, IrTy, IrTyId, TyListStore,
     TyStore,
@@ -30,10 +34,9 @@ use ty::{
 
 /// Storage that is used by the lowering stage. This stores all of the
 /// generated [Body]s and all of the accompanying data for the bodies.
-#[derive(Default)]
 pub struct IrStorage {
     /// The type storage for the IR.
-    pub bodies: Vec<Body>,
+    pub bodies: IndexVec<BodyIndex, Body>,
 
     /// All of the accompanying data for the bodies, such as [`ir::RValue`]s,
     /// [`ty::IrTy`]s, etc. The bodies and the body data are stored separately
@@ -41,11 +44,14 @@ pub struct IrStorage {
     /// on a particular [Body] and may perform transformations on the
     /// data.
     pub ctx: IrCtx,
+
+    /// Holds information about the program entry point.
+    pub entry_point: EntryPointState<BodyIndex>,
 }
 
 impl IrStorage {
     pub fn new() -> Self {
-        Self { bodies: Vec::new(), ctx: IrCtx::new() }
+        Self { bodies: IndexVec::new(), ctx: IrCtx::new(), entry_point: EntryPointState::new() }
     }
 
     /// Extend the the [IrStorage] with the generated bodies.

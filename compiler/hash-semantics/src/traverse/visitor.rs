@@ -1117,7 +1117,7 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
             return Ok(fn_ty_term);
         }
 
-        let maybe_module = { self.eps().module() };
+        let maybe_module = self.source_map().entry_point();
 
         if let Some(module) = maybe_module && let Some(name) = name {
             if self.local_storage().current_source() != SourceId::from(module) {
@@ -1125,7 +1125,6 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
             }
 
             if name == IDENTS.main || self.state.applied_directives().is_entry_point() {
-                println!("Found entry point: {name}");
                 if self.local_storage().current_source() == SourceId::from(module) {
                     let kind = if self.state.applied_directives().is_entry_point() {
                         EntryPointKind::Named(name)
@@ -1142,7 +1141,7 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
                     // return an error.
                     result.ok_or_else(|| {
                         TcError::MultipleEntryPoints {
-                            site: self.eps().def.unwrap().into(),
+                            site: self.eps().def().unwrap().into(),
                             duplicate_site: fn_ty_term.into()
                         }
                     })?;

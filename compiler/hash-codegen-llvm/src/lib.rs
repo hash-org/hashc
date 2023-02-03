@@ -9,7 +9,7 @@
 
 use context::CodeGenCtx;
 use hash_codegen::{
-    backend::{Backend, BackendCtx},
+    backend::{BackendCtx, CompilerBackend},
     layout::LayoutCtx,
     lower::codegen_ir_body,
 };
@@ -152,7 +152,7 @@ impl<'b> LLVMBackend<'b> {
     }
 }
 
-impl<'b> Backend<'b> for LLVMBackend<'b> {
+impl<'b> CompilerBackend<'b> for LLVMBackend<'b> {
     /// This is the entry point for the LLVM backend, this is where each module
     /// is translated into an LLVM IR module and is then emitted as a bytecode
     /// module to the disk.

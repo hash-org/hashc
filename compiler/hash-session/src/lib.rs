@@ -96,9 +96,6 @@ impl CompilerSession {
         let global = GlobalStorage::new(target);
         let local = LocalStorage::new(&global, SourceId::default());
 
-        // Get the entry point for the current workspace if one exists.
-        let entry_point = workspace.source_map.entry_point();
-
         Self {
             error_stream: Box::new(error_stream),
             output_stream: Box::new(output_stream),
@@ -106,11 +103,7 @@ impl CompilerSession {
             diagnostics: Vec::new(),
             pool,
             settings,
-            ty_storage: TyStorage {
-                global,
-                local,
-                entry_point_state: EntryPointState::new(entry_point),
-            },
+            ty_storage: TyStorage { global, local, entry_point_state: EntryPointState::new() },
             ir_storage: IrStorage::new(),
             layout_storage: LayoutCtx::new(layout_info),
         }

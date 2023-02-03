@@ -4,10 +4,7 @@
 
 use std::fmt;
 
-use crate::{
-    identifier::{Identifier, IDENTS},
-    ModuleId,
-};
+use crate::identifier::{Identifier, IDENTS};
 
 /// Specifies what kind of entry point was provided to the program.
 #[derive(Debug, Clone, Copy)]
@@ -29,36 +26,37 @@ pub struct EntryPointState<T: fmt::Debug + Copy> {
     /// to the function definition within the entry point module.
     ///
     /// @@NewTc: this could just be switched out to an `FnDefId`
-    pub def: Option<T>,
-
-    /// Which kind of entry point was declared in the module.
-    pub kind: Option<EntryPointKind>,
-
-    /// This stores the [SourceId] of the module that is the entry
-    /// point. If the session is interactive, this is set as [`None`]
-    /// since there is no function entry point.
-    pub module: Option<ModuleId>,
+    item: Option<(T, EntryPointKind)>,
 }
 
 impl<T: fmt::Debug + Copy> EntryPointState<T> {
     /// Create a new [EntryPointState].
-    pub fn new(entry_point: Option<ModuleId>) -> Self {
-        Self { def: None, kind: None, module: entry_point }
-    }
-
-    /// Get the module entry point if there exists one.
-    pub fn module(&self) -> Option<ModuleId> {
-        self.module
+    pub fn new() -> Self {
+        Self { item: None }
     }
 
     /// Get the name of the entry point, if there is one. This function
     /// will return [`None`] if there is no present entry point.
     pub fn name(&self) -> Option<Identifier> {
-        match self.kind {
-            Some(EntryPointKind::Main) => Some(IDENTS.main),
-            Some(EntryPointKind::Named(name)) => Some(name),
+        match self.item {
+            Some((_, EntryPointKind::Main)) => Some(IDENTS.main),
+            Some((_, EntryPointKind::Named(name))) => Some(name),
             None => None,
         }
+    }
+
+    /// Get the item that is the entry point, if there is one.
+    pub fn def(&self) -> Option<T> {
+        self.item.map(|(def, _)| def)
+    }
+
+    /// Get the [EntryPointKind] of the entry point, if there is one.
+    pub fn kind(&self) -> Option<EntryPointKind> {
+        self.item.map(|(_, kind)| kind)
+    }
+
+    pub fn has(&self) -> bool {
+        self.item.is_some()
     }
 
     /// Convert the [EntryPointState] into a [`EntryPointState<U>`] by providing
@@ -67,7 +65,7 @@ impl<T: fmt::Debug + Copy> EntryPointState<T> {
     where
         U: fmt::Debug + Copy,
     {
-        EntryPointState { def: self.def.map(f), kind: self.kind, module: self.module }
+        EntryPointState { item: self.item.map(|(def, kind)| (f(def), kind)) }
     }
 
     /// Specify the entry point of the program. This function will return
@@ -75,13 +73,12 @@ impl<T: fmt::Debug + Copy> EntryPointState<T> {
     pub fn set(&mut self, def: T, kind: EntryPointKind) -> Option<()> {
         // We disallow multiple entry points, and expect the caller
         // to deal with the duplication problem.
-        if self.def.is_some() {
+        if self.item.is_some() {
             return None;
         }
 
-        self.def = Some(def);
-        self.kind = Some(kind);
-
+        // Set the entry point.
+        self.item = Some((def, kind));
         Some(())
     }
 }

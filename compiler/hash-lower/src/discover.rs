@@ -16,7 +16,7 @@ use hash_source::{
     identifier::{Identifier, IDENTS},
     SourceId, SourceMap,
 };
-use hash_tir::{scope::ScopeId, storage::GlobalStorage};
+use hash_tir::{scope::ScopeId, storage::TyStorage};
 
 use crate::build::{BuildItem, Builder};
 
@@ -117,7 +117,7 @@ pub(crate) struct LoweringVisitor<'ir> {
     /// The [GlobalStorage] that is used to provide type
     /// information to the [Builder] whenever it encounters
     /// an item that it needs to lower.
-    tcx: &'ir GlobalStorage,
+    tcx: &'ir TyStorage,
 
     /// Used to store all of the generated bodies and rvalues.
     lcx: &'ir mut IrCtx,
@@ -156,6 +156,11 @@ pub(crate) struct LoweringVisitor<'ir> {
     /// visiting the current source.
     pub(crate) bodies: Vec<Body>,
 
+    /// If an entry point was specified in this module, then this
+    /// will store the index into the `bodies` vector that points
+    /// to the index of the entry point.
+    entry_point_index: Option<usize>,
+
     /// All of the recorded AST ids that have been marked for
     /// the `#layout_of` directive. This means that once the
     /// lowering process has finished, these ids will be used
@@ -170,7 +175,7 @@ pub(crate) struct LoweringVisitor<'ir> {
 
 impl<'ir> LoweringVisitor<'ir> {
     pub fn new(
-        tcx: &'ir GlobalStorage,
+        tcx: &'ir TyStorage,
         lcx: &'ir mut IrCtx,
         source_map: &'ir SourceMap,
         source_id: SourceId,
@@ -182,6 +187,7 @@ impl<'ir> LoweringVisitor<'ir> {
             block_origin: BlockOrigin::Const,
             lcx,
             source_id,
+            entry_point_index: None,
             source_map,
             applied_directives: AppliedDirectives::empty(),
             layout_to_generate: vec![],
@@ -190,6 +196,11 @@ impl<'ir> LoweringVisitor<'ir> {
             bind_stack: vec![],
             dead_ends: HashSet::new(),
         }
+    }
+
+    /// Get the entry point body index if one exists.
+    pub fn entry_point_index(&self) -> Option<usize> {
+        self.entry_point_index
     }
 
     /// Function to handle a particular node that introduces a new scope. If the
@@ -207,7 +218,7 @@ impl<'ir> LoweringVisitor<'ir> {
     {
         let mut pushed_scope = false;
 
-        if let Some(info) = self.tcx.node_info_store.node_info(node) {
+        if let Some(info) = self.tcx.global.node_info_store.node_info(node) {
             if let Some(scope) = info.scope {
                 self.scope_stack.push(scope);
                 pushed_scope = true;
@@ -241,15 +252,15 @@ impl<'ir> LoweringVisitor<'ir> {
     }
 
     /// Create the builder here, and then proceed to emit the generated function
-    /// body.
-    fn build_body<'tcx>(&mut self, binding: Binding, node: impl Into<BuildItem<'tcx>>) {
+    /// body. This returns the body index at which the generated body is stored.
+    fn build_body<'tcx>(&mut self, binding: Binding, node: impl Into<BuildItem<'tcx>>) -> usize {
         let mut builder = Builder::new(
             binding.name,
             node.into(),
             self.source_id,
             self.scope_stack.clone(),
-            self.tcx,
-            self.lcx,
+            &self.tcx.global,
+            &mut self.lcx,
             self.source_map,
             &self.dead_ends,
             self.settings,
@@ -270,6 +281,8 @@ impl<'ir> LoweringVisitor<'ir> {
         // function and then add this ID to the dead ends
         self.dead_ends.clear();
         self.dead_ends.insert(binding.node);
+
+        self.bodies.len() - 1
     }
 
     /// Convert the [LoweringVisitor] into the bodies that have been generated.
@@ -327,7 +340,18 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
         // if we need to lower anything within the function.
         let _ = walk_mut_self::walk_fn_def(self, node);
 
-        self.build_body(binding, node);
+        let index = self.build_body(binding, node);
+
+        if self.entry_point_index.is_none() {
+            if let Some(term) = self.tcx.entry_point_state.def() {
+                if let Some(info) = self.tcx.global.node_info_store.node_info(node.id()) {
+                    if info.term_id() == term {
+                        self.entry_point_index = Some(index);
+                    }
+                }
+            }
+        }
+
         Ok(())
     }
 

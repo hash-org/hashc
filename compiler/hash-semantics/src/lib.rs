@@ -141,8 +141,6 @@ impl<Ctx: TypecheckingCtxQuery> CompilerStage<Ctx> for Typechecker {
             ty_storage.local = LocalStorage::new(&ty_storage.global, entry_point);
         }
 
-        let module = if entry_point.is_module() { Some(entry_point.into()) } else { None };
-
         let TyStorage { local, global, ref mut entry_point_state } = ty_storage;
 
         let current_source_info = CurrentSourceInfo { source_id: entry_point };
@@ -157,7 +155,7 @@ impl<Ctx: TypecheckingCtxQuery> CompilerStage<Ctx> for Typechecker {
 
         let primitives = OnceCell::new();
         let intrinsics = OnceCell::new();
-        let ep_state = RefCell::new(EntryPointState::new(module));
+        let ep_state = RefCell::new(EntryPointState::new());
 
         // Instantiate a visitor with the source and visit the source, using the
         // previous local storage.

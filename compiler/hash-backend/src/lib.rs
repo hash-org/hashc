@@ -3,7 +3,10 @@
 //! with the compiler pipeline, and generally orchestrating the
 //! code generation process.
 
-use hash_codegen::backend::{Backend, BackendCtx};
+mod error;
+
+use error::BackendError;
+use hash_codegen::backend::{BackendCtx, CompilerBackend};
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerStage},
     settings::{CodeGenBackend, CompilerStageKind},
@@ -34,7 +37,15 @@ impl<Ctx: BackendCtxQuery> CompilerStage<Ctx> for CodeGenPass {
     /// evaluation should occur in a separate thread, we a separate VM for
     /// running the specified code.
     fn run(&mut self, _: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
-        let BackendCtx { settings, .. } = ctx.data();
+        let BackendCtx { settings, workspace, ir_storage, .. } = ctx.data();
+
+        // If this workspace produces an executable, then we need to make sure
+        // the entry point has been specified.
+        if workspace.yields_executable(settings) {
+            if !ir_storage.entry_point.has() {
+                return Err(BackendError::MissingEntryPoint.into());
+            }
+        }
 
         // Create a new instance of a backend, and then run it...
         let mut backend = match settings.codegen_settings.backend {
@@ -58,6 +69,6 @@ impl<Ctx: BackendCtxQuery> CompilerStage<Ctx> for CodeGenPass {
 }
 
 /// Create a new instance of the [hash_codegen_llvm::LLVMBackend].
-pub fn create_llvm_backend<'b>(ctx: BackendCtx<'b>) -> Box<dyn Backend<'b> + 'b> {
+pub fn create_llvm_backend<'b>(ctx: BackendCtx<'b>) -> Box<dyn CompilerBackend<'b> + 'b> {
     Box::new(hash_codegen_llvm::LLVMBackend::new(ctx))
 }
