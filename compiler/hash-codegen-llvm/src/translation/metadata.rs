@@ -6,32 +6,26 @@ use hash_codegen::traits::{
 };
 use hash_target::{alignment::Alignment, size::Size};
 use inkwell as llvm;
-use llvm::values::{AnyValueEnum, BasicMetadataValueEnum};
+use llvm::values::{AnyValueEnum, BasicMetadataValueEnum, InstructionValue};
 
 use super::Builder;
 use crate::misc::MetadataTypeKind;
 
 impl<'m> Builder<'_, '_, 'm> {
     /// Emit a `no-undef` metadata attribute on a specific value.
-    pub fn set_no_undef(&mut self, value: AnyValueEnum<'m>) {
-        let value = value.into_instruction_value();
-
+    pub fn set_no_undef(&mut self, value: InstructionValue<'m>) {
         let metadata = self.ctx.ll_ctx.metadata_node(&[]);
         value.set_metadata(metadata, MetadataTypeKind::NoUndef as u32).unwrap();
     }
 
     /// Emit a `nonnull` metadata attribute on a specific value.
-    pub fn set_non_null(&mut self, value: AnyValueEnum<'m>) {
-        let value = value.into_instruction_value();
-
+    pub fn set_non_null(&mut self, value: InstructionValue<'m>) {
         let metadata = self.ctx.ll_ctx.metadata_node(&[]);
         value.set_metadata(metadata, MetadataTypeKind::NonNull as u32).unwrap();
     }
 
     /// Specify the alignment for a particular value.
-    pub fn set_alignment(&mut self, value: AnyValueEnum<'m>, alignment: Alignment) {
-        let value = value.into_instruction_value();
-
+    pub fn set_alignment(&mut self, value: InstructionValue<'m>, alignment: Alignment) {
         let alignment_metadata: BasicMetadataValueEnum =
             self.ctx.const_u64(alignment.bytes()).try_into().unwrap();
 

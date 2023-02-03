@@ -15,7 +15,6 @@ use hash_target::{
     alignment::Alignment,
     size::Size,
 };
-use hash_utils::store::Store;
 use inkwell as llvm;
 use llvm::types::{AnyTypeEnum, AsTypeRef, BasicType, BasicTypeEnum, MetadataType, VectorType};
 use llvm_sys::{
@@ -129,9 +128,15 @@ impl<'b, 'm> TypeBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
     }
 
     fn type_function(&self, args: &[Self::Type], ret: Self::Type) -> Self::Type {
-        let ret: BasicTypeEnum = ret.try_into().unwrap();
         let args = args.iter().map(|ty| (*ty).try_into().unwrap()).collect::<Vec<_>>();
-        ret.fn_type(&args, false).into()
+
+        // @@Inkwell: somehow `void` types aren't in the `BasicTypeEnum` enum??
+        if let AnyTypeEnum::VoidType(_) = ret {
+            ret.into_void_type().fn_type(&args, false).into()
+        } else {
+            let ret: BasicTypeEnum = ret.try_into().unwrap();
+            ret.fn_type(&args, false).into()
+        }
     }
 
     fn type_struct(&self, fields: &[Self::Type], packed: bool) -> Self::Type {
@@ -450,22 +455,17 @@ impl<'m> ExtendedTyBuilderMethods<'m> for TyInfo {
         // layout
         offset: Size,
     ) -> llvm::types::AnyTypeEnum<'m> {
-        debug_assert!(offset == Size::ZERO, "offsets not yet implemented");
-
         match scalar.kind() {
             ScalarKind::Int { kind, .. } => ctx.type_from_integer(kind),
             ScalarKind::Float { kind } => ctx.type_from_float(kind),
             ScalarKind::Pointer => {
-                //@@Todo: account for address space of function pointee type being dependant on the target 
-                // data layout
-                let alignment = ctx.layouts().map_fast(self.layout, |layout| layout.alignment.abi);
-
-                let (ty, addr) = ctx.ir_ctx().map_ty(self.ty, |ty| {
-                    match ty {
-                        IrTy::Ref(..) => (ctx.type_pointee_for_alignment(alignment), AddressSpace::DATA),
-                        _ => (ctx.type_i8p(), AddressSpace::DATA)
-                    }
-                });
+                let (ty, addr) = if let Some(info) =
+                    ctx.layout_computer().compute_layout_info_of_pointee_at(*self, offset)
+                {
+                    (ctx.type_pointee_for_alignment(info.alignment), info.address_space)
+                } else {
+                    (ctx.type_i8p(), AddressSpace::DATA)
+                };
 
                 ctx.type_ptr_to_ext(ty, addr)
             }

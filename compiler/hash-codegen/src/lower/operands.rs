@@ -90,7 +90,7 @@ impl<'a, 'b, V: CodeGenObject> OperandValue<V> {
             }
             OperandValue::Pair(value_a, value_b) => {
                 let AbiRepresentation::Pair(scalar_a, scalar_b) = abi else {
-                    panic!("invalid ABI representation for a pair operand value");
+                    panic!("invalid ABI representation for a pair operand value: `{abi:?}`");
                 };
 
                 let ty = builder.backend_ty_from_info(destination.info);
