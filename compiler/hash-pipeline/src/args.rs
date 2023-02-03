@@ -162,6 +162,9 @@ fn parse_arg_configuration(
                 "ir" => {
                     settings.lowering_settings.dump = true;
                 }
+                "llvm-ir" => {
+                    settings.codegen_settings.dump = true;
+                }
                 _ => {
                     return Err(PipelineError::InvalidValue(key, value));
                 }

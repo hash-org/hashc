@@ -14,10 +14,14 @@ use hash_codegen::{
     lower::codegen_ir_body,
 };
 use hash_ir::{ir::BodySource, ty::IrTy, IrStorage};
-use hash_pipeline::{settings::CompilerSettings, workspace::Workspace, CompilerResult};
+use hash_pipeline::{
+    interface::CompilerOutputStream, settings::CompilerSettings, workspace::Workspace,
+    CompilerResult,
+};
 use hash_reporting::reporter::Reporter;
 use hash_source::ModuleId;
 use hash_target::TargetArch;
+use hash_utils::stream_writeln;
 use inkwell as llvm;
 use llvm::{
     passes::{PassManager, PassManagerBuilder},
@@ -35,6 +39,10 @@ pub mod translation;
 pub use llvm::{context::Context as LLVMContext, module::Module as LLVMModule};
 
 pub struct LLVMBackend<'b> {
+    /// The stream to use for printing out the results
+    /// of the lowering operation.
+    stdout: CompilerOutputStream,
+
     /// The current compiler workspace, which is where the results of the
     /// linking and bytecode emission will be stored.
     workspace: &'b mut Workspace,
@@ -59,7 +67,8 @@ pub struct LLVMBackend<'b> {
 impl<'b> LLVMBackend<'b> {
     /// Create a new LLVM Backend from the given [BackendCtx].
     pub fn new(ctx: BackendCtx<'b>) -> Self {
-        let BackendCtx { workspace, ir_storage, layout_storage: layouts, settings, .. } = ctx;
+        let BackendCtx { workspace, ir_storage, layout_storage: layouts, settings, stdout, .. } =
+            ctx;
 
         // We have to create a target machine from the provided target
         // data.
@@ -96,7 +105,7 @@ impl<'b> LLVMBackend<'b> {
             )
             .unwrap();
 
-        Self { workspace, target_machine, ir_storage, layouts, settings }
+        Self { workspace, target_machine, ir_storage, layouts, settings, stdout }
     }
 
     fn optimise(&self, module: &LLVMModule) -> CompilerResult<()> {
@@ -180,6 +189,14 @@ impl<'b> Backend<'b> for LLVMBackend<'b> {
         }
 
         self.optimise(&module)?;
+
+        // If the settings specify that the bytecode should be emitted, then
+        // we write the emitted bytecode to standard output.
+        if self.settings.codegen_settings.dump {
+            let stdout = &mut self.stdout;
+            stream_writeln!(stdout, "{}", module.print_to_string().to_string());
+        }
+
         self.write_module(&module, entry_point)
     }
 }

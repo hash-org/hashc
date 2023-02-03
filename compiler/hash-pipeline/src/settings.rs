@@ -346,6 +346,9 @@ pub struct CodeGenSettings {
     /// write the executable to. If the path is [`None`], the executable
     /// path will be derived from the workspace.
     pub output_path: Option<PathBuf>,
+
+    /// Emit the generated IR to standard output.
+    pub dump: bool,
 }
 
 /// All of the current possible code generation backends that
