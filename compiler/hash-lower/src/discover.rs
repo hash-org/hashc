@@ -382,7 +382,7 @@ impl<'a> AstVisitorMutSelf for LoweringVisitor<'a> {
 
         let mut new_applied_directives = self.applied_directives;
 
-        for (directive, _) in &node.directives {
+        for directive in &node.directives {
             if directive.is(IDENTS.dump_ir) {
                 new_applied_directives.insert(AppliedDirectives::IN_DUMP_IR);
             }

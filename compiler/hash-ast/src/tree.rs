@@ -177,12 +177,12 @@ impl AstVisitor for AstTreeGenerator {
 
         let mut directives_iter = node.directives.iter().rev();
         let mut node = TreeNode::branch(
-            labelled("directive", directives_iter.next().unwrap().0, "\""),
+            labelled("directive", directives_iter.next().unwrap().ident, "\""),
             vec![subject],
         );
 
-        for (directive, _) in directives_iter {
-            node = TreeNode::branch(labelled("directive", directive, "\""), vec![node])
+        for directive in directives_iter {
+            node = TreeNode::branch(labelled("directive", directive.ident, "\""), vec![node])
         }
 
         Ok(node)
