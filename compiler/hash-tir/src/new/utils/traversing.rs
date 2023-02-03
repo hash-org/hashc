@@ -173,7 +173,7 @@ impl<'env> TraversingUtils<'env> {
                 Term::Assign(assign_term) => {
                     let subject = self.fmap_term(assign_term.subject, f)?;
                     let value = self.fmap_term(assign_term.value, f)?;
-                    Ok(self.new_term(AssignTerm { subject, value }))
+                    Ok(self.new_term(AssignTerm { subject, value, index: assign_term.index }))
                 }
                 Term::Unsafe(unsafe_term) => {
                     let inner = self.fmap_term(unsafe_term.inner, f)?;

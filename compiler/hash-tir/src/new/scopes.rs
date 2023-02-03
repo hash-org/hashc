@@ -14,6 +14,7 @@ use utility_types::omit;
 
 use super::{
     environment::env::{AccessToEnv, WithEnv},
+    params::ParamIndex,
     pats::Pat,
     terms::Term,
 };
@@ -92,10 +93,10 @@ impl DeclTerm {
 }
 
 /// Term to assign a value to a subject.
-// @@Todo: figure out exact rules about what subject could be.
 #[derive(Debug, Clone, Copy)]
 pub struct AssignTerm {
     pub subject: TermId,
+    pub index: Option<ParamIndex>,
     pub value: TermId,
 }
 
@@ -183,7 +184,18 @@ impl fmt::Display for WithEnv<'_, &DeclTerm> {
 
 impl fmt::Display for WithEnv<'_, &AssignTerm> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} = {}", self.env().with(self.value.subject), self.env().with(self.value.value),)
+        write!(
+            f,
+            "{}{} = {}",
+            self.env().with(self.value.subject),
+            match self.value.index {
+                Some(index) => {
+                    format!(".{}", self.env().with(index))
+                }
+                None => "".to_string(),
+            },
+            self.env().with(self.value.value),
+        )
     }
 }
 

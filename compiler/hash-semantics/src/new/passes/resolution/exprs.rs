@@ -585,9 +585,16 @@ impl<'tc> ResolutionPass<'tc> {
     ) -> SemanticResult<TermId> {
         let lhs = self.try_or_add_error(self.make_term_from_ast_expr(node.lhs.ast_ref()));
         let rhs = self.try_or_add_error(self.make_term_from_ast_expr(node.rhs.ast_ref()));
+
         match (lhs, rhs) {
             (Some(lhs), Some(rhs)) => {
-                Ok(self.new_term(Term::Assign(AssignTerm { subject: lhs, value: rhs })))
+                // Handle access assignments
+                let (lhs, index) = match self.get_term(lhs) {
+                    Term::Access(access) => (access.subject, Some(access.field)),
+                    _ => (lhs, None),
+                };
+
+                Ok(self.new_term(Term::Assign(AssignTerm { subject: lhs, value: rhs, index })))
             }
             _ => Err(SemanticError::Signal),
         }

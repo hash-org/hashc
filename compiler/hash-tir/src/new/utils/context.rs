@@ -14,7 +14,8 @@ use crate::{
         },
         mods::ModDefId,
         params::{ParamId, ParamsId},
-        scopes::{DeclTerm, StackMemberId},
+        scopes::{DeclTerm, StackId, StackMemberId},
+        symbols::Symbol,
         terms::TermId,
     },
 };
@@ -140,5 +141,21 @@ impl<'env> ContextUtils<'env> {
                 }
             })
         })
+    }
+
+    /// Get the current stack, or panic we are not in a stack.
+    pub fn get_current_stack(&self) -> StackId {
+        match self.context().get_current_scope().kind {
+            ScopeKind::Stack(stack_id) => stack_id,
+            _ => panic!("get_current_stack called in non-stack scope"),
+        }
+    }
+
+    /// Get the given stack binding, or panic if it does not exist.
+    pub fn get_stack_binding(&self, name: Symbol) -> StackMemberId {
+        match self.context().get_binding(name).unwrap().kind {
+            BindingKind::StackMember(member) => member,
+            _ => panic!("get_stack_binding called on non-stack binding"),
+        }
     }
 }

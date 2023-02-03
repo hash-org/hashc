@@ -9,14 +9,15 @@ use hash_tir::new::{
     args::{ArgData, ArgsId, PatArgsId},
     casting::CastTerm,
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
-    environment::context::{BindingKind, ScopeKind},
+    environment::context::{Binding, BindingKind, ScopeKind},
     fns::{FnBody, FnCallTerm},
     lits::{ListCtor, Lit, LitPat, PrimTerm},
+    params::ParamIndex,
     pats::{Pat, PatId, Spread},
-    refs::{DerefTerm, RefTerm},
+    refs::DerefTerm,
     scopes::{AssignTerm, BlockTerm, DeclTerm, StackMemberId},
     symbols::Symbol,
-    terms::{Term, TermId, UnsafeTerm},
+    terms::{Term, TermId, TermListId, UnsafeTerm},
     tuples::TupleTerm,
     tys::{Ty, TyId, TypeOfTerm},
     utils::{common::CommonUtils, traversing::Atom, AccessToUtils},
@@ -65,16 +66,32 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
         }
     }
 
-    /// Normalise the given atom, and try to use it as a type.
-    pub fn normalise_to_ty(&self, atom: Atom) -> TcResult<Option<TyId>> {
-        match self.normalise(atom)? {
+    /// Try to use the given atom as a type.
+    pub fn maybe_to_ty(&self, atom: Atom) -> Option<TyId> {
+        match atom {
             Atom::Term(term) => match self.get_term(term) {
-                Term::Ty(ty) => Ok(Some(ty)),
-                Term::Var(var) => Ok(Some(self.new_ty(var))),
-                _ => Ok(None),
+                Term::Ty(ty) => Some(ty),
+                Term::Var(var) => Some(self.new_ty(var)),
+                _ => None,
             },
-            Atom::Ty(ty) => Ok(Some(ty)),
-            _ => Ok(None),
+            Atom::Ty(ty) => Some(ty),
+            _ => None,
+        }
+    }
+
+    /// Try to use the given atom as a type.
+    pub fn to_ty(&self, atom: Atom) -> TyId {
+        self.maybe_to_ty(atom)
+            .unwrap_or_else(|| panic!("Cannot convert {} to a type", self.env().with(atom)))
+    }
+
+    /// Normalise the given atom, and try to use it as a term.
+    pub fn to_term(&self, atom: Atom) -> TermId {
+        match atom {
+            Atom::Term(term) => term,
+            Atom::Ty(ty) => self.new_term(ty),
+            Atom::FnDef(fn_def_id) => self.new_term(fn_def_id),
+            _ => panic!("Cannot convert {} to a term", self.env().with(atom)),
         }
     }
 
@@ -125,30 +142,92 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
     }
 
     /// Evaluate a cast term.
-    fn eval_cast(&self, _cast_term: CastTerm) -> Result<Atom, Signal> {
-        todo!()
-    }
-
-    /// Evaluate a reference term.
-    fn eval_ref(&self, _ref_term: RefTerm) -> Result<Atom, Signal> {
-        todo!()
+    fn eval_cast(&self, cast_term: CastTerm) -> Result<Atom, Signal> {
+        // @@Todo: will not play well with typeof?; no-op for now
+        self.eval(cast_term.subject_term.into())
     }
 
     /// Evaluate a dereference term.
-    fn eval_deref(&self, deref_term: DerefTerm) -> Result<ControlFlow<Atom>, Signal> {
-        let evaluated_inner = self.eval(deref_term.subject.into())?;
+    fn eval_deref(&self, mut deref_term: DerefTerm) -> Result<ControlFlow<Atom>, Signal> {
+        deref_term.subject = self.to_term(self.eval(deref_term.subject.into())?);
+
         // Reduce:
-        if let Atom::Term(term) = evaluated_inner {
-            if let Term::Ref(ref_expr) = self.get_term(term) {
-                return Ok(ControlFlow::Break(ref_expr.subject.into()));
+        if let Term::Ref(ref_expr) = self.get_term(deref_term.subject) {
+            return Ok(ControlFlow::Break(ref_expr.subject.into()));
+        }
+
+        Ok(ControlFlow::Break(self.new_term(deref_term).into()))
+    }
+
+    /// Get the parameter at the given index in the given argument list.
+    fn get_param_in_args(&self, args: ArgsId, target: ParamIndex) -> Atom {
+        for arg_i in args.iter() {
+            let arg = self.stores().args().get_element(arg_i);
+            if arg.target == target {
+                return arg.value.into();
             }
         }
-        Ok(ControlFlow::Continue(()))
+        panic!("Out of bounds index for access: {}", self.env().with(target))
+    }
+
+    /// Set the parameter at the given index in the given argument list.
+    fn set_param_in_args(&self, args: ArgsId, target: ParamIndex, value: Atom) {
+        let value = self.to_term(value);
+        for arg_i in args.iter() {
+            let arg = self.stores().args().get_element(arg_i);
+            if arg.target == target {
+                self.stores().args().modify_fast(arg_i.0, |mut args| args[arg_i.1].value = value);
+                return;
+            }
+        }
+        panic!("Out of bounds index for access: {}", self.env().with(target))
+    }
+
+    /// Get the term at the given index in the given term list.
+    fn get_index_in_list(&self, list: TermListId, target: ParamIndex) -> Atom {
+        match target {
+            ParamIndex::Name(_) => {
+                panic!("Trying to index a list with a name")
+            }
+            ParamIndex::Position(pos) => {
+                self.stores().term_list().map_fast(list, |list| list[pos].into())
+            }
+        }
+    }
+
+    /// Set the term at the given index in the given term list.
+    fn set_index_in_list(&self, list: TermListId, target: ParamIndex, value: Atom) {
+        match target {
+            ParamIndex::Name(_) => {
+                panic!("Trying to index a list with a name")
+            }
+            ParamIndex::Position(pos) => {
+                let value = self.to_term(value);
+                self.stores().term_list().modify_fast(list, |list| list[pos] = value);
+            }
+        }
     }
 
     /// Evaluate an access term.
-    fn eval_access(&self, _access_term: AccessTerm) -> Result<ControlFlow<Atom>, Signal> {
-        todo!()
+    fn eval_access(&self, mut access_term: AccessTerm) -> Result<Atom, Signal> {
+        access_term.subject = self.to_term(self.eval(access_term.subject.into())?);
+
+        match self.get_term(access_term.subject) {
+            Term::Tuple(tuple) => return Ok(self.get_param_in_args(tuple.data, access_term.field)),
+            Term::Ctor(ctor) => {
+                return Ok(self.get_param_in_args(ctor.ctor_args, access_term.field))
+            }
+            Term::Prim(prim) => match prim {
+                PrimTerm::List(list) => {
+                    return Ok(self.get_index_in_list(list.elements, access_term.field))
+                }
+                PrimTerm::Lit(_) => {}
+            },
+            _ => {}
+        }
+
+        // Couldn't reduce
+        Ok(self.new_term(access_term).into())
     }
 
     /// Evaluate an unsafe term.
@@ -160,6 +239,7 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
     /// Evaluate a `typeof` term.
     fn eval_type_of(&self, type_of_term: TypeOfTerm) -> Result<Atom, Signal> {
         // Infer the type of the term:
+        // @@Todo: use stored IDs only? Do not reduce if un-inferrable?
         let (_, ty) = self.inference_ops().infer_term(type_of_term.term, None)?;
         Ok(ty.into())
     }
@@ -173,18 +253,122 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
     }
 
     /// Evaluate an assignment term.
-    fn eval_assign(&self, _assign_term: AssignTerm) -> Result<ControlFlow<Atom>, Signal> {
-        todo!()
+    fn eval_assign(&self, mut assign_term: AssignTerm) -> Result<Atom, Signal> {
+        assign_term.subject = self.to_term(self.eval(assign_term.subject.into())?);
+        assign_term.value = self.to_term(self.eval(assign_term.value.into())?);
+
+        match assign_term.index {
+            Some(field) => match self.get_term(assign_term.subject) {
+                Term::Tuple(tuple) => {
+                    self.set_param_in_args(tuple.data, field, assign_term.value.into())
+                }
+                Term::Ctor(ctor) => {
+                    self.set_param_in_args(ctor.ctor_args, field, assign_term.value.into())
+                }
+                Term::Prim(PrimTerm::List(list)) => {
+                    self.set_index_in_list(list.elements, field, assign_term.value.into())
+                }
+                _ => panic!("Invalid access"),
+            },
+            None => match self.get_term(assign_term.subject) {
+                // @@Todo: deref
+                Term::Var(var) => {
+                    let member = self.context_utils().get_stack_binding(var);
+                    self.set_stack_member(member, assign_term.value);
+                }
+                _ => panic!("Invalid assign"),
+            },
+        }
+
+        Ok(self.new_void_term().into())
+    }
+
+    /// Push the given stack member to the stack with no value.
+    fn push_stack_uninit(&self, stack_member_id: StackMemberId) {
+        let name = self.stores().stack().modify_fast(stack_member_id.0, |stack| {
+            stack.members[stack_member_id.1].value = None;
+            stack.members[stack_member_id.1].name
+        });
+        self.context()
+            .add_binding(Binding { name, kind: BindingKind::StackMember(stack_member_id) })
+    }
+
+    /// Push the given stack member to the stack with the given value.
+    fn push_stack(&self, stack_member_id: StackMemberId, value: TermId) {
+        let name = self.stores().stack().modify_fast(stack_member_id.0, |stack| {
+            stack.members[stack_member_id.1].value = Some(value);
+            stack.members[stack_member_id.1].name
+        });
+        self.context()
+            .add_binding(Binding { name, kind: BindingKind::StackMember(stack_member_id) })
+    }
+
+    /// Set the given stack member to the given value.
+    fn set_stack_member(&self, stack_member_id: StackMemberId, value: TermId) {
+        self.stores().stack().modify_fast(stack_member_id.0, |stack| {
+            stack.members[stack_member_id.1].value = Some(value);
+        })
     }
 
     /// Evaluate a match term.
-    fn eval_match(&self, _match_term: MatchTerm) -> Result<Atom, Signal> {
-        todo!()
+    fn eval_match(&self, mut match_term: MatchTerm) -> Result<ControlFlow<Atom>, Signal> {
+        match_term.subject = self.to_term(self.eval(match_term.subject.into())?);
+
+        for case_id in match_term.cases.iter() {
+            let case = self.stores().match_cases().get_element(case_id);
+
+            match self.context().enter_scope(case.stack_id.into(), || {
+                self.match_value_and_get_binds(
+                    match_term.subject,
+                    case.bind_pat,
+                    &mut |stack_member_id, term_id| self.push_stack(stack_member_id, term_id),
+                )
+            })? {
+                MatchResult::Successful => {
+                    return Ok(ControlFlow::Break(self.eval(case.value.into())?))
+                }
+                MatchResult::Failed => {
+                    continue;
+                }
+                MatchResult::Stuck => {
+                    return Ok(ControlFlow::Break(self.new_term(match_term).into()))
+                }
+            }
+        }
+
+        panic!("Non-exhaustive match: {}", self.env().with(&match_term))
     }
 
     /// Evaluate a declaration term.
-    fn eval_decl(&self, _decl_term: DeclTerm) -> Result<ControlFlow<Atom>, Signal> {
-        todo!()
+    fn eval_decl(&self, mut decl_term: DeclTerm) -> Result<ControlFlow<Atom>, Signal> {
+        let current_stack_id = self.context_utils().get_current_stack();
+        decl_term.value = decl_term
+            .value
+            .map(|v| -> Result<_, Signal> { Ok(self.to_term(self.eval(v.into())?)) })
+            .transpose()?;
+
+        match decl_term.value {
+            Some(value) => match self.match_value_and_get_binds(
+                value,
+                decl_term.bind_pat,
+                &mut |stack_member_id, term_id| self.push_stack(stack_member_id, term_id),
+            )? {
+                MatchResult::Successful => {
+                    // All good
+                    Ok(ControlFlow::Break(self.new_void_term().into()))
+                }
+                MatchResult::Failed => {
+                    panic!("Non-exhaustive let-binding: {}", self.env().with(&decl_term))
+                }
+                MatchResult::Stuck => Ok(ControlFlow::Break(self.new_term(decl_term).into())),
+            },
+            None => {
+                for i in decl_term.iter_stack_indices() {
+                    self.push_stack_uninit((current_stack_id, i))
+                }
+                Ok(ControlFlow::Break(self.new_void_term().into()))
+            }
+        }
     }
 
     /// Evaluate a `return` term.
@@ -293,16 +477,16 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
                 // Potentially reducible forms:
                 Term::TypeOf(term) => Ok(ControlFlow::Break(self.eval_type_of(term)?)),
                 Term::Unsafe(unsafe_expr) => Ok(ControlFlow::Break(self.eval_unsafe(unsafe_expr)?)),
-                Term::Match(match_term) => Ok(ControlFlow::Break(self.eval_match(match_term)?)),
+                Term::Match(match_term) => self.eval_match(match_term),
                 Term::FnCall(fn_call) => Ok(ControlFlow::Break(self.eval_fn_call(fn_call)?)),
                 Term::Cast(cast_term) => Ok(ControlFlow::Break(self.eval_cast(cast_term)?)),
                 Term::Var(var) => Ok(ControlFlow::Break(self.eval_var(var)?)),
                 Term::Deref(deref_term) => self.eval_deref(deref_term),
-                Term::Access(access_term) => self.eval_access(access_term),
+                Term::Access(access_term) => Ok(ControlFlow::Break(self.eval_access(access_term)?)),
 
                 // Imperative:
                 Term::LoopControl(loop_control) => Err(self.eval_loop_control(loop_control)),
-                Term::Assign(assign_term) => self.eval_assign(assign_term),
+                Term::Assign(assign_term) => Ok(ControlFlow::Break(self.eval_assign(assign_term)?)),
                 Term::Decl(decl_term) => self.eval_decl(decl_term),
                 Term::Return(return_expr) => self.eval_return(return_expr)?,
                 Term::Block(block_term) => Ok(ControlFlow::Break(self.eval_block(block_term)?)),
@@ -360,10 +544,9 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
     ///
     /// If the pattern arguments match, the given closure is called with the
     /// bindings.
-    fn match_some_list_and_get_binds<TL: SequenceStoreKey, PL: SequenceStoreKey>(
+    fn match_some_list_and_get_binds(
         &self,
-        term_list: TL,
-        _pat_list: PL,
+        length: usize,
         spread: Option<Spread>,
         extract_spread_list: impl Fn(Spread) -> (TermId, usize),
         get_ith_pat: impl Fn(usize) -> PatId,
@@ -373,7 +556,7 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
         // We assume that the term list is well-typed with respect to the pattern list.
 
         let mut element_i = 0;
-        while element_i < term_list.len() {
+        while element_i < length {
             // Handle spread
             if let Some(spread) = spread && spread.index == element_i {
                 let (spread_list, spread_list_len) = extract_spread_list(spread);
@@ -420,8 +603,7 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
         f: &mut impl FnMut(StackMemberId, TermId),
     ) -> Result<MatchResult, Signal> {
         self.match_some_list_and_get_binds(
-            term_args,
-            pat_args,
+            term_args.len(),
             spread,
             |spread| {
                 let spread_args = self.extract_spread_args(term_args, pat_args, spread);
@@ -611,8 +793,7 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
             // Lists
             (Term::Prim(prim_term), Pat::List(list_pat)) => match prim_term {
                 PrimTerm::List(list_term) => self.match_some_list_and_get_binds(
-                    list_term.elements,
-                    list_pat.pats,
+                    list_term.elements.len(),
                     list_pat.spread,
                     |spread| {
                         // Lists can have spreads, which return sublists

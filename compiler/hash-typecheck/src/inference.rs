@@ -643,10 +643,12 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     /// Infer a stack declaration term, and return its type.
     pub fn infer_decl_term(
         &self,
-        _decl_term: &DeclTerm,
-        _annotation_ty: Option<TyId>,
+        decl_term: &DeclTerm,
+        annotation_ty: Option<TyId>,
     ) -> TcResult<(DeclTerm, TyId)> {
-        todo!()
+        // @@Todo
+        self.context_utils().add_from_decl_term(decl_term);
+        Ok((*decl_term, annotation_ty.unwrap_or_else(|| self.new_ty_hole())))
     }
 
     pub fn generalise_term_inference(&self, inference: (impl Into<Term>, TyId)) -> (TermId, TyId) {
@@ -730,9 +732,11 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 .infer_decl_term(decl_term, annotation_ty)
                 .map(|i| self.generalise_term_inference(i)),
 
-            Term::Match(_) => todo!(),
-            Term::Assign(_) => todo!(),
-            Term::Access(_) => todo!(),
+            // @@Todo:
+            Term::Match(_) | Term::Assign(_) | Term::Access(_) => {
+                Ok((term_id, annotation_ty.unwrap_or_else(|| self.new_ty_hole())))
+            }
+
             Term::Hole(_) => Err(TcError::Blocked),
         })?;
 
