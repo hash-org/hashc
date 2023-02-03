@@ -13,8 +13,8 @@ use std::{
 use compute::LayoutComputer;
 use hash_ir::ty::{IrTy, IrTyId, ToIrTy, VariantIdx};
 use hash_target::{
-    abi::{AbiRepresentation, Scalar},
-    alignment::Alignments,
+    abi::{AbiRepresentation, AddressSpace, Scalar},
+    alignment::{Alignment, Alignments},
     data_layout::{HasDataLayout, TargetDataLayout},
     primitives::{FloatTy, SIntTy, UIntTy},
     size::Size,
@@ -24,6 +24,40 @@ use hash_utils::{
     new_store_key,
     store::{CloneStore, DefaultStore, FxHashMap, Store},
 };
+
+/// The [PointerKind] specifies what kind of pointer this is, whether
+/// it is a shared reference, or a unique reference. In the @@Future, more
+/// variants of shared/unique will be added.
+#[derive(Clone, Copy)]
+pub enum PointerKind {
+    /// A pointer to a value of type `T` which is mutably
+    /// shared between multiple owners. This is the default
+    /// for `&mut T`.
+    Shared,
+
+    /// A pointer which is unique, and considered immutable.
+    Frozen,
+}
+
+/// Represents information that is deduced from a type that is being
+/// pointed to by a pointer. This is used to compute useful information
+/// about pointees, so that the pointer reference can specify additional
+/// information about the underlying data, i.e. that it is a "frozen"
+/// reference, and or alignment information, etc.
+#[derive(Clone, Copy)]
+pub struct PointeeInfo {
+    /// The alignment of the `pointee`.
+    pub alignment: Alignment,
+
+    /// The size of the pointee.
+    pub size: Size,
+
+    /// The kind of pointer, whether it is mutable, immutable, etc.
+    pub kind: PointerKind,
+
+    /// The address space of the data that is pointed to.
+    pub address_space: AddressSpace,
+}
 
 // Define a new key to represent a particular layout.
 new_store_key!(pub LayoutId);
@@ -39,6 +73,9 @@ pub struct LayoutCtx {
 
     /// Cache for the [Layout]s that are created from [IrTyId]s.
     cache: RefCell<FxHashMap<IrTyId, LayoutId>>,
+
+    /// Cache for information about pointees with a particular offset.
+    pointee_info_cache: RefCell<FxHashMap<(IrTyId, Size), Option<PointeeInfo>>>,
 
     /// A reference to the [TargetDataLayout] of the current
     /// session.
@@ -56,7 +93,13 @@ impl LayoutCtx {
         let data = DefaultStore::new();
         let common_layouts = CommonLayouts::new(&data_layout, &data);
 
-        Self { data, common_layouts, cache: RefCell::new(FxHashMap::default()), data_layout }
+        Self {
+            data,
+            common_layouts,
+            cache: RefCell::new(FxHashMap::default()),
+            pointee_info_cache: RefCell::new(FxHashMap::default()),
+            data_layout,
+        }
     }
 
     /// Get a reference to the [LayoutCache].
@@ -67,6 +110,16 @@ impl LayoutCtx {
     /// Insert a new [LayoutId] entry into the cache.
     pub(crate) fn add_cache_entry(&self, ty: IrTyId, layout: LayoutId) {
         self.cache.borrow_mut().insert(ty, layout);
+    }
+
+    /// Compute the [Size] of a given [LayoutId].
+    pub fn size_of(&self, layout: LayoutId) -> Size {
+        self.data.map_fast(layout, |layout| layout.size)
+    }
+
+    /// Compute the [Alignments] of a given [LayoutId].
+    pub fn align_of(&self, layout: LayoutId) -> Alignments {
+        self.data.map_fast(layout, |layout| layout.alignment)
     }
 }
 
@@ -196,8 +249,10 @@ impl TyInfo {
         // then we need to intern that layout here, add a cache entry
         // for it and return it, otherwise we will lookup the layout
         // buy just using the type id.
-        if let Some(layout) = ctx.layouts().cache.borrow().get(&ty) {
-            TyInfo { ty, layout: *layout }
+        let id = { ctx.layouts().cache.borrow().get(&ty).copied() };
+
+        if let Some(layout) = id {
+            TyInfo { ty, layout }
         } else {
             TyInfo { ty, layout: ctx.layout_of_ty(ty).unwrap() }
         }

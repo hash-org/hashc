@@ -1,7 +1,9 @@
 //! Defines all of the intrinsics that are expected to be
 //! declared within the language prelude.
 
-use crate::ty::IrTyId;
+use hash_utils::store::{SequenceStore, Store};
+
+use crate::ty::{Instance, InstanceStore, IrTy, IrTyId, TyStore};
 
 /// Defines all of the intrinsics that are present within the
 /// language runtime, and can be accessed by the language. This
@@ -13,10 +15,28 @@ use crate::ty::IrTyId;
 ///
 /// @@Todo: this needs to record the number of arguments the intrinsic
 /// takes, and possibly other information.
+///
+/// More specifically, the prelude should have a way of marking the
+/// function as an intrinsic within the `Intrinsic` module, which then
+/// directly references these language items. This then allows for the
+/// program to reference the intrinsic implementation.
+///
+/// For now, we just create the function type, and then use it to generate
+/// the intrinsic function.
 pub enum Intrinsic {
     /// The `panic` intrinsic function. This will cause the program
     /// to terminate.
     Panic,
+}
+
+impl Intrinsic {
+    /// Get the appropriate [Intrinsic] for the specified name.
+    pub fn from_str_name(name: &str) -> Self {
+        match name {
+            "panic" => Self::Panic,
+            _ => panic!("unknown intrinsic: {name}"),
+        }
+    }
 }
 
 /// This struct is used to map the [Intrinsic] enum to the
@@ -31,8 +51,50 @@ impl Intrinsics {
     /// Create a new [Intrinsics] map instance. This will create
     /// all the associated types for the intrinsics, and will populate
     /// the map with them.
-    pub fn new() -> Self {
-        Self { intrinsics: [None; std::mem::variant_count::<Intrinsic>()] }
+    pub fn new(tys: &TyStore, instances: &InstanceStore) -> Self {
+        let mut intrinsics = [None; std::mem::variant_count::<Intrinsic>()];
+
+        macro_rules! define_intrinsic {
+            ($name:literal, fn() -> $ret:expr) => (
+                let params = tys.tls.create_empty();
+                let instance = instances.create(Instance::new(
+                    $name.into(),
+                    params,
+                    $ret,
+                ));
+
+                intrinsics[Intrinsic::from_str_name($name) as usize] = Some(tys.create(IrTy::Fn {
+                    params,
+                    return_ty: $ret,
+                    instance
+                }));
+            );
+            ($name:literal, fn($($arg:expr),*) -> $ret:expr) => (
+                let params = tys.tls.create_from_slice(&[$($arg),*]);
+                let instance = instances.create(
+                    Instance::new(
+                        $name.into(),
+                        params,
+                        $ret,
+                    )
+                );
+
+                intrinsics[Intrinsic::from_str_name($name) as usize] = Some(tys.create(IrTy::Fn {
+                    params,
+                    return_ty: $ret,
+                    instance
+                }));
+            );
+        }
+
+        let str_ty = tys.common_tys.str;
+        let never_ty = tys.common_tys.never;
+
+        // @@Temporary: define the intrinsics using this macro, however we should
+        // be able to specify these intrinsics in the prelude.
+        define_intrinsic!("panic", fn(str_ty) -> never_ty);
+
+        Self { intrinsics }
     }
 
     /// Set the [IrTyId] for the specified intrinsic.

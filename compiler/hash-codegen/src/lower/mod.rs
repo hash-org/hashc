@@ -3,6 +3,8 @@
 //! that needs to be shared between the different backends, so they can all
 //! deal with the specifics of each backend within the particular crate.
 
+use std::iter;
+
 use fixedbitset::FixedBitSet;
 use hash_abi::FnAbi;
 use hash_ir::{
@@ -39,7 +41,7 @@ pub mod utils;
 /// for the same Hash IR block.
 pub enum BlockStatus<BasicBlock> {
     /// The block has not been lowered yet.
-    Unlowered,
+    UnLowered,
 
     /// Nothing has been lowered for this block, and nothing will
     /// be lowered. This occurs when two blocks have been merged
@@ -103,8 +105,9 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
     pub fn new(
         body: &'b ir::Body,
         ctx: &'a Builder::CodegenCtx,
-        function: Builder::Function,
+        func: Builder::Function,
         fn_abi: FnAbi,
+        starting_block: Builder::BasicBlock,
     ) -> Self {
         // Verify that the IR body has resolved all "constant" references
         // as they should be resolved by this point.
@@ -112,12 +115,24 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         // @@Todo: where do `#run` directives fit into this scheme?
         assert!(body.needed_constants.is_empty());
 
+        let block_map = body
+            .blocks()
+            .indices()
+            .map(|index| {
+                if index == ir::START_BLOCK {
+                    BlockStatus::Lowered(starting_block)
+                } else {
+                    BlockStatus::UnLowered
+                }
+            })
+            .collect();
+
         Self {
             body,
             ctx,
-            function,
+            function: func,
             fn_abi,
-            block_map: IndexVec::new(),
+            block_map,
             locals: IndexVec::with_capacity(body.declarations.len()),
             _unreachable_block: None,
         }
@@ -146,20 +161,27 @@ pub fn codegen_ir_body<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
     let func = ctx.get_fn(instance);
     let fn_abi = compute_fn_abi_from_instance(ctx, instance)?;
 
-    // create a new function builder
-    let mut fn_builder = FnBuilder::new(body, ctx, func, fn_abi);
+    // create the starting block, this is needed since we always specify
+    // that the initial block is in "use".
+    let starting_block = Builder::append_block(ctx, func, "start");
 
-    let starting_block = Builder::append_block(fn_builder.ctx, func, "start");
+    // create a new function builder
+    let mut fn_builder = FnBuilder::new(body, ctx, func, fn_abi, starting_block);
+
     let mut builder = Builder::build(fn_builder.ctx, starting_block);
 
     // Allocate space for all the locals.
     let memory_locals = locals::compute_non_ssa_locals(&fn_builder);
 
-    {
-        allocate_argument_locals(&mut fn_builder, &mut builder, &memory_locals);
+    fn_builder.locals = {
+        let args = allocate_argument_locals(&mut fn_builder, &mut builder, &memory_locals);
 
-        let mut allocate = |local: Local, info| {
-            if local == ir::RETURN_PLACE {
+        let mut allocate = |local: Local| {
+            // we need to get the type and layout from the local
+            let decl = &fn_builder.body.declarations[local];
+            let info = fn_builder.ctx.layout_of(decl.ty);
+
+            if local == ir::RETURN_PLACE && fn_builder.fn_abi.ret_abi.is_indirect() {
                 let value = builder.get_param(0);
                 return LocalRef::Place(PlaceRef::new(&mut builder, value, info));
             }
@@ -174,18 +196,10 @@ pub fn codegen_ir_body<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
         };
 
         // Deal with the return place local first...
-        let ret_local = allocate(ir::RETURN_PLACE, fn_builder.fn_abi.ret_abi.info);
-        fn_builder.locals[ir::RETURN_PLACE] = ret_local;
+        let ret_local = allocate(ir::RETURN_PLACE);
 
-        // Finally, deal with the rest of the locals
-        for local in fn_builder.body.vars_iter() {
-            // we need to get the type and layout from the local
-            let decl = &fn_builder.body.declarations[local];
-            let info = fn_builder.ctx.layout_of(decl.ty);
-
-            fn_builder.locals[local] = allocate(local, info);
-        }
-    }
+        iter::once(ret_local).chain(args).chain(fn_builder.body.vars_iter().map(allocate)).collect()
+    };
 
     // @@Todo: we need to set some debug information for all of the
     // newly allocated locals that we have just generated as arguments.

@@ -44,7 +44,7 @@ pub fn post_order_from_to<G: DirectedGraph + WithSuccessors>(
 }
 
 /// A "depth-first search" iterator for a directed graph.
-pub struct DepthFirstSearch<'graph, G>
+pub struct DepthFirstTraversal<'graph, G>
 where
     G: ?Sized + DirectedGraph + WithSuccessors,
 {
@@ -55,47 +55,71 @@ where
     stack: Vec<G::Node>,
 
     /// A set of nodes that have been visited.
+    discovered: FixedBitSet,
+
+    /// A set of nodes that have been visited.
     visited: FixedBitSet,
 }
 
-impl<'graph, G: ?Sized + DirectedGraph + WithSuccessors> DepthFirstSearch<'graph, G> {
+impl<'graph, G: ?Sized + DirectedGraph + WithSuccessors> DepthFirstTraversal<'graph, G> {
     /// Create a new depth-first search iterator for the given graph.
     pub fn new(graph: &'graph G, start_node: G::Node) -> Self {
-        let mut visited = FixedBitSet::with_capacity(graph.num_nodes());
+        let visited = FixedBitSet::with_capacity(graph.num_nodes());
+        let discovered = FixedBitSet::with_capacity(graph.num_nodes());
 
-        // we need to insert the starting node, and push it onto the stack
-        visited.insert(start_node.index());
-
-        Self { graph, stack: vec![start_node], visited }
-    }
-
-    /// Check if a node has been visited yet.
-    pub fn visited(&self, node: G::Node) -> bool {
-        self.visited.contains(node.index())
+        Self { graph, stack: vec![start_node], visited, discovered }
     }
 }
 
-impl<G> Iterator for DepthFirstSearch<'_, G>
+impl<G> Iterator for DepthFirstTraversal<'_, G>
 where
     G: ?Sized + DirectedGraph + WithSuccessors,
 {
     type Item = G::Node;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let DepthFirstSearch { stack, visited, graph } = self;
-        let n = stack.pop()?;
-
-        // Add all of the successors of the graph that haven't
-        // been visited yet.
-        stack.extend(graph.successors(n).filter(|&m| {
-            if visited.contains(m.index()) {
-                false
+        while let Some(&node) = self.stack.last() {
+            if !self.discovered.put(node.index()) {
+                // First time visiting `nx`: Push neighbors, don't pop `nx`
+                for successor in self.graph.successors(node) {
+                    if !self.discovered.contains(successor.index()) {
+                        self.stack.push(successor);
+                    }
+                }
             } else {
-                visited.insert(m.index());
-                true
-            }
-        }));
+                self.stack.pop();
 
-        Some(n)
+                if !self.visited.put(node.index()) {
+                    // Second time: All reachable nodes must have been finished
+                    return Some(node);
+                }
+            }
+        }
+        None
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        // We will visit every node in the graph exactly once.
+        let remaining = self.graph.num_nodes() - self.visited.count_ones(..);
+        (remaining, Some(remaining))
+    }
+}
+
+#[cfg(test)]
+mod test_super {
+    use crate::graph::{
+        tests::{TestGraph, TestNode},
+        visit::DepthFirstTraversal,
+    };
+
+    #[test]
+    fn test_post_order_traversal() {
+        let graph = TestGraph::new(0, &[(0, 1), (0, 2), (1, 3), (2, 3)]);
+        let post_order = DepthFirstTraversal::new(&graph, TestNode::new(0));
+
+        let expected_order =
+            vec![TestNode::new(3), TestNode::new(2), TestNode::new(1), TestNode::new(0)];
+
+        assert_eq!(post_order.collect::<Vec<_>>(), expected_order);
     }
 }

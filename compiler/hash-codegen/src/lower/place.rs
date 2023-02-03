@@ -221,11 +221,11 @@ impl<'a, 'b, V: CodeGenObject> PlaceRef<V> {
         builder: &mut Builder,
         field: usize,
     ) -> Self {
-        let abi = builder.map_layout(self.info.layout, |layout| layout.abi);
+        let (abi, field_offset) =
+            builder.map_layout(self.info.layout, |layout| (layout.abi, layout.shape.offset(field)));
 
         let field_info = self.info.field(builder.layout_computer(), field);
-        let (field_offset, is_zst) = builder
-            .map_layout(field_info.layout, |layout| (layout.shape.offset(field), layout.is_zst()));
+        let is_zst = builder.map_layout(field_info.layout, |layout| layout.is_zst());
 
         let field_alignment = self.alignment.restrict_to(field_offset);
 

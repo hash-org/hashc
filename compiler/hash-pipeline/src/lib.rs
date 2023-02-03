@@ -163,6 +163,10 @@ impl<I: CompilerInterface> Compiler<I> {
             // for the prelude bootstrap to run
             let mut old_settings = std::mem::take(ctx.settings_mut());
 
+            // We don't need to run the prelude in the full pipeline, just until
+            // IR-gen since that will be dealt by the actual pipeline.
+            ctx.settings_mut().stage = CompilerStageKind::IrGen;
+
             // Resolve the current working directory so that we can
             // resolve the prelude path...
             let wd = match current_dir() {

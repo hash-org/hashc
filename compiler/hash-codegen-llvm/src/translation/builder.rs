@@ -26,8 +26,8 @@ use inkwell::{
     basic_block::BasicBlock,
     types::{AnyTypeEnum, AsTypeRef, BasicTypeEnum},
     values::{
-        AggregateValueEnum, AnyValueEnum, BasicMetadataValueEnum, BasicValue, BasicValueEnum,
-        PhiValue, UnnamedAddress,
+        AggregateValueEnum, AnyValue, AnyValueEnum, BasicMetadataValueEnum, BasicValue,
+        BasicValueEnum, InstructionValue, PhiValue, UnnamedAddress,
     },
 };
 use llvm_sys::core::LLVMGetTypeKind;
@@ -40,6 +40,20 @@ use super::{
 use crate::misc::{
     AtomicOrderingWrapper, FloatPredicateWrapper, IntPredicateWrapper, MetadataTypeKind,
 };
+
+/// Convert a [AnyValueEnum] to a [InstructionValue] by first
+/// converting it into a basic value, and then using the proper
+/// projection function to get it as an instruction value. This
+/// function overrides the default behaviour of [AnyValueEnum] which
+/// panics if the value is not an [`AnyValueEnum::InstructionValue`] which
+/// is not always correct to do.
+///
+/// N.B. If the value does not come from an instruction, this function
+/// will panic.
+pub fn instruction_from_any_value(value: AnyValueEnum<'_>) -> InstructionValue<'_> {
+    let value: BasicValueEnum = value.try_into().unwrap();
+    value.as_instruction_value().unwrap()
+}
 
 impl<'a, 'b, 'm> Builder<'a, 'b, 'm> {
     /// Create a PHI node in the current block.
@@ -795,9 +809,11 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for Builder<'a, 'b, 'm> {
                     let load_value = self.load(ty, place.value, place.alignment);
 
                     if let AbiRepresentation::Scalar(scalar) = layout.abi {
+                        let instruction = instruction_from_any_value(load_value);
+
                         load_scalar_value_metadata(
                             self,
-                            load_value,
+                            instruction,
                             scalar,
                             place.info,
                             Size::ZERO,
@@ -820,7 +836,13 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for Builder<'a, 'b, 'm> {
                     let ty = place.info.scalar_pair_element_llvm_ty(self.ctx, index, false);
                     let load_value = self.load(ty, ptr, align);
 
-                    load_scalar_value_metadata(self, load_value, scalar, info, offset);
+                    load_scalar_value_metadata(
+                        self,
+                        instruction_from_any_value(load_value),
+                        scalar,
+                        info,
+                        offset,
+                    );
                     self.to_immediate_scalar(load_value, scalar)
                 };
 
@@ -1073,7 +1095,7 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for Builder<'a, 'b, 'm> {
 
         let metadata = self.ctx.ll_ctx.metadata_node(&[start, end]);
 
-        let value = load_value.into_instruction_value();
+        let value = instruction_from_any_value(load_value);
         value.set_metadata(metadata, MetadataTypeKind::Range as u32).unwrap();
     }
 
@@ -1094,7 +1116,7 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for Builder<'a, 'b, 'm> {
 /// [ValidScalarRange], alignment metadata and `non-null`ness.
 fn load_scalar_value_metadata<'m>(
     builder: &mut Builder<'_, '_, 'm>,
-    load: AnyValueEnum<'m>,
+    load: InstructionValue<'m>,
     scalar: Scalar,
     info: TyInfo,
 
@@ -1117,7 +1139,9 @@ fn load_scalar_value_metadata<'m>(
             // additional information to LLVM about this range using the `range!`
             // metadata.
             if !scalar.is_always_valid(builder.ctx) {
-                builder.add_range_metadata_to(load, scalar.valid_range(builder.ctx));
+                // @@Dumbness: we're recasting back into any-value
+                let value = load.as_any_value_enum();
+                builder.add_range_metadata_to(value, scalar.valid_range(builder.ctx));
             }
         }
         ScalarKind::Float { .. } => {}

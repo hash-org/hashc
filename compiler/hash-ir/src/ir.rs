@@ -1154,7 +1154,7 @@ index_vec::define_index_type! {
     /// Index for [BasicBlockData] stores within generated [Body]s.
     pub struct BasicBlock = u32;
 
-    MAX_INDEX = i32::max_value() as usize;
+    MAX_INDEX = u32::max_value() as usize;
     DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
 
     DEBUG_FORMAT = "bb{}";
@@ -1174,7 +1174,7 @@ index_vec::define_index_type! {
     /// Index for [LocalDecl] stores within generated [Body]s.
     pub struct Local = u32;
 
-    MAX_INDEX = i32::max_value() as usize;
+    MAX_INDEX = u32::max_value() as usize;
     DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
 
     DEBUG_FORMAT = "_{}";

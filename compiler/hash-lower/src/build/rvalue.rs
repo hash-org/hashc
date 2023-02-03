@@ -178,8 +178,7 @@ impl<'tcx> Builder<'tcx> {
                 return block.and(Operand::Const(Const::Zero(ty_id).into()));
             }
 
-            if let Some((scope, member, kind)) = self.lookup_item_scope(name) && kind != ScopeKind::Variable {
-                println!("{member:?}");
+            if let Some((scope, _, kind)) = self.lookup_item_scope(name) && kind != ScopeKind::Variable {
                 let unevaluated_const = UnevaluatedConst { scope, name };
 
                 // record that this constant is used in this function

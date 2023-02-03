@@ -1,5 +1,5 @@
 //! Hash compiler general utilities
-#![feature(type_alias_impl_trait, decl_macro)]
+#![feature(type_alias_impl_trait, decl_macro, array_windows)]
 
 pub mod assert;
 pub mod counter;

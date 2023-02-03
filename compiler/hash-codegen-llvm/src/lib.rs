@@ -121,9 +121,14 @@ impl<'b> LLVMBackend<'b> {
         module.verify().unwrap();
 
         // For now, we assume that the object file extension is always `.o`.
-        let path = self.workspace.module_bitcode_path(id, ".o");
-        self.target_machine.write_to_file(module, FileType::Object, &path).unwrap();
+        let path = self.workspace.module_bitcode_path(id, "o");
 
+        // Check if we need to create the "build" folder
+        if let Some(parent) = path.parent() && !parent.exists() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
+
+        self.target_machine.write_to_file(module, FileType::Object, &path).unwrap();
         Ok(())
     }
 }

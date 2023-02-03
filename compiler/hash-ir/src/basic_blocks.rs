@@ -7,7 +7,10 @@
 use std::{cell::OnceCell, fmt};
 
 use hash_utils::{
-    graph::{self, dominators::Dominators},
+    graph::{
+        self,
+        dominators::{dominators, Dominators},
+    },
     index_vec::IndexVec,
 };
 use smallvec::{smallvec, SmallVec};
@@ -87,7 +90,7 @@ impl BasicBlocks {
 
     /// Compute all of the dominators of the this [BasicBlocks] graph.
     pub fn dominators(&self) -> Dominators<BasicBlock> {
-        Dominators::new(self)
+        dominators(self)
     }
 
     /// Invalidate the cache for all [BasicBlock]s.

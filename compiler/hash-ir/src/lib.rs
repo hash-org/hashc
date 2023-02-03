@@ -90,11 +90,6 @@ pub struct IrCtx {
     /// The storage for all of the used types that are within the IR.
     ty_store: ty::TyStore,
 
-    /// Storage for grouped types, ones that appear in a parent type, i.e. a
-    /// [`IrTy::Fn(...)`] type will use the [`TyListStore`] to store that
-    /// parameter types.
-    ty_list_store: ty::TyListStore,
-
     /// Storage that is used to store all of the created ADTs that
     /// are registered within the IR.
     adt_store: ty::AdtStore,
@@ -114,12 +109,15 @@ pub struct IrCtx {
 impl IrCtx {
     /// Create a new [IrCtx].
     pub fn new() -> Self {
+        let ty_store = TyStore::new();
+        let instances = InstanceStore::new();
+        let intrinsics = Intrinsics::new(&ty_store, &instances);
+
         Self {
             projection_store: ProjectionStore::default(),
-            intrinsics: Intrinsics::new(),
-            ty_store: TyStore::new(),
-            instances: InstanceStore::new(),
-            ty_list_store: TyListStore::default(),
+            intrinsics,
+            ty_store,
+            instances,
             adt_store: AdtStore::new(),
             ty_cache: RefCell::new(FxHashMap::default()),
         }
@@ -152,7 +150,7 @@ impl IrCtx {
 
     /// Get a reference to the [TyListStore]
     pub fn tls(&self) -> &TyListStore {
-        &self.ty_list_store
+        &self.ty_store.tls
     }
 
     /// Get a reference to the [AdtStore]
