@@ -97,12 +97,18 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
 
         match (src, target) {
             // @@Todo: eval fully
-            (Ty::Eval(term), _) => match self.normalisation_ops().normalise_to_ty(term.into())? {
+            (Ty::Eval(term), _) => match self
+                .normalisation_ops()
+                .maybe_to_ty(self.normalisation_ops().normalise(term.into())?)
+            {
                 Some(ty_id) => self.unify_tys(ty_id, target_id),
                 // @@Todo: usage error
                 _ => Uni::mismatch_types(src_id, target_id),
             },
-            (_, Ty::Eval(term)) => match self.normalisation_ops().normalise_to_ty(term.into())? {
+            (_, Ty::Eval(term)) => match self
+                .normalisation_ops()
+                .maybe_to_ty(self.normalisation_ops().normalise(term.into())?)
+            {
                 Some(ty) => self.unify_tys(src_id, ty),
                 // @@Todo: usage error
                 _ => Uni::mismatch_types(src_id, target_id),

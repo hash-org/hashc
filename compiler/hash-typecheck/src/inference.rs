@@ -28,10 +28,7 @@ use hash_tir::{
     },
     ty_as_variant,
 };
-use hash_utils::{
-    store::{CloneStore, SequenceStore, SequenceStoreKey, Store},
-    stream_less_writeln,
-};
+use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
 
 use super::unification::Uni;
 use crate::{
@@ -372,7 +369,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 // parameters of the function call.
                 let arg_sub = self
                     .substitution_ops()
-                    .create_sub_from_applying_args_to_params(fn_call_term.args, fn_ty.params)?;
+                    .create_sub_from_applying_args_to_params(fn_call_term.args, fn_ty.params);
 
                 // Apply the substitution to the return type of the function type.
                 Ok((
@@ -568,6 +565,12 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     ) -> TcResult<(BlockTerm, TyId)> {
         self.stores().term_list().map_fast(block_term.statements, |statements| {
             self.context().enter_scope(block_term.stack_id.into(), || {
+                // Handle local mod def
+                let stack = self.stores().stack().get(block_term.stack_id);
+                if let Some(local_mod_def) = stack.local_mod_def {
+                    self.infer_mod_def(local_mod_def)?;
+                }
+
                 let mut error_state = self.new_error_state();
                 for &statement in statements {
                     let _ = error_state.try_or_add_error(self.infer_term(statement, None));
@@ -637,10 +640,12 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     /// Infer a stack declaration term, and return its type.
     pub fn infer_decl_term(
         &self,
-        _decl_term: &DeclTerm,
-        _annotation_ty: Option<TyId>,
+        decl_term: &DeclTerm,
+        annotation_ty: Option<TyId>,
     ) -> TcResult<(DeclTerm, TyId)> {
-        todo!()
+        // @@Todo
+        self.context_utils().add_from_decl_term(decl_term);
+        Ok((*decl_term, annotation_ty.unwrap_or_else(|| self.new_ty_hole())))
     }
 
     pub fn generalise_term_inference(&self, inference: (impl Into<Term>, TyId)) -> (TermId, TyId) {
@@ -724,30 +729,13 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 .infer_decl_term(decl_term, annotation_ty)
                 .map(|i| self.generalise_term_inference(i)),
 
-            Term::Match(_) => todo!(),
-            Term::Assign(_) => todo!(),
-            Term::Access(_) => todo!(),
+            // @@Todo:
+            Term::Match(_) | Term::Assign(_) | Term::Access(_) => {
+                Ok((term_id, annotation_ty.unwrap_or_else(|| self.new_ty_hole())))
+            }
+
             Term::Hole(_) => Err(TcError::Blocked),
         })?;
-
-        stream_less_writeln!(
-            "Un-normalised: {}: {}",
-            self.env().with(result.0),
-            self.env().with(result.1)
-        );
-
-        // @@Temporary
-        let normalised_term = self.normalisation_ops().normalise(result.0.into()).unwrap();
-        let normalised_ty = self
-            .normalisation_ops()
-            .normalise_to_ty(result.1.into())
-            .unwrap()
-            .unwrap_or_else(|| self.new_ty_hole());
-        stream_less_writeln!(
-            "Normalised: {}: {}",
-            self.env().with(normalised_term),
-            self.env().with(normalised_ty)
-        );
 
         Ok(result)
     }
@@ -915,8 +903,6 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     /// Infer the given module definition.
     pub fn infer_mod_def(&self, mod_def_id: ModDefId) -> TcResult<()> {
         self.context().enter_scope(mod_def_id.into(), || {
-            self.context_utils().add_mod_members(mod_def_id, |_| {});
-
             let members = self.stores().mod_def().map_fast(mod_def_id, |def| def.members);
             let mut error_state = self.new_error_state();
 

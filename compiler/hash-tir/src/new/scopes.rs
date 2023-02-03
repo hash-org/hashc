@@ -14,6 +14,7 @@ use utility_types::omit;
 
 use super::{
     environment::env::{AccessToEnv, WithEnv},
+    params::ParamIndex,
     pats::Pat,
     terms::Term,
 };
@@ -34,6 +35,10 @@ pub struct BindingPat {
     pub name: Symbol,
     /// Whether the binding is declared as mutable.
     pub is_mutable: bool,
+    /// The stack member that this binding pattern binds to.
+    ///
+    /// If this is `None`, then the binding pattern is a wildcard `_`.
+    pub stack_member: Option<StackMemberId>,
 }
 
 /// Indices into a stack, that represent a contiguous range of stack members.
@@ -88,10 +93,10 @@ impl DeclTerm {
 }
 
 /// Term to assign a value to a subject.
-// @@Todo: figure out exact rules about what subject could be.
 #[derive(Debug, Clone, Copy)]
 pub struct AssignTerm {
     pub subject: TermId,
+    pub index: Option<ParamIndex>,
     pub value: TermId,
 }
 
@@ -179,7 +184,18 @@ impl fmt::Display for WithEnv<'_, &DeclTerm> {
 
 impl fmt::Display for WithEnv<'_, &AssignTerm> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} = {}", self.env().with(self.value.subject), self.env().with(self.value.value),)
+        write!(
+            f,
+            "{}{} = {}",
+            self.env().with(self.value.subject),
+            match self.value.index {
+                Some(index) => {
+                    format!(".{}", self.env().with(index))
+                }
+                None => "".to_string(),
+            },
+            self.env().with(self.value.value),
+        )
     }
 }
 
@@ -236,6 +252,16 @@ impl fmt::Display for WithEnv<'_, StackId> {
 impl fmt::Display for WithEnv<'_, &BlockTerm> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "{{")?;
+
+        let stack_local_mod_def =
+            self.stores().stack().map_fast(self.value.stack_id, |stack| stack.local_mod_def);
+        if let Some(mod_def_members) = stack_local_mod_def.map(|mod_def_id| {
+            self.stores().mod_def().map_fast(mod_def_id, |mod_def| mod_def.members)
+        }) {
+            let members = self.env().with(mod_def_members).to_string();
+            write!(f, "{}", indent(&members, "  "))?;
+        }
+
         self.stores().term_list().map_fast(self.value.statements, |list| {
             for term in list {
                 let term = self.env().with(*term).to_string();
@@ -244,7 +270,8 @@ impl fmt::Display for WithEnv<'_, &BlockTerm> {
             Ok(())
         })?;
         let return_value = self.env().with(self.value.return_value).to_string();
-        write!(f, "{}", indent(&return_value, "  "))?;
-        write!(f, "\n}}")
+        writeln!(f, "{}", indent(&return_value, "  "))?;
+
+        write!(f, "}}")
     }
 }

@@ -15,7 +15,7 @@ use super::{
     data::CtorPat,
     environment::env::{AccessToEnv, WithEnv},
     lits::{ListPat, LitPat},
-    scopes::BindingPat,
+    scopes::{BindingPat, StackMemberId},
     symbols::Symbol,
     tuples::TuplePat,
 };
@@ -30,6 +30,8 @@ pub struct Spread {
     pub name: Symbol,
     /// The index in the sequence of target patterns, of this spread pattern.
     pub index: usize,
+    /// The stack member that this spread pattern binds to, if any.
+    pub stack_member: Option<StackMemberId>,
 }
 
 /// A range pattern containing two bounds `start` and `end`.
