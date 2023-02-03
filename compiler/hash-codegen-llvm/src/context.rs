@@ -83,9 +83,10 @@ impl<'b, 'm> CodeGenCtx<'b, 'm> {
         ir_ctx: &'b IrCtx,
         layouts: &'b LayoutCtx,
     ) -> Self {
-        let ptr_size = settings.codegen_settings.target_info.target().pointer_width;
+        let ptr_size = settings.codegen_settings.data_layout.pointer_size;
         let ll_ctx = module.get_context();
-        let size_ty = ll_ctx.custom_width_int_type(ptr_size as u32);
+
+        let size_ty = ll_ctx.custom_width_int_type(ptr_size.bits() as u32);
 
         Self {
             settings,

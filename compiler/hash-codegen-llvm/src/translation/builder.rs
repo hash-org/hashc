@@ -887,7 +887,6 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for Builder<'a, 'b, 'm> {
                         offset,
                     );
 
-                    println!("loading scalar pair element");
                     self.to_immediate_scalar(load_value, scalar)
                 };
 

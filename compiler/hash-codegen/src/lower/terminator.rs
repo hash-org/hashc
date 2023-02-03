@@ -532,8 +532,8 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         builder.switch_to_block(failure_block);
 
         // we need to convert the assert into a message.
-        let message = builder.const_str(CONSTANT_MAP.create_string(assert_kind.message()));
-        let args = &[message.0, message.1];
+        let (bytes, len) = builder.const_str(CONSTANT_MAP.create_string(assert_kind.message()));
+        let args = &[bytes, len];
 
         // @@Todo: we need to create a call to `panic`, as in resolve the function
         // abi to `panic` and the relative function pointer.
