@@ -230,7 +230,7 @@ impl TyInfo {
             | IrTy::Ref(_, _, _)
             | IrTy::Fn { .. } => panic!("TyInfo::field on a type that does not contain fields"),
 
-            IrTy::Str if field_index == 0 => ctx.ir_ctx().tys().common_tys.unit,
+            IrTy::Str if field_index == 0 => ctx.ir_ctx().tys().common_tys.ptr,
             IrTy::Str => ctx.ir_ctx().tys().common_tys.usize,
             IrTy::Slice(element) | IrTy::Array { ty: element, .. } => *element,
             IrTy::Adt(id) => match layout.variants {

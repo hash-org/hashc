@@ -344,6 +344,8 @@ impl<'b, 'm> IntrinsicBuilderMethods<'b> for Builder<'_, 'b, 'm> {
     }
 
     fn codegen_expect_intrinsic(&mut self, value: Self::Value, expected: bool) -> Self::Value {
+        debug_assert!(value.is_int_value(), "expected `i1` value, got: `{value:?}`");
+
         let expected = self.const_bool(expected);
         self.call_intrinsic("llvm.expect.i1", &[value, expected])
     }

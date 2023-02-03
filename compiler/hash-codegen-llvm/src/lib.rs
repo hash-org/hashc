@@ -15,6 +15,7 @@ use hash_codegen::{
 };
 use hash_ir::{ir::BodySource, ty::IrTy, IrStorage};
 use hash_pipeline::{settings::CompilerSettings, workspace::Workspace, CompilerResult};
+use hash_reporting::reporter::Reporter;
 use hash_source::ModuleId;
 use hash_target::TargetArch;
 use inkwell as llvm;
@@ -118,7 +119,16 @@ impl<'b> LLVMBackend<'b> {
     /// Write the given [LLVMModule] to the disk, whilst also ensuring that it
     /// is valid before the module.
     fn write_module(&self, module: &LLVMModule, id: ModuleId) -> CompilerResult<()> {
-        module.verify().unwrap();
+        module.verify().map_err(|err| {
+            let mut builder = Reporter::new();
+            let report = builder.internal().title("LLVM Module verification Error");
+
+            for line in err.to_string().lines() {
+                report.add_info(line);
+            }
+
+            builder.into_reports()
+        })?;
 
         // For now, we assume that the object file extension is always `.o`.
         let path = self.workspace.module_bitcode_path(id, "o");

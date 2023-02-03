@@ -2,6 +2,8 @@
 //! [hash_codegen::traits::builder::BlockBuilderMethods] using the Inkwell
 //! wrapper around LLVM.
 
+use std::{borrow::Cow, iter};
+
 use hash_codegen::{
     abi::FnAbi,
     common::{AtomicOrdering, CheckedOp, IntComparisonKind, MemFlags, RealComparisonKind},
@@ -24,10 +26,10 @@ use hash_target::{
 };
 use inkwell::{
     basic_block::BasicBlock,
-    types::{AnyTypeEnum, AsTypeRef, BasicTypeEnum},
+    types::{AnyType, AnyTypeEnum, AsTypeRef, BasicTypeEnum},
     values::{
         AggregateValueEnum, AnyValue, AnyValueEnum, BasicMetadataValueEnum, BasicValue,
-        BasicValueEnum, InstructionValue, PhiValue, UnnamedAddress,
+        BasicValueEnum, FunctionValue, InstructionValue, PhiValue, UnnamedAddress,
     },
 };
 use llvm_sys::core::LLVMGetTypeKind;
@@ -83,6 +85,44 @@ impl<'a, 'b, 'm> Builder<'a, 'b, 'm> {
     /// Add incoming values to a PHI node.
     fn add_incoming_to_phi(&mut self, phi: PhiValue, value: BasicValueEnum, block: BasicBlock) {
         phi.add_incoming(&[(&value, block)]);
+    }
+
+    /// Check and just function call arguments. If the argument and parameter
+    /// types mismatch, the function will automatically insert bitcasts to
+    /// adjust the arguments.
+    fn check_call_args<'arg>(
+        &mut self,
+        func: FunctionValue<'m>,
+        args: &'arg [BasicMetadataValueEnum<'m>],
+    ) -> Cow<'arg, [BasicMetadataValueEnum<'m>]> {
+        let func_params = func.get_type().get_param_types();
+
+        // Check if all arguments match, and if so we return
+        // early.
+        let all_args_match = args.iter().zip(func_params.iter()).all(|(arg, param)| {
+            let ty: BasicTypeEnum = self.ty_of_value(arg.as_any_value_enum()).try_into().unwrap();
+            ty == *param
+        });
+
+        if all_args_match {
+            return Cow::Borrowed(args);
+        }
+
+        let casted_args: Vec<_> = iter::zip(func_params, args)
+            .map(|(expected_ty, &actual_val)| {
+                let actual_ty = self.ty_of_value(actual_val.as_any_value_enum());
+
+                if expected_ty != actual_ty.try_into().unwrap() {
+                    self.bit_cast(actual_val.as_any_value_enum(), expected_ty.as_any_type_enum())
+                        .try_into()
+                        .unwrap()
+                } else {
+                    actual_val
+                }
+            })
+            .collect();
+
+        Cow::Owned(casted_args)
     }
 }
 
@@ -180,6 +220,9 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for Builder<'a, 'b, 'm> {
         let args: Vec<BasicMetadataValueEnum> =
             args.iter().map(|v| (*v).try_into().unwrap()).collect();
 
+        // The call adjustment might modify the arguments by inserting
+        // bitcasts...
+        let args = self.check_call_args(fn_ptr, &args);
         let site = self.builder.build_call(fn_ptr, &args, "");
 
         if let Some(abi) = fn_abi {
@@ -823,7 +866,7 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for Builder<'a, 'b, 'm> {
                     load_value
                 });
 
-                return OperandRef::from_immediate_value_or_scalar_pair(self, value, place.info);
+                OperandValue::Immediate(self.to_immediate(value, place.info.layout))
             } else if let AbiRepresentation::Pair(scalar_a, scalar_b) = layout.abi {
                 let b_offset = scalar_a.size(self).align_to(scalar_b.align(self).abi);
                 let pair_ty = place.info.llvm_ty(self.ctx);
@@ -843,6 +886,8 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for Builder<'a, 'b, 'm> {
                         info,
                         offset,
                     );
+
+                    println!("loading scalar pair element");
                     self.to_immediate_scalar(load_value, scalar)
                 };
 

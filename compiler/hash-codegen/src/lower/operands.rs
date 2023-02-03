@@ -17,8 +17,8 @@ use crate::{
 
 /// Represents an operand value for the IR. The `V` is a backend
 /// specific value type.
-#[derive(Clone, Copy)]
-pub enum OperandValue<V> {
+#[derive(Clone, Copy, Debug)]
+pub enum OperandValue<V: std::fmt::Debug> {
     /// A reference to an actual operand value.
     Ref(V, Alignment),
 
@@ -116,8 +116,8 @@ impl<'a, 'b, V: CodeGenObject> OperandValue<V> {
 
 /// Represents an operand within the IR. The `V` is a backend specific
 /// value type.
-#[derive(Clone, Copy)]
-pub struct OperandRef<V> {
+#[derive(Clone, Copy, Debug)]
+pub struct OperandRef<V: std::fmt::Debug> {
     /// The value of the operand.
     pub value: OperandValue<V>,
 
@@ -293,7 +293,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                             let abi = builder.map_layout(info.layout, |layout| layout.abi);
 
                             let AbiRepresentation::Scalar(scalar) = abi else {
-                                panic!("scalar constant doesn't have a scalar ABI rerpresentation")
+                                panic!("scalar constant doesn't have a scalar ABI representation")
                             };
 
                             // We convert the constant to a backend equivalent scalar
@@ -380,7 +380,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                 })
             }
             LocalRef::Operand(None) => {
-                panic!("use of operand before defiition")
+                panic!("use of operand before definition")
             }
 
             // We don't deal with locals that refer to a place, and
