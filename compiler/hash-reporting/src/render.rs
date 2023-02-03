@@ -388,14 +388,31 @@ impl ReportNote {
         f: &mut fmt::Formatter<'_>,
         longest_indent_width: usize,
     ) -> fmt::Result {
-        writeln!(
-            f,
-            "{} {} {}: {}",
-            " ".repeat(longest_indent_width),
-            highlight(Colour::Blue, "="),
-            highlight(Modifier::Bold, &self.label),
-            self.message
-        )?;
+        // We want to align the specified message line by line
+        // with the `note: ...` label being as the initial suffix
+        // of the first line. So, we compute the length of the label,
+        // which we will use if we have multiple lines within
+        // the message.
+        //
+        // We add the 4 chars for the `: = `
+        let label_length = longest_indent_width + 4 + self.label.as_str().len();
+
+        for (index, line) in self.message.lines().enumerate() {
+            // The first line is special because we want to add the
+            // note.
+            if index == 0 {
+                writeln!(
+                    f,
+                    "{} {} {}: {}",
+                    " ".repeat(longest_indent_width),
+                    highlight(Colour::Blue, "="),
+                    highlight(Modifier::Bold, &self.label),
+                    line
+                )?;
+            } else {
+                writeln!(f, "{} {}", " ".repeat(label_length), line)?;
+            }
+        }
 
         Ok(())
     }
