@@ -11,6 +11,7 @@ use unification::UnificationOps;
 pub mod errors;
 pub mod inference;
 pub mod normalisation;
+pub mod params;
 pub mod substitution;
 pub mod unification;
 

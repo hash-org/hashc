@@ -4,13 +4,13 @@ use hash_source::{identifier::Identifier, location::SourceLocation};
 use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
 
 use crate::new::{
-    args::{Arg, ArgsId, PatArgsId},
+    args::{Arg, ArgId, ArgsId, PatArgsId},
     data::{DataDef, DataDefId, DataTy},
     environment::env::AccessToEnv,
     fns::{FnDef, FnDefId},
     holes::Hole,
     locations::LocationTarget,
-    params::{Param, ParamIndex, ParamsId},
+    params::{Param, ParamId, ParamIndex, ParamsId},
     pats::{Pat, PatId, PatListId},
     scopes::StackMemberId,
     symbols::{Symbol, SymbolData},
@@ -178,6 +178,35 @@ pub trait CommonUtils: AccessToEnv {
             .modify_fast(stack_member_id.0, |stack| stack.members[stack_member_id.1].name)
     }
 
+    /// Get the index target of an argument
+    fn get_arg_index(&self, arg_id: ArgId) -> ParamIndex {
+        self.stores().args().map_fast(arg_id.0, |args| args[arg_id.1].target)
+    }
+
+    /// Get the identifier name of a parameter
+    fn get_param_name_ident(&self, param_id: ParamId) -> Option<Identifier> {
+        let sym = self.get_param_name(param_id);
+        self.stores().symbol().map_fast(sym, |s| s.name)
+    }
+
+    /// Get the index target of a parameter
+    fn get_param_index(&self, param_id: ParamId) -> ParamIndex {
+        let sym = self.get_param_name(param_id);
+        self.stores().symbol().map_fast(sym, |s| {
+            s.name.map(ParamIndex::Name).unwrap_or(ParamIndex::Position(param_id.1))
+        })
+    }
+
+    /// Get the name of a parameter
+    fn get_param_name(&self, param_id: ParamId) -> Symbol {
+        self.stores().params().map_fast(param_id.0, |params| params[param_id.1].name)
+    }
+
+    /// Get the default value of a parameter, if any
+    fn get_param_default(&self, param_id: ParamId) -> Option<TermId> {
+        self.stores().params().map_fast(param_id.0, |params| params[param_id.1].default)
+    }
+
     /// Duplicate a symbol by creating a new symbol with the same name.
     fn duplicate_symbol(&self, existing_symbol: Symbol) -> Symbol {
         let existing_symbol_name = self.stores().symbol().map_fast(existing_symbol, |s| s.name);
@@ -243,7 +272,7 @@ pub trait CommonUtils: AccessToEnv {
             types
                 .iter()
                 .copied()
-                .map(|ty| move |id| Param { id, name: self.new_fresh_symbol(), ty }),
+                .map(|ty| move |id| Param { id, name: self.new_fresh_symbol(), ty, default: None }),
         )
     }
 

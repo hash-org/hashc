@@ -14,6 +14,7 @@ use super::{
     args::{ArgsId, PatArgsId},
     environment::env::{AccessToEnv, WithEnv},
     locations::IndexedLocationTarget,
+    terms::TermId,
 };
 use crate::new::{symbols::Symbol, tys::TyId};
 
@@ -30,6 +31,8 @@ pub struct Param {
     pub name: Symbol,
     /// The type of the parameter.
     pub ty: TyId,
+    /// The default value of the parameter.
+    pub default: Option<TermId>,
 }
 
 new_sequence_store_key!(pub ParamsId);
@@ -55,7 +58,17 @@ impl From<ParamId> for ParamIndex {
 
 impl fmt::Display for WithEnv<'_, &Param> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: {}", self.env().with(self.value.name), self.env().with(self.value.ty),)
+        write!(
+            f,
+            "{}: {}{}",
+            self.env().with(self.value.name),
+            self.env().with(self.value.ty),
+            if let Some(default) = self.value.default {
+                format!(" = {}", self.env().with(default))
+            } else {
+                "".to_string()
+            }
+        )
     }
 }
 
@@ -122,12 +135,18 @@ impl fmt::Display for WithEnv<'_, ParamsId> {
     }
 }
 
-impl fmt::Display for WithEnv<'_, ParamIndex> {
+impl fmt::Display for ParamIndex {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.value {
+        match self {
             ParamIndex::Name(name) => write!(f, "{name}"),
             ParamIndex::Position(pos) => write!(f, "{pos}"),
         }
+    }
+}
+
+impl fmt::Display for WithEnv<'_, ParamIndex> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.value)
     }
 }
 

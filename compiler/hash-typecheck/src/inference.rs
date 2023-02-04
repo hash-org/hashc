@@ -64,7 +64,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             };
 
             // Add the parameter
-            params.push(ParamData { name: get_arg_name(arg), ty })
+            params.push(ParamData { name: get_arg_name(arg), ty, default: None })
         };
 
         match annotation_params {
@@ -400,7 +400,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
         match fn_def.body {
             FnBody::Defined(fn_body) => {
-                self.context().enter_scope(fn_def_id.into(), || {
+                self.context().enter_scope(fn_def_id.into(), || -> TcResult<_> {
                     // @@Todo: `return` statement type inference
                     let inferred_return_ty = self.infer_term(fn_body, None)?.1;
 

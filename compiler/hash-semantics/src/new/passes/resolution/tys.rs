@@ -71,8 +71,13 @@ impl<'tc> ResolutionPass<'tc> {
         let params = ty_args
             .ast_ref_iter()
             .filter_map(|ty_arg| {
-                self.try_or_add_error(self.make_ty_from_ast_ty(ty_arg.ty.ast_ref()))
-                    .map(|ty| ParamData { name: self.new_symbol_from_ast_name(&ty_arg.name), ty })
+                self.try_or_add_error(self.make_ty_from_ast_ty(ty_arg.ty.ast_ref())).map(|ty| {
+                    ParamData {
+                        name: self.new_symbol_from_ast_name(&ty_arg.name),
+                        ty,
+                        default: None,
+                    }
+                })
             })
             .collect_vec();
 

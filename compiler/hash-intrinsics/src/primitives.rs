@@ -143,6 +143,7 @@ impl DefinedPrimitives {
                 let params = env.param_utils().create_params(once(ParamData {
                     name: t_sym,
                     ty: env.new_small_universe_ty(),
+                    default: None,
                 }));
                 env.data_utils().create_primitive_data_def_with_params(list_sym, params, |_| {
                     PrimitiveCtorInfo::List(ListCtorInfo { element_ty: env.new_var_ty(t_sym) })
@@ -158,10 +159,12 @@ impl DefinedPrimitives {
                 let params = env.param_utils().create_params(once(ParamData {
                     name: t_sym,
                     ty: env.new_small_universe_ty(),
+                    default: None,
                 }));
                 let some_params = env.param_utils().create_params(once(ParamData {
                     name: env.new_symbol("value"),
                     ty: env.new_var_ty(t_sym),
+                    default: None,
                 }));
                 env.data_utils().create_enum_def(option_sym, params, |_| {
                     vec![(none_sym, env.new_empty_params()), (some_sym, some_params)]
@@ -177,18 +180,20 @@ impl DefinedPrimitives {
                 let e_sym = env.new_symbol("E");
                 let params = env.param_utils().create_params(
                     [
-                        ParamData { name: t_sym, ty: env.new_small_universe_ty() },
-                        ParamData { name: e_sym, ty: env.new_small_universe_ty() },
+                        ParamData { name: t_sym, ty: env.new_small_universe_ty(), default: None },
+                        ParamData { name: e_sym, ty: env.new_small_universe_ty(), default: None },
                     ]
                     .into_iter(),
                 );
                 let ok_params = env.param_utils().create_params(once(ParamData {
                     name: env.new_symbol("value"),
                     ty: env.new_var_ty(t_sym),
+                    default: None,
                 }));
                 let err_params = env.param_utils().create_params(once(ParamData {
                     name: env.new_symbol("error"),
                     ty: env.new_var_ty(e_sym),
+                    default: None,
                 }));
                 env.data_utils().create_enum_def(result_sym, params, |_| {
                     vec![(ok_sym, ok_params), (err_sym, err_params)]

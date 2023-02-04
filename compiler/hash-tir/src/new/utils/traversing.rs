@@ -321,7 +321,11 @@ impl<'env> TraversingUtils<'env> {
         self.map_params(params_id, |params| {
             let mut new_params = Vec::with_capacity(params.len());
             for param in params {
-                new_params.push(ParamData { name: param.name, ty: self.fmap_ty(param.ty, f)? });
+                new_params.push(ParamData {
+                    name: param.name,
+                    ty: self.fmap_ty(param.ty, f)?,
+                    default: param.default.map(|default| self.fmap_term(default, f)).transpose()?,
+                });
             }
             Ok(self.param_utils().create_params(new_params.into_iter()))
         })
@@ -536,6 +540,9 @@ impl<'env> TraversingUtils<'env> {
         self.map_params(params_id, |params| {
             for &param in params {
                 self.visit_ty(param.ty, f)?;
+                if let Some(default) = param.default {
+                    self.visit_term(default, f)?;
+                }
             }
             Ok(())
         })
