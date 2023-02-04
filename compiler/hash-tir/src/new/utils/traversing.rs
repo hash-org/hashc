@@ -10,7 +10,7 @@ use crate::{
     impl_access_to_env,
     new::{
         access::AccessTerm,
-        args::{ArgData, ArgsId, PatArgData, PatArgsId},
+        args::{ArgData, ArgsId, PatArgData, PatArgsId, PatOrCapture},
         casting::CastTerm,
         control::{IfPat, LoopTerm, MatchCase, MatchTerm, OrPat, ReturnTerm},
         data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
@@ -311,7 +311,14 @@ impl<'env> TraversingUtils<'env> {
         self.map_pat_list(pat_list, |pat_list| {
             let mut new_list = Vec::with_capacity(pat_list.len());
             for pat_id in pat_list {
-                new_list.push(self.fmap_pat(*pat_id, f)?);
+                match pat_id {
+                    PatOrCapture::Pat(pat_id) => {
+                        new_list.push(PatOrCapture::Pat(self.fmap_pat(*pat_id, f)?));
+                    }
+                    PatOrCapture::Capture => {
+                        new_list.push(PatOrCapture::Capture);
+                    }
+                }
             }
             Ok(self.new_pat_list(new_list))
         })
@@ -351,7 +358,10 @@ impl<'env> TraversingUtils<'env> {
             for pat_arg in pat_args {
                 new_args.push(PatArgData {
                     target: pat_arg.target,
-                    pat: self.fmap_pat(pat_arg.pat, f)?,
+                    pat: match pat_arg.pat {
+                        PatOrCapture::Pat(pat_id) => PatOrCapture::Pat(self.fmap_pat(pat_id, f)?),
+                        PatOrCapture::Capture => PatOrCapture::Capture,
+                    },
                 });
             }
             Ok(self.param_utils().create_pat_args(new_args.into_iter()))
@@ -365,6 +375,7 @@ impl<'env> TraversingUtils<'env> {
                 let fn_def = self.get_fn_def(fn_def_id);
                 Ok(self.fn_utils().create_fn_def(FnDefData {
                     name: fn_def.name,
+
                     ty: {
                         let fn_ty = fn_def.ty;
                         FnTy {
@@ -530,7 +541,9 @@ impl<'env> TraversingUtils<'env> {
     ) -> Result<(), E> {
         self.map_pat_list(pat_list_id, |pat_list| {
             for &pat in pat_list {
-                self.visit_pat(pat, f)?;
+                if let PatOrCapture::Pat(pat) = pat {
+                    self.visit_pat(pat, f)?;
+                }
             }
             Ok(())
         })
@@ -555,7 +568,9 @@ impl<'env> TraversingUtils<'env> {
     ) -> Result<(), E> {
         self.stores().pat_args().map(pat_args_id, |pat_args| {
             for &arg in pat_args {
-                self.visit_pat(arg.pat, f)?;
+                if let PatOrCapture::Pat(pat) = arg.pat {
+                    self.visit_pat(pat, f)?;
+                }
             }
             Ok(())
         })

@@ -6,14 +6,14 @@ use hash_ast::ast::RangeEnd;
 use hash_intrinsics::utils::PrimitiveUtils;
 use hash_tir::new::{
     access::AccessTerm,
-    args::{ArgData, ArgsId, PatArgsId},
+    args::{ArgData, ArgsId, PatArgsId, PatOrCapture},
     casting::CastTerm,
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
     environment::context::{Binding, BindingKind, ScopeKind},
     fns::{FnBody, FnCallTerm},
     lits::{ListCtor, Lit, LitPat, PrimTerm},
     params::ParamIndex,
-    pats::{Pat, PatId, Spread},
+    pats::{Pat, PatId, PatListId, Spread},
     refs::DerefTerm,
     scopes::{AssignTerm, BlockTerm, DeclTerm, StackMemberId},
     symbols::Symbol,
@@ -514,32 +514,40 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
         }
     }
 
-    /// Get a slice of `t` that corresponds to the given spread.
-    fn get_spread_slice<'a, M>(
-        &self,
-        term_list_len: usize,
-        pat_list_len: usize,
-        spread: Spread,
-        t: &'a [M],
-    ) -> &'a [M] {
-        let spread_end = term_list_len - pat_list_len + spread.index;
-        &t[spread.index..spread_end]
+    /// From the given arguments matching with the given parameters, extract the
+    /// arguments that are part of the given spread.
+    fn extract_spread_list(&self, term_list: TermListId, pat_list: PatListId) -> TermListId {
+        // Create a new list term with the spread elements
+        let spread_term_list = self.stores().pat_list().map_fast(pat_list, |pat_data| {
+            self.stores().term_list().map_fast(term_list, |data| {
+                pat_list
+                    .to_index_range()
+                    .filter_map(|i| match pat_data[i] {
+                        PatOrCapture::Pat(_) => None,
+                        PatOrCapture::Capture => Some(data[i]),
+                    })
+                    .collect_vec()
+            })
+        });
+        self.new_term_list(spread_term_list)
     }
 
     /// From the given arguments matching with the given parameters, extract the
     /// arguments that are part of the given spread.
-    fn extract_spread_args(
-        &self,
-        term_args: ArgsId,
-        pat_args: PatArgsId,
-        spread: Spread,
-    ) -> ArgsId {
+    fn extract_spread_args(&self, term_args: ArgsId, pat_args: PatArgsId) -> ArgsId {
         // Create a new tuple term with the spread elements
-        let spread_term_args = self.stores().args().map_fast(term_args, |data| {
-            self.get_spread_slice(term_args.len(), pat_args.len(), spread, data)
-                .iter()
-                .map(|data| ArgData { target: data.target, value: data.value })
-                .collect_vec()
+        let spread_term_args = self.stores().pat_args().map_fast(pat_args, |pat_data| {
+            self.stores().args().map_fast(term_args, |data| {
+                pat_args
+                    .to_index_range()
+                    .filter_map(|i| match pat_data[i].pat {
+                        PatOrCapture::Pat(_) => None,
+                        PatOrCapture::Capture => {
+                            Some(ArgData { target: data[i].target, value: data[i].value })
+                        }
+                    })
+                    .collect_vec()
+            })
         });
 
         self.param_utils().create_args(spread_term_args.into_iter())
@@ -555,8 +563,8 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
         &self,
         length: usize,
         spread: Option<Spread>,
-        extract_spread_list: impl Fn(Spread) -> (TermId, usize),
-        get_ith_pat: impl Fn(usize) -> PatId,
+        extract_spread_list: impl Fn(Spread) -> TermId,
+        get_ith_pat: impl Fn(usize) -> PatOrCapture,
         get_ith_term: impl Fn(usize) -> TermId,
         f: &mut impl FnMut(StackMemberId, TermId),
     ) -> Result<MatchResult, Signal> {
@@ -564,33 +572,39 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
 
         let mut element_i = 0;
         while element_i < length {
-            // Handle spread
-            if let Some(spread) = spread && spread.index == element_i {
-                let (spread_list, spread_list_len) = extract_spread_list(spread);
-                if let Some(member) = spread.stack_member {
-                    f(member, spread_list);
-                }
-                element_i += spread_list_len;
-            }
-
             let arg_i = get_ith_term(element_i);
             let pat_arg_i = get_ith_pat(element_i);
 
-            match self.match_value_and_get_binds(arg_i, pat_arg_i, f)? {
-                MatchResult::Successful => {
-                    // Continue
+            match pat_arg_i {
+                PatOrCapture::Pat(pat_id) => {
+                    match self.match_value_and_get_binds(arg_i, pat_id, f)? {
+                        MatchResult::Successful => {
+                            // Continue
+                        }
+                        MatchResult::Failed => {
+                            // The match failed
+                            return Ok(MatchResult::Failed);
+                        }
+                        MatchResult::Stuck => {
+                            // The match is stuck
+                            return Ok(MatchResult::Stuck);
+                        }
+                    }
                 }
-                MatchResult::Failed => {
-                    // The match failed
-                    return Ok(MatchResult::Failed);
-                }
-                MatchResult::Stuck => {
-                    // The match is stuck
-                    return Ok(MatchResult::Stuck);
+                PatOrCapture::Capture => {
+                    // Handled below
                 }
             }
 
             element_i += 1;
+        }
+
+        // Capture the spread
+        if let Some(spread) = spread {
+            let spread_list = extract_spread_list(spread);
+            if let Some(member) = spread.stack_member {
+                f(member, spread_list);
+            }
         }
 
         Ok(MatchResult::Successful)
@@ -612,11 +626,7 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
         self.match_some_list_and_get_binds(
             term_args.len(),
             spread,
-            |spread| {
-                let spread_args = self.extract_spread_args(term_args, pat_args, spread);
-                let tuple_term = self.new_term(TupleTerm { data: spread_args });
-                (tuple_term, spread_args.len())
-            },
+            |_| self.new_term(TupleTerm { data: self.extract_spread_args(term_args, pat_args) }),
             |i| self.stores().pat_args().get_at_index(pat_args, i).pat,
             |i| self.stores().args().get_at_index(term_args, i).value,
             f,
@@ -683,7 +693,7 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
                     let pat = self.stores().pat_list().get_element(pat);
                     // First collect the bindings locally
 
-                    match self.match_value_and_get_binds(term_id, pat, f)? {
+                    match self.match_value_and_get_binds(term_id, pat.assert_pat(), f)? {
                         MatchResult::Successful => {
                             return Ok(MatchResult::Successful);
                         }
@@ -802,22 +812,11 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
                 PrimTerm::List(list_term) => self.match_some_list_and_get_binds(
                     list_term.elements.len(),
                     list_pat.spread,
-                    |spread| {
+                    |_| {
                         // Lists can have spreads, which return sublists
-                        let spread_list_elements = self.map_term_list(list_term.elements, |list| {
-                            self.get_spread_slice(
-                                list_term.elements.len(),
-                                list_pat.pats.len(),
-                                spread,
-                                list,
-                            )
-                            .to_vec()
-                        });
-                        let spread_list_len = spread_list_elements.len();
-                        let spread_list = self.new_term(PrimTerm::List(ListCtor {
-                            elements: self.new_term_list(spread_list_elements),
-                        }));
-                        (spread_list, spread_list_len)
+                        self.new_term(PrimTerm::List(ListCtor {
+                            elements: self.extract_spread_list(list_term.elements, list_pat.pats),
+                        }))
                     },
                     |i| self.stores().pat_list().get_at_index(list_pat.pats, i),
                     |i| self.stores().term_list().get_at_index(list_term.elements, i),

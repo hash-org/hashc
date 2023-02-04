@@ -10,7 +10,7 @@ use hash_ast::ast::{self, AstNodeRef};
 use hash_reporting::macros::panic_on_span;
 use hash_source::location::Span;
 use hash_tir::new::{
-    args::{PatArgData, PatArgsId},
+    args::{PatArgData, PatArgsId, PatOrCapture},
     control::{IfPat, OrPat},
     data::CtorPat,
     environment::{context::BindingKind, env::AccessToEnv},
@@ -52,7 +52,7 @@ impl ResolutionPass<'_> {
                         Some(name) => ParamIndex::Name(name.ident),
                         None => ParamIndex::Position(i),
                     },
-                    pat: self.make_pat_from_ast_pat(arg.pat.ast_ref())?,
+                    pat: PatOrCapture::Pat(self.make_pat_from_ast_pat(arg.pat.ast_ref())?),
                 })
             })
             .collect::<SemanticResult<Vec<_>>>()?;
@@ -66,7 +66,7 @@ impl ResolutionPass<'_> {
     ) -> SemanticResult<PatListId> {
         let pats = pats
             .iter()
-            .map(|pat| self.make_pat_from_ast_pat(pat.ast_ref()))
+            .map(|pat| Ok(PatOrCapture::Pat(self.make_pat_from_ast_pat(pat.ast_ref())?)))
             .collect::<SemanticResult<Vec<_>>>()?;
         Ok(self.stores().pat_list().create_from_iter_fast(pats.into_iter()))
     }

@@ -72,21 +72,22 @@ impl fmt::Display for WithEnv<'_, &Param> {
     }
 }
 
-/// Some kind of arguments, either [`ParamsId`], [`PatArgsId`] or [`ArgsId`].
-#[derive(Debug, Clone, Copy)]
-pub enum SomeArgsId {
+/// Some kind of parameters or arguments, either [`ParamsId`], [`PatArgsId`] or
+/// [`ArgsId`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, From)]
+pub enum SomeParamsOrArgsId {
     Params(ParamsId),
     PatArgs(PatArgsId),
     Args(ArgsId),
 }
 
-impl SomeArgsId {
+impl SomeParamsOrArgsId {
     /// Get the length of the inner stored parameters.
     pub fn len(&self) -> usize {
         match self {
-            SomeArgsId::Params(id) => id.len(),
-            SomeArgsId::PatArgs(id) => id.len(),
-            SomeArgsId::Args(id) => id.len(),
+            SomeParamsOrArgsId::Params(id) => id.len(),
+            SomeParamsOrArgsId::PatArgs(id) => id.len(),
+            SomeParamsOrArgsId::Args(id) => id.len(),
         }
     }
 
@@ -95,22 +96,22 @@ impl SomeArgsId {
         self.len() == 0
     }
 
-    /// Get the English subject noun of the [SomeArgsId]
+    /// Get the English subject noun of the [SomeParamsOrArgsId]
     pub fn as_str(&self) -> &'static str {
         match self {
-            SomeArgsId::Params(_) => "parameters",
-            SomeArgsId::PatArgs(_) => "pattern arguments",
-            SomeArgsId::Args(_) => "arguments",
+            SomeParamsOrArgsId::Params(_) => "parameters",
+            SomeParamsOrArgsId::PatArgs(_) => "pattern arguments",
+            SomeParamsOrArgsId::Args(_) => "arguments",
         }
     }
 }
 
-impl From<SomeArgsId> for IndexedLocationTarget {
-    fn from(target: SomeArgsId) -> Self {
+impl From<SomeParamsOrArgsId> for IndexedLocationTarget {
+    fn from(target: SomeParamsOrArgsId) -> Self {
         match target {
-            SomeArgsId::Params(id) => IndexedLocationTarget::Params(id),
-            SomeArgsId::PatArgs(id) => IndexedLocationTarget::PatArgs(id),
-            SomeArgsId::Args(id) => IndexedLocationTarget::Args(id),
+            SomeParamsOrArgsId::Params(id) => IndexedLocationTarget::Params(id),
+            SomeParamsOrArgsId::PatArgs(id) => IndexedLocationTarget::PatArgs(id),
+            SomeParamsOrArgsId::Args(id) => IndexedLocationTarget::Args(id),
         }
     }
 }
@@ -150,12 +151,12 @@ impl fmt::Display for WithEnv<'_, ParamIndex> {
     }
 }
 
-impl fmt::Display for WithEnv<'_, SomeArgsId> {
+impl fmt::Display for WithEnv<'_, SomeParamsOrArgsId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.value {
-            SomeArgsId::Params(id) => write!(f, "{}", self.env().with(id)),
-            SomeArgsId::PatArgs(id) => write!(f, "{}", self.env().with(id)),
-            SomeArgsId::Args(id) => write!(f, "{}", self.env().with(id)),
+            SomeParamsOrArgsId::Params(id) => write!(f, "{}", self.env().with(id)),
+            SomeParamsOrArgsId::PatArgs(id) => write!(f, "{}", self.env().with(id)),
+            SomeParamsOrArgsId::Args(id) => write!(f, "{}", self.env().with(id)),
         }
     }
 }

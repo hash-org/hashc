@@ -11,7 +11,7 @@ use hash_tir::{
     impl_access_to_env,
     new::{
         environment::env::{AccessToEnv, Env},
-        params::{ParamsId, SomeArgsId},
+        params::{ParamsId, SomeParamsOrArgsId},
         terms::TermId,
         tys::TyId,
         utils::common::CommonUtils,
@@ -92,7 +92,7 @@ pub enum TcError {
     /// More type annotations are needed to infer the type of the given term.
     NeedMoreTypeAnnotationsToInfer { term: TermId },
     /// The given arguments do not match the length of the target parameters.
-    WrongArgLength { params_id: ParamsId, args_id: SomeArgsId },
+    WrongArgLength { params_id: ParamsId, args_id: SomeParamsOrArgsId },
     /// Not a function.
     NotAFunction { fn_call: TermId, actual_subject_ty: TyId },
     /// Cannot deref the subject.
@@ -387,6 +387,16 @@ impl<'tc> TcErrorReporter<'tc> {
                             ),
                         );
                     }
+                }
+                ParamError::SpreadBeforePositionalArg { next_positional } => {
+                    let error = reporter
+                        .error()
+                        .code(HashErrorCode::ParameterInUse)
+                        .title("received a positional argument after a spread argument");
+                    if let Some(location) = locations.get_location(next_positional) {
+                        error.add_labelled_span(location, "next positional argument");
+                    }
+                    error.add_info("positional arguments must come before spread arguments");
                 }
             },
         }

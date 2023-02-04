@@ -4,7 +4,7 @@ use hash_source::{identifier::Identifier, location::SourceLocation};
 use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
 
 use crate::new::{
-    args::{Arg, ArgId, ArgsId, PatArgsId},
+    args::{Arg, ArgsId, PatArgsId, PatOrCapture, SomeArgId, SomeArgsId},
     data::{DataDef, DataDefId, DataTy},
     environment::env::AccessToEnv,
     fns::{FnDef, FnDefId},
@@ -116,7 +116,7 @@ pub trait CommonUtils: AccessToEnv {
         self.stores().term_list().map(term_list_id, f)
     }
 
-    fn map_pat_list<T>(&self, pat_list_id: PatListId, f: impl FnOnce(&[PatId]) -> T) -> T {
+    fn map_pat_list<T>(&self, pat_list_id: PatListId, f: impl FnOnce(&[PatOrCapture]) -> T) -> T {
         self.stores().pat_list().map(pat_list_id, f)
     }
 
@@ -179,8 +179,16 @@ pub trait CommonUtils: AccessToEnv {
     }
 
     /// Get the index target of an argument
-    fn get_arg_index(&self, arg_id: ArgId) -> ParamIndex {
-        self.stores().args().map_fast(arg_id.0, |args| args[arg_id.1].target)
+    fn get_arg_index(&self, arg_id: impl Into<SomeArgId>) -> ParamIndex {
+        let arg_id: SomeArgId = arg_id.into();
+        match arg_id.0 {
+            SomeArgsId::PatArgs(pat_args_id) => {
+                self.stores().pat_args().map_fast(pat_args_id, |args| args[arg_id.1].target)
+            }
+            SomeArgsId::Args(args_id) => {
+                self.stores().args().map_fast(args_id, |args| args[arg_id.1].target)
+            }
+        }
     }
 
     /// Get the identifier name of a parameter
@@ -237,7 +245,7 @@ pub trait CommonUtils: AccessToEnv {
     }
 
     /// Create a new pattern list.
-    fn new_pat_list(&self, pats: impl IntoIterator<Item = PatId>) -> PatListId {
+    fn new_pat_list(&self, pats: impl IntoIterator<Item = PatOrCapture>) -> PatListId {
         let pats = pats.into_iter().collect::<Vec<_>>();
         self.stores().pat_list().create_from_slice(&pats)
     }

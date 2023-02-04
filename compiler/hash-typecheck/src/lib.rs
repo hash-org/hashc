@@ -68,4 +68,8 @@ pub trait AccessToTypechecking:
     fn normalisation_ops(&self) -> normalisation::NormalisationOps<Self> {
         normalisation::NormalisationOps::new(self)
     }
+
+    fn param_ops(&self) -> params::ParamOps<Self> {
+        params::ParamOps::new(self)
+    }
 }
