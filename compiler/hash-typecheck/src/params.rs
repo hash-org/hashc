@@ -79,8 +79,8 @@ impl<T: AccessToTypechecking> ParamOps<'_, T> {
     /// The specific unification of the argument and parameter types is not
     /// checked at this stage. The function
     /// `validate_and_reorder_args_against_params` performs additional
-    /// validation of the argument names, and reorders the arguments to match
-    /// the parameters.
+    /// validation of the argument names, reorders the arguments to match
+    /// the parameters, and fills in default arguments.
     pub fn validate_args_against_params(
         &self,
         args_id: SomeArgsId,
