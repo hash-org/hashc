@@ -30,7 +30,7 @@ use hash_tir::{
     storage::LocalStorage,
     terms::{Sub, TermId},
 };
-use hash_utils::store::{CloneStore, Store};
+use hash_utils::store::{CloneStore, SequenceStore, Store};
 use itertools::Itertools;
 
 use super::{scopes::VisitConstantScope, AccessToTraverseOps};
@@ -1099,11 +1099,8 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
 
         let builder = self.builder();
 
-        let fn_ty_term = builder.create_fn_lit_term(
-            name,
-            builder.create_fn_ty_term(name, params, return_ty),
-            return_value,
-        );
+        let fn_ty = builder.create_fn_ty_term(name, params, return_ty);
+        let fn_ty_term = builder.create_fn_lit_term(name, fn_ty, return_value);
 
         // Clear return type
         self.state.fn_def_return_ty.set(old_return_ty);
@@ -1124,28 +1121,40 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
                 return Ok(fn_ty_term);
             }
 
-            if name == IDENTS.main || self.state.applied_directives().is_entry_point() {
-                if self.local_storage().current_source() == SourceId::from(module) {
-                    let kind = if self.state.applied_directives().is_entry_point() {
-                        EntryPointKind::Named(name)
-                    } else {
-                        EntryPointKind::Main
-                    };
+            if (name == IDENTS.main || self.state.applied_directives().is_entry_point()) && self.local_storage().current_source() == SourceId::from(module) {
+                let kind = if self.state.applied_directives().is_entry_point() {
+                    EntryPointKind::Named(name)
+                } else {
+                    EntryPointKind::Main
+                };
 
-                    let result = {
-                        // We specify that this function is the entry point
-                        self.eps_mut().set(fn_ty_term, kind)
-                    };
+                let result = {
+                    // We specify that this function is the entry point
+                    self.eps_mut().set(fn_ty_term, kind)
+                };
 
-                    // If the entry point was declared twice, then we 
-                    // return an error.
-                    result.ok_or_else(|| {
-                        TcError::MultipleEntryPoints {
-                            site: self.eps().def().unwrap().into(),
-                            duplicate_site: fn_ty_term.into()
-                        }
-                    })?;
-                }
+                // If the entry point was declared twice, then we 
+                // return an error.
+                result.ok_or_else(|| {
+                    TcError::MultipleEntryPoints {
+                        site: self.eps().def().unwrap().into(),
+                        duplicate_site: fn_ty_term.into()
+                    }
+                })?;
+
+                // Now we verify that the entry point has a valid signature.
+                let params = self.params_store().create_empty();
+                let return_ty = self.builder().create_void_ty_term();
+                let expected_ty = builder.create_fn_ty_term(Some(name), params, return_ty);
+
+                // Now we unify the expected type with the actual type:
+                self.unifier().unify_terms(expected_ty, fn_ty).map_err(|_| {
+                    TcError::InvalidEntryPointSignature {
+                        expected_ty,
+                        given_ty: fn_ty,
+                        site: fn_ty_term.into(),
+                    }
+                })?;
             }
         }
 

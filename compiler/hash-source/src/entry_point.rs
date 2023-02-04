@@ -20,7 +20,7 @@ pub enum EntryPointKind {
 
 /// The [EntryPointState] is used to keep track of the declared entry point
 /// of the program, if there is one.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct EntryPointState<T: fmt::Debug + Copy> {
     /// This refers to the entry point of the program, the term points
     /// to the function definition within the entry point module.

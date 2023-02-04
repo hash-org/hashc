@@ -64,12 +64,16 @@ impl<'s> SemanticAnalyser<'s> {
             // function definition and be within a constant scope
             match subject.body() {
                 Expr::Declaration(_) => {
-                    self.maybe_emit_invalid_scope_err(directive, subject);
+                    self.maybe_emit_invalid_scope_err(directive, BlockOrigin::Const, subject);
                 }
                 Expr::Block(BlockExpr { data: block })
                     if matches!(block.body(), Block::Body(..)) =>
                 {
-                    self.maybe_emit_invalid_scope_err(directive, block.ast_ref());
+                    self.maybe_emit_invalid_scope_err(
+                        directive,
+                        BlockOrigin::Const,
+                        block.ast_ref(),
+                    );
                 }
                 _ => self.append_error(
                     AnalysisErrorKind::InvalidDirectiveArgument {
@@ -152,6 +156,8 @@ impl<'s> SemanticAnalyser<'s> {
                     },
                     subject,
                 );
+            } else {
+                self.maybe_emit_invalid_scope_err(directive, BlockOrigin::Root, subject);
             }
         } else if !directive.is(IDENTS.dump_ast) {
             // @@Future: use some kind of scope validation in order to verify that
@@ -172,13 +178,14 @@ impl<'s> SemanticAnalyser<'s> {
     fn maybe_emit_invalid_scope_err<T>(
         &mut self,
         directive: AstNodeRef<Name>,
+        expected_origin: BlockOrigin,
         item: AstNodeRef<T>,
     ) {
         if !self.is_in_constant_block() {
             self.append_error(
                 AnalysisErrorKind::InvalidDirectiveScope {
                     name: directive.ident,
-                    expected: BlockOrigin::Const,
+                    expected: expected_origin,
                     received: self.current_block,
                 },
                 item,

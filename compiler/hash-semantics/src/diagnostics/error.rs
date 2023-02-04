@@ -324,6 +324,19 @@ pub enum TcError {
         /// The location of the duplicate entry point.
         duplicate_site: LocationTarget,
     },
+
+    /// When the function signature for the entry point does not
+    /// conform to the expected type i.e. `main() -> ()`.
+    InvalidEntryPointSignature {
+        /// The location of the entry point.
+        site: LocationTarget,
+
+        /// The expected type of the entry point.
+        expected_ty: TermId,
+
+        /// The actual type of the entry point.
+        given_ty: TermId,
+    },
 }
 
 /// A [TcError] with attached typechecker storage.
@@ -1580,6 +1593,23 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Reports {
                 // information.
                 if let Some(location) = ctx.location_store().get_location(site) {
                     builder.add_labelled_span(location, "the entry point is already declared here");
+                }
+            }
+            TcError::InvalidEntryPointSignature { site, given_ty, expected_ty } => {
+                builder
+                    .code(HashErrorCode::InvalidEntryPointSignature)
+                    .title("invalid entry point signature");
+
+                if let Some(location) = ctx.location_store().get_location(site) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        format!(
+                            // @@Todo support multilines within the codeblocks notes
+                            "expected entry point to have signature `{}`, however it has signature `{}`",
+                            expected_ty.for_formatting(ctx.global_storage()),
+                            given_ty.for_formatting(ctx.global_storage()),
+                        ),
+                    )));
                 }
             }
         };

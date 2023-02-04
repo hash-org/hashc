@@ -1,4 +1,4 @@
-error[0008]: multiple entry points declared
+error[0007]: multiple entry points declared
   --> $DIR/duplicate_entry_point.hash:7:9
 5  |    }
 6  |    
@@ -10,11 +10,11 @@ error[0008]: multiple entry points declared
 10 |    
 11 |    #entry_point my_main := () => {
 
-  --> $DIR/duplicate_entry_point.hash:3:1
+  --> $DIR/duplicate_entry_point.hash:3:9
 1  |    // stage=full, run=fail
 2  |    
 3  |    main := () => {
-   |  __-
+   |  __________-
 4  | |  
 5  | |  }
    | |__- the entry point is already declared here
