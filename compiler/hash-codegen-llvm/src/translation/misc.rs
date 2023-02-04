@@ -8,6 +8,7 @@ use hash_codegen::{
 };
 use hash_ir::ty::InstanceId;
 use inkwell::{
+    module::Linkage,
     values::{AnyValue, FunctionValue, UnnamedAddress},
     GlobalVisibility,
 };
@@ -83,7 +84,11 @@ impl<'b, 'm> MiscBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
                 GlobalVisibility::Default
             };
 
-            Some(self.declare_fn(entry_name, fn_ty, abi.into(), UnnamedAddress::Global, visibility))
+            let func =
+                self.declare_fn(entry_name, fn_ty, abi.into(), UnnamedAddress::Global, visibility);
+            func.set_linkage(Linkage::External);
+
+            Some(func)
         }
     }
 
