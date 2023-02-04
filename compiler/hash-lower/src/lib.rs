@@ -77,9 +77,9 @@ pub trait LoweringCtxQuery: CompilerInterface {
 }
 
 impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
-    /// Return that this is [CompilerStageKind::IrGen].
+    /// Return that this is [CompilerStageKind::Lower].
     fn kind(&self) -> CompilerStageKind {
-        CompilerStageKind::IrGen
+        CompilerStageKind::Lower
     }
 
     /// Lower that AST of each module that is currently in the workspace
@@ -107,7 +107,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
             }
 
             let mut discoverer = LoweringVisitor::new(
-                &ty_storage.global,
+                ty_storage,
                 &mut ir_storage.ctx,
                 source_map,
                 source_id,
@@ -117,8 +117,12 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
 
             // We need to add all of the bodies to the global bodies
             // store.
-            let (bodies, layouts) = discoverer.into_components();
+            if let Some(instance) = discoverer.entry_point_instance() {
+                let kind = ty_storage.entry_point_state.kind().unwrap();
+                ir_storage.entry_point.set(instance, kind);
+            }
 
+            let (bodies, layouts) = discoverer.into_components();
             lowered_bodies.extend(bodies);
             self.layouts_to_generate.extend(layouts);
         }
@@ -178,9 +182,9 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
 pub struct IrOptimiser;
 
 impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrOptimiser {
-    /// Return that this is [CompilerStageKind::IrGen].
+    /// Return that this is [CompilerStageKind::Lower].
     fn kind(&self) -> CompilerStageKind {
-        CompilerStageKind::IrGen
+        CompilerStageKind::Lower
     }
 
     fn run(&mut self, _: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {

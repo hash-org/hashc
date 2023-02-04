@@ -308,6 +308,8 @@ impl<'b, 'm> ExtendedFnAbiMethods<'b, 'm> for FnAbi {
             fn_attributes.push(AttributeKind::NoReturn.create_attribute(ctx));
         }
 
+        apply_attributes_to_fn(AttributeLoc::Function, &fn_attributes, func);
+
         let mut index = 0;
         let mut apply_attributes_to_arg = |attrs: &ArgAttributes| {
             attrs.apply_attributes_to_fn(ctx, AttributeLoc::Param(index), func);
@@ -318,7 +320,7 @@ impl<'b, 'm> ExtendedFnAbiMethods<'b, 'm> for FnAbi {
         // Apply all of the attributes onto the return value of the function.
         match &self.ret_abi.mode {
             PassMode::Direct(attrs) => {
-                apply_attributes_to_arg(attrs);
+                attrs.apply_attributes_to_fn(ctx, AttributeLoc::Return, func);
             }
             PassMode::Indirect { attributes, on_stack } => {
                 debug_assert!(!on_stack); // @@Explain
@@ -475,5 +477,19 @@ fn apply_attributes_call_site(
 ) {
     for attribute in attributes {
         call_site.add_attribute(location, *attribute)
+    }
+}
+
+/// Given a [FunctionValue], apply the given [Attribute]s to the given
+/// [AttributeLoc]. The [AttributeLoc] specifies where the attributes should be
+/// applied, either being a function parameter, return value, or the function
+/// itself.
+fn apply_attributes_to_fn(
+    location: AttributeLoc,
+    attributes: &[Attribute],
+    func: FunctionValue<'_>,
+) {
+    for attribute in attributes {
+        func.add_attribute(location, *attribute)
     }
 }

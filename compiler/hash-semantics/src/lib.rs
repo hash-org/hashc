@@ -5,7 +5,16 @@
 //!
 //! @@Docs(kontheocharis): write docs about the stages of the typechecker.
 
-#![feature(decl_macro, slice_pattern, option_result_contains, let_chains, if_let_guard)]
+#![feature(
+    decl_macro,
+    slice_pattern,
+    option_result_contains,
+    let_chains,
+    if_let_guard,
+    cell_update
+)]
+
+use std::cell::RefCell;
 
 use diagnostics::{
     error::{TcError, TcErrorWithStorage},
@@ -13,12 +22,12 @@ use diagnostics::{
 };
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerStage},
-    settings::CompilerStageKind,
+    settings::{CompilerSettings, CompilerStageKind},
     workspace::Workspace,
     CompilerResult,
 };
 use hash_reporting::diagnostic::{DiagnosticCellStore, Diagnostics};
-use hash_source::SourceId;
+use hash_source::{entry_point::EntryPointState, SourceId};
 use hash_tir::{
     fmt::PrepareForFormatting,
     new::environment::{
@@ -97,6 +106,9 @@ pub struct TypecheckingCtx<'tc> {
     /// information about the source.
     pub workspace: &'tc Workspace,
 
+    /// The settings of the compiler.
+    pub settings: &'tc CompilerSettings,
+
     /// The typechecking storage. This is used to store the typechecked
     /// items.
     pub ty_storage: &'tc mut TyStorage,
@@ -114,7 +126,7 @@ impl<Ctx: TypecheckingCtxQuery> CompilerStage<Ctx> for Typechecker {
     }
 
     fn run(&mut self, entry_point: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
-        let TypecheckingCtx { workspace, ty_storage } = ctx.data();
+        let TypecheckingCtx { workspace, ty_storage, settings } = ctx.data();
 
         // Clear the diagnostics store of any previous errors and warnings. This needs
         // to be done for both the `interactive` pipeline and the `module`
@@ -129,7 +141,7 @@ impl<Ctx: TypecheckingCtxQuery> CompilerStage<Ctx> for Typechecker {
             ty_storage.local = LocalStorage::new(&ty_storage.global, entry_point);
         }
 
-        let TyStorage { local, global } = &ty_storage;
+        let TyStorage { local, global, ref mut entry_point_state } = ty_storage;
 
         let current_source_info = CurrentSourceInfo { source_id: entry_point };
 
@@ -143,6 +155,7 @@ impl<Ctx: TypecheckingCtxQuery> CompilerStage<Ctx> for Typechecker {
 
         let primitives = OnceCell::new();
         let intrinsics = OnceCell::new();
+        let ep_state = RefCell::new(EntryPointState::new());
 
         // Instantiate a visitor with the source and visit the source, using the
         // previous local storage.
@@ -151,9 +164,11 @@ impl<Ctx: TypecheckingCtxQuery> CompilerStage<Ctx> for Typechecker {
             local_storage: local,
             checked_sources: &self.checked_sources,
             exhaustiveness_storage: &self.exhaustiveness_storage,
-            source_map: &workspace.source_map,
             diagnostics_store: &self.diagnostics_store,
             cache: &self.cache,
+            settings,
+            workspace,
+            entry_point_state: &ep_state,
             _new: TcEnv::new(
                 &env,
                 &self._new_diagnostic,
@@ -192,6 +207,7 @@ impl<Ctx: TypecheckingCtxQuery> CompilerStage<Ctx> for Typechecker {
                 }
                 Ok(_) => {}
             }
+
             // If there are diagnostics that were generated or the result itself returned
             // an error, then we should return those errors, otherwise print the inferred
             // term.
@@ -201,6 +217,10 @@ impl<Ctx: TypecheckingCtxQuery> CompilerStage<Ctx> for Typechecker {
                     |warning| TcWarningWithStorage::new(warning, storage).into(),
                 ));
             }
+
+            // @@Hack: we now take the entry_point state from the typechecker, and then
+            // set our own entry as the new entry point state.
+            *entry_point_state = ep_state.into_inner();
         }
 
         Ok(())

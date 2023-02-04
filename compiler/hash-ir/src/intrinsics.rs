@@ -54,11 +54,16 @@ impl Intrinsics {
     pub fn new(tys: &TyStore, instances: &InstanceStore) -> Self {
         let mut intrinsics = [None; std::mem::variant_count::<Intrinsic>()];
 
+        // @@Temp: the intrinsics should be tracked using DefIds in order
+        // so that we can properly deduce the source-id of the defined place.
+        // For now, we just don't set a source_id for these.
+
         macro_rules! define_intrinsic {
             ($name:literal, fn() -> $ret:expr) => (
                 let params = tys.tls.create_empty();
                 let instance = instances.create(Instance::new(
                     $name.into(),
+                    None,
                     params,
                     $ret,
                 ));
@@ -74,6 +79,7 @@ impl Intrinsics {
                 let instance = instances.create(
                     Instance::new(
                         $name.into(),
+                        None,
                         params,
                         $ret,
                     )

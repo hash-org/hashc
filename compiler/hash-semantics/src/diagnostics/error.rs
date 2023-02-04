@@ -315,6 +315,28 @@ pub enum TcError {
         /// The location of where the modification was being made.
         site: LocationTarget,
     },
+
+    /// When multiple entry points are specified in the module.
+    MultipleEntryPoints {
+        /// The location of the current entry point.
+        site: LocationTarget,
+
+        /// The location of the duplicate entry point.
+        duplicate_site: LocationTarget,
+    },
+
+    /// When the function signature for the entry point does not
+    /// conform to the expected type i.e. `main() -> ()`.
+    InvalidEntryPointSignature {
+        /// The location of the entry point.
+        site: LocationTarget,
+
+        /// The expected type of the entry point.
+        expected_ty: TermId,
+
+        /// The actual type of the entry point.
+        given_ty: TermId,
+    },
 }
 
 /// A [TcError] with attached typechecker storage.
@@ -1553,6 +1575,41 @@ impl<'tc> From<TcErrorWithStorage<'tc>> for Reports {
                         location,
                         "cannot index into this type, type must be of shape `[T]`",
                     );
+                }
+            }
+            TcError::MultipleEntryPoints { site, duplicate_site } => {
+                builder
+                    .code(HashErrorCode::MultipleEntryPoints)
+                    .title("multiple entry points declared");
+
+                if let Some(location) = ctx.location_store().get_location(duplicate_site) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "cannot declare another entry point",
+                    )));
+                }
+
+                // @@Todo: mark this in a non-error colour since this is only additional
+                // information.
+                if let Some(location) = ctx.location_store().get_location(site) {
+                    builder.add_labelled_span(location, "the entry point is already declared here");
+                }
+            }
+            TcError::InvalidEntryPointSignature { site, given_ty, expected_ty } => {
+                builder
+                    .code(HashErrorCode::InvalidEntryPointSignature)
+                    .title("invalid entry point signature");
+
+                if let Some(location) = ctx.location_store().get_location(site) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        format!(
+                            // @@Todo support multilines within the codeblocks notes
+                            "expected entry point to have signature `{}`, however it has signature `{}`",
+                            expected_ty.for_formatting(ctx.global_storage()),
+                            given_ty.for_formatting(ctx.global_storage()),
+                        ),
+                    )));
                 }
             }
         };

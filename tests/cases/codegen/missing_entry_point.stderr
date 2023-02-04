@@ -1,0 +1,3 @@
+error: no entry point specified
+ = note: when building an executable, an entry point must be specified in the source.
+         This can be done by using the `main` keyword, or by using the `#entry_point` directive.

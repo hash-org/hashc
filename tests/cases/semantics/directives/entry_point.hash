@@ -1,0 +1,12 @@
+// stage=semantic, run=fail
+
+
+// ~ERROR: directive 'entry_point' expects a declaration.
+foo := {
+    #entry_point 1;
+
+    // ~ERROR: directive 'entry_point' must be in a root scope.
+    #entry_point mux := () => {
+        
+    };
+};

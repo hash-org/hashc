@@ -30,6 +30,17 @@ pub trait TypeBuilderMethods<'b>: Backend<'b> {
     /// Create a `isize` type.
     fn type_isize(&self) -> Self::Type;
 
+    /// Create a C `int` type, this will depend on the
+    /// compilation target.
+    fn type_int(&self) -> Self::Type {
+        match &self.settings().codegen_settings.target_info.target().c_int_width {
+            16 => self.type_i16(),
+            32 => self.type_i32(),
+            64 => self.type_i64(),
+            _ => unreachable!("unsupported integer width"),
+        }
+    }
+
     /// Create a integer type from the specified [abi::Integer].
     fn type_from_integer(&self, int: Integer) -> Self::Type {
         match int {

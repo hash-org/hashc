@@ -10,7 +10,7 @@ use hash_pipeline::{
 };
 
 /// The [BackendCtx] is the context that is needed for any
-/// [Backend] to generate code for the target backend.
+/// [CompilerBackend] to generate code for the target backend.
 pub struct BackendCtx<'b> {
     /// Reference to the current compiler workspace.
     pub workspace: &'b mut Workspace,
@@ -39,7 +39,7 @@ pub struct BackendCtx<'b> {
 /// The [Backend] trait specifies the required interface that needs
 /// to be implemented by a backend in order to interface with the
 /// pipeline.
-pub trait Backend<'b> {
+pub trait CompilerBackend<'b> {
     /// The [Backend::run] method is called by the pipeline to
     /// generate code for the specified source file. This method
     /// may return a potential error which implies that something

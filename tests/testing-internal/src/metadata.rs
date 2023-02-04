@@ -314,7 +314,8 @@ pub fn parse_test_case_metadata(path: &PathBuf) -> Result<ParsedMetadata, io::Er
                         "parse" => CompilerStageKind::Parse,
                         "semantic" => CompilerStageKind::SemanticPass,
                         "typecheck" => CompilerStageKind::Typecheck,
-                        "ir" => CompilerStageKind::IrGen,
+                        "ir" => CompilerStageKind::Lower,
+                        "codegen" => CompilerStageKind::CodeGen,
                         "full" => CompilerStageKind::Full,
                         // We always default to `full` here
                         _ => {

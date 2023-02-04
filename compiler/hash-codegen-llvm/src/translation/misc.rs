@@ -1,11 +1,14 @@
 //! Implements various miscellaneous methods for the LLVM backend.
 
 use hash_codegen::{
+    abi::FnAbi,
     lower::abi::compute_fn_abi_from_instance,
+    symbols::mangle::compute_symbol_name,
     traits::{misc::MiscBuilderMethods, ty::TypeBuilderMethods},
 };
 use hash_ir::ty::InstanceId;
 use inkwell::{
+    module::Linkage,
     values::{AnyValue, FunctionValue, UnnamedAddress},
     GlobalVisibility,
 };
@@ -25,13 +28,13 @@ impl<'b, 'm> CodeGenCtx<'b, 'm> {
             return *fn_val;
         }
 
-        let name = self.ir_ctx.instances().name_of(instance);
+        let name = compute_symbol_name(self.ir_ctx, instance);
 
         // @@ErrorHandling: deal with error here...
         let fn_abi = compute_fn_abi_from_instance(self, instance).unwrap();
 
         // See if this item has already been declared in the module
-        let func = if let Some(func) = self.module.get_function(name.into()) {
+        let func = if let Some(func) = self.module.get_function(name.as_str()) {
             // Create a function pointer with the new signature...
             let ptr = fn_abi.ptr_to_llvm_ty(self);
 
@@ -46,7 +49,7 @@ impl<'b, 'm> CodeGenCtx<'b, 'm> {
                 func
             }
         } else {
-            self.declare_hash_fn(name.into(), &fn_abi)
+            self.declare_hash_fn(name.as_str(), &fn_abi)
         };
 
         // We insert the function into the cache so that we can
@@ -81,7 +84,24 @@ impl<'b, 'm> MiscBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
                 GlobalVisibility::Default
             };
 
-            Some(self.declare_fn(entry_name, fn_ty, abi.into(), UnnamedAddress::Global, visibility))
+            let func =
+                self.declare_fn(entry_name, fn_ty, abi.into(), UnnamedAddress::Global, visibility);
+            func.set_linkage(Linkage::External);
+
+            Some(func)
         }
+    }
+
+    /// This function is used to pre-define the function before the LLVM
+    /// IR is emitted for it. This function is only a wrapper for
+    /// `declare_hash_fn`, however, in the future, it will accept custom
+    /// linkage and visibility types in order to adjust the definition from
+    /// a default one.
+    fn predefine_fn(&self, instance: InstanceId, symbol_name: &str, fn_abi: &FnAbi) {
+        let decl = self.declare_hash_fn(symbol_name, fn_abi);
+
+        // We insert the function into the cache so that we can
+        // reference it later on...
+        self.instances.borrow_mut().insert(instance, decl);
     }
 }

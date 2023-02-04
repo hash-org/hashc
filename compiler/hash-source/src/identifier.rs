@@ -218,6 +218,10 @@ core_idents! {
     trt_sub_eq: "sub_eq",
     trt_sub: "sub",
     Type: "Type",
+
+    // The `main` function entry point.
+    main: "main",
+
     u128: "u128",
     u16: "u16",
     u32: "u32",
@@ -235,7 +239,7 @@ core_idents! {
     dump_ir: "dump_ir",
     layout_of: "layout_of",
     intrinsics: "intrinsics",
-
+    entry_point: "entry_point",
 
     // Intrinsic function item names
     sqrt_f32: "sqrtf32",

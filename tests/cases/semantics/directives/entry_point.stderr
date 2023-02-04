@@ -1,0 +1,6 @@
+error: the `entry_point` directive expects a `declaration` as an argument
+ --> $DIR/entry_point.hash:6:18
+5 |   foo := {
+6 |       #entry_point 1;
+  |                    ^ a `literal` cannot be given to the `entry_point` directive
+7 |   

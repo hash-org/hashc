@@ -9,19 +9,29 @@
 
 use context::CodeGenCtx;
 use hash_codegen::{
-    backend::{Backend, BackendCtx},
+    backend::{BackendCtx, CompilerBackend},
     layout::LayoutCtx,
-    lower::codegen_ir_body,
+    lower::{abi::compute_fn_abi_from_instance, codegen_ir_body},
+    symbols::mangle::compute_symbol_name,
+    traits::{
+        builder::BlockBuilderMethods, constants::ConstValueBuilderMethods,
+        misc::MiscBuilderMethods, ty::TypeBuilderMethods,
+    },
 };
 use hash_ir::{ir::BodySource, ty::IrTy, IrStorage};
-use hash_pipeline::{settings::CompilerSettings, workspace::Workspace, CompilerResult};
+use hash_pipeline::{
+    interface::CompilerOutputStream, settings::CompilerSettings, workspace::Workspace,
+    CompilerResult,
+};
 use hash_reporting::reporter::Reporter;
 use hash_source::ModuleId;
 use hash_target::TargetArch;
+use hash_utils::stream_writeln;
 use inkwell as llvm;
 use llvm::{
     passes::{PassManager, PassManagerBuilder},
     targets::{FileType, TargetTriple},
+    values::FunctionValue,
 };
 use misc::{CodeModelWrapper, OptimisationLevelWrapper, RelocationModeWrapper};
 use translation::Builder;
@@ -35,6 +45,10 @@ pub mod translation;
 pub use llvm::{context::Context as LLVMContext, module::Module as LLVMModule};
 
 pub struct LLVMBackend<'b> {
+    /// The stream to use for printing out the results
+    /// of the lowering operation.
+    stdout: CompilerOutputStream,
+
     /// The current compiler workspace, which is where the results of the
     /// linking and bytecode emission will be stored.
     workspace: &'b mut Workspace,
@@ -59,7 +73,8 @@ pub struct LLVMBackend<'b> {
 impl<'b> LLVMBackend<'b> {
     /// Create a new LLVM Backend from the given [BackendCtx].
     pub fn new(ctx: BackendCtx<'b>) -> Self {
-        let BackendCtx { workspace, ir_storage, layout_storage: layouts, settings, .. } = ctx;
+        let BackendCtx { workspace, ir_storage, layout_storage: layouts, settings, stdout, .. } =
+            ctx;
 
         // We have to create a target machine from the provided target
         // data.
@@ -96,7 +111,7 @@ impl<'b> LLVMBackend<'b> {
             )
             .unwrap();
 
-        Self { workspace, target_machine, ir_storage, layouts, settings }
+        Self { workspace, target_machine, ir_storage, layouts, settings, stdout }
     }
 
     fn optimise(&self, module: &LLVMModule) -> CompilerResult<()> {
@@ -141,9 +156,53 @@ impl<'b> LLVMBackend<'b> {
         self.target_machine.write_to_file(module, FileType::Object, &path).unwrap();
         Ok(())
     }
+
+    /// Function that defines a function wrapper for the "main" entry
+    /// point of the program, this generates some boiler plate code to
+    /// deal with the commandline arguments being passed in, and the
+    /// sets some additional attributes on the function. Then, a call
+    /// is generated tot the actual entry point of the program.
+    fn define_entry_point<'m>(
+        &self,
+        ctx: &CodeGenCtx<'b, 'm>,
+    ) -> CompilerResult<FunctionValue<'m>> {
+        // If the target requires that the arguments are passed in
+        // through the arguments of the function, i.e. `int main(int argc, char** argv)`
+        // then we have to define it as such, otherwise, we define it as
+        // `int main()`.
+        let fn_ty = if self.settings.codegen_settings.target_info.target().entry_point_requires_args
+        {
+            ctx.type_function(&[ctx.type_int(), ctx.type_ptr_to(ctx.type_i8p())], ctx.type_int())
+        } else {
+            ctx.type_function(&[], ctx.type_int())
+        };
+
+        // Declare the main function
+        let Some(main_fn) = ctx.declare_entry_point(fn_ty) else {
+            unreachable!("main function already declared")
+        };
+
+        // @@Todo: we can set additional attributes to this, i.e. cpu_attrs
+
+        let block = Builder::append_block(ctx, main_fn, "init");
+        let mut builder = Builder::build(ctx, block);
+
+        // Get the instance of the entry point function so that
+        // we can reference it here.
+        let entry_point = self.ir_storage.entry_point.def().unwrap();
+        let user_main = ctx.get_fn(entry_point);
+
+        builder.call(user_main, &[], None);
+
+        // @@Todo: the wrapper should return an exit code value?
+        // let cast = builder.int_cast(result, ctx.type_int(), false);
+        builder.return_value(builder.const_i32(0));
+
+        Ok(main_fn)
+    }
 }
 
-impl<'b> Backend<'b> for LLVMBackend<'b> {
+impl<'b> CompilerBackend<'b> for LLVMBackend<'b> {
     /// This is the entry point for the LLVM backend, this is where each module
     /// is translated into an LLVM IR module and is then emitted as a bytecode
     /// module to the disk.
@@ -152,11 +211,37 @@ impl<'b> Backend<'b> for LLVMBackend<'b> {
         // object, or if we emit a single module object for the entire program.
         // Currently, we are emitting a single module for the entire program
         // that is being compiled in in the workspace.
-        let entry_point = self.workspace.source_map.entry_point();
+        let entry_point = self.workspace.source_map.entry_point().unwrap();
 
         let context = LLVMContext::create();
-        let module = context.create_module(self.workspace.name.as_str());
+
+        let module_name = self.workspace.name.as_str();
+        let module = context.create_module(module_name);
         let ctx = CodeGenCtx::new(&module, self.settings, &self.ir_storage.ctx, self.layouts);
+
+        // We perform an initial pass where we pre-define everything so that
+        // we can get place all of the symbols in the symbol table first.
+        for body in self.ir_storage.bodies.iter() {
+            if matches!(body.info().source(), BodySource::Const) {
+                continue;
+            }
+
+            // Get the instance of the function.
+            let instance = self.ir_storage.ctx.map_ty(body.info().ty(), |ty| {
+                let IrTy::Fn { instance, .. } = ty else {
+                    panic!("ir-body has non-function type")
+                };
+                *instance
+            });
+
+            // So, we create the mangled symbol name, and then call `predefine()` which
+            // should create the function ABI from the instance, with the correct
+            // attributes and linkage, etc.
+            let symbol_name = compute_symbol_name(&self.ir_storage.ctx, instance);
+
+            let abi = compute_fn_abi_from_instance(&ctx, instance).unwrap();
+            ctx.predefine_fn(instance, symbol_name.as_str(), &abi);
+        }
 
         // For each body perform a lowering procedure via the common interface...
         for body in self.ir_storage.bodies.iter() {
@@ -167,7 +252,6 @@ impl<'b> Backend<'b> for LLVMBackend<'b> {
             }
 
             // Get the instance of the function.
-
             let instance = self.ir_storage.ctx.map_ty(body.info().ty(), |ty| {
                 let IrTy::Fn { instance, .. } = ty else {
                     panic!("ir-body has non-function type")
@@ -177,6 +261,22 @@ impl<'b> Backend<'b> for LLVMBackend<'b> {
 
             // @@ErrorHandling: we should be able to handle the error here
             codegen_ir_body::<Builder>(instance, body, &ctx).unwrap();
+        }
+
+        // Now we define the entry point of the function, if there is one
+        if self.ir_storage.entry_point.has() {
+            self.define_entry_point(&ctx)?;
+        }
+
+        // If the settings specify that the bytecode should be emitted, then
+        // we write the emitted bytecode to standard output.
+        if self.settings.codegen_settings.dump {
+            let stdout = &mut self.stdout;
+            stream_writeln!(
+                stdout,
+                "LLVM IR dump for module `{module_name}`:\n{}",
+                module.print_to_string().to_string()
+            );
         }
 
         self.optimise(&module)?;

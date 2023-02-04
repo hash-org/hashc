@@ -19,6 +19,7 @@ pub mod write;
 
 use std::cell::{Ref, RefCell};
 
+use hash_source::entry_point::EntryPointState;
 use hash_tir::{nominals::NominalDefId, terms::TermId};
 use hash_utils::store::{FxHashMap, SequenceStore, Store};
 use intrinsics::Intrinsics;
@@ -30,7 +31,6 @@ use ty::{
 
 /// Storage that is used by the lowering stage. This stores all of the
 /// generated [Body]s and all of the accompanying data for the bodies.
-#[derive(Default)]
 pub struct IrStorage {
     /// The type storage for the IR.
     pub bodies: Vec<Body>,
@@ -41,11 +41,20 @@ pub struct IrStorage {
     /// on a particular [Body] and may perform transformations on the
     /// data.
     pub ctx: IrCtx,
+
+    /// Holds information about the program entry point.
+    pub entry_point: EntryPointState<InstanceId>,
+}
+
+impl Default for IrStorage {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl IrStorage {
     pub fn new() -> Self {
-        Self { bodies: Vec::new(), ctx: IrCtx::new() }
+        Self { bodies: Vec::new(), ctx: IrCtx::new(), entry_point: EntryPointState::new() }
     }
 
     /// Extend the the [IrStorage] with the generated bodies.

@@ -40,7 +40,7 @@ pub fn parse_settings_from_args() -> Result<CompilerSettings, PipelineError> {
                     settings.stage = CompilerStageKind::Parse;
                 }
                 "ir-gen" => {
-                    settings.stage = CompilerStageKind::IrGen;
+                    settings.stage = CompilerStageKind::Lower;
                 }
                 _ => {
                     return Err(PipelineError::UnknownStage(arg));
@@ -151,6 +151,10 @@ fn parse_arg_configuration(
             let value = value.ok_or_else(expected_value)?;
             let opt_level = OptimisationLevel::from_str(value.as_str())?;
             settings.optimisation_level = opt_level;
+
+            // @@Future: we should have a more defined way of what "optimisation"
+            // levels change, and how they change them...
+            settings.lowering_settings.checked_operations = false;
         }
         "dump" => {
             let value = value.ok_or_else(expected_value)?;
@@ -161,6 +165,9 @@ fn parse_arg_configuration(
                 }
                 "ir" => {
                     settings.lowering_settings.dump = true;
+                }
+                "llvm-ir" => {
+                    settings.codegen_settings.dump = true;
                 }
                 _ => {
                     return Err(PipelineError::InvalidValue(key, value));

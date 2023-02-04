@@ -65,10 +65,23 @@ impl fmt::Display for ReportKind {
 pub enum ReportNoteKind {
     /// A help message or a suggestion.
     Help,
+
     /// Information note
     Info,
+
     /// Additional information about the diagnostic.
     Note,
+}
+
+impl ReportNoteKind {
+    /// Get the string representation of the label.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ReportNoteKind::Note => "note",
+            ReportNoteKind::Info => "info",
+            ReportNoteKind::Help => "help",
+        }
+    }
 }
 
 impl fmt::Display for ReportNoteKind {

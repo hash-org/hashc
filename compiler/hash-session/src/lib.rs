@@ -24,7 +24,7 @@ use hash_pipeline::{
 };
 use hash_reporting::report::Report;
 use hash_semantics::{Typechecker, TypecheckingCtx, TypecheckingCtxQuery};
-use hash_source::{SourceId, SourceMap};
+use hash_source::{entry_point::EntryPointState, SourceId, SourceMap};
 use hash_tir::storage::{GlobalStorage, LocalStorage, TyStorage};
 use hash_untyped_semantics::{SemanticAnalysis, SemanticAnalysisCtx, SemanticAnalysisCtxQuery};
 
@@ -103,7 +103,7 @@ impl CompilerSession {
             diagnostics: Vec::new(),
             pool,
             settings,
-            ty_storage: TyStorage { global, local },
+            ty_storage: TyStorage { global, local, entry_point_state: EntryPointState::new() },
             ir_storage: IrStorage::new(),
             layout_storage: LayoutCtx::new(layout_info),
         }
@@ -189,7 +189,11 @@ impl AstExpansionCtxQuery for CompilerSession {
 
 impl TypecheckingCtxQuery for CompilerSession {
     fn data(&mut self) -> TypecheckingCtx {
-        TypecheckingCtx { workspace: &mut self.workspace, ty_storage: &mut self.ty_storage }
+        TypecheckingCtx {
+            workspace: &mut self.workspace,
+            ty_storage: &mut self.ty_storage,
+            settings: &self.settings,
+        }
     }
 }
 

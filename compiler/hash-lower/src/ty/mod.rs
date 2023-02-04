@@ -11,6 +11,7 @@ use hash_source::{
 };
 use hash_tir::{
     fmt::{PrepareForFormatting, TcFormatOpts},
+    location::LocationTarget,
     nominals::{EnumDef, EnumVariantValue, NominalDef, NominalDefId, StructFields},
     storage::GlobalStorage,
     terms::{
@@ -170,10 +171,15 @@ impl<'ir> TyLoweringCtx<'ir> {
 
                     let params = self.lcx.tls().create_from_iter(params);
 
+                    // We lookup the source of the function by looking at the associated
+                    // location of the term and then taking the source-id from it.
+                    let source = self.tcx.location_store.get_source(LocationTarget::from(term_id));
+
                     // @@Temporary: `Instance` is not being properly initialised. This is until the
                     // new typechecking introduces `FnDefId`s.
                     let instance = self.lcx.instances().create(Instance::new(
                         name.unwrap_or(IDENTS.underscore),
+                        source,
                         params,
                         return_ty,
                     ));

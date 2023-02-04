@@ -5,7 +5,10 @@
 
 use std::{cell::RefCell, collections::HashMap, hash::Hash, rc::Rc};
 
-use hash_source::location::{SourceLocation, Span};
+use hash_source::{
+    location::{SourceLocation, Span},
+    SourceId,
+};
 use hash_utils::store::{DefaultPartialStore, PartialCloneStore, PartialStore};
 
 use crate::{
@@ -240,6 +243,11 @@ impl LocationStore {
     /// Get the associated [Span] with from the specified [LocationTarget]
     pub fn get_span(&self, target: impl Into<LocationTarget>) -> Option<Span> {
         self.get_location(target).map(|loc| loc.span)
+    }
+
+    /// Get the associated [SourceId] with from the specified [LocationTarget]
+    pub fn get_source(&self, target: impl Into<LocationTarget>) -> Option<SourceId> {
+        self.get_location(target).map(|loc| loc.id)
     }
 
     /// Copy a set of locations from the first [IndexedLocationTarget] to the

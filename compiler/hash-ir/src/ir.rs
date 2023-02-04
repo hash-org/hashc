@@ -1204,6 +1204,7 @@ impl fmt::Display for BodySource {
     }
 }
 
+/// All of the [LocalDecl]s that are used within a [Body].
 pub type LocalDecls = IndexVec<Local, LocalDecl>;
 
 /// Represents a lowered IR body, which stores the created declarations,

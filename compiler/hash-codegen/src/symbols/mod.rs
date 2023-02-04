@@ -1,6 +1,8 @@
 //! Common utilities to aid code generation backends when creating symbol
 //! names for items that are generated/emitted by the compiler.
 
+pub mod mangle;
+
 /// The maximum base that can be used for encoding numbers into strings.
 pub const MAX_BASE: usize = 64;
 

@@ -1,0 +1,22 @@
+error[0007]: multiple entry points declared
+  --> $DIR/duplicate_entry_point.hash:7:9
+5  |    }
+6  |    
+7  |    main := () => {
+   |  __________-
+8  | |  
+9  | |  }
+   | |__- cannot declare another entry point
+10 |    
+11 |    #entry_point my_main := () => {
+
+  --> $DIR/duplicate_entry_point.hash:3:1
+1  |    // stage=full, run=fail
+2  |    
+3  |    main := () => {
+   |  __-
+4  | |  
+5  | |  }
+   | |__- the entry point is already declared here
+6  |    
+7  |    main := () => {

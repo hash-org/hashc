@@ -346,6 +346,9 @@ pub struct CodeGenSettings {
     /// write the executable to. If the path is [`None`], the executable
     /// path will be derived from the workspace.
     pub output_path: Option<PathBuf>,
+
+    /// Emit the generated IR to standard output.
+    pub dump: bool,
 }
 
 /// All of the current possible code generation backends that
@@ -367,17 +370,41 @@ impl Default for CodeGenBackend {
 
 /// Enum representing what mode the compiler should run in. Specifically, if the
 /// compiler should only run up to a particular stage within the pipeline.
-///
-/// @@Todo: consider removing "full" since it is implied by `codegen`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
 pub enum CompilerStageKind {
+    /// Parse the source code into an AST.
     Parse,
+
+    /// Transform the AST into a desugared AST, whilst also
+    /// expanding macros, and resolving all imports.
     DeSugar,
+
+    /// Perform semantic analysis on the AST, this includes
+    /// only untyped semantic checks that must occur before
+    /// the typechecker runs.
     SemanticPass,
+
+    /// The general semantic pass, resolve types, normalise everything
+    /// and prepare for IR generation.
     Typecheck,
+
+    /// Convert the produced TIR from the typechecking stage into
+    /// Hash IR.
     Lower,
-    IrGen,
+
+    /// Emit the generated bit-code for each module, this does
+    /// not complete the entire compilation process, since the
+    /// object files are not yet linked. Therefore, it does
+    /// not produce an executable. This is relevant for whether
+    /// or not a program needs an entry point defined in order
+    /// to successfully compile.
     CodeGen,
+
+    /// If the compiler is in interactive mode, this will run
+    /// the full pipeline all the way to the virtual machine, if
+    /// however there is an entry point defined, this means that
+    /// this will invoke the compiler through the full pipeline,
+    /// whilst also potentially creating an executable.
     #[default]
     Full,
 }
@@ -390,7 +417,6 @@ impl Display for CompilerStageKind {
             CompilerStageKind::SemanticPass => write!(f, "semantic"),
             CompilerStageKind::Typecheck => write!(f, "typecheck"),
             CompilerStageKind::Lower => write!(f, "lowering"),
-            CompilerStageKind::IrGen => write!(f, "ir"),
             CompilerStageKind::CodeGen => write!(f, "codegen"),
             CompilerStageKind::Full => write!(f, "total"),
         }

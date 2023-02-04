@@ -11,6 +11,7 @@ use hash_ast::ast;
 use hash_source::{
     constant::{FloatTy, IntTy, SIntTy, UIntTy},
     identifier::Identifier,
+    SourceId,
 };
 use hash_target::{
     abi::{self, Integer, ScalarKind},
@@ -92,6 +93,9 @@ new_store_key!(pub InstanceId);
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct Instance {
     /// The fully specified name of the function instance.
+    ///
+    /// @@Future: this should really be a path in the the module
+    /// that it was defined.
     name: Identifier,
 
     /// A reference to the parameter types of this function
@@ -101,21 +105,40 @@ pub struct Instance {
     /// The function return type.
     pub ret_ty: IrTyId,
 
+    /// The source of this function instance. This is useful
+    /// for when symbol names are mangled, and we need to
+    /// include a reference to where it was defined.
+    ///
+    /// @@Future: Ideally, this information should deduce a namespaced
+    /// path to the module location instead of just using the module
+    /// id as the disambiguator.
+    pub source: Option<SourceId>,
+
     /// If the function instance originates from a generic function.
     generic_origin: bool,
 }
 
 impl Instance {
     /// Create a new instance.
-    pub fn new(name: Identifier, params: IrTyListId, ret_ty: IrTyId) -> Self {
+    pub fn new(
+        name: Identifier,
+        source: Option<SourceId>,
+        params: IrTyListId,
+        ret_ty: IrTyId,
+    ) -> Self {
         // @@Todo: deal with generic functions being properly instantiated
         // here.
-        Self { name, params, ret_ty, generic_origin: false }
+        Self { name, params, source, ret_ty, generic_origin: false }
     }
 
     /// Get the name from the instance.
     pub fn name(&self) -> Identifier {
         self.name
+    }
+
+    /// Check if the instance is of a generic origin.
+    pub fn is_generic_origin(&self) -> bool {
+        self.generic_origin
     }
 }
 
@@ -609,14 +632,10 @@ impl AdtFlags {
 ///     - add `pack` configuration
 ///     - add layout randomisation configuration
 ///     - add `C` layout configuration
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct AdtRepresentation {}
 
 impl AdtRepresentation {
-    fn default() -> AdtRepresentation {
-        AdtRepresentation {}
-    }
-
     /// Check if the representation of the ADT is specified to
     /// be in C-style layout.
     pub fn is_c_like(&self) -> bool {
