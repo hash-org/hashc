@@ -17,7 +17,6 @@ use hash_ast::{
     visitor::AstVisitorMutSelf,
 };
 use hash_ir::{
-    ir::BodyIndex,
     write::{graphviz, pretty},
     IrStorage,
 };
@@ -118,11 +117,9 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
 
             // We need to add all of the bodies to the global bodies
             // store.
-            if let Some(entry_point) = discoverer.entry_point_index() {
+            if let Some(instance) = discoverer.entry_point_instance() {
                 let kind = ty_storage.entry_point_state.kind().unwrap();
-                ir_storage
-                    .entry_point
-                    .set(BodyIndex::from(entry_point + lowered_bodies.len()), kind);
+                ir_storage.entry_point.set(instance, kind);
             }
 
             let (bodies, layouts) = discoverer.into_components();
@@ -224,22 +221,10 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrOptimiser {
         // we need to check if any of the bodies have been marked for `dumping`
         // and emit the IR that they have generated.
         if settings.dump_mode == IrDumpMode::Graph {
-            graphviz::dump_ir_bodies(
-                bcx,
-                ir_storage.bodies.as_raw_slice(),
-                settings.dump,
-                &mut stdout,
-            )
-            .unwrap();
+            graphviz::dump_ir_bodies(bcx, &ir_storage.bodies, settings.dump, &mut stdout).unwrap();
         } else {
-            pretty::dump_ir_bodies(
-                bcx,
-                source_map,
-                ir_storage.bodies.as_raw_slice(),
-                settings.dump,
-                &mut stdout,
-            )
-            .unwrap();
+            pretty::dump_ir_bodies(bcx, source_map, &ir_storage.bodies, settings.dump, &mut stdout)
+                .unwrap();
         }
     }
 }

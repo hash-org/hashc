@@ -1204,17 +1204,8 @@ impl fmt::Display for BodySource {
     }
 }
 
+/// All of the [LocalDecl]s that are used within a [Body].
 pub type LocalDecls = IndexVec<Local, LocalDecl>;
-
-index_vec::define_index_type! {
-    /// Index for [BasicBlockData] stores within generated [Body]s.
-    pub struct BodyIndex = u32;
-
-    MAX_INDEX = u32::max_value() as usize;
-    DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
-
-    DEBUG_FORMAT = "body#{}";
-}
 
 /// Represents a lowered IR body, which stores the created declarations,
 /// blocks and various other metadata about the lowered body.

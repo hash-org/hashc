@@ -41,10 +41,8 @@ impl<Ctx: BackendCtxQuery> CompilerStage<Ctx> for CodeGenPass {
 
         // If this workspace produces an executable, then we need to make sure
         // the entry point has been specified.
-        if workspace.yields_executable(settings) {
-            if !ir_storage.entry_point.has() {
-                return Err(BackendError::MissingEntryPoint.into());
-            }
+        if workspace.yields_executable(settings) && !ir_storage.entry_point.has() {
+            return Err(BackendError::MissingEntryPoint.into());
         }
 
         // Create a new instance of a backend, and then run it...

@@ -316,7 +316,20 @@ impl<'l> LayoutComputer<'l> {
                     Ok(self.layouts().create(layout))
                 }
             }),
-            IrTy::Fn { .. } => Err(LayoutError::Unknown(ty_id)),
+
+            // @@Todo: this should be a function pointer...
+            IrTy::Fn { .. } => {
+                let layout = self
+                    .compute_layout_of_univariant(
+                        VariantIdx::new(0),
+                        None,
+                        &[],
+                        &AdtRepresentation::default(),
+                    )
+                    .ok_or(LayoutError::Overflow)?;
+
+                Ok(self.layouts().create(layout))
+            }
         })?;
 
         // We cache the layout of the type that was just created

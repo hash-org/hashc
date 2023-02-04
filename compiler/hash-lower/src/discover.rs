@@ -10,13 +10,18 @@ use hash_ast::{
     origin::BlockOrigin,
     visitor::{walk_mut_self, AstVisitorMutSelf},
 };
-use hash_ir::{ir::Body, IrCtx};
+use hash_ir::{
+    ir::Body,
+    ty::{InstanceId, IrTy},
+    IrCtx,
+};
 use hash_pipeline::settings::CompilerSettings;
 use hash_source::{
     identifier::{Identifier, IDENTS},
     SourceId, SourceMap,
 };
 use hash_tir::{scope::ScopeId, storage::TyStorage};
+use hash_utils::store::CloneStore;
 
 use crate::build::{BuildItem, Builder};
 
@@ -198,9 +203,17 @@ impl<'ir> LoweringVisitor<'ir> {
         }
     }
 
-    /// Get the entry point body index if one exists.
-    pub fn entry_point_index(&self) -> Option<usize> {
-        self.entry_point_index
+    /// Get the entry point body [InstanceId] if the entry point
+    /// was defined in this module.
+    pub fn entry_point_instance(&self) -> Option<InstanceId> {
+        let entry_point = self.entry_point_index?;
+
+        let ty = self.bodies[entry_point].info().ty();
+        let IrTy::Fn { instance, .. } = self.lcx.tys().get(ty) else {
+            panic!("entry point is not a function type")
+        };
+
+        Some(instance)
     }
 
     /// Function to handle a particular node that introduces a new scope. If the
@@ -260,7 +273,7 @@ impl<'ir> LoweringVisitor<'ir> {
             self.source_id,
             self.scope_stack.clone(),
             &self.tcx.global,
-            &mut self.lcx,
+            self.lcx,
             self.source_map,
             &self.dead_ends,
             self.settings,

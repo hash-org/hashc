@@ -151,6 +151,10 @@ fn parse_arg_configuration(
             let value = value.ok_or_else(expected_value)?;
             let opt_level = OptimisationLevel::from_str(value.as_str())?;
             settings.optimisation_level = opt_level;
+
+            // @@Future: we should have a more defined way of what "optimisation"
+            // levels change, and how they change them...
+            settings.lowering_settings.checked_operations = false;
         }
         "dump" => {
             let value = value.ok_or_else(expected_value)?;

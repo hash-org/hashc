@@ -49,9 +49,16 @@ pub struct Target {
     /// Represents what kind of code model the target is expecting.
     pub code_model: CodeModel,
 
+    /// The integer width of the target in bits.
+    pub c_int_width: u8,
+
     /// The default visibility for symbols in this target should be "hidden"
     /// rather than "default"
     pub default_hidden_visibility: bool,
+
+    /// If the entry point of the program requires that the program arguments
+    /// are passed in the form of `int main(int argc, char** argv)`.
+    pub entry_point_requires_args: bool,
 
     /// The ABI of the entry function, the default is
     /// the `C` ABI.
@@ -176,6 +183,7 @@ impl Default for Target {
 
         Self {
             name: env!("TARGET_TRIPLE").into(),
+            c_int_width: 32,
             cpu: "generic".into(),
             cpu_features: "".into(),
             relocation_mode: RelocationMode::PIC,
@@ -183,6 +191,7 @@ impl Default for Target {
             pointer_width,
             arch,
             entry_name: "main".into(),
+            entry_point_requires_args: true,
             entry_abi: Abi::C,
             default_hidden_visibility: false,
         }
