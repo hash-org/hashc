@@ -349,9 +349,9 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         match operator {
             ir::BinOp::Add => {
                 if is_float {
-                    builder.fsub(lhs_value, rhs_value)
+                    builder.fadd(lhs_value, rhs_value)
                 } else {
-                    builder.sub(lhs_value, rhs_value)
+                    builder.add(lhs_value, rhs_value)
                 }
             }
             ir::BinOp::Sub => {
