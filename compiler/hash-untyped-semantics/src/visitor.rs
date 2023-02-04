@@ -156,8 +156,6 @@ impl<'s> SemanticAnalyser<'s> {
                     },
                     subject,
                 );
-            } else {
-                self.maybe_emit_invalid_scope_err(directive, BlockOrigin::Root, subject);
             }
         } else if !directive.is(IDENTS.dump_ast) {
             // @@Future: use some kind of scope validation in order to verify that

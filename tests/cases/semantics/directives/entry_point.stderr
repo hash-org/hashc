@@ -4,14 +4,3 @@ error: the `entry_point` directive expects a `declaration` as an argument
 6 |       #entry_point 1;
   |                    ^ a `literal` cannot be given to the `entry_point` directive
 7 |   
-
-error: the `entry_point` directive is must be within a module block
-  --> $DIR/entry_point.hash:9:18
-7  |    
-8  |        // ~ERROR: directive 'entry_point' must be in a root scope.
-9  |        #entry_point mux := () => {
-   |  ___________________-
-10 | |          
-11 | |      };
-   | |______- `entry_point` cannot be used within body block
-12 |    };
