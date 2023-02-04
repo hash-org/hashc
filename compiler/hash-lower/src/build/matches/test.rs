@@ -213,7 +213,7 @@ impl<'tcx> Builder<'tcx> {
                     })
                 }
                 Pat::Lit(term) => {
-                    let ty = self.ty_of_pat(pair.pat);
+                    let ty = self.lower_term_as_id(*term);
                     let value = constify_lit_term(*term, self.tcx);
 
                     // If it is not an integral constant, we use an `Eq` test. This will
