@@ -10,7 +10,7 @@ use hash_utils::{
 };
 
 use super::{
-    args::PatArgsId,
+    args::{PatArgsId, PatOrCapture},
     control::{IfPat, OrPat},
     data::CtorPat,
     environment::env::{AccessToEnv, WithEnv},
@@ -67,7 +67,7 @@ new_store_key!(pub PatId);
 new_store!(pub PatStore<PatId, Pat>);
 
 new_sequence_store_key!(pub PatListId);
-pub type PatListStore = DefaultSequenceStore<PatListId, PatId>;
+pub type PatListStore = DefaultSequenceStore<PatListId, PatOrCapture>;
 
 impl fmt::Display for WithEnv<'_, Spread> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

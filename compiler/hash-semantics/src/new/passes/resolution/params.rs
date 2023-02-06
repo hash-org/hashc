@@ -6,7 +6,7 @@ use hash_tir::new::{
     args::{ArgsId, PatArgsId},
     environment::{context::ParamOrigin, env::AccessToEnv},
     fns::FnCallTerm,
-    params::{ParamId, ParamsId, SomeArgsId},
+    params::{ParamId, ParamsId, SomeParamsOrArgsId},
     pats::Spread,
     terms::{Term, TermId},
     utils::common::CommonUtils,
@@ -82,11 +82,11 @@ impl ResolvedArgs {
     }
 }
 
-impl From<ResolvedArgs> for SomeArgsId {
+impl From<ResolvedArgs> for SomeParamsOrArgsId {
     fn from(value: ResolvedArgs) -> Self {
         match value {
-            ResolvedArgs::Term(args) => SomeArgsId::Args(args),
-            ResolvedArgs::Pat(args, _) => SomeArgsId::PatArgs(args),
+            ResolvedArgs::Term(args) => SomeParamsOrArgsId::Args(args),
+            ResolvedArgs::Pat(args, _) => SomeParamsOrArgsId::PatArgs(args),
         }
     }
 }

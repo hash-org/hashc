@@ -6,7 +6,7 @@ use hash_intrinsics::utils::PrimitiveUtils;
 use hash_source::constant::{FloatTy, IntTy, SIntTy, UIntTy};
 use hash_tir::{
     new::{
-        args::{ArgsId, PatArgsId},
+        args::{ArgsId, PatArgsId, PatOrCapture},
         casting::CastTerm,
         control::{LoopControlTerm, LoopTerm, ReturnTerm},
         data::{
@@ -17,7 +17,7 @@ use hash_tir::{
         lits::{Lit, PrimTerm},
         mods::{ModDefId, ModMemberId, ModMemberValue},
         params::{Param, ParamData, ParamsId},
-        pats::{Pat, PatId},
+        pats::{Pat, PatId, PatListId},
         refs::{DerefTerm, RefTerm, RefTy},
         scopes::{BlockTerm, DeclTerm},
         symbols::Symbol,
@@ -64,7 +64,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             };
 
             // Add the parameter
-            params.push(ParamData { name: get_arg_name(arg), ty })
+            params.push(ParamData { name: get_arg_name(arg), ty, default: None })
         };
 
         match annotation_params {
@@ -91,6 +91,13 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         args: ArgsId,
         annotation_params: Option<ParamsId>,
     ) -> TcResult<(ArgsId, ParamsId)> {
+        match annotation_params {
+            Some(params) => {
+                self.param_ops().validate_and_reorder_args_against_params(args, params)?;
+            }
+            None => todo!(),
+        }
+
         Ok((
             args,
             self.stores().args().map(args, |args| {
@@ -116,8 +123,11 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 self.infer_some_args(
                     pat_args,
                     annotation_params,
-                    |pat_arg, param| {
-                        Ok(self.infer_pat(pat_arg.pat, param.map(|param| param.ty))?.1)
+                    |pat_arg, param| match pat_arg.pat {
+                        PatOrCapture::Pat(pat) => {
+                            Ok(self.infer_pat(pat, param.map(|param| param.ty))?.1)
+                        }
+                        PatOrCapture::Capture => Ok(self.new_ty_hole()),
                     },
                     |pat_arg| self.new_symbol_from_param_index(pat_arg.target),
                 )
@@ -400,7 +410,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
         match fn_def.body {
             FnBody::Defined(fn_body) => {
-                self.context().enter_scope(fn_def_id.into(), || {
+                self.context().enter_scope(fn_def_id.into(), || -> TcResult<_> {
                     // @@Todo: `return` statement type inference
                     let inferred_return_ty = self.infer_term(fn_body, None)?.1;
 
@@ -629,7 +639,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         cast_term: CastTerm,
         annotation_ty: Option<TyId>,
     ) -> TcResult<(CastTerm, TyId)> {
-        let inferred_term_ty = self.infer_term(cast_term.subject_term, None)?.1;
+        let inferred_term_ty = self.infer_term(cast_term.subject_term, annotation_ty)?.1;
         let Uni { sub, .. } =
             self.unification_ops().unify_tys(inferred_term_ty, cast_term.target_ty)?;
         let subbed_target = self.substitution_ops().apply_sub_to_ty(cast_term.target_ty, &sub);
@@ -740,6 +750,19 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         Ok(result)
     }
 
+    pub fn infer_pat_list(
+        &self,
+        pat_list_id: PatListId,
+        _annotation_ty: Option<&[TyId]>,
+    ) -> TcResult<TyId> {
+        self.stores().pat_list().map_fast(pat_list_id, |elements| {
+            self.infer_unified_list(elements, |pat| match pat {
+                PatOrCapture::Pat(pat) => Ok(self.infer_pat(pat, None)?.1),
+                PatOrCapture::Capture => Ok(self.new_ty_hole()),
+            })
+        })
+    }
+
     /// Infer the type of a pattern, and return it.
     pub fn infer_pat(&self, pat_id: PatId, annotation_ty: Option<TyId>) -> TcResult<(PatId, TyId)> {
         let pat = self.get_pat(pat_id);
@@ -761,10 +784,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             }
             Pat::List(list_term) => {
                 // @@Todo: checking annotations
-                let list_inner_type =
-                    self.stores().pat_list().map_fast(list_term.pats, |elements| {
-                        self.infer_unified_list(elements, |pat| Ok(self.infer_pat(pat, None)?.1))
-                    })?;
+                let list_inner_type = self.infer_pat_list(list_term.pats, None)?;
 
                 self.new_ty(DataTy {
                     data_def: self.primitives().list(),
@@ -787,13 +807,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 // @@todo: sub args
                 self.new_ty(DataTy { data_def, args: ctor_pat.data_args })
             }
-            Pat::Or(or_pat) => {
-                self.stores().pat_list().map_fast(or_pat.alternatives, |alternatives| {
-                    self.infer_unified_list(alternatives, |pat| {
-                        Ok(self.infer_pat(pat, annotation_ty)?.1)
-                    })
-                })?
-            }
+            Pat::Or(or_pat) => self.infer_pat_list(or_pat.alternatives, None)?,
             Pat::If(if_pat) => {
                 let _ = self.infer_term(
                     if_pat.condition,

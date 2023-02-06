@@ -31,7 +31,8 @@ impl<'env> ParamUtils<'env> {
         param_names: impl Iterator<Item = Symbol> + ExactSizeIterator,
     ) -> ParamsId {
         self.stores().params().create_from_iter_with(
-            param_names.map(|name| move |id| Param { id, name, ty: self.new_ty_hole() }),
+            param_names
+                .map(|name| move |id| Param { id, name, ty: self.new_ty_hole(), default: None }),
         )
     }
 
@@ -40,9 +41,9 @@ impl<'env> ParamUtils<'env> {
         &self,
         params: impl Iterator<Item = ParamData> + ExactSizeIterator,
     ) -> ParamsId {
-        self.stores().params().create_from_iter_with(
-            params.map(|data| move |id| Param { id, name: data.name, ty: data.ty }),
-        )
+        self.stores().params().create_from_iter_with(params.map(|data| {
+            move |id| Param { id, name: data.name, ty: data.ty, default: data.default }
+        }))
     }
 
     /// Create arguments from the given iterator of argument data.

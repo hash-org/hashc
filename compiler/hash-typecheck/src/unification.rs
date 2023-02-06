@@ -239,7 +239,7 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
                         Ok(self
                             .unify_tys(src.ty, target.ty)?
                             // @@Correctness: which name to use here?
-                            .map_result(|ty| ParamData { name: target.name, ty }))
+                            .map_result(|ty| ParamData { name: target.name, ty, default: None }))
                     }),
                     |param_data| self.param_utils().create_params(param_data.into_iter()),
                 )

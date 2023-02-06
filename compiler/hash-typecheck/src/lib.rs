@@ -11,6 +11,7 @@ use unification::UnificationOps;
 pub mod errors;
 pub mod inference;
 pub mod normalisation;
+pub mod params;
 pub mod substitution;
 pub mod unification;
 
@@ -66,5 +67,9 @@ pub trait AccessToTypechecking:
 
     fn normalisation_ops(&self) -> normalisation::NormalisationOps<Self> {
         normalisation::NormalisationOps::new(self)
+    }
+
+    fn param_ops(&self) -> params::ParamOps<Self> {
+        params::ParamOps::new(self)
     }
 }
