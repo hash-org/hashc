@@ -495,19 +495,29 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
             }
         };
 
-        let var_term = self.builder().create_var_term(name);
-        self.copy_location_from_node_to_target(node, var_term);
+        let lhs = self.builder().create_var_term(name);
+        self.copy_location_from_node_to_target(node, lhs);
 
         let ScopeMember { member, scope_id, index } =
-            self.scope_manager().resolve_name_in_scopes(name, var_term)?;
+            self.scope_manager().resolve_name_in_scopes(name, lhs)?;
 
-        // We want to create the type that represents this operation, and then
-        // ensure that it type checks...
-        let ty = self.create_operator_fn(var_term, rhs, node.operator.ast_ref(), true);
-        let _ = self.validate_and_register_simplified_term(node, ty)?;
+        // @@Hack: for now, we just check that the declared variable has
+        // the same type as RHS... and if so this is a valid assignment operation.
+        let lhs_term = self.typer().infer_ty_of_term(lhs)?;
+        let rhs_term = self.typer().infer_ty_of_term(rhs)?;
+
+        if self.oracle().term_is_primitive(lhs_term) && self.oracle().term_is_primitive(rhs_term) {
+            if !self.unifier().terms_are_equal(lhs_term, rhs_term) {
+                return Err(TcError::CannotUnify { src: rhs_term, target: lhs_term });
+            }
+        } else {
+            // We want to create the type that represents this operation, and then
+            // ensure that it type checks...
+            let ty = self.create_operator_fn(lhs_term, rhs_term, node.operator.ast_ref(), true);
+            let _ = self.validate_and_register_simplified_term(node, ty)?;
+        }
 
         // Now check that the declared local item is declared as mutable
-
         let site: LocationTarget = self.source_location_at_node(node).into();
 
         if matches!(member.mutability(), Mutability::Immutable) {
