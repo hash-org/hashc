@@ -11,7 +11,7 @@ use hash_tir::{
     impl_access_to_env,
     new::{
         environment::env::{AccessToEnv, Env},
-        params::{ParamsId, SomeParamsOrArgsId},
+        params::{ParamIndex, ParamsId, SomeParamsOrArgsId},
         terms::TermId,
         tys::TyId,
         utils::common::CommonUtils,
@@ -78,31 +78,56 @@ impl Default for TcErrorState {
     }
 }
 
+/// A kind of wrong term usage.
+#[derive(Clone, Debug)]
+pub enum WrongTermKind {
+    /// Cannot call a term because it is not a function.
+    NotAFunction,
+    /// Cannot access members because the term is not a record.
+    ///
+    /// Records are tuples, single constructor data types.
+    NotARecord,
+    /// Cannot use the given term because it is not of the correct type.
+    NotOfType { correct_ty: TyId },
+}
+
 /// An error that occurs during typechecking.
 #[derive(Clone, Debug, From)]
 
 pub enum TcError {
     /// Blocked, cannot continue. This is used as a signal in the typechecker.
     Blocked,
+
     /// Signal to assert that there are other errors in the diagnostics store.
     Signal,
+
     /// A series of errors.
     Compound { errors: Vec<TcError> },
-    /// An error exists, this is just a signal to stop typechecking. Signal,
+
     /// More type annotations are needed to infer the type of the given term.
     NeedMoreTypeAnnotationsToInfer { term: TermId },
+
     /// The given arguments do not match the length of the target parameters.
     WrongArgLength { params_id: ParamsId, args_id: SomeParamsOrArgsId },
-    /// Not a function.
-    NotAFunction { fn_call: TermId, actual_subject_ty: TyId },
+
     /// Cannot deref the subject.
     CannotDeref { subject: TermId, actual_subject_ty: TyId },
+
     /// Types don't match
     MismatchingTypes { expected: TyId, actual: TyId },
+
+    /// Wrong term used somewhere
+    WrongTerm { term: TermId, inferred_term_ty: TyId, kind: WrongTermKind },
+
+    /// The given property does not exist on the given term.
+    PropertyNotFound { term: TermId, term_ty: TyId, property: ParamIndex },
+
     /// Undecidable equality between terms
     UndecidableEquality { a: TermId, b: TermId },
+
     /// Invalid range pattern literal
     InvalidRangePatternLiteral { location: SourceLocation },
+
     /// An error related to argument/parameter matching.
     #[from]
     ParamMatch(ParamError),
@@ -179,21 +204,6 @@ impl<'tc> TcErrorReporter<'tc> {
                     error
                         .add_span(location)
                         .add_info(format!("got {arg_length} {} here", args_id.as_str()));
-                }
-            }
-            TcError::NotAFunction { fn_call, actual_subject_ty } => {
-                let error = reporter
-                    .error()
-                    .code(HashErrorCode::InvalidCallSubject)
-                    .title("the subject of this function call is not a function");
-                if let Some(location) = locations.get_location(fn_call) {
-                    error.add_labelled_span(
-                        location,
-                        format!(
-                            "cannot use this as a subject of a function call. It is of type `{}` which is not a function type.",
-                            self.env().with(*actual_subject_ty)
-                        )
-                    );
                 }
             }
             TcError::CannotDeref { subject, actual_subject_ty } => {
@@ -399,6 +409,54 @@ impl<'tc> TcErrorReporter<'tc> {
                     error.add_info("positional arguments must come before spread arguments");
                 }
             },
+            TcError::WrongTerm { term, inferred_term_ty, kind } => {
+                let kind_name = match kind {
+                    WrongTermKind::NotAFunction => "function".to_string(),
+                    WrongTermKind::NotARecord => "record".to_string(),
+                    WrongTermKind::NotOfType { correct_ty } => {
+                        format!("value of type `{}`", self.env().with(*correct_ty))
+                    }
+                };
+
+                let error =
+                    reporter.error().code(HashErrorCode::InvalidCallSubject).title(format!(
+                        "expected a {}, but got type `{}` instead",
+                        kind_name,
+                        self.env().with(*inferred_term_ty)
+                    ));
+
+                if let Some(location) = locations.get_location(term) {
+                    error.add_labelled_span(
+                        location,
+                        format!("expected a {kind_name}, but got this value instead"),
+                    );
+                }
+
+                if let Some(location) = locations.get_location(inferred_term_ty) {
+                    error.add_labelled_span(
+                        location,
+                        format!("this value has type `{}`", self.env().with(*inferred_term_ty)),
+                    );
+                }
+            }
+            TcError::PropertyNotFound { term, term_ty, property } => {
+                let error =
+                    reporter.error().code(HashErrorCode::InvalidPropertyAccess).title(format!(
+                        "property `{}` not found on type `{}`",
+                        *property,
+                        self.env().with(*term_ty)
+                    ));
+                if let Some(location) = locations.get_location(term) {
+                    error.add_labelled_span(
+                        location,
+                        format!(
+                            "term has type `{}`. Property `{}` is not present on this type",
+                            self.env().with(*term_ty),
+                            *property,
+                        ),
+                    );
+                }
+            }
         }
     }
 }

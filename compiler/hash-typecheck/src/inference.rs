@@ -32,7 +32,7 @@ use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
 
 use super::unification::Uni;
 use crate::{
-    errors::{TcError, TcResult},
+    errors::{TcError, TcResult, WrongTermKind},
     AccessToTypechecking,
 };
 
@@ -91,11 +91,8 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         args: ArgsId,
         annotation_params: Option<ParamsId>,
     ) -> TcResult<(ArgsId, ParamsId)> {
-        match annotation_params {
-            Some(params) => {
-                self.param_ops().validate_and_reorder_args_against_params(args, params)?;
-            }
-            None => todo!(),
+        if let Some(params) = annotation_params {
+            self.param_ops().validate_and_reorder_args_against_params(args, params)?;
         }
 
         Ok((
@@ -353,11 +350,12 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     annotation_ty,
                 )
                 .map_err(|err| {
-                    if matches!(err, TcError::NotAFunction { .. }) {
+                    if matches!(err, TcError::WrongTerm { kind: WrongTermKind::NotAFunction, .. }) {
                         // Show it with the reference type:
-                        TcError::NotAFunction {
-                            fn_call: original_term_id,
-                            actual_subject_ty: subject_ty,
+                        TcError::WrongTerm {
+                            kind: WrongTermKind::NotAFunction,
+                            inferred_term_ty: subject_ty,
+                            term: original_term_id,
                         }
                     } else {
                         err
@@ -389,9 +387,10 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             }
             Ty::Universe(_) | Ty::Data(_) | Ty::Tuple(_) | Ty::Var(_) => {
                 // Type variable is not a function type.
-                Err(TcError::NotAFunction {
-                    fn_call: original_term_id,
-                    actual_subject_ty: subject_ty,
+                Err(TcError::WrongTerm {
+                    kind: WrongTermKind::NotAFunction,
+                    inferred_term_ty: subject_ty,
+                    term: original_term_id,
                 })
             }
             Ty::Hole(_) => Err(TcError::Blocked),
