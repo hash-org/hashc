@@ -1,0 +1,14 @@
+// stage=ir, args=-C dump=ir -C ir-dump-mode=pretty
+
+main := () => {
+    mut x := 0;
+    mut y := 0;
+
+    mut z := 1;
+
+    while (x < 10) {
+        x = x + z;
+        y = y + z;
+        z = z + 1;
+    }
+}
