@@ -215,37 +215,43 @@ pub fn generate_tests(input: TokenStream) -> TokenStream {
 
     let test_pattern = Regex::new(&input.test_pattern).unwrap();
 
+    // Read in the tests, and sort them by their path.
     let mut entries = read_tests_from_dir(&file_path, &test_pattern, None).unwrap();
     entries.sort_by_cached_key(|entry| entry.path.to_owned());
 
-    // Compute the test parameters from each entry
-    let paths = entries.iter().map(|entry| entry.path.to_str().unwrap());
-    let filenames = entries.iter().map(|entry| entry.path.file_prefix().unwrap().to_str().unwrap());
+    let mut functions = vec![];
 
-    // Create the test names from the provided prefix and the computed `snake_name`
-    let test_names = entries
-        .iter()
-        .map(|entry| format_ident!("{}_test_{}", input.test_prefix, entry.snake_name));
+    // For each test entry, build the test function by passing
+    // in the required data to the test case which was produced
+    // from reading all of the test entries.
 
-    // @@Copying: we're cloning the metadata here...
-    let case_metadata = entries.iter().map(|entry| entry.metadata.clone());
+    for entry in entries {
+        let path = entry.path.to_str().unwrap();
+        let filename = entry.path.file_prefix().unwrap().to_str().unwrap();
+        let test_name = format_ident!("{}_test_{}", input.test_prefix, entry.snake_name);
 
-    // Create the tests
-    let output = quote! {
-        #(
+        let metadata = entry.metadata;
+
+        // If the entry specifies that the test should be "skipped"
+        // we add the additional attribute to the function `#[ignore]`
+        // which will cause the test to be skipped.
+        let ignore = if metadata.skip { quote!(#[ignore]) } else { quote!() };
+
+        functions.push(quote! {
             #[test]
-            fn #test_names() {
+            #ignore
+            fn #test_name() {
                 use hash_testing_internal::metadata::{TestMetadata, TestArgs};
                 use hash_pipeline::settings::CompilerStageKind;
 
                 #test_func(TestingInput {
-                    path: #paths.into(),
-                    filename: #filenames.into(),
-                    metadata: #case_metadata.into()
+                    path: #path.into(),
+                    filename: #filename.into(),
+                    metadata: #metadata.into()
                 });
             }
-        )*
-    };
+        });
+    }
 
-    output.into()
+    quote!(#(#functions)*).into()
 }

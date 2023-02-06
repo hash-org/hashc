@@ -14,5 +14,5 @@ pub mod tree_writing;
 
 // Re-export commonly used vector packages
 pub use index_vec;
-pub use smallvec;
 pub use itertools;
+pub use smallvec;

@@ -131,20 +131,28 @@ pub struct TestMetadata {
     ///   test case that produces no errors, but warnings will still fail since
     ///   it did not `fail` compilation.
     pub warnings: HandleWarnings,
+
+    /// A flag that specifies if the test should be skipped, if so the
+    /// test will be generated, but will be "ignored" when running.
+    pub skip: bool,
 }
 
 impl ToTokens for TestMetadata {
     fn to_tokens(&self, tokens: &mut quote::__private::TokenStream) {
-        let TestMetadata { stage, completion, warnings, args } = &self;
+        let TestMetadata { stage, completion, warnings, args, skip } = &self;
         let args = args.clone();
 
         // Convert the stage into the `tokenised` stage...
         let stage: quote::__private::TokenStream =
             format!("CompilerStageKind::{stage:?}").parse().unwrap();
 
-        tokens.extend(
-            quote! ( TestMetadata { completion: #completion, stage: #stage, warnings: #warnings, args: #args  }),
-        )
+        tokens.extend(quote! ( TestMetadata {
+            completion: #completion,
+            stage: #stage,
+            warnings: #warnings,
+            args: #args,
+            skip: #skip
+        }))
     }
 }
 
@@ -162,12 +170,15 @@ pub struct TestMetadataBuilder {
 
     /// Whether the test can ignore warnings.
     warnings: Option<HandleWarnings>,
+
+    /// Whether the test should be skipped.
+    skip: bool,
 }
 
 impl TestMetadataBuilder {
     /// Create a new [TestMetadataBuilder]
     pub fn new() -> Self {
-        Self { stage: None, completion: None, warnings: None, args: TestArgs::new() }
+        Self { stage: None, completion: None, warnings: None, skip: false, args: TestArgs::new() }
     }
 
     /// Add a stage value to the test.
@@ -194,6 +205,12 @@ impl TestMetadataBuilder {
         self
     }
 
+    /// Specify that the test should be skipped when running.
+    pub fn with_skip(&mut self, value: bool) -> &mut Self {
+        self.skip = value;
+        self
+    }
+
     /// Build the [TestMetadata], defaulting to the specified defaults
     /// for any missing property.
     pub fn build(self) -> TestMetadata {
@@ -204,6 +221,7 @@ impl TestMetadataBuilder {
             stage: self.stage.unwrap_or(stage),
             warnings: self.warnings.unwrap_or(warnings),
             args: self.args,
+            skip: self.skip,
         }
     }
 }
@@ -220,11 +238,13 @@ pub enum ParseWarning {
 }
 
 impl ParseWarning {
-    fn new_unrecognised_value(key: String, value: String) -> Self {
+    /// Create a new [ParseWarning] for an unrecognised value.
+    fn unrecognised_value(key: String, value: String) -> Self {
         Self::UnrecognisedValue { key, value }
     }
 
-    fn new_unrecognised_key(key: String) -> Self {
+    /// Create a new [ParseWarning] for an unrecognised key.
+    fn unrecognised_key(key: String) -> Self {
         Self::UnrecognisedKey { key }
     }
 }
@@ -302,7 +322,7 @@ pub fn parse_test_case_metadata(path: &PathBuf) -> Result<ParsedMetadata, io::Er
                         "pass" => TestResult::Pass,
                         // We always default `pass` here
                         _ => {
-                            warnings.push(ParseWarning::new_unrecognised_value(key, value));
+                            warnings.push(ParseWarning::unrecognised_value(key, value));
                             TestResult::Pass
                         }
                     };
@@ -319,7 +339,7 @@ pub fn parse_test_case_metadata(path: &PathBuf) -> Result<ParsedMetadata, io::Er
                         "full" => CompilerStageKind::Full,
                         // We always default to `full` here
                         _ => {
-                            warnings.push(ParseWarning::new_unrecognised_value(key, value));
+                            warnings.push(ParseWarning::unrecognised_value(key, value));
                             CompilerStageKind::Full
                         }
                     };
@@ -339,14 +359,26 @@ pub fn parse_test_case_metadata(path: &PathBuf) -> Result<ParsedMetadata, io::Er
                         "disallow" => HandleWarnings::Disallow,
                         "compare" => HandleWarnings::Compare,
                         _ => {
-                            warnings.push(ParseWarning::new_unrecognised_value(key, value));
+                            warnings.push(ParseWarning::unrecognised_value(key, value));
                             HandleWarnings::Compare
                         }
                     };
                     builder.with_ignore_warnings(action);
                 }
+                "skip" => {
+                    let skip = match value.as_str() {
+                        "true" => true,
+                        "false" => false,
+                        _ => {
+                            warnings.push(ParseWarning::unrecognised_value(key, value));
+                            false
+                        }
+                    };
+
+                    builder.with_skip(skip);
+                }
                 _ => {
-                    warnings.push(ParseWarning::new_unrecognised_key(key));
+                    warnings.push(ParseWarning::unrecognised_key(key));
                     break;
                 }
             }
