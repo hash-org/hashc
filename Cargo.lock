@@ -44,6 +44,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5608767d94038891df4c7bb82f6b1beb55fe3d204735985e20de329bc35d5fee"
 
 [[package]]
+name = "arrayvec"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8da52d66c7071e2e3fa2a1e5c6d088fec47b593032b254f5e980de8ea54454d6"
+
+[[package]]
 name = "autocfg"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -434,6 +440,7 @@ dependencies = [
  "hash-codegen-bytecode",
  "hash-codegen-llvm",
  "hash-ir",
+ "hash-link",
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
@@ -556,6 +563,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "hash-link"
+version = "0.1.0"
+dependencies = [
+ "hash-alloc",
+ "hash-pipeline",
+ "hash-reporting",
+ "hash-source",
+ "hash-target",
+ "hash-utils",
+]
+
+[[package]]
 name = "hash-lower"
 version = "0.1.0"
 dependencies = [
@@ -644,7 +663,6 @@ dependencies = [
  "hash-typecheck",
  "hash-utils",
  "if_chain",
- "itertools",
  "log",
  "num-bigint",
  "once_cell",
@@ -842,9 +860,11 @@ name = "hash-utils"
 version = "0.1.0"
 dependencies = [
  "append-only-vec",
+ "arrayvec",
  "fixedbitset",
  "fxhash",
  "index_vec",
+ "itertools",
  "log",
  "smallvec",
  "stacker",

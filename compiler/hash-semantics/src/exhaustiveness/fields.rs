@@ -10,8 +10,7 @@ use hash_tir::{
     nominals::{NominalDef, StructFields},
     terms::{Level1Term, Term, TermId, TupleTy},
 };
-use hash_utils::store::Store;
-use itertools::Itertools;
+use hash_utils::{itertools::Itertools, store::Store};
 
 use super::{construct::DeconstructedCtor, AccessToUsefulnessOps};
 use crate::{

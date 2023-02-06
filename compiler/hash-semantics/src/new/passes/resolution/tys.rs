@@ -21,7 +21,7 @@ use hash_tir::new::{
     tys::{Ty, TyId},
     utils::{common::CommonUtils, AccessToUtils},
 };
-use itertools::Itertools;
+use hash_utils::itertools::Itertools;
 
 use super::{
     params::AstArgGroup,

@@ -1,0 +1,9 @@
+// stage=ir, args=-C dump=ir -C ir-dump-mode=pretty
+
+foo := (i: i32) -> i32 => {
+  match i {
+    1 => 3;
+    2 => i;
+    _ => 0;
+  }
+}

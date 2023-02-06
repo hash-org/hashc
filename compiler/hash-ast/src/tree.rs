@@ -558,7 +558,7 @@ impl AstVisitor for AstTreeGenerator {
             "function_def",
             iter::once(TreeNode::branch("params", params))
                 .chain(return_ty.map(|r| TreeNode::branch("return_type", vec![r])))
-                .chain(iter::once(TreeNode::branch("body", vec![fn_body])))
+                .chain(iter::once(fn_body))
                 .collect(),
         ))
     }

@@ -3,8 +3,6 @@
 //! `strategies` can be found in [crate::build::rvalue] and
 //! [crate::build::temp].
 
-use std::collections::HashMap;
-
 use hash_ast::ast;
 use hash_ir::{
     ir::{
@@ -558,44 +556,72 @@ impl<'tcx> Builder<'tcx> {
         args: &[(Identifier, ast::AstNodeRef<'tcx, ast::Expr>)],
         span: Span,
     ) -> BlockAnd<()> {
-        // @@Todo: deal with the situation where we need to fill in default
-        //  values for various parameters. For now, we ensure that all
-        //  values are specified for the particular definition, and ensure
-        // that the provided fields are equal. When we do add support for
-        // default field values, it should be that the type checker
-        // emits information about what fields need to be added to this
-        // aggregate value.
-        let fields: HashMap<_, _> = args
-            .iter()
-            .map(|(name, arg)| {
-                (name, unpack!(block = self.as_operand(block, *arg, Mutability::Immutable)))
-            })
-            .collect();
-
         // We don't need to perform this check for arrays since they don't need
         // to have a specific amount of arguments to the constructor.
-        if aggregate_kind.is_adt() {
+        let fields: Vec<_> = if aggregate_kind.is_adt() {
             let adt_id = aggregate_kind.adt_id();
 
-            let field_count = self.ctx.adts().map_fast(adt_id, |adt| {
-                if let AggregateKind::Enum(_, index) = aggregate_kind {
-                    adt.variants[index].fields.len()
-                } else {
-                    adt.variants[0].fields.len()
-                }
-            });
+            // We have to evaluate each field in the specified source
+            // order despite the aggregate potentially having a different
+            // field order.
+            let mut field_map = Vec::with_capacity(args.len());
+            let mut field_names = Vec::with_capacity(args.len());
 
-            // Ensure we have the exact amount of arguments as the definition expects.
-            if args.len() != field_count {
-                panic_on_span!(
-                    span.into_location(self.source_id),
-                    self.source_map,
-                    "default arguments on constructors are not currently supported",
-                );
+            // @@Todo: deal with the situation where we need to fill in default
+            //  values for various parameters. For now, we ensure that all
+            //  values are specified for the particular definition, and ensure
+            // that the provided fields are equal. When we do add support for
+            // default field values, it should be that the type checker
+            // emits information about what fields need to be added to this
+            // aggregate value.
+            for (name, field) in args {
+                let value = unpack!(block = self.as_operand(block, *field, Mutability::Immutable));
+                field_map.push(value);
+                field_names.push(*name);
             }
-        }
 
-        let fields: Vec<_> = fields.into_values().collect();
+            self.ctx.adts().map_fast(adt_id, |adt| {
+                let variant = if let AggregateKind::Enum(_, index) = aggregate_kind {
+                    &adt.variants[index]
+                } else {
+                    &adt.variants[0]
+                };
+
+                let field_count = variant.fields.len();
+
+                // Ensure we have the exact amount of arguments as the definition expects.
+                if args.len() != field_count {
+                    panic_on_span!(
+                        span.into_location(self.source_id),
+                        self.source_map,
+                        "default arguments on constructors are not currently supported",
+                    );
+                }
+
+                // now we re-order the field_map in the "expected" order
+                // of the aggregate initialisation...
+                for (index, name) in field_names.iter().enumerate() {
+                    let field_index = variant.field_idx(*name).unwrap();
+
+                    if field_index == index {
+                        continue;
+                    }
+
+                    field_map.swap(index, field_index);
+                }
+
+                field_map
+            })
+        } else {
+            // This aggregate kind is an array, so all that we do is just
+            // lower each of the arguments into the array.
+            args.iter()
+                .map(|(_, arg)| {
+                    unpack!(block = self.as_operand(block, *arg, Mutability::Immutable))
+                })
+                .collect()
+        };
+
         let aggregate = RValue::Aggregate(aggregate_kind, fields);
         self.control_flow_graph.push_assign(block, destination, aggregate, span);
 

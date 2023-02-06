@@ -1,0 +1,29 @@
+// stage=ir, skip=true, args=-C dump=ir -C ir-dump-mode=pretty
+
+// @@BrokenTest: old tc has problems with the `continue` in the match case
+
+
+main := () => {
+    mut t := 0;
+
+    loop {
+        t += 1;
+        if t > 10 {
+            break;
+        }
+
+        mut m := t + 1;
+
+        loop {
+            match m {
+                0..3 => {
+                    continue;
+                };
+                4 => {
+                    break;
+                };
+                _ => m - 1;
+            }
+        }
+    }
+}

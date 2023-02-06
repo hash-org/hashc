@@ -14,8 +14,10 @@ use hash_tir::{
     terms::{ConstructedTerm, FnTy, Level0Term, Level1Term, Level2Term, LitTerm, Term, TermId},
     trts::TrtDefId,
 };
-use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreCopy, SequenceStoreKey, Store};
-use itertools::Itertools;
+use hash_utils::{
+    itertools::Itertools,
+    store::{CloneStore, SequenceStore, SequenceStoreCopy, SequenceStoreKey, Store},
+};
 
 use super::{params::validate_param_list_unordered, AccessToOps};
 use crate::{

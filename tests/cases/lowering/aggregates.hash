@@ -1,0 +1,17 @@
+// stage=ir, args=-C dump=ir -C ir-dump-mode=pretty
+
+Foo := struct(
+    a: i32,
+    b: i32,
+);
+
+frobulate := (a: Foo, b: Foo) -> i32 => {
+    (a.a * a.b) + (b.b + a.b)
+}
+
+
+main := () => {
+    foo := Foo(a = 1, b = 2);
+    bar := Foo(a = 1, b = 2);
+    frobulate(foo, bar);
+}

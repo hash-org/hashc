@@ -15,7 +15,7 @@ use hash_tir::new::{
     tuples::TupleTy,
     utils::{common::CommonUtils, AccessToUtils},
 };
-use itertools::Itertools;
+use hash_utils::itertools::Itertools;
 
 use super::{super::ast_utils::AstUtils, defs::ItemId, DiscoveryPass};
 use crate::new::{diagnostics::error::SemanticError, environment::tc_env::AccessToTcEnv};

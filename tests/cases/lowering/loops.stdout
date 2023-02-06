@@ -1,0 +1,50 @@
+IR dump for function `main` defined at $DIR/loops.hash:3:9-14:2
+main() -> () {
+    mut _0: ();
+    mut _1: i32;		// parameter `x`
+    mut _2: i32;		// parameter `y`
+    mut _3: i32;		// parameter `z`
+    mut _4: bool;
+    _5: (i32, bool);
+    _6: (i32, bool);
+    _7: (i32, bool);
+
+    bb0 {
+        _1 = const 0_i32;
+        _2 = const 0_i32;
+        _3 = const 1_i32;
+        goto -> bb1;
+    }
+
+    bb1 {
+        _4 = Lt(_1, const 10_i32);
+        switch(_4) [false -> bb2, otherwise -> bb3];
+    }
+
+    bb2 {
+        return;
+    }
+
+    bb3 {
+        _5 = CheckedAdd(_1, _3);
+        assert((_5.1), false, "attempt to compute `_1 + _3`, which would overflow") -> bb4;
+    }
+
+    bb4 {
+        _1 = (_5.0);
+        _6 = CheckedAdd(_2, _3);
+        assert((_6.1), false, "attempt to compute `_2 + _3`, which would overflow") -> bb5;
+    }
+
+    bb5 {
+        _2 = (_6.0);
+        _7 = CheckedAdd(_3, const 1_i32);
+        assert((_7.1), false, "attempt to compute `_3 + const 1_i32`, which would overflow") -> bb6;
+    }
+
+    bb6 {
+        _3 = (_7.0);
+        goto -> bb1;
+    }
+}
+

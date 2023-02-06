@@ -41,8 +41,7 @@ use hash_tir::{
     pats::{Pat, PatId},
     terms::TermId,
 };
-use hash_utils::store::Store;
-use itertools::Itertools;
+use hash_utils::{itertools::Itertools, store::Store};
 
 use super::AccessToOps;
 use crate::{

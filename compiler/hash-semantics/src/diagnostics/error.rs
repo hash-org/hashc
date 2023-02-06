@@ -18,11 +18,11 @@ use hash_tir::{
     trts::TrtDef,
 };
 use hash_utils::{
+    itertools::Itertools,
     pluralise,
     printing::{SequenceDisplay, SequenceDisplayOptions, SequenceJoinMode},
     store::CloneStore,
 };
-use itertools::Itertools;
 
 use super::params::{ParamListKind, ParamUnificationErrorReason};
 use crate::{

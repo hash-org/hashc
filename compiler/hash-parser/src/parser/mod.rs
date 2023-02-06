@@ -597,7 +597,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         while self.has_token() {
             match self.parse_top_level_expr() {
-                Ok(Some(expr)) => contents.push(expr),
+                Ok(Some((_, expr))) => contents.push(expr),
                 Ok(_) => continue,
                 Err(err) => {
                     // @@Future: attempt error recovery here...

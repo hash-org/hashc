@@ -9,7 +9,7 @@ use hash_tir::{
     location::LocationTarget,
     params::{GetNameOpt, Param, ParamList, Params, ParamsId},
 };
-use itertools::Itertools;
+use hash_utils::itertools::Itertools;
 
 use crate::{
     diagnostics::{

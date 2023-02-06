@@ -1,0 +1,51 @@
+IR dump for function `frobulate` defined at $DIR/aggregates.hash:8:14-10:2
+frobulate(_1: Foo, _2: Foo) -> i32 {
+    mut _0: i32;
+    mut _3: i32;
+    _4: (i32, bool);
+    mut _5: i32;
+    _6: (i32, bool);
+    _7: (i32, bool);
+
+    bb0 {
+        _4 = CheckedMul((_1.0), (_1.1));
+        assert((_4.1), false, "attempt to compute `(_1.0) * (_1.1)`, which would overflow") -> bb1;
+    }
+
+    bb1 {
+        _3 = (_4.0);
+        _6 = CheckedAdd((_2.1), (_1.1));
+        assert((_6.1), false, "attempt to compute `(_2.1) + (_1.1)`, which would overflow") -> bb2;
+    }
+
+    bb2 {
+        _5 = (_6.0);
+        _7 = CheckedAdd(_3, _5);
+        assert((_7.1), false, "attempt to compute `_3 + _5`, which would overflow") -> bb3;
+    }
+
+    bb3 {
+        _0 = (_7.0);
+        return;
+    }
+}
+
+
+IR dump for function `main` defined at $DIR/aggregates.hash:13:9-17:2
+main() -> () {
+    mut _0: ();
+    _1: Foo;		// parameter `foo`
+    _2: Foo;		// parameter `bar`
+    _3: i32;
+
+    bb0 {
+        _1 = Foo(const 1_i32, const 2_i32);
+        _2 = Foo(const 1_i32, const 2_i32);
+        _3 = frobulate(_1, _2) -> bb1;
+    }
+
+    bb1 {
+        return;
+    }
+}
+
