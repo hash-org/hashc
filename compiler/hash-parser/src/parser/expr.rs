@@ -16,15 +16,18 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a top level [Expr] that are optionally terminated with a
     /// semi-colon.
     #[profiling::function]
-    pub fn parse_top_level_expr(&mut self) -> ParseResult<Option<AstNode<Expr>>> {
+    pub fn parse_top_level_expr(&mut self) -> ParseResult<Option<(bool, AstNode<Expr>)>> {
         let start = self.next_location();
 
         // This is used to handle a semi-colon that occurs at the end of
         // an expression...
-        let maybe_eat_semi = |this: &mut Self| {
+        let maybe_eat_semi = |this: &mut Self| -> bool {
             if let Some(Token { kind: TokenKind::Semi, .. }) = this.peek() {
                 this.skip_token();
-            };
+                true
+            } else {
+                false
+            }
         };
 
         // So here we want to check that the next token(s) could make up a singular
@@ -36,8 +39,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             let decl = self.parse_declaration(pat)?;
 
             let expr = self.node_with_joined_span(Expr::Declaration(decl), start);
-            maybe_eat_semi(self);
-            return Ok(Some(expr));
+            let semi = maybe_eat_semi(self);
+            return Ok(Some((semi, expr)));
         }
 
         // Handle trailing semi-colons...
@@ -67,8 +70,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             _ => expr,
         };
 
-        maybe_eat_semi(self);
-        Ok(Some(expr))
+        let semi = maybe_eat_semi(self);
+        Ok(Some((semi, expr)))
     }
 
     /// Function to eat a collection of trailing semi-colons.
@@ -688,7 +691,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 loop {
                     let expr = self.parse_top_level_expr()?;
 
-                    if let Some(subject) = expr {
+                    if let Some((_, subject)) = expr {
                         // create the subject node
                         return Ok(self.node_with_joined_span(
                             Expr::Directive(DirectiveExpr { directives, subject }),
@@ -1037,7 +1040,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         //
         // @@ErrorRecovery: don't bail immediately...
         while gen.has_token() {
-            if let Some(expr) = gen.parse_top_level_expr()? {
+            if let Some((_, expr)) = gen.parse_top_level_expr()? {
                 exprs.push(expr);
             }
         }

@@ -1,0 +1,5 @@
+// run=pass, stage=parse
+
+#dump_ast main := () -> () => {
+  foo(3);
+}

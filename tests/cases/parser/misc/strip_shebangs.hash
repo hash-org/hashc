@@ -1,4 +1,4 @@
-#!./target/debug/hash -f
+#!./target/debug/hash run
 // run=pass, stage=parse
 
 Foo: i32 = 1;

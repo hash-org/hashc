@@ -1,0 +1,13 @@
+[package]
+name = "hash-link"
+version = "0.1.0"
+authors = ["The Hash Language authors"]
+edition = "2021"
+
+[dependencies]
+hash-alloc = { path = "../hash-alloc" }
+hash-pipeline = { path = "../hash-pipeline" }
+hash-reporting = { path = "../hash-reporting" }
+hash-source = { path = "../hash-source" }
+hash-target = { path = "../hash-target" }
+hash-utils = { path = "../hash-utils" }

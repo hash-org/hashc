@@ -434,6 +434,7 @@ dependencies = [
  "hash-codegen-bytecode",
  "hash-codegen-llvm",
  "hash-ir",
+ "hash-link",
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
@@ -553,6 +554,18 @@ dependencies = [
  "hash-token",
  "num-bigint",
  "num-traits",
+]
+
+[[package]]
+name = "hash-link"
+version = "0.1.0"
+dependencies = [
+ "hash-alloc",
+ "hash-pipeline",
+ "hash-reporting",
+ "hash-source",
+ "hash-target",
+ "hash-utils",
 ]
 
 [[package]]
