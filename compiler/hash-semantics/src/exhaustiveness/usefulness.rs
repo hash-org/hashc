@@ -8,8 +8,7 @@
 use std::iter::once;
 
 use hash_tir::{pats::PatId, terms::TermId};
-use hash_utils::{stack::ensure_sufficient_stack, store::Store};
-use itertools::Itertools;
+use hash_utils::{itertools::Itertools, stack::ensure_sufficient_stack, store::Store};
 
 use super::{
     construct::DeconstructedCtor, deconstruct::DeconstructedPat, fields::Fields, matrix::Matrix,

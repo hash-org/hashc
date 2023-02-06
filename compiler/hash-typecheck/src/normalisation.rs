@@ -22,8 +22,10 @@ use hash_tir::new::{
     tys::{Ty, TyId, TypeOfTerm},
     utils::{common::CommonUtils, traversing::Atom, AccessToUtils},
 };
-use hash_utils::store::{PartialStore, SequenceStore, SequenceStoreKey, Store};
-use itertools::Itertools;
+use hash_utils::{
+    itertools::Itertools,
+    store::{PartialStore, SequenceStore, SequenceStoreKey, Store},
+};
 
 use crate::{
     errors::{TcError, TcResult},

@@ -19,8 +19,10 @@ use hash_tir::{
     scope::{Member, Mutability},
     terms::TermId,
 };
-use hash_utils::store::{CloneStore, Store};
-use itertools::Itertools;
+use hash_utils::{
+    itertools::Itertools,
+    store::{CloneStore, Store},
+};
 
 use super::{params::validate_named_params_match, AccessToOps};
 use crate::{

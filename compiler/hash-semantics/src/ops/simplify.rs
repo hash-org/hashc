@@ -13,8 +13,10 @@ use hash_tir::{
         Term, TermId, TermListId, TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
     },
 };
-use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
-use itertools::Itertools;
+use hash_utils::{
+    itertools::Itertools,
+    store::{SequenceStore, SequenceStoreKey, Store},
+};
 
 use super::{substitute::Substituter, unify::Unifier, AccessToOps};
 use crate::{

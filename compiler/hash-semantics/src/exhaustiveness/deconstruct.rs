@@ -12,8 +12,7 @@ use hash_tir::{
     pats::PatId,
     terms::{Level1Term, Term, TermId},
 };
-use hash_utils::store::Store;
-use itertools::Itertools;
+use hash_utils::{itertools::Itertools, store::Store};
 use smallvec::SmallVec;
 
 use super::{

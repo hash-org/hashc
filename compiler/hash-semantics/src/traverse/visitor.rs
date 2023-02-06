@@ -30,8 +30,10 @@ use hash_tir::{
     storage::LocalStorage,
     terms::{Sub, TermId},
 };
-use hash_utils::store::{CloneStore, SequenceStore, Store};
-use itertools::Itertools;
+use hash_utils::{
+    itertools::Itertools,
+    store::{CloneStore, SequenceStore, Store},
+};
 
 use super::{scopes::VisitConstantScope, AccessToTraverseOps};
 use crate::{

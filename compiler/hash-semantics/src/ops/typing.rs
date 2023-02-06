@@ -12,7 +12,7 @@ use hash_tir::{
         ConstructedTerm, Level0Term, Level1Term, Level2Term, Level3Term, LitTerm, Term, TermId,
     },
 };
-use itertools::Itertools;
+use hash_utils::itertools::Itertools;
 
 use super::{params::pair_args_with_params, AccessToOps};
 use crate::{

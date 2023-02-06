@@ -9,8 +9,7 @@ use hash_tir::{
     scope::{BoundVar, Member, Mutability, ScopeId, ScopeKind, ScopeMember, ScopeVar},
     terms::TermId,
 };
-use hash_utils::store::Store;
-use itertools::Itertools;
+use hash_utils::{itertools::Itertools, store::Store};
 
 use super::{params::pair_args_with_params, AccessToOps};
 use crate::{

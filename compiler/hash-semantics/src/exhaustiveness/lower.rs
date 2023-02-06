@@ -14,9 +14,11 @@ use hash_tir::{
     },
     terms::{Level0Term, Level1Term, LitTerm, Term, TermId, TupleTy},
 };
-use hash_utils::store::{SequenceStore, Store};
+use hash_utils::{
+    itertools::Itertools,
+    store::{SequenceStore, Store},
+};
 use if_chain::if_chain;
-use itertools::Itertools;
 use smallvec::SmallVec;
 
 use super::{

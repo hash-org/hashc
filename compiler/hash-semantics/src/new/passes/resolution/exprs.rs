@@ -30,8 +30,10 @@ use hash_tir::{
     },
     term_as_variant,
 };
-use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
-use itertools::Itertools;
+use hash_utils::{
+    itertools::Itertools,
+    store::{SequenceStore, SequenceStoreKey, Store},
+};
 
 use super::{
     params::AstArgGroup,
