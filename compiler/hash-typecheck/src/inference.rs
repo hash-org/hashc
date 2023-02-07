@@ -324,10 +324,6 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             ScopeKind::TupleTy(TupleTy { data: params }),
             || -> TcResult<_> {
                 let args = self.infer_args(term.data, params)?;
-
-                let sub = self.substitution_ops().create_sub_from_local_scope();
-                println!("{}", self.env().with(&sub));
-
                 Ok(args)
             },
         )?;
@@ -507,6 +503,9 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     // Then normalise the return type in their scope.
                     let return_ty = self.normalise_and_check_ty(fn_ty.return_ty)?;
 
+                    let sub = self.substitution_ops().create_sub_from_local_scope();
+                    let return_ty = self.substitution_ops().apply_sub_to_ty(return_ty, &sub);
+
                     // @@Todo: implicit check
                     // Apply the substitution to the return type of the function type.
                     Ok((
@@ -519,7 +518,12 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     ))
                 })
             }
-            Ty::Eval(_) | Ty::Universe(_) | Ty::Data(_) | Ty::Tuple(_) | Ty::Var(_) => {
+            Ty::Hole(_)
+            | Ty::Eval(_)
+            | Ty::Universe(_)
+            | Ty::Data(_)
+            | Ty::Tuple(_)
+            | Ty::Var(_) => {
                 // Not a function type.
                 Err(TcError::WrongTy {
                     kind: WrongTermKind::NotAFunction,
@@ -527,7 +531,6 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     term: original_term_id,
                 })
             }
-            Ty::Hole(_) => Err(TcError::Blocked),
         }
     }
 

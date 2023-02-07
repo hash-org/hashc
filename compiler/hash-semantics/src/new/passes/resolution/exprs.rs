@@ -421,7 +421,8 @@ impl<'tc> ResolutionPass<'tc> {
 
     /// Make a term from an [`ast::TyExpr`].
     fn make_term_from_ast_ty_expr(&self, node: AstNodeRef<ast::TyExpr>) -> SemanticResult<TermId> {
-        Ok(self.new_term(Term::Ty(self.make_ty_from_ast_ty(node.ty.ast_ref())?)))
+        let ty = self.make_ty_from_ast_ty(node.ty.ast_ref())?;
+        Ok(self.use_ty_as_term(ty))
     }
 
     /// Make a term from an [`ast::DirectiveExpr`].

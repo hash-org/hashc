@@ -504,12 +504,12 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
             Atom::Ty(ty) => match self.get_ty(ty) {
                 Ty::Eval(term) => Ok(ControlFlow::Break(self.eval_ty_eval(term)?)),
                 Ty::Var(var) => Ok(ControlFlow::Break(self.eval_var(var)?)),
-                Ty::Data(_)
+                Ty::Fn(_)
+                | Ty::Tuple(_)
+                | Ty::Data(_)
                 | Ty::Universe(_)
                 | Ty::Ref(_)
-                | Ty::Hole(_)
-                | Ty::Tuple(_)
-                | Ty::Fn(_) => Ok(ControlFlow::Continue(())),
+                | Ty::Hole(_) => Ok(ControlFlow::Break(atom)),
             },
             Atom::FnDef(_) => Ok(ControlFlow::Break(atom)),
             Atom::Pat(_) => Ok(ControlFlow::Continue(())),

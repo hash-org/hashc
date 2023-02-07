@@ -89,7 +89,12 @@ impl<'env> TraversingUtils<'env> {
 
     pub fn fmap_term<E, F: Mapper<E>>(&self, term_id: TermId, f: F) -> Result<TermId, E> {
         match f(term_id.into())? {
-            ControlFlow::Break(atom) => Ok(TermId::try_from(atom).unwrap()),
+            ControlFlow::Break(atom) => match atom {
+                Atom::Term(t) => Ok(t),
+                Atom::Ty(ty) => Ok(self.use_ty_as_term(ty)),
+                Atom::FnDef(fn_def_id) => Ok(self.new_term(fn_def_id)),
+                Atom::Pat(_) => unreachable!("cannot use a pattern as a term"),
+            },
             ControlFlow::Continue(()) => match self.get_term(term_id) {
                 Term::Tuple(tuple_term) => {
                     let data = self.fmap_args(tuple_term.data, f)?;
@@ -215,7 +220,11 @@ impl<'env> TraversingUtils<'env> {
 
     pub fn fmap_ty<E, F: Mapper<E>>(&self, ty_id: TyId, f: F) -> Result<TyId, E> {
         match f(ty_id.into())? {
-            ControlFlow::Break(ty) => Ok(TyId::try_from(ty).unwrap()),
+            ControlFlow::Break(ty) => match ty {
+                Atom::Ty(ty) => Ok(ty),
+                Atom::Term(term) => Ok(self.use_term_as_ty_or_eval(term)),
+                _ => unreachable!("got non-type in fmap_ty"),
+            },
             ControlFlow::Continue(()) => match self.get_ty(ty_id) {
                 Ty::Eval(eval_term) => {
                     let eval_term = self.fmap_term(eval_term, f)?;

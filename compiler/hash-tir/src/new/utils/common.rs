@@ -356,6 +356,16 @@ pub trait CommonUtils: AccessToEnv {
             None => self.new_ty(Ty::Eval(term)),
         }
     }
+
+    /// Try to use the given type as a term.
+    fn use_ty_as_term(&self, ty: TyId) -> TermId {
+        match self.get_ty(ty) {
+            Ty::Var(var) => self.new_term(var),
+            Ty::Hole(hole) => self.new_term(hole),
+            Ty::Eval(term) => term,
+            _ => self.new_term(ty),
+        }
+    }
 }
 
 impl<T: AccessToEnv + ?Sized> CommonUtils for T {}

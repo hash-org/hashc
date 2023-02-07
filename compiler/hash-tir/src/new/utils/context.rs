@@ -15,7 +15,8 @@ use crate::{
         fns::FnDefId,
         mods::ModDefId,
         params::{ParamId, ParamsId},
-        scopes::{DeclTerm, StackId, StackMemberId},
+        pats::Pat,
+        scopes::{DeclTerm, StackId, StackIndices, StackMemberId},
         symbols::Symbol,
         terms::TermId,
     },
@@ -103,6 +104,15 @@ impl<'env> ContextUtils<'env> {
             ScopeKind::Stack(stack_id) => stack_id,
             _ => unreachable!(), // decls are only allowed in stack scopes
         };
+
+        // @@Todo: fill in complex pats
+        if let (Pat::Binding(_), StackIndices::Range { start, end: _ }) =
+            (self.get_pat(decl.bind_pat), decl.stack_indices)
+        {
+            self.stores()
+                .stack()
+                .modify_fast(current_stack_id, |stack| stack.members[start].ty = decl.ty)
+        }
 
         for stack_index in decl.iter_stack_indices() {
             self.add_stack_binding((current_stack_id, stack_index), decl.value);
