@@ -10,6 +10,7 @@ use super::{
     fns::FnDefId,
     mods::{ModDefId, ModMemberId, ModMembersId},
     params::{ParamId, ParamsId},
+    pats::PatId,
     scopes::{StackId, StackMemberId},
     symbols::Symbol,
     terms::TermId,
@@ -103,6 +104,7 @@ macro_rules! location_targets {
 location_targets! {
     Term: TermId,
     Ty: TyId,
+    Pat: PatId,
     Symbol: Symbol,
 
     DataDef: DataDefId,

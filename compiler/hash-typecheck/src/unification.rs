@@ -272,8 +272,8 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
                     _ => {}
                 }
 
-                let (src_ty, _) = self.inference_ops().infer_ty(src.ty, self.new_ty_hole())?;
-                let (target_ty, _) = self.inference_ops().infer_ty(src.ty, self.new_ty_hole())?;
+                let (_src_ty, _) = self.inference_ops().infer_ty(src.ty, self.new_ty_hole())?;
+                let (_target_ty, _) = self.inference_ops().infer_ty(src.ty, self.new_ty_hole())?;
 
                 let unified_param = self.unify_tys(src.ty, target.ty)?.map_result(|ty| ParamData {
                     name: src.name,

@@ -8,6 +8,7 @@ use hash_tir::new::{
     holes::Hole,
     mods::ModDefId,
     params::ParamsId,
+    pats::PatId,
     sub::Sub,
     terms::{Term, TermId},
     tys::{Ty, TyId},
@@ -90,6 +91,12 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
     pub fn apply_sub_to_term(&self, term_id: TermId, sub: &Sub) -> TermId {
         self.traversing_utils()
             .fmap_term::<!, _>(term_id, |atom| Ok(self.apply_sub_to_atom_once(atom, sub)))
+            .into_ok()
+    }
+
+    pub fn apply_sub_to_pat(&self, pat_id: PatId, sub: &Sub) -> PatId {
+        self.traversing_utils()
+            .fmap_pat::<!, _>(pat_id, |atom| Ok(self.apply_sub_to_atom_once(atom, sub)))
             .into_ok()
     }
 
@@ -220,7 +227,7 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
 
     /// Substitute values from the local scope until no bindings from the local
     /// scope are left.
-    pub fn sub_local_scope(&self, term: TermId) -> TcResult<TermId> {
+    pub fn sub_local_scope(&self, _term: TermId) -> TcResult<TermId> {
         todo!()
     }
 }

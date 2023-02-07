@@ -11,6 +11,7 @@ use hash_tir::{
     impl_access_to_env,
     new::{
         environment::env::{AccessToEnv, Env},
+        locations::LocationTarget,
         params::{ParamIndex, ParamsId, SomeParamsOrArgsId},
         terms::TermId,
         tys::TyId,
@@ -117,7 +118,7 @@ pub enum TcError {
     CannotDeref { subject: TermId, actual_subject_ty: TyId },
 
     /// Types don't match
-    MismatchingTypes { expected: TyId, actual: TyId, inferred_from: Option<TermId> },
+    MismatchingTypes { expected: TyId, actual: TyId, inferred_from: Option<LocationTarget> },
 
     /// Wrong type used somewhere
     WrongTy { term: TermId, inferred_term_ty: TyId, kind: WrongTermKind },
@@ -230,7 +231,7 @@ impl<'tc> TcErrorReporter<'tc> {
                     self.env().with(*expected),
                     self.env().with(*actual),
                 ));
-                if let Some(location) = inferred_from.and_then(|term| locations.get_location(&term))
+                if let Some(location) = inferred_from.and_then(|term| locations.get_location(term))
                 {
                     error.add_labelled_span(
                         location,
