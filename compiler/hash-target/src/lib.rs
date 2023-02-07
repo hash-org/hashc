@@ -184,7 +184,7 @@ impl Target {
         if dl.pointer_size.bits() != ptr_width {
             return Err(TargetDataLayoutParseError::InconsistentTargetPointerWidth {
                 size: dl.pointer_size.bits(),
-                target: self.pointer_bit_width as u32,
+                target: ptr_width,
             });
         }
 
@@ -227,7 +227,7 @@ impl Target {
 impl Default for Target {
     fn default() -> Self {
         // get the size of the pointer for the current system
-        let pointer_width = std::mem::size_of::<usize>();
+        let pointer_bit_width = std::mem::size_of::<usize>() * 8;
         let arch = TargetArch::from_host();
         Self {
             arch,
@@ -240,8 +240,13 @@ impl Default for Target {
 
             // ABI related options
             c_int_width: 32,
-            data_layout: "".into(),
-            pointer_bit_width: pointer_width,
+
+            // This is the default data-layout string that is specified within
+            // the LLVM IR Language reference, for any registered platform this
+            // value will be overridden for the platform specific data layout
+            // string.
+            data_layout: "e-m:e-i64:64-f80:128-n8:16:32:64-S128".into(),
+            pointer_bit_width,
 
             // Entry point options
             entry_name: "main".into(),

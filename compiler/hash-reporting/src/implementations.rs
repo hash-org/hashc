@@ -34,6 +34,9 @@ impl From<TargetDataLayoutParseError<'_>> for Report {
         let mut report = Report::new();
 
         let message = match value {
+            TargetDataLayoutParseError::Malformed { dl } => {
+                format!("malformed \"data-layout\" string: `{dl}`")
+            }
             TargetDataLayoutParseError::InvalidAddressSpace { addr_space, err } => {
                 format!("invalid address space `{addr_space}` in \"data-layout\", cause: {err}")
             }
@@ -50,7 +53,7 @@ impl From<TargetDataLayoutParseError<'_>> for Report {
                 format!("inconsistent target specification: \"data-layout\" claims architecture is {dl}-endian, while \"target-endian\" is `{target}`")
             }
             TargetDataLayoutParseError::InconsistentTargetPointerWidth { size, target } => {
-                format!("inconsistent target specification: \"data-layout\" claims pointer size is {size} bits, while \"target-pointer-width\" is `{target}`")
+                format!("inconsistent target specification: \"data-layout\" claims pointer size is `{size}` bits, while \"target-pointer-width\" is `{target}`")
             }
             TargetDataLayoutParseError::InvalidEnumSize { err } => err,
         };
