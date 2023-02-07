@@ -1,5 +1,5 @@
 //! Hash diagnostic report data structures.
-use std::{cell::Cell, convert::Infallible, fmt, io};
+use std::{cell::Cell, fmt};
 
 use hash_error_codes::error_codes::HashErrorCode;
 use hash_source::location::{RowColSpan, SourceLocation};
@@ -241,22 +241,5 @@ impl Default for Report {
             error_code: None,
             contents: vec![],
         }
-    }
-}
-
-/// Some basic conversions into reports
-impl From<io::Error> for Report {
-    fn from(err: io::Error) -> Self {
-        let mut report = Report::new();
-
-        // @@ErrorReporting: we might want to show a bit more info here.
-        report.kind(ReportKind::Error).title(err.to_string());
-        report
-    }
-}
-
-impl From<Infallible> for Report {
-    fn from(err: Infallible) -> Self {
-        match err {}
     }
 }

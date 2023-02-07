@@ -367,7 +367,6 @@ dependencies = [
  "hash-session",
  "hash-source",
  "hash-target",
- "hash-tree-def",
  "hash-utils",
  "log",
  "num_cpus",
@@ -566,11 +565,8 @@ dependencies = [
 name = "hash-link"
 version = "0.1.0"
 dependencies = [
- "hash-alloc",
  "hash-pipeline",
  "hash-reporting",
- "hash-source",
- "hash-target",
  "hash-utils",
 ]
 
@@ -639,6 +635,7 @@ version = "0.1.0"
 dependencies = [
  "hash-error-codes",
  "hash-source",
+ "hash-target",
  "hash-utils",
  "thiserror",
 ]
@@ -693,6 +690,7 @@ dependencies = [
  "hash-tir",
  "hash-tree-def",
  "hash-untyped-semantics",
+ "hash-utils",
  "log",
  "num_cpus",
  "rayon",

@@ -27,13 +27,23 @@ impl HasDataLayout for TargetDataLayout {
 /// This enum defines the Endianness of a target, which is used
 /// when reading/writing scalar values to memory. More information
 /// about Endianness can be found (https://en.wikipedia.org/wiki/Endianness)[here].
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Endian {
     /// Values use the little endian format.
     Little,
 
     /// Values use the big endian format.
     Big,
+}
+
+impl Endian {
+    /// Convert the [Endian] to a static string.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Endian::Little => "little",
+            Endian::Big => "big",
+        }
+    }
 }
 
 /// Defines all of the specifics of how primitive types are
@@ -171,11 +181,11 @@ pub enum TargetDataLayoutParseError<'a> {
     MissingAlignment { cause: &'a str },
 
     /// Inconsistent target architecture.
-    InconsistentTargetArchitecture { layout: &'a str },
+    InconsistentTargetArchitecture { dl: &'a str, target: &'a str },
 
     /// When the data layout string specifies an inconsistent pointer size
     /// with the target.
-    InconsistentTargetPointerSize {
+    InconsistentTargetPointerWidth {
         /// The size specified on the string.
         size: u64,
         /// The expected pointer size on the target.
@@ -183,7 +193,7 @@ pub enum TargetDataLayoutParseError<'a> {
     },
 
     /// When a data layout incorrectly specifies the size of C-style enums.
-    InvalidEnumSize,
+    InvalidEnumSize { err: String },
 }
 
 impl TargetDataLayout {

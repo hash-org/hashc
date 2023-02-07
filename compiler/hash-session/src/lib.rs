@@ -22,11 +22,12 @@ use hash_pipeline::{
     settings::CompilerSettings,
     workspace::Workspace,
 };
-use hash_reporting::report::Report;
+use hash_reporting::{report::Report, writer::ReportWriter};
 use hash_semantics::{Typechecker, TypecheckingCtx, TypecheckingCtxQuery};
 use hash_source::{entry_point::EntryPointState, SourceId, SourceMap};
 use hash_tir::storage::{GlobalStorage, LocalStorage, TyStorage};
 use hash_untyped_semantics::{SemanticAnalysis, SemanticAnalysisCtx, SemanticAnalysisCtxQuery};
+use hash_utils::stream_less_ewriteln;
 
 /// Function to make all of the stages a nominal compiler pipeline accepts.
 pub fn make_stages() -> Vec<Box<dyn CompilerStage<CompilerSession>>> {
@@ -40,6 +41,14 @@ pub fn make_stages() -> Vec<Box<dyn CompilerStage<CompilerSession>>> {
         Box::new(IrOptimiser),
         Box::new(CodeGenPass),
     ]
+}
+
+/// Emit a fatal compiler error and exit the compiler. These kind of errors are
+/// not **panics** but they are neither recoverable. This function will convert
+/// the error into a [Report] and then write it to the error stream.
+pub fn emit_fatal_error<E: Into<Report>>(error: E, sources: &SourceMap) -> ! {
+    stream_less_ewriteln!("{}", ReportWriter::single(error.into(), sources));
+    std::process::exit(-1);
 }
 
 /// The [CompilerSession] holds all the information and state of the compiler
@@ -90,8 +99,12 @@ impl CompilerSession {
         error_stream: impl Fn() -> CompilerOutputStream + 'static,
         output_stream: impl Fn() -> CompilerOutputStream + 'static,
     ) -> Self {
-        let target = settings.codegen_settings().target_info.target();
-        let layout_info = settings.codegen_settings().data_layout.clone();
+        let target = settings.target();
+
+        // @@Fixme: ideally this error should be handled else-where
+        let layout_info = target
+            .parse_data_layout()
+            .unwrap_or_else(|err| emit_fatal_error(err, &workspace.source_map));
 
         let global = GlobalStorage::new(target);
         let local = LocalStorage::new(&global, SourceId::default());

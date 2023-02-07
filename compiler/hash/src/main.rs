@@ -4,16 +4,15 @@
 mod crash_handler;
 mod logger;
 
-use std::{panic, process::exit};
+use std::panic;
 
 use hash_pipeline::{
     args::parse_settings_from_args, interface::CompilerOutputStream, settings::CompilerSettings,
     workspace::Workspace, Compiler,
 };
-use hash_reporting::{report::Report, writer::ReportWriter};
-use hash_session::{make_stages, CompilerSession};
+use hash_reporting::report::Report;
+use hash_session::{emit_fatal_error, make_stages, CompilerSession};
 use hash_source::{ModuleKind, SourceMap};
-use hash_utils::stream_less_ewriteln;
 use log::LevelFilter;
 use logger::CompilerLogger;
 
@@ -27,10 +26,7 @@ pub static COMPILER_LOGGER: CompilerLogger = CompilerLogger;
 fn execute<T, E: Into<Report>>(sources: &SourceMap, f: impl FnOnce() -> Result<T, E>) -> T {
     match f() {
         Ok(value) => value,
-        Err(err) => {
-            stream_less_ewriteln!("{}", ReportWriter::single(err.into(), sources));
-            exit(-1)
-        }
+        Err(err) => emit_fatal_error(err, sources),
     }
 }
 
