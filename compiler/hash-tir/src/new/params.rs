@@ -35,6 +35,12 @@ pub struct Param {
     pub default: Option<TermId>,
 }
 
+impl From<Param> for ParamData {
+    fn from(value: Param) -> Self {
+        ParamData { name: value.name, ty: value.ty, default: value.default }
+    }
+}
+
 new_sequence_store_key!(pub ParamsId);
 pub type ParamId = (ParamsId, usize);
 pub type ParamsStore = DefaultSequenceStore<ParamsId, Param>;

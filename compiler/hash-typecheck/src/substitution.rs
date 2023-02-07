@@ -15,7 +15,7 @@ use hash_tir::new::{
 };
 use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
 
-use crate::AccessToTypechecking;
+use crate::{errors::TcResult, AccessToTypechecking};
 
 #[derive(Constructor, Deref)]
 pub struct SubstitutionOps<'a, T: AccessToTypechecking>(&'a T);
@@ -186,6 +186,18 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
         has_holes
     }
 
+    /// Determines whether the given set of parameters contains one or more
+    /// holes.
+    pub fn params_have_holes(&self, params_id: ParamsId) -> bool {
+        let mut has_holes = false;
+        self.traversing_utils()
+            .visit_params::<!, _>(params_id, &mut |atom| {
+                Ok(self.has_holes_once(atom, &mut has_holes))
+            })
+            .into_ok();
+        has_holes
+    }
+
     /// Create a substitution from applying the arguments to the parameters.
     ///
     /// For argument terms `a1, a2, ..., an` and parameter indices `p1, p2, ...,
@@ -196,16 +208,19 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
         args_id: ArgsId,
         params_id: ParamsId,
     ) -> Sub {
-        // @@Todo: dependent?
         self.stores().args().map_fast(args_id, |args| {
             self.stores().params().map_fast(params_id, |params| {
-                assert!(args_id.len() == params_id.len(), "TODO: user error");
-
-                // @@Todo: ensure arg indices match?
+                assert!(args_id.len() == params_id.len(), "called with mismatched args and params");
                 Sub::from_pairs(
                     params.iter().zip(args.iter()).map(|(param, arg)| (param.name, arg.value)),
                 )
             })
         })
+    }
+
+    /// Substitute values from the local scope until no bindings from the local
+    /// scope are left.
+    pub fn sub_local_scope(&self, term: TermId) -> TcResult<TermId> {
+        todo!()
     }
 }

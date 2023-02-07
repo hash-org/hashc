@@ -110,14 +110,17 @@ pub enum TcError {
     /// The given arguments do not match the length of the target parameters.
     WrongArgLength { params_id: ParamsId, args_id: SomeParamsOrArgsId },
 
+    /// The given parameters do not match the length of their annotations.
+    WrongParamLength { given_params_id: ParamsId, annotation_params_id: ParamsId },
+
     /// Cannot deref the subject.
     CannotDeref { subject: TermId, actual_subject_ty: TyId },
 
     /// Types don't match
-    MismatchingTypes { expected: TyId, actual: TyId },
+    MismatchingTypes { expected: TyId, actual: TyId, inferred_from: Option<TermId> },
 
-    /// Wrong term used somewhere
-    WrongTerm { term: TermId, inferred_term_ty: TyId, kind: WrongTermKind },
+    /// Wrong type used somewhere
+    WrongTy { term: TermId, inferred_term_ty: TyId, kind: WrongTermKind },
 
     /// The given property does not exist on the given term.
     PropertyNotFound { term: TermId, term_ty: TyId, property: ParamIndex },
@@ -221,19 +224,23 @@ impl<'tc> TcErrorReporter<'tc> {
                     );
                 }
             }
-            TcError::MismatchingTypes { expected, actual } => {
+            TcError::MismatchingTypes { expected, actual, inferred_from } => {
                 let error = reporter.error().code(HashErrorCode::TypeMismatch).title(format!(
                     "expected type `{}` but got `{}`",
                     self.env().with(*expected),
                     self.env().with(*actual),
                 ));
+                if let Some(location) = inferred_from.and_then(|term| locations.get_location(&term))
+                {
+                    error.add_labelled_span(
+                        location,
+                        format!("type `{}` inferred from here", self.env().with(*actual)),
+                    );
+                }
                 if let Some(location) = locations.get_location(expected) {
                     error.add_labelled_span(
                         location,
-                        format!(
-                            "this expects type `{}`", //@@Todo: flag for if inferred or declared
-                            self.env().with(*expected)
-                        ),
+                        format!("this expects type `{}`", self.env().with(*expected)),
                     );
                 }
                 if let Some(location) = locations.get_location(actual) {
@@ -408,8 +415,20 @@ impl<'tc> TcErrorReporter<'tc> {
                     }
                     error.add_info("positional arguments must come before spread arguments");
                 }
+                ParamError::ParamNameMismatch { param_a, param_b } => {
+                    let error = reporter
+                        .error()
+                        .code(HashErrorCode::ParameterInUse)
+                        .title("received two parameters with different names");
+                    if let Some(location) = locations.get_location(param_a) {
+                        error.add_labelled_span(location, "first parameter with this name");
+                    }
+                    if let Some(location) = locations.get_location(param_b) {
+                        error.add_labelled_span(location, "second parameter with this name");
+                    }
+                }
             },
-            TcError::WrongTerm { term, inferred_term_ty, kind } => {
+            TcError::WrongTy { term, inferred_term_ty, kind } => {
                 let kind_name = match kind {
                     WrongTermKind::NotAFunction => "function".to_string(),
                     WrongTermKind::NotARecord => "record".to_string(),
@@ -454,6 +473,26 @@ impl<'tc> TcErrorReporter<'tc> {
                             self.env().with(*term_ty),
                             *property,
                         ),
+                    );
+                }
+            }
+            TcError::WrongParamLength { given_params_id, annotation_params_id } => {
+                let error =
+                    reporter.error().code(HashErrorCode::ParameterLengthMismatch).title(format!(
+                        "wrong number of parameters. Expected {} but got {}",
+                        annotation_params_id.len(),
+                        given_params_id.len()
+                    ));
+                if let Some(location) = locations.get_overall_location(*given_params_id) {
+                    error.add_labelled_span(
+                        location,
+                        format!("got {} parameters here", given_params_id.len(),),
+                    );
+                }
+                if let Some(location) = locations.get_overall_location(*annotation_params_id) {
+                    error.add_labelled_span(
+                        location,
+                        format!("expected {} parameters from here", annotation_params_id.len(),),
                     );
                 }
             }

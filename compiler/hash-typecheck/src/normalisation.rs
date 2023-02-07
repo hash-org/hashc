@@ -240,7 +240,7 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
     fn eval_type_of(&self, type_of_term: TypeOfTerm) -> Result<Atom, Signal> {
         // Infer the type of the term:
         // @@Todo: use stored IDs only? Do not reduce if un-inferrable?
-        let (_, ty) = self.inference_ops().infer_term(type_of_term.term, None)?;
+        let (_, ty) = self.inference_ops().infer_term(type_of_term.term, self.new_ty_hole())?;
         Ok(ty.into())
     }
 

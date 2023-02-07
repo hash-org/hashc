@@ -38,6 +38,18 @@ pub enum ParamOrigin {
     Data(DataDefId),
 }
 
+impl From<ParamOrigin> for ScopeKind {
+    fn from(value: ParamOrigin) -> Self {
+        match value {
+            ParamOrigin::Fn(fn_def_id) => ScopeKind::Fn(fn_def_id),
+            ParamOrigin::FnTy(fn_ty) => ScopeKind::FnTy(fn_ty),
+            ParamOrigin::TupleTy(tuple_ty) => ScopeKind::TupleTy(tuple_ty),
+            ParamOrigin::Ctor(ctor_def_id) => ScopeKind::Ctor(ctor_def_id),
+            ParamOrigin::Data(data_def_id) => ScopeKind::Data(data_def_id),
+        }
+    }
+}
+
 impl ParamOrigin {
     /// A constant parameter is one that cannot depend on non-constant bindings.
     pub fn is_constant(&self) -> bool {
@@ -179,6 +191,11 @@ impl Context {
     /// or above scopes will result in a panic.
     pub fn mark_constant_scope_index(&self) {
         self.constant_member_level.set(self.scopes.borrow().len().saturating_sub(1));
+    }
+
+    /// Unset the current constant scope level (set to zero).
+    pub fn unmark_constant_scope_index(&self) {
+        self.constant_member_level.set(0);
     }
 
     /// Get the constant scope level.
