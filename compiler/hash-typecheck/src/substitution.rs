@@ -5,6 +5,7 @@ use std::ops::ControlFlow;
 use derive_more::{Constructor, Deref};
 use hash_tir::new::{
     args::ArgsId,
+    environment::context::BindingKind,
     holes::Hole,
     mods::ModDefId,
     params::ParamsId,
@@ -16,7 +17,7 @@ use hash_tir::new::{
 };
 use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
 
-use crate::{errors::TcResult, AccessToTypechecking};
+use crate::AccessToTypechecking;
 
 #[derive(Constructor, Deref)]
 pub struct SubstitutionOps<'a, T: AccessToTypechecking>(&'a T);
@@ -225,9 +226,37 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
         })
     }
 
-    /// Substitute values from the local scope until no bindings from the local
-    /// scope are left.
-    pub fn sub_local_scope(&self, _term: TermId) -> TcResult<TermId> {
-        todo!()
+    /// Create a substitution from the current local scope.
+    pub fn create_sub_from_local_scope(&self) -> Sub {
+        let scope_members =
+            self.context().get_owned_bindings_of_scope(self.context().get_current_scope_index());
+        let mut sub = Sub::identity();
+
+        for binding in scope_members {
+            let binding = self.context().get_binding(binding).unwrap();
+            match binding.kind {
+                BindingKind::Param(_, _) => {
+                    // Parameters are not substituted.
+                }
+                BindingKind::StackMember(_, value) => {
+                    // @@Todo: disallow mutable?
+                    if let Some(value) = value {
+                        sub.insert(binding.name, value);
+                    }
+                }
+                BindingKind::Arg(param_id, arg_id) => {
+                    let param = self.stores().params().get_element(param_id);
+                    let arg = self.stores().args().get_element(arg_id);
+                    sub.insert(param.name, arg.value);
+                }
+                BindingKind::Equality(_) => {
+                    // @@Todo ??
+                }
+
+                BindingKind::ModMember(_, _) | BindingKind::Ctor(_, _) => {}
+            }
+        }
+
+        sub
     }
 }

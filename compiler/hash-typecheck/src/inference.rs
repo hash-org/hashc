@@ -197,11 +197,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 let (term, ty) = self.infer_term(arg.value, param.ty)?;
                 Ok((
                     ArgData { target: arg.target, value: term },
-                    ParamData {
-                        name: self.make_param_name_from_arg_index(arg.target),
-                        ty,
-                        default: None,
-                    },
+                    ParamData { name: param.name, ty, default: param.default },
                 ))
             },
             |i| Some((reordered_args_id, i)),
@@ -324,10 +320,17 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             }
         };
 
-        let (inferred_args, inferred_params) =
-            self.context().enter_scope(ScopeKind::TupleTy(TupleTy { data: params }), || {
-                self.infer_args(term.data, params)
-            })?;
+        let (inferred_args, inferred_params) = self.context().enter_scope(
+            ScopeKind::TupleTy(TupleTy { data: params }),
+            || -> TcResult<_> {
+                let args = self.infer_args(term.data, params)?;
+
+                let sub = self.substitution_ops().create_sub_from_local_scope();
+                println!("{}", self.env().with(&sub));
+
+                Ok(args)
+            },
+        )?;
 
         Ok((TupleTerm { data: inferred_args }, TupleTy { data: inferred_params }))
     }

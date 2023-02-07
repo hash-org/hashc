@@ -311,6 +311,7 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
         })
     }
 
+    /// Whether two function types match in terms of their modality.
     pub fn fn_modalities_match(&self, f1: FnTy, f2: FnTy) -> bool {
         f1.implicit == f2.implicit && f1.is_unsafe == f2.is_unsafe && f1.pure == f2.pure
     }
