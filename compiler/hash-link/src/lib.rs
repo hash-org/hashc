@@ -10,7 +10,7 @@ pub mod msvc;
 
 use std::{
     io,
-    path::Path,
+    path::{Path, PathBuf},
     process::{Command, Output},
 };
 
@@ -21,7 +21,7 @@ use hash_pipeline::{
     CompilerResult,
 };
 use hash_source::SourceId;
-use hash_target::link::LinkerFlavour;
+use hash_target::link::{Cc, LinkerFlavour, Lld};
 
 /// This specifies the kind of output that the linker should
 /// produce, whether it is dynamically linked, and whether it
@@ -126,8 +126,23 @@ impl<Ctx: LinkerCtxQuery> CompilerStage<Ctx> for CompilerLinker {
     }
 }
 
-fn get_linker_and_flavour(settings: &CompilerSettings) -> (&Path, LinkerFlavour) {
-    todo!()
+/// Function which resolves which linker to use given the current [Target]
+/// and linker flavour. If the linker cannot be resolved for the current
+/// configuration settings, the function will panic.
+///
+/// @@Future: allow user to specify which linker to use when linking.
+fn get_linker_and_flavour(settings: &CompilerSettings) -> (PathBuf, LinkerFlavour) {
+    let target_flavour = settings.target().linker_flavour;
+    let path = match target_flavour {
+        LinkerFlavour::Gnu(Cc::Yes, _) | LinkerFlavour::Darwin(Cc::Yes, _) => PathBuf::from("cc"),
+        LinkerFlavour::Gnu(_, Lld::Yes) | LinkerFlavour::Darwin(_, Lld::Yes) => {
+            PathBuf::from("lld")
+        }
+        LinkerFlavour::Gnu(..) | LinkerFlavour::Darwin(..) => PathBuf::from("ld"),
+        LinkerFlavour::Msvc(_) => PathBuf::from("link.exe"),
+    };
+
+    (path, target_flavour)
 }
 
 fn get_linker_with_args(settings: &CompilerSettings, workspace: &Workspace) -> Box<dyn Linker> {

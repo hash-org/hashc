@@ -357,8 +357,8 @@ impl Default for CodeGenSettings {
             // @@Todo: we should emit a warning if the target is not supported, this
             // isn't a problem unless we're compiling to an executable.
             target_info: TargetInfo {
-                host: Target::search(HOST_TARGET_TRIPLE).unwrap_or_else(|| Target::default()),
-                target: Target::search(HOST_TARGET_TRIPLE).unwrap_or_else(|| Target::default()),
+                host: Target::search(HOST_TARGET_TRIPLE).unwrap_or_default(),
+                target: Target::search(HOST_TARGET_TRIPLE).unwrap_or_default(),
             },
             backend: Default::default(),
             output_path: Default::default(),
