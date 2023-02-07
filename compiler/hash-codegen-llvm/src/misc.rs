@@ -3,7 +3,10 @@
 
 use hash_codegen::common::{AtomicOrdering, IntComparisonKind, RealComparisonKind};
 use hash_pipeline::settings::OptimisationLevel;
-use hash_target::{abi::AddressSpace, CodeModel, RelocationMode};
+use hash_target::{
+    abi::AddressSpace,
+    link::{CodeModel, RelocationMode},
+};
 use inkwell::attributes::Attribute;
 
 use crate::context::CodeGenCtx;

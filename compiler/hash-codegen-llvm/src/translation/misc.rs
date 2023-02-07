@@ -70,7 +70,7 @@ impl<'b, 'm> MiscBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
     }
 
     fn declare_entry_point(&self, fn_ty: Self::Type) -> Option<Self::Function> {
-        let target = self.settings.codegen_settings().target_info.target();
+        let target = self.settings.target();
         let entry_name = target.entry_name.as_ref();
 
         // If the symbol already exists, then it is an error

@@ -9,7 +9,7 @@ use std::{
 };
 
 use hash_source::constant::CONSTANT_MAP;
-use hash_target::{data_layout::TargetDataLayout, TargetInfo};
+use hash_target::{Target, TargetInfo, HOST_TARGET_TRIPLE};
 
 use crate::{error::PipelineError, fs::resolve_path};
 
@@ -185,6 +185,11 @@ impl CompilerSettings {
     pub fn codegen_settings(&self) -> &CodeGenSettings {
         &self.codegen_settings
     }
+
+    /// Get a reference to the current compiled [Target].
+    pub fn target(&self) -> &Target {
+        &self.codegen_settings.target_info.target
+    }
 }
 
 impl Default for CompilerSettings {
@@ -321,18 +326,13 @@ pub enum IrDumpMode {
 ///
 /// N.B. some information that is stored here may be used by previous stages
 /// e.g. target information.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct CodeGenSettings {
     /// Information about the current "session" that the compiler is running
     /// in. This contains information about which target the compiler is
     /// compiling for, and other information that is used by the compiler
     /// to determine how to compile the source code.
     pub target_info: TargetInfo,
-
-    /// The specified target layout information for types. This defines
-    /// the sizes of target-dependant types, and default alignments for
-    /// primitive types.
-    pub data_layout: TargetDataLayout,
 
     /// This is only the "backend" for the global instance of code generation.
     ///
@@ -349,6 +349,20 @@ pub struct CodeGenSettings {
 
     /// Emit the generated IR to standard output.
     pub dump: bool,
+}
+
+impl Default for CodeGenSettings {
+    fn default() -> Self {
+        Self {
+            target_info: TargetInfo {
+                host: Target::search(HOST_TARGET_TRIPLE).unwrap(),
+                target: Target::search(HOST_TARGET_TRIPLE).unwrap(),
+            },
+            backend: Default::default(),
+            output_path: Default::default(),
+            dump: Default::default(),
+        }
+    }
 }
 
 /// All of the current possible code generation backends that

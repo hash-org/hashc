@@ -79,7 +79,7 @@ pub struct LayoutCtx {
 
     /// A reference to the [TargetDataLayout] of the current
     /// session.
-    data_layout: TargetDataLayout,
+    pub data_layout: TargetDataLayout,
 
     /// A table of common layouts that are used by the compiler often
     /// enough to keep in a "common" place, this avoids re-computing

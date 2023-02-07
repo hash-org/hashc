@@ -293,13 +293,13 @@ impl<'tcx> Builder<'tcx> {
                             0,
                         ),
                         IrTy::Int(int_ty) => {
-                            let size = int_ty.size(self.tcx.target_pointer_width).unwrap();
+                            let size = int_ty.size(self.tcx.pointer_width).unwrap();
                             let max = size.truncate(u128::MAX);
                             let bias = 1u128 << (size.bits() - 1);
                             (Some((0, max, size)), bias)
                         }
                         IrTy::UInt(uint_ty) => {
-                            let size = uint_ty.size(self.tcx.target_pointer_width).unwrap();
+                            let size = uint_ty.size(self.tcx.pointer_width).unwrap();
                             let max = size.truncate(u128::MAX);
                             (Some((0, max, size)), 0)
                         }
