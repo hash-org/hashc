@@ -8,7 +8,20 @@ pub mod lld;
 pub mod mold;
 pub mod msvc;
 
-use std::{path::Path, process::Command};
+use std::{
+    io,
+    path::Path,
+    process::{Command, Output},
+};
+
+use hash_pipeline::{
+    interface::{CompilerInterface, CompilerOutputStream, CompilerStage},
+    settings::{CompilerSettings, CompilerStageKind},
+    workspace::Workspace,
+    CompilerResult,
+};
+use hash_source::SourceId;
+use hash_target::link::LinkerFlavour;
 
 /// This specifies the kind of output that the linker should
 /// produce, whether it is dynamically linked, and whether it
@@ -58,4 +71,74 @@ pub trait Linker {
     /// In practise this means that the linker will strip all functions
     /// and data that is unreachable from the entry point.
     fn gc_sections(&mut self);
+}
+
+/// The linking context, which contains all of the information
+/// from the [CompilerSession] in order to perform
+/// the linking of an executable, or library.
+pub struct LinkerCtx<'ctx> {
+    /// Reference to the current compiler workspace.
+    pub workspace: &'ctx Workspace,
+
+    /// A reference to the backend settings in the current session.
+    pub settings: &'ctx CompilerSettings,
+
+    /// Reference to the output stream
+    pub stdout: CompilerOutputStream,
+}
+
+pub struct CompilerLinker;
+
+pub trait LinkerCtxQuery: CompilerInterface {
+    fn data(&mut self) -> LinkerCtx<'_>;
+}
+
+impl<Ctx: LinkerCtxQuery> CompilerStage<Ctx> for CompilerLinker {
+    fn kind(&self) -> CompilerStageKind {
+        CompilerStageKind::Link
+    }
+
+    fn run(&mut self, _: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
+        let LinkerCtx { workspace, settings, stdout } = ctx.data();
+
+        // If we are not emitting an executable, then we can
+        if !workspace.yields_executable(settings) {
+            return Ok(());
+        }
+
+        // Get the executable path that is going to be
+        // emitted by the compiler.
+        let output_path = workspace.executable_path();
+        let temp_path = workspace.temporary_storage("link").map_err(|err| vec![err.into()])?;
+
+        // Get the linker that is going to be used to link
+
+        let (linker_path, flavour) = get_linker_and_flavour(settings);
+        let mut linker = get_linker_with_args(settings, workspace);
+
+        // @@Todo: print out link-line if specified via `-Cemit=link-line`
+
+        // Run the linker
+        let command = linker.cmd();
+        let program = execute_linker(settings, command, output_path.as_path(), temp_path.as_path());
+
+        Ok(())
+    }
+}
+
+fn get_linker_and_flavour(settings: &CompilerSettings) -> (&Path, LinkerFlavour) {
+    todo!()
+}
+
+fn get_linker_with_args(settings: &CompilerSettings, workspace: &Workspace) -> Box<dyn Linker> {
+    todo!()
+}
+
+fn execute_linker(
+    settings: &CompilerSettings,
+    cmd: &Command,
+    out_filename: &Path,
+    temp_dir: &Path,
+) -> io::Result<Output> {
+    todo!()
 }

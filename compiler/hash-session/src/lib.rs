@@ -15,6 +15,7 @@ use hash_backend::{BackendCtxQuery, CodeGenPass};
 use hash_codegen::backend::BackendCtx;
 use hash_ir::IrStorage;
 use hash_layout::LayoutCtx;
+use hash_link::{CompilerLinker, LinkerCtx, LinkerCtxQuery};
 use hash_lower::{IrGen, IrOptimiser, LoweringCtx, LoweringCtxQuery};
 use hash_parser::{Parser, ParserCtx, ParserCtxQuery};
 use hash_pipeline::{
@@ -40,6 +41,7 @@ pub fn make_stages() -> Vec<Box<dyn CompilerStage<CompilerSession>>> {
         Box::<IrGen>::default(),
         Box::new(IrOptimiser),
         Box::new(CodeGenPass),
+        Box::new(CompilerLinker),
     ]
 }
 
@@ -237,5 +239,13 @@ impl BackendCtxQuery for CompilerSession {
             stdout: output_stream,
             _pool: &self.pool,
         }
+    }
+}
+
+impl LinkerCtxQuery for CompilerSession {
+    fn data(&mut self) -> hash_link::LinkerCtx<'_> {
+        let stdout = self.output_stream();
+
+        LinkerCtx { workspace: &self.workspace, settings: &self.settings, stdout }
     }
 }

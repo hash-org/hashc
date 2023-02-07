@@ -414,6 +414,9 @@ pub enum CompilerStageKind {
     /// to successfully compile.
     CodeGen,
 
+    /// Run the linking stage.
+    Link,
+
     /// If the compiler is in interactive mode, this will run
     /// the full pipeline all the way to the virtual machine, if
     /// however there is an entry point defined, this means that
@@ -432,7 +435,8 @@ impl Display for CompilerStageKind {
             CompilerStageKind::Typecheck => write!(f, "typecheck"),
             CompilerStageKind::Lower => write!(f, "lowering"),
             CompilerStageKind::CodeGen => write!(f, "codegen"),
-            CompilerStageKind::Full => write!(f, "total"),
+            CompilerStageKind::Link => write!(f, "linking"),
+            CompilerStageKind::Full => write!(f, "full"),
         }
     }
 }

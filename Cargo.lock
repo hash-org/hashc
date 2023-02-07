@@ -567,6 +567,8 @@ version = "0.1.0"
 dependencies = [
  "hash-pipeline",
  "hash-reporting",
+ "hash-source",
+ "hash-target",
  "hash-utils",
 ]
 
@@ -681,6 +683,7 @@ dependencies = [
  "hash-interactive",
  "hash-ir",
  "hash-layout",
+ "hash-link",
  "hash-lower",
  "hash-parser",
  "hash-pipeline",
