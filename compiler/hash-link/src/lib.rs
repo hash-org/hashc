@@ -19,7 +19,7 @@ pub struct LinkOutputKind {
     pub dynamic: bool,
 
     /// Is the output position-independent?
-    pub pic: bool,
+    pub is_pic: bool,
 }
 
 /// A trait which represents a linker and all of the functionality
