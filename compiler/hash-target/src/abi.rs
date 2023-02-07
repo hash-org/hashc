@@ -41,6 +41,18 @@ impl Integer {
         }
     }
 
+    /// Get the [Integer] from the [Size] of the integer.
+    pub fn from_size(size: Size) -> Option<Self> {
+        match size.bits() {
+            8 => Some(Integer::I8),
+            16 => Some(Integer::I16),
+            32 => Some(Integer::I32),
+            64 => Some(Integer::I64),
+            128 => Some(Integer::I128),
+            _ => None,
+        }
+    }
+
     /// Get the [Alignments] of the [Integer].
     pub fn align<C: HasDataLayout>(self, ctx: &C) -> Alignments {
         use Integer::*;

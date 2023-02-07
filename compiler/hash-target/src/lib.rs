@@ -1,10 +1,13 @@
 //! Definitions to describe the target of Hash compilation.
+#![feature(decl_macro)]
 
 pub mod abi;
 pub mod alignment;
 pub mod data_layout;
+pub mod link;
 pub mod primitives;
 pub mod size;
+pub mod targets;
 
 use std::{
     borrow::Cow,
@@ -12,23 +15,57 @@ use std::{
     fmt::{Display, Formatter},
 };
 
-use abi::Abi;
+use abi::{Abi, Integer};
+use data_layout::{Endian, TargetDataLayout, TargetDataLayoutParseError};
+use link::{
+    link_env, Cc, CodeModel, FramePointer, LinkEnv, LinkageArgs, LinkerFlavour, Lld, RelocationMode,
+};
+use size::Size;
+use targets::load_target;
+
+/// The host target that the compiler is currently running on.
+pub const HOST_TARGET_TRIPLE: &str = env!("TARGET_TRIPLE");
+
+/// Represents all of the available compilation platforms that
+/// the compiler can compiler for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Platform {
+    /// The platform is unknown.
+    Unknown,
+
+    /// The platform is Linux like.
+    Linux,
+
+    /// The platform is Windows like.
+    Windows,
+
+    /// The platform is MacOS/iOS like.
+    OsX,
+}
 
 /// The target that the compiler should compile for.
 #[derive(Debug, Clone)]
 pub struct Target {
-    /// The size of the pointer for the target in bytes.
+    /// The size of the pointer for the target in bits.
     ///
     /// N.B. It is an invariant for the pointer size to be
     /// larger than 8, there is no current host system that
-    /// supports a pointer size larger than 8 bytes.
-    pub pointer_width: usize,
+    /// supports a pointer size larger than 8 bits.
+    pub pointer_bit_width: usize,
 
-    /// The target-triple name of the [Target].
+    /// The target-triple name of the [Target]. This is primarily
+    /// needed for the LLVM backend to correctly configure the right
+    /// target.
     pub name: Cow<'static, str>,
 
     /// The architecture of the target.
     pub arch: TargetArch,
+
+    /// The data layout of the architecture.
+    pub data_layout: Cow<'static, str>,
+
+    /// What endianess the target is.
+    pub endian: Endian,
 
     /// The name of the entry point for the target.
     ///
@@ -41,13 +78,6 @@ pub struct Target {
     /// This specifies the CPU features that are available on the
     /// target that is being compiled for.
     pub cpu_features: Cow<'static, str>,
-
-    /// Represents what kind of relocation model the target is
-    /// expecting.
-    pub relocation_mode: RelocationMode,
-
-    /// Represents what kind of code model the target is expecting.
-    pub code_model: CodeModel,
 
     /// The integer width of the target in bits.
     pub c_int_width: u8,
@@ -63,42 +93,184 @@ pub struct Target {
     /// The ABI of the entry function, the default is
     /// the `C` ABI.
     pub entry_abi: Abi,
+
+    /// If the target platform is either Windows, MacOS, Linux, or unknown.
+    pub platform: Platform,
+
+    /// The vendor name of the target.
+    pub vendor: Cow<'static, str>,
+
+    // ---- Linking stuff ----
+    /// The linker flavour for the target.
+    pub linker_flavour: LinkerFlavour,
+
+    /// Represents what kind of relocation model the target is
+    /// expecting.
+    pub relocation_mode: RelocationMode,
+
+    /// Represents what kind of code model the target is expecting.
+    pub code_model: CodeModel,
+
+    /// Represents what kind of frame pointer handling the target is expecting.
+    pub frame_pointer: FramePointer,
+
+    /// The suffix for dynamic libraries, e.g. `lib` on MacOS.
+    pub dylib_suffix: Cow<'static, str>,
+
+    /// The prefix for dynamic libraries, e.g. `dylib` on MacOS.
+    pub dylib_prefix: Cow<'static, str>,
+
+    /// The prefix for static libraries, e.g. `lib` on Linux.
+    pub staticlib_prefix: Cow<'static, str>,
+
+    /// The suffix for static libraries, e.g. `lib` on Linux.
+    pub staticlib_suffix: Cow<'static, str>,
+
+    /// The suffix for executables, e.g. `exe` on Windows.
+    pub exe_suffix: Cow<'static, str>,
+
+    /// Whether dynamic linking is available on this target. Defaults to false.
+    pub dynamic_linking: bool,
+
+    /// Emit each function in its own section. Defaults to true.
+    pub function_sections: bool,
+
+    /// Arguments that are added to the linker at the beginning of the
+    /// link line.
+    pub pre_link_args: LinkageArgs,
+
+    /// Arguments that are added to the linker at the end of the
+    /// link line.
+    pub post_link_args: LinkageArgs,
+
+    /// Linker arguments that are unconditionally passed after any
+    /// user-defined but before post-link objects. Standard platform
+    /// libraries that should be always be linked to, usually go here.
+    pub late_link_args: LinkageArgs,
+
+    /// Environment variables that should be set when linking.
+    pub link_env: LinkEnv,
+
+    /// Environment variables that should be removed when linking.
+    pub link_env_remove: LinkEnv,
+    // -----------------------
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum CodeModel {
-    /// The default code model.
-    Default,
+impl Target {
+    /// Find and load the specified target from a target triple.
+    ///
+    /// @@Future: support a more custom way of loading in target specifications.
+    pub fn search(triple: &str) -> Option<Self> {
+        load_target(triple)
+    }
 
-    /// The JIT code model.
-    JITDefault,
+    /// Produce a [TargetDataLayout] from the given [Target] layout
+    /// string. If the layout contains any errors, this function will
+    /// return the errors that were encountered.
+    pub fn parse_data_layout(&self) -> Result<TargetDataLayout, TargetDataLayoutParseError<'_>> {
+        let mut dl = TargetDataLayout::parse_from_llvm_data_layout_string(&self.data_layout)?;
 
-    /// The small code model.
-    Small,
+        // Check Endianness matches
+        if dl.endian != self.endian {
+            return Err(TargetDataLayoutParseError::InconsistentTargetArchitecture {
+                dl: dl.endian.as_str(),
+                target: self.endian.as_str(),
+            });
+        }
 
-    /// The kernel code model.
-    Kernel,
+        // Check pointer sizes match
+        let ptr_width: u64 = self.pointer_bit_width as u64;
 
-    /// The medium code model.
-    Medium,
+        if dl.pointer_size.bits() != ptr_width {
+            return Err(TargetDataLayoutParseError::InconsistentTargetPointerWidth {
+                size: dl.pointer_size.bits(),
+                target: self.pointer_bit_width as u32,
+            });
+        }
 
-    /// The large code model.
-    Large,
+        // Apply the target c-enum size to the data layout since this is
+        // not specified within the data layout string. If the size is larger
+        // than the size of an integer, then we will return an error.
+        dl.c_style_enum_min_size = match Integer::from_size(Size::from_bits(self.c_int_width)) {
+            Some(bits) => bits,
+            None => {
+                return Err(TargetDataLayoutParseError::InvalidEnumSize {
+                    err: format!("unsupported integer width `{}`, it must be defined as either `i8`, `i16`, `i32`, `i64`, or `i128`", self.c_int_width),
+                })
+            }
+        };
+
+        Ok(dl)
+    }
+
+    /// Check if the target is a macOS-like target.
+    pub fn is_like_osx(&self) -> bool {
+        self.platform == Platform::OsX
+    }
+
+    /// Check if the target is a Windows-like target.
+    pub fn is_like_windows(&self) -> bool {
+        self.platform == Platform::Windows
+    }
+
+    /// Add pre-linker arguments to the target.
+    pub fn add_pre_link_args(&mut self, flavour: LinkerFlavour, args: &[&'static str]) {
+        self.pre_link_args.add_str_args(flavour, args)
+    }
+
+    /// Add post-linker arguments to the target.
+    pub fn add_post_link_args(&mut self, flavour: LinkerFlavour, args: &[&'static str]) {
+        self.post_link_args.add_str_args(flavour, args)
+    }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum RelocationMode {
-    /// The default relocation mode.
-    Default,
+impl Default for Target {
+    fn default() -> Self {
+        // get the size of the pointer for the current system
+        let pointer_width = std::mem::size_of::<usize>();
+        let arch = TargetArch::from_host();
+        Self {
+            arch,
+            endian: Endian::Little,
+            platform: Platform::Unknown,
+            name: HOST_TARGET_TRIPLE.into(),
+            vendor: "unknown".into(),
+            cpu: "generic".into(),
+            cpu_features: "".into(),
 
-    /// The static relocation mode.
-    Static,
+            // ABI related options
+            c_int_width: 32,
+            data_layout: "".into(),
+            pointer_bit_width: pointer_width,
 
-    /// The PIC relocation mode.
-    PIC,
+            // Entry point options
+            entry_name: "main".into(),
+            entry_abi: Abi::C,
+            entry_point_requires_args: true,
 
-    /// The dynamic no PIC relocation mode.
-    DynamicNoPIC,
+            // Linking options for the platform.
+            linker_flavour: LinkerFlavour::Gnu(Cc::Yes, Lld::No),
+
+            code_model: CodeModel::Default,
+            relocation_mode: RelocationMode::PIC,
+            default_hidden_visibility: false,
+
+            dylib_prefix: "lib".into(),
+            dylib_suffix: "lib".into(),
+            staticlib_suffix: "lib".into(),
+            staticlib_prefix: "lib".into(),
+            exe_suffix: "".into(),
+            frame_pointer: FramePointer::None,
+            dynamic_linking: false,
+            function_sections: true,
+
+            pre_link_args: LinkageArgs::new(),
+            late_link_args: LinkageArgs::new(),
+            post_link_args: LinkageArgs::new(),
+            link_env: link_env![],
+            link_env_remove: link_env![],
+        }
+    }
 }
 
 /// Represents the available target architectures that the compiler can compiler
@@ -158,76 +330,14 @@ impl Display for TargetArch {
     }
 }
 
-impl Target {
-    /// Create a new target from the given string.
-    pub fn from_string(name: String) -> Option<Self> {
-        // @@Todo: move each branch into separate module in order
-        // to make it easier to add new targets.
-        let (cpu, arch, pointer_width) = match name.as_str() {
-            "x86" => ("x86-64", TargetArch::X86, 4),
-            "x86_64" => ("x86-64", TargetArch::X86_64, 8),
-            "arm" => ("arm", TargetArch::Arm, 4),
-            "aarch64" => ("aarch64", TargetArch::Aarch64, 8),
-            _ => return None,
-        };
-
-        Some(Self { cpu: cpu.into(), arch, pointer_width, ..Default::default() })
-    }
-}
-
-impl Default for Target {
-    fn default() -> Self {
-        // get the size of the pointer for the current system
-        let pointer_width = std::mem::size_of::<usize>();
-        let arch = TargetArch::from_host();
-
-        Self {
-            name: env!("TARGET_TRIPLE").into(),
-            c_int_width: 32,
-            cpu: "generic".into(),
-            cpu_features: "".into(),
-            relocation_mode: RelocationMode::PIC,
-            code_model: CodeModel::Default,
-            pointer_width,
-            arch,
-            entry_name: "main".into(),
-            entry_point_requires_args: true,
-            entry_abi: Abi::C,
-            default_hidden_visibility: false,
-        }
-    }
-}
-
 /// Holds information about various targets that are currently used by the
 /// compiler.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct TargetInfo {
     /// The target value of the host that the compiler is running
     /// for.
-    host: Target,
+    pub host: Target,
 
     /// The target that the compiler is compiling for.
-    target: Target,
-}
-
-impl TargetInfo {
-    /// Create a new target info from the given host and target.
-    pub fn new(host: Target, target: Target) -> Self {
-        Self { host, target }
-    }
-
-    /// Get the target that the compiler is compiling for.
-    pub fn target(&self) -> &Target {
-        &self.target
-    }
-
-    /// Get the host target that the compiler is running on.
-    pub fn host(&self) -> &Target {
-        &self.host
-    }
-
-    /// Update the target that the compiler is compiling for.
-    pub fn set_target(&mut self, target: Target) {
-        self.target = target;
-    }
+    pub target: Target,
 }
