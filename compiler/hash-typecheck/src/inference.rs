@@ -270,7 +270,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
         for param_id in params.iter() {
             let param = self.stores().params().get_element(param_id);
-            if let Some((_, ty)) =
+            if let Some((ty, _)) =
                 error_state.try_or_add_error(self.infer_ty(param.ty, self.new_ty_hole()))
             {
                 self.stores().params().modify_fast(param_id.0, |params| params[param_id.1].ty = ty);
@@ -286,17 +286,21 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     /// annotation type and return it (or to the inferred type if the annotation
     /// type is not given).
     pub fn check_by_unify(&self, inferred_ty: TyId, annotation_ty: TyId) -> TcResult<TyId> {
-        let Uni { sub, .. } = self.unification_ops().unify_tys(inferred_ty, annotation_ty)?;
-        self.substitution_ops().apply_sub_to_ty_in_place(annotation_ty, &sub);
-        Ok(annotation_ty)
+        let Uni { result, .. } = self.unification_ops().unify_tys(inferred_ty, annotation_ty)?;
+        Ok(result)
     }
 
     /// Check that the given type is well-formed, and normalise it.
     pub fn normalise_and_check_ty(&self, ty: TyId) -> TcResult<TyId> {
-        let (_, checked_ty) = self.infer_ty(ty, self.new_ty_hole())?;
-        let norm = self.normalisation_ops();
-        let reduced_ty = norm.to_ty(norm.normalise(checked_ty.into())?);
-        Ok(reduced_ty)
+        match self.get_ty(ty) {
+            Ty::Hole(_) => Ok(ty),
+            _ => {
+                let (checked_ty, _) = self.infer_ty(ty, self.new_ty_hole())?;
+                let norm = self.normalisation_ops();
+                let reduced_ty = norm.to_ty(norm.normalise(checked_ty.into())?);
+                Ok(reduced_ty)
+            }
+        }
     }
 
     /// Infer the type of a tuple term.
@@ -702,8 +706,11 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             }
             Ty::Ref(ref_ty) => {
                 // Infer the inner type
-                self.infer_ty(ref_ty.ty, self.new_ty_hole())?;
-                Ok((ty_id, self.new_small_universe_ty()))
+                let (inner_ty, _) = self.infer_ty(ref_ty.ty, self.new_ty_hole())?;
+                Ok((
+                    self.new_ty(RefTy { ty: inner_ty, kind: ref_ty.kind, mutable: ref_ty.mutable }),
+                    self.new_small_universe_ty(),
+                ))
             }
             Ty::Data(data_ty) => {
                 self.context().enter_scope(ScopeKind::Data(data_ty.data_def), || {
@@ -995,7 +1002,8 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
             // @@Todo:
             Term::Match(_) | Term::Assign(_) | Term::Access(_) => {
-                todo!()
+                // @@Todo
+                Ok((term_id, annotation_ty))
             }
 
             Term::Hole(_) => Err(TcError::Blocked),
@@ -1159,7 +1167,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         let pat = self.get_pat(pat_id);
 
         Ok(match pat {
-            Pat::Binding(binding) => (pat_id, self.infer_var(binding.name)?),
+            Pat::Binding(_) => (pat_id, annotation_ty),
             Pat::Range(range_pat) => (pat_id, self.infer_range_pat(range_pat, annotation_ty)?),
             Pat::Lit(lit) => (pat_id, self.infer_lit(&lit.into(), annotation_ty)?.1),
             Pat::Tuple(tuple_pat) => self.generalise_pat_and_ty_inference(self.infer_tuple_pat(
