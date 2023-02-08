@@ -125,11 +125,11 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
                 }
             }
             (Ty::Hole(a), _) => {
-                let sub = Sub::from_pairs([(a, self.new_term(target_id))]);
+                let sub = Sub::from_pairs([(a.0, self.new_term(target_id))]);
                 Uni::ok_with(sub, target_id)
             }
             (_, Ty::Hole(b)) => {
-                let sub = Sub::from_pairs([(b, self.new_term(src_id))]);
+                let sub = Sub::from_pairs([(b.0, self.new_term(src_id))]);
                 Uni::ok_with(sub, src_id)
             }
 
@@ -197,13 +197,23 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
         let src = self.get_term(src_id);
         let target = self.get_term(target_id);
 
-        match (src, target) {
-            (Term::Ty(t1), Term::Ty(t2)) => {
-                let uni = self.unify_tys(t1, t2)?;
-                Ok(uni.map_result(|t| if t == t1 || t == t2 { src_id } else { self.new_term(t) }))
+        match (self.try_use_term_as_ty(src_id), self.try_use_term_as_ty(target_id)) {
+            (Some(src_ty), Some(target_ty)) => {
+                let uni = self.unify_tys(src_ty, target_ty)?;
+                Ok(uni.map_result(|t| self.new_term(t)))
             }
-            (Term::Var(a), Term::Var(b)) => Uni::ok_iff_terms_match(a == b, src_id, target_id),
-            _ => Uni::mismatch_terms(src_id, target_id),
+            _ => match (src, target) {
+                (Term::Ty(t1), Term::Ty(t2)) => {
+                    let uni = self.unify_tys(t1, t2)?;
+                    Ok(uni
+                        .map_result(|t| if t == t1 || t == t2 { src_id } else { self.new_term(t) }))
+                }
+                (Term::Var(a), Term::Var(b)) => Uni::ok_iff_terms_match(a == b, src_id, target_id),
+                (Term::Hole(a), Term::Hole(b)) => {
+                    Uni::ok_iff_terms_match(a == b, src_id, target_id)
+                }
+                _ => Uni::mismatch_terms(src_id, target_id),
+            },
         }
     }
 

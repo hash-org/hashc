@@ -106,7 +106,7 @@ pub enum TcError {
     Compound { errors: Vec<TcError> },
 
     /// More type annotations are needed to infer the type of the given term.
-    NeedMoreTypeAnnotationsToInfer { term: TermId },
+    NeedMoreTypeAnnotationsToInfer { term: LocationTarget },
 
     /// The given arguments do not match the length of the target parameters.
     WrongArgLength { params_id: ParamsId, args_id: SomeParamsOrArgsId },

@@ -200,6 +200,16 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
         has_holes
     }
 
+    /// Determines whether the given set of arguments contains one or more
+    /// holes.
+    pub fn args_have_holes(&self, args_id: ArgsId) -> bool {
+        let mut has_holes = false;
+        self.traversing_utils()
+            .visit_args::<!, _>(args_id, &mut |atom| Ok(self.has_holes_once(atom, &mut has_holes)))
+            .into_ok();
+        has_holes
+    }
+
     /// Determines whether the given set of parameters contains one or more
     /// holes.
     pub fn params_have_holes(&self, params_id: ParamsId) -> bool {
