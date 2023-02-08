@@ -118,6 +118,7 @@ impl Display for WithEnv<'_, &Sub> {
             if i > 0 {
                 write!(f, ", ")?;
             }
+
             write!(f, "{} ~> {}", self.env().with(from), self.env().with(to))?;
         }
         write!(f, "}}")

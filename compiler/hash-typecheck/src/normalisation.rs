@@ -122,7 +122,7 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
 
     /// Evaluate a variable.
     fn eval_var(&self, var: Symbol) -> Result<Atom, Signal> {
-        match self.context().get_binding(var).unwrap().kind {
+        match self.context().get_binding(var).kind {
             BindingKind::Param(_, _) => Ok(self.new_term(var).into()),
             BindingKind::Arg(_, arg_id) => {
                 Ok(self.stores().args().map_fast(arg_id.0, |args| args[arg_id.1].value).into())

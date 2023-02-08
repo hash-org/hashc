@@ -258,8 +258,16 @@ impl Context {
     }
 
     /// Get a binding from the context, reading all accessible scopes.
-    pub fn get_binding(&self, name: Symbol) -> Option<Binding> {
-        Some(Binding { name, kind: self.members.borrow().get(&name).copied()? })
+    pub fn get_binding(&self, name: Symbol) -> Binding {
+        Binding {
+            name,
+            kind: self
+                .members
+                .borrow()
+                .get(&name)
+                .copied()
+                .unwrap_or_else(|| panic!("tried to get a binding that doesn't exist")),
+        }
     }
 
     /// Modify a binding in the context.

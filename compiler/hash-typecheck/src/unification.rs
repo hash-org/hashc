@@ -143,23 +143,24 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
             (Ty::Tuple(_), _) | (_, Ty::Tuple(_)) => Uni::mismatch_types(src_id, target_id),
 
             (Ty::Fn(f1), Ty::Fn(f2)) => {
-                if !self.fn_modalities_match(f1, f2) || f1.params.len() != f2.params.len() {
+                if !self.fn_modalities_match(f1, f2) {
                     Uni::mismatch_types(src_id, target_id)
                 } else {
-                    let Uni { sub, result: params } =
-                        self.unify_params(f2.params, f1.params, ParamOrigin::FnTy(f1))?;
+                    self.context().enter_scope(f2.into(), || {
+                        let Uni { sub, result: params } =
+                            self.unify_params(f1.params, f2.params, ParamOrigin::FnTy(f1))?;
 
-                    let return_ty_1_subbed =
-                        self.substitution_ops().apply_sub_to_ty(f1.return_ty, &sub);
-                    let return_ty_2_subbed =
-                        self.substitution_ops().apply_sub_to_ty(f2.return_ty, &sub);
+                        let return_ty_1_subbed =
+                            self.substitution_ops().apply_sub_to_ty(f1.return_ty, &sub);
+                        let return_ty_2_subbed = f2.return_ty;
 
-                    let Uni { result: return_ty, sub: return_ty_sub } =
-                        self.unify_tys(return_ty_1_subbed, return_ty_2_subbed)?;
+                        let Uni { result: return_ty, sub: return_ty_sub } =
+                            self.unify_tys(return_ty_1_subbed, return_ty_2_subbed)?;
 
-                    Ok(Uni {
-                        result: self.new_ty(FnTy { return_ty, params, ..f1 }),
-                        sub: return_ty_sub,
+                        Ok(Uni {
+                            result: self.new_ty(FnTy { return_ty, params, ..f1 }),
+                            sub: return_ty_sub,
+                        })
                     })
                 }
             }
@@ -284,15 +285,20 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
                     _ => {}
                 }
 
-                let (src_ty, _) = self.inference_ops().infer_ty(src.ty, self.new_ty_hole())?;
-                let (target_ty, _) = self.inference_ops().infer_ty(src.ty, self.new_ty_hole())?;
+                let (target_ty, _) =
+                    self.inference_ops().infer_ty(target.ty, self.new_ty_hole())?;
 
                 // Apply the name substitution to the parameter
-                let subbed_src_ty = self.substitution_ops().apply_sub_to_ty(src_ty, &name_sub);
+                let subbed_src_ty = self.substitution_ops().apply_sub_to_ty(src.ty, &name_sub);
 
-                let unified_param = self
-                    .unify_tys(subbed_src_ty, target_ty)?
-                    .map_result(|ty| ParamData { name: target.name, ty, default: None });
+                let (src_ty, _) =
+                    self.inference_ops().infer_ty(subbed_src_ty, self.new_ty_hole())?;
+
+                let unified_param = self.unify_tys(src_ty, target_ty)?.map_result(|ty| ParamData {
+                    name: target.name,
+                    ty,
+                    default: None,
+                });
 
                 self.context_utils().add_param_binding(target.id, origin);
 

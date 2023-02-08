@@ -593,13 +593,15 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     let (inferred_fn_call_args, _) =
                         self.infer_args(fn_call_term.args, fn_ty.params)?;
 
-                    // Then normalise the return type in their scope.
-                    let return_ty = self.normalise_and_check_ty(fn_ty.return_ty)?;
-
                     let sub = self
                         .substitution_ops()
                         .create_sub_from_args_of_params(inferred_fn_call_args, fn_ty.params);
-                    let subbed_return_ty = self.substitution_ops().apply_sub_to_ty(return_ty, &sub);
+
+                    let subbed_return_ty =
+                        self.substitution_ops().apply_sub_to_ty(fn_ty.return_ty, &sub);
+
+                    // Then normalise the return type in their scope.
+                    let return_ty = self.normalise_and_check_ty(subbed_return_ty)?;
 
                     // @@Todo: implicit check
 
@@ -609,7 +611,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                             args: inferred_fn_call_args,
                             implicit: fn_call_term.implicit,
                         },
-                        self.check_by_unify(subbed_return_ty, annotation_ty)?,
+                        self.check_by_unify(return_ty, annotation_ty)?,
                     ))
                 })
             }
@@ -727,7 +729,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
     /// Infer the type of a variable, and return it.
     pub fn infer_var(&self, term: Symbol, annotation_ty: TyId) -> TcResult<TyId> {
-        let found_ty = match self.context().get_binding(term).unwrap().kind {
+        let found_ty = match self.context().get_binding(term).kind {
             BindingKind::Equality(_) => {
                 unreachable!("equality judgements cannot be referenced")
             }

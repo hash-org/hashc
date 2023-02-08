@@ -130,11 +130,8 @@ impl<'tc> ResolutionPass<'tc> {
                 }
             },
             ResolvedAstPathComponent::Terminal(terminal) => match terminal {
-                TerminalResolvedPathComponent::FnDef(_) => {
-                    // Functions are not allowed in type positions
-                    Err(SemanticError::CannotUseFunctionInTypePosition {
-                        location: self.source_location(original_node_span),
-                    })
+                TerminalResolvedPathComponent::FnDef(fn_def_id) => {
+                    Ok(self.use_term_as_ty(self.new_term(Term::FnRef(*fn_def_id))))
                 }
                 TerminalResolvedPathComponent::CtorPat(_) => {
                     panic_on_span!(
@@ -143,18 +140,13 @@ impl<'tc> ResolutionPass<'tc> {
                         "found CtorPat in type ast path"
                     )
                 }
-                TerminalResolvedPathComponent::CtorTerm(_) => {
-                    // Constructors are not allowed in type positions
-                    Err(SemanticError::CannotUseConstructorInTypePosition {
-                        location: self.source_location(original_node_span),
-                    })
+                TerminalResolvedPathComponent::CtorTerm(ctor_term) => {
+                    Ok(self.use_term_as_ty(self.new_term(Term::Ctor(*ctor_term))))
                 }
                 TerminalResolvedPathComponent::FnCall(fn_call_term) => {
-                    // Function call
                     Ok(self.use_term_as_ty(self.new_term(Term::FnCall(*fn_call_term))))
                 }
                 TerminalResolvedPathComponent::Var(bound_var) => {
-                    // Bound variable
                     Ok(self.new_ty(Ty::Var(bound_var.name)))
                 }
             },

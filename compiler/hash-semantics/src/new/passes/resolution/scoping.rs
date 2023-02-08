@@ -145,7 +145,7 @@ impl<'tc> Scoping<'tc> {
         if self.context().get_current_scope().kind.is_constant() {
             // If we are in a constant scope, we need to check that the binding
             // is also in a constant scope.
-            if !self.context().get_binding(symbol).unwrap().kind.is_constant() {
+            if !self.context().get_binding(symbol).kind.is_constant() {
                 return Err(SemanticError::CannotUseNonConstantItem {
                     location: self.source_location(span),
                 });
