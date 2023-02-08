@@ -56,7 +56,7 @@ impl<'tc> ResolutionPass<'tc> {
                         .as_ref()
                         .map(|name| ParamIndex::Name(name.ident))
                         .unwrap_or_else(|| ParamIndex::Position(i)),
-                    value: self.new_term(Term::Ty(self.make_ty_from_ast_ty(arg.ty.ast_ref())?)),
+                    value: self.use_ty_as_term(self.make_ty_from_ast_ty(arg.ty.ast_ref())?),
                 })
             })
             .collect::<SemanticResult<Vec<_>>>()?;
@@ -178,7 +178,7 @@ impl<'tc> ResolutionPass<'tc> {
                 }
                 TerminalResolvedPathComponent::FnCall(fn_call_term) => {
                     // Function call
-                    Ok(self.new_ty(Ty::Eval(self.new_term(Term::FnCall(*fn_call_term)))))
+                    Ok(self.use_term_as_ty(self.new_term(Term::FnCall(*fn_call_term))))
                 }
                 TerminalResolvedPathComponent::Var(bound_var) => {
                     // Bound variable
@@ -248,11 +248,11 @@ impl<'tc> ResolutionPass<'tc> {
 
                 match (subject, args) {
                     (Some(subject), Some(args)) => {
-                        Ok(self.new_ty(Ty::Eval(self.new_term(Term::FnCall(FnCallTerm {
+                        Ok(self.use_term_as_ty(self.new_term(Term::FnCall(FnCallTerm {
                             subject,
                             args,
                             implicit: true,
-                        })))))
+                        }))))
                     }
                     _ => Err(SemanticError::Signal),
                 }
@@ -274,10 +274,9 @@ impl<'tc> ResolutionPass<'tc> {
         let list_def = self.primitives().list();
         Ok(self.new_ty(Ty::Data(DataTy {
             data_def: list_def,
-            args: self.param_utils().create_positional_args_for_data_def(
-                list_def,
-                once(self.new_term(Term::Ty(inner_ty))),
-            ),
+            args: self
+                .param_utils()
+                .create_positional_args_for_data_def(list_def, once(self.use_ty_as_term(inner_ty))),
         })))
     }
 

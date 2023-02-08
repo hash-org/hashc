@@ -33,7 +33,7 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
                 Ty::Hole(Hole(symbol)) | Ty::Var(symbol) => {
                     match sub.get_sub_for_var_or_hole(symbol) {
                         Some(term) => {
-                            let subbed_ty = self.get_ty(self.use_term_as_ty_or_eval(term));
+                            let subbed_ty = self.get_ty(self.use_term_as_ty(term));
                             self.stores().ty().modify_fast(ty, |ty| *ty = subbed_ty);
                             ControlFlow::Break(())
                         }
@@ -65,7 +65,7 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
         match atom {
             Atom::Ty(ty) => match self.get_ty(ty) {
                 Ty::Hole(Hole(symbol)) | Ty::Var(symbol) => match sub.get_sub_for(symbol) {
-                    Some(term) => ControlFlow::Break(Atom::Ty(self.use_term_as_ty_or_eval(term))),
+                    Some(term) => ControlFlow::Break(Atom::Ty(self.use_term_as_ty(term))),
                     None => ControlFlow::Continue(()),
                 },
                 _ => ControlFlow::Continue(()),
@@ -138,6 +138,12 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
             .into_ok()
     }
 
+    pub fn apply_sub_to_params(&self, params_id: ParamsId, sub: &Sub) -> ParamsId {
+        self.traversing_utils()
+            .fmap_params::<!, _>(params_id, |atom| Ok(self.apply_sub_to_atom_once(atom, sub)))
+            .into_ok()
+    }
+
     pub fn apply_sub_to_args_in_place(&self, args_id: ArgsId, sub: &Sub) {
         self.traversing_utils()
             .visit_args::<!, _>(args_id, &mut |atom| {
@@ -206,57 +212,33 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
         has_holes
     }
 
-    /// Create a substitution from applying the arguments to the parameters.
-    ///
-    /// For argument terms `a1, a2, ..., an` and parameter indices `p1, p2, ...,
-    /// pn` this creates a substitution `s` such that `s(p1) = a1, s(p2) =
-    /// a2, ..., s(pn) = an`.
-    pub fn create_sub_from_applying_args_to_params(
-        &self,
-        args_id: ArgsId,
-        params_id: ParamsId,
-    ) -> Sub {
-        self.stores().args().map_fast(args_id, |args| {
-            self.stores().params().map_fast(params_id, |params| {
-                assert!(args_id.len() == params_id.len(), "called with mismatched args and params");
-                Sub::from_pairs(
-                    params.iter().zip(args.iter()).map(|(param, arg)| (param.name, arg.value)),
-                )
-            })
-        })
-    }
-
-    /// Create a substitution from the current local scope.
-    pub fn create_sub_from_local_scope(&self) -> Sub {
-        let scope_members =
-            self.context().get_owned_bindings_of_scope(self.context().get_current_scope_index());
+    /// Create a substitution from the current stack members.
+    pub fn create_sub_from_current_stack_members(&self) -> Sub {
         let mut sub = Sub::identity();
 
-        for binding in scope_members {
-            let binding = self.context().get_binding(binding).unwrap();
-            match binding.kind {
-                BindingKind::Param(_, _) => {
-                    // Parameters are not substituted.
-                }
-                BindingKind::StackMember(_, value) => {
-                    // @@Todo: disallow mutable?
-                    if let Some(value) = value {
-                        sub.insert(binding.name, value);
-                    }
-                }
-                BindingKind::Arg(param_id, arg_id) => {
-                    let param = self.stores().params().get_element(param_id);
-                    let arg = self.stores().args().get_element(arg_id);
-                    sub.insert(param.name, arg.value);
-                }
-                BindingKind::Equality(_) => {
-                    // @@Todo ??
-                }
-
-                BindingKind::ModMember(_, _) | BindingKind::Ctor(_, _) => {}
+        let current_scope_index = self.context().get_current_scope_index();
+        self.context().for_bindings_of_scope(current_scope_index, |binding| {
+            if let BindingKind::StackMember(_, Some(value)) = binding.kind {
+                sub.insert(binding.name, value);
             }
-        }
+        });
 
+        sub
+    }
+
+    /// Create a substitution from the given arguments.
+    ///
+    /// Invariant: the arguments are ordered to match the
+    /// parameters.
+    pub fn create_sub_from_args_of_params(&self, args_id: ArgsId, params_id: ParamsId) -> Sub {
+        assert!(params_id.len() == args_id.len(), "called with mismatched args and params");
+
+        let mut sub = Sub::identity();
+        for (param_id, arg_id) in (params_id.iter()).zip(args_id.iter()) {
+            let param = self.stores().params().get_element(param_id);
+            let arg = self.stores().args().get_element(arg_id);
+            sub.insert(param.name, arg.value);
+        }
         sub
     }
 }

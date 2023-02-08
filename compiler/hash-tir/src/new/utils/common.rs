@@ -340,7 +340,7 @@ pub trait CommonUtils: AccessToEnv {
     }
 
     /// Try to use the given term as a type.
-    fn use_term_as_ty(&self, term: TermId) -> Option<TyId> {
+    fn try_use_term_as_ty(&self, term: TermId) -> Option<TyId> {
         match self.get_term(term) {
             Term::Var(var) => Some(self.new_ty(var)),
             Term::Ty(ty) => Some(ty),
@@ -350,8 +350,8 @@ pub trait CommonUtils: AccessToEnv {
     }
 
     /// Try to use the given term as a type, or defer to a `Ty::Eval`.
-    fn use_term_as_ty_or_eval(&self, term: TermId) -> TyId {
-        match self.use_term_as_ty(term) {
+    fn use_term_as_ty(&self, term: TermId) -> TyId {
+        match self.try_use_term_as_ty(term) {
             Some(ty) => ty,
             None => self.new_ty(Ty::Eval(term)),
         }

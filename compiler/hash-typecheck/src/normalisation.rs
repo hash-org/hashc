@@ -112,7 +112,11 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
             {
                 let _ = self.eval(statement.into())?;
             }
-            self.eval(block_term.return_value.into())
+
+            let sub = self.substitution_ops().create_sub_from_current_stack_members();
+            let result_term = self.eval(block_term.return_value.into())?;
+            let subbed_result_term = self.substitution_ops().apply_sub_to_atom(result_term, &sub);
+            Ok(subbed_result_term)
         })
     }
 
@@ -426,10 +430,9 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
                 match fn_def.body {
                     FnBody::Defined(defined_fn_def) => {
                         // Make a substitution from the arguments to the parameters:
-                        let sub = self.substitution_ops().create_sub_from_applying_args_to_params(
-                            fn_call.args,
-                            fn_def.ty.params,
-                        );
+                        let sub = self
+                            .substitution_ops()
+                            .create_sub_from_args_of_params(fn_call.args, fn_def.ty.params);
 
                         // Apply substitution to body:
                         let result =

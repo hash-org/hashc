@@ -443,33 +443,41 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             }
         };
 
-        self.context().enter_scope(ScopeKind::Ctor(term.ctor), || {
-            let (inferred_data_args, inferred_data_def_params) =
-                self.infer_args(term.data_args, data_def.params)?;
-            self.context_utils().add_arg_bindings(inferred_data_def_params, inferred_data_args);
+        let (inferred_data_args, _) = self.infer_args(term.data_args, data_def.params)?;
 
-            let (inferred_ctor_args, inferred_ctor_def_params) =
-                self.infer_args(term.ctor_args, ctor.params)?;
-            self.context_utils().add_arg_bindings(inferred_ctor_def_params, inferred_ctor_args);
+        let data_sub = self
+            .substitution_ops()
+            .create_sub_from_args_of_params(inferred_data_args, data_def.params);
 
-            // Try to unify given annotation with inferred eventual type.
-            let result_data_def_args = match annotation_data_ty {
-                Some(data_ty) => {
-                    self.unification_ops().unify_args(data_ty.args, ctor.result_args)?.result
-                }
-                None => ctor.result_args,
-            };
+        let subbed_ctor_params =
+            self.substitution_ops().apply_sub_to_params(ctor.params, &data_sub);
 
-            // Evaluate the result args.
-            Ok((
-                CtorTerm {
-                    ctor: ctor.id,
-                    data_args: result_data_def_args,
-                    ctor_args: inferred_ctor_args,
-                },
-                DataTy { args: result_data_def_args, data_def: data_def.id },
-            ))
-        })
+        let (inferred_ctor_args, _) = self.infer_args(term.ctor_args, subbed_ctor_params)?;
+
+        let ctor_sub = self
+            .substitution_ops()
+            .create_sub_from_args_of_params(inferred_ctor_args, subbed_ctor_params);
+
+        let subbed_result_args =
+            self.substitution_ops().apply_sub_to_args(ctor.result_args, &data_sub.join(&ctor_sub));
+
+        // Try to unify given annotation with inferred eventual type.
+        let result_data_def_args = match annotation_data_ty {
+            Some(data_ty) => {
+                self.unification_ops().unify_args(subbed_result_args, data_ty.args)?.result
+            }
+            None => subbed_result_args,
+        };
+
+        // Evaluate the result args.
+        Ok((
+            CtorTerm {
+                ctor: ctor.id,
+                data_args: result_data_def_args,
+                ctor_args: inferred_ctor_args,
+            },
+            DataTy { args: subbed_result_args, data_def: data_def.id },
+        ))
     }
 
     /// Infer the type of a function call.
@@ -495,26 +503,29 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             }
             Ty::Fn(fn_ty) => {
                 self.context().enter_scope(ScopeKind::FnTy(fn_ty), || {
+                    // @@Todo: ensure fn ty has no holes
+
                     // First infer the arguments parameters of the function call.
-                    let (inferred_fn_call_args, _inferred_fn_params) =
+                    let (inferred_fn_call_args, _) =
                         self.infer_args(fn_call_term.args, fn_ty.params)?;
-                    // @@Todo: infer fn params?
 
                     // Then normalise the return type in their scope.
                     let return_ty = self.normalise_and_check_ty(fn_ty.return_ty)?;
 
-                    let sub = self.substitution_ops().create_sub_from_local_scope();
-                    let return_ty = self.substitution_ops().apply_sub_to_ty(return_ty, &sub);
+                    let sub = self
+                        .substitution_ops()
+                        .create_sub_from_args_of_params(inferred_fn_call_args, fn_ty.params);
+                    let subbed_return_ty = self.substitution_ops().apply_sub_to_ty(return_ty, &sub);
 
                     // @@Todo: implicit check
-                    // Apply the substitution to the return type of the function type.
+
                     Ok((
                         FnCallTerm {
                             subject: subject_term,
                             args: inferred_fn_call_args,
                             implicit: fn_call_term.implicit,
                         },
-                        self.check_by_unify(return_ty, annotation_ty)?,
+                        self.check_by_unify(subbed_return_ty, annotation_ty)?,
                     ))
                 })
             }
@@ -623,21 +634,22 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     }
 
     /// Infer the type of a variable, and return it.
-    pub fn infer_var(&self, term: Symbol) -> TcResult<TyId> {
-        match self.context().get_binding(term).unwrap().kind {
+    pub fn infer_var(&self, term: Symbol, annotation_ty: TyId) -> TcResult<TyId> {
+        let found_ty = match self.context().get_binding(term).unwrap().kind {
             BindingKind::Equality(_) => {
                 unreachable!("equality judgements cannot be referenced")
             }
             BindingKind::ModMember(_, _) | BindingKind::Ctor(_, _) => {
                 unreachable!("mod members and ctors should have all been resolved by now")
             }
-            BindingKind::Param(_, param_id) => Ok(self.stores().params().get_element(param_id).ty),
-            BindingKind::StackMember(stack_member_id, _) => Ok(self
+            BindingKind::Param(_, param_id) => self.stores().params().get_element(param_id).ty,
+            BindingKind::StackMember(stack_member_id, _) => self
                 .stores()
                 .stack()
-                .map_fast(stack_member_id.0, |stack| stack.members[stack_member_id.1].ty)),
-            BindingKind::Arg(param_id, _) => Ok(self.stores().params().get_element(param_id).ty),
-        }
+                .map_fast(stack_member_id.0, |stack| stack.members[stack_member_id.1].ty),
+            BindingKind::Arg(param_id, _) => self.stores().params().get_element(param_id).ty,
+        };
+        self.check_by_unify(found_ty, annotation_ty)
     }
 
     /// Infer the type of a `return` term, and return it.
@@ -685,7 +697,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 let eval_inferred = self.infer_term(eval, annotation_ty)?;
                 Ok((self.new_ty(Ty::Eval(eval_inferred.0)), eval_inferred.1))
             }
-            Ty::Var(var) => Ok((ty_id, self.infer_var(var)?)),
+            Ty::Var(var) => Ok((ty_id, self.infer_var(var, annotation_ty)?)),
             Ty::Tuple(tuple_ty) => {
                 // Infer the parameters
                 self.infer_params(tuple_ty.data, tuple_ty.into())?;
@@ -804,12 +816,11 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 }
 
                 // Infer the return value
-                let (return_term, return_ty) = match error_state
-                    .try_or_add_error(self.infer_term(block_term.return_value, annotation_ty))
-                {
-                    Some(result) => result,
-                    None => (block_term.return_value, annotation_ty),
-                };
+                let (return_term, return_ty) =
+                    self.infer_term(block_term.return_value, annotation_ty)?;
+
+                let sub = self.substitution_ops().create_sub_from_current_stack_members();
+                let subbed_return_ty = self.substitution_ops().apply_sub_to_ty(return_ty, &sub);
 
                 Ok((
                     BlockTerm {
@@ -817,7 +828,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                         return_value: return_term,
                         stack_id: block_term.stack_id,
                     },
-                    return_ty,
+                    subbed_return_ty,
                 ))
             })
         })
@@ -965,7 +976,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             Term::FnRef(fn_def_id) => {
                 Ok((term_id, self.new_ty(self.infer_fn_def(*fn_def_id, annotation_ty, term_id)?)))
             }
-            Term::Var(var_term) => Ok((term_id, self.infer_var(*var_term)?)),
+            Term::Var(var_term) => Ok((term_id, self.infer_var(*var_term, annotation_ty)?)),
             Term::Return(return_term) => self
                 .infer_return_term(return_term, annotation_ty)
                 .map(|i| self.generalise_term_inference(i)),

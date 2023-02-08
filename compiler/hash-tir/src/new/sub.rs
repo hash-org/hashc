@@ -125,6 +125,8 @@ impl Sub {
     }
 
     /// Add variable substitutions from the given [`Sub`].
+    ///
+    /// @@Todo: apply to current substitution first
     pub fn extend(&mut self, other: &Sub) {
         self.data.extend(other.data.iter().copied())
     }
