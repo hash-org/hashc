@@ -251,4 +251,22 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
         }
         sub
     }
+
+    /// Create a substitution from the given source parameter names to the
+    /// target parameter names.
+    ///
+    /// Invariant: the parameters unify.
+    pub fn create_sub_from_param_names(
+        &self,
+        src_params: ParamsId,
+        target_params: ParamsId,
+    ) -> Sub {
+        let mut sub = Sub::identity();
+        for (src, target) in (src_params.iter()).zip(target_params.iter()) {
+            let src = self.stores().params().get_element(src);
+            let target = self.stores().params().get_element(target);
+            sub.insert(src.name, self.new_term(target.name));
+        }
+        sub
+    }
 }

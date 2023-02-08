@@ -6,7 +6,7 @@
 
 use std::iter::once;
 
-use hash_ast::ast::{self, AstNodeRef, AstNodes};
+use hash_ast::ast::{self, AstNodeRef};
 use hash_intrinsics::primitives::AccessToPrimitives;
 use hash_reporting::macros::panic_on_span;
 use hash_source::{identifier::IDENTS, location::Span};
@@ -15,13 +15,12 @@ use hash_tir::new::{
     data::DataTy,
     environment::env::AccessToEnv,
     fns::FnCallTerm,
-    params::{ParamData, ParamIndex, ParamsId},
+    params::ParamIndex,
     refs::{RefKind, RefTy},
     terms::Term,
     tys::{Ty, TyId},
     utils::{common::CommonUtils, AccessToUtils},
 };
-use hash_utils::itertools::Itertools;
 
 use super::{
     params::AstArgGroup,
@@ -49,7 +48,6 @@ impl<'tc> ResolutionPass<'tc> {
             .iter()
             .enumerate()
             .map(|(i, arg)| {
-                // @@Todo: add to ctx if named
                 Ok(ArgData {
                     target: arg
                         .name
@@ -61,31 +59,6 @@ impl<'tc> ResolutionPass<'tc> {
             })
             .collect::<SemanticResult<Vec<_>>>()?;
         Ok(self.param_utils().create_args(args.into_iter()))
-    }
-
-    /// Make TC parameters from the given [`ast::TyArg`] list.
-    fn make_params_from_ast_ty_args(
-        &self,
-        ty_args: &AstNodes<ast::TyArg>,
-    ) -> SemanticResult<ParamsId> {
-        let params = ty_args
-            .ast_ref_iter()
-            .filter_map(|ty_arg| {
-                self.try_or_add_error(self.make_ty_from_ast_ty(ty_arg.ty.ast_ref())).map(|ty| {
-                    ParamData {
-                        name: self.new_symbol_from_ast_name(&ty_arg.name),
-                        ty,
-                        default: None,
-                    }
-                })
-            })
-            .collect_vec();
-
-        if params.len() != ty_args.len() {
-            Err(SemanticError::Signal)
-        } else {
-            Ok(self.param_utils().create_params(params.into_iter()))
-        }
     }
 
     /// Use the given [`ast::NamedTy`] as a path.
@@ -263,7 +236,7 @@ impl<'tc> ResolutionPass<'tc> {
     /// Make a type from the given [`ast::TupleTy`].
     fn make_ty_from_ast_tuple_ty(&self, node: AstNodeRef<ast::TupleTy>) -> SemanticResult<TyId> {
         self.scoping().enter_tuple_ty(node, |mut tuple_ty| {
-            tuple_ty.data = self.make_params_from_ast_ty_args(&node.entries)?;
+            tuple_ty.data = self.resolve_params_from_ast_ty_args(&node.entries, tuple_ty.into())?;
             Ok(self.new_ty(tuple_ty))
         })
     }
@@ -339,9 +312,11 @@ impl<'tc> ResolutionPass<'tc> {
         &self,
         node: AstNodeRef<ast::FnTy>,
     ) -> SemanticResult<TyId> {
-        // First, make the params
-        let params = self.try_or_add_error(self.make_params_from_ast_ty_args(&node.params));
         self.scoping().enter_fn_ty(node, |mut fn_ty| {
+            // First, make the params
+            let params = self
+                .try_or_add_error(self.resolve_params_from_ast_ty_args(&node.params, fn_ty.into()));
+
             // Add the params if they exist
             if let Some(params) = params {
                 fn_ty.params = params;

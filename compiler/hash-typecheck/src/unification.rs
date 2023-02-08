@@ -17,6 +17,7 @@ use hash_utils::store::{SequenceStore, SequenceStoreKey};
 
 use crate::{
     errors::{TcError, TcResult},
+    params::ParamError,
     AccessToTypechecking,
 };
 
@@ -147,6 +148,7 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
                 } else {
                     let Uni { sub, result: params } =
                         self.unify_params(f2.params, f1.params, ParamOrigin::FnTy(f1))?;
+
                     let return_ty_1_subbed =
                         self.substitution_ops().apply_sub_to_ty(f1.return_ty, &sub);
                     let return_ty_2_subbed =
@@ -242,7 +244,7 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
     ///
     /// The parameters must be already in scope.
     ///
-    /// Modifies src and target.
+    /// Names are taken from target
     pub fn unify_params(
         &self,
         src_id: ParamsId,
@@ -259,7 +261,9 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
             });
         }
 
-        self.reduce_unifications(
+        let name_sub = self.substitution_ops().create_sub_from_param_names(src_id, target_id);
+
+        let param_uni = self.reduce_unifications(
             src_id.iter().zip(target_id.iter()).map(|(src, target)| {
                 let src = self.stores().params().get_element(src);
                 let target = self.stores().params().get_element(target);
@@ -272,34 +276,32 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
 
                 match (self.get_param_name_ident(src.id), self.get_param_name_ident(target.id)) {
                     (Some(name_a), Some(name_b)) if name_a != name_b => {
-                        return Err(TcError::ParamMatch(
-                            crate::params::ParamError::ParamNameMismatch {
-                                param_a: src.id,
-                                param_b: target.id,
-                            },
-                        ));
+                        return Err(TcError::ParamMatch(ParamError::ParamNameMismatch {
+                            param_a: src.id,
+                            param_b: target.id,
+                        }));
                     }
                     _ => {}
                 }
 
-                let (_src_ty, _) = self.inference_ops().infer_ty(src.ty, self.new_ty_hole())?;
-                let (_target_ty, _) = self.inference_ops().infer_ty(src.ty, self.new_ty_hole())?;
+                let (src_ty, _) = self.inference_ops().infer_ty(src.ty, self.new_ty_hole())?;
+                let (target_ty, _) = self.inference_ops().infer_ty(src.ty, self.new_ty_hole())?;
 
-                let unified_param = self.unify_tys(src.ty, target.ty)?.map_result(|ty| ParamData {
-                    name: src.name,
-                    ty,
-                    default: None,
-                });
+                // Apply the name substitution to the parameter
+                let subbed_src_ty = self.substitution_ops().apply_sub_to_ty(src_ty, &name_sub);
 
-                self.stores().params().modify_fast(target.id.0, |params| {
-                    params[target.id.1].ty = unified_param.result.ty;
-                });
+                let unified_param = self
+                    .unify_tys(subbed_src_ty, target_ty)?
+                    .map_result(|ty| ParamData { name: target.name, ty, default: None });
+
                 self.context_utils().add_param_binding(target.id, origin);
 
                 Ok(unified_param)
             }),
             |param_data| self.param_utils().create_params(param_data.into_iter()),
-        )
+        )?;
+
+        Ok(Uni { result: param_uni.result, sub: param_uni.sub.join(&name_sub) })
     }
 
     /// Unify two argument lists, creating a substitution of holes.

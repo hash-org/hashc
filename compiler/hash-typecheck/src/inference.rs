@@ -74,8 +74,20 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     collected_params.push(inferred_param);
 
                     // Extend the running substitution with the new unification result
+                    if let Some(arg_id) = get_arg_id(i) {
+                        let arg = self.stores().args().get_element(arg_id);
+                        running_sub.insert(param.name, arg.value);
+                    }
+
+                    let applied_param_ty =
+                        self.substitution_ops().apply_sub_to_ty(param.ty, &running_sub);
+
                     running_sub.extend(
-                        &self.unification_ops().unify_tys(inferred_param.ty, param.ty).unwrap().sub,
+                        &self
+                            .unification_ops()
+                            .unify_tys(inferred_param.ty, applied_param_ty)
+                            .unwrap()
+                            .sub,
                     );
                 }
                 // Error occurred
@@ -660,24 +672,32 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     }
 
                     // Ensure that the parameters match
-                    let inferred_params = if let Some(annotation_fn_ty) = annotation_fn_ty {
-                        self.unification_ops()
-                            .unify_params(
-                                fn_def.ty.params,
-                                annotation_fn_ty.params,
-                                ParamOrigin::Fn(fn_def_id),
-                            )?
-                            .result
+                    let inferred_params_result = if let Some(annotation_fn_ty) = annotation_fn_ty {
+                        self.unification_ops().unify_params(
+                            annotation_fn_ty.params,
+                            fn_def.ty.params,
+                            ParamOrigin::Fn(fn_def_id),
+                        )?
                     } else {
-                        self.infer_params(fn_def.ty.params, ParamOrigin::Fn(fn_def_id))?
+                        Uni {
+                            result: self
+                                .infer_params(fn_def.ty.params, ParamOrigin::Fn(fn_def_id))?,
+                            sub: Sub::identity(),
+                        }
                     };
 
                     // Ensure that the return types match
                     let (inferred_ret, inferred_ret_ty) =
                         if let Some(annotation_fn_ty) = annotation_fn_ty {
+                            let subbed_annotation_ty = self.substitution_ops().apply_sub_to_ty(
+                                annotation_fn_ty.return_ty,
+                                &inferred_params_result.sub,
+                            );
+
                             let unified_return_ty = self
                                 .unification_ops()
-                                .unify_tys(fn_def.ty.return_ty, annotation_fn_ty.return_ty)?;
+                                .unify_tys(fn_def.ty.return_ty, subbed_annotation_ty)?;
+
                             self.infer_term(fn_body, unified_return_ty.result)?
                         } else {
                             self.infer_term(fn_body, fn_def.ty.return_ty)?
@@ -688,7 +708,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                         is_unsafe: fn_def.ty.is_unsafe,
                         pure: fn_def.ty.pure,
 
-                        params: inferred_params,
+                        params: inferred_params_result.result,
                         return_ty: inferred_ret_ty,
                     };
 
