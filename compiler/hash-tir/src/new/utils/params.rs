@@ -1,13 +1,13 @@
 //! Utilities for parameters and arguments.
 use derive_more::Constructor;
-use hash_utils::store::{SequenceStore, Store};
+use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
 use itertools::Itertools;
 
 use super::common::CommonUtils;
 use crate::{
     impl_access_to_env,
     new::{
-        args::{Arg, ArgData, ArgsId, PatArg, PatArgData, PatArgsId},
+        args::{Arg, ArgData, ArgsId, PatArg, PatArgData, PatArgsId, SomeArgsId},
         data::DataDefId,
         environment::env::{AccessToEnv, Env},
         params::{Param, ParamData, ParamIndex, ParamsId},
@@ -33,6 +33,18 @@ impl<'env> ParamUtils<'env> {
         self.stores().params().create_from_iter_with(
             param_names
                 .map(|name| move |id| Param { id, name, ty: self.new_ty_hole(), default: None }),
+        )
+    }
+
+    /// Create a new parameter list with the given argument names, and holes for
+    /// all types, and no default values.
+    pub fn create_hole_params_from_args(&self, args: impl Into<SomeArgsId>) -> ParamsId {
+        let args = args.into();
+        self.create_hole_params(
+            args.iter()
+                .map(|arg| self.make_param_name_from_arg_index(self.get_arg_index(arg)))
+                .collect_vec()
+                .into_iter(),
         )
     }
 

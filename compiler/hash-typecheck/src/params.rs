@@ -22,6 +22,7 @@ pub enum ParamError {
     PositionalArgAfterNamedArg { first_named: SomeArgId, next_positional: SomeArgId },
     RequiredParamAfterDefaultParam { first_default: ParamId, next_required: ParamId },
     ArgNameNotFoundInParams { arg: SomeArgId, params: ParamsId },
+    ParamNameMismatch { param_a: ParamId, param_b: ParamId },
     RequiredParamNotFoundInArgs { param: ParamId, args: SomeArgsId },
     SpreadBeforePositionalArg { next_positional: SomeArgId },
 }

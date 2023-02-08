@@ -5,7 +5,7 @@
 
 use derive_more::Constructor;
 use hash_ast::ast::{self};
-use hash_tir::new::environment::env::AccessToEnv;
+use hash_tir::new::{environment::env::AccessToEnv, utils::common::CommonUtils};
 use hash_typecheck::{
     errors::{TcError, TcResult},
     AccessToTypechecking,
@@ -78,7 +78,7 @@ impl<'tc> AstPass for InferencePass<'tc> {
         // Infer the expression
         let term = self.infer_loop(
             self.ast_info().terms().get_data_by_node(node.id()).unwrap(),
-            |term_id| Ok(self.inference_ops().infer_term(term_id, None)?.0),
+            |term_id| Ok(self.inference_ops().infer_term(term_id, self.new_ty_hole())?.0),
             |term_id| self.substitution_ops().atom_has_holes(term_id),
         )?;
 

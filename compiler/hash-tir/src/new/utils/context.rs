@@ -6,15 +6,17 @@ use super::common::CommonUtils;
 use crate::{
     impl_access_to_env,
     new::{
-        args::ArgsId,
+        args::{ArgId, ArgsId},
         data::{DataDefCtors, DataDefId},
         environment::{
             context::{Binding, BindingKind, EqualityJudgement, ParamOrigin, ScopeKind},
             env::{AccessToEnv, Env},
         },
+        fns::FnDefId,
         mods::ModDefId,
         params::{ParamId, ParamsId},
-        scopes::{DeclTerm, StackId, StackMemberId},
+        pats::Pat,
+        scopes::{DeclTerm, StackId, StackIndices, StackMemberId},
         symbols::Symbol,
         terms::TermId,
     },
@@ -37,6 +39,17 @@ impl<'env> ContextUtils<'env> {
         // @@Safety: Maybe we should check that the param belongs to the current scope?
         let name = self.stores().params().map_fast(param_id.0, |params| params[param_id.1].name);
         self.context().add_binding(Binding { name, kind: BindingKind::Param(origin, param_id) });
+    }
+
+    /// Add an argument binding to the current scope.
+    ///
+    /// This should be used when entering a scope that has given arguments, like
+    /// a function call, tuple, constructor.
+    pub fn add_arg_binding(&self, arg_id: ArgId, param_id: ParamId) {
+        self.context().add_binding(Binding {
+            name: self.get_param_name(param_id),
+            kind: BindingKind::Arg(param_id, arg_id),
+        });
     }
 
     /// Add argument bindings from the given parameters, using the
@@ -91,6 +104,15 @@ impl<'env> ContextUtils<'env> {
             ScopeKind::Stack(stack_id) => stack_id,
             _ => unreachable!(), // decls are only allowed in stack scopes
         };
+
+        // @@Todo: fill in complex pats
+        if let (Pat::Binding(_), StackIndices::Range { start, end: _ }) =
+            (self.get_pat(decl.bind_pat), decl.stack_indices)
+        {
+            self.stores()
+                .stack()
+                .modify_fast(current_stack_id, |stack| stack.members[start].ty = decl.ty)
+        }
 
         for stack_index in decl.iter_stack_indices() {
             self.add_stack_binding((current_stack_id, stack_index), decl.value);
@@ -157,5 +179,17 @@ impl<'env> ContextUtils<'env> {
             BindingKind::StackMember(member, value) => (member, value),
             _ => panic!("get_stack_binding called on non-stack binding"),
         }
+    }
+
+    /// Get the closest function definition in scope, or `None` if there is
+    /// none.
+    pub fn get_first_fn_def_in_scope(&self) -> Option<FnDefId> {
+        for scope_index in self.context().get_scope_indices().rev() {
+            match self.context().get_scope(scope_index).kind {
+                ScopeKind::Fn(fn_def) => return Some(fn_def),
+                _ => continue,
+            }
+        }
+        None
     }
 }

@@ -191,6 +191,14 @@ pub trait CommonUtils: AccessToEnv {
         }
     }
 
+    /// Make a parameter name from an argument index
+    fn make_param_name_from_arg_index(&self, index: ParamIndex) -> Symbol {
+        match index {
+            ParamIndex::Name(name) => self.new_symbol(name),
+            ParamIndex::Position(i) => self.new_symbol(i.to_string()),
+        }
+    }
+
     /// Get the identifier name of a parameter
     fn get_param_name_ident(&self, param_id: ParamId) -> Option<Identifier> {
         let sym = self.get_param_name(param_id);
@@ -346,6 +354,16 @@ pub trait CommonUtils: AccessToEnv {
         match self.use_term_as_ty(term) {
             Some(ty) => ty,
             None => self.new_ty(Ty::Eval(term)),
+        }
+    }
+
+    /// Try to use the given type as a term.
+    fn use_ty_as_term(&self, ty: TyId) -> TermId {
+        match self.get_ty(ty) {
+            Ty::Var(var) => self.new_term(var),
+            Ty::Hole(hole) => self.new_term(hole),
+            Ty::Eval(term) => term,
+            _ => self.new_term(ty),
         }
     }
 }

@@ -5,9 +5,11 @@ use std::ops::ControlFlow;
 use derive_more::{Constructor, Deref};
 use hash_tir::new::{
     args::ArgsId,
+    environment::context::BindingKind,
     holes::Hole,
     mods::ModDefId,
     params::ParamsId,
+    pats::PatId,
     sub::Sub,
     terms::{Term, TermId},
     tys::{Ty, TyId},
@@ -90,6 +92,12 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
     pub fn apply_sub_to_term(&self, term_id: TermId, sub: &Sub) -> TermId {
         self.traversing_utils()
             .fmap_term::<!, _>(term_id, |atom| Ok(self.apply_sub_to_atom_once(atom, sub)))
+            .into_ok()
+    }
+
+    pub fn apply_sub_to_pat(&self, pat_id: PatId, sub: &Sub) -> PatId {
+        self.traversing_utils()
+            .fmap_pat::<!, _>(pat_id, |atom| Ok(self.apply_sub_to_atom_once(atom, sub)))
             .into_ok()
     }
 
@@ -186,6 +194,18 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
         has_holes
     }
 
+    /// Determines whether the given set of parameters contains one or more
+    /// holes.
+    pub fn params_have_holes(&self, params_id: ParamsId) -> bool {
+        let mut has_holes = false;
+        self.traversing_utils()
+            .visit_params::<!, _>(params_id, &mut |atom| {
+                Ok(self.has_holes_once(atom, &mut has_holes))
+            })
+            .into_ok();
+        has_holes
+    }
+
     /// Create a substitution from applying the arguments to the parameters.
     ///
     /// For argument terms `a1, a2, ..., an` and parameter indices `p1, p2, ...,
@@ -196,16 +216,47 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
         args_id: ArgsId,
         params_id: ParamsId,
     ) -> Sub {
-        // @@Todo: dependent?
         self.stores().args().map_fast(args_id, |args| {
             self.stores().params().map_fast(params_id, |params| {
-                assert!(args_id.len() == params_id.len(), "TODO: user error");
-
-                // @@Todo: ensure arg indices match?
+                assert!(args_id.len() == params_id.len(), "called with mismatched args and params");
                 Sub::from_pairs(
                     params.iter().zip(args.iter()).map(|(param, arg)| (param.name, arg.value)),
                 )
             })
         })
+    }
+
+    /// Create a substitution from the current local scope.
+    pub fn create_sub_from_local_scope(&self) -> Sub {
+        let scope_members =
+            self.context().get_owned_bindings_of_scope(self.context().get_current_scope_index());
+        let mut sub = Sub::identity();
+
+        for binding in scope_members {
+            let binding = self.context().get_binding(binding).unwrap();
+            match binding.kind {
+                BindingKind::Param(_, _) => {
+                    // Parameters are not substituted.
+                }
+                BindingKind::StackMember(_, value) => {
+                    // @@Todo: disallow mutable?
+                    if let Some(value) = value {
+                        sub.insert(binding.name, value);
+                    }
+                }
+                BindingKind::Arg(param_id, arg_id) => {
+                    let param = self.stores().params().get_element(param_id);
+                    let arg = self.stores().args().get_element(arg_id);
+                    sub.insert(param.name, arg.value);
+                }
+                BindingKind::Equality(_) => {
+                    // @@Todo ??
+                }
+
+                BindingKind::ModMember(_, _) | BindingKind::Ctor(_, _) => {}
+            }
+        }
+
+        sub
     }
 }

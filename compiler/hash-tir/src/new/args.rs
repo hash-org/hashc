@@ -33,6 +33,12 @@ pub struct Arg {
     pub value: TermId,
 }
 
+impl From<Arg> for ArgData {
+    fn from(value: Arg) -> Self {
+        ArgData { target: value.target, value: value.value }
+    }
+}
+
 new_sequence_store_key!(pub ArgsId);
 pub type ArgId = (ArgsId, usize);
 pub type ArgsStore = DefaultSequenceStore<ArgsId, Arg>;
@@ -78,6 +84,12 @@ pub struct PatArg {
     pub target: ParamIndex,
     /// The pattern in place for this argument.
     pub pat: PatOrCapture,
+}
+
+impl From<PatArg> for PatArgData {
+    fn from(value: PatArg) -> Self {
+        PatArgData { target: value.target, pat: value.pat }
+    }
 }
 
 new_sequence_store_key!(pub PatArgsId);

@@ -240,7 +240,7 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
     fn eval_type_of(&self, type_of_term: TypeOfTerm) -> Result<Atom, Signal> {
         // Infer the type of the term:
         // @@Todo: use stored IDs only? Do not reduce if un-inferrable?
-        let (_, ty) = self.inference_ops().infer_term(type_of_term.term, None)?;
+        let (_, ty) = self.inference_ops().infer_term(type_of_term.term, self.new_ty_hole())?;
         Ok(ty.into())
     }
 
@@ -504,12 +504,12 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
             Atom::Ty(ty) => match self.get_ty(ty) {
                 Ty::Eval(term) => Ok(ControlFlow::Break(self.eval_ty_eval(term)?)),
                 Ty::Var(var) => Ok(ControlFlow::Break(self.eval_var(var)?)),
-                Ty::Data(_)
+                Ty::Fn(_)
+                | Ty::Tuple(_)
+                | Ty::Data(_)
                 | Ty::Universe(_)
                 | Ty::Ref(_)
-                | Ty::Hole(_)
-                | Ty::Tuple(_)
-                | Ty::Fn(_) => Ok(ControlFlow::Continue(())),
+                | Ty::Hole(_) => Ok(ControlFlow::Break(atom)),
             },
             Atom::FnDef(_) => Ok(ControlFlow::Break(atom)),
             Atom::Pat(_) => Ok(ControlFlow::Continue(())),
