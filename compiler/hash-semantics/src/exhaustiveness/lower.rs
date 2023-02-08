@@ -139,7 +139,7 @@ impl<'tc> LowerPatOps<'tc> {
                 Term::Level0(Level0Term::Lit(lit)) => match lit {
                     LitTerm::Str(value) => (DeconstructedCtor::Str(value), vec![]),
                     LitTerm::Int { value } => {
-                        let ptr_width = self.global_storage().target_pointer_width;
+                        let ptr_width = self.global_storage().pointer_width;
                         let value = Constant::from_int(value, term, ptr_width);
                         let range = self.int_range_ops().range_from_constant(value);
                         (DeconstructedCtor::IntRange(range), vec![])
@@ -509,7 +509,7 @@ impl<'tc> LowerPatOps<'tc> {
                     Constant::from_char(ch, term).data()
                 }
                 Term::Level0(Level0Term::Lit(LitTerm::Int { value })) => {
-                    let ptr_width = self.global_storage().target_pointer_width;
+                    let ptr_width = self.global_storage().pointer_width;
 
                     Constant::from_int(value, term, ptr_width).data()
                 }
@@ -544,7 +544,7 @@ impl<'tc> LowerPatOps<'tc> {
         let (lo, hi) = (lo ^ bias, hi ^ bias);
 
         let (lo, hi) = if let Some(kind) = self.oracle().term_as_int_ty(ty) {
-            let ptr_width = self.global_storage().target_pointer_width;
+            let ptr_width = self.global_storage().pointer_width;
             let size = kind.size(ptr_width).unwrap().bytes() as usize;
 
             // Trim the values within the stored range and then create

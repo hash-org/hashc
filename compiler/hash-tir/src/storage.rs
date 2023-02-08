@@ -72,8 +72,8 @@ pub struct GlobalStorage {
     /// queried.
     pub root_scope: ScopeId,
 
-    /// The pointer width on the current target architecture.
-    pub target_pointer_width: usize,
+    /// The pointer width in **bytes** on the current target architecture.
+    pub pointer_width: usize,
 }
 
 impl GlobalStorage {
@@ -83,7 +83,7 @@ impl GlobalStorage {
         let root_scope = scope_store.create(Scope::empty(ScopeKind::Mod));
 
         let gs = Self {
-            target_pointer_width: target.pointer_width,
+            pointer_width: target.pointer_bit_width / 8,
             location_store: LocationStore::new(),
             term_store: TermStore::new(),
             term_list_store: TermListStore::new(),

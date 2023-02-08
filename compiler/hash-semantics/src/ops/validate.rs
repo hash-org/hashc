@@ -1219,7 +1219,7 @@ impl<'tc> Validator<'tc> {
                 Term::Level0(Level0Term::Lit(LitTerm::Int { value: lhs })),
                 Term::Level0(Level0Term::Lit(LitTerm::Int { value: rhs })),
             ) => {
-                let ptr_width = self.global_storage().target_pointer_width;
+                let ptr_width = self.global_storage().pointer_width;
                 let lhs_kind = CONSTANT_MAP.map_int_constant(lhs, |val| val.ty);
                 let rhs_kind = CONSTANT_MAP.map_int_constant(rhs, |val| val.ty);
 

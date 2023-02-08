@@ -75,21 +75,26 @@ impl<'ir> IrGraphWriter<'ir> {
         writeln!(w, "  node [fontname=\"{}\"];", self.options.font)?;
         writeln!(w, "  edge [fontname=\"{}\"];", self.options.font)?;
 
-        // Compute the header of the current graph.
-        let header = match self.body.info().source() {
-            BodySource::Item | BodySource::Intrinsic => {
-                format!("{}", self.body.info().ty().fmt_with_opts(self.ctx, true, false))
-            }
-            BodySource::Const => {
-                // @@Todo: maybe figure out a better format for this?
-                format!(": {}", self.body.info().ty().fmt_with_opts(self.ctx, true, false))
-            }
-        };
-
         // Now we write the `label` of the graph which is essentially the type of
         // the function and any local declarations that have been defined within the
         // body.
-        write!(w, "  label=<{}{}{}", self.body.info().name, encode_text(&header), LINE_SEPARATOR)?;
+        let header = format!("{}", self.body.info().ty().fmt_with_opts(self.ctx, true, false));
+
+        match self.body.info().source() {
+            BodySource::Item | BodySource::Intrinsic => {
+                write!(w, "  label=<{}{}", encode_text(&header), LINE_SEPARATOR)?;
+            }
+            BodySource::Const => {
+                // @@Todo: maybe figure out a better format for this?
+                write!(
+                    w,
+                    "  label=<{}{}{}",
+                    self.body.info().name,
+                    encode_text(&header),
+                    LINE_SEPARATOR
+                )?;
+            }
+        };
 
         // Now we can emit the local declarations that have been defined within the
         // body...

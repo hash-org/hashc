@@ -270,7 +270,7 @@ impl<'tc> IntRangeOps<'tc> {
         let bias: u128 = match reader.get_term(constant.ty) {
             Term::Level0(Level0Term::Lit(lit)) => match lit {
                 LitTerm::Int { value } if let kind = CONSTANT_MAP.map_int_constant(value, |val| val.ty) && kind.is_signed() => {
-                    let ptr_width = self.global_storage().target_pointer_width;
+                    let ptr_width = self.global_storage().pointer_width;
                     let bits = kind.size(ptr_width).unwrap().bits();
                     1u128 << (bits - 1)
                 }
@@ -310,7 +310,7 @@ impl<'tc> IntRangeOps<'tc> {
     /// last byte is that identifies the sign.
     fn signed_bias(&self, ty: TermId) -> u128 {
         if let Some(ty) = self.oracle().term_as_int_ty(ty) {
-            let ptr_width = self.global_storage().target_pointer_width;
+            let ptr_width = self.global_storage().pointer_width;
             if let Some(size) = ty.size(ptr_width) && ty.is_signed()  {
                 let bits = size.bits() as u128;
                 return 1u128 << (bits - 1);

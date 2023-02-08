@@ -3,6 +3,7 @@
 
 pub mod diagnostic;
 pub mod highlight;
+pub mod implementations;
 pub mod macros;
 mod render;
 pub mod report;

@@ -27,13 +27,23 @@ impl HasDataLayout for TargetDataLayout {
 /// This enum defines the Endianness of a target, which is used
 /// when reading/writing scalar values to memory. More information
 /// about Endianness can be found (https://en.wikipedia.org/wiki/Endianness)[here].
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Endian {
     /// Values use the little endian format.
     Little,
 
     /// Values use the big endian format.
     Big,
+}
+
+impl Endian {
+    /// Convert the [Endian] to a static string.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Endian::Little => "little",
+            Endian::Big => "big",
+        }
+    }
 }
 
 /// Defines all of the specifics of how primitive types are
@@ -158,6 +168,10 @@ impl Default for TargetDataLayout {
 }
 
 pub enum TargetDataLayoutParseError<'a> {
+    /// The specified data layout string was invalid, and could
+    /// not be parsed into separate components.
+    Malformed { dl: &'a str },
+
     /// The specified address space is invalid.
     InvalidAddressSpace { addr_space: &'a str, err: ParseIntError },
 
@@ -171,19 +185,19 @@ pub enum TargetDataLayoutParseError<'a> {
     MissingAlignment { cause: &'a str },
 
     /// Inconsistent target architecture.
-    InconsistentTargetArchitecture { layout: &'a str },
+    InconsistentTargetArchitecture { dl: &'a str, target: &'a str },
 
     /// When the data layout string specifies an inconsistent pointer size
     /// with the target.
-    InconsistentTargetPointerSize {
+    InconsistentTargetPointerWidth {
         /// The size specified on the string.
         size: u64,
         /// The expected pointer size on the target.
-        target: u32,
+        target: u64,
     },
 
     /// When a data layout incorrectly specifies the size of C-style enums.
-    InvalidEnumSize,
+    InvalidEnumSize { err: String },
 }
 
 impl TargetDataLayout {
@@ -195,8 +209,13 @@ impl TargetDataLayout {
         input: &str,
     ) -> Result<Self, TargetDataLayoutParseError<'_>> {
         let mut data_layout = Self::default();
-
         let mut i128_align_src = 64;
+
+        // If the data-layout string is empty, then we return an error
+        // specifying that the layout string was malformed.
+        if input.is_empty() {
+            return Err(TargetDataLayoutParseError::Malformed { dl: input });
+        }
 
         // Each item is separated by a dash
         for component in input.split('-') {

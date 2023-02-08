@@ -752,7 +752,7 @@ impl fmt::Display for ForFormatting<'_, &Level0Term> {
                         write!(f, "\"{str}\"")
                     }
                     LitTerm::Int { value } => {
-                        let pointer_width = self.global_storage.target_pointer_width;
+                        let pointer_width = self.global_storage.pointer_width;
                         let kind = CONSTANT_MAP.map_int_constant(*value, |val| val.ty);
 
                         // It's often the case that users don't include the range of the entire

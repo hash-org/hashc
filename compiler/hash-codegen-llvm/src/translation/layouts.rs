@@ -37,7 +37,7 @@ impl<'b> LayoutMethods<'b> for CodeGenCtx<'b, '_> {
 
 impl HasDataLayout for CodeGenCtx<'_, '_> {
     fn data_layout(&self) -> &TargetDataLayout {
-        &self.settings.codegen_settings.data_layout
+        &self.layouts.data_layout
     }
 }
 

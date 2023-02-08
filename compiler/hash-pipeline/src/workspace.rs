@@ -227,6 +227,26 @@ impl Workspace {
         )
     }
 
+    /// Get an a temporary location for the output of some kind of
+    /// resource that is being emitted. This is used by stages that might
+    /// write information onto disk into the temporary workspace storage,
+    /// and require a temporary location to write to.
+    ///
+    /// This function will create the specified temporary storage, returning
+    /// an error if the creation of the location fails for any reason.
+    pub fn temporary_storage(&self, place: impl AsRef<str>) -> Result<PathBuf, PipelineError> {
+        let mut path = self.output_directory.clone();
+        path.push(place.as_ref());
+
+        // Now try to create the location...
+        if !path.exists() || !path.is_dir() {
+            std::fs::create_dir_all(&path)
+                .map_err(|error| PipelineError::ResourceCreation { path: path.clone(), error })?;
+        }
+
+        Ok(path)
+    }
+
     /// Check whether this [Workspace] will yield an executable.
     pub fn yields_executable(&self, settings: &CompilerSettings) -> bool {
         self.source_map.entry_point().is_some() && settings.stage == CompilerStageKind::Full

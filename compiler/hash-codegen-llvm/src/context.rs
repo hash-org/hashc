@@ -83,7 +83,7 @@ impl<'b, 'm> CodeGenCtx<'b, 'm> {
         ir_ctx: &'b IrCtx,
         layouts: &'b LayoutCtx,
     ) -> Self {
-        let ptr_size = settings.codegen_settings.data_layout.pointer_size;
+        let ptr_size = layouts.data_layout.pointer_size;
         let ll_ctx = module.get_context();
 
         let size_ty = ll_ctx.custom_width_int_type(ptr_size.bits() as u32);
@@ -124,7 +124,7 @@ impl<'b, 'm> CodeGenCtx<'b, 'm> {
 
 impl HasTargetSpec for CodeGenCtx<'_, '_> {
     fn target_spec(&self) -> &Target {
-        self.settings.codegen_settings.target_info.target()
+        self.settings.target()
     }
 }
 

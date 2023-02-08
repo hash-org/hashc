@@ -78,7 +78,7 @@ impl<'b> LLVMBackend<'b> {
 
         // We have to create a target machine from the provided target
         // data.
-        let target = settings.codegen_settings.target_info.target();
+        let target = settings.target();
 
         // we have to initialise the target with the default configuration based
         // on which architecture we are compiling for.
@@ -170,8 +170,7 @@ impl<'b> LLVMBackend<'b> {
         // through the arguments of the function, i.e. `int main(int argc, char** argv)`
         // then we have to define it as such, otherwise, we define it as
         // `int main()`.
-        let fn_ty = if self.settings.codegen_settings.target_info.target().entry_point_requires_args
-        {
+        let fn_ty = if self.settings.target().entry_point_requires_args {
             ctx.type_function(&[ctx.type_int(), ctx.type_ptr_to(ctx.type_i8p())], ctx.type_int())
         } else {
             ctx.type_function(&[], ctx.type_int())

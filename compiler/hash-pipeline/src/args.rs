@@ -142,10 +142,10 @@ fn parse_arg_configuration(
         "target" => {
             let value = value.ok_or_else(expected_value)?;
 
-            let target = Target::from_string(value.clone())
+            let target = Target::search(value.as_str())
                 .ok_or_else(|| PipelineError::InvalidTarget(value))?;
 
-            settings.codegen_settings.target_info.set_target(target)
+            settings.codegen_settings.target_info.target = target;
         }
         "optimisation-level" => {
             let value = value.ok_or_else(expected_value)?;
@@ -154,7 +154,9 @@ fn parse_arg_configuration(
 
             // @@Future: we should have a more defined way of what "optimisation"
             // levels change, and how they change them...
-            settings.lowering_settings.checked_operations = false;
+            if opt_level == OptimisationLevel::Release {
+                settings.lowering_settings.checked_operations = false;
+            }
         }
         "dump" => {
             let value = value.ok_or_else(expected_value)?;

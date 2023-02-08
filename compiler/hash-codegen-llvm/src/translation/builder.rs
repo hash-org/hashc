@@ -525,7 +525,7 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for Builder<'a, 'b, 'm> {
         lhs: Self::Value,
         rhs: Self::Value,
     ) -> (Self::Value, Self::Value) {
-        let ptr_width = self.ctx.settings().codegen_settings().target_info.target().pointer_width;
+        let ptr_width = self.ctx.settings().target().pointer_bit_width;
 
         let int_ty = self.ir_ctx().map_ty(ty, |ty| match ty {
             IrTy::Int(ty @ SIntTy::ISize) => IntTy::Int(ty.normalise(ptr_width)),

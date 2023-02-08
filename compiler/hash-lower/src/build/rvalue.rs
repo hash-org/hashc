@@ -134,7 +134,7 @@ impl<'tcx> Builder<'tcx> {
     /// signed integer type.
     fn min_value_of_ty(&self, ty: IrTy) -> Operand {
         let value = if let IrTy::Int(signed_ty) = ty {
-            let size = signed_ty.size(self.tcx.target_pointer_width).unwrap().bits();
+            let size = signed_ty.size(self.tcx.pointer_width).unwrap().bits();
             let n = 1 << (size - 1);
 
             // Create and intern the constant
