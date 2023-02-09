@@ -5,7 +5,10 @@
 //! given [ModuleEntry]. This can only be known by the [SourceMap] which stores
 //! all of the relevant [SourceId]s and their corresponding sources.
 
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashSet,
+    path::{Path, PathBuf},
+};
 
 use bitflags::bitflags;
 use hash_ast::{
@@ -182,6 +185,11 @@ pub struct Workspace {
     /// Stores all of the generated AST for modules and nodes.
     pub node_map: NodeMap,
 
+    /// The results from code generation. This does not store the actual
+    /// generated code, but rather the metadata required to build the
+    /// final executable.
+    pub code_map: CodeMap,
+
     /// Information about which source have undergone which stages
     /// of the compiler pipeline.
     pub source_stage_info: StageInfo,
@@ -206,6 +214,7 @@ impl Workspace {
             source_map: SourceMap::new(),
             node_map: NodeMap::new(),
             dependencies: FxHashMap::default(),
+            code_map: CodeMap::default(),
             source_stage_info: StageInfo::new(),
         })
     }
@@ -344,5 +353,42 @@ impl Workspace {
 
             Ok(())
         }
+    }
+}
+
+/// This defines a map for which modules correspond to which generated object
+/// files, symbol files, debug information and any libraries that a module has
+/// specified as dependencies.
+#[derive(Debug, Clone, Default)]
+pub struct CodeMap {
+    /// The map of modules to their corresponding object files.
+    ///
+    /// This is updated as the code generation stage is run, and later
+    /// it is used by the linker.
+    object_map: FxHashMap<ModuleId, PathBuf>,
+
+    /// This is table of module library dependencies that have been specified
+    /// by the module via `#foreign` directives.
+    ///
+    /// @@Todo: we need to store information about the library type here...
+    /// static/dynamic, etc.
+    library_dependencies: FxHashMap<ModuleId, HashSet<PathBuf>>,
+}
+
+impl CodeMap {
+    /// Add an object file entry to the [CodeMap] for the specified [ModuleId].
+    pub fn add_object_file(&mut self, module: ModuleId, path: PathBuf) {
+        self.object_map.insert(module, path);
+    }
+
+    /// Add a module library dependency to the [CodeMap] for the specified
+    /// [ModuleId].
+    pub fn add_library_dependency(&mut self, module: ModuleId, path: PathBuf) {
+        self.library_dependencies.entry(module).or_insert_with(HashSet::default).insert(path);
+    }
+
+    /// Iterate over all of the module objects that have been generated.
+    pub fn objects(&self) -> impl Iterator<Item = &PathBuf> {
+        self.object_map.values()
     }
 }
