@@ -95,9 +95,6 @@ pub fn parse_option(
             "release" => {
                 settings.optimisation_level = OptimisationLevel::Release;
             }
-            "output-metrics" => {
-                settings.output_metrics = true;
-            }
             "output-dir" => {
                 // The next argument after this is the input file.
                 if let Some(filename) = args.next() {
@@ -160,6 +157,12 @@ fn parse_arg_configuration(
             if opt_level == OptimisationLevel::Release {
                 settings.lowering_settings.checked_operations = false;
             }
+        }
+        "metrics" => {
+            // Enable metrics when running the compiler.
+            //
+            // This in principle enables logging and other
+            settings.output_metrics = true;
         }
         "debug" => {
             // Enable "debug" mode when running the compiler.

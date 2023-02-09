@@ -1,6 +1,7 @@
 //! Defines all of the intrinsics that are expected to be
 //! declared within the language prelude.
 
+use hash_source::{attributes::Attribute, identifier::IDENTS};
 use hash_utils::store::{SequenceStore, Store};
 
 use crate::ty::{Instance, InstanceStore, IrTy, IrTyId, TyStore};
@@ -61,12 +62,15 @@ impl Intrinsics {
         macro_rules! define_intrinsic {
             ($name:literal, fn() -> $ret:expr) => (
                 let params = tys.tls.create_empty();
-                let instance = instances.create(Instance::new(
+                let mut instance = Instance::new(
                     $name.into(),
                     None,
                     params,
                     $ret,
-                ));
+                );
+
+                instance.attributes.add(Attribute::word(IDENTS.no_mangle));
+                let instance = instances.create(instance);
 
                 intrinsics[Intrinsic::from_str_name($name) as usize] = Some(tys.create(IrTy::Fn {
                     params,
@@ -76,14 +80,15 @@ impl Intrinsics {
             );
             ($name:literal, fn($($arg:expr),*) -> $ret:expr) => (
                 let params = tys.tls.create_from_slice(&[$($arg),*]);
-                let instance = instances.create(
-                    Instance::new(
-                        $name.into(),
-                        None,
-                        params,
-                        $ret,
-                    )
+                let mut instance =Instance::new(
+                    $name.into(),
+                    None,
+                    params,
+                    $ret,
                 );
+
+                instance.attributes.add(Attribute::word(IDENTS.no_mangle));
+                let instance = instances.create(instance);
 
                 intrinsics[Intrinsic::from_str_name($name) as usize] = Some(tys.create(IrTy::Fn {
                     params,

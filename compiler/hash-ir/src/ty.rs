@@ -9,6 +9,7 @@ use std::{cmp, fmt};
 use bitflags::bitflags;
 use hash_ast::ast;
 use hash_source::{
+    attributes::ItemAttributes,
     constant::{FloatTy, IntTy, SIntTy, UIntTy},
     identifier::Identifier,
     SourceId,
@@ -90,7 +91,7 @@ new_store_key!(pub InstanceId);
 /// This is a temporary struct that identifies a unique instance of a
 /// function within the generated code, and is later used to resolve
 /// function references later on.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct Instance {
     /// The fully specified name of the function instance.
     ///
@@ -104,6 +105,10 @@ pub struct Instance {
 
     /// The function return type.
     pub ret_ty: IrTyId,
+
+    /// Any attributes that are present  on the instance, this is used
+    /// to specify special behaviour of the function.
+    pub attributes: ItemAttributes,
 
     /// The source of this function instance. This is useful
     /// for when symbol names are mangled, and we need to
@@ -128,7 +133,14 @@ impl Instance {
     ) -> Self {
         // @@Todo: deal with generic functions being properly instantiated
         // here.
-        Self { name, params, source, ret_ty, generic_origin: false }
+        Self {
+            name,
+            params,
+            source,
+            ret_ty,
+            generic_origin: false,
+            attributes: ItemAttributes::default(),
+        }
     }
 
     /// Get the name from the instance.

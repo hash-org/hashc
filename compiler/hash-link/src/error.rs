@@ -87,7 +87,7 @@ impl From<LinkerError<'_>> for Report {
             } => {
                 // Add the note about command was being run, and the output
                 report.add_note(format!("link command:\n{command:?}"));
-                report.add_note(format!("output:{escaped_output}"));
+                report.add_note(escaped_output.to_string());
 
                 // If there is additional information, add notes about this too...
                 if let Some(AdditionalFailureInfo { is_vs_installed, has_linker }) = additional_info
