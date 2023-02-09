@@ -72,7 +72,15 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 // Type was inferred
                 Some((inferred_arg, inferred_param)) => {
                     collected_args.push(inferred_arg);
-                    collected_params.push(inferred_param);
+
+                    // If the original parameter has holes, then we use the
+                    // inferred parameter. Otherwise use the original parameter. @@Correctness: do
+                    // we need to unify here?
+                    if self.substitution_ops().atom_has_holes(param.ty) {
+                        collected_params.push(inferred_param);
+                    } else {
+                        collected_params.push((*param).into());
+                    }
 
                     // Extend the running substitution with the new unification result
                     if let Some(arg_id) = get_arg_id(i) {
@@ -82,13 +90,6 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
                     let applied_param_ty =
                         self.substitution_ops().apply_sub_to_ty(param.ty, &running_sub);
-
-                    println!(
-                        "Trying to unify {} with {}, sub is {}",
-                        self.env().with(inferred_param.ty),
-                        self.env().with(applied_param_ty),
-                        self.env().with(&running_sub)
-                    );
 
                     running_sub.extend(
                         &self
@@ -924,14 +925,19 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 let sub = self.substitution_ops().create_sub_from_current_stack_members();
                 let subbed_return_ty = self.substitution_ops().apply_sub_to_ty(return_ty, &sub);
 
-                Ok((
-                    BlockTerm {
-                        statements: self.new_term_list(inferred_statements),
-                        return_value: return_term,
-                        stack_id: block_term.stack_id,
+                self.return_or_register_errors(
+                    || {
+                        Ok((
+                            BlockTerm {
+                                statements: self.new_term_list(inferred_statements),
+                                return_value: return_term,
+                                stack_id: block_term.stack_id,
+                            },
+                            subbed_return_ty,
+                        ))
                     },
-                    subbed_return_ty,
-                ))
+                    error_state,
+                )
             })
         })
     }
@@ -1003,25 +1009,40 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         decl_term: &DeclTerm,
         annotation_ty: TyId,
     ) -> TcResult<(DeclTerm, TyId)> {
-        let (inferred_rhs_value, inferred_ty) = match decl_term.value {
-            Some(value) => {
-                let (inferred_value, inferred_ty) = self.infer_term(value, decl_term.ty)?;
-                (Some(inferred_value), inferred_ty)
+        let result_decl_term: TcResult<DeclTerm> = try {
+            let (inferred_rhs_value, inferred_ty) = match decl_term.value {
+                Some(value) => {
+                    let (inferred_value, inferred_ty) = self.infer_term(value, decl_term.ty)?;
+                    (Some(inferred_value), inferred_ty)
+                }
+                None => (decl_term.value, decl_term.ty),
+            };
+
+            let (inferred_lhs_pat, inferred_ty) =
+                self.infer_pat(decl_term.bind_pat, inferred_ty)?;
+
+            let result_decl_term = DeclTerm {
+                bind_pat: inferred_lhs_pat,
+                value: inferred_rhs_value,
+                ty: inferred_ty,
+                stack_indices: decl_term.stack_indices,
+            };
+
+            result_decl_term
+        };
+
+        match result_decl_term {
+            Ok(result_decl_term) => {
+                self.context_utils().add_from_decl_term(&result_decl_term);
+                Ok((result_decl_term, self.check_by_unify(self.new_void_ty(), annotation_ty)?))
             }
-            None => (decl_term.value, decl_term.ty),
-        };
-
-        let (inferred_lhs_pat, inferred_ty) = self.infer_pat(decl_term.bind_pat, inferred_ty)?;
-
-        let result_decl_term = DeclTerm {
-            bind_pat: inferred_lhs_pat,
-            value: inferred_rhs_value,
-            ty: inferred_ty,
-            stack_indices: decl_term.stack_indices,
-        };
-        self.context_utils().add_from_decl_term(&result_decl_term);
-
-        Ok((result_decl_term, self.check_by_unify(self.new_void_ty(), annotation_ty)?))
+            Err(err) => {
+                // We still want to add the bindings from the decl term to the context, even if
+                // the term is invalid.
+                self.context_utils().add_from_decl_term(decl_term);
+                Err(err)
+            }
+        }
     }
 
     /// Infer an access term.
