@@ -29,6 +29,8 @@ impl_access_to_tc_env!(InferencePass<'_>);
 
 /// The maximum number of hole-filling iterations to perform when inferring a
 /// term, before giving up and reporting an error.
+///
+/// @@Todo: remove this in favour of `infer_until_no_holes` in typechecker.
 const MAX_INFER_ITERATIONS: usize = 2;
 
 impl InferencePass<'_> {
