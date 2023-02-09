@@ -148,6 +148,20 @@ impl CompilerSettings {
         Ok(output_directory.unwrap())
     }
 
+    /// Configure the [CompilerSettings] to have a specified
+    /// [OptimisationLevel].
+    ///
+    /// This function will also disable the default options that a
+    /// [OptimisationLevel] implies, i.e. for "release",
+    /// `checked_operations` are disabled.
+    pub fn set_optimisation_level(&mut self, level: OptimisationLevel) {
+        self.optimisation_level = level;
+
+        if self.optimisation_level == OptimisationLevel::Release {
+            self.lowering_settings.checked_operations = false;
+        }
+    }
+
     /// Specify whether the compiler pipeline should skip running
     /// prelude during bootstrapping.
     pub fn set_skip_prelude(&mut self, value: bool) {
