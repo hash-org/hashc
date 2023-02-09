@@ -222,7 +222,7 @@ impl<'env> TraversingUtils<'env> {
         match f(ty_id.into())? {
             ControlFlow::Break(ty) => match ty {
                 Atom::Ty(ty) => Ok(ty),
-                Atom::Term(term) => Ok(self.use_term_as_ty_or_eval(term)),
+                Atom::Term(term) => Ok(self.use_term_as_ty(term)),
                 _ => unreachable!("got non-type in fmap_ty"),
             },
             ControlFlow::Continue(()) => match self.get_ty(ty_id) {

@@ -175,7 +175,7 @@ impl<'env> ContextUtils<'env> {
 
     /// Get the given stack binding, or panic if it does not exist.
     pub fn get_stack_binding(&self, name: Symbol) -> (StackMemberId, Option<TermId>) {
-        match self.context().get_binding(name).unwrap().kind {
+        match self.context().get_binding(name).kind {
             BindingKind::StackMember(member, value) => (member, value),
             _ => panic!("get_stack_binding called on non-stack binding"),
         }

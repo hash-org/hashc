@@ -29,7 +29,9 @@ impl_access_to_tc_env!(InferencePass<'_>);
 
 /// The maximum number of hole-filling iterations to perform when inferring a
 /// term, before giving up and reporting an error.
-const MAX_INFER_ITERATIONS: usize = 20;
+///
+/// @@Todo: remove this in favour of `infer_until_no_holes` in typechecker.
+const MAX_INFER_ITERATIONS: usize = 2;
 
 impl InferencePass<'_> {
     /// Infer the given subject by the provided closure, until it contains no
@@ -76,15 +78,19 @@ impl<'tc> AstPass for InferencePass<'tc> {
         node: ast::AstNodeRef<ast::BodyBlock>,
     ) -> crate::new::diagnostics::error::SemanticResult<()> {
         // Infer the expression
-        let term = self.infer_loop(
-            self.ast_info().terms().get_data_by_node(node.id()).unwrap(),
-            |term_id| Ok(self.inference_ops().infer_term(term_id, self.new_ty_hole())?.0),
-            |term_id| self.substitution_ops().atom_has_holes(term_id),
+        let (term, ty) = self.infer_loop(
+            (self.ast_info().terms().get_data_by_node(node.id()).unwrap(), self.new_ty_hole()),
+            |(term_id, ty_id)| self.inference_ops().infer_term(term_id, ty_id),
+            |(term_id, ty_id)| {
+                self.substitution_ops().atom_has_holes(term_id)
+                    || self.substitution_ops().atom_has_holes(ty_id)
+            },
         )?;
 
         // @@Temp:
         let evaluated = self.normalisation_ops().normalise(term.into())?;
-        stream_less_writeln!("{}", self.env().with(evaluated));
+        let evaluated_ty = self.normalisation_ops().normalise(ty.into())?;
+        stream_less_writeln!("{}: {}", self.env().with(evaluated), self.env().with(evaluated_ty));
 
         Ok(())
     }

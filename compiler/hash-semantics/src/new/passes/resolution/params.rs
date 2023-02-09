@@ -92,6 +92,28 @@ impl From<ResolvedArgs> for SomeParamsOrArgsId {
 }
 
 impl<'tc> ResolutionPass<'tc> {
+    /// Resolve the given AST ty-arg parameter into [`ParamId`].
+    /// Same assumptions as [`Self::resolve_param_from_ast_param`].
+    fn resolve_param_from_ast_ty_arg(
+        &self,
+        ast_param: AstNodeRef<ast::TyArg>,
+    ) -> SemanticResult<ParamId> {
+        // Resolve the default value and type annotation:
+        let resolved_ty = self.try_or_add_error(self.make_ty_from_ast_ty(ast_param.ty.ast_ref()));
+
+        // Get the existing param id from the AST info store:
+        let param_id = self.ast_info().params().get_data_by_node(ast_param.id()).unwrap();
+        match resolved_ty {
+            Some(resolved_ty) => {
+                self.stores().params().modify_fast(param_id.0, |params| {
+                    params[param_id.1].ty = resolved_ty;
+                });
+                Ok(param_id)
+            }
+            _ => Err(SemanticError::Signal),
+        }
+    }
+
     /// Resolve the given AST parameter into [`ParamId`].
     ///
     /// This assumes that this was initially traversed during
@@ -130,22 +152,54 @@ impl<'tc> ResolutionPass<'tc> {
         // Get the existing param id from the AST info store:
         let param_id = self.ast_info().params().get_data_by_node(ast_param.id()).unwrap();
         match (resolved_ty, default_value) {
-            (Some(resolved_ty), Some(_resolved_default_value)) => {
+            (Some(resolved_ty), Some(resolved_default_value)) => {
                 self.stores().params().modify_fast(param_id.0, |params| {
                     // If this is None, it wasn't given as an annotation, so we just leave it as
                     // a hole
                     if let Some(resolved_ty) = resolved_ty {
                         params[param_id.1].ty = resolved_ty;
                     }
-
-                    // @@Todo: default values
-                    // params[param_id.1].default_value =
-                    // resolved_default_value;
+                    params[param_id.1].default = resolved_default_value;
                 });
 
                 Ok(param_id)
             }
             _ => Err(SemanticError::Signal),
+        }
+    }
+
+    /// Resolve the given set of AST ty-arg parameters into [`ParamsId`].
+    ///
+    /// This assumes that the parameters were initially traversed during
+    /// discovery, and are set in the AST info store.
+    pub(super) fn resolve_params_from_ast_ty_args(
+        &self,
+        params: &ast::AstNodes<ast::TyArg>,
+        origin: ParamOrigin,
+    ) -> SemanticResult<ParamsId> {
+        let mut found_error = false;
+        let mut params_id: Option<ParamsId> = None;
+
+        for ast_param in params.ast_ref_iter() {
+            let param_id = self.try_or_add_error(self.resolve_param_from_ast_ty_arg(ast_param));
+            match param_id {
+                Some(param_id) => {
+                    // Remember the params ID to return at the end
+                    self.scoping().add_param_binding(param_id, origin);
+                    params_id = Some(param_id.0);
+                }
+                None => {
+                    // Continue resolving the rest of the parameters and report the error at the
+                    // end.
+                    found_error = true;
+                }
+            }
+        }
+
+        if found_error {
+            Err(SemanticError::Signal)
+        } else {
+            Ok(params_id.unwrap_or_else(|| self.new_empty_params()))
         }
     }
 

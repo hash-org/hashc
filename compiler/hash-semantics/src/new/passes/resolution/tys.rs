@@ -6,7 +6,7 @@
 
 use std::iter::once;
 
-use hash_ast::ast::{self, AstNodeRef, AstNodes};
+use hash_ast::ast::{self, AstNodeRef};
 use hash_intrinsics::primitives::AccessToPrimitives;
 use hash_reporting::macros::panic_on_span;
 use hash_source::{identifier::IDENTS, location::Span};
@@ -15,13 +15,12 @@ use hash_tir::new::{
     data::DataTy,
     environment::env::AccessToEnv,
     fns::FnCallTerm,
-    params::{ParamData, ParamIndex, ParamsId},
+    params::ParamIndex,
     refs::{RefKind, RefTy},
     terms::Term,
     tys::{Ty, TyId},
     utils::{common::CommonUtils, AccessToUtils},
 };
-use hash_utils::itertools::Itertools;
 
 use super::{
     params::AstArgGroup,
@@ -49,43 +48,17 @@ impl<'tc> ResolutionPass<'tc> {
             .iter()
             .enumerate()
             .map(|(i, arg)| {
-                // @@Todo: add to ctx if named
                 Ok(ArgData {
                     target: arg
                         .name
                         .as_ref()
                         .map(|name| ParamIndex::Name(name.ident))
                         .unwrap_or_else(|| ParamIndex::Position(i)),
-                    value: self.new_term(Term::Ty(self.make_ty_from_ast_ty(arg.ty.ast_ref())?)),
+                    value: self.use_ty_as_term(self.make_ty_from_ast_ty(arg.ty.ast_ref())?),
                 })
             })
             .collect::<SemanticResult<Vec<_>>>()?;
         Ok(self.param_utils().create_args(args.into_iter()))
-    }
-
-    /// Make TC parameters from the given [`ast::TyArg`] list.
-    fn make_params_from_ast_ty_args(
-        &self,
-        ty_args: &AstNodes<ast::TyArg>,
-    ) -> SemanticResult<ParamsId> {
-        let params = ty_args
-            .ast_ref_iter()
-            .filter_map(|ty_arg| {
-                self.try_or_add_error(self.make_ty_from_ast_ty(ty_arg.ty.ast_ref())).map(|ty| {
-                    ParamData {
-                        name: self.new_symbol_from_ast_name(&ty_arg.name),
-                        ty,
-                        default: None,
-                    }
-                })
-            })
-            .collect_vec();
-
-        if params.len() != ty_args.len() {
-            Err(SemanticError::Signal)
-        } else {
-            Ok(self.param_utils().create_params(params.into_iter()))
-        }
     }
 
     /// Use the given [`ast::NamedTy`] as a path.
@@ -157,11 +130,8 @@ impl<'tc> ResolutionPass<'tc> {
                 }
             },
             ResolvedAstPathComponent::Terminal(terminal) => match terminal {
-                TerminalResolvedPathComponent::FnDef(_) => {
-                    // Functions are not allowed in type positions
-                    Err(SemanticError::CannotUseFunctionInTypePosition {
-                        location: self.source_location(original_node_span),
-                    })
+                TerminalResolvedPathComponent::FnDef(fn_def_id) => {
+                    Ok(self.use_term_as_ty(self.new_term(Term::FnRef(*fn_def_id))))
                 }
                 TerminalResolvedPathComponent::CtorPat(_) => {
                     panic_on_span!(
@@ -170,18 +140,13 @@ impl<'tc> ResolutionPass<'tc> {
                         "found CtorPat in type ast path"
                     )
                 }
-                TerminalResolvedPathComponent::CtorTerm(_) => {
-                    // Constructors are not allowed in type positions
-                    Err(SemanticError::CannotUseConstructorInTypePosition {
-                        location: self.source_location(original_node_span),
-                    })
+                TerminalResolvedPathComponent::CtorTerm(ctor_term) => {
+                    Ok(self.use_term_as_ty(self.new_term(Term::Ctor(*ctor_term))))
                 }
                 TerminalResolvedPathComponent::FnCall(fn_call_term) => {
-                    // Function call
-                    Ok(self.new_ty(Ty::Eval(self.new_term(Term::FnCall(*fn_call_term)))))
+                    Ok(self.use_term_as_ty(self.new_term(Term::FnCall(*fn_call_term))))
                 }
                 TerminalResolvedPathComponent::Var(bound_var) => {
-                    // Bound variable
                     Ok(self.new_ty(Ty::Var(bound_var.name)))
                 }
             },
@@ -248,11 +213,11 @@ impl<'tc> ResolutionPass<'tc> {
 
                 match (subject, args) {
                     (Some(subject), Some(args)) => {
-                        Ok(self.new_ty(Ty::Eval(self.new_term(Term::FnCall(FnCallTerm {
+                        Ok(self.use_term_as_ty(self.new_term(Term::FnCall(FnCallTerm {
                             subject,
                             args,
                             implicit: true,
-                        })))))
+                        }))))
                     }
                     _ => Err(SemanticError::Signal),
                 }
@@ -263,7 +228,7 @@ impl<'tc> ResolutionPass<'tc> {
     /// Make a type from the given [`ast::TupleTy`].
     fn make_ty_from_ast_tuple_ty(&self, node: AstNodeRef<ast::TupleTy>) -> SemanticResult<TyId> {
         self.scoping().enter_tuple_ty(node, |mut tuple_ty| {
-            tuple_ty.data = self.make_params_from_ast_ty_args(&node.entries)?;
+            tuple_ty.data = self.resolve_params_from_ast_ty_args(&node.entries, tuple_ty.into())?;
             Ok(self.new_ty(tuple_ty))
         })
     }
@@ -274,10 +239,9 @@ impl<'tc> ResolutionPass<'tc> {
         let list_def = self.primitives().list();
         Ok(self.new_ty(Ty::Data(DataTy {
             data_def: list_def,
-            args: self.param_utils().create_positional_args_for_data_def(
-                list_def,
-                once(self.new_term(Term::Ty(inner_ty))),
-            ),
+            args: self
+                .param_utils()
+                .create_positional_args_for_data_def(list_def, once(self.use_ty_as_term(inner_ty))),
         })))
     }
 
@@ -340,9 +304,11 @@ impl<'tc> ResolutionPass<'tc> {
         &self,
         node: AstNodeRef<ast::FnTy>,
     ) -> SemanticResult<TyId> {
-        // First, make the params
-        let params = self.try_or_add_error(self.make_params_from_ast_ty_args(&node.params));
         self.scoping().enter_fn_ty(node, |mut fn_ty| {
+            // First, make the params
+            let params = self
+                .try_or_add_error(self.resolve_params_from_ast_ty_args(&node.params, fn_ty.into()));
+
             // Add the params if they exist
             if let Some(params) = params {
                 fn_ty.params = params;

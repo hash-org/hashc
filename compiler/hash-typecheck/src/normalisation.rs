@@ -112,13 +112,17 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
             {
                 let _ = self.eval(statement.into())?;
             }
-            self.eval(block_term.return_value.into())
+
+            let sub = self.substitution_ops().create_sub_from_current_stack_members();
+            let result_term = self.eval(block_term.return_value.into())?;
+            let subbed_result_term = self.substitution_ops().apply_sub_to_atom(result_term, &sub);
+            Ok(subbed_result_term)
         })
     }
 
     /// Evaluate a variable.
     fn eval_var(&self, var: Symbol) -> Result<Atom, Signal> {
-        match self.context().get_binding(var).unwrap().kind {
+        match self.context().get_binding(var).kind {
             BindingKind::Param(_, _) => Ok(self.new_term(var).into()),
             BindingKind::Arg(_, arg_id) => {
                 Ok(self.stores().args().map_fast(arg_id.0, |args| args[arg_id.1].value).into())
@@ -426,10 +430,9 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
                 match fn_def.body {
                     FnBody::Defined(defined_fn_def) => {
                         // Make a substitution from the arguments to the parameters:
-                        let sub = self.substitution_ops().create_sub_from_applying_args_to_params(
-                            fn_call.args,
-                            fn_def.ty.params,
-                        );
+                        let sub = self
+                            .substitution_ops()
+                            .create_sub_from_args_of_params(fn_call.args, fn_def.ty.params);
 
                         // Apply substitution to body:
                         let result =

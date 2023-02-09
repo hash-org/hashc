@@ -180,7 +180,7 @@ impl<'tc> ResolutionPass<'tc> {
                     name_span,
                     self.scoping().get_current_context_kind(),
                 )?;
-                Ok(self.context().get_binding(binding_symbol).unwrap())
+                Ok(self.context().get_binding(binding_symbol))
             }
         }
     }

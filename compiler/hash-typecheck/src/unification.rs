@@ -17,6 +17,7 @@ use hash_utils::store::{SequenceStore, SequenceStoreKey};
 
 use crate::{
     errors::{TcError, TcResult},
+    params::ParamError,
     AccessToTypechecking,
 };
 
@@ -125,11 +126,11 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
                 }
             }
             (Ty::Hole(a), _) => {
-                let sub = Sub::from_pairs([(a, self.new_term(target_id))]);
+                let sub = Sub::from_pairs([(a.0, self.new_term(target_id))]);
                 Uni::ok_with(sub, target_id)
             }
             (_, Ty::Hole(b)) => {
-                let sub = Sub::from_pairs([(b, self.new_term(src_id))]);
+                let sub = Sub::from_pairs([(b.0, self.new_term(src_id))]);
                 Uni::ok_with(sub, src_id)
             }
 
@@ -142,22 +143,24 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
             (Ty::Tuple(_), _) | (_, Ty::Tuple(_)) => Uni::mismatch_types(src_id, target_id),
 
             (Ty::Fn(f1), Ty::Fn(f2)) => {
-                if !self.fn_modalities_match(f1, f2) || f1.params.len() != f2.params.len() {
+                if !self.fn_modalities_match(f1, f2) {
                     Uni::mismatch_types(src_id, target_id)
                 } else {
-                    let Uni { sub, result: params } =
-                        self.unify_params(f2.params, f1.params, ParamOrigin::FnTy(f1))?;
-                    let return_ty_1_subbed =
-                        self.substitution_ops().apply_sub_to_ty(f1.return_ty, &sub);
-                    let return_ty_2_subbed =
-                        self.substitution_ops().apply_sub_to_ty(f2.return_ty, &sub);
+                    self.context().enter_scope(f2.into(), || {
+                        let Uni { sub, result: params } =
+                            self.unify_params(f1.params, f2.params, ParamOrigin::FnTy(f1))?;
 
-                    let Uni { result: return_ty, sub: return_ty_sub } =
-                        self.unify_tys(return_ty_1_subbed, return_ty_2_subbed)?;
+                        let return_ty_1_subbed =
+                            self.substitution_ops().apply_sub_to_ty(f1.return_ty, &sub);
+                        let return_ty_2_subbed = f2.return_ty;
 
-                    Ok(Uni {
-                        result: self.new_ty(FnTy { return_ty, params, ..f1 }),
-                        sub: return_ty_sub,
+                        let Uni { result: return_ty, sub: return_ty_sub } =
+                            self.unify_tys(return_ty_1_subbed, return_ty_2_subbed)?;
+
+                        Ok(Uni {
+                            result: self.new_ty(FnTy { return_ty, params, ..f1 }),
+                            sub: return_ty_sub,
+                        })
                     })
                 }
             }
@@ -197,13 +200,23 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
         let src = self.get_term(src_id);
         let target = self.get_term(target_id);
 
-        match (src, target) {
-            (Term::Ty(t1), Term::Ty(t2)) => {
-                let uni = self.unify_tys(t1, t2)?;
-                Ok(uni.map_result(|t| if t == t1 || t == t2 { src_id } else { self.new_term(t) }))
+        match (self.try_use_term_as_ty(src_id), self.try_use_term_as_ty(target_id)) {
+            (Some(src_ty), Some(target_ty)) => {
+                let uni = self.unify_tys(src_ty, target_ty)?;
+                Ok(uni.map_result(|t| self.new_term(t)))
             }
-            (Term::Var(a), Term::Var(b)) => Uni::ok_iff_terms_match(a == b, src_id, target_id),
-            _ => Uni::mismatch_terms(src_id, target_id),
+            _ => match (src, target) {
+                (Term::Ty(t1), Term::Ty(t2)) => {
+                    let uni = self.unify_tys(t1, t2)?;
+                    Ok(uni
+                        .map_result(|t| if t == t1 || t == t2 { src_id } else { self.new_term(t) }))
+                }
+                (Term::Var(a), Term::Var(b)) => Uni::ok_iff_terms_match(a == b, src_id, target_id),
+                (Term::Hole(a), Term::Hole(b)) => {
+                    Uni::ok_iff_terms_match(a == b, src_id, target_id)
+                }
+                _ => Uni::mismatch_terms(src_id, target_id),
+            },
         }
     }
 
@@ -232,7 +245,7 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
     ///
     /// The parameters must be already in scope.
     ///
-    /// Modifies src and target.
+    /// Names are taken from target
     pub fn unify_params(
         &self,
         src_id: ParamsId,
@@ -249,7 +262,9 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
             });
         }
 
-        self.reduce_unifications(
+        let name_sub = self.substitution_ops().create_sub_from_param_names(src_id, target_id);
+
+        let param_uni = self.reduce_unifications(
             src_id.iter().zip(target_id.iter()).map(|(src, target)| {
                 let src = self.stores().params().get_element(src);
                 let target = self.stores().params().get_element(target);
@@ -262,34 +277,37 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
 
                 match (self.get_param_name_ident(src.id), self.get_param_name_ident(target.id)) {
                     (Some(name_a), Some(name_b)) if name_a != name_b => {
-                        return Err(TcError::ParamMatch(
-                            crate::params::ParamError::ParamNameMismatch {
-                                param_a: src.id,
-                                param_b: target.id,
-                            },
-                        ));
+                        return Err(TcError::ParamMatch(ParamError::ParamNameMismatch {
+                            param_a: src.id,
+                            param_b: target.id,
+                        }));
                     }
                     _ => {}
                 }
 
-                let (_src_ty, _) = self.inference_ops().infer_ty(src.ty, self.new_ty_hole())?;
-                let (_target_ty, _) = self.inference_ops().infer_ty(src.ty, self.new_ty_hole())?;
+                let (target_ty, _) =
+                    self.inference_ops().infer_ty(target.ty, self.new_ty_hole())?;
 
-                let unified_param = self.unify_tys(src.ty, target.ty)?.map_result(|ty| ParamData {
-                    name: src.name,
+                // Apply the name substitution to the parameter
+                let subbed_src_ty = self.substitution_ops().apply_sub_to_ty(src.ty, &name_sub);
+
+                let (src_ty, _) =
+                    self.inference_ops().infer_ty(subbed_src_ty, self.new_ty_hole())?;
+
+                let unified_param = self.unify_tys(src_ty, target_ty)?.map_result(|ty| ParamData {
+                    name: target.name,
                     ty,
                     default: None,
                 });
 
-                self.stores().params().modify_fast(target.id.0, |params| {
-                    params[target.id.1].ty = unified_param.result.ty;
-                });
                 self.context_utils().add_param_binding(target.id, origin);
 
                 Ok(unified_param)
             }),
             |param_data| self.param_utils().create_params(param_data.into_iter()),
-        )
+        )?;
+
+        Ok(Uni { result: param_uni.result, sub: param_uni.sub.join(&name_sub) })
     }
 
     /// Unify two argument lists, creating a substitution of holes.
