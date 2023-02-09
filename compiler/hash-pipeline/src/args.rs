@@ -90,7 +90,10 @@ pub fn parse_option(
 
         match key.as_str() {
             "debug" => {
-                settings.debug = true;
+                settings.optimisation_level = OptimisationLevel::Debug;
+            }
+            "release" => {
+                settings.optimisation_level = OptimisationLevel::Release;
             }
             "output-metrics" => {
                 settings.output_metrics = true;
@@ -157,6 +160,12 @@ fn parse_arg_configuration(
             if opt_level == OptimisationLevel::Release {
                 settings.lowering_settings.checked_operations = false;
             }
+        }
+        "debug" => {
+            // Enable "debug" mode when running the compiler.
+            //
+            // This in principle enables logging and other
+            settings.debug = true;
         }
         "dump" => {
             let value = value.ok_or_else(expected_value)?;

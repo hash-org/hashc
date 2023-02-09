@@ -56,7 +56,7 @@ impl<Ctx: LinkerCtxQuery> CompilerStage<Ctx> for CompilerLinker {
         let LinkerCtx { workspace, settings, mut stdout } = ctx.data();
 
         // If we are not emitting an executable, then we can
-        if !workspace.yields_executable(settings) {
+        if !workspace.yields_executable(settings) || workspace.code_map.objects().next().is_none() {
             return Ok(());
         }
 
