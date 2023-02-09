@@ -17,3 +17,4 @@ pub use arrayvec;
 pub use index_vec;
 pub use itertools;
 pub use smallvec;
+pub use thin_vec;

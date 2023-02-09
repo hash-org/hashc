@@ -241,6 +241,10 @@ core_idents! {
     intrinsics: "intrinsics",
     entry_point: "entry_point",
 
+    // Language attributes
+    no_mangle: "no_mangle",
+    foreign: "foreign",
+
     // Intrinsic function item names
     sqrt_f32: "sqrtf32",
     sqrt_f64: "sqrtf64",

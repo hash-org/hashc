@@ -1,5 +1,11 @@
 //! Hash Compiler source location definitions.
-#![feature(path_file_prefix, let_chains)]
+#![feature(path_file_prefix, let_chains, once_cell)]
+
+pub mod attributes;
+pub mod constant;
+pub mod entry_point;
+pub mod identifier;
+pub mod location;
 
 use std::{
     fmt,
@@ -12,11 +18,6 @@ use hash_utils::{
     path::adjust_canonicalisation,
 };
 use location::{compute_row_col_from_offset, RowColSpan, SourceLocation};
-
-pub mod constant;
-pub mod entry_point;
-pub mod identifier;
-pub mod location;
 
 /// Used to check what kind of [SourceId] is being
 /// stored, i.e. the most significant bit denotes whether

@@ -871,6 +871,7 @@ dependencies = [
  "log",
  "smallvec",
  "stacker",
+ "thin-vec",
 ]
 
 [[package]]
@@ -1518,6 +1519,12 @@ dependencies = [
  "unicode-linebreak",
  "unicode-width",
 ]
+
+[[package]]
+name = "thin-vec"
+version = "0.2.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c630eb670b67091a53c40a5f8819be456c8c155c18d350c4e2c43c7cfe1f9c26"
 
 [[package]]
 name = "thiserror"
