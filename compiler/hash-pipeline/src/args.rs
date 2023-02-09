@@ -90,10 +90,10 @@ pub fn parse_option(
 
         match key.as_str() {
             "debug" => {
-                settings.debug = true;
+                settings.set_optimisation_level(OptimisationLevel::Debug);
             }
-            "output-metrics" => {
-                settings.output_metrics = true;
+            "release" => {
+                settings.set_optimisation_level(OptimisationLevel::Release);
             }
             "output-dir" => {
                 // The next argument after this is the input file.
@@ -150,13 +150,19 @@ fn parse_arg_configuration(
         "optimisation-level" => {
             let value = value.ok_or_else(expected_value)?;
             let opt_level = OptimisationLevel::from_str(value.as_str())?;
-            settings.optimisation_level = opt_level;
-
-            // @@Future: we should have a more defined way of what "optimisation"
-            // levels change, and how they change them...
-            if opt_level == OptimisationLevel::Release {
-                settings.lowering_settings.checked_operations = false;
-            }
+            settings.set_optimisation_level(opt_level);
+        }
+        "metrics" => {
+            // Enable metrics when running the compiler.
+            //
+            // This in principle enables logging and other
+            settings.output_metrics = true;
+        }
+        "debug" => {
+            // Enable "debug" mode when running the compiler.
+            //
+            // This in principle enables logging and other
+            settings.debug = true;
         }
         "dump" => {
             let value = value.ok_or_else(expected_value)?;
@@ -169,7 +175,10 @@ fn parse_arg_configuration(
                     settings.lowering_settings.dump = true;
                 }
                 "llvm-ir" => {
-                    settings.codegen_settings.dump = true;
+                    settings.codegen_settings.dump_bytecode = true;
+                }
+                "link-line" => {
+                    settings.codegen_settings.dump_link_line = true;
                 }
                 _ => {
                     return Err(PipelineError::InvalidValue(key, value));

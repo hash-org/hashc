@@ -11,14 +11,15 @@ pub mod targets;
 
 use std::{
     borrow::Cow,
-    env::consts::ARCH,
+    env::consts::{ARCH, OS},
     fmt::{Display, Formatter},
 };
 
 use abi::{Abi, Integer};
 use data_layout::{Endian, TargetDataLayout, TargetDataLayoutParseError};
 use link::{
-    link_env, Cc, CodeModel, FramePointer, LinkEnv, LinkageArgs, LinkerFlavour, Lld, RelocationMode,
+    link_env, Cc, CodeModel, FramePointer, LinkEnv, LinkageArgs, LinkerFlavour, Lld,
+    RelocationModel,
 };
 use size::Size;
 use targets::load_target;
@@ -43,6 +44,13 @@ pub enum Platform {
     OsX,
 }
 
+impl Platform {
+    /// Check if the platform is like "Windows".
+    pub fn is_windows(self) -> bool {
+        matches!(self, Platform::Windows)
+    }
+}
+
 /// The target that the compiler should compile for.
 #[derive(Debug, Clone)]
 pub struct Target {
@@ -52,6 +60,14 @@ pub struct Target {
     /// larger than 8, there is no current host system that
     /// supports a pointer size larger than 8 bits.
     pub pointer_bit_width: usize,
+
+    /// The string name of the operating system that the target
+    /// is for. If the name is "", this means that the target
+    /// OS is not known.
+    pub os: Cow<'static, str>,
+
+    /// If the target platform is either Windows, MacOS, Linux, or unknown.
+    pub platform: Platform,
 
     /// The target-triple name of the [Target]. This is primarily
     /// needed for the LLVM backend to correctly configure the right
@@ -94,9 +110,6 @@ pub struct Target {
     /// the `C` ABI.
     pub entry_abi: Abi,
 
-    /// If the target platform is either Windows, MacOS, Linux, or unknown.
-    pub platform: Platform,
-
     /// The vendor name of the target.
     pub vendor: Cow<'static, str>,
 
@@ -106,7 +119,7 @@ pub struct Target {
 
     /// Represents what kind of relocation model the target is
     /// expecting.
-    pub relocation_mode: RelocationMode,
+    pub relocation_mode: RelocationModel,
 
     /// Represents what kind of code model the target is expecting.
     pub code_model: CodeModel,
@@ -135,6 +148,9 @@ pub struct Target {
     /// Emit each function in its own section. Defaults to true.
     pub function_sections: bool,
 
+    /// Whether the CRT can be linked statically or not.
+    pub crt_statically_linked: bool,
+
     /// Arguments that are added to the linker at the beginning of the
     /// link line.
     pub pre_link_args: LinkageArgs,
@@ -149,7 +165,7 @@ pub struct Target {
     pub late_link_args: LinkageArgs,
 
     /// Environment variables that should be set when linking.
-    pub link_env: LinkEnv,
+    pub link_env: Cow<'static, [(Cow<'static, str>, Cow<'static, str>)]>,
 
     /// Environment variables that should be removed when linking.
     pub link_env_remove: LinkEnv,
@@ -232,6 +248,7 @@ impl Default for Target {
         Self {
             arch,
             endian: Endian::Little,
+            os: OS.into(),
             platform: Platform::Unknown,
             name: HOST_TARGET_TRIPLE.into(),
             vendor: "unknown".into(),
@@ -257,7 +274,7 @@ impl Default for Target {
             linker_flavour: LinkerFlavour::Gnu(Cc::Yes, Lld::No),
 
             code_model: CodeModel::Default,
-            relocation_mode: RelocationMode::PIC,
+            relocation_mode: RelocationModel::Pic,
             default_hidden_visibility: false,
 
             dylib_prefix: "lib".into(),
@@ -268,6 +285,7 @@ impl Default for Target {
             frame_pointer: FramePointer::None,
             dynamic_linking: false,
             function_sections: true,
+            crt_statically_linked: false,
 
             pre_link_args: LinkageArgs::new(),
             late_link_args: LinkageArgs::new(),

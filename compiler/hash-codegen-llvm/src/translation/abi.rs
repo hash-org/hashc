@@ -396,7 +396,7 @@ impl<'b, 'm> ExtendedFnAbiMethods<'b, 'm> for FnAbi {
         // @@CopyPaste: from above function
         match &self.ret_abi.mode {
             PassMode::Direct(attrs) => {
-                apply_attributes_to_arg(builder.ctx, attrs);
+                attrs.apply_attributes_to_call_site(builder.ctx, AttributeLoc::Return, call_site);
             }
             PassMode::Indirect { attributes, on_stack } => {
                 debug_assert!(!on_stack); // @@Explain

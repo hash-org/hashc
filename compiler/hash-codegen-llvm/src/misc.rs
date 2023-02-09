@@ -5,7 +5,7 @@ use hash_codegen::common::{AtomicOrdering, IntComparisonKind, RealComparisonKind
 use hash_pipeline::settings::OptimisationLevel;
 use hash_target::{
     abi::AddressSpace,
-    link::{CodeModel, RelocationMode},
+    link::{CodeModel, RelocationModel},
 };
 use inkwell::attributes::Attribute;
 
@@ -277,15 +277,14 @@ impl From<CodeModel> for CodeModelWrapper {
 /// [inkwell::targets::RelocMode] equivalent type.
 pub struct RelocationModeWrapper(pub inkwell::targets::RelocMode);
 
-impl From<RelocationMode> for RelocationModeWrapper {
-    fn from(value: RelocationMode) -> Self {
+impl From<RelocationModel> for RelocationModeWrapper {
+    fn from(value: RelocationModel) -> Self {
         use inkwell::targets::RelocMode::*;
 
         match value {
-            RelocationMode::Default => RelocationModeWrapper(Default),
-            RelocationMode::Static => RelocationModeWrapper(Static),
-            RelocationMode::PIC => RelocationModeWrapper(PIC),
-            RelocationMode::DynamicNoPIC => RelocationModeWrapper(DynamicNoPic),
+            RelocationModel::Static => RelocationModeWrapper(Static),
+            RelocationModel::Pic | RelocationModel::Pie => RelocationModeWrapper(PIC),
+            RelocationModel::DynamicNoPic => RelocationModeWrapper(DynamicNoPic),
         }
     }
 }

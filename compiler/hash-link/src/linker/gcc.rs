@@ -3,35 +3,35 @@
 use std::{
     ffi::{OsStr, OsString},
     path::Path,
-    process::Command,
 };
 
 use hash_pipeline::settings::{CompilerSettings, OptimisationLevel};
 
-use crate::{LinkOutputKind, Linker};
+use super::{LinkOutputKind, Linker};
+use crate::command::LinkCommand;
 
 /// A wrapper around the Glorious GCC linker.
 pub struct GccLinker<'ctx> {
     /// The command that is being built up for the
     /// link line.
-    command: Command,
+    pub command: LinkCommand,
 
     /// The compiler session that this linker is using
     /// to link the binary. This provides information about
     /// the target, any specified compiler options, etc.
-    session: &'ctx CompilerSettings,
+    pub settings: &'ctx CompilerSettings,
 
     /// Whether or not the linker is `ld` like.
-    is_ld: bool,
+    pub is_ld: bool,
 
     /// Whether or not the linker is GNU `ld` like.
-    is_gnu: bool,
+    pub is_gnu: bool,
 
     /// What is the current hinting mode on the linker.
     ///
     /// N.B. On some platforms, this flag has no accept as they
     /// don't accept hints.
-    static_hint: bool,
+    pub static_hint: bool,
 }
 
 impl<'ctx> GccLinker<'ctx> {
@@ -68,7 +68,7 @@ impl<'ctx> GccLinker<'ctx> {
     /// - macOS does not take hints since it does not rely on
     /// `binutils` to perform linking.
     fn takes_hints(&self) -> bool {
-        self.is_ld && self.is_gnu && !self.session.target().is_like_osx()
+        self.is_ld && self.is_gnu && !self.settings.target().is_like_osx()
     }
 
     /// Add a hint to the linker that the next specified library
@@ -101,14 +101,14 @@ impl<'ctx> GccLinker<'ctx> {
 }
 
 impl<'ctx> Linker for GccLinker<'ctx> {
-    fn cmd(&mut self) -> &mut Command {
+    fn cmd(&mut self) -> &mut LinkCommand {
         &mut self.command
     }
 
-    fn set_output_kind(&mut self, kind: LinkOutputKind, filename: &Path) {
+    fn set_output_kind(&mut self, kind: LinkOutputKind) {
         match (kind.dynamic, kind.is_pic) {
             (true, true) => {
-                if !self.session.target().is_like_windows() {
+                if !self.settings.target().is_like_windows() {
                     self.linker_arg("-pie");
                 }
             }
@@ -140,6 +140,10 @@ impl<'ctx> Linker for GccLinker<'ctx> {
         }
     }
 
+    fn add_object(&mut self, path: &Path) {
+        self.cmd().arg(path);
+    }
+
     fn set_output_filename(&mut self, filename: &Path) {
         self.command.arg("-o").arg(filename);
     }
@@ -154,7 +158,7 @@ impl<'ctx> Linker for GccLinker<'ctx> {
         // not found in the DT_NEEDED lists of other libraries linked up to that point,
         // an undefined symbol reference from another dynamic library. --no-as-needed
         // restores the default behaviour.
-        if !as_needed && self.is_gnu && !self.session.target().is_like_windows() {
+        if !as_needed && self.is_gnu && !self.settings.target().is_like_windows() {
             self.linker_arg("--no-as-needed");
         }
 
@@ -164,7 +168,7 @@ impl<'ctx> Linker for GccLinker<'ctx> {
         self.command.arg(format!("-l{verbatim_prefix}{lib}"));
 
         // Now disable the --as-needed option again.
-        if !as_needed && self.is_gnu && !self.session.target().is_like_windows() {
+        if !as_needed && self.is_gnu && !self.settings.target().is_like_windows() {
             self.linker_arg("--as-needed");
         }
     }
@@ -185,7 +189,7 @@ impl<'ctx> Linker for GccLinker<'ctx> {
             return;
         }
 
-        if self.session.optimisation_level > OptimisationLevel::Debug {
+        if self.settings.optimisation_level > OptimisationLevel::Debug {
             self.linker_arg("-O1");
         }
     }
@@ -194,8 +198,12 @@ impl<'ctx> Linker for GccLinker<'ctx> {
         // This essentially performs dead-code elimination on the
         // resultant binary, removing everything that is not used
         // or can't be reached from "main".
-        if self.session.target().is_like_osx() {
+        if self.settings.target().is_like_osx() {
             self.linker_arg("-dead_strip");
         }
+    }
+
+    fn reset_per_library_state(&mut self) {
+        self.hint_dynamic();
     }
 }

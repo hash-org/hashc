@@ -25,8 +25,8 @@
 //! we have to avoid mangling the symbol name.
 
 use hash_ir::{ty::InstanceId, IrCtx};
-use hash_source::{InteractiveId, ModuleId};
-use hash_utils::store::Store;
+use hash_source::{identifier::IDENTS, InteractiveId, ModuleId};
+use hash_utils::store::{Store, StoreKey};
 
 /// The [Mangler] is a structure that is used to build up the "mangled"
 /// symbol for an instance or static item.
@@ -66,18 +66,22 @@ pub fn compute_symbol_name(ctx: &IrCtx, instance_id: InstanceId) -> String {
     let m = &mut Mangler { out: String::new() };
 
     ctx.instances().map_fast(instance_id, |instance| {
-        if let Some(source) = instance.source {
-            if source.is_module() {
-                // If the source is a module, then we need to
-                // use the module id as a unique identifier.
-                m.push(format!("m{}_", ModuleId::from(source).raw()).as_str());
+        if !instance.attributes.contains(IDENTS.no_mangle)
+            && !instance.attributes.contains(IDENTS.foreign)
+        {
+            if let Some(source) = instance.source {
+                if source.is_module() {
+                    // If the source is a module, then we need to
+                    // use the module id as a unique identifier.
+                    m.push(format!("m{}_", ModuleId::from(source).raw()).as_str());
+                } else {
+                    m.push(format!("i{}_", InteractiveId::from(source).raw()).as_str());
+                }
             } else {
-                m.push(format!("i{}_", InteractiveId::from(source).raw()).as_str());
+                // If we don't have the source, then we need to
+                // use the instance id as a unique identifier.
+                m.push(format!("p{}_", instance_id.to_index()).as_str());
             }
-        } else {
-            // If we don't have the source, then we need to
-            // use the instance id as a unique identifier.
-            m.push(format!("p{instance_id:?}_").as_str());
         }
 
         // @@Future: if we allow for unicode names, then we have to convert the
