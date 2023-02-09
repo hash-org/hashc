@@ -169,7 +169,10 @@ fn parse_arg_configuration(
                     settings.lowering_settings.dump = true;
                 }
                 "llvm-ir" => {
-                    settings.codegen_settings.dump = true;
+                    settings.codegen_settings.dump_bytecode = true;
+                }
+                "link-line" => {
+                    settings.codegen_settings.dump_link_line = true;
                 }
                 _ => {
                     return Err(PipelineError::InvalidValue(key, value));

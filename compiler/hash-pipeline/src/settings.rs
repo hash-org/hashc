@@ -348,7 +348,11 @@ pub struct CodeGenSettings {
     pub output_path: Option<PathBuf>,
 
     /// Emit the generated IR to standard output.
-    pub dump: bool,
+    pub dump_bytecode: bool,
+
+    /// Emit the generated Link line for the project if the compiler
+    /// pipeline specifies that something should be linked.
+    pub dump_link_line: bool,
 }
 
 impl Default for CodeGenSettings {
@@ -362,7 +366,8 @@ impl Default for CodeGenSettings {
             },
             backend: Default::default(),
             output_path: Default::default(),
-            dump: Default::default(),
+            dump_bytecode: Default::default(),
+            dump_link_line: Default::default(),
         }
     }
 }
