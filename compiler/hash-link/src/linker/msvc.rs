@@ -1,32 +1,36 @@
-//! A wrapper around the [`mold`](https://github.com/rui314/mold) linker.
+//! Contains all of the logic and utilities that surround the
+//! MSVC linker.
+#![allow(unused)]
 
-use std::process::Command;
+use std::path::Path;
 
+use cc::Tool;
 use hash_pipeline::settings::CompilerSettings;
 
-use crate::Linker;
+use super::Linker;
+use crate::command::LinkCommand;
 
-pub struct MoldLinker<'ctx> {
+pub struct MsvcLinker<'ctx> {
     /// The command that is being built up for the
     /// link line.
-    command: Command,
+    pub command: LinkCommand,
 
     /// The compiler session that this linker is using
     /// to link the binary. This provides information about
     /// the target, any specified compiler options, etc.
-    session: &'ctx CompilerSettings,
+    pub settings: &'ctx CompilerSettings,
 }
 
-impl<'ctx> Linker for MoldLinker<'ctx> {
-    fn cmd(&mut self) -> &mut Command {
+impl<'ctx> Linker for MsvcLinker<'ctx> {
+    fn cmd(&mut self) -> &mut LinkCommand {
         todo!()
     }
 
-    fn set_output_kind(&mut self, kind: crate::LinkOutputKind, filename: &std::path::Path) {
+    fn set_output_kind(&mut self, kind: super::LinkOutputKind) {
         todo!()
     }
 
-    fn set_output_filename(&mut self, filename: &std::path::Path) {
+    fn set_output_filename(&mut self, filename: &Path) {
         todo!()
     }
 
@@ -38,7 +42,11 @@ impl<'ctx> Linker for MoldLinker<'ctx> {
         todo!()
     }
 
-    fn include_path(&mut self, path: &std::path::Path) {
+    fn include_path(&mut self, path: &Path) {
+        todo!()
+    }
+
+    fn add_object(&mut self, path: &Path) {
         todo!()
     }
 

@@ -1,16 +1,18 @@
 //! Contains all of the logic and utilities that surround the
-//! MSVC linker.
+//! LLD linker.
+#![allow(unused)]
 
-use std::process::Command;
+use std::path::Path;
 
 use hash_pipeline::settings::CompilerSettings;
 
-use crate::Linker;
+use super::{LinkOutputKind, Linker};
+use crate::command::LinkCommand;
 
-pub struct MsvcLinker<'ctx> {
+pub struct LldLinker<'ctx> {
     /// The command that is being built up for the
     /// link line.
-    command: Command,
+    command: LinkCommand,
 
     /// The compiler session that this linker is using
     /// to link the binary. This provides information about
@@ -18,16 +20,16 @@ pub struct MsvcLinker<'ctx> {
     session: &'ctx CompilerSettings,
 }
 
-impl<'ctx> Linker for MsvcLinker<'ctx> {
-    fn cmd(&mut self) -> &mut Command {
+impl<'ctx> Linker for LldLinker<'ctx> {
+    fn cmd(&mut self) -> &mut LinkCommand {
+        &mut self.command
+    }
+
+    fn set_output_kind(&mut self, kind: LinkOutputKind) {
         todo!()
     }
 
-    fn set_output_kind(&mut self, kind: crate::LinkOutputKind, filename: &std::path::Path) {
-        todo!()
-    }
-
-    fn set_output_filename(&mut self, filename: &std::path::Path) {
+    fn set_output_filename(&mut self, filename: &Path) {
         todo!()
     }
 
@@ -39,7 +41,11 @@ impl<'ctx> Linker for MsvcLinker<'ctx> {
         todo!()
     }
 
-    fn include_path(&mut self, path: &std::path::Path) {
+    fn include_path(&mut self, path: &Path) {
+        todo!()
+    }
+
+    fn add_object(&mut self, path: &Path) {
         todo!()
     }
 
