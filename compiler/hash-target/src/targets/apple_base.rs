@@ -86,6 +86,10 @@ pub fn compute_pre_link_args(os: &'static str, arch: AppleArch, _abi: &'static s
     args
 }
 
+/// Create a base [Target] for the given [AppleArch] and os. This
+/// configures the [Target] with default values for any given Apple
+/// platform target, any specific options are then later overridden
+/// by `x86_64-apple-darwin` and `aarch64-apple-darwin`, etc.
 pub fn options_from(os: &'static str, arch: AppleArch) -> Target {
     Target {
         cpu: arch.target_cpu().into(),
@@ -97,6 +101,7 @@ pub fn options_from(os: &'static str, arch: AppleArch) -> Target {
         // targets.
         dylib_suffix: ".dylib".into(),
         vendor: "apple".into(),
+        os: os.into(),
         platform: Platform::OsX,
 
         // macOS has -dead_strip, which doesn't rely on function_sections

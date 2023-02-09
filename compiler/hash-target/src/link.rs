@@ -20,6 +20,30 @@ pub enum Lld {
     No,
 }
 
+/// Represents that various "Lld" flavours that are available.
+#[derive(Clone, Copy)]
+pub enum LldFlavour {
+    /// The darwin specific linker.
+    Ld64,
+
+    /// GNU ld.
+    Ld,
+
+    /// The windows specific linker.
+    Link,
+}
+
+impl LldFlavour {
+    /// Get the name of the linker.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            LldFlavour::Ld64 => "darwin",
+            LldFlavour::Ld => "gnu",
+            LldFlavour::Link => "link",
+        }
+    }
+}
+
 /// Linker flavour, determines which linker is used to for
 /// which target.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -32,6 +56,22 @@ pub enum LinkerFlavour {
 
     /// MSVC Linker for Windows and UEFI.
     Msvc(Lld),
+}
+
+impl LinkerFlavour {
+    /// Check if the [LinkFlavour] is GNU-like.
+    pub fn is_gnu_like(&self) -> bool {
+        matches!(self, LinkerFlavour::Gnu(..))
+    }
+
+    /// Compute the [LldFlavour] for this [LinkerFlavour].
+    pub fn lld_flavour(&self) -> LldFlavour {
+        match self {
+            LinkerFlavour::Gnu(..) => LldFlavour::Ld,
+            LinkerFlavour::Darwin(..) => LldFlavour::Ld64,
+            LinkerFlavour::Msvc(..) => LldFlavour::Link,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -70,19 +110,20 @@ pub enum CodeModel {
     Large,
 }
 
+/// Determines what kind of relocation model should use, whether
 #[derive(Debug, Clone, Copy)]
-pub enum RelocationMode {
-    /// The default relocation mode.
-    Default,
-
-    /// The static relocation mode.
+pub enum RelocationModel {
+    /// The static relocation model.
     Static,
 
-    /// The PIC relocation mode.
-    PIC,
+    /// The PIC relocation model.
+    Pic,
+
+    /// The PIE relocation model.
+    Pie,
 
     /// The dynamic no PIC relocation mode.
-    DynamicNoPIC,
+    DynamicNoPic,
 }
 
 /// A collection of linker arguments that are applied to the
@@ -131,6 +172,11 @@ impl LinkageArgs {
     /// Add link arguments to the given [LinkerFlavour] that are [str]s.
     pub fn add_str_args(&mut self, flavour: LinkerFlavour, args: &[&'static str]) {
         self.add_args(flavour, args.iter().copied().map(Cow::Borrowed))
+    }
+
+    /// Get the arguments for the given [LinkerFlavour].
+    pub fn get_args(&self, flavour: LinkerFlavour) -> Option<&Vec<Cow<'static, str>>> {
+        self.args.get(&flavour)
     }
 }
 
