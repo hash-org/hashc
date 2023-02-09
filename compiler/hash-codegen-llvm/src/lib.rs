@@ -7,7 +7,13 @@
 //! the results of each module in the [Workspace].
 #![feature(let_chains, hash_raw_entry)]
 
+mod context;
+mod error;
+pub mod misc;
+mod translation;
+
 use context::CodeGenCtx;
+use error::{CodeGenError, CodegenResult};
 use hash_codegen::{
     backend::{BackendCtx, CompilerBackend},
     layout::LayoutCtx,
@@ -23,26 +29,19 @@ use hash_pipeline::{
     interface::CompilerOutputStream, settings::CompilerSettings, workspace::Workspace,
     CompilerResult,
 };
-use hash_reporting::reporter::Reporter;
 use hash_source::ModuleId;
 use hash_target::TargetArch;
 use hash_utils::stream_writeln;
 use inkwell as llvm;
 use llvm::{
+    context::Context as LLVMContext,
+    module::Module as LLVMModule,
     passes::{PassManager, PassManagerBuilder},
     targets::{FileType, TargetTriple},
     values::FunctionValue,
 };
 use misc::{CodeModelWrapper, OptimisationLevelWrapper, RelocationModeWrapper};
 use translation::Builder;
-
-pub mod context;
-pub mod misc;
-pub mod translation;
-
-// Re-export the context so that the `backend` can create it and
-// pass it in.
-pub use llvm::{context::Context as LLVMContext, module::Module as LLVMModule};
 
 pub struct LLVMBackend<'b> {
     /// The stream to use for printing out the results
@@ -133,17 +132,10 @@ impl<'b> LLVMBackend<'b> {
 
     /// Write the given [LLVMModule] to the disk, whilst also ensuring that it
     /// is valid before the module.
-    fn write_module(&self, module: &LLVMModule, id: ModuleId) -> CompilerResult<()> {
-        module.verify().map_err(|err| {
-            let mut builder = Reporter::new();
-            let report = builder.internal().title("LLVM Module verification Error");
-
-            for line in err.to_string().lines() {
-                report.add_info(line);
-            }
-
-            builder.into_reports()
-        })?;
+    fn write_module(&mut self, module: &LLVMModule, id: ModuleId) -> CodegenResult<()> {
+        // If verification fails, this is a bug on our side, and we emit an
+        // internal error.
+        module.verify().map_err(|err| CodeGenError::ModuleVerificationFailed { reason: err })?;
 
         // For now, we assume that the object file extension is always `.o`.
         let path = self.workspace.module_bitcode_path(id, "o");
@@ -153,7 +145,10 @@ impl<'b> LLVMBackend<'b> {
             std::fs::create_dir_all(parent).unwrap();
         }
 
-        self.target_machine.write_to_file(module, FileType::Object, &path).unwrap();
+        self.target_machine
+            .write_to_file(module, FileType::Object, &path)
+            .map_err(|err| CodeGenError::ModuleWriteFailed { reason: err })?;
+        self.workspace.code_map.add_object_file(id, path);
         Ok(())
     }
 
@@ -269,7 +264,7 @@ impl<'b> CompilerBackend<'b> for LLVMBackend<'b> {
 
         // If the settings specify that the bytecode should be emitted, then
         // we write the emitted bytecode to standard output.
-        if self.settings.codegen_settings.dump {
+        if self.settings.codegen_settings.dump_bytecode {
             let stdout = &mut self.stdout;
             stream_writeln!(
                 stdout,
@@ -279,6 +274,6 @@ impl<'b> CompilerBackend<'b> for LLVMBackend<'b> {
         }
 
         self.optimise(&module)?;
-        self.write_module(&module, entry_point)
+        self.write_module(&module, entry_point).map_err(|err| vec![err.into()])
     }
 }
