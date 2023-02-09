@@ -565,11 +565,13 @@ dependencies = [
 name = "hash-link"
 version = "0.1.0"
 dependencies = [
+ "cc",
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
  "hash-target",
  "hash-utils",
+ "libc",
 ]
 
 [[package]]

@@ -1,19 +1,21 @@
 //! This crate contains all of the logic surrounding a linker
 //! interface. This provides a generic [Linker] trait which is then
 //! implemented by several linker flavours (e.g. `msvc` and `lld`)
-#![allow(unused)]
 
-pub mod gcc;
-pub mod lld;
-pub mod mold;
-pub mod msvc;
+pub(crate) mod command;
+pub(crate) mod error;
+pub(crate) mod linker;
+pub(crate) mod platform;
 
 use std::{
-    io,
+    fs,
+    io::{self, Write},
     path::{Path, PathBuf},
-    process::{Command, Output},
+    process::{Output, Stdio},
 };
 
+use command::{EscapeArg, LinkCommand};
+use error::{escape_returned_error, AdditionalFailureInfo, LinkerError};
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerOutputStream, CompilerStage},
     settings::{CompilerSettings, CompilerStageKind},
@@ -22,56 +24,8 @@ use hash_pipeline::{
 };
 use hash_source::SourceId;
 use hash_target::link::{Cc, LinkerFlavour, Lld};
-
-/// This specifies the kind of output that the linker should
-/// produce, whether it is dynamically linked, and whether it
-/// should be position-independent or not.
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
-pub struct LinkOutputKind {
-    /// Is the output dynamically linked?
-    pub dynamic: bool,
-
-    /// Is the output position-independent?
-    pub is_pic: bool,
-}
-
-/// A trait which represents a linker and all of the functionality
-/// that a linker should have.
-pub trait Linker {
-    /// Convert the current linker into a [Command] which can be executed.
-    fn cmd(&mut self) -> &mut Command;
-
-    /// Specify what the linker should output.
-    fn set_output_kind(&mut self, kind: LinkOutputKind, filename: &Path);
-
-    /// Specify the output filename.
-    fn set_output_filename(&mut self, filename: &Path);
-
-    /// Link a dynamic library. If the `verbatim` flag is specified, this
-    /// will append the appropriate suffix to the library name.
-    ///
-    /// If the `as_needed` flag is specified, the linker will only link the
-    /// library if it is needed. This flag is only relevant to the `GCC` linker.
-    fn link_dylib(&mut self, lib: &str, verbatim: bool, as_needed: bool);
-
-    /// Link a static library. If the `verbatim` flag is specified, this
-    /// will append the appropriate suffix to the library name.
-    fn link_static_lib(&mut self, lib: &str, verbatim: bool);
-
-    /// Specify a library search path to the linker.    
-    fn include_path(&mut self, path: &Path);
-
-    /// Specify that the linker should apply optimisation to the
-    /// output binary.
-    fn optimize(&mut self);
-
-    /// Specify that the linker should enable "garbage collection" of the
-    /// output binary.
-    ///
-    /// In practise this means that the linker will strip all functions
-    /// and data that is unreachable from the entry point.
-    fn gc_sections(&mut self);
-}
+use linker::get_linker_with_args;
+use platform::flush_linked_file;
 
 /// The linking context, which contains all of the information
 /// from the [CompilerSession] in order to perform
@@ -99,7 +53,7 @@ impl<Ctx: LinkerCtxQuery> CompilerStage<Ctx> for CompilerLinker {
     }
 
     fn run(&mut self, _: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
-        let LinkerCtx { workspace, settings, stdout } = ctx.data();
+        let LinkerCtx { workspace, settings, mut stdout } = ctx.data();
 
         // If we are not emitting an executable, then we can
         if !workspace.yields_executable(settings) {
@@ -114,13 +68,79 @@ impl<Ctx: LinkerCtxQuery> CompilerStage<Ctx> for CompilerLinker {
         // Get the linker that is going to be used to link
 
         let (linker_path, flavour) = get_linker_and_flavour(settings);
-        let mut linker = get_linker_with_args(settings, workspace);
+        let linker =
+            get_linker_with_args(&linker_path, flavour, settings, workspace, output_path.as_path())
+                .map_err(|err| vec![err.into()])?;
 
-        // @@Todo: print out link-line if specified via `-Cemit=link-line`
+        // print out link-line if specified via `-Cemit=link-line`
+        if settings.codegen_settings.dump_link_line {
+            writeln!(stdout, "{linker}").map_err(|err| vec![err.into()])?;
+        }
 
         // Run the linker
-        let command = linker.cmd();
-        let program = execute_linker(settings, command, output_path.as_path(), temp_path.as_path());
+        let program = execute_linker(settings, &linker, output_path.as_path(), temp_path.as_path());
+
+        // @@Cleanup: would be nice to avoid the `vec![]` everywhere
+        match program {
+            Ok(program) => {
+                if !program.status.success() {
+                    let mut output = program.stderr.clone();
+                    output.extend_from_slice(&program.stdout);
+
+                    let target = settings.target();
+                    let escaped_output = escape_returned_error(&output);
+
+                    // Try and deduce more information about why the linking
+                    // process failed, it could be that the user doesn't have
+                    // a correct version of MSVC or some other tool couldn't
+                    // be found.
+
+                    let additional_info = if let Some(code) = program.status.code() {
+                        // @@Incomplete: we need to ensure that it isn't just Windows, but MSVC
+                        // specifically.
+                        if target.is_like_windows()
+                            && linker_path.to_str() == Some("link.exe")
+                            // All Microsoft `link.exe` linking error codes are
+                            // four digit numbers in the range 1000 to 9999 inclusive
+                            //
+                            // ref: https://learn.microsoft.com/en-us/cpp/error-messages/tool-errors/linker-tools-errors-and-warnings?view=msvc-170
+                            && !(1000..=9999).contains(&code)
+                        {
+                            // Check if the Visual Studio is installed..
+                            let is_vs_installed = platform::windows::is_vs_installed();
+                            let has_linker =
+                                platform::windows::find_tool(target.name.as_ref(), "link.exe")
+                                    .is_some();
+
+                            Some(AdditionalFailureInfo { is_vs_installed, has_linker })
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    };
+
+                    // construct the error and report it
+                    let command = linker.command();
+                    let error = LinkerError::LinkingFailed {
+                        linker_path: &linker_path,
+                        exit_status: program.status,
+                        command: &command,
+                        escaped_output: &escaped_output,
+                        additional_info,
+                    };
+                    return Err(vec![error.into()]);
+                }
+            }
+            Err(err) => {
+                // If we couldn't find the linker in the path, then we
+                // emit the "Not Found" error.
+                if err.kind() == io::ErrorKind::NotFound {
+                    let err = LinkerError::NotFound { path: linker_path };
+                    return Err(vec![err.into()]);
+                }
+            }
+        }
 
         Ok(())
     }
@@ -145,15 +165,72 @@ fn get_linker_and_flavour(settings: &CompilerSettings) -> (PathBuf, LinkerFlavou
     (path, target_flavour)
 }
 
-fn get_linker_with_args(settings: &CompilerSettings, workspace: &Workspace) -> Box<dyn Linker> {
-    todo!()
-}
-
+/// Function that orchestrates executing the [LinkCommand] whilst also dealing
+/// with platform specific problems of actually executing the command.
 fn execute_linker(
     settings: &CompilerSettings,
-    cmd: &Command,
+    command: &LinkCommand,
     out_filename: &Path,
     temp_dir: &Path,
 ) -> io::Result<Output> {
-    todo!()
+    // Due to Windows API `CreateProcessA` having a hard limit when spawning
+    // a process (https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessa),
+    // we have to check if it exceeds the spawn limit, then we write the command
+    // into arguments and pass it to a file. This is not a problem Unix
+    // like systems because they don't have this kind of limit.
+    if !command.might_exceed_process_spawn_limit() {
+        match command.command().stdout(Stdio::piped()).stderr(Stdio::piped()).spawn() {
+            Ok(child) => {
+                // wait for the child to finish running... and then
+                // flush the generated file onto disk (again this is really only a problem
+                // on windows machines).
+                let output = child.wait_with_output();
+                flush_linked_file(&output, out_filename)?;
+                return output;
+            }
+            Err(ref err) if platform::command_line_too_big(err) => {
+                // we don't do anything here and just fallthrough to
+                // the case of running it through the file path.
+            }
+            Err(err) => return Err(err),
+        }
+    }
+
+    // Here, we fall back to writing the Link-line into a file so that
+    // we can avoid running into exceeding the spawn limit.
+    let mut arguments = String::new();
+    let mut command = command.clone();
+
+    let platform = settings.target().platform;
+
+    for argument in command.take_args() {
+        let escaped_arg = EscapeArg { argument: argument.to_str().unwrap(), platform }.to_string();
+        arguments.push_str(&escaped_arg);
+        arguments.push('\n');
+    }
+
+    let file = temp_dir.join("linker-arguments");
+
+    // On Windows, we need to use UTF-16LE encoding to avoid
+    // problems with non-ASCII characters.
+    let buffer = if platform.is_windows() {
+        let mut buffer = Vec::with_capacity((1 + arguments.len()) * 2);
+
+        for c in arguments.encode_utf16() {
+            buffer.extend_from_slice(&c.to_le_bytes());
+        }
+
+        buffer
+    } else {
+        arguments.into_bytes()
+    };
+
+    // Write to the file
+    fs::write(&file, buffer)?;
+
+    // Now re-invoke the linker with the file as the argument.
+    command.arg(format!("@{}", file.display()));
+    let output = command.output();
+    flush_linked_file(&output, out_filename)?;
+    output
 }

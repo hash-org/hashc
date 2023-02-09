@@ -5,6 +5,9 @@ authors = ["The Hash Language authors"]
 edition = "2021"
 
 [dependencies]
+cc = "1.0.69"
+libc = "0.2"
+
 hash-pipeline = { path = "../hash-pipeline" }
 hash-reporting = { path = "../hash-reporting" }
 hash-source = { path = "../hash-source" }
