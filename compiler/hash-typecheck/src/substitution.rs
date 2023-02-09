@@ -4,11 +4,12 @@ use std::ops::ControlFlow;
 
 use derive_more::{Constructor, Deref};
 use hash_tir::new::{
+    access::AccessTerm,
     args::ArgsId,
     environment::context::BindingKind,
     holes::Hole,
     mods::ModDefId,
-    params::ParamsId,
+    params::{ParamIndex, ParamsId},
     pats::PatId,
     sub::Sub,
     terms::{Term, TermId},
@@ -248,6 +249,25 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
             let param = self.stores().params().get_element(param_id);
             let arg = self.stores().args().get_element(arg_id);
             sub.insert(param.name, arg.value);
+        }
+        sub
+    }
+
+    /// Create a substitution from the given source parameter names to the
+    /// same names but prefixed with the access subject.
+    pub fn create_sub_from_param_access(&self, params: ParamsId, access_subject: TermId) -> Sub {
+        let mut sub = Sub::identity();
+        for src in params.iter() {
+            let src = self.stores().params().get_element(src);
+            if let Some(ident) = self.get_param_name_ident(src.id) {
+                sub.insert(
+                    src.name,
+                    self.new_term(AccessTerm {
+                        subject: access_subject,
+                        field: ParamIndex::Name(ident),
+                    }),
+                );
+            }
         }
         sub
     }

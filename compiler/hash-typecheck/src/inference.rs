@@ -6,6 +6,7 @@ use hash_intrinsics::utils::PrimitiveUtils;
 use hash_source::constant::{FloatTy, IntTy, SIntTy, UIntTy};
 use hash_tir::{
     new::{
+        access::AccessTerm,
         args::{ArgData, ArgId, ArgsId, PatArgData, PatArgsId, PatOrCapture},
         casting::CastTerm,
         control::{IfPat, LoopControlTerm, LoopTerm, OrPat, ReturnTerm},
@@ -81,6 +82,13 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
                     let applied_param_ty =
                         self.substitution_ops().apply_sub_to_ty(param.ty, &running_sub);
+
+                    println!(
+                        "Trying to unify {} with {}, sub is {}",
+                        self.env().with(inferred_param.ty),
+                        self.env().with(applied_param_ty),
+                        self.env().with(&running_sub)
+                    );
 
                     running_sub.extend(
                         &self
@@ -1016,6 +1024,68 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         Ok((result_decl_term, self.check_by_unify(self.new_void_ty(), annotation_ty)?))
     }
 
+    /// Infer an access term.
+    pub fn infer_access_term(
+        &self,
+        access_term: &AccessTerm,
+        annotation_ty: TyId,
+        original_term_id: TermId,
+    ) -> TcResult<(AccessTerm, TyId)> {
+        let (inferred_subject, inferred_subject_ty) =
+            self.infer_term(access_term.subject, self.new_ty_hole())?;
+
+        let normalised_subject_ty = self.normalise_and_check_ty(inferred_subject_ty)?;
+
+        let params = match self.get_ty(normalised_subject_ty) {
+            Ty::Tuple(tuple_ty) => tuple_ty.data,
+            Ty::Data(data_ty) => {
+                match self.data_utils().get_single_ctor_of_data_def(data_ty.data_def) {
+                    Some(ctor) => ctor.params,
+                    None => {
+                        // Not a record type because it has more than one constructor
+                        // @@ErrorReporting: more information about the error
+                        return Err(TcError::WrongTy {
+                            kind: WrongTermKind::NotARecord,
+                            inferred_term_ty: normalised_subject_ty,
+                            term: original_term_id,
+                        });
+                    }
+                }
+            }
+
+            // Not a record type.
+            _ => {
+                return Err(TcError::WrongTy {
+                    kind: WrongTermKind::NotARecord,
+                    inferred_term_ty: normalised_subject_ty,
+                    term: original_term_id,
+                })
+            }
+        };
+
+        if let Some(param) = self.try_get_param_by_index(params, access_term.field) {
+            // Create a substitution that maps the parameters of the record
+            // type to the corresponding fields of the record term.
+            //
+            // i.e. `x: (T: Type, t: T);  x.t: x.T`
+            let param_access_sub =
+                self.substitution_ops().create_sub_from_param_access(params, inferred_subject);
+
+            let subbed_param_ty =
+                self.substitution_ops().apply_sub_to_ty(param.ty, &param_access_sub);
+
+            let unified_ty = self.check_by_unify(subbed_param_ty, annotation_ty)?;
+
+            Ok((AccessTerm { subject: inferred_subject, field: access_term.field }, unified_ty))
+        } else {
+            Err(TcError::PropertyNotFound {
+                term: inferred_subject,
+                term_ty: normalised_subject_ty,
+                property: access_term.field,
+            })
+        }
+    }
+
     pub fn generalise_term_inference(&self, inference: (impl Into<Term>, TyId)) -> (TermId, TyId) {
         let (term, ty) = inference;
         let term_id = self.new_term(term);
@@ -1111,8 +1181,12 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 .infer_decl_term(decl_term, annotation_ty)
                 .map(|i| self.generalise_term_inference(i)),
 
+            Term::Access(access_term) => self
+                .infer_access_term(access_term, annotation_ty, term_id)
+                .map(|i| self.generalise_term_inference(i)),
+
             // @@Todo:
-            Term::Match(_) | Term::Assign(_) | Term::Access(_) => {
+            Term::Match(_) | Term::Assign(_) => {
                 // @@Todo
                 Ok((term_id, annotation_ty))
             }

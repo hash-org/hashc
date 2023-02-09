@@ -2,7 +2,7 @@
 use std::iter::once;
 
 use derive_more::Constructor;
-use hash_utils::store::{SequenceStore, Store};
+use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
 use itertools::Itertools;
 
 use super::{common::CommonUtils, AccessToUtils};
@@ -11,7 +11,8 @@ use crate::{
     new::{
         args::{ArgData, ArgsId},
         data::{
-            CtorDef, CtorDefData, CtorDefsId, DataDef, DataDefCtors, DataDefId, PrimitiveCtorInfo,
+            CtorDef, CtorDefData, CtorDefId, CtorDefsId, DataDef, DataDefCtors, DataDefId,
+            PrimitiveCtorInfo,
         },
         environment::env::{AccessToEnv, Env},
         params::{ParamIndex, ParamsId},
@@ -45,6 +46,21 @@ impl<'tc> DataUtils<'tc> {
             data_def.ctors = DataDefCtors::Defined(ctors);
         });
         ctors
+    }
+
+    /// Get the single constructor of the given data definition, if it is indeed
+    /// a single constructor.
+    pub fn get_single_ctor_of_data_def(&self, data_def: DataDefId) -> Option<CtorDef> {
+        match self.stores().data_def().map_fast(data_def, |def| def.ctors) {
+            DataDefCtors::Defined(ctors) => {
+                if ctors.len() == 1 {
+                    Some(self.stores().ctor_defs().map_fast(ctors, |ctors| ctors[0]))
+                } else {
+                    None
+                }
+            }
+            DataDefCtors::Primitive(_) => None,
+        }
     }
 
     /// Create a primitive data definition.

@@ -54,34 +54,37 @@ pub trait CommonUtils: AccessToEnv {
         }
     }
 
+    /// Try to get the parameter of the given parameters ID and index which is
+    /// either symbolic or positional.
+    fn try_get_param_by_index(&self, params_id: ParamsId, index: ParamIndex) -> Option<Param> {
+        match index {
+            ParamIndex::Name(name) => self.stores().params().map_fast(params_id, |params| {
+                params.iter().find_map(|x| {
+                    if self.stores().symbol().get(x.name).name? == name {
+                        Some(*x)
+                    } else {
+                        None
+                    }
+                })
+            }),
+            ParamIndex::Position(i) => {
+                self.stores().params().map_fast(params_id, |params| params.get(i).copied())
+            }
+        }
+    }
+
     /// Get the parameter of the given parameters ID and index which is
     /// either symbolic or positional.
     ///
     /// This will panic if the index does not exist.
     fn get_param_by_index(&self, params_id: ParamsId, index: ParamIndex) -> Param {
-        match index {
-            ParamIndex::Name(name) => self.stores().params().map_fast(params_id, |params| {
-                params
-                    .iter()
-                    .find_map(|x| {
-                        if self.stores().symbol().get(x.name).name? == name {
-                            Some(*x)
-                        } else {
-                            None
-                        }
-                    })
-                    .unwrap_or_else(|| {
-                        panic!(
-                            "Parameter with name `{}` does not exist in `{}`",
-                            name,
-                            self.env().with(params_id)
-                        )
-                    })
-            }),
-            ParamIndex::Position(i) => {
-                self.stores().params().map_fast(params_id, |params| params[i])
-            }
-        }
+        self.try_get_param_by_index(params_id, index).unwrap_or_else(|| {
+            panic!(
+                "Parameter with name `{}` does not exist in `{}`",
+                index,
+                self.env().with(params_id)
+            )
+        })
     }
 
     /// Create a new symbol with the given name.

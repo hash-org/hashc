@@ -94,28 +94,15 @@ pub struct UnificationOps<'a, T: AccessToTypechecking>(&'a T);
 impl<T: AccessToTypechecking> UnificationOps<'_, T> {
     /// Unify two types.
     pub fn unify_tys(&self, src_id: TyId, target_id: TyId) -> TcResult<Uni<TyId>> {
+        let src_id =
+            self.normalisation_ops().to_ty(self.normalisation_ops().normalise(src_id.into())?);
+        let target_id =
+            self.normalisation_ops().to_ty(self.normalisation_ops().normalise(target_id.into())?);
+
         let src = self.get_ty(src_id);
         let target = self.get_ty(target_id);
 
         match (src, target) {
-            // @@Todo: eval fully
-            (Ty::Eval(term), _) => match self
-                .normalisation_ops()
-                .maybe_to_ty(self.normalisation_ops().normalise(term.into())?)
-            {
-                Some(ty_id) => self.unify_tys(ty_id, target_id),
-                // @@Todo: usage error
-                _ => Uni::mismatch_types(src_id, target_id),
-            },
-            (_, Ty::Eval(term)) => match self
-                .normalisation_ops()
-                .maybe_to_ty(self.normalisation_ops().normalise(term.into())?)
-            {
-                Some(ty) => self.unify_tys(src_id, ty),
-                // @@Todo: usage error
-                _ => Uni::mismatch_types(src_id, target_id),
-            },
-
             (Ty::Hole(a), Ty::Hole(b)) => {
                 if a == b {
                     // No-op
@@ -133,6 +120,24 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
                 let sub = Sub::from_pairs([(b.0, self.new_term(src_id))]);
                 Uni::ok_with(sub, src_id)
             }
+
+            // @@Todo: eval fully
+            (Ty::Eval(term), _) => match self
+                .normalisation_ops()
+                .maybe_to_ty(self.normalisation_ops().normalise(term.into())?)
+            {
+                Some(ty_id) => self.unify_tys(ty_id, target_id),
+                // @@Todo: usage error
+                _ => Uni::mismatch_types(src_id, target_id),
+            },
+            (_, Ty::Eval(term)) => match self
+                .normalisation_ops()
+                .maybe_to_ty(self.normalisation_ops().normalise(term.into())?)
+            {
+                Some(ty) => self.unify_tys(src_id, ty),
+                // @@Todo: usage error
+                _ => Uni::mismatch_types(src_id, target_id),
+            },
 
             (Ty::Var(a), Ty::Var(b)) => Uni::ok_iff_types_match(a == b, src_id, target_id),
             (Ty::Var(_), _) | (_, Ty::Var(_)) => Uni::mismatch_types(src_id, target_id),
