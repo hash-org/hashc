@@ -1,6 +1,6 @@
 //! Utilities for parameters and arguments.
 use derive_more::Constructor;
-use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
+use hash_utils::store::{SequenceStore, SequenceStoreKey};
 use itertools::Itertools;
 
 use super::common::CommonUtils;
@@ -8,7 +8,6 @@ use crate::{
     impl_access_to_env,
     new::{
         args::{Arg, ArgData, ArgsId, PatArg, PatArgData, PatArgsId, SomeArgsId},
-        data::DataDefId,
         environment::env::{AccessToEnv, Env},
         params::{Param, ParamData, ParamIndex, ParamsId},
         symbols::Symbol,
@@ -80,12 +79,7 @@ impl<'env> ParamUtils<'env> {
     /// Each argument will be a positional argument. Note that the outer
     /// iterator is for the argument groups, and the inner iterator is for
     /// the arguments in each group.
-    pub fn create_positional_args_for_data_def(
-        &self,
-        def: DataDefId,
-        args: impl IntoIterator<Item = TermId>,
-    ) -> ArgsId {
-        let _params = self.stores().data_def().map_fast(def, |def| def.params);
+    pub fn create_positional_args(&self, args: impl IntoIterator<Item = TermId>) -> ArgsId {
         self.create_args(
             args.into_iter()
                 .enumerate()

@@ -220,6 +220,14 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
                 (Term::Hole(a), Term::Hole(b)) => {
                     Uni::ok_iff_terms_match(a == b, src_id, target_id)
                 }
+                (Term::Hole(a), _) => {
+                    let sub = Sub::from_pairs([(a.0, target_id)]);
+                    Uni::ok_with(sub, target_id)
+                }
+                (_, Term::Hole(b)) => {
+                    let sub = Sub::from_pairs([(b.0, src_id)]);
+                    Uni::ok_with(sub, src_id)
+                }
                 _ => Uni::mismatch_terms(src_id, target_id),
             },
         }

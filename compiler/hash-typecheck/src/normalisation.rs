@@ -71,11 +71,7 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
     /// Try to use the given atom as a type.
     pub fn maybe_to_ty(&self, atom: Atom) -> Option<TyId> {
         match atom {
-            Atom::Term(term) => match self.get_term(term) {
-                Term::Ty(ty) => Some(ty),
-                Term::Var(var) => Some(self.new_ty(var)),
-                _ => None,
-            },
+            Atom::Term(term) => self.try_use_term_as_ty(term),
             Atom::Ty(ty) => Some(ty),
             _ => None,
         }
@@ -91,7 +87,7 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
     pub fn to_term(&self, atom: Atom) -> TermId {
         match atom {
             Atom::Term(term) => term,
-            Atom::Ty(ty) => self.new_term(ty),
+            Atom::Ty(ty) => self.use_ty_as_term(ty),
             Atom::FnDef(fn_def_id) => self.new_term(fn_def_id),
             _ => panic!("Cannot convert {} to a term", self.env().with(atom)),
         }
