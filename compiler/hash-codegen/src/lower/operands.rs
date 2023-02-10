@@ -85,7 +85,7 @@ impl<'a, 'b, V: CodeGenObject> OperandValue<V> {
                 )
             }
             OperandValue::Immediate(value) => {
-                let value = builder.bool_from_immediate(value);
+                let value = builder.value_from_immediate(value);
                 builder.store_with_flags(value, destination.value, destination.alignment, flags);
             }
             OperandValue::Pair(value_a, value_b) => {
@@ -97,7 +97,7 @@ impl<'a, 'b, V: CodeGenObject> OperandValue<V> {
 
                 // Emit the code to place the value into the first slot...
                 let ptr = builder.structural_get_element_pointer(ty, destination.value, 0);
-                let value = builder.bool_from_immediate(value_a);
+                let value = builder.value_from_immediate(value_a);
                 let alignment = destination.alignment;
 
                 builder.store_with_flags(value, ptr, alignment, flags);
@@ -106,7 +106,7 @@ impl<'a, 'b, V: CodeGenObject> OperandValue<V> {
                 let b_offset = scalar_a.size(builder).align_to(scalar_b.align(builder).abi);
 
                 let ptr = builder.structural_get_element_pointer(ty, destination.value, 1);
-                let value = builder.bool_from_immediate(value_b);
+                let value = builder.value_from_immediate(value_b);
                 let alignment = destination.alignment.restrict_to(b_offset);
                 builder.store_with_flags(value, ptr, alignment, flags);
             }
@@ -145,10 +145,10 @@ impl<'a, 'b, V: CodeGenObject> OperandRef<V> {
 
         let value = if let AbiRepresentation::Pair(scalar_a, scalar_b) = abi {
             // Construct the aggregate value...
-            let value_a = builder.extract_field(value, 0);
+            let value_a = builder.extract_field_value(value, 0);
             let value_a = builder.to_immediate_scalar(value_a, scalar_a);
 
-            let value_b = builder.extract_field(value, 1);
+            let value_b = builder.extract_field_value(value, 1);
             let value_b = builder.to_immediate_scalar(value_b, scalar_b);
 
             OperandValue::Pair(value_a, value_b)
@@ -164,6 +164,26 @@ impl<'a, 'b, V: CodeGenObject> OperandRef<V> {
         match self.value {
             OperandValue::Immediate(value) => value,
             _ => panic!("not an immediate value"),
+        }
+    }
+
+    /// Assume that the [OperandRef] is a [`OperandValue::Pair`], and we
+    /// construct a pair value from this.
+    pub fn immediate_or_scalar_pair<Builder: BlockBuilderMethods<'a, 'b, Value = V>>(
+        self,
+        builder: &mut Builder,
+    ) -> V {
+        if let OperandValue::Pair(a, b) = self.value {
+            let ty = builder.backend_ty_from_info(self.info);
+
+            let mut pair = builder.const_undef(ty);
+            let immediate_a = builder.value_from_immediate(a);
+            let immediate_b = builder.value_from_immediate(b);
+            pair = builder.insert_field_value(pair, immediate_a, 0);
+            pair = builder.insert_field_value(pair, immediate_b, 1);
+            pair
+        } else {
+            self.immediate_value()
         }
     }
 

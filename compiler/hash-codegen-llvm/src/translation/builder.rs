@@ -554,7 +554,7 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for Builder<'a, 'b, 'm> {
         let intrinsic_name = format!("{}.with.overflow.{}", intrinsic_prefix, int_ty.to_name());
 
         let result = self.call_intrinsic(&intrinsic_name, &[lhs, rhs]);
-        (self.extract_field(result, 0), self.extract_field(result, 1))
+        (self.extract_field_value(result, 0), self.extract_field_value(result, 1))
     }
 
     fn icmp(&mut self, op: IntComparisonKind, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
@@ -679,7 +679,7 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for Builder<'a, 'b, 'm> {
             .into()
     }
 
-    fn bool_from_immediate(&mut self, value: Self::Value) -> Self::Value {
+    fn value_from_immediate(&mut self, value: Self::Value) -> Self::Value {
         // check if this is an `i1` value, i.e. a `bool`, and then if so
         // we zero extend the value into an `i8`
         if self.ctx.ty_of_value(value) == self.ctx.type_i1() {
@@ -1143,7 +1143,7 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for Builder<'a, 'b, 'm> {
         value.set_metadata(metadata, MetadataTypeKind::Range as u32).unwrap();
     }
 
-    fn extract_field(&mut self, value: Self::Value, field_index: usize) -> Self::Value {
+    fn extract_field_value(&mut self, value: Self::Value, field_index: usize) -> Self::Value {
         // @@Cleanup: maybe make this a standalone function?
         let value: AggregateValueEnum = match value {
             AnyValueEnum::StructValue(val) => AggregateValueEnum::StructValue(val),
@@ -1152,6 +1152,26 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for Builder<'a, 'b, 'm> {
         };
 
         self.builder.build_extract_value(value, field_index as u32, "").unwrap().into()
+    }
+
+    fn insert_field_value(
+        &mut self,
+        value: Self::Value,
+        element: Self::Value,
+        index: usize,
+    ) -> Self::Value {
+        // @@Cleanup: maybe make this a standalone function?
+        let value: AggregateValueEnum = match value {
+            AnyValueEnum::StructValue(val) => AggregateValueEnum::StructValue(val),
+            AnyValueEnum::ArrayValue(val) => AggregateValueEnum::ArrayValue(val),
+            _ => unreachable!("attempt to extract field from non-aggregate value"),
+        };
+
+        let element: BasicValueEnum = element.try_into().unwrap();
+        self.builder
+            .build_insert_value(value, element, index as u32, "")
+            .unwrap()
+            .as_any_value_enum()
     }
 }
 

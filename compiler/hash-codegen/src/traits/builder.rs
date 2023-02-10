@@ -332,9 +332,9 @@ pub trait BlockBuilderMethods<'a, 'b>:
 
     // --- Intrinsic & Memory operations ---
 
-    /// Take an immediate `i1` value and zero extend it to a boolean
-    /// value.
-    fn bool_from_immediate(&mut self, v: Self::Value) -> Self::Value;
+    /// Useful wrapper for immediate value conversions. If the immediate `i1`
+    /// value and zero extend it to a boolean value.
+    fn value_from_immediate(&mut self, v: Self::Value) -> Self::Value;
 
     /// Convert a value to an immediate value of the given layout.
     fn to_immediate(&mut self, v: Self::Value, layout: LayoutId) -> Self::Value {
@@ -505,7 +505,20 @@ pub trait BlockBuilderMethods<'a, 'b>:
     ) -> Self::Value;
 
     ///  Emit an instruction to extract a value from a aggregate value.
-    fn extract_field(&mut self, value: Self::Value, field_index: usize) -> Self::Value;
+    ///
+    /// N.B. Aggregate values are considered to be either ADTs or  arrays.
+    fn extract_field_value(&mut self, value: Self::Value, field_index: usize) -> Self::Value;
+
+    /// Emit an instruction to insert a value into a aggregate value at a given
+    /// index position.
+    ///
+    /// N.B. Aggregate values are considered to be either ADTs or  arrays.
+    fn insert_field_value(
+        &mut self,
+        value: Self::Value,
+        element: Self::Value,
+        index: usize,
+    ) -> Self::Value;
 
     // --- Metadata ---
 
