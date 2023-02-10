@@ -40,14 +40,7 @@ pub trait AccessToTypechecking:
         mut error_state: TcErrorState,
     ) -> TcResult<T> {
         if error_state.has_errors() {
-            error_state.take_errors().into_iter().for_each(|error| {
-                self.diagnostics().add_error(self.convert_tc_error(error));
-            });
-            if error_state.has_blocked {
-                Err(TcError::Blocked)
-            } else {
-                Err(TcError::Signal)
-            }
+            Err(TcError::Compound { errors: error_state.take_errors() })
         } else {
             t()
         }

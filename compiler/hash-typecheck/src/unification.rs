@@ -152,19 +152,20 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
                     Uni::mismatch_types(src_id, target_id)
                 } else {
                     self.context().enter_scope(f2.into(), || {
-                        let Uni { sub, result: params } =
+                        let Uni { sub: param_sub, result: params } =
                             self.unify_params(f1.params, f2.params, ParamOrigin::FnTy(f1))?;
 
                         let return_ty_1_subbed =
-                            self.substitution_ops().apply_sub_to_ty(f1.return_ty, &sub);
-                        let return_ty_2_subbed = f2.return_ty;
+                            self.substitution_ops().apply_sub_to_ty(f1.return_ty, &param_sub);
+                        let return_ty_2_subbed =
+                            self.substitution_ops().apply_sub_to_ty(f2.return_ty, &param_sub);
 
                         let Uni { result: return_ty, sub: return_ty_sub } =
                             self.unify_tys(return_ty_1_subbed, return_ty_2_subbed)?;
 
                         Ok(Uni {
                             result: self.new_ty(FnTy { return_ty, params, ..f1 }),
-                            sub: return_ty_sub,
+                            sub: return_ty_sub.join(&param_sub),
                         })
                     })
                 }
@@ -211,11 +212,8 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
                 Ok(uni.map_result(|t| self.new_term(t)))
             }
             _ => match (src, target) {
-                (Term::Ty(t1), Term::Ty(t2)) => {
-                    let uni = self.unify_tys(t1, t2)?;
-                    Ok(uni
-                        .map_result(|t| if t == t1 || t == t2 { src_id } else { self.new_term(t) }))
-                }
+                (Term::Ty(t1), _) => self.unify_terms(self.use_ty_as_term(t1), target_id),
+                (_, Term::Ty(t2)) => self.unify_terms(src_id, self.use_ty_as_term(t2)),
                 (Term::Var(a), Term::Var(b)) => Uni::ok_iff_terms_match(a == b, src_id, target_id),
                 (Term::Hole(a), Term::Hole(b)) => {
                     Uni::ok_iff_terms_match(a == b, src_id, target_id)

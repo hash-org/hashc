@@ -499,78 +499,85 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             }
         };
 
-        self.infer_until_no_holes(
-            (
-                CtorTerm { ctor: ctor.id, data_args: term.data_args, ctor_args: term.ctor_args },
-                annotation_data_ty
-                    .unwrap_or(DataTy { args: term.data_args, data_def: data_def.id }),
-            ),
-            |(ctor_term, annotation_data_ty)| {
-                self.context().enter_scope(data_def.id.into(), || {
-                    let data_args = self
-                        .unification_ops()
-                        .unify_args(ctor_term.data_args, annotation_data_ty.args)?;
+        let term_data_args = if term.data_args.len() == 0 {
+            match annotation_data_ty {
+                Some(t) => t.args,
+                None => self.param_utils().instantiate_params_as_holes(data_def.params),
+            }
+        } else {
+            term.data_args
+        };
 
-                    // First infer the data arguments
-                    let (inferred_data_args, _) =
-                        self.infer_args(data_args.result, data_def.params)?;
+        let annotation_data_ty =
+            annotation_data_ty.unwrap_or(DataTy { args: term_data_args, data_def: data_def.id });
 
-                    // Create a substitution from the inferred data arguments
-                    let data_sub = self
-                        .substitution_ops()
-                        .create_sub_from_args_of_params(inferred_data_args, data_def.params);
+        self.context().enter_scope(data_def.id.into(), || {
+            let data_args =
+                self.unification_ops().unify_args(term_data_args, annotation_data_ty.args)?;
 
-                    self.context().enter_scope(ctor.id.into(), || {
-                        // Apply the substitution to the constructor parameters
-                        let subbed_ctor_params =
-                            self.substitution_ops().apply_sub_to_params(ctor.params, &data_sub);
+            // First infer the data arguments
+            let (inferred_data_args, inferred_data_params) =
+                self.infer_args(data_args.result, data_def.params)?;
 
-                        // Infer the constructor arguments
-                        let (inferred_ctor_args, inferred_ctor_params) =
-                            self.infer_args(ctor_term.ctor_args, subbed_ctor_params)?;
+            let param_uni = self
+                .unification_ops()
+                .unify_params(inferred_data_params, data_def.params, ParamOrigin::Ctor(ctor.id))
+                .unwrap();
 
-                        // Create a substitution from the inferred constructor arguments
-                        let ctor_val_sub = self
-                            .substitution_ops()
-                            .create_sub_from_args_of_params(inferred_ctor_args, subbed_ctor_params);
-                        let ctor_ty_sub = self.unification_ops().unify_params(
-                            inferred_ctor_params,
-                            subbed_ctor_params,
-                            ParamOrigin::Ctor(ctor.id),
-                        )?;
-                        let ctor_sub = ctor_val_sub.join(&ctor_ty_sub.sub);
+            // Create a substitution from the inferred data arguments
+            let data_sub = self
+                .substitution_ops()
+                .create_sub_from_args_of_params(inferred_data_args, data_def.params);
 
-                        // Apply the substitution to the constructor result args
-                        let subbed_result_args = self.substitution_ops().apply_sub_to_args(
-                            self.substitution_ops().apply_sub_to_args(ctor.result_args, &data_sub),
-                            &ctor_sub,
-                        );
+            self.context().enter_scope(ctor.id.into(), || {
+                // Apply the substitution to the constructor parameters
+                let subbed_ctor_params = self.substitution_ops().apply_sub_to_params(
+                    self.substitution_ops().apply_sub_to_params(ctor.params, &param_uni.sub),
+                    &data_sub,
+                );
 
-                        // Try to unify given annotation with inferred eventual type.
-                        let result_data_def_args = self
-                            .unification_ops()
-                            .unify_args(subbed_result_args, inferred_data_args)?
-                            .result;
+                // Infer the constructor arguments
+                let (inferred_ctor_args, inferred_ctor_params) =
+                    self.infer_args(term.ctor_args, subbed_ctor_params)?;
 
-                        // Evaluate the result args.
-                        Ok((
-                            CtorTerm {
-                                ctor: ctor.id,
-                                data_args: result_data_def_args,
-                                ctor_args: inferred_ctor_args,
-                            },
-                            DataTy { args: result_data_def_args, data_def: data_def.id },
-                        ))
-                    })
-                })
-            },
-            |(ctor_term, data_ty)| {
-                self.substitution_ops().args_have_holes(ctor_term.ctor_args)
-                    || self.substitution_ops().args_have_holes(ctor_term.data_args)
-                    || self.substitution_ops().args_have_holes(data_ty.args)
-            },
-            |_| original_term_id.into(),
-        )
+                // Create a substitution from the inferred constructor arguments
+                let ctor_val_sub = self
+                    .substitution_ops()
+                    .create_sub_from_args_of_params(inferred_ctor_args, subbed_ctor_params);
+
+                let ctor_ty_sub = self.unification_ops().unify_params(
+                    inferred_ctor_params,
+                    subbed_ctor_params,
+                    ParamOrigin::Ctor(ctor.id),
+                )?;
+                let ctor_sub = ctor_val_sub.join(&ctor_ty_sub.sub);
+
+                // Apply the substitution to the constructor result args
+                let subbed_result_args = self.substitution_ops().apply_sub_to_args(
+                    self.substitution_ops().apply_sub_to_args(
+                        self.substitution_ops().apply_sub_to_args(ctor.result_args, &param_uni.sub),
+                        &data_sub,
+                    ),
+                    &ctor_sub,
+                );
+
+                // Try to unify given annotation with inferred eventual type.
+                let result_data_def_args = self
+                    .unification_ops()
+                    .unify_args(subbed_result_args, inferred_data_args)?
+                    .result;
+
+                // Evaluate the result args.
+                Ok((
+                    CtorTerm {
+                        ctor: ctor.id,
+                        data_args: result_data_def_args,
+                        ctor_args: inferred_ctor_args,
+                    },
+                    DataTy { args: result_data_def_args, data_def: data_def.id },
+                ))
+            })
+        })
     }
 
     /// Infer the type of a function call.
@@ -595,34 +602,70 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 )
             }
             Ty::Fn(fn_ty) => {
-                self.context().enter_scope(ScopeKind::FnTy(fn_ty), || {
-                    // @@Todo: ensure fn ty has no holes
+                let infer = || {
+                    self.context().enter_scope(ScopeKind::FnTy(fn_ty), || {
+                        // @@Todo: ensure fn ty has no holes
 
-                    // First infer the arguments parameters of the function call.
-                    let (inferred_fn_call_args, _) =
-                        self.infer_args(fn_call_term.args, fn_ty.params)?;
+                        // First infer the arguments parameters of the function call.
+                        let (inferred_fn_call_args, inferred_params) =
+                            self.infer_args(fn_call_term.args, fn_ty.params)?;
 
-                    let sub = self
-                        .substitution_ops()
-                        .create_sub_from_args_of_params(inferred_fn_call_args, fn_ty.params);
+                        let param_uni = self
+                            .unification_ops()
+                            .unify_params(fn_ty.params, inferred_params, ParamOrigin::FnTy(fn_ty))
+                            .unwrap();
 
-                    let subbed_return_ty =
-                        self.substitution_ops().apply_sub_to_ty(fn_ty.return_ty, &sub);
+                        let sub = self
+                            .substitution_ops()
+                            .create_sub_from_args_of_params(inferred_fn_call_args, inferred_params);
 
-                    // Then normalise the return type in their scope.
-                    let return_ty = self.normalise_and_check_ty(subbed_return_ty)?;
+                        let subbed_return_ty = self.substitution_ops().apply_sub_to_ty(
+                            self.substitution_ops()
+                                .apply_sub_to_ty(fn_ty.return_ty, &param_uni.sub),
+                            &sub,
+                        );
 
-                    // @@Todo: implicit check
+                        // Then normalise the return type in their scope.
+                        let return_ty = self.normalise_and_check_ty(subbed_return_ty)?;
 
-                    Ok((
-                        FnCallTerm {
-                            subject: subject_term,
-                            args: inferred_fn_call_args,
+                        // @@Todo: implicit check
+                        let uni = self.unification_ops().unify_tys(return_ty, annotation_ty)?;
+
+                        Ok((
+                            FnCallTerm {
+                                subject: self.substitution_ops().apply_sub_to_term(
+                                    self.substitution_ops()
+                                        .apply_sub_to_term(subject_term, &param_uni.sub),
+                                    &uni.sub,
+                                ),
+                                args: inferred_fn_call_args,
+                                implicit: fn_call_term.implicit,
+                            },
+                            uni.result,
+                        ))
+                    })
+                };
+
+                // Potentially fill-in implicit args
+                match self.get_ty(fn_ty.return_ty) {
+                    Ty::Fn(_) if fn_ty.implicit => infer().or_else(|_| {
+                        let applied_args =
+                            self.param_utils().instantiate_params_as_holes(fn_ty.params);
+
+                        let new_subject = FnCallTerm {
+                            subject: self.new_term(FnCallTerm {
+                                args: applied_args,
+                                subject: subject_term,
+                                implicit: fn_ty.implicit,
+                            }),
+                            args: fn_call_term.args,
                             implicit: fn_call_term.implicit,
-                        },
-                        self.check_by_unify(return_ty, annotation_ty)?,
-                    ))
-                })
+                        };
+
+                        self.infer_fn_call_term(&new_subject, annotation_ty, original_term_id)
+                    }),
+                    _ => infer(),
+                }
             }
             Ty::Hole(_)
             | Ty::Eval(_)
@@ -836,10 +879,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             Ty::Data(data_ty) => {
                 self.context().enter_scope(ScopeKind::Data(data_ty.data_def), || {
                     let data_def = self.get_data_def(data_ty.data_def);
-                    let (inferred_data_args, inferred_data_def_params) =
-                        self.infer_args(data_ty.args, data_def.params)?;
-                    self.context_utils()
-                        .add_arg_bindings(inferred_data_def_params, inferred_data_args);
+                    let (inferred_data_args, _) = self.infer_args(data_ty.args, data_def.params)?;
 
                     Ok((
                         self.new_ty(Ty::Data(DataTy {

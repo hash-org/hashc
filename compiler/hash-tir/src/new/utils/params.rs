@@ -88,4 +88,19 @@ impl<'env> ParamUtils<'env> {
                 .into_iter(),
         )
     }
+
+    /// Instantiate the given parameters with holes for each argument.
+    pub fn instantiate_params_as_holes(&self, params: ParamsId) -> ArgsId {
+        self.create_args(
+            params
+                .iter()
+                .enumerate()
+                .map(|(i, _)| ArgData {
+                    target: ParamIndex::Position(i),
+                    value: self.new_term_hole(),
+                })
+                .collect_vec()
+                .into_iter(),
+        )
+    }
 }
