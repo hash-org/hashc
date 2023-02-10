@@ -71,11 +71,7 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
     /// Try to use the given atom as a type.
     pub fn maybe_to_ty(&self, atom: Atom) -> Option<TyId> {
         match atom {
-            Atom::Term(term) => match self.get_term(term) {
-                Term::Ty(ty) => Some(ty),
-                Term::Var(var) => Some(self.new_ty(var)),
-                _ => None,
-            },
+            Atom::Term(term) => self.try_use_term_as_ty(term),
             Atom::Ty(ty) => Some(ty),
             _ => None,
         }
@@ -88,13 +84,19 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
     }
 
     /// Normalise the given atom, and try to use it as a term.
-    pub fn to_term(&self, atom: Atom) -> TermId {
+    pub fn maybe_to_term(&self, atom: Atom) -> Option<TermId> {
         match atom {
-            Atom::Term(term) => term,
-            Atom::Ty(ty) => self.new_term(ty),
-            Atom::FnDef(fn_def_id) => self.new_term(fn_def_id),
-            _ => panic!("Cannot convert {} to a term", self.env().with(atom)),
+            Atom::Term(term) => Some(term),
+            Atom::Ty(ty) => Some(self.use_ty_as_term(ty)),
+            Atom::FnDef(fn_def_id) => Some(self.new_term(fn_def_id)),
+            _ => None,
         }
+    }
+
+    /// Normalise the given atom, and try to use it as a term.
+    pub fn to_term(&self, atom: Atom) -> TermId {
+        self.maybe_to_term(atom)
+            .unwrap_or_else(|| panic!("Cannot convert {} to a term", self.env().with(atom)))
     }
 
     /// Evaluate an atom.
@@ -125,11 +127,13 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
         match self.context().get_binding(var).kind {
             BindingKind::Param(_, _) => Ok(self.new_term(var).into()),
             BindingKind::Arg(_, arg_id) => {
-                Ok(self.stores().args().map_fast(arg_id.0, |args| args[arg_id.1].value).into())
+                let value =
+                    self.stores().args().map_fast(arg_id.0, |args| args[arg_id.1].value).into();
+                self.eval(value)
             }
             BindingKind::StackMember(_, value) => {
                 match value {
-                    Some(value) => Ok(value.into()),
+                    Some(value) => self.eval(value.into()),
                     None => {
                         // @@Todo: make this a user error
                         panic!("Tried to read uninitialised stack member")
@@ -417,10 +421,10 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
 
     /// Evaluate a function call.
     fn eval_fn_call(&self, mut fn_call: FnCallTerm) -> Result<Atom, Signal> {
-        let evaluated_inner = self.eval(fn_call.subject.into())?;
+        let evaluated_inner = self.maybe_to_term(self.eval(fn_call.subject.into())?);
 
         // Beta-reduce:
-        if let Atom::Term(term) = evaluated_inner {
+        if let Some(term) = evaluated_inner {
             fn_call.subject = term;
 
             if let Term::FnRef(fn_def_id) = self.get_term(term) {

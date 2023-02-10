@@ -26,6 +26,7 @@ use crate::params::ParamError;
 ///
 /// This is used for error recovery, so that multiple errors can be reported
 /// at once.
+#[derive(Debug)]
 pub struct TcErrorState {
     pub errors: Vec<TcError>,
     pub has_blocked: bool,

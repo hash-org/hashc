@@ -6,6 +6,7 @@ use hash_tir::new::{
     data::DataTy,
     environment::context::ParamOrigin,
     fns::FnTy,
+    lits::{Lit, PrimTerm},
     params::{ParamData, ParamsId},
     sub::Sub,
     terms::{Term, TermId},
@@ -94,28 +95,15 @@ pub struct UnificationOps<'a, T: AccessToTypechecking>(&'a T);
 impl<T: AccessToTypechecking> UnificationOps<'_, T> {
     /// Unify two types.
     pub fn unify_tys(&self, src_id: TyId, target_id: TyId) -> TcResult<Uni<TyId>> {
+        let src_id =
+            self.normalisation_ops().to_ty(self.normalisation_ops().normalise(src_id.into())?);
+        let target_id =
+            self.normalisation_ops().to_ty(self.normalisation_ops().normalise(target_id.into())?);
+
         let src = self.get_ty(src_id);
         let target = self.get_ty(target_id);
 
         match (src, target) {
-            // @@Todo: eval fully
-            (Ty::Eval(term), _) => match self
-                .normalisation_ops()
-                .maybe_to_ty(self.normalisation_ops().normalise(term.into())?)
-            {
-                Some(ty_id) => self.unify_tys(ty_id, target_id),
-                // @@Todo: usage error
-                _ => Uni::mismatch_types(src_id, target_id),
-            },
-            (_, Ty::Eval(term)) => match self
-                .normalisation_ops()
-                .maybe_to_ty(self.normalisation_ops().normalise(term.into())?)
-            {
-                Some(ty) => self.unify_tys(src_id, ty),
-                // @@Todo: usage error
-                _ => Uni::mismatch_types(src_id, target_id),
-            },
-
             (Ty::Hole(a), Ty::Hole(b)) => {
                 if a == b {
                     // No-op
@@ -134,6 +122,27 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
                 Uni::ok_with(sub, src_id)
             }
 
+            // @@Todo: eval fully
+            (Ty::Eval(t1), Ty::Eval(t2)) => {
+                self.unify_terms(t1, t2).map(|result| result.map_result(|r| self.new_ty(r)))
+            }
+            (Ty::Eval(term), _) => match self
+                .normalisation_ops()
+                .maybe_to_ty(self.normalisation_ops().normalise(term.into())?)
+            {
+                Some(ty_id) => self.unify_tys(ty_id, target_id),
+                // @@Todo: usage error
+                _ => Uni::mismatch_types(src_id, target_id),
+            },
+            (_, Ty::Eval(term)) => match self
+                .normalisation_ops()
+                .maybe_to_ty(self.normalisation_ops().normalise(term.into())?)
+            {
+                Some(ty) => self.unify_tys(src_id, ty),
+                // @@Todo: usage error
+                _ => Uni::mismatch_types(src_id, target_id),
+            },
+
             (Ty::Var(a), Ty::Var(b)) => Uni::ok_iff_types_match(a == b, src_id, target_id),
             (Ty::Var(_), _) | (_, Ty::Var(_)) => Uni::mismatch_types(src_id, target_id),
 
@@ -147,19 +156,20 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
                     Uni::mismatch_types(src_id, target_id)
                 } else {
                     self.context().enter_scope(f2.into(), || {
-                        let Uni { sub, result: params } =
+                        let Uni { sub: param_sub, result: params } =
                             self.unify_params(f1.params, f2.params, ParamOrigin::FnTy(f1))?;
 
                         let return_ty_1_subbed =
-                            self.substitution_ops().apply_sub_to_ty(f1.return_ty, &sub);
-                        let return_ty_2_subbed = f2.return_ty;
+                            self.substitution_ops().apply_sub_to_ty(f1.return_ty, &param_sub);
+                        let return_ty_2_subbed =
+                            self.substitution_ops().apply_sub_to_ty(f2.return_ty, &param_sub);
 
                         let Uni { result: return_ty, sub: return_ty_sub } =
                             self.unify_tys(return_ty_1_subbed, return_ty_2_subbed)?;
 
                         Ok(Uni {
                             result: self.new_ty(FnTy { return_ty, params, ..f1 }),
-                            sub: return_ty_sub,
+                            sub: return_ty_sub.join(&param_sub),
                         })
                     })
                 }
@@ -197,6 +207,11 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
     /// Unless these are types, they must be definitionally (up to beta
     /// reduction) equal.
     pub fn unify_terms(&self, src_id: TermId, target_id: TermId) -> TcResult<Uni<TermId>> {
+        let src_id =
+            self.normalisation_ops().to_term(self.normalisation_ops().normalise(src_id.into())?);
+        let target_id =
+            self.normalisation_ops().to_term(self.normalisation_ops().normalise(target_id.into())?);
+
         let src = self.get_term(src_id);
         let target = self.get_term(target_id);
 
@@ -206,15 +221,39 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
                 Ok(uni.map_result(|t| self.new_term(t)))
             }
             _ => match (src, target) {
-                (Term::Ty(t1), Term::Ty(t2)) => {
-                    let uni = self.unify_tys(t1, t2)?;
-                    Ok(uni
-                        .map_result(|t| if t == t1 || t == t2 { src_id } else { self.new_term(t) }))
-                }
+                (Term::Ty(t1), _) => self.unify_terms(self.use_ty_as_term(t1), target_id),
+                (_, Term::Ty(t2)) => self.unify_terms(src_id, self.use_ty_as_term(t2)),
                 (Term::Var(a), Term::Var(b)) => Uni::ok_iff_terms_match(a == b, src_id, target_id),
                 (Term::Hole(a), Term::Hole(b)) => {
                     Uni::ok_iff_terms_match(a == b, src_id, target_id)
                 }
+                (Term::Hole(a), _) => {
+                    let sub = Sub::from_pairs([(a.0, target_id)]);
+                    Uni::ok_with(sub, target_id)
+                }
+                (_, Term::Hole(b)) => {
+                    let sub = Sub::from_pairs([(b.0, src_id)]);
+                    Uni::ok_with(sub, src_id)
+                }
+                (Term::Prim(p1), Term::Prim(p2)) => match (p1, p2) {
+                    (PrimTerm::Lit(l1), PrimTerm::Lit(l2)) => match (l1, l2) {
+                        (Lit::Int(i1), Lit::Int(i2)) => {
+                            Uni::ok_iff_terms_match(i1.value() == i2.value(), src_id, target_id)
+                        }
+                        (Lit::Str(s1), Lit::Str(s2)) => {
+                            Uni::ok_iff_terms_match(s1.value() == s2.value(), src_id, target_id)
+                        }
+                        (Lit::Char(c1), Lit::Char(c2)) => {
+                            Uni::ok_iff_terms_match(c1.value() == c2.value(), src_id, target_id)
+                        }
+                        (Lit::Float(f1), Lit::Float(f2)) => {
+                            Uni::ok_iff_terms_match(f1.value() == f2.value(), src_id, target_id)
+                        }
+                        _ => Uni::mismatch_terms(src_id, target_id),
+                    },
+                    (PrimTerm::List(_), PrimTerm::List(_)) => todo!(),
+                    _ => Uni::mismatch_terms(src_id, target_id),
+                },
                 _ => Uni::mismatch_terms(src_id, target_id),
             },
         }

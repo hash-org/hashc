@@ -69,6 +69,7 @@ defined_primitives! {
     option,
     result,
     list,
+    equal,
 }
 
 impl DefinedPrimitives {
@@ -197,6 +198,38 @@ impl DefinedPrimitives {
                 }));
                 env.data_utils().create_enum_def(result_sym, params, |_| {
                     vec![(ok_sym, ok_params), (err_sym, err_params)]
+                })
+            },
+            equal: {
+                let eq_sym = env.new_symbol("Equal");
+                let refl_sym = env.new_symbol("Refl");
+
+                let t_sym = env.new_symbol("T");
+                let a_sym = env.new_symbol("a");
+                let b_sym = env.new_symbol("b");
+
+                let x_sym = env.new_symbol("x");
+
+                let params = env.param_utils().create_params(
+                    [
+                        ParamData { name: t_sym, ty: env.new_small_universe_ty(), default: None },
+                        ParamData { name: a_sym, ty: env.new_var_ty(t_sym), default: None },
+                        ParamData { name: b_sym, ty: env.new_var_ty(t_sym), default: None },
+                    ]
+                    .into_iter(),
+                );
+                let refl_params = env.param_utils().create_params(once(ParamData {
+                    name: x_sym,
+                    ty: env.new_var_ty(t_sym),
+                    default: None,
+                }));
+
+                let refl_result_args = env.param_utils().create_positional_args(
+                    [env.new_term(t_sym), env.new_term(x_sym), env.new_term(x_sym)].into_iter(),
+                );
+
+                env.data_utils().create_data_def(eq_sym, params, |_| {
+                    vec![(refl_sym, refl_params, refl_result_args)]
                 })
             },
         }

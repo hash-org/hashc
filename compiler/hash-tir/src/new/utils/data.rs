@@ -2,7 +2,7 @@
 use std::iter::once;
 
 use derive_more::Constructor;
-use hash_utils::store::{SequenceStore, Store};
+use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
 use itertools::Itertools;
 
 use super::{common::CommonUtils, AccessToUtils};
@@ -45,6 +45,21 @@ impl<'tc> DataUtils<'tc> {
             data_def.ctors = DataDefCtors::Defined(ctors);
         });
         ctors
+    }
+
+    /// Get the single constructor of the given data definition, if it is indeed
+    /// a single constructor.
+    pub fn get_single_ctor_of_data_def(&self, data_def: DataDefId) -> Option<CtorDef> {
+        match self.stores().data_def().map_fast(data_def, |def| def.ctors) {
+            DataDefCtors::Defined(ctors) => {
+                if ctors.len() == 1 {
+                    Some(self.stores().ctor_defs().map_fast(ctors, |ctors| ctors[0]))
+                } else {
+                    None
+                }
+            }
+            DataDefCtors::Primitive(_) => None,
+        }
     }
 
     /// Create a primitive data definition.
@@ -167,6 +182,39 @@ impl<'tc> DataUtils<'tc> {
         })
     }
 
+    /// Create an enum definition, with some parameters, where each variant has
+    /// specific result arguments.
+    pub fn create_data_def(
+        &self,
+        name: Symbol,
+        params: ParamsId,
+        variants: impl Fn(DataDefId) -> Vec<(Symbol, ParamsId, ArgsId)>,
+    ) -> DataDefId {
+        // Create the data definition for the enum
+        self.stores().data_def().create_with(|id| DataDef {
+            id,
+            name,
+            params,
+            ctors: DataDefCtors::Defined(self.stores().ctor_defs().create_from_iter_with(
+                variants(id).into_iter().enumerate().map(|(index, variant)| {
+                    let variant_name = variant.0;
+                    let fields_params = variant.1;
+                    let result_args = variant.2;
+
+                    // Create a constructor for each variant
+                    move |ctor_id| CtorDef {
+                        id: ctor_id,
+                        name: variant_name,
+                        data_def_ctor_index: index,
+                        data_def_id: id,
+                        params: fields_params,
+                        result_args,
+                    }
+                }),
+            )),
+        })
+    }
+
     /// Create an enum definition, with some parameters.
     ///
     /// The variants are given as an iterator of `(Symbol, Iter<ParamData>)`,
@@ -186,27 +234,13 @@ impl<'tc> DataUtils<'tc> {
         let result_args =
             |data_def_id| self.create_forwarded_data_args_from_params(data_def_id, params);
 
-        // Create the data definition for the enum
-        self.stores().data_def().create_with(|id| DataDef {
-            id,
-            name,
-            params,
-            ctors: DataDefCtors::Defined(self.stores().ctor_defs().create_from_iter_with(
-                variants(id).into_iter().enumerate().map(|(index, variant)| {
-                    let variant_name = variant.0;
-                    let fields_params = variant.1;
-
-                    // Create a constructor for each variant
-                    move |ctor_id| CtorDef {
-                        id: ctor_id,
-                        name: variant_name,
-                        data_def_ctor_index: index,
-                        data_def_id: id,
-                        params: fields_params,
-                        result_args: result_args(id),
-                    }
-                }),
-            )),
+        self.create_data_def(name, params, |def_id| {
+            variants(def_id)
+                .into_iter()
+                .map(|(variant_name, fields_params)| {
+                    (variant_name, fields_params, result_args(def_id))
+                })
+                .collect_vec()
         })
     }
 }

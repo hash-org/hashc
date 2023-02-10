@@ -239,9 +239,7 @@ impl<'tc> ResolutionPass<'tc> {
         let list_def = self.primitives().list();
         Ok(self.new_ty(Ty::Data(DataTy {
             data_def: list_def,
-            args: self
-                .param_utils()
-                .create_positional_args_for_data_def(list_def, once(self.use_ty_as_term(inner_ty))),
+            args: self.param_utils().create_positional_args(once(self.use_ty_as_term(inner_ty))),
         })))
     }
 
