@@ -375,29 +375,6 @@ impl AstVisitor for AstTreeGenerator {
         Ok(TreeNode::branch("list", vec![inner]))
     }
 
-    type SetTyRet = TreeNode;
-    fn visit_set_ty(
-        &self,
-        node: ast::AstNodeRef<ast::SetTy>,
-    ) -> Result<Self::TupleTyRet, Self::Error> {
-        let walk::SetTy { inner } = walk::walk_set_ty(self, node)?;
-
-        Ok(TreeNode::branch("set", vec![inner]))
-    }
-
-    type MapTyRet = TreeNode;
-    fn visit_map_ty(
-        &self,
-        node: ast::AstNodeRef<ast::MapTy>,
-    ) -> Result<Self::TupleTyRet, Self::Error> {
-        let walk::MapTy { key, value } = walk::walk_map_ty(self, node)?;
-
-        Ok(TreeNode::branch(
-            "map",
-            vec![TreeNode::branch("key", vec![key]), TreeNode::branch("key", vec![value])],
-        ))
-    }
-
     type TyArgRet = TreeNode;
     fn visit_ty_arg(
         &self,

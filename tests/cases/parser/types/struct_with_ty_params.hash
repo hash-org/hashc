@@ -13,11 +13,11 @@ T := struct<U,> (
 Foo := struct<T = i32, U, Mux: Hash ~ Eq> (
     U, 
     T, 
-    { Mux: T }
+    Map<Mux, T>
 );
 
 Foo := struct<T = i32, K := Mux ~ Universe, U: Type, Mux: Hash ~ Eq> (
     U, 
     T, 
-    { Mux: T }
+    Map<Mux, T>
 );

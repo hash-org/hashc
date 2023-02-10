@@ -405,22 +405,6 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
         self.validate_and_register_simplified_term(node, term)
     }
 
-    type SetTyRet = TermId;
-
-    fn visit_set_ty(&self, node: AstNodeRef<ast::SetTy>) -> Result<Self::SetTyRet, Self::Error> {
-        let walk::SetTy { inner } = walk::walk_set_ty(self, node)?;
-
-        let inner_ty = self.core_defs().set_ty_fn();
-        let builder = self.builder();
-
-        let term = builder.create_app_ty_fn_term(
-            inner_ty,
-            builder.create_args([builder.create_arg("T", inner)], ParamOrigin::TyFn),
-        );
-
-        self.validate_and_register_simplified_term(node, term)
-    }
-
     type NamedTyRet = TermId;
 
     fn visit_named_ty(
@@ -1848,26 +1832,6 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
         let walk::UnsafeExpr { data } = walk::walk_unsafe_expr(self, node)?;
         Ok(data)
     }
-
-    type MapTyRet = TermId;
-
-    fn visit_map_ty(&self, node: AstNodeRef<ast::MapTy>) -> Result<Self::MapTyRet, Self::Error> {
-        let walk::MapTy { key, value } = walk::walk_map_ty(self, node)?;
-
-        let inner_ty = self.core_defs().map_ty_fn();
-        let builder = self.builder();
-
-        let term = builder.create_app_ty_fn_term(
-            inner_ty,
-            builder.create_args(
-                [builder.create_arg("K", key), builder.create_arg("V", value)],
-                ParamOrigin::TyFn,
-            ),
-        );
-
-        self.validate_and_register_simplified_term(node, term)
-    }
-
     type MatchBlockRet = TermId;
 
     fn visit_match_block(

@@ -406,24 +406,6 @@ define_tree! {
         pub inner: Child!(Ty),
     }
 
-    /// The set type, , e.g. `{str}`.
-    #[derive(Debug, PartialEq, Clone)]
-    #[node]
-    pub struct SetTy {
-        /// Inner type of the set
-        pub inner: Child!(Ty),
-    }
-
-    /// The map type, e.g. `{str: u32}`.
-    #[derive(Debug, PartialEq, Clone)]
-    #[node]
-    pub struct MapTy {
-        /// The `key` type of the map type
-        pub key: Child!(Ty),
-        /// The `value` type of the map type
-        pub value: Child!(Ty),
-    }
-
     /// The function type.
     #[derive(Debug, PartialEq, Clone)]
     #[node]
@@ -506,10 +488,6 @@ define_tree! {
         Tuple(TupleTy),
         /// list type
         List(ListTy),
-        /// Set type
-        Set(SetTy),
-        /// Map type
-        Map(MapTy),
         /// Function type
         Fn(FnTy),
         /// Named type, similar to a binding

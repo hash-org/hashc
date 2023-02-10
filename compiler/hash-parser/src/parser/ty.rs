@@ -90,28 +90,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 Ty::Named(NamedTy { name })
             }
 
-            // Map or set type
-            TokenKind::Tree(Delimiter::Brace, tree_index) => {
+            // Expression in the type.
+            TokenKind::Tree(Delimiter::Brace, _tree_index) => {
                 self.skip_token();
-                let tree = self.token_trees.get(*tree_index as usize).unwrap();
-                let mut gen = self.from_stream(tree, token.span);
 
-                let key_ty = gen.parse_ty()?;
-
-                match gen.peek() {
-                    // This must be a map
-                    Some(token) if token.has_kind(TokenKind::Colon) => {
-                        gen.skip_token();
-
-                        // @@ErrorRecovery: Investigate introducing `Err` variant into types...
-                        let value_ty = gen.parse_ty()?;
-                        self.consume_gen(gen);
-
-                        Ty::Map(MapTy { key: key_ty, value: value_ty })
-                    }
-                    None => Ty::Set(SetTy { inner: key_ty }),
-                    Some(_) => gen.expected_eof()?,
-                }
+                // @@Todo: add the "expression in a type" variant
+                // let tree = self.token_trees.get(*tree_index as usize).unwrap();
+                // let mutgen = self.from_stream(tree, token.span);
+                todo!()
             }
 
             // List type

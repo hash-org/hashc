@@ -19,7 +19,7 @@ Foo := enum<T = i32, U, Mux: Hash ~ Eq> (
     ContaintorOf(U), 
     DetainorOf(T), 
     MapOf(
-        items: { Mux: T }
+        items: Map<Mux, T>
     )
 );
 
