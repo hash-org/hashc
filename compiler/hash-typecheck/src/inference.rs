@@ -347,7 +347,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             _ => {
                 let inferred = self.param_utils().create_hole_params_from_args(term.data);
                 return Err(TcError::MismatchingTypes {
-                    expected: annotation_ty,
+                    expected: reduced_ty,
                     actual: self.new_ty(TupleTy { data: inferred }),
                     inferred_from: Some(original_term_id.into()),
                 });
@@ -512,12 +512,12 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             annotation_data_ty.unwrap_or(DataTy { args: term_data_args, data_def: data_def.id });
 
         self.context().enter_scope(data_def.id.into(), || {
-            let data_args =
+            let data_args_uni =
                 self.unification_ops().unify_args(term_data_args, annotation_data_ty.args)?;
 
             // First infer the data arguments
             let (inferred_data_args, inferred_data_params) =
-                self.infer_args(data_args.result, data_def.params)?;
+                self.infer_args(data_args_uni.result, data_def.params)?;
 
             let param_uni = self
                 .unification_ops()
@@ -532,7 +532,11 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             self.context().enter_scope(ctor.id.into(), || {
                 // Apply the substitution to the constructor parameters
                 let subbed_ctor_params = self.substitution_ops().apply_sub_to_params(
-                    self.substitution_ops().apply_sub_to_params(ctor.params, &param_uni.sub),
+                    self.substitution_ops().apply_sub_to_params(
+                        self.substitution_ops()
+                            .apply_sub_to_params(ctor.params, &data_args_uni.sub),
+                        &param_uni.sub,
+                    ),
                     &data_sub,
                 );
 
@@ -959,11 +963,15 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 }
 
                 // Infer the return value
-                let (return_term, return_ty) =
-                    self.infer_term(block_term.return_value, annotation_ty)?;
-
-                let sub = self.substitution_ops().create_sub_from_current_stack_members();
-                let subbed_return_ty = self.substitution_ops().apply_sub_to_ty(return_ty, &sub);
+                let (return_term, subbed_return_ty) = match error_state
+                    .try_or_add_error(self.infer_term(block_term.return_value, annotation_ty))
+                {
+                    Some((return_term, return_ty)) => {
+                        let sub = self.substitution_ops().create_sub_from_current_stack_members();
+                        (return_term, self.substitution_ops().apply_sub_to_ty(return_ty, &sub))
+                    }
+                    None => (block_term.return_value, annotation_ty),
+                };
 
                 self.return_or_register_errors(
                     || {
@@ -1101,7 +1109,13 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             Ty::Tuple(tuple_ty) => tuple_ty.data,
             Ty::Data(data_ty) => {
                 match self.data_utils().get_single_ctor_of_data_def(data_ty.data_def) {
-                    Some(ctor) => ctor.params,
+                    Some(ctor) => {
+                        let data_def = self.get_data_def(data_ty.data_def);
+                        let sub = self
+                            .substitution_ops()
+                            .create_sub_from_args_of_params(data_ty.args, data_def.params);
+                        self.substitution_ops().apply_sub_to_params(ctor.params, &sub)
+                    }
                     None => {
                         // Not a record type because it has more than one constructor
                         // @@ErrorReporting: more information about the error
