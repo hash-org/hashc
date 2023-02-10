@@ -14,7 +14,7 @@ use hash_utils::store::{SequenceStore, Store};
 
 use super::ir::*;
 use crate::{
-    ty::{AdtId, IrTyId, IrTyListId},
+    ty::{AdtId, IrTy, IrTyId, IrTyListId},
     IrCtx,
 };
 
@@ -44,6 +44,7 @@ pub trait WriteIr: Sized {
     }
 }
 
+impl WriteIr for &IrTy {}
 impl WriteIr for IrTyId {}
 impl WriteIr for IrTyListId {}
 impl WriteIr for AdtId {}

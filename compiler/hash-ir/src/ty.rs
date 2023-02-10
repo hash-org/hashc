@@ -900,9 +900,13 @@ impl fmt::Debug for ForFormatting<'_, IrTyId> {
 
 impl fmt::Display for ForFormatting<'_, IrTyId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let ty = self.ctx.tys().get(self.item);
+        self.ctx.tys().map_fast(self.item, |ty| write!(f, "{}", ty.for_fmt(self.ctx)))
+    }
+}
 
-        match ty {
+impl fmt::Display for ForFormatting<'_, &IrTy> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.item {
             IrTy::Int(variant) => write!(f, "{variant}"),
             IrTy::UInt(variant) => write!(f, "{variant}"),
             IrTy::Float(variant) => write!(f, "{variant}"),
@@ -927,11 +931,11 @@ impl fmt::Display for ForFormatting<'_, IrTyId> {
             IrTy::Adt(adt) => write!(f, "{}", adt.for_fmt(self.ctx)),
 
             IrTy::Fn { instance, params, return_ty, .. } if self.verbose => {
-                let name = self.ctx.instances.map_fast(instance, |instance| instance.name);
+                let name = self.ctx.instances.map_fast(*instance, |instance| instance.name);
                 write!(f, "{name}({}) -> {}", params.for_fmt(self.ctx), return_ty.for_fmt(self.ctx))
             }
             IrTy::Fn { instance, .. } => {
-                let name = self.ctx.instances.map_fast(instance, |instance| instance.name);
+                let name = self.ctx.instances.map_fast(*instance, |instance| instance.name);
                 write!(f, "{name}")
             }
             IrTy::Slice(ty) => write!(f, "[{}]", ty.for_fmt(self.ctx)),
