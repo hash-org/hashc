@@ -6,6 +6,7 @@ use hash_tir::new::{
     data::DataTy,
     environment::context::ParamOrigin,
     fns::FnTy,
+    lits::{Lit, PrimTerm},
     params::{ParamData, ParamsId},
     sub::Sub,
     terms::{Term, TermId},
@@ -122,6 +123,9 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
             }
 
             // @@Todo: eval fully
+            (Ty::Eval(t1), Ty::Eval(t2)) => {
+                self.unify_terms(t1, t2).map(|result| result.map_result(|r| self.new_ty(r)))
+            }
             (Ty::Eval(term), _) => match self
                 .normalisation_ops()
                 .maybe_to_ty(self.normalisation_ops().normalise(term.into())?)
@@ -203,6 +207,11 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
     /// Unless these are types, they must be definitionally (up to beta
     /// reduction) equal.
     pub fn unify_terms(&self, src_id: TermId, target_id: TermId) -> TcResult<Uni<TermId>> {
+        let src_id =
+            self.normalisation_ops().to_term(self.normalisation_ops().normalise(src_id.into())?);
+        let target_id =
+            self.normalisation_ops().to_term(self.normalisation_ops().normalise(target_id.into())?);
+
         let src = self.get_term(src_id);
         let target = self.get_term(target_id);
 
@@ -226,6 +235,25 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
                     let sub = Sub::from_pairs([(b.0, src_id)]);
                     Uni::ok_with(sub, src_id)
                 }
+                (Term::Prim(p1), Term::Prim(p2)) => match (p1, p2) {
+                    (PrimTerm::Lit(l1), PrimTerm::Lit(l2)) => match (l1, l2) {
+                        (Lit::Int(i1), Lit::Int(i2)) => {
+                            Uni::ok_iff_terms_match(i1.value() == i2.value(), src_id, target_id)
+                        }
+                        (Lit::Str(s1), Lit::Str(s2)) => {
+                            Uni::ok_iff_terms_match(s1.value() == s2.value(), src_id, target_id)
+                        }
+                        (Lit::Char(c1), Lit::Char(c2)) => {
+                            Uni::ok_iff_terms_match(c1.value() == c2.value(), src_id, target_id)
+                        }
+                        (Lit::Float(f1), Lit::Float(f2)) => {
+                            Uni::ok_iff_terms_match(f1.value() == f2.value(), src_id, target_id)
+                        }
+                        _ => Uni::mismatch_terms(src_id, target_id),
+                    },
+                    (PrimTerm::List(_), PrimTerm::List(_)) => todo!(),
+                    _ => Uni::mismatch_terms(src_id, target_id),
+                },
                 _ => Uni::mismatch_terms(src_id, target_id),
             },
         }
