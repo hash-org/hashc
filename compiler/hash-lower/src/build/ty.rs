@@ -66,8 +66,8 @@ impl<'tcx> Builder<'tcx> {
     pub(crate) fn evaluate_const_pat_term(&self, term: TermId) -> (Const, u128) {
         self.tcx.term_store.map_fast(term, |ty| match ty {
             Term::Level0(Level0Term::Lit(LitTerm::Int { value })) => CONSTANT_MAP
-                .map_int_constant(*value, |val| {
-                    (Const::Int(*value), u128::from_be_bytes(val.get_bytes()))
+                .map_int_constant(*value, |constant| {
+                    (Const::Int(*value), constant.value.as_u128().unwrap())
                 }),
             Term::Level0(Level0Term::Lit(LitTerm::Char(char))) => {
                 (Const::Char(*char), u128::from(*char))

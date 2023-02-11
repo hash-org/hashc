@@ -16,6 +16,7 @@ use hash_utils::{
         CloneStore, DefaultSequenceStore, DefaultStore, SequenceStore, SequenceStoreKey, Store,
     },
 };
+use num_bigint::BigInt;
 
 use crate::{
     args::ArgsId,
@@ -753,14 +754,15 @@ impl fmt::Display for ForFormatting<'_, &Level0Term> {
                     }
                     LitTerm::Int { value } => {
                         let pointer_width = self.global_storage.pointer_width;
-                        let kind = CONSTANT_MAP.map_int_constant(*value, |val| val.ty);
+                        let kind = CONSTANT_MAP.map_int_constant(*value, |val| val.ty());
 
                         // It's often the case that users don't include the range of the entire
                         // integer and so we will write `-2147483648..x` and
                         // same for max, what we want to do is write `MIN`
                         // and `MAX for these situations since it is easier for the
                         // user to understand the problem
-                        let value = CONSTANT_MAP.lookup_int_constant(*value).as_big();
+                        let value: BigInt =
+                            (&CONSTANT_MAP.lookup_int_constant(*value)).try_into().unwrap();
 
                         if let Some(min) = kind.min(pointer_width) && min == value {
                             write!(f, "{kind}::MIN")

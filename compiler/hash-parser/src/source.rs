@@ -14,8 +14,10 @@ pub struct ParseSource {
     /// The absolute path for the current source, `current_dir` if it is an
     /// interactive block.
     path: PathBuf,
+
     /// The raw contents of the source.
     contents: String,
+
     /// The [SourceId] of the source
     id: SourceId,
 }

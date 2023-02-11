@@ -1,5 +1,5 @@
 //! Hash Compiler source location definitions.
-#![feature(path_file_prefix, let_chains, once_cell)]
+#![feature(path_file_prefix, let_chains, once_cell, box_patterns)]
 
 pub mod attributes;
 pub mod constant;

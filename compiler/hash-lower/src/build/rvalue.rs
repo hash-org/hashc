@@ -138,8 +138,7 @@ impl<'tcx> Builder<'tcx> {
             let n = 1 << (size - 1);
 
             // Create and intern the constant
-            let const_int =
-                CONSTANT_MAP.create_int_constant(IntConstant::from_uint(n, IntTy::Int(signed_ty)));
+            let const_int = CONSTANT_MAP.create_int_constant(IntConstant::from_sint(n, signed_ty));
             Const::Int(const_int).into()
         } else {
             unreachable!()
@@ -255,7 +254,8 @@ impl<'tcx> Builder<'tcx> {
             } else if ty.is_integral() && (op == BinOp::Div || op == BinOp::Mod) {
                 // Check for division or a remainder by zero, and if so emit
                 // an assertion to verify this condition.
-                let int_ty = ty.into();
+                let int_ty: IntTy = ty.into();
+                let uint_ty = int_ty.to_unsigned();
 
                 let assert_kind = if op == BinOp::Div {
                     AssertKind::DivisionByZero { operand: lhs }
@@ -266,8 +266,9 @@ impl<'tcx> Builder<'tcx> {
                 // Check for division/modulo of zero...
                 let is_zero = self.temp_place(self.ctx.tys().common_tys.bool);
 
-                let const_val =
-                    Const::Int(CONSTANT_MAP.create_int_constant(IntConstant::from_uint(0, int_ty)));
+                let const_val = Const::Int(
+                    CONSTANT_MAP.create_int_constant(IntConstant::from_uint(0, uint_ty)),
+                );
                 let zero_val = Operand::Const(const_val.into());
 
                 self.control_flow_graph.push_assign(
@@ -283,8 +284,10 @@ impl<'tcx> Builder<'tcx> {
                 // is the MIN value, this will result in a division overflow, we need to
                 // check for this and emit code.
                 if ty.is_signed() {
+                    let sint_ty = int_ty.to_signed();
+
                     let const_val = Const::Int(
-                        CONSTANT_MAP.create_int_constant(IntConstant::from_int(-1, int_ty)),
+                        CONSTANT_MAP.create_int_constant(IntConstant::from_sint(-1, sint_ty)),
                     );
                     let negative_one_val = Operand::Const(const_val.into());
                     let minimum_value = self.min_value_of_ty(ty);

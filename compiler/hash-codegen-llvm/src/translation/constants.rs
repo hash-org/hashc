@@ -146,12 +146,16 @@ impl<'b, 'm> ConstValueBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
             Const::Int(interned_int) => {
                 let const_int = CONSTANT_MAP.lookup_int_constant(interned_int);
 
-                const_int.as_small().map(|value| self.const_uint_big(ty, value)).unwrap_or_else(
-                    || {
+                // Convert the constant into a u128 and then emit the
+                // correct LLVM constant for it.
+                const_int
+                    .value
+                    .as_u128()
+                    .map(|value| self.const_uint_big(ty, value))
+                    .unwrap_or_else(|| {
                         // @@Todo: deal with bigints...
                         unimplemented!()
-                    },
-                )
+                    })
             }
             Const::Float(interned_float) => {
                 self.const_float(ty, CONSTANT_MAP.lookup_float_constant(interned_float).as_f64())

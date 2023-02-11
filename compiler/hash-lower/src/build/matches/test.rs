@@ -15,7 +15,7 @@ use hash_ir::{
 };
 use hash_reporting::macros::panic_on_span;
 use hash_source::{
-    constant::{IntConstant, CONSTANT_MAP},
+    constant::{IntConstant, IntConstantValue, CONSTANT_MAP},
     location::Span,
 };
 use hash_tir::{
@@ -70,7 +70,7 @@ pub(super) enum TestKind {
     /// some kind, i.e. `==` `>=`, `>`, etc.
     Len {
         /// The length we are testing for.
-        len: usize,
+        len: u64,
 
         /// What operator to use when testing for this value
         op: BinOp,
@@ -231,7 +231,7 @@ impl<'tcx> Builder<'tcx> {
                 Pat::Array(list_pat) => {
                     let (prefix, suffix, rest) = list_pat.into_parts(self.tcx);
 
-                    let len = prefix.len() + suffix.len();
+                    let len = (prefix.len() + suffix.len()) as u64;
                     let op = if rest.is_some() { BinOp::GtEq } else { BinOp::Eq };
 
                     Test { kind: TestKind::Len { len, op }, span }
@@ -375,7 +375,7 @@ impl<'tcx> Builder<'tcx> {
 
             (TestKind::Len { len: test_len, op: BinOp::Eq }, Pat::Array(list_pat)) => {
                 let (prefix, suffix, rest) = list_pat.into_parts(self.tcx);
-                let pat_len = prefix.len() + suffix.len();
+                let pat_len = (prefix.len() + suffix.len()) as u64;
                 let ty = self.ty_of_pat(pair.pat);
 
                 match (pat_len.cmp(test_len), rest) {
@@ -401,7 +401,7 @@ impl<'tcx> Builder<'tcx> {
             }
             (TestKind::Len { len: test_len, op: BinOp::GtEq }, Pat::Array(list_pat)) => {
                 let (prefix, suffix, rest) = list_pat.into_parts(self.tcx);
-                let pat_len = prefix.len() + suffix.len();
+                let pat_len = (prefix.len() + suffix.len()) as u64;
 
                 let ty = self.ty_of_pat(pair.pat);
 
@@ -745,8 +745,10 @@ impl<'tcx> Builder<'tcx> {
 
                 // Now, we generate a temporary for the expected length, and then
                 // compare the two.
-                let const_len =
-                    Const::Int(CONSTANT_MAP.create_int_constant(IntConstant::from(len)));
+                let const_len = Const::Int(CONSTANT_MAP.create_int_constant(IntConstant {
+                    value: IntConstantValue::U64(len),
+                    suffix: None,
+                }));
                 let expected = Operand::Const(const_len.into());
 
                 let [success, fail] = *target_blocks else {

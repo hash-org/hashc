@@ -1,12 +1,12 @@
 //! Hash Compiler Lexer crate.
 #![feature(cell_update, let_chains)]
 
-use std::{cell::Cell, iter};
+use std::{cell::Cell, iter, num::ParseIntError};
 
 use error::{LexerDiagnostics, LexerError, LexerErrorKind, LexerResult, NumericLitKind};
 use hash_reporting::diagnostic::AccessToDiagnosticsMut;
 use hash_source::{
-    constant::{IntConstant, IntTy, SIntTy, CONSTANT_MAP},
+    constant::{IntConstant, IntConstantValue, IntTy, SIntTy, UIntTy, CONSTANT_MAP},
     identifier::{Identifier, IDENTS},
     location::{SourceLocation, Span},
     SourceId,
@@ -17,7 +17,7 @@ use hash_token::{
     Token, TokenKind,
 };
 use num_bigint::BigInt;
-use num_traits::Num;
+use num_traits::ToPrimitive;
 use utils::is_id_start;
 
 use crate::utils::is_id_continue;
@@ -43,6 +43,12 @@ pub struct Lexer<'a> {
     /// Representative module index of the current source.
     source_id: SourceId,
 
+    // We store the size of the machine word in order to determine
+    // how to tokenise `usize` and `isize` literals.
+    ///
+    /// The size of the machine word in bytes.
+    word_size: usize,
+
     /// Representing the last character the lexer encountered. This is only set
     /// by [Lexer::advance_token] so that [Lexer::eat_token_tree] can perform a
     /// check on if the token tree was closed up.
@@ -61,12 +67,13 @@ pub struct Lexer<'a> {
 
 impl<'a> Lexer<'a> {
     /// Create a new [Lexer] from the given string input.
-    pub fn new(contents: &'a str, source_id: SourceId) -> Self {
+    pub fn new(contents: &'a str, source_id: SourceId, word_size: usize) -> Self {
         Lexer {
             offset: Cell::new(0),
             source_id,
             within_token_tree: Cell::new(false),
             previous_delimiter: Cell::new(None),
+            word_size,
             contents,
             token_trees: vec![],
             diagnostics: LexerDiagnostics::default(),
@@ -391,6 +398,80 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    fn parse_int_value(
+        &mut self,
+        chars: &str,
+        radix: u32,
+        annotation_ty: Option<IntTy>,
+    ) -> Result<IntConstantValue, ParseIntError> {
+        // If the type is provided on the integer literal, then we
+        // can directly just use the provided type as the parsing...
+        if let Some(ty) = annotation_ty {
+            match ty.normalise(self.word_size) {
+                IntTy::Int(SIntTy::I8) => {
+                    let value = i8::from_str_radix(chars, radix)?;
+                    Ok(IntConstantValue::I8(value))
+                }
+                IntTy::Int(SIntTy::I16) => {
+                    let value = i16::from_str_radix(chars, radix)?;
+                    Ok(IntConstantValue::I16(value))
+                }
+                IntTy::Int(SIntTy::I32) => {
+                    let value = i32::from_str_radix(chars, radix)?;
+                    Ok(IntConstantValue::I32(value))
+                }
+                IntTy::Int(SIntTy::I64) => {
+                    let value = i64::from_str_radix(chars, radix)?;
+                    Ok(IntConstantValue::I64(value))
+                }
+                IntTy::Int(SIntTy::I128) => {
+                    let value = i128::from_str_radix(chars, radix)?;
+                    Ok(IntConstantValue::I128(value))
+                }
+                IntTy::UInt(UIntTy::U8) => {
+                    let value = u8::from_str_radix(chars, radix)?;
+                    Ok(IntConstantValue::U8(value))
+                }
+                IntTy::UInt(UIntTy::U16) => {
+                    let value = u16::from_str_radix(chars, radix)?;
+                    Ok(IntConstantValue::U16(value))
+                }
+                IntTy::UInt(UIntTy::U32) => {
+                    let value = u32::from_str_radix(chars, radix)?;
+                    Ok(IntConstantValue::U32(value))
+                }
+                IntTy::UInt(UIntTy::U64) => {
+                    let value = u64::from_str_radix(chars, radix)?;
+                    Ok(IntConstantValue::U64(value))
+                }
+                IntTy::UInt(UIntTy::U128) => {
+                    let value = u128::from_str_radix(chars, radix)?;
+                    Ok(IntConstantValue::U128(value))
+                }
+
+                IntTy::Int(SIntTy::IBig) | IntTy::UInt(UIntTy::UBig) => {
+                    let value = BigInt::parse_bytes(chars.as_bytes(), radix).unwrap();
+                    Ok(IntConstantValue::Big(Box::new(value)))
+                }
+
+                // We don't directly deal with usizes/isizes since we just normalised them.
+                _ => unreachable!(),
+            }
+        } else {
+            // If the type is not provided, then we try parse the type as a big-int and then
+            // we try and shrink it into an `i32` since this is the default type. If this is
+            // not successful, then the integer remains as a big-int which will likely be
+            // converted to a `usize` or `isize` later on.
+            let value = BigInt::parse_bytes(chars.as_bytes(), radix).unwrap();
+
+            if let Some(value) = value.to_i32() {
+                Ok(IntConstantValue::I32(value))
+            } else {
+                Ok(IntConstantValue::Big(Box::new(value)))
+            }
+        }
+    }
+
     /// Function to create an integer constant from characters and
     /// a specific radix.
     fn create_int_const(
@@ -398,28 +479,36 @@ impl<'a> Lexer<'a> {
         chars: &str,
         radix: u32,
         suffix: Option<Identifier>,
+        start_pos: usize,
     ) -> TokenKind {
-        // ##Safety: this can't fail since the radix is validated by the parsing, and
-        //   we will always have at least one character in `chars`...
-        //
-        // @@Future: do this ourselves
-        let parsed = BigInt::from_str_radix(chars, radix).unwrap();
-
-        // We need to create a interned constant here...
-        let ty: IntTy = match (suffix.unwrap_or(IDENTS.i32)).try_into() {
+        // If we have a suffix, then we immediately try and parse it as a type.
+        let ty = suffix.map(|suffix| match suffix.try_into() {
             Ok(ty) => ty,
             Err(_) => {
                 self.emit_error(
                     None,
-                    LexerErrorKind::InvalidLitSuffix(NumericLitKind::Integer, suffix.unwrap()),
+                    LexerErrorKind::InvalidLitSuffix(NumericLitKind::Integer, suffix),
                     Span::new(self.offset.get(), self.offset.get()),
                 );
+
                 IntTy::Int(SIntTy::I32)
             }
-        };
+        });
 
-        let constant = IntConstant::from_big_int(parsed, ty, suffix);
-        let interned = CONSTANT_MAP.create_int_constant(constant);
+        // Based on the type, we then parse the contents as a specific type.
+        let value = self.parse_int_value(chars, radix, ty).unwrap_or_else(|_| {
+            self.emit_error(
+                None,
+                LexerErrorKind::MalformedNumericalLit,
+                Span::new(start_pos, self.offset.get()),
+            );
+
+            // It doesn't matter what we return here since we will terminate on the
+            // next lex anyway.
+            IntConstantValue::I32(0)
+        });
+
+        let interned = CONSTANT_MAP.create_int_constant(IntConstant { value, suffix });
         TokenKind::IntLit(interned)
     }
 
@@ -488,7 +577,7 @@ impl<'a> Lexer<'a> {
                         Span::new(start, self.offset.get()),
                     );
                 } else {
-                    return self.create_int_const(chars.as_str(), radix, suffix);
+                    return self.create_int_const(chars.as_str(), radix, suffix, start);
                 }
             }
         }
@@ -546,7 +635,7 @@ impl<'a> Lexer<'a> {
                         }
                     }
                 } else {
-                    self.create_int_const(pre_digits.as_str(), 10, suffix)
+                    self.create_int_const(pre_digits.as_str(), 10, suffix, start)
                 }
             }
         }

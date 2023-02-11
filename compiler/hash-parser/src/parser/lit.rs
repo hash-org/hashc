@@ -49,7 +49,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     }
 
                     let (ty, suffix) =
-                        CONSTANT_MAP.map_int_constant(value, |val| (val.ty, val.suffix));
+                        CONSTANT_MAP.map_int_constant(value, |val| (val.ty(), val.suffix));
 
                     // Despite the fact that we always know the type, we still want to preserve
                     // information about whether this constant had a specified
@@ -70,7 +70,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     }
 
                     let (ty, suffix) =
-                        CONSTANT_MAP.map_float_constant(value, |val| (val.ty, val.suffix));
+                        CONSTANT_MAP.map_float_constant(value, |val| (val.ty(), val.suffix));
 
                     if suffix.is_some() {
                         Lit::Float(FloatLit { value, kind: FloatLitKind::Suffixed(ty) })
