@@ -353,14 +353,6 @@ impl<'tc> ResolutionPass<'tc> {
                     "Found merge type after discovery"
                 )
             }
-            ast::Ty::Set(_) | ast::Ty::Map(_) => {
-                // @@Todo
-                panic_on_span!(
-                    self.node_location(node),
-                    self.source_map(),
-                    "Sets and maps not implemented yet"
-                )
-            }
         };
 
         self.ast_info().tys().insert(node.id(), ty_id);

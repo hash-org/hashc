@@ -32,8 +32,6 @@ pub enum Keyword {
     Impl,
     Type,
     TypeOf,
-    Map,
-    Set,
 }
 
 /// Enum Variants for keywords

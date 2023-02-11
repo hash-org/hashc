@@ -139,14 +139,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 let ty = self.parse_ty()?;
                 self.node_with_joined_span(Expr::Ty(TyExpr { ty }), token.span)
             }
-            TokenKind::Keyword(Keyword::Set) => {
-                let lit = self.parse_set_lit()?;
-                self.node_with_joined_span(Expr::Lit(LitExpr { data: lit }), token.span)
-            }
-            TokenKind::Keyword(Keyword::Map) => {
-                let lit = self.parse_map_lit()?;
-                self.node_with_joined_span(Expr::Lit(LitExpr { data: lit }), token.span)
-            }
             TokenKind::Keyword(Keyword::Impl)
                 if self.peek().map_or(false, |tok| !tok.is_brace_tree()) =>
             {

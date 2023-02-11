@@ -2,7 +2,7 @@
 //! logic that transforms tokens into an AST.
 use hash_ast::ast::*;
 use hash_source::{constant::CONSTANT_MAP, location::Span};
-use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
+use hash_token::{keyword::Keyword, Token, TokenKind, TokenKindVector};
 
 use super::AstGen;
 use crate::diagnostics::error::{ParseErrorKind, ParseResult};
@@ -82,49 +82,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             },
             token.span,
         ))
-    }
-
-    /// Parse a single map entry in a literal.
-    pub(crate) fn parse_map_entry(&mut self) -> ParseResult<AstNode<MapLitEntry>> {
-        let start = self.current_location();
-
-        let key = self.parse_expr_with_precedence(0)?;
-        self.parse_token(TokenKind::Colon)?;
-        let value = self.parse_expr_with_precedence(0)?;
-
-        Ok(self.node_with_joined_span(MapLitEntry { key, value }, start))
-    }
-
-    /// Parse a map literal which is made of braces with an arbitrary number of
-    /// fields separated by commas.
-    pub(crate) fn parse_map_lit(&mut self) -> ParseResult<AstNode<Lit>> {
-        debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Map)));
-
-        let start = self.current_location();
-        let mut gen = self.parse_delim_tree(Delimiter::Brace, None)?;
-
-        let elements =
-            gen.parse_separated_fn(|g| g.parse_map_entry(), |g| g.parse_token(TokenKind::Comma));
-        self.consume_gen(gen);
-
-        Ok(self.node_with_joined_span(Lit::Map(MapLit { elements }), start))
-    }
-
-    /// Parse a set literal which is made of braces with an arbitrary number of
-    /// fields separated by commas.
-    pub(crate) fn parse_set_lit(&mut self) -> ParseResult<AstNode<Lit>> {
-        debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Set)));
-
-        let start = self.current_location();
-        let mut gen = self.parse_delim_tree(Delimiter::Brace, None)?;
-
-        let elements = gen.parse_separated_fn(
-            |g| g.parse_expr_with_precedence(0),
-            |g| g.parse_token(TokenKind::Comma),
-        );
-        self.consume_gen(gen);
-
-        Ok(self.node_with_joined_span(Lit::Set(SetLit { elements }), start))
     }
 
     /// Function to parse a [TupleLitEntry] with a name or parse a parenthesised
