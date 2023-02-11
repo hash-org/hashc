@@ -227,9 +227,21 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         args: &mut Vec<Builder::Value>,
         arg_abi: &ArgAbi,
     ) {
-        // We don't need to do anything if the argument is ignored.
-        if arg_abi.is_ignored() {
-            return;
+        match arg_abi.mode {
+            // We don't need to do anything if the argument is ignored.
+            PassMode::Ignore => return,
+
+            // If it's a pair, we just push the args and return since we don't need
+            // do anything special for.
+            PassMode::Pair(_, _) => match arg.value {
+                OperandValue::Pair(a, b) => {
+                    args.push(a);
+                    args.push(b);
+                    return;
+                }
+                _ => unreachable!("invalid pair value for argument"),
+            },
+            _ => {}
         }
 
         // Despite something being an immediate value, if it is passed
@@ -246,7 +258,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                     let abi_alignment =
                         builder.map_layout(arg_abi.info.layout, |layout| layout.alignment.abi);
 
-                    (arg.immediate_value(), abi_alignment, false)
+                    (arg.immediate_or_scalar_pair(builder), abi_alignment, false)
                 }
             },
             OperandValue::Ref(value, alignment) => {

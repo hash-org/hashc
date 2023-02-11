@@ -635,7 +635,10 @@ impl<'l> LayoutWriter<'l> {
         // If the layout is a `ZST`, then we just return a single box
         // with the layout, and a `<ZST>` label
         if layout.is_zst() {
-            boxes.push(BoxContent::new("<ZST>".to_string(), singular_box_content()));
+            boxes.push(BoxContent::new(
+                format!("<ZST>: {}", ty.for_fmt(self.ctx.ir_ctx())),
+                singular_box_content(),
+            ));
             return boxes;
         }
 
