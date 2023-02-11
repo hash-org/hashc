@@ -248,7 +248,7 @@ impl IntConstantValue {
     /// Attempt to convert the given value into a [u128] provided that the
     /// value itself is not [`IntConstantValue::Big`]. If the value is a
     /// big integer, then [`None`] is returned.
-    pub fn as_u128(self) -> Option<u128> {
+    pub fn as_u128(&self) -> Option<u128> {
         match self {
             Self::I8(inner) => {
                 let inner = inner.to_be_bytes();
@@ -278,11 +278,11 @@ impl IntConstantValue {
 
             // For unsigned values, its fine to just cast them since we're
             // zero extending them anyways...
-            Self::U8(inner) => Some(inner as u128),
-            Self::U16(inner) => Some(inner as u128),
-            Self::U32(inner) => Some(inner as u128),
-            Self::U64(inner) => Some(inner as u128),
-            Self::U128(inner) => Some(inner),
+            Self::U8(inner) => Some(*inner as u128),
+            Self::U16(inner) => Some(*inner as u128),
+            Self::U32(inner) => Some(*inner as u128),
+            Self::U64(inner) => Some(*inner as u128),
+            Self::U128(inner) => Some(*inner),
             Self::Big(_) => None,
         }
     }
@@ -455,58 +455,6 @@ impl IntConstant {
         };
 
         Self { value, suffix: None }
-    }
-
-    /// Get the bytes of a constant value assuming that it is
-    /// a primitive integer type.
-    ///
-    /// N.B. This returns bytes in Big Endian order.
-    pub fn bytes_be(&self) -> [u8; 16] {
-        match self.value {
-            IntConstantValue::I8(v) => {
-                let mut data = [0; 16];
-                data[15] = v as u8;
-                data
-            }
-            IntConstantValue::I16(v) => {
-                let mut data = [0; 16];
-                data[14..16].copy_from_slice(&v.to_be_bytes());
-                data
-            }
-            IntConstantValue::I32(v) => {
-                let mut data = [0; 16];
-                data[12..16].copy_from_slice(&v.to_be_bytes());
-                data
-            }
-            IntConstantValue::I64(v) => {
-                let mut data = [0; 16];
-                data[8..16].copy_from_slice(&v.to_be_bytes());
-                data
-            }
-            IntConstantValue::I128(v) => v.to_be_bytes(),
-            IntConstantValue::U8(v) => {
-                let mut data = [0; 16];
-                data[15] = v;
-                data
-            }
-            IntConstantValue::U16(v) => {
-                let mut data = [0; 16];
-                data[14..16].copy_from_slice(&v.to_be_bytes());
-                data
-            }
-            IntConstantValue::U32(v) => {
-                let mut data = [0; 16];
-                data[12..16].copy_from_slice(&v.to_be_bytes());
-                data
-            }
-            IntConstantValue::U64(v) => {
-                let mut data = [0; 16];
-                data[8..16].copy_from_slice(&v.to_be_bytes());
-                data
-            }
-            IntConstantValue::U128(v) => v.to_be_bytes(),
-            IntConstantValue::Big(_) => unreachable!(),
-        }
     }
 
     /// Compute the [IntTy] of the constant.

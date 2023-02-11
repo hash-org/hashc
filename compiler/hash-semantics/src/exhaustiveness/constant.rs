@@ -31,8 +31,8 @@ impl Constant {
     pub fn from_int(constant: InternedInt, ty: TermId) -> Self {
         // Get the associated bytes with the interned-int so we can convert
         // into a constant.
-        let data = CONSTANT_MAP.lookup_int_constant(constant).bytes_be();
-        Constant { data: u128::from_be_bytes(data), ty }
+        let data = CONSTANT_MAP.lookup_int_constant(constant).value.as_u128().unwrap();
+        Constant { data, ty }
     }
 
     /// Get the data stored within the [Constant].
