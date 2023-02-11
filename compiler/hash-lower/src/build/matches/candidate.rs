@@ -359,8 +359,8 @@ impl<'tcx> Builder<'tcx> {
                 }
                 // The simplification that can occur here is if both the prefix and the
                 // suffix are empty, then we can perform some simplifications.
-                Pat::List(list_pat) => {
-                    let (prefix, suffix, rest) = list_pat.into_parts(self.tcx);
+                Pat::Array(array_pat) => {
+                    let (prefix, suffix, rest) = array_pat.into_parts(self.tcx);
 
                     if prefix.is_empty() && suffix.is_empty() && rest.is_some() {
                         let ty = self.ty_of_pat(pair.pat);

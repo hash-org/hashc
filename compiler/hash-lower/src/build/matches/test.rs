@@ -228,7 +228,7 @@ impl<'tcx> Builder<'tcx> {
                     kind: TestKind::Range { range: ConstRange::from_range(range_pat, self) },
                     span,
                 },
-                Pat::List(list_pat) => {
+                Pat::Array(list_pat) => {
                     let (prefix, suffix, rest) = list_pat.into_parts(self.tcx);
 
                     let len = prefix.len() + suffix.len();
@@ -373,7 +373,7 @@ impl<'tcx> Builder<'tcx> {
             }
             (TestKind::SwitchInt { .. }, _) => None,
 
-            (TestKind::Len { len: test_len, op: BinOp::Eq }, Pat::List(list_pat)) => {
+            (TestKind::Len { len: test_len, op: BinOp::Eq }, Pat::Array(list_pat)) => {
                 let (prefix, suffix, rest) = list_pat.into_parts(self.tcx);
                 let pat_len = prefix.len() + suffix.len();
                 let ty = self.ty_of_pat(pair.pat);
@@ -399,7 +399,7 @@ impl<'tcx> Builder<'tcx> {
                     (Ordering::Greater, None) => Some(1),
                 }
             }
-            (TestKind::Len { len: test_len, op: BinOp::GtEq }, Pat::List(list_pat)) => {
+            (TestKind::Len { len: test_len, op: BinOp::GtEq }, Pat::Array(list_pat)) => {
                 let (prefix, suffix, rest) = list_pat.into_parts(self.tcx);
                 let pat_len = prefix.len() + suffix.len();
 
@@ -867,7 +867,7 @@ impl<'tcx> Builder<'tcx> {
                 | Pat::Tuple(_)
                 | Pat::Mod(_)
                 | Pat::Constructor(_)
-                | Pat::List(_)
+                | Pat::Array(_)
                 | Pat::Spread(_)
                 | Pat::Or(_)
                 | Pat::If(_)

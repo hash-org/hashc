@@ -46,7 +46,7 @@ pub fn create_core_defs_in(global_storage: &GlobalStorage) {
     let _u8_ty = builder.create_opaque_struct_def(IDENTS.u8);
     let _u16_ty = builder.create_opaque_struct_def(IDENTS.u16);
     let _u32_ty = builder.create_opaque_struct_def(IDENTS.u32);
-    let u64_ty = builder.create_opaque_struct_def(IDENTS.u64);
+    let _u64_ty = builder.create_opaque_struct_def(IDENTS.u64);
     let _usize_ty = builder.create_opaque_struct_def(IDENTS.usize);
     let _ubig_ty = builder.create_opaque_struct_def(IDENTS.ubig);
 
@@ -118,58 +118,6 @@ pub fn create_core_defs_in(global_storage: &GlobalStorage) {
     );
 
     // @@Incomplete: these traits should take ref self, not self.
-
-    // Hash and Eq traits
-    let hash_trt = builder.create_trt_def(
-        Some(IDENTS.Hash),
-        builder.create_scope(
-            ScopeKind::Trait,
-            [
-                Member::uninitialised_constant(IDENTS.Self_i, Visibility::Public, sized_ty_term),
-                Member::uninitialised_constant(
-                    IDENTS.hash,
-                    Visibility::Public,
-                    builder.create_fn_ty_term(
-                        Some(IDENTS.hash),
-                        builder.create_params(
-                            [builder.create_param(
-                                IDENTS.value,
-                                builder.create_var_term(IDENTS.Self_i),
-                            )],
-                            ParamOrigin::Fn,
-                        ),
-                        builder.create_nominal_def_term(u64_ty),
-                    ),
-                ),
-            ],
-        ),
-    );
-    let eq_trt = builder.create_trt_def(
-        Some(IDENTS.Eq),
-        builder.create_scope(
-            ScopeKind::Trait,
-            [
-                Member::uninitialised_constant(IDENTS.Self_i, Visibility::Public, sized_ty_term),
-                Member::uninitialised_constant(
-                    IDENTS.eq,
-                    Visibility::Public,
-                    builder.create_fn_ty_term(
-                        Some(IDENTS.eq),
-                        builder.create_params(
-                            [
-                                builder
-                                    .create_param(IDENTS.a, builder.create_var_term(IDENTS.Self_i)),
-                                builder
-                                    .create_param(IDENTS.b, builder.create_var_term(IDENTS.Self_i)),
-                            ],
-                            ParamOrigin::Fn,
-                        ),
-                        builder.create_nominal_def_term(u64_ty),
-                    ),
-                ),
-            ],
-        ),
-    );
 
     // Index trait
     let index_trt = builder.create_trt_def(
@@ -291,40 +239,5 @@ pub fn create_core_defs_in(global_storage: &GlobalStorage) {
             builder.create_nominal_def_term(builder.create_nameless_opaque_struct_def()),
             builder.create_mod_def_term(list_index_impl),
         ]),
-    );
-
-    let _set_ty_fn = builder.create_ty_fn_term(
-        Some(IDENTS.Set),
-        builder.create_params(
-            [builder.create_param(
-                IDENTS.T,
-                builder.create_merge_term([
-                    builder.create_trt_term(hash_trt),
-                    builder.create_trt_term(eq_trt),
-                ]),
-            )],
-            ParamOrigin::TyFn,
-        ),
-        sized_ty_term,
-        builder.create_nominal_def_term(builder.create_nameless_opaque_struct_def()),
-    );
-
-    let _map_ty_fn = builder.create_ty_fn_term(
-        Some(IDENTS.Map),
-        builder.create_params(
-            [
-                builder.create_param(
-                    IDENTS.K,
-                    builder.create_merge_term([
-                        builder.create_trt_term(hash_trt),
-                        builder.create_trt_term(eq_trt),
-                    ]),
-                ),
-                builder.create_param(IDENTS.V, sized_ty_term),
-            ],
-            ParamOrigin::TyFn,
-        ),
-        sized_ty_term,
-        builder.create_nominal_def_term(builder.create_nameless_opaque_struct_def()),
     );
 }

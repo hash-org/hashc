@@ -273,7 +273,7 @@ impl From<CodeModel> for CodeModelWrapper {
     }
 }
 
-/// A wrapper type to convert the generic [RelocationMode] into the
+/// A wrapper type to convert the generic [RelocationModel] into the
 /// [inkwell::targets::RelocMode] equivalent type.
 pub struct RelocationModeWrapper(pub inkwell::targets::RelocMode);
 

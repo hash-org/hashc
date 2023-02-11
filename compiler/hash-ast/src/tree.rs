@@ -33,42 +33,13 @@ impl AstVisitor for AstTreeGenerator {
         walk::walk_lit_same_children(self, node)
     }
 
-    type MapLitRet = TreeNode;
-    fn visit_map_lit(
+    type ArrayLitRet = TreeNode;
+    fn visit_array_lit(
         &self,
-        node: ast::AstNodeRef<ast::MapLit>,
-    ) -> Result<Self::MapLitRet, Self::Error> {
-        Ok(TreeNode::branch("map", walk::walk_map_lit(self, node)?.elements))
-    }
-
-    type MapLitEntryRet = TreeNode;
-    fn visit_map_lit_entry(
-        &self,
-        node: ast::AstNodeRef<ast::MapLitEntry>,
-    ) -> Result<Self::MapLitEntryRet, Self::Error> {
-        let walk::MapLitEntry { key, value } = walk::walk_map_lit_entry(self, node)?;
-        Ok(TreeNode::branch(
-            "entry",
-            vec![TreeNode::branch("key", vec![key]), TreeNode::branch("value", vec![value])],
-        ))
-    }
-
-    type ListLitRet = TreeNode;
-    fn visit_list_lit(
-        &self,
-        node: ast::AstNodeRef<ast::ListLit>,
-    ) -> Result<Self::ListLitRet, Self::Error> {
-        let children = walk::walk_list_lit(self, node)?;
-        Ok(TreeNode::branch("list", children.elements))
-    }
-
-    type SetLitRet = TreeNode;
-    fn visit_set_lit(
-        &self,
-        node: ast::AstNodeRef<ast::SetLit>,
-    ) -> Result<Self::SetLitRet, Self::Error> {
-        let children = walk::walk_set_lit(self, node)?;
-        Ok(TreeNode::branch("set", children.elements))
+        node: ast::AstNodeRef<ast::ArrayLit>,
+    ) -> Result<Self::ArrayLitRet, Self::Error> {
+        let children = walk::walk_array_lit(self, node)?;
+        Ok(TreeNode::branch("array", children.elements))
     }
 
     type TupleLitEntryRet = TreeNode;
@@ -365,14 +336,19 @@ impl AstVisitor for AstTreeGenerator {
         Ok(TreeNode::branch("tuple", entries))
     }
 
-    type ListTyRet = TreeNode;
-    fn visit_list_ty(
+    type ArrayTyRet = TreeNode;
+    fn visit_array_ty(
         &self,
-        node: ast::AstNodeRef<ast::ListTy>,
-    ) -> Result<Self::TupleTyRet, Self::Error> {
-        let walk::ListTy { inner } = walk::walk_list_ty(self, node)?;
+        node: ast::AstNodeRef<ast::ArrayTy>,
+    ) -> Result<Self::ArrayTyRet, Self::Error> {
+        let walk::ArrayTy { inner, len } = walk::walk_array_ty(self, node)?;
 
-        Ok(TreeNode::branch("list", vec![inner]))
+        Ok(TreeNode::branch(
+            "array",
+            iter::once(TreeNode::branch("element", vec![inner]))
+                .chain(len.map(|inner| TreeNode::branch("length", vec![inner])))
+                .collect(),
+        ))
     }
 
     type TyArgRet = TreeNode;
@@ -999,12 +975,12 @@ impl AstVisitor for AstTreeGenerator {
         Ok(TreeNode::branch("tuple", fields))
     }
 
-    type ListPatRet = TreeNode;
-    fn visit_list_pat(
+    type ArrayPatRet = TreeNode;
+    fn visit_array_pat(
         &self,
-        node: ast::AstNodeRef<ast::ListPat>,
+        node: ast::AstNodeRef<ast::ArrayPat>,
     ) -> Result<Self::TuplePatRet, Self::Error> {
-        let walk::ListPat { mut fields, spread } = walk::walk_list_pat(self, node)?;
+        let walk::ArrayPat { mut fields, spread } = walk::walk_array_pat(self, node)?;
 
         // If the pattern contains a spread, place it in the position that it
         // was specified in the source.

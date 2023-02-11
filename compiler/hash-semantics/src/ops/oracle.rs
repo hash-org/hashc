@@ -1,6 +1,5 @@
 //! Functionality related to determining properties about terms and other
 //! constructs.
-use hash_ast::ast::ParamOrigin;
 use hash_source::{
     constant::{FloatTy, IntTy, SIntTy, UIntTy},
     identifier::Identifier,
@@ -123,19 +122,8 @@ impl<'tc> Oracle<'tc> {
     }
 
     /// If the term is a list type, returns its inner type.
-    pub fn term_as_list_ty(&self, term: TermId) -> Option<TermId> {
-        let list_inner_ty = self.builder().create_unresolved_term();
-        let builder = self.builder();
-
-        let list_ty = builder.create_app_ty_fn_term(
-            self.core_defs().list_ty_fn(),
-            builder.create_args(
-                [builder.create_nameless_arg(builder.create_unresolved_term())],
-                ParamOrigin::TyFn,
-            ),
-        );
-        let sub = self.unifier().unify_terms(list_ty, term).ok()?;
-        Some(self.substituter().apply_sub_to_term(&sub, list_inner_ty))
+    pub fn term_as_list_ty(&self, _term: TermId) -> Option<TermId> {
+        None
     }
 
     /// If the term is a [Level1Term::Tuple], return it.

@@ -149,13 +149,13 @@ pub struct PatForFormatting<'tc, T> {
 
 /// Convenience trait to create a `ForFormatting<T>` given a `T`.
 pub trait PreparePatForFormatting: Sized {
-    /// Create a [PatForFormatting<T>] given a `T`.
+    /// Create a [`PatForFormatting<T>`] given a `T`.
     fn for_formatting(self, storage: StorageRef<'_>) -> PatForFormatting<Self> {
         PatForFormatting { item: self, storage, opts: TcFormatOpts::default() }
     }
 
-    /// Create a [PatForFormatting<T>] given a `T`, and provide an out parameter
-    /// for the `is_atomic` check.
+    /// Create a [`PatForFormatting<T>`] given a `T`, and provide an out
+    /// parameter for the `is_atomic` check.
     fn pat_for_formatting_with_opts(
         self,
         storage: StorageRef<'_>,

@@ -21,7 +21,7 @@ use crate::{
     },
 };
 
-/// A [PlaceRef] is the equivalent of an IR [Place], but within the code
+/// A [PlaceRef] is the equivalent of an IR [ir::Place], but within the code
 /// generation context. The place holds a value that is backend dependent, type,
 /// layout, and alignment information
 #[derive(Debug, Clone, Copy)]
@@ -301,14 +301,14 @@ impl<'a, 'b, V: CodeGenObject> PlaceRef<V> {
 }
 
 impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
-    /// Compute the type and layout of a [Place]. This deals with
-    /// all projections that occur on the [Place].
+    /// Compute the type and layout of a [ir::Place]. This deals with
+    /// all projections that occur on the [ir::Place].
     pub fn compute_place_ty_info(&self, builder: &mut Builder, place: ir::Place) -> TyInfo {
         let place_ty = PlaceTy::from_place(place, &self.body.declarations, self.ctx.ir_ctx());
         builder.layout_of(place_ty.ty)
     }
 
-    /// Emit backend specific code for handling a [Place].
+    /// Emit backend specific code for handling a [ir::Place].
     ///
     /// This function will return a [PlaceRef] which can be used to
     /// store a value into the place which can be used by the called

@@ -16,7 +16,7 @@ use crate::{
         data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
         environment::env::{AccessToEnv, Env, WithEnv},
         fns::{FnBody, FnCallTerm, FnDefData, FnDefId, FnTy},
-        lits::{ListCtor, ListPat, PrimTerm},
+        lits::{ArrayPat, ListCtor, PrimTerm},
         mods::{ModDefId, ModMemberId, ModMemberValue},
         params::{ParamData, ParamsId},
         pats::{Pat, PatId, PatListId},
@@ -102,9 +102,9 @@ impl<'env> TraversingUtils<'env> {
                 }
                 Term::Prim(prim_term) => match prim_term {
                     PrimTerm::Lit(lit) => Ok(self.new_term(Term::Prim(PrimTerm::Lit(lit)))),
-                    PrimTerm::List(list_ctor) => {
+                    PrimTerm::Array(list_ctor) => {
                         let elements = self.fmap_term_list(list_ctor.elements, f)?;
-                        Ok(self.new_term(Term::Prim(PrimTerm::List(ListCtor { elements }))))
+                        Ok(self.new_term(Term::Prim(PrimTerm::Array(ListCtor { elements }))))
                     }
                 },
                 Term::Ctor(ctor_term) => {
@@ -271,9 +271,9 @@ impl<'env> TraversingUtils<'env> {
                     let data = self.fmap_pat_args(tuple_pat.data, f)?;
                     Ok(self.new_pat(TuplePat { data_spread: tuple_pat.data_spread, data }))
                 }
-                Pat::List(list_pat) => {
+                Pat::Array(list_pat) => {
                     let pats = self.fmap_pat_list(list_pat.pats, f)?;
-                    Ok(self.new_pat(ListPat { spread: list_pat.spread, pats }))
+                    Ok(self.new_pat(ArrayPat { spread: list_pat.spread, pats }))
                 }
                 Pat::Ctor(ctor_pat) => {
                     let data_args = self.fmap_args(ctor_pat.data_args, f)?;
@@ -411,7 +411,7 @@ impl<'env> TraversingUtils<'env> {
                 Term::Tuple(tuple_term) => self.visit_args(tuple_term.data, f),
                 Term::Prim(prim_term) => match prim_term {
                     PrimTerm::Lit(_) => Ok(()),
-                    PrimTerm::List(list_ctor) => self.visit_term_list(list_ctor.elements, f),
+                    PrimTerm::Array(list_ctor) => self.visit_term_list(list_ctor.elements, f),
                 },
                 Term::Ctor(ctor_term) => {
                     self.visit_args(ctor_term.data_args, f)?;
@@ -493,7 +493,7 @@ impl<'env> TraversingUtils<'env> {
             ControlFlow::Continue(()) => match self.get_pat(pat_id) {
                 Pat::Binding(_) | Pat::Range(_) | Pat::Lit(_) => Ok(()),
                 Pat::Tuple(tuple_pat) => self.visit_pat_args(tuple_pat.data, f),
-                Pat::List(list_pat) => self.visit_pat_list(list_pat.pats, f),
+                Pat::Array(list_pat) => self.visit_pat_list(list_pat.pats, f),
                 Pat::Ctor(ctor_pat) => {
                     self.visit_args(ctor_pat.data_args, f)?;
                     self.visit_pat_args(ctor_pat.ctor_pat_args, f)
@@ -646,7 +646,7 @@ impl<'env> TraversingUtils<'env> {
                     // Nothing to do
                     Ok(())
                 }
-                PrimitiveCtorInfo::List(list_ctor_info) => {
+                PrimitiveCtorInfo::Array(list_ctor_info) => {
                     // Traverse the inner type
                     self.visit_ty(list_ctor_info.element_ty, f)?;
                     Ok(())

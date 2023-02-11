@@ -54,7 +54,7 @@ impl<Ctx: ParserCtxQuery> CompilerStage<Ctx> for Parser {
     }
 
     /// Entry point of the parser. Initialises a job from the specified
-    /// `entry_point`, and calls [Self::begin].
+    /// `entry_point`.
     fn run(
         &mut self,
         entry_point: SourceId,

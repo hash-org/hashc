@@ -16,7 +16,7 @@ use hash_tir::{
         },
         environment::context::{BindingKind, ParamOrigin, ScopeKind},
         fns::{FnBody, FnCallTerm, FnDefId, FnTy},
-        lits::{ListCtor, ListPat, Lit, PrimTerm},
+        lits::{ArrayPat, ListCtor, Lit, PrimTerm},
         locations::LocationTarget,
         mods::{ModDefId, ModMemberId, ModMemberValue},
         params::{Param, ParamData, ParamsId},
@@ -416,7 +416,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     ) -> TcResult<(PrimTerm, TyId)> {
         match term {
             PrimTerm::Lit(lit_term) => Ok((*term, self.infer_lit(lit_term, annotation_ty)?.1)),
-            PrimTerm::List(list_term) => {
+            PrimTerm::Array(list_term) => {
                 let normalised_ty = self.normalise_and_check_ty(annotation_ty)?;
                 let list_annotation_inner_ty = match self.get_ty(normalised_ty) {
                     Ty::Data(data) if data.data_def == self.primitives().list() => {
@@ -446,7 +446,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     data_def: self.primitives().list(),
                     args: self.new_args(&[self.new_term(inferred_list_inner_ty)]),
                 });
-                Ok((PrimTerm::List(ListCtor { elements: inferred_list }), list_ty))
+                Ok((PrimTerm::Array(ListCtor { elements: inferred_list }), list_ty))
             }
         }
     }
@@ -1317,10 +1317,10 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     /// Infer a list pattern
     pub fn infer_list_pat(
         &self,
-        list_pat: &ListPat,
+        list_pat: &ArrayPat,
         annotation_ty: TyId,
         original_pat_id: PatId,
-    ) -> TcResult<(ListPat, DataTy)> {
+    ) -> TcResult<(ArrayPat, DataTy)> {
         let normalised_ty = self.normalise_and_check_ty(annotation_ty)?;
         let list_annotation_inner_ty = match self.get_ty(normalised_ty) {
             Ty::Data(data) if data.data_def == self.primitives().list() => {
@@ -1350,7 +1350,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             data_def: self.primitives().list(),
             args: self.new_args(&[self.new_term(inferred_list_inner_ty)]),
         };
-        Ok((ListPat { pats: inferred_list, spread: list_pat.spread }, list_ty))
+        Ok((ArrayPat { pats: inferred_list, spread: list_pat.spread }, list_ty))
     }
 
     /// Infer a constructor pattern
@@ -1435,7 +1435,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 annotation_ty,
                 pat_id,
             )?),
-            Pat::List(list_term) => self.generalise_pat_and_ty_inference(self.infer_list_pat(
+            Pat::Array(list_term) => self.generalise_pat_and_ty_inference(self.infer_list_pat(
                 &list_term,
                 annotation_ty,
                 pat_id,
@@ -1509,13 +1509,13 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                         // Nothing to do
                         Ok(())
                     }
-                    PrimitiveCtorInfo::List(list_ctor_info) => {
+                    PrimitiveCtorInfo::Array(array_ctor_info) => {
                         // Infer the inner type
                         let element_ty =
-                            self.infer_ty(list_ctor_info.element_ty, self.new_ty_hole())?.0;
+                            self.infer_ty(array_ctor_info.element_ty, self.new_ty_hole())?.0;
                         self.stores().data_def().modify_fast(data_def_id, |def| {
                             def.ctors =
-                                DataDefCtors::Primitive(PrimitiveCtorInfo::List(ListCtorInfo {
+                                DataDefCtors::Primitive(PrimitiveCtorInfo::Array(ListCtorInfo {
                                     element_ty,
                                 }));
                         });

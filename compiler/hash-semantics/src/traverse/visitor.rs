@@ -434,20 +434,14 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
         self.validate_and_register_simplified_term(node, term)
     }
 
-    type ListTyRet = TermId;
+    type ArrayTyRet = TermId;
 
-    fn visit_list_ty(&self, node: AstNodeRef<ast::ListTy>) -> Result<Self::ListTyRet, Self::Error> {
-        let walk::ListTy { inner } = walk::walk_list_ty(self, node)?;
-
-        let inner_ty = self.core_defs().list_ty_fn();
-        let builder = self.builder();
-
-        let term = builder.create_app_ty_fn_term(
-            inner_ty,
-            builder.create_args([builder.create_arg("T", inner)], ParamOrigin::TyFn),
-        );
-
-        self.validate_and_register_simplified_term(node, term)
+    fn visit_array_ty(
+        &self,
+        node: AstNodeRef<ast::ArrayTy>,
+    ) -> Result<Self::ArrayTyRet, Self::Error> {
+        let walk::ArrayTy { .. } = walk::walk_array_ty(self, node)?;
+        todo!()
     }
 
     type OrPatRet = PatId;
@@ -540,26 +534,14 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
         Ok(tuple_pat)
     }
 
-    type ListLitRet = TermId;
+    type ArrayLitRet = TermId;
 
-    fn visit_list_lit(
+    fn visit_array_lit(
         &self,
-        node: AstNodeRef<ast::ListLit>,
-    ) -> Result<Self::ListLitRet, Self::Error> {
-        let walk::ListLit { elements } = walk::walk_list_lit(self, node)?;
-
-        let list_inner_ty = self.core_defs().list_ty_fn();
-        let element_ty = self.unifier().unify_rt_term_sequence(elements)?;
-
-        let builder = self.builder();
-        let list_ty = builder.create_app_ty_fn_term(
-            list_inner_ty,
-            builder.create_args([builder.create_arg("T", element_ty)], ParamOrigin::TyFn),
-        );
-
-        let term = builder.create_rt_term(list_ty);
-        self.register_node_info_and_location(node, term);
-        Ok(term)
+        node: AstNodeRef<ast::ArrayLit>,
+    ) -> Result<Self::ArrayLitRet, Self::Error> {
+        let walk::ArrayLit { .. } = walk::walk_array_lit(self, node)?;
+        todo!()
     }
 
     type TyExprRet = TermId;
@@ -748,13 +730,13 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
         Ok(self.builder().create_pat_arg(name, pat))
     }
 
-    type ListPatRet = PatId;
+    type ArrayPatRet = PatId;
 
-    fn visit_list_pat(
+    fn visit_array_pat(
         &self,
-        node: AstNodeRef<ast::ListPat>,
-    ) -> Result<Self::ListPatRet, Self::Error> {
-        let walk::ListPat { mut fields, spread } = walk::walk_list_pat(self, node)?;
+        node: AstNodeRef<ast::ArrayPat>,
+    ) -> Result<Self::ArrayPatRet, Self::Error> {
+        let walk::ArrayPat { mut fields, spread } = walk::walk_array_pat(self, node)?;
 
         // We need to collect all of the terms within the inner pattern, but we need
         // have a special case for `spread patterns` because they will return `[term]`
@@ -775,7 +757,7 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
 
         let members = self.builder().create_pat_args(
             fields.into_iter().map(|pat| PatArg { name: None, pat }),
-            ParamOrigin::ListPat,
+            ParamOrigin::ArrayPat,
         );
 
         let list_pat = self.builder().create_list_pat(list_term, members);
@@ -1246,30 +1228,6 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
         Ok(pat)
     }
 
-    type MapLitRet = TermId;
-
-    fn visit_map_lit(&self, node: AstNodeRef<ast::MapLit>) -> Result<Self::MapLitRet, Self::Error> {
-        let walk::MapLit { elements } = walk::walk_map_lit(self, node)?;
-        let map_inner_ty = self.core_defs().map_ty_fn();
-
-        // Unify the key and value types...
-        let key_ty = self.unifier().unify_rt_term_sequence(elements.iter().map(|(k, _)| *k))?;
-        let val_ty = self.unifier().unify_rt_term_sequence(elements.iter().map(|(v, _)| *v))?;
-
-        let builder = self.builder();
-        let map_ty = builder.create_app_ty_fn_term(
-            map_inner_ty,
-            builder.create_args(
-                [builder.create_arg("K", key_ty), builder.create_arg("V", val_ty)],
-                ParamOrigin::TyFn,
-            ),
-        );
-
-        let term = builder.create_rt_term(map_ty);
-        self.register_node_info_and_location(node, term);
-        Ok(term)
-    }
-
     type ConstructorCallExprRet = TermId;
 
     fn visit_constructor_call_expr(
@@ -1330,25 +1288,6 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
             AccessKind::Namespace => Ok(AccessOp::Namespace),
             AccessKind::Property => Ok(AccessOp::Property),
         }
-    }
-
-    type SetLitRet = TermId;
-
-    fn visit_set_lit(&self, node: AstNodeRef<ast::SetLit>) -> Result<Self::SetLitRet, Self::Error> {
-        let walk::SetLit { elements } = walk::walk_set_lit(self, node)?;
-
-        let set_inner_ty = self.core_defs().set_ty_fn();
-        let element_ty = self.unifier().unify_rt_term_sequence(elements)?;
-
-        let builder = self.builder();
-        let set_ty = builder.create_app_ty_fn_term(
-            set_inner_ty,
-            builder.create_args([builder.create_arg("T", element_ty)], ParamOrigin::TyFn),
-        );
-
-        let term = builder.create_rt_term(set_ty);
-        self.register_node_info_and_location(node, term);
-        Ok(term)
     }
 
     type ForLoopBlockRet = TermId;
@@ -2109,17 +2048,6 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
         let term = self.builder().create_rt_term(inner_ty);
 
         self.validate_and_register_simplified_term(node, term)
-    }
-
-    type MapLitEntryRet = (TermId, TermId);
-
-    fn visit_map_lit_entry(
-        &self,
-        node: AstNodeRef<ast::MapLitEntry>,
-    ) -> Result<Self::MapLitEntryRet, Self::Error> {
-        let walk::MapLitEntry { key, value } = walk::walk_map_lit_entry(self, node)?;
-
-        Ok((key, value))
     }
 
     type SpreadPatRet = PatId;

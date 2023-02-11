@@ -1,6 +1,6 @@
 //! Implementation for lowering [ast::Expr]s into Hash IR. This module contains
 //! the core logic of converting expressions into IR, other auxiliary conversion
-//! `strategies` can be found in [crate::build::rvalue] and
+//! `strategies` can be found in [`crate::build::rvalue`] and
 //! [crate::build::temp].
 
 use hash_ast::ast;
@@ -256,10 +256,9 @@ impl<'tcx> Builder<'tcx> {
 
             ast::Expr::Lit(literal) => {
                 // We lower primitive (integrals, strings, etc) literals as constants, and
-                // other literals like `sets`, `maps`, `lists`, and `tuples` as aggregates.
+                // other literal arrays and tuples as aggregates.
                 match literal.data.body() {
-                    ast::Lit::Map(_) | ast::Lit::Set(_) => unimplemented!(),
-                    ast::Lit::List(ast::ListLit { elements }) => {
+                    ast::Lit::Array(ast::ArrayLit { elements }) => {
                         let ty = self.ty_id_of_node(expr.id());
                         let el_ty = self.ctx.map_ty(ty, |ty| match ty {
                             IrTy::Slice(ty) | IrTy::Array { ty, .. } => *ty,

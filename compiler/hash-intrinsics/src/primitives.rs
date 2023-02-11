@@ -147,7 +147,7 @@ impl DefinedPrimitives {
                     default: None,
                 }));
                 env.data_utils().create_primitive_data_def_with_params(list_sym, params, |_| {
-                    PrimitiveCtorInfo::List(ListCtorInfo { element_ty: env.new_var_ty(t_sym) })
+                    PrimitiveCtorInfo::Array(ListCtorInfo { element_ty: env.new_var_ty(t_sym) })
                 })
             },
 

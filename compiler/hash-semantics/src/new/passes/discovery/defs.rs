@@ -454,7 +454,7 @@ impl<'tc> DiscoveryPass<'tc> {
                     self.add_stack_members_in_pat_to_buf(field.pat.ast_ref(), buf);
                 }
             }
-            ast::Pat::List(ast::ListPat { fields, spread }) => {
+            ast::Pat::Array(ast::ArrayPat { fields, spread }) => {
                 for (index, field) in fields.ast_ref_iter().enumerate() {
                     if let Some(spread_node) = &spread && spread_node.position == index {
                         register_spread_pat(spread_node, buf);

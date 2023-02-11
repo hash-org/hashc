@@ -6,7 +6,7 @@
 //! 1. Since the layout printer is only a shallow printer, an improvement could
 //! be made to print the layout of the types that are nested within the type,
 //! and possibly exploring the nested structure:
-//! ```ignore
+//! ```notrust
 //! struct Item (
 //!    item: ( #layout_of (y: i32, x: i32), z: [i32; 3]
 //!     ...
@@ -204,10 +204,10 @@ impl BoxContent {
     /// +-----------------+
     /// ```
     ///
-    /// Calling [`BoxContent::num_lines()`] on the above box will return
+    /// Calling [`BoxContent::height`] on the above box will return
     /// `4`.
     ///
-    /// N.B. Additionally, calling [`BoxContent::num_lines`] on a box
+    /// N.B. Additionally, calling [`BoxContent::height`] on a box
     /// that is [`BoxContent::Pad`] is not valid since the box is not
     /// sized, as it's size is dependant on all other box sizes. The
     /// minimum size of a [`BoxContent::Pad`] is `1`. For example:

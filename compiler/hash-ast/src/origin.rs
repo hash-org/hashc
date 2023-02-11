@@ -68,7 +68,7 @@ pub enum PatOrigin {
     Constructor,
 
     /// The parent pattern is a list, i.e `[1, 2, 3, ...]`
-    List,
+    Array,
 
     /// The parent pattern is a namespace, i.e `{ alloc, core }`
     Namespace,
@@ -82,7 +82,7 @@ impl PatOrigin {
             PatOrigin::Tuple => "tuple",
             PatOrigin::NamedField => "named field",
             PatOrigin::Constructor => "constructor",
-            PatOrigin::List => "list",
+            PatOrigin::Array => "array",
             PatOrigin::Namespace => "namespace",
         }
     }

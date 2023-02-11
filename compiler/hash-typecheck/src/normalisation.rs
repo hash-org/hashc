@@ -226,7 +226,7 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
                 return Ok(self.get_param_in_args(ctor.ctor_args, access_term.field))
             }
             Term::Prim(prim) => match prim {
-                PrimTerm::List(list) => {
+                PrimTerm::Array(list) => {
                     return Ok(self.get_index_in_list(list.elements, access_term.field))
                 }
                 PrimTerm::Lit(_) => {}
@@ -274,7 +274,7 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
                     Term::Ctor(ctor) => {
                         self.set_param_in_args(ctor.ctor_args, field, assign_term.value.into())
                     }
-                    Term::Prim(PrimTerm::List(list)) => {
+                    Term::Prim(PrimTerm::Array(list)) => {
                         self.set_index_in_list(list.elements, field, assign_term.value.into())
                     }
                     _ => panic!("Invalid access"),
@@ -796,7 +796,7 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
                         )),
                     _ => Ok(MatchResult::Stuck),
                 },
-                PrimTerm::List(_) => Ok(MatchResult::Stuck),
+                PrimTerm::Array(_) => Ok(MatchResult::Stuck),
             },
             (_, Pat::Range(_)) => Ok(MatchResult::Stuck),
 
@@ -814,16 +814,16 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
                     }
                     _ => Ok(MatchResult::Stuck),
                 },
-                PrimTerm::List(_) => Ok(MatchResult::Stuck),
+                PrimTerm::Array(_) => Ok(MatchResult::Stuck),
             },
             // Lists
-            (Term::Prim(prim_term), Pat::List(list_pat)) => match prim_term {
-                PrimTerm::List(list_term) => self.match_some_list_and_get_binds(
+            (Term::Prim(prim_term), Pat::Array(list_pat)) => match prim_term {
+                PrimTerm::Array(list_term) => self.match_some_list_and_get_binds(
                     list_term.elements.len(),
                     list_pat.spread,
                     |_| {
                         // Lists can have spreads, which return sublists
-                        self.new_term(PrimTerm::List(ListCtor {
+                        self.new_term(PrimTerm::Array(ListCtor {
                             elements: self.extract_spread_list(list_term.elements, list_pat.pats),
                         }))
                     },
@@ -834,7 +834,7 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
                 PrimTerm::Lit(_) => Ok(MatchResult::Stuck),
             },
             (_, Pat::Lit(_)) => Ok(MatchResult::Stuck),
-            (_, Pat::List(_)) => Ok(MatchResult::Stuck),
+            (_, Pat::Array(_)) => Ok(MatchResult::Stuck),
         }
     }
 }

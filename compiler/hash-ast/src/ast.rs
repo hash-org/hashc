@@ -398,12 +398,16 @@ define_tree! {
         pub entries: Children!(TyArg),
     }
 
-    /// The list type, , e.g. `{str}`.
+    /// Array type, , e.g. `[T]`, `[T; N]`.
     #[derive(Debug, PartialEq, Clone)]
     #[node]
-    pub struct ListTy {
-        /// Inner type of the list
+    pub struct ArrayTy {
+        /// Inner type of the array
         pub inner: Child!(Ty),
+
+        /// An optional expression that denotes the length of the array
+        /// as a constant.
+        pub len: OptionalChild!(Expr),
     }
 
     /// The function type.
@@ -484,39 +488,40 @@ define_tree! {
     pub enum Ty {
         /// Access type, access the property of some inner type
         Access(AccessTy),
+
         /// Tuple type
         Tuple(TupleTy),
-        /// list type
-        List(ListTy),
+
+        /// Array type
+        Array(ArrayTy),
+
         /// Function type
         Fn(FnTy),
+
         /// Named type, similar to a binding
         Named(NamedTy),
+
         /// Reference type, the reference type of the inner type
         Ref(RefTy),
+
         /// Merge type, the intersection of two types
         Merge(MergeTy),
+
         /// Union type, the union of two types
         Union(UnionTy),
+
         /// Type function type
         TyFn(TyFn),
+
         /// Type function call
         TyFnCall(TyFnCall),
     }
 
-    /// A set literal, e.g. `{1, 2, 3}`.
+    /// An array literal, e.g. `[1, 2, 3]`.
     #[derive(Debug, PartialEq, Clone)]
     #[node]
-    pub struct SetLit {
-        /// The elements of the set literal.
-        pub elements: Children!(Expr),
-    }
-
-    /// A list literal, e.g. `[1, 2, 3]`.
-    #[derive(Debug, PartialEq, Clone)]
-    #[node]
-    pub struct ListLit {
-        /// The elements of the list literal.
+    pub struct ArrayLit {
+        /// The elements of the array literal.
         pub elements: Children!(Expr),
     }
 
@@ -545,24 +550,6 @@ define_tree! {
     pub struct TupleLit {
         /// The elements of the tuple literal.
         pub elements: Children!(TupleLitEntry),
-    }
-
-    /// A map literal entry, e.g. `"foo": 1`.
-    #[derive(Debug, PartialEq, Clone)]
-    #[node]
-    pub struct MapLitEntry {
-        /// The key of the map entry
-        pub key: Child!(Expr),
-        /// The value of the map entry
-        pub value: Child!(Expr),
-    }
-
-    /// A map literal, e.g. `{"foo": 1, "bar": 2}`.
-    #[derive(Debug, PartialEq, Clone)]
-    #[node]
-    pub struct MapLit {
-        /// The elements of the map literal (key-value pairs).
-        pub elements: Children!(MapLitEntry),
     }
 
     /// A string literal.
@@ -666,12 +653,8 @@ define_tree! {
         Float(FloatLit),
         /// Boolean literals e.g. `false`
         Bool(BoolLit),
-        /// Map literals, e.g. `set! { 3, 4 }`
-        Set(SetLit),
-        /// Map literals, e.g. `map! { x: 3, y: 4 }`
-        Map(MapLit),
-        /// List literals, e.g. `[1, 2, x + 4]`
-        List(ListLit),
+        /// Array literals, e.g. `[1, 2, x + 4]`
+        Array(ArrayLit),
         /// Tuple literals, e.g. `(1, a, 3)`
         Tuple(TupleLit),
     }
@@ -689,19 +672,15 @@ define_tree! {
                 }
             };
 
-            // Recurse over the literals for `set`, `map` and `tuple to see if they are
+            // Recurse over the literals for `tuple` and `array` literals to see if they are
             // constant.
             match self {
-                Lit::List(ListLit { elements }) | Lit::Set(SetLit { elements }) => {
+                Lit::Array(ArrayLit { elements }) => {
                     !elements.iter().any(|expr| !is_expr_lit_and_const(expr))
                 }
                 Lit::Tuple(TupleLit { elements }) => {
                     !elements.iter().any(|entry| !is_expr_lit_and_const(&entry.body().value))
                 }
-                Lit::Map(MapLit { elements }) => !elements.iter().any(|entry| {
-                    !is_expr_lit_and_const(&entry.body().key)
-                        || !is_expr_lit_and_const(&entry.body().value)
-                }),
                 _ => true,
             }
         }
@@ -800,10 +779,10 @@ define_tree! {
         }
     }
 
-    /// A list pattern, e.g. `[x, 1, ..]`
+    /// A array pattern, e.g. `[x, 1, ..]`
     #[derive(Debug, PartialEq, Clone)]
     #[node]
-    pub struct ListPat {
+    pub struct ArrayPat {
         pub fields: Children!(Pat),
 
         /// If there is a spread argument in the tuple pattern.
@@ -900,32 +879,42 @@ define_tree! {
         /// another pattern. This is used to denote namespace accesses like
         /// `a::b::c`
         Access(AccessPat),
+
         /// A simple binding pattern, assign some value to the name of the pattern
         Binding(BindingPat),
+
         /// A representation of a constructor in the pattern space. Constructors in
         /// patterns can either be enum or struct values. The subject of the
         /// constructor can be either an [Pat::Access] or a [Pat::Binding].
         Constructor(ConstructorPat),
+
         /// Module pattern is used to destructure entries from an import.
         Module(ModulePat),
+
         /// A tuple pattern is a collection of patterns, e.g `(1, x, 'c')`
         Tuple(TuplePat),
-        /// A list pattern, which is a collection of patterns, including spread and
-        /// matches a list e.g `[x, 2, y]`
-        List(ListPat),
+
+        /// An array pattern, which is a collection of patterns, including spread and
+        /// matches an array e.g `[x, 2, y]`
+        Array(ArrayPat),
+
         /// A literal pattern e.g. `c`
         ///
         /// @@Note: `tuple`, `map`, and `set` literal cannot appear within this
         /// branch
         Lit(LitPat),
+
         /// An `or` pattern which groups multiple patterns and matches one of the
         /// provided patterns e.g. `a | b | c`
         Or(OrPat),
+
         /// A pattern that is guarded by an if statement, e.g. `x if x > 5`
         If(IfPat),
+
         /// Wildcard pattern, similar to a binding but it is not bound
         /// to any member.
         Wild(WildPat),
+
         /// A range pattern which represents an open or closed range of primitives
         /// e.g. `'a'..'z'`, `3..27`... etc
         Range(RangePat),
@@ -1559,28 +1548,38 @@ define_tree! {
         /// If at the current time, it's not known the origin of the parameter list,
         /// the function will default to using this.
         Unknown,
+
         /// Parameters came from a tuple
         Tuple,
+
         /// Parameters came from a struct
         Struct,
+
         /// Parameters came from a function definition
         Fn,
+
         /// Parameters came from a function call
         FnCall,
+
         /// Parameters came from a type function definition
         TyFn,
+
         /// Parameters came from a type function call
         TyFnCall,
+
         /// Parameters came from an enum variant initialisation
         EnumVariant,
-        /// List pattern parameters, the parameters are all the same, but it's
-        /// used to represent the inner terms of the list pattern since spread
+
+        /// Array pattern parameters, the parameters are all the same, but it's
+        /// used to represent the inner terms of the array pattern since spread
         /// patterns may become named parameters.
-        ListPat,
+        ArrayPat,
+
         /// Module pattern
         ModulePat,
+
         /// Constructor pattern, although this is likely to be erased into a
-        /// [ParamOrigin::Struct] or [ParamOrigin::EnumVariant] when inspected.
+        /// [`ParamOrigin::Struct`] or [`ParamOrigin::EnumVariant`] when inspected.
         ConstructorPat,
     }
 
@@ -1596,7 +1595,7 @@ define_tree! {
                 ParamOrigin::Fn | ParamOrigin::TyFn => "parameter",
                 ParamOrigin::FnCall | ParamOrigin::TyFnCall => "argument",
                 ParamOrigin::EnumVariant => "field",
-                ParamOrigin::ListPat => "element",
+                ParamOrigin::ArrayPat => "element",
                 ParamOrigin::ModulePat => "field",
                 ParamOrigin::ConstructorPat => "field",
             }
@@ -1612,7 +1611,7 @@ define_tree! {
                 ParamOrigin::Fn | ParamOrigin::FnCall => write!(f, "function"),
                 ParamOrigin::TyFn | ParamOrigin::TyFnCall => write!(f, "type function"),
                 ParamOrigin::EnumVariant => write!(f, "enum variant"),
-                ParamOrigin::ListPat => write!(f, "list pattern"),
+                ParamOrigin::ArrayPat => write!(f, "list pattern"),
                 ParamOrigin::ModulePat => write!(f, "module pattern"),
                 ParamOrigin::ConstructorPat => write!(f, "constructor pattern"),
             }

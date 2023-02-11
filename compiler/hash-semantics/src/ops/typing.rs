@@ -6,7 +6,7 @@ use hash_tir::{
     mods::ModDefOrigin,
     nominals::{NominalDef, StructFields},
     params::{AccessOp, Param, ParamsId},
-    pats::{AccessPat, ConstPat, ListPat, Pat, PatArgsId, PatId, RangePat},
+    pats::{AccessPat, ArrayPat, ConstPat, Pat, PatArgsId, PatId, RangePat},
     scope::Member,
     terms::{
         ConstructedTerm, Level0Term, Level1Term, Level2Term, Level3Term, LitTerm, Term, TermId,
@@ -433,11 +433,11 @@ impl<'tc> Typer<'tc> {
                 let args_id = self.infer_args_of_pat_args(constructor_pat.args)?;
                 Ok(self.builder().create_constructed_term(constructor_pat.subject, args_id))
             }
-            Pat::List(ListPat { list_element_ty, .. }) => {
+            Pat::Array(ArrayPat { list_element_ty, .. }) => {
                 // @@Future: use a list literal term instead
                 //
                 // We want to create a `List<T = term>` as the type of the pattern
-                let list_inner_ty = self.core_defs().list_ty_fn();
+                let list_inner_ty = self.core_defs().array_ty();
                 let builder = self.builder();
 
                 let list_ty = builder.create_app_ty_fn_term(
@@ -449,7 +449,7 @@ impl<'tc> Typer<'tc> {
                 Ok(builder.create_rt_term(list_ty))
             }
             Pat::Spread(_) => {
-                let list_inner_ty = self.core_defs().list_ty_fn();
+                let list_inner_ty = self.core_defs().array_ty();
                 let builder = self.builder();
 
                 // Since we don't know what the type of the inner term... we leave it as

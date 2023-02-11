@@ -79,14 +79,14 @@ pub struct ConstructorPat {
 
 /// A list pattern
 #[derive(Clone, Debug, Copy)]
-pub struct ListPat {
+pub struct ArrayPat {
     /// The element type of the list
     pub list_element_ty: TermId,
     /// Patterns for the list elements
     pub element_pats: PatArgsId,
 }
 
-impl ListPat {
+impl ArrayPat {
     /// Split the pattern into the `prefix`, `suffix` and an optional;
     /// `rest` pattern.
     pub fn into_parts(&self, tcx: &GlobalStorage) -> (Vec<PatId>, Vec<PatId>, Option<PatId>) {
@@ -175,7 +175,7 @@ pub enum Pat {
     /// Constructor pattern.
     Constructor(ConstructorPat),
     /// List pattern
-    List(ListPat),
+    Array(ArrayPat),
     /// Spread pattern, which represents a pattern that captures a range of
     /// items within a list pattern
     Spread(SpreadPat),
@@ -330,7 +330,7 @@ impl fmt::Display for ForFormatting<'_, PatId> {
                     Ok(())
                 })
             }
-            Pat::List(ListPat { element_pats: inner, .. }) => {
+            Pat::Array(ArrayPat { element_pats: inner, .. }) => {
                 write!(f, "[{}]", inner.for_formatting(self.global_storage))
             }
             Pat::Spread(SpreadPat { name }) => {

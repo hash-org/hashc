@@ -36,11 +36,11 @@ pub struct BackendCtx<'b> {
     pub _pool: &'b rayon::ThreadPool,
 }
 
-/// The [Backend] trait specifies the required interface that needs
+/// The [CompilerBackend] trait specifies the required interface that needs
 /// to be implemented by a backend in order to interface with the
 /// pipeline.
 pub trait CompilerBackend<'b> {
-    /// The [Backend::run] method is called by the pipeline to
+    /// The [`CompilerBackend::run`] method is called by the pipeline to
     /// generate code for the specified source file. This method
     /// may return a potential error which implies that something
     /// went wrong during the code generation process, and it should

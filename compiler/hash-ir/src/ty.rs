@@ -852,7 +852,7 @@ create_common_ty_table!(
 
 /// Stores all the used [IrTy]s.
 ///
-/// [Rvalue]s are accessed by an ID, of type [IrTyId].
+/// [RValue]s are accessed by an ID, of type [IrTyId].
 pub struct TyStore {
     /// The map that relates [IrTyId]s to the underlying
     /// [IrTy]s.
