@@ -25,7 +25,7 @@ use hash_tir::{
         scopes::{AssignTerm, BlockTerm, DeclTerm},
         terms::{Term, TermId, UnsafeTerm},
         tuples::TupleTerm,
-        tys::Ty,
+        tys::{Ty, TypeOfTerm},
         utils::{common::CommonUtils, AccessToUtils},
     },
     term_as_variant,
@@ -446,17 +446,18 @@ impl<'tc> ResolutionPass<'tc> {
         let pat = self.try_or_add_error(self.make_pat_from_ast_pat(node.pat.ast_ref()));
 
         // Inner expression:
-        let value = node
-            .value
-            .as_ref()
-            .map(|v| self.try_or_add_error(self.make_term_from_ast_expr(v.ast_ref())));
+        let value = match node.value.as_ref() {
+            Some(value) => {
+                self.try_or_add_error(self.make_term_from_ast_expr(value.ast_ref()).map(Some))
+            }
+            None => Some(None),
+        };
 
         // Type annotation:
-        let ty = node
-            .ty
-            .as_ref()
-            .map(|ty| self.try_or_add_error(self.make_ty_from_ast_ty(ty.ast_ref())))
-            .unwrap_or_else(|| Some(self.new_ty_hole()));
+        let ty = match node.ty.as_ref() {
+            Some(ty) => self.try_or_add_error(self.make_ty_from_ast_ty(ty.ast_ref())),
+            None => Some(self.new_ty_hole()),
+        };
 
         match (pat, ty, value) {
             (Some(pat), Some(ty), Some(value)) => {
@@ -891,9 +892,17 @@ impl<'tc> ResolutionPass<'tc> {
     /// Make a term from an [`ast::UnaryExpr`].
     fn make_term_from_ast_unary_expr(
         &self,
-        _node: AstNodeRef<ast::UnaryExpr>,
+        node: AstNodeRef<ast::UnaryExpr>,
     ) -> SemanticResult<TermId> {
-        // @@Todo: deal with operators
-        todo!()
+        match node.operator.body() {
+            ast::UnOp::TypeOf => {
+                let inner = self.make_term_from_ast_expr(node.expr.ast_ref())?;
+                Ok(self.new_term(TypeOfTerm { term: inner }))
+            }
+            ast::UnOp::BitNot | ast::UnOp::Not | ast::UnOp::Neg => {
+                // @@Todo: deal with operators
+                todo!()
+            }
+        }
     }
 }

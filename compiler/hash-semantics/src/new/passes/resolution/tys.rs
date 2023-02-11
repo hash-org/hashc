@@ -227,10 +227,16 @@ impl<'tc> ResolutionPass<'tc> {
 
     /// Make a type from the given [`ast::TupleTy`].
     fn make_ty_from_ast_tuple_ty(&self, node: AstNodeRef<ast::TupleTy>) -> SemanticResult<TyId> {
-        self.scoping().enter_tuple_ty(node, |mut tuple_ty| {
-            tuple_ty.data = self.resolve_params_from_ast_ty_args(&node.entries, tuple_ty.into())?;
-            Ok(self.new_ty(tuple_ty))
-        })
+        if node.entries.len() == 1 && node.entries[0].name.is_none() {
+            // We treat this as a single type
+            self.make_ty_from_ast_ty(node.entries[0].ty.ast_ref())
+        } else {
+            self.scoping().enter_tuple_ty(node, |mut tuple_ty| {
+                tuple_ty.data =
+                    self.resolve_params_from_ast_ty_args(&node.entries, tuple_ty.into())?;
+                Ok(self.new_ty(tuple_ty))
+            })
+        }
     }
 
     /// Make a type from the given [`ast::ArrayTy`].
@@ -328,6 +334,24 @@ impl<'tc> ResolutionPass<'tc> {
         })
     }
 
+    /// Make a type from the given [`ast::MergeTy`] and assign it to the node in
+    /// the AST info store.
+    ///
+    /// We use merge types to represent propositional equality.
+    pub(super) fn make_ty_from_merge_ty(
+        &self,
+        node: AstNodeRef<ast::MergeTy>,
+    ) -> SemanticResult<TyId> {
+        let lhs = self.make_ty_from_ast_ty(node.lhs.ast_ref())?;
+        let rhs = self.make_ty_from_ast_ty(node.rhs.ast_ref())?;
+        let args = self.param_utils().create_positional_args(vec![
+            self.new_term(self.new_ty_hole()),
+            self.use_ty_as_term(lhs),
+            self.use_ty_as_term(rhs),
+        ]);
+        Ok(self.new_ty(DataTy { data_def: self.primitives().equal(), args }))
+    }
+
     /// Make a type from the given [`ast::Ty`] and assign it to the node in
     /// the AST info store.
     ///
@@ -347,12 +371,12 @@ impl<'tc> ResolutionPass<'tc> {
             ast::Ty::Ref(ref_ty) => self.make_ty_from_ref_ty(node.with_body(ref_ty))?,
             ast::Ty::Fn(fn_ty) => self.make_ty_from_ast_fn_ty(node.with_body(fn_ty))?,
             ast::Ty::TyFn(ty_fn_ty) => self.make_ty_from_ast_ty_fn_ty(node.with_body(ty_fn_ty))?,
-            ast::Ty::Union(_) | ast::Ty::Merge(_) => {
-                // @@Todo: actually catch this at discovery, these are currently not supported.
+            ast::Ty::Merge(merge_ty) => self.make_ty_from_merge_ty(node.with_body(merge_ty))?,
+            ast::Ty::Union(_) => {
                 panic_on_span!(
                     self.node_location(node),
                     self.source_map(),
-                    "Found merge type after discovery"
+                    "Found union type after discovery"
                 )
             }
         };

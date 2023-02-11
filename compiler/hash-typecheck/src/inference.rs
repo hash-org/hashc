@@ -368,39 +368,87 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     /// Infer the type of a literal.
     pub fn infer_lit(&self, lit: &Lit, annotation_ty: TyId) -> TcResult<(Lit, TyId)> {
         let inferred_ty = self.new_data_ty(match lit {
-            Lit::Int(int_lit) => match int_lit.underlying.kind {
-                IntLitKind::Suffixed(suffix) => match suffix {
-                    IntTy::Int(s_int_ty) => match s_int_ty {
-                        SIntTy::I8 => self.primitives().i8(),
-                        SIntTy::I16 => self.primitives().i16(),
-                        SIntTy::I32 => self.primitives().i32(),
-                        SIntTy::I64 => self.primitives().i64(),
-                        SIntTy::I128 => self.primitives().i128(),
-                        SIntTy::ISize => self.primitives().isize(),
-                        SIntTy::IBig => self.primitives().ibig(),
+            Lit::Int(int_lit) => {
+                match int_lit.underlying.kind {
+                    IntLitKind::Suffixed(suffix) => match suffix {
+                        IntTy::Int(s_int_ty) => match s_int_ty {
+                            SIntTy::I8 => self.primitives().i8(),
+                            SIntTy::I16 => self.primitives().i16(),
+                            SIntTy::I32 => self.primitives().i32(),
+                            SIntTy::I64 => self.primitives().i64(),
+                            SIntTy::I128 => self.primitives().i128(),
+                            SIntTy::ISize => self.primitives().isize(),
+                            SIntTy::IBig => self.primitives().ibig(),
+                        },
+                        IntTy::UInt(u_int_ty) => match u_int_ty {
+                            UIntTy::U8 => self.primitives().u8(),
+                            UIntTy::U16 => self.primitives().u16(),
+                            UIntTy::U32 => self.primitives().u32(),
+                            UIntTy::U64 => self.primitives().u64(),
+                            UIntTy::U128 => self.primitives().u128(),
+                            UIntTy::USize => self.primitives().usize(),
+                            UIntTy::UBig => self.primitives().ubig(),
+                        },
                     },
-                    IntTy::UInt(u_int_ty) => match u_int_ty {
-                        UIntTy::U8 => self.primitives().u8(),
-                        UIntTy::U16 => self.primitives().u16(),
-                        UIntTy::U32 => self.primitives().u32(),
-                        UIntTy::U64 => self.primitives().u64(),
-                        UIntTy::U128 => self.primitives().u128(),
-                        UIntTy::USize => self.primitives().usize(),
-                        UIntTy::UBig => self.primitives().ubig(),
-                    },
-                },
-                // By default, we assume that all integers are i32 unless annotated otherwise.
-                IntLitKind::Unsuffixed => self.primitives().i32(),
-            },
+                    _ => {
+                        let normalised_annotation_ty =
+                            self.normalise_and_check_ty(annotation_ty)?;
+                        (match self.get_ty(normalised_annotation_ty) {
+                            Ty::Data(data_ty) => match self.get_data_def(data_ty.data_def).ctors {
+                                DataDefCtors::Primitive(primitive_ctors) => match primitive_ctors {
+                                    PrimitiveCtorInfo::Numeric(numeric) => {
+                                        let value = int_lit.value();
+                                        // If the value is not compatible with the numeric type,
+                                        // then
+                                        // return `None` and the unification will fail.
+                                        if numeric.is_float
+                                            || (!numeric.is_signed && value < 0.into())
+                                        {
+                                            None
+                                        } else {
+                                            Some(data_ty.data_def)
+                                        }
+                                    }
+                                    _ => None,
+                                },
+                                DataDefCtors::Defined(_) => None,
+                            },
+                            _ => None,
+                        })
+                        .unwrap_or_else(|| self.primitives().i32())
+                    }
+                }
+            }
             Lit::Str(_) => self.primitives().str(),
             Lit::Char(_) => self.primitives().char(),
-            Lit::Float(float) => match float.underlying.kind {
+            Lit::Float(float_lit) => match float_lit.underlying.kind {
                 FloatLitKind::Suffixed(float_suffix) => match float_suffix {
                     FloatTy::F32 => self.primitives().f32(),
                     FloatTy::F64 => self.primitives().f64(),
                 },
-                // By default, we assume that all floats are f32 unless annotated otherwise.
-                FloatLitKind::Unsuffixed => self.primitives().f32(),
+                FloatLitKind::Unsuffixed => {
+                    let normalised_annotation_ty = self.normalise_and_check_ty(annotation_ty)?;
+                    (match self.get_ty(normalised_annotation_ty) {
+                        Ty::Data(data_ty) => match self.get_data_def(data_ty.data_def).ctors {
+                            DataDefCtors::Primitive(primitive_ctors) => match primitive_ctors {
+                                PrimitiveCtorInfo::Numeric(numeric) => {
+                                    // If the value is not compatible with the numeric type,
+                                    // then
+                                    // return `None` and the unification will fail.
+                                    if !numeric.is_float {
+                                        None
+                                    } else {
+                                        Some(data_ty.data_def)
+                                    }
+                                }
+                                _ => None,
+                            },
+                            DataDefCtors::Defined(_) => None,
+                        },
+                        _ => None,
+                    })
+                    .unwrap_or_else(|| self.primitives().f32())
+                }
             },
         });
 
@@ -1058,12 +1106,14 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         annotation_ty: TyId,
     ) -> TcResult<(DeclTerm, TyId)> {
         let result_decl_term: TcResult<DeclTerm> = try {
+            let decl_term_ty = self.normalise_and_check_ty(decl_term.ty)?;
+
             let (inferred_rhs_value, inferred_ty) = match decl_term.value {
                 Some(value) => {
-                    let (inferred_value, inferred_ty) = self.infer_term(value, decl_term.ty)?;
+                    let (inferred_value, inferred_ty) = self.infer_term(value, decl_term_ty)?;
                     (Some(inferred_value), inferred_ty)
                 }
-                None => (decl_term.value, decl_term.ty),
+                None => (None, decl_term_ty),
             };
 
             let (inferred_lhs_pat, inferred_ty) =

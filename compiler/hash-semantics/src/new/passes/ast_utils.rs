@@ -39,7 +39,7 @@ pub trait AstUtils: AccessToTcEnv {
 
     /// Create a [`Symbol`] for the given [`ast::Name`], or a fresh symbol if no
     /// name is provided.
-    fn new_symbol_from_ast_name(&self, name: &Option<ast::AstNode<ast::Name>>) -> Symbol {
+    fn new_symbol_from_ast_name(&self, name: Option<&ast::AstNode<ast::Name>>) -> Symbol {
         match name {
             Some(name) => self.new_symbol(name.ident),
             None => self.new_fresh_symbol(),

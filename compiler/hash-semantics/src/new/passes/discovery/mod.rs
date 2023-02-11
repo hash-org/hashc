@@ -63,16 +63,6 @@ impl<'tc> DiscoveryPass<'tc> {
         &self.def_state
     }
 
-    /// Create a new symbol from the given optional AST node containing a name.
-    ///
-    /// If the AST node is `None`, a fresh symbol is created.
-    fn create_symbol_from_ast_name(&self, ast_name: &Option<ast::AstNode<ast::Name>>) -> Symbol {
-        match ast_name {
-            Some(ast_name) => self.new_symbol(ast_name.ident),
-            None => self.new_fresh_symbol(),
-        }
-    }
-
     /// Take the currently set name hint, or create a new internal name.
     fn take_name_hint_or_create_internal_name(&self) -> Symbol {
         self.name_hint.take().unwrap_or_else(|| self.new_fresh_symbol())
