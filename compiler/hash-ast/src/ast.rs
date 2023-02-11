@@ -482,6 +482,15 @@ define_tree! {
         }
     }
 
+    /// An expression within a type in the form of `{ <expr> }`
+    /// This is used to allow for expressions within types, e.g. `Result<{ 1 + 2 }, E>`
+    #[derive(Debug, PartialEq, Clone)]
+    #[node]
+    pub struct ExprTy {
+        /// The expression within the type
+        pub expr: Child!(Expr),
+    }
+
     /// A type.
     #[derive(Debug, PartialEq, Clone)]
     #[node]
@@ -515,6 +524,9 @@ define_tree! {
 
         /// Type function call
         TyFnCall(TyFnCall),
+
+        /// An expression within a type in the form of `{ <expr> }`
+        Expr(ExprTy)
     }
 
     /// An array literal, e.g. `[1, 2, 3]`.

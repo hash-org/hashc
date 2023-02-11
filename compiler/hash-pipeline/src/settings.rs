@@ -30,7 +30,7 @@ pub struct CompilerSettings {
     /// N.B. This path is the one that is specified via command-line arguments,
     /// it is not resolved and it is not guaranteed to exist. The resolved
     /// path can be accessed via [`CompilerSettings::output_directory`] API.
-    pub(crate) output_directory: Option<PathBuf>,
+    pub output_directory: Option<PathBuf>,
 
     /// Whether debugging log statements are enabled.
     pub debug: bool,

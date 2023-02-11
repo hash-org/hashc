@@ -91,13 +91,15 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
 
             // Expression in the type.
-            TokenKind::Tree(Delimiter::Brace, _tree_index) => {
+            TokenKind::Tree(Delimiter::Brace, tree_index) => {
                 self.skip_token();
 
-                // @@Todo: add the "expression in a type" variant
-                // let tree = self.token_trees.get(*tree_index as usize).unwrap();
-                // let mutgen = self.from_stream(tree, token.span);
-                todo!()
+                let tree = self.token_trees.get(*tree_index as usize).unwrap();
+                let mut gen = self.from_stream(tree, token.span);
+                let expr = gen.parse_expr_with_precedence(0)?;
+                self.consume_gen(gen);
+
+                Ty::Expr(ExprTy { expr })
             }
 
             // Array type

@@ -2104,4 +2104,10 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
         // applicable:
         Ok(self.coercing().potentially_coerce_as_value(term_id, node))
     }
+
+    type ExprTyRet = TermId;
+
+    fn visit_expr_ty(&self, _: AstNodeRef<ast::ExprTy>) -> Result<Self::ExprTyRet, Self::Error> {
+        todo!()
+    }
 }

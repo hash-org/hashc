@@ -296,6 +296,10 @@ fn handle_test(test: TestingInput) {
     settings.set_emit_errors(false);
     settings.set_stage(test.metadata.stage);
 
+    // We specify that the output directory should be `tests/target` in order to
+    // avoid creating "target" directories within the test runner tree.
+    settings.output_directory = Some(Path::new("./target").to_path_buf());
+
     // We also have to specify the output directory for compiler artifacts to
     // be `tests/target` in order to avoid producing artifacts within the test
     // runner tree.
