@@ -123,7 +123,7 @@ impl<'ir> TyLoweringCtx<'ir> {
                 Level0Term::Lit(lit_term) => match lit_term {
                     LitTerm::Str(_) => IrTy::Str,
                     LitTerm::Int { value } => {
-                        CONSTANT_MAP.map_int_constant(value, |val| val.ty).into()
+                        CONSTANT_MAP.map_int_constant(value, |val| val.ty()).into()
                     }
                     LitTerm::Char(_) => IrTy::Char,
                 },

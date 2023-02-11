@@ -41,8 +41,10 @@ pub enum Const {
 
     /// Character constant
     Char(char),
+
     /// Integer constant that is defined within the program source.
     Int(InternedInt),
+
     /// Float constant that is defined within the program source.
     Float(InternedFloat),
 
@@ -80,11 +82,12 @@ impl Const {
     pub fn from_scalar(value: u128, ty: IrTyId, ctx: &IrCtx) -> Self {
         ctx.map_ty(ty, |ty| match ty {
             IrTy::Int(int_ty) => {
-                let interned_value = IntConstant::from_uint(value, (*int_ty).into());
+                let value = i128::from_be_bytes(value.to_be_bytes()); // @@ByteCast.
+                let interned_value = IntConstant::from_sint(value, *int_ty);
                 Self::Int(CONSTANT_MAP.create_int_constant(interned_value))
             }
             IrTy::UInt(int_ty) => {
-                let interned_value = IntConstant::from_uint(value, (*int_ty).into());
+                let interned_value = IntConstant::from_uint(value, *int_ty);
                 Self::Int(CONSTANT_MAP.create_int_constant(interned_value))
             }
             IrTy::Bool => Self::Bool(value == (true as u128)),
@@ -167,11 +170,10 @@ impl ConstKind {
                 Const::Bool(_) => ctx.tys().common_tys.bool,
                 Const::Char(_) => ctx.tys().common_tys.char,
                 Const::Int(interned_int) => {
-                    CONSTANT_MAP.map_int_constant(*interned_int, |int| int.ty.to_ir_ty(ctx))
+                    CONSTANT_MAP.map_int_constant(*interned_int, |int| int.ty().to_ir_ty(ctx))
                 }
-                Const::Float(interned_float) => {
-                    CONSTANT_MAP.map_float_constant(*interned_float, |float| float.ty.to_ir_ty(ctx))
-                }
+                Const::Float(interned_float) => CONSTANT_MAP
+                    .map_float_constant(*interned_float, |float| float.ty().to_ir_ty(ctx)),
                 Const::Str(_) => ctx.tys().common_tys.str,
             },
             Self::Unevaluated(UnevaluatedConst { .. }) => {

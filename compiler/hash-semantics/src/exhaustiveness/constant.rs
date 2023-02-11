@@ -28,20 +28,10 @@ impl Constant {
     /// Function to convert a [InternedInt] into a [Constant]. The only
     /// constraint is that it can fit into a [u128], otherwise the
     /// function will currently panic.
-    pub fn from_int(value: InternedInt, ty: TermId, ptr_width: usize) -> Self {
-        let kind = CONSTANT_MAP.map_int_constant(value, |value| value.ty);
-        let bytes = kind.size(ptr_width).unwrap().bytes() as usize;
-
+    pub fn from_int(constant: InternedInt, ty: TermId) -> Self {
         // Get the associated bytes with the interned-int so we can convert
         // into a constant.
-        let mut data = CONSTANT_MAP.lookup_int_constant(value).get_bytes();
-
-        // memset the upper 16-kind.size() bytes to zero since they aren't
-        // necessary.
-        if kind.is_signed() {
-            data[0..(16 - bytes)].fill(0);
-        }
-
+        let data = CONSTANT_MAP.lookup_int_constant(constant).bytes_be();
         Constant { data: u128::from_be_bytes(data), ty }
     }
 

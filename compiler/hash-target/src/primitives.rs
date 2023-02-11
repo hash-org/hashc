@@ -139,6 +139,20 @@ impl UIntTy {
     }
 }
 
+impl From<SIntTy> for UIntTy {
+    fn from(value: SIntTy) -> Self {
+        match value {
+            SIntTy::I8 => UIntTy::U8,
+            SIntTy::I16 => UIntTy::U16,
+            SIntTy::I32 => UIntTy::U32,
+            SIntTy::I64 => UIntTy::U64,
+            SIntTy::I128 => UIntTy::U128,
+            SIntTy::ISize => UIntTy::USize,
+            SIntTy::IBig => UIntTy::UBig,
+        }
+    }
+}
+
 impl From<Integer> for UIntTy {
     fn from(value: Integer) -> Self {
         match value {
@@ -266,6 +280,20 @@ impl SIntTy {
     }
 }
 
+impl From<UIntTy> for SIntTy {
+    fn from(value: UIntTy) -> Self {
+        match value {
+            UIntTy::U8 => SIntTy::I8,
+            UIntTy::U16 => SIntTy::I16,
+            UIntTy::U32 => SIntTy::I32,
+            UIntTy::U64 => SIntTy::I64,
+            UIntTy::U128 => SIntTy::I128,
+            UIntTy::USize => SIntTy::ISize,
+            UIntTy::UBig => SIntTy::IBig,
+        }
+    }
+}
+
 impl From<Integer> for SIntTy {
     fn from(value: Integer) -> Self {
         match value {
@@ -358,6 +386,31 @@ impl IntTy {
     /// Check if the type is a [BigInt] variant, i.e. `ibig` or `ubig`.
     pub fn is_big_sized_integral(self) -> bool {
         matches!(self, IntTy::Int(SIntTy::IBig) | IntTy::UInt(UIntTy::UBig))
+    }
+
+    /// Normalise an [IntTy] by removing "usize" and "isize" variants into
+    /// known sized variants.
+    pub fn normalise(self, ptr_width: usize) -> Self {
+        match self {
+            IntTy::Int(ty) => IntTy::Int(ty.normalise(ptr_width)),
+            IntTy::UInt(ty) => IntTy::UInt(ty.normalise(ptr_width)),
+        }
+    }
+
+    /// Convert any [IntTy] into a [UIntTy] variant.
+    pub fn to_unsigned(self) -> UIntTy {
+        match self {
+            IntTy::Int(ty) => ty.into(),
+            IntTy::UInt(ty) => ty,
+        }
+    }
+
+    /// Convert any [IntTy] into a [SIntTy] variant.
+    pub fn to_signed(self) -> SIntTy {
+        match self {
+            IntTy::Int(ty) => ty,
+            IntTy::UInt(ty) => ty.into(),
+        }
     }
 }
 

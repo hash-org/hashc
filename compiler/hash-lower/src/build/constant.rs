@@ -7,9 +7,7 @@ use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Rem, Shl, Shr, Sub};
 use hash_ast::ast;
 use hash_ir::ir::{self, BinOp, Const, ConstKind};
 use hash_reporting::macros::panic_on_span;
-use hash_source::constant::{
-    FloatConstant, FloatConstantValue, IntConstant, IntTy, SIntTy, UIntTy, CONSTANT_MAP,
-};
+use hash_source::constant::{FloatConstant, FloatConstantValue, IntConstant, CONSTANT_MAP};
 
 use super::Builder;
 
@@ -56,43 +54,29 @@ impl<'tcx> Builder<'tcx> {
     pub(crate) fn try_fold_const_op(&mut self, op: BinOp, lhs: Const, rhs: Const) -> Option<Const> {
         // @@Todo: for now we only handle `small` values of integer types, in the
         // future we should also be able to perform folds on `ibig` and `ubig` values.
-        if let Const::Int(interned_lhs) = lhs && let Const::Int(interned_rhs) = rhs &&
-            CONSTANT_MAP.map_int_constant(interned_lhs, |v| v.is_small()) &&
-            CONSTANT_MAP.map_int_constant(interned_rhs, |v| v.is_small())
+        if let Const::Int(interned_lhs) = lhs && let Const::Int(interned_rhs) = rhs
         {
             let lhs_const = CONSTANT_MAP.lookup_int_constant(interned_lhs);
             let rhs_const = CONSTANT_MAP.lookup_int_constant(interned_rhs);
 
             // First we need to coerce the types into the same primitive integer type, we do this 
             // by checking the `suffix` and then coercing both ints into that value
-            return match lhs_const.ty {
-                IntTy::Int(SIntTy::I8) => fold_int_const(op, TryInto::<i8>::try_into(lhs_const).unwrap(), TryInto::<i8>::try_into(rhs_const).unwrap()),
-                IntTy::Int(SIntTy::I16) => fold_int_const(op, TryInto::<i16>::try_into(lhs_const).unwrap(), TryInto::<i16>::try_into(rhs_const).unwrap()),
-                IntTy::Int(SIntTy::I32) => fold_int_const(op, TryInto::<i32>::try_into(lhs_const).unwrap(), TryInto::<i32>::try_into(rhs_const).unwrap()),
-                IntTy::Int(SIntTy::I64) => fold_int_const(op, TryInto::<i64>::try_into(lhs_const).unwrap(), TryInto::<i64>::try_into(rhs_const).unwrap()),
-                IntTy::Int(SIntTy::ISize) => fold_int_const(op, TryInto::<isize>::try_into(lhs_const).unwrap(), TryInto::<isize>::try_into(rhs_const).unwrap()),
-                IntTy::UInt(UIntTy::U8) => fold_int_const(op, TryInto::<u8>::try_into(lhs_const).unwrap(), TryInto::<u8>::try_into(rhs_const).unwrap()),
-                IntTy::UInt(UIntTy::U16) => fold_int_const(op, TryInto::<u16>::try_into(lhs_const).unwrap(), TryInto::<u16>::try_into(rhs_const).unwrap()),
-                IntTy::UInt(UIntTy::U32) => fold_int_const(op, TryInto::<u32>::try_into(lhs_const).unwrap(), TryInto::<u32>::try_into(rhs_const).unwrap()),
-                IntTy::UInt(UIntTy::U64) => fold_int_const(op, TryInto::<u64>::try_into(lhs_const).unwrap(), TryInto::<u64>::try_into(rhs_const).unwrap()),
-                IntTy::UInt(UIntTy::U128) => fold_int_const(op, TryInto::<usize>::try_into(lhs_const).unwrap(), TryInto::<usize>::try_into(rhs_const).unwrap()),
-                _ => unreachable!(),
-            }
+            fold_int_const(op, lhs_const, rhs_const)
         }
 
         // Check if these two operands are floating point numbers
-        if let Const::Float(interned_lhs) = lhs && let Const::Float(interned_rhs) = rhs {
+        else if let Const::Float(interned_lhs) = lhs && let Const::Float(interned_rhs) = rhs {
             let lhs_const = CONSTANT_MAP.lookup_float_constant(interned_lhs);
             let rhs_const = CONSTANT_MAP.lookup_float_constant(interned_rhs);
 
-            return match (lhs_const.value, rhs_const.value) {
+            match (lhs_const.value, rhs_const.value) {
                 (FloatConstantValue::F32(lhs), FloatConstantValue::F32(rhs)) => fold_float_const(op, lhs, rhs),
                 (FloatConstantValue::F64(lhs), FloatConstantValue::F64(rhs)) => fold_float_const(op, lhs, rhs),
                 _ => unreachable!(),
             }
+        } else {
+            None
         }
-
-        None
     }
 }
 

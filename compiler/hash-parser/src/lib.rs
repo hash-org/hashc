@@ -138,8 +138,10 @@ pub enum ParserAction {
     /// A worker has specified that a module should be put in the queue for
     /// lexing and parsing.
     ParseImport { resolved_path: PathBuf, contents: String, sender: Sender<ParserAction> },
+
     /// A unrecoverable error occurred during the parsing or lexing of a module.
     Error(Vec<Report>),
+
     /// A worker has completed processing an interactive block and now provides
     /// the generated AST.
     SetInteractiveNode {
@@ -151,6 +153,7 @@ pub enum ParserAction {
         /// want to propagate this
         diagnostics: Vec<Report>,
     },
+
     /// A worker has completed processing an module and now provides the
     /// generated AST.
     SetModuleNode {
@@ -169,9 +172,15 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
     let source_id = source.id();
     let contents = source.contents();
 
-    // Lex the contents of the module or interactive block
-    let mut lexer = Lexer::new(&contents, source_id);
+    // @@Future: we currently don't support cross compilation, which
+    // means that we can assume that the target is the same as the host.
+    // This means we don't have to care about the target pointer width. If
+    // we were to cross compile, this would need to have access to the
+    // target pointer width.
+    let ptr_byte_width = std::mem::size_of::<usize>();
 
+    // Lex the contents of the module or interactive block
+    let mut lexer = Lexer::new(&contents, source_id, ptr_byte_width);
     let tokens = lexer.tokenise();
 
     // Check if the lexer has errors...

@@ -67,7 +67,7 @@ impl<'tcx> Builder<'tcx> {
         self.tcx.term_store.map_fast(term, |ty| match ty {
             Term::Level0(Level0Term::Lit(LitTerm::Int { value })) => CONSTANT_MAP
                 .map_int_constant(*value, |val| {
-                    (Const::Int(*value), u128::from_be_bytes(val.get_bytes()))
+                    (Const::Int(*value), u128::from_be_bytes(val.bytes_be()))
                 }),
             Term::Level0(Level0Term::Lit(LitTerm::Char(char))) => {
                 (Const::Char(*char), u128::from(*char))
