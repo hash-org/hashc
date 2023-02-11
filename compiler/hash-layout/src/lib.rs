@@ -88,7 +88,7 @@ pub struct LayoutCtx {
 }
 
 impl LayoutCtx {
-    /// Create a new [LayoutStorage].
+    /// Create a new [LayoutCtx].
     pub fn new(data_layout: TargetDataLayout) -> Self {
         let data = DefaultStore::new();
         let common_layouts = CommonLayouts::new(&data_layout, &data);

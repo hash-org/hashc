@@ -9,7 +9,7 @@ use hash_utils::store::{DefaultPartialStore, PartialCloneStore, PartialStore};
 pub struct CheckedSources {
     /// A map between [SourceId] and the module definition.
     ///
-    /// No [SourceId::Interactive] entries should exist as this
+    /// No interactive entries should exist as this
     /// would be an invariant.
     data: DefaultPartialStore<SourceId, TermId>,
 }

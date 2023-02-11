@@ -9,8 +9,8 @@ use hash_tir::{
     nominals::{EnumVariantValue, NominalDef, StructFields},
     params::ParamsId,
     pats::{
-        AccessPat, ConstPat, ConstructorPat, IfPat, ListPat, ModPat, Pat, PatArg, PatArgsId, PatId,
-        RangePat, SpreadPat,
+        AccessPat, ArrayPat, ConstPat, ConstructorPat, IfPat, ModPat, Pat, PatArg, PatArgsId,
+        PatId, RangePat, SpreadPat,
     },
     terms::{Level0Term, Level1Term, LitTerm, Term, TermId, TupleTy},
 };
@@ -26,7 +26,7 @@ use super::{
     construct::DeconstructedCtor,
     deconstruct::DeconstructedPat,
     fields::Fields,
-    list::{List, ListKind},
+    list::{Array, ArrayKind},
     range::IntRange,
     AccessToUsefulnessOps,
 };
@@ -241,7 +241,7 @@ impl<'tc> LowerPatOps<'tc> {
                     }
                 })
             }
-            Pat::List(ListPat { element_pats: inner, .. }) => {
+            Pat::Array(ArrayPat { element_pats: inner, .. }) => {
                 let mut prefix = vec![];
                 let mut suffix = vec![];
                 let mut spread = false;
@@ -275,12 +275,12 @@ impl<'tc> LowerPatOps<'tc> {
                 // If we saw a `...` then we can't be sure of the list length and
                 // so it is now considered to be variable length
                 let kind = if spread {
-                    ListKind::Var(prefix.len(), suffix.len())
+                    ArrayKind::Var(prefix.len(), suffix.len())
                 } else {
-                    ListKind::Fixed(prefix.len() + suffix.len())
+                    ArrayKind::Fixed(prefix.len() + suffix.len())
                 };
 
-                let ctor = DeconstructedCtor::List(List::new(kind));
+                let ctor = DeconstructedCtor::Array(Array::new(kind));
                 let fields = prefix.into_iter().chain(suffix).collect_vec();
 
                 (ctor, fields)
@@ -391,18 +391,18 @@ impl<'tc> LowerPatOps<'tc> {
                     }
                     DeconstructedCtor::IntRange(range) => self.construct_pat_from_range(*ty, *range),
                     DeconstructedCtor::Str(_) => Pat::Lit(*ty),
-                    DeconstructedCtor::List(List { kind }) => {
+                    DeconstructedCtor::Array(Array { kind }) => {
                         let mut children = fields.iter_patterns().map(|p| PatArg { pat: self.construct_pat(p), name: None });
 
                         match kind {
-                            ListKind::Fixed(_) => {
+                            ArrayKind::Fixed(_) => {
                                 let inner_term = self.oracle().term_as_list_ty(*ty).unwrap();
 
-                                let inner = self.builder().create_pat_args(children, ParamOrigin::ListPat);
-                                Pat::List(ListPat { list_element_ty: inner_term, element_pats: inner })
+                                let inner = self.builder().create_pat_args(children, ParamOrigin::ArrayPat);
+                                Pat::Array(ArrayPat { list_element_ty: inner_term, element_pats: inner })
                             }
                             #[allow(clippy::needless_collect)]
-                            ListKind::Var(prefix, _) => {
+                            ArrayKind::Var(prefix, _) => {
                                 // build the prefix and suffix components
                                 let prefix: Vec<_> = children.by_ref().take(*prefix).collect();
                                 let suffix: Vec<_> = children.collect();
@@ -416,8 +416,8 @@ impl<'tc> LowerPatOps<'tc> {
                                 let inner = prefix.into_iter().chain(once(spread)).chain(suffix);
                                 let term = self.oracle().term_as_list_ty(*ty).unwrap();
 
-                                let elements = self.builder().create_pat_args(inner, ParamOrigin::ListPat);
-                                Pat::List(ListPat { list_element_ty: term, element_pats: elements })
+                                let elements = self.builder().create_pat_args(inner, ParamOrigin::ArrayPat);
+                                Pat::Array(ArrayPat { list_element_ty: term, element_pats: elements })
                             }
                         }
                     }

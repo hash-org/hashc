@@ -23,7 +23,7 @@ impl<'tcx> Builder<'tcx> {
             ast::Lit::Int(literal) => ir::Const::Int(literal.value),
             ast::Lit::Float(literal) => ir::Const::Float(literal.value),
             ast::Lit::Bool(literal) => ir::Const::Bool(literal.data),
-            ast::Lit::Set(_) | ast::Lit::Map(_) | ast::Lit::List(_) | ast::Lit::Tuple(_) => {
+            ast::Lit::Array(_) | ast::Lit::Tuple(_) => {
                 panic_on_span!(
                     lit.span().into_location(self.source_id),
                     self.source_map,

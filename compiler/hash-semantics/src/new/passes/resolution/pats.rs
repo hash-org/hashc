@@ -14,7 +14,7 @@ use hash_tir::new::{
     control::{IfPat, OrPat},
     data::CtorPat,
     environment::{context::BindingKind, env::AccessToEnv},
-    lits::{CharLit, IntLit, ListPat, LitPat, StrLit},
+    lits::{ArrayPat, CharLit, IntLit, LitPat, StrLit},
     params::ParamIndex,
     pats::{Pat, PatId, PatListId, RangePat, Spread},
     scopes::BindingPat,
@@ -175,7 +175,7 @@ impl ResolutionPass<'_> {
             ast::Pat::Binding(binding_pat) => {
                 Ok(Some(self.binding_pat_as_ast_path(node.with_body(binding_pat))?))
             }
-            ast::Pat::List(_)
+            ast::Pat::Array(_)
             | ast::Pat::Lit(_)
             | ast::Pat::Or(_)
             | ast::Pat::If(_)
@@ -266,11 +266,9 @@ impl ResolutionPass<'_> {
                 // @@Todo: bool constructor
                 todo!("Bool patterns currently not implemented")
             }
-            ast::Lit::Float(_)
-            | ast::Lit::Set(_)
-            | ast::Lit::Map(_)
-            | ast::Lit::List(_)
-            | ast::Lit::Tuple(_) => panic!("Found invalid literal in pattern"),
+            ast::Lit::Float(_) | ast::Lit::Array(_) | ast::Lit::Tuple(_) => {
+                panic!("Found invalid literal in pattern")
+            }
         }
     }
 
@@ -315,9 +313,9 @@ impl ResolutionPass<'_> {
                 data: self.make_pat_args_from_ast_pat_args(&tuple_pat.fields)?,
                 data_spread: self.make_spread_from_ast_spread(&tuple_pat.spread)?,
             })),
-            ast::Pat::List(list_pat) => self.new_pat(Pat::List(ListPat {
-                pats: self.make_pat_list_from_ast_pats(&list_pat.fields)?,
-                spread: self.make_spread_from_ast_spread(&list_pat.spread)?,
+            ast::Pat::Array(array_pat) => self.new_pat(Pat::Array(ArrayPat {
+                pats: self.make_pat_list_from_ast_pats(&array_pat.fields)?,
+                spread: self.make_spread_from_ast_spread(&array_pat.spread)?,
             })),
             ast::Pat::Lit(lit_pat) => {
                 self.new_pat(Pat::Lit(self.make_lit_pat_from_ast_lit(lit_pat.data.ast_ref())))

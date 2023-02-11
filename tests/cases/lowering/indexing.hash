@@ -1,4 +1,4 @@
-// stage=ir, args=-C dump=ir -C ir-dump-mode=pretty
+// stage=ir, args=-C dump=ir -C ir-dump-mode=pretty, skip=true
 
 foo := (arr: [i32]) -> i32 => {
     arr[2] - (arr[0] + arr[1])

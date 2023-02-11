@@ -233,9 +233,11 @@ impl<'tc> ResolutionPass<'tc> {
         })
     }
 
-    /// Make a type from the given [`ast::ListTy`].
-    fn make_ty_from_ast_list_ty(&self, node: AstNodeRef<ast::ListTy>) -> SemanticResult<TyId> {
+    /// Make a type from the given [`ast::ArrayTy`].
+    fn make_ty_from_ast_array_ty(&self, node: AstNodeRef<ast::ArrayTy>) -> SemanticResult<TyId> {
+        // @@Todo: deal with sized array types
         let inner_ty = self.make_ty_from_ast_ty(node.inner.ast_ref())?;
+
         let list_def = self.primitives().list();
         Ok(self.new_ty(Ty::Data(DataTy {
             data_def: list_def,
@@ -341,7 +343,7 @@ impl<'tc> ResolutionPass<'tc> {
                 self.make_ty_from_ast_ty_fn_call(node.with_body(ty_fn_call))?
             }
             ast::Ty::Tuple(tuple_ty) => self.make_ty_from_ast_tuple_ty(node.with_body(tuple_ty))?,
-            ast::Ty::List(list_ty) => self.make_ty_from_ast_list_ty(node.with_body(list_ty))?,
+            ast::Ty::Array(list_ty) => self.make_ty_from_ast_array_ty(node.with_body(list_ty))?,
             ast::Ty::Ref(ref_ty) => self.make_ty_from_ref_ty(node.with_body(ref_ty))?,
             ast::Ty::Fn(fn_ty) => self.make_ty_from_ast_fn_ty(node.with_body(fn_ty))?,
             ast::Ty::TyFn(ty_fn_ty) => self.make_ty_from_ast_ty_fn_ty(node.with_body(ty_fn_ty))?,

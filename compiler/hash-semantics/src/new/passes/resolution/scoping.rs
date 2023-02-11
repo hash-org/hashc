@@ -286,9 +286,9 @@ impl<'tc> Scoping<'tc> {
                     self.for_each_stack_member_of_pat(field.pat.ast_ref(), f);
                 }
             }
-            ast::Pat::List(list_pat) => {
-                for (index, pat) in list_pat.fields.ast_ref_iter().enumerate() {
-                    if let Some(spread_node) = &list_pat.spread && spread_node.position == index {
+            ast::Pat::Array(array_pat) => {
+                for (index, pat) in array_pat.fields.ast_ref_iter().enumerate() {
+                    if let Some(spread_node) = &array_pat.spread && spread_node.position == index {
                         for_spread_pat!(spread_node);
                     }
                     self.for_each_stack_member_of_pat(pat, f);

@@ -166,7 +166,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     }
 
     /// Parse an list literal from a given token tree.
-    pub(crate) fn parse_list_lit(
+    pub(crate) fn parse_array_lit(
         &self,
         tree: &'stream [Token],
         span: Span,
@@ -196,7 +196,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
 
         Ok(gen.node_with_span(
-            Expr::Lit(LitExpr { data: gen.node_with_span(Lit::List(ListLit { elements }), span) }),
+            Expr::Lit(LitExpr {
+                data: gen.node_with_span(Lit::Array(ArrayLit { elements }), span),
+            }),
             span,
         ))
     }

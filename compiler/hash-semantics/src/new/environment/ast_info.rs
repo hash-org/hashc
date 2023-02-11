@@ -14,7 +14,7 @@ use hash_tir::new::{
     tys::TyId,
 };
 
-/// A partial mapping from AST nodes to [`T`] and back.
+/// A partial mapping from AST nodes to `T` and back.
 #[derive(Debug, Clone)]
 pub struct AstMap<T: Hash + Eq> {
     data: RefCell<BiMap<AstNodeId, T>>,

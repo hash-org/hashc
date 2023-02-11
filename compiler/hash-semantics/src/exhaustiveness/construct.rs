@@ -44,7 +44,7 @@ use super::{
 use crate::{
     diagnostics::macros::tc_panic,
     exhaustiveness::{
-        list::{List, ListKind, SplitVarList},
+        list::{Array, ArrayKind, SplitVarList},
         PatCtx,
     },
     ops::AccessToOps,
@@ -60,21 +60,29 @@ pub enum DeconstructedCtor {
     /// The constructor for patterns that have a single constructor, like
     /// tuples, struct patterns and fixed-length arrays.
     Single,
+
     /// Enum variants.
     Variant(usize),
+
     /// Ranges of integer literal values (`2`, `2..=5` or `2..5`).
     IntRange(IntRange),
+
     /// String literals.
     Str(InternedStr),
-    /// List patterns
-    List(List),
+
+    /// Array patterns
+    Array(Array),
+
     /// Wildcard pattern.
     Wildcard,
+
     /// Or-pattern.
     Or,
+
     /// Stands for constructors that are not seen in the matrix, as explained in
     /// the documentation for [super::wildcard::SplitWildcard].
     Missing,
+
     /// Declared as non-exhaustive
     NonExhaustive,
 }
@@ -93,10 +101,10 @@ impl DeconstructedCtor {
         }
     }
 
-    /// Try and convert the [DeconstructedCtor] into a [List].
-    pub fn as_list(&self) -> Option<&List> {
+    /// Try and convert the [DeconstructedCtor] into a [Array].
+    pub fn as_array(&self) -> Option<&Array> {
         match self {
-            DeconstructedCtor::List(list) => Some(list),
+            DeconstructedCtor::Array(array) => Some(array),
             _ => None,
         }
     }
@@ -165,7 +173,7 @@ impl<'tc> ConstructorOps<'tc> {
                     ),
                 })
             }
-            DeconstructedCtor::List(list) => list.arity(),
+            DeconstructedCtor::Array(list) => list.arity(),
             DeconstructedCtor::IntRange(_)
             | DeconstructedCtor::Str(_)
             | DeconstructedCtor::Wildcard
@@ -227,16 +235,16 @@ impl<'tc> ConstructorOps<'tc> {
                     .map(|ctor| self.constructor_store().create(ctor))
                     .collect()
             }
-            DeconstructedCtor::List(List { kind: ListKind::Var(prefix_len, suffix_len) }) => {
+            DeconstructedCtor::Array(Array { kind: ArrayKind::Var(prefix_len, suffix_len) }) => {
                 let mut list = SplitVarList::new(prefix_len, suffix_len);
 
                 let lists = ctors
-                    .filter_map(|c| self.constructor_store().map_fast(c, |c| c.as_list().cloned()))
+                    .filter_map(|c| self.constructor_store().map_fast(c, |c| c.as_array().cloned()))
                     .map(|s| s.kind);
                 list.split(lists);
 
                 list.iter()
-                    .map(DeconstructedCtor::List)
+                    .map(DeconstructedCtor::Array)
                     .map(|ctor| self.constructor_store().create(ctor))
                     .collect()
             }
@@ -273,7 +281,7 @@ impl<'tc> ConstructorOps<'tc> {
                 self_str == other_str
             }
 
-            (DeconstructedCtor::List(self_slice), DeconstructedCtor::List(other_slice)) => {
+            (DeconstructedCtor::Array(self_slice), DeconstructedCtor::Array(other_slice)) => {
                 self_slice.is_covered_by(*other_slice)
             }
             (DeconstructedCtor::NonExhaustive, _) => false,
@@ -311,9 +319,9 @@ impl<'tc> ConstructorOps<'tc> {
                     self.constructor_store().map_fast(*c, |c| c.as_int_range().cloned())
                 })
                 .any(|other| range.is_covered_by(&other)),
-            DeconstructedCtor::List(list) => used_ctors
+            DeconstructedCtor::Array(list) => used_ctors
                 .iter()
-                .filter_map(|c| self.constructor_store().map_fast(*c, |c| c.as_list().cloned()))
+                .filter_map(|c| self.constructor_store().map_fast(*c, |c| c.as_array().cloned()))
                 .any(|other| list.is_covered_by(other)),
             // This constructor is never covered by anything else
             DeconstructedCtor::NonExhaustive => false,

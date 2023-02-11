@@ -481,7 +481,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         OperandValue::Pair(value, overflow)
     }
 
-    /// Check whether the given [RValue] will create an
+    /// Check whether the given [ir::RValue] will create an
     /// operand or not.
     pub fn rvalue_creates_operand(&self, rvalue: &ir::RValue) -> bool {
         match *rvalue {

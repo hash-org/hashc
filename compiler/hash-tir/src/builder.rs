@@ -16,7 +16,7 @@ use crate::{
     },
     params::{AccessOp, Field, Param, ParamsId},
     pats::{
-        AccessPat, BindingPat, ConstPat, ConstructorPat, IfPat, ListPat, ModPat, Pat, PatArg,
+        AccessPat, ArrayPat, BindingPat, ConstPat, ConstructorPat, IfPat, ModPat, Pat, PatArg,
         PatArgsId, PatId, RangePat,
     },
     scope::{
@@ -640,7 +640,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
 
     /// Create a list pattern with parameters.
     pub fn create_list_pat(&self, term: TermId, inner: PatArgsId) -> PatId {
-        self.create_pat(Pat::List(ListPat { list_element_ty: term, element_pats: inner }))
+        self.create_pat(Pat::Array(ArrayPat { list_element_ty: term, element_pats: inner }))
     }
 
     /// Create a binding pattern.

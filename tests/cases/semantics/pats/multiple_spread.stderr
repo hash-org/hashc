@@ -1,11 +1,11 @@
-error: spread patterns `...` can only be used once in a list pattern
+error: spread patterns `...` can only be used once in a array pattern
  --> $DIR/multiple_spread.hash:4:15
 3 |   main := () => {
 4 |       [...x, t, ...] := a
   |                 ^^^ cannot specify another spread pattern here
 5 |   
 
-error: spread patterns `...` can only be used once in a list pattern
+error: spread patterns `...` can only be used once in a array pattern
  --> $DIR/multiple_spread.hash:7:26
 6 |       match t {
 7 |           [...a, [...l, t, ..., c], t] => {};

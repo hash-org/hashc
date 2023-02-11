@@ -129,7 +129,7 @@ pub enum PrimitiveCtorInfo {
     /// A character literal constructor.
     Char,
     /// A list literal constructor.
-    List(ListCtorInfo),
+    Array(ListCtorInfo),
 }
 
 /// The constructors of a data-type definition.
@@ -282,7 +282,7 @@ impl Display for WithEnv<'_, &PrimitiveCtorInfo> {
             PrimitiveCtorInfo::Char => {
                 writeln!(f, "char")
             }
-            PrimitiveCtorInfo::List(list) => {
+            PrimitiveCtorInfo::Array(list) => {
                 writeln!(f, "list [{}]", self.env().with(list.element_ty))
             }
         }

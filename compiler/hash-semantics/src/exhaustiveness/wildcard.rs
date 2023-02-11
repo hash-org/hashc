@@ -43,7 +43,7 @@ pub struct SplitWildcard {
 
 use super::{
     construct::DeconstructedCtor,
-    list::{List, ListKind},
+    list::{Array, ArrayKind},
     AccessToUsefulnessOps,
 };
 
@@ -113,7 +113,7 @@ impl<'tc> SplitWildcardOps<'tc> {
             match ctx.ty {
                 ty if self.oracle().term_as_list_ty(ty).is_some() => {
                     // For lists, we just default to a variable length list
-                    smallvec![DeconstructedCtor::List(List { kind: ListKind::Var(0, 0) })]
+                    smallvec![DeconstructedCtor::Array(Array { kind: ArrayKind::Var(0, 0) })]
                 }
                 ty if self.oracle().term_is_char_ty(ty) => {
                     smallvec![

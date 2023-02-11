@@ -72,7 +72,7 @@ fn extract_binds_from_bind(pat: ast::AstNodeRef<ast::Pat>, binds: &mut Vec<Bindi
                 binds.push(Binding { name: name.ident, node: spread_pat.id() });
             }
         }
-        ast::Pat::List(ast::ListPat { fields, spread }) => {
+        ast::Pat::Array(ast::ArrayPat { fields, spread }) => {
             for entry in fields.iter() {
                 extract_binds_from_bind(entry.ast_ref(), binds);
             }

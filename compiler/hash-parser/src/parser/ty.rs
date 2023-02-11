@@ -100,7 +100,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 todo!()
             }
 
-            // List type
+            // Array type
             TokenKind::Tree(Delimiter::Bracket, tree_index) => {
                 self.skip_token();
 
@@ -109,9 +109,20 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
                 // @@ErrorRecovery: Investigate introducing `Err` variant into types...
                 let inner_type = gen.parse_ty()?;
+
+                // Optionally, the user may specify a size for the array type by
+                // using a `;` followed by an expression that evaluates to a]
+                // constant integer.
+                let len = if gen.peek().map(|x| x.kind) == Some(TokenKind::Semi) {
+                    gen.skip_token();
+                    Some(gen.parse_expr()?)
+                } else {
+                    None
+                };
+
                 self.consume_gen(gen);
 
-                Ty::List(ListTy { inner: inner_type })
+                Ty::Array(ArrayTy { inner: inner_type, len })
             }
 
             // Tuple or function type

@@ -192,10 +192,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             // Import
             TokenKind::Keyword(Keyword::Import) => self.parse_import()?,
 
-            // List literal
+            // Array literal
             TokenKind::Tree(Delimiter::Bracket, tree_index) => {
                 let tree = self.token_trees.get(tree_index as usize).unwrap();
-                self.parse_list_lit(tree, token.span)?
+                self.parse_array_lit(tree, token.span)?
             }
 
             // Either tuple, function, or nested expression

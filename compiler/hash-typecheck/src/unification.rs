@@ -251,7 +251,7 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
                         }
                         _ => Uni::mismatch_terms(src_id, target_id),
                     },
-                    (PrimTerm::List(_), PrimTerm::List(_)) => todo!(),
+                    (PrimTerm::Array(_), PrimTerm::Array(_)) => todo!(),
                     _ => Uni::mismatch_terms(src_id, target_id),
                 },
                 _ => Uni::mismatch_terms(src_id, target_id),

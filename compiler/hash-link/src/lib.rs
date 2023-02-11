@@ -1,6 +1,6 @@
 //! This crate contains all of the logic surrounding a linker
-//! interface. This provides a generic [Linker] trait which is then
-//! implemented by several linker flavours (e.g. `msvc` and `lld`)
+//! interface. This provides a generic [crate::linker::Linker] trait which is
+//! then implemented by several linker flavours (e.g. `msvc` and `lld`)
 
 pub(crate) mod command;
 pub(crate) mod error;

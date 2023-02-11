@@ -170,7 +170,7 @@ impl<'tcx> Builder<'tcx> {
                     )
                 }
             }
-            ast::Pat::List(ast::ListPat { fields, spread }) => {
+            ast::Pat::Array(ast::ArrayPat { fields, spread }) => {
                 if let Some(spread_pat) = spread && let Some(name) = &spread_pat.name {
                     let index = spread_pat.position;
 

@@ -14,7 +14,7 @@ use super::{
     control::{IfPat, OrPat},
     data::CtorPat,
     environment::env::{AccessToEnv, WithEnv},
-    lits::{ListPat, LitPat},
+    lits::{ArrayPat, LitPat},
     scopes::{BindingPat, StackMemberId},
     symbols::Symbol,
     tuples::TuplePat,
@@ -57,7 +57,7 @@ pub enum Pat {
     Range(RangePat),
     Lit(LitPat),
     Tuple(TuplePat),
-    List(ListPat),
+    Array(ArrayPat),
     Ctor(CtorPat),
     Or(OrPat),
     If(IfPat),
@@ -101,7 +101,7 @@ impl fmt::Display for WithEnv<'_, &Pat> {
             Pat::Ctor(ctor_pat) => write!(f, "{}", self.env().with(ctor_pat)),
             Pat::Or(or_pat) => write!(f, "{}", self.env().with(or_pat)),
             Pat::If(if_pat) => write!(f, "{}", self.env().with(if_pat)),
-            Pat::List(list_pat) => write!(f, "{}", self.env().with(list_pat)),
+            Pat::Array(list_pat) => write!(f, "{}", self.env().with(list_pat)),
         }
     }
 }

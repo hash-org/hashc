@@ -46,16 +46,8 @@ impl<'tc> CoreDefReader<'tc> {
         self.resolve_core_def(IDENTS.str)
     }
 
-    pub fn list_ty_fn(&self) -> TermId {
-        self.resolve_core_def(IDENTS.List)
-    }
-
-    pub fn map_ty_fn(&self) -> TermId {
-        self.resolve_core_def(IDENTS.Map)
-    }
-
-    pub fn set_ty_fn(&self) -> TermId {
-        self.resolve_core_def(IDENTS.Set)
+    pub fn array_ty(&self) -> TermId {
+        todo!()
     }
 
     pub fn i8_ty(&self) -> TermId {

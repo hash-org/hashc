@@ -114,7 +114,7 @@ impl From<LitPat> for Lit {
 #[derive(Copy, Clone, Debug)]
 pub enum PrimTerm {
     Lit(Lit),
-    List(ListCtor),
+    Array(ListCtor),
 }
 
 /// A list pattern.
@@ -122,7 +122,7 @@ pub enum PrimTerm {
 /// This is in the form `[x_1,...,x_n]`, with an optional spread `...(name?)` at
 /// some position.
 #[derive(Copy, Clone, Debug)]
-pub struct ListPat {
+pub struct ArrayPat {
     /// The sequence of patterns in the list pattern.
     pub pats: PatListId,
     /// The spread pattern, if any.
@@ -163,7 +163,7 @@ impl Display for WithEnv<'_, &LitPat> {
     }
 }
 
-impl fmt::Display for WithEnv<'_, &ListPat> {
+impl fmt::Display for WithEnv<'_, &ArrayPat> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "[")?;
         self.stores().pat_list().map_fast(self.value.pats, |pat_list| {
@@ -207,7 +207,7 @@ impl Display for WithEnv<'_, &PrimTerm> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.value {
             PrimTerm::Lit(lit) => write!(f, "{lit}"),
-            PrimTerm::List(list_term) => write!(f, "{}", self.env().with(list_term)),
+            PrimTerm::Array(list_term) => write!(f, "{}", self.env().with(list_term)),
         }
     }
 }

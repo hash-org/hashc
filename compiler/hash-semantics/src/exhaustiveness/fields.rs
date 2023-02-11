@@ -144,7 +144,7 @@ impl<'tc> FieldOps<'tc> {
                     ),
                 }
             }
-            DeconstructedCtor::List(list) => {
+            DeconstructedCtor::Array(list) => {
                 let arity = list.arity();
 
                 // Use the oracle to get the inner term `T` for the type...

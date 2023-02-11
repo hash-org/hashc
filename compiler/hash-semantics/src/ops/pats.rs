@@ -13,8 +13,8 @@ use hash_tir::{
     nominals::StructFields,
     params::{AccessOp, ParamsId},
     pats::{
-        AccessPat, ConstPat, ConstructorPat, IfPat, ListPat, ModPat, Pat, PatArg, PatArgsId, PatId,
-        SpreadPat,
+        AccessPat, ArrayPat, ConstPat, ConstructorPat, IfPat, ModPat, Pat, PatArg, PatArgsId,
+        PatId, SpreadPat,
     },
     scope::{Member, Mutability},
     terms::TermId,
@@ -645,14 +645,14 @@ impl<'tc> PatMatcher<'tc> {
         Ok(Some(bound_members))
     }
 
-    /// Match a [Pat::List] with the subject term, walk all inner patterns
+    /// Match a [`Pat::Array`] with the subject term, walk all inner patterns
     /// and extract bound members.
     ///
     /// @@Todo: if the inner parameter is a `...` pattern, we need to pass
     /// in the `List<term>` type.
     fn match_list_pat_with_term(
         &self,
-        ListPat { list_element_ty, element_pats }: ListPat,
+        ArrayPat { list_element_ty, element_pats }: ArrayPat,
     ) -> TcResult<Option<Vec<PatMember>>> {
         // We need to collect all of the binds from the inner patterns of
         // the list
@@ -674,8 +674,8 @@ impl<'tc> PatMatcher<'tc> {
         Ok(Some(bound_members))
     }
 
-    /// Match a [Pat::Spread] with the subject type. The [Pat::Spread] must
-    /// be within a [Pat::List] since spread patterns in other structural
+    /// Match a [`Pat::Spread`] with the subject type. The [`Pat::Spread`] must
+    /// be within a [`Pat::Array`] since spread patterns in other structural
     /// patterns are already eliminated at this stage.
     fn match_spread_pat_with_term(
         &self,
@@ -687,7 +687,7 @@ impl<'tc> PatMatcher<'tc> {
             Some(name) => {
                 // Since `pat_ty` will be `List<T = Unresolved>`, we need to create a new
                 // `List<T = term_ty_id>` and perform a unification...
-                let list_inner_ty = self.core_defs().list_ty_fn();
+                let list_inner_ty = self.core_defs().array_ty();
                 let builder = self.builder();
 
                 let pat_ty = builder.create_app_ty_fn_term(
@@ -872,7 +872,7 @@ impl<'tc> PatMatcher<'tc> {
                 self.match_tuple_pat_with_term(pat_id, members, simplified_term_id)
             }
             Pat::Constructor(constructor) => self.match_constructor_pat_with_term(constructor),
-            Pat::List(list) => self.match_list_pat_with_term(list),
+            Pat::Array(list) => self.match_list_pat_with_term(list),
             Pat::Or(pats) => self.match_or_pat_with_term(&pats, simplified_term_id),
             Pat::If(IfPat { pat, .. }) => {
                 // Recurse to inner, but never say it is redundant:

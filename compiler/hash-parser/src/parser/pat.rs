@@ -180,12 +180,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
                 Pat::Module(pat)
             }
-            // List pattern
+            // Array pattern
             Token { kind: TokenKind::Tree(Delimiter::Bracket, tree_index), span } => {
                 self.skip_token();
                 let tree = self.token_trees.get(*tree_index as usize).unwrap();
 
-                return Ok((self.parse_list_pat(tree, *span)?, true));
+                return Ok((self.parse_array_pat(tree, *span)?, true));
             }
             token => self.err_with_location(
                 ParseErrorKind::ExpectedPat,
@@ -310,17 +310,17 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         Ok(ModulePat { fields: AstNodes::new(fields, Some(span)) })
     }
 
-    /// Parse a [Pat::List] pattern from the token vector. A list [Pat]
+    /// Parse a [`Pat::Array`] pattern from the token vector. An array pattern
     /// consists of a list of comma separated within a square brackets .e.g
     /// `[x, 1, ..]`
-    pub(crate) fn parse_list_pat(
+    pub(crate) fn parse_array_pat(
         &mut self,
         tree: &'stream [Token],
         parent_span: Span,
     ) -> ParseResult<AstNode<Pat>> {
         let mut gen = self.from_stream(tree, parent_span);
 
-        // We keep the spread pattern as a separate part of the list pattern
+        // We keep the spread pattern as a separate part of the array pattern
         // fields, so we must check for it separately.
         let mut spread = None;
 
@@ -329,7 +329,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 // Check if we encounter a dot, if so then we try to parse a
                 // spread pattern, if not then we parse a normal pattern.
                 if matches!(g.peek(), Some(token) if token.has_kind(TokenKind::Dot)) {
-                    g.parse_spread_pat(&mut spread, pos, PatOrigin::List)?;
+                    g.parse_spread_pat(&mut spread, pos, PatOrigin::Array)?;
                     Ok(None)
                 } else {
                     Ok(Some(g.parse_pat()?))
@@ -339,7 +339,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         );
         self.consume_gen(gen);
 
-        Ok(self.node_with_span(Pat::List(ListPat { fields, spread }), parent_span))
+        Ok(self.node_with_span(Pat::Array(ArrayPat { fields, spread }), parent_span))
     }
 
     /// Parse a [Pat::Tuple] from the token vector. A tuple pattern consists

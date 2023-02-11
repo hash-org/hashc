@@ -20,7 +20,7 @@ use super::{
     PreparePatForFormatting,
 };
 use crate::{
-    exhaustiveness::{list::ListKind, PatCtx},
+    exhaustiveness::{list::ArrayKind, PatCtx},
     ops::AccessToOps,
     storage::{
         exhaustiveness::{DeconstructedCtorId, DeconstructedPatId},
@@ -141,7 +141,7 @@ impl<'tc> DeconstructPatOps<'tc> {
                 // We return a wildcard for each field of `other_ctor`.
                 self.fields_ops().wildcards(ctx, other_ctor_id).iter_patterns().collect()
             }
-            (DeconstructedCtor::List(this_list), DeconstructedCtor::List(other_list))
+            (DeconstructedCtor::Array(this_list), DeconstructedCtor::Array(other_list))
                 if this_list.arity() != other_list.arity() =>
             {
                 // If the arities mismatch, `this_list` must cover `other_list` and thus
@@ -151,8 +151,8 @@ impl<'tc> DeconstructPatOps<'tc> {
                 // So when specialising, we will fill the middle part of the `this_list` to
                 // match the arity of the `other_list`.
                 match this_list.kind {
-                    ListKind::Fixed(_) => panic!("{this_list:?} cannot cover {other_list:?}"),
-                    ListKind::Var(prefix, suffix) => {
+                    ArrayKind::Fixed(_) => panic!("{this_list:?} cannot cover {other_list:?}"),
+                    ArrayKind::Var(prefix, suffix) => {
                         // we will need to get the inner `ty` of the list
                         let Some(inner_ty) = self.oracle().term_as_list_ty(ctx.ty) else {
                             panic!("provided ty is not list as expected: {}", self.for_fmt(ctx.ty))
@@ -283,18 +283,18 @@ impl Debug for PatForFormatting<'_, DeconstructedPatId> {
                     }
                     DeconstructedCtor::IntRange(range) => write!(f, "{range:?}"),
                     DeconstructedCtor::Str(value) => write!(f, "{value}"),
-                    DeconstructedCtor::List(list) => {
+                    DeconstructedCtor::Array(list) => {
                         let mut subpatterns = pat.fields.iter_patterns();
 
                         write!(f, "[")?;
 
                         match list.kind {
-                            ListKind::Fixed(_) => {
+                            ArrayKind::Fixed(_) => {
                                 for p in subpatterns {
                                     write!(f, "{}{p:?}", start_or_continue(", "))?;
                                 }
                             }
-                            ListKind::Var(prefix, _) => {
+                            ArrayKind::Var(prefix, _) => {
                                 for p in subpatterns.by_ref().take(prefix) {
                                     write!(
                                         f,
