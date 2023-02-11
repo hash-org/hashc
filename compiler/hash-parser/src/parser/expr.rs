@@ -922,7 +922,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
             // We want to emit a redundant parentheses warning if it is not a binary-like
             // expression since it does not affect the precedence...
-            if !matches!(expr.body(), Expr::BinaryExpr(_) | Expr::Cast(_)) {
+            if !matches!(expr.body(), Expr::BinaryExpr(_) | Expr::Cast(_) | Expr::FnDef(_)) {
                 self.add_warning(ParseWarning::new(
                     WarningKind::RedundantParenthesis(expr.body().into()),
                     expr.span(),

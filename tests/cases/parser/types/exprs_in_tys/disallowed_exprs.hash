@@ -1,0 +1,30 @@
+// run=fail, stage=parse
+
+// ~ERROR: unexpectedly encountered `{...}` in type parameter list.
+{
+    Foo := struct<{ 1 }> (
+        x: T,
+        y: T
+    );
+}
+
+{
+    Bar := enum<{ 1 }> (
+        L,
+        R
+    );
+}
+
+
+    Bar := enum<"ch"> (
+        L,
+        R
+    );
+}
+
+{
+    Bar := <{ 1 }> => enum (
+        L,
+        R
+    );
+}

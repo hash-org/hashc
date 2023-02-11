@@ -1,0 +1,4 @@
+// run=pass, stage=parse, warnings=disallow
+
+// This should produce a warning about redundant parentheses.
+(() => {})()

@@ -483,6 +483,17 @@ impl AstVisitor for AstTreeGenerator {
         ))
     }
 
+    type ExprTyRet = TreeNode;
+
+    fn visit_expr_ty(
+        &self,
+        node: ast::AstNodeRef<ast::ExprTy>,
+    ) -> Result<Self::ExprTyRet, Self::Error> {
+        let walk::ExprTy { expr } = walk::walk_expr_ty(self, node)?;
+
+        Ok(TreeNode::branch("expr", vec![expr]))
+    }
+
     type TyFnDefRet = TreeNode;
     fn visit_ty_fn_def(
         &self,

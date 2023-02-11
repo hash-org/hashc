@@ -1,0 +1,7 @@
+error: unexpectedly encountered the identifier `_`
+  --> $DIR/pat_match_missing_comma.hash:12:9
+11 |           }
+12 |           _ => -1
+   |           ^ 
+13 |       };
+   = help: consider adding a `,`
