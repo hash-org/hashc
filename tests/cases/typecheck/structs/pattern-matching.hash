@@ -13,8 +13,8 @@ main := () -> i32 => {
   item := match viktor {
     Dog(age = 15, gender, foo) => {
       age
-    };
-    _ => { 2 };
+    },
+    _ => { 2 }
   };
 
   item

@@ -27,11 +27,11 @@ Frobulate ~= impl Foo {
 
   member_not_on_trt := (a: i32, b: char) -> Mux => {
       match a {
-        0..10 => Mux(val = 1);
-        11..20 => Mux(val = 2);
-        21..30 => Mux(val = 3);
-        31..40 => Mux(val = 4);
-        _ => Mux(val = 17);
+        0..10 => Mux(val = 1),
+        11..20 => Mux(val = 2),
+        21..30 => Mux(val = 3),
+        31..40 => Mux(val = 4),
+        _ => Mux(val = 17),
       }
   }
 }

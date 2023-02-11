@@ -4,9 +4,9 @@ error[0056]: method `member_not_on_trt` is not a member of trait `Foo`
 28 |      member_not_on_trt := (a: i32, b: char) -> Mux => {
    |  ____-
 29 | |        match a {
-30 | |          0..10 => Mux(val = 1);
+30 | |          0..10 => Mux(val = 1),
 ...  |
-34 | |          _ => Mux(val = 17);
+34 | |          _ => Mux(val = 17),
 35 | |        }
 36 | |    }
    | |____- not a member of trait `Foo`

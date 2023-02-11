@@ -7,7 +7,7 @@ NetworkError = enum(
 );
 
 handle_error := (error: NetworkError) => match error {
-   NoBytesReceived => print("No bytes received, stopping");
-   ConnectionTerminated => print("Connection was terminated");
-   Unexpected(err, code) => print("An unexpected error occurred: " + err + " (" + conv(code) + ") ");
+   NoBytesReceived => print("No bytes received, stopping"),
+   ConnectionTerminated => print("Connection was terminated"),
+   Unexpected(err, code) => print("An unexpected error occurred: " + err + " (" + conv(code) + ") ")
 };

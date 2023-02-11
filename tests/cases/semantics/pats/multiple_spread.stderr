@@ -8,6 +8,6 @@ error: spread patterns `...` can only be used once in a array pattern
 error: spread patterns `...` can only be used once in a array pattern
  --> $DIR/multiple_spread.hash:7:26
 6 |       match t {
-7 |           [...a, [...l, t, ..., c], t] => {};
+7 |           [...a, [...l, t, ..., c], t] => {},
   |                            ^^^ cannot specify another spread pattern here
-8 |           _ => {};
+8 |           _ => {}

@@ -17,9 +17,9 @@ error[0056]: method `member_not_on_trt` is not a member of trait `Foo`
 37 |        member_not_on_trt := (a: i32, b: char) -> Mux => {
    |  ______-
 38 | |          match a {
-39 | |              0..10 => Mux(val = 1);
+39 | |              0..10 => Mux(val = 1),
 ...  |
-43 | |              _ => Mux(val = 17);
+43 | |              _ => Mux(val = 17)
 44 | |          }
 45 | |      }
    | |______- not a member of trait `Foo`
