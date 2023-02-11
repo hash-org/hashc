@@ -1,10 +1,9 @@
 //! Utility functions for working with TC primitives.
 use self::{
-    classifier::Classifier, context::ContextUtils, data::DataUtils, defs::DefUtils, fns::FnUtils,
-    mods::ModUtils, params::ParamUtils, stack::StackUtils, traversing::TraversingUtils,
+    context::ContextUtils, data::DataUtils, defs::DefUtils, fns::FnUtils, mods::ModUtils,
+    params::ParamUtils, stack::StackUtils, traversing::TraversingUtils,
 };
 
-pub mod classifier;
 pub mod common;
 pub mod context;
 pub mod data;
@@ -37,5 +36,4 @@ utils! {
   stack_utils: StackUtils,
   traversing_utils: TraversingUtils,
   context_utils: ContextUtils,
-  classifier: Classifier,
 }
