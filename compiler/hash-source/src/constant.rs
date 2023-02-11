@@ -555,6 +555,31 @@ impl IntConstant {
             _ => false,
         }
     }
+
+    /// Convert the [IntConstant] into the [IntConstant] with
+    /// the specified `ty`.
+    pub fn cast_to(&self, ty: IntTy, ptr_width: usize) -> Option<Self> {
+        let suffix: Identifier = ty.into();
+
+        // Re-make the value based on the new type.
+        let value = match ty.normalise(ptr_width) {
+            IntTy::Int(SIntTy::I8) => IntConstantValue::I8(self.try_into().ok()?),
+            IntTy::Int(SIntTy::I16) => IntConstantValue::I16(self.try_into().ok()?),
+            IntTy::Int(SIntTy::I32) => IntConstantValue::I32(self.try_into().ok()?),
+            IntTy::Int(SIntTy::I64) => IntConstantValue::I64(self.try_into().ok()?),
+            IntTy::Int(SIntTy::I128) => IntConstantValue::I128(self.try_into().ok()?),
+            IntTy::Int(SIntTy::IBig) => IntConstantValue::Big(Box::new(self.try_into().ok()?)),
+            IntTy::UInt(UIntTy::U8) => IntConstantValue::U8(self.try_into().ok()?),
+            IntTy::UInt(UIntTy::U16) => IntConstantValue::U16(self.try_into().ok()?),
+            IntTy::UInt(UIntTy::U32) => IntConstantValue::U32(self.try_into().ok()?),
+            IntTy::UInt(UIntTy::U64) => IntConstantValue::U64(self.try_into().ok()?),
+            IntTy::UInt(UIntTy::U128) => IntConstantValue::U128(self.try_into().ok()?),
+            IntTy::UInt(UIntTy::UBig) => IntConstantValue::Big(Box::new(self.try_into().ok()?)),
+            _ => unreachable!(),
+        };
+
+        Some(Self { value, suffix: Some(suffix) })
+    }
 }
 
 impl Neg for IntConstant {
@@ -581,24 +606,6 @@ impl From<BigInt> for IntConstant {
         let value = IntConstantValue::from_be_bytes(&mut bytes, sign == Sign::NoSign);
 
         Self { value, suffix: None }
-    }
-}
-
-impl From<IntConstant> for BigInt {
-    fn from(constant: IntConstant) -> Self {
-        match constant.value {
-            I8(v) => BigInt::from(v),
-            I16(v) => BigInt::from(v),
-            I32(v) => BigInt::from(v),
-            I64(v) => BigInt::from(v),
-            I128(v) => BigInt::from(v),
-            U8(v) => BigInt::from(v),
-            U16(v) => BigInt::from(v),
-            U32(v) => BigInt::from(v),
-            U64(v) => BigInt::from(v),
-            U128(v) => BigInt::from(v),
-            Big(v) => (*v).clone(),
-        }
     }
 }
 
@@ -662,10 +669,10 @@ int_const_impl_from!(
 macro_rules! int_const_impl_into {
     ($($ty:ident),* $(,)?) => {
         $(
-            impl TryFrom<IntConstant> for $ty {
+            impl TryFrom<&IntConstant> for $ty {
                 type Error = ();
 
-                fn try_from(constant: IntConstant) -> Result<Self, Self::Error> {
+                fn try_from(constant: &IntConstant) -> Result<Self, Self::Error> {
                     use IntConstantValue::*;
 
                     match constant.value {
@@ -679,7 +686,7 @@ macro_rules! int_const_impl_into {
                         U32(value) => value.try_into().map_err(|_| ()),
                         U64(value) => value.try_into().map_err(|_| ()),
                         U128(value) => value.try_into().map_err(|_| ()),
-                        Big(box value) => value.try_into().map_err(|_| ()),
+                        Big(box ref value) => value.clone().try_into().map_err(|_| ()),
                     }
                 }
             }
@@ -687,7 +694,7 @@ macro_rules! int_const_impl_into {
     };
 }
 
-int_const_impl_into!(i8, i16, i32, i64, isize, i128, u8, u16, u32, u64, usize, u128);
+int_const_impl_into!(i8, i16, i32, i64, isize, i128, u8, u16, u32, u64, usize, u128, BigInt);
 
 counter! {
     name: InternedInt,

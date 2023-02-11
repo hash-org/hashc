@@ -23,7 +23,7 @@ pub struct IntLit {
 impl IntLit {
     /// Return the value of the integer literal.
     pub fn value(&self) -> BigInt {
-        CONSTANT_MAP.lookup_int_constant(self.underlying.value).into()
+        (&CONSTANT_MAP.lookup_int_constant(self.underlying.value)).try_into().unwrap()
     }
 }
 

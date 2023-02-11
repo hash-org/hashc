@@ -823,7 +823,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 }
 
                 self.skip_token();
-                let value = usize::try_from(interned_lit).map_err(|_| {
+                let value = usize::try_from(&interned_lit).map_err(|_| {
                     self.make_err(ParseErrorKind::InvalidPropertyAccess, None, None, Some(token.span))
                 })?;
 

@@ -761,7 +761,8 @@ impl fmt::Display for ForFormatting<'_, &Level0Term> {
                         // same for max, what we want to do is write `MIN`
                         // and `MAX for these situations since it is easier for the
                         // user to understand the problem
-                        let value: BigInt = CONSTANT_MAP.lookup_int_constant(*value).into();
+                        let value: BigInt =
+                            (&CONSTANT_MAP.lookup_int_constant(*value)).try_into().unwrap();
 
                         if let Some(min) = kind.min(pointer_width) && min == value {
                             write!(f, "{kind}::MIN")
