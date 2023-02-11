@@ -33,9 +33,9 @@ use hash_tir::new::{
     fns::{FnCallTerm, FnDefId},
     mods::{ModDefId, ModMemberValue},
     terms::Term,
-    utils::common::CommonUtils,
+    utils::{common::CommonUtils, AccessToUtils},
 };
-use hash_utils::store::{SequenceStore, Store};
+use hash_utils::store::SequenceStore;
 
 use super::{
     params::{AstArgGroup, ResolvedArgs},
@@ -203,23 +203,78 @@ impl<'tc> ResolutionPass<'tc> {
                 let mod_member = self.stores().mod_members().get_element(mod_member_id);
                 match mod_member.value {
                     ModMemberValue::Data(data_def_id) => {
-                        let _data_def_params =
-                            self.stores().data_def().map_fast(data_def_id, |def| def.params);
-                        let args = match &component.args[..] {
-                            [] => ResolvedArgs::Term(self.new_empty_args()),
-                            [arg_group] => self.make_args_from_ast_arg_group(arg_group)?,
-                            [_first, second, _rest @ ..] => {
-                                return Err(SemanticError::UnexpectedArguments {
-                                    location: self.source_location(second.span().unwrap()),
-                                });
-                            }
-                        };
+                        let data_def_single_ctor =
+                            self.data_utils().get_single_ctor_of_data_def(data_def_id);
 
-                        match args {
-                            ResolvedArgs::Term(args) => Ok(ResolvedAstPathComponent::NonTerminal(
-                                NonTerminalResolvedPathComponent::Data(data_def_id, args),
-                            )),
-                            ResolvedArgs::Pat(_, _) => {
+                        let (data_args, ctor_args): (ResolvedArgs, Option<ResolvedArgs>) =
+                            match &component.args[..] {
+                                [] => (ResolvedArgs::Term(self.new_empty_args()), None),
+                                [arg_group] if arg_group.is_implicit() => {
+                                    (self.make_args_from_ast_arg_group(arg_group)?, None)
+                                }
+                                [arg_group] => {
+                                    assert!(!arg_group.is_implicit());
+                                    (
+                                        ResolvedArgs::Term(self.new_empty_args()),
+                                        Some(self.make_args_from_ast_arg_group(arg_group)?),
+                                    )
+                                }
+                                [data_arg_group, ctor_arg_group]
+                                    if data_arg_group.is_implicit()
+                                        && !ctor_arg_group.is_implicit() =>
+                                {
+                                    (
+                                        (self.make_args_from_ast_arg_group(data_arg_group)?),
+                                        Some(self.make_args_from_ast_arg_group(ctor_arg_group)?),
+                                    )
+                                }
+                                [first, second, _rest @ ..] => {
+                                    return Err(SemanticError::UnexpectedArguments {
+                                        location: self.source_location(
+                                            first.span().unwrap().join(second.span().unwrap()),
+                                        ),
+                                    });
+                                }
+                            };
+
+                        match (data_args, ctor_args) {
+                            (ResolvedArgs::Term(args), None) => {
+                                Ok(ResolvedAstPathComponent::NonTerminal(
+                                    NonTerminalResolvedPathComponent::Data(data_def_id, args),
+                                ))
+                            }
+                            (
+                                ResolvedArgs::Term(data_args),
+                                Some(ResolvedArgs::Pat(ctor_pat_args, ctor_pat_args_spread)),
+                            ) => match data_def_single_ctor {
+                                Some(ctor) => Ok(ResolvedAstPathComponent::Terminal(
+                                    TerminalResolvedPathComponent::CtorPat(CtorPat {
+                                        ctor: ctor.id,
+                                        data_args,
+                                        ctor_pat_args,
+                                        ctor_pat_args_spread,
+                                    }),
+                                )),
+                                None => Err(SemanticError::DataDefIsNotSingleton {
+                                    location: self.source_location(component.name_span),
+                                }),
+                            },
+                            (
+                                ResolvedArgs::Term(data_args),
+                                Some(ResolvedArgs::Term(ctor_args)),
+                            ) => match data_def_single_ctor {
+                                Some(ctor) => Ok(ResolvedAstPathComponent::Terminal(
+                                    TerminalResolvedPathComponent::CtorTerm(CtorTerm {
+                                        ctor: ctor.id,
+                                        data_args,
+                                        ctor_args,
+                                    }),
+                                )),
+                                None => Err(SemanticError::DataDefIsNotSingleton {
+                                    location: self.source_location(component.name_span),
+                                }),
+                            },
+                            (ResolvedArgs::Pat(_, _), _) => {
                                 Err(SemanticError::CannotUseDataTypeInPatternPosition {
                                     location: self.source_location(component.name_span),
                                 })

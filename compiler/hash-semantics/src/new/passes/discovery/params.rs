@@ -1,6 +1,10 @@
 //! Utilities for creating parameters and arguments during discovery.
 use hash_ast::ast::{self};
-use hash_tir::new::{environment::env::AccessToEnv, params::ParamsId, utils::AccessToUtils};
+use hash_tir::new::{
+    environment::env::AccessToEnv,
+    params::{ParamIndex, ParamsId},
+    utils::{common::CommonUtils, AccessToUtils},
+};
 
 use super::DiscoveryPass;
 use crate::new::{environment::tc_env::AccessToTcEnv, passes::ast_utils::AstUtils};
@@ -14,7 +18,14 @@ impl<'tc> DiscoveryPass<'tc> {
         name: impl Fn(&T) -> &Option<ast::AstNode<ast::Name>>,
     ) -> ParamsId {
         let params_id = self.param_utils().create_hole_params(
-            params.iter().map(|param| self.create_symbol_from_ast_name(name(param))),
+            params
+                .iter()
+                .enumerate()
+                .map(|(i, param)| match name(param) {
+                    Some(name) => ParamIndex::Name(name.ident),
+                    None => ParamIndex::Position(i),
+                })
+                .map(|index| self.new_symbol_from_param_index(index)),
         );
         self.stores()
             .location()

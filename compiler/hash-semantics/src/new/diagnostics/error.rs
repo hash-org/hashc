@@ -54,6 +54,8 @@ pub enum SemanticError {
     UnexpectedArguments { location: SourceLocation },
     /// Type error, forwarded from the typechecker.
     TypeError { error: TcError },
+    /// Given data definition is not a singleton.
+    DataDefIsNotSingleton { location: SourceLocation },
 }
 
 impl From<TcError> for SemanticError {
@@ -250,6 +252,16 @@ impl<'tc> WithTcEnv<'tc, &SemanticError> {
                 error
                     .add_span(*location)
                     .add_info("cannot use these arguments as the subject does not expect them");
+            }
+            SemanticError::DataDefIsNotSingleton { location } => {
+                let error = reporter
+                    .error()
+                    .code(HashErrorCode::ValueCannotBeUsedAsType)
+                    .title("cannot construct this data type directly because it is an enum");
+
+                error
+                    .add_span(*location)
+                    .add_info("you need to specify which variant of this data type you want");
             }
         }
     }

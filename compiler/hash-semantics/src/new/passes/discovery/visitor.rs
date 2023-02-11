@@ -35,7 +35,6 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         TyFnDef,
         TupleTy,
         BodyBlock,
-        MergeDeclaration,
         Expr,
         MatchCase
     );
@@ -372,18 +371,6 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         node: ast::AstNodeRef<ast::TraitDef>,
     ) -> Result<Self::TraitDefRet, Self::Error> {
         // Traits are not yet supported
-        self.diagnostics().add_error(SemanticError::TraitsNotSupported {
-            trait_location: self.node_location(node),
-        });
-        Ok(())
-    }
-
-    type MergeDeclarationRet = ();
-    fn visit_merge_declaration(
-        &self,
-        node: AstNodeRef<ast::MergeDeclaration>,
-    ) -> Result<Self::MergeDeclarationRet, Self::Error> {
-        // Merge declarations are not yet supported
         self.diagnostics().add_error(SemanticError::TraitsNotSupported {
             trait_location: self.node_location(node),
         });
