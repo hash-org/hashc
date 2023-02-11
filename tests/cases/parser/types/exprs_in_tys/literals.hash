@@ -1,0 +1,26 @@
+// run=pass, stage=parse
+
+Foo := struct<T> (
+    x: T,
+    y: 1
+);
+
+Foo := enum (
+    A(4),
+    B,
+    C
+);
+
+main := () => {
+    t: Foo<"e"> = Foo(x = 3, y = 3);
+    t: Foo<'c'> = Foo(x = 3, y = 3);
+    t: Foo<2> = Foo(x = 3, y = 3);
+    t: Foo<2.3> = Foo(x = 3, y = 3);
+
+    n: "c" = "c";
+    n: 2 | 3 = 2;
+}
+
+beeper := () -> "beep" => {
+    "boop"
+}

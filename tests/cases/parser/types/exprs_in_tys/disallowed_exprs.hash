@@ -1,4 +1,4 @@
-// run=pass, stage=fail
+// run=fail, stage=parse
 
 // ~ERROR: unexpectedly encountered `{...}` in type parameter list.
 {
@@ -10,6 +10,13 @@
 
 {
     Bar := enum<{ 1 }> (
+        L,
+        R
+    );
+}
+
+
+    Bar := enum<"ch"> (
         L,
         R
     );

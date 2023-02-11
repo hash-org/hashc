@@ -140,6 +140,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 self.parse_ty_fn()?
             }
 
+            // This allows for the user to use the shorthand for literal types within
+            // type positions, if the token is a primitive literal, then we parse it as
+            // a expression in a type.
+            kind if kind.is_lit() => {
+                let expr = self.parse_expr()?;
+                Ty::Expr(ExprTy { expr })
+            }
+
             kind => {
                 self.err_with_location(ParseErrorKind::ExpectedType, None, Some(*kind), span)?
             }

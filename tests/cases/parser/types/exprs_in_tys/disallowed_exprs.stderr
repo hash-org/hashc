@@ -1,0 +1,23 @@
+error: unexpectedly encountered a `{...}`
+ --> $DIR/disallowed_exprs.hash:5:19
+4 |   {
+5 |       Foo := struct<{ 1 }> (
+  |                     ^^^^^ 
+6 |           x: T,
+  = help: consider adding a `>`
+
+error: unexpectedly encountered a `{...}`
+  --> $DIR/disallowed_exprs.hash:12:17
+11 |   {
+12 |       Bar := enum<{ 1 }> (
+   |                   ^^^^^ 
+13 |           L,
+   = help: consider adding a `>`
+
+error: unexpectedly encountered the string `ch`
+  --> $DIR/disallowed_exprs.hash:19:17
+18 |   
+19 |       Bar := enum<"ch"> (
+   |                   ^^^^ 
+20 |           L,
+   = help: consider adding a `>`
