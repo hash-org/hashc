@@ -474,7 +474,7 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
                         // Run intrinsic:
                         let result: TermId = self
                             .intrinsics()
-                            .by_id()
+                            .implementations
                             .map_fast(intrinsic_id, |intrinsic| {
                                 let intrinsic = intrinsic.unwrap();
                                 (intrinsic.implementation)(self.0, &args_as_terms)

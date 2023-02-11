@@ -5,7 +5,10 @@
 //! Any scoping errors are reported here.
 
 use hash_ast::ast::{self};
-use hash_intrinsics::primitives::{AccessToPrimitives, DefinedPrimitives};
+use hash_intrinsics::{
+    intrinsics::{AccessToIntrinsics, DefinedIntrinsics},
+    primitives::{AccessToPrimitives, DefinedPrimitives},
+};
 use hash_source::ModuleKind;
 use hash_tir::new::environment::env::AccessToEnv;
 
@@ -30,6 +33,12 @@ pub struct ResolutionPass<'tc> {
     tc_env: &'tc TcEnv<'tc>,
     /// Tools for entering scopes and looking up symbols by name in them.
     scoping: Scoping<'tc>,
+}
+
+impl AccessToIntrinsics for ResolutionPass<'_> {
+    fn intrinsics(&self) -> &DefinedIntrinsics {
+        self.tc_env.intrinsics()
+    }
 }
 
 impl AccessToPrimitives for ResolutionPass<'_> {

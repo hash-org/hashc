@@ -38,7 +38,7 @@ pub trait BootstrapOps: AccessToTcEnv + AccessToUtils {
         self.mod_utils().create_mod_def(ModDefData {
             name: self.new_symbol("Intrinsics"),
             kind: ModKind::ModBlock,
-            members: self.mod_utils().create_mod_members(intrinsics.as_mod_members()),
+            members: self.mod_utils().create_mod_members(intrinsics.as_mod_members(self.env())),
         })
     }
 

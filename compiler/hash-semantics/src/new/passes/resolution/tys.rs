@@ -18,7 +18,7 @@ use hash_tir::new::{
     params::ParamIndex,
     refs::{RefKind, RefTy},
     terms::Term,
-    tys::{Ty, TyId},
+    tys::{Ty, TyId, TypeOfTerm},
     utils::{common::CommonUtils, AccessToUtils},
 };
 
@@ -344,8 +344,9 @@ impl<'tc> ResolutionPass<'tc> {
     ) -> SemanticResult<TyId> {
         let lhs = self.make_ty_from_ast_ty(node.lhs.ast_ref())?;
         let rhs = self.make_ty_from_ast_ty(node.rhs.ast_ref())?;
+        let typeof_lhs = self.new_term(TypeOfTerm { term: self.use_ty_as_term(lhs) });
         let args = self.param_utils().create_positional_args(vec![
-            self.new_term(self.new_ty_hole()),
+            typeof_lhs,
             self.use_ty_as_term(lhs),
             self.use_ty_as_term(rhs),
         ]);

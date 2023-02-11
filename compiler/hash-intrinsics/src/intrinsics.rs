@@ -6,7 +6,7 @@ use hash_source::{
     identifier::Identifier,
 };
 use hash_tir::new::{
-    environment::env::AccessToEnv,
+    environment::env::{AccessToEnv, Env},
     fns::{FnBody, FnDef, FnDefId, FnTy},
     intrinsics::IntrinsicId,
     lits::{Lit, PrimTerm},
@@ -16,9 +16,7 @@ use hash_tir::new::{
     tys::Ty,
     utils::{common::CommonUtils, AccessToUtils},
 };
-use hash_utils::store::{
-    DefaultPartialStore, PartialCloneStore, PartialStore, SequenceStoreKey, Store,
-};
+use hash_utils::store::{DefaultPartialStore, PartialStore, SequenceStoreKey, Store};
 use num_bigint::{BigInt, BigUint};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
@@ -47,12 +45,49 @@ pub struct Intrinsic {
 
 pub type IntrinsicImpl = fn(&(dyn AccessToPrimitives), &[TermId]) -> Result<TermId, String>;
 
-/// Contains all the defined intrinsics, by name and by ID.
-pub struct DefinedIntrinsics {
-    /// Intrinsic IDs by name.
-    by_name: DefaultPartialStore<Identifier, IntrinsicId>,
-    /// Intrinsic data by ID.
-    intrinsics: DefaultPartialStore<IntrinsicId, Intrinsic>,
+macro_rules! defined_intrinsics {
+    ($($name:ident),* $(,)?) => {
+        pub struct DefinedIntrinsics {
+            pub implementations: DefaultPartialStore<IntrinsicId, Intrinsic>,
+
+            $($name: FnDefId),*
+        }
+
+        impl DefinedIntrinsics {
+            $(
+                pub fn $name(&self) -> FnDefId {
+                    self.$name
+                }
+            )*
+        }
+
+        impl DefinedIntrinsics {
+            /// Create a list of [`ModMemberData`] that corresponds to the defined intrinsics.
+            ///
+            /// This can be used to make a module and enter its scope.
+            pub fn as_mod_members(&self, env: &Env) -> Vec<ModMemberData> {
+                vec![
+                    $(
+                        ModMemberData {
+                            name: env.stores().fn_def().map_fast(self.$name, |def| def.name),
+                            value: ModMemberValue::Fn(self.$name)
+                        },
+                    )*
+                ]
+            }
+        }
+    };
+
+}
+
+// Contains all the defined intrinsics
+defined_intrinsics! {
+    bool_bin_op,
+    endo_bin_op,
+    prim_type_eq_op,
+    un_op,
+    abort,
+    user_error,
 }
 
 impl Debug for DefinedIntrinsics {
@@ -67,6 +102,8 @@ impl Debug for DefinedIntrinsics {
 pub enum UnOp {
     /// Logical negation (!)
     Not,
+    /// Bitwise negation (~)
+    BitNot,
     /// Negation (-)
     Neg,
 }
@@ -122,10 +159,6 @@ pub enum EndoBinOp {
 }
 
 impl DefinedIntrinsics {
-    fn empty() -> Self {
-        Self { by_name: DefaultPartialStore::new(), intrinsics: DefaultPartialStore::new() }
-    }
-
     /// Add the `un_op` intrinsic.
     ///
     /// This intrinsic has signature
@@ -133,7 +166,11 @@ impl DefinedIntrinsics {
     ///
     /// The `op` parameter is an integer which represents the operation to
     /// perform, which is one of the `UnOp` variants. The `a` is the operand
-    fn add_un_op_intrinsic<T: AccessToEnv + AccessToPrimitives + Copy>(&self, env: T) {
+    fn add_un_op_intrinsic<T: AccessToEnv + AccessToPrimitives + Copy>(
+        env: T,
+
+        implementations: &DefaultPartialStore<IntrinsicId, Intrinsic>,
+    ) -> FnDefId {
         let t_sym = env.new_symbol("T");
         let op_sym = env.new_symbol("op");
         let a_sym = env.new_symbol("a");
@@ -149,10 +186,11 @@ impl DefinedIntrinsics {
             ]
             .into_iter(),
         );
-        let ret = env.new_data_ty(env.primitives().bool());
+        let ret = env.new_ty(t_sym);
 
-        self.add_intrinsic(
+        Self::add_intrinsic(
             env,
+            implementations,
             "un_op",
             FnTy::builder().params(params).return_ty(ret).build(),
             |env, args| {
@@ -176,11 +214,22 @@ impl DefinedIntrinsics {
                     };
                 }
 
-                // Valid operations on numerics
-                macro_rules! operate_numeric {
+                // Valid operations on floats
+                macro_rules! operate_float {
                     ($op:expr, $a:expr) => {
                         match $op {
                             UnOp::Neg => -($a),
+                            _ => return Err(INVALID_OP.to_string()),
+                        }
+                    };
+                }
+
+                // Valid operations on integers
+                macro_rules! operate_integer {
+                    ($op:expr, $a:expr) => {
+                        match $op {
+                            UnOp::Neg => -($a),
+                            UnOp::BitNot => !($a),
                             _ => return Err(INVALID_OP.to_string()),
                         }
                     };
@@ -192,53 +241,53 @@ impl DefinedIntrinsics {
                         LitTy::I8 => {
                             let a: i8 = env.try_use_term_as_integer_lit(a).unwrap();
                             Ok(env.create_term_from_integer_lit(
-                                operate_numeric!(parsed_op, a),
+                                operate_integer!(parsed_op, a),
                                 IntTy::Int(SIntTy::I8),
                             ))
                         }
                         LitTy::I16 => {
                             let a: i16 = env.try_use_term_as_integer_lit(a).unwrap();
                             Ok(env.create_term_from_integer_lit(
-                                operate_numeric!(parsed_op, a),
+                                operate_integer!(parsed_op, a),
                                 IntTy::Int(SIntTy::I16),
                             ))
                         }
                         LitTy::I32 => {
                             let a: i32 = env.try_use_term_as_integer_lit(a).unwrap();
                             Ok(env.create_term_from_integer_lit(
-                                operate_numeric!(parsed_op, a),
+                                operate_integer!(parsed_op, a),
                                 IntTy::Int(SIntTy::I32),
                             ))
                         }
                         LitTy::I64 => {
                             let a: i64 = env.try_use_term_as_integer_lit(a).unwrap();
                             Ok(env.create_term_from_integer_lit(
-                                operate_numeric!(parsed_op, a),
+                                operate_integer!(parsed_op, a),
                                 IntTy::Int(SIntTy::I64),
                             ))
                         }
                         LitTy::I128 => {
                             let a: i128 = env.try_use_term_as_integer_lit(a).unwrap();
                             Ok(env.create_term_from_integer_lit(
-                                operate_numeric!(parsed_op, a),
+                                operate_integer!(parsed_op, a),
                                 IntTy::Int(SIntTy::I128),
                             ))
                         }
                         LitTy::IBig => {
                             let a: BigInt = env.try_use_term_as_integer_lit(a).unwrap();
                             Ok(env.create_term_from_integer_lit(
-                                operate_numeric!(parsed_op, a),
+                                operate_integer!(parsed_op, a),
                                 IntTy::Int(SIntTy::IBig),
                             ))
                         }
                         LitTy::F32 => {
                             // @@Todo: properly handle f32
                             let a: f64 = env.try_use_term_as_float_lit(a).unwrap();
-                            Ok(env.create_term_from_float_lit(operate_numeric!(parsed_op, a)))
+                            Ok(env.create_term_from_float_lit(operate_float!(parsed_op, a)))
                         }
                         LitTy::F64 => {
                             let a: f64 = env.try_use_term_as_float_lit(a).unwrap();
-                            Ok(env.create_term_from_float_lit(operate_numeric!(parsed_op, a)))
+                            Ok(env.create_term_from_float_lit(operate_float!(parsed_op, a)))
                         }
                         LitTy::Bool => {
                             let a: bool = env.try_use_term_as_bool(a).unwrap();
@@ -261,7 +310,10 @@ impl DefinedIntrinsics {
     /// perform, which is one of the `BoolBinOp` variants. The `a` and `b`
     /// parameters are the two operands, and the return value is the result
     /// of the operation.
-    fn add_bool_bin_op_intrinsic<T: AccessToEnv + AccessToPrimitives + Copy>(&self, env: T) {
+    fn add_bool_bin_op_intrinsic<T: AccessToEnv + AccessToPrimitives + Copy>(
+        env: T,
+        implementations: &DefaultPartialStore<IntrinsicId, Intrinsic>,
+    ) -> FnDefId {
         let t_sym = env.new_symbol("T");
         let op_sym = env.new_symbol("op");
         let a_sym = env.new_symbol("a");
@@ -281,8 +333,9 @@ impl DefinedIntrinsics {
         );
         let ret = env.new_data_ty(env.primitives().bool());
 
-        self.add_intrinsic(
+        Self::add_intrinsic(
             env,
+            implementations,
             "bool_bin_op",
             FnTy::builder().params(params).return_ty(ret).build(),
             |env, args| {
@@ -455,7 +508,10 @@ impl DefinedIntrinsics {
     /// perform, which is one of the `EndoBinOp` variants. The `a` and `b`
     /// parameters are the two operands, and the return value is the result
     /// of the operation.
-    fn add_endo_bin_op_intrinsic<T: AccessToEnv + AccessToPrimitives + Copy>(&self, env: T) {
+    fn add_endo_bin_op_intrinsic<T: AccessToEnv + AccessToPrimitives + Copy>(
+        env: T,
+        implementations: &DefaultPartialStore<IntrinsicId, Intrinsic>,
+    ) -> FnDefId {
         let t_sym = env.new_symbol("T");
         let op_sym = env.new_symbol("op");
         let a_sym = env.new_symbol("a");
@@ -475,8 +531,9 @@ impl DefinedIntrinsics {
         );
         let ret = env.new_ty(t_sym);
 
-        self.add_intrinsic(
+        Self::add_intrinsic(
             env,
+            implementations,
             "endo_bin_op",
             FnTy::builder().params(params).return_ty(ret).build(),
             |env, args| {
@@ -662,20 +719,31 @@ impl DefinedIntrinsics {
     }
 
     /// Add a primitive to check for primitive data type equality.
-    fn add_prim_type_eq_op<T: AccessToEnv + AccessToPrimitives + Copy>(&self, env: T) {
+    fn add_prim_type_eq_op<T: AccessToEnv + AccessToPrimitives + Copy>(
+        env: T,
+        implementations: &DefaultPartialStore<IntrinsicId, Intrinsic>,
+    ) -> FnDefId {
         let ty = env.new_small_universe_ty();
         let bool_ty = env.new_data_ty(env.primitives().bool());
         let bin_op_name = "prim_type_eq".to_string();
-        self.add_intrinsic(
+
+        Self::add_intrinsic(
             env,
+            implementations,
             bin_op_name,
             FnTy::builder().params(env.new_params(&[ty, ty])).return_ty(bool_ty).build(),
             |prim, args| {
                 let (lhs, rhs) = (args[0], args[1]);
-                let invalid = || Err("Invalid arguments for type equality intrinsic. Only data types with no arguments can be compared".to_string());
+                let invalid = || {
+                    Err("Invalid arguments for type equality intrinsic. Only data types with no arguments can be compared".to_string())
+                };
 
-                if let (Term::Ty(lhs_ty), Term::Ty(rhs_ty)) = (prim.get_term(lhs), prim.get_term(rhs)) {
-                    if let (Ty::Data(lhs_data), Ty::Data(rhs_data)) = (prim.get_ty(lhs_ty), prim.get_ty(rhs_ty)) {
+                if let (Term::Ty(lhs_ty), Term::Ty(rhs_ty)) =
+                    (prim.get_term(lhs), prim.get_term(rhs))
+                {
+                    if let (Ty::Data(lhs_data), Ty::Data(rhs_data)) =
+                        (prim.get_ty(lhs_ty), prim.get_ty(rhs_ty))
+                    {
                         if lhs_data.args.len() == 0 && rhs_data.args.len() == 0 {
                             return Ok(prim.new_bool_term(lhs_data.data_def == rhs_data.data_def));
                         }
@@ -689,22 +757,22 @@ impl DefinedIntrinsics {
 
     /// Create the default intrinsics.
     pub fn create<T: AccessToEnv + AccessToPrimitives + Copy>(env: T) -> Self {
-        let intrinsics = Self::empty();
         let prim = env.primitives();
+        let implementations = DefaultPartialStore::new();
 
         let add = |name: &'static str, fn_ty: FnTy, implementation: IntrinsicImpl| {
-            intrinsics.add_intrinsic(env, name, fn_ty, implementation)
+            Self::add_intrinsic(env, &implementations, name, fn_ty, implementation)
         };
 
         // Aborting
-        add(
+        let abort = add(
             "abort",
             FnTy::builder().params(env.new_empty_params()).return_ty(env.new_never_ty()).build(),
             |_, _| process::exit(1),
         );
 
         // User errors
-        add(
+        let user_error = add(
             "user_error",
             FnTy::builder()
                 .params(env.new_params(&[env.new_data_ty(prim.str())]))
@@ -717,36 +785,38 @@ impl DefinedIntrinsics {
         );
 
         // Primitive type equality
-        intrinsics.add_prim_type_eq_op(env);
+        let prim_type_eq_op = Self::add_prim_type_eq_op(env, &implementations);
 
         // Endo bin ops
-        intrinsics.add_endo_bin_op_intrinsic(env);
+        let endo_bin_op = Self::add_endo_bin_op_intrinsic(env, &implementations);
 
         // Bool bin ops
-        intrinsics.add_bool_bin_op_intrinsic(env);
+        let bool_bin_op = Self::add_bool_bin_op_intrinsic(env, &implementations);
 
         // Unary ops
-        intrinsics.add_un_op_intrinsic(env);
+        let un_op = Self::add_un_op_intrinsic(env, &implementations);
 
-        intrinsics
-    }
-
-    /// The store of intrinsics by ID.
-    pub fn by_id(&self) -> &DefaultPartialStore<IntrinsicId, Intrinsic> {
-        &self.intrinsics
+        DefinedIntrinsics {
+            implementations,
+            prim_type_eq_op,
+            bool_bin_op,
+            endo_bin_op,
+            un_op,
+            abort,
+            user_error,
+        }
     }
 
     /// Add an intrinsic to the store.
     fn add_intrinsic<T: AccessToEnv + AccessToPrimitives>(
-        &self,
         env: T,
+        implementations: &DefaultPartialStore<IntrinsicId, Intrinsic>,
         name: impl Into<Identifier>,
         fn_ty: FnTy,
         implementation: IntrinsicImpl,
-    ) {
+    ) -> FnDefId {
         let name = name.into();
         let intrinsic_id = IntrinsicId(env.new_symbol(name));
-        self.by_name.insert(name, intrinsic_id);
 
         let fn_def = env.stores().fn_def().create_with(|id| {
             FnDef::builder()
@@ -757,25 +827,9 @@ impl DefinedIntrinsics {
                 .build()
         });
         let intrinsic_impl = Intrinsic { id: intrinsic_id, fn_def, implementation };
-        self.intrinsics.insert(intrinsic_id, intrinsic_impl);
-    }
+        implementations.insert(intrinsic_id, intrinsic_impl);
 
-    /// Get an intrinsic ID by its name.
-    pub fn get_id(&self, name: impl Into<Identifier>) -> IntrinsicId {
-        self.by_name.get(name.into()).unwrap()
-    }
-
-    /// Create a set of module members for the defined intrinsics.
-    pub fn as_mod_members(&self) -> Vec<ModMemberData> {
-        self.intrinsics
-            .internal_data()
-            .borrow()
-            .values()
-            .map(|intrinsic| ModMemberData {
-                name: intrinsic.id.0,
-                value: ModMemberValue::Fn(intrinsic.fn_def),
-            })
-            .collect()
+        fn_def
     }
 }
 
