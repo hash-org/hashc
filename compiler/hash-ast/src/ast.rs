@@ -1855,66 +1855,95 @@ define_tree! {
         /// A constructor call which could be a struct/enum initialisation or a
         /// function call e.g. `foo(5)`.
         ConstructorCall(ConstructorCallExpr),
+
         /// A directive expression
         Directive(DirectiveExpr),
+
         /// Declaration e.g. `x := 5;`
         Declaration(Declaration),
+
         /// A variable e.g. `x`
         Variable(VariableExpr),
+
         /// Either a property access or a namespace access
         Access(AccessExpr),
+
         /// Reference expression e.g. `&expr`
         Ref(RefExpr),
+
         /// Dereference expression e.g. `*expr`
         Deref(DerefExpr),
+
         /// Unsafe block expression e.g. `unsafe { *(&raw bytes) }`
         Unsafe(UnsafeExpr),
+
         /// Literal expression e.g. `5`
         Lit(LitExpr),
+
         /// Cast expression e.g. `x as u32`
         Cast(CastExpr),
+
         /// Block expression
         Block(BlockExpr),
+
         /// Import expression e.g. `import("lib")`
         Import(ImportExpr),
+
         /// Struct definition expression e.g. `struct(foo: str)`
         StructDef(StructDef),
+
         /// Struct definition expression e.g. `enum(Bar(u32), Baz(f32))`
         EnumDef(EnumDef),
+
         /// Type function definition e.g. `<T> => ...`
         TyFnDef(TyFnDef),
+
         /// Trait definition e.g.  `trait { ... }`
         TraitDef(TraitDef),
+
         /// An implementation definition e.g. `impl { ... }`
         ImplDef(ImplDef),
+
         /// A `mod` definition e.g. `mod { ... }`
         ModDef(ModDef),
+
         /// Function definition e.g. `(foo: i32) -> i32 => { ... }`
         FnDef(FnDef),
+
         /// Type expression e.g. `type i32`
         Ty(TyExpr),
+
         /// Break statement e.g. `return 5;`
         Return(ReturnStatement),
+
         /// Break statement e.g. `break`
         Break(BreakStatement),
+
         /// Continue statement e.g. `continue`
         Continue(ContinueStatement),
+
         /// Expression to index a subject e.g. `arr[x]`
         Index(IndexExpr),
+
         /// An expression that captures a variable or a pattern being assigned
         /// to a right hand-side expression such as `x = 3`.
         Assign(AssignExpr),
+
         /// An expression that captures a variable or a pattern being assigned with
         /// the application of a binary operator, such as `x += 3`.
         AssignOp(AssignOpExpr),
+
         /// A merge declaration is one that adds an implementation for a particular
         /// trait/struct to an already declared item, such as `x ~= impl T { ... }`
         MergeDeclaration(MergeDeclaration),
+
         /// Trait implementation e.g. `impl Clone { ... }`
         TraitImpl(TraitImpl),
+
         /// Binary Expression composed of a left and right hand-side with a binary
         /// operator
         BinaryExpr(BinaryExpr),
+
         /// Unary Expression composed of a unary operator and an expression
         UnaryExpr(UnaryExpr),
     }

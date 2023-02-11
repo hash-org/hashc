@@ -60,6 +60,7 @@ impl Display for SubjectKind {
 pub enum WarningKind {
     /// When an expression is wrapped within redundant parentheses.
     RedundantParenthesis(SubjectKind),
+
     /// When the unary operator `+` is featured, whilst the parser
     /// allows this operator, it has no effect on the expression
     /// and so could be omitted.
@@ -69,9 +70,9 @@ pub enum WarningKind {
     /// that are unnecessary.
     TrailingSemis(usize),
 
-    UselessTyParams {
-        def_kind: DefinitionKind,
-    },
+    /// When type parameters are provided with no specified parameters i.e.
+    /// `<>`.
+    UselessTyParams { def_kind: DefinitionKind },
 }
 
 pub(crate) struct ParseWarningWrapper(pub ParseWarning, pub SourceId);
