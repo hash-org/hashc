@@ -11,7 +11,7 @@ use hash_utils::store::Store;
 use crate::primitives::AccessToPrimitives;
 
 /// Utilities relating to creating and inspecting primitive types.
-pub trait PrimitiveUtils: AccessToPrimitives + Sized {
+pub trait PrimitiveUtils: AccessToPrimitives {
     /// Get the bool constructor for the given value.
     ///
     /// Both constructors do not take arguments.
@@ -55,4 +55,4 @@ pub trait PrimitiveUtils: AccessToPrimitives + Sized {
     }
 }
 
-impl<T: AccessToEnv + AccessToPrimitives> PrimitiveUtils for T {}
+impl<T: AccessToEnv + AccessToPrimitives + ?Sized> PrimitiveUtils for T {}

@@ -106,7 +106,6 @@ fn execute<I: CompilerInterface>(input: &str, compiler: &mut Compiler<I>, mut ct
                 }
                 _ => {
                     settings.ast_settings_mut().dump = false;
-                    settings.set_stage(CompilerStageKind::Full)
                 }
             }
 

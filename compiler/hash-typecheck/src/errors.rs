@@ -136,6 +136,9 @@ pub enum TcError {
     /// An error related to argument/parameter matching.
     #[from]
     ParamMatch(ParamError),
+
+    /// An error that occurred in an intrinsic.
+    Intrinsic(String),
 }
 
 pub type TcResult<T> = Result<T, TcError>;
@@ -497,6 +500,9 @@ impl<'tc> TcErrorReporter<'tc> {
                         format!("expected {} parameters from here", annotation_params_id.len(),),
                     );
                 }
+            }
+            TcError::Intrinsic(msg) => {
+                let _error = reporter.error().code(HashErrorCode::TypeMismatch).title(msg);
             }
         }
     }

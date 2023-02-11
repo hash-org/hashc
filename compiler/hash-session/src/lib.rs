@@ -24,7 +24,9 @@ use hash_pipeline::{
     workspace::Workspace,
 };
 use hash_reporting::{report::Report, writer::ReportWriter};
-use hash_semantics::{Typechecker, TypecheckingCtx, TypecheckingCtxQuery};
+use hash_semantics::{
+    new::environment::tc_env::SemanticStorage, Typechecker, TypecheckingCtx, TypecheckingCtxQuery,
+};
 use hash_source::{entry_point::EntryPointState, SourceId, SourceMap};
 use hash_tir::storage::{GlobalStorage, LocalStorage, TyStorage};
 use hash_untyped_semantics::{SemanticAnalysis, SemanticAnalysisCtx, SemanticAnalysisCtxQuery};
@@ -81,6 +83,9 @@ pub struct CompilerSession {
     /// generation.
     pub ty_storage: TyStorage,
 
+    // Semantic analysis storage
+    pub semantic_storage: SemanticStorage,
+
     /// Compiler IR storage. Stores all the IR that is created during the
     /// lowering stage, which is used for later stages during code generation.
     pub ir_storage: IrStorage,
@@ -119,6 +124,7 @@ impl CompilerSession {
             pool,
             settings,
             ty_storage: TyStorage { global, local, entry_point_state: EntryPointState::new() },
+            semantic_storage: SemanticStorage::new(),
             ir_storage: IrStorage::new(),
             layout_storage: LayoutCtx::new(layout_info),
         }
@@ -208,6 +214,7 @@ impl TypecheckingCtxQuery for CompilerSession {
             workspace: &mut self.workspace,
             ty_storage: &mut self.ty_storage,
             settings: &self.settings,
+            semantic_storage: &mut self.semantic_storage,
         }
     }
 }

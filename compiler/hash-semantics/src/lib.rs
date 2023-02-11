@@ -30,20 +30,11 @@ use hash_reporting::diagnostic::{DiagnosticCellStore, Diagnostics};
 use hash_source::{entry_point::EntryPointState, SourceId};
 use hash_tir::{
     fmt::PrepareForFormatting,
-    new::environment::{
-        context::Context, env::Env, source_info::CurrentSourceInfo, stores::Stores,
-    },
+    new::environment::{env::Env, source_info::CurrentSourceInfo},
     storage::{LocalStorage, TyStorage},
 };
 use hash_utils::stream_less_writeln;
-use new::{
-    diagnostics::warning::SemanticWarning,
-    environment::{
-        ast_info::AstInfo,
-        tc_env::{AccessToTcEnv, TcEnv},
-    },
-};
-use once_cell::unsync::OnceCell;
+use new::environment::tc_env::{AccessToTcEnv, SemanticStorage, TcEnv};
 use storage::{
     cache::Cache, exhaustiveness::ExhaustivenessStorage, sources::CheckedSources, AccessToStorage,
     StorageRef,
@@ -76,12 +67,6 @@ pub struct Typechecker {
     /// Typechecking cache, contains useful mappings for a variety of
     /// operations.
     pub cache: Cache,
-
-    /// The new typechecking environment
-    pub _new_stores: Stores,
-    pub _new_ast_info: AstInfo,
-    pub _new_diagnostic: DiagnosticCellStore<SemanticError, SemanticWarning>,
-    pub _new_ctx: Context,
 }
 
 impl Typechecker {
@@ -91,10 +76,6 @@ impl Typechecker {
             exhaustiveness_storage: ExhaustivenessStorage::default(),
             diagnostics_store: DiagnosticCellStore::default(),
             cache: Cache::new(),
-            _new_stores: Stores::new(),
-            _new_ctx: Context::new(),
-            _new_diagnostic: DiagnosticCellStore::default(),
-            _new_ast_info: AstInfo::new(),
         }
     }
 }
@@ -112,6 +93,8 @@ pub struct TypecheckingCtx<'tc> {
     /// The typechecking storage. This is used to store the typechecked
     /// items.
     pub ty_storage: &'tc mut TyStorage,
+
+    pub semantic_storage: &'tc mut SemanticStorage,
 }
 
 /// The typechecking context query. This is used to retrieve the
@@ -126,7 +109,7 @@ impl<Ctx: TypecheckingCtxQuery> CompilerStage<Ctx> for Typechecker {
     }
 
     fn run(&mut self, entry_point: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
-        let TypecheckingCtx { workspace, ty_storage, settings } = ctx.data();
+        let TypecheckingCtx { workspace, ty_storage, settings, semantic_storage } = ctx.data();
 
         // Clear the diagnostics store of any previous errors and warnings. This needs
         // to be done for both the `interactive` pipeline and the `module`
@@ -146,15 +129,13 @@ impl<Ctx: TypecheckingCtxQuery> CompilerStage<Ctx> for Typechecker {
         let current_source_info = CurrentSourceInfo { source_id: entry_point };
 
         let env = Env::new(
-            &self._new_stores,
-            &self._new_ctx,
+            &semantic_storage.stores,
+            &semantic_storage.context,
             &workspace.node_map,
             &workspace.source_map,
             &current_source_info,
         );
 
-        let primitives = OnceCell::new();
-        let intrinsics = OnceCell::new();
         let ep_state = RefCell::new(EntryPointState::new());
 
         // Instantiate a visitor with the source and visit the source, using the
@@ -171,10 +152,11 @@ impl<Ctx: TypecheckingCtxQuery> CompilerStage<Ctx> for Typechecker {
             entry_point_state: &ep_state,
             _new: TcEnv::new(
                 &env,
-                &self._new_diagnostic,
-                &self._new_ast_info,
-                &primitives,
-                &intrinsics,
+                &semantic_storage.diagnostics,
+                &semantic_storage.ast_info,
+                &semantic_storage.prelude_or_unset,
+                &semantic_storage.primitives_or_unset,
+                &semantic_storage.intrinsics_or_unset,
             ),
         };
 
@@ -185,6 +167,7 @@ impl<Ctx: TypecheckingCtxQuery> CompilerStage<Ctx> for Typechecker {
         if std::env::var_os("USE_NEW_TC").is_some() {
             let tc_visitor = new::passes::TcVisitor::new(&storage._new);
             tc_visitor.visit_source();
+
             if tc_visitor.tc_env().diagnostics().has_errors() {
                 let (errors, _warnings) = tc_visitor.tc_env().diagnostics().into_diagnostics();
                 return Err(tc_visitor.tc_env().with(&SemanticError::Compound { errors }).into());

@@ -6,6 +6,7 @@
 
 use hash_ast::ast::{self};
 use hash_intrinsics::primitives::{AccessToPrimitives, DefinedPrimitives};
+use hash_source::ModuleKind;
 use hash_tir::new::environment::env::AccessToEnv;
 
 use self::scoping::{ContextKind, Scoping};
@@ -54,10 +55,15 @@ impl<'tc> AstPass for ResolutionPass<'tc> {
         &self,
         node: ast::AstNodeRef<ast::BodyBlock>,
     ) -> crate::new::diagnostics::error::SemanticResult<()> {
-        // @@Todo: add intrinsics to the environment
-        let (prim_mod, _) = self.bootstrap();
-        self.scoping().add_scope(prim_mod.into(), ContextKind::Environment);
-        self.scoping().add_mod_members(prim_mod);
+        let root_mod = self.bootstrap();
+        self.scoping().add_scope(root_mod.into(), ContextKind::Environment);
+        self.scoping().add_mod_members(root_mod);
+
+        // If the prelude is set, add its members to the root module.
+        if let Some(prelude) = self.prelude_or_unset().get() {
+            self.scoping().add_mod_members(*prelude);
+        }
+
         let term_id = self.make_term_from_ast_body_block(node)?;
         self.ast_info().terms().insert(node.id(), term_id);
         Ok(())
@@ -67,10 +73,23 @@ impl<'tc> AstPass for ResolutionPass<'tc> {
         &self,
         node: ast::AstNodeRef<ast::Module>,
     ) -> crate::new::diagnostics::error::SemanticResult<()> {
-        let (prim_mod, _) = self.bootstrap();
-        self.scoping().add_scope(prim_mod.into(), ContextKind::Environment);
-        self.scoping().add_mod_members(prim_mod);
-        let _ = self.resolve_ast_module_inner_terms(node)?;
+        let root_mod = self.bootstrap();
+        self.scoping().add_scope(root_mod.into(), ContextKind::Environment);
+        self.scoping().add_mod_members(root_mod);
+
+        // If the prelude is set, add its members to the root module.
+        if let Some(prelude) = self.prelude_or_unset().get() {
+            self.scoping().add_mod_members(*prelude);
+        }
+
+        let mod_def_id = self.resolve_ast_module_inner_terms(node)?;
+
+        if let Some(ModuleKind::Prelude) =
+            self.source_map().module_kind_by_id(self.current_source_info().source_id)
+        {
+            let _ = self.prelude_or_unset().set(mod_def_id);
+        }
+
         Ok(())
     }
 }
