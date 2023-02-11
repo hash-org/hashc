@@ -419,9 +419,26 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
         }
     }
 
+    /// Evaluate some arguments
+    fn eval_args(&self, args: ArgsId) -> Result<ArgsId, Signal> {
+        let args = self.stores().args().get_vec(args);
+        Ok(self.param_utils().create_args(
+            args.into_iter()
+                .map(|arg| -> Result<_, Signal> {
+                    Ok(ArgData {
+                        target: arg.target,
+                        value: self.to_term(self.eval(arg.value.into())?),
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>()?
+                .into_iter(),
+        ))
+    }
+
     /// Evaluate a function call.
     fn eval_fn_call(&self, mut fn_call: FnCallTerm) -> Result<Atom, Signal> {
         let evaluated_inner = self.maybe_to_term(self.eval(fn_call.subject.into())?);
+        let evaluated_args = self.eval_args(fn_call.args)?;
 
         // Beta-reduce:
         if let Some(term) = evaluated_inner {
@@ -436,7 +453,7 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
                         // Make a substitution from the arguments to the parameters:
                         let sub = self
                             .substitution_ops()
-                            .create_sub_from_args_of_params(fn_call.args, fn_def.ty.params);
+                            .create_sub_from_args_of_params(evaluated_args, fn_def.ty.params);
 
                         // Apply substitution to body:
                         let result =
@@ -450,10 +467,9 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
                     }
 
                     FnBody::Intrinsic(intrinsic_id) => {
-                        let args_as_terms: Vec<TermId> =
-                            self.stores().args().map_fast(fn_call.args, |args| {
-                                args.iter().map(|arg| arg.value).collect()
-                            });
+                        let args_as_terms = self.stores().args().map_fast(evaluated_args, |args| {
+                            args.iter().map(|arg| arg.value).collect_vec()
+                        });
 
                         // Run intrinsic:
                         let result: TermId = self

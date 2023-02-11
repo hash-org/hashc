@@ -121,6 +121,9 @@ pub enum TcError {
     /// Types don't match
     MismatchingTypes { expected: TyId, actual: TyId, inferred_from: Option<LocationTarget> },
 
+    /// Wrong call kind
+    WrongCallKind { site: TermId, expected_implicit: bool, actual_implicit: bool },
+
     /// Wrong type used somewhere
     WrongTy { term: TermId, inferred_term_ty: TyId, kind: WrongTermKind },
 
@@ -499,6 +502,25 @@ impl<'tc> TcErrorReporter<'tc> {
                         location,
                         format!("expected {} parameters from here", annotation_params_id.len(),),
                     );
+                }
+            }
+            TcError::WrongCallKind { site, expected_implicit, actual_implicit } => {
+                let get_call_kind = |implicit: &bool| {
+                    if *implicit {
+                        "implicit (`<...>`)"
+                    } else {
+                        "explicit (`(...)`)"
+                    }
+                };
+                let error = reporter.error().code(HashErrorCode::UnsupportedTyFnApplication).title(
+                    format!(
+                        "expected an {} call but got an {} call",
+                        get_call_kind(expected_implicit),
+                        get_call_kind(actual_implicit)
+                    ),
+                );
+                if let Some(location) = locations.get_location(site) {
+                    error.add_labelled_span(location, "unexpected call kind at this call site");
                 }
             }
             TcError::Intrinsic(msg) => {

@@ -1,23 +1,31 @@
 //! Definition and lookup of intrinsics.
 use std::{fmt::Debug, process};
 
-use hash_source::identifier::Identifier;
+use hash_source::{
+    constant::{IntTy, SIntTy},
+    identifier::Identifier,
+};
 use hash_tir::new::{
-    data::DataDefId,
     environment::env::AccessToEnv,
     fns::{FnBody, FnDef, FnDefId, FnTy},
     intrinsics::IntrinsicId,
     lits::{Lit, PrimTerm},
     mods::{ModMemberData, ModMemberValue},
+    params::ParamData,
     terms::{Term, TermId},
     tys::Ty,
-    utils::common::CommonUtils,
+    utils::{common::CommonUtils, AccessToUtils},
 };
 use hash_utils::store::{
     DefaultPartialStore, PartialCloneStore, PartialStore, SequenceStoreKey, Store,
 };
+use num_bigint::{BigInt, BigUint};
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-use crate::{primitives::AccessToPrimitives, utils::PrimitiveUtils};
+use crate::{
+    primitives::AccessToPrimitives,
+    utils::{LitTy, PrimitiveUtils},
+};
 
 /// Information about an intrinsic.
 ///
@@ -53,9 +61,604 @@ impl Debug for DefinedIntrinsics {
     }
 }
 
+/// A unary operator.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
+#[repr(u8)]
+pub enum UnOp {
+    /// Logical negation (!)
+    Not,
+    /// Negation (-)
+    Neg,
+}
+
+/// A boolean-valued binary operator.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
+#[repr(u8)]
+pub enum BoolBinOp {
+    /// '||'
+    Or,
+    /// '&&'
+    And,
+    /// '=='
+    EqEq,
+    /// '!='
+    NotEq,
+    /// '>'
+    Gt,
+    /// '>='
+    GtEq,
+    /// '<'
+    Lt,
+    /// '<='
+    LtEq,
+}
+
+/// A binary operator whose result is the same type as its arguments.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
+#[repr(u8)]
+pub enum EndoBinOp {
+    /// '|'
+    BitOr,
+    /// '&'
+    BitAnd,
+    /// '^'
+    BitXor,
+    /// '^^'
+    Exp,
+    /// '>>'
+    Shr,
+    /// '<<'
+    Shl,
+    /// '+'
+    Add,
+    /// '-'
+    Sub,
+    /// '*'
+    Mul,
+    /// '/'
+    Div,
+    /// '%'
+    Mod,
+}
+
 impl DefinedIntrinsics {
     fn empty() -> Self {
         Self { by_name: DefaultPartialStore::new(), intrinsics: DefaultPartialStore::new() }
+    }
+
+    /// Add the `un_op` intrinsic.
+    ///
+    /// This intrinsic has signature
+    /// `un_op: (T: Type, op: u8, a: T) -> T`
+    ///
+    /// The `op` parameter is an integer which represents the operation to
+    /// perform, which is one of the `UnOp` variants. The `a` is the operand
+    fn add_un_op_intrinsic<T: AccessToEnv + AccessToPrimitives + Copy>(&self, env: T) {
+        let t_sym = env.new_symbol("T");
+        let op_sym = env.new_symbol("op");
+        let a_sym = env.new_symbol("a");
+        let params = env.param_utils().create_params(
+            [
+                ParamData { default: None, name: t_sym, ty: env.new_small_universe_ty() },
+                ParamData {
+                    default: None,
+                    name: op_sym,
+                    ty: env.new_data_ty(env.primitives().u8()),
+                },
+                ParamData { default: None, name: a_sym, ty: env.new_ty(t_sym) },
+            ]
+            .into_iter(),
+        );
+        let ret = env.new_data_ty(env.primitives().bool());
+
+        self.add_intrinsic(
+            env,
+            "un_op",
+            FnTy::builder().params(params).return_ty(ret).build(),
+            |env, args| {
+                const INVALID_OP: &str = "Invalid unary operation parameters";
+
+                // Parse the arguments
+                let (t, op, a) = (args[0], args[1], args[2]);
+
+                // Parse the operator.
+                let parsed_op =
+                    UnOp::try_from(env.try_use_term_as_integer_lit::<u8>(op).ok_or(INVALID_OP)?)
+                        .map_err(|_| INVALID_OP)?;
+
+                // Valid operations on booleans
+                macro_rules! operate_bool {
+                    ($op:expr, $a:expr) => {
+                        match $op {
+                            UnOp::Not => !$a,
+                            _ => return Err(INVALID_OP.to_string()),
+                        }
+                    };
+                }
+
+                // Valid operations on numerics
+                macro_rules! operate_numeric {
+                    ($op:expr, $a:expr) => {
+                        match $op {
+                            UnOp::Neg => -($a),
+                            _ => return Err(INVALID_OP.to_string()),
+                        }
+                    };
+                }
+
+                // Handle each `T` parameter:
+                match env.try_use_ty_as_lit_ty(env.use_term_as_ty(t)) {
+                    Some(lit_ty) => match lit_ty {
+                        LitTy::I8 => {
+                            let a: i8 = env.try_use_term_as_integer_lit(a).unwrap();
+                            Ok(env.create_term_from_integer_lit(
+                                operate_numeric!(parsed_op, a),
+                                IntTy::Int(SIntTy::I8),
+                            ))
+                        }
+                        LitTy::I16 => {
+                            let a: i16 = env.try_use_term_as_integer_lit(a).unwrap();
+                            Ok(env.create_term_from_integer_lit(
+                                operate_numeric!(parsed_op, a),
+                                IntTy::Int(SIntTy::I16),
+                            ))
+                        }
+                        LitTy::I32 => {
+                            let a: i32 = env.try_use_term_as_integer_lit(a).unwrap();
+                            Ok(env.create_term_from_integer_lit(
+                                operate_numeric!(parsed_op, a),
+                                IntTy::Int(SIntTy::I32),
+                            ))
+                        }
+                        LitTy::I64 => {
+                            let a: i64 = env.try_use_term_as_integer_lit(a).unwrap();
+                            Ok(env.create_term_from_integer_lit(
+                                operate_numeric!(parsed_op, a),
+                                IntTy::Int(SIntTy::I64),
+                            ))
+                        }
+                        LitTy::I128 => {
+                            let a: i128 = env.try_use_term_as_integer_lit(a).unwrap();
+                            Ok(env.create_term_from_integer_lit(
+                                operate_numeric!(parsed_op, a),
+                                IntTy::Int(SIntTy::I128),
+                            ))
+                        }
+                        LitTy::IBig => {
+                            let a: BigInt = env.try_use_term_as_integer_lit(a).unwrap();
+                            Ok(env.create_term_from_integer_lit(
+                                operate_numeric!(parsed_op, a),
+                                IntTy::Int(SIntTy::IBig),
+                            ))
+                        }
+                        LitTy::F32 => {
+                            // @@Todo: properly handle f32
+                            let a: f64 = env.try_use_term_as_float_lit(a).unwrap();
+                            Ok(env.create_term_from_float_lit(operate_numeric!(parsed_op, a)))
+                        }
+                        LitTy::F64 => {
+                            let a: f64 = env.try_use_term_as_float_lit(a).unwrap();
+                            Ok(env.create_term_from_float_lit(operate_numeric!(parsed_op, a)))
+                        }
+                        LitTy::Bool => {
+                            let a: bool = env.try_use_term_as_bool(a).unwrap();
+                            Ok(env.new_bool_term(operate_bool!(parsed_op, a)))
+                        }
+                        _ => Err(INVALID_OP.to_string()),
+                    },
+                    None => Err(INVALID_OP.to_string()),
+                }
+            },
+        )
+    }
+
+    /// Add the `bool_bin_op` intrinsic.
+    ///
+    /// This intrinsic has signature
+    /// `bool_bin_op: (T: Type, op: u8, a: T, b: T) -> bool`
+    ///
+    /// The `op` parameter is an integer which represents the operation to
+    /// perform, which is one of the `BoolBinOp` variants. The `a` and `b`
+    /// parameters are the two operands, and the return value is the result
+    /// of the operation.
+    fn add_bool_bin_op_intrinsic<T: AccessToEnv + AccessToPrimitives + Copy>(&self, env: T) {
+        let t_sym = env.new_symbol("T");
+        let op_sym = env.new_symbol("op");
+        let a_sym = env.new_symbol("a");
+        let b_sym = env.new_symbol("b");
+        let params = env.param_utils().create_params(
+            [
+                ParamData { default: None, name: t_sym, ty: env.new_small_universe_ty() },
+                ParamData {
+                    default: None,
+                    name: op_sym,
+                    ty: env.new_data_ty(env.primitives().u8()),
+                },
+                ParamData { default: None, name: a_sym, ty: env.new_ty(t_sym) },
+                ParamData { default: None, name: b_sym, ty: env.new_ty(t_sym) },
+            ]
+            .into_iter(),
+        );
+        let ret = env.new_data_ty(env.primitives().bool());
+
+        self.add_intrinsic(
+            env,
+            "bool_bin_op",
+            FnTy::builder().params(params).return_ty(ret).build(),
+            |env, args| {
+                const INVALID_OP: &str = "Invalid cond-binary operation parameters";
+
+                // Parse the arguments
+                let (t, op, lhs, rhs) = (args[0], args[1], args[2], args[3]);
+
+                // Parse the operator.
+                let parsed_op = BoolBinOp::try_from(
+                    env.try_use_term_as_integer_lit::<u8>(op).ok_or(INVALID_OP)?,
+                )
+                .map_err(|_| INVALID_OP)?;
+
+                // Valid operations on big-ints
+                macro_rules! operate_bool {
+                    ($op:expr, $lhs:expr, $rhs:expr) => {
+                        match $op {
+                            BoolBinOp::Or => $lhs || $rhs,
+                            BoolBinOp::And => $lhs && $rhs,
+                            BoolBinOp::EqEq => $lhs == $rhs,
+                            BoolBinOp::NotEq => $lhs != $rhs,
+                            _ => return Err(INVALID_OP.to_string()),
+                        }
+                    };
+                }
+
+                // Valid operations on floats
+                macro_rules! operate_float {
+                    ($op:expr, $lhs:expr, $rhs:expr) => {
+                        match $op {
+                            BoolBinOp::EqEq => $lhs == $rhs,
+                            BoolBinOp::NotEq => $lhs != $rhs,
+                            BoolBinOp::Gt => $lhs > $rhs,
+                            BoolBinOp::GtEq => $lhs >= $rhs,
+                            BoolBinOp::Lt => $lhs < $rhs,
+                            BoolBinOp::LtEq => $lhs <= $rhs,
+                            _ => return Err(INVALID_OP.to_string()),
+                        }
+                    };
+                }
+
+                // Valid operations on integers
+                macro_rules! operate_int {
+                    ($op:expr, $lhs:expr, $rhs:expr) => {
+                        match $op {
+                            BoolBinOp::EqEq => $lhs == $rhs,
+                            BoolBinOp::NotEq => $lhs != $rhs,
+                            BoolBinOp::Gt => $lhs > $rhs,
+                            BoolBinOp::GtEq => $lhs >= $rhs,
+                            BoolBinOp::Lt => $lhs < $rhs,
+                            BoolBinOp::LtEq => $lhs <= $rhs,
+                            _ => return Err(INVALID_OP.to_string()),
+                        }
+                    };
+                }
+
+                // Valid operations on characters
+                macro_rules! operate_char {
+                    ($op:expr, $lhs:expr, $rhs:expr) => {
+                        match $op {
+                            BoolBinOp::EqEq => $lhs == $rhs,
+                            BoolBinOp::NotEq => $lhs != $rhs,
+                            BoolBinOp::Gt => $lhs > $rhs,
+                            BoolBinOp::GtEq => $lhs >= $rhs,
+                            BoolBinOp::Lt => $lhs < $rhs,
+                            BoolBinOp::LtEq => $lhs <= $rhs,
+                            _ => return Err(INVALID_OP.to_string()),
+                        }
+                    };
+                }
+
+                // Handle each `T` parameter:
+                match env.try_use_ty_as_lit_ty(env.use_term_as_ty(t)) {
+                    Some(lit_ty) => match lit_ty {
+                        LitTy::I8 => {
+                            let lhs: i8 = env.try_use_term_as_integer_lit(lhs).unwrap();
+                            let rhs: i8 = env.try_use_term_as_integer_lit(rhs).unwrap();
+                            Ok(env.new_bool_term(operate_int!(parsed_op, lhs, rhs)))
+                        }
+                        LitTy::U8 => {
+                            let lhs: u8 = env.try_use_term_as_integer_lit(lhs).unwrap();
+                            let rhs: u8 = env.try_use_term_as_integer_lit(rhs).unwrap();
+                            Ok(env.new_bool_term(operate_int!(parsed_op, lhs, rhs)))
+                        }
+                        LitTy::I16 => {
+                            let lhs: i16 = env.try_use_term_as_integer_lit(lhs).unwrap();
+                            let rhs: i16 = env.try_use_term_as_integer_lit(rhs).unwrap();
+                            Ok(env.new_bool_term(operate_int!(parsed_op, lhs, rhs)))
+                        }
+                        LitTy::U16 => {
+                            let lhs: u16 = env.try_use_term_as_integer_lit(lhs).unwrap();
+                            let rhs: u16 = env.try_use_term_as_integer_lit(rhs).unwrap();
+                            Ok(env.new_bool_term(operate_int!(parsed_op, lhs, rhs)))
+                        }
+                        LitTy::I32 => {
+                            let lhs: i32 = env.try_use_term_as_integer_lit(lhs).unwrap();
+                            let rhs: i32 = env.try_use_term_as_integer_lit(rhs).unwrap();
+                            Ok(env.new_bool_term(operate_int!(parsed_op, lhs, rhs)))
+                        }
+                        LitTy::U32 => {
+                            let lhs: u32 = env.try_use_term_as_integer_lit(lhs).unwrap();
+                            let rhs: u32 = env.try_use_term_as_integer_lit(rhs).unwrap();
+                            Ok(env.new_bool_term(operate_int!(parsed_op, lhs, rhs)))
+                        }
+                        LitTy::I64 => {
+                            let lhs: i64 = env.try_use_term_as_integer_lit(lhs).unwrap();
+                            let rhs: i64 = env.try_use_term_as_integer_lit(rhs).unwrap();
+                            Ok(env.new_bool_term(operate_int!(parsed_op, lhs, rhs)))
+                        }
+                        LitTy::U64 => {
+                            let lhs: u64 = env.try_use_term_as_integer_lit(lhs).unwrap();
+                            let rhs: u64 = env.try_use_term_as_integer_lit(rhs).unwrap();
+                            Ok(env.new_bool_term(operate_int!(parsed_op, lhs, rhs)))
+                        }
+                        LitTy::U128 => {
+                            let lhs: u128 = env.try_use_term_as_integer_lit(lhs).unwrap();
+                            let rhs: u128 = env.try_use_term_as_integer_lit(rhs).unwrap();
+                            Ok(env.new_bool_term(operate_int!(parsed_op, lhs, rhs)))
+                        }
+                        LitTy::I128 => {
+                            let lhs: i128 = env.try_use_term_as_integer_lit(lhs).unwrap();
+                            let rhs: i128 = env.try_use_term_as_integer_lit(rhs).unwrap();
+                            Ok(env.new_bool_term(operate_int!(parsed_op, lhs, rhs)))
+                        }
+                        LitTy::IBig => {
+                            let lhs: BigInt = env.try_use_term_as_integer_lit(lhs).unwrap();
+                            let rhs: BigInt = env.try_use_term_as_integer_lit(rhs).unwrap();
+                            Ok(env.new_bool_term(operate_int!(parsed_op, lhs, rhs)))
+                        }
+                        LitTy::UBig => {
+                            let lhs: BigUint = env.try_use_term_as_integer_lit(lhs).unwrap();
+                            let rhs: BigUint = env.try_use_term_as_integer_lit(rhs).unwrap();
+                            Ok(env.new_bool_term(operate_int!(parsed_op, lhs, rhs)))
+                        }
+                        LitTy::F32 => {
+                            // @@Todo: properly handle f32
+                            let lhs: f64 = env.try_use_term_as_float_lit(lhs).unwrap();
+                            let rhs: f64 = env.try_use_term_as_float_lit(rhs).unwrap();
+                            Ok(env.new_bool_term(operate_float!(parsed_op, lhs, rhs)))
+                        }
+                        LitTy::F64 => {
+                            let lhs: f64 = env.try_use_term_as_float_lit(lhs).unwrap();
+                            let rhs: f64 = env.try_use_term_as_float_lit(rhs).unwrap();
+                            Ok(env.new_bool_term(operate_float!(parsed_op, lhs, rhs)))
+                        }
+                        LitTy::Bool => {
+                            let lhs: bool = env.try_use_term_as_bool(lhs).unwrap();
+                            let rhs: bool = env.try_use_term_as_bool(rhs).unwrap();
+                            Ok(env.new_bool_term(operate_bool!(parsed_op, lhs, rhs)))
+                        }
+                        LitTy::Char => {
+                            let lhs: char = env.try_use_term_as_char_lit(lhs).unwrap();
+                            let rhs: char = env.try_use_term_as_char_lit(rhs).unwrap();
+                            Ok(env.new_bool_term(operate_char!(parsed_op, lhs, rhs)))
+                        }
+                    },
+                    None => Err(INVALID_OP.to_string()),
+                }
+            },
+        )
+    }
+
+    /// Add the `endo_bin_op` intrinsic.
+    ///
+    /// This intrinsic has signature
+    /// `endo_bin_op: (T: Type, op: u8, a: T, b: T) -> T`
+    ///
+    /// The `op` parameter is an integer which represents the operation to
+    /// perform, which is one of the `EndoBinOp` variants. The `a` and `b`
+    /// parameters are the two operands, and the return value is the result
+    /// of the operation.
+    fn add_endo_bin_op_intrinsic<T: AccessToEnv + AccessToPrimitives + Copy>(&self, env: T) {
+        let t_sym = env.new_symbol("T");
+        let op_sym = env.new_symbol("op");
+        let a_sym = env.new_symbol("a");
+        let b_sym = env.new_symbol("b");
+        let params = env.param_utils().create_params(
+            [
+                ParamData { default: None, name: t_sym, ty: env.new_small_universe_ty() },
+                ParamData {
+                    default: None,
+                    name: op_sym,
+                    ty: env.new_data_ty(env.primitives().u8()),
+                },
+                ParamData { default: None, name: a_sym, ty: env.new_ty(t_sym) },
+                ParamData { default: None, name: b_sym, ty: env.new_ty(t_sym) },
+            ]
+            .into_iter(),
+        );
+        let ret = env.new_ty(t_sym);
+
+        self.add_intrinsic(
+            env,
+            "endo_bin_op",
+            FnTy::builder().params(params).return_ty(ret).build(),
+            |env, args| {
+                const INVALID_OP: &str = "Invalid endo-binary operation parameters";
+
+                // Parse the arguments
+                let (t, op, lhs, rhs) = (args[0], args[1], args[2], args[3]);
+
+                // Parse the operator.
+                let parsed_op = EndoBinOp::try_from(
+                    env.try_use_term_as_integer_lit::<u8>(op).ok_or(INVALID_OP)?,
+                )
+                .map_err(|_| INVALID_OP)?;
+
+                // Valid operations on big-ints
+                macro_rules! operate_bigint {
+                    ($op:expr, $lhs:expr, $rhs:expr) => {
+                        match $op {
+                            EndoBinOp::BitOr => $lhs | $rhs,
+                            EndoBinOp::BitAnd => $lhs & $rhs,
+                            EndoBinOp::BitXor => $lhs ^ $rhs,
+                            EndoBinOp::Add => $lhs + $rhs,
+                            EndoBinOp::Sub => $lhs - $rhs,
+                            EndoBinOp::Mul => $lhs * $rhs,
+                            EndoBinOp::Div => $lhs / $rhs,
+                            EndoBinOp::Mod => $lhs % $rhs,
+                            _ => return Err(INVALID_OP.to_string()),
+                        }
+                    };
+                }
+
+                // Valid operations on floats
+                macro_rules! operate_float {
+                    ($op:expr, $lhs:expr, $rhs:expr) => {
+                        match $op {
+                            EndoBinOp::Exp => $lhs.powf($rhs),
+                            EndoBinOp::Add => $lhs + $rhs,
+                            EndoBinOp::Sub => $lhs - $rhs,
+                            EndoBinOp::Mul => $lhs * $rhs,
+                            EndoBinOp::Div => $lhs / $rhs,
+                            EndoBinOp::Mod => $lhs % $rhs,
+                            _ => return Err(INVALID_OP.to_string()),
+                        }
+                    };
+                }
+
+                // Valid operations on integers
+                macro_rules! operate_int {
+                    ($op:expr, $lhs:expr, $rhs:expr) => {
+                        match $op {
+                            EndoBinOp::BitOr => $lhs | $rhs,
+                            EndoBinOp::BitAnd => $lhs & $rhs,
+                            EndoBinOp::BitXor => $lhs ^ $rhs,
+                            EndoBinOp::Shr => $lhs >> $rhs,
+                            EndoBinOp::Shl => $lhs << $rhs,
+                            EndoBinOp::Add => $lhs + $rhs,
+                            EndoBinOp::Sub => $lhs - $rhs,
+                            EndoBinOp::Mul => $lhs * $rhs,
+                            EndoBinOp::Div => $lhs / $rhs,
+                            EndoBinOp::Mod => $lhs % $rhs,
+                            _ => return Err(INVALID_OP.to_string()),
+                        }
+                    };
+                }
+
+                // Handle each `T` parameter:
+                match env.try_use_ty_as_lit_ty(env.use_term_as_ty(t)) {
+                    Some(lit_ty) => match lit_ty {
+                        LitTy::I8 => {
+                            let lhs: i8 = env.try_use_term_as_integer_lit(lhs).unwrap();
+                            let rhs: i8 = env.try_use_term_as_integer_lit(rhs).unwrap();
+                            Ok(env.create_term_from_integer_lit(
+                                operate_int!(parsed_op, lhs, rhs),
+                                IntTy::Int(SIntTy::I8),
+                            ))
+                        }
+                        LitTy::U8 => {
+                            let lhs: u8 = env.try_use_term_as_integer_lit(lhs).unwrap();
+                            let rhs: u8 = env.try_use_term_as_integer_lit(rhs).unwrap();
+                            Ok(env.create_term_from_integer_lit(
+                                operate_int!(parsed_op, lhs, rhs),
+                                IntTy::Int(SIntTy::I8),
+                            ))
+                        }
+                        LitTy::I16 => {
+                            let lhs: i16 = env.try_use_term_as_integer_lit(lhs).unwrap();
+                            let rhs: i16 = env.try_use_term_as_integer_lit(rhs).unwrap();
+                            Ok(env.create_term_from_integer_lit(
+                                operate_int!(parsed_op, lhs, rhs),
+                                IntTy::Int(SIntTy::I16),
+                            ))
+                        }
+                        LitTy::U16 => {
+                            let lhs: u16 = env.try_use_term_as_integer_lit(lhs).unwrap();
+                            let rhs: u16 = env.try_use_term_as_integer_lit(rhs).unwrap();
+                            Ok(env.create_term_from_integer_lit(
+                                operate_int!(parsed_op, lhs, rhs),
+                                IntTy::Int(SIntTy::I16),
+                            ))
+                        }
+                        LitTy::I32 => {
+                            let lhs: i32 = env.try_use_term_as_integer_lit(lhs).unwrap();
+                            let rhs: i32 = env.try_use_term_as_integer_lit(rhs).unwrap();
+                            Ok(env.create_term_from_integer_lit(
+                                operate_int!(parsed_op, lhs, rhs),
+                                IntTy::Int(SIntTy::I32),
+                            ))
+                        }
+                        LitTy::U32 => {
+                            let lhs: u32 = env.try_use_term_as_integer_lit(lhs).unwrap();
+                            let rhs: u32 = env.try_use_term_as_integer_lit(rhs).unwrap();
+                            Ok(env.create_term_from_integer_lit(
+                                operate_int!(parsed_op, lhs, rhs),
+                                IntTy::Int(SIntTy::I32),
+                            ))
+                        }
+                        LitTy::I64 => {
+                            let lhs: i64 = env.try_use_term_as_integer_lit(lhs).unwrap();
+                            let rhs: i64 = env.try_use_term_as_integer_lit(rhs).unwrap();
+                            Ok(env.create_term_from_integer_lit(
+                                operate_int!(parsed_op, lhs, rhs),
+                                IntTy::Int(SIntTy::I64),
+                            ))
+                        }
+                        LitTy::U64 => {
+                            let lhs: u64 = env.try_use_term_as_integer_lit(lhs).unwrap();
+                            let rhs: u64 = env.try_use_term_as_integer_lit(rhs).unwrap();
+                            Ok(env.create_term_from_integer_lit(
+                                operate_int!(parsed_op, lhs, rhs),
+                                IntTy::Int(SIntTy::I64),
+                            ))
+                        }
+                        LitTy::U128 => {
+                            let lhs: u128 = env.try_use_term_as_integer_lit(lhs).unwrap();
+                            let rhs: u128 = env.try_use_term_as_integer_lit(rhs).unwrap();
+                            Ok(env.create_term_from_integer_lit(
+                                operate_int!(parsed_op, lhs, rhs),
+                                IntTy::Int(SIntTy::I128),
+                            ))
+                        }
+                        LitTy::I128 => {
+                            let lhs: i128 = env.try_use_term_as_integer_lit(lhs).unwrap();
+                            let rhs: i128 = env.try_use_term_as_integer_lit(rhs).unwrap();
+                            Ok(env.create_term_from_integer_lit(
+                                operate_int!(parsed_op, lhs, rhs),
+                                IntTy::Int(SIntTy::I128),
+                            ))
+                        }
+                        LitTy::IBig => {
+                            let lhs: BigInt = env.try_use_term_as_integer_lit(lhs).unwrap();
+                            let rhs: BigInt = env.try_use_term_as_integer_lit(rhs).unwrap();
+                            Ok(env.create_term_from_integer_lit(
+                                operate_bigint!(parsed_op, lhs, rhs),
+                                IntTy::Int(SIntTy::IBig),
+                            ))
+                        }
+                        LitTy::UBig => {
+                            let lhs: BigUint = env.try_use_term_as_integer_lit(lhs).unwrap();
+                            let rhs: BigUint = env.try_use_term_as_integer_lit(rhs).unwrap();
+                            Ok(env.create_term_from_integer_lit(
+                                operate_bigint!(parsed_op, lhs, rhs),
+                                IntTy::Int(SIntTy::IBig),
+                            ))
+                        }
+                        LitTy::F32 => {
+                            // @@Todo: properly handle f32
+                            let lhs: f64 = env.try_use_term_as_float_lit(lhs).unwrap();
+                            let rhs: f64 = env.try_use_term_as_float_lit(rhs).unwrap();
+                            Ok(env.create_term_from_float_lit(operate_float!(parsed_op, lhs, rhs)))
+                        }
+                        LitTy::F64 => {
+                            let lhs: f64 = env.try_use_term_as_float_lit(lhs).unwrap();
+                            let rhs: f64 = env.try_use_term_as_float_lit(rhs).unwrap();
+                            Ok(env.create_term_from_float_lit(operate_float!(parsed_op, lhs, rhs)))
+                        }
+                        LitTy::Bool => Err(INVALID_OP.to_string()),
+                        LitTy::Char => Err(INVALID_OP.to_string()),
+                    },
+                    None => Err(INVALID_OP.to_string()),
+                }
+            },
+        )
     }
 
     /// Add a primitive to check for primitive data type equality.
@@ -82,72 +685,6 @@ impl DefinedIntrinsics {
                 invalid()
             },
         )
-    }
-
-    /// Add intrinsic operations for the given numeric type.
-    fn add_numeric_ops<T: AccessToEnv + AccessToPrimitives + Copy>(
-        &self,
-        env: T,
-        numeric_data_def_id: DataDefId,
-        is_float: bool,
-    ) {
-        let numeric_ty = env.new_data_ty(numeric_data_def_id);
-        let bool_ty = env.new_data_ty(env.primitives().bool());
-        let numeric_name = env.get_symbol(env.get_data_def(numeric_data_def_id).name).name.unwrap();
-
-        let bin_comparison_op = |bin_op_name: &str| {
-            self.add_intrinsic(
-                env,
-                format!("{bin_op_name}_{numeric_name}"),
-                FnTy::builder()
-                    .params(env.new_params(&[numeric_ty, numeric_ty]))
-                    .return_ty(bool_ty)
-                    .build(),
-                |prim, _| {
-                    // @@Todo: properly implement this
-                    Ok(prim.new_bool_term(true))
-                },
-            );
-        };
-
-        let bin_endo_op = |bin_op_name: &str| {
-            self.add_intrinsic(
-                env,
-                format!("{bin_op_name}_{numeric_name}"),
-                FnTy::builder()
-                    .params(env.new_params(&[numeric_ty, numeric_ty]))
-                    .return_ty(numeric_ty)
-                    .build(),
-                |_, args| {
-                    // @@Todo: properly implement this
-                    Ok(args[0])
-                },
-            );
-        };
-
-        bin_endo_op("add");
-        bin_endo_op("sub");
-        bin_endo_op("mul");
-        bin_endo_op("div");
-        bin_endo_op("neg");
-
-        if !is_float {
-            bin_endo_op("shr");
-            bin_endo_op("shl");
-            bin_endo_op("mod");
-            bin_endo_op("bit_xor");
-            bin_endo_op("bit_and");
-            bin_endo_op("bit_or");
-        }
-
-        bin_comparison_op("eq");
-        bin_comparison_op("neq");
-
-        bin_comparison_op("lt");
-        bin_comparison_op("leq");
-
-        bin_comparison_op("gt");
-        bin_comparison_op("geq");
     }
 
     /// Create the default intrinsics.
@@ -182,21 +719,14 @@ impl DefinedIntrinsics {
         // Primitive type equality
         intrinsics.add_prim_type_eq_op(env);
 
-        intrinsics.add_numeric_ops(env, prim.u8(), false);
-        intrinsics.add_numeric_ops(env, prim.i8(), false);
-        intrinsics.add_numeric_ops(env, prim.u16(), false);
-        intrinsics.add_numeric_ops(env, prim.i16(), false);
-        intrinsics.add_numeric_ops(env, prim.u32(), false);
-        intrinsics.add_numeric_ops(env, prim.i32(), false);
-        intrinsics.add_numeric_ops(env, prim.u64(), false);
-        intrinsics.add_numeric_ops(env, prim.i64(), false);
-        intrinsics.add_numeric_ops(env, prim.u128(), false);
-        intrinsics.add_numeric_ops(env, prim.i128(), false);
-        intrinsics.add_numeric_ops(env, prim.ubig(), false);
-        intrinsics.add_numeric_ops(env, prim.ibig(), false);
+        // Endo bin ops
+        intrinsics.add_endo_bin_op_intrinsic(env);
 
-        intrinsics.add_numeric_ops(env, prim.f32(), true);
-        intrinsics.add_numeric_ops(env, prim.f64(), true);
+        // Bool bin ops
+        intrinsics.add_bool_bin_op_intrinsic(env);
+
+        // Unary ops
+        intrinsics.add_un_op_intrinsic(env);
 
         intrinsics
     }

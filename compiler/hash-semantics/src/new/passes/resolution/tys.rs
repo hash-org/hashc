@@ -372,7 +372,10 @@ impl<'tc> ResolutionPass<'tc> {
             ast::Ty::Fn(fn_ty) => self.make_ty_from_ast_fn_ty(node.with_body(fn_ty))?,
             ast::Ty::TyFn(ty_fn_ty) => self.make_ty_from_ast_ty_fn_ty(node.with_body(ty_fn_ty))?,
             ast::Ty::Merge(merge_ty) => self.make_ty_from_merge_ty(node.with_body(merge_ty))?,
-            ast::Ty::Expr(_) => todo!(),
+            ast::Ty::Expr(expr) => {
+                let expr = self.make_term_from_ast_expr(expr.expr.ast_ref())?;
+                self.new_ty(expr)
+            }
             ast::Ty::Union(_) => {
                 panic_on_span!(
                     self.node_location(node),

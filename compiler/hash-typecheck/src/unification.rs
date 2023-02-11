@@ -104,6 +104,9 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
         let target = self.get_ty(target_id);
 
         match (src, target) {
+            (Ty::Data(data_ty), _) if data_ty.data_def == self.primitives().never() => {
+                Uni::ok(target_id)
+            }
             (Ty::Hole(a), Ty::Hole(b)) => {
                 if a == b {
                     // No-op
@@ -207,6 +210,10 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
     /// Unless these are types, they must be definitionally (up to beta
     /// reduction) equal.
     pub fn unify_terms(&self, src_id: TermId, target_id: TermId) -> TcResult<Uni<TermId>> {
+        if src_id == target_id {
+            return Uni::ok(src_id);
+        }
+
         let src_id =
             self.normalisation_ops().to_term(self.normalisation_ops().normalise(src_id.into())?);
         let target_id =

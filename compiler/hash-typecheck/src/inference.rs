@@ -53,6 +53,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         annotation_params: ParamsId,
         mut infer_arg: impl FnMut(&Arg, &Param) -> TcResult<(Arg, ParamData)>,
         get_arg_id: impl Fn(usize) -> Option<ArgId>,
+        get_arg_value: impl Fn(&Arg) -> Option<TermId>,
     ) -> TcResult<(Vec<Arg>, ParamsId)> {
         let mut collected_args = vec![];
         let mut collected_params = vec![];
@@ -71,6 +72,11 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             match error_state.try_or_add_error(infer_arg(&arg, &subbed_param)) {
                 // Type was inferred
                 Some((inferred_arg, inferred_param)) => {
+                    // Extend the running substitution with the new unification result
+                    if let Some(arg_value) = get_arg_value(&inferred_arg) {
+                        running_sub.insert(param.name, arg_value);
+                    }
+
                     collected_args.push(inferred_arg);
 
                     // If the original parameter has holes, then we use the
@@ -80,12 +86,6 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                         collected_params.push(inferred_param);
                     } else {
                         collected_params.push((*param).into());
-                    }
-
-                    // Extend the running substitution with the new unification result
-                    if let Some(arg_id) = get_arg_id(i) {
-                        let arg = self.stores().args().get_element(arg_id);
-                        running_sub.insert(param.name, arg.value);
                     }
 
                     let applied_param_ty =
@@ -235,6 +235,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 ))
             },
             |i| Some((reordered_args_id, i)),
+            |arg| Some(arg.value),
         )?;
 
         let inferred_args_id = self.param_utils().create_args(inferred_args.into_iter());
@@ -282,6 +283,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     (*param).into(),
                 )),
             },
+            |_| None,
             |_| None,
         )?;
 
@@ -656,7 +658,13 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             Ty::Fn(fn_ty) => {
                 let infer = || {
                     self.context().enter_scope(ScopeKind::FnTy(fn_ty), || {
-                        // @@Todo: ensure fn ty has no holes
+                        if fn_ty.implicit != fn_call_term.implicit {
+                            return Err(TcError::WrongCallKind {
+                                site: original_term_id,
+                                expected_implicit: fn_ty.implicit,
+                                actual_implicit: fn_call_term.implicit,
+                            });
+                        }
 
                         // First infer the arguments parameters of the function call.
                         let (inferred_fn_call_args, inferred_params) =
