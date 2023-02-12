@@ -56,7 +56,7 @@ impl<'tc> AstPass for InferencePass<'tc> {
         node: ast::AstNodeRef<ast::BodyBlock>,
     ) -> crate::new::diagnostics::error::SemanticResult<()> {
         // Infer the expression
-        let (term, ty) = self.infer_fully(
+        let (term, _) = self.infer_fully(
             (self.ast_info().terms().get_data_by_node(node.id()).unwrap(), self.new_ty_hole()),
             |(term_id, ty_id)| self.inference_ops().infer_term(term_id, ty_id),
             |(term_id, ty_id)| {
@@ -68,8 +68,7 @@ impl<'tc> AstPass for InferencePass<'tc> {
 
         // @@Temp:
         let evaluated = self.normalisation_ops().normalise(term.into())?;
-        let evaluated_ty = self.normalisation_ops().normalise(ty.into())?;
-        stream_less_writeln!("{}: {}", self.env().with(evaluated), self.env().with(evaluated_ty));
+        stream_less_writeln!("{}", self.env().with(evaluated));
 
         Ok(())
     }
@@ -86,8 +85,36 @@ impl<'tc> AstPass for InferencePass<'tc> {
             |mod_def_id| mod_def_id.into(),
         )?;
 
-        // @@Temp:
         stream_less_writeln!("{}", self.env().with(mod_def_id));
+
+        // @@Todo: #entry_point directive and main type checking
+        //
+        // if let Some(kind) =
+        //     self.source_map().module_kind_by_id(self.current_source_info().source_id)
+        // {
+        //     match kind {
+        //         ModuleKind::Normal => {}
+        //         ModuleKind::Prelude => {}
+        //         ModuleKind::EntryPoint => {
+        //             // Check that the module has a `main` function
+        //             if let Some(fn_def_id) =
+        //                 self.mod_utils().get_mod_fn_member_by_ident(mod_def_id,
+        // "main")             {
+        //                 let _call_term = self.new_term(FnCallTerm {
+        //                     subject: self.new_term(fn_def_id),
+        //                     implicit: false,
+        //                     args: self.new_empty_args(),
+        //                 });
+
+        //                 // let (inferred_call_term, _) =
+        //                 //     self.inference_ops().infer_term(call_term,
+        //                 // self.new_void_ty())?; let _ =
+        //                 // self.normalisation_ops().
+        //                 // normalise(inferred_call_term.into())?;
+        //             }
+        //         }
+        //     }
+        // }
 
         Ok(())
     }

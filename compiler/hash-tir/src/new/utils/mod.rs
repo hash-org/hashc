@@ -23,7 +23,7 @@ macro_rules! utils {
                 }
             )*
         }
-        impl<T: $crate::new::environment::env::AccessToEnv> AccessToUtils for T { }
+        impl<T: $crate::new::environment::env::AccessToEnv + ?Sized> AccessToUtils for T { }
     };
 }
 

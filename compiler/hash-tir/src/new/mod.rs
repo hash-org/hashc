@@ -3,6 +3,7 @@
 
 pub mod access;
 pub mod args;
+pub mod atom_info;
 pub mod casting;
 pub mod control;
 pub mod data;

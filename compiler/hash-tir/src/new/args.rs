@@ -162,8 +162,8 @@ impl fmt::Display for WithEnv<'_, SomeArgsId> {
 impl fmt::Display for WithEnv<'_, &Arg> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.value.target {
-            ParamIndex::Name(name) => {
-                write!(f, "{} = {}", name, self.env().with(self.value.value))
+            ParamIndex::Name(_) => {
+                write!(f, "{}", self.env().with(self.value.value))
             }
             ParamIndex::Position(_) => write!(f, "{}", self.env().with(self.value.value)),
         }

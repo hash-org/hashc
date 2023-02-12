@@ -12,7 +12,7 @@ use super::super::{
     terms::{TermListStore, TermStore},
     tys::TyStore,
 };
-use crate::new::control::MatchCasesStore;
+use crate::new::{atom_info::AtomInfoStore, control::MatchCasesStore};
 
 /// This macro creates the `Stores` struct, as well as accompanying creation and
 /// access methods, for the given sequence of stores.
@@ -67,6 +67,7 @@ stores! {
     term_list: TermListStore,
     ty: TyStore,
     match_cases: MatchCasesStore,
+    atom_info: AtomInfoStore,
 }
 
 /// A reference to [`Stores`] alongside a value.

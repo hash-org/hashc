@@ -12,6 +12,8 @@ use utility_types::omit;
 use super::{
     environment::env::{AccessToEnv, WithEnv},
     intrinsics::IntrinsicId,
+    tys::Ty,
+    utils::common::CommonUtils,
 };
 use crate::new::{args::ArgsId, params::ParamsId, symbols::Symbol, terms::TermId, tys::TyId};
 
@@ -152,7 +154,33 @@ impl Display for WithEnv<'_, &FnTy> {
 
 impl Display for WithEnv<'_, &FnDef> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.env().with(&self.value.ty))?;
+        if matches!(self.env().get_ty(self.value.ty.return_ty), Ty::Fn(_)) {
+            if self.value.ty.is_unsafe {
+                write!(f, "unsafe ")?;
+            }
+            if self.value.ty.pure && !self.value.ty.implicit {
+                write!(f, "pure ")?;
+            }
+            if !self.value.ty.pure && self.value.ty.implicit {
+                write!(f, "impure ")?;
+            }
+
+            if self.value.ty.implicit {
+                write!(f, "<")?;
+            } else {
+                write!(f, "(")?;
+            }
+
+            write!(f, "{}", self.env().with(self.value.ty.params))?;
+
+            if self.value.ty.implicit {
+                write!(f, ">")?;
+            } else {
+                write!(f, ")")?;
+            }
+        } else {
+            write!(f, "{}", self.env().with(&self.value.ty))?;
+        };
         match self.value.body {
             FnBody::Defined(term) => write!(f, " => {}", self.env().with(term)),
             FnBody::Intrinsic(intrinsic) => {
