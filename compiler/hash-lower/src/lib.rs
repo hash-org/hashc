@@ -30,7 +30,7 @@ use hash_source::SourceId;
 use hash_tir::{nodes::NodeInfoTarget, storage::TyStorage};
 use hash_utils::stream_writeln;
 use optimise::Optimiser;
-use ty::TyLoweringCtx;
+use ty::old::TyLoweringCtx;
 
 /// The Hash IR builder compiler stage. This will walk the AST, and
 /// lower all items within a particular module.
