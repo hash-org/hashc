@@ -13,10 +13,7 @@ use hash_intrinsics::{
     utils::PrimitiveUtils,
 };
 use hash_reporting::macros::panic_on_span;
-use hash_source::{
-    constant::{IntTy, UIntTy},
-    location::Span,
-};
+use hash_source::location::Span;
 use hash_tir::{
     new::{
         access::AccessTerm,
@@ -938,7 +935,7 @@ impl<'tc> ResolutionPass<'tc> {
             subject: self.new_term(intrinsic_fn_def),
             args: self.param_utils().create_positional_args(vec![
                 typeof_lhs,
-                self.create_term_from_integer_lit(bin_op_num, IntTy::UInt(UIntTy::U8)),
+                self.create_term_from_integer_lit(bin_op_num),
                 lhs,
                 rhs,
             ]),
@@ -969,7 +966,7 @@ impl<'tc> ResolutionPass<'tc> {
             subject: self.new_term(intrinsic_fn_def),
             args: self.param_utils().create_positional_args(vec![
                 typeof_a,
-                self.create_term_from_integer_lit(op_num, IntTy::UInt(UIntTy::U8)),
+                self.create_term_from_integer_lit(op_num),
                 a,
             ]),
             implicit: false,

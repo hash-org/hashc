@@ -1059,7 +1059,7 @@ define_tree! {
         And,
         /// '^'
         BitXor,
-        /// '^^'
+        /// '**'
         Exp,
         /// '>'
         Gt,

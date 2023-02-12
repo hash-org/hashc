@@ -1,10 +1,7 @@
 //! Definition and lookup of intrinsics.
 use std::{fmt::Debug, process};
 
-use hash_source::{
-    constant::{IntTy, SIntTy},
-    identifier::Identifier,
-};
+use hash_source::identifier::Identifier;
 use hash_tir::new::{
     environment::env::{AccessToEnv, Env},
     fns::{FnBody, FnDef, FnDefId, FnTy},
@@ -140,7 +137,7 @@ pub enum EndoBinOp {
     BitAnd,
     /// '^'
     BitXor,
-    /// '^^'
+    /// '**'
     Exp,
     /// '>>'
     Shr,
@@ -235,50 +232,24 @@ impl DefinedIntrinsics {
                     };
                 }
 
+                macro_rules! handle_integer {
+                    ($rust_ty:ty) => {{
+                        let a: $rust_ty = env.try_use_term_as_integer_lit(a).unwrap();
+                        Ok(env.create_term_from_integer_lit(operate_integer!(parsed_op, a)))
+                    }};
+                }
+
                 // Handle each `T` parameter:
                 match env.try_use_ty_as_lit_ty(env.use_term_as_ty(t)) {
                     Some(lit_ty) => match lit_ty {
-                        LitTy::I8 => {
-                            let a: i8 = env.try_use_term_as_integer_lit(a).unwrap();
-                            Ok(env.create_term_from_integer_lit(
-                                operate_integer!(parsed_op, a),
-                                IntTy::Int(SIntTy::I8),
-                            ))
-                        }
-                        LitTy::I16 => {
-                            let a: i16 = env.try_use_term_as_integer_lit(a).unwrap();
-                            Ok(env.create_term_from_integer_lit(
-                                operate_integer!(parsed_op, a),
-                                IntTy::Int(SIntTy::I16),
-                            ))
-                        }
-                        LitTy::I32 => {
-                            let a: i32 = env.try_use_term_as_integer_lit(a).unwrap();
-                            Ok(env.create_term_from_integer_lit(
-                                operate_integer!(parsed_op, a),
-                                IntTy::Int(SIntTy::I32),
-                            ))
-                        }
-                        LitTy::I64 => {
-                            let a: i64 = env.try_use_term_as_integer_lit(a).unwrap();
-                            Ok(env.create_term_from_integer_lit(
-                                operate_integer!(parsed_op, a),
-                                IntTy::Int(SIntTy::I64),
-                            ))
-                        }
-                        LitTy::I128 => {
-                            let a: i128 = env.try_use_term_as_integer_lit(a).unwrap();
-                            Ok(env.create_term_from_integer_lit(
-                                operate_integer!(parsed_op, a),
-                                IntTy::Int(SIntTy::I128),
-                            ))
-                        }
+                        LitTy::I8 => handle_integer!(i8),
+                        LitTy::I16 => handle_integer!(i16),
+                        LitTy::I32 => handle_integer!(i32),
+                        LitTy::I64 => handle_integer!(i64),
+                        LitTy::I128 => handle_integer!(i128),
                         LitTy::IBig => {
                             let a: BigInt = env.try_use_term_as_integer_lit(a).unwrap();
-                            Ok(env.create_term_from_integer_lit(
-                                operate_integer!(parsed_op, a),
-                                IntTy::Int(SIntTy::IBig),
-                            ))
+                            Ok(env.create_term_from_integer_lit(operate_integer!(parsed_op, a)))
                         }
                         LitTy::F32 => {
                             // @@Todo: properly handle f32
@@ -408,71 +379,30 @@ impl DefinedIntrinsics {
                     };
                 }
 
+                macro_rules! handle_integer {
+                    ($rust_ty:ty) => {{
+                        let lhs: $rust_ty = env.try_use_term_as_integer_lit(lhs).unwrap();
+                        let rhs: $rust_ty = env.try_use_term_as_integer_lit(rhs).unwrap();
+                        Ok(env.new_bool_term(operate_int!(parsed_op, lhs, rhs)))
+                    }};
+                }
+
                 // Handle each `T` parameter:
                 match env.try_use_ty_as_lit_ty(env.use_term_as_ty(t)) {
                     Some(lit_ty) => match lit_ty {
-                        LitTy::I8 => {
-                            let lhs: i8 = env.try_use_term_as_integer_lit(lhs).unwrap();
-                            let rhs: i8 = env.try_use_term_as_integer_lit(rhs).unwrap();
-                            Ok(env.new_bool_term(operate_int!(parsed_op, lhs, rhs)))
-                        }
-                        LitTy::U8 => {
-                            let lhs: u8 = env.try_use_term_as_integer_lit(lhs).unwrap();
-                            let rhs: u8 = env.try_use_term_as_integer_lit(rhs).unwrap();
-                            Ok(env.new_bool_term(operate_int!(parsed_op, lhs, rhs)))
-                        }
-                        LitTy::I16 => {
-                            let lhs: i16 = env.try_use_term_as_integer_lit(lhs).unwrap();
-                            let rhs: i16 = env.try_use_term_as_integer_lit(rhs).unwrap();
-                            Ok(env.new_bool_term(operate_int!(parsed_op, lhs, rhs)))
-                        }
-                        LitTy::U16 => {
-                            let lhs: u16 = env.try_use_term_as_integer_lit(lhs).unwrap();
-                            let rhs: u16 = env.try_use_term_as_integer_lit(rhs).unwrap();
-                            Ok(env.new_bool_term(operate_int!(parsed_op, lhs, rhs)))
-                        }
-                        LitTy::I32 => {
-                            let lhs: i32 = env.try_use_term_as_integer_lit(lhs).unwrap();
-                            let rhs: i32 = env.try_use_term_as_integer_lit(rhs).unwrap();
-                            Ok(env.new_bool_term(operate_int!(parsed_op, lhs, rhs)))
-                        }
-                        LitTy::U32 => {
-                            let lhs: u32 = env.try_use_term_as_integer_lit(lhs).unwrap();
-                            let rhs: u32 = env.try_use_term_as_integer_lit(rhs).unwrap();
-                            Ok(env.new_bool_term(operate_int!(parsed_op, lhs, rhs)))
-                        }
-                        LitTy::I64 => {
-                            let lhs: i64 = env.try_use_term_as_integer_lit(lhs).unwrap();
-                            let rhs: i64 = env.try_use_term_as_integer_lit(rhs).unwrap();
-                            Ok(env.new_bool_term(operate_int!(parsed_op, lhs, rhs)))
-                        }
-                        LitTy::U64 => {
-                            let lhs: u64 = env.try_use_term_as_integer_lit(lhs).unwrap();
-                            let rhs: u64 = env.try_use_term_as_integer_lit(rhs).unwrap();
-                            Ok(env.new_bool_term(operate_int!(parsed_op, lhs, rhs)))
-                        }
-                        LitTy::U128 => {
-                            let lhs: u128 = env.try_use_term_as_integer_lit(lhs).unwrap();
-                            let rhs: u128 = env.try_use_term_as_integer_lit(rhs).unwrap();
-                            Ok(env.new_bool_term(operate_int!(parsed_op, lhs, rhs)))
-                        }
-                        LitTy::I128 => {
-                            let lhs: i128 = env.try_use_term_as_integer_lit(lhs).unwrap();
-                            let rhs: i128 = env.try_use_term_as_integer_lit(rhs).unwrap();
-                            Ok(env.new_bool_term(operate_int!(parsed_op, lhs, rhs)))
-                        }
-                        LitTy::IBig => {
-                            let lhs: BigInt = env.try_use_term_as_integer_lit(lhs).unwrap();
-                            let rhs: BigInt = env.try_use_term_as_integer_lit(rhs).unwrap();
-                            Ok(env.new_bool_term(operate_int!(parsed_op, lhs, rhs)))
-                        }
-                        LitTy::UBig => {
-                            let lhs: BigUint = env.try_use_term_as_integer_lit(lhs).unwrap();
-                            let rhs: BigUint = env.try_use_term_as_integer_lit(rhs).unwrap();
-                            Ok(env.new_bool_term(operate_int!(parsed_op, lhs, rhs)))
-                        }
+                        LitTy::U8 => handle_integer!(u8),
+                        LitTy::U16 => handle_integer!(u16),
+                        LitTy::U32 => handle_integer!(u32),
+                        LitTy::U64 => handle_integer!(u64),
+                        LitTy::U128 => handle_integer!(u128),
+                        LitTy::I8 => handle_integer!(i8),
+                        LitTy::I16 => handle_integer!(i16),
+                        LitTy::I32 => handle_integer!(i32),
+                        LitTy::I64 => handle_integer!(i64),
+                        LitTy::I128 => handle_integer!(i128),
+                        LitTy::UBig => handle_integer!(BigUint),
+                        LitTy::IBig => handle_integer!(BigInt),
                         LitTy::F32 => {
-                            // @@Todo: properly handle f32
                             let lhs: f64 = env.try_use_term_as_float_lit(lhs).unwrap();
                             let rhs: f64 = env.try_use_term_as_float_lit(rhs).unwrap();
                             Ok(env.new_bool_term(operate_float!(parsed_op, lhs, rhs)))
@@ -599,107 +529,38 @@ impl DefinedIntrinsics {
                     };
                 }
 
+                macro_rules! handle_integer {
+                    ($rust_ty:ty) => {{
+                        let lhs: $rust_ty = env.try_use_term_as_integer_lit(lhs).unwrap();
+                        let rhs: $rust_ty = env.try_use_term_as_integer_lit(rhs).unwrap();
+                        Ok(env.create_term_from_integer_lit(operate_int!(parsed_op, lhs, rhs)))
+                    }};
+                }
+
+                macro_rules! handle_bigint {
+                    ($rust_ty:ty) => {{
+                        let lhs: $rust_ty = env.try_use_term_as_integer_lit(lhs).unwrap();
+                        let rhs: $rust_ty = env.try_use_term_as_integer_lit(rhs).unwrap();
+                        Ok(env.create_term_from_integer_lit(operate_bigint!(parsed_op, lhs, rhs)))
+                    }};
+                }
+
                 // Handle each `T` parameter:
                 match env.try_use_ty_as_lit_ty(env.use_term_as_ty(t)) {
                     Some(lit_ty) => match lit_ty {
-                        LitTy::I8 => {
-                            let lhs: i8 = env.try_use_term_as_integer_lit(lhs).unwrap();
-                            let rhs: i8 = env.try_use_term_as_integer_lit(rhs).unwrap();
-                            Ok(env.create_term_from_integer_lit(
-                                operate_int!(parsed_op, lhs, rhs),
-                                IntTy::Int(SIntTy::I8),
-                            ))
-                        }
-                        LitTy::U8 => {
-                            let lhs: u8 = env.try_use_term_as_integer_lit(lhs).unwrap();
-                            let rhs: u8 = env.try_use_term_as_integer_lit(rhs).unwrap();
-                            Ok(env.create_term_from_integer_lit(
-                                operate_int!(parsed_op, lhs, rhs),
-                                IntTy::Int(SIntTy::I8),
-                            ))
-                        }
-                        LitTy::I16 => {
-                            let lhs: i16 = env.try_use_term_as_integer_lit(lhs).unwrap();
-                            let rhs: i16 = env.try_use_term_as_integer_lit(rhs).unwrap();
-                            Ok(env.create_term_from_integer_lit(
-                                operate_int!(parsed_op, lhs, rhs),
-                                IntTy::Int(SIntTy::I16),
-                            ))
-                        }
-                        LitTy::U16 => {
-                            let lhs: u16 = env.try_use_term_as_integer_lit(lhs).unwrap();
-                            let rhs: u16 = env.try_use_term_as_integer_lit(rhs).unwrap();
-                            Ok(env.create_term_from_integer_lit(
-                                operate_int!(parsed_op, lhs, rhs),
-                                IntTy::Int(SIntTy::I16),
-                            ))
-                        }
-                        LitTy::I32 => {
-                            let lhs: i32 = env.try_use_term_as_integer_lit(lhs).unwrap();
-                            let rhs: i32 = env.try_use_term_as_integer_lit(rhs).unwrap();
-                            Ok(env.create_term_from_integer_lit(
-                                operate_int!(parsed_op, lhs, rhs),
-                                IntTy::Int(SIntTy::I32),
-                            ))
-                        }
-                        LitTy::U32 => {
-                            let lhs: u32 = env.try_use_term_as_integer_lit(lhs).unwrap();
-                            let rhs: u32 = env.try_use_term_as_integer_lit(rhs).unwrap();
-                            Ok(env.create_term_from_integer_lit(
-                                operate_int!(parsed_op, lhs, rhs),
-                                IntTy::Int(SIntTy::I32),
-                            ))
-                        }
-                        LitTy::I64 => {
-                            let lhs: i64 = env.try_use_term_as_integer_lit(lhs).unwrap();
-                            let rhs: i64 = env.try_use_term_as_integer_lit(rhs).unwrap();
-                            Ok(env.create_term_from_integer_lit(
-                                operate_int!(parsed_op, lhs, rhs),
-                                IntTy::Int(SIntTy::I64),
-                            ))
-                        }
-                        LitTy::U64 => {
-                            let lhs: u64 = env.try_use_term_as_integer_lit(lhs).unwrap();
-                            let rhs: u64 = env.try_use_term_as_integer_lit(rhs).unwrap();
-                            Ok(env.create_term_from_integer_lit(
-                                operate_int!(parsed_op, lhs, rhs),
-                                IntTy::Int(SIntTy::I64),
-                            ))
-                        }
-                        LitTy::U128 => {
-                            let lhs: u128 = env.try_use_term_as_integer_lit(lhs).unwrap();
-                            let rhs: u128 = env.try_use_term_as_integer_lit(rhs).unwrap();
-                            Ok(env.create_term_from_integer_lit(
-                                operate_int!(parsed_op, lhs, rhs),
-                                IntTy::Int(SIntTy::I128),
-                            ))
-                        }
-                        LitTy::I128 => {
-                            let lhs: i128 = env.try_use_term_as_integer_lit(lhs).unwrap();
-                            let rhs: i128 = env.try_use_term_as_integer_lit(rhs).unwrap();
-                            Ok(env.create_term_from_integer_lit(
-                                operate_int!(parsed_op, lhs, rhs),
-                                IntTy::Int(SIntTy::I128),
-                            ))
-                        }
-                        LitTy::IBig => {
-                            let lhs: BigInt = env.try_use_term_as_integer_lit(lhs).unwrap();
-                            let rhs: BigInt = env.try_use_term_as_integer_lit(rhs).unwrap();
-                            Ok(env.create_term_from_integer_lit(
-                                operate_bigint!(parsed_op, lhs, rhs),
-                                IntTy::Int(SIntTy::IBig),
-                            ))
-                        }
-                        LitTy::UBig => {
-                            let lhs: BigUint = env.try_use_term_as_integer_lit(lhs).unwrap();
-                            let rhs: BigUint = env.try_use_term_as_integer_lit(rhs).unwrap();
-                            Ok(env.create_term_from_integer_lit(
-                                operate_bigint!(parsed_op, lhs, rhs),
-                                IntTy::Int(SIntTy::IBig),
-                            ))
-                        }
+                        LitTy::U8 => handle_integer!(u8),
+                        LitTy::U16 => handle_integer!(u16),
+                        LitTy::U32 => handle_integer!(u32),
+                        LitTy::U64 => handle_integer!(u64),
+                        LitTy::U128 => handle_integer!(u128),
+                        LitTy::I8 => handle_integer!(i8),
+                        LitTy::I16 => handle_integer!(i16),
+                        LitTy::I32 => handle_integer!(i32),
+                        LitTy::I64 => handle_integer!(i64),
+                        LitTy::I128 => handle_integer!(i128),
+                        LitTy::UBig => handle_bigint!(BigUint),
+                        LitTy::IBig => handle_bigint!(BigInt),
                         LitTy::F32 => {
-                            // @@Todo: properly handle f32
                             let lhs: f64 = env.try_use_term_as_float_lit(lhs).unwrap();
                             let rhs: f64 = env.try_use_term_as_float_lit(rhs).unwrap();
                             Ok(env.create_term_from_float_lit(operate_float!(parsed_op, lhs, rhs)))

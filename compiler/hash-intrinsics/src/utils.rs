@@ -1,5 +1,5 @@
 use hash_ast::ast::{self};
-use hash_source::constant::{IntConstant, IntTy, CONSTANT_MAP};
+use hash_source::constant::{IntConstant, IntConstantValue, CONSTANT_MAP};
 use hash_tir::new::{
     data::{CtorDefId, CtorPat, CtorTerm, DataTy},
     environment::env::AccessToEnv,
@@ -114,7 +114,7 @@ pub trait PrimitiveUtils: AccessToPrimitives {
     }
 
     /// Get the given term as a float literal if possible.
-    fn try_use_term_as_float_lit<L: TryFrom<f64>>(&self, term: TermId) -> Option<L> {
+    fn try_use_term_as_float_lit<L: From<f64>>(&self, term: TermId) -> Option<L> {
         match self.get_term(term) {
             Term::Prim(PrimTerm::Lit(Lit::Float(i))) => i.value().try_into().ok(),
             _ => None,
@@ -122,13 +122,12 @@ pub trait PrimitiveUtils: AccessToPrimitives {
     }
 
     /// Get the given term as a float literal if possible.
-    fn create_term_from_integer_lit<L: Into<BigInt>>(&self, lit: L, int_ty: IntTy) -> TermId {
+    fn create_term_from_integer_lit<L: Into<BigInt>>(&self, lit: L) -> TermId {
         self.new_term(Term::Prim(PrimTerm::Lit(Lit::Int(IntLit {
             underlying: ast::IntLit {
                 kind: ast::IntLitKind::Unsuffixed,
-                value: CONSTANT_MAP.create_int_constant(IntConstant::from_big_int(
-                    lit.into(),
-                    int_ty,
+                value: CONSTANT_MAP.create_int_constant(IntConstant::new(
+                    IntConstantValue::Big(Box::new(lit.into())),
                     None,
                 )),
             },
