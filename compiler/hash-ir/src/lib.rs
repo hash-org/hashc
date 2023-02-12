@@ -20,7 +20,11 @@ pub mod write;
 use std::cell::{Ref, RefCell};
 
 use hash_source::entry_point::EntryPointState;
-use hash_tir::{nominals::NominalDefId, terms::TermId};
+use hash_tir::{
+    new::{data::DataTy, tys::TyId},
+    nominals::NominalDefId,
+    terms::TermId,
+};
 use hash_utils::store::{FxHashMap, SequenceStore, Store};
 use intrinsics::Intrinsics;
 use ir::{Body, Local, Place, PlaceProjection, ProjectionStore};
@@ -88,6 +92,33 @@ impl From<NominalDefId> for TyCacheEntry {
     }
 }
 
+/// A [SemanticCacheEntry] is used to store the [IrTyId] that is created from
+/// a [TyId] or a [DataDefId]. It is then used by program logic
+/// to avoid re-computing the same type again by using this key to lookup
+/// the [IrTyId] in the [IrCtx].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SemanticCacheEntry {
+    /// The key is a type ID.
+    Ty(TyId),
+
+    /// The key is a data definition ID.
+    Data(DataTy),
+}
+
+impl From<TyId> for SemanticCacheEntry {
+    fn from(ty: TyId) -> Self {
+        Self::Ty(ty)
+    }
+}
+
+impl From<DataTy> for SemanticCacheEntry {
+    fn from(data: DataTy) -> Self {
+        Self::Data(data)
+    }
+}
+
+pub type SemanticCache = RefCell<FxHashMap<SemanticCacheEntry, IrTyId>>;
+
 /// The [IrCtx] is used to store all interned information that
 /// IR [Body]s might use or reference. This includes IR types, place
 /// projections, etc.
@@ -110,6 +141,9 @@ pub struct IrCtx {
     /// Cache for the [IrTyId]s that are created from [TermId]s.
     ty_cache: RefCell<FxHashMap<TyCacheEntry, IrTyId>>,
 
+    /// Cache for the [IrTyId]s that are created from [TyId]s.
+    semantic_cache: SemanticCache,
+
     /// A map of all "language" intrinsics that might need to be
     /// generated during the lowering process.
     intrinsics: Intrinsics,
@@ -129,6 +163,7 @@ impl IrCtx {
             instances,
             adt_store: AdtStore::new(),
             ty_cache: RefCell::new(FxHashMap::default()),
+            semantic_cache: RefCell::new(FxHashMap::default()),
         }
     }
 
@@ -140,6 +175,11 @@ impl IrCtx {
     /// Get a reference to the [TyStore].
     pub fn tys(&self) -> &TyStore {
         &self.ty_store
+    }
+
+    /// Get a reference to the semantic types conversion cache.
+    pub fn semantic_cache(&self) -> &SemanticCache {
+        &self.semantic_cache
     }
 
     /// Get a reference to the [IrTyId] cache.

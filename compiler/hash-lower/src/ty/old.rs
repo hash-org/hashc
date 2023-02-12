@@ -1,4 +1,3 @@
-
 use hash_ir::{
     ty::{AdtData, AdtField, AdtFlags, AdtVariant, Instance, IrTy, IrTyId},
     IrCtx,

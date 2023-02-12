@@ -1,6 +1,6 @@
 //! Contains all of the logic that is used by the lowering process
 //! to convert types and [Ty]s into [IrTy]s.
-#![allow(dead_code, unused)] // @@Temporary
+#![allow(dead_code)] // @@Temporary.
 
 use hash_ir::{
     ty::{
@@ -16,8 +16,7 @@ use hash_source::{
 use hash_target::size::Size;
 use hash_tir::new::{
     data::{
-        ArrayCtorInfo, DataDefCtors, DataDefId, DataTy, NumericCtorBits, NumericCtorInfo,
-        PrimitiveCtorInfo,
+        ArrayCtorInfo, DataDefCtors, DataTy, NumericCtorBits, NumericCtorInfo, PrimitiveCtorInfo,
     },
     environment::env::{AccessToEnv, Env},
     fns::FnTy,
@@ -35,25 +34,60 @@ use hash_utils::{
 pub(crate) struct TyLoweringCtx<'ir> {
     /// A reference to the store of all of the IR types.
     pub lcx: &'ir IrCtx,
+
+    /// The type storage from the semantic analysis stage.
+    pub tcx: Env<'ir>,
 }
 
 impl<'ir> AccessToEnv for TyLoweringCtx<'ir> {
     fn env(&self) -> &Env {
-        todo!()
+        &self.tcx
     }
 }
 
 impl<'ir> TyLoweringCtx<'ir> {
     /// Create a new [TyLoweringCtx] from the given [IrCtx] and [GlobalStorage].
-    pub fn new(lcx: &'ir IrCtx) -> Self {
-        Self { lcx }
+    pub fn new(lcx: &'ir IrCtx, tcx: Env<'ir>) -> Self {
+        Self { lcx, tcx }
     }
 
     /// Get the [IrTyId] from a given [TyId]. This function will internally
     /// cache results of lowering a [TyId] into an [IrTyId] to avoid
     /// duplicate work.
     pub(crate) fn ty_id_from_tir_ty(&self, term: TyId) -> IrTyId {
-        todo!()
+        // Check if the term is present within the cache, and if so, return the
+        // cached value.
+        if let Some(ty) = self.lcx.semantic_cache().borrow().get(&term.into()) {
+            return *ty;
+        }
+
+        // Lower the type into ir type.
+        let ty = self.map_ty(term, |ty| self.ty_from_tir_ty(ty));
+
+        // @@Hack: avoid re-creating "commonly" used types in order
+        // to allow for type_id equality to work
+        let id = match ty {
+            IrTy::Char => self.lcx.tys().common_tys.char,
+            IrTy::UInt(UIntTy::U8) => self.lcx.tys().common_tys.u8,
+            IrTy::UInt(UIntTy::U16) => self.lcx.tys().common_tys.u16,
+            IrTy::UInt(UIntTy::U32) => self.lcx.tys().common_tys.u32,
+            IrTy::UInt(UIntTy::U64) => self.lcx.tys().common_tys.u64,
+            IrTy::UInt(UIntTy::U128) => self.lcx.tys().common_tys.u128,
+            IrTy::UInt(UIntTy::USize) => self.lcx.tys().common_tys.usize,
+            IrTy::Int(SIntTy::I8) => self.lcx.tys().common_tys.i8,
+            IrTy::Int(SIntTy::I16) => self.lcx.tys().common_tys.i16,
+            IrTy::Int(SIntTy::I32) => self.lcx.tys().common_tys.i32,
+            IrTy::Int(SIntTy::I64) => self.lcx.tys().common_tys.i64,
+            IrTy::Int(SIntTy::I128) => self.lcx.tys().common_tys.i128,
+            IrTy::Int(SIntTy::ISize) => self.lcx.tys().common_tys.isize,
+            IrTy::Float(FloatTy::F32) => self.lcx.tys().common_tys.f32,
+            IrTy::Float(FloatTy::F64) => self.lcx.tys().common_tys.f64,
+            _ => self.lcx.tys().create(ty),
+        };
+
+        // Add an entry into the cache for this term
+        self.lcx.semantic_cache().borrow_mut().insert(term.into(), id);
+        id
     }
 
     /// Get the [IrTy] from the given [TyId].
@@ -117,8 +151,19 @@ impl<'ir> TyLoweringCtx<'ir> {
     }
 
     /// Convert the [DataDefType] into an [`IrTy::Adt`].
-    pub(crate) fn ty_id_from_tir_data(&self, data: DataDefId) -> IrTyId {
-        todo!()
+    pub(crate) fn ty_id_from_tir_data(&self, data @ DataTy { data_def, args }: DataTy) -> IrTyId {
+        // Check if the data type has already been converted into
+        // an [IrTyId].
+        if let Some(ty) = self.lcx.semantic_cache().borrow().get(&data.into()) {
+            return *ty;
+        }
+
+        let ty = self.ty_from_tir_data(DataTy { data_def, args });
+        let id = self.lcx.tys().create(ty);
+
+        // Add an entry into the cache for this term
+        self.lcx.semantic_cache().borrow_mut().insert(data.into(), id);
+        id
     }
 
     /// Convert the [DataDefType] into an [`IrTy::Adt`].
@@ -131,45 +176,44 @@ impl<'ir> TyLoweringCtx<'ir> {
                 // is a enum.
                 let mut flags = AdtFlags::empty();
 
-                if ctor_defs.len() > 1 {
-                    flags |= AdtFlags::ENUM;
-                } else if ctor_defs.len() == 1 {
-                    flags |= AdtFlags::STRUCT;
-                } else {
-                    // This must be the never type.
-                    return IrTy::Never;
+                match ctor_defs.len() {
+                    0 => return IrTy::Never, // This must be the never type.
+                    1 => flags |= AdtFlags::STRUCT,
+                    _ => flags |= AdtFlags::ENUM,
                 }
 
                 // @@Todo: Deal with performing generics on the types here...
 
                 // Lower each variant as a constructor.
                 let variants = self.stores().ctor_defs().map_fast(ctor_defs, |defs| {
-                    defs.into_iter()
+                    defs.iter()
                         .map(|ctor| {
+                            let name = self.get_symbol(ctor.name).name.unwrap_or(IDENTS.underscore);
+
                             self.stores().params().map_fast(ctor.params, |fields| {
                                 let fields = fields
                                     .iter()
                                     .map(|field| {
                                         let ty = self.ty_id_from_tir_ty(field.ty);
-
-                                        // @@Todo: convert symbol into an ident.
-                                        let name = IDENTS.underscore;
-                                        // @@Todo: do we need to store default parameter information
-                                        // here?
+                                        let name = self
+                                            .get_symbol(field.name)
+                                            .name
+                                            .unwrap_or(IDENTS.underscore);
+                                        // @@Verify: do we need to store default parameter
+                                        // information here?
                                         AdtField { name, ty }
                                     })
                                     .collect::<Vec<_>>();
 
-                                // @@Todo: convert symbol into an ident.
-                                let name = IDENTS.underscore;
                                 AdtVariant { name, fields }
                             })
                         })
                         .collect::<AdtVariants>()
                 });
 
-                // @@Todo: conver `data_ty.name` from a `Symbol` into an ident.
-                let name = IDENTS.underscore;
+                // Get the name of the data type, if no name exists we default to
+                // using `_`.
+                let name = self.get_symbol(data_ty.name).name.unwrap_or(IDENTS.underscore);
                 let adt = AdtData::new_with_flags(name, variants, flags);
 
                 let id = self.lcx.adts().create(adt);

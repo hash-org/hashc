@@ -177,7 +177,7 @@ pub type DataDefStore = DefaultStore<DataDefId, DataDef>;
 ///
 /// This is, for example `Option<i32>` when it is used in type position `y:
 /// Option<i32>`.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct DataTy {
     /// The data-type definition of this type.
     pub data_def: DataDefId,
