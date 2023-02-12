@@ -232,7 +232,7 @@ pub enum IrTy {
     Slice(IrTyId),
 
     /// An array type with a specified length, i.e. `[T; N]`
-    Array { ty: IrTyId, size: usize },
+    Array { ty: IrTyId, length: usize },
 
     /// An abstract data structure type, i.e a `struct` or `enum`, or any
     /// other kind of type.
@@ -939,7 +939,7 @@ impl fmt::Display for ForFormatting<'_, &IrTy> {
                 write!(f, "{name}")
             }
             IrTy::Slice(ty) => write!(f, "[{}]", ty.for_fmt(self.ctx)),
-            IrTy::Array { ty, size } => write!(f, "[{}; {size}]", ty.for_fmt(self.ctx)),
+            IrTy::Array { ty, length: size } => write!(f, "[{}; {size}]", ty.for_fmt(self.ctx)),
         }
     }
 }
@@ -1020,10 +1020,10 @@ impl PlaceTy {
                 let ty = match base_ty {
                     IrTy::Slice(_) => self.ty,
                     IrTy::Array { ty, .. } if !from_end => {
-                        ctx.tys().create(IrTy::Array { ty, size: to - from })
+                        ctx.tys().create(IrTy::Array { ty, length: to - from })
                     }
-                    IrTy::Array { ty, size } if from_end => {
-                        ctx.tys().create(IrTy::Array { ty, size: size - from - to })
+                    IrTy::Array { ty, length: size } if from_end => {
+                        ctx.tys().create(IrTy::Array { ty, length: size - from - to })
                     }
                     _ => panic!("expected an array or slice, got {self:?}"),
                 };

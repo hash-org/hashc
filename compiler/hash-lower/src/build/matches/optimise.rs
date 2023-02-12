@@ -65,7 +65,7 @@ impl<'tcx> Builder<'tcx> {
         suffix: &[PatId],
     ) {
         let (min_length, exact_size) = self.ctx.map_ty(ty, |ty| match ty {
-            IrTy::Array { size, .. } => (*size, true),
+            IrTy::Array { length: size, .. } => (*size, true),
             _ => (prefix.len() + suffix.len(), false),
         });
 

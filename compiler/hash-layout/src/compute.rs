@@ -224,7 +224,7 @@ impl<'l> LayoutComputer<'l> {
                     size: Size::ZERO,
                 }))
             }
-            IrTy::Array { ty, size } => self.compute_layout_of_array(*ty, *size as u64),
+            IrTy::Array { ty, length: size } => self.compute_layout_of_array(*ty, *size as u64),
             IrTy::Adt(adt) => self.ir_ctx.map_adt(*adt, |_id, adt| -> Result<_, LayoutError> {
                 // We have to compute the layouts of all of the variants
                 // and all of the fields of the variants

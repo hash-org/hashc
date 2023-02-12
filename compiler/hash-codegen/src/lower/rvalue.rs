@@ -510,7 +510,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         if let Some(local) = place.as_local() {
             if let LocalRef::Operand(Some(op)) = self.locals[local] {
                 let size = self.ctx.ir_ctx().map_ty(op.info.ty, |ty| {
-                    if let ty::IrTy::Array { size, .. } = ty {
+                    if let ty::IrTy::Array { length: size, .. } = ty {
                         Some(*size)
                     } else {
                         None

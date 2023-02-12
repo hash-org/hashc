@@ -12,7 +12,7 @@ use hash_tir::{
         casting::CastTerm,
         control::{IfPat, LoopControlTerm, LoopTerm, OrPat, ReturnTerm},
         data::{
-            CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, ListCtorInfo,
+            ArrayCtorInfo, CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy,
             PrimitiveCtorInfo,
         },
         environment::context::{BindingKind, ParamOrigin, ScopeKind},
@@ -1575,26 +1575,27 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
                     self.return_or_register_errors(|| Ok(()), error_state)
                 }
-                DataDefCtors::Primitive(primitive) => match primitive {
-                    PrimitiveCtorInfo::Numeric(_)
-                    | PrimitiveCtorInfo::Str
-                    | PrimitiveCtorInfo::Char => {
-                        // Nothing to do
-                        Ok(())
+                DataDefCtors::Primitive(primitive) => {
+                    match primitive {
+                        PrimitiveCtorInfo::Numeric(_)
+                        | PrimitiveCtorInfo::Str
+                        | PrimitiveCtorInfo::Char => {
+                            // Nothing to do
+                            Ok(())
+                        }
+                        PrimitiveCtorInfo::Array(array_ctor_info) => {
+                            // Infer the inner type
+                            let element_ty =
+                                self.infer_ty(array_ctor_info.element_ty, self.new_ty_hole())?.0;
+                            self.stores().data_def().modify_fast(data_def_id, |def| {
+                                def.ctors = DataDefCtors::Primitive(PrimitiveCtorInfo::Array(
+                                    ArrayCtorInfo { element_ty, length: array_ctor_info.length },
+                                ));
+                            });
+                            Ok(())
+                        }
                     }
-                    PrimitiveCtorInfo::Array(array_ctor_info) => {
-                        // Infer the inner type
-                        let element_ty =
-                            self.infer_ty(array_ctor_info.element_ty, self.new_ty_hole())?.0;
-                        self.stores().data_def().modify_fast(data_def_id, |def| {
-                            def.ctors =
-                                DataDefCtors::Primitive(PrimitiveCtorInfo::Array(ListCtorInfo {
-                                    element_ty,
-                                }));
-                        });
-                        Ok(())
-                    }
-                },
+                }
             }
         })
     }
