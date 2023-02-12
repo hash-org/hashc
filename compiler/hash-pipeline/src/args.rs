@@ -21,15 +21,17 @@ pub fn parse_settings_from_args() -> Result<CompilerSettings, PipelineError> {
     let mut args = std::env::args().skip(1);
 
     while let Some(arg) = args.next() {
+        let arg = arg.trim();
+
         // This is a configuration key that specifies the "key" and then
         // the value in the form of `-C<key>=<value>`
         if arg.starts_with("-C") || arg.starts_with("--") {
-            parse_option(&mut settings, &mut args, arg.as_str())?;
+            parse_option(&mut settings, &mut args, arg)?;
         } else {
             // This is specifying what kind of a stage the compiler should run
             // the job on whether it is `build`, `check`,
             // `ast-gen`...
-            match arg.as_str() {
+            match arg {
                 "build" => {
                     settings.stage = CompilerStageKind::Full;
                 }
@@ -43,7 +45,7 @@ pub fn parse_settings_from_args() -> Result<CompilerSettings, PipelineError> {
                     settings.stage = CompilerStageKind::Lower;
                 }
                 _ => {
-                    return Err(PipelineError::UnknownStage(arg));
+                    return Err(PipelineError::UnknownStage(arg.to_string()));
                 }
             };
 
@@ -52,7 +54,7 @@ pub fn parse_settings_from_args() -> Result<CompilerSettings, PipelineError> {
                 let path = PathBuf::from(filename);
                 settings.entry_point = Some(path);
             } else {
-                return Err(PipelineError::MissingEntryPoint);
+                settings.entry_point = None;
             }
         }
     }

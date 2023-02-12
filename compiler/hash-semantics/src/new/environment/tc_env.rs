@@ -4,8 +4,16 @@ use hash_intrinsics::{
 };
 use hash_reporting::diagnostic::{AccessToDiagnostics, DiagnosticCellStore, Diagnostics};
 // @@Docs
-use hash_tir::new::environment::env::{AccessToEnv, Env};
+use hash_tir::new::{
+    environment::{
+        context::Context,
+        env::{AccessToEnv, Env},
+        stores::Stores,
+    },
+    mods::ModDefId,
+};
 use hash_typecheck::{errors::TcError, AccessToTypechecking};
+use once_cell::unsync::OnceCell;
 
 use super::ast_info::AstInfo;
 use crate::new::{
@@ -62,12 +70,45 @@ macro_rules! tc_env {
 
 pub type DiagnosticsStore = DiagnosticCellStore<SemanticError, SemanticWarning>;
 
+pub type PreludeOrUnset = OnceCell<ModDefId>;
+
 tc_env! {
     #hide env: Env<'tc>,
     diagnostics: DiagnosticsStore,
     ast_info: AstInfo,
+    prelude_or_unset: PreludeOrUnset,
     primitives_or_unset: DefinedPrimitivesOrUnset,
     intrinsics_or_unset: DefinedIntrinsicsOrUnset,
+}
+
+pub struct SemanticStorage {
+    pub stores: Stores,
+    pub context: Context,
+    pub diagnostics: DiagnosticsStore,
+    pub ast_info: AstInfo,
+    pub prelude_or_unset: PreludeOrUnset,
+    pub primitives_or_unset: DefinedPrimitivesOrUnset,
+    pub intrinsics_or_unset: DefinedIntrinsicsOrUnset,
+}
+
+impl SemanticStorage {
+    pub fn new() -> Self {
+        Self {
+            stores: Stores::new(),
+            context: Context::new(),
+            diagnostics: DiagnosticsStore::new(),
+            ast_info: AstInfo::new(),
+            prelude_or_unset: OnceCell::new(),
+            primitives_or_unset: OnceCell::new(),
+            intrinsics_or_unset: OnceCell::new(),
+        }
+    }
+}
+
+impl Default for SemanticStorage {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<'tc> AccessToTcEnv for TcEnv<'tc> {

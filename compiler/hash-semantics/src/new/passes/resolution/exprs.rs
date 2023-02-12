@@ -7,7 +7,11 @@
 use std::collections::HashSet;
 
 use hash_ast::ast::{self, AstNode, AstNodeId, AstNodeRef};
-use hash_intrinsics::utils::PrimitiveUtils;
+use hash_intrinsics::{
+    intrinsics::{AccessToIntrinsics, BoolBinOp, EndoBinOp, UnOp},
+    primitives::AccessToPrimitives,
+    utils::PrimitiveUtils,
+};
 use hash_reporting::macros::panic_on_span;
 use hash_source::location::Span;
 use hash_tir::{
@@ -18,7 +22,7 @@ use hash_tir::{
         control::{LoopControlTerm, LoopTerm, MatchCase, MatchTerm, ReturnTerm},
         data::DataTy,
         environment::{context::ScopeKind, env::AccessToEnv},
-        fns::{FnBody, FnCallTerm},
+        fns::{FnBody, FnCallTerm, FnDefId},
         lits::{CharLit, FloatLit, IntLit, Lit, PrimTerm, StrLit},
         params::ParamIndex,
         refs::{DerefTerm, RefKind, RefTerm},
@@ -883,10 +887,60 @@ impl<'tc> ResolutionPass<'tc> {
     /// Make a term from an [`ast::BinaryExpr`].
     fn make_term_from_ast_binary_expr(
         &self,
-        _node: AstNodeRef<ast::BinaryExpr>,
+        node: AstNodeRef<ast::BinaryExpr>,
     ) -> SemanticResult<TermId> {
-        // @@Todo: deal with operators
-        todo!()
+        let lhs = self.make_term_from_ast_expr(node.lhs.ast_ref())?;
+        let rhs = self.make_term_from_ast_expr(node.rhs.ast_ref())?;
+
+        // For the type, we use the type of the lhs
+        let typeof_lhs = self.new_term(TypeOfTerm { term: lhs });
+
+        // Pick the right intrinsic function and binary operator number
+        let (intrinsic_fn_def, bin_op_num): (FnDefId, u8) = match node.operator.body() {
+            ast::BinOp::EqEq => (self.intrinsics().bool_bin_op(), BoolBinOp::EqEq.into()),
+            ast::BinOp::NotEq => (self.intrinsics().bool_bin_op(), BoolBinOp::NotEq.into()),
+            ast::BinOp::BitOr => (self.intrinsics().endo_bin_op(), EndoBinOp::BitOr.into()),
+            ast::BinOp::Or => (self.intrinsics().bool_bin_op(), BoolBinOp::Or.into()),
+            ast::BinOp::BitAnd => (self.intrinsics().endo_bin_op(), EndoBinOp::BitAnd.into()),
+            ast::BinOp::And => (self.intrinsics().bool_bin_op(), BoolBinOp::And.into()),
+            ast::BinOp::BitXor => (self.intrinsics().endo_bin_op(), EndoBinOp::BitXor.into()),
+            ast::BinOp::Exp => (self.intrinsics().endo_bin_op(), EndoBinOp::Exp.into()),
+            ast::BinOp::Gt => (self.intrinsics().bool_bin_op(), BoolBinOp::Gt.into()),
+            ast::BinOp::GtEq => (self.intrinsics().bool_bin_op(), BoolBinOp::GtEq.into()),
+            ast::BinOp::Lt => (self.intrinsics().bool_bin_op(), BoolBinOp::Lt.into()),
+            ast::BinOp::LtEq => (self.intrinsics().bool_bin_op(), BoolBinOp::LtEq.into()),
+            ast::BinOp::Shr => (self.intrinsics().endo_bin_op(), EndoBinOp::Shr.into()),
+            ast::BinOp::Shl => (self.intrinsics().endo_bin_op(), EndoBinOp::Shl.into()),
+            ast::BinOp::Add => (self.intrinsics().endo_bin_op(), EndoBinOp::Add.into()),
+            ast::BinOp::Sub => (self.intrinsics().endo_bin_op(), EndoBinOp::Sub.into()),
+            ast::BinOp::Mul => (self.intrinsics().endo_bin_op(), EndoBinOp::Mul.into()),
+            ast::BinOp::Div => (self.intrinsics().endo_bin_op(), EndoBinOp::Div.into()),
+            ast::BinOp::Mod => (self.intrinsics().endo_bin_op(), EndoBinOp::Mod.into()),
+            ast::BinOp::As => {
+                return Ok(self.new_term(CastTerm {
+                    subject_term: lhs,
+                    target_ty: self.use_term_as_ty(rhs),
+                }));
+            }
+            ast::BinOp::Merge => {
+                let args = self.param_utils().create_positional_args(vec![typeof_lhs, lhs, rhs]);
+                return Ok(self.use_ty_as_term(
+                    self.new_ty(DataTy { data_def: self.primitives().equal(), args }),
+                ));
+            }
+        };
+
+        // Invoke the intrinsic function
+        Ok(self.new_term(FnCallTerm {
+            subject: self.new_term(intrinsic_fn_def),
+            args: self.param_utils().create_positional_args(vec![
+                typeof_lhs,
+                self.create_term_from_integer_lit(bin_op_num),
+                lhs,
+                rhs,
+            ]),
+            implicit: false,
+        }))
     }
 
     /// Make a term from an [`ast::UnaryExpr`].
@@ -894,15 +948,28 @@ impl<'tc> ResolutionPass<'tc> {
         &self,
         node: AstNodeRef<ast::UnaryExpr>,
     ) -> SemanticResult<TermId> {
-        match node.operator.body() {
+        let a = self.make_term_from_ast_expr(node.expr.ast_ref())?;
+        let typeof_a = self.new_term(TypeOfTerm { term: a });
+
+        let (intrinsic_fn_def, op_num): (FnDefId, u8) = match node.operator.body() {
             ast::UnOp::TypeOf => {
                 let inner = self.make_term_from_ast_expr(node.expr.ast_ref())?;
-                Ok(self.new_term(TypeOfTerm { term: inner }))
+                return Ok(self.new_term(TypeOfTerm { term: inner }));
             }
-            ast::UnOp::BitNot | ast::UnOp::Not | ast::UnOp::Neg => {
-                // @@Todo: deal with operators
-                todo!()
-            }
-        }
+            ast::UnOp::BitNot => (self.intrinsics().un_op(), UnOp::BitNot.into()),
+            ast::UnOp::Not => (self.intrinsics().un_op(), UnOp::Not.into()),
+            ast::UnOp::Neg => (self.intrinsics().un_op(), UnOp::Neg.into()),
+        };
+
+        // Invoke the intrinsic function
+        Ok(self.new_term(FnCallTerm {
+            subject: self.new_term(intrinsic_fn_def),
+            args: self.param_utils().create_positional_args(vec![
+                typeof_a,
+                self.create_term_from_integer_lit(op_num),
+                a,
+            ]),
+            implicit: false,
+        }))
     }
 }

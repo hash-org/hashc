@@ -291,7 +291,8 @@ pub trait CommonUtils: AccessToEnv {
             types
                 .iter()
                 .copied()
-                .map(|ty| move |id| Param { id, name: self.new_fresh_symbol(), ty, default: None }),
+                .enumerate()
+                .map(|(i, ty)| move |id| Param { id, name: self.new_symbol(i), ty, default: None }),
         )
     }
 

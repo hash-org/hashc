@@ -1,6 +1,7 @@
 //! Module-related utilities.
 use derive_more::Constructor;
 use hash_utils::store::{SequenceStore, Store};
+use itertools::Itertools;
 
 use crate::{
     impl_access_to_env,
@@ -43,13 +44,14 @@ impl<'tc> ModUtils<'tc> {
     }
 
     /// Create module members from the given set of members as an iterator.
-    pub fn create_mod_members<I: IntoIterator<Item = ModMemberData>>(&self, data: I) -> ModMembersId
-    where
-        I::IntoIter: ExactSizeIterator,
-    {
+    pub fn create_mod_members<I: IntoIterator<Item = ModMemberData>>(
+        &self,
+        data: I,
+    ) -> ModMembersId {
         self.stores().mod_members().create_from_iter_with(
             data.into_iter()
-                .map(|data| move |id| ModMember { id, name: data.name, value: data.value }),
+                .map(|data| move |id| ModMember { id, name: data.name, value: data.value })
+                .collect_vec(),
         )
     }
 }
