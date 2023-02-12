@@ -1,13 +1,18 @@
 //! Module-related utilities.
 use derive_more::Constructor;
+use hash_source::identifier::Identifier;
 use hash_utils::store::{SequenceStore, Store};
 use itertools::Itertools;
 
+use super::common::CommonUtils;
 use crate::{
     impl_access_to_env,
     new::{
         environment::env::{AccessToEnv, Env},
-        mods::{ModDef, ModDefData, ModDefId, ModMember, ModMemberData, ModMembersId},
+        fns::FnDefId,
+        mods::{
+            ModDef, ModDefData, ModDefId, ModMember, ModMemberData, ModMemberValue, ModMembersId,
+        },
     },
 };
 
@@ -53,5 +58,43 @@ impl<'tc> ModUtils<'tc> {
                 .map(|data| move |id| ModMember { id, name: data.name, value: data.value })
                 .collect_vec(),
         )
+    }
+
+    /// Get a module function member by name.
+    pub fn get_mod_fn_member_by_ident(
+        &self,
+        mod_def_id: ModDefId,
+        name: impl Into<Identifier>,
+    ) -> Option<FnDefId> {
+        let name = name.into();
+        self.stores().mod_def().map_fast(mod_def_id, |def| {
+            self.stores().mod_members().map_fast(def.members, |members| {
+                members.iter().find_map(|&member| {
+                    if let ModMemberValue::Fn(fn_def_id) = member.value {
+                        if self.get_symbol(member.name).name.contains(&name) {
+                            return Some(fn_def_id);
+                        }
+                    }
+                    None
+                })
+            })
+        })
+    }
+
+    /// Get a module member by name.
+    pub fn get_mod_member_by_ident(
+        &self,
+        mod_def_id: ModDefId,
+        name: impl Into<Identifier>,
+    ) -> Option<ModMember> {
+        let name = name.into();
+        self.stores().mod_def().map_fast(mod_def_id, |def| {
+            self.stores().mod_members().map_fast(def.members, |members| {
+                members
+                    .iter()
+                    .find(|&member| self.get_symbol(member.name).name.contains(&name))
+                    .copied()
+            })
+        })
     }
 }

@@ -5,8 +5,9 @@ use hash_tir::new::{
     args::{ArgData, ArgsId},
     data::DataTy,
     environment::context::ParamOrigin,
-    fns::FnTy,
+    fns::{FnBody, FnTy},
     lits::{Lit, PrimTerm},
+    locations::LocationTarget,
     params::{ParamData, ParamsId},
     sub::Sub,
     terms::{Term, TermId},
@@ -42,8 +43,8 @@ impl<T> Uni<T> {
     }
 
     /// Create a unification result that is blocked.
-    pub fn blocked() -> TcResult<Self> {
-        Err(TcError::Blocked)
+    pub fn blocked(loc: impl Into<LocationTarget>) -> TcResult<Self> {
+        Err(TcError::Blocked(loc.into()))
     }
 
     /// Create a unification result that is an error of mismatching types.
@@ -113,7 +114,7 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
                     Uni::ok(target_id)
                 } else {
                     // We can't unify two holes, so we have to block
-                    Uni::blocked()
+                    Uni::blocked(target_id)
                 }
             }
             (Ty::Hole(a), _) => {
@@ -214,6 +215,8 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
             return Uni::ok(src_id);
         }
 
+        // @@Todo: document and implement remaining cases
+
         let src_id =
             self.normalisation_ops().to_term(self.normalisation_ops().normalise(src_id.into())?);
         let target_id =
@@ -261,6 +264,58 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
                     (PrimTerm::Array(_), PrimTerm::Array(_)) => todo!(),
                     _ => Uni::mismatch_terms(src_id, target_id),
                 },
+                (Term::Access(a1), Term::Access(a2)) => {
+                    let _ = self.unify_terms(a1.subject, a2.subject)?;
+                    Uni::ok_iff_terms_match(a1.field == a2.field, src_id, target_id)
+                }
+                (Term::FnCall(c1), Term::FnCall(c2)) => {
+                    let _ = self.unify_terms(c1.subject, c2.subject)?;
+                    let _ = self.unify_args(c1.args, c2.args)?;
+                    Uni::ok(src_id)
+                }
+                (Term::FnRef(f1), Term::FnRef(f2)) => {
+                    if f1 == f2 {
+                        return Uni::ok(src_id);
+                    }
+                    let f1_def = self.get_fn_def(f1);
+                    let f2_def = self.get_fn_def(f2);
+
+                    self.context().enter_scope(f1.into(), || {
+                        // @@Todo: use sub
+                        let Uni { sub: param_sub, result: _ } = self.unify_params(
+                            f1_def.ty.params,
+                            f2_def.ty.params,
+                            ParamOrigin::FnTy(f1_def.ty),
+                        )?;
+
+                        let return_ty_1_subbed = self
+                            .substitution_ops()
+                            .apply_sub_to_ty(f1_def.ty.return_ty, &param_sub);
+                        let return_ty_2_subbed = self
+                            .substitution_ops()
+                            .apply_sub_to_ty(f2_def.ty.return_ty, &param_sub);
+
+                        let Uni { result: _, sub: _ } =
+                            self.unify_tys(return_ty_1_subbed, return_ty_2_subbed)?;
+
+                        match (f1_def.body, f2_def.body) {
+                            (FnBody::Defined(f1_body), FnBody::Defined(f2_body)) => {
+                                let body_1_subbed =
+                                    self.substitution_ops().apply_sub_to_term(f1_body, &param_sub);
+                                let body_2_subbed =
+                                    self.substitution_ops().apply_sub_to_term(f2_body, &param_sub);
+
+                                let _ = self.unify_terms(body_1_subbed, body_2_subbed)?;
+                                Uni::ok(src_id)
+                            }
+                            (FnBody::Intrinsic(i1), FnBody::Intrinsic(i2)) => {
+                                Uni::ok_iff_terms_match(i1.0 == i2.0, src_id, target_id)
+                            }
+                            (FnBody::Axiom, FnBody::Axiom) => Uni::ok(src_id),
+                            _ => Uni::mismatch_terms(src_id, target_id),
+                        }
+                    })
+                }
                 _ => Uni::mismatch_terms(src_id, target_id),
             },
         }

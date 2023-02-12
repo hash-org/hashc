@@ -40,7 +40,7 @@ impl TcErrorState {
     /// Add an error to the error state.
     pub fn add_error(&mut self, error: impl Into<TcError>) -> &TcError {
         let error = error.into();
-        if let TcError::Blocked = error {
+        if let TcError::Blocked(_) = error {
             self.has_blocked = true;
         }
         self.errors.push(error);
@@ -98,7 +98,7 @@ pub enum WrongTermKind {
 
 pub enum TcError {
     /// Blocked, cannot continue. This is used as a signal in the typechecker.
-    Blocked,
+    Blocked(LocationTarget),
 
     /// Signal to assert that there are other errors in the diagnostics store.
     Signal,
@@ -173,11 +173,12 @@ impl<'tc> TcErrorReporter<'tc> {
         let locations = self.stores().location();
         match error {
             TcError::Signal => {}
-            TcError::Blocked => {
-                let _error = reporter
-                    .error()
-                    .code(HashErrorCode::UnresolvedType)
-                    .title("blocked while typechecking".to_string());
+            TcError::Blocked(location) => {
+                let error = reporter.error().title("blocked while typechecking".to_string());
+
+                if let Some(location) = self.get_location(location) {
+                    error.add_span(location);
+                }
             }
             TcError::NeedMoreTypeAnnotationsToInfer { term } => {
                 let error = reporter

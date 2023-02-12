@@ -8,6 +8,7 @@ use hash_tir::{
     new::{
         access::AccessTerm,
         args::{ArgData, ArgId, ArgsId, PatArgData, PatArgsId, PatOrCapture},
+        atom_info::ItemInAtomInfo,
         casting::CastTerm,
         control::{IfPat, LoopControlTerm, LoopTerm, OrPat, ReturnTerm},
         data::{
@@ -218,6 +219,8 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         args: ArgsId,
         annotation_params: ParamsId,
     ) -> TcResult<(ArgsId, ParamsId)> {
+        self.register_new_atom(args, annotation_params);
+
         let reordered_args_id =
             self.param_ops().validate_and_reorder_args_against_params(args, annotation_params)?;
         let reordered_args = self.stores().args().map_fast(reordered_args_id, |args| {
@@ -239,6 +242,8 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         )?;
 
         let inferred_args_id = self.param_utils().create_args(inferred_args.into_iter());
+
+        self.register_atom_inference(args, inferred_args_id, inferred_params_id);
         Ok((inferred_args_id, inferred_params_id))
     }
 
@@ -249,6 +254,8 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         spread: Option<Spread>,
         annotation_params: ParamsId,
     ) -> TcResult<(PatArgsId, ParamsId)> {
+        self.register_new_atom(pat_args, annotation_params);
+
         self.param_ops().validate_and_reorder_pat_args_against_params(
             pat_args,
             spread,
@@ -289,6 +296,8 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
         let inferred_pat_args_id =
             self.param_utils().create_pat_args(inferred_pat_args.into_iter());
+
+        self.register_atom_inference(pat_args, inferred_pat_args_id, inferred_params_id);
         Ok((inferred_pat_args_id, inferred_params_id))
     }
 
@@ -898,6 +907,8 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
     /// Infer the type of a type, and return it.
     pub fn infer_ty(&self, ty_id: TyId, annotation_ty: TyId) -> TcResult<(TyId, TyId)> {
+        self.register_new_atom(ty_id, annotation_ty);
+
         let result_ty = match self.get_ty(ty_id) {
             Ty::Eval(eval) => {
                 let eval_inferred = self.infer_term(eval, annotation_ty)?;
@@ -954,6 +965,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             Ty::Hole(_) => Ok((ty_id, annotation_ty)),
         }?;
 
+        self.register_atom_inference(ty_id, result_ty.0, result_ty.1);
         Ok((result_ty.0, self.check_by_unify(result_ty.1, annotation_ty)?))
     }
 
@@ -1257,6 +1269,8 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     /// To create a hole when this is not possible, use
     /// [`InferOps::infer_ty_of_term_or_hole`].
     pub fn infer_term(&self, term_id: TermId, annotation_ty: TyId) -> TcResult<(TermId, TyId)> {
+        self.register_new_atom(term_id, annotation_ty);
+
         let result = self.stores().term().map(term_id, |term| match term {
             Term::Tuple(tuple_term) => self
                 .infer_tuple_term(tuple_term, annotation_ty, term_id)
@@ -1327,6 +1341,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             Term::Hole(_) => Ok((term_id, annotation_ty)),
         })?;
 
+        self.register_atom_inference(term_id, result.0, result.1);
         Ok(result)
     }
 
@@ -1482,34 +1497,34 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
     /// Infer the type of a pattern, and return it.
     pub fn infer_pat(&self, pat_id: PatId, annotation_ty: TyId) -> TcResult<(PatId, TyId)> {
-        let pat = self.get_pat(pat_id);
+        self.register_new_atom(pat_id, annotation_ty);
 
-        Ok(match pat {
-            Pat::Binding(_) => (pat_id, annotation_ty),
-            Pat::Range(range_pat) => (pat_id, self.infer_range_pat(range_pat, annotation_ty)?),
-            Pat::Lit(lit) => (pat_id, self.infer_lit(&lit.into(), annotation_ty)?.1),
-            Pat::Tuple(tuple_pat) => self.generalise_pat_and_ty_inference(self.infer_tuple_pat(
-                &tuple_pat,
-                annotation_ty,
-                pat_id,
-            )?),
-            Pat::Array(list_term) => self.generalise_pat_and_ty_inference(self.infer_list_pat(
-                &list_term,
-                annotation_ty,
-                pat_id,
-            )?),
-            Pat::Ctor(ctor_pat) => self.generalise_pat_and_ty_inference(self.infer_ctor_pat(
-                &ctor_pat,
-                annotation_ty,
-                pat_id,
-            )?),
-            Pat::Or(or_pat) => {
-                self.generalise_pat_inference(self.infer_or_pat(&or_pat, annotation_ty)?)
-            }
-            Pat::If(if_pat) => {
-                self.generalise_pat_inference(self.infer_if_pat(&if_pat, annotation_ty)?)
-            }
-        })
+        let result =
+            match self.get_pat(pat_id) {
+                Pat::Binding(_) => (pat_id, annotation_ty),
+                Pat::Range(range_pat) => (pat_id, self.infer_range_pat(range_pat, annotation_ty)?),
+                Pat::Lit(lit) => (pat_id, self.infer_lit(&lit.into(), annotation_ty)?.1),
+                Pat::Tuple(tuple_pat) => self.generalise_pat_and_ty_inference(
+                    self.infer_tuple_pat(&tuple_pat, annotation_ty, pat_id)?,
+                ),
+                Pat::Array(list_term) => self.generalise_pat_and_ty_inference(
+                    self.infer_list_pat(&list_term, annotation_ty, pat_id)?,
+                ),
+                Pat::Ctor(ctor_pat) => self.generalise_pat_and_ty_inference(self.infer_ctor_pat(
+                    &ctor_pat,
+                    annotation_ty,
+                    pat_id,
+                )?),
+                Pat::Or(or_pat) => {
+                    self.generalise_pat_inference(self.infer_or_pat(&or_pat, annotation_ty)?)
+                }
+                Pat::If(if_pat) => {
+                    self.generalise_pat_inference(self.infer_if_pat(&if_pat, annotation_ty)?)
+                }
+            };
+
+        self.register_atom_inference(pat_id, result.0, result.1);
+        Ok(result)
     }
 
     /// Infer the given constructor definition.

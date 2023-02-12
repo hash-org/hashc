@@ -85,6 +85,7 @@ defined_intrinsics! {
     un_op,
     abort,
     user_error,
+    debug_print,
 }
 
 impl Debug for DefinedIntrinsics {
@@ -645,6 +646,27 @@ impl DefinedIntrinsics {
             },
         );
 
+        let debug_print = {
+            let t_sym = env.new_symbol("T");
+            let a_sym = env.new_symbol("a");
+            let params = env.param_utils().create_params(
+                [
+                    ParamData { default: None, name: t_sym, ty: env.new_small_universe_ty() },
+                    ParamData { default: None, name: a_sym, ty: env.new_ty(t_sym) },
+                ]
+                .into_iter(),
+            );
+            let ret = env.new_void_ty();
+            add(
+                "debug_print",
+                FnTy::builder().params(params).return_ty(ret).build(),
+                |env, args| {
+                    println!("{}", env.env().with(args[1]));
+                    Ok(env.new_void_term())
+                },
+            )
+        };
+
         // Primitive type equality
         let prim_type_eq_op = Self::add_prim_type_eq_op(env, &implementations);
 
@@ -665,6 +687,7 @@ impl DefinedIntrinsics {
             un_op,
             abort,
             user_error,
+            debug_print,
         }
     }
 
