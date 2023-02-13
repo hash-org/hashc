@@ -26,7 +26,7 @@ use hash_ir::{
 };
 use hash_pipeline::settings::CompilerSettings;
 use hash_source::{identifier::Identifier, location::Span, SourceId, SourceMap};
-use hash_tir::{scope::ScopeId, storage::GlobalStorage, terms::TermId};
+use hash_tir::old::{scope::ScopeId, storage::GlobalStorage, terms::TermId};
 use hash_utils::{
     index_vec::IndexVec,
     store::{FxHashMap, SequenceStore, SequenceStoreKey},

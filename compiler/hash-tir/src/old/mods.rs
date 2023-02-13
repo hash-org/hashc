@@ -5,7 +5,7 @@ use std::fmt;
 use hash_source::{identifier::Identifier, SourceId};
 use hash_utils::{new_store, new_store_key, store::CloneStore};
 
-use crate::{
+use crate::old::{
     fmt::{ForFormatting, PrepareForFormatting},
     scope::ScopeId,
     terms::TermId,

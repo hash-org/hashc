@@ -12,7 +12,7 @@ use hash_utils::{
     },
 };
 
-use crate::{
+use crate::old::{
     fmt::{ForFormatting, PrepareForFormatting},
     terms::TermId,
 };

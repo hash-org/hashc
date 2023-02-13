@@ -3,19 +3,5 @@
 #![feature(option_result_contains, let_chains, decl_macro, trait_alias)]
 #![recursion_limit = "128"]
 
-pub(crate) mod bootstrap;
-
-pub mod args;
-pub mod builder;
-pub mod fmt;
-pub mod location;
-pub mod mods;
 pub mod new;
-pub mod nodes;
-pub mod nominals;
-pub mod params;
-pub mod pats;
-pub mod scope;
-pub mod storage;
-pub mod terms;
-pub mod trts;
+pub mod old;

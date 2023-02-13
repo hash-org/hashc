@@ -14,7 +14,7 @@ use hash_source::{
     location::{SourceLocation, Span},
     SourceId,
 };
-use hash_tir::scope::ScopeId;
+use hash_tir::old::scope::ScopeId;
 use hash_utils::{
     graph::dominators::Dominators,
     index_vec::{self, IndexVec},

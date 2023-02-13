@@ -11,7 +11,7 @@ use hash_source::{
 };
 use hash_utils::store::{DefaultPartialStore, PartialCloneStore, PartialStore};
 
-use crate::{
+use crate::old::{
     args::ArgsId,
     params::ParamsId,
     pats::{PatArgsId, PatId},

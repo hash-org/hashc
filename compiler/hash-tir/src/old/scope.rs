@@ -9,7 +9,7 @@ use std::{
 use hash_source::identifier::Identifier;
 use hash_utils::{new_store, new_store_key, store::Store};
 
-use crate::{
+use crate::old::{
     fmt::{ForFormatting, PrepareForFormatting, TcFormatOpts},
     location::LocationTarget,
     terms::TermId,
@@ -438,7 +438,7 @@ new_store_key!(pub ScopeId);
 new_store!(pub ScopeStore<ScopeId, Scope>);
 
 /// Stores a collection of scopes, used from within
-/// [LocalStorage](crate::storage::LocalStorage).
+/// [LocalStorage](crate::old::storage::LocalStorage).
 #[derive(Debug, PartialEq, Eq)]
 pub struct ScopeStack {
     scopes: RefCell<Vec<ScopeId>>,

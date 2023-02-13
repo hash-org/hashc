@@ -4,7 +4,7 @@ use std::{borrow::Cow, collections::HashSet};
 
 use hash_ast::ast::ParamOrigin;
 use hash_source::{identifier::Identifier, location::SourceLocation};
-use hash_tir::{
+use hash_tir::old::{
     args::ArgsId,
     location::LocationTarget,
     params::{GetNameOpt, Param, ParamList, Params, ParamsId},
@@ -271,7 +271,7 @@ impl<'tc> ParamOps<'tc> {
 
     /// Convert a [ParamListKind] and a field index into a [SourceLocation] by
     /// looking up the inner id within the
-    /// [LocationStore][hash_tir::location::LocationStore].
+    /// [LocationStore][hash_tir::old::location::LocationStore].
     pub(crate) fn field_location(
         &self,
         param: &ParamListKind,

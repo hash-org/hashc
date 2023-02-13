@@ -28,7 +28,7 @@ use hash_semantics::{
     new::environment::tc_env::SemanticStorage, Typechecker, TypecheckingCtx, TypecheckingCtxQuery,
 };
 use hash_source::{entry_point::EntryPointState, SourceId, SourceMap};
-use hash_tir::storage::{GlobalStorage, LocalStorage, TyStorage};
+use hash_tir::old::storage::{GlobalStorage, LocalStorage, TyStorage};
 use hash_untyped_semantics::{SemanticAnalysis, SemanticAnalysisCtx, SemanticAnalysisCtxQuery};
 use hash_utils::stream_less_ewriteln;
 

@@ -22,8 +22,7 @@ use std::cell::{Ref, RefCell};
 use hash_source::entry_point::EntryPointState;
 use hash_tir::{
     new::{data::DataTy, tys::TyId},
-    nominals::NominalDefId,
-    terms::TermId,
+    old::{nominals::NominalDefId, terms::TermId},
 };
 use hash_utils::store::{FxHashMap, SequenceStore, Store};
 use intrinsics::Intrinsics;

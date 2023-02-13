@@ -1,7 +1,7 @@
 //! Utilities related to type unification and substitution.
 use std::{borrow::Borrow, collections::HashSet};
 
-use hash_tir::{
+use hash_tir::old::{
     args::{Arg, ArgsId},
     location::LocationTarget,
     params::{Param, ParamsId},

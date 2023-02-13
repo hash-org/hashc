@@ -26,7 +26,7 @@ use hash_ir::{
 };
 use hash_source::{identifier::Identifier, location::Span};
 use hash_target::size::Size;
-use hash_tir::pats::{
+use hash_tir::old::pats::{
     BindingPat, ConstructorPat, IfPat, Pat, PatArgsId, PatId, RangePat, SpreadPat,
 };
 use hash_utils::store::Store;

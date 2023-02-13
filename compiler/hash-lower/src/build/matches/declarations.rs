@@ -8,7 +8,7 @@ use hash_ir::{
 };
 use hash_reporting::macros::panic_on_span;
 use hash_source::{identifier::Identifier, location::Span};
-use hash_tir::scope::{Member, ScopeId, ScopeKind};
+use hash_tir::old::scope::{Member, ScopeId, ScopeKind};
 use hash_utils::store::Store;
 
 use super::{candidate::Candidate, BlockAnd, Builder};

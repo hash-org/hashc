@@ -2,7 +2,7 @@
 //! debug output.
 use std::fmt;
 
-use crate::storage::GlobalStorage;
+use crate::old::storage::GlobalStorage;
 
 // Contains various options regarding the formatting of terms.
 #[derive(Debug, Clone, Copy, Default)]

@@ -3,7 +3,7 @@
 
 use hash_ast::{ast, visitor::AstVisitor};
 use hash_source::identifier::Identifier;
-use hash_tir::scope::{ScopeId, ScopeKind};
+use hash_tir::old::scope::{ScopeId, ScopeKind};
 
 use super::visitor::TcVisitor;
 use crate::{diagnostics::error::TcResult, ops::AccessToOps};

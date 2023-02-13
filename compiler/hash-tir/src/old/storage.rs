@@ -9,7 +9,7 @@ use hash_source::{entry_point::EntryPointState, SourceId};
 use hash_target::Target;
 use hash_utils::store::Store;
 
-use crate::{
+use crate::old::{
     args::ArgsStore,
     bootstrap::create_core_defs_in,
     location::LocationStore,

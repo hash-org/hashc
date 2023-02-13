@@ -29,9 +29,11 @@ use hash_pipeline::{
 use hash_reporting::diagnostic::{DiagnosticCellStore, Diagnostics};
 use hash_source::{entry_point::EntryPointState, SourceId};
 use hash_tir::{
-    fmt::PrepareForFormatting,
     new::environment::{env::Env, source_info::CurrentSourceInfo},
-    storage::{LocalStorage, TyStorage},
+    old::{
+        fmt::PrepareForFormatting,
+        storage::{LocalStorage, TyStorage},
+    },
 };
 use hash_utils::stream_less_writeln;
 use new::environment::tc_env::{AccessToTcEnv, SemanticStorage, TcEnv};

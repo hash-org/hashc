@@ -6,7 +6,7 @@ use hash_source::identifier::Identifier;
 use hash_utils::{new_store, new_store_key, store::CloneStore};
 use indexmap::IndexMap;
 
-use crate::{
+use crate::old::{
     fmt::{ForFormatting, PrepareForFormatting},
     params::ParamsId,
 };

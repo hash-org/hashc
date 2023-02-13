@@ -7,7 +7,7 @@ use hash_reporting::{
     reporter::{Reporter, Reports},
 };
 use hash_source::identifier::Identifier;
-use hash_tir::{
+use hash_tir::old::{
     args::{Arg, ArgsId},
     fmt::{PrepareForFormatting, TcFormatOpts},
     location::LocationTarget,

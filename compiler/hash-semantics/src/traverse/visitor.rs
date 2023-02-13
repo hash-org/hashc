@@ -18,7 +18,7 @@ use hash_source::{
     location::{SourceLocation, Span},
     ModuleKind, SourceId,
 };
-use hash_tir::{
+use hash_tir::old::{
     args::Arg,
     location::{IndexedLocationTarget, LocationTarget},
     mods::ModDefOrigin,
@@ -199,7 +199,7 @@ impl<'tc> TcVisitor<'tc> {
     /// [AstNodeRef].
     ///
     /// This copies the node's location to the target, and adds the node-target
-    /// pair to [hash_tir::nodes::NodeInfoStore].
+    /// pair to [hash_tir::old::nodes::NodeInfoStore].
     pub(crate) fn register_node_info_and_location<T>(
         &self,
         node: AstNodeRef<T>,
@@ -212,7 +212,7 @@ impl<'tc> TcVisitor<'tc> {
     /// Register the given [`NodeInfoTarget`] as describing the given
     /// [AstNodeRef].
     ///
-    /// This adds the node-target pair to [hash_tir::nodes::NodeInfoStore].
+    /// This adds the node-target pair to [hash_tir::old::nodes::NodeInfoStore].
     pub(crate) fn register_node_info<T>(
         &self,
         node: AstNodeRef<T>,

@@ -9,7 +9,7 @@ use hash_utils::{
     store::{CloneStore, Store},
 };
 
-use crate::{
+use crate::old::{
     fmt::{ForFormatting, PrepareForFormatting},
     params::{GetNameOpt, ParamList, ParamListStore},
     scope::{Mutability, Visibility},

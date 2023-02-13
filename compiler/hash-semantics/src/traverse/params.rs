@@ -5,7 +5,7 @@ use hash_ast::{
     ast::{self},
     visitor::walk,
 };
-use hash_tir::params::Param;
+use hash_tir::old::params::Param;
 
 use super::visitor::TcVisitor;
 use crate::{diagnostics::error::TcResult, ops::AccessToOps, storage::AccessToStorage};

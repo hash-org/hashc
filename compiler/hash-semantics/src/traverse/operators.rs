@@ -1,6 +1,6 @@
 use hash_ast::ast::{AstNodeRef, BinOp, ParamOrigin};
 use hash_source::identifier::{Identifier, IDENTS};
-use hash_tir::terms::TermId;
+use hash_tir::old::terms::TermId;
 
 use super::visitor::TcVisitor;
 use crate::{diagnostics::error::TcResult, ops::AccessToOps};

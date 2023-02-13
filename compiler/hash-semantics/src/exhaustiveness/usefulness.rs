@@ -7,7 +7,7 @@
 //! is detailed within [super].
 use std::iter::once;
 
-use hash_tir::{pats::PatId, terms::TermId};
+use hash_tir::old::{pats::PatId, terms::TermId};
 use hash_utils::{itertools::Itertools, stack::ensure_sufficient_stack, store::Store};
 
 use super::{
@@ -115,7 +115,7 @@ pub(crate) struct MatchArm {
     pub(crate) deconstructed_pat: DeconstructedPatId,
     /// Whether the arm has an `if-guard`
     pub(crate) has_guard: bool,
-    /// The corresponding [hash_tir::Pat] with this
+    /// The corresponding [hash_tir::old::Pat] with this
     /// match arm
     pub(crate) id: PatId,
 }

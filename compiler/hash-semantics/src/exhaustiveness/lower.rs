@@ -4,7 +4,7 @@ use std::{iter::once, mem::size_of};
 
 use hash_ast::ast::{ParamOrigin, RangeEnd};
 use hash_source::constant::u128_to_int_const;
-use hash_tir::{
+use hash_tir::old::{
     mods::ModDef,
     nominals::{EnumVariantValue, NominalDef, StructFields},
     params::ParamsId,

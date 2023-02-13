@@ -7,7 +7,7 @@ use std::{
     hash::Hash,
 };
 
-use hash_tir::terms::TermId;
+use hash_tir::old::terms::TermId;
 use hash_utils::store::{DefaultPartialStore, FxHashMap, PartialCloneStore, PartialStore};
 use log::log_enabled;
 

@@ -6,7 +6,7 @@ use hash_ast::ast::ParamOrigin;
 use hash_source::{identifier::Identifier, location::SourceLocation};
 use hash_utils::store::{SequenceStore, Store};
 
-use crate::{
+use crate::old::{
     args::{Arg, ArgsId},
     location::LocationTarget,
     mods::{ModDef, ModDefId, ModDefOrigin},
@@ -491,7 +491,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
     }
 
     /// Create a [ParamsId] from an iterator of [Param]. This function will
-    /// create a [Params](crate::Params), append it to the store and return the
+    /// create a [Params](crate::old::Params), append it to the store and return the
     /// created id.
     pub fn create_params(
         &self,
@@ -504,7 +504,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
     }
 
     /// Create a [ArgsId] from an iterator of [Arg]. This function wil create a
-    /// [Args](crate::Args), append it to the store and return  the created id.
+    /// [Args](crate::old::Args), append it to the store and return  the created id.
     pub fn create_args(&self, args: impl IntoIterator<Item = Arg>, origin: ParamOrigin) -> ArgsId {
         let args_id = self.gs.args_store.create_from_iter(args);
         self.gs.args_store.set_origin(args_id, origin);

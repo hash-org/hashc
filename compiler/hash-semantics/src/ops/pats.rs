@@ -8,7 +8,7 @@ use std::{
 use hash_ast::ast::ParamOrigin;
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::identifier::Identifier;
-use hash_tir::{
+use hash_tir::old::{
     args::Arg,
     nominals::StructFields,
     params::{AccessOp, ParamsId},
@@ -223,8 +223,8 @@ impl<'tc> PatMatcher<'tc> {
 
     /// Function that will `erase` a spread pattern from the given constructor
     /// based on the arguments in the constructor. The constructor can
-    /// either be a struct or an [hash_tir::EnumVariant] or a
-    /// [hash_tir::ConstructedTerm].
+    /// either be a struct or an [hash_tir::old::EnumVariant] or a
+    /// [hash_tir::old::ConstructedTerm].
     ///
     /// In the case of the struct literal, all of the field names should have
     /// been resolved since this happens when the struct field is validated.

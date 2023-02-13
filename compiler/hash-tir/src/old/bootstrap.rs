@@ -8,7 +8,7 @@
 use hash_ast::ast::ParamOrigin;
 use hash_source::identifier::IDENTS;
 
-use crate::{
+use crate::old::{
     builder::PrimitiveBuilder,
     mods::ModDefOrigin,
     scope::{Member, ScopeKind, Visibility},

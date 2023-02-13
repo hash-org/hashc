@@ -6,7 +6,7 @@
 //! from a provided [PatCtx]. [FieldOps] defines methods that operate on
 //! [Fields] with the typechecker context available for reading and creating
 //! [DeconstructedPat](super::deconstruct::DeconstructedPat)s.
-use hash_tir::{
+use hash_tir::old::{
     nominals::{NominalDef, StructFields},
     terms::{Level1Term, Term, TermId, TupleTy},
 };

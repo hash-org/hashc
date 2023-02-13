@@ -7,7 +7,7 @@ use hash_utils::{
 };
 
 use super::{pats::PatId, terms::TermId};
-use crate::scope::ScopeId;
+use crate::old::scope::ScopeId;
 
 /// Enumerates all the possible informational data that can be associated with
 /// an AST node.

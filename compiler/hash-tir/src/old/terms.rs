@@ -18,7 +18,7 @@ use hash_utils::{
 };
 use num_bigint::BigInt;
 
-use crate::{
+use crate::old::{
     args::ArgsId,
     fmt::{fmt_as_single, ForFormatting, PrepareForFormatting},
     mods::ModDefId,
@@ -241,7 +241,7 @@ impl TermStore {
     /// Get a new [ResolutionId] for a new [Term::Unresolved].
     ///
     /// This shouldn't be directly used in inference code, rather call the
-    /// appropriate [PrimitiveBuilder](crate::builder::PrimitiveBuilder)
+    /// appropriate [PrimitiveBuilder](crate::old::builder::PrimitiveBuilder)
     /// function.
     pub fn new_resolution_id(&self) -> ResolutionId {
         let new_id = self.last_resolution_id.get() + 1;
@@ -507,7 +507,7 @@ impl Sub {
     /// Extend the substitution with pairs from the given one.
     ///
     /// This is a naive implementation which does not perform any unification.
-    /// For substitution unification, see the `crate::ops::unify` module.
+    /// For substitution unification, see the `crate::old::ops::unify` module.
     pub fn extend(&mut self, other: &Sub) {
         self.data.extend(other.pairs());
     }

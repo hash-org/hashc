@@ -17,7 +17,7 @@ use std::cell::{Ref, RefCell, RefMut};
 use hash_pipeline::{settings::CompilerSettings, workspace::Workspace};
 use hash_reporting::diagnostic::DiagnosticCellStore;
 use hash_source::{entry_point::EntryPointState, SourceMap};
-use hash_tir::{
+use hash_tir::old::{
     args::ArgsStore,
     fmt::{ForFormatting, PrepareForFormatting},
     location::LocationStore,

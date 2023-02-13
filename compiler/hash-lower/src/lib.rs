@@ -29,7 +29,7 @@ use hash_pipeline::{
 };
 use hash_semantics::new::environment::tc_env::SemanticStorage;
 use hash_source::SourceId;
-use hash_tir::{nodes::NodeInfoTarget, storage::TyStorage};
+use hash_tir::old::{nodes::NodeInfoTarget, storage::TyStorage};
 use hash_utils::stream_writeln;
 use optimise::Optimiser;
 use ty::old::TyLoweringCtx;

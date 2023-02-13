@@ -6,7 +6,7 @@ use std::fmt;
 use hash_source::identifier::Identifier;
 use hash_utils::new_sequence_store_key;
 
-use crate::{
+use crate::old::{
     fmt::{ForFormatting, PrepareForFormatting},
     params::{GetNameOpt, ParamList, ParamListStore},
     terms::TermId,

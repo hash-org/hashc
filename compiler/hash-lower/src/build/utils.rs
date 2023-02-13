@@ -9,7 +9,7 @@ use hash_ir::{
     ty::{IrTy, IrTyId, Mutability},
 };
 use hash_source::location::Span;
-use hash_tir::{pats::PatId, terms::TermId};
+use hash_tir::old::{pats::PatId, terms::TermId};
 
 use super::Builder;
 

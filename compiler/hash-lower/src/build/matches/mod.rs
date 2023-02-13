@@ -16,7 +16,7 @@ use hash_ir::{
     ty::{Mutability, RefKind},
 };
 use hash_source::location::Span;
-use hash_tir::pats::Pat;
+use hash_tir::old::pats::Pat;
 use hash_utils::{stack::ensure_sufficient_stack, store::Store};
 
 use self::{

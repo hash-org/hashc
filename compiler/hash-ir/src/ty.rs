@@ -69,9 +69,9 @@ impl From<ast::Mutability> for Mutability {
     }
 }
 
-impl From<hash_tir::scope::Mutability> for Mutability {
-    fn from(value: hash_tir::scope::Mutability) -> Self {
-        use hash_tir::scope::Mutability::*;
+impl From<hash_tir::old::scope::Mutability> for Mutability {
+    fn from(value: hash_tir::old::scope::Mutability) -> Self {
+        use hash_tir::old::scope::Mutability::*;
 
         match value {
             Mutable => Mutability::Mutable,

@@ -1,7 +1,7 @@
 //! Contains operations to get the type of a term.
 use hash_ast::ast::ParamOrigin;
 use hash_source::{constant::CONSTANT_MAP, identifier::Identifier};
-use hash_tir::{
+use hash_tir::old::{
     args::{Arg, ArgsId},
     mods::ModDefOrigin,
     nominals::{NominalDef, StructFields},
@@ -49,7 +49,7 @@ impl<'tc> Typer<'tc> {
 
     /// Get the type of the given term, as another term. This will copy over the
     /// location of the provided term to the new term within
-    /// [hash_tir::location::LocationStore].
+    /// [hash_tir::old::location::LocationStore].
     ///
     /// First simplifies the term. If you already know you have a simplified
     /// term, you can use [`Typer::infer_ty_of_simplified_term`].
