@@ -436,11 +436,22 @@ impl<'tc> ResolutionPass<'tc> {
         // Pass to the inner expression
         let inner = self.make_term_from_ast_expr(node.subject.ast_ref())?;
 
-        // Register directives:
-        self.stores().directives().insert(
-            inner.into(),
-            AppliedDirectives { directives: node.directives.iter().map(|d| d.ident).collect() },
-        );
+        // Register directives on the term:
+        let directives =
+            AppliedDirectives { directives: node.directives.iter().map(|d| d.ident).collect() };
+        self.stores().directives().insert(inner.into(), directives.clone());
+
+        // If this is a function term, also register the directives on the function
+        // definition:
+        match self.get_term(inner) {
+            Term::FnRef(fn_def_id) => {
+                self.stores().directives().insert(fn_def_id.into(), directives);
+            }
+            Term::Ty(ty_id) => {
+                self.stores().directives().insert(ty_id.into(), directives);
+            }
+            _ => {}
+        }
 
         Ok(inner)
     }
