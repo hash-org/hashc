@@ -581,6 +581,7 @@ name = "hash-lower"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.0.0-rc.1",
+ "derive_more",
  "fixedbitset",
  "hash-ast",
  "hash-ir",

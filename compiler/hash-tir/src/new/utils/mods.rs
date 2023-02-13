@@ -1,7 +1,7 @@
 //! Module-related utilities.
 use derive_more::Constructor;
 use hash_source::identifier::Identifier;
-use hash_utils::store::{SequenceStore, Store};
+use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store, StoreKey};
 use itertools::Itertools;
 
 use super::common::CommonUtils;
@@ -96,5 +96,21 @@ impl<'tc> ModUtils<'tc> {
                     .copied()
             })
         })
+    }
+
+    /// Iterate over all modules present in the sources.
+    ///
+    /// *Note*: this will not include modules created while iterating.
+    pub fn iter_all_mods(&self) -> impl Iterator<Item = ModDefId> + '_ {
+        let member_count = self.stores().mod_def().internal_data().borrow().len();
+        (0..member_count).map(ModDefId::from_index_unchecked)
+    }
+
+    /// Iterate over the members of the given module definition.
+    ///
+    /// *Note*: this will not include members created while iterating.
+    pub fn iter_mod_members(&self, mod_def_id: ModDefId) -> impl Iterator<Item = ModMember> + '_ {
+        let mod_def = self.stores().mod_def().get(mod_def_id);
+        mod_def.members.iter().map(|member_id| self.stores().mod_members().get_element(member_id))
     }
 }
