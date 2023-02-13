@@ -190,6 +190,7 @@ impl<'ir> LoweringVisitor<'ir> {
             settings,
             tcx,
             block_origin: BlockOrigin::Const,
+
             lcx,
             source_id,
             entry_point_index: None,
@@ -209,7 +210,7 @@ impl<'ir> LoweringVisitor<'ir> {
         let entry_point = self.entry_point_index?;
 
         let ty = self.bodies[entry_point].info().ty();
-        let IrTy::Fn { instance, .. } = self.lcx.tys().get(ty) else {
+        let IrTy::FnDef { instance, .. } = self.lcx.tys().get(ty) else {
             panic!("entry point is not a function type")
         };
 

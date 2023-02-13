@@ -26,11 +26,12 @@ use hash_pipeline::{
     settings::{CompilerSettings, CompilerStageKind, IrDumpMode},
     workspace::{SourceStageInfo, Workspace},
 };
+use hash_semantics::new::environment::tc_env::SemanticStorage;
 use hash_source::SourceId;
 use hash_tir::{nodes::NodeInfoTarget, storage::TyStorage};
 use hash_utils::stream_writeln;
 use optimise::Optimiser;
-use ty::TyLoweringCtx;
+use ty::old::TyLoweringCtx;
 
 /// The Hash IR builder compiler stage. This will walk the AST, and
 /// lower all items within a particular module.
@@ -56,6 +57,10 @@ pub struct LoweringCtx<'ir> {
     /// Reference to the type storage that comes from
     /// the typechecking compiler phase.
     pub ty_storage: &'ir TyStorage,
+
+    /// Reference to the semantic storage that comes from
+    /// the typechecking compiler phase.
+    pub semantic_storage: &'ir SemanticStorage,
 
     /// Reference to the IR storage that is used to store
     /// the lowered IR, and all metadata about the IR.
@@ -142,6 +147,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
         let node_info_store = &ty_storage.global.node_info_store;
         let ty_lowerer = TyLoweringCtx::new(&ir_storage.ctx, &ty_storage.global);
 
+        // @@Todo: use terms instead of ast-nodes...?
         for (index, type_def) in self.layouts_to_generate.iter().enumerate() {
             let Some(NodeInfoTarget { term: Some(term), .. }) = node_info_store.node_info(*type_def) else {
                 continue;

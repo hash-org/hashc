@@ -48,10 +48,14 @@ pub trait BootstrapOps: AccessToTcEnv + AccessToUtils {
             name: self.new_symbol("Primitives"),
             kind: ModKind::Transparent,
             members: self.mod_utils().create_mod_members(
-                primitives.as_mod_members(self.env()).into_iter().chain(once(ModMemberData {
-                    name: self.new_symbol("Intrinsics"),
-                    value: ModMemberValue::Mod(intrinsics_mod),
-                })),
+                primitives
+                    .as_mod_members(self.env())
+                    .into_iter()
+                    .chain(once(ModMemberData {
+                        name: self.new_symbol("Intrinsics"),
+                        value: ModMemberValue::Mod(intrinsics_mod),
+                    }))
+                    .collect::<Vec<_>>(),
             ),
         })
     }

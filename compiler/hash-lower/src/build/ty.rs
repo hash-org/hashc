@@ -18,7 +18,7 @@ use hash_tir::{
 use hash_utils::store::Store;
 
 use super::Builder;
-use crate::ty::TyLoweringCtx;
+use crate::ty::old::TyLoweringCtx;
 
 /// Get the [FnTy] from a given [TermId].
 pub(super) fn get_fn_ty_from_term(term_id: TermId, tcx: &GlobalStorage) -> FnTy {

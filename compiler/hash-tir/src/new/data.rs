@@ -109,12 +109,15 @@ pub struct NumericCtorInfo {
     // @@Future: allowable range?
 }
 
-/// A list constructor definition.
-/// This is a constructor which accepts list literals.
+/// An array constructor definition.
+/// This is a constructor which accepts array literals.
 #[derive(Debug, Clone, Copy)]
-pub struct ListCtorInfo {
-    /// The type of the elements in the list.
+pub struct ArrayCtorInfo {
+    /// The type of the elements in the array.
     pub element_ty: TyId,
+
+    /// The number of elements in the array.
+    pub length: usize,
 }
 
 /// A primitive constructor definition.
@@ -129,7 +132,7 @@ pub enum PrimitiveCtorInfo {
     /// A character literal constructor.
     Char,
     /// A list literal constructor.
-    Array(ListCtorInfo),
+    Array(ArrayCtorInfo),
 }
 
 /// The constructors of a data-type definition.
@@ -174,7 +177,7 @@ pub type DataDefStore = DefaultStore<DataDefId, DataDef>;
 ///
 /// This is, for example `Option<i32>` when it is used in type position `y:
 /// Option<i32>`.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct DataTy {
     /// The data-type definition of this type.
     pub data_def: DataDefId,

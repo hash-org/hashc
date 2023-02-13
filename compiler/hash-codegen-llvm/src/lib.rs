@@ -222,7 +222,7 @@ impl<'b> CompilerBackend<'b> for LLVMBackend<'b> {
 
             // Get the instance of the function.
             let instance = self.ir_storage.ctx.map_ty(body.info().ty(), |ty| {
-                let IrTy::Fn { instance, .. } = ty else {
+                let IrTy::FnDef { instance, .. } = ty else {
                     panic!("ir-body has non-function type")
                 };
                 *instance
@@ -247,7 +247,7 @@ impl<'b> CompilerBackend<'b> for LLVMBackend<'b> {
 
             // Get the instance of the function.
             let instance = self.ir_storage.ctx.map_ty(body.info().ty(), |ty| {
-                let IrTy::Fn { instance, .. } = ty else {
+                let IrTy::FnDef { instance, .. } = ty else {
                     panic!("ir-body has non-function type")
                 };
                 *instance

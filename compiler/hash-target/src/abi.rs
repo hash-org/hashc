@@ -329,6 +329,14 @@ impl Scalar {
         }
     }
 
+    /// Get a mutable reference to the [ValidScalarRange] for this [Scalar].
+    pub fn valid_range_mut(&mut self) -> &mut ValidScalarRange {
+        match self {
+            Scalar::Initialised { valid_range, .. } => valid_range,
+            Scalar::Union { .. } => panic!("cannot change the valid range of a union"),
+        }
+    }
+
     /// Check if this [Scalar] is always valid, i.e. it's [ValidScalarRange]
     /// is total.
     pub fn is_always_valid<L: HasDataLayout>(&self, ctx: &L) -> bool {

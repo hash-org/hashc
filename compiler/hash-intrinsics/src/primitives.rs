@@ -2,7 +2,7 @@
 use std::iter::once;
 
 use hash_tir::new::{
-    data::{DataDefId, ListCtorInfo, NumericCtorBits, NumericCtorInfo, PrimitiveCtorInfo},
+    data::{ArrayCtorInfo, DataDefId, NumericCtorBits, NumericCtorInfo, PrimitiveCtorInfo},
     environment::env::{AccessToEnv, Env},
     mods::{ModMemberData, ModMemberValue},
     params::ParamData,
@@ -147,7 +147,10 @@ impl DefinedPrimitives {
                     default: None,
                 }));
                 env.data_utils().create_primitive_data_def_with_params(list_sym, params, |_| {
-                    PrimitiveCtorInfo::Array(ListCtorInfo { element_ty: env.new_var_ty(t_sym) })
+                    PrimitiveCtorInfo::Array(ArrayCtorInfo {
+                        element_ty: env.new_var_ty(t_sym),
+                        length: 0,
+                    })
                 })
             },
 

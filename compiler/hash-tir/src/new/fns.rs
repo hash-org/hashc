@@ -85,13 +85,16 @@ pub enum FnBody {
 pub struct FnDef {
     /// The ID of the function definition.
     pub id: FnDefId,
+
     /// The symbolic name of the function, which resolves to its definition name
     /// if given by the user, by querying the data of the symbol.
     pub name: Symbol,
+
     /// The underlying function type, which is partially or fully annotated on
     /// the function literal (if some aspects of the type are not given, then
     /// they will be type holes).
     pub ty: FnTy,
+
     /// The return value of the function.
     ///
     /// This depends on `ty.params` and `ty.conditions`.

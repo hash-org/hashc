@@ -315,7 +315,9 @@ impl<'ctx> Builder<'ctx> {
         // function as the `return_ty`, otherwise we assume the type provided
         // is the `return_ty`
         let (return_ty, params) = self.ctx.map_ty(ty, |item_ty| match item_ty {
-            IrTy::Fn { return_ty, params, .. } => (*return_ty, Some(*params)),
+            IrTy::FnDef { instance } => self
+                .ctx
+                .map_instance(*instance, |instance| (instance.ret_ty, Some(instance.params))),
             _ => (ty, None),
         });
 

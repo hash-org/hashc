@@ -587,6 +587,7 @@ dependencies = [
  "hash-layout",
  "hash-pipeline",
  "hash-reporting",
+ "hash-semantics",
  "hash-source",
  "hash-target",
  "hash-tir",
