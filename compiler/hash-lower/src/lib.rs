@@ -27,7 +27,7 @@ use hash_pipeline::{
     settings::{CompilerSettings, CompilerStageKind, IrDumpMode},
     workspace::{SourceStageInfo, Workspace},
 };
-use hash_semantics::environment::tc_env::SemanticStorage;
+use hash_semantics::SemanticStorage;
 use hash_source::SourceId;
 use hash_tir::old::{nodes::NodeInfoTarget, storage::TyStorage};
 use hash_utils::stream_writeln;

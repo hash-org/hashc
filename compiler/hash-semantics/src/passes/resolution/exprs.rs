@@ -48,7 +48,7 @@ use super::{
 };
 use crate::{
     diagnostics::error::{SemanticError, SemanticResult},
-    environment::tc_env::AccessToTcEnv,
+    environment::sem_env::AccessToSemEnv,
     ops::common::CommonOps,
     passes::ast_utils::AstUtils,
 };
@@ -530,7 +530,7 @@ impl<'tc> ResolutionPass<'tc> {
             ast::Lit::Char(char_lit) => Ok(lit_prim!(Char, CharLit, *char_lit)),
             ast::Lit::Int(int_lit) => Ok(lit_prim!(Int, IntLit, *int_lit)),
             ast::Lit::Float(float_lit) => Ok(lit_prim!(Float, FloatLit, *float_lit)),
-            ast::Lit::Bool(bool_lit) => Ok(self.tc_env().new_bool_term(bool_lit.data)),
+            ast::Lit::Bool(bool_lit) => Ok(self.sem_env().new_bool_term(bool_lit.data)),
             ast::Lit::Tuple(tuple_lit) => {
                 let args = self.make_args_from_ast_tuple_lit_args(&tuple_lit.elements)?;
                 Ok(self.new_term(Term::Tuple(TupleTerm { data: args })))

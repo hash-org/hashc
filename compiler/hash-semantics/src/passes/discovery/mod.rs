@@ -10,14 +10,14 @@ use hash_utils::state::LightState;
 
 use self::defs::DefDiscoveryState;
 use super::ast_utils::AstPass;
-use crate::environment::tc_env::{AccessToTcEnv, TcEnv};
+use crate::environment::sem_env::{AccessToSemEnv, SemEnv};
 
 pub mod defs;
 pub mod params;
 pub mod visitor;
 
 pub struct DiscoveryPass<'tc> {
-    tc_env: &'tc TcEnv<'tc>,
+    sem_env: &'tc SemEnv<'tc>,
     /// The name hint for the current definition.
     name_hint: LightState<Option<Symbol>>,
     /// Keeps track of which definitions have been seen, added, and we are
@@ -27,13 +27,13 @@ pub struct DiscoveryPass<'tc> {
 
 impl AccessToEnv for DiscoveryPass<'_> {
     fn env(&self) -> &hash_tir::environment::env::Env {
-        self.tc_env.env()
+        self.sem_env.env()
     }
 }
 
-impl<'tc> AccessToTcEnv for DiscoveryPass<'tc> {
-    fn tc_env(&self) -> &'tc TcEnv<'tc> {
-        self.tc_env
+impl<'tc> AccessToSemEnv for DiscoveryPass<'tc> {
+    fn sem_env(&self) -> &'tc SemEnv<'tc> {
+        self.sem_env
     }
 }
 
@@ -54,8 +54,8 @@ impl<'tc> AstPass for DiscoveryPass<'tc> {
 }
 
 impl<'tc> DiscoveryPass<'tc> {
-    pub fn new(tc_env: &'tc TcEnv<'tc>) -> Self {
-        Self { tc_env, name_hint: LightState::new(None), def_state: DefDiscoveryState::new() }
+    pub fn new(sem_env: &'tc SemEnv<'tc>) -> Self {
+        Self { sem_env, name_hint: LightState::new(None), def_state: DefDiscoveryState::new() }
     }
 
     /// Get the current definition discovery state

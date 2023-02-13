@@ -18,7 +18,7 @@ use hash_tir::{
 use hash_utils::itertools::Itertools;
 
 use super::{super::ast_utils::AstUtils, defs::ItemId, DiscoveryPass};
-use crate::{diagnostics::error::SemanticError, environment::tc_env::AccessToTcEnv};
+use crate::{diagnostics::error::SemanticError, environment::sem_env::AccessToSemEnv};
 
 impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
     type Error = SemanticError;

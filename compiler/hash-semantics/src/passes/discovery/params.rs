@@ -7,7 +7,7 @@ use hash_tir::{
 };
 
 use super::DiscoveryPass;
-use crate::{environment::tc_env::AccessToTcEnv, passes::ast_utils::AstUtils};
+use crate::{environment::sem_env::AccessToSemEnv, passes::ast_utils::AstUtils};
 
 impl<'tc> DiscoveryPass<'tc> {
     /// Create a parameter list from the given AST generic parameter list, where

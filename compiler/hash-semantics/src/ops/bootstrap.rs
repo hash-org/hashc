@@ -10,12 +10,12 @@ use hash_tir::{
 };
 use once_cell::unsync::OnceCell;
 
-use crate::environment::tc_env::AccessToTcEnv;
+use crate::environment::sem_env::AccessToSemEnv;
 
 pub type DefinedPrimitivesOrUnset = OnceCell<DefinedPrimitives>;
 pub type DefinedIntrinsicsOrUnset = OnceCell<DefinedIntrinsics>;
 
-pub trait BootstrapOps: AccessToTcEnv + AccessToUtils {
+pub trait BootstrapOps: AccessToSemEnv + AccessToUtils {
     /// Bootstrap the typechecker, by constructing primitives and intrinsics,
     /// then creating a module containing all the primitives and the
     /// `Intrinsics` member.
@@ -26,7 +26,7 @@ pub trait BootstrapOps: AccessToTcEnv + AccessToUtils {
             self.primitives_or_unset().get_or_init(|| DefinedPrimitives::create(self.env()));
 
         let intrinsics =
-            self.intrinsics_or_unset().get_or_init(|| DefinedIntrinsics::create(*self.tc_env()));
+            self.intrinsics_or_unset().get_or_init(|| DefinedIntrinsics::create(*self.sem_env()));
 
         let intrinsic_mod = self.make_intrinsic_mod(intrinsics);
 
@@ -61,4 +61,4 @@ pub trait BootstrapOps: AccessToTcEnv + AccessToUtils {
     }
 }
 
-impl<T: AccessToTcEnv> BootstrapOps for T {}
+impl<T: AccessToSemEnv> BootstrapOps for T {}

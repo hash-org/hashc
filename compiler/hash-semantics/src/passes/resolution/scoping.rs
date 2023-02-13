@@ -28,7 +28,7 @@ use hash_utils::{
 use super::paths::NonTerminalResolvedPathComponent;
 use crate::{
     diagnostics::error::{SemanticError, SemanticResult},
-    environment::tc_env::{AccessToTcEnv, TcEnv, WithTcEnv},
+    environment::sem_env::{AccessToSemEnv, SemEnv, WithSemEnv},
     passes::ast_utils::AstUtils,
 };
 
@@ -48,11 +48,11 @@ pub enum ContextKind {
     Environment,
 }
 
-impl fmt::Display for WithTcEnv<'_, &ContextKind> {
+impl fmt::Display for WithSemEnv<'_, &ContextKind> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.value {
             ContextKind::Access(non_terminal, _loc) => {
-                write!(f, "`{}`", self.tc_env().with(non_terminal))
+                write!(f, "`{}`", self.sem_env().with(non_terminal))
             }
             ContextKind::Environment => write!(f, "the current scope"),
         }
@@ -66,7 +66,7 @@ impl fmt::Display for WithTcEnv<'_, &ContextKind> {
 /// keeps track of identifier names so that names can be matched to the correct
 /// symbols when creating `Var` terms.
 pub(super) struct Scoping<'tc> {
-    tc_env: &'tc TcEnv<'tc>,
+    sem_env: &'tc SemEnv<'tc>,
     /// Stores a list of contexts we are in, mirroring `ContextStore` but with
     /// identifiers so that we can resolve them to symbols.
     ///
@@ -76,19 +76,19 @@ pub(super) struct Scoping<'tc> {
 
 impl AccessToEnv for Scoping<'_> {
     fn env(&self) -> &Env {
-        self.tc_env.env()
+        self.sem_env.env()
     }
 }
 
-impl AccessToTcEnv for Scoping<'_> {
-    fn tc_env(&self) -> &TcEnv<'_> {
-        self.tc_env
+impl AccessToSemEnv for Scoping<'_> {
+    fn sem_env(&self) -> &SemEnv<'_> {
+        self.sem_env
     }
 }
 
 impl<'tc> Scoping<'tc> {
-    pub(super) fn new(tc_env: &'tc TcEnv<'tc>) -> Self {
-        Self { tc_env, bindings_by_name: HeavyState::new(Vec::new()) }
+    pub(super) fn new(sem_env: &'tc SemEnv<'tc>) -> Self {
+        Self { sem_env, bindings_by_name: HeavyState::new(Vec::new()) }
     }
 
     /// Find a binding by name, returning the symbol of the binding.

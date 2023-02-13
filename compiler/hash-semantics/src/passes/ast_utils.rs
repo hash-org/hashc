@@ -6,10 +6,11 @@ use hash_source::location::{SourceLocation, Span};
 use hash_tir::{symbols::Symbol, utils::common::CommonUtils};
 
 use crate::{
-    diagnostics::error::SemanticResult, environment::tc_env::AccessToTcEnv, ops::common::CommonOps,
+    diagnostics::error::SemanticResult, environment::sem_env::AccessToSemEnv,
+    ops::common::CommonOps,
 };
 
-pub trait AstPass: AccessToTcEnv {
+pub trait AstPass: AccessToSemEnv {
     fn pass_interactive(&self, node: AstNodeRef<BodyBlock>) -> SemanticResult<()>;
     fn pass_module(&self, node: AstNodeRef<Module>) -> SemanticResult<()>;
 
@@ -21,11 +22,11 @@ pub trait AstPass: AccessToTcEnv {
             }
             SourceRef::Module(module_source) => self.pass_module(module_source.node_ref()),
         };
-        self.tc_env().try_or_add_error(result);
+        self.sem_env().try_or_add_error(result);
     }
 }
 
-pub trait AstUtils: AccessToTcEnv {
+pub trait AstUtils: AccessToSemEnv {
     /// Create a [SourceLocation] from a [Span].
     fn source_location(&self, span: Span) -> SourceLocation {
         SourceLocation { span, id: self.current_source_info().source_id }
@@ -47,4 +48,4 @@ pub trait AstUtils: AccessToTcEnv {
     }
 }
 
-impl<T: AccessToTcEnv> AstUtils for T {}
+impl<T: AccessToSemEnv> AstUtils for T {}

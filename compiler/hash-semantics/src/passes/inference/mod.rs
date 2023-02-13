@@ -16,18 +16,18 @@ use hash_utils::stream_less_writeln;
 
 use super::ast_utils::AstPass;
 use crate::{
-    environment::tc_env::{AccessToTcEnv, TcEnv},
-    impl_access_to_tc_env,
+    environment::sem_env::{AccessToSemEnv, SemEnv},
+    impl_access_to_sem_env,
 };
 
 /// The third pass of the typechecker, which infers all remaining terms and
 /// types.
 #[derive(Constructor)]
 pub struct InferencePass<'tc> {
-    tc_env: &'tc TcEnv<'tc>,
+    sem_env: &'tc SemEnv<'tc>,
 }
 
-impl_access_to_tc_env!(InferencePass<'_>);
+impl_access_to_sem_env!(InferencePass<'_>);
 
 impl InferencePass<'_> {
     /// Infer the given subject by the provided closure, or error if it contains

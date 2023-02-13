@@ -19,7 +19,7 @@ use hash_utils::{
 use smallvec::{smallvec, SmallVec};
 
 use super::{super::ast_utils::AstUtils, DiscoveryPass};
-use crate::environment::tc_env::AccessToTcEnv;
+use crate::environment::sem_env::AccessToSemEnv;
 
 /// An item that is discovered: either a definition or a function type.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, From)]

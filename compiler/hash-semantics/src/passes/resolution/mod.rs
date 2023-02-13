@@ -15,7 +15,7 @@ use hash_tir::environment::env::AccessToEnv;
 use self::scoping::{ContextKind, Scoping};
 use super::ast_utils::AstPass;
 use crate::{
-    environment::tc_env::{AccessToTcEnv, TcEnv},
+    environment::sem_env::{AccessToSemEnv, SemEnv},
     ops::bootstrap::BootstrapOps,
 };
 
@@ -30,32 +30,32 @@ pub mod tys;
 /// The second pass of the typechecker, which resolves all symbols to their
 /// referenced bindings.
 pub struct ResolutionPass<'tc> {
-    tc_env: &'tc TcEnv<'tc>,
+    sem_env: &'tc SemEnv<'tc>,
     /// Tools for entering scopes and looking up symbols by name in them.
     scoping: Scoping<'tc>,
 }
 
 impl AccessToIntrinsics for ResolutionPass<'_> {
     fn intrinsics(&self) -> &DefinedIntrinsics {
-        self.tc_env.intrinsics()
+        self.sem_env.intrinsics()
     }
 }
 
 impl AccessToPrimitives for ResolutionPass<'_> {
     fn primitives(&self) -> &DefinedPrimitives {
-        self.tc_env.primitives()
+        self.sem_env.primitives()
     }
 }
 
 impl AccessToEnv for ResolutionPass<'_> {
     fn env(&self) -> &hash_tir::environment::env::Env {
-        self.tc_env.env()
+        self.sem_env.env()
     }
 }
 
-impl AccessToTcEnv for ResolutionPass<'_> {
-    fn tc_env(&self) -> &TcEnv<'_> {
-        self.tc_env
+impl AccessToSemEnv for ResolutionPass<'_> {
+    fn sem_env(&self) -> &SemEnv<'_> {
+        self.sem_env
     }
 }
 
@@ -104,8 +104,8 @@ impl<'tc> AstPass for ResolutionPass<'tc> {
 }
 
 impl<'tc> ResolutionPass<'tc> {
-    pub(crate) fn new(tc_env: &'tc TcEnv<'tc>) -> Self {
-        Self { tc_env, scoping: Scoping::new(tc_env) }
+    pub(crate) fn new(sem_env: &'tc SemEnv<'tc>) -> Self {
+        Self { sem_env, scoping: Scoping::new(sem_env) }
     }
 
     /// Get access to the current scoping state and operations.

@@ -25,11 +25,14 @@ use hash_pipeline::{
 };
 use hash_reporting::{report::Report, writer::ReportWriter};
 use hash_semantics::{
-    environment::tc_env::SemanticStorage, Typechecker, TypecheckingCtx, TypecheckingCtxQuery,
+    old::{Typechecker, TypecheckingCtx, TypecheckingCtxQuery},
+    SemanticAnalysis, SemanticAnalysisCtx, SemanticAnalysisCtxQuery, SemanticStorage,
 };
 use hash_source::{entry_point::EntryPointState, SourceId, SourceMap};
 use hash_tir::old::storage::{GlobalStorage, LocalStorage, TyStorage};
-use hash_untyped_semantics::{SemanticAnalysis, SemanticAnalysisCtx, SemanticAnalysisCtxQuery};
+use hash_untyped_semantics::{
+    UntypedSemanticAnalysis, UntypedSemanticAnalysisCtx, UntypedSemanticAnalysisCtxQuery,
+};
 use hash_utils::stream_less_ewriteln;
 
 /// Function to make all of the stages a nominal compiler pipeline accepts.
@@ -38,8 +41,12 @@ pub fn make_stages() -> Vec<Box<dyn CompilerStage<CompilerSession>>> {
         Box::new(Parser),
         Box::new(AstDesugaringPass),
         Box::new(AstExpansionPass),
-        Box::new(SemanticAnalysis),
-        Box::new(Typechecker::new()),
+        Box::new(UntypedSemanticAnalysis),
+        if std::option_env!("USE_NEW_TC").is_some() {
+            Box::new(SemanticAnalysis)
+        } else {
+            Box::new(Typechecker::new())
+        },
         Box::<IrGen>::default(),
         Box::new(IrOptimiser),
         Box::new(CodeGenPass),
@@ -195,9 +202,9 @@ impl AstDesugaringCtxQuery for CompilerSession {
     }
 }
 
-impl SemanticAnalysisCtxQuery for CompilerSession {
-    fn data(&mut self) -> SemanticAnalysisCtx {
-        SemanticAnalysisCtx { workspace: &mut self.workspace, pool: &self.pool }
+impl UntypedSemanticAnalysisCtxQuery for CompilerSession {
+    fn data(&mut self) -> UntypedSemanticAnalysisCtx {
+        UntypedSemanticAnalysisCtx { workspace: &mut self.workspace, pool: &self.pool }
     }
 }
 
@@ -208,13 +215,21 @@ impl AstExpansionCtxQuery for CompilerSession {
     }
 }
 
+impl SemanticAnalysisCtxQuery for CompilerSession {
+    fn data(&mut self) -> SemanticAnalysisCtx {
+        SemanticAnalysisCtx {
+            workspace: &mut self.workspace,
+            semantic_storage: &mut self.semantic_storage,
+        }
+    }
+}
+
 impl TypecheckingCtxQuery for CompilerSession {
     fn data(&mut self) -> TypecheckingCtx {
         TypecheckingCtx {
+            settings: &self.settings,
             workspace: &mut self.workspace,
             ty_storage: &mut self.ty_storage,
-            settings: &self.settings,
-            semantic_storage: &mut self.semantic_storage,
         }
     }
 }

@@ -32,7 +32,7 @@ use super::{
 };
 use crate::{
     diagnostics::error::{SemanticError, SemanticResult},
-    environment::tc_env::AccessToTcEnv,
+    environment::sem_env::AccessToSemEnv,
     ops::common::CommonOps,
     passes::ast_utils::AstUtils,
 };

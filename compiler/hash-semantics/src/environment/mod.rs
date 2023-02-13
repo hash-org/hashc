@@ -1,3 +1,3 @@
 // @@Docs
 pub mod ast_info;
-pub mod tc_env;
+pub mod sem_env;

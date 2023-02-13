@@ -11,7 +11,7 @@ use hash_tir::{
 use hash_typecheck::errors::{TcError, TcErrorReporter};
 
 use crate::{
-    environment::tc_env::{AccessToTcEnv, WithTcEnv},
+    environment::sem_env::{AccessToSemEnv, WithSemEnv},
     passes::resolution::scoping::ContextKind,
 };
 
@@ -66,18 +66,18 @@ impl From<TcError> for SemanticError {
 
 pub type SemanticResult<T> = Result<T, SemanticError>;
 
-impl<'tc> From<WithTcEnv<'tc, &SemanticError>> for Reports {
-    fn from(ctx: WithTcEnv<'tc, &SemanticError>) -> Self {
+impl<'tc> From<WithSemEnv<'tc, &SemanticError>> for Reports {
+    fn from(ctx: WithSemEnv<'tc, &SemanticError>) -> Self {
         let mut builder = Reporter::new();
         ctx.add_to_reporter(&mut builder);
         builder.into_reports()
     }
 }
 
-impl<'tc> WithTcEnv<'tc, &SemanticError> {
+impl<'tc> WithSemEnv<'tc, &SemanticError> {
     /// Format the error nicely and add it to the given reporter.
     fn add_to_reporter(&self, reporter: &mut Reporter) {
-        let locations = self.tc_env().stores().location();
+        let locations = self.sem_env().stores().location();
         // @@ErrorReporting: improve error messages and locations
         match &self.value {
             SemanticError::Signal => {}
@@ -87,7 +87,7 @@ impl<'tc> WithTcEnv<'tc, &SemanticError> {
                     .code(HashErrorCode::UnresolvedType)
                     .title("cannot infer the type of this term".to_string());
 
-                if let Some(location) = self.tc_env().get_location(term) {
+                if let Some(location) = self.sem_env().get_location(term) {
                     error
                         .add_span(location)
                         .add_help("consider adding more type annotations to this expression");
@@ -95,7 +95,7 @@ impl<'tc> WithTcEnv<'tc, &SemanticError> {
             }
             SemanticError::Compound { errors } => {
                 for error in errors {
-                    self.tc_env().with(error).add_to_reporter(reporter);
+                    self.sem_env().with(error).add_to_reporter(reporter);
                 }
             }
             SemanticError::TraitsNotSupported { trait_location } => {
@@ -115,8 +115,8 @@ impl<'tc> WithTcEnv<'tc, &SemanticError> {
                 error.add_span(*merge_location).add_help("cannot use merge declarations yet");
             }
             SemanticError::SymbolNotFound { symbol, location, looking_in } => {
-                let def_name = format!("{}", self.tc_env().with(looking_in));
-                let search_name = self.tc_env().env().with(*symbol);
+                let def_name = format!("{}", self.sem_env().with(looking_in));
+                let search_name = self.sem_env().env().with(*symbol);
                 let noun = match looking_in {
                     ContextKind::Access(_, _) => "member",
                     ContextKind::Environment => "name",

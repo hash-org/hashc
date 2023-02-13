@@ -44,7 +44,7 @@ use super::{
 };
 use crate::{
     diagnostics::error::{SemanticError, SemanticResult},
-    environment::tc_env::WithTcEnv,
+    environment::sem_env::WithSemEnv,
     passes::ast_utils::AstUtils,
 };
 
@@ -104,7 +104,7 @@ impl From<NonTerminalResolvedPathComponent> for ModMemberValue {
     }
 }
 
-impl fmt::Display for WithTcEnv<'_, &NonTerminalResolvedPathComponent> {
+impl fmt::Display for WithSemEnv<'_, &NonTerminalResolvedPathComponent> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let env = self.env();
         write!(f, "{}", env.with(env.with(ModMemberValue::from(*self.value)).name()))

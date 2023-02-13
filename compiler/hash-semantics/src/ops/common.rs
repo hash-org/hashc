@@ -3,9 +3,9 @@
 
 use hash_reporting::diagnostic::Diagnostics;
 
-use crate::{diagnostics::error::SemanticResult, environment::tc_env::AccessToTcEnv};
+use crate::{diagnostics::error::SemanticResult, environment::sem_env::AccessToSemEnv};
 
-pub trait CommonOps: AccessToTcEnv {
+pub trait CommonOps: AccessToSemEnv {
     /// If the result is an error, add it to the diagnostics and return `None`.
     fn try_or_add_error<T>(&self, result: SemanticResult<T>) -> Option<T> {
         match result {
@@ -18,4 +18,4 @@ pub trait CommonOps: AccessToTcEnv {
     }
 }
 
-impl<T: AccessToTcEnv> CommonOps for T {}
+impl<T: AccessToSemEnv> CommonOps for T {}
