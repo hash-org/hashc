@@ -2,7 +2,7 @@
 use std::fmt::{self, Display};
 
 use hash_ast::ast;
-use hash_source::constant::CONSTANT_MAP;
+use hash_source::constant::{InternedInt, CONSTANT_MAP};
 use hash_utils::store::SequenceStore;
 use num_bigint::BigInt;
 
@@ -21,6 +21,11 @@ pub struct IntLit {
 }
 
 impl IntLit {
+    /// Get the interned value of the literal.
+    pub fn interned_value(&self) -> InternedInt {
+        self.underlying.value
+    }
+
     /// Return the value of the integer literal.
     pub fn value(&self) -> BigInt {
         (&CONSTANT_MAP.lookup_int_constant(self.underlying.value)).try_into().unwrap()

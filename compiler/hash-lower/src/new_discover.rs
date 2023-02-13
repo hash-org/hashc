@@ -36,6 +36,11 @@ impl DiscoveredFns {
     pub fn add_fn(&mut self, fn_def: FnDefId) {
         self.fns.insert(fn_def);
     }
+
+    /// Iterate over all discovered functions.
+    pub fn iter(&self) -> impl Iterator<Item = &FnDefId> {
+        self.fns.iter()
+    }
 }
 
 impl<T: AccessToEnv> FnDiscoverer<'_, T> {

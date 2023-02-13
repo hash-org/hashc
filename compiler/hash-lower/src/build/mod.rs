@@ -16,6 +16,7 @@ mod utils;
 use std::collections::HashSet;
 
 use hash_ast::ast;
+use hash_intrinsics::primitives::{AccessToPrimitives, DefinedPrimitives};
 use hash_ir::{
     ir::{
         BasicBlock, Body, BodyInfo, BodySource, Local, LocalDecl, Place, TerminatorKind,
@@ -25,72 +26,102 @@ use hash_ir::{
     IrCtx,
 };
 use hash_pipeline::settings::CompilerSettings;
-use hash_source::{identifier::Identifier, location::Span, SourceId, SourceMap};
-use hash_tir::old::{scope::ScopeId, storage::GlobalStorage, terms::TermId};
-use hash_utils::{
-    index_vec::IndexVec,
-    store::{FxHashMap, SequenceStore, SequenceStoreKey},
+use hash_source::{
+    identifier::{Identifier, IDENTS},
+    location::Span,
+    SourceId,
+};
+use hash_tir::{
+    environment::{
+        context::{BindingKind, ScopeKind},
+        env::{AccessToEnv, Env},
+    },
+    fns::{FnBody, FnDef, FnDefData, FnDefId, FnTy},
+    params::ParamsId,
+    scopes::StackMemberId,
+    terms::TermId,
+    tys::Ty,
+    utils::{common::CommonUtils, AccessToUtils},
 };
 
-use self::ty::get_fn_ty_from_term;
+use hash_utils::{
+    index_vec::IndexVec,
+    store::{FxHashMap, SequenceStore, SequenceStoreKey, Store},
+};
+
 use crate::cfg::ControlFlowGraph;
 
 /// A wrapper type for the kind of AST node that is being lowered, the [Builder]
 /// accepts either a [ast::FnDef] or an [ast::Expr] node. The [ast::Expr] node
 /// case is used when a constant block is being lowered.
-pub(crate) enum BuildItem<'a> {
+#[derive(Clone, Copy)]
+pub(crate) enum BuildItem {
     /// A function body is being lowered.
-    FnDef(ast::AstNodeRef<'a, ast::FnDef>),
+    FnDef(FnDefId),
     /// An arbitrary expression is being lowered, this is done
     /// for constant expressions.
-    Expr(ast::AstNodeRef<'a, ast::Expr>),
+    Const(TermId),
 }
 
-impl<'a> BuildItem<'a> {
-    /// Returns the span of the item being lowered.
-    pub fn span(&self) -> Span {
-        match self {
-            BuildItem::FnDef(fn_def) => fn_def.span(),
-            BuildItem::Expr(expr) => expr.span(),
-        }
-    }
-
-    /// Get the associated [ast::AstNodeId] with the [BuildItem].
-    pub fn id(&self) -> ast::AstNodeId {
-        match self {
-            BuildItem::FnDef(fn_def) => fn_def.id(),
-            BuildItem::Expr(expr) => expr.id(),
-        }
-    }
-
+impl BuildItem {
     /// Convert the build item into the expression variant, if this is not
     /// an expression variant, then this will panic.
-    pub fn as_expr(&self) -> ast::AstNodeRef<'a, ast::Expr> {
+    pub fn as_const(&self) -> TermId {
         match self {
             BuildItem::FnDef(_) => unreachable!(),
-            BuildItem::Expr(expr) => *expr,
+            BuildItem::Const(term) => *term,
         }
     }
 
     /// Convert the build item into the function definition variant, if this is
     /// not a function definition variant, then this will panic.
-    pub fn as_fn_def(&self) -> ast::AstNodeRef<'a, ast::FnDef> {
+    pub fn as_fn_def(&self) -> FnDefId {
         match self {
             BuildItem::FnDef(fn_def) => *fn_def,
-            BuildItem::Expr(_) => unreachable!(),
+            BuildItem::Const(_) => unreachable!(),
         }
     }
 }
 
-impl<'a> From<ast::AstNodeRef<'a, ast::FnDef>> for BuildItem<'a> {
-    fn from(fn_def: ast::AstNodeRef<'a, ast::FnDef>) -> Self {
+impl From<FnDefId> for BuildItem {
+    fn from(fn_def: FnDefId) -> Self {
         BuildItem::FnDef(fn_def)
     }
 }
 
-impl<'a> From<ast::AstNodeRef<'a, ast::Expr>> for BuildItem<'a> {
-    fn from(expr: ast::AstNodeRef<'a, ast::Expr>) -> Self {
-        BuildItem::Expr(expr)
+impl From<TermId> for BuildItem {
+    fn from(constant: TermId) -> Self {
+        BuildItem::Const(constant)
+    }
+}
+
+/// Use to represent a mapping between [BindingKind]s that come from
+/// the TIR to identify a [Local] as either being a reference to a
+/// stack member or a function parameter.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub enum LocalKey {
+    /// The parameter of the current function since they are in a
+    /// different binding kind.
+    Param((ParamsId, usize)),
+
+    /// All references to variables that are declared on the stack
+    /// of the function body.
+    Stack(StackMemberId),
+}
+
+impl From<StackMemberId> for LocalKey {
+    fn from(stack: StackMemberId) -> Self {
+        LocalKey::Stack(stack)
+    }
+}
+
+impl From<BindingKind> for LocalKey {
+    fn from(binding: BindingKind) -> Self {
+        match binding {
+            BindingKind::Param(_, param) => LocalKey::Param(param),
+            BindingKind::StackMember(stack, _) => LocalKey::Stack(stack),
+            _ => panic!("unexpected binding kind"),
+        }
     }
 }
 
@@ -133,6 +164,18 @@ pub macro unpack {
     }}
 }
 
+impl<'ctx> AccessToEnv for Builder<'ctx> {
+    fn env(&self) -> &Env {
+        self.tcx.env
+    }
+}
+
+impl<'ctx> AccessToPrimitives for Builder<'ctx> {
+    fn primitives(&self) -> &DefinedPrimitives {
+        &self.tcx.primitives
+    }
+}
+
 /// Information about the current `loop` context that is being lowered. When
 /// the [Builder] is lowering a loop, it will store the current loop body
 /// block, and the `next` block that the loop will jump to after the loop
@@ -149,19 +192,22 @@ pub(crate) struct LoopBlockInfo {
     next_block: BasicBlock,
 }
 
+pub(crate) struct Tcx<'tcx> {
+    /// The type storage needed for accessing the types of the traversed terms
+    pub env: &'tcx Env<'tcx>,
+
+    /// The primitive definitions that are needed for creating and comparing
+    /// primitive types.
+    pub primitives: &'tcx DefinedPrimitives,
+}
+
 /// The builder is responsible for lowering a body into the associated IR.
 pub(crate) struct Builder<'tcx> {
     /// The type storage needed for accessing the types of the traversed terms
-    tcx: &'tcx GlobalStorage,
+    tcx: Tcx<'tcx>,
 
     /// The IR storage needed for storing all of the created values and bodies
     ctx: &'tcx mut IrCtx,
-
-    /// The sources of the current program, this is only used
-    /// to give more contextual panics when the compiler unexpectedly
-    /// encounters an unexpected AST node, and thus it will emit a
-    /// span when the compiler panics.
-    source_map: &'tcx SourceMap,
 
     /// The stage settings, sometimes used to determine what the lowering
     /// behaviour should be.
@@ -171,7 +217,7 @@ pub(crate) struct Builder<'tcx> {
     info: BodyInfo,
 
     /// The item that is being lowered.
-    item: BuildItem<'tcx>,
+    item: BuildItem,
 
     /// The originating module of where this item is defined.
     source_id: SourceId,
@@ -192,10 +238,7 @@ pub(crate) struct Builder<'tcx> {
 
     /// A map that is used by the [Builder] to lookup which variables correspond
     /// to which locals.
-    declaration_map: FxHashMap<(ScopeId, Identifier), Local>,
-
-    /// The current scope stack that builder is in.
-    scope_stack: Vec<ScopeId>,
+    declaration_map: FxHashMap<LocalKey, Local>,
 
     /// Information about the currently traversed [ast::Block] in the AST. This
     /// value is used to determine when the block should be terminated by
@@ -203,9 +246,9 @@ pub(crate) struct Builder<'tcx> {
     /// after a block terminator.
     loop_block_info: Option<LoopBlockInfo>,
 
-    /// If the current [ast::Block] has reached a terminating statement, i.e. a
-    /// statement that is typed as `!`. Examples of such statements are
-    /// `return`, `break`, `continue`, etc.
+    /// If the current [terms::BlockTerm] has reached a terminating statement,
+    /// i.e. a statement that is typed as `!`. Examples of such statements
+    /// are `return`, `break`, `continue`, etc.
     reached_terminator: bool,
 
     /// A temporary [Place] that is used to throw away results from expressions
@@ -213,54 +256,26 @@ pub(crate) struct Builder<'tcx> {
     /// `tmp_place` is [None], then we create a new temporary place and store
     /// it in the field for later use.
     tmp_place: Option<Place>,
-
-    /// Declaration dead ends, this is to ensure that we don't try to
-    /// lower a declaration that is not part of the function definition.
-    /// For example, if the function `foo` is declared in `bar` like this:
-    /// ```ignore
-    /// bar := () => {
-    ///     foo := () => { 1 };   
-    /// }
-    /// ```
-    ///
-    /// Then we don't want to add `foo` as a declaration to the body of `bar`
-    /// because it is a free standing function that will be lowered by
-    /// another builder. However, this does not occur when the function is
-    /// not free standing, for example:
-    /// ```ignore
-    /// bar := (x: i32) => {
-    ///     foo := () => { 1 + x };   
-    /// }
-    /// ```
-    /// The function `foo` is no longer free in `bar` because it captures `x`,
-    /// therefore making it a closure of `foo`.
-    dead_ends: &'tcx HashSet<ast::AstNodeId>,
 }
 
 impl<'ctx> Builder<'ctx> {
     pub(crate) fn new(
         name: Identifier,
-        item: BuildItem<'ctx>,
+        item: BuildItem,
         source_id: SourceId,
-        scope_stack: Vec<ScopeId>,
-        tcx: &'ctx GlobalStorage,
+        tcx: Tcx<'ctx>,
         ctx: &'ctx mut IrCtx,
-        source_map: &'ctx SourceMap,
-        dead_ends: &'ctx HashSet<ast::AstNodeId>,
         settings: &'ctx CompilerSettings,
     ) -> Self {
         let (arg_count, source) = match item {
-            BuildItem::FnDef(node) => {
+            BuildItem::FnDef(fn_def) => {
                 // Get the type of this function definition, we need to
                 // figure out how many arguments there will be passed in
                 // and how many locals we need to allocate.
-                let term =
-                    tcx.node_info_store.node_info(node.id()).map(|info| info.term_id()).unwrap();
-                let fn_ty = get_fn_ty_from_term(term, tcx);
-
-                (fn_ty.params.len(), BodySource::Item)
+                let params = tcx.env.stores().fn_def().map_fast(fn_def, |def| def.ty.params);
+                (params.len(), BodySource::Item)
             }
-            BuildItem::Expr(_) => (0, BodySource::Const),
+            BuildItem::Const(_) => (0, BodySource::Const),
         };
 
         Self {
@@ -269,7 +284,6 @@ impl<'ctx> Builder<'ctx> {
             tcx,
             info: BodyInfo::new(name, source),
             ctx,
-            source_map,
             arg_count,
             source_id,
             control_flow_graph: ControlFlowGraph::new(),
@@ -278,8 +292,6 @@ impl<'ctx> Builder<'ctx> {
             declaration_map: FxHashMap::default(),
             reached_terminator: false,
             loop_block_info: None,
-            scope_stack,
-            dead_ends,
             tmp_place: None,
         }
     }
@@ -304,11 +316,8 @@ impl<'ctx> Builder<'ctx> {
     }
 
     pub(crate) fn build(&mut self) {
-        let item_id = self.item.id();
-        let term = self.tcx.node_info_store.node_info(item_id).map(|f| f.term_id()).unwrap();
-
         // lower the initial type and the create a
-        let ty = self.lower_term_as_id(term);
+        let ty = self.ty_id_from_tir_term(self.item.as_const());
         self.info.set_ty(ty);
 
         // If it is a function type, then we use the return type of the
@@ -327,39 +336,48 @@ impl<'ctx> Builder<'ctx> {
         let ret_local = LocalDecl::new_auxiliary(return_ty, Mutability::Mutable);
         self.declarations.push(ret_local);
 
-        // Create a scope for the item, if one exists
-        if let Some(scope) = self.tcx.node_info_store.node_info(item_id).unwrap().scope {
-            self.scope_stack.push(scope);
-        }
-
-        match (&self.item, params) {
-            (BuildItem::FnDef(_), Some(params)) => self.build_fn(term, params),
-            (BuildItem::Expr(_), _) => self.build_const(),
+        match self.item {
+            BuildItem::FnDef(_) => self.build_fn(),
+            BuildItem::Const(_) => self.build_const(),
             _ => unreachable!(),
         }
     }
 
     /// This is the entry point for lowering functions into Hash IR.
-    fn build_fn(&mut self, term: TermId, param_tys: IrTyListId) {
-        // Get the type of the function, and then add the local declarations
-        let node = self.item.as_fn_def();
+    fn build_fn(&mut self) {
+        let fn_def = self.item.as_fn_def();
+        let FnDef { name, ty, body, .. } = self.get_fn_def(fn_def);
 
-        // Deal with the function parameters
-        let fn_term = get_fn_ty_from_term(term, self.tcx);
-        let fn_params =
-            self.tcx.params_store.get_owned_param_list(fn_term.params).into_positional();
+        self.context_utils().enter_resolved_scope_mut(ScopeKind::Fn(fn_def), || {
+            // The type must be a function type...
+            let FnTy { params, return_ty, .. } = ty;
 
-        // Add each parameter as a declaration to the body.
-        let scope = self.current_scope();
-        for (index, param) in fn_params.iter().enumerate() {
-            let ir_ty = self.ctx.tls().get_at_index(param_tys, index);
-            let param_name = param.name.unwrap();
+            self.stores().params().map_fast(params, |params| {
+                for (index, param) in params.iter().enumerate() {
+                    let ir_ty = self.ty_id_from_tir_ty(param.ty);
 
-            // @@Future: deal with parameter attributes that are mutable?
-            self.push_local(LocalDecl::new_immutable(param_name, ir_ty), scope);
-        }
+                    let symbol = self.get_symbol(param.name);
+                    let param_name = symbol.name.unwrap_or(IDENTS.underscore);
+                    let binding = self.context().get_binding(symbol.symbol);
 
-        self.build_body(node.body.fn_body.ast_ref())
+                    let stack_id = match binding.kind {
+                        BindingKind::Param(_, params) => params.0.into(),
+                        BindingKind::StackMember(stack_id, _) => stack_id.into(),
+                        _ => unreachable!(),
+                    };
+
+                    // @@Future: deal with parameter attributes that are mutable?
+                    self.push_local(LocalDecl::new_immutable(param_name, ir_ty), stack_id);
+                }
+            });
+
+            // Axioms and Intrinsics are not lowered into IR
+            let FnBody::Defined(body) = body else {
+                panic!("defined function body was expected, but got `{body:?}`")
+            };
+
+            self.build_body(body)
+        })
     }
 
     /// Build a [Body] for a constant expression that occurs on the
@@ -370,26 +388,28 @@ impl<'ctx> Builder<'ctx> {
     /// This is a different concept from `compile-time` since in the future we
     /// will allow compile time expressions to run any arbitrary code.
     fn build_const(&mut self) {
-        let node = self.item.as_expr();
-        let term = self.tcx.node_info_store.node_info(node.id()).map(|f| f.term_id()).unwrap();
+        let node = self.item.as_const();
 
         // update the type in the body info with this value
-        self.info.set_ty(self.lower_term_as_id(term));
+        self.info.set_ty(self.ty_id_from_tir_term(node));
         self.build_body(node);
     }
 
     /// Function that builds the main body of a [BuildItem]. This will lower the
     /// expression that is provided, and store the result into the
     /// `RETURN_PLACE`.
-    fn build_body(&mut self, body: ast::AstNodeRef<'ctx, ast::Expr>) {
+    fn build_body(&mut self, body: TermId) {
         // Now we begin by lowering the body of the function.
         let start = self.control_flow_graph.start_new_block();
         debug_assert!(start == START_BLOCK);
 
         // Now that we have built the inner body block, we then need to terminate
         // the current basis block with a return terminator.
-        let return_block = unpack!(self.expr_into_dest(Place::return_place(self.ctx), start, body));
+        let term = self.get_term(body);
+        let return_block =
+            unpack!(self.term_into_dest(Place::return_place(self.ctx), start, &body));
+        let span = self.get_location(body).unwrap().span;
 
-        self.control_flow_graph.terminate(return_block, body.span(), TerminatorKind::Return);
+        self.control_flow_graph.terminate(return_block, span, TerminatorKind::Return);
     }
 }

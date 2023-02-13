@@ -190,7 +190,7 @@ impl<'tcx> Builder<'tcx> {
                 }
                 // @@Todo: remove this when the new pattern representation is used
                 Pat::Const(ConstPat { term }) => {
-                    let ty_id = self.lower_term_as_id(*term);
+                    let ty_id = self.ty_id_from_tir_term(*term);
 
                     self.ctx.map_ty(ty_id, |ty| match ty {
                         ty if ty.is_switchable() => Test {
@@ -213,7 +213,7 @@ impl<'tcx> Builder<'tcx> {
                     })
                 }
                 Pat::Lit(term) => {
-                    let ty = self.lower_term_as_id(*term);
+                    let ty = self.ty_id_from_tir_term(*term);
                     let value = constify_lit_term(*term, self.tcx);
 
                     // If it is not an integral constant, we use an `Eq` test. This will
@@ -288,7 +288,7 @@ impl<'tcx> Builder<'tcx> {
             (TestKind::Switch { adt, .. }, Pat::Constructor(ConstructorPat { subject, args })) => {
                 // If we are performing a variant switch, then this informs
                 // variant patterns, bu nothing else.
-                let test_adt = self.lower_term_as_id(*subject);
+                let test_adt = self.ty_id_from_tir_term(*subject);
 
                 let variant_index = self.ctx.map_ty_as_adt(test_adt, |adt, _| {
                     // If this is a struct, then we don't do anything

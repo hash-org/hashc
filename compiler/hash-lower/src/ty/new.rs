@@ -35,18 +35,18 @@ pub(crate) struct TyLoweringCtx<'ir> {
     pub lcx: &'ir IrCtx,
 
     /// The type storage from the semantic analysis stage.
-    pub tcx: Env<'ir>,
+    pub tcx: &'ir Env<'ir>,
 }
 
 impl<'ir> AccessToEnv for TyLoweringCtx<'ir> {
     fn env(&self) -> &Env {
-        &self.tcx
+        self.tcx
     }
 }
 
 impl<'ir> TyLoweringCtx<'ir> {
     /// Create a new [TyLoweringCtx] from the given [IrCtx] and [GlobalStorage].
-    pub fn new(lcx: &'ir IrCtx, tcx: Env<'ir>) -> Self {
+    pub fn new(lcx: &'ir IrCtx, tcx: &'ir Env<'ir>) -> Self {
         Self { lcx, tcx }
     }
 
@@ -90,7 +90,7 @@ impl<'ir> TyLoweringCtx<'ir> {
     }
 
     /// Get the [IrTy] from the given [TyId].
-    fn ty_from_tir_ty(&self, ty: &Ty) -> IrTy {
+    pub(crate) fn ty_from_tir_ty(&self, ty: &Ty) -> IrTy {
         match ty {
             Ty::Tuple(TupleTy { data }) => {
                 let mut flags = AdtFlags::empty();

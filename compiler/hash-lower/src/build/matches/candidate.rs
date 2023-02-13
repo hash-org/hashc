@@ -280,7 +280,7 @@ impl<'tcx> Builder<'tcx> {
                 Pat::Range(RangePat { lo, hi, end }) => {
                     // get the range and bias of this range pattern from
                     // the `lo`
-                    let lo_ty = self.lower_term(*lo);
+                    let lo_ty = self.ty_from_tir_term(*lo);
                     // let lo_ty_id = self.storage.ty_store().create(lo_ty);
 
                     // The range is the minimum value, maximum value, and the size of
@@ -339,7 +339,7 @@ impl<'tcx> Builder<'tcx> {
                     Ok(())
                 }
                 Pat::Constructor(ConstructorPat { subject, args }) => {
-                    let ty = self.lower_term_as_id(*subject);
+                    let ty = self.ty_id_from_tir_term(*subject);
                     let adt =
                         self.ctx.map_ty_as_adt(ty, |adt, id| adt.flags.is_struct().then_some(id));
 

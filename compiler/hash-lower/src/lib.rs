@@ -7,16 +7,12 @@
 
 mod build;
 mod cfg;
-mod discover;
-pub mod new_discover;
+// mod discover;
+mod new_discover;
 mod optimise;
 mod ty;
 
-use discover::LoweringVisitor;
-use hash_ast::{
-    ast::{self, OwnsAstNode},
-    visitor::AstVisitorMutSelf,
-};
+use build::{Builder, Tcx};
 use hash_ir::{
     write::{graphviz, pretty},
     IrStorage,
@@ -27,12 +23,21 @@ use hash_pipeline::{
     settings::{CompilerSettings, CompilerStageKind, IrDumpMode},
     workspace::{SourceStageInfo, Workspace},
 };
-use hash_semantics::SemanticStorage;
-use hash_source::SourceId;
-use hash_tir::old::{nodes::NodeInfoTarget, storage::TyStorage};
-use hash_utils::stream_writeln;
+
+use hash_semantics::new::environment::tc_env::SemanticStorage;
+use hash_source::{identifier::IDENTS, location::SourceLocation, SourceId};
+use hash_tir::{
+    data::DataTy,
+    environment::{
+        env::{AccessToEnv, Env},
+        source_info::CurrentSourceInfo,
+    },
+    utils::common::CommonUtils,
+};
+use hash_utils::{store::Store, stream_writeln};
+use new_discover::FnDiscoverer;
 use optimise::Optimiser;
-use ty::old::TyLoweringCtx;
+use ty::new::TyLoweringCtx;
 
 /// The Hash IR builder compiler stage. This will walk the AST, and
 /// lower all items within a particular module.
@@ -42,7 +47,7 @@ pub struct IrGen {
     /// directives on type declarations. This is a collection of all of the
     /// type definitions that were found and require a layout to be
     /// generated.
-    layouts_to_generate: Vec<ast::AstNodeId>,
+    layouts_to_generate: Vec<DataTy>,
 }
 
 /// The [LoweringCtx] represents all of the required information
@@ -54,10 +59,6 @@ pub struct LoweringCtx<'ir> {
 
     /// The settings of the current session.
     pub settings: &'ir CompilerSettings,
-
-    /// Reference to the type storage that comes from
-    /// the typechecking compiler phase.
-    pub ty_storage: &'ir TyStorage,
 
     /// Reference to the semantic storage that comes from
     /// the typechecking compiler phase.
@@ -94,44 +95,56 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
     /// are lowered and the result is saved on the [IrStorage].
     /// Additionally, this module is responsible for performing
     /// optimisations on the IR (if specified via the [CompilerSettings]).
-    fn run(&mut self, _: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
-        let LoweringCtx { workspace, ty_storage, ir_storage, settings, .. } = ctx.data();
+    fn run(&mut self, entry: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
+        let LoweringCtx { semantic_storage, workspace, ir_storage, settings, .. } = ctx.data();
         let source_map = &mut workspace.source_map;
         let source_stage_info = &mut workspace.source_stage_info;
 
         let mut lowered_bodies = Vec::new();
 
-        // We need to visit all of the modules in the workspace and discover
-        // what needs to be lowered.
-        for (id, module) in workspace.node_map.iter_modules().enumerate() {
-            let source_id = SourceId::new_module(id as u32);
-            let stage_info = source_stage_info.get(source_id);
+        let env = Env {
+            stores: &semantic_storage.stores,
+            context: &semantic_storage.context,
+            node_map: &workspace.node_map,
+            source_map: &workspace.source_map,
+            current_source_info: &CurrentSourceInfo { source_id: entry },
+        };
+        let discoverer = FnDiscoverer::new(&env);
 
-            // Skip any modules that have already been checked
-            if stage_info.is_lowered() {
-                continue;
-            }
+        for func in discoverer.discover_fns().iter() {
+            let symbol = discoverer.stores().fn_def().map_fast(*func, |func| func.name);
+            let name = discoverer
+                .stores()
+                .symbol()
+                .map_fast(symbol, |symbol| symbol.name.unwrap_or(IDENTS.underscore));
 
-            let mut discoverer = LoweringVisitor::new(
-                ty_storage,
-                &mut ir_storage.ctx,
-                source_map,
-                source_id,
-                settings,
-            );
-            discoverer.visit_module(module.node_ref()).unwrap();
+            // Get the source of the symbol therefore that way
+            // we can get the source id of the function.
+            let Some(SourceLocation { id, .. }) = discoverer.get_location(symbol) else {
+                panic!("function has no defined source location");
+            };
 
-            // We need to add all of the bodies to the global bodies
-            // store.
-            if let Some(instance) = discoverer.entry_point_instance() {
-                let kind = ty_storage.entry_point_state.kind().unwrap();
-                ir_storage.entry_point.set(instance, kind);
-            }
+            let primitives = match semantic_storage.primitives_or_unset.get() {
+                Some(primitives) => primitives,
+                None => panic!("Tried to get primitives but they are not set yet"),
+            };
 
-            let (bodies, layouts) = discoverer.into_components();
-            lowered_bodies.extend(bodies);
-            self.layouts_to_generate.extend(layouts);
+            let tcx = Tcx { env: &env, primitives };
+            let mut builder =
+                Builder::new(name, (*func).into(), id, tcx, &mut ir_storage.ctx, settings);
+            builder.build();
+
+            // add the body to the lowered bodies
+            lowered_bodies.push(builder.finish());
+            //@@Todo: we need to check if this item is marked to be dumped...
         }
+
+        // @@Todo: deal with the entry point here.
+
+        //     if let Some(instance) = discoverer.entry_point_instance() {
+        //         let kind = ty_storage.entry_point_state.kind().unwrap();
+        //         ir_storage.entry_point.set(instance, kind);
+        //     }
 
         // Mark all modules now as lowered, and all generated
         // bodies to the store.
@@ -141,21 +154,24 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
         Ok(())
     }
 
-    fn cleanup(&mut self, _entry_point: SourceId, stage_data: &mut Ctx) {
-        let LoweringCtx { ty_storage, ir_storage, layout_storage, mut stdout, .. } =
-            stage_data.data();
+    fn cleanup(&mut self, entry_point: SourceId, stage_data: &mut Ctx) {
+        let LoweringCtx {
+            semantic_storage, ir_storage, layout_storage, workspace, mut stdout, ..
+        } = stage_data.data();
+        let env = Env {
+            stores: &semantic_storage.stores,
+            context: &semantic_storage.context,
+            node_map: &workspace.node_map,
+            source_map: &workspace.source_map,
+            current_source_info: &CurrentSourceInfo { source_id: entry_point },
+        };
 
-        let node_info_store = &ty_storage.global.node_info_store;
-        let ty_lowerer = TyLoweringCtx::new(&ir_storage.ctx, &ty_storage.global);
+        let ty_lowerer = TyLoweringCtx::new(&ir_storage.ctx, &env);
 
         // @@Todo: use terms instead of ast-nodes...?
         for (index, type_def) in self.layouts_to_generate.iter().enumerate() {
-            let Some(NodeInfoTarget { term: Some(term), .. }) = node_info_store.node_info(*type_def) else {
-                continue;
-            };
-
             // fetch or compute the type of the type definition.
-            let ty = ty_lowerer.ty_id_from_term(term);
+            let ty = ty_lowerer.ty_id_from_tir_data(*type_def);
             let layout_computer = LayoutComputer::new(layout_storage, &ir_storage.ctx);
 
             // @@ErrorHandling: propagate this error if it occurs.

@@ -24,3 +24,4 @@ hash-tree-def = { path = "../hash-tree-def" }
 hash-tir = { path = "../hash-tir" }
 hash-utils = { path = "../hash-utils" }
 hash-semantics = { path = "../hash-semantics" }
+hash-intrinsics = { path = "../hash-intrinsics" }

@@ -30,7 +30,7 @@ impl<'tcx> Builder<'tcx> {
         };
         let temp_place = Place::from_local(temp, self.ctx);
 
-        unpack!(block = self.expr_into_dest(temp_place, block, expr));
+        unpack!(block = self.term_into_dest(temp_place, block, expr));
         block.and(temp)
     }
 

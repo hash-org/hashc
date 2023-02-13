@@ -2,4 +2,4 @@
 //! to convert types and terms into [IrTy]s.
 
 pub mod new;
-pub mod old;
+// pub mod old;

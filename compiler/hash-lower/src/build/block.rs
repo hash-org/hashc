@@ -97,7 +97,7 @@ impl<'tcx> Builder<'tcx> {
         // If this block has an expression, we need to deal with it since
         // it might change the destination of this block.
         if let Some(expr) = body.expr.as_ref() && !self.reached_terminator {
-            unpack!(block = self.expr_into_dest(place, block, expr.ast_ref()));
+            unpack!(block = self.term_into_dest(place, block, expr.ast_ref()));
         }
 
         block.unit()

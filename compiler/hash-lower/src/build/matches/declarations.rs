@@ -8,105 +8,47 @@ use hash_ir::{
 };
 use hash_reporting::macros::panic_on_span;
 use hash_source::{identifier::Identifier, location::Span};
-use hash_tir::old::scope::{Member, ScopeId, ScopeKind};
+use hash_tir::scopes::DeclTerm; begin migrating builder to using TIR
 use hash_utils::store::Store;
 
 use super::{candidate::Candidate, BlockAnd, Builder};
-use crate::build::{place::PlaceBuilder, unpack, BlockAndExtend};
+use crate::build::{place::PlaceBuilder, unpack, BlockAndExtend, LocalKey};
 
 impl<'tcx> Builder<'tcx> {
-    /// Get the current [ScopeId] that is being used within the builder.
-    pub(crate) fn current_scope(&self) -> ScopeId {
-        *self.scope_stack.last().unwrap()
-    }
-
     /// Push a [LocalDecl] in the current [Builder] with the associated
-    /// [ScopeId]. This will put the [LocalDecl] into the declarations, and
+    /// [LocalKey]. This will put the [LocalDecl] into the declarations, and
     /// create an entry in the lookup map so that the [Local] can be looked up
     /// via the name of the local and the scope that it is in.
-    pub(crate) fn push_local(&mut self, decl: LocalDecl, scope: ScopeId) -> Local {
-        let decl_name = decl.name;
+    pub(crate) fn push_local(&mut self, decl: LocalDecl, key: LocalKey) -> Local {
         let index = self.declarations.push(decl);
 
         // If the declaration has a name i.e. not an auxiliary local, then
         // we can push it into the `declaration_map`.
-        if let Some(name) = decl_name {
-            self.declaration_map.insert((scope, name), index);
+        if decl.name.is_some() {
+            self.declaration_map.insert(key, index);
         }
 
         index
     }
 
-    /// Get the [Local] associated with the provided [ScopeId] and [Identifier].
-    pub(crate) fn lookup_local(&self, name: Identifier) -> Option<Local> {
-        self.lookup_item_scope(name)
-            .and_then(|(scope_id, _, _)| self.lookup_local_from_scope(scope_id, name))
-    }
-
-    /// Lookup a [Local] from a [ScopeId] and a [Identifier].
-    pub(crate) fn lookup_local_from_scope(
-        &self,
-        scope: ScopeId,
-        name: Identifier,
-    ) -> Option<Local> {
-        self.declaration_map.get(&(scope, name)).copied()
-    }
-
-    /// Get the [ScopeId] and [Member] of a [Identifier] that is within the
-    /// current scope stack.
-    pub(crate) fn lookup_item_scope(
-        &self,
-        name: Identifier,
-    ) -> Option<(ScopeId, Member, ScopeKind)> {
-        for scope_id in self.scope_stack.iter().rev() {
-            // We need to walk up the scopes, and then find the first scope
-            // that contains this variable
-            match self.tcx.scope_store.map_fast(*scope_id, |scope| (scope.get(name), scope.kind)) {
-                // Found in this scope, return the member.
-                (Some((member, _)), kind) => return Some((*scope_id, member, kind)),
-                // Continue to the next (higher) scope:
-                _ => continue,
-            }
-        }
-
-        None
-    }
-
-    /// This function handles the lowering of an expression declaration.
-    /// Internally, we check if this declaration needs to be lowered since
-    /// this might be declaring a free function within the current function
-    /// body, and thus we should not lower it.
-    ///
-    /// @@Todo: deal with non-trivial dead-ends, i.e. compound patterns that
-    /// have dead ends...
+    /// This function handles the lowering of an declaration term.
     pub(crate) fn lower_declaration(
         &mut self,
         mut block: BasicBlock,
-        decl: &'tcx ast::Declaration,
+        decl: &'tcx DeclTerm,
         decl_span: Span,
     ) -> BlockAnd<()> {
-        // The dead-ends are provided by discovery and indicate items
-        // that the lower should just skip over. As the above @@Todo mentions,
-        // this might not entirely work for compound patterns that may have a
-        // a single member that is a dead-end, but the rest should be lowered.
-        // In this situation, the lowerer will avoid lowering the parts that don't
-        // need to be lowered, and later optimised out by the `remove_dead_locals`
-        // pass.
-        if self.dead_ends.contains(&decl.pat.id()) {
-            return block.unit();
-        }
-
         if let Some(value) = &decl.value {
             // First, we declare all of the bindings that are present
             // in the pattern, and then we place the expression into
             // the pattern using `expr_into_pat`.
             self.declare_bindings(decl.pat.ast_ref());
 
-            unpack!(block = self.expr_into_pat(block, decl.pat.ast_ref(), value.ast_ref()));
+            unpack!(block = self.tir_term_into_pat(block, decl.bind_pat, value));
         } else {
             panic_on_span!(
                 decl_span.into_location(self.source_id),
-                self.source_map,
+                self.source_map(),
                 "expected initialisation value, declaration are expected to have values (for now)."
             );
         };
@@ -226,7 +168,7 @@ impl<'tcx> Builder<'tcx> {
     /// Lower a given [ast::Expr] into the provided [ast::Pat]. It is expected
     /// that the pattern is irrefutable, since this is verified during
     /// typechecking via exhaustiveness.
-    fn expr_into_pat(
+    fn tir_term_into_pat(
         &mut self,
         mut block: BasicBlock,
         pat: ast::AstNodeRef<'tcx, ast::Pat>,
@@ -239,7 +181,7 @@ impl<'tcx> Builder<'tcx> {
                 let local = self.lookup_local(name.ident).unwrap();
                 let place = Place::from_local(local, self.ctx);
 
-                unpack!(block = self.expr_into_dest(place, block, expr));
+                unpack!(block = self.term_into_dest(place, block, expr));
                 block.unit()
             }
             // The long path, we go through creating candidates and then

@@ -177,7 +177,7 @@ impl<'tcx> Builder<'tcx> {
         for (arm, candidate) in arm_candidates {
             let arm_block = self.bind_pat(subject_span, arm.body.pat.ast_ref(), candidate);
 
-            lowered_arms_edges.push(self.expr_into_dest(
+            lowered_arms_edges.push(self.term_into_dest(
                 destination,
                 arm_block,
                 arm.body.expr.ast_ref(),

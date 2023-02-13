@@ -14,7 +14,7 @@ use hash_source::{
     location::{SourceLocation, Span},
     SourceId,
 };
-use hash_tir::old::scope::ScopeId;
+
 use hash_utils::{
     graph::dominators::Dominators,
     index_vec::{self, IndexVec},
@@ -139,9 +139,6 @@ pub fn compare_constant_values(left: Const, right: Const) -> Option<Ordering> {
 /// points to some declaration that needs to be evaluated.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct UnevaluatedConst {
-    /// The source scope of the constant.
-    pub scope: ScopeId,
-
     /// The name of the constant.
     pub name: Identifier,
 }
@@ -202,7 +199,7 @@ impl fmt::Display for ConstKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Value(value) => write!(f, "{value}"),
-            Self::Unevaluated(UnevaluatedConst { name, .. }) => write!(f, "<unevaluated> {name}"),
+            Self::Unevaluated(UnevaluatedConst { name }) => write!(f, "<unevaluated> {name}"),
         }
     }
 }
