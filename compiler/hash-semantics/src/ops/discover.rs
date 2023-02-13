@@ -570,8 +570,9 @@ impl<'tc> Discoverer<'tc> {
         Ok(new_params)
     }
 
-    /// Apply the given [hash_tir::old::Scope] of kind [hash_tir::old::Term::SetBound]
-    /// to the given params, at the lowest level possible.
+    /// Apply the given [hash_tir::old::Scope] of kind
+    /// [hash_tir::old::Term::SetBound] to the given params, at the lowest
+    /// level possible.
     pub(crate) fn apply_set_bound_to_params(
         &self,
         set_bound_scope_id: ScopeId,
@@ -615,8 +616,9 @@ impl<'tc> Discoverer<'tc> {
         Ok(new_args)
     }
 
-    /// Apply the given [hash_tir::old::Scope] of kind [hash_tir::old::Term::SetBound]
-    /// to the given args, at the lowest level possible.
+    /// Apply the given [hash_tir::old::Scope] of kind
+    /// [hash_tir::old::Term::SetBound] to the given args, at the lowest
+    /// level possible.
     pub(crate) fn apply_set_bound_to_args(
         &self,
         set_bound_scope_id: ScopeId,
@@ -630,8 +632,9 @@ impl<'tc> Discoverer<'tc> {
         )
     }
 
-    /// Apply the given [hash_tir::old::Scope] of kind [hash_tir::old::Term::SetBound]
-    /// to the given term, at the lowest level possible.
+    /// Apply the given [hash_tir::old::Scope] of kind
+    /// [hash_tir::old::Term::SetBound] to the given term, at the lowest
+    /// level possible.
     pub(crate) fn potentially_apply_set_bound_to_term(
         &self,
         set_bound_scope_id: ScopeId,
@@ -642,9 +645,9 @@ impl<'tc> Discoverer<'tc> {
             .unwrap_or(term_id))
     }
 
-    /// Apply the given [hash_tir::old::Scope] of kind [hash_tir::old::Term::SetBound]
-    /// to the given term, at the lowest level possible. Returns None if no
-    /// application occurred.
+    /// Apply the given [hash_tir::old::Scope] of kind
+    /// [hash_tir::old::Term::SetBound] to the given term, at the lowest
+    /// level possible. Returns None if no application occurred.
     pub(crate) fn apply_set_bound_to_term(
         &self,
         set_bound_scope_id: ScopeId,
@@ -672,9 +675,9 @@ impl<'tc> Discoverer<'tc> {
             .unwrap_or(term_id))
     }
 
-    /// Apply the given [hash_tir::old::Scope] of kind [hash_tir::old::Term::SetBound]
-    /// to the given term, at the lowest level possible. Returns None if no
-    /// application occurred.
+    /// Apply the given [hash_tir::old::Scope] of kind
+    /// [hash_tir::old::Term::SetBound] to the given term, at the lowest
+    /// level possible. Returns None if no application occurred.
     ///
     /// This checks each child of the term, and only wraps it in a set bound if
     /// the free variables are present.

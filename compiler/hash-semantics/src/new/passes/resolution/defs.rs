@@ -4,7 +4,7 @@
 //! inner terms, which were left as holes after the discovery pass.
 
 use hash_ast::ast::{self, AstNodeRef};
-use hash_tir::new::{
+use hash_tir::{
     environment::{context::ScopeKind, env::AccessToEnv},
     mods::{ModDefId, ModMemberValue},
 };
@@ -71,12 +71,12 @@ impl<'tc> ResolutionPass<'tc> {
                     // Struct variant
                     let struct_ctor =
                         self.stores().data_def().map_fast(data_def_id, |def| match def.ctors {
-                            hash_tir::new::data::DataDefCtors::Defined(id) => {
+                            hash_tir::data::DataDefCtors::Defined(id) => {
                                 // There should only be one variant
                                 assert!(id.len() == 1);
                                 (id, 0)
                             },
-                            hash_tir::new::data::DataDefCtors::Primitive(_) => unreachable!() // No primitive user-defined structs
+                            hash_tir::data::DataDefCtors::Primitive(_) => unreachable!() // No primitive user-defined structs
                         });
 
                     self.scoping().enter_scope(
@@ -113,8 +113,8 @@ impl<'tc> ResolutionPass<'tc> {
                     // Enum variants
                     let data_def_ctors =
                         self.stores().data_def().map_fast(data_def_id, |def| match def.ctors {
-                            hash_tir::new::data::DataDefCtors::Defined(id) => id,
-                            hash_tir::new::data::DataDefCtors::Primitive(_) => unreachable!() // No primitive user-defined enums
+                            hash_tir::data::DataDefCtors::Defined(id) => id,
+                            hash_tir::data::DataDefCtors::Primitive(_) => unreachable!() // No primitive user-defined enums
                         });
                     assert!(data_def_ctors.len() == enum_def.entries.len());
 

@@ -3,7 +3,7 @@
 use std::fmt::Display;
 
 use super::environment::env::{AccessToEnv, WithEnv};
-use crate::new::{terms::TermId, tys::TyId};
+use crate::{terms::TermId, tys::TyId};
 
 // @@Todo: explanations about semantics
 

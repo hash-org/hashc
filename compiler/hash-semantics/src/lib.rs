@@ -29,7 +29,7 @@ use hash_pipeline::{
 use hash_reporting::diagnostic::{DiagnosticCellStore, Diagnostics};
 use hash_source::{entry_point::EntryPointState, SourceId};
 use hash_tir::{
-    new::environment::{env::Env, source_info::CurrentSourceInfo},
+    environment::{env::Env, source_info::CurrentSourceInfo},
     old::{
         fmt::PrepareForFormatting,
         storage::{LocalStorage, TyStorage},

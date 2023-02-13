@@ -1,5 +1,5 @@
 use hash_reporting::diagnostic::Diagnostics;
-use hash_tir::new::environment::env::AccessToEnv;
+use hash_tir::environment::env::AccessToEnv;
 
 use self::{
     ast_utils::AstPass, discovery::DiscoveryPass, inference::InferencePass,
@@ -18,7 +18,7 @@ pub struct TcVisitor<'tc> {
 }
 
 impl AccessToEnv for TcVisitor<'_> {
-    fn env(&self) -> &hash_tir::new::environment::env::Env {
+    fn env(&self) -> &hash_tir::environment::env::Env {
         self.tc_env.env()
     }
 }

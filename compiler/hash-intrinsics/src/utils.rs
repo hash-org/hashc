@@ -1,6 +1,6 @@
 use hash_ast::ast::{self};
 use hash_source::constant::{IntConstant, IntConstantValue, CONSTANT_MAP};
-use hash_tir::new::{
+use hash_tir::{
     data::{CtorDefId, CtorPat, CtorTerm, DataTy},
     environment::env::AccessToEnv,
     lits::{CharLit, FloatLit, IntLit, Lit, PrimTerm},
@@ -42,12 +42,12 @@ pub trait PrimitiveUtils: AccessToPrimitives {
         let ctor_defs =
             self.stores().data_def().map_fast(self.primitives().bool(), |bool_def| bool_def.ctors);
         match ctor_defs {
-            hash_tir::new::data::DataDefCtors::Defined(ctors) => {
+            hash_tir::data::DataDefCtors::Defined(ctors) => {
                 // Index 0 is true, 1 is false, see BootstrapOps
                 let idx = if value { 0 } else { 1 };
                 (ctors, idx)
             }
-            hash_tir::new::data::DataDefCtors::Primitive(_) => {
+            hash_tir::data::DataDefCtors::Primitive(_) => {
                 panic!("Found primitive data definition for bool")
             }
         }

@@ -12,7 +12,7 @@ use super::{
     mods::ModDefId,
     scopes::StackId,
 };
-use crate::new::{symbols::Symbol, terms::TermId, tys::TyId};
+use crate::{symbols::Symbol, terms::TermId, tys::TyId};
 
 /// A member of a definition.
 ///

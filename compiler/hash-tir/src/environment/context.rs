@@ -11,7 +11,7 @@ use hash_utils::store::{Store, StoreKey};
 use indexmap::IndexMap;
 
 use super::env::{AccessToEnv, WithEnv};
-use crate::new::{
+use crate::{
     args::ArgId,
     data::{CtorDefId, DataDefId},
     fns::{FnDefId, FnTy},

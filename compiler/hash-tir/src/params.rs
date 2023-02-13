@@ -16,7 +16,7 @@ use super::{
     locations::IndexedLocationTarget,
     terms::TermId,
 };
-use crate::new::{symbols::Symbol, tys::TyId};
+use crate::{symbols::Symbol, tys::TyId};
 
 // @@Todo: examples
 

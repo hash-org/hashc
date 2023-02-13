@@ -4,22 +4,20 @@ use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
 
 use super::{common::CommonUtils, AccessToUtils};
 use crate::{
-    impl_access_to_env,
-    new::{
-        args::{ArgId, ArgsId},
-        data::{DataDefCtors, DataDefId},
-        environment::{
-            context::{Binding, BindingKind, Context, EqualityJudgement, ParamOrigin, ScopeKind},
-            env::{AccessToEnv, Env},
-        },
-        fns::FnDefId,
-        mods::ModDefId,
-        params::{ParamId, ParamsId},
-        pats::Pat,
-        scopes::{DeclTerm, StackId, StackIndices, StackMemberId},
-        symbols::Symbol,
-        terms::TermId,
+    args::{ArgId, ArgsId},
+    data::{DataDefCtors, DataDefId},
+    environment::{
+        context::{Binding, BindingKind, Context, EqualityJudgement, ParamOrigin, ScopeKind},
+        env::{AccessToEnv, Env},
     },
+    fns::FnDefId,
+    impl_access_to_env,
+    mods::ModDefId,
+    params::{ParamId, ParamsId},
+    pats::Pat,
+    scopes::{DeclTerm, StackId, StackIndices, StackMemberId},
+    symbols::Symbol,
+    terms::TermId,
 };
 
 /// Context-related utilities.

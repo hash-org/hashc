@@ -6,14 +6,10 @@ use itertools::Itertools;
 
 use super::common::CommonUtils;
 use crate::{
+    environment::env::{AccessToEnv, Env},
+    fns::FnDefId,
     impl_access_to_env,
-    new::{
-        environment::env::{AccessToEnv, Env},
-        fns::FnDefId,
-        mods::{
-            ModDef, ModDefData, ModDefId, ModMember, ModMemberData, ModMemberValue, ModMembersId,
-        },
-    },
+    mods::{ModDef, ModDefData, ModDefId, ModMember, ModMemberData, ModMemberValue, ModMembersId},
 };
 
 /// Operations related to module definitions.

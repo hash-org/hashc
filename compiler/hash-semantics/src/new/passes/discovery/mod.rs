@@ -5,7 +5,7 @@ use hash_ast::{
     ast::{self},
     visitor::AstVisitor,
 };
-use hash_tir::new::{environment::env::AccessToEnv, symbols::Symbol, utils::common::CommonUtils};
+use hash_tir::{environment::env::AccessToEnv, symbols::Symbol, utils::common::CommonUtils};
 use hash_utils::state::LightState;
 
 use self::defs::DefDiscoveryState;
@@ -26,7 +26,7 @@ pub struct DiscoveryPass<'tc> {
 }
 
 impl AccessToEnv for DiscoveryPass<'_> {
-    fn env(&self) -> &hash_tir::new::environment::env::Env {
+    fn env(&self) -> &hash_tir::environment::env::Env {
         self.tc_env.env()
     }
 }

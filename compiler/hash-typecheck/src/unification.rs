@@ -1,7 +1,7 @@
 //! Operations for unifying types and terms.
 
 use derive_more::{Constructor, Deref};
-use hash_tir::new::{
+use hash_tir::{
     args::{ArgData, ArgsId},
     data::DataTy,
     environment::context::ParamOrigin,

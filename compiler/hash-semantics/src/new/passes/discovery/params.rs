@@ -1,6 +1,6 @@
 //! Utilities for creating parameters and arguments during discovery.
 use hash_ast::ast::{self};
-use hash_tir::new::{
+use hash_tir::{
     environment::env::AccessToEnv,
     params::{ParamIndex, ParamsId},
     utils::{common::CommonUtils, AccessToUtils},

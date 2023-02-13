@@ -4,7 +4,7 @@ use std::fmt::{self, Display, Formatter};
 use smallvec::SmallVec;
 
 use super::environment::env::AccessToEnv;
-use crate::new::{environment::env::WithEnv, symbols::Symbol, terms::TermId};
+use crate::{environment::env::WithEnv, symbols::Symbol, terms::TermId};
 
 /// An entry in a substitution.
 ///

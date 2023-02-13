@@ -3,7 +3,7 @@
 use std::ops::ControlFlow;
 
 use derive_more::{Constructor, Deref};
-use hash_tir::new::{
+use hash_tir::{
     access::AccessTerm,
     args::ArgsId,
     environment::context::BindingKind,

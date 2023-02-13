@@ -4,23 +4,21 @@ use std::{collections::HashMap, fmt};
 use hash_ast::ast;
 use hash_source::{identifier::Identifier, location::Span};
 use hash_tir::{
-    new::{
-        data::DataDefId,
-        environment::{
-            context::{ParamOrigin, ScopeKind},
-            env::{AccessToEnv, Env},
-        },
-        fns::FnTy,
-        locations::LocationTarget,
-        mods::ModDefId,
-        params::ParamId,
-        scopes::{StackId, StackIndices, StackMemberId},
-        symbols::Symbol,
-        terms::TermId,
-        tuples::TupleTy,
-        utils::{common::CommonUtils, AccessToUtils},
+    data::DataDefId,
+    environment::{
+        context::{ParamOrigin, ScopeKind},
+        env::{AccessToEnv, Env},
     },
+    fns::FnTy,
+    locations::LocationTarget,
+    mods::ModDefId,
+    params::ParamId,
+    scopes::{StackId, StackIndices, StackMemberId},
+    symbols::Symbol,
+    terms::TermId,
+    tuples::TupleTy,
     ty_as_variant,
+    utils::{common::CommonUtils, AccessToUtils},
 };
 use hash_utils::{
     state::HeavyState,
@@ -63,7 +61,7 @@ impl fmt::Display for WithTcEnv<'_, &ContextKind> {
 
 /// Contains helper functions for traversing scopes and adding bindings.
 ///
-/// It uses [`hash_tir::new::environment::context::Context`] and
+/// It uses [`hash_tir::environment::context::Context`] and
 /// [`crate::new::ops::context::ContextOps`] to enter scopes, but also
 /// keeps track of identifier names so that names can be matched to the correct
 /// symbols when creating `Var` terms.

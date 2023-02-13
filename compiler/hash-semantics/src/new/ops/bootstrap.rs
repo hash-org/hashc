@@ -4,7 +4,7 @@
 use std::iter::once;
 
 use hash_intrinsics::{intrinsics::DefinedIntrinsics, primitives::DefinedPrimitives};
-use hash_tir::new::{
+use hash_tir::{
     mods::{ModDefData, ModDefId, ModKind, ModMemberData, ModMemberValue},
     utils::{common::CommonUtils, AccessToUtils},
 };

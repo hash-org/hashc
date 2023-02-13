@@ -5,14 +5,12 @@ use itertools::Itertools;
 
 use super::common::CommonUtils;
 use crate::{
+    args::{Arg, ArgData, ArgsId, PatArg, PatArgData, PatArgsId, SomeArgsId},
+    environment::env::{AccessToEnv, Env},
     impl_access_to_env,
-    new::{
-        args::{Arg, ArgData, ArgsId, PatArg, PatArgData, PatArgsId, SomeArgsId},
-        environment::env::{AccessToEnv, Env},
-        params::{Param, ParamData, ParamIndex, ParamsId},
-        symbols::Symbol,
-        terms::TermId,
-    },
+    params::{Param, ParamData, ParamIndex, ParamsId},
+    symbols::Symbol,
+    terms::TermId,
 };
 
 #[derive(Constructor)]

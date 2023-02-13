@@ -14,7 +14,7 @@ use super::{
     scopes::{StackId, StackIndices},
     utils::common::CommonUtils,
 };
-use crate::new::{scopes::BlockTerm, terms::TermId};
+use crate::{scopes::BlockTerm, terms::TermId};
 
 /// A loop term.
 ///

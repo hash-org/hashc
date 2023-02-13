@@ -16,14 +16,14 @@ pub mod traversing;
 
 macro_rules! utils {
     ($($name:ident: $ty:ty),* $(,)?) => {
-        pub trait AccessToUtils: $crate::new::environment::env::AccessToEnv {
+        pub trait AccessToUtils: $crate::environment::env::AccessToEnv {
             $(
                 fn $name(&self) -> $ty {
                     <$ty>::new(self.env())
                 }
             )*
         }
-        impl<T: $crate::new::environment::env::AccessToEnv + ?Sized> AccessToUtils for T { }
+        impl<T: $crate::environment::env::AccessToEnv + ?Sized> AccessToUtils for T { }
     };
 }
 

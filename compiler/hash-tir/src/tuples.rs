@@ -7,7 +7,7 @@ use super::{
     environment::env::{AccessToEnv, WithEnv},
     pats::Spread,
 };
-use crate::new::{args::ArgsId, params::ParamsId};
+use crate::{args::ArgsId, params::ParamsId};
 
 /// A tuple type.
 ///

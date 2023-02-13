@@ -1,6 +1,6 @@
 //! This file contains logic surrounding [DeconstructedPat] which is a
-//! representation of a [hash_tir::old::Pat]  that is deconstructed and simplified
-//! to the point of being processable by the  usefulness algorithm. A
+//! representation of a [hash_tir::old::Pat]  that is deconstructed and
+//! simplified to the point of being processable by the  usefulness algorithm. A
 //! [DeconstructedPat] is essentially a tree representation of a `pat` with any
 //! of the inner fields of the pat being represented as child
 //! [DeconstructedPat]s stored within the  `fields` parameter of the structure.

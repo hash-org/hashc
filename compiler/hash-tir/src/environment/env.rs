@@ -2,7 +2,7 @@ use hash_ast::node_map::NodeMap;
 use hash_source::SourceMap;
 
 use super::source_info::CurrentSourceInfo;
-use crate::new::environment::{context::Context, stores::Stores};
+use crate::environment::{context::Context, stores::Stores};
 
 macro_rules! env {
     ($($name:ident: $ty:ty),* $(,)?) => {
@@ -59,7 +59,7 @@ env! {
 #[macro_export]
 macro_rules! impl_access_to_env {
     ($x:ident<$lt:lifetime>) => {
-        impl<$lt> $crate::new::environment::env::AccessToEnv for $x<$lt> {
+        impl<$lt> $crate::environment::env::AccessToEnv for $x<$lt> {
             fn env(&self) -> &Env {
                 &self.env
             }

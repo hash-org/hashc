@@ -7,17 +7,13 @@ use itertools::Itertools;
 
 use super::{common::CommonUtils, AccessToUtils};
 use crate::{
+    args::{ArgData, ArgsId},
+    data::{CtorDef, CtorDefData, CtorDefsId, DataDef, DataDefCtors, DataDefId, PrimitiveCtorInfo},
+    environment::env::{AccessToEnv, Env},
     impl_access_to_env,
-    new::{
-        args::{ArgData, ArgsId},
-        data::{
-            CtorDef, CtorDefData, CtorDefsId, DataDef, DataDefCtors, DataDefId, PrimitiveCtorInfo,
-        },
-        environment::env::{AccessToEnv, Env},
-        params::{ParamIndex, ParamsId},
-        symbols::Symbol,
-        terms::Term,
-    },
+    params::{ParamIndex, ParamsId},
+    symbols::Symbol,
+    terms::Term,
 };
 
 /// Data definition-related operations.

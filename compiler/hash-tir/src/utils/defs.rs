@@ -1,7 +1,7 @@
 //! General definition-related utilities.
 use derive_more::Constructor;
 
-use crate::{impl_access_to_env, new::environment::env::Env};
+use crate::{environment::env::Env, impl_access_to_env};
 
 /// Common definition-related operations.
 #[derive(Constructor)]

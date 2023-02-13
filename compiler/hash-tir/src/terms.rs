@@ -17,7 +17,7 @@ use super::{
     symbols::Symbol,
     tys::TypeOfTerm,
 };
-use crate::new::{
+use crate::{
     access::AccessTerm,
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
     data::CtorTerm,

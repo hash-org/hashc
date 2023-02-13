@@ -10,7 +10,7 @@ use hash_intrinsics::{
     primitives::{AccessToPrimitives, DefinedPrimitives},
 };
 use hash_source::ModuleKind;
-use hash_tir::new::environment::env::AccessToEnv;
+use hash_tir::environment::env::AccessToEnv;
 
 use self::scoping::{ContextKind, Scoping};
 use super::ast_utils::AstPass;
@@ -48,7 +48,7 @@ impl AccessToPrimitives for ResolutionPass<'_> {
 }
 
 impl AccessToEnv for ResolutionPass<'_> {
-    fn env(&self) -> &hash_tir::new::environment::env::Env {
+    fn env(&self) -> &hash_tir::environment::env::Env {
         self.tc_env.env()
     }
 }

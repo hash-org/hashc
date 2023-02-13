@@ -15,7 +15,7 @@ use super::{
     tys::Ty,
     utils::common::CommonUtils,
 };
-use crate::new::{args::ArgsId, params::ParamsId, symbols::Symbol, terms::TermId, tys::TyId};
+use crate::{args::ArgsId, params::ParamsId, symbols::Symbol, terms::TermId, tys::TyId};
 
 /// A function type.
 ///

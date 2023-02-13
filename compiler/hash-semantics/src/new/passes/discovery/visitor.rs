@@ -7,7 +7,7 @@ use hash_ast::{
 };
 use hash_reporting::{diagnostic::Diagnostics, macros::panic_on_span};
 use hash_source::identifier::Identifier;
-use hash_tir::new::{
+use hash_tir::{
     defs::DefId,
     environment::env::AccessToEnv,
     fns::{FnBody, FnDefData, FnTy},

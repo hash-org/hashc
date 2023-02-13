@@ -16,7 +16,7 @@ use super::{
     pats::Spread,
     tys::TyId,
 };
-use crate::new::{params::ParamsId, symbols::Symbol};
+use crate::{params::ParamsId, symbols::Symbol};
 
 /// A constructor of a data-type definition.
 ///

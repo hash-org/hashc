@@ -14,7 +14,7 @@ use super::{
     holes::Hole,
     symbols::Symbol,
 };
-use crate::new::{data::DataTy, fns::FnTy, refs::RefTy, terms::TermId, tuples::TupleTy};
+use crate::{data::DataTy, fns::FnTy, refs::RefTy, terms::TermId, tuples::TupleTy};
 
 /// The type of types, i.e. a universe.
 #[derive(Debug, Clone, Copy)]

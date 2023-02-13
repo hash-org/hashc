@@ -3,12 +3,10 @@ use derive_more::Constructor;
 use hash_utils::store::Store;
 
 use crate::{
+    environment::env::{AccessToEnv, Env},
     impl_access_to_env,
-    new::{
-        environment::env::{AccessToEnv, Env},
-        mods::ModDefId,
-        scopes::{Stack, StackId, StackMember, StackMemberData},
-    },
+    mods::ModDefId,
+    scopes::{Stack, StackId, StackMember, StackMemberData},
 };
 
 /// Operations related to the stack.

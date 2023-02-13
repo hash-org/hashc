@@ -7,25 +7,23 @@ use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
 
 use super::{common::CommonUtils, AccessToUtils};
 use crate::{
+    access::AccessTerm,
+    args::{ArgData, ArgsId, PatArgData, PatArgsId, PatOrCapture},
+    casting::CastTerm,
+    control::{IfPat, LoopTerm, MatchCase, MatchTerm, OrPat, ReturnTerm},
+    data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
+    environment::env::{AccessToEnv, Env, WithEnv},
+    fns::{FnBody, FnCallTerm, FnDefData, FnDefId, FnTy},
     impl_access_to_env,
-    new::{
-        access::AccessTerm,
-        args::{ArgData, ArgsId, PatArgData, PatArgsId, PatOrCapture},
-        casting::CastTerm,
-        control::{IfPat, LoopTerm, MatchCase, MatchTerm, OrPat, ReturnTerm},
-        data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
-        environment::env::{AccessToEnv, Env, WithEnv},
-        fns::{FnBody, FnCallTerm, FnDefData, FnDefId, FnTy},
-        lits::{ArrayPat, ListCtor, PrimTerm},
-        mods::{ModDefId, ModMemberId, ModMemberValue},
-        params::{ParamData, ParamsId},
-        pats::{Pat, PatId, PatListId},
-        refs::{DerefTerm, RefTerm, RefTy},
-        scopes::{AssignTerm, BlockTerm, DeclTerm},
-        terms::{Term, TermId, TermListId, UnsafeTerm},
-        tuples::{TuplePat, TupleTerm, TupleTy},
-        tys::{Ty, TyId, TypeOfTerm},
-    },
+    lits::{ArrayPat, ListCtor, PrimTerm},
+    mods::{ModDefId, ModMemberId, ModMemberValue},
+    params::{ParamData, ParamsId},
+    pats::{Pat, PatId, PatListId},
+    refs::{DerefTerm, RefTerm, RefTy},
+    scopes::{AssignTerm, BlockTerm, DeclTerm},
+    terms::{Term, TermId, TermListId, UnsafeTerm},
+    tuples::{TuplePat, TupleTerm, TupleTy},
+    tys::{Ty, TyId, TypeOfTerm},
 };
 
 /// Contains methods to traverse the Hash TIR structure.

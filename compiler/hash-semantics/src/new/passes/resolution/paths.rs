@@ -23,7 +23,7 @@ use std::fmt;
 
 use hash_ast::ast;
 use hash_source::{identifier::Identifier, location::Span};
-use hash_tir::new::{
+use hash_tir::{
     args::ArgsId,
     data::{CtorPat, CtorTerm, DataDefId},
     environment::{

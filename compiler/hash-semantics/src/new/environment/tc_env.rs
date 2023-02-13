@@ -4,7 +4,7 @@ use hash_intrinsics::{
 };
 use hash_reporting::diagnostic::{AccessToDiagnostics, DiagnosticCellStore, Diagnostics};
 // @@Docs
-use hash_tir::new::{
+use hash_tir::{
     environment::{
         context::Context,
         env::{AccessToEnv, Env},
@@ -236,8 +236,8 @@ macro_rules! impl_access_to_tc_env {
             }
         }
 
-        impl hash_tir::new::environment::env::AccessToEnv for $ty {
-            fn env(&self) -> &hash_tir::new::environment::env::Env {
+        impl hash_tir::environment::env::AccessToEnv for $ty {
+            fn env(&self) -> &hash_tir::environment::env::Env {
                 self.tc_env().env()
             }
         }

@@ -5,7 +5,7 @@ use hash_reporting::{
     reporter::{Reporter, Reports},
 };
 use hash_source::location::SourceLocation;
-use hash_tir::new::{
+use hash_tir::{
     environment::env::AccessToEnv, symbols::Symbol, terms::TermId, utils::common::CommonUtils,
 };
 use hash_typecheck::errors::{TcError, TcErrorReporter};

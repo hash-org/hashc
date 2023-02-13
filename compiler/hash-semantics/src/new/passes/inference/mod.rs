@@ -5,7 +5,7 @@
 
 use derive_more::Constructor;
 use hash_ast::ast;
-use hash_tir::new::{
+use hash_tir::{
     environment::env::AccessToEnv, locations::LocationTarget, utils::common::CommonUtils,
 };
 use hash_typecheck::{

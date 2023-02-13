@@ -15,7 +15,7 @@ use super::{
     environment::env::{AccessToEnv, WithEnv},
     fns::FnDefId,
 };
-use crate::new::symbols::Symbol;
+use crate::symbols::Symbol;
 
 // @@Todo: examples
 

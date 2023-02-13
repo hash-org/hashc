@@ -18,7 +18,7 @@ use super::{
     pats::Pat,
     terms::Term,
 };
-use crate::new::{
+use crate::{
     mods::ModDefId,
     pats::PatId,
     symbols::Symbol,

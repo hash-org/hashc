@@ -16,7 +16,7 @@ use super::{
     params::ParamIndex,
     pats::PatId,
 };
-use crate::new::terms::TermId;
+use crate::terms::TermId;
 
 /// An argument to a parameter.
 ///

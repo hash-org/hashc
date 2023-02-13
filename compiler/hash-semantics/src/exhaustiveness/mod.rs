@@ -140,7 +140,8 @@ impl<T: AccessToStorage> AccessToUsefulnessOps for T {}
 /// format `T` using [TcFormatter][hash_tir::old::fmt::TcFormatter].
 ///
 /// This can wrap any type, but only types that have corresponding `fmt_*`
-/// methods in [TcFormatter][hash_tir::old::fmt::TcFormatter] are useful with it.
+/// methods in [TcFormatter][hash_tir::old::fmt::TcFormatter] are useful with
+/// it.
 pub struct PatForFormatting<'tc, T> {
     pub item: T,
     pub storage: StorageRef<'tc>,
