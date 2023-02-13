@@ -25,7 +25,7 @@ use hash_pipeline::{
 };
 use hash_reporting::{report::Report, writer::ReportWriter};
 use hash_semantics::{
-    new::environment::tc_env::SemanticStorage, Typechecker, TypecheckingCtx, TypecheckingCtxQuery,
+    environment::tc_env::SemanticStorage, Typechecker, TypecheckingCtx, TypecheckingCtxQuery,
 };
 use hash_source::{entry_point::EntryPointState, SourceId, SourceMap};
 use hash_tir::old::storage::{GlobalStorage, LocalStorage, TyStorage};

@@ -16,10 +16,7 @@
 
 use std::cell::RefCell;
 
-use diagnostics::{
-    error::{TcError, TcErrorWithStorage},
-    warning::{TcWarning, TcWarningWithStorage},
-};
+use environment::tc_env::{AccessToTcEnv, SemanticStorage, TcEnv};
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerStage},
     settings::{CompilerSettings, CompilerStageKind},
@@ -36,21 +33,25 @@ use hash_tir::{
     },
 };
 use hash_utils::stream_less_writeln;
-use new::environment::tc_env::{AccessToTcEnv, SemanticStorage, TcEnv};
-use storage::{
-    cache::Cache, exhaustiveness::ExhaustivenessStorage, sources::CheckedSources, AccessToStorage,
-    StorageRef,
+use old::{
+    diagnostics::{
+        error::{TcError, TcErrorWithStorage},
+        warning::{TcWarning, TcWarningWithStorage},
+    },
+    storage::{
+        cache::Cache, exhaustiveness::ExhaustivenessStorage, sources::CheckedSources,
+        AccessToStorage, StorageRef,
+    },
+    traverse::visitor::TcVisitor,
 };
-use traverse::visitor::TcVisitor;
 
-use crate::new::diagnostics::error::SemanticError;
+use crate::diagnostics::error::SemanticError;
 
 pub mod diagnostics;
-pub mod exhaustiveness;
-pub mod new;
+pub mod environment;
+pub mod old;
 pub mod ops;
-pub mod storage;
-pub mod traverse;
+pub mod passes;
 
 /// The Hash typechecker compiler stage. This will walk the AST, and
 /// typecheck all items within the current compiler [Workspace].
@@ -152,22 +153,23 @@ impl<Ctx: TypecheckingCtxQuery> CompilerStage<Ctx> for Typechecker {
             settings,
             workspace,
             entry_point_state: &ep_state,
-            _new: TcEnv::new(
-                &env,
-                &semantic_storage.diagnostics,
-                &semantic_storage.ast_info,
-                &semantic_storage.prelude_or_unset,
-                &semantic_storage.primitives_or_unset,
-                &semantic_storage.intrinsics_or_unset,
-            ),
         };
+
+        let tc_env = TcEnv::new(
+            &env,
+            &semantic_storage.diagnostics,
+            &semantic_storage.ast_info,
+            &semantic_storage.prelude_or_unset,
+            &semantic_storage.primitives_or_unset,
+            &semantic_storage.intrinsics_or_unset,
+        );
 
         // @@Hack: for now we use the `USE_NEW_TC` env variable to switch between the
         // old and new typechecker. This will be removed once the new
         // typechecker is complete.
 
         if std::env::var_os("USE_NEW_TC").is_some() {
-            let tc_visitor = new::passes::TcVisitor::new(&storage._new);
+            let tc_visitor = passes::TcVisitor::new(&tc_env);
             tc_visitor.visit_source();
 
             if tc_visitor.tc_env().diagnostics().has_errors() {
