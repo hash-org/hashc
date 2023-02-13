@@ -1,15 +1,15 @@
 //! Contains context-related utilities.
 use derive_more::Constructor;
-use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
+use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
 
-use super::common::CommonUtils;
+use super::{common::CommonUtils, AccessToUtils};
 use crate::{
     impl_access_to_env,
     new::{
         args::{ArgId, ArgsId},
         data::{DataDefCtors, DataDefId},
         environment::{
-            context::{Binding, BindingKind, EqualityJudgement, ParamOrigin, ScopeKind},
+            context::{Binding, BindingKind, Context, EqualityJudgement, ParamOrigin, ScopeKind},
             env::{AccessToEnv, Env},
         },
         fns::FnDefId,
@@ -39,6 +39,21 @@ impl<'env> ContextUtils<'env> {
         // @@Safety: Maybe we should check that the param belongs to the current scope?
         let name = self.stores().params().map_fast(param_id.0, |params| params[param_id.1].name);
         self.context().add_binding(Binding { name, kind: BindingKind::Param(origin, param_id) });
+    }
+
+    /// Add parameter bindings from the given parameters.
+    ///
+    /// This should be used when entering an already resolved scope that has
+    /// parameters.
+    pub fn add_param_bindings(&self, params_id: ParamsId, origin: ParamOrigin) {
+        self.stores().params().map_fast(params_id, |params| {
+            for i in params_id.to_index_range() {
+                self.context().add_binding(Binding {
+                    name: params[i].name,
+                    kind: BindingKind::Param(origin, (params_id, i)),
+                });
+            }
+        });
     }
 
     /// Add an argument binding to the current scope.
@@ -93,6 +108,18 @@ impl<'env> ContextUtils<'env> {
             }
             _ => panic!("add_stack_binding called in non-stack scope"),
         }
+    }
+
+    /// Add stack bindings from the given stack, with empty values.
+    pub fn add_stack_bindings(&self, stack_id: StackId) {
+        self.stores().stack().map_fast(stack_id, |stack| {
+            for i in 0..stack.members.len() {
+                self.context().add_binding(Binding {
+                    name: stack.members[i].name,
+                    kind: BindingKind::StackMember((stack_id, i), None),
+                });
+            }
+        });
     }
 
     /// Add the given declaration term to the context.
@@ -191,5 +218,56 @@ impl<'env> ContextUtils<'env> {
             }
         }
         None
+    }
+
+    /// Add the members of the given scope to the context.
+    pub fn add_resolved_scope_members(&self, kind: ScopeKind) {
+        match kind {
+            ScopeKind::Mod(mod_def_id) => {
+                self.add_mod_members(mod_def_id, |_| {});
+            }
+            ScopeKind::Stack(stack_id) => {
+                self.add_stack_bindings(stack_id);
+            }
+            ScopeKind::Fn(fn_def_id) => {
+                let fn_def = self.stores().fn_def().get(fn_def_id);
+                self.add_param_bindings(fn_def.ty.params, ParamOrigin::Fn(fn_def_id));
+            }
+            ScopeKind::Data(data_def_id) => {
+                let data_def = self.stores().data_def().get(data_def_id);
+
+                // Params
+                self.add_param_bindings(data_def.params, ParamOrigin::Data(data_def_id));
+
+                // Constructors
+                self.add_data_ctors(data_def_id, |_| {});
+            }
+            ScopeKind::Ctor(ctor_def_id) => {
+                let ctor_def = self.stores().ctor_defs().get_element(ctor_def_id);
+                self.add_param_bindings(ctor_def.params, ParamOrigin::Ctor(ctor_def_id));
+            }
+            ScopeKind::FnTy(fn_ty) => {
+                self.add_param_bindings(fn_ty.params, ParamOrigin::FnTy(fn_ty));
+            }
+            ScopeKind::TupleTy(tuple_ty) => {
+                self.add_param_bindings(tuple_ty.data, ParamOrigin::TupleTy(tuple_ty));
+            }
+        }
+    }
+
+    /// Enter a resolved scope.
+    ///
+    /// Entering a resolved scope will add all the members of the scope to the
+    /// context at once, so that you don't have to add them manually as you
+    /// find them.
+    pub fn enter_resolved_scope_mut<T, This: AccessToEnv>(
+        this: &mut This,
+        kind: ScopeKind,
+        f: impl FnOnce(&mut This) -> T,
+    ) -> T {
+        Context::enter_scope_mut(this, kind, |this| {
+            this.context_utils().add_resolved_scope_members(kind);
+            f(this)
+        })
     }
 }
