@@ -8,15 +8,13 @@ use hash_reporting::{
 };
 use hash_source::location::SourceLocation;
 use hash_tir::{
+    environment::env::{AccessToEnv, Env},
     impl_access_to_env,
-    new::{
-        environment::env::{AccessToEnv, Env},
-        locations::LocationTarget,
-        params::{ParamIndex, ParamsId, SomeParamsOrArgsId},
-        terms::TermId,
-        tys::TyId,
-        utils::common::CommonUtils,
-    },
+    locations::LocationTarget,
+    params::{ParamIndex, ParamsId, SomeParamsOrArgsId},
+    terms::TermId,
+    tys::TyId,
+    utils::common::CommonUtils,
 };
 use hash_utils::store::SequenceStoreKey;
 

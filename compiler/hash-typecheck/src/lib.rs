@@ -3,7 +3,7 @@
 use errors::{TcError, TcErrorState, TcResult};
 use hash_intrinsics::{intrinsics::AccessToIntrinsics, primitives::AccessToPrimitives};
 use hash_reporting::diagnostic::{AccessToDiagnostics, Diagnostics};
-use hash_tir::new::environment::env::AccessToEnv;
+use hash_tir::environment::env::AccessToEnv;
 use inference::InferenceOps;
 use substitution::SubstitutionOps;
 use unification::UnificationOps;

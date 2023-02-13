@@ -20,11 +20,11 @@ use hash_pipeline::{
 use hash_reporting::reporter::Reports;
 use hash_source::SourceId;
 
-pub struct SemanticAnalysis;
+pub struct UntypedSemanticAnalysis;
 
 /// The [SemanticAnalysisCtx] represents all of the required information
 /// that the [SemanticAnalysis] stage needs to query from the pipeline.
-pub struct SemanticAnalysisCtx<'s> {
+pub struct UntypedSemanticAnalysisCtx<'s> {
     /// Reference to the current compiler workspace.
     pub workspace: &'s mut Workspace,
 
@@ -34,11 +34,11 @@ pub struct SemanticAnalysisCtx<'s> {
 
 /// A trait that allows the [SemanticAnalysis] stage to query the
 /// pipeline for the required information.
-pub trait SemanticAnalysisCtxQuery: CompilerInterface {
-    fn data(&mut self) -> SemanticAnalysisCtx;
+pub trait UntypedSemanticAnalysisCtxQuery: CompilerInterface {
+    fn data(&mut self) -> UntypedSemanticAnalysisCtx;
 }
 
-impl<Ctx: SemanticAnalysisCtxQuery> CompilerStage<Ctx> for SemanticAnalysis {
+impl<Ctx: UntypedSemanticAnalysisCtxQuery> CompilerStage<Ctx> for UntypedSemanticAnalysis {
     fn kind(&self) -> CompilerStageKind {
         CompilerStageKind::SemanticPass
     }
@@ -54,7 +54,7 @@ impl<Ctx: SemanticAnalysisCtxQuery> CompilerStage<Ctx> for SemanticAnalysis {
     /// interactive case), the most recent block is always passed.
     fn run(&mut self, entry_point: SourceId, stage_data: &mut Ctx) -> CompilerResult<()> {
         let (sender, receiver) = unbounded::<AnalysisDiagnostic>();
-        let SemanticAnalysisCtx { workspace, pool } = stage_data.data();
+        let UntypedSemanticAnalysisCtx { workspace, pool } = stage_data.data();
 
         let source_map = &workspace.source_map;
         let node_map = &mut workspace.node_map;

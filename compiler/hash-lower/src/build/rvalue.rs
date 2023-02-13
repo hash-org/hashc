@@ -10,7 +10,7 @@ use hash_source::{
     constant::{IntConstant, IntTy, CONSTANT_MAP},
     location::Span,
 };
-use hash_tir::scope::ScopeKind;
+use hash_tir::old::scope::ScopeKind;
 use hash_utils::store::Store;
 
 use super::{category::Category, unpack, BlockAnd, BlockAndExtend, Builder};

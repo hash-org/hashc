@@ -5,7 +5,7 @@
 use std::ops::ControlFlow;
 
 use derive_more::{Constructor, Deref};
-use hash_tir::new::{
+use hash_tir::{
     atom_info::ItemInAtomInfo,
     environment::env::AccessToEnv,
     fns::{FnBody, FnDefId},

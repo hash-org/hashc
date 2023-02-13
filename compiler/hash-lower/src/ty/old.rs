@@ -6,7 +6,7 @@ use hash_source::{
     constant::{FloatTy, SIntTy, UIntTy, CONSTANT_MAP},
     identifier::IDENTS,
 };
-use hash_tir::{
+use hash_tir::old::{
     fmt::{PrepareForFormatting, TcFormatOpts},
     location::LocationTarget,
     nominals::{EnumDef, EnumVariantValue, NominalDef, NominalDefId, StructFields},

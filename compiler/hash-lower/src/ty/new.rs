@@ -13,7 +13,7 @@ use hash_source::{
     identifier::IDENTS,
 };
 use hash_target::size::Size;
-use hash_tir::new::{
+use hash_tir::{
     data::{
         ArrayCtorInfo, DataDefCtors, DataTy, NumericCtorBits, NumericCtorInfo, PrimitiveCtorInfo,
     },
@@ -127,9 +127,9 @@ impl<'ir> TyLoweringCtx<'ir> {
                 let ty = self.ty_id_from_tir_ty(*ty);
                 let mutability = if *mutable { Mutability::Mutable } else { Mutability::Immutable };
                 let ref_kind = match kind {
-                    hash_tir::new::refs::RefKind::Rc => ty::RefKind::Rc,
-                    hash_tir::new::refs::RefKind::Raw => ty::RefKind::Raw,
-                    hash_tir::new::refs::RefKind::Local => ty::RefKind::Normal,
+                    hash_tir::refs::RefKind::Rc => ty::RefKind::Rc,
+                    hash_tir::refs::RefKind::Raw => ty::RefKind::Raw,
+                    hash_tir::refs::RefKind::Local => ty::RefKind::Normal,
                 };
 
                 IrTy::Ref(ty, mutability, ref_kind)

@@ -4,7 +4,7 @@ use std::ops::ControlFlow;
 use derive_more::{Constructor, Deref, From};
 use hash_ast::ast::RangeEnd;
 use hash_intrinsics::utils::PrimitiveUtils;
-use hash_tir::new::{
+use hash_tir::{
     access::AccessTerm,
     args::{ArgData, ArgsId, PatArgsId, PatOrCapture},
     atom_info::ItemInAtomInfo,

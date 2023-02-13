@@ -20,7 +20,7 @@ use hash_source::{
     identifier::{Identifier, IDENTS},
     SourceId, SourceMap,
 };
-use hash_tir::{scope::ScopeId, storage::TyStorage};
+use hash_tir::old::{scope::ScopeId, storage::TyStorage};
 use hash_utils::store::CloneStore;
 
 use crate::build::{BuildItem, Builder};

@@ -3,19 +3,28 @@
 #![feature(option_result_contains, let_chains, decl_macro, trait_alias)]
 #![recursion_limit = "128"]
 
-pub(crate) mod bootstrap;
-
+pub mod access;
 pub mod args;
-pub mod builder;
-pub mod fmt;
-pub mod location;
+pub mod atom_info;
+pub mod casting;
+pub mod control;
+pub mod data;
+pub mod defs;
+pub mod environment;
+pub mod fns;
+pub mod holes;
+pub mod intrinsics;
+pub mod lits;
+pub mod locations;
 pub mod mods;
-pub mod new;
-pub mod nodes;
-pub mod nominals;
+pub mod old;
 pub mod params;
 pub mod pats;
-pub mod scope;
-pub mod storage;
+pub mod refs;
+pub mod scopes;
+pub mod sub;
+pub mod symbols;
 pub mod terms;
-pub mod trts;
+pub mod tuples;
+pub mod tys;
+pub mod utils;

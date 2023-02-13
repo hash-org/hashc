@@ -9,7 +9,7 @@ use hash_ir::{
     ty::{IrTy, IrTyId},
 };
 use hash_source::location::Span;
-use hash_tir::pats::PatId;
+use hash_tir::old::pats::PatId;
 use smallvec::SmallVec;
 
 use super::candidate::{Candidate, MatchPair};

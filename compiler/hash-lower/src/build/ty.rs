@@ -10,7 +10,7 @@ use hash_ir::{
     ty::{IrTy, IrTyId, VariantIdx},
 };
 use hash_source::{constant::CONSTANT_MAP, identifier::IDENTS};
-use hash_tir::{
+use hash_tir::old::{
     nominals::{EnumVariantValue, NominalDefId},
     storage::GlobalStorage,
     terms::{FnLit, FnTy, Level0Term, Level1Term, LitTerm, Term, TermId},

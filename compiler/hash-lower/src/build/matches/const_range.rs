@@ -5,7 +5,7 @@ use std::cmp::Ordering;
 
 use hash_ast::ast;
 use hash_ir::ir::{compare_constant_values, Const};
-use hash_tir::pats::RangePat;
+use hash_tir::old::pats::RangePat;
 
 use crate::build::Builder;
 

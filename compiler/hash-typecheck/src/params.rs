@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use derive_more::{Constructor, Deref};
-use hash_tir::new::{
+use hash_tir::{
     args::{ArgData, ArgsId, PatArgData, PatArgsId, PatOrCapture, SomeArgId, SomeArgsId},
     params::{ParamId, ParamIndex, ParamsId},
     pats::Spread,
